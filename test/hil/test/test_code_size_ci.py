@@ -97,6 +97,16 @@ class Baseline(unittest.TestCase):
         self.assertEqual((info['sha'], info['exact'], info['run_id']), (sha('a'), False, 7))
         self.assertIn('1 master commits before', info['note'])
 
+    def test_a_local_caller_names_whose_changes_the_gap_counts_as(self):
+        fake = FakeGh({sha('b'): sha('a')}, {sha('a'): [run(7, sha('a'))]}, {7: SNAPSHOTS})
+        with mock.patch.object(ci, 'gh', fake):
+            self.assertTrue(ci.lookup_sha(NAME, sha('b'), 'yours')['note'].endswith('their changes count as yours'))
+
+    def test_a_stalled_gh_call_is_an_api_failure(self):
+        with mock.patch.object(ci.subprocess, 'run', side_effect=ci.subprocess.TimeoutExpired('gh', 60)), \
+             self.assertRaisesRegex(RuntimeError, 'no reply in 60 s'):
+            ci.gh('repos/x')
+
     def test_expired_artifacts_do_not_count(self):
         expired = [artifact(1, 'code-size-scope'), artifact(2, 'code-size-arm-gcc-x', expired=True)]
         fake = FakeGh({sha('b'): sha('a')}, {sha('b'): [run(8, sha('b'))], sha('a'): [run(7, sha('a'))]},

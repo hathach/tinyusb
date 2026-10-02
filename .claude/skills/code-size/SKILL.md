@@ -5,7 +5,7 @@ description: Use when sizing TinyUSB examples per file, section or symbol (repor
 
 # Code Size
 
-`tools/code_size.py report` sizes the working tree, uncommitted changes included. `diff` builds a base ref (default `master`) in a temporary worktree and the working tree, pairs elfs by board and elf path, and reports per-file deltas. Pick the narrowest scope that exercises the change; sizes are never summed or averaged across examples or boards.
+`tools/code_size.py report` sizes the working tree, uncommitted changes included. `diff` sizes the working tree against a base ref (default `master`), pairs elfs by board and elf path, and reports per-file deltas. Pick the narrowest scope that exercises the change; sizes are never summed or averaged across examples or boards.
 
 | Scope                             | Command                                                        |
 |-----------------------------------|----------------------------------------------------------------|
@@ -14,7 +14,7 @@ description: Use when sizing TinyUSB examples per file, section or symbol (repor
 | all examples, CI-pinned, combined | `python3 tools/code_size.py diff --ci`                         |
 | one tree, no diff                 | `python3 tools/code_size.py report -b BOARD -e device/cdc_msc` |
 
-The base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in the diff. A local `report` or `diff` cannot size a `-D` variant build.
+By default the base comes from the master snapshots CI stored for `--base-branch`'s commit (`--baseline-repo`, default `hathach/tinyusb`, through your `gh` login; cached in `cmake-code-size/_baseline/`), else its nearest first-parent ancestor's, labelled approximate: master changes after it count as yours. `--base-branch` means its tip; pass a merge-base SHA to diff against that. When the CI base cannot be had (no `gh` or login, no stored run within 30 commits, a base off master, a failed download) or `-f`, `--bloaty` or another `--engine` needs an elf, the base is built locally in a temporary worktree and the report's `Base:` line says why; `--base-source ci` fails instead, `--base-source local` always builds and makes no GitHub call. Against a CI base, a board whose compiler or membrowse version differs from yours, or is unknown, is still compared with a warning naming both; `-DMA` variant snapshots are excluded, never substituted. A local base worktree symlinks this checkout's fetched dependencies, so a `tools/get_deps.py` pin bump's own size change is not in its diff, while a CI base was built with CI's. A local `report` or `diff` cannot size a `-D` variant build.
 
 ## Setup and choices
 
@@ -30,7 +30,7 @@ Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 
 Reports go under `cmake-code-size/<board>/`, combined diffs under `cmake-code-size/_combined/`. A local command exits nonzero on a build or report failure or when no TinyUSB file matched; `report` also when it sized no elf, `diff` when it compared no pair. A failed build prints an excerpt on the console; its report records the first compiler, linker or CMake error.
 
-Approximate times: one diff example ~30 s, one board ~1-1.5 min, an espressif board 10+ min, `--ci` 30+ min. A report is about half a diff. A diff rebuilds both trees every run, so ask for `--symbols` or `--bloaty` in the same run. Run a long sweep in the background.
+Approximate times: one diff example ~30 s, one board ~1-1.5 min, an espressif board 10+ min, `--ci` 30+ min. A report is about half a diff. A diff rebuilds every tree it builds on each run, so ask for `--symbols` or `--bloaty` in the same run. Run a long sweep in the background.
 
 Each report opens with a coverage line. `INCOMPLETE` means a build, measurement or filter match failed, or an elf exists on one side only; those elfs are listed and excluded, never counted as zero. Show the coverage line and the relevant tables, then:
 

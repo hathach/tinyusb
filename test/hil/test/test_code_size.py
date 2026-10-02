@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -1254,6 +1255,8 @@ class MainFailure(unittest.TestCase):
         is its side_effect (it must create the board dir, as the real one does);
         `generate` the generate_sizes() side_effect. Returns (rc, stdout)."""
         ok = subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
+        if '--base-source' not in argv:  # the default would look up a CI base
+            argv = argv + ['--base-source', 'local']
         with mock.patch.object(sys, 'argv', ['code_size.py', 'diff'] + argv), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run or (lambda *_a, **_k: ok)), \
@@ -1346,6 +1349,8 @@ class MainFailure(unittest.TestCase):
         cmds = []
 
         def run(cmd, **_kwargs):
+            if 'rev-parse' in cmd:
+                return subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
             cmds.append(cmd)
             return failed
         with tempfile.TemporaryDirectory() as tmp:
@@ -1678,14 +1683,14 @@ class MainFailure(unittest.TestCase):
                 os.makedirs(cmd[-2])
             return ok
         with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b', '--base-source', 'local']), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run), \
              mock.patch.object(sd, 'symlink_deps', side_effect=FileNotFoundError('tools/get_deps.py')), \
              contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(FileNotFoundError):
                 sd.main()
-        self.assertEqual(cmds, [['worktree', 'add'], ['worktree', 'remove']])
+        self.assertEqual(cmds, [['rev-parse', '--verify'], ['worktree', 'add'], ['worktree', 'remove']])
 
     def test_a_worktree_add_stopped_by_a_signal_is_removed(self):
         cmds = []
@@ -1697,7 +1702,7 @@ class MainFailure(unittest.TestCase):
                 raise SystemExit(143)  # exit_on_termination(), through run()
             return subprocess.CompletedProcess([], 0, '', '')
         with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b', '--base-source', 'local']), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run), \
              contextlib.redirect_stdout(io.StringIO()):
@@ -2485,6 +2490,316 @@ class SymlinkDeps(unittest.TestCase):
             self.assertFalse(os.path.islink(os.path.join(wt, 'lib/lwip')))
             self.assertFalse(os.path.lexists(os.path.join(wt, 'lib/not_fetched')))
             self.assertFalse(os.path.lexists(os.path.join(wt, 'hw/mcu/raspberry_pi/tracked')))
+
+
+def _fake_ci(info=None, attempts=(1, 1), error=None):
+    """A code_size_ci stand-in: lookup_sha() answers `info` (a found run 7 of 'b'*40 by
+    default) or raises `error`; each run lookup returns the next of `attempts`."""
+    attempts = iter(attempts)
+
+    def lookup_sha(_repo, _sha, _whose):
+        if error:
+            raise error
+        return info or {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': True, 'run_id': 7}
+    return types.SimpleNamespace(
+        lookup_sha=lookup_sha, gh=lambda _path: {'run_attempt': next(attempts)},
+        gh_items=lambda _path, _key: [{'name': 'code-size-scope', 'id': 11}, {'name': 'code-size-arm-gcc-fam', 'id': 12},
+                                      {'name': 'hil-report', 'id': 13}])
+
+
+class CiBaseline(unittest.TestCase):
+    def baseline(self, fake, downloads=None, rc=0):
+        """ci_baseline() of 'b'*40 with `fake` as code_size_ci and gh run download stubbed
+        (exit `rc`): `downloads` collects each -D dir, which gets a scope artifact."""
+        def run(cmd, **_kwargs):
+            if downloads is not None:
+                downloads.append(cmd[-1])
+            _write(cmd[-1], 'code-size-scope/scope.json', {'schema': 1, 'code_changed': True, 'legs': []})
+            return subprocess.CompletedProcess(cmd, rc, '', 'HTTP 410: artifact expired' if rc else '')
+        with mock.patch.object(sd, '_load_module', return_value=fake), \
+             mock.patch.object(sd.shutil, 'which', return_value='/usr/bin/gh'), \
+             mock.patch.object(sd, 'run', side_effect=run):
+            return sd.ci_baseline('o/r', 'b' * 40)
+
+    def test_a_found_run_is_downloaded_once_and_its_manifest_kept_apart(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+            downloads = []
+            path, info = self.baseline(_fake_ci(), downloads)
+            self.assertEqual(info['run_id'], 7)
+            cache = os.path.join(tmp, '_baseline', 'o_r', '7-1')
+            self.assertEqual(path, os.path.join(cache, 'snapshots'))
+            with open(os.path.join(cache, 'manifest.json')) as f:
+                self.assertEqual(json.load(f), {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1, 'artifacts':
+                                                {'code-size-scope': 11, 'code-size-arm-gcc-fam': 12}})
+            self.assertEqual(sd.load_snapshots(path)['errors'], [])  # the manifest is no snapshot file
+            self.assertEqual(self.baseline(_fake_ci(attempts=(1,)), downloads)[0], path)
+            self.assertEqual(len(downloads), 1)  # the second lookup reused the published copy
+
+    def test_a_rerun_during_the_download_is_retried_under_its_attempt(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+            downloads = []
+            path, _info = self.baseline(_fake_ci(attempts=(1, 2, 2)), downloads)
+            self.assertEqual(os.path.basename(os.path.dirname(path)), '7-2')
+            self.assertEqual(len(downloads), 2)
+            self.assertEqual(os.listdir(os.path.join(tmp, '_baseline', 'o_r')), ['7-2'])  # the first copy discarded
+
+    def test_what_makes_the_ci_base_unavailable(self):
+        cases = {'no master Build run with snapshots': _fake_ci(info={'sha': None, 'note': 'no master Build run with '
+                                                                                          'snapshots'}),
+                 'the baseline lookup failed: gh api x: HTTP 401': _fake_ci(error=RuntimeError('gh api x: HTTP 401'))}
+        for why, fake in cases.items():
+            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+                with self.assertRaisesRegex(sd.BaselineUnavailable, re.escape(why)):
+                    self.baseline(fake)
+        with mock.patch.object(sd.shutil, 'which', return_value=None), \
+             self.assertRaisesRegex(sd.BaselineUnavailable, 'gh not found'):
+            sd.ci_baseline('o/r', 'b' * 40)
+
+    def test_a_failed_download_publishes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'CODE_SIZE_DIR', tmp):
+            with self.assertRaisesRegex(sd.BaselineUnavailable, 'artifact expired'):
+                self.baseline(_fake_ci(), rc=1)
+            self.assertEqual(os.listdir(os.path.join(tmp, '_baseline', 'o_r')), [])
+
+
+class BaselineShards(unittest.TestCase):
+    BASELINE = {'sha': 'b' * 40}
+
+    def shards(self, shards, boards=('b1',), legs=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            return sd.baseline_shards(_run_dir(tmp, shards, legs), self.BASELINE, list(boards))
+
+    def test_only_built_boards_count_and_others_are_excluded(self):
+        shards, failures, excluded = self.shards([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
+                                                  _shard('b1-DMA', {'device/a/a.elf': _elf(2)}, sha='b')])
+        self.assertEqual((list(shards), failures, excluded), (['b1'], [], ['b1-DMA']))
+
+    def test_unusable_baselines_are_base_failures_never_zero(self):
+        cases = {
+            'no baseline snapshot': [_shard('b2', {}, sha='b')],
+            'the build step ended failure': [{**_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
+                                              'build_outcome': 'failure'}],
+            'the snapshots are not of the selected baseline commit': [_shard('b1', {'device/a/a.elf': _elf(1)}, sha='d')],
+        }
+        for why, shards in cases.items():
+            with self.subTest(why):
+                usable, failures, _excluded = self.shards(shards)
+                self.assertEqual(usable, {})
+                self.assertIn(why, [f[3] for f in failures])
+                self.assertTrue(all(f[1] == 'base' for f in failures))
+
+    def test_a_shard_outside_its_legs_boards_is_a_base_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _run_dir(tmp, [_shard('b9', {}, sha='b')])
+            _write(tmp, 'code-size-arm-gcc-fam/code-size-b1.json',
+                   {k: v for k, v in _shard('b1', {'device/a/a.elf': _elf(1)}).items() if k not in LEG_KEYS})
+            usable, failures, _excluded = sd.baseline_shards(sd.load_snapshots(tmp), self.BASELINE, ['b1'])
+        self.assertEqual(usable, {})
+        self.assertEqual(failures, [(('b1', None), 'base', 'snapshot', 'not a board of its leg\'s build')])
+
+
+class PairBaseShard(unittest.TestCase):
+    def test_examples_scope_the_base_and_a_failed_base_elf_is_not_new(self):
+        base = _shard('b1', {'device/a/a.elf': _elf(1), 'device/z/z.elf': _elf(2)},
+                      failures=[{'elf': 'device/a/n.elf', 'stage': 'report', 'message': 'boom'},
+                                {'elf': 'device/z/y.elf', 'stage': 'report', 'message': 'other scope'}])
+        cur = {'device/a/a.elf': _elf(3), 'device/a/n.elf': _elf(1)}
+        sizes, failures, current, outside = sd._pair_base_shard('b1', base, cur, ['device/a'])
+        self.assertEqual(sizes, {('b1', 'device/a/a.elf'): _elf(1)})
+        self.assertEqual(failures, [(('b1', 'device/a/n.elf'), 'base', 'report', 'boom')])
+        self.assertEqual(current, {('b1', 'device/a/a.elf'): _elf(3)})
+        self.assertEqual(outside, 1)
+
+
+class MetadataWarnings(unittest.TestCase):
+    GCC = {'id': 'GNU', 'name': 'arm-none-eabi-gcc', 'version': '14.2.1', 'build_type': 'MinSizeRel'}
+
+    def warnings(self, base, cur, base_m='1.2.12', cur_m='1.2.12'):
+        return sd.metadata_warnings('b1', {'compiler': base, 'membrowse_version': base_m}, cur, cur_m)
+
+    def test_matching_metadata_warns_nothing(self):
+        self.assertEqual(self.warnings(self.GCC, dict(self.GCC)), [])
+        esp = {**self.GCC, 'build_type': ''}  # ESP-IDF records no build type on either side
+        self.assertEqual(self.warnings(esp, dict(esp)), [])
+
+    def test_each_kind_of_difference_shows_both_sides(self):
+        self.assertEqual(self.warnings(self.GCC, {**self.GCC, 'version': '13.3.1'}),
+                         ['b1: base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with GNU '
+                          'arm-none-eabi-gcc 13.3.1 MinSizeRel: deltas may include the toolchain change'])
+        self.assertIn('base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with Clang arm-none-eabi-gcc',
+                      self.warnings(self.GCC, {**self.GCC, 'id': 'Clang'})[0])
+        self.assertEqual(self.warnings(self.GCC, self.GCC, cur_m='1.2.9'),
+                         ['b1: base measured with membrowse 1.2.12, current with 1.2.9: per-file attribution may differ'])
+
+    def test_unknown_metadata_names_every_unknown_side(self):
+        self.assertEqual(self.warnings({}, {}, base_m='', cur_m=''),
+                         ['b1: compiler unknown on the base and current side: comparability cannot be established',
+                          'b1: membrowse version unknown on the base and current side: comparability cannot be '
+                          'established'])
+        self.assertIn('compiler unknown on the current side', self.warnings(self.GCC, {**self.GCC, 'version': ''})[0])
+        self.assertIn('compiler unknown on the base side', self.warnings('gcc 14', self.GCC)[0])
+        self.assertEqual(self.warnings(self.GCC, self.GCC, cur_m=''),
+                         ['b1: membrowse version unknown on the current side: comparability cannot be established'])
+
+
+class DiffBaseSource(unittest.TestCase):
+    """main()'s diff with the base from CI snapshots, from a local build, or the fallback."""
+    GCC = MetadataWarnings.GCC
+
+    def base(self, elfs=None, **kwargs):
+        """A baseline shard of b1 measured like the current build."""
+        return {**_shard('b1', elfs or {'device/a/a.elf': _elf(1)}, sha='b', **kwargs),
+                'compiler': self.GCC, 'membrowse_version': '1.2.9'}
+
+    def diff(self, tmp, argv, unavailable=None, cur=None, base_shards=None, compiler=None, extra=None):
+        """main()'s diff of `-b b1 --json` + `argv`: ci_baseline() returns `base_shards` (plus
+        `extra` files) as run 7 of 'b'*40, or raises `unavailable`; the current side sizes
+        as `cur`. Returns rc, out, builds as (src, board), git commands, md, data, looked_up."""
+        builds, cmds = [], []
+        cur = cur if cur is not None else {'device/a/a.elf': _elf(3)}
+
+        def ci_baseline(_repo, _sha):
+            if unavailable:
+                raise sd.BaselineUnavailable(unavailable)
+            root = os.path.join(tmp, '_dl')
+            _run_dir(root, base_shards or [self.base()])
+            for rel, text in (extra or {}).items():
+                os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+                with open(os.path.join(root, rel), 'w') as f:
+                    f.write(text)
+            return root, {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': True, 'run_id': 7}
+
+        def build(src, _build_dir, board, *_a):
+            builds.append((src, board))
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd[3:5])
+            if cmd[3:5] == ['worktree', 'add']:
+                os.makedirs(cmd[-2])
+            return subprocess.CompletedProcess(cmd, 0, 'c0ffee\n', '')
+
+        def generate(build_dir, *_a):
+            return (cur if build_dir.endswith('build') else {'device/a/a.elf': _elf(1)}), []
+
+        with mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b1', '--json'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), mock.patch.object(sd, 'run', side_effect=run), \
+             mock.patch.object(sd, 'symlink_deps'), mock.patch.object(sd, 'build_board', side_effect=build), \
+             mock.patch.object(sd, 'generate_sizes', side_effect=generate), \
+             mock.patch.object(sd, 'ci_baseline', side_effect=ci_baseline) as lookup, \
+             mock.patch.object(sd, '_cmake_compiler', return_value=compiler or self.GCC), \
+             mock.patch.object(sd, '_membrowse_version', return_value='1.2.9'):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = sd.main()
+        md = data = None
+        reports = sorted(f for f in os.listdir(os.path.join(tmp, 'b1')) if f.startswith('diff')) \
+            if os.path.isdir(os.path.join(tmp, 'b1')) else []
+        if reports:
+            with open(os.path.join(tmp, 'b1', reports[0].rsplit('.', 1)[0] + '.md')) as f:
+                md = unpad(f.read())
+            with open(os.path.join(tmp, 'b1', reports[0].rsplit('.', 1)[0] + '.json')) as f:
+                data = json.load(f)
+        return types.SimpleNamespace(rc=rc, out=unpad(buf.getvalue()), builds=builds, cmds=cmds, md=md, data=data,
+                                     looked_up=lookup.called)
+
+    def test_the_default_compares_against_the_ci_snapshots_without_a_base_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[self.base(), _shard('b1-DMA', {'device/a/a.elf': _elf(9)}, sha='b')])
+        self.assertEqual(r.rc, 0)
+        self.assertEqual(r.builds, [(sd.TINYUSB_ROOT, 'b1')])
+        self.assertNotIn(['worktree', 'add'], r.cmds)
+        self.assertIn(f'Base: CI snapshots of {"b" * 10} (exact) https://example/runs/7', r.out)
+        self.assertIn('1 CI snapshots of other boards excluded: b1-DMA', r.out)
+        self.assertIn('1 pair, 1 changed; TinyUSB Flash Δ +2', r.out)
+        self.assertTrue(r.md.startswith(f'Base: CI snapshots of {"b" * 10} (exact)'))
+        self.assertEqual(r.data['base_source'], {'requested': 'default', 'effective': 'ci', 'reason': None,
+                                                 'requested_sha': 'c0ffee', 'base_sha': 'b' * 40,
+                                                 'baseline': {'sha': 'b' * 40, 'url': 'https://example/runs/7',
+                                                              'exact': True, 'run_id': 7}})
+        self.assertIsNone(r.data['filters']['base'])
+        self.assertEqual(r.data['warnings'], [])
+
+    def test_a_metadata_difference_warns_and_still_compares(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], compiler={**self.GCC, 'version': '13.3.1'})
+        warning = ('b1: base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with GNU arm-none-eabi-gcc '
+                   '13.3.1 MinSizeRel: deltas may include the toolchain change')
+        self.assertEqual(r.rc, 0)
+        self.assertIn(f'  WARNING {warning}', r.out)
+        self.assertIn(f'- {warning}', r.md)
+        self.assertEqual(r.data['warnings'], [warning])
+        self.assertEqual(len(r.data['pairs']), 1)
+
+    def test_an_unavailable_ci_base_falls_back_by_default_and_fails_when_required(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], unavailable='gh not found')
+            self.assertEqual(r.rc, 0)
+            self.assertEqual(r.builds, [(os.path.join(tmp, '_worktree'), 'b1'), (sd.TINYUSB_ROOT, 'b1')])
+            self.assertIn(['worktree', 'add'], r.cmds)
+            self.assertIn('Base: local build of c0ffee (CI base unavailable: gh not found)', r.out)
+            self.assertTrue(r.md.startswith('Base: local build of c0ffee (CI base unavailable: gh not found)'))
+            self.assertEqual({k: r.data['base_source'][k] for k in ('requested', 'effective', 'reason', 'base_sha')},
+                             {'requested': 'default', 'effective': 'local', 'reason': 'gh not found', 'base_sha': 'c0ffee'})
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--base-source', 'ci'], unavailable='gh not found')
+        self.assertEqual((r.rc, r.builds, r.md), (1, [], None))
+        self.assertNotIn(['worktree', 'add'], r.cmds)
+        self.assertIn('Error: CI base unavailable: gh not found (--base-source local builds it)', r.out)
+
+    def test_options_a_ci_base_cannot_serve_use_a_local_base_or_are_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['-f', 'src/'])
+        self.assertEqual((r.rc, r.looked_up, len(r.builds)), (0, False, 2))
+        self.assertEqual(r.data['base_source']['reason'], '-f needs a local base')
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()), \
+             self.assertRaises(SystemExit):
+            self.diff(tmp, ['--base-source', 'ci', '--engine', 'linkermap'])
+
+    def test_an_explicit_local_base_makes_no_github_lookup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--base-source', 'local'])
+        self.assertEqual((r.rc, r.looked_up, len(r.builds)), (0, False, 2))
+        self.assertNotIn('Base:', r.out)
+        self.assertEqual(r.data['base_source']['effective'], 'local')
+
+    def test_a_failed_baseline_elf_stays_a_failure(self):
+        base = self.base(failures=[{'elf': 'device/n/n.elf', 'stage': 'report', 'message': 'boom'}])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[base], cur={'device/a/a.elf': _elf(3), 'device/n/n.elf': _elf(1)})
+        self.assertEqual(r.rc, 1)
+        self.assertEqual(r.data['current_only'], [])
+        self.assertIn('FAILED `b1: device/n/n.elf` base report: boom', r.md)
+
+    def test_a_board_without_a_baseline_is_a_failure_not_new_elfs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[_shard('b9', {}, sha='b')])
+        self.assertEqual(r.rc, 1)
+        self.assertEqual((r.data['pairs'], r.data['current_only']), ([], []))
+        self.assertIn('FAILED `b1` base snapshot: no baseline snapshot', r.md)
+
+    def test_a_snapshot_without_symbols_omits_them_with_a_warning_never_zero(self):
+        base = self.base()
+        base['elfs']['device/a/a.elf'].pop('symbols')
+        for argv in ([], ['-e', 'device/a', '--combined']):  # -e prints the changed tables too
+            with self.subTest(argv), tempfile.TemporaryDirectory() as tmp:
+                r = self.diff(tmp, ['--symbols'] + argv, base_shards=[base])
+                self.assertEqual(r.rc, 0)
+                self.assertIn('  WARNING b1: symbols omitted: the CI snapshot has none', r.out)
+                self.assertIn('b1: symbols omitted: the CI snapshot has none', r.data['warnings'])
+                if argv:
+                    with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
+                        self.assertIn('- b1: symbols omitted: the CI snapshot has none', f.read())
+
+    def test_a_failure_of_the_downloaded_run_itself_is_in_every_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--combined'], extra={'code-size-arm-gcc-x/code-size-b1.json': '{broken'})
+            with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
+                combined = f.read()
+        self.assertEqual(r.rc, 1)
+        self.assertEqual(r.data['status'], 'INCOMPLETE')
+        self.assertIn('unreadable JSON', r.md)
+        self.assertIn('unreadable JSON', combined)
 
 
 if __name__ == '__main__':
