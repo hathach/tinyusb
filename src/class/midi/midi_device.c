@@ -500,7 +500,8 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
         TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0);         // prepare to receive data
       }
 
-      p_desc = tu_desc_next(p_desc);                                   // skip CS Endpoint descriptor
+      p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(p_desc), desc_end);
+      TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_CS_ENDPOINT == tu_desc_type(p_desc), 0);
       found_ep++;
     }
 

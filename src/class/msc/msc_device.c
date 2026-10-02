@@ -365,11 +365,12 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   uint8_t const* p_desc = tu_desc_next(itf_desc);
   uint8_t const* desc_end = ((uint8_t const*) itf_desc) + max_len;
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in, &p_desc), 0);
+  uint16_t const consumed_len = (uint16_t)(p_desc - (uint8_t const*)itf_desc);
 
   // Prepare for Command Block Wrapper
-  TU_ASSERT(prepare_cbw(p_msc), drv_len);
+  TU_ASSERT(prepare_cbw(p_msc), consumed_len);
 
-  return (uint16_t)(p_desc - (uint8_t const*) itf_desc);
+  return consumed_len;
 }
 
 static void proc_bot_reset(mscd_interface_t* p_msc) {

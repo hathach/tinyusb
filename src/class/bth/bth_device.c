@@ -109,6 +109,7 @@ void btd_reset(uint8_t rhport) {
 
 uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
   tusb_desc_endpoint_t const *desc_ep;
+  uint8_t const *desc_start = (uint8_t const *)itf_desc;
   uint8_t const *desc_end = (uint8_t const *)itf_desc + max_len;
   uint16_t drv_len = 0;
   // Size of single alternative of ISO interface
@@ -127,16 +128,19 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
 
   desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
+  TU_ASSERT(tu_desc_in_bounds((uint8_t const *)desc_ep, desc_end) &&
+            desc_ep->bLength >= sizeof(tusb_desc_endpoint_t) &&
+            TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   TU_ASSERT(usbd_edpt_open(rhport, desc_ep, desc_end), 0);
   _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
-  desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
+  uint8_t const *p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
+  desc_ep = (tusb_desc_endpoint_t const *)p_desc;
 
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *) desc_ep, desc_end, 2,
                                 TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
-                                &_btd_itf.ep_acl_in, NULL),
+                                &_btd_itf.ep_acl_in, &p_desc),
             0);
 
   // Save acl in endpoint max packet size
@@ -146,15 +150,18 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
       _btd_itf.ep_acl_in_pkt_sz = tu_edpt_packet_size(desc_ep_acl_in);
       break;
     }
-    desc_ep_acl_in = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep_acl_in);
+    desc_ep_acl_in = (tusb_desc_endpoint_t const *)
+      tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep_acl_in), desc_end);
   }
 
-  itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t) &&
+            tu_desc_type(p_desc) == TUSB_DESC_INTERFACE, 0);
+  itf_desc = (tusb_desc_interface_t const *)p_desc;
 
   // Prepare for incoming data from host
   TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE, false), 0);
 
-  drv_len = hci_itf_size;
+  drv_len = (uint16_t)(p_desc - desc_start);
 
   // Ensure this is still BT Primary Controller
   TU_ASSERT(TUSB_CLASS_WIRELESS_CONTROLLER == itf_desc->bInterfaceClass &&
@@ -167,23 +174,27 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
 
   desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
   TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
-  TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
+  TU_ASSERT(tu_desc_in_bounds((uint8_t const *)desc_ep, desc_end) &&
+            desc_ep->bLength >= sizeof(tusb_desc_endpoint_t) && desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
   dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
   // Store endpoint size for alternative
   _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
 
-  desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
-  TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
+  desc_ep = (tusb_desc_endpoint_t const *)tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
+  TU_ASSERT(tu_desc_in_bounds((uint8_t const *)desc_ep, desc_end) &&
+            desc_ep->bLength >= sizeof(tusb_desc_endpoint_t) && desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT, 0);
   dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   _btd_itf.ep_voice[dir] = desc_ep->bEndpointAddress;
   // Store endpoint size for alternative
   _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
-  drv_len += iso_alt_itf_size;
+  p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
+  drv_len = (uint16_t)(p_desc - desc_start);
 
   for (int i = 1; i < CFG_TUD_BTH_ISO_ALT_COUNT && drv_len + iso_alt_itf_size <= max_len; ++i) {
     // Make sure rest of alternatives matches
-    itf_desc = (tusb_desc_interface_t const *) tu_desc_next(desc_ep);
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
+    itf_desc = (tusb_desc_interface_t const *)p_desc;
     if (itf_desc->bDescriptorType != TUSB_DESC_INTERFACE ||
         TUSB_CLASS_WIRELESS_CONTROLLER != itf_desc->bInterfaceClass ||
         TUD_BT_APP_SUBCLASS != itf_desc->bInterfaceSubClass ||
@@ -194,6 +205,8 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
     TU_ASSERT(itf_desc->bAlternateSetting < CFG_TUD_BTH_ISO_ALT_COUNT, 0);
 
     desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+    TU_ASSERT(tu_desc_in_bounds((uint8_t const *)desc_ep, desc_end) &&
+              desc_ep->bLength >= sizeof(tusb_desc_endpoint_t), 0);
     dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     // Verify that alternative endpoint are same as first ones
     TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
@@ -201,14 +214,17 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
               0);
     _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
 
-    desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
+    desc_ep = (tusb_desc_endpoint_t const *)tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
+    TU_ASSERT(tu_desc_in_bounds((uint8_t const *)desc_ep, desc_end) &&
+              desc_ep->bLength >= sizeof(tusb_desc_endpoint_t), 0);
     dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     // Verify that alternative endpoint are same as first ones
     TU_ASSERT(desc_ep->bDescriptorType == TUSB_DESC_ENDPOINT &&
                   _btd_itf.ep_voice[dir] == desc_ep->bEndpointAddress,
               0);
     _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
-    drv_len += iso_alt_itf_size;
+    p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(desc_ep), desc_end);
+    drv_len = (uint16_t)(p_desc - desc_start);
   }
 
   return drv_len;

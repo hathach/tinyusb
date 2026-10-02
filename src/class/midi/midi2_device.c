@@ -873,7 +873,9 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
         TU_ASSERT(tu_edpt_stream_read_xfer(&p_midi->ep_stream.rx) > 0, 0);
       }
 
+      p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(p_desc), desc_end);
       found_ep++;
+      continue;
     }
 
     p_desc = tu_desc_next(p_desc);
@@ -893,7 +895,11 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
       break;
     }
 
-    p_desc = tu_desc_next(p_desc);
+    if (dtype == TUSB_DESC_ENDPOINT) {
+      p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(p_desc), desc_end);
+    } else {
+      p_desc = tu_desc_next(p_desc);
+    }
   }
 
   return (uint16_t)(p_desc - (const uint8_t*) desc_itf);

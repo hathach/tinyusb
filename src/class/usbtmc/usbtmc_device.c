@@ -285,7 +285,6 @@ bool usbtmcd_deinit(void) {
 uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
   (void) rhport;
 
-  uint16_t drv_len;
   uint8_t const *p_desc;
   uint8_t const *desc_end = (uint8_t const *)itf_desc + max_len;
   uint8_t found_endpoints = 0;
@@ -301,15 +300,15 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   TU_ASSERT(usbtmc_state.state == STATE_CLOSED, 0);
 
   // Interface
-  drv_len = 0u;
   p_desc = (uint8_t const *) itf_desc;
 
   usbtmc_state.itf_id = itf_desc->bInterfaceNumber;
   usbtmc_state.rhport = rhport;
 
-  while (found_endpoints < itf_desc->bNumEndpoints && drv_len <= max_len) {
+  while (found_endpoints < itf_desc->bNumEndpoints && tu_desc_in_bounds(p_desc, desc_end)) {
     if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE]) {
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *) p_desc;
+      TU_ASSERT(ep_desc->bLength >= sizeof(tusb_desc_endpoint_t), 0);
       switch (ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
           // Ensure  buffer is an exact multiple of the maxPacketSize
@@ -335,11 +334,12 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
       }
       TU_ASSERT(usbd_edpt_open(rhport, ep_desc, desc_end), 0);
       found_endpoints++;
+      p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(p_desc), desc_end);
+    } else {
+      p_desc = tu_desc_next(p_desc);
     }
-
-    drv_len += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
   }
+  TU_ASSERT(found_endpoints == itf_desc->bNumEndpoints, 0);
 
 // bulk endpoints are required, but interrupt IN is optional
 #ifndef NDEBUG
@@ -360,7 +360,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   atomicChangeState(STATE_CLOSED, STATE_NAK);
   tud_usbtmc_open_cb(itf_desc->iInterface);
 
-  return drv_len;
+  return (uint16_t)(p_desc - (uint8_t const*)itf_desc);
 }
 // Tell USBTMC class to set its bulk-in EP to ACK so that it can
 // receive USBTMC commands.

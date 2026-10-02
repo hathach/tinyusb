@@ -193,11 +193,10 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
   //------------- Endpoints -------------//
   const uint8_t *p_desc   = (const uint8_t *)itf_desc;
   const uint8_t *desc_end = p_desc + max_len;
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
   p_desc = tu_desc_next(itf_desc);
   for (uint8_t e = 0; e < itf_desc->bNumEndpoints; e++) {
-    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end), 0);
+    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
 
@@ -214,11 +213,11 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
       TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0);
     }
 
-    drv_len += sizeof(tusb_desc_endpoint_t);
     p_desc = tu_desc_next(p_desc);
+    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
   }
 
-  return drv_len;
+  return (uint16_t)(p_desc - (const uint8_t*)itf_desc);
 }
 
 bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_request_t *request) {
