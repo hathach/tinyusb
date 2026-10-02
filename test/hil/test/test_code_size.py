@@ -182,7 +182,7 @@ class RenderReport(unittest.TestCase):
         a, = pair_ids(1)
         md = self.report({a: elf({'x.c': (60, 20), 'y.c': (20, 0)}, all_syms=(500, 40))}, 'membrowse')
         self.assertIn('**Coverage (complete, membrowse):** 1 of 1 elfs sized', md)
-        self.assertIn('filtered Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
+        self.assertIn('TinyUSB Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
         self.assertIn('| File | .text | .bss | size | % |', md)
         self.assertLess(md.index('| x.c | 60 | 20 | 80 | 80.0% |'), md.index('| y.c | 20 | 0 | 20 | 20.0% |'))
         self.assertIn('| TOTAL | 80 | 20 | 100 | 100.0% |', md)
@@ -816,6 +816,17 @@ class GenerateSizes(unittest.TestCase):
         self.assertIn('another --engine', errors[0][1])
         self.assertEqual(out, '')
 
+    def test_fetched_tools_under_deps_are_not_examples(self):
+        # picotool's enc_bootloader.elf has no linker map, so sizing it fails every rp2 board
+        sizer = mock.Mock(return_value=_elf(7))
+        with tempfile.TemporaryDirectory() as build:
+            for rel in ('device/ex/ex.elf', '_deps/picotool/enc_bootloader.elf'):
+                os.makedirs(os.path.dirname(os.path.join(build, rel)), exist_ok=True)
+                open(os.path.join(build, rel), 'w').close()
+            with _engine('bloaty', sizer):
+                sizes, errors = sd.generate_sizes(build, ['src/'], engine='bloaty')
+        self.assertEqual((list(sizes), errors), (['device/ex/ex.elf'], []))
+
     def test_the_selected_engine_sizes_each_elf(self):
         bloaty = mock.Mock(return_value=_elf(7))
         with mock.patch('glob.glob', return_value=['/fake/build/ex/ex.elf']), \
@@ -1304,7 +1315,7 @@ class MainFailure(unittest.TestCase):
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 1 → 3 | +2 | 0 → 0 | 0 |', unpad(f.read()))
             # no -e: the console gets the summary line, the tables stay in the .md
-            self.assertIn('  1 pair, 1 changed; filtered Flash Δ +2, RAM Δ 0\n', out)
+            self.assertIn('  1 pair, 1 changed; TinyUSB Flash Δ +2, RAM Δ 0\n', out)
             self.assertNotIn('| x.c |', out)
 
     def test_a_filter_mismatch_fails_the_size_and_compare_phase(self):
@@ -1401,7 +1412,7 @@ class MainFailure(unittest.TestCase):
             rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
             self.assertEqual(rc, 0)
             self.assertRegex(out, r'^diff master \(c0ffee\) vs working tree \(c0ffee\) · membrowse\n\[1/1\] b / ex\n'
-                                  r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; filtered Flash Δ \+2')
+                                  r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; TinyUSB Flash Δ \+2')
             # indented tables; unpad() folds their indent to one space
             self.assertIn('\n | x.c | 1 → 3 | +2 | 0 → 0 | 0 |', out)
             self.assertIn('\n | x.c | +2 | +2 |', out)
@@ -1432,9 +1443,18 @@ class MainFailure(unittest.TestCase):
             rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(8)}, []),
                                  cur_sizes=({'ex/ex.elf': empty}, []))
             self.assertEqual(rc, 0)
-            self.assertIn('1 pair, 1 changed; filtered Flash Δ -8', out)
+            self.assertIn('1 pair, 1 changed; TinyUSB Flash Δ -8', out)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 8 → 0 | -8 | 0 → 0 | 0 |', unpad(f.read()))
+
+    def test_a_custom_filter_is_not_called_tinyusb(self):
+        def build(_src, _build_dir, board, *_args, **_kwargs):
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+        side_sizes = iter([({'ex/ex.elf': _elf(1)}, []), ({'ex/ex.elf': _elf(3)}, [])])
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._run_main(tmp, ['-b', 'b', '-f', 'lib/'], build, lambda *_a, **_k: next(side_sizes))
+        self.assertEqual(rc, 0)
+        self.assertIn('1 pair, 1 changed; filtered Flash Δ +2', out)
 
     def _main_combined(self, tmp, sizes, build_ok=('b1', 'b2'), example=None):
         """main() with -b b1 -b b2 --combined. `sizes` maps
@@ -1767,7 +1787,7 @@ class MainReport(unittest.TestCase):
             self.assertIn('Coverage (complete, bloaty)', md)
             self.assertIn('| x.c | 4 | 4 | 100.0% |', md)
             self.assertRegex(self.out, r'^report working tree · bloaty\n\[1/1\] b / device/cdc_msc\n'
-                                       r'  size… \d+\.\ds\n  1 of 1 elfs sized; filtered Flash 4, RAM 0\n')
+                                       r'  size… \d+\.\ds\n  1 of 1 elfs sized; TinyUSB Flash 4, RAM 0\n')
             self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
 
     def test_an_examples_trailing_slash_is_dropped(self):
@@ -2167,10 +2187,10 @@ def _run_dir(root, shards, legs=None, scope=None):
 class Compare(unittest.TestCase):
     SCOPE = {'code_changed': True, 'legs': [{'toolchain': 'arm-gcc', 'arg': 'fam'}]}
 
-    def compare(self, base_shards, cur_shards, cur_legs=None, scope=SCOPE, baseline=None):
+    def compare(self, base_shards, cur_shards, cur_legs=None, scope=SCOPE, baseline=None, symbols=False):
         with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
             return sd.compare_runs(_run_dir(b, base_shards, scope=self.SCOPE),
-                                   _run_dir(c, cur_shards, cur_legs, scope), baseline)
+                                   _run_dir(c, cur_shards, cur_legs, scope), baseline, symbols)
 
     def failed(self, data):
         return {(f['board'], f['side'], f['stage']) for f in data['failures']}
@@ -2229,12 +2249,13 @@ class Compare(unittest.TestCase):
         self.assertEqual(data['status'], 'INCOMPLETE')
 
     def test_a_board_without_baseline_leaves_coverage_incomplete(self):
-        md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)})],
+        md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)})],
                                     [_shard('b1', {'device/a/a.elf': _elf(10)}), _shard('b2', {'device/a/a.elf': _elf(1)})])
         self.assertEqual(data['no_baseline'], ['b2'])
         self.assertEqual(data['status'], 'INCOMPLETE')
         self.assertIn('FAILED `b2` base snapshot: no baseline snapshot', md)
         self.assertEqual(len(data['pairs']), 1)
+        self.assertIn('**INCOMPLETE:** 1 builds on 1 boards compared', comment)
 
     def test_a_missing_scope_or_a_failed_build_leaves_coverage_incomplete(self):
         broken = {**_shard('b1', {'device/a/a.elf': _elf(1)}), 'build_outcome': 'failure'}
@@ -2293,27 +2314,48 @@ class Compare(unittest.TestCase):
         self.assertEqual(data['status'], 'INCOMPLETE')
         self.assertIn(('code-size-arm-gcc-fam', 'current', 'scope'), self.failed(data))
 
-    def test_the_comment_is_capped_and_the_full_report_is_not(self):
-        n = 60
-        base = _shard('b1', {f'device/e{i}/e{i}.elf': elf({f'f{j}.c': (10, 0) for j in range(40)})
-                             for i in range(n)})
-        cur = _shard('b1', {f'device/e{i}/e{i}.elf': elf({f'f{j}.c': (11 + i, 0) for j in range(40)})
-                            for i in range(n)})
-        md, comment, _data = self.compare([base], [cur])
-        self.assertLess(len(comment), sd.COMMENT_LIMIT + 100)
-        self.assertIn(f'{n - sd.COMMENT_PAIRS} more changed pairs', comment)
+    def test_the_comment_has_a_row_per_changed_file_however_small(self):
+        def msc(n, ram=0):
+            return elf({'class/msc/msc_device.c': (n, 0), 'device/usbd.c': (500, ram)})
+        base = [_shard('b1', {'device/msc/msc.elf': msc(4000), 'device/hid/hid.elf': elf({'class/hid/hid_device.c': (1200, 128)}),
+                              'device/n/n.elf': elf({'device/usbd.c': (500, 0)}, all_syms=(900, 9))}),
+                _shard('b2', {'device/msc/msc.elf': msc(3800)})]
+        cur = [_shard('b1', {'device/msc/msc.elf': msc(4200, 4), 'device/hid/hid.elf': elf({'class/hid/hid_device.c': (1224, 136)}),
+                             'device/n/n.elf': elf({'device/usbd.c': (500, 0)}, all_syms=(904, 9))}),
+               _shard('b2', {'device/msc/msc.elf': msc(3980)})]
+        md, comment, _data = self.compare(base, cur)
+        self.assertIn('4 builds on 2 boards compared, 4 changed. Whole firmware¹ Flash Δ +4 → +200, '
+                      'RAM Δ 0 → +8', comment)
+        rows = [line for line in comment.splitlines() if line.startswith('| ') and 'File' not in line]
+        self.assertEqual([[c.strip() for c in r.strip('|').split('|')] for r in rows],
+                         [['class/msc/msc_device.c', '+180 → +200', '0'],
+                          ['class/hid/hid_device.c', '+24', '+8'],
+                          ['device/usbd.c', '0', '0 → +4']])
+        self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
+        self.assertNotIn('boards: ', comment)
+        self.assertNotIn('| b1: ', comment)
         self.assertNotIn('<details>', comment)
         self.assertIn('<details>', md)
-        self.assertIn('b1: device/e59/e59.elf', comment)  # the largest change kept
-        self.assertNotIn('| b1: device/e0/e0.elf ', comment)
+        self.assertIn('| b1: device/hid/hid.elf ', md)  # the full report keeps every pair
 
     def test_a_comment_over_the_limit_is_cut_at_a_line(self):
         base = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (10, 0) for j in range(50)})})
         cur = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (11, 0) for j in range(50)})})
         with mock.patch.object(sd, 'COMMENT_LIMIT', 800):
             _md, comment, _data = self.compare([base], [cur])
-        self.assertLess(len(comment), 900)
-        self.assertTrue(comment.endswith('_Truncated: see the full report._\n'))
+        self.assertLessEqual(len(comment), 800)
+        self.assertIn('Whole firmware¹', comment)
+        self.assertTrue(comment.endswith('_Truncated: see the full report._\n\n'
+                                         '¹ Sum of all symbols measured by membrowse, not the exact image size.\n'))
+
+    def test_a_symbol_only_change_counts_under_symbols(self):
+        sizes = lambda a, b: elf({'x.c': (10, 0)}, symbols={'x.c': {'.text': {'f': a, 'g': b}}})  # noqa: E731
+        for symbols, head in ((False, '1 builds on 1 boards compared, 0 changed'),
+                              (True, '1 builds on 1 boards compared, 1 changed')):
+            _md, comment, _data = self.compare([_shard('b1', {'device/a/a.elf': sizes(4, 6)})],
+                                               [_shard('b1', {'device/a/a.elf': sizes(6, 4)})], symbols=symbols)
+            self.assertIn(head, comment)
+        self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
 
     def test_pr_controlled_names_cannot_inject_markdown(self):
         evil = 'x`|<img src=x>@team\n\n# FORGED\r\n'
