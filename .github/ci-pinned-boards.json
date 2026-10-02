@@ -1,6 +1,7 @@
 {
   "boards": [
     { "board": "adafruit_fruit_jam", "note": "rp2350 FS + pio-usb host" },
+    { "board": "ch32h417qeu6_r0_1v1", "note": "ch32 usbss SS" },
     { "board": "ch32v307v_r1_1v0", "note": "ch32 usbhs HS" },
     { "board": "da14695_dk_usb", "note": "da146xx FS" },
     { "board": "ea4088_quickstart", "note": "lpc17_40 FS, ohci host" },
@@ -33,7 +34,6 @@
     { "board": "stm32n657nucleo", "note": "dwc2 4.11a HS, UTMI+, host" }
   ],
   "uncovered": {
-    "dcd_ch32_usbss": "ch32h41x is unpinned; CH32H417 builds in the family matrix, not the pinned membrowse set",
     "dcd_cxd56": "cxd56 has no CI family lane (not in ci_set_matrix.family_list), so no CI board can build it",
     "dcd_mm32f327x_otg": "mm32 unpinned - maintainer trimmed the pinned set",
     "dcd_nuc120": "nuvoton unpinned - maintainer trimmed the pinned set",
