@@ -186,7 +186,9 @@ typedef struct {
   uint16_t expired_events; // events processed since the deadline passed (CFG_TUH_CONTROL_TIMEOUT_MS)
 } usbh_ctrl_xfer_info_t;
 
-TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0, "CFG_TUH_CONTROL_TIMEOUT_MS must be > 0");
+// deadline checks compare (int32_t)(timeout_at_ms - now)
+TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0 && CFG_TUH_CONTROL_TIMEOUT_MS <= INT32_MAX,
+                 "CFG_TUH_CONTROL_TIMEOUT_MS must be in 1..INT32_MAX");
 
 typedef struct {
   tusb_defer_func_t func;
