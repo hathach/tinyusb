@@ -39,8 +39,9 @@ runs:
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
         elif [[ ${FILE_EXT} == zip ]]; then
           curl -L "$TOOLCHAIN_URL" -o toolchain.zip
-          unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
-          ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
+          # Arm's Windows zip has no top-level directory; Setup Toolchain expects one
+          unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}/toolchain
+          ~/cache/${TOOLCHAIN}/toolchain/bin/arm-none-eabi-gcc.exe --version
         elif [[ ${FILE_EXT} =~ ^(gz|bz2|xz)$ ]]; then
           curl -fsSL --proto '=https' --proto-redir '=https' --retry 5 --connect-timeout 30 --speed-limit 1024 --speed-time 60 "$TOOLCHAIN_URL" -o toolchain.tar.${FILE_EXT}
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.${FILE_EXT}
