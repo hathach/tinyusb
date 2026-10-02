@@ -35,6 +35,7 @@ Usage:
 import argparse
 import collections
 import concurrent.futures
+import contextlib
 import csv
 import functools
 import glob
@@ -53,7 +54,7 @@ import sys
 import time
 
 import build_utils
-from membrowse_cli import extract_ld_scripts, extract_defsyms, link_command, report_inputs
+from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, link_command, report_inputs
 
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -84,6 +85,12 @@ def _link_settings(elf_path):
         raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
                             f'determine its linker scripts')
     commands = link_command('ninja', build_dir, elf_path)
+    # ESP-IDF links its generated scripts by bare name via -L
+    idf_ld = [os.path.join(build_dir, p) for p in IDF_LD_SCRIPTS]
+    if any(map(os.path.isfile, idf_ld)):
+        if not all(map(os.path.isfile, idf_ld)):
+            raise RuntimeError(f'ESP-IDF build {build_dir} lacks one of {", ".join(idf_ld)}')
+        return build_dir, idf_ld, extract_defsyms(commands)
     ld_scripts = extract_ld_scripts(commands)
     if not ld_scripts:
         raise RuntimeError(f'no linker script found in the ninja build graph '
@@ -175,6 +182,12 @@ def _elf_layout(data):
     return [(name(h[0]), h[1], h[2], h[3], h[5]) for h in headers[1:]], loads
 
 
+def _map_path(elf):
+    """The elf's GNU ld map: `<elf>.map`, or ESP-IDF's `<name>.map` beside it."""
+    idf = os.path.splitext(elf)[0] + '.map'
+    return idf if not os.path.isfile(elf + '.map') and os.path.isfile(idf) else elf + '.map'
+
+
 def map_regions(map_path):
     """[(name, origin, length)] of a GNU ld map's Memory Configuration."""
     if not os.path.isfile(map_path):
@@ -199,6 +212,8 @@ def section_buckets(elf, map_path):
     run location; one running where it loads is flash unless writable, when the
     map region holding it decides. Raises RuntimeError rather than guess."""
     sections, loads = elf_layout(elf)
+    if any(s[0] == '.flash.appdesc' for s in sections):
+        return _esp_idf_buckets(sections)
     regions = map_regions(map_path)
     buckets = {}
     for name, sh_type, flags, addr, size in sections:
@@ -230,6 +245,24 @@ def section_buckets(elf, map_path):
     return buckets
 
 
+def _esp_idf_buckets(sections):
+    """section_buckets() of an ESP-IDF app (it has `.flash.appdesc`), whose ELF runs every
+    section where it loads. IDF's sections.ld names each output section in a flash-mapped region
+    `.flash*`; esptool's elf2image stores the rest in the image too, for the bootloader to load
+    into RAM (bin_image.py is_flash_addr())."""
+    buckets = {}
+    for name, sh_type, flags, _addr, _size in sections:
+        if not flags & SHF_ALLOC or (sh_type == SHT_NOBITS and name.startswith('.flash')):
+            buckets[name] = _NOT_COUNTED  # reserved flash-window address space, not storage
+        elif sh_type == SHT_NOBITS:
+            buckets[name] = frozenset({'ram'})
+        elif name.startswith('.flash'):
+            buckets[name] = frozenset({'flash'})
+        else:
+            buckets[name] = frozenset({'flash', 'ram'})
+    return buckets
+
+
 class _Sizes:
     """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
     and its total flash/RAM."""
@@ -254,10 +287,47 @@ class _Sizes:
                 'symbols': self.symbols}
 
 
+@functools.lru_cache(maxsize=None)
+def _dwarf_sources(elf):
+    """{basename: {full source path}} of the elf's DWARF compile units."""
+    try:
+        from elftools.elf.elffile import ELFFile  # pyelftools, a membrowse dependency
+    except ImportError as e:
+        raise RuntimeError(f'pyelftools is needed to resolve {elf}\'s source paths ({e})')
+    sources = {}
+    with open(elf, 'rb') as f:
+        elffile = ELFFile(f)
+        if not elffile.has_dwarf_info():
+            return sources
+        for cu in elffile.get_dwarf_info().iter_CUs():
+            top = cu.get_top_DIE().attributes
+            if 'DW_AT_name' in top:
+                comp_dir = top['DW_AT_comp_dir'].value.decode() if 'DW_AT_comp_dir' in top else ''
+                path = os.path.normpath(os.path.join(comp_dir, top['DW_AT_name'].value.decode()))
+                sources.setdefault(os.path.basename(path), set()).add(path)
+    return sources
+
+
+def _source_path(sym, elf, filters):
+    """A symbol's source path. An archive member has no object path and membrowse 1.2.9
+    keeps only the basename of its source, so the DWARF compile unit of that name gives it
+    back (ESP-IDF links TinyUSB from an archive)."""
+    path = sym.get('object_file') or sym.get('source_file')
+    if not path or '/' in path:
+        return path
+    candidates = _dwarf_sources(elf).get(path, set())
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    if any(_relative_key(c, filters) for c in candidates):
+        raise RuntimeError(f'{elf}: {path} names several compile units ({", ".join(sorted(candidates))}), '
+                           f'one of them filtered; cannot tell which holds {sym.get("name")}')
+    return path
+
+
 def membrowse_sizes(elf, filters):
     """Symbols of `membrowse report`; linker-defined symbols without a section
     (`__StackLimit`) are not counted."""
-    buckets = section_buckets(elf, elf + '.map')
+    buckets = section_buckets(elf, _map_path(elf))
     sizes = _Sizes(filters)
     for sym in report_for_elf(elf).get('symbols', []):
         section = sym.get('section')
@@ -265,8 +335,7 @@ def membrowse_sizes(elf, filters):
             continue
         if section not in buckets:
             raise RuntimeError(f'membrowse symbol {sym.get("name")} is in section {section}, not in {elf}')
-        sizes.add(sym.get('object_file') or sym.get('source_file'), section, buckets[section], sym['size'],
-                  sym.get('name'))
+        sizes.add(_source_path(sym, elf, filters), section, buckets[section], sym['size'], sym.get('name'))
     return sizes.result()
 
 
@@ -282,11 +351,11 @@ def _linkermap():
 
 
 def linkermap_sizes(elf, filters):
-    """Input sections of `<elf>.map` by full object path; analyze_map() is not used,
+    """Input sections of the elf's map by full object path; analyze_map() is not used,
     it keeps only four sections. An archive member
     (`lib.a(x.o)`) has no source dir, so it counts in 'all' only. The symbols are the
     input sections (`.text.foo`), not the labels inside one."""
-    map_path = elf + '.map'
+    map_path = _map_path(elf)
     buckets = section_buckets(elf, map_path)
     with open(map_path, encoding='utf-8', errors='replace') as f:
         sections = _linkermap().parseSections(f)
@@ -313,7 +382,7 @@ def bloaty_sizes(elf, filters):
     rows = csv.DictReader(io.StringIO(r.stdout))
     if not {'compileunits', 'sections', 'symbols', 'vmsize'} <= set(rows.fieldnames or ()):
         raise RuntimeError(f'unexpected bloaty csv columns for {elf}: {rows.fieldnames}')
-    buckets = section_buckets(elf, elf + '.map')
+    buckets = section_buckets(elf, _map_path(elf))
     sizes = _Sizes(filters)
     for row in rows:
         section = row['sections']
@@ -333,8 +402,9 @@ def bloaty_sizes(elf, filters):
 # all_label: what the engine's 'all' total sums (totals of different engines are
 # not comparable); install: how to get its tool when `sizes` raises FileNotFoundError
 Engine = collections.namedtuple('Engine', 'sizes all_label install')
+MEMBROWSE_CI_VERSION = '1.2.12'  # every CI install pins this; attribution can differ across versions
 ENGINES = {
-    'membrowse': Engine(membrowse_sizes, 'all symbols', '`pip install membrowse`'),
+    'membrowse': Engine(membrowse_sizes, 'all symbols', f'`pip install membrowse=={MEMBROWSE_CI_VERSION}`'),
     'linkermap': Engine(linkermap_sizes, 'all input sections',
                         '`python3 tools/get_deps.py tools/linkermap`'),
     'bloaty': Engine(bloaty_sizes, 'all accounted sections',
@@ -362,10 +432,22 @@ def _fmt(delta):
     return f'+{delta}' if delta > 0 else str(delta)
 
 
+_MD_CELL = str.maketrans({**{c: f'&#{ord(c)};' for c in '&<>|`\\[]\r\n'}, '@': '@\u200b'})
+
+
+def _md_cell(text):
+    """A table cell safe from names that would open HTML, a link or code span, end or split
+    the row or @mention someone (a zero-width space breaks the mention)."""
+    return text.translate(_MD_CELL)
+
+
 def md_table(header, rows, total=None):
     """Markdown table padded so its columns also line up as plain text: the first
     column left-aligned, the others right-aligned. Cells are strings; a `total` row
     follows the rows under a plain rule."""
+    header = [_md_cell(c) for c in header]
+    rows = [[_md_cell(c) for c in r] for r in rows]
+    total = [_md_cell(c) for c in total] if total else total
     body = rows + [total] if total else rows
     widths = [max(len(r[i]) for r in [header] + body) for i in range(len(header))]
 
@@ -459,10 +541,11 @@ def size_table(sizes, symbols, engine):
     return md_table([_row_label(symbols, engine)] + cols + ['size', '%'], lines, total_row) + '\n'
 
 
-def render_report(sizes, engine, failures=(), boards=(), symbols=False):
+def render_report(sizes, engine, failures=(), boards=(), symbols=False, files_label='TinyUSB'):
     """Markdown report of one tree's elfs keyed by (board, elf path), None for a
     failed one; `failures` are (elf id, stage, message). One elf is inline, several
-    get a summary table and each its own table in <details>."""
+    get a summary table and each its own table in <details>; `files_label` names the
+    filtered files' totals."""
     sized = {i: s for i, s in sizes.items() if s is not None}
     status = 'INCOMPLETE' if failures or not sized else 'complete'
     all_label = ENGINES[engine].all_label
@@ -477,13 +560,13 @@ def render_report(sizes, engine, failures=(), boards=(), symbols=False):
 
     def totals(s):
         src = _files_total(s['files'])
-        return (f'filtered Flash {src["flash"]}, RAM {src["ram"]}; '
+        return (f'{files_label} Flash {src["flash"]}, RAM {src["ram"]}; '
                 f'{all_label} Flash {s["all"]["flash"]}, RAM {s["all"]["ram"]}')
 
     if len(sized) == 1:
         (elf_id, s), = sized.items()
         return '\n'.join(lines + [f'`{_label(elf_id)}` {totals(s)}', '', size_table(s, symbols, engine)])
-    lines.append(md_table(['Elf', 'filtered Flash', 'filtered RAM', f'{all_label} Flash', f'{all_label} RAM'],
+    lines.append(md_table(['Elf', f'{files_label} Flash', f'{files_label} RAM', f'{all_label} Flash', f'{all_label} RAM'],
                           [[_label(i)] + [str(t[k]) for t in (_files_total(s['files']), s['all']) for k in ('flash', 'ram')]
                            for i, s in sized.items()]))
     for elf_id, s in sized.items():
@@ -581,8 +664,60 @@ def _pair_changed(b, c, symbols):
             or bool(_changed_files(b, c, symbols)))
 
 
+def _range(lo, hi):
+    return _fmt(lo) if lo == hi else f'{_fmt(lo)} → {_fmt(hi)}'
+
+
+COMMENT_TERMS = {'base-only': 'missing in this PR', 'current-only': 'new in this PR (no master size yet)',
+                 'base': 'master', 'current': 'PR'}
+
+
+def _problems(base_only, cur_only, failures, terms=None):
+    """Report lines for one-sided elfs and failures, each id named; `terms` rewords the report's words."""
+    word = lambda w: (terms or {}).get(w, w)  # noqa: E731
+    lines = [f'- {word(label)}: ' + ', '.join(f'`{_label(i)}`' for i in ids)
+             for label, ids in (('base-only', base_only), ('current-only', cur_only)) if ids]
+    return lines + [f'- FAILED `{_label(elf_id)}` {word(side)} {stage}: {_md_escape(message)}'
+                    for elf_id, side, stage, message in failures]
+
+
+def _changed_paths(stats):
+    """The changed files of _file_stats(), largest |Δ| first."""
+    return sorted((p for p, s in stats.items() if s['changed']),
+                  key=lambda p: (-max(abs(v[0]) for k in ('flash', 'ram') for v in stats[p][k]), p))
+
+
+def render_comment(pairs, engine, base_only=(), cur_only=(), failures=(), symbols=False, files_label='TinyUSB'):
+    """The PR comment's view as (body, footnote): a row per changed file with its min to max
+    Δ over the builds containing it, so each changed driver shows however heavy the others
+    are. The footnote explains the whole-firmware totals, when the body has them."""
+    file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
+    changed = [i for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)]
+    head = (f'{len(pairs)} builds on {len({board for board, _elf in pairs})} boards compared, '
+            f'{len(changed)} changed')
+    footnote = ''
+    if changed:
+        flash, ram = zip(*(_delta(pairs[i][0]['all'], pairs[i][1]['all']) for i in changed))
+        head += f'. Whole firmware¹ Flash Δ {_range(min(flash), max(flash))}, RAM Δ {_range(min(ram), max(ram))}'
+        footnote = f'\n¹ Sum of {ENGINES[engine].all_label} measured by {engine}, not the exact image size.\n'
+    problems = _problems(base_only, cur_only, failures, COMMENT_TERMS)
+    lines = [head, ''] + (['Not compared:', '', *problems, ''] if problems else [])
+    if not changed:
+        return '\n'.join(lines + ['_no changes_' if pairs else '_no comparable pairs_', '']), footnote
+    stats = _file_stats(file_deltas)
+    rows = [[p] + [_range(*(v[0] for v in stats[p][k])) for k in ('flash', 'ram')] for p in _changed_paths(stats)]
+    if rows:
+        lines += [f'{files_label} file size: min to max change across builds containing the file.', '',
+                  md_table(['File', 'Flash Δ', 'RAM Δ'], rows)]
+    other = sum(not any(any(d) for d in file_deltas[i].values()) for i in changed)
+    if other:
+        lines += ['', f'{other} other build{"" if other == 1 else "s"} changed without a '
+                      f'{files_label} file-size change.']
+    return '\n'.join(lines) + '\n', footnote
+
+
 def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(), boards=(), symbols=False,
-                 labels=SIDE_LABELS):
+                 labels=SIDE_LABELS, files_label='TinyUSB'):
     """Markdown report over paired elfs keyed by (board, elf path).
 
     Every statistic is over per-pair deltas, sized by `engine`. `matched` counts
@@ -591,7 +726,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     board-level failure. Failures or unmatched elfs mark the report INCOMPLETE.
     `boards` lists the requested boards, so an unchanged or failed one is named.
     `symbols` adds each file's changed symbols to each pair's section table; `labels`
-    name the base and current sides.
+    name the base and current sides; `files_label` names the filtered files' totals.
     """
     file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
     changed = [i for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)]
@@ -601,12 +736,7 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
              f'compared, {len(changed)} changed']
     if boards:
         lines.append('- boards: ' + ', '.join(f'`{b}`' for b in boards))
-    for label, ids in (('base-only', base_only), ('current-only', cur_only)):
-        if ids:
-            lines.append(f'- {label}: ' + ', '.join(f'`{_label(i)}`' for i in ids))
-    for elf_id, side, stage, message in failures:
-        lines.append(f'- FAILED `{_label(elf_id)}` {side} {stage}: {_md_escape(message)}')
-    lines.append('')
+    lines += _problems(base_only, cur_only, failures) + ['']
 
     if len(pairs) == 1:
         (elf_id, (b, c)), = pairs.items()
@@ -619,18 +749,14 @@ def render_pairs(pairs, matched, engine, base_only=(), cur_only=(), failures=(),
     if not changed:
         return '\n'.join(lines + ['_no changes_', ''])
 
-    pair_rows = []
-    for elf_id in changed:
-        b, c = pairs[elf_id]
-        src = _delta(_files_total(b['files']), _files_total(c['files']))
-        syms = _delta(b['all'], c['all'])
-        pair_rows.append([_label(elf_id)] + [_fmt(d) for d in src + syms])
-    lines.append(md_table(['Pair', 'filtered Flash Δ', 'filtered RAM Δ', f'{all_label} Flash Δ',
+    src = {i: _delta(_files_total(pairs[i][0]['files']), _files_total(pairs[i][1]['files'])) for i in changed}
+    pair_rows = [[_label(i)] + [_fmt(d) for d in src[i] + _delta(pairs[i][0]['all'], pairs[i][1]['all'])]
+                 for i in changed]
+    lines.append(md_table(['Pair', f'{files_label} Flash Δ', f'{files_label} RAM Δ', f'{all_label} Flash Δ',
                            f'{all_label} RAM Δ'], pair_rows))
 
     stats = _file_stats(file_deltas)
-    rows = sorted((p for p, s in stats.items() if s['changed']),
-                  key=lambda p: (-max(abs(v[0]) for k in ('flash', 'ram') for v in stats[p][k]), p))
+    rows = _changed_paths(stats)
     lines += ['', '_Changed / present: pairs where the file\'s Flash or RAM total changed / compared pairs '
               'that contain it._', '',
               md_table(['File', 'Changed / present', 'Flash Δ min', 'Flash Δ max', 'RAM Δ min', 'RAM Δ max'],
@@ -663,7 +789,8 @@ def _filter_failure(engine):
             f'{engine} output broke its parsing (try another --engine to isolate)')
 
 
-def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False, labels=SIDE_LABELS):
+def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False, labels=SIDE_LABELS,
+                  files_label='TinyUSB'):
     """Pair two sides and render them. Returns (md, failures, ok, data).
 
     `failures` comes back with a filter failure for `scope` added when no
@@ -671,13 +798,14 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols
     broke its parsing); pass `scope=None` when each scope was already checked.
     `ok` is False on any failure or when nothing was compared. `data` is the
     report's raw paired sizes, for JSON, symbols included only when `symbols` is set.
+    `files_label` is render_pairs()'.
     """
     pairs, base_only, cur_only = pair_elfs(base, cur)
     failures = list(failures)
     if scope and pairs and not any(b['files'] or c['files'] for b, c in pairs.values()):
         failures.append((scope, 'both', 'filter', _filter_failure(engine)))
     md = render_pairs(pairs, len(base.keys() & cur.keys()), engine, base_only, cur_only, failures, boards,
-                      symbols, labels)
+                      symbols, labels, files_label)
     data = {
         'engine': engine,
         'boards': list(boards),
@@ -817,24 +945,117 @@ def build_error(ret, src_dir):
     return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
 
 
+ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag
+ESP_IDF_MISSING = (f'ESP-IDF: source $IDF_PATH/export.sh, or docker with {ESP_IDF_IMAGE} '
+                   f'(docker tag espressif/idf:v5.5.3 {ESP_IDF_IMAGE}, as CI does)')
+
+
+def _esp_examples(src_dir, board, example):
+    """The examples tools/build.py builds for espressif `board` (`example` alone when given):
+    those get_examples('espressif') lists that `src_dir` has, less skip_example's."""
+    import build  # tools/build.py; its import has no side effects
+    with contextlib.chdir(src_dir):  # build.py and build_utils read examples/ and hw/bsp from the cwd
+        return [e for e in build.get_examples('espressif')
+                if example in (None, e) and os.path.isdir(os.path.join('examples', e))
+                and not build_utils.skip_example(e, board)]
+
+
+def _link_hops(path):
+    """The paths a symlink resolves through, its real path last."""
+    hops = []
+    while os.path.islink(path):
+        path = os.path.normpath(os.path.join(os.path.dirname(path), os.readlink(path)))
+        hops.append(path)
+    return hops
+
+
+def is_espressif(board, src_dir=TINYUSB_ROOT):
+    return os.path.isdir(os.path.join(src_dir, 'hw', 'bsp', 'espressif', 'boards', board))
+
+
+def _idf_image():
+    return bool(shutil.which('docker')) and run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode == 0
+
+
+def esp_without_idf(boards):
+    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None."""
+    esp = [b for b in boards if is_espressif(b)]
+    if esp and not (shutil.which('idf.py') or _idf_image()):
+        return f'{", ".join(esp)} need {ESP_IDF_MISSING}'
+    return None
+
+
+def _idf_command(src_dir, build_dir, name):
+    """The argv that runs idf.py on `src_dir` into `build_dir`: an exported ESP-IDF, else CI's
+    image as this user in a container `name`, with both mounted at their own paths so the
+    elfs' DWARF matches the filters, and each symlinked dependency's real dir at every path
+    its link goes through (a base worktree's links point at the checkout's, which may point
+    at the main checkout's). None when neither is available."""
+    if shutil.which('idf.py'):
+        return ['idf.py']
+    if not _idf_image():
+        return None
+    # the image enables ccache; kept here it serves the next run (its default hash_dir keeps
+    # one tree's DWARF paths out of the other's objects)
+    cache = os.path.join(CODE_SIZE_DIR, '_ccache')
+    os.makedirs(cache, exist_ok=True)
+    mounts = {p: os.path.realpath(p) for p in map(os.path.abspath, (src_dir, build_dir, cache))}
+    for dep in runpy.run_path(os.path.join(src_dir, 'tools', 'get_deps.py'))['deps_all']:
+        path = os.path.join(src_dir, dep)
+        mounts.update((hop, os.path.realpath(path)) for hop in _link_hops(path))
+    cmd = ['docker', 'run', '--rm', '--name', name, '--user', f'{os.getuid()}:{os.getgid()}',
+           '-e', 'HOME=/tmp', '-e', f'CCACHE_DIR={os.path.abspath(cache)}']
+    for target, source in sorted(mounts.items()):
+        cmd += ['-v', f'{source}:{target}']
+    return cmd + [ESP_IDF_IMAGE, 'idf.py']
+
+
+def _build_idf(src_dir, build_dir, board, example):
+    """Build each ESP-IDF example project's app, as tools/build.py does (its bootloader is
+    not sized); the first failure stops."""
+    examples = _esp_examples(src_dir, board, example)
+    if not examples:
+        return subprocess.CompletedProcess([], 1, '', f'{board} builds no {example or "example"}')
+    container = f'tinyusb-code-size-{os.getpid()}'
+    idf = _idf_command(src_dir, build_dir, container)
+    if idf is None:
+        return subprocess.CompletedProcess([], 1, '', f'{board} needs {ESP_IDF_MISSING}')
+    for ex in examples:
+        ret = None
+        try:
+            ret = run(idf + ['-C', os.path.join(src_dir, 'examples', ex), '-B', os.path.join(build_dir, ex),
+                             '-GNinja', f'-DBOARD={board}', 'app'], timeout=600)
+        finally:
+            # stopping the docker CLI leaves its container building; --rm only removes an exited one
+            if idf[0] == 'docker' and (ret is None or ret.returncode == 124):
+                run(['docker', 'rm', '-f', container])
+        if ret.returncode != 0:
+            break
+    return ret
+
+
 def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
     an excerpt of the output on failure. Returns None on success, else build_error().
 
     When `example` is given, only that target is built (`ninja -C DIR NAME`),
-    keeping single-example workflows fast.
+    keeping single-example workflows fast. An espressif board builds each example as
+    its own ESP-IDF project.
     """
     phase = Phase(label)
     os.makedirs(build_dir, exist_ok=True)
-    ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
-               f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
-               os.path.join(src_dir, 'examples')])
-    if ret.returncode == 0:
-        # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
-        cmd = ['ninja', '-C', build_dir]
-        if example:
-            cmd.append(os.path.basename(example))
-        ret = run(cmd, timeout=600)
+    if is_espressif(board, src_dir):
+        ret = _build_idf(src_dir, build_dir, board, example)
+    else:
+        ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
+                   f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
+                   os.path.join(src_dir, 'examples')])
+        if ret.returncode == 0:
+            # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
+            cmd = ['ninja', '-C', build_dir]
+            if example:
+                cmd.append(os.path.basename(example))
+            ret = run(cmd, timeout=600)
     failed = ret.returncode != 0
     phase.done(failed=failed)
     if not failed:
@@ -872,8 +1093,10 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
     """
     # escape the dir, not the wildcards: a checkout path is a path, not a pattern
     root = glob.escape(build_dir)
-    # <role>/<example>/*.elf: deeper elfs are helpers, e.g. pico-sdk's bs2_default.elf
-    elfs = sorted(glob.glob(f'{root}/{example or "*/*"}/*.elf'))
+    # <role>/<example>/*.elf: deeper elfs are helpers, e.g. pico-sdk's bs2_default.elf, and
+    # cmake's _deps/ holds fetched tools, e.g. picotool's enc_bootloader.elf
+    elfs = sorted(e for e in glob.glob(f'{root}/{example or "*/*"}/*.elf')
+                  if not os.path.relpath(e, build_dir).startswith('_deps' + os.sep))
     if not elfs:
         return {}, [(None, f'no .elf files in {build_dir}')]
 
@@ -901,7 +1124,7 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
     return sizes, errors
 
 
-def diff_summary(data, symbols):
+def diff_summary(data, symbols, files_label='TinyUSB'):
     """Console lines of one diff from its JSON-shaped `data`: coverage, the single
     pair's filtered Δ, unmatched elfs and failures."""
     pairs = {(p['board'], p['elf']): (p['base'], p['current']) for p in data['pairs']}
@@ -910,7 +1133,7 @@ def diff_summary(data, symbols):
     if len(pairs) == 1:
         (b, c), = pairs.values()
         df, dr = _delta(_files_total(b['files']), _files_total(c['files']))
-        line += f'; filtered Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}'
+        line += f'; {files_label} Flash Δ {_fmt(df)}, RAM Δ {_fmt(dr)}'
     lines = [line if data['status'] == 'complete' else f'INCOMPLETE: {line}']
     for key in ('base_only', 'current_only'):
         if data[key]:
@@ -920,13 +1143,13 @@ def diff_summary(data, symbols):
     return lines
 
 
-def report_summary(sizes, failures, ok):
+def report_summary(sizes, failures, ok, files_label='TinyUSB'):
     """Console lines of one report: coverage, the single elf's filtered total, failures."""
     sized = [s for s in sizes.values() if s is not None]
     line = f'{len(sized)} of {len(sizes)} elfs sized'
     if len(sized) == 1:
         src = _files_total(sized[0]['files'])
-        line += f'; filtered Flash {src["flash"]}, RAM {src["ram"]}'
+        line += f'; {files_label} Flash {src["flash"]}, RAM {src["ram"]}'
     lines = [line if ok else f'INCOMPLETE: {line}']
     return lines + [f'FAILED {_label(i)} {stage}: {message}' for i, stage, message in failures]
 
@@ -991,6 +1214,7 @@ def _build_failed(example, error):
 def run_report(args):
     """`report`: build and size the working tree, one report per board and example."""
     filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
+    files_label = 'filtered' if args.filter else 'TinyUSB'
     examples = args.example or [None]
     drop_stale_reports(args.board, examples, 'report')
     focused = _focused(args.board, examples)
@@ -1017,7 +1241,7 @@ def run_report(args):
                 if sized and not any(s['files'] for s in sized):
                     failures.append(((board, None), 'filter', _filter_failure(args.engine)))
                 phase.done(failed=bool(failures))
-            md = render_report(sizes, args.engine, failures, [board], args.symbols)
+            md = render_report(sizes, args.engine, failures, [board], args.symbols, files_label)
             ok = not failures and any(s is not None for s in sizes.values())
             failed |= not ok
             data = None
@@ -1030,9 +1254,407 @@ def run_report(args):
                                      for i, stage, message in failures]}
             tables = _labelled({i: [size_table(s, args.symbols, args.engine)] for i, s in sizes.items() if s},
                                len(sizes)) if focused else ()
-            print_result(report_summary(sizes, failures, ok), f'{example}: ' if scope else '', tables)
+            print_result(report_summary(sizes, failures, ok, files_label), f'{example}: ' if scope else '',
+                         tables)
             write_report(report_path(board, example, 'report'), md, data)
     return 1 if failed else 0
+
+
+SNAPSHOT_SCHEMA = 1
+_SHA_RE = re.compile(r'[0-9a-f]{40}')
+
+
+def _cmake_compiler(build_dir):
+    """{'id', 'version', 'name', 'build_type'} of a configured build dir, from CMake's own
+    compiler detection (not the host gcc), '' where CMake recorded none."""
+    info = {'id': '', 'version': '', 'name': '', 'build_type': ''}
+    found = glob.glob(os.path.join(glob.escape(build_dir), 'CMakeFiles', '*', 'CMakeCCompiler.cmake'))
+    if not found:  # ESP-IDF: one project per <role>/<example>, all on the board's one toolchain
+        projects = sorted(glob.glob(os.path.join(glob.escape(build_dir), '*', '*', 'CMakeFiles')))
+        return _cmake_compiler(os.path.dirname(projects[0])) if projects else info
+    for path in found:
+        with open(path) as f:
+            text = f.read()
+        for key, var in (('id', 'CMAKE_C_COMPILER_ID'), ('version', 'CMAKE_C_COMPILER_VERSION'),
+                         ('name', 'CMAKE_C_COMPILER')):
+            m = re.search(rf'^set\({var} "([^"]*)"\)', text, re.M)
+            if m:
+                info[key] = os.path.basename(m.group(1)) if key == 'name' else m.group(1)
+    cache = os.path.join(build_dir, 'CMakeCache.txt')
+    if os.path.isfile(cache):
+        with open(cache) as f:
+            m = re.search(r'^CMAKE_BUILD_TYPE:\w+=(.*)$', f.read(), re.M)
+        info['build_type'] = m.group(1) if m else ''
+    return info
+
+
+def _git_shas(event):
+    """(sha, base_sha, head_sha) of the checkout: a pull_request build checks out GitHub's
+    merge commit, whose first parent is the base branch tip it was built against and
+    second parent the PR head; any other build is its own base and head."""
+    ret = run(['git', '-C', TINYUSB_ROOT, 'rev-parse', 'HEAD', 'HEAD^1', 'HEAD^2']
+              if event == 'pull_request' else ['git', '-C', TINYUSB_ROOT, 'rev-parse', 'HEAD'])
+    shas = ret.stdout.split() if ret.returncode == 0 else []
+    if not shas or not all(_SHA_RE.fullmatch(s) for s in shas):
+        raise RuntimeError(f'cannot resolve the checkout commits for a {event} build: {ret.stderr.strip()}')
+    return (shas[0], shas[1], shas[2]) if len(shas) == 3 else (shas[0], shas[0], shas[0])
+
+
+def snapshot_boards(families, boards, examples, defines=()):
+    """The CI-pinned boards a build leg produced, as the Membrowse upload step picks them:
+    each family's pinned boards that build one of `examples` (build.py's
+    resolve_ci_boards, boards-only), plus each `-b` board that is pinned. `defines` are
+    the leg's -D tokens, which can enable examples (MAX3421_HOST=1)."""
+    import build  # tools/build.py; its import has no side effects
+    pinned = ci_pinned_boards()
+    # build.py skips a -b board that builds none of the examples, before configuring it
+    picked = [b for b in boards if b in pinned and build.builds_any(b, examples, defines)]
+    for family in families:
+        picked += build.resolve_ci_boards(CI_PINNED_BOARDS, family, True, examples, extra_defines=defines)
+    return list(dict.fromkeys(picked))
+
+
+def board_snapshot(board, build_dir, examples, filters, defines=()):
+    """(elfs, failures) of one board's build dir: {elf path: sizes} of every sized elf,
+    and [{'elf', 'stage', 'message'}]. A missing build dir, an example of the scope the
+    board builds but has no elf for, or an elf that failed to size is a failure, never a
+    zero; a board whose elfs all match no TinyUSB file fails the filter check."""
+    if not os.path.isdir(build_dir):
+        return {}, [{'elf': None, 'stage': 'build', 'message': f'no build dir {_shown(build_dir)}'}]
+    elfs, failures = {}, []
+    scopes = [e for e in dict.fromkeys(examples)
+              if not build_utils.skip_example(e, board, defines)] if examples else [None]
+    for example in scopes:
+        sizes, errors = generate_sizes(build_dir, filters, example)
+        for rel, s in sizes.items():
+            if s is not None and not _valid_sizes(s):
+                errors.append((rel, 'sizes are not integer byte counts of files, sections and symbols'))
+            elif s is not None:
+                elfs[rel] = s
+        failures += [{'elf': rel, 'stage': 'build' if rel is None else 'report',
+                      'message': f'{example}: {msg}' if example and rel is None else msg}
+                     for rel, msg in errors]
+    if elfs and not any(s['files'] for s in elfs.values()):
+        failures.append({'elf': None, 'stage': 'filter', 'message': _filter_failure('membrowse')})
+    return elfs, failures
+
+
+def run_snapshot(args):
+    """`snapshot`: size the CI-pinned boards a build leg already built, one
+    code-size-<board>.json each, for `compare` against another run's snapshots."""
+    os.chdir(TINYUSB_ROOT)  # build_utils and build.py resolve hw/bsp and examples from the cwd
+    sha, base_sha, head_sha = _git_shas(args.event)
+    try:
+        from importlib.metadata import version
+        membrowse_version = version('membrowse')
+    except Exception:
+        membrowse_version = ''
+    filters = args.filter or [tinyusb_src_filter(TINYUSB_ROOT)]
+    defines = tuple(args.define_symbol)
+    boards = snapshot_boards(args.families, args.board, args.example, defines)
+    # a variant leg (--build-name) reports its one board under the build name
+    names = {args.build_name or b: b for b in boards}
+    os.makedirs(args.output, exist_ok=True)
+    # written even with no board: `compare` tells a leg that ran from one that never did
+    with open(os.path.join(args.output, 'leg.json'), 'w') as f:
+        json.dump({'schema': SNAPSHOT_SCHEMA, 'examples': args.example, 'boards': list(names),
+                   'build_outcome': args.build_outcome, 'sha': sha, 'base_sha': base_sha, 'head_sha': head_sha},
+                  f, sort_keys=True)
+    if not boards:
+        print('snapshot: no CI-pinned board in this leg')
+        return 0
+    failed = False
+    for board, base_board in names.items():
+        build_dir = os.path.join(args.build_root, f'cmake-build-{board}')
+        elfs, failures = board_snapshot(base_board, build_dir, args.example, filters, defines)
+        # the leg's commits, examples and build outcome are in its leg.json
+        data = {'schema': SNAPSHOT_SCHEMA, 'board': board, 'engine': 'membrowse',
+                'membrowse_version': membrowse_version, 'compiler': _cmake_compiler(build_dir),
+                'elfs': {rel: _json_sizes(s, args.symbols) for rel, s in sorted(elfs.items())},
+                'failures': failures}
+        path = os.path.join(args.output, f'code-size-{board}.json')
+        with open(path, 'w') as f:
+            json.dump(data, f, sort_keys=True, separators=(',', ':'))
+        failed |= bool(failures)
+        print(f'  {board}: {len(elfs)} elfs sized, {len(failures)} failures -> {_shown(path)}')
+        for fail in failures:
+            print(f'    FAILED {fail["elf"] or board} {fail["stage"]}: {fail["message"]}')
+    return 1 if failed else 0
+
+
+_NAME_RE = re.compile(r'[A-Za-z0-9_.+/-]+')
+COMMENT_LIMIT = 60000  # GitHub caps a comment at 65536 characters
+
+
+def _clean(text, limit=300):
+    """Snapshot text for a report: a snapshot is PR-built data, so nothing in it may open
+    Markdown, HTML or an @mention."""
+    return re.sub(r'[^A-Za-z0-9_.,:;=()/+ -]', '?', str(text))[:limit]
+
+
+def _is_count(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _region(value):
+    return isinstance(value, dict) and set(value) == {'flash', 'ram'} and all(map(_is_count, value.values()))
+
+
+def _int_map(value, depth):
+    """Whether `value` is `depth` levels of str-keyed dicts over byte counts."""
+    return isinstance(value, dict) and all(
+        isinstance(k, str) and (_int_map(v, depth - 1) if depth > 1 else _is_count(v)) for k, v in value.items())
+
+
+def _valid_sizes(s):
+    return (isinstance(s, dict) and {'files', 'all', 'sections'} <= set(s) <= {'files', 'all', 'sections', 'symbols'}
+            and _region(s['all']) and isinstance(s['files'], dict)
+            and all(isinstance(k, str) and _region(v) for k, v in s['files'].items())
+            and _int_map(s['sections'], 2) and ('symbols' not in s or _int_map(s['symbols'], 3)))
+
+
+def _is_name(value):
+    return isinstance(value, str) and bool(_NAME_RE.fullmatch(value)) and '..' not in value.split('/')
+
+
+def _names(value, none_ok=False):
+    return (none_ok and value is None) or (isinstance(value, list) and all(map(_is_name, value)))
+
+
+def _commits(data):
+    """(sha, base_sha, head_sha), or None unless all are 40-hex."""
+    shas = tuple(data.get(k) for k in ('sha', 'base_sha', 'head_sha'))
+    return shas if all(isinstance(s, str) and _SHA_RE.fullmatch(s) for s in shas) else None
+
+
+def _scope_error(data):
+    legs, fam = data.get('legs'), data.get('family_examples', {})
+    if not isinstance(data.get('code_changed'), bool):
+        return 'code_changed is not a boolean'
+    if not (isinstance(legs, list) and all(isinstance(leg, dict) and isinstance(leg.get('toolchain'), str)
+                                           and isinstance(leg.get('arg'), str) for leg in legs)):
+        return 'legs are not {toolchain, arg} strings'
+    if not (isinstance(fam, dict) and all(map(_names, fam.values()))):
+        return 'family_examples is not a map of example lists'
+    return None
+
+
+def _leg_error(data):
+    if not isinstance(data.get('build_outcome'), str):
+        return 'build_outcome is not a string'
+    if not _names(data.get('boards')):
+        return 'boards is not a list of board names'
+    if 'examples' not in data or not _names(data['examples'], none_ok=True):
+        return 'examples is not a list of example names'
+    return None if _commits(data) else 'commit hashes are not 40-hex'
+
+
+def _shard_error(data, filename):
+    board = data.get('board')
+    if not (_is_name(board) and filename == f'code-size-{board}.json'):
+        return 'board name does not match the file'
+    if data.get('engine') != 'membrowse':
+        return 'unsupported engine'
+    elfs, failures = data.get('elfs'), data.get('failures')
+    if not isinstance(elfs, dict) or not isinstance(failures, list):
+        return 'no elfs/failures'
+    for elf, sizes in elfs.items():
+        if not _is_name(elf):
+            return 'invalid elf path'
+        if not _valid_sizes(sizes):
+            return f'{elf}: sizes are not integer byte counts'
+    if not all(isinstance(f, dict) and 'elf' in f and (f['elf'] is None or _is_name(f['elf']))
+               and isinstance(f.get('stage'), str) and isinstance(f.get('message'), str) for f in failures):
+        return 'failures are not {elf, stage, message} records'
+    return None
+
+
+def load_snapshots(root):
+    """Every snapshot file under `root` (one directory per downloaded artifact):
+    {'scope': scope.json or None, 'legs': {artifact dir: leg.json}, 'shards': {board: shard},
+    'errors': [(file, why)]}. A shard records its artifact dir as '_leg'. An unusable file
+    is an error, never guessed at."""
+    run = {'scope': None, 'legs': {}, 'shards': {}, 'errors': []}
+    for dirpath, _dirs, files in sorted(os.walk(root)):
+        artifact = os.path.basename(dirpath)
+        for name in sorted(f for f in files if f.endswith('.json')):
+            rel = os.path.relpath(os.path.join(dirpath, name), root)
+            try:
+                with open(os.path.join(dirpath, name)) as f:
+                    data = json.load(f)
+            except (OSError, ValueError):
+                run['errors'].append((rel, 'unreadable JSON'))
+                continue
+            if not isinstance(data, dict) or data.get('schema') != SNAPSHOT_SCHEMA:
+                why = 'unsupported snapshot schema'
+            elif name == 'scope.json':
+                why = _scope_error(data)
+                run['scope'] = None if why else data
+            elif name == 'leg.json':
+                why = _leg_error(data)
+                if not why:
+                    run['legs'][artifact] = data
+            elif name.startswith('code-size-'):
+                why = _shard_error(data, name)
+                if not why and data['board'] in run['shards']:
+                    why = f'second snapshot of {data["board"]}'
+                if not why:
+                    run['shards'][data['board']] = {**data, '_leg': artifact}
+            else:
+                why = 'not a snapshot file'
+            if why:
+                run['errors'].append((rel, why))
+    return run
+
+
+def _leg_examples(scope, arg):
+    """The examples build_util.yml builds for a scope leg: its arg's own -e plus the scope's
+    family map entry for that arg, None for all."""
+    return sorted(set(re.findall(r' -e ([^ ]+)', arg) + scope.get('family_examples', {}).get(arg, []))) or None
+
+
+def _in_scope(elf, examples):
+    """Whether an elf path (<role>/<example>/<name>.elf) is one of `examples`, all when None."""
+    return examples is None or '/'.join(elf.split('/')[:2]) in examples
+
+
+def _usable_shards(run, side, failures, boards=None):
+    """`run`'s shards listed in the boards of their own leg, whose build succeeded, each given
+    its leg's examples as '_examples'. Returns ({board: shard}, {leg commits}); every
+    rejection is added to `failures`, only of `boards` when given."""
+    shards, commits = {}, {_commits(leg) for leg in run['legs'].values()}
+    for rel, why in run['errors']:
+        board = re.fullmatch(r'code-size-(.+)\.json', os.path.basename(rel))
+        if boards is None or not board or board.group(1) in boards:
+            failures.append(((_clean(rel), None), side, 'snapshot', _clean(why)))
+    for board, shard in sorted(run['shards'].items()):
+        if boards is not None and board not in boards:
+            continue
+        leg = run['legs'].get(shard['_leg'])
+        if leg is None or board not in leg['boards']:
+            failures.append(((board, None), side, 'snapshot', 'not a board of its leg\'s build'))
+        elif leg['build_outcome'] != 'success':
+            failures.append(((board, None), side, 'build', f'the build step ended {_clean(leg["build_outcome"])}'))
+        else:
+            shards[board] = {**shard, '_examples': leg['examples']}
+    for _artifact, leg in sorted(run['legs'].items()):
+        failures += [((board, None), side, 'snapshot', 'the leg left no snapshot of it') for board in leg['boards']
+                     if board not in run['shards'] and (boards is None or board in boards)]
+    return shards, commits
+
+
+def _scope_failures(scope, legs):
+    """Legs of the scope that left no leg.json, or measured other examples than it selected,
+    and legs that are not of it."""
+    failures, expected = [], set()
+    for leg in scope['legs']:
+        tag = re.sub(r' -e [^ ]+', '', leg['arg'])  # build_util.yml's ARTIFACT_TAG
+        artifact = f'code-size-{leg["toolchain"]}-{tag}'
+        expected.add(artifact)
+        if artifact not in legs:
+            failures.append(((_clean(artifact), None), 'current', 'snapshot', 'the build leg left no snapshot'))
+        elif (legs[artifact]['examples'] is not None  # all examples covers any selection
+              and sorted(set(legs[artifact]['examples'])) != _leg_examples(scope, leg['arg'])):
+            failures.append(((_clean(artifact), None), 'current', 'scope', 'measured other examples than selected'))
+    failures += [((_clean(a), None), 'current', 'scope', 'not a leg of this run') for a in sorted(set(legs) - expected)]
+    return failures
+
+
+def compare_runs(base, cur, baseline=None, symbols=False):
+    """Compare two load_snapshots() runs, `cur` defining the scope. Returns
+    (full Markdown, comment Markdown, JSON data). `baseline` is code_size_ci.py's
+    description of the base run ({'sha', 'url', 'exact', 'note'}), or None. Anything that
+    leaves coverage short is a failure; a comparable difference is a note."""
+    notes, failures = [], []
+    scope = cur['scope']
+    if scope is None:
+        failures.append((('scope', None), 'current', 'snapshot', 'no usable scope manifest'))
+    elif not (scope['legs'] or cur['legs'] or cur['shards'] or cur['errors']):
+        md = 'Nothing to measure: no code change, or no CI-pinned build leg selected.\n'
+        return md, f'## Code size\n\n{md}', {'status': 'nothing measured'}
+    else:
+        failures += _scope_failures(scope, cur['legs'])
+    cur_shards, cur_commits = _usable_shards(cur, 'current', failures)
+    base_shards, base_commits = _usable_shards(base, 'base', failures, set(cur_shards))
+    labels = SIDE_LABELS
+    if len(cur_commits) > 1:
+        failures.append((('commits', None), 'current', 'snapshot', 'the snapshots are of different commits'))
+        cur_shards = {}
+    elif cur_commits:
+        (_sha, base_sha, head_sha), = cur_commits
+        labels = (base_sha[:10], head_sha[:10])
+    base_shas = {c[0] for c in base_commits}
+    if len(base_shas) > 1 or (baseline and base_shas and base_shas != {baseline.get('sha')}):
+        failures.append((('commits', None), 'base', 'snapshot', 'the snapshots are not of the selected baseline commit'))
+        base_shards = {}
+
+    sides, no_baseline, outside = {'base': {}, 'current': {}}, [], 0
+    for board, shard in sorted(cur_shards.items()):
+        failures += [((board, f['elf']), 'current', _clean(f['stage']), _clean(f['message'])) for f in shard['failures']]
+        b = base_shards.get(board)
+        if b is None:
+            no_baseline.append(board)
+            failures.append(((board, None), 'base', 'snapshot', 'no baseline snapshot'))
+            continue
+        for key in ('membrowse_version', 'compiler'):
+            if b.get(key) != shard.get(key):
+                notes.append(f'{board}: {key} differs from the baseline ({_clean(b.get(key))} -> '
+                             f'{_clean(shard.get(key))}): comparable, not exact')
+        examples = shard['_examples']
+        # a baseline failure is the baseline's, never this PR's: its elf is not new here
+        base_failed = set()
+        for f in b['failures']:
+            if f['elf'] is None or _in_scope(f['elf'], examples):
+                failures.append(((board, f['elf']), 'base', _clean(f['stage']), _clean(f['message'])))
+                base_failed.add(f['elf'])
+        for elf, sizes in b['elfs'].items():
+            if _in_scope(elf, examples):
+                sides['base'][(board, elf)] = sizes
+            else:
+                outside += 1
+        sides['current'].update({(board, elf): s for elf, s in shard['elfs'].items() if elf not in base_failed})
+    if outside:
+        notes.append(f'{outside} baseline elfs are of examples this PR did not build (outside coverage)')
+
+    if symbols and not all('symbols' in s for side in sides.values() for s in side.values()):
+        symbols = False
+        notes.append('symbols omitted: some snapshots were taken without them')
+    head = []
+    if baseline:
+        kind = 'exact' if baseline.get('exact') else 'approximate'
+        head.append((f'Baseline: {_clean(baseline["sha"][:10])} ({kind}) {_clean(baseline.get("url"), 200)}'
+                     if baseline.get('sha') else 'Baseline: unavailable')
+                    + (f' - {_clean(baseline["note"])}' if baseline.get('note') else ''))
+    head += [f'- {n}' for n in notes]
+    boards = sorted(cur_shards)
+    full, _fails, _ok, data = compare_sides(sides['base'], sides['current'], 'membrowse', failures, boards,
+                                            symbols=symbols, labels=labels)
+    pairs, base_only, cur_only = pair_elfs(sides['base'], sides['current'])
+    body, footnote = render_comment(pairs, 'membrowse', base_only, cur_only, failures, symbols)
+    preface = '\n'.join(head) + ('\n\n' if head else '')
+    comment = f'## Code size\n\n{preface}{body}'
+    truncated = '\n\n_Truncated: see the full report._\n'
+    if len(comment) + len(footnote) > COMMENT_LIMIT:
+        comment = comment[:COMMENT_LIMIT - len(footnote) - len(truncated)].rsplit('\n', 1)[0] + truncated
+    comment += footnote
+    data.update({'notes': notes, 'baseline': baseline, 'no_baseline': no_baseline, 'outside': outside})
+    return preface + full, comment, data
+
+
+def run_compare(args):
+    """`compare`: compare a run's snapshots against a baseline run's, no build."""
+    baseline = None
+    if args.baseline_info:
+        with open(args.baseline_info) as f:
+            baseline = json.load(f)
+    base = load_snapshots(args.base)  # os.walk of a missing directory yields nothing
+    full, comment, data = compare_runs(base, load_snapshots(args.current), baseline, args.symbols)
+    os.makedirs(args.output, exist_ok=True)
+    write_report(os.path.join(args.output, 'code-size'), full, data)
+    with open(os.path.join(args.output, 'comment.md'), 'w') as f:
+        f.write(comment)
+    print(f'  comment: {_shown(os.path.join(args.output, "comment.md"))}')
+    return 0
 
 
 def example_arg(value):
@@ -1086,8 +1708,54 @@ def main():
     parser.add_argument('--combined', action='store_true',
                         help='Also write one comparison over every board '
                              '(cmake-code-size/_combined/diff.md), in addition to per-board.')
+    snap = sub.add_parser('snapshot', help='size the CI-pinned boards a CI build leg already built, '
+                                           'one code-size-<board>.json each (no build)')
+    snap.add_argument('families', nargs='*', default=[], help='Families the leg built (as tools/build.py)')
+    snap.add_argument('-b', '--board', action='append', default=[], help='Board the leg built (repeatable)')
+    snap.add_argument('-e', '--example', action='append', default=None, type=example_arg,
+                      help='Examples the leg built (repeatable); omit when it built all')
+    snap.add_argument('--build-name', help='A variant leg\'s build name (as tools/build.py): its build dir, and '
+                                          'the board it reports as')
+    snap.add_argument('-D', '--define-symbol', action='append', default=[],
+                      help='A variant leg\'s build-system define (as tools/build.py); it needs --build-name')
+    snap.add_argument('--cflag', action='append', default=[],
+                      help='A variant leg\'s compiler flag (as tools/build.py); it needs --build-name')
+    snap.add_argument('-o', '--output', required=True, help='Directory for the code-size-<board>.json files')
+    snap.add_argument('--build-root', default=os.path.join(TINYUSB_ROOT, 'cmake-build'),
+                      help='Where tools/build.py put cmake-build-<board> (default: cmake-build)')
+    snap.add_argument('--event', default=os.environ.get('GITHUB_EVENT_NAME', 'push'),
+                      help='CI event; pull_request reads base/head from the merge commit '
+                           '(default: $GITHUB_EVENT_NAME, else push)')
+    snap.add_argument('--build-outcome', default='success', help='The Build step\'s outcome, recorded as is')
+    snap.add_argument('-f', '--filter', action='append', default=None,
+                      help='Path-substring filter (repeatable); default: this checkout\'s <checkout>/src/')
+    snap.add_argument('--symbols', action='store_true', help='Include each file\'s symbols')
+    snap.add_argument('-v', '--verbose', action='store_true', help='Print commands')
+    cmp = sub.add_parser('compare', help='compare a CI run\'s snapshots against a baseline run\'s '
+                                         '(code-size.md, code-size.json, comment.md; no build)')
+    cmp.add_argument('current', help='The run\'s downloaded artifacts, one directory each')
+    cmp.add_argument('base', help='The baseline run\'s downloaded artifacts; a missing directory is no baseline')
+    cmp.add_argument('-o', '--output', required=True, help='Directory for the reports')
+    cmp.add_argument('--baseline-info', help='JSON describing the baseline run: {sha, url, exact, note}')
+    cmp.add_argument('--symbols', action='store_true', help='Show each changed file\'s symbols in the full report')
     args = top.parse_args()
-    verbose = args.verbose
+    verbose = getattr(args, 'verbose', False)
+
+    if args.command == 'compare':
+        return run_compare(args)
+
+    if args.command == 'snapshot':
+        # a leg whose build did not succeed may have skipped the membrowse install too;
+        # its snapshot still records that outcome, and any elf it left fails to size
+        if engine_missing('membrowse') and args.build_outcome == 'success':
+            snap.error(f'membrowse not found - install {ENGINES["membrowse"].install}')
+        if invalid := invalid_boards(args.board + ([args.build_name] if args.build_name else [])):
+            snap.error(f'invalid board name: {", ".join(invalid)}')
+        if args.build_name and (args.families or len(args.board) != 1):
+            snap.error('--build-name names exactly one -b board and no families')
+        if (args.define_symbol or args.cflag) and not args.build_name:
+            snap.error('-D or --cflag makes a variant, which needs --build-name to report under')
+        return run_snapshot(args)
 
     if engine_missing(args.engine):
         sub.choices[args.command].error(f'{args.engine} not found - install {ENGINES[args.engine].install}, '
@@ -1098,6 +1766,8 @@ def main():
             report_parser.error('at least one -b BOARD is required')
         if invalid := invalid_boards(args.board):
             report_parser.error(f'invalid board name: {", ".join(invalid)}')
+        if error := esp_without_idf(args.board):
+            report_parser.error(error)
         return run_report(args)
 
     if args.bloaty and not args.example:
@@ -1113,8 +1783,12 @@ def main():
         parser.error('at least one -b BOARD is required (or pass --ci)')
     if invalid := invalid_boards(args.board):
         parser.error(f'invalid board name: {", ".join(invalid)}')
+    # before any board builds: a --ci run would otherwise fail its espressif boards last
+    if error := esp_without_idf(args.board):
+        parser.error(error)
 
     worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
+    files_label = 'filtered' if args.filter else 'TinyUSB'
 
     # Per-side filters: when no override is given, each build uses its own
     # absolute <checkout>/src/ path so we only match TinyUSB stack code from that
@@ -1202,7 +1876,7 @@ def main():
 
                 md, failures, ok, data = compare_sides(
                     sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
-                    symbols=args.symbols, labels=labels)
+                    symbols=args.symbols, labels=labels, files_label=files_label)
                 if not build_failure:
                     phase.done(failed=not ok)
                 failed |= not ok
@@ -1214,7 +1888,8 @@ def main():
                                                                          args.engine, labels)
                                     for p in data['pairs'] if _pair_changed(p['base'], p['current'], args.symbols)},
                                    len(data['pairs'])) if focused else ()
-                print_result(diff_summary(data, args.symbols), f'{example}: ' if scope else '', tables)
+                print_result(diff_summary(data, args.symbols, files_label), f'{example}: ' if scope else '',
+                             tables)
                 write_report(report_path(board, example), md, report_data(data))
 
                 if args.bloaty and example and not build_failure:
@@ -1247,9 +1922,9 @@ def main():
             # every scope was filter-checked above, and its failures carried over
             md, _failures, ok, data = compare_sides(
                 combined_sides['base'], combined_sides['current'], args.engine,
-                combined_failures, args.board, symbols=args.symbols, labels=labels)
+                combined_failures, args.board, symbols=args.symbols, labels=labels, files_label=files_label)
             failed |= not ok
-            print_result(diff_summary(data, args.symbols))
+            print_result(diff_summary(data, args.symbols, files_label))
             write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
     finally:
         # an add stopped by a signal leaves it too, locked `initializing`

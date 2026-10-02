@@ -285,6 +285,10 @@ function(family_add_membrowse TARGET)
   else ()
     set(ELF_TARGET ${TARGET})
   endif ()
+  # a variant build (build.py --build-name) reports as a board of its own
+  if (NOT DEFINED MEMBROWSE_BOARD)
+    set(MEMBROWSE_BOARD ${BOARD})
+  endif ()
 
   # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
   # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
@@ -299,7 +303,7 @@ function(family_add_membrowse TARGET)
       --ninja ${CMAKE_MAKE_PROGRAM}
       --elf ${TARGET_ELF_PATH}
       # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
-      --target-name ${BOARD}/${TARGET}
+      --target-name ${MEMBROWSE_BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)
       list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")

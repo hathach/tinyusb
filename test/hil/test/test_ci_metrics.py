@@ -209,6 +209,122 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # (tools/build.py sets build_examples=None) and compile every example
         self.assertNotIn('--ci-pinned-boards-only', self.jobs['cmake'])
 
+    def test_the_code_size_scope_lists_every_cmake_leg_and_esp_leg(self):
+        # pr_comment.yml's compare expects a snapshot artifact per listed leg: the list
+        # must be the cmake job's matrix, from the one toolchain list both read, plus every
+        # hil-build-esp leg (a -DMA variant is a board of its own) under that job's owner gate
+        import subprocess, tempfile
+        self.assertIn('fromJSON(needs.set-matrix.outputs.cmake_toolchains)', self.jobs['cmake'])
+        self.assertIn("github.repository_owner == 'hathach'", self.jobs['hil-build-esp'])
+        m = re.search(r"echo 'cmake_toolchains=(\[.*\])' >> \$GITHUB_OUTPUT", self.build)
+        toolchains = json.loads(m.group(1))
+        self.assertNotIn('esp-idf', toolchains)
+        i = self.build.index('mkdir -p code-size-scope')
+        i = self.build.rindex('\n', 0, i) + 1
+        j = self.build.index('cat code-size-scope/scope.json', i)
+        block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
+        pinned = {'arm-gcc': ['stm32f4', 'imxrt'], 'riscv-gcc': ['fomu'], 'esp-idf': ['espressif']}
+        hil = {'arm-gcc': ['-b x'], 'esp-idf': [
+            '-b espressif_s3_devkitm -e device/cdc_msc_freertos',
+            '-b espressif_s3_devkitm --build-name espressif_s3_devkitm-DMA --cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1']}
+
+        def scope(changed, owner='hathach'):
+            with tempfile.TemporaryDirectory() as d:
+                subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
+                               env={**os.environ, 'TOOLCHAINS': m.group(1), 'PINNED_JSON': json.dumps(pinned),
+                                    'EXAMPLE_MAP': '{"stm32f4": ["device/cdc_msc"]}', 'CODE_CHANGED': changed,
+                                    'HIL_JSON': json.dumps(hil), 'OWNER': owner})
+                with open(os.path.join(d, 'code-size-scope', 'scope.json')) as fh:
+                    return json.load(fh)
+        cmake = [{'toolchain': 'arm-gcc', 'arg': 'stm32f4'}, {'toolchain': 'arm-gcc', 'arg': 'imxrt'},
+                 {'toolchain': 'riscv-gcc', 'arg': 'fomu'}]
+        s = scope('true')
+        self.assertEqual(s['legs'], cmake + [{'toolchain': 'esp-idf', 'arg': a} for a in hil['esp-idf']])
+        self.assertEqual((s['code_changed'], s['family_examples']), (True, {'stm32f4': ['device/cdc_msc']}))
+        self.assertEqual(scope('true', owner='fork')['legs'], cmake)  # hil-build-esp does not run there
+        self.assertEqual(scope('false')['legs'], [])  # no code change: nothing to measure
+
+    def test_the_esp_snapshot_runs_in_the_idf_image_with_the_leg_as_data(self):
+        import subprocess, tempfile
+        with open(os.path.join(REPO, '.github', 'workflows', 'build_util.yml')) as f:
+            text = f.read()
+        def step_script(name):
+            i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
+            return re.sub(r'^ {10}', '', text[i:text.index('        shell: bash', i)], flags=re.M)
+        block = step_script('Code size snapshot')
+        with tempfile.TemporaryDirectory() as d:
+            # docker runs its inner command here with the env it was told to pass; git, pip
+            # and python only record their argv
+            stubs = {'docker': 'echo "docker ${*:1:$#-1}" >> "$LOG"; exec bash -c "${!#}"',
+                     'git': 'echo "git $*" >> "$LOG"', 'pip': 'echo "pip $*" >> "$LOG"',
+                     'python': '{ printf "python"; printf " [%s]" "$@"; echo; } >> "$LOG"'}
+            for name, body in stubs.items():
+                with open(os.path.join(d, name), 'w') as f:
+                    f.write(f'#!/bin/bash\n{body}\n')
+                os.chmod(os.path.join(d, name), 0o755)
+            env = {**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'], 'LOG': os.path.join(d, 'log'),
+                   'TOOLCHAIN': 'esp-idf', 'BUILD_OUTCOME': 'success', 'EX_ARGS': '',
+                   'GITHUB_EVENT_NAME': 'pull_request'}
+
+            def run(arg, toolchain='esp-idf'):
+                open(env['LOG'], 'w').close()
+                r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True,
+                                   text=True, env={**env, 'ARG': arg, 'TOOLCHAIN': toolchain})
+                self.assertEqual(r.returncode, 0, r.stderr)
+                with open(env['LOG']) as f:
+                    return f.read().splitlines()
+            log = run('-b espressif_s3_devkitm $(touch pwned) ;id')
+            self.assertFalse(os.path.exists(os.path.join(d, 'pwned')))
+            self.assertTrue(log[0].startswith('docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME '
+                                              f'-v {d}:/project -w /project espressif/idf:tinyusb bash -c'))
+            self.assertEqual(log[1:3], ['git config --global --add safe.directory /project',
+                                        'pip install --only-binary :all: membrowse==1.2.12'])
+            self.assertEqual(log[3], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+                                     '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
+            self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
+                             ['python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+                              '[-o] [code-size] [stm32f4]'])
+            # a variant leg is sized too, as the board its --build-name names
+            self.assertEqual(run('-b espressif_s3_devkitm --build-name x-DMA --cflag=-DY=1')[-1],
+                             'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+                             '[-o] [code-size] [-b] [espressif_s3_devkitm] [--build-name] [x-DMA] [--cflag=-DY=1]')
+
+    def test_the_code_size_comment_is_written_even_without_usable_snapshots(self):
+        # a run without usable snapshots, and a baseline lookup that fails, must still
+        # leave a comment.md, so the post replaces an earlier push's table
+        import subprocess, tempfile
+        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml')) as f:
+            text = f.read()
+
+        def step_script(name):
+            i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
+            j = re.search(r'^\s*$', text[i:], re.M).start() + i  # the block ends at the first blank line
+            return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
+        with tempfile.TemporaryDirectory() as d:
+            env = {**os.environ, 'RUNNER_TEMP': d, 'REPO': 'x/y', 'RUN_URL': 'https://example/run',
+                   'GITHUB_STEP_SUMMARY': os.path.join(d, 'summary.md'), 'GITHUB_OUTPUT': os.path.join(d, 'out'),
+                   'PATH': d + os.pathsep + os.environ['PATH']}
+            with open(os.path.join(d, 'gh'), 'w') as f:  # any API call fails
+                f.write('#!/bin/sh\nexit 1\n')
+            os.chmod(os.path.join(d, 'gh'), 0o755)
+            leg = os.path.join(d, 'code-size', 'current', 'code-size-arm-gcc-x')
+            os.makedirs(leg)
+            with open(os.path.join(leg, 'leg.json'), 'w') as f:
+                json.dump({'schema': 1, 'boards': [], 'examples': None, 'build_outcome': 'success',
+                           'sha': 'a' * 40, 'base_sha': 'a' * 40, 'head_sha': 'a' * 40}, f)
+            for name in ('Find the baseline', 'Compare against the baseline'):
+                r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
+                                   capture_output=True, text=True, env=env)
+                self.assertEqual(r.returncode, 0, f'{name}: {r.stderr}')
+            with open(os.path.join(d, 'out')) as f:
+                self.assertEqual(f.read(), 'run_id=\n')  # no baseline download
+            with open(os.path.join(d, 'code-size', 'out', 'comment.md')) as f:
+                comment = f.read()
+        self.assertTrue(comment.startswith('## Code size'))
+        self.assertIn('Baseline: unavailable - the baseline lookup failed', comment)
+        self.assertIn('no usable scope manifest', comment)
+        self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
+
     def _run_matrix_step(self, sel, fail_pinned=False):
         """Run the whole 'Generate matrix json' step for real, optionally with the
         SCOPED --pinned invocation failing (the unscoped fallback still works, as a

@@ -13,6 +13,8 @@ import sys
 
 # `--defsym=SYM=VAL` or `--defsym,SYM=VAL` from a link line
 DEFSYM_RE = re.compile(r'--defsym[=,](\S+)')
+# ESP-IDF's generated scripts, relative to the build dir (family_support.cmake's MEMBROWSE_LD_OVERRIDE)
+IDF_LD_SCRIPTS = ('esp-idf/esp_system/ld/memory.ld', 'esp-idf/esp_system/ld/sections.ld')
 
 
 def link_command(ninja, build_dir, elf):
@@ -129,8 +131,7 @@ def compose(board, example, num_commits, upload, api_key, extra, family=None):
         build = (f'idf.py -C {shlex.quote(f"examples/{example}")} -B {quoted_build_dir} '
                  f'-GNinja {shlex.quote(f"-DBOARD={board}")} build')
         elf_path = f'{build_dir}/{basename}.elf'
-        shim_scripts = ('esp-idf/esp_system/ld/memory.ld',
-                        'esp-idf/esp_system/ld/sections.ld')
+        shim_scripts = IDF_LD_SCRIPTS
     else:
         configure = (f'cmake -S examples -B {quoted_build_dir} '
                      f'{shlex.quote(f"-DBOARD={board}")} -G Ninja '

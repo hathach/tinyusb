@@ -120,6 +120,9 @@ def main():
             except ValueError as e:
                 raise SystemExit(f'{config_file}: {e}')
             for v in variants:
+                if toolchain == 'esp-idf' and v['name'] == name and (v['defines'] or v['flags']):
+                    # hil-build-esp sizes and uploads every leg as the board its --build-name names
+                    raise SystemExit(f'{config_file}: {name}: an esp-idf variant needs a name of its own')
                 arg = build_board
                 if v['name'] != name:
                     arg += f' --build-name {v["name"]}'

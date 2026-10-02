@@ -148,6 +148,8 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
     build_flags = []
     if build_cflags:
         build_flags.append('-DCFLAGS_CLI=' + ' '.join(build_cflags))
+    if build_name:  # a variant is a membrowse board of its own (family_add_membrowse)
+        build_flags.append(f'-DMEMBROWSE_BOARD={build_name}')
 
     family = find_family(board)
     if family == 'espressif':
@@ -182,7 +184,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_cli.py'), 'report',
                     '--build-dir', example_build_dir, '--ninja', 'ninja',
                     '--elf', f'{example_build_dir}/{name}.elf',
-                    '--target-name', f'{board}/{name}', '--upload',
+                    '--target-name', f'{build_name or board}/{name}', '--upload',
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
             elif not os.path.isdir(example_build_dir):
@@ -413,7 +415,7 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     with open(boards_path) as f:
         data = json.load(f)
     # membership in this family's board dir, not find_family() per entry: that walks
-    # every hw/bsp family for each of the 23 pinned boards to answer one family's question
+    # every hw/bsp family for each pinned board to answer one family's question
     family_boards = {e.name for e in os.scandir(f'hw/bsp/{family}/boards') if e.is_dir()}
     ci_boards = [t['board'] for t in data['boards']
                  if t['board'] in family_boards
@@ -492,7 +494,8 @@ def main():
     # that existed before the configure); -e only selects targets, the cmake tree configures whole.
     # The command line is only half of it - canonical_row() refuses the flags CFLAGS and
     # its siblings add to a configure this test cannot see
-    canonical = build_system == 'cmake' and not build_defines and not build_cflags and toolchain == 'gcc'
+    variant = bool(build_defines or build_cflags)
+    canonical = build_system == 'cmake' and not variant and toolchain == 'gcc'
 
     for e in args.example:
         if not EXAMPLE_RE.fullmatch(e):
@@ -518,6 +521,12 @@ def main():
     # board with it would clobber/mix artifacts
     if build_name and (len(families) > 0 or len(boards) != 1):
         print("--build-name requires exactly one board (-b) and no families")
+        return 1
+
+    # membrowse names an upload <board>/<example>: an unnamed variant would overwrite
+    # the plain build's history (family_add_membrowse)
+    if variant and not build_name and 'examples-membrowse-upload' in build_targets:
+        print("examples-membrowse-upload of a -D/--cflag variant requires --build-name")
         return 1
 
     print(build_separator)

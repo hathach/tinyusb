@@ -25,9 +25,9 @@ _prune_buildable then intersects each family with what it can actually build.
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
-| 2b | `tools/code_size.py`, `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
+| 2b | `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
-| 2d | `tools/membrowse_cli.py` | `ALL` | `ALL` | — (build-time script invoked from family_support.cmake; no rig board runs it) |
+| 2d | `tools/membrowse_cli.py`, `tools/code_size.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
@@ -98,7 +98,8 @@ _NONCODE_RE = re.compile(
 #
 # Deliberately NOT here, and still full: .circleci/**, .github/workflows/build*.yml,
 # .github/actions/**, .github/scripts/** - those decide what gets built. The line is
-# "does any Build step read this file", not "is it source".
+# "does any Build step read this file", not "is it source": code_size_ci.py is read by
+# pr_comment.yml only, so it is metadata.
 #
 # test/{fuzz,unit-test} have their own jobs (cifuzz.yml, the unit-test pre-commit hook
 # and workflow); the Build matrix never compiles them, and test/hil is rule 2.
@@ -119,25 +120,25 @@ _META_RE = re.compile(
     # The harness itself stays under _FULL_RE's test/hil/ prefix.
     r'test/(fuzz|unit-test)/|test/hil/test/|'
     # .github, minus the build machinery named in _FULL_RE and _CI_BOARDS_RE
-    r'\.github/(FUNDING\.yml$|labeler\.yml$|membrowse_pr_message\.j2$|'
-    r'ISSUE_TEMPLATE/|'
-    r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
+    r'\.github/(FUNDING\.yml$|labeler\.yml$|'
+    r'ISSUE_TEMPLATE/|scripts/code_size_ci\.py$|'
+    r'workflows/(cifuzz|claude|claude-code-review|labeler|'
     r'pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and local tooling are handled separately)
     r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
     r'tools/iar_template\.ipcf$'
     r')')
-# Local-only size/coverage tooling: no CI build and no rig board runs it (the
+# Local-only coverage tooling: no CI build and no rig board runs it (the
 # drivers-coverage checker is pre-commit only), so no contribution on either axis.
-_LOCAL_TOOLING_RE = re.compile(
-    r'^tools/(code_size|drivers_coverage_check)\.py$')
+_LOCAL_TOOLING_RE = re.compile(r'^tools/drivers_coverage_check\.py$')
 # CI board data (tools/build.py --ci-pinned-boards): it decides which boards a family's
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
 _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
-# Run by family_add_membrowse() for every family with a pinned board: which family it
-# breaks is data, not code, so full build matrix as rule 2c. No rig board runs it.
-_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_cli\.py$')
+# Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
+# code_size.py's CI snapshot): which family they break is data, not code, so full build
+# matrix as rule 2c. No rig board runs them.
+_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/(membrowse_cli|code_size)\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
@@ -659,13 +660,13 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         s.reasons.append(f'{path}: non-code, no contribution')
         return
     if _LOCAL_TOOLING_RE.match(path):                                   # rule 2b
-        s.reasons.append(f'{path}: local size/coverage tooling, no HIL contribution')
+        s.reasons.append(f'{path}: local coverage tooling, no HIL contribution')
         return
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
         s.reasons.append(f'{path}: CI board data, no HIL contribution')
         return
     if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
-        s.reasons.append(f'{path}: membrowse build-time script, no HIL contribution')
+        s.reasons.append(f'{path}: CI size script, no HIL contribution')
         return
     if _FULL_RE.match(path):
         s.force_full(f'{path}: core/infra -> full matrix')
@@ -1181,13 +1182,13 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
         return
     if _LOCAL_TOOLING_RE.match(path):                                   # rule 2b
-        s.reasons.append(f'{path}: local size/coverage tooling, no build contribution')
+        s.reasons.append(f'{path}: local coverage tooling, no build contribution')
         return
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
         s.force_full(f'{path}: CI board data changes which boards build -> full build matrix')
         return
     if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
-        s.force_full(f'{path}: membrowse build-time script -> full build matrix')
+        s.force_full(f'{path}: CI size script -> full build matrix')
         return
     if _FULL_RE.match(path):                                      # rules 15-16
         # attribution, not behaviour: these already reached `full` through the
