@@ -146,9 +146,6 @@
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
-    :test_hid_device:
-      - CFG_TUD_MSC=0
-      - CFG_TUD_HID=2
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1

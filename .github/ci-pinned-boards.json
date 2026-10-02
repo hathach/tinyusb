@@ -1,7 +1,6 @@
 {
   "boards": [
     { "board": "adafruit_fruit_jam", "note": "rp2350 FS + pio-usb host" },
-    { "board": "ch32h417qeu6_r0_1v1", "note": "ch32 usbss SuperSpeed" },
     { "board": "ch32v307v_r1_1v0", "note": "ch32 usbhs HS" },
     { "board": "da14695_dk_usb", "note": "da146xx FS" },
     { "board": "ea4088_quickstart", "note": "lpc17_40 FS, ohci host" },

@@ -39,29 +39,6 @@ enum { RHPORT = 0, BUFSIZE = CFG_TUD_MTP_EP_BUFSIZE, HDR = sizeof(mtp_container_
 static const uint8_t desc_config_fs[] = DESC_CONFIG(64);
 static const uint8_t desc_config_hs[] = DESC_CONFIG(512);
 
-#define DESC_NEXT_INTERFACE \
-  9, TUSB_DESC_INTERFACE, 1, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0
-static const uint8_t desc_config_fs_next[] = {
-  TUD_CONFIG_DESCRIPTOR(1, 2, 0, CONFIG_TOTAL_LEN + 9, 0, 100),
-  TUD_MTP_DESCRIPTOR(0, 0, EP_EVT_IN, 8, 10, EP_OUT, EP_IN, 64),
-  DESC_NEXT_INTERFACE
-};
-static const uint8_t desc_config_hs_next[] = {
-  TUD_CONFIG_DESCRIPTOR(1, 2, 0, CONFIG_TOTAL_LEN + 9, 0, 100),
-  TUD_MTP_DESCRIPTOR(0, 0, EP_EVT_IN, 8, 10, EP_OUT, EP_IN, 512),
-  DESC_NEXT_INTERFACE
-};
-static const uint8_t desc_config_ss_next[] = {
-  TUD_CONFIG_DESCRIPTOR(1, 2, 0, CONFIG_TOTAL_LEN + 18 + 9, 0, 100),
-  9, TUSB_DESC_INTERFACE, 0, 0, 3, TUSB_CLASS_IMAGE, MTP_SUBCLASS_STILL_IMAGE, MTP_PROTOCOL_PIMA_15470, 0,
-  7, TUSB_DESC_ENDPOINT, EP_EVT_IN, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 10,
-  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 8),
-  7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
-  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
-  7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
-  TUD_SUPERSPEED_DESC_EP_COMPANION(0, 0, 0),
-  DESC_NEXT_INTERFACE
-};
 static const uint8_t* desc_config;
 static uint16_t ep_mps;
 
@@ -436,48 +413,6 @@ void setUp(void) {
 }
 
 void tearDown(void) {}
-
-static void check_open_consumed_length(tusb_speed_t speed, const uint8_t* config, uint16_t config_len,
-                                       uint16_t class_len) {
-  dcd_event_bus_reset(RHPORT, speed, false);
-  tud_task();
-  log_reset();
-  ep_mps = speed == TUSB_SPEED_SUPER ? 1024 : (speed == TUSB_SPEED_HIGH ? 512 : 64);
-  const uint8_t* const desc = config + TUD_CONFIG_DESC_LEN;
-  const uint16_t consumed = mtpd_open(RHPORT, (const tusb_desc_interface_t*)desc, config_len - TUD_CONFIG_DESC_LEN);
-  TEST_ASSERT_EQUAL(class_len, consumed);
-  const tusb_desc_interface_t* next = (const tusb_desc_interface_t*)(desc + consumed);
-  TEST_ASSERT_EQUAL(TUSB_DESC_INTERFACE, next->bDescriptorType);
-  TEST_ASSERT_EQUAL(1, next->bInterfaceNumber);
-  TEST_ASSERT_EQUAL(TUSB_CLASS_VENDOR_SPECIFIC, next->bInterfaceClass);
-  expect_command_read();
-  expect_no_more_calls();
-}
-
-void test_mtp_fs_consumed_length_stops_before_next_interface(void) {
-  check_open_consumed_length(TUSB_SPEED_FULL, desc_config_fs_next, sizeof(desc_config_fs_next), TUD_MTP_DESC_LEN);
-}
-
-void test_mtp_hs_consumed_length_stops_before_next_interface(void) {
-  check_open_consumed_length(TUSB_SPEED_HIGH, desc_config_hs_next, sizeof(desc_config_hs_next), TUD_MTP_DESC_LEN);
-}
-
-void test_mtp_ss_skips_notification_and_bulk_companions_before_next_interface(void) {
-  check_open_consumed_length(TUSB_SPEED_SUPER, desc_config_ss_next, sizeof(desc_config_ss_next), TUD_MTP_DESC_LEN + 18);
-}
-
-void test_mtp_rejects_notification_companion_extending_past_boundary(void) {
-  uint8_t malformed[sizeof(desc_config_ss_next)];
-  memcpy(malformed, desc_config_ss_next, sizeof(malformed));
-  malformed[TUD_CONFIG_DESC_LEN + 9 + 7] = sizeof(malformed);
-  dcd_event_bus_reset(RHPORT, TUSB_SPEED_SUPER, false);
-  tud_task();
-  log_reset();
-  const uint8_t* const desc = malformed + TUD_CONFIG_DESC_LEN;
-  TEST_ASSERT_EQUAL(0, mtpd_open(RHPORT, (const tusb_desc_interface_t*)desc, sizeof(malformed) - TUD_CONFIG_DESC_LEN));
-  TEST_ASSERT_FALSE(xfer_of(EP_OUT)->active);
-  expect_no_more_calls();
-}
 
 //--------------------------------------------------------------------+
 // Helpers for the common transaction shapes

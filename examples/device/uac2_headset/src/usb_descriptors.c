@@ -28,16 +28,8 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]     AUDIO | MIDI | HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-    PID_MAP(MIDI, 3) | PID_MAP(AUDIO, 4) | PID_MAP(VENDOR, 5) )
-#define USB_BCD           (TUD_OPT_SUPER_SPEED ? 0x0300 : 0x0200)
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x401a
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -46,7 +38,7 @@ static tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = USB_BCD,
+    .bcdUSB             = TUD_OPT_SUPER_SPEED ? 0x0300 : 0x0200,
 
     // Use Interface Association Descriptor (IAD) for Audio
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)

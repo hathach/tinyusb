@@ -67,7 +67,6 @@ It is responsible for getting the MCU started and the USB peripheral clocked wit
 Following boards are supported''']
     for vendor, entries in sorted(vendors.items()):
         rows = [[board, *entry] for board, entry in entries.items()]
-        rows.sort(key=lambda row: row[0] == 'ch32h417qeu6_r0_1v1')
         out.append(f'\n\n{vendor}\n{"-" * len(vendor)}\n\n'
                    + rst_table(['Board', 'Name', 'Family', 'URL', 'Note'], rows))
     return ''.join(out) + '\n'

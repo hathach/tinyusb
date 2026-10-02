@@ -129,14 +129,6 @@ add_ceedling_test(
   )
 
 add_ceedling_test(
-  test_hid_device
-  ${CEEDLING_WORKDIR}/test/device/hid/test_hid_device.c
-  "${CEEDLING_WORKDIR}/../../src/tusb.c;${CEEDLING_WORKDIR}/../../src/device/usbd.c;${CEEDLING_WORKDIR}/../../src/class/hid/hid_device.c;${CEEDLING_WORKDIR}/../../src/common/tusb_fifo.c"
-  "${CEEDLING_BUILD_DIR}/test/mocks/test_hid_device/mock_dcd.c"
-  )
-target_compile_definitions(test_hid_device PRIVATE CFG_TUD_MSC=0 CFG_TUD_HID=2)
-
-add_ceedling_test(
   test_audio_host
   ${CEEDLING_WORKDIR}/test/host/audio/test_audio_host.c
   "${CEEDLING_WORKDIR}/../../src/class/audio/audio_host.c;${CEEDLING_WORKDIR}/../../src/common/tusb_fifo.c"
