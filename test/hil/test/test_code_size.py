@@ -2569,10 +2569,10 @@ class BaselineShards(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             return sd.baseline_shards(_run_dir(tmp, shards, legs), self.BASELINE, list(boards))
 
-    def test_only_built_boards_count_and_others_are_excluded(self):
-        shards, failures, excluded = self.shards([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
-                                                  _shard('b1-DMA', {'device/a/a.elf': _elf(2)}, sha='b')])
-        self.assertEqual((list(shards), failures, excluded), (['b1'], [], ['b1-DMA']))
+    def test_only_built_boards_count(self):
+        shards, failures = self.shards([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
+                                        _shard('b1-DMA', {'device/a/a.elf': _elf(2)}, sha='b')])
+        self.assertEqual((list(shards), failures), (['b1'], []))
 
     def test_unusable_baselines_are_base_failures_never_zero(self):
         cases = {
@@ -2583,7 +2583,7 @@ class BaselineShards(unittest.TestCase):
         }
         for why, shards in cases.items():
             with self.subTest(why):
-                usable, failures, _excluded = self.shards(shards)
+                usable, failures = self.shards(shards)
                 self.assertEqual(usable, {})
                 self.assertIn(why, [f[3] for f in failures])
                 self.assertTrue(all(f[1] == 'base' for f in failures))
@@ -2593,7 +2593,7 @@ class BaselineShards(unittest.TestCase):
             _run_dir(tmp, [_shard('b9', {}, sha='b')])
             _write(tmp, 'code-size-arm-gcc-fam/code-size-b1.json',
                    {k: v for k, v in _shard('b1', {'device/a/a.elf': _elf(1)}).items() if k not in LEG_KEYS})
-            usable, failures, _excluded = sd.baseline_shards(sd.load_snapshots(tmp), self.BASELINE, ['b1'])
+            usable, failures = sd.baseline_shards(sd.load_snapshots(tmp), self.BASELINE, ['b1'])
         self.assertEqual(usable, {})
         self.assertEqual(failures, [(('b1', None), 'base', 'snapshot', 'not a board of its leg\'s build')])
 
@@ -2651,10 +2651,12 @@ class DiffBaseSource(unittest.TestCase):
         return {**_shard('b1', elfs or {'device/a/a.elf': _elf(1)}, sha='b', **kwargs),
                 'compiler': self.GCC, 'membrowse_version': '1.2.9'}
 
-    def diff(self, tmp, argv, unavailable=None, cur=None, base_shards=None, compiler=None, extra=None):
+    def diff(self, tmp, argv, unavailable=None, cur=None, base_shards=None, compiler=None, extra=None,
+             note=None, subject="ci: base's commit (#1)"):
         """main()'s diff of `-b b1 --json` + `argv`: ci_baseline() returns `base_shards` (plus
-        `extra` files) as run 7 of 'b'*40, or raises `unavailable`; the current side sizes
-        as `cur`. Returns rc, out, builds as (src, board), git commands, md, data, looked_up."""
+        `extra` files) as run 7 of 'b'*40, approximate with `note`, or raises `unavailable`; git
+        knows the base commit as `subject`, not at all when None; the current side sizes as
+        `cur`. Returns rc, out, builds as (src, board), git commands, md, data, looked_up."""
         builds, cmds = [], []
         cur = cur if cur is not None else {'device/a/a.elf': _elf(3)}
 
@@ -2667,7 +2669,8 @@ class DiffBaseSource(unittest.TestCase):
                 os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
                 with open(os.path.join(root, rel), 'w') as f:
                     f.write(text)
-            return root, {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': True, 'run_id': 7}
+            info = {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': note is None, 'run_id': 7}
+            return root, {**info, 'note': note} if note else info
 
         def build(src, _build_dir, board, *_a):
             builds.append((src, board))
@@ -2677,6 +2680,8 @@ class DiffBaseSource(unittest.TestCase):
             cmds.append(cmd[3:5])
             if cmd[3:5] == ['worktree', 'add']:
                 os.makedirs(cmd[-2])
+            if cmd[3] == 'log':
+                return subprocess.CompletedProcess(cmd, 128 if subject is None else 0, f'{subject}\n', '')
             return subprocess.CompletedProcess(cmd, 0, 'c0ffee\n', '')
 
         def generate(build_dir, *_a):
@@ -2709,16 +2714,22 @@ class DiffBaseSource(unittest.TestCase):
         self.assertEqual(r.rc, 0)
         self.assertEqual(r.builds, [(sd.TINYUSB_ROOT, 'b1')])
         self.assertNotIn(['worktree', 'add'], r.cmds)
-        self.assertIn(f'Base: CI snapshots of {"b" * 10} (exact) https://example/runs/7', r.out)
-        self.assertIn('1 CI snapshots of other boards excluded: b1-DMA', r.out)
+        self.assertIn(f'Base: CI snapshots of {"b" * 10} "ci: base\'s commit (#1)" https://example/runs/7\n', r.out)
+        self.assertNotIn('b1-DMA', r.out)  # snapshots of boards not diffed go unmentioned
         self.assertIn('1 pair, 1 changed; TinyUSB Flash Δ +2', r.out)
-        self.assertTrue(r.md.startswith(f'Base: CI snapshots of {"b" * 10} (exact)'))
+        self.assertTrue(r.md.startswith(f'Base: CI snapshots of {"b" * 10} "ci: base\'s commit (#1)" https://'))
         self.assertEqual(r.data['base_source'], {'requested': 'default', 'effective': 'ci', 'reason': None,
                                                  'requested_sha': 'c0ffee', 'base_sha': 'b' * 40,
                                                  'baseline': {'sha': 'b' * 40, 'url': 'https://example/runs/7',
                                                               'exact': True, 'run_id': 7}})
         self.assertIsNone(r.data['filters']['base'])
         self.assertEqual(r.data['warnings'], [])
+
+    def test_an_ancestor_base_says_how_far_back_it_is(self):
+        note = '2 master commits before this build\'s base c0ffee: their changes count as yours'
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], note=note, subject=None)  # not fetched: no subject
+        self.assertIn(f'Base: CI snapshots of {"b" * 10}, {note} https://example/runs/7\n', r.out)
 
     def test_a_metadata_difference_warns_and_still_compares(self):
         with tempfile.TemporaryDirectory() as tmp:

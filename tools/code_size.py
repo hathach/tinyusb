@@ -1768,7 +1768,7 @@ def resolve_base(base_source, unsupported, repo, sha):
 
 def baseline_shards(snapshots, baseline, boards):
     """The base side of a diff from a downloaded run (load_snapshots()): ({board: shard},
-    failures, [excluded boards]). Only shards of `boards` from a successful leg of the
+    failures). Only shards of `boards` from a successful leg of the
     `baseline` commit count; anything else is a base failure, never a zero, and a failure
     of the run itself (an unreadable file, other commits) is keyed by what failed, not a
     board. Shards of other boards, e.g. -DMA variants, are excluded, never substituted."""
@@ -1779,7 +1779,13 @@ def baseline_shards(snapshots, baseline, boards):
         shards = {}
     failures += [((board, None), 'base', 'snapshot', 'no baseline snapshot') for board in boards
                  if board not in shards and not any(f[0][0] == board for f in failures)]
-    return shards, failures, sorted(set(snapshots['shards']) - set(boards))
+    return shards, failures
+
+
+def _commit_subject(sha):
+    """`sha`'s subject from the local history, '' when it is not there (not fetched)."""
+    ret = run(['git', '-C', TINYUSB_ROOT, 'log', '-1', '--format=%s', sha])
+    return ret.stdout.strip() if ret.returncode == 0 else ''
 
 
 def metadata_warnings(board, shard, compiler, membrowse_version):
@@ -1981,8 +1987,10 @@ def main():
                   'requested_sha': requested_sha, 'base_sha': baseline['sha'] if baseline else requested_sha,
                   'baseline': baseline}
     if baseline:
-        base_line = f'Base: CI snapshots of {_baseline_desc(baseline)}' + (
-            f' - {_clean(baseline["note"])}' if baseline.get('note') else '')
+        subject = _commit_subject(baseline['sha'])
+        base_line = (f'Base: CI snapshots of {_clean(baseline["sha"][:10])}' + (f' "{subject}"' if subject else '')
+                     + (f', {baseline["note"]}' if baseline.get('note') else '')
+                     + f' {_clean(baseline.get("url"), 200)}')
     else:
         base_line = f'Base: local build of {requested_sha[:10]}' + (f' (CI base unavailable: {reason})' if reason else '')
 
@@ -2000,11 +2008,9 @@ def main():
                 sys.exit(1)
             symlink_deps(TINYUSB_ROOT, worktree_dir)
         else:
-            base_shards, base_failures, excluded = baseline_shards(snapshots, baseline, args.board)
+            base_shards, base_failures = baseline_shards(snapshots, baseline, args.board)
             # a failure of the downloaded run itself, not of one board, belongs in every report
             run_failures = [f for f in base_failures if f[0][0] not in args.board]
-            if excluded:
-                print(f'  {len(excluded)} CI snapshots of other boards excluded: {", ".join(excluded)}')
             membrowse_version = _membrowse_version()
         base_sha = provenance['base_sha']
         current_rev = short_hash(TINYUSB_ROOT)
