@@ -5,23 +5,39 @@ on:
     workflows: ["Build"]
     types:
       - completed
+  # Refresh a PR's code-size comment from its newest Build run, e.g. once the master Build
+  # its baseline needed has completed: gh workflow run pr_comment.yml -f pr_number=N
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR whose code-size comment to refresh'
+        required: true
+        type: number
 
 jobs:
   # Resolve the PR number from trusted workflow_run metadata, NOT from build artifacts: a forked PR
   # controls its own Build run and could plant any number, which the privileged jobs below would
   # then post to. Same-repo PRs populate workflow_run.pull_requests; for forks it is empty, so look
-  # the PR up by the trusted head SHA.
+  # the PR up by the trusted head SHA. A dispatch resolves the PR's newest Build run instead.
   pr_number:
-    if: github.event.workflow_run.event == 'pull_request'
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
-      number: ${{ steps.resolve.outputs.number }}
+      number: ${{ steps.resolve.outputs.number || steps.dispatch.outputs.number }}
+      run_id: ${{ steps.resolve.outputs.run_id || steps.dispatch.outputs.run_id }}
+      run_attempt: ${{ steps.resolve.outputs.run_attempt || steps.dispatch.outputs.run_attempt }}
+      head_sha: ${{ steps.resolve.outputs.head_sha || steps.dispatch.outputs.head_sha }}
     steps:
       - name: Resolve PR number
         id: resolve
+        if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -29,6 +45,8 @@ jobs:
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
           PRS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           # Every lookup is best-effort: on any miss the number stays empty and the comment jobs
           # below simply skip (never a failed check).
@@ -41,7 +59,29 @@ jobs:
               -f state=open -f head="${HEAD_REPO%%/*}:$HEAD_BRANCH" \
               --jq '[.[] | select(.head.sha == env.HEAD_SHA)][0].number // empty' 2>/dev/null || true)
           fi
-          echo "number=$num" >> "$GITHUB_OUTPUT"
+          {
+            echo "number=$num"
+            echo "run_id=$RUN_ID"
+            echo "run_attempt=$ATTEMPT"
+            echo "head_sha=$HEAD_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout default branch scripts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      # an explicit request that cannot be met fails, naming why
+      - name: Resolve the PR's newest Build run
+        id: dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr_number }}
+        run: python3 .github/scripts/code_size_ci.py pr-run --repo "$REPO" --pr "$PR" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------
   # Combine the rigs' HIL reports into one sticky PR comment (one table per rig).
@@ -52,6 +92,7 @@ jobs:
   hil-comment:
     needs: pr_number
     if: >
+      github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion != 'cancelled' &&
       needs.pr_number.outputs.number != ''
     runs-on: ubuntu-latest
@@ -123,6 +164,11 @@ jobs:
     if: >
       github.event.workflow_run.conclusion != 'cancelled' &&
       needs.pr_number.outputs.number != ''
+    # an automatic and a manual run of the same Build attempt both pass is-current: one at a
+    # time, so the later post is also the later computation
+    concurrency:
+      group: code-size-comment-${{ needs.pr_number.outputs.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -136,6 +182,7 @@ jobs:
       - name: Checkout default branch scripts
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
       # every step up to the freshness check must succeed, even with nothing to compare:
@@ -144,7 +191,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v5
         with:
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ needs.pr_number.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pattern: code-size-*
           path: ${{ runner.temp }}/code-size/current
@@ -193,9 +240,9 @@ jobs:
         id: current
         env:
           PR: ${{ needs.pr_number.outputs.number }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ needs.pr_number.outputs.run_id }}
+          ATTEMPT: ${{ needs.pr_number.outputs.run_attempt }}
+          HEAD_SHA: ${{ needs.pr_number.outputs.head_sha }}
         run: |
           if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
                --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then

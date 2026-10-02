@@ -15,6 +15,12 @@ downloads run_id's `code-size-*` artifacts.
 
 exits 0 when that Build run attempt is still the PR's latest, 1 when a newer push, run
 or attempt supersedes it: its comment would overwrite a newer one.
+
+  code_size_ci.py pr-run --repo OWNER/NAME --pr N
+
+prints, as GITHUB_OUTPUT lines, the number, run_id, run_attempt and head_sha of open PR N's
+newest Build run, for a manual comment refresh; exits 1 naming why when that run is missing,
+not completed or cancelled.
 """
 import argparse
 import json
@@ -145,6 +151,13 @@ def run_owner(run):
     return f"run {run['id']} of {owner}"
 
 
+def latest_pr_run(repo, pr, head):
+    """The newest Build run, of any status, of PR `pr`'s head `head`, else None."""
+    runs = [r for r in gh_items(f'repos/{repo}/actions/workflows/{WORKFLOW}/runs?head_sha={head["sha"]}'
+                                f'&event=pull_request', 'workflow_runs') if is_run_of(r, pr, head)]
+    return max(runs, key=lambda r: r['run_number'], default=None)
+
+
 def is_current(args):
     """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest."""
     why = None
@@ -152,9 +165,7 @@ def is_current(args):
     if head['sha'] != args.head_sha:
         why = 'the PR head moved on'
     else:
-        runs = [r for r in gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
-                                    f'&event=pull_request', 'workflow_runs') if is_run_of(r, args.pr, head)]
-        latest = max(runs, key=lambda r: r['run_number'], default=None)
+        latest = latest_pr_run(args.repo, args.pr, head)
         if latest is None:
             why = 'no Build run of the PR head found'
         elif latest['id'] != args.run_id:
@@ -163,6 +174,29 @@ def is_current(args):
             why = 'a newer attempt exists'
     print(f'stale: {why}' if why else 'current')
     return 1 if why else 0
+
+
+def pr_run(args):
+    """The comment inputs of open PR `args.pr`'s newest Build run, else exit 1 naming why."""
+    pr = gh(f'repos/{args.repo}/pulls/{args.pr}')
+    run, why = None, None
+    if pr['state'] != 'open':
+        why = f'PR #{args.pr} is {pr["state"]}'
+    elif pr['base']['ref'] != BRANCH:
+        why = f'PR #{args.pr} targets {pr["base"]["ref"]}, not {BRANCH}'
+    else:
+        run = latest_pr_run(args.repo, args.pr, pr['head'])
+        if run is None:
+            why = 'no Build run of the PR head found'
+        elif run['status'] != 'completed':
+            why = f'{run_owner(run)} is {run["status"]}: its completion posts the comment'
+        elif run['conclusion'] == 'cancelled':
+            why = f'{run_owner(run)} was cancelled'
+    if why:
+        print(f'no refresh: {why}', file=sys.stderr)
+        return 1
+    print(f'number={args.pr}\nrun_id={run["id"]}\nrun_attempt={run["run_attempt"]}\nhead_sha={run["head_sha"]}')
+    return 0
 
 
 def main():
@@ -178,8 +212,11 @@ def main():
     p.add_argument('--run-id', required=True, type=int)
     p.add_argument('--attempt', required=True, type=int)
     p.add_argument('--head-sha', required=True)
+    p = sub.add_parser('pr-run', help='the newest Build run of an open PR, for a manual comment refresh')
+    p.add_argument('--repo', required=True)
+    p.add_argument('--pr', required=True, type=int)
     args = top.parse_args()
-    return baseline(args) if args.command == 'baseline' else is_current(args)
+    return {'baseline': baseline, 'is-current': is_current, 'pr-run': pr_run}[args.command](args)
 
 
 if __name__ == '__main__':

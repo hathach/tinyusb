@@ -39,6 +39,7 @@ class FakeGh:
     def __init__(self, parents, runs=None, artifacts=None, status='ahead'):
         self.parents, self.runs, self.artifacts, self.status = parents, runs or {}, artifacts or {}, status
         self.pr_head, self.pr_repo, self.attempts = None, NAME, {}
+        self.pr_state, self.pr_base = 'open', 'master'
 
     def __call__(self, path, paginate=False):
         reply = self.reply(path)
@@ -55,7 +56,8 @@ class FakeGh:
             parent = self.parents.get(m.group(1))
             return {'parents': [{'sha': parent}] if parent else []}
         if re.fullmatch(rf'repos/{NAME}/pulls/\d+', path):
-            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}}}
+            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}},
+                    'state': self.pr_state, 'base': {'ref': self.pr_base}}
         if re.fullmatch(rf'repos/{NAME}/compare/\w+\.\.\.master', path):
             return {'status': self.status}
         raise AssertionError(f'unexpected API call {path}')
@@ -150,9 +152,10 @@ class Baseline(unittest.TestCase):
         self.assertIn('the baseline lookup failed: gh api: HTTP 502', info['note'])
 
 
-def pr_run(run_id, prs=(5,), branch='feature', repo=NAME):
+def pr_run(run_id, prs=(5,), branch='feature', repo=NAME, status='completed', conclusion='failure'):
     return {**run(run_id, sha('c'), event='pull_request', branch=branch, repo=repo),
-            'pull_requests': [{'number': n} for n in prs]}
+            'pull_requests': [{'number': n} for n in prs], 'status': status, 'conclusion': conclusion,
+            'run_attempt': 2}
 
 
 class IsCurrent(unittest.TestCase):
@@ -190,6 +193,38 @@ class IsCurrent(unittest.TestCase):
                          (0, 'current'))
         self.assertEqual(self.check(runs=(own, pr_run(8, prs=(), repo='other/tinyusb')), pr_repo=fork),
                          (0, 'current'))
+
+
+class PrRun(unittest.TestCase):
+    def resolve(self, runs=(pr_run(7),), state='open', base='master', pr_repo=NAME):
+        fake = FakeGh({}, {sha('c'): list(runs)})
+        fake.pr_head, fake.pr_repo, fake.pr_state, fake.pr_base = sha('c'), pr_repo, state, base
+        args = ['code_size_ci.py', 'pr-run', '--repo', NAME, '--pr', '5']
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(ci, 'gh', fake), mock.patch.object(sys, 'argv', args), \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            return ci.main(), out.getvalue(), err.getvalue().strip()
+
+    def test_the_newest_completed_run_of_the_head_is_printed_for_github_output(self):
+        self.assertEqual(self.resolve(runs=(pr_run(7), pr_run(8, prs=(6,)))),
+                         (0, f'number=5\nrun_id=7\nrun_attempt=2\nhead_sha={sha("c")}\n', ''))
+
+    def test_a_newer_unfinished_or_a_cancelled_run_refuses_rather_than_using_an_older_one(self):
+        self.assertEqual(self.resolve(runs=(pr_run(7), pr_run(8, status='in_progress'))),
+                         (1, '', 'no refresh: run 8 of #5 is in_progress: its completion posts the comment'))
+        self.assertEqual(self.resolve(runs=(pr_run(8, conclusion='cancelled'),)),
+                         (1, '', 'no refresh: run 8 of #5 was cancelled'))
+        self.assertEqual(self.resolve(runs=()), (1, '', 'no refresh: no Build run of the PR head found'))
+
+    def test_a_closed_pr_or_one_not_targeting_master_refuses(self):
+        self.assertEqual(self.resolve(state='closed'), (1, '', 'no refresh: PR #5 is closed'))
+        self.assertEqual(self.resolve(base='dev'), (1, '', 'no refresh: PR #5 targets dev, not master'))
+
+    def test_a_fork_prs_unlisted_run_is_found_by_its_head_branch_and_repo(self):
+        fork = 'someone/tinyusb'
+        code, out, _ = self.resolve(runs=(pr_run(7, prs=(), repo=fork), pr_run(8, prs=(), repo='other/tinyusb')),
+                                    pr_repo=fork)
+        self.assertEqual((code, out.splitlines()[1]), (0, 'run_id=7'))
 
 
 if __name__ == '__main__':
