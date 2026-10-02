@@ -686,6 +686,26 @@
                 "name": "openocd",
                 "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf54l.cfg -c \"adapter speed 4000\""
             }
+        },
+        {
+            "name": "nrf5340dk",
+            "uid": "78E60E166B5F88BE",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false,
+                "skip": ["device/audio_test_freertos", "device/cdc_msc_freertos"],
+                "note": "board new to HIL: the FreeRTOS examples never enumerate, with master firmware too; the bare-metal examples and usbtest pass (#4071)"
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "1050076405",
+                "args": "-device nrf5340_xxaa_app"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf53.cfg -c \"adapter speed 4000\""
+            }
         }
     ],
     "boards-skip": [
