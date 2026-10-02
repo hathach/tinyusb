@@ -2720,7 +2720,8 @@ class DiffBaseSource(unittest.TestCase):
              mock.patch.object(sd, 'generate_sizes', side_effect=generate), \
              mock.patch.object(sd, 'ci_baseline', side_effect=ci_baseline) as lookup, \
              mock.patch.object(sd, '_cmake_compiler', return_value=compiler or self.GCC), \
-             mock.patch.object(sd, '_membrowse_version', return_value='1.2.9'):
+             mock.patch.object(sd, '_membrowse_version', return_value='1.2.9'), \
+             mock.patch.object(sd, 'engine_missing', return_value=False):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 rc = sd.main()
