@@ -6,6 +6,7 @@ and main tests, so no build and no real membrowse CLI invocation is needed.
 """
 import concurrent.futures
 import contextlib
+import errno
 import functools
 import io
 import json
@@ -2557,6 +2558,35 @@ class CiBaseline(unittest.TestCase):
             with self.assertRaisesRegex(sd.BaselineUnavailable, 'artifact expired'):
                 self.baseline(_fake_ci(), rc=1)
             self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_failed_publish_is_unavailable_and_leaves_no_temp_copy(self):
+        cases = {'rename': mock.patch.object(sd.os, 'rename', side_effect=OSError(errno.EXDEV, 'Cross-device link')),
+                 'manifest': mock.patch.object(sd, 'open', create=True,
+                                               side_effect=OSError(errno.ENOSPC, 'No space left on device'))}
+        for why, patch in cases.items():
+            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, \
+                 mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp), patch:
+                with self.assertRaisesRegex(sd.BaselineUnavailable, 'caching run 7'):
+                    self.baseline(_fake_ci())
+                self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_failed_rerun_check_leaves_no_temp_copy(self):
+        fake = _fake_ci()
+        fake.gh = mock.Mock(side_effect=[{'run_attempt': 1}, RuntimeError('gh api x: HTTP 502')])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+            with self.assertRaisesRegex(sd.BaselineUnavailable, 'HTTP 502'):
+                self.baseline(fake)
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_copy_published_first_by_another_run_is_used(self):
+        def publish_first(_src, dst):
+            _write(dst, 'manifest.json', {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
+            raise OSError(errno.ENOTEMPTY, 'Directory not empty')
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp), \
+             mock.patch.object(sd.os, 'rename', side_effect=publish_first):
+            path, _info = self.baseline(_fake_ci())
+            self.assertEqual(path, os.path.join(tmp, 'o_r', '7-1', 'snapshots'))
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), ['7-1'])
 
 
 class BaselineShards(unittest.TestCase):
