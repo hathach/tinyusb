@@ -12,7 +12,7 @@ on:
       - '.github/scripts/code_size_ci.py'
       - '.github/workflows/code_size_windows.yml'
   push:
-    branches: [ master, claude/code-size-windows ]
+    branches: [ master ]
     paths: *code_size_paths
 
 permissions:
