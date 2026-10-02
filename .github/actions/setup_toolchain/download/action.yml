@@ -42,7 +42,7 @@ runs:
           unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
           ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
         elif [[ ${FILE_EXT} =~ ^(gz|bz2|xz)$ ]]; then
-          curl -fsSL --proto '=https' --proto-redir '=https' "$TOOLCHAIN_URL" -o toolchain.tar.${FILE_EXT}
+          curl -fsSL --proto '=https' --proto-redir '=https' --retry 5 --connect-timeout 30 --speed-limit 1024 --speed-time 60 "$TOOLCHAIN_URL" -o toolchain.tar.${FILE_EXT}
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.${FILE_EXT}
         else
           echo "Unsupported toolchain file extension: ${FILE_EXT}"
