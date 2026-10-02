@@ -353,7 +353,6 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 //--------------------------------------------------------------------+
 static void enum_new_device(hcd_event_t* event);
 static void enum_delay_async(uintptr_t state);
-static void control_xfer_timeout_expired(void);
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
@@ -361,6 +360,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 static void control_xfer_dispatch_pending(void);
 static void control_xfer_complete(uint8_t daddr, xfer_result_t result);
+static void control_xfer_timeout_expired(void);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -1762,7 +1762,7 @@ enum {
 static uint8_t enum_get_new_address(bool is_hub);
 static bool    enum_parse_configuration_desc(uint8_t dev_addr, const tusb_desc_configuration_t *desc_cfg);
 static void    enum_full_complete(bool success);
-static void    enum_finish(bool success, bool may_retry);
+static bool    enum_retry(void);
 static void    process_enumeration(tuh_xfer_t *xfer);
 
 enum {
@@ -1887,7 +1887,9 @@ static void enum_new_device(hcd_event_t *event) {
 // process device enumeration
 static void process_enumeration(tuh_xfer_t *xfer) {
   if (XFER_RESULT_FAILED == xfer->result || XFER_RESULT_TIMEOUT == xfer->result) {
-    enum_finish(false, true); // the device failed a transfer: retry
+    if (!enum_retry()) {
+      enum_full_complete(false);
+    }
     return;
   }
 
@@ -2296,13 +2298,10 @@ static void control_xfer_timeout_expired(void) {
   control_xfer_complete(daddr, XFER_RESULT_TIMEOUT);
 }
 
-static void enum_full_complete(bool success) {
-  enum_finish(success, false);
-}
-
-static void enum_finish(bool success, bool may_retry) {
+// End the current enumeration; on failure also close the half-enumerated device.
+static void enum_teardown(bool success) {
   const uint8_t daddr = _usbh_data.enumerating_daddr;
-  _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // mark enumeration as complete
+  _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // end this enumeration attempt
   _usbh_data.call_after.func = NULL;
 
   if (!success && daddr <= TOTAL_DEVICES) {
@@ -2311,24 +2310,11 @@ static void enum_finish(bool success, bool may_retry) {
       clear_device(get_device(daddr));
     }
   }
+}
 
-#if CFG_TUH_ENUM_ATTEMPT_MAX > 1
-  // daddr already invalid: an unplug tore the device down, nothing to retry
-  if (!success && may_retry && daddr != TUSB_INDEX_INVALID_8 &&
-      _usbh_data.enum_attempt + 1 < CFG_TUH_ENUM_ATTEMPT_MAX) {
-    _usbh_data.enum_attempt++;
-    TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n",
-                _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
-    // restart as dev0 from debouncing + port reset; the ladder bails out if the device is unplugged
-    _usbh_data.enumerating_daddr = 0;
-    usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
-    return;
-  }
-#else
-  (void) may_retry;
-#endif
-
+static void enum_full_complete(bool success) {
   TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
+  enum_teardown(success);
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
@@ -2336,6 +2322,25 @@ static void enum_finish(bool success, bool may_retry) {
     hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
   }
   #endif
+}
+
+// Device failed an enumeration transfer: restart as dev0 with a fresh port reset.
+// False (nothing changed) when attempts are used up or an unplug already invalidated the device.
+static bool enum_retry(void) {
+#if CFG_TUH_ENUM_ATTEMPT_MAX > 1
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 ||
+      _usbh_data.enum_attempt + 1 >= CFG_TUH_ENUM_ATTEMPT_MAX) {
+    return false;
+  }
+  enum_teardown(false);
+  _usbh_data.enum_attempt++;
+  TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n", _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
+  _usbh_data.enumerating_daddr = 0;
+  usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
+  return true;
+#else
+  return false;
+#endif
 }
 
 #endif
