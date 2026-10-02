@@ -666,6 +666,7 @@
   // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
   // USB2 (rhport 1) is not provided here.
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_DCD_ENDPOINT_MAX 8
 
   #ifndef CFG_TUD_WCH_USBIP_USBFS
     #define CFG_TUD_WCH_USBIP_USBFS 1
