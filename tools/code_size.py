@@ -4,8 +4,9 @@
 `report` builds the working tree in cmake-code-size/<board>/build and tabulates each elf's
 per-file section sizes in cmake-code-size/<board>/report[_<ex>].md.
 
-`diff` builds the base branch (master) and the current tree in
-cmake-code-size/<board>/{base,build}, pairs their elfs by (board, elf path) and reports
+`diff` builds the current tree in cmake-code-size/<board>/build and takes the base branch's
+(master) sizes from CI's stored snapshots, else builds it in cmake-code-size/<board>/base
+(--base-source); it pairs the elfs by (board, elf path) and reports
 each pair's per-file flash/RAM deltas in cmake-code-size/<board>/diff[_<ex>].md; with
 --combined, cmake-code-size/_combined/diff.md covers every board's pairs.
 
@@ -1598,12 +1599,6 @@ def _pair_base_shard(board, base, cur_elfs, examples):
     return sizes, failures, {(board, elf): s for elf, s in cur_elfs.items() if elf not in failed}, outside
 
 
-def _baseline_desc(baseline):
-    """A found baseline run as `<sha> (exact|approximate) <url>`."""
-    kind = 'exact' if baseline.get('exact') else 'approximate'
-    return f'{_clean(baseline["sha"][:10])} ({kind}) {_clean(baseline.get("url"), 200)}'
-
-
 def compare_runs(base, cur, baseline=None, symbols=False):
     """Compare two load_snapshots() runs, `cur` defining the scope. Returns
     (full Markdown, comment Markdown, JSON data). `baseline` is code_size_ci.py's
@@ -1656,7 +1651,9 @@ def compare_runs(base, cur, baseline=None, symbols=False):
         notes.append('symbols omitted: some snapshots were taken without them')
     head = []
     if baseline:
-        head.append((f'Baseline: {_baseline_desc(baseline)}' if baseline.get('sha') else 'Baseline: unavailable')
+        kind = 'exact' if baseline.get('exact') else 'approximate'
+        head.append((f'Baseline: {_clean(baseline["sha"][:10])} ({kind}) {_clean(baseline.get("url"), 200)}'
+                     if baseline.get('sha') else 'Baseline: unavailable')
                     + (f' - {_clean(baseline["note"])}' if baseline.get('note') else ''))
     head += [f'- {n}' for n in notes]
     boards = sorted(cur_shards)
@@ -1718,11 +1715,8 @@ def _download_baseline(ci, repo, run_id):
             shutil.rmtree(tmp, ignore_errors=True)
             attempt = now
             continue
-        artifacts = {a['name']: a['id'] for a in ci.gh_items(f'repos/{repo}/actions/runs/{run_id}/artifacts', 'artifacts')
-                     if a['name'].startswith('code-size-')}
         with open(os.path.join(tmp, 'manifest.json'), 'w') as f:
-            json.dump({'repo': repo, 'run_id': run_id, 'run_attempt': attempt, 'artifacts': artifacts}, f,
-                      indent=1, sort_keys=True)
+            json.dump({'repo': repo, 'run_id': run_id, 'run_attempt': attempt}, f, indent=1, sort_keys=True)
         try:
             os.rename(tmp, dest)
         except OSError:  # another run published it first
@@ -1737,6 +1731,7 @@ def ci_baseline(repo, sha):
     Raises BaselineUnavailable."""
     if not shutil.which('gh'):
         raise BaselineUnavailable('gh not found')
+    sys.modules.setdefault('code_size', sys.modules[__name__])  # its `import code_size` is this module, not a copy
     ci = _load_module('code_size_ci', os.path.join(TINYUSB_ROOT, '.github', 'scripts', 'code_size_ci.py'))
     try:
         info = ci.lookup_sha(repo, sha, 'yours')

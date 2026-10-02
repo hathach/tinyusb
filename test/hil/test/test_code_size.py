@@ -2502,9 +2502,7 @@ def _fake_ci(info=None, attempts=(1, 1), error=None):
             raise error
         return info or {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': True, 'run_id': 7}
     return types.SimpleNamespace(
-        lookup_sha=lookup_sha, gh=lambda _path: {'run_attempt': next(attempts)},
-        gh_items=lambda _path, _key: [{'name': 'code-size-scope', 'id': 11}, {'name': 'code-size-arm-gcc-fam', 'id': 12},
-                                      {'name': 'hil-report', 'id': 13}])
+        lookup_sha=lookup_sha, gh=lambda _path: {'run_attempt': next(attempts)})
 
 
 class CiBaseline(unittest.TestCase):
@@ -2529,8 +2527,7 @@ class CiBaseline(unittest.TestCase):
             cache = os.path.join(tmp, '_baseline', 'o_r', '7-1')
             self.assertEqual(path, os.path.join(cache, 'snapshots'))
             with open(os.path.join(cache, 'manifest.json')) as f:
-                self.assertEqual(json.load(f), {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1, 'artifacts':
-                                                {'code-size-scope': 11, 'code-size-arm-gcc-fam': 12}})
+                self.assertEqual(json.load(f), {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
             self.assertEqual(sd.load_snapshots(path)['errors'], [])  # the manifest is no snapshot file
             self.assertEqual(self.baseline(_fake_ci(attempts=(1,)), downloads)[0], path)
             self.assertEqual(len(downloads), 1)  # the second lookup reused the published copy
