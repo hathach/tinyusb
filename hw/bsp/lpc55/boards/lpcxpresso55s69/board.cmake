@@ -8,7 +8,7 @@ set(NXPLINK_DEVICE LPC55S69:LPCXpresso55S69)
 
 # device highspeed, host fullspeed
 set(RHPORT_DEVICE 1)
-set(RHPORT_HOST 0)
+set(RHPORT_HOST 1)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
