@@ -275,21 +275,45 @@ def _esp_idf_buckets(sections):
 # CMake replaces the start of an over-long object name with its md5 (cmLocalGenerator.cxx,
 # cmLocalGeneratorShortenObjectName): <target>.dir/<md5>/<rest of the source path>.obj
 _SHORTENED_OBJECT_RE = re.compile(r'\.dir/[0-9a-f]{32}/')
+# first output, rule and first input of a build.ninja edge; '$' escapes a path's ':' and ' '
+_NINJA_EDGE_RE = re.compile(r'build ((?:[^$:\s]|\$.)+)(?: (?:[^$:]|\$.)*)?: \S+ ((?:[^$\s]|\$.)+)')
+
+
+@functools.lru_cache(maxsize=None)
+def _shortened_object_sources(build_dir):
+    """{shortened object: source} of the compile edges in build_dir's build.ninja."""
+    sources = {}
+    with open(os.path.join(build_dir, 'build.ninja'), encoding='utf-8') as f:
+        for line in f:
+            m = _NINJA_EDGE_RE.match(line)
+            if m and _SHORTENED_OBJECT_RE.search(m[1]):
+                obj, src = (re.sub(r'\$(.)', r'\1', p).replace('\\', '/') for p in m.groups())
+                sources[obj] = src
+    return sources
 
 
 class _Sizes:
     """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
     and its total flash/RAM."""
-    def __init__(self, filters):
-        self.filters, self.files, self.all = filters, {}, {'flash': 0, 'ram': 0}
+    def __init__(self, filters, elf):
+        self.filters, self.elf, self.files, self.all = filters, elf, {}, {'flash': 0, 'ram': 0}
         self.sections, self.symbols = {}, {}
+
+    def _shortened_key(self, path):
+        """Key of the source build.ninja compiles to a CMake-shortened object; the object
+        path no longer holds the filtered dir."""
+        build_dir = _find_ninja_build_dir(self.elf)
+        src = build_dir and _shortened_object_sources(build_dir).get(path.replace('\\', '/'))
+        if not src:
+            raise RuntimeError(f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX '
+                               f'(250 on Windows) and the build.ninja above {self.elf} has no compile edge '
+                               'for it to name its source - use a shorter checkout path')
+        return _relative_key(src, self.filters)
 
     def add(self, path, section, buckets, size, name):
         key = _relative_key(path, self.filters) if path else None
         if key is None and path and WINDOWS and _SHORTENED_OBJECT_RE.search(path.replace('\\', '/')):
-            raise RuntimeError(f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX '
-                               '(250 on Windows), hiding its source dir from the filters - '
-                               'use a shorter checkout path')
+            key = self._shortened_key(path)
         for b in buckets:
             self.all[b] += size
             if key is not None:
@@ -346,7 +370,7 @@ def membrowse_sizes(elf, filters):
     """Symbols of `membrowse report`; linker-defined symbols without a section
     (`__StackLimit`) are not counted."""
     buckets = section_buckets(elf, _map_path(elf))
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for sym in report_for_elf(elf).get('symbols', []):
         section = sym.get('section')
         if not sym.get('size') or not section:
@@ -385,7 +409,7 @@ def linkermap_sizes(elf, filters):
         sections = _linkermap().parseSections(f)
     if sections is None:
         raise RuntimeError(f'{map_path}: no Memory Configuration, not a GNU ld map')
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for out in sections:
         if not out.children:  # memory regions
             continue
@@ -407,7 +431,7 @@ def bloaty_sizes(elf, filters):
     if not {'compileunits', 'sections', 'symbols', 'vmsize'} <= set(rows.fieldnames or ()):
         raise RuntimeError(f'unexpected bloaty csv columns for {elf}: {rows.fieldnames}')
     buckets = section_buckets(elf, _map_path(elf))
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for row in rows:
         section = row['sections']
         try:

@@ -8,6 +8,7 @@ import concurrent.futures
 import contextlib
 import errno
 import functools
+import hashlib
 import io
 import json
 import ntpath
@@ -1261,6 +1262,72 @@ class SymlinkedCheckout(unittest.TestCase):
         self.assertEqual(out, 'True\n')
 
 
+def cmake_shortened(obj_dir, obj_name):
+    """CMake v4.1.2 cmLocalGeneratorCheckObjectName and cmLocalGeneratorShortenObjectName
+    (Source/cmLocalGenerator.cxx) at Windows' CMAKE_OBJECT_PATH_MAX of 250."""
+    max_len = 250 - len(obj_dir)
+    if len(obj_name) <= max_len:
+        return obj_name
+    pos = obj_name.find('/', len(obj_name) - max_len + 32)
+    return hashlib.md5(obj_name[:pos].encode()).hexdigest() + obj_name[pos:]
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class CMakeShortenedObject(unittest.TestCase):
+    CHECKOUT = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/_worktree'
+    BUILD = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/base/'
+    TARGET = 'device/audio_4_channel_mic_freertos/CMakeFiles/audio_4_channel_mic_freertos.dir/'
+    FILTER = CHECKOUT[2:] + '/src/'
+    USBD = CHECKOUT + '/src/device/usbd.c'
+    STARTUP = CHECKOUT + '/hw/mcu/st/cmsis_device_f4/Source/Templates/gcc/startup_stm32f407xx.s'
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.build_dir = tmp.name
+        self.elf = os.path.join(tmp.name, 'device', 'audio_4_channel_mic_freertos', 'audio_4_channel_mic_freertos.elf')
+
+    def obj(self, source):
+        """The map path of source's object, and its build.ninja compile edge."""
+        obj = self.TARGET + cmake_shortened(self.BUILD + self.TARGET, source.replace(':', '_') + '.obj')
+        self.assertRegex(obj, r'\.dir/[0-9a-f]{32}/')
+        self.assertNotIn(self.FILTER, obj)
+        edge = f'build {obj}: C_COMPILER__audio_4_channel_mic_freertos_unscanned_MinSizeRel {source.replace(":", "$:")}' \
+               ' || cmake_object_order_depends_target_audio_4_channel_mic_freertos\n'
+        return obj.replace('/', '\\'), edge
+
+    def sizes(self, edges):
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'w') as f:
+            f.writelines(edges)
+        return sd._Sizes([self.FILTER], self.elf)
+
+    def test_a_shortened_vendor_object_counts_in_all_only(self):
+        obj, edge = self.obj(self.STARTUP)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.isr_vector', {'flash'}, 4, 'g_pfnVectors')
+        self.assertEqual(sizes.result()['files'], {})
+        self.assertEqual(sizes.result()['all'], {'flash': 4, 'ram': 0})
+
+    def test_a_shortened_tinyusb_object_keeps_its_source_key(self):
+        obj, edge = self.obj(self.USBD)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {'device/usbd.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_shortened_object_build_ninja_does_not_build_fails(self):
+        obj, _ = self.obj(self.USBD)
+        _, edge = self.obj(self.STARTUP)
+        with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no compile edge'):
+            self.sizes([edge]).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
+    def test_linux_does_not_resolve_a_shortened_object(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, 'WINDOWS', new=False):
+            sizes = self.sizes([])
+            sizes.add(obj.replace('\\', '/'), '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {})
+
+
 @mock.patch.object(sd, 'WINDOWS', new=True)
 class WindowsHost(unittest.TestCase):
     def test_a_backslash_object_path_matches_the_forward_slash_filter(self):
@@ -1278,13 +1345,6 @@ class WindowsHost(unittest.TestCase):
     def test_a_filter_matches_regardless_of_case_and_the_key_keeps_the_recorded_case(self):
         self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
                                           ['/nomatch/', '/a/tinyusb/src/']), 'Device/usbd.c')
-
-    def test_an_md5_shortened_object_path_fails_naming_the_cmake_limit(self):
-        shortened = r'cdc_msc.dir\0123456789abcdef0123456789abcdef\claude\cs\src\device\usbd.c.obj'
-        with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* shorter checkout path'):
-            sd._Sizes(['/Users/u/tinyusb/.worktrees/claude/cs/src/']).add(shortened, '.text', {'flash'}, 4, 'f')
-        with mock.patch.object(sd, 'WINDOWS', new=False):
-            sd._Sizes(['/nomatch/']).add(shortened.replace('\\', '/'), '.text', {'flash'}, 4, 'f')
 
     def test_espressif_boards_are_refused(self):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
