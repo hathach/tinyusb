@@ -83,7 +83,7 @@ void dcd_disconnect(uint8_t rhport)
 //--------------------------------------------------------------------+
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_ep, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
   return pio_usb_device_endpoint_open((uint8_t const*) desc_ep);

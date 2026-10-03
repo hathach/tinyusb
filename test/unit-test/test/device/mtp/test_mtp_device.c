@@ -38,6 +38,7 @@ enum { RHPORT = 0, BUFSIZE = CFG_TUD_MTP_EP_BUFSIZE, HDR = sizeof(mtp_container_
 
 static const uint8_t desc_config_fs[] = DESC_CONFIG(64);
 static const uint8_t desc_config_hs[] = DESC_CONFIG(512);
+
 static const uint8_t* desc_config;
 static uint16_t ep_mps;
 
@@ -132,8 +133,8 @@ static void isr_fill_queue(void) {
 static void run_task_until_idle(void) {
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN + 2; i++) tud_task();
 }
-static bool stub_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t* desc, int n) {
-  (void) rhport; (void) desc; (void) n;
+static bool stub_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t* desc, const uint8_t* desc_end, int n) {
+  (void) rhport; (void) desc; (void) desc_end; (void) n;
   return true;
 }
 

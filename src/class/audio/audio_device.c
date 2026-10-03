@@ -994,7 +994,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
             if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT) {
               // Store endpoint number and open endpoint
               _audiod_fct[i].ep_int = ep_addr;
-              TU_ASSERT(usbd_edpt_open(_audiod_fct[i].rhport, desc_ep));
+              TU_ASSERT(usbd_edpt_open(_audiod_fct[i].rhport, desc_ep, p_desc_end));
             }
           }
           p_desc = tu_desc_next(p_desc);
@@ -1143,7 +1143,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
           TU_ASSERT(usbd_edpt_iso_activate(rhport, desc_ep));
 #else
-          TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
+          TU_ASSERT(usbd_edpt_open(rhport, desc_ep, p_desc_end));
 #endif
           uint8_t const ep_addr = desc_ep->bEndpointAddress;
 

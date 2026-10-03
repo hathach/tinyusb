@@ -357,7 +357,7 @@ static uint8_t control_ep_read(void * buffer, uint8_t len)
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void) rhport;
 
