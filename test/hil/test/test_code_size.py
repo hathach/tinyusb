@@ -1267,6 +1267,10 @@ class WindowsHost(unittest.TestCase):
             self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [sd.filter_arg(f)]),
                              'device/usbd.c')
 
+    def test_a_filter_matches_regardless_of_case_and_the_key_keeps_the_recorded_case(self):
+        self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
+                                          ['/nomatch/', '/a/tinyusb/src/']), 'Device/usbd.c')
+
     def test_espressif_boards_are_refused(self):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
                          r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')

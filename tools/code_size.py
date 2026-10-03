@@ -135,10 +135,11 @@ def _relative_key(src, filters):
     if WINDOWS:
         src = src.replace('\\', '/')
     for f in filters:
-        idx = src.find(f)
-        if idx < 0:
+        # Windows paths are case-insensitive; the key keeps the recorded case
+        m = re.search(re.escape(f), src, re.IGNORECASE if WINDOWS else 0)
+        if not m:
             continue
-        key = src[idx + len(f):]
+        key = src[m.end():]
         for suffix in ('.obj', '.o'):
             if key.endswith(suffix):
                 return key[:-len(suffix)]
