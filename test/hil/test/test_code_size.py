@@ -1320,6 +1320,14 @@ class CMakeShortenedObject(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no compile edge'):
             self.sizes([edge]).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
 
+    def test_a_build_ninja_not_in_utf_8_fails(self):
+        obj, edge = self.obj(self.USBD)
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'wb') as f:
+            f.write(b'# Calf\xe9\n' + edge.encode())
+        sizes = sd._Sizes([self.FILTER], self.elf)
+        with self.assertRaisesRegex(RuntimeError, r'build\.ninja.*utf-8'):
+            sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
     def test_linux_does_not_resolve_a_shortened_object(self):
         obj, _ = self.obj(self.USBD)
         with mock.patch.object(sd, 'WINDOWS', new=False):

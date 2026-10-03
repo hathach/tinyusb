@@ -282,13 +282,18 @@ _NINJA_EDGE_RE = re.compile(r'build ((?:[^$:\s]|\$.)+)(?: (?:[^$:]|\$.)*)?: \S+ 
 @functools.lru_cache(maxsize=None)
 def _shortened_object_sources(build_dir):
     """{shortened object: source} of the compile edges in build_dir's build.ninja."""
+    path = os.path.join(build_dir, 'build.ninja')
     sources = {}
-    with open(os.path.join(build_dir, 'build.ninja'), encoding='utf-8') as f:
-        for line in f:
-            m = _NINJA_EDGE_RE.match(line)
-            if m and _SHORTENED_OBJECT_RE.search(m[1]):
-                obj, src = (re.sub(r'\$(.)', r'\1', p).replace('\\', '/') for p in m.groups())
-                sources[obj] = src
+    # CMake writes it in the ANSI code page unless ninja >= 1.11 reports UTF-8 (`ninja -t wincodepage`)
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                m = _NINJA_EDGE_RE.match(line)
+                if m and _SHORTENED_OBJECT_RE.search(m[1]):
+                    obj, src = (re.sub(r'\$(.)', r'\1', p).replace('\\', '/') for p in m.groups())
+                    sources[obj] = src
+    except (OSError, UnicodeDecodeError) as e:
+        raise RuntimeError(f'cannot read {path}: {e}') from e
     return sources
 
 
