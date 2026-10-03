@@ -110,7 +110,7 @@ typedef struct
   uint32_t transfer_size_remaining;// also used for requested length for bulk IN.
   uint32_t transfer_size_sent;     // To keep track of data bytes that have been queued in FIFO (not header bytes)
 
-  uint8_t lastBulkOutTag;// used for aborts (mostly)
+  uint8_t lastBulkOutTag;// bTag of the most recent Bulk-OUT transfer, whatever its MsgID; used for aborts (mostly)
   uint8_t lastBulkInTag; // used for aborts (mostly)
 
   uint8_t const *devInBuffer;// pointer to application-layer used for transmissions
@@ -404,11 +404,11 @@ static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len) {
 
   // must be a header, should have been confirmed before calling here.
   usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out *) data;
+  usbtmc_state.lastBulkOutTag = msg->header.bTag;
   usbtmc_state.transfer_size_remaining = msg->TransferSize;
   TU_VERIFY(tud_usbtmc_msgBulkOut_start_cb(msg));
 
   TU_VERIFY(handle_devMsgOut(rhport, (uint8_t *) data + sizeof(*msg), len - sizeof(*msg), len));
-  usbtmc_state.lastBulkOutTag = msg->header.bTag;
   return true;
 }
 
@@ -446,6 +446,9 @@ static bool handle_devMsgIn(void *data, size_t len) {
   usbtmc_msg_request_dev_dep_in *msg = (usbtmc_msg_request_dev_dep_in *) data;
   bool stateChanged = atomicChangeState(STATE_IDLE, STATE_TX_REQUESTED);
   TU_VERIFY(stateChanged);
+  // A request for a response is a Bulk-OUT transfer too, and INITIATE_ABORT_BULK_OUT reports the bTag
+  // of the most recent one (USBTMC 1.0 Table 19)
+  usbtmc_state.lastBulkOutTag = msg->header.bTag;
   usbtmc_state.lastBulkInTag = msg->header.bTag;
   usbtmc_state.transfer_size_remaining = msg->TransferSize;
   usbtmc_state.transfer_size_sent = 0u;
@@ -511,6 +514,8 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
               usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
               return false;
             }
+            // An accepted TRIGGER is the most recent Bulk-OUT transfer too (USBTMC 1.0 Table 19)
+            usbtmc_state.lastBulkOutTag = msg->header.bTag;
             // Result deliberately ignored: false here means the endpoint is already armed - either the
             // application re-armed it from its callback, or a transfer is still queued - not that arming
             // failed. Stalling on it would halt a healthy endpoint.
