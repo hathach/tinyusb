@@ -80,7 +80,8 @@ bool tud_usbtmc_transmit_dev_msg_data(
 // If the previous notification data has not yet been sent, this
 // returns false.
 //
-// Requires an interrupt endpoint in the interface.
+// Requires an interrupt endpoint in the interface, and returns false
+// while the interface has none: not yet configured, or after a bus reset.
 bool tud_usbtmc_transmit_notification_data(const void * data, size_t len);
 
 bool tud_usbtmc_start_bus_read(void);
