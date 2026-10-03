@@ -99,7 +99,7 @@ commands:
 
             # Install Pico SDK
             if [ << parameters.family >> == "rp2040" ]; then
-              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
+              git clone --depth 1 --branch 2.3.1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk  # keep in step with .github/actions/get_deps/action.yml
               echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
             fi
 

@@ -28,12 +28,16 @@ import code_size  # noqa: E402  stdlib-only; its snapshot loader is the one comp
 WORKFLOW = 'build.yml'
 BRANCH = 'master'
 MAX_DEPTH = 30  # first-parent ancestors tried before giving up
+GH_TIMEOUT = 60  # seconds per gh api call, a stalled one never blocks
 
 
 def gh(path, paginate=False):
     """Parsed `gh api` GET of `path`; with `paginate`, the list of every page."""
     cmd = ['gh', 'api', '-H', 'Accept: application/vnd.github+json'] + (['--paginate', '--slurp'] if paginate else [])
-    ret = subprocess.run(cmd + [path], capture_output=True, text=True, check=False)
+    try:
+        ret = subprocess.run(cmd + [path], capture_output=True, text=True, check=False, timeout=GH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f'gh api {path}: no reply in {GH_TIMEOUT} s') from None
     if ret.returncode != 0:
         raise RuntimeError(f'gh api {path}: {ret.stderr.strip()}')
     return json.loads(ret.stdout)
@@ -87,10 +91,18 @@ def find_baseline(repo, sha):
 
 def lookup(repo, current):
     """The baseline description written to INFO.json."""
-    info = {'sha': None, 'url': None, 'exact': False, 'run_id': None}
     sha = current_base_sha(current)
     if sha is None:
-        return {**info, 'note': 'the PR snapshots record no single base commit'}
+        return {'sha': None, 'url': None, 'exact': False, 'run_id': None,
+                'note': 'the PR snapshots record no single base commit'}
+    return lookup_sha(repo, sha)
+
+
+def lookup_sha(repo, sha, whose='this PR\'s'):
+    """The baseline description of base commit `sha`: its master Build run with snapshots,
+    else its nearest first-parent ancestor's (approximate), whose later changes count as
+    `whose`; 'sha' None with a 'note' when there is none. Raises RuntimeError on an API failure."""
+    info = {'sha': None, 'url': None, 'exact': False, 'run_id': None}
     if not is_master_ancestor(repo, sha):
         return {**info, 'note': f'base {sha[:10]} is not on {BRANCH}'}
     found = find_baseline(repo, sha)
@@ -98,7 +110,7 @@ def lookup(repo, current):
         return {**info, 'note': f'no {BRANCH} Build run with snapshots within {MAX_DEPTH} commits of {sha[:10]}'}
     run, depth = found
     info = {'sha': run['head_sha'], 'url': run['html_url'], 'exact': depth == 0, 'run_id': run['id']}
-    note = (f'{depth} {BRANCH} commits before this build\'s base {sha[:10]}: their changes count as this PR\'s')
+    note = f'{depth} {BRANCH} commits before this build\'s base {sha[:10]}: their changes count as {whose}'
     return {**info, 'note': note} if depth else info
 
 
