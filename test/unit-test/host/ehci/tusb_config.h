@@ -7,8 +7,10 @@
 #define CFG_TUH_ENABLED 1
 #define CFG_TUH_MAX_SPEED OPT_MODE_HIGH_SPEED
 #define CFG_TUH_DEVICE_MAX 4
-#define CFG_TUH_ENDPOINT_MAX 8
+#define CFG_TUH_ENDPOINT_MAX (CFG_TUH_HUB ? 8 : 9) // Keep multiple pool bitmap words without a hub.
+#ifndef CFG_TUH_HUB
 #define CFG_TUH_HUB 1
+#endif
 #define TUP_USBIP_EHCI
 #ifndef TEST_EHCI_GENERIC
 #define TUP_USBIP_CHIPIDEA_HS

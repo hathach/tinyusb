@@ -479,4 +479,27 @@ static void process_new_status(tuh_xfer_t* xfer) {
   }
 }
 
+//--------------------------------------------------------------------+
+// Split ISO Slot Allocation
+//--------------------------------------------------------------------+
+
+// Best-effort ISO split windows for one MTT hub port. Callers reserve the
+// maximum packet size of every open endpoint in used, including idle endpoints.
+// OUT grows from slot 0; IN grows from the end, leaving two complete retries.
+// Requires 1..564 bytes for IN or 1..1023 for OUT. No bus-time admission,
+// interrupt reservations, frame-spanning splits, or single-TT hub accounting.
+bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
+  uint8_t const count = (uint8_t) ((packet_size + 187u) / 188u);
+  uint8_t const last = (dir == TUSB_DIR_IN ? 4u : 6u) - count;
+  for (uint8_t i = 0; i <= last; i++) {
+    uint8_t const start = dir == TUSB_DIR_IN ? last - i : i;
+    uint8_t const mask = (uint8_t) (((1u << count) - 1u) << start);
+    if (!(used & mask)) {
+      *slot = start;
+      return true;
+    }
+  }
+  return false;
+}
+
 #endif

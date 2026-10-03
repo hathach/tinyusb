@@ -17,6 +17,9 @@
 #include "host/hcd.h"
 #include "host/usbh.h"
 #include "host/usbh_pvt.h"
+#if CFG_TUH_HUB
+#include "host/hub.h"
+#endif
 #include "ehci_api.h"
 #include "ehci.h"
 
@@ -66,28 +69,15 @@
  * retires the TD before notifying USBH so its normal callback can refill it.
  * No host stack or class-driver queuing is required.
  *
- * FS behind an HS hub uses a fixed best-effort schedule within one H-frame:
- *   OUT: start-splits from H0, one per 188 bytes, through H5; no completes.
- *   IN (including feedback): start-split H2, complete-splits H4..H7.
+ * FS behind an HS hub uses the same best-effort MTT allocation as IP3516.
+ * Each (hub, port) reserves maximum-packet windows: OUT from H0 upwards,
+ * IN from the end with two complete-split retries before H7 ends.
  * H-frames lead the SOF frame number by one microframe. No bus-time admission,
- * per-TT slot allocation, or frame-spanning splits are implemented.
- *
- * Packet limits per service interval:
- *   Mic only: IN maximum packet size <= 564; retries share 4 complete slots.
- *   Speaker only, no feedback: OUT maximum packet size <= 1023 (6 splits).
- *   Headset or speaker + feedback: OUT <= 376 avoids the IN start slot.
- * The 376-byte limit is NOT enforced: accepted OUT packets >= 377 overlap H2
- * and can disrupt audio even with successful completions. Smaller packets
- * still contend for FS bus time; multiple IN endpoints share the same slots.
+ * interrupt reservations, single-TT accounting, or frame-spanning splits.
+ * IN is limited to 564 bytes and OUT to 1023; opens fail if no window fits.
  * Direct FS uses the embedded TT without these masks, allowing 1023 bytes
- * in either direction. Buffer sizes may impose smaller limits.
- *
- * The audio example has 256-byte buffers. At 1 ms, nominal stereo playback
- * needs 192 bytes for 48 kHz S16 (2 splits), 288 for packed S24 (2), or 384
- * for 48 kHz S32 / 96 kHz S16 (3, overlaps IN). Use the largest packet,
- * including rate/feedback variation. Larger buffers do not change the masks.
- * FS hardware validation with one TD is pending. The 564/1023 maxima,
- * 376-byte boundary and FS feedback are untested.
+ * in either direction. Split allocation has unit coverage; hardware coverage
+ * of the 564/1023-byte maxima and simultaneous FS streams is still pending.
  *
  * Preserve endpoint phase and skip late slots. With no descriptor caching,
  * publish for the next microframe; caching controllers retain their lead time.
@@ -133,6 +123,7 @@ typedef struct {
     uint16_t ep_key; // Little-endian view of the two address bytes.
   };
   uint8_t speed;
+  uint8_t split_slot;
   bool busy;
   bool armed;
 } iso_ep_t;
@@ -797,6 +788,22 @@ static void iso_ep_free(iso_ep_t* ep) {
   ehci_data.qtd_is_iso[qtd_index / 32] &= ~TU_BIT(qtd_index % 32);
 }
 
+// Reserve by resolved upstream HS hub/port, assuming a multi-TT hub.
+#if CFG_TUH_HUB
+static bool iso_split_slot(uint8_t hub_addr, uint8_t hub_port, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
+  uint8_t used = 0;
+  for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
+    iso_ep_t const* ep = &ehci_data.qtd_pool[i].iso;
+    ehci_sitd_t const* td = &ep->td->sitd;
+    if (ep->speed == TUSB_SPEED_FULL && td->hub_addr == hub_addr && td->port_number == hub_port) {
+      uint8_t const count = (uint8_t) ((ep->max_xfer_bytes + 187u) / 188u);
+      used |= ((1u << count) - 1u) << ep->split_slot;
+    }
+  }
+  return hub_iso_split_slot(used, packet_size, dir, slot);
+}
+#endif
+
 static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* desc) {
   TU_VERIFY(daddr != 0 && tu_edpt_number(desc->bEndpointAddress) != 0);
   if (edpt_find(daddr, desc->bEndpointAddress).iso != NULL) {
@@ -834,6 +841,16 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
     hub_port = hub.hub_port;
   }
 
+  uint8_t const dir = tu_edpt_dir(desc->bEndpointAddress);
+  bool const split = bus.speed == TUSB_SPEED_FULL &&
+                     ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_HIGH;
+  uint8_t split_slot = 0;
+  #if CFG_TUH_HUB
+  if (split) {
+    TU_VERIFY(iso_split_slot(hub_addr, hub_port, mps, dir, &split_slot));
+  }
+  #endif
+
   hcd_int_disable(rhport);
   ehci_qhd_t* qhd = qhd_find_free();
   ehci_qtd_t* qtd = qtd_find_free();
@@ -851,6 +868,7 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   ehci_data.qtd_is_iso[qtd_index / 32] |= TU_BIT(qtd_index % 32);
   ep->ep_addr = desc->bEndpointAddress;
   ep->speed = bus.speed;
+  ep->split_slot = split_slot;
   ep->max_xfer_bytes = (uint16_t) (mps * mult);
   ep->interval = (1u << (desc->bInterval - 1)) * (bus.speed == TUSB_SPEED_FULL ? 8u : 1u);
   // Keep the extended counter congruent to FRINDEX even when ISO was disabled.
@@ -867,7 +885,6 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   // Retire each packet promptly so task context can submit the next interval.
   ehci_data.regs->command_bm.int_threshold = 0;
 
-  uint8_t const dir = tu_edpt_dir(ep->ep_addr);
   iso_td_t* td = ep->td;
   td->itd.next.terminate = 1;
   if (ep->speed == TUSB_SPEED_HIGH) {
@@ -881,10 +898,10 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
                    ((uint32_t) (hub_addr & 0x7f) << 16) | ((uint32_t) (hub_port & 0x7f) << 24) |
                    ((uint32_t) dir << 31);
     td->sitd.back.terminate = 1;
-    if (dir == TUSB_DIR_IN && !ehci_data.iso_frame_offset) {
-      // Leave H0/H1 for common FS audio OUT packets.
-      td->sitd.int_smask = 4;
-      td->sitd.fl_int_cmask = 0xf0;
+    if (dir == TUSB_DIR_IN && split) {
+      uint8_t const count = (uint8_t) ((mps + 187u) / 188u);
+      td->sitd.int_smask = 1u << split_slot;
+      td->sitd.fl_int_cmask = ((1u << (count + 2u)) - 1u) << (split_slot + 2u);
     }
   }
   ehci_data.regs->status = EHCI_INT_MASK_NXP_SOF;
@@ -934,7 +951,7 @@ static void iso_arm(iso_ep_t* ep, uint32_t now) {
     sitd->buffer[1] = page + 4096;
     if (dir == TUSB_DIR_OUT && !ehci_data.iso_frame_offset) {
       uint8_t const count = (uint8_t) tu_max32(1, (ep->buflen + 187u) / 188u);
-      sitd->int_smask = (uint8_t) ((1u << count) - 1u);
+      sitd->int_smask = (uint8_t) (((1u << count) - 1u) << ep->split_slot);
       sitd->buffer[1] |= count | (count > 1 ? TU_BIT(3) : 0); // T-count, TP=Begin/All
     }
     // Reset status, split progress and page selection; retain endpoint/masks.

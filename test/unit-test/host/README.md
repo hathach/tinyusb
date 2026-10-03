@@ -10,13 +10,19 @@ ctest --test-dir build/host-test --output-on-failure
 
 Use GCC or Clang (MinGW on Windows, with runtime DLLs on PATH).
 
-Four EHCI configurations cover generic EHCI, ChipIdea with ISO disabled/enabled,
-and ChipIdea ISO with payload D-cache maintenance enabled.
+EHCI configurations cover generic EHCI, ChipIdea with ISO disabled/enabled,
+and ChipIdea ISO with payload D-cache maintenance enabled. An additional configuration
+runs with `CFG_TUH_HUB=0` to check direct HS/FS without hub dependencies.
+
 The enabled fixture uses the actual HCD with simulated DMA writeback and
 FRINDEX. It checks native FS, split transfers, HS, single-request ownership,
 shared QH/qTD allocation and exhaustion, early completion, TD reuse, errors,
 cancellation, endpoint phase, and counter/frame-list wrap. Every-microframe
 HS service is checked with exactly one TD per endpoint.
+
+The enabled fixture exercises the best-effort MTT split allocator, including
+conflicting opens, separate hub ports, nested FS hubs, release on close, and
+maximum-packet reservations retained across short and zero-length transfers.
 
 Assertions remain enabled in release builds; each test has a 10-second limit.
 Static simulated DMA addresses are below 4 GiB. These tests do not emulate

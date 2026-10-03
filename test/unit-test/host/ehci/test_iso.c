@@ -262,6 +262,7 @@ static void test_sparse_iso_pool(void) {
   assert(iso_ep_next(0) == QHD_MAX);
 }
 
+#if CFG_TUH_HUB
 static void test_split(void) {
   reset(TUSB_SPEED_HIGH);
   buses[1].hub_addr = 2;
@@ -276,7 +277,11 @@ static void test_split(void) {
   assert(iso_xfer(0, ep, buffer, 564));
   ehci_sitd_t* td = &ep->td->sitd;
   assert(td->hub_addr == 3 && td->port_number == 4);
-  assert(td->int_smask == 4 && td->fl_int_cmask == 0xf0);
+  assert(td->int_smask == 2 && td->fl_int_cmask == 0xf8);
+  assert(!open_ep(1, TUSB_SPEED_FULL, 1023, 1));
+  assert(iso_ep_find(1, 1) == NULL);
+  // A different upstream MTT port has an independent budget.
+  buses[2].hub_port = 5;
   assert(open_ep(1, TUSB_SPEED_FULL, 1023, 1));
   ep = iso_ep_find(1, 1);
   assert(iso_xfer(0, ep, buffer, 1023));
@@ -305,6 +310,62 @@ static void test_split_audio(void) {
   assert((in_td->int_smask & out_td->int_smask) == 0);
   assert(in_td->int_smask > out_td->int_smask);
 }
+
+static void test_split_allocation(void) {
+  // Both open orders support three OUT slots followed by one IN slot.
+  for (unsigned in_first = 0; in_first < 2; in_first++) {
+    reset(TUSB_SPEED_HIGH);
+    buses[1].hub_addr = 2;
+    buses[1].hub_port = 1;
+    buses[2].speed = TUSB_SPEED_HIGH;
+    if (in_first) { assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1)); }
+    assert(open_ep(0x01, TUSB_SPEED_FULL, 384, 1));
+    if (!in_first) { assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1)); }
+    iso_ep_t* in = iso_ep_find(1, 0x81);
+    iso_ep_t* out = iso_ep_find(1, 0x01);
+    assert(out->split_slot == 0 && in->split_slot == 3);
+    assert(in->td->sitd.int_smask == 8 && in->td->sitd.fl_int_cmask == 0xe0);
+    assert(!open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
+    assert(iso_ep_find(1, 0x82) == NULL);
+    // Closing an idle endpoint releases its reservation.
+    iso_ep_free(out);
+    assert(open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
+    assert(iso_ep_find(1, 0x82)->split_slot == 2);
+  }
+
+  reset(TUSB_SPEED_HIGH);
+  buses[1].hub_addr = 2;
+  buses[1].hub_port = 1;
+  buses[2].speed = TUSB_SPEED_HIGH;
+  assert(open_ep(0x01, TUSB_SPEED_FULL, 192, 1));
+  assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1));
+  assert(open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
+  assert(iso_ep_find(1, 0x82)->split_slot == 2);
+  assert(open_ep(0x02, TUSB_SPEED_FULL, 376, 1));
+  iso_ep_t* out = iso_ep_find(1, 0x02);
+  assert(out->split_slot == 4);
+  uint16_t const lengths[] = {376, 189, 188, 1, 0};
+  uint8_t const masks[] = {0x30, 0x30, 0x10, 0x10, 0x10};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(lengths); i++) {
+    assert(iso_xfer(0, out, buffer, lengths[i]));
+    assert(out->td->sitd.int_smask == masks[i]);
+    // Short/ZLP requests do not release the maximum-packet reservation.
+    assert(!open_ep(0x03, TUSB_SPEED_FULL, 1, 1));
+    iso_td_unlink(out);
+    out->armed = false;
+    out->busy = false;
+  }
+  buses[1].hub_port = 2;
+  assert(open_ep(0x03, TUSB_SPEED_FULL, 1023, 1));
+  assert(iso_ep_find(1, 0x03)->split_slot == 0);
+  buses[1].hub_addr = 3;
+  buses[1].hub_port = 1;
+  buses[3].speed = TUSB_SPEED_HIGH;
+  assert(open_ep(0x04, TUSB_SPEED_FULL, 1023, 1));
+  assert(iso_ep_find(1, 0x04)->split_slot == 0);
+}
+
+#endif
 
 static void test_hs(void) {
   reset(TUSB_SPEED_HIGH);
@@ -522,7 +583,7 @@ static void test_schedule_sweep(void) {
 
 static void test_descriptor_reuse(void) {
   // Revisit the same descriptor with new lengths/pages and (for HS) microframes.
-  for (unsigned mode = 0; mode < 3; mode++) {
+  for (unsigned mode = 0; mode < (CFG_TUH_HUB ? 3u : 2u); mode++) {
     for (unsigned dir = 0; dir < 2; dir++) {
       bool const hs = mode == 0;
       reset(mode == 1 ? TUSB_SPEED_FULL : TUSB_SPEED_HIGH);
@@ -570,8 +631,8 @@ static void test_descriptor_reuse(void) {
           assert(!s->split_state && !s->missed_uframe && !s->xact_err && !s->error);
           assert(!s->buffer_err && !s->babble_err && s->buffer[0] == ptr);
           unsigned const count = ep->buflen ? (ep->buflen + 187) / 188 : 1;
-          assert(s->int_smask == (mode == 1 ? 0 : (dir ? 4 : (1u << count) - 1)));
-          assert(s->fl_int_cmask == (mode == 2 && dir ? 0xf0 : 0));
+          assert(s->int_smask == (mode == 1 ? 0 : (dir ? 2 : (1u << count) - 1)));
+          assert(s->fl_int_cmask == (mode == 2 && dir ? 0xf8 : 0));
           assert(s->buffer[1] == ((page + 4096) |
                  (mode == 2 && !dir ? count | (count > 1 ? 8 : 0) : 0)));
           td->words[3] = 0xffffff7f; // retired, all other status/progress bits set
@@ -676,7 +737,7 @@ static void test_pool_hs_interval(uint8_t interval) {
 }
 
 static void test_pool_fs_interval(uint8_t interval) {
-  for (unsigned hub = 0; hub < 2; hub++) {
+  for (unsigned hub = 0; hub < (CFG_TUH_HUB ? 2u : 1u); hub++) {
     reset(hub ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
     for (unsigned i = 0; i < TEST_ISO_STREAM_EP_COUNT; i++) {
       if (hub) {
@@ -804,7 +865,7 @@ static void test_completion_unlink(bool hs) {
 
 static void test_future_completion(void) {
   uint32_t const starts[] = {800, 0xfffffff8};
-  for (unsigned mode = 0; mode < 3; mode++) {
+  for (unsigned mode = 0; mode < (CFG_TUH_HUB ? 3u : 2u); mode++) {
     for (unsigned i = 0; i < TU_ARRAY_SIZE(starts); i++) {
       reset(mode == 1 ? TUSB_SPEED_FULL : TUSB_SPEED_HIGH);
       if (mode == 2) {
@@ -854,8 +915,11 @@ int main(void) {
   test_shared_pools();
   test_sparse_iso_pool();
   test_native_fs();
+#if CFG_TUH_HUB
   test_split();
   test_split_audio();
+  test_split_allocation();
+#endif
   test_hs();
   test_iso_status_errors();
   test_iso_clock_config();
@@ -867,7 +931,9 @@ int main(void) {
   test_pool_stream();
   test_pool_fs_stream();
   test_completion_unlink(true);
+#if CFG_TUH_HUB
   test_completion_unlink(false);
+#endif
   test_future_completion();
 #else
   reset(TUSB_SPEED_HIGH);
