@@ -470,6 +470,15 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 
   rp2usb_critical_enter();
 
+  // If this device currently owns the shared EPX (control/bulk) hardware pipe, stop the
+  // in-progress transfer and clear its buffer control register. Otherwise the AVAIL bit
+  // left set by the live transfer stays latched in hardware, and the next device to be
+  // armed on EPX (e.g. a replugged device's enumeration) panics with "already available".
+  if (epx->dev_addr == dev_addr && epx->state == EPSTATE_ACTIVE) {
+    sie_stop_xfer();
+    usbh_dpram->epx_buf_ctrl = 0;
+  }
+
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
     if (ep->dev_addr == dev_addr && ep->max_packet_size > 0) {
