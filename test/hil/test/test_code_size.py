@@ -2090,6 +2090,13 @@ class Snapshot(unittest.TestCase):
                                                        'name': 'arm-none-eabi-gcc', 'build_type': 'MinSizeRel'})
         self.assertEqual(sd._cmake_compiler('/nonexistent'), {'id': '', 'version': '', 'name': '', 'build_type': ''})
 
+    def test_a_windows_compiler_is_named_without_exe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'CMakeFiles', '4.1.2'))
+            with open(os.path.join(tmp, 'CMakeFiles', '4.1.2', 'CMakeCCompiler.cmake'), 'w') as f:
+                f.write('set(CMAKE_C_COMPILER "C:/arm/bin/arm-none-eabi-gcc.EXE")\n')
+            self.assertEqual(sd._cmake_compiler(tmp)['name'], 'arm-none-eabi-gcc')
+
     def test_an_esp_idf_board_reads_its_first_example_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             for ex, ver in (('device/b', '14.2.0'), ('device/a', '14.2.0'), ('device/a/bootloader', '1.0')):

@@ -1319,7 +1319,9 @@ def _cmake_compiler(build_dir):
                          ('name', 'CMAKE_C_COMPILER')):
             m = re.search(rf'^set\({var} "([^"]*)"\)', text, re.M)
             if m:
-                info[key] = os.path.basename(m.group(1)) if key == 'name' else m.group(1)
+                info[key] = m.group(1)
+    # without .exe, so a Windows build's name matches a Linux snapshot's
+    info['name'] = re.sub(r'\.exe$', '', os.path.basename(info['name']), flags=re.I)
     cache = os.path.join(build_dir, 'CMakeCache.txt')
     if os.path.isfile(cache):
         with open(cache) as f:
