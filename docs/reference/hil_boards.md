@@ -2,7 +2,7 @@
 
 ### ci rig
 
-28 boards, from `test/hil/tinyusb.json`.
+29 boards, from `test/hil/tinyusb.json`.
 
 | Board                    | Roles              | Flasher   | Variants                                               | Note                                                                                                                                                                   |
 |--------------------------|--------------------|-----------|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -34,6 +34,7 @@
 | ch582m_evt               | device             | openocd   |                                                        |                                                                                                                                                                        |
 | mimxrt1064_evk           | device, host, dual | jlink     |                                                        |                                                                                                                                                                        |
 | nrf54lm20dk              | device             | jlink     |                                                        | board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately |
+| nrf5340dk                | device             | jlink     |                                                        | board new to HIL: the FreeRTOS examples never enumerate, with master firmware too; the bare-metal examples and usbtest pass (#4071)                                    |
 
 ### hfp rig
 
