@@ -214,10 +214,24 @@ void audio_isr_task(void *param) {
   (void) param;
   while (1) {
     vTaskDelay(1);
-    for (size_t cnt = 0; cnt < sizeof(test_buffer_audio) / 2; cnt++) {
-      test_buffer_audio[cnt] = startVal++;
+    tu_fifo_t *ep_in_ff = tud_audio_get_ep_in_ff();
+    if (ep_in_ff == NULL) {
+      continue;
     }
-    tud_audio_write((uint8_t *) test_buffer_audio, sizeof(test_buffer_audio));
+    // Our 1 ms tick and the host SOF are independent clocks, so keep the EP IN FIFO at the
+    // level the driver's flow control aims for instead of writing one frame per tick.
+    // Letting it get there by draining alone keeps the FIFO within a frame of empty for
+    // ~150 ms, and an underrun repeats the tail of the previous packet. Overflow is just as
+    // bad: the FIFO is overwritable and drops the oldest samples.
+    const uint16_t target = tud_audio_get_ep_in_fifo_threshold();
+    for (uint16_t level = tu_fifo_count(ep_in_ff);
+         level < target && tu_fifo_remaining(ep_in_ff) >= sizeof(test_buffer_audio);
+         level += sizeof(test_buffer_audio)) {
+      for (size_t cnt = 0; cnt < sizeof(test_buffer_audio) / 2; cnt++) {
+        test_buffer_audio[cnt] = startVal++;
+      }
+      tud_audio_write((uint8_t *) test_buffer_audio, sizeof(test_buffer_audio));
+    }
   }
 }
 
