@@ -1858,7 +1858,7 @@ def metadata_warnings(board, shard, compiler, membrowse_version):
 
 
 def example_arg(value):
-    example = value.rstrip('/')
+    example = (value.replace('\\', '/') if WINDOWS else value).rstrip('/')
     if not example:
         raise argparse.ArgumentTypeError(f'{value!r} names no example')
     return example

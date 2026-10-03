@@ -10,6 +10,7 @@ import errno
 import functools
 import io
 import json
+import ntpath
 import os
 import re
 import shutil
@@ -1266,6 +1267,13 @@ class WindowsHost(unittest.TestCase):
         for f in ('/a/tinyusb/src/', '\\a\\tinyusb\\src\\'):
             self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [sd.filter_arg(f)]),
                              'device/usbd.c')
+
+    def test_a_drive_is_stripped_from_a_filter(self):
+        with mock.patch.object(sd.os, 'path', ntpath):
+            self.assertEqual(sd.filter_arg('D:\\a\\tinyusb\\src\\'), '/a/tinyusb/src/')
+
+    def test_a_backslash_example_names_the_forward_slash_elf_id(self):
+        self.assertEqual(sd.example_arg('device\\cdc_msc\\'), 'device/cdc_msc')
 
     def test_a_filter_matches_regardless_of_case_and_the_key_keeps_the_recorded_case(self):
         self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
