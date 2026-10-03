@@ -294,9 +294,10 @@ def _shortened_object_sources(build_dir):
     except OSError as e:
         raise RuntimeError(f'cannot read {path}: {e}') from e
     except UnicodeDecodeError as e:
-        raise RuntimeError(f'{path} is not UTF-8 ({e}): CMake writes it in the ANSI code page when ninja is older '
-                           'than 1.11 or its code page is not UTF-8 (`ninja -t wincodepage`); use ninja >= 1.11 '
-                           'with a UTF-8 code page or an ASCII-only checkout path') from e
+        raise RuntimeError(f'{path} is not UTF-8: CMake writes it in the ANSI code page when ninja is older than '
+                           '1.11 or `ninja -t wincodepage` is not UTF-8; use ninja >= 1.11 whose '
+                           '`ninja -t wincodepage` reports UTF-8, or keep the checkout, CMake and toolchain paths '
+                           'ASCII-only') from e
     return sources
 
 
@@ -310,18 +311,22 @@ class _Sizes:
     def _shortened_key(self, path):
         """Key of the source build.ninja compiles to a CMake-shortened object; the object
         path no longer holds the filtered dir."""
+        shortened = f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX (250 on Windows) and'
         build_dir = _find_ninja_build_dir(self.elf)
-        src = build_dir and _shortened_object_sources(build_dir).get(path.replace('\\', '/'))
+        if build_dir is None:
+            raise RuntimeError(f'{shortened} no build.ninja was found above {self.elf} to name its source - '
+                               'use a shorter checkout path')
+        src = _shortened_object_sources(build_dir).get(path.replace('\\', '/'))
         if not src:
-            raise RuntimeError(f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX '
-                               f'(250 on Windows) and the build.ninja above {self.elf} has no compile edge '
-                               'for it to name its source - use a shorter checkout path')
+            raise RuntimeError(f'{shortened} the build.ninja above {self.elf} has no compile edge for it '
+                               'to name its source - use a shorter checkout path')
         return _relative_key(src, self.filters)
 
     def add(self, path, section, buckets, size, name):
-        key = _relative_key(path, self.filters) if path else None
-        if key is None and path and WINDOWS and _SHORTENED_OBJECT_RE.search(path.replace('\\', '/')):
-            key = self._shortened_key(path)
+        if path and WINDOWS and _SHORTENED_OBJECT_RE.search(path.replace('\\', '/')):
+            key = self._shortened_key(path)  # a filter could match the kept tail of the source path
+        else:
+            key = _relative_key(path, self.filters) if path else None
         for b in buckets:
             self.all[b] += size
             if key is not None:

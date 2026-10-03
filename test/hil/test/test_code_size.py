@@ -1279,6 +1279,7 @@ class CMakeShortenedObject(unittest.TestCase):
     TARGET = 'device/audio_4_channel_mic_freertos/CMakeFiles/audio_4_channel_mic_freertos.dir/'
     FILTER = CHECKOUT[2:] + '/src/'
     USBD = CHECKOUT + '/src/device/usbd.c'
+    CDC = CHECKOUT + '/src/class/cdc/cdc_device.c'
     STARTUP = CHECKOUT + '/hw/mcu/st/cmsis_device_f4/Source/Templates/gcc/startup_stm32f407xx.s'
 
     def setUp(self):
@@ -1296,10 +1297,10 @@ class CMakeShortenedObject(unittest.TestCase):
                ' || cmake_object_order_depends_target_audio_4_channel_mic_freertos\n'
         return obj.replace('/', '\\'), edge
 
-    def sizes(self, edges):
+    def sizes(self, edges, filters=(FILTER,)):
         with open(os.path.join(self.build_dir, 'build.ninja'), 'w') as f:
             f.writelines(edges)
-        return sd._Sizes([self.FILTER], self.elf)
+        return sd._Sizes(list(filters), self.elf)
 
     def test_a_shortened_vendor_object_counts_in_all_only(self):
         obj, edge = self.obj(self.STARTUP)
@@ -1314,6 +1315,19 @@ class CMakeShortenedObject(unittest.TestCase):
         sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
         self.assertEqual(sizes.result()['files'], {'device/usbd.c': {'flash': 4, 'ram': 0}})
 
+    def test_a_later_filter_matching_the_kept_tail_keys_as_for_the_full_source(self):
+        obj, edge = self.obj(self.CDC)
+        self.assertIn('/class/cdc/', obj.replace('\\', '/'))
+        sizes = self.sizes([edge], (self.FILTER, 'class/'))
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_cdc_n_write')
+        self.assertEqual(sizes.result()['files'], {'class/cdc/cdc_device.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_shortened_object_without_build_ninja_fails(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, '_find_ninja_build_dir', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no build\\.ninja was found above'):
+                sd._Sizes([self.FILTER], self.elf).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
     def test_a_shortened_object_build_ninja_does_not_build_fails(self):
         obj, _ = self.obj(self.USBD)
         _, edge = self.obj(self.STARTUP)
@@ -1325,8 +1339,10 @@ class CMakeShortenedObject(unittest.TestCase):
         with open(os.path.join(self.build_dir, 'build.ninja'), 'wb') as f:
             f.write(b'# Calf\xe9\n' + edge.encode())
         sizes = sd._Sizes([self.FILTER], self.elf)
-        with self.assertRaisesRegex(RuntimeError, r'build\.ninja is not UTF-8 .* use ninja >= 1\.11'):
+        with self.assertRaisesRegex(RuntimeError, r'build\.ninja is not UTF-8: .* use ninja >= 1\.11 whose '
+                                    r'`ninja -t wincodepage` reports UTF-8') as cm:
             sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertNotIn('position', str(cm.exception))  # relative to the decoder's chunk, not the file
 
     def test_linux_does_not_resolve_a_shortened_object(self):
         obj, _ = self.obj(self.USBD)
