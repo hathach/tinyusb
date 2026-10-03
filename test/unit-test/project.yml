@@ -143,6 +143,12 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
       - CFG_TUSB_DEBUG=0
+    :test_midi2_device_gtb_default:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MIDI2=1
+    :test_midi2_device_gtb_midi1:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MIDI2=1
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
