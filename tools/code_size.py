@@ -272,6 +272,11 @@ def _esp_idf_buckets(sections):
     return buckets
 
 
+# CMake replaces the start of an over-long object name with its md5 (cmLocalGenerator.cxx,
+# cmLocalGeneratorShortenObjectName): <target>.dir/<md5>/<rest of the source path>.obj
+_SHORTENED_OBJECT_RE = re.compile(r'\.dir/[0-9a-f]{32}/')
+
+
 class _Sizes:
     """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
     and its total flash/RAM."""
@@ -281,6 +286,10 @@ class _Sizes:
 
     def add(self, path, section, buckets, size, name):
         key = _relative_key(path, self.filters) if path else None
+        if key is None and path and WINDOWS and _SHORTENED_OBJECT_RE.search(path.replace('\\', '/')):
+            raise RuntimeError(f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX '
+                               '(250 on Windows), hiding its source dir from the filters - '
+                               'use a shorter checkout path')
         for b in buckets:
             self.all[b] += size
             if key is not None:

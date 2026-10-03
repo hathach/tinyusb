@@ -1271,6 +1271,13 @@ class WindowsHost(unittest.TestCase):
         self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
                                           ['/nomatch/', '/a/tinyusb/src/']), 'Device/usbd.c')
 
+    def test_an_md5_shortened_object_path_fails_naming_the_cmake_limit(self):
+        shortened = r'cdc_msc.dir\0123456789abcdef0123456789abcdef\claude\cs\src\device\usbd.c.obj'
+        with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* shorter checkout path'):
+            sd._Sizes(['/Users/u/tinyusb/.worktrees/claude/cs/src/']).add(shortened, '.text', {'flash'}, 4, 'f')
+        with mock.patch.object(sd, 'WINDOWS', new=False):
+            sd._Sizes(['/nomatch/']).add(shortened.replace('\\', '/'), '.text', {'flash'}, 4, 'f')
+
     def test_espressif_boards_are_refused(self):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
                          r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
