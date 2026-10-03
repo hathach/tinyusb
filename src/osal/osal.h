@@ -48,6 +48,8 @@ typedef void (*osal_task_func_t)(void* param);
   #include "osal_zephyr.h"
 #elif CFG_TUSB_OS == OPT_OS_THREADX
   #include "osal_threadx.h"
+#elif CFG_TUSB_OS == OPT_OS_STK
+  #include "osal_stk.h"
 #elif CFG_TUSB_OS == OPT_OS_CUSTOM
   #include "tusb_os_custom.h" // implemented by application
 #else
