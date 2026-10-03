@@ -93,10 +93,27 @@ TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms) {
   (void)duration_ms;
 }
 
+TU_ATTR_WEAK void tud_cdc_send_encapsulated_command_cb(uint8_t itf, uint8_t const* command, uint16_t len) {
+  (void)itf;
+  (void)command;
+  (void)len;
+}
+
+TU_ATTR_WEAK uint16_t tud_cdc_get_encapsulated_response_cb(uint8_t itf, uint8_t* buffer, uint16_t bufsize) {
+  (void)itf;
+  (void)buffer;
+  (void)bufsize;
+  return 0;
+}
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+
+// The data stage of SEND_ENCAPSULATED_COMMAND and GET_ENCAPSULATED_RESPONSE. Control transfers take
+// turns, so one serves every interface.
+static uint8_t _cdcd_encapsulated_buf[CFG_TUD_CDC_ENCAPSULATED_BUFSIZE];
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_cdc_itf(uint8_t ep_addr) {
   for (uint8_t idx = 0; idx < CFG_TUD_CDC; idx++) {
@@ -371,6 +388,31 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
   TU_VERIFY(itf < CFG_TUD_CDC);
 
   switch (request->bRequest) {
+    // Both Required for the Abstract Control Model (PSTN 1.2 section 6.2.2, Table 11), which is the
+    // only subclass this driver opens.
+    case CDC_REQUEST_SEND_ENCAPSULATED_COMMAND:
+      if (stage == CONTROL_STAGE_SETUP) {
+        TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_OUT);
+        TU_VERIFY(request->wLength <= CFG_TUD_CDC_ENCAPSULATED_BUFSIZE);
+        TU_LOG_DRV("  Send Encapsulated Command\r\n");
+        tud_control_xfer(rhport, request, _cdcd_encapsulated_buf, request->wLength);
+      } else if (stage == CONTROL_STAGE_ACK) {
+        tud_cdc_send_encapsulated_command_cb(itf, _cdcd_encapsulated_buf, request->wLength);
+      } else {
+        // nothing to do
+      }
+      break;
+
+    case CDC_REQUEST_GET_ENCAPSULATED_RESPONSE:
+      if (stage == CONTROL_STAGE_SETUP) {
+        TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+        TU_LOG_DRV("  Get Encapsulated Response\r\n");
+        uint16_t len = tud_cdc_get_encapsulated_response_cb(itf, _cdcd_encapsulated_buf, sizeof(_cdcd_encapsulated_buf));
+        len = tu_min16(len, sizeof(_cdcd_encapsulated_buf));
+        tud_control_xfer(rhport, request, _cdcd_encapsulated_buf, len);
+      }
+      break;
+
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP) {
         TU_LOG_DRV("  Set Line Coding\r\n");
