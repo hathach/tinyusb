@@ -25,7 +25,7 @@ Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 - `--symbols` when Flash/RAM cancel: a pair counts as changed when its sections or symbols moved.
 - `--ci` for "all boards" / "CI"; it needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF or docker.
 - An espressif board builds each example `tools/build.py` picks as its own ESP-IDF project: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (once: `docker pull espressif/idf:v5.5.3 && docker tag espressif/idf:v5.5.3 espressif/idf:tinyusb`, about 8.4 GB).
-- Windows: run `python -X utf8 tools/code_size.py …` (or set `PYTHONUTF8=1`), else redirected output fails on `Δ`. `report` and `diff` work for paths without spaces; espressif boards are refused. A local base, including the fallback, symlinks its dependencies: enable Developer Mode unless running elevated.
+- Windows: run `python -X utf8 tools/code_size.py …` (or set `PYTHONUTF8=1`), else redirected output fails on `Δ`. `report` and `diff` work for paths without spaces, and a non-ASCII checkout path needs ninja >= 1.11 (UTF-8 `build.ninja`); espressif boards are refused. A local base, including the fallback, symlinks its dependencies: enable Developer Mode unless running elevated.
 
 ## Results
 

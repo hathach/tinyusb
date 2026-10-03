@@ -1325,7 +1325,7 @@ class CMakeShortenedObject(unittest.TestCase):
         with open(os.path.join(self.build_dir, 'build.ninja'), 'wb') as f:
             f.write(b'# Calf\xe9\n' + edge.encode())
         sizes = sd._Sizes([self.FILTER], self.elf)
-        with self.assertRaisesRegex(RuntimeError, r'build\.ninja.*utf-8'):
+        with self.assertRaisesRegex(RuntimeError, r'build\.ninja is not UTF-8 .* use ninja >= 1\.11'):
             sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
 
     def test_linux_does_not_resolve_a_shortened_object(self):

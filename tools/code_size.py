@@ -284,7 +284,6 @@ def _shortened_object_sources(build_dir):
     """{shortened object: source} of the compile edges in build_dir's build.ninja."""
     path = os.path.join(build_dir, 'build.ninja')
     sources = {}
-    # CMake writes it in the ANSI code page unless ninja >= 1.11 reports UTF-8 (`ninja -t wincodepage`)
     try:
         with open(path, encoding='utf-8') as f:
             for line in f:
@@ -292,8 +291,12 @@ def _shortened_object_sources(build_dir):
                 if m and _SHORTENED_OBJECT_RE.search(m[1]):
                     obj, src = (re.sub(r'\$(.)', r'\1', p).replace('\\', '/') for p in m.groups())
                     sources[obj] = src
-    except (OSError, UnicodeDecodeError) as e:
+    except OSError as e:
         raise RuntimeError(f'cannot read {path}: {e}') from e
+    except UnicodeDecodeError as e:
+        raise RuntimeError(f'{path} is not UTF-8 ({e}): CMake writes it in the ANSI code page when ninja is older '
+                           'than 1.11 or its code page is not UTF-8 (`ninja -t wincodepage`); use ninja >= 1.11 '
+                           'with a UTF-8 code page or an ASCII-only checkout path') from e
     return sources
 
 
