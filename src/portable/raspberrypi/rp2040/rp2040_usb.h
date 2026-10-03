@@ -154,6 +154,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
   return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
 }
 
+// Bit of an endpoint in the per-endpoint registers (BUFF_STATUS, BUFF_CPU_SHOULD_HANDLE, EP_ABORT, EP_ABORT_DONE):
+// 2n for EPn IN, 2n+1 for EPn OUT.
+TU_ATTR_ALWAYS_INLINE static inline uint32_t rp2usb_ep_bit(uint8_t ep_addr) {
+  return TU_BIT((tu_edpt_number(ep_addr) << 1) | (tu_edpt_dir(ep_addr) == TUSB_DIR_IN ? 0u : 1u));
+}
+
 extern critical_section_t rp2usb_lock;
 
 TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_enter(void) {
