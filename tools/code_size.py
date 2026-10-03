@@ -60,9 +60,10 @@ from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, l
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CODE_SIZE_DIR = os.path.join(TINYUSB_ROOT, 'cmake-code-size')
+WINDOWS = os.name == 'nt'
 # a master run's snapshots are the same for every checkout; XDG ignores a relative XDG_CACHE_HOME
-_xdg_cache = os.environ.get('XDG_CACHE_HOME', '')
-BASELINE_CACHE_DIR = os.path.join(_xdg_cache if os.path.isabs(_xdg_cache) else os.path.expanduser('~/.cache'),
+_cache_home = os.environ.get('LOCALAPPDATA' if WINDOWS else 'XDG_CACHE_HOME', '')
+BASELINE_CACHE_DIR = os.path.join(_cache_home if os.path.isabs(_cache_home) else os.path.expanduser('~/.cache'),
                                   'tinyusb', 'code-size-baseline')
 CI_PINNED_BOARDS = os.path.join(TINYUSB_ROOT, '.github', 'ci-pinned-boards.json')
 # a diff's side names when git cannot give their commit hashes
@@ -131,11 +132,14 @@ def _classify_region(name):
 def _relative_key(src, filters):
     """Source path relative to the first matching filter, object suffix stripped,
     or None when no filter matches."""
+    if WINDOWS:
+        src = src.replace('\\', '/')
     for f in filters:
-        idx = src.find(f)
-        if idx < 0:
+        # Windows paths are case-insensitive; the key keeps the recorded case
+        m = re.search(re.escape(f), src, re.IGNORECASE if WINDOWS else 0)
+        if not m:
             continue
-        key = src[idx + len(f):]
+        key = src[m.end():]
         for suffix in ('.obj', '.o'):
             if key.endswith(suffix):
                 return key[:-len(suffix)]
@@ -268,15 +272,61 @@ def _esp_idf_buckets(sections):
     return buckets
 
 
+# CMake replaces the start of an over-long object name with its md5 (cmLocalGenerator.cxx,
+# cmLocalGeneratorShortenObjectName): <target>.dir/<md5>/<rest of the source path>.obj
+_SHORTENED_OBJECT_RE = re.compile(r'\.dir/[0-9a-f]{32}/')
+# first output, rule and first input of a build.ninja edge; '$' escapes a path's ':' and ' '
+_NINJA_EDGE_RE = re.compile(r'build ((?:[^$:\s]|\$.)+)(?: (?:[^$:]|\$.)*)?: \S+ ((?:[^$\s]|\$.)+)')
+
+
+@functools.lru_cache(maxsize=None)
+def _shortened_object_sources(build_dir):
+    """{shortened object: source} of the compile edges in build_dir's build.ninja."""
+    path = os.path.join(build_dir, 'build.ninja')
+    sources = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                m = _NINJA_EDGE_RE.match(line)
+                if m and _SHORTENED_OBJECT_RE.search(m[1]):
+                    obj, src = (re.sub(r'\$(.)', r'\1', p).replace('\\', '/') for p in m.groups())
+                    sources[obj] = src
+    except OSError as e:
+        raise RuntimeError(f'cannot read {path}: {e}') from e
+    except UnicodeDecodeError as e:
+        raise RuntimeError(f'{path} is not UTF-8: CMake writes it in the ANSI code page when ninja is older than '
+                           '1.11 or `ninja -t wincodepage` is not UTF-8; use ninja >= 1.11 whose '
+                           '`ninja -t wincodepage` reports UTF-8, or keep the checkout, CMake and toolchain paths '
+                           'ASCII-only') from e
+    return sources
+
+
 class _Sizes:
     """Accumulates one elf's filtered per-file flash/RAM, section and symbol sizes,
     and its total flash/RAM."""
-    def __init__(self, filters):
-        self.filters, self.files, self.all = filters, {}, {'flash': 0, 'ram': 0}
+    def __init__(self, filters, elf):
+        self.filters, self.elf, self.files, self.all = filters, elf, {}, {'flash': 0, 'ram': 0}
         self.sections, self.symbols = {}, {}
 
+    def _shortened_key(self, path):
+        """Key of the source build.ninja compiles to a CMake-shortened object; the object
+        path no longer holds the filtered dir."""
+        shortened = f'{path}: CMake shortened this object path to fit CMAKE_OBJECT_PATH_MAX (250 on Windows) and'
+        build_dir = _find_ninja_build_dir(self.elf)
+        if build_dir is None:
+            raise RuntimeError(f'{shortened} no build.ninja was found above {self.elf} to name its source - '
+                               'use a shorter checkout path')
+        src = _shortened_object_sources(build_dir).get(path.replace('\\', '/'))
+        if not src:
+            raise RuntimeError(f'{shortened} the build.ninja above {self.elf} has no compile edge for it '
+                               'to name its source - use a shorter checkout path')
+        return _relative_key(src, self.filters)
+
     def add(self, path, section, buckets, size, name):
-        key = _relative_key(path, self.filters) if path else None
+        if path and WINDOWS and _SHORTENED_OBJECT_RE.search(path.replace('\\', '/')):
+            key = self._shortened_key(path)  # a filter could match the kept tail of the source path
+        else:
+            key = _relative_key(path, self.filters) if path else None
         for b in buckets:
             self.all[b] += size
             if key is not None:
@@ -333,7 +383,7 @@ def membrowse_sizes(elf, filters):
     """Symbols of `membrowse report`; linker-defined symbols without a section
     (`__StackLimit`) are not counted."""
     buckets = section_buckets(elf, _map_path(elf))
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for sym in report_for_elf(elf).get('symbols', []):
         section = sym.get('section')
         if not sym.get('size') or not section:
@@ -372,7 +422,7 @@ def linkermap_sizes(elf, filters):
         sections = _linkermap().parseSections(f)
     if sections is None:
         raise RuntimeError(f'{map_path}: no Memory Configuration, not a GNU ld map')
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for out in sections:
         if not out.children:  # memory regions
             continue
@@ -394,7 +444,7 @@ def bloaty_sizes(elf, filters):
     if not {'compileunits', 'sections', 'symbols', 'vmsize'} <= set(rows.fieldnames or ()):
         raise RuntimeError(f'unexpected bloaty csv columns for {elf}: {rows.fieldnames}')
     buckets = section_buckets(elf, _map_path(elf))
-    sizes = _Sizes(filters)
+    sizes = _Sizes(filters, elf)
     for row in rows:
         section = row['sections']
         try:
@@ -836,7 +886,13 @@ def tinyusb_src_filter(checkout_dir):
     in `checkout_dir`. The substring is the absolute path to the checkout's `src/`
     dir — collision-free with vendored deps (pico-sdk, lwip, FreeRTOS, etc.) which
     live at unrelated paths."""
-    return os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep
+    return filter_arg(os.path.realpath(os.path.join(checkout_dir, 'src')) + os.sep)
+
+
+def filter_arg(path):
+    """A path filter in the form sizes are matched in: on Windows, past the drive with '/',
+    as CMake names an out-of-tree object D_/a/.../src/x.c.obj and DWARF D:/a/..."""
+    return os.path.splitdrive(path)[1].replace('\\', '/') if WINDOWS else path
 
 
 verbose = False
@@ -861,6 +917,10 @@ def run(cmd, timeout=None):
         try:
             out, err = proc.communicate(timeout=timeout)
         except BaseException as stopped:
+            if WINDOWS:  # terminate() and kill() stop only the command, not ninja's compilers
+                with contextlib.suppress(OSError, subprocess.SubprocessError):
+                    subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                                   capture_output=True, timeout=TERMINATE_GRACE)
             # SIGTERM lets ninja stop its jobs, which it runs in process groups of their own;
             # a descendant can outlive the SIGKILL holding the pipes open, so stop reading then
             for stop, wait in ((proc.terminate, TERMINATE_GRACE), (proc.kill, KILL_DRAIN)):
@@ -880,8 +940,9 @@ def run(cmd, timeout=None):
 def exit_on_termination():
     """Exit on a SIGTERM or SIGHUP sent to this process alone as on Ctrl-C: through run()'s
     stop of its command and main()'s worktree removal, instead of orphaning the build."""
-    for signum in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(signum, lambda sig, _frame: sys.exit(128 + sig))
+    for name in ('SIGTERM', 'SIGHUP'):  # Windows has no SIGHUP
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), lambda sig, _frame: sys.exit(128 + sig))
 
 
 def symlink_deps(main_root, worktree_dir):
@@ -894,7 +955,13 @@ def symlink_deps(main_root, worktree_dir):
         dst = os.path.join(worktree_dir, rel)
         if os.path.isdir(src) and not os.path.lexists(dst):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            os.symlink(src, dst)
+            try:
+                os.symlink(src, dst, target_is_directory=True)
+            except OSError as e:
+                if getattr(e, 'winerror', None) == 1314:  # ERROR_PRIVILEGE_NOT_HELD
+                    sys.exit(f'Error: cannot symlink {rel} into the base worktree: enable Windows Developer '
+                             'Mode, or use --base-source ci when CI stored a baseline')
+                raise
 
 
 def short_hash(checkout):
@@ -953,7 +1020,10 @@ def build_error(ret, src_dir):
              if line.strip() and not _NINJA_PROGRESS.match(line)
              and not line.startswith(('ninja: build stopped', 'ninja: Entering directory', 'FAILED: '))]
     error = build_utils.first_error(out) or (lines[-1] if lines else 'no output')
-    return error.replace(src_dir.rstrip(os.sep) + os.sep, '')
+    root = src_dir.rstrip(os.sep)
+    for prefix in {root + os.sep, root.replace(os.sep, '/') + '/'}:  # Windows: CMake passes the compiler D:/a/...
+        error = error.replace(prefix, '')
+    return error
 
 
 ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag
@@ -991,6 +1061,8 @@ def _idf_image():
 def esp_without_idf(boards):
     """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None."""
     esp = [b for b in boards if is_espressif(b)]
+    if esp and WINDOWS:
+        return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):
         return f'{", ".join(esp)} need {ESP_IDF_MISSING}'
     return None
@@ -1128,7 +1200,7 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
                            f'or pick another --engine')]
     sizes, errors = {}, []
     for elf, (elf_sizes, error) in zip(elfs, results):
-        rel = os.path.relpath(elf, build_dir)
+        rel = os.path.relpath(elf, build_dir).replace(os.sep, '/')  # one elf id on every host
         sizes[rel] = elf_sizes
         if error:
             errors.append((rel, error))
@@ -1178,7 +1250,10 @@ def print_result(lines, prefix='', tables=()):
 
 def _shown(path):
     """`path` relative to the working directory when under it."""
-    rel = os.path.relpath(path)
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:  # on another Windows drive
+        return path
     return path if rel.startswith('..') else rel
 
 
@@ -1290,7 +1365,9 @@ def _cmake_compiler(build_dir):
                          ('name', 'CMAKE_C_COMPILER')):
             m = re.search(rf'^set\({var} "([^"]*)"\)', text, re.M)
             if m:
-                info[key] = os.path.basename(m.group(1)) if key == 'name' else m.group(1)
+                info[key] = m.group(1)
+    # without .exe, so a Windows build's name matches a Linux snapshot's
+    info['name'] = re.sub(r'\.exe$', '', os.path.basename(info['name']), flags=re.I)
     cache = os.path.join(build_dir, 'CMakeCache.txt')
     if os.path.isfile(cache):
         with open(cache) as f:
@@ -1818,7 +1895,7 @@ def metadata_warnings(board, shard, compiler, membrowse_version):
 
 
 def example_arg(value):
-    example = value.rstrip('/')
+    example = (value.replace('\\', '/') if WINDOWS else value).rstrip('/')
     if not example:
         raise argparse.ArgumentTypeError(f'{value!r} names no example')
     return example
@@ -1830,7 +1907,7 @@ def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument('-b', '--board', action='append', default=[],
                         help='Board name (repeatable). Required unless diff --ci is given.')
-    common.add_argument('-f', '--filter', action='append', default=None,
+    common.add_argument('-f', '--filter', action='append', default=None, type=filter_arg,
                         help='Path-substring filter (repeatable). When given, '
                              'overrides the default and is applied to every build. '
                              'Default: each build\'s own absolute <checkout>/src/ path, '
@@ -1893,7 +1970,7 @@ def main():
                       help='CI event; pull_request reads base/head from the merge commit '
                            '(default: $GITHUB_EVENT_NAME, else push)')
     snap.add_argument('--build-outcome', default='success', help='The Build step\'s outcome, recorded as is')
-    snap.add_argument('-f', '--filter', action='append', default=None,
+    snap.add_argument('-f', '--filter', action='append', default=None, type=filter_arg,
                       help='Path-substring filter (repeatable); default: this checkout\'s <checkout>/src/')
     snap.add_argument('--symbols', action='store_true', help='Include each file\'s symbols')
     snap.add_argument('-v', '--verbose', action='store_true', help='Print commands')

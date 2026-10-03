@@ -1,0 +1,83 @@
+name: Code size on Windows
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: &code_size_paths
+      - 'tools/code_size.py'
+      - 'tools/membrowse_cli.py'
+      - 'tools/build_utils.py'
+      - 'test/hil/test/test_code_size*.py'
+      - 'test/hil/test/test_membrowse_cli.py'
+      - '.github/scripts/code_size_ci.py'
+      - '.github/workflows/code_size_windows.yml'
+  push:
+    branches: [ master ]
+    paths: *code_size_paths
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+env:
+  PYTHONUTF8: '1'
+
+jobs:
+  unit-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: python -m pip install pyyaml pyelftools
+      # as pre-commit's unit-test hook runs them
+      - run: python -m unittest -q test_code_size test_code_size_ci test_membrowse_cli
+        working-directory: test/hil/test
+
+  smoke:
+    runs-on: windows-latest
+    env:
+      BOARD: stm32f407disco
+      EXAMPLE: device/cdc_msc
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc-windows-latest'
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: '-b ${{ env.BOARD }}'
+
+      - name: Install membrowse
+        run: 'python -m pip install --only-binary :all: membrowse==1.2.12'
+
+      # report exits 1 unless complete with TinyUSB files matched
+      - name: Report
+        run: python tools/code_size.py report -b $BOARD -e $EXAMPLE
+
+      - name: Diff against a local base
+        run: |
+          python tools/code_size.py diff -b $BOARD -e $EXAMPLE --base-source local --base-branch HEAD --json
+          python - <<'EOF'
+          import json, os
+          path = f"cmake-code-size/{os.environ['BOARD']}/diff_{os.environ['EXAMPLE'].replace('/', '_')}.json"
+          data = json.load(open(path))
+          assert data['status'] == 'complete', data['status']
+          assert all(p['base']['files'] == p['current']['files'] for p in data['pairs']), 'HEAD vs HEAD changed'
+          EOF
+
+      - name: Diff against CI snapshots
+        run: python tools/code_size.py diff -b $BOARD -e $EXAMPLE --base-source ci --base-branch origin/master

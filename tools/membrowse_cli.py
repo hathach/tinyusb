@@ -42,6 +42,9 @@ def extract_ld_scripts(commands_text):
     for line in commands_text.splitlines():
         try:
             args = shlex.split(line)
+            # Windows ninja links through `cmd.exe /C "cd . && <link command>"`
+            if len(args) >= 3 and args[0].lower().endswith('cmd.exe') and args[1].lower() == '/c':
+                args = shlex.split(args[2])
         except ValueError:
             continue
         for i, arg in enumerate(args):
