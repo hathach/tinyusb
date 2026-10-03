@@ -178,11 +178,21 @@ typedef struct {
   tuh_xfer_cb_t complete_cb;
   uintptr_t user_data;
 
+  volatile uint32_t timeout_at_ms; // deadline for the in-flight transfer (CFG_TUH_CONTROL_TIMEOUT_MS)
   volatile uint16_t actual_len;
   volatile uint8_t stage;
   uint8_t daddr;
   uint8_t failed_count;
+  uint16_t expired_events; // events processed since the deadline passed (CFG_TUH_CONTROL_TIMEOUT_MS)
 } usbh_ctrl_xfer_info_t;
+
+// deadline checks compare (int32_t)(timeout_at_ms - now)
+TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0 && CFG_TUH_CONTROL_TIMEOUT_MS <= INT32_MAX,
+                 "CFG_TUH_CONTROL_TIMEOUT_MS must be in 1..INT32_MAX");
+
+// enum_attempt is uint8_t: a larger limit would wrap it and retry forever
+TU_VERIFY_STATIC(CFG_TUH_ENUM_ATTEMPT_MAX >= 1 && CFG_TUH_ENUM_ATTEMPT_MAX <= 256,
+                 "CFG_TUH_ENUM_ATTEMPT_MAX must be in 1..256");
 
 typedef struct {
   tusb_defer_func_t func;
@@ -204,6 +214,7 @@ TU_FIFO_DEF(_usbh_pending_ctrl_q, CFG_TUH_CONTROL_PENDING_QUEUE_SZ * sizeof(usbh
 
 typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
+  uint8_t enum_attempt;       // enumeration attempts used for the current attach
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
@@ -355,6 +366,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 static void control_xfer_dispatch_pending(void);
 static void control_xfer_complete(uint8_t daddr, xfer_result_t result);
+static void control_xfer_timeout_expired(void);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -369,6 +381,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, 
   TU_ASSERT(osal_queue_send(_usbh_q, event, in_isr));
   tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
   return true;
+}
+
+// Clamp *timeout_ms to the time left until at_ms (wrap-safe); true if at_ms has passed
+TU_ATTR_ALWAYS_INLINE static inline bool deadline_clamp(uint32_t at_ms, uint32_t* timeout_ms) {
+  const int32_t remain_ms = (int32_t) (at_ms - tusb_time_millis_api());
+  if (remain_ms <= 0) {
+    *timeout_ms = 0;
+    return true;
+  }
+  if (*timeout_ms > (uint32_t) remain_ms) {
+    *timeout_ms = (uint32_t) remain_ms;
+  }
+  return false;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void control_xfer_set_stage(uint8_t stage) {
@@ -669,6 +694,12 @@ bool tuh_task_event_ready(void) {
     }
   }
 
+  // in-flight control transfer watchdog expired
+  if (_usbh_data.ctrl_xfer_info.stage != CONTROL_STAGE_IDLE &&
+      (int32_t)(_usbh_data.ctrl_xfer_info.timeout_at_ms - tusb_time_millis_api()) <= 0) {
+    return true;
+  }
+
   return false;
 }
 
@@ -726,12 +757,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       // above after_cb() can re-schedule another function, we need to re-check and reduce timeout of
       // the main event timeout to make sure we aren't blocking more than call_after remaining ms.
       if (_usbh_data.call_after.func != NULL) {
-        remain_ms = (int32_t) (_usbh_data.call_after.at_ms - tusb_time_millis_api());
-        if (remain_ms <= 0) {
-          timeout_ms = 0; // expired already
-        } else if (timeout_ms > (uint32_t)remain_ms) {
-          timeout_ms = (uint32_t)remain_ms;
-        }
+        (void) deadline_clamp(_usbh_data.call_after.at_ms, &timeout_ms);
       }
     }
 
@@ -743,6 +769,18 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     if (_usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE &&
         !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
       control_xfer_dispatch_pending();
+    }
+
+    // Control transfer watchdog. A completion already queued must win over a synthesized timeout,
+    // so an expired transfer fires once the queue is found empty, or once a queue depth of events
+    // has been processed since it expired (sustained traffic). After dispatch_pending(), which can
+    // set a fresh deadline.
+    usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+    const bool ctrl_xfer_expired = ctrl_info->stage != CONTROL_STAGE_IDLE &&
+                                   deadline_clamp(ctrl_info->timeout_at_ms, &timeout_ms);
+    if (ctrl_xfer_expired && ctrl_info->expired_events >= CFG_TUH_TASK_QUEUE_SZ) {
+      control_xfer_timeout_expired();
+      continue;
     }
 
     hcd_event_t event;
@@ -759,7 +797,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   #endif
     {
       if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
+        if (ctrl_xfer_expired) {
+          control_xfer_timeout_expired();
+        }
         return;
+      }
+      if (ctrl_xfer_expired) {
+        ctrl_info->expired_events++;
       }
     }
 
@@ -911,6 +955,8 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     bool is_queued = false;
     (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
     if (ctrl_info->stage == CONTROL_STAGE_IDLE) {
+      ctrl_info->timeout_at_ms = tusb_time_millis_api() + CFG_TUH_CONTROL_TIMEOUT_MS;
+      ctrl_info->expired_events = 0;
       ctrl_info->stage        = CONTROL_STAGE_SETUP;
       ctrl_info->daddr        = daddr;
       ctrl_info->actual_len   = 0;
@@ -973,6 +1019,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     return false;
   }
 
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  if (osal_task_get_current_handle() != _usbh_data.task_hdl) {
+    usbh_defer_func(NULL, NULL, false); // a host task blocked in its queue wait has not seen this deadline
+  }
+#endif
+
   if (!is_nonblocking) {
     // No tuh_connected() escape needed: usbh_device_close() routes through
     // control_xfer_complete(daddr, FAILED) on disconnect, which fires
@@ -1007,6 +1059,8 @@ static void control_xfer_dispatch_pending(void) {
     (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
     if (ctrl_info->stage == CONTROL_STAGE_IDLE &&
         tu_fifo_read_n(&_usbh_pending_ctrl_q, &xfer, sizeof(xfer)) == sizeof(xfer)) {
+      ctrl_info->timeout_at_ms = tusb_time_millis_api() + CFG_TUH_CONTROL_TIMEOUT_MS;
+      ctrl_info->expired_events = 0;
       ctrl_info->stage        = CONTROL_STAGE_SETUP;
       ctrl_info->daddr        = xfer.daddr;
       ctrl_info->actual_len   = 0;
@@ -1714,6 +1768,7 @@ enum {
 static uint8_t enum_get_new_address(bool is_hub);
 static bool    enum_parse_configuration_desc(uint8_t dev_addr, const tusb_desc_configuration_t *desc_cfg);
 static void    enum_full_complete(bool success);
+static bool    enum_retry(void);
 static void    process_enumeration(tuh_xfer_t *xfer);
 
 enum {
@@ -1831,13 +1886,16 @@ static void enum_new_device(hcd_event_t *event) {
   dev0_bus->rhport         = event->rhport;
   dev0_bus->hub_addr       = event->connection.hub_addr;
   dev0_bus->hub_port       = event->connection.hub_port;
+  _usbh_data.enum_attempt  = 0;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
 }
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t *xfer) {
-  if (XFER_RESULT_FAILED == xfer->result) {
-    enum_full_complete(false); // failed to enum
+  if (XFER_RESULT_FAILED == xfer->result || XFER_RESULT_TIMEOUT == xfer->result) {
+    if (!enum_retry()) {
+      enum_full_complete(false);
+    }
     return;
   }
 
@@ -2224,11 +2282,32 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   }
 }
 
-static void enum_full_complete(bool success) {
-  TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
+// Watchdog expired (e.g. the device NAKs a stage forever, or a completion was lost): abort and
+// complete as TIMEOUT. A completion the hcd still delivers is dropped as stale unless the same
+// device already has a new transfer in flight (#4070).
+static void control_xfer_timeout_expired(void) {
+  const usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+  TU_VERIFY(ctrl_info->stage != CONTROL_STAGE_IDLE, );
+  const uint8_t daddr = ctrl_info->daddr;
 
+  const tusb_control_request_t* request = &_usbh_epbuf.request;
+  uint8_t ep_addr = 0; // SETUP stage is OUT
+  if (ctrl_info->stage == CONTROL_STAGE_DATA) {
+    ep_addr = tu_edpt_addr(0, request->bmRequestType_bit.direction);
+  } else if (ctrl_info->stage == CONTROL_STAGE_ACK) {
+    ep_addr = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
+  }
+
+  const uint8_t rhport = usbh_get_rhport(daddr);
+  TU_LOG_USBH("[%u:%u] Control transfer timed out after %u ms\r\n", rhport, daddr, (unsigned) CFG_TUH_CONTROL_TIMEOUT_MS);
+  hcd_edpt_abort_xfer(rhport, daddr, ep_addr);
+  control_xfer_complete(daddr, XFER_RESULT_TIMEOUT);
+}
+
+// End the current enumeration; on failure also close the half-enumerated device.
+static void enum_teardown(bool success) {
   const uint8_t daddr = _usbh_data.enumerating_daddr;
-  _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // mark enumeration as complete
+  _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // end this enumeration attempt
   _usbh_data.call_after.func = NULL;
 
   if (!success && daddr <= TOTAL_DEVICES) {
@@ -2237,6 +2316,11 @@ static void enum_full_complete(bool success) {
       clear_device(get_device(daddr));
     }
   }
+}
+
+static void enum_full_complete(bool success) {
+  TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
+  enum_teardown(success);
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
@@ -2244,6 +2328,25 @@ static void enum_full_complete(bool success) {
     hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
   }
   #endif
+}
+
+// Device failed an enumeration transfer: restart as dev0 with a fresh port reset.
+// False (nothing changed) when attempts are used up or an unplug already invalidated the device.
+static bool enum_retry(void) {
+#if CFG_TUH_ENUM_ATTEMPT_MAX > 1
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 ||
+      _usbh_data.enum_attempt + 1 >= CFG_TUH_ENUM_ATTEMPT_MAX) {
+    return false;
+  }
+  enum_teardown(false);
+  _usbh_data.enum_attempt++;
+  TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n", _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
+  _usbh_data.enumerating_daddr = 0;
+  usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
+  return true;
+#else
+  return false;
+#endif
 }
 
 #endif
