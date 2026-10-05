@@ -101,17 +101,45 @@ def nm_defines_symbols(nm_text):
     return False
 
 
+LD_INCLUDE = re.compile(r'^\s*INCLUDE\s+"?([^\s";]+)', re.M)
+
+
+def linker_includes(script, search_dirs, seen=None):
+    """Scripts `script` INCLUDEs, recursively, found as ld does - the current directory
+    and the -L dirs - plus the including script's own directory."""
+    seen = set() if seen is None else seen
+    try:
+        text = open(script, errors='replace').read()
+    except OSError:
+        return seen
+    for name in LD_INCLUDE.findall(text):
+        for d in (os.path.dirname(script), *search_dirs):
+            cand = os.path.normpath(os.path.join(d, name))
+            if os.path.isfile(cand):
+                if cand not in seen:
+                    seen.add(cand)
+                    linker_includes(cand, search_dirs, seen)
+                break
+    return seen
+
+
 def link_files(link_cmd, root, build_dir):
-    """Repo files a link command names only as option values, e.g. -Wl,--script=x.ld or -T x.ld."""
-    out = set()
+    """Repo files a link command names only as option values (-Wl,--script=x.ld, -T x.ld),
+    and the linker scripts those INCLUDE."""
+    named, search = set(), [build_dir]
     for tok in link_cmd.split():
         for part in re.split('[,=]', tok):
+            if part.startswith('-L') and len(part) > 2:
+                search.append(os.path.join(build_dir, part[2:]))
+                continue
             p = part[2:] if part.startswith('-T') else part
             if p and not p.startswith('-'):
-                f = rel(p, root, build_dir)
-                if f and os.path.isfile(os.path.join(root, f)):
-                    out.add(f)
-    return out
+                a = os.path.normpath(os.path.join(build_dir, p))
+                if os.path.isfile(a):
+                    named.add(a)
+    for s in [s for s in named if s.endswith(('.ld', '.lds', '.x'))]:
+        named |= linker_includes(s, search)
+    return {f for f in (rel(a, root) for a in named) if f}
 
 
 def example_elves(targets_text, example=None):
@@ -213,7 +241,36 @@ def extract(build_dir, root, example=None):
     def query(ts):
         return parse_query(run_ok(['ninja', '-C', build_dir, '-t', 'query', *ts], root))
 
-    obj_files, nodeps = {}, set()
+    obj_files, nodeps, gen_files = {}, set(), {}
+
+    def generated_inputs(target):
+        """Repo files a generated file (e.g. a pioasm header) is produced from."""
+        if target not in gen_files:
+            gen_files[target] = set()           # a cycle guard while it resolves
+            s = set()
+            for t in query([target]).get(target, []):
+                if t in known:
+                    s |= generated_inputs(t)
+                else:
+                    f = rel(t, root, build_dir)
+                    if f and os.path.isfile(os.path.join(root, f)):
+                        s.add(f)
+            gen_files[target] = s
+        return gen_files[target]
+
+    def dep_files(obj):
+        s = set()
+        for d in deps.get(obj, []):
+            f = rel(d, root, build_dir)
+            if f:
+                s.add(f)
+                continue
+            a = os.path.normpath(os.path.join(build_dir, d))
+            for t in (d, os.path.relpath(a, build_dir), a):
+                if t in known:
+                    s |= generated_inputs(t)
+                    break
+        return s
 
     def files_of(obj):
         if obj in obj_files:
@@ -233,7 +290,7 @@ def extract(build_dir, root, example=None):
                     s.add(f)
                 if obj not in deps:
                     nodeps.add(obj)
-                s.update(f for f in (rel(d, root, build_dir) for d in deps.get(obj, [])) if f)
+                s |= dep_files(obj)
         obj_files[obj] = s
         return s
 

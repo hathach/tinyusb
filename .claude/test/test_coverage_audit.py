@@ -156,10 +156,12 @@ class FakeBuild:
     def __init__(self, root, fail=None):
         self.root, self.bd, self.fail = root, os.path.join(root, 'cmake-build', 'b'), fail
         for f in ('examples/device/a/main.c', 'examples/device/b/main.c', 'lib/os/os.c', 'lib/os/os.h',
-                  'lib/usb/usb.c', 'hw/bsp/f/start.S', 'hw/bsp/f/link.ld', 'src/dead.c'):
+                  'lib/usb/usb.c', 'hw/bsp/f/start.S', 'hw/bsp/f/mem.ld', 'src/dead.c', 'src/prog.pio'):
             os.makedirs(os.path.dirname(os.path.join(root, f)), exist_ok=True)
             open(os.path.join(root, f), 'w').close()
         os.makedirs(self.bd)
+        with open(os.path.join(root, 'hw/bsp/f/link.ld'), 'w') as fh:
+            fh.write('INCLUDE mem.ld\nSECTIONS {}\n')
         self.objs = {'device/a/CMakeFiles/a.dir/main.c.obj': 'examples/device/a/main.c',
                      'device/b/CMakeFiles/b.dir/main.c.obj': 'examples/device/b/main.c',
                      'lib/CMakeFiles/os.dir/os.c.obj': 'lib/os/os.c',
@@ -175,6 +177,7 @@ class FakeBuild:
                       'device/b/b.elf': ['device/b/CMakeFiles/b.dir/main.c.obj', 'lib/libusb.a'],
                       'lib/libos.a': ['lib/CMakeFiles/os.dir/os.c.obj'],
                       'lib/libusb.a': ['lib/CMakeFiles/usb.dir/usb.c.obj'],
+                      'gen/prog.h': [os.path.join(root, 'src/prog.pio')],
                       'build.ninja': [os.path.join(root, 'examples/device/a/CMakeLists.txt')]}
 
     def __call__(self, cmd, cwd, **kw):
@@ -188,7 +191,8 @@ class FakeBuild:
             out = ''.join(f'{t}: x\n' for t in self.query)
         elif cmd[4] == 'deps':
             out = ''.join(f'{o}: #deps 2, deps mtime 1 (VALID)\n    {os.path.join(self.root, s)}\n'
-                          f'    {os.path.join(self.root, "lib/os/os.h")}\n\n'
+                          f'    {os.path.join(self.root, "lib/os/os.h")}\n'
+                          + (f'    {self.bd}/gen/prog.h\n' if o.endswith('usb.c.obj') else '') + '\n'
                           for o, s in self.objs.items() if not o.endswith('start.S.obj'))
         elif cmd[4] == 'query':
             out = ''.join(f'{t}:\n  input: R\n' + ''.join(f'    {i}\n' for i in self.query[t])
@@ -211,10 +215,10 @@ class ExtractTest(unittest.TestCase):
 
     def test_each_example_gets_its_own_archives_linker_script_and_asm(self):
         g = self.extract()
-        self.assertEqual(g['examples']['device/a'], ['examples/device/a/main.c', 'hw/bsp/f/link.ld',
+        self.assertEqual(g['examples']['device/a'], ['examples/device/a/main.c', 'hw/bsp/f/link.ld', 'hw/bsp/f/mem.ld',
                                                      'hw/bsp/f/start.S', 'lib/os/os.c', 'lib/os/os.h'])
-        self.assertEqual(g['examples']['device/b'], ['examples/device/b/main.c', 'hw/bsp/f/link.ld',
-                                                     'lib/os/os.h', 'lib/usb/usb.c'])
+        self.assertEqual(g['examples']['device/b'], ['examples/device/b/main.c', 'hw/bsp/f/link.ld', 'hw/bsp/f/mem.ld',
+                                                     'lib/os/os.h', 'lib/usb/usb.c', 'src/prog.pio'])
         self.assertEqual(g['nodeps'], ['device/a/CMakeFiles/a.dir/start.S.obj'])
         self.assertEqual(g['cmake_inputs'], ['examples/device/a/CMakeLists.txt'])
 
