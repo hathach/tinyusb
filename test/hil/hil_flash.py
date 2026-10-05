@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
+import shutil
 import signal
 import subprocess
 import time
@@ -230,13 +232,15 @@ def convoy_safe(flasher: dict) -> bool:
     """Can this flasher DELIVER a recovery while a usbfs node on the rig is poisoned?
 
     A post-HUNG reflash only helps if the flasher reaches its probe without opening the
-    wedged node. Three shapes qualify:
+    wedged node. Following shapes qualify:
 
     * openocd pinned with the roster's `vid_pid` -- the match is made from the cached
       descriptor and the loop `continue`s BEFORE libusb_open, so a foreign node is never
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
     * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
+    * pyocd with one `vid_pid` pair -- run_pyocd.py makes pyusb drop every other device
+      before pyocd's matcher opens it, and leaves only the CMSIS-DAP probe plugin.
 
     Everything else enumerates by OPENING nodes, would block in D state on the poisoned
     one, survive SIGKILL and become a second stray. JLinkExe cannot be pinned: selection
@@ -268,6 +272,8 @@ def convoy_safe(flasher: dict) -> bool:
     name = (flasher.get('name') or '').lower()
     if name == 'esptool':
         return True
+    if name == 'pyocd':
+        return pyocd_vid_pid(flasher) is not None
     # EXACT, not startswith: rescue_openocd and usbtest's
     # hil_flash.flash_primitive(name) both require the exact name, so an
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
@@ -315,6 +321,52 @@ def flash_lm4flash(board, firmware, timeout=None):
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
+def pyocd_vid_pid(flasher: dict) -> list | None:
+    """[vid, pid] a pyocd entry filters discovery to, or None when it lacks a uid or exactly one
+    valid `vid_pid` pair: unfiltered, pyocd opens every CMSIS-DAP-class device (run_pyocd.py)."""
+    vid_pid = flasher.get('vid_pid')
+    if not (flasher.get('uid') and valid_vid_pid(vid_pid) and len(vid_pid.split()) == 2):
+        return None
+    return vid_pid.split()
+
+
+def unfiltered_pyocd(board: dict) -> bool:
+    """Is the board's primary or recovery flasher a pyocd entry without its VID/PID filter?"""
+    return any((f.get('name') or '').lower() == 'pyocd' and pyocd_vid_pid(f) is None
+               for f in (board['flasher'], recover_flasher(board)))
+
+
+def _pyocd_python() -> str:
+    # the launcher must patch the pyocd it runs, so it runs under pyocd's own interpreter
+    exe = shutil.which('pyocd')
+    if exe is None:
+        raise RuntimeError('pyocd is not on PATH')
+    with open(exe, 'rb') as f:
+        line = f.readline().decode(errors='replace').strip()
+    py = line[2:] if line.startswith('#!') else ''
+    if not (os.path.isabs(py) and os.path.basename(py).startswith('python') and os.access(py, os.X_OK)):
+        raise RuntimeError(f'{exe}: want an absolute python shebang, got {line!r}')
+    return py
+
+
+def _pyocd_argv(flasher: dict, verb: str, *extra: str) -> list:
+    vid_pid = pyocd_vid_pid(flasher)
+    if vid_pid is None:
+        raise ValueError(f'pyocd flasher {flasher.get("uid")!r} needs a uid and one "vid_pid" pair')
+    # -W: with no matching probe pyocd otherwise waits for one to be plugged in
+    return [_pyocd_python(), str(hil_util.TINYUSB_ROOT / 'test/hil/pyocd/run_pyocd.py'), *vid_pid, verb, '-W',
+            '-u', f'cmsisdap:{flasher["uid"]}', *shlex.split(flasher.get('args', '')), *extra]
+
+
+def flash_pyocd(board, firmware, timeout=None):
+    # pyocd chdirs into its project dir (run_pyocd.py)
+    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'flash', os.path.abspath(firmware)), timeout=timeout)
+
+
+def reset_pyocd(board, timeout=None):
+    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'reset'), timeout=timeout)
+
+
 def flash_primitive(flasher_name: str):
     """The flasher's flash_* callable, case-folded from the roster name.
 
@@ -343,6 +395,7 @@ FLASHER_SUFFIX = {
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'pyocd': '.elf',
     'stlink': '.elf',
 }
 

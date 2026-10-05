@@ -394,6 +394,11 @@ class RemoteStaging(unittest.TestCase):
         for f in sorted(seen):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
+        # test/hil/pyocd/ runs as pyocd's launcher and its user script, which no import walk sees
+        scripts = sorted(p.relative_to(hil_dir).as_posix() for p in hil_dir.glob('pyocd/*.py'))
+        self.assertTrue(scripts, 'test/hil/pyocd/ holds no user script')
+        for f in scripts:
+            self.assertIn(f'test/hil/{f}', staged, f'{f} runs under pyocd but hil_remote.py does not stage it')
 
 
 class _MtpFakeRig:
