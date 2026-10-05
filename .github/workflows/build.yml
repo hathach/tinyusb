@@ -116,12 +116,19 @@ jobs:
           # boards map is an UNUSABLE selection, not "nothing selected". Both must agree
           # - one falling open to the whole roster while the other computes run=false
           # buys a full 37-leg build and still zero hardware coverage.
-          if not s.get("full") and not isinstance(s.get("boards"), dict):
+          if not isinstance(s.get("full"), bool):
+              sys.exit("selection has no boolean full")
+          if not s["full"] and not isinstance(s.get("boards"), dict):
               sys.exit("selection has full false but no usable boards map")
-          tin = s.get("args_flasher", {}).get("tinyusb.json", {})
+          # a missing rig entry must not read as "nothing selected": run_hfp=false skips
+          # hil-hfp-iar before it can run its own selection
+          tin = s.get("args_flasher", {}).get("tinyusb.json")
+          hfp = s.get("args", {}).get("hfp.json")
+          if not isinstance(tin, dict) or not isinstance(hfp, str):
+              sys.exit("selection has no args for a rig")
           legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
                   ("tinyusb_esp", tin.get("esptool", "")),
-                  ("hfp", s.get("args", {}).get("hfp.json", "")))
+                  ("hfp", hfp))
           for key, a in legs:
               # roster board names reach $GITHUB_OUTPUT as bare NAME=VALUE lines; a
               # newline in one would inject extra run_* lines and flip which rig jobs run.
@@ -130,7 +137,7 @@ jobs:
               if not re.fullmatch(r"[-A-Za-z0-9_/ .=+:,]*", a):
                   sys.exit("unexpected characters in the " + key + " board filter")
               print("args_" + key + "=" + a)
-              print("run_" + key + "=" + ("true" if (s.get("full") or a) else "false"))
+              print("run_" + key + "=" + ("true" if (s["full"] or a) else "false"))
           ') || OUT=''
             if [ -z "$OUT" ]; then
               echo "::warning::ci_select output unusable - falling back to the full HIL matrix"
@@ -601,11 +608,16 @@ jobs:
   # Since IAR Token secret is not passed to forked PR, only build non-forked PR
   # ---------------------------------------
   hil-hfp-iar:
-    needs: [ check-paths ]
+    needs: [ check-paths, set-matrix ]
+    # set-matrix only decides the skip, before this job takes the self-hosted runner; a
+    # set-matrix that did not succeed (it can fail after writing run_hfp) leaves the
+    # job to its own selection below, so an unrelated failure cannot cost hfp coverage
     if: |
+      !cancelled() && needs.check-paths.result == 'success' &&
       needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
-      !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
+      !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true) &&
+      (needs.set-matrix.result != 'success' || needs.set-matrix.outputs.hil_run_hfp != 'false')
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
     # Unlike the hil-tinyusb jobs, this one BUILDS with IAR in the same job before running
     # hil_test.py -- hfp.json's 3 boards, 4 variant entries, "up to 30 minutes" (see the
@@ -638,17 +650,14 @@ jobs:
       # a runner that hil-tinyusb (hfp.json) also needs, so an unaffected PR must release
       # it immediately instead of building everything and then skipping. The selection
       # also narrows what gets built.
-      # This job has no needs: on set-matrix (it must run even if that unrelated job
-      # fails), so it computes its own selection instead of reading set-matrix's outputs.
+      # Its own selection: set-matrix's outputs only gate the job.
       - name: HIL selection (PR only)
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # Best-effort: this job is deliberately decoupled from set-matrix so unrelated
-          # failures cannot kill hfp coverage - a selector failure here must likewise
-          # fall back to the full hfp matrix (no ci_select.json, no SEL_* vars), never
-          # fail the job.
+          # Best-effort: a selector failure here falls back to the full hfp matrix (no
+          # ci_select.json, no SEL_* vars), never fails the job.
           if ! python3 test/hil/test/test_ci_select.py; then
             echo "::warning::ci_select unit suite failed - running the full hfp matrix"
             rm -f ci_select.json
