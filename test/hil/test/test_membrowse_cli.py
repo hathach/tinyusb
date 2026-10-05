@@ -74,6 +74,29 @@ class LinkCommand(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'no command builds'):
                 cli.link_command('true', tmp, os.path.join(tmp, 'x.elf'))
 
+    @staticmethod
+    def _ninja(returncode, stdout, stderr=b''):
+        return mock.patch.object(cli.subprocess, 'run',
+                                 return_value=subprocess.CompletedProcess([], returncode, stdout, stderr))
+
+    def test_output_not_in_utf_8_is_an_error(self):
+        # CMake on Windows writes build.ninja in the ANSI code page with ninja < 1.11
+        for stdout, stderr in ((b'cc -T /Calf\xe9/x.ld -o x.elf\n', b''), (b'cc\n', b'Calf\xe9')):
+            with self.subTest(stdout=stdout, stderr=stderr), self._ninja(0, stdout, stderr) as run:
+                with self.assertRaisesRegex(RuntimeError, r'output is not UTF-8: .* use ninja >= 1\.11'):
+                    cli.link_command('ninja', 'b', 'b/x.elf')
+                self.assertNotIn('text', run.call_args.kwargs)
+
+    def test_utf_8_output_is_returned_as_text(self):
+        out = 'cc -T /Café/x.ld -o x.elf\n'
+        with self._ninja(0, out.encode()):
+            self.assertEqual(cli.link_command('ninja', 'b', 'b/x.elf'), out)
+
+    def test_a_failed_ninja_reports_its_exit_and_stderr(self):
+        with self._ninja(1, b'', 'échec'.encode()):
+            with self.assertRaisesRegex(RuntimeError, r'\(exit 1\):\néchec'):
+                cli.link_command('ninja', 'b', 'b/x.elf')
+
 
 class BuildMembrowseCmd(unittest.TestCase):
     def _args(self, elf, **kw):

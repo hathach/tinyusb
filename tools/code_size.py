@@ -55,7 +55,8 @@ import sys
 import time
 
 import build_utils
-from membrowse_cli import IDF_LD_SCRIPTS, extract_ld_scripts, extract_defsyms, link_command, report_inputs
+from membrowse_cli import (IDF_LD_SCRIPTS, NINJA_UTF8_REMEDY, extract_ld_scripts, extract_defsyms,
+                           link_command, report_inputs)
 
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -294,10 +295,7 @@ def _shortened_object_sources(build_dir):
     except OSError as e:
         raise RuntimeError(f'cannot read {path}: {e}') from e
     except UnicodeDecodeError as e:
-        raise RuntimeError(f'{path} is not UTF-8: CMake writes it in the ANSI code page when ninja is older than '
-                           '1.11 or `ninja -t wincodepage` is not UTF-8; use ninja >= 1.11 whose '
-                           '`ninja -t wincodepage` reports UTF-8, or keep the checkout, CMake and toolchain paths '
-                           'ASCII-only') from e
+        raise RuntimeError(f'{path} is not UTF-8: {NINJA_UTF8_REMEDY}') from e
     return sources
 
 
