@@ -45,8 +45,8 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
-# tools/rtt.py is loaded by hil_util through exec_module, and test/hil/pyocd/ by pyocd through a
-# roster --script: no import walk can see either.
+# tools/rtt.py is loaded by hil_util through exec_module, and test/hil/pyocd/ runs as pyocd's
+# launcher or roster --script: no import walk can see either.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -61,6 +61,7 @@ HARNESS_FILES = (
     'test/hil/helper/hil_tt.py',
     'test/hil/helper/hil_util.py',
     'test/hil/pyocd/lpc55_reset_catch.py',
+    'test/hil/pyocd/pinned.py',
     'tools/rtt.py',
 )
 

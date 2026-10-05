@@ -171,12 +171,12 @@ written is expected — it busy-waits over PCI config space for ~30 s.
 | Purpose                     | What `ci` uses                                                                                                                            |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | Build                       | `cmake`, `ninja-build`, and a toolchain per family: `gcc-arm-none-eabi`, a RISC-V GCC, ESP-IDF                                            |
-| Flashing                    | Five tools, one per `Flasher` value — see below                                                                                           |
+| Flashing                    | Six tools, one per `Flasher` value — see below                                                                                            |
 | Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool, pyusb (the raw MTP cases)                                         |
 | Host-side test tools        | `dfu-util`, `mtools`, `libmtp9`, `libmtp-runtime`, `alsa-utils` (apt) — the DFU, MSC, MTP and audio tests shell out to these              |
 | USB inspection and recovery | `pciutils` (the `usbtest` firmware gate), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
 
-The `Flasher` column in Attached boards names one of five values; only the ones your own
+The `Flasher` column in Attached boards names one of six values; only the ones your own
 boards use have to be installed. The mapping is not always guessable:
 
 | `Flasher`  | Binary                                                                                                                                                |
@@ -186,6 +186,7 @@ boards use have to be installed. The mapping is not always guessable:
 | `openocd`  | [`hathach/openocd`][openocd-fork] branch `tinyusb` — one build merging the Raspberry Pi (RP2350), WCH and Analog Devices (MAX32) forks, none upstream |
 | `esptool`  | `esptool` (pip)                                                                                                                                       |
 | `lm4flash` | `lm4flash` (apt)                                                                                                                                      |
+| `pyocd`    | `pyocd` (`pipx install pyocd==0.45.1`), run through `test/hil/pyocd/pinned.py`, so the roster entry needs a `vid_pid` pair                            |
 
 [openocd-fork]: https://github.com/hathach/openocd/tree/tinyusb
 

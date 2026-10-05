@@ -671,6 +671,13 @@ class TestOpenocdVidPid(unittest.TestCase):
                 self.assertNotIn('vid_pid', f.get('args', ''),
                                  f"{path}: {board['name']} packs vid_pid into args; use the field")
 
+    def test_roster_pyocd_entries_are_pinned(self):
+        # unpinned, pyocd opens every CMSIS-DAP-class device on the rig (test/hil/pyocd/pinned.py)
+        for path, board in roster_flashers():
+            for f in (board['flasher'], hil_flash.recover_flasher(board)):
+                if f['name'] == 'pyocd':
+                    self.assertIsNotNone(hil_flash.pyocd_pin(f), f"{path}: {board['name']}")
+
 
 class TestRosterFlashersDispatch(unittest.TestCase):
     """hil_test and hil_pool_check resolve a board's flasher through
@@ -904,16 +911,6 @@ class FlasherRecoverEntry(unittest.TestCase):
         _, kw = self._capture(hil_flash.reset_stlink, board)
         self.assertIsNone(kw.get('timeout'))                  # run_cmd's CMD_TIMEOUT, as before
 
-    def test_pyocd_runs_from_the_repo_root(self):
-        """Roster args name the LPC55 user script repo-relative; the harness runs from anywhere."""
-        args = '-t lpc55s28 --script test/hil/pyocd/lpc55_reset_catch.py'
-        board = {'name': 'b', 'flasher': {'name': 'pyocd', 'uid': 'GSA0CQEQ', 'args': args}}
-        for fn, fw, want in ((hil_flash.flash_pyocd, ('/tmp/fw.elf',), f'pyocd flash -u GSA0CQEQ {args} /tmp/fw.elf'),
-                             (hil_flash.reset_pyocd, (), f'pyocd reset -u GSA0CQEQ {args}')):
-            cmd, kw = self._capture(fn, board, *fw, timeout=7)
-            self.assertEqual(cmd, want)
-            self.assertEqual((kw.get('cwd'), kw.get('timeout')), (str(hil_flash.hil_util.TINYUSB_ROOT), 7))
-
     def test_roster_recover_entries_are_demonstrated_openocd_over_jlink_ones(self):
         """Every `flasher_recover` in a HIL config is openocd over interface/jlink.cfg on the SAME
         probe as its jlink primary and dispatches. The set is the boards whose reset over
@@ -923,10 +920,9 @@ class FlasherRecoverEntry(unittest.TestCase):
         after the same demonstration. frdm_k64f is host-only, so usbtest never marks
         it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
         worked ~80% under openocd, SYSRESETREQ or srst, where JLinkExe resets 5/5; 2026-09-22).
-        mimxrt1064_evk and lpcxpresso55s28 are reset-only: openocd 0ce743125 has no target cfg and
-        no flash driver for them (FlexSPI, LPC55), so their entries declare a bare SWD DAP and
-        Cortex-M target with SYSRESETREQ; 3/3 resets each re-enumerated the DUT (2026-09-22);
-        lpcxpresso55s28 logs "DP initialisation failed" after each reset yet resets. Same trade as
+        mimxrt1064_evk is reset-only: openocd 0ce743125 has no target cfg and no flash driver for
+        it (FlexSPI), so its entry declares a bare SWD DAP and Cortex-M target with SYSRESETREQ;
+        3/3 resets each re-enumerated the DUT (2026-09-22). Same trade as
         nrf54lm20dk below. nrf54lm20dk's reset works (libjaylink 0.5.0 finds its PID 0x1069; 0.4.0 did
         not) but its reflash cannot: nrf54l.cfg declares no RRAM flash bank. Accepted trade:
         the entry arms in-run recovery (a reset) where JLinkExe allowed none; a wedge the reset
@@ -942,14 +938,12 @@ class FlasherRecoverEntry(unittest.TestCase):
         demonstrated = {'feather_nrf52840_express', 'metro_m4_express', 'stm32f072disco',
                         'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
                         'ea4088_quickstart', 'nrf54lm20dk', 'frdm_k64f', 'mimxrt1064_evk',
-                        'lpcxpresso55s28',
                         'lpcxpresso43s67'}   # hfp.json, demonstrated on tusb
-        reset_only = {name: ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
-                             f'-c "swd newdap {chip} cpu -expected-id 0" '
-                             f'-c "dap create {chip}.dap -chain-position {chip}.cpu" '
-                             f'-c "target create {chip}.cpu cortex_m -dap {chip}.dap" '
-                             '-c "cortex_m reset_config sysresetreq"')
-                      for name, chip in (('mimxrt1064_evk', 'rt1064'), ('lpcxpresso55s28', 'lpc55s28'))}
+        reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
+                                         '-c "swd newdap rt1064 cpu -expected-id 0" '
+                                         '-c "dap create rt1064.dap -chain-position rt1064.cpu" '
+                                         '-c "target create rt1064.cpu cortex_m -dap rt1064.dap" '
+                                         '-c "cortex_m reset_config sysresetreq"')}
         seen = set()
         for path, board in roster_flashers():
             if 'flasher_recover' not in board:
@@ -1266,6 +1260,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_mtp_raw.py',
             'test/hil/test/test_hil_pool_check.py',
+            'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',
