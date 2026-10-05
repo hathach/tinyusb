@@ -89,7 +89,8 @@ class InputModeTest(unittest.TestCase):
         git(self.repo, 'config', 'user.email', 't@t')
         git(self.repo, 'config', 'user.name', 't')
         self.write('a.c', 'a\n')
-        self.write('tools/get_deps.py', 'deps = {}\n')
+        self.write('tools/get_deps.py', 'deps_optional = {}\n')
+        self.write('hw/bsp/fam1/boards/b1/board.h', '\n')
         git(self.repo, 'add', '.')
         git(self.repo, 'commit', '-qm', 'base')
         self.base = git(self.repo, 'rev-parse', 'HEAD')
@@ -126,6 +127,29 @@ class InputModeTest(unittest.TestCase):
         self.assertEqual(files, ['b.c'])
         self.assertEqual((inp['mode'], inp['base_sha'], inp['merge_base'], inp['head']),
                          ('endpoints', self.base, None, self.head))
+
+    def test_endpoints_diff_directly_where_a_merge_base_would_differ(self):
+        # main moves on after topic forked: A..B names main's own change, merge-base mode would not
+        git(self.repo, 'checkout', '-q', 'main')
+        self.write('m.c', 'm\n')
+        git(self.repo, 'add', '.')
+        git(self.repo, 'commit', '-qm', 'main moves')
+        main = git(self.repo, 'rev-parse', 'HEAD')
+        git(self.repo, 'checkout', '-q', 'topic')
+        files, _, inp = ci_select.select_input(self.repo, endpoints=f'{main}..HEAD')
+        self.assertEqual(sorted(files), ['b.c', 'm.c'])
+        self.assertEqual(ci_select.select_input(self.repo, base=main)[0], ['b.c'])
+
+    def test_a_get_deps_edit_resolves_its_families_in_every_mode(self):
+        # never the None that would mean "unresolvable, full matrix"
+        self.write('tools/get_deps.py', "deps_optional = {'x': ['u', 'abc', 'fam1']}\n")
+        listing = Path(self.repo, 'scope.txt')
+        listing.write_text('tools/get_deps.py\n')
+        self.assertEqual(ci_select.select_input(self.repo, diff_file=str(listing), deps_base='HEAD')[1], {'fam1'})
+        self.assertEqual(ci_select.select_input(self.repo, base='main', worktree=True)[1], {'fam1'})
+        git(self.repo, 'commit', '-qam', 'bump')
+        self.assertEqual(ci_select.select_input(self.repo, base='main')[1], {'fam1'})
+        self.assertEqual(ci_select.select_input(self.repo, endpoints=f'{self.head}..HEAD')[1], {'fam1'})
 
     def test_endpoints_refuse_what_they_cannot_answer(self):
         for bad in (f'{self.base}..{self.base}', '0000000000000000000000000000000000000000..HEAD',

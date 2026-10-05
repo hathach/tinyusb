@@ -38,7 +38,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 DEPS_HEADER = re.compile(r'^(\S.*): #deps \d+')
 ROLES = ('device', 'host', 'dual', 'typec')
-FORMAT = 2
+FORMAT = 3
 
 
 class ExtractError(Exception):
