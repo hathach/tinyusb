@@ -109,7 +109,8 @@ def linker_includes(script, search_dirs, seen=None):
     and the -L dirs - plus the including script's own directory."""
     seen = set() if seen is None else seen
     try:
-        text = open(script, errors='replace').read()
+        with open(script, errors='replace') as fh:
+            text = fh.read()
     except OSError:
         return seen
     for name in LD_INCLUDE.findall(text):
@@ -231,7 +232,9 @@ def extract(build_dir, root, example=None):
     its CMake inputs are its own too. `nodeps` lists live objects ninja recorded no deps
     for: only their source is known."""
     src_of = {}
-    for e in json.load(open(os.path.join(build_dir, 'compile_commands.json'))):
+    with open(os.path.join(build_dir, 'compile_commands.json')) as fh:
+        cc = json.load(fh)
+    for e in cc:
         out = e['output'] if os.path.isabs(e['output']) else os.path.join(e['directory'], e['output'])
         src_of[os.path.relpath(out, build_dir)] = e
     targets = run_ok(['ninja', '-C', build_dir, '-t', 'targets', 'all'], root)
@@ -338,7 +341,8 @@ def cmd_graph(a):
     head = run(['git', 'rev-parse', 'HEAD'], root).stdout.strip()
     boards = list(a.board or [])
     if a.boards_file:
-        boards += [b.strip() for b in open(a.boards_file) if b.strip() and not b.startswith('#')]
+        with open(a.boards_file) as fh:
+            boards += [b.strip() for b in fh if b.strip() and not b.startswith('#')]
     if not boards:
         sys.exit('graph: no boards given')
     os.makedirs(a.out, exist_ok=True)
@@ -347,7 +351,8 @@ def cmd_graph(a):
     for board in boards:
         path = os.path.join(a.out, f'{board}.json')
         if not a.force and os.path.isfile(path):
-            old = json.load(open(path))
+            with open(path) as fh:
+                old = json.load(fh)
             if old.get('head') == head and old.get('format') == FORMAT:
                 print(f'{board}: cached', flush=True)
                 continue
@@ -378,7 +383,8 @@ def load_index(graph_dir):
     for name in sorted(os.listdir(graph_dir)):
         if not name.endswith('.json'):
             continue
-        g = json.load(open(os.path.join(graph_dir, name)))
+        with open(os.path.join(graph_dir, name)) as fh:
+            g = json.load(fh)
         status[g['board']] = g['status']
         family[g['board']] = g.get('family')
         if g['status'] != 'ok':
