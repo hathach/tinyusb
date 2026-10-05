@@ -36,14 +36,14 @@ _prune_buildable then intersects each family with what it can actually build.
 | 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling)  ⚠ *see below* |
 | 8 | `src/class/<cls>/*_device.[ch]` | `ALL` | examples enabling `CFG_TUD_<CLS>` | device-role boards → HIL tests enabling `CFG_TUD_<CLS>` |
 | 9 | `src/class/<cls>/*_host.[ch]` | `ALL` | examples enabling `CFG_TUH_<CLS>` | host-role boards → HIL tests enabling `CFG_TUH_<CLS>` |
-| 10 | `src/class/<cls>/**` (shared header) | `ALL` | either, **plus include-edge classes** | both roles → same, plus include-edge classes |
+| 10 | `src/class/<cls>/**` (shared header) | `ALL` | either, **plus include-edge classes and direct includers** | both roles → same, plus include-edge classes and direct includers |
 | 11 | `src/device/**` | `ALL` | `DEV`+`DUAL` | device-role boards → device+dual tests |
 | 12 | `src/host/**` | `ALL` | `HOST`+`DUAL` | host-role boards → host+dual tests |
 | 12b | `src/typec/**` | `ALL` | examples enabling `CFG_TUC_ENABLED` | — (no rig board runs a typec test) |
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select,family_json}.py`, `tools/cmake/**`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -152,7 +152,7 @@ _FULL_RE = re.compile(
     # and ci_select decide what gets built, so neither can be trusted to narrow its own
     # change; family_json runs inside build.py after every default configure, so a
     # break in it fails the build the same way
-    r'tools/(build|build_utils|ci_select|family_json)\.py$|tools/cmake/|'
+    r'tools/(build|build_utils|ci_select|family_json)\.py$|'
     # the make twins of family_support.cmake are the same authority for the make legs
     r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
     r'board_api\.h|board\.c|ansi_escape\.h)$|'
@@ -439,13 +439,15 @@ _CLS_INC_RE = re.compile(r'#\s*include\s*[<"]class/([^/"<>]+)/([^"<>]+)[">]')
 
 @functools.lru_cache(maxsize=None)
 def class_include_edges(repo_root: str) -> dict:
-    """'<class>/<header>' -> the other class dirs that include it. A class header
-    pulled in by a second class ships in every firmware enabling that second class:
-    src/class/midi/midi{,2}_{device,host}.h include class/audio/audio.h, and
+    """'<class>/<header>' -> {(class dir, file)} of the other classes' files that include
+    it. A class header pulled in by a second class ships in every firmware enabling that
+    second class: src/class/midi/midi{,2}_{device,host}.h include class/audio/audio.h, and
     net_device.h includes class/cdc/cdc.h. The class rule derives macros from the
     directory name alone, so without this edge a change to the included header
     selects only its own class's examples - and on a board that skips those (e.g.
-    metro_m4_express skips audio_test_freertos), nothing at all.
+    metro_m4_express skips audio_test_freertos), nothing at all. The including file
+    is kept because its own macro can differ from the directory's: midi2_device.h is
+    compiled under CFG_TUD_MIDI2, not CFG_TUD_MIDI (class_macros).
 
     Derived from the actual #include lines rather than a hand-written table so it
     cannot rot when a class picks up or drops a cross-class include."""
@@ -458,8 +460,30 @@ def class_include_edges(repo_root: str) -> dict:
             continue
         for inc_cls, inc_hdr in _CLS_INC_RE.findall(text):
             if inc_cls != cls:
-                edges.setdefault(f'{inc_cls}/{inc_hdr}', set()).add(cls)
+                edges.setdefault(f'{inc_cls}/{inc_hdr}', set()).add((cls, os.path.basename(f)))
     return edges
+
+
+def edge_macros(via, prefix: str) -> list:
+    """Config macros of the including files class_include_edges() returned."""
+    return [m for c, b in via for m in class_macros(c, b, prefix)]
+
+
+@functools.lru_cache(maxsize=None)
+def example_class_includes(repo_root: str) -> dict:
+    """'<class>/<header>' -> examples whose own sources #include it. That header ships in
+    the example whatever its config enables: host/bare_api includes class/hid/hid.h and
+    device/midi2_device's descriptors include class/audio/audio.h, enabling neither class."""
+    out = {}
+    for ex in all_examples(repo_root):
+        for f in sorted(glob.glob(_rg(repo_root, 'examples', ex, '**', '*.[ch]'), recursive=True)):
+            try:
+                text = _read(f)
+            except OSError:
+                continue
+            for inc_cls, inc_hdr in _CLS_INC_RE.findall(text):
+                out.setdefault(f'{inc_cls}/{inc_hdr}', set()).add(ex)
+    return out
 
 
 _CLS_STEM_RE = re.compile(r'(.*?)(?:_(?:device|host))?\.[ch]$')
@@ -468,8 +492,7 @@ _CLS_STEM_RE = re.compile(r'(.*?)(?:_(?:device|host))?\.[ch]$')
 def class_macros(cls: str, base: str, prefix: str) -> list:
     """Config macros that compile a class dir's code, for role prefix TUD/TUH.
     `base` refines dfu (it splits DFU from DFU_RUNTIME per file) and adds the file's
-    own macro where that differs from the directory's; pass '' for a class reached
-    through an include edge, where the widest set is correct."""
+    own macro where that differs from the directory's."""
     if cls == 'net':
         return [f'CFG_{prefix}_{m}' for m in NET_MACROS]
     if cls == 'dfu':
@@ -726,16 +749,19 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         via = sorted(class_include_edges(repo_root).get(f'{cls}/{base}', ()))
 
         def macros(prefix):
-            return (class_macros(cls, base, prefix) +
-                    [m2 for c in via for m2 in class_macros(c, '', prefix)])
+            return class_macros(cls, base, prefix) + edge_macros(via, prefix)
         tests = set()
         if 'device' in roles:
             tests |= class_examples(macros('TUD'), 'device', repo_root, extras)
         if 'host' in roles:
             tests |= class_examples(macros('TUH'), 'host', repo_root, extras)
+        # an example including the header directly ships it, whatever its config enables
+        direct = set(example_class_includes(repo_root).get(f'{cls}/{base}', ())) & role_tests(roles, extras)
+        tests |= direct
         boards = [b['name'] for b in roster_boards if board_roles(b) & roles]
         s.roles.update(roles)
-        why = f'{path}: class {cls}' + (f' (+ included by {via})' if via else '')
+        why = f'{path}: class {cls}' + (f' (+ included by {sorted({c for c, _ in via})})' if via else '') + \
+            (f' (+ included directly by {sorted(direct)})' if direct else '')
         s.add(boards, tests, f'{why} -> {sorted(tests)} ({"/".join(sorted(roles))})')
         return
 
@@ -1045,14 +1071,14 @@ def all_bsp_families(repo_root: str) -> tuple:
 
 def _build_class_examples(cls: str, base: str, roles: set, repo_root: str) -> set:
     """Examples (all 46, not the HIL lists) whose tusb_config.h enables the class's
-    macros for the given roles, plus classes that #include the changed header."""
+    macros for the given roles, plus classes that #include the changed header, plus
+    examples that #include it themselves."""
     via = sorted(class_include_edges(repo_root).get(f'{cls}/{base}', ()))
-    out = set()
+    out = set(example_class_includes(repo_root).get(f'{cls}/{base}', ()))
     for prefix, role in (('TUD', 'device'), ('TUH', 'host')):
         if role not in roles:
             continue
-        macros = class_macros(cls, base, prefix) + \
-                 [m for c in via for m in class_macros(c, '', prefix)]
+        macros = class_macros(cls, base, prefix) + edge_macros(via, prefix)
         out |= examples_enabling(all_examples(repo_root), macros, repo_root)
     return out
 

@@ -168,8 +168,9 @@ class TestClassIncludeEdges(unittest.TestCase):
     intersection emptied and an audio.h-only PR ran ZERO HIL on them."""
     def test_edges_derived_from_includes(self):
         edges = ci_select.class_include_edges(REPO)
-        self.assertEqual(edges.get('audio/audio.h'), {'midi'})
-        self.assertEqual(edges.get('cdc/cdc.h'), {'net'})
+        self.assertEqual({c for c, _ in edges.get('audio/audio.h')}, {'midi'})
+        self.assertIn(('midi', 'midi2_device.h'), edges.get('audio/audio.h'))
+        self.assertEqual({c for c, _ in edges.get('cdc/cdc.h')}, {'net'})
 
     def test_audio_header_selects_midi_example(self):
         s = ci_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
@@ -191,6 +192,13 @@ class TestClassIncludeEdges(unittest.TestCase):
         s = ci_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
         for board in boards:
             self.assertEqual(s['boards'].get(board), ['device/midi_test'], board)
+
+    def test_edge_keeps_the_including_files_own_macro(self):
+        # mutant: map the edge to class_macros(c, '') again. midi2_{device,host}.h include
+        # audio.h but compile under CFG_TUx_MIDI2, which only the midi2 examples enable
+        got = ci_select._build_class_examples('audio', 'audio.h', {'device', 'host'}, REPO)
+        self.assertIn('device/midi2_device', got)
+        self.assertIn('host/midi2_host', got)
 
     def test_edge_is_per_header_not_per_class(self):
         # midi includes audio.h, not audio_device.h: an audio_device change must
@@ -1886,7 +1894,7 @@ class TestBuildClassifier(unittest.TestCase):
         for p in ('src/common/tusb_fifo.c', 'src/osal/osal.h', 'src/tusb.c',
                   'src/tusb_option.h',
                   'tools/build.py', 'tools/family_json.py',
-                  'tools/cmake/cpu/cortex-m4.cmake',
+                  'examples/build_system/cmake/cpu/cortex-m4.cmake',
                   'examples/CMakeLists.txt', 'examples/device/CMakeLists.txt',
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
                   '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
@@ -2076,6 +2084,22 @@ class TestHilExamples(unittest.TestCase):
         want = set(ci_select.board_tests(ROSTER[1])) | {'device/board_test'}
         self.assertEqual(set(he['stm32f407disco']), want)
         self.assertNotIn('raspberry_pi_pico', he)   # deselected board: no firmware needed
+
+
+class TestExampleDirectClassIncludes(unittest.TestCase):
+    """An example that #includes a class header itself ships it whatever its config
+    enables: host/bare_api includes class/hid/hid.h with no CFG_TUH_HID."""
+
+    def test_build_selects_the_direct_includer(self):
+        s = ci_select.classify_build(['src/class/hid/hid.h'], REPO)
+        self.assertFalse(s['full'])
+        self.assertTrue(any('host/bare_api' in exs for exs in s['family_examples'].values()))
+
+    def test_hil_runs_a_direct_includer_a_roster_lists(self):
+        roster = [{'name': 'raspberry_pi_pico', 'uid': 'u1', 'flasher': {'name': 'openocd'},
+                   'tests': {'only': ['host/bare_api', 'device/cdc_msc']}}]
+        s = ci_select.classify(['src/class/hid/hid.h'], REPO, [('test/hil/x.json', roster)])
+        self.assertEqual(s['boards'].get('raspberry_pi_pico'), ['host/bare_api'])
 
 
 class TestHilExamplesDuplicateRosters(unittest.TestCase):

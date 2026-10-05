@@ -39,6 +39,7 @@ jobs:
               - 'tools/build.py'
               - 'tools/build_utils.py'
               - 'tools/ci_select.py'
+              - 'tools/family_json.py'
               - 'tools/get_deps.py'
               - 'tools/rtt.py'
               - 'tools/membrowse_cli.py'
