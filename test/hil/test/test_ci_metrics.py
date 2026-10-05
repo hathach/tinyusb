@@ -325,23 +325,39 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('no usable scope manifest', comment)
         self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
 
+    def _run_block(self, block, sel, setup=None):
+        """Run a dedented build.yml step block with `sel` as ci_select_out.json in a temp
+        dir; `setup(dir)` may prepare the dir and return extra env. Returns the block's
+        $GITHUB_OUTPUT as a dict."""
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
+                json.dump(sel, fh)
+            out = os.path.join(d, 'gh_output')
+            open(out, 'w').close()
+            env = {**os.environ, **((setup and setup(d)) or {}), 'GITHUB_OUTPUT': out}
+            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
+                               capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out) as fh:
+                return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
+
     def _run_matrix_step(self, sel, fail_pinned=False):
         """Run the whole 'Generate matrix json' step for real, optionally with the
         SCOPED --pinned invocation failing (the unscoped fallback still works, as a
         broken script would not). Returns the step's $GITHUB_OUTPUT as a dict."""
-        import shlex, subprocess, tempfile
+        import shlex
         repo = os.path.dirname(CIRCLECI)
         i = self.build.index('SELECT_FILE=ci_select_out.json')
         i = self.build.rindex('\n', 0, i) + 1
         j = self.build.index('# HIL matrix', i)
         block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
-        with tempfile.TemporaryDirectory() as d:
+
+        def setup(d):
             # ci_set_matrix resolves the repo from its own path and reads hw/bsp for
             # the pinned families, so the fake tree needs both
             for name in ('.github', 'hw'):
                 os.symlink(os.path.join(repo, name), os.path.join(d, name))
-            with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
-                json.dump(sel, fh)
             bin_dir = os.path.join(d, 'bin')
             os.mkdir(bin_dir)
             with open(os.path.join(bin_dir, 'python'), 'w') as fh:
@@ -350,15 +366,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     fh.write('case " $* " in *" --pinned "*--select-file*) exit 1 ;; esac\n')
                 fh.write(f'exec {shlex.quote(sys.executable)} "$@"\n')
             os.chmod(os.path.join(bin_dir, 'python'), 0o755)
-            out = os.path.join(d, 'gh_output')
-            open(out, 'w').close()
-            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
-                               capture_output=True, text=True,
-                               env={**os.environ, 'PATH': bin_dir + os.pathsep + os.environ['PATH'],
-                                    'GITHUB_OUTPUT': out})
-            self.assertEqual(r.returncode, 0, r.stderr)
-            with open(out) as fh:
-                return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
+            return {'PATH': bin_dir + os.pathsep + os.environ['PATH']}
+        return self._run_block(block, sel, setup)
 
     def test_the_pinned_matrix_is_scoped_with_the_example_map(self):
         sel = {'build': {'full': False, 'families': ['stm32f4'],
@@ -380,12 +389,70 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                                '--pinned'], capture_output=True, text=True, cwd=repo).stdout
         self.assertEqual(json.loads(got['pinned_matrix']), json.loads(full))
 
-    def test_an_unusable_selection_is_unusable_for_both_matrices(self):
-        # hil_ci_set_matrix reads "full false with no boards map" as unusable and falls
-        # open to the whole roster; if this emitter instead computed run_*=false, the
-        # rig jobs would skip while all 37 build legs ran - a full build and still zero
-        # hardware coverage, which is the outcome the guard exists to prevent
-        self.assertIn('isinstance(s.get("boards"), dict)', self.build)
+    def _run_rig_outputs(self, sel):
+        """Run the args_*/run_* emitter of the 'CI selection (PR only)' step for real
+        on `sel`. Returns its $GITHUB_OUTPUT as a dict."""
+        i = self.build.index("          OUT=''\n")
+        j = self.build.index('echo "$OUT" >> $GITHUB_OUTPUT', i)
+        j = self.build.index('\n', j) + 1
+        return self._run_block(re.sub(r'^ {10}', '', self.build[i:j], flags=re.M), sel)
+
+    ALL_RUN = {'run_tinyusb': 'true', 'run_tinyusb_esp': 'true', 'run_hfp': 'true'}
+
+    def test_rig_outputs_skip_an_unselected_rig(self):
+        sel = {'full': False, 'boards': {'raspberry_pi_pico': 'all'},
+               'args': {'tinyusb.json': '-b raspberry_pi_pico', 'hfp.json': ''},
+               'args_flasher': {'tinyusb.json': {'openocd': '-b raspberry_pi_pico'}, 'hfp.json': {}}}
+        got = self._run_rig_outputs(sel)
+        self.assertEqual((got['run_tinyusb'], got['run_tinyusb_esp'], got['run_hfp']),
+                         ('true', 'false', 'false'))
+
+    def test_rig_outputs_full_runs_every_rig(self):
+        sel = {'full': True, 'boards': {}, 'args': {'tinyusb.json': '', 'hfp.json': ''},
+               'args_flasher': {'tinyusb.json': {}, 'hfp.json': {}}}
+        got = self._run_rig_outputs(sel)
+        self.assertEqual({k: got[k] for k in self.ALL_RUN}, self.ALL_RUN)
+
+    def test_rig_outputs_fall_open_on_a_malformed_selection(self):
+        # run_hfp=false now skips hil-hfp-iar before its own selection can fall back,
+        # so a selection missing a rig's entry must run every rig, not skip that one
+        good = {'full': False, 'boards': {},
+                'args': {'tinyusb.json': '', 'hfp.json': ''},
+                'args_flasher': {'tinyusb.json': {}, 'hfp.json': {}}}
+        bad = {
+            'no hfp args': {**good, 'args': {'tinyusb.json': ''}},
+            'no tinyusb flasher map': {**good, 'args_flasher': {'hfp.json': {}}},
+            'full not a bool': {**good, 'full': 'false'},
+            'no full': {k: v for k, v in good.items() if k != 'full'},
+            # hil_ci_set_matrix falls open to the whole roster here: run_*=false instead
+            # would build everything and still skip the rigs
+            'no boards map': {k: v for k, v in good.items() if k != 'boards'},
+            'bad characters': {**good, 'args': {'tinyusb.json': '', 'hfp.json': '-b x\nrun_hfp=false'}},
+        }
+        for name, sel in bad.items():
+            with self.subTest(name):
+                got = self._run_rig_outputs(sel)
+                self.assertEqual({k: got[k] for k in self.ALL_RUN}, self.ALL_RUN)
+                self.assertEqual(got['args_hfp'], '')
+
+    def test_hfp_iar_skips_on_set_matrix_selection_before_taking_the_runner(self):
+        job = self.jobs['hil-hfp-iar']
+        needs = re.search(r'^    needs: \[(.*)\]$', job, re.M).group(1)
+        self.assertEqual({n.strip() for n in needs.split(',')}, {'check-paths', 'set-matrix'})
+        cond = re.search(r'^    if: \|\n((?:      .*\n)+)', job, re.M).group(1)
+        # whole, not fragments: an added success() anywhere (or the implicit one, without
+        # !cancelled()) skips the job when set-matrix fails, and a set-matrix that failed
+        # after writing run_hfp=false must leave the job to its own selection
+        self.assertEqual(' '.join(cond.split()),
+                         "!cancelled() && needs.check-paths.result == 'success' && "
+                         "needs.check-paths.outputs.code_changed == 'true' && "
+                         "github.repository_owner == 'hathach' && "
+                         "!(github.event_name == 'pull_request' && "
+                         "github.event.pull_request.head.repo.fork == true) && "
+                         "(needs.set-matrix.result != 'success' || "
+                         "needs.set-matrix.outputs.hil_run_hfp != 'false')")
+        # it still narrows (or falls back to full) by itself
+        self.assertIn('tools/ci_select.py --base "origin/$BASE_REF" test/hil/hfp.json', job)
 
     def test_the_build_extras_drop_when_the_matrix_falls_open(self):
         # ci_set_matrix falls open with rc 0, so the example map and family regex must

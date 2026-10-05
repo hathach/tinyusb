@@ -263,6 +263,35 @@ class TestFallbackRules(unittest.TestCase):
         self.assertEqual(s['boards'], {})
 
 
+class TestHfpJointSoloParity(unittest.TestCase):
+    """set-matrix selects with both rosters and its run_hfp skips hil-hfp-iar, which then
+    selects with hfp.json alone: the two must agree or the gate skips a job whose own
+    selection would have run it (or the reverse)."""
+
+    DIFFS = (
+        ('tools/code_size.py', 'test/hil/test/test_code_size.py'),     # PR #4092
+        ('docs/index.rst',),
+        ('src/portable/synopsys/dwc2/dcd_dwc2.c',),
+        ('src/portable/raspberrypi/rp2040/hcd_rp2040.c',),
+        ('src/class/cdc/cdc_device.c',),
+        ('hw/bsp/stm32f7/boards/stm32f746disco/board.h',),
+        ('hw/bsp/stm32f4/boards/stm32f407disco/board.h',),
+        ('test/hil/hil_test.py',),
+        ('src/class/cdc/cdc_device.c', 'hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'),
+    )
+
+    def test_hfp_args_match(self):
+        joint = real_rosters()
+        solo = [r for r in joint if r[0].endswith('hfp.json')]
+        for files in self.DIFFS:
+            with self.subTest(files=files):
+                a = ci_select.classify(list(files), REPO, joint)
+                b = ci_select.classify(list(files), REPO, solo)
+                self.assertEqual(a['full'], b['full'])
+                self.assertEqual(ci_select.selection_args(a, joint)['hfp.json'],
+                                 ci_select.selection_args(b, solo)['hfp.json'])
+
+
 class TestArgsEmission(unittest.TestCase):
     def test_args_for_scoped_selection(self):
         s = sel(['src/portable/raspberrypi/rp2040/dcd_rp2040.c'])
@@ -1090,22 +1119,16 @@ class TestOrphanInvariant(unittest.TestCase):
 
 
 class TestRostersDoNotOverlap(unittest.TestCase):
-    """sel['boards'] is one map across every roster, so a board listed in TWO rosters
-    with different test lists would get the union - and hil_test.py on the rig that
-    only runs half of them would be handed a -t it has no fixture for. No overlap
-    exists today; this is the tripwire for the day one is added."""
+    """classify() keeps the first roster's record of a board named in two rosters, so the
+    other rig's tests, logger and variants are lost from the joint selection - and the
+    hil-hfp-iar gate (joint) then disagrees with that job's own hfp.json-only selection.
+    No overlap exists today; this is the tripwire for the day one is added."""
 
     def test_no_board_name_is_in_two_rosters(self):
-        seen = {}
-        for name in ('tinyusb.json', 'hfp.json'):
-            cfg = json.loads(_read(os.path.join(REPO, 'test/hil', name)))
-            for b in cfg['boards']:
-                if b['name'] in seen:
-                    self.assertEqual(
-                        seen[b['name']], b.get('tests'),
-                        f"{b['name']}: on two rosters with different test lists - "
-                        f"selection_args must then filter per roster, not from the union")
-                seen[b['name']] = b.get('tests')
+        names = [{b['name'] for b in json.loads(_read(os.path.join(REPO, 'test/hil', n)))['boards']}
+                 for n in ('tinyusb.json', 'hfp.json')]
+        self.assertEqual(names[0] & names[1], set(),
+                         'a board on two rosters: classify() must then select per roster')
 
 
 class TestTypecRule(unittest.TestCase):
