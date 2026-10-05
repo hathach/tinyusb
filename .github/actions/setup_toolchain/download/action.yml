@@ -17,33 +17,35 @@ runs:
       id: cache-toolchain-download
       with:
         path: ~/cache/${{ inputs.toolchain }}
-        key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
+        # whole manifest: arm-iar also installs the iar-lmsc-tools entry
+        key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ hashFiles('.github/actions/setup_toolchain/toolchain.json') }}
 
     - name: Install Toolchain
       if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}
         TOOLCHAIN_URL: ${{ inputs.toolchain_url }}
+        FETCH: .github/actions/setup_toolchain/download/fetch.sh
       run: |
         mkdir -p ~/cache/${TOOLCHAIN}
         FILE_EXT="${TOOLCHAIN_URL##*.}"
 
         if [[ ${TOOLCHAIN} == rx-gcc ]]; then
-          wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.run
+          "$FETCH" "$TOOLCHAIN" toolchain.run
           chmod +x toolchain.run
           ./toolchain.run -p ~/cache/${TOOLCHAIN}/gnurx -y
         elif [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
-          wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
+          "$FETCH" "$TOOLCHAIN" ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
         elif [[ ${TOOLCHAIN} == arm-iar ]]; then
-          wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
-          wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
+          "$FETCH" iar-lmsc-tools ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
+          "$FETCH" "$TOOLCHAIN" ~/cache/${TOOLCHAIN}/cxarm.deb
         elif [[ ${FILE_EXT} == zip ]]; then
-          curl -L "$TOOLCHAIN_URL" -o toolchain.zip
+          "$FETCH" "$TOOLCHAIN" toolchain.zip
           # Arm's Windows zip has no top-level directory; Setup Toolchain expects one
           unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}/toolchain
           ~/cache/${TOOLCHAIN}/toolchain/bin/arm-none-eabi-gcc.exe --version
         elif [[ ${FILE_EXT} =~ ^(gz|bz2|xz)$ ]]; then
-          curl -fsSL --proto '=https' --proto-redir '=https' --retry 5 --connect-timeout 30 --speed-limit 1024 --speed-time 60 "$TOOLCHAIN_URL" -o toolchain.tar.${FILE_EXT}
+          "$FETCH" "$TOOLCHAIN" toolchain.tar.${FILE_EXT}
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.${FILE_EXT}
         else
           echo "Unsupported toolchain file extension: ${FILE_EXT}"

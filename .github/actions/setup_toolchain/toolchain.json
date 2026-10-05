@@ -1,12 +1,46 @@
 {
-  "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
-  "arm-clang": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.1/LLVM-ET-Arm-19.1.1-Linux-x86_64.tar.xz",
-  "arm-gcc": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz",
-  "ft9xx-gcc": "https://github.com/Bridgetek/ft32-toolchain-linux/releases/download/v2.7.6/ft9xxtoolchain_2.7.6_amd64.deb",
-  "arm-gcc-macos-latest": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi.tar.xz",
-  "arm-gcc-windows-latest": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi.zip",
-  "msp430-gcc": "https://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
-  "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
-  "rx-gcc": "https://github.com/hathach/rx_device/releases/download/0.0.1/gcc-8.3.0.202411-GNURX-ELF.run",
-  "arm-iar": "https://netstorage.iar.com/FileStore/STANDARD/001/003/723/cxarm-9.70.1.deb"
+  "aarch64-gcc": {
+    "url": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
+    "sha256": "6f74b1ee370caeb716688d2e467e5b44727fdc0ed56023fe5c72c0620019ecef"
+  },
+  "arm-clang": {
+    "url": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.1/LLVM-ET-Arm-19.1.1-Linux-x86_64.tar.xz",
+    "sha256": "f659c625302f6d3fb50f040f748206f6fd6bb1fc7e398057dd2deaf1c1f5e8d1"
+  },
+  "arm-gcc": {
+    "url": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz",
+    "sha256": "62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823"
+  },
+  "ft9xx-gcc": {
+    "url": "https://github.com/Bridgetek/ft32-toolchain-linux/releases/download/v2.7.6/ft9xxtoolchain_2.7.6_amd64.deb",
+    "sha256": "cedc2ed01a3eb068b2341f1c9348c07de7d408fe15fe0144e38dd575356e038b"
+  },
+  "arm-gcc-macos-latest": {
+    "url": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi.tar.xz",
+    "sha256": "c7c78ffab9bebfce91d99d3c24da6bf4b81c01e16cf551eb2ff9f25b9e0a3818"
+  },
+  "arm-gcc-windows-latest": {
+    "url": "https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/14.2.rel1/arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi.zip",
+    "sha256": "f074615953f76036e9a51b87f6577fdb4ed8e77d3322a6f68214e92e7859888f"
+  },
+  "msp430-gcc": {
+    "url": "https://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
+    "sha256": "a439316f586e5c8e4b18843e7f7648dfce01f3ea0ebd9ed6837bdcdf931c45c3"
+  },
+  "riscv-gcc": {
+    "url": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
+    "sha256": "52545afb900200fbf65fe05f7ce7090b8a42c64091f4f5d43cae6bb68ea2434a"
+  },
+  "rx-gcc": {
+    "url": "https://github.com/hathach/rx_device/releases/download/0.0.1/gcc-8.3.0.202411-GNURX-ELF.run",
+    "sha256": "498ba69b8f2dfe8b731e12709a1cf4c7d591ef2223fa1140e901fa9277f650f8"
+  },
+  "arm-iar": {
+    "url": "https://netstorage.iar.com/FileStore/STANDARD/001/003/723/cxarm-9.70.1.deb",
+    "sha256": "54c97d4379d1cc3bee3ee0e10423167aaf406aa037261e6f72894fd740753ece"
+  },
+  "iar-lmsc-tools": {
+    "url": "https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb",
+    "sha256": "c54bdbaee9b4c73723ee4de4285bb6915bf05c9ec4643eaedf0b56cd8bf3e538"
+  }
 }
