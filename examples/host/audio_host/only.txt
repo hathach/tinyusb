@@ -4,9 +4,12 @@ family:at32f423
 family:at32f425
 family:at32f435_437
 family:at32f45x
+family:broadcom_32bit
 family:efm32
+family:gd32vf103
 family:kinetis_kl
 family:rx
+family:xmc4000
 board:nrf54h20dk
 board:nrf54lm20dk
 board:stm32l476disco
