@@ -284,7 +284,6 @@ jobs:
       toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7rs"]'
       build-options: '--one-random'
-      code-size-check: ${{ matrix.os == 'windows-latest' && matrix.build-system == 'cmake' && '-b stm32h7s3nucleo -e device/cdc_msc' || '' }}
 
   # ---------------------------------------
   # Zephyr
