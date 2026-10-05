@@ -750,6 +750,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     self.ladder.append(('reset', board['name'], timeout))
                     if raising_reset:
                         raise RuntimeError('probe gone')
+                    return types.SimpleNamespace(returncode=0)
                 return _reset
             patch(hil_flash, 'reset_primitive', reset_primitive)
         usbtest_harness.argv(self, '--timeout', '7')

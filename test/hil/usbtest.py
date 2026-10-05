@@ -587,7 +587,8 @@ def recover_hang(board_json, fw, proc, dev):
         with redirect_stdout(sys.stderr):
             if reset_fn:
                 print(f'auto-recovering: resetting {bname} via {fname} probe', file=sys.stderr)
-                reset_fn(board, timeout=RECOVER_RESET_TIMEOUT)
+                ret = reset_fn(board, timeout=RECOVER_RESET_TIMEOUT)
+                print(f'reset rc {ret.returncode}', file=sys.stderr)
             else:
                 print(f'auto-recovering: reflashing {bname} via {fname}', file=sys.stderr)
                 ret = flash_fn(board, fw, timeout=RECOVER_FLASH_TIMEOUT)

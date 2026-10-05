@@ -11,10 +11,10 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
 roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
-is held or unusable, or a testusb, usbtest.py, hil_test.py or other run_case.py process is alive
-on this host, checked before and again after taking the lock. That check is host-wide and does
-not see a hil_test.py started after it: --allow-concurrent skips it only when another battery's
-load on this board's host controller does not matter for what you are measuring.
+is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
+process is alive on this host, checked before and again after taking the lock. That check is
+host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
+another battery's load on this board's host controller does not matter for what you are measuring.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -48,7 +48,7 @@ from helper import hil_lock, hil_report, hil_util  # noqa: E402
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
-PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py')
+PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
 HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
 # host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes

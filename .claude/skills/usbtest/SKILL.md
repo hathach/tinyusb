@@ -23,6 +23,7 @@ and the full battery still passes across reflash cycles.
 | Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
 | Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
 | What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
+| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                    |
 | New MCU or DCD                                   | Bring-up ladder                                                                     |
 
 Build first, through the build contract; `--variants` gives each roster variant its own
@@ -44,6 +45,17 @@ battery or another `run_case.py` runs on the host; pass `--allow-concurrent` onl
 battery's load on the board's host controller does not matter for what you are measuring. A wedged device is never parked. The last stdout
 line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
 `dmesg` when it captured them.
+
+```bash
+# wedge the board on purpose (halt its core mid case 27) and require usbtest.py's recovery to clear it
+python3 .claude/skills/usbtest/scripts/wedge_drill.py --config <this host's config> --board <board>
+```
+
+Only `pass` is evidence that the board's recovery works: HUNG, probe reset rc 0, the original
+testusb reaped, a fresh enumeration and case 1 passing. `inconclusive` means no wedge was produced
+(the case ended first, the halt failed or nothing hung); try another `--delay`, do not count it.
+Its `cleanup` is the drill's own reset and never stands in for the harness's recovery. Boards
+whose recovery flasher is not openocd are refused.
 
 ## Rig hazards
 

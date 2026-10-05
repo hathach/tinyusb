@@ -159,6 +159,13 @@ def reset_openocd(board, timeout=None):
     return ret
 
 
+def halt_openocd(board, timeout=None):
+    # the usbtest wedge drill's fault injection; whether a halted core stalls the transfer in
+    # flight depends on the variant's USB engine and debug freeze
+    return hil_util.run_cmd(f'{_openocd_cmd_base(board["flasher"])} -c "init; halt; exit"',
+                            timeout=timeout)
+
+
 # A J-Link board's `flasher_recover`: the same probe driven by openocd, whose libjaylink
 # discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
 # attributes of every USB device and blocks on a wedged one.
