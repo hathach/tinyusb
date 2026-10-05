@@ -1116,6 +1116,7 @@ def check_manifest(m):
         isinstance(f, str) and isinstance(v, dict) and
         (v.get('examples') == 'all' or (strs(v.get('examples')) and v['examples']))
         for f, v in fams.items()), 'build.families malformed')
+    need(not (b['full'] and fams), 'build.families not empty under build.full')
     need(b['needed'] == bool(b['full'] or fams), 'build.needed contradicts full/families')
     for key in ('required_boards', 'required_targets'):
         need(strs(b.get(key)), f'build.{key} malformed')

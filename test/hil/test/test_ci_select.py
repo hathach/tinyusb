@@ -2479,6 +2479,15 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual((json.loads(r.stdout), r.returncode), ({}, 0))
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
 
+    def test_full_with_filtered_families_falls_open(self):
+        sel = mf(['stm32f4'], full=True)
+        sel['build']['families']['stm32f4']['examples'] = ['device/cdc_msc']
+        for mode, unscoped in (('--pinned', self.run_matrix('--pinned').stdout), ('--example-map', '{}')):
+            with self.subTest(mode):
+                r = self.run_matrix(mode, '--select', json.dumps(sel))
+                self.assertEqual((json.loads(r.stdout), r.returncode), (json.loads(unscoped), 0))
+                self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+
     def test_every_listed_family_has_a_required_toolchain(self):
         sys.path.insert(0, os.path.dirname(SET_MATRIX))
         import ci_set_matrix
@@ -2511,6 +2520,7 @@ class TestCheckManifest(unittest.TestCase):
             'empty example list': bad(lambda m: m['build']['families'].update(stm32f4={'examples': []})),
             'build needed false with families': bad(lambda m: m['build'].update(needed=False)),
             'build needed true with nothing': bad(lambda m: m['build'].update(families={})),
+            'full with families': bad(lambda m: m['build'].update(full=True)),
             'required_boards a string': bad(lambda m: m['build'].update(required_boards='x')),
             'unknown effect': bad(lambda m: m['build'].update(paths=[{'path': 'a', 'effect': 'maybe'}])),
             'hil boards a list': bad(lambda m: m['hil'].update(boards=['stm32f407disco'])),
