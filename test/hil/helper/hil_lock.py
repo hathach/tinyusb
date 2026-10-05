@@ -4,8 +4,8 @@
 
 Board locks are kernel flocks in BOARD_LOCK_DIR arbitrating hardware access
 between dev sessions and CI's hil_test.py (never stop the actions-runner).
-Controller permits are in-process semaphores budgeting flashes and usbtest
-batteries per host controller; they have no CLI meaning. The CLI below
+Controller permits are in-process semaphores budgeting usbtest batteries per
+host controller; they have no CLI meaning. The CLI below
 (hold/release/status) manages board locks only.
 """
 import argparse
@@ -119,17 +119,15 @@ def acquire_board_lock(board_name, reason=CI_REASON):
 
 
 # Per-host-controller concurrency (see controller_of/controller_slot below): a usbtest
-# battery saturates its DUT's host controller, so batteries and flashes are budgeted per
-# controller. The 4/2 defaults trade ~3.5 min on the usbtest leg for bandwidth margin on
-# the shared leaf-hub uplinks, where battery case failures were observed from 12/8
-# (profiled 2026-07-13/14: 22.2/14.3/12.5/10.8 min at usbtest width 1/2/3/4, plateau
-# after). Raise per run via HIL_FLASH_PARALLEL/HIL_USBTEST_PARALLEL.
+# battery saturates its DUT's host controller, so batteries are budgeted per controller.
+# Width 2 trades ~3.5 min on the usbtest leg for bandwidth margin on the shared leaf-hub
+# uplinks (profiled 2026-07-13/14: 22.2/14.3/12.5/10.8 min at width 1/2/3/4, plateau
+# after). Raise per run via HIL_USBTEST_PARALLEL.
 # - uPD720201 cards need firmware >= 2.0.2.6 (RAM-uploaded, reloads every power cycle):
 #   the ROM firmware dies under battery + re-enumeration churn.
 # - a marginal DUT port bouncing during concurrent batteries can kill a uPD720201 ("xHCI
 #   host not responding to stop endpoint command"): fix the port/cable or pull the board
-#   -- lowering the widths does not fix a bad port (2026-07-16, every death).
-FLASH_PARALLEL = hil_util.pos_int_env('HIL_FLASH_PARALLEL', 4)
+#   -- lowering the width does not fix a bad port (2026-07-16, every death).
 USBTEST_PARALLEL = hil_util.pos_int_env('HIL_USBTEST_PARALLEL', 2)
 CONTROLLER_SLOTS = 12  # lock slots; controllers are assigned to slots on first sight
 # Bound on ONE permit wait. Generous: a real queue behind a slow board is normal,
@@ -140,20 +138,18 @@ PERMIT_TIMEOUT = hil_util.pos_int_env('HIL_PERMIT_TIMEOUT', 900)
 # inside a pool worker -- which now surfaces through drain_pool as a worker-raise (the
 # finished boards survive), but still loses this board and aborts the run.
 usbtest_sems = None     # per-slot usbtest-battery permits
-flash_sems = None       # per-slot flash permits
 controller_map = None         # shared dict: 'pci:<addr>' -> slot, 'uid:<uid>' -> pci addr cache
 controller_meta = None        # guards slot assignment in controller_map
-controller_hints = {}         # static uid -> pci from the last run's cache (read-only per worker)
 
 
 log = print  # hil_test.init_worker points this at log_line via init_scheduling
 
 
-def init_scheduling(b_sems, f_sems, cmap, cmeta, hints, log_fn=None):
+def init_scheduling(b_sems, cmap, cmeta, log_fn=None):
     """Install per-worker scheduling state (called from hil_test.init_worker)."""
-    global usbtest_sems, flash_sems, controller_map, controller_meta, controller_hints, log
-    usbtest_sems, flash_sems = b_sems, f_sems
-    controller_map, controller_meta, controller_hints = cmap, cmeta, hints
+    global usbtest_sems, controller_map, controller_meta, log
+    usbtest_sems = b_sems
+    controller_map, controller_meta = cmap, cmeta
     if log_fn is not None:
         log = log_fn
 
@@ -226,9 +222,9 @@ class controller_permit:
     """Context manager: one permit from `sems` on the board's controller slot. An
     unresolved controller budgets in UNKNOWN_SLOT, which admits one at a time: unresolved
     boards serialize against each other, never against the whole rig, and never add a
-    second full budget to a controller. `warn_unknown` logs that fallback (used by
-    usbtest, where the device is expected to be enumerated by the caller)."""
-    def __init__(self, sems, uid: str, warn_unknown: bool = False):
+    second full budget to a controller, and logs that fallback: the caller expects the
+    device to be enumerated."""
+    def __init__(self, sems, uid: str):
         self.sems = sems
         self.slots = None
         self.uid = uid
@@ -240,16 +236,8 @@ class controller_permit:
         self.taken: list = []
         if sems is None:
             return
-        # Hint FIRST for flash budgeting: a mis-budgeted flash is harmless, and the board
-        # is usually parked in board_test with USB off at this point, so controller_of
-        # cannot resolve it anyway -- it just walks the whole bus to say so, once per
-        # flash permit (~14 examples x ~21 boards a leg), each walk spawning a bounded
-        # reader per device. usbtest still resolves for real (warn_unknown), and by then
-        # the DUT is enumerated, so that walk succeeds and caches.
-        pci = None if warn_unknown else controller_hints.get(uid)
+        pci = controller_of(uid)
         if pci is None:
-            pci = controller_of(uid)
-        if pci is None and warn_unknown:
             log(f'warning: cannot resolve {uid} to a host controller; '
                 f'budgeting it in the unknown bucket')
         self.slots = [controller_slot(pci) if pci else UNKNOWN_SLOT]
@@ -290,12 +278,8 @@ class controller_permit:
         return False
 
 
-def flash_permit(uid: str) -> controller_permit:
-    return controller_permit(flash_sems, uid)
-
-
 def usbtest_permit(uid: str) -> controller_permit:
-    return controller_permit(usbtest_sems, uid, warn_unknown=True)
+    return controller_permit(usbtest_sems, uid)
 
 
 # --- operator CLI (hold/release/status) ------------------------------------

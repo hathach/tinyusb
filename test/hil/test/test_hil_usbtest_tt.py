@@ -11,7 +11,7 @@ import subprocess
 import sys
 import types
 import unittest
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -232,20 +232,13 @@ class BeforeFlash(unittest.TestCase):
                                   'v', 'device/cdc_msc')
         self.assertIn('Reset_TT unconfirmed', logs[-1])
 
-    def test_reset_runs_inside_the_flash_permit(self):
+    def test_reset_runs_before_the_flash(self):
         order = []
-
-        @contextmanager
-        def flash_permit(uid):
-            order.append('permit')
-            yield
-            order.append('release')
 
         usbtest_harness.patch(self, hil_flash, 'find_firmware', lambda *a, **k: Path('/fw.elf'))
         usbtest_harness.patch(self, hil_flash, 'flash_primitive',
                               lambda name: lambda *a, **k: order.append('flash')
                               or subprocess.CompletedProcess('flash', 1, ''))
-        usbtest_harness.patch(self, hil_test.hil_lock, 'flash_permit', flash_permit)
         usbtest_harness.patch(self, hil_test, 'reset_dut_tt', lambda b: order.append('reset') or True)
         usbtest_harness.patch(self, hil_test, 'skip_flash', False)
         usbtest_harness.patch(self, hil_test, 'max_retry', 1)
@@ -253,7 +246,7 @@ class BeforeFlash(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             hil_test.test_example({'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd'}},
                                   'v', 'device/cdc_msc')
-        self.assertEqual(order[:4], ['permit', 'reset', 'flash', 'release'])
+        self.assertEqual(order[:2], ['reset', 'flash'])
 
 
 if __name__ == '__main__':

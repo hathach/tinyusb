@@ -559,26 +559,24 @@ class UnresolvedControllerBucket(unittest.TestCase):
         import threading
         from helper import hil_lock
         self.hil_lock = hil_lock
-        self.saved = (hil_lock.controller_map, hil_lock.controller_meta,
-                      hil_lock.controller_hints, hil_lock.log)
+        self.saved = (hil_lock.controller_map, hil_lock.controller_meta, hil_lock.log)
         hil_lock.controller_map, hil_lock.controller_meta = {}, threading.Lock()
-        hil_lock.controller_hints, hil_lock.log = {}, lambda *a, **k: None
+        hil_lock.log = lambda *a, **k: None
 
     def tearDown(self):
         (self.hil_lock.controller_map, self.hil_lock.controller_meta,
-         self.hil_lock.controller_hints, self.hil_lock.log) = self.saved
+         self.hil_lock.log) = self.saved
 
-    def _slots(self, uid, warn):
+    def _slots(self, uid):
         import threading
         sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        return self.hil_lock.controller_permit(sems, uid, warn_unknown=warn).slots
+        return self.hil_lock.controller_permit(sems, uid).slots
 
     def test_unresolved_boards_share_one_slot(self):
-        for warn in (False, True):
-            slots = self._slots('NOSUCHUID', warn)
-            self.assertEqual(len(slots), 1, 'unresolved uid took more than one slot')
-            self.assertEqual(slots, self._slots('OTHERUID', warn),
-                             'unresolved boards must share the bucket, not spread over it')
+        slots = self._slots('NOSUCHUID')
+        self.assertEqual(len(slots), 1, 'unresolved uid took more than one slot')
+        self.assertEqual(slots, self._slots('OTHERUID'),
+                         'unresolved boards must share the bucket, not spread over it')
 
     def test_the_semaphore_array_is_long_enough_for_the_unknown_slot(self):
         """UNKNOWN_SLOT indexes one PAST the real slots. An array sized to
@@ -1779,8 +1777,8 @@ class PermitReleasesOnlyWhatItTook(unittest.TestCase):
     """The bounded acquire skips a slot it could not get ('proceeding over-subscribed') and
     deliberately leaves it out of `taken`, but __exit__ released every slot in self.slots.
     multiprocessing.Semaphore is unbounded, so each timeout permanently widened that
-    controller's permit -- the throttle this branch NARROWED (FLASH_PARALLEL 8->4,
-    USBTEST_PARALLEL 4->2) for xHCI bandwidth margin."""
+    controller's permit -- the throttle USBTEST_PARALLEL narrowed (4->2) for xHCI
+    bandwidth margin."""
 
     def test_a_timed_out_slot_is_not_released_on_exit(self):
         from helper import hil_lock

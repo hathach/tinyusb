@@ -51,7 +51,7 @@ line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, a
   (`HIL_USBTEST_PARALLEL`); those permits live inside its process, so a battery started outside it
   is not counted. Unbudgeted batteries on one controller have frozen the rig, and a marginal DUT
   port bouncing under concurrent batteries has killed a uPD720201 (the note above
-  `FLASH_PARALLEL` in `hil_lock.py`). Never start a battery outside `hil_test.py` on a controller
+  `USBTEST_PARALLEL` in `hil_lock.py`). Never start a battery outside `hil_test.py` on a controller
   another battery is using.
 - **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node

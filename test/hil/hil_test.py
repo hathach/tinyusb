@@ -137,11 +137,11 @@ shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SH
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 
 
-def init_worker(lock, seed, b_mutexes, f_sems, cmap, cmeta, hints_by_uid):
+def init_worker(lock, seed, b_mutexes, cmap, cmeta):
     global print_lock, shuffle_seed
     print_lock = lock
     shuffle_seed = seed
-    hil_lock.init_scheduling(b_mutexes, f_sems, cmap, cmeta, hints_by_uid, log_fn=log_line)
+    hil_lock.init_scheduling(b_mutexes, cmap, cmeta, log_fn=log_line)
 
 
 def log_line(msg: str) -> None:
@@ -1745,34 +1745,33 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
-                with hil_lock.flash_permit(board['uid']):
-                    if not reset_dut_tt(board):
-                        # flash anyway: the hub stays unconfirmed for the rest of the run, so
-                        # refusing would fail every later test on it; a late Reset_TT from
-                        # the timed-out helper can still disturb this attempt, so name it
-                        print('Reset_TT unconfirmed before flash', flush=True)
-                    t_flash = time.monotonic()
-                    try:
-                        ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
-                    except Exception as e:
-                        # A flasher that RAISES (esptool's get_serial_dev when the adapter
-                        # drops off the bus, a missing config.env, an unwritable CWD) would
-                        # propagate out of the worker and abort the whole drain, costing
-                        # every board still in flight.
-                        print(f'flash raised: {type(e).__name__}: {e}', flush=True)
-                        ret = subprocess.CompletedProcess(args='flash', returncode=1,
-                                                          stdout=f'{type(e).__name__}: {e}')
-                    if PROFILE:
-                        log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
-                                 f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
-                    flash_ok = (ret.returncode == 0)
-                    # A wedged RP2040/RP2350 DAP answers nothing and the probe has no
-                    # reset line, so the retry fails identically; POR it via the Rescue DP
-                    # first (no-op otherwise). NOT gated on a remaining attempt: CI HIL jobs
-                    # run --retry 1, and this leaves the DAP POR'd for the jobs that follow.
-                    if not flash_ok and \
-                            hil_flash.rescue_openocd(board, hil_util.cmd_stdout_text(ret.stdout)):
-                        log_line(f'{variant} {example}: DAP wedged, rescued via Rescue DP')
+                if not reset_dut_tt(board):
+                    # flash anyway: the hub stays unconfirmed for the rest of the run, so
+                    # refusing would fail every later test on it; a late Reset_TT from
+                    # the timed-out helper can still disturb this attempt, so name it
+                    print('Reset_TT unconfirmed before flash', flush=True)
+                t_flash = time.monotonic()
+                try:
+                    ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
+                except Exception as e:
+                    # A flasher that RAISES (esptool's get_serial_dev when the adapter
+                    # drops off the bus, a missing config.env, an unwritable CWD) would
+                    # propagate out of the worker and abort the whole drain, costing
+                    # every board still in flight.
+                    print(f'flash raised: {type(e).__name__}: {e}', flush=True)
+                    ret = subprocess.CompletedProcess(args='flash', returncode=1,
+                                                      stdout=f'{type(e).__name__}: {e}')
+                if PROFILE:
+                    log_line(f'[prof] {variant} {example} flash attempt {i + 1}: '
+                             f'{time.monotonic() - t_flash:.1f}s rc={ret.returncode}')
+                flash_ok = (ret.returncode == 0)
+                # A wedged RP2040/RP2350 DAP answers nothing and the probe has no
+                # reset line, so the retry fails identically; POR it via the Rescue DP
+                # first (no-op otherwise). NOT gated on a remaining attempt: CI HIL jobs
+                # run --retry 1, and this leaves the DAP POR'd for the jobs that follow.
+                if not flash_ok and \
+                        hil_flash.rescue_openocd(board, hil_util.cmd_stdout_text(ret.stdout)):
+                    log_line(f'{variant} {example}: DAP wedged, rescued via Rescue DP')
             if flash_ok:
                 try:
                     tret = globals()[f'test_{example.replace("/", "_")}'](board)
@@ -2256,7 +2255,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               flush=True)
 
 
-def _start_pool(mgr, seed: str, hints_by_uid: dict):
+def _start_pool(mgr, seed: str):
     """(cmap, pool).
 
     maxtasksperchild=1: a fresh worker per board makes cross-board contamination
@@ -2267,8 +2266,7 @@ def _start_pool(mgr, seed: str, hints_by_uid: dict):
     cmap = mgr.dict()
     initargs = (Lock(), seed,
                 hil_lock.make_permit_sems(Semaphore, hil_lock.USBTEST_PARALLEL),
-                hil_lock.make_permit_sems(Semaphore, hil_lock.FLASH_PARALLEL),
-                cmap, Lock(), hints_by_uid)
+                cmap, Lock())
     pool = Pool(processes=os.cpu_count() or 1, initializer=init_worker,
                 initargs=initargs, maxtasksperchild=1)
     return cmap, pool
@@ -2439,7 +2437,7 @@ def main() -> None:
 
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
-             f'flash/usbtest parallel per controller: {hil_lock.FLASH_PARALLEL}/{hil_lock.USBTEST_PARALLEL}; '
+             f'usbtest parallel per controller: {hil_lock.USBTEST_PARALLEL}; '
              f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s '
              f'(host {HOST_ENUM_TIMEOUT}/{HOST_ENUM_TIMEOUT_RETRY}s); '
              # all three are env-tunable, so a run that dies on the guard is otherwise
@@ -2456,7 +2454,7 @@ def main() -> None:
             (report_dir / f).unlink(missing_ok=True)
         failed_fname.unlink(missing_ok=True)
     mgr = Manager()
-    cmap, pool = _start_pool(mgr, seed, hints_by_uid)
+    cmap, pool = _start_pool(mgr, seed)
     # `with` terminates and joins the pool. A worker stuck in uninterruptible sleep hangs
     # that join until the CI job ceiling; the abort paths below have written the report
     # and the re-run spec by then.
