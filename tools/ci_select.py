@@ -13,6 +13,8 @@ JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers
 sample from these), args (hil_test.py args per config) and args_flasher (the same
 args split by each board's flasher, for CI legs that split one rig by flasher).
+--manifest prints the selection manifest v1 instead (manifest(); its consumers go
+through `check_build.py --select-only`, the build skill's SKILL.md documents it).
 
 THE RULE TABLE. First match wins; answers union per family (build) and per board
 (HIL). A CARBON COPY of the table in the design spec above - edit both, or
@@ -28,6 +30,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 2b | `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
 | 2d | `tools/membrowse_cli.py`, `tools/code_size.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
+| 2e | `.claude/skills/build/scripts/check_build.py` (ahead of rule 1) | `ALL` | `ALL` | all boards → all tests (the selection contract CI and agents call) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
@@ -138,7 +141,13 @@ _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
 # Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
-_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/(membrowse_cli|code_size)\.py$')
+_MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_cli\.py$')
+_SIZE_SCRIPT_RE = re.compile(r'^tools/code_size\.py$')
+MEMBROWSE_TARGET = 'examples-membrowse-upload'
+# The selection contract's entry point: CI and agents select through
+# `check_build.py --select-only`, so a change to it can change any selection. Ahead
+# of the .claude/ non-code rule, which would otherwise swallow it.
+_SELECTOR_RE = re.compile(r'^\.claude/skills/build/scripts/check_build\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
     # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
@@ -679,6 +688,9 @@ class _Sel:
 def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
                   get_deps_families=None):
     base = os.path.basename(path)
+    if _SELECTOR_RE.match(path):                                  # rule 2e
+        s.force_full(f'{path}: the selection contract -> full matrix')
+        return
     if _NONCODE_RE.match(path) or _META_RE.match(path):
         s.reasons.append(f'{path}: non-code, no contribution')
         return
@@ -688,7 +700,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
         s.reasons.append(f'{path}: CI board data, no HIL contribution')
         return
-    if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
+    if _MEMBROWSE_SCRIPT_RE.match(path) or _SIZE_SCRIPT_RE.match(path):    # rule 2d
         s.reasons.append(f'{path}: CI size script, no HIL contribution')
         return
     if _FULL_RE.match(path):
@@ -963,42 +975,152 @@ def selection_args_by_flasher(sel, rosters):
     return out
 
 
+class SelectError(Exception):
+    """An input the selector refuses rather than answer: exit 2, never a fallback guess."""
+
+
+def _git(argv, repo_root):
+    return subprocess.run(['git', *argv], cwd=repo_root, capture_output=True, text=True,
+                          check=True).stdout
+
+
+def rev(ref, repo_root):
+    try:
+        return _git(['rev-parse', '--verify', '--quiet', f'{ref}^{{commit}}'], repo_root).strip()
+    except subprocess.CalledProcessError:
+        raise SelectError(f'{ref!r} does not name a commit here') from None
+
+
 def merge_base(base, repo_root):
-    return subprocess.run(['git', 'merge-base', 'HEAD', base], cwd=repo_root,
-                          capture_output=True, text=True, check=True).stdout.strip()
+    return _git(['merge-base', 'HEAD', base], repo_root).strip()
 
 
 def git_show(spec, repo_root):
-    return subprocess.run(['git', 'show', spec], cwd=repo_root,
-                          capture_output=True, text=True, check=True).stdout
+    return _git(['show', spec], repo_root)
 
 
 def changed_files_from_git(base, repo_root):
-    diff = subprocess.run(GIT_DIFF_ARGV + [f'{merge_base(base, repo_root)}..HEAD'],
-                          cwd=repo_root, capture_output=True, text=True, check=True).stdout
-    return [l for l in diff.splitlines() if l.strip()]
+    return [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{merge_base(base, repo_root)}..HEAD'],
+                            repo_root).splitlines() if l.strip()]
 
 
-def get_deps_families_from_git(base, repo_root):
-    """The changed dep entries' families for a --base run, or None (-> full matrix)
-    if git cannot produce both sides of tools/get_deps.py."""
+def _deps_families(base_text_fn, head_text_fn, repo_root):
+    """The changed dep entries' families, or None (-> full matrix) if git cannot produce
+    both sides of tools/get_deps.py."""
     try:
-        mb = merge_base(base, repo_root)
-        return get_deps_changed_families(git_show(f'{mb}:{GET_DEPS_PATH}', repo_root),
-                                         git_show(f'HEAD:{GET_DEPS_PATH}', repo_root),
-                                         repo_root)
+        return get_deps_changed_families(base_text_fn(), head_text_fn(), repo_root)
     except (subprocess.CalledProcessError, OSError) as e:
         print(f'ci_select: {GET_DEPS_PATH}: base content unreadable ({e})', file=sys.stderr)
         return None
 
 
+def get_deps_families_from_git(base, repo_root):
+    """The changed dep entries' families for a --base run, or None (-> full matrix)."""
+    return _deps_families(lambda: git_show(f'{merge_base(base, repo_root)}:{GET_DEPS_PATH}', repo_root),
+                          lambda: git_show(f'HEAD:{GET_DEPS_PATH}', repo_root), repo_root)
+
+
+def _worktree_files(base_sha, repo_root):
+    tracked = _git(GIT_DIFF_ARGV[1:] + [base_sha], repo_root).splitlines()
+    untracked = _git(['ls-files', '--others', '--exclude-standard'], repo_root).splitlines()
+    return [f for f in dict.fromkeys(tracked + untracked) if f.strip()]
+
+
+def select_input(repo_root, base=None, endpoints=None, worktree=False, diff_file=None, deps_base=None):
+    """(changed files, get_deps families or None, the manifest's `input`) for one mode.
+    Committed modes classify the checked-out tree, so their head must be HEAD."""
+    inp = {'mode': None, 'base': base, 'base_sha': None, 'merge_base': None, 'head': None,
+           'deps_base': None}
+    gd = None
+    if diff_file is not None:
+        inp['mode'] = 'paths'
+        files = [f for f in _read(diff_file).splitlines() if f.strip()]
+        if deps_base is not None and GET_DEPS_PATH in files:
+            sha = rev(deps_base, repo_root)
+            inp['deps_base'] = sha
+            base_text = git_show(f'{sha}:{GET_DEPS_PATH}', repo_root)
+            work = _read(os.path.join(repo_root, GET_DEPS_PATH))
+            if work == base_text:
+                raise SelectError(
+                    f'{GET_DEPS_PATH} is in the scope with no working-tree change against {deps_base} to '
+                    f'read its dep entries off, so the families the edit affects cannot be resolved: '
+                    f'select with --base <ref> for a dep bump that is already committed')
+            gd = get_deps_changed_families(base_text, work, repo_root)
+        return files, gd, inp
+    head = rev('HEAD', repo_root)
+    if endpoints is not None:
+        inp['mode'] = 'endpoints'
+        a, sep, b = endpoints.partition('..')
+        if not sep or not a or not b or b.startswith('.'):
+            raise SelectError(f'--endpoints {endpoints!r} is not A..B')
+        if set(a) == {'0'}:
+            raise SelectError(f'--endpoints {endpoints!r}: A is the zero commit (a new branch has no before)')
+        inp['base'], a_sha, b_sha = a, rev(a, repo_root), rev(b, repo_root)
+        if b_sha != head:
+            raise SelectError(f'--endpoints {endpoints!r}: B is not the checked-out HEAD {head}')
+        inp.update(base_sha=a_sha, head=head)
+        files = [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{a_sha}..{b_sha}'], repo_root).splitlines() if l.strip()]
+        if GET_DEPS_PATH in files:
+            gd = _deps_families(lambda: git_show(f'{a_sha}:{GET_DEPS_PATH}', repo_root),
+                                lambda: git_show(f'{b_sha}:{GET_DEPS_PATH}', repo_root), repo_root)
+        return files, gd, inp
+    base_sha = rev(base, repo_root)
+    mb = _git(['merge-base', head, base_sha], repo_root).strip()
+    inp.update(base_sha=base_sha, merge_base=mb, head=head)
+    if worktree:
+        inp['mode'] = 'worktree'
+        files = _worktree_files(mb, repo_root)
+        head_text = lambda: _read(os.path.join(repo_root, GET_DEPS_PATH))  # noqa: E731
+    else:
+        inp['mode'] = 'base'
+        files = [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{mb}..{head}'], repo_root).splitlines() if l.strip()]
+        head_text = lambda: git_show(f'{head}:{GET_DEPS_PATH}', repo_root)  # noqa: E731
+    if GET_DEPS_PATH in files:
+        gd = _deps_families(lambda: git_show(f'{mb}:{GET_DEPS_PATH}', repo_root), head_text, repo_root)
+    return files, gd, inp
+
+
+_BOARD_DIR_RE = re.compile(r'hw/bsp/([^/]+)/boards/([^/]+)/')
+
+
+def manifest(files, repo_root, rosters, gd, inp):
+    """Selection manifest v1: the one structured answer every consumer reads."""
+    s = classify(files, repo_root, rosters, gd)
+    b = classify_build(files, repo_root, gd)
+    fam_ex = b['family_examples']
+    build = {'full': b['full'],
+             'needed': bool(b['full'] or b['families']),
+             'families': {} if b['full'] else
+                         {f: {'examples': fam_ex.get(f, 'all')} for f in b['families']},
+             'required_boards': sorted({m.group(2) for m in map(_BOARD_DIR_RE.match, files)
+                                        if m and os.path.isdir(os.path.join(repo_root, m.group(0)))}),
+             'required_targets': sorted({t for r in b['paths'] for t in r['targets']}),
+             'dropped': b['dropped'],
+             'paths': b['paths']}
+    hil = {'full': s['full'], 'needed': bool(s['full'] or s['boards']), 'boards': s['boards'],
+           'args': selection_args(s, rosters), 'args_flasher': selection_args_by_flasher(s, rosters),
+           'hil_examples': hil_examples(s, rosters) if rosters else {}}
+    return {'version': 1, 'input': inp, 'build': build, 'hil': hil}, s['reasons'], b['reasons']
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument('--base', help='git ref to diff against (merge-base..HEAD)')
+    g.add_argument('--base', help='git ref to diff against (merge-base(HEAD, ref)..HEAD)')
+    g.add_argument('--endpoints', metavar='A..B',
+                   help='diff A..B directly (a push: before..after); B must be the checked-out HEAD')
     g.add_argument('--diff-file', help='newline-separated changed-file list')
+    ap.add_argument('--worktree', action='store_true',
+                    help='with --base: diff the merge-base against the working tree, untracked files included')
+    ap.add_argument('--deps-base', metavar='REF',
+                    help='with --diff-file: resolve a tools/get_deps.py edit as REF vs the working file')
+    ap.add_argument('--manifest', action='store_true', help='print the selection manifest v1')
     ap.add_argument('configs', nargs='*', help='rig roster JSON file(s); omit for the build view alone')
     a = ap.parse_args()
+    if a.worktree and not a.base:
+        ap.error('--worktree needs --base')
+    if a.deps_base and not a.diff_file:
+        ap.error('--deps-base needs --diff-file')
 
     repo_root = _REPO_ROOT
     rosters = []
@@ -1006,13 +1128,20 @@ def main():
         with open(c, encoding='utf-8', errors='replace') as f:
             rosters.append((c, json.load(f)['boards']))
 
-    files = (_read(a.diff_file).splitlines() if a.diff_file
-             else changed_files_from_git(a.base, repo_root))
-    files = [f for f in files if f.strip()]
+    try:
+        files, gd, inp = select_input(repo_root, a.base, a.endpoints, a.worktree, a.diff_file, a.deps_base)
+    except SelectError as e:
+        print(f'ci_select: {e}', file=sys.stderr)
+        sys.exit(2)
 
-    # --diff-file has no git and so no base content: the rule falls open to full
-    gd = (get_deps_families_from_git(a.base, repo_root)
-          if a.base and GET_DEPS_PATH in files else None)
+    if a.manifest:
+        m, hil_reasons, build_reasons = manifest(files, repo_root, rosters, gd, inp)
+        for r in build_reasons:
+            print(f'ci_select[build]: {r}', file=sys.stderr)
+        for r in hil_reasons:
+            print(f'ci_select: {r}', file=sys.stderr)
+        print(json.dumps(m))
+        return
 
     s = classify(files, repo_root, rosters, gd)
     s['args'] = selection_args(s, rosters)
@@ -1028,8 +1157,9 @@ def main():
     # back. They are also ~97% of the payload (a whole-tree diff: 453 KB -> 12 KB), which
     # build.yml re-parses with ci_set_matrix, hil_ci_set_matrix, an inline python and
     # three jq calls. The in-process dicts still carry them, for the log and the tests.
+    # The legacy shape carries no per-path records: the manifest is their interface.
     out = {k: v for k, v in s.items() if k != 'reasons'}
-    out['build'] = {k: v for k, v in s['build'].items() if k != 'reasons'}
+    out['build'] = {k: v for k, v in s['build'].items() if k not in ('reasons', 'paths', 'dropped')}
     print(json.dumps(out))
 
 
@@ -1084,14 +1214,23 @@ def _build_class_examples(cls: str, base: str, roles: set, repo_root: str) -> se
 
 
 class _BSel:
-    """family -> set(examples) | 'all', unioned per family."""
+    """family -> set(examples) | 'all', unioned per family, plus one record per path
+    (build_record()): its rule, what it selects and why."""
     def __init__(self):
         self.full = False
         self.fam_ex = {}
         self.reasons = []
+        self.paths = []
 
-    def add(self, fams, examples, reason):
+    def note(self, path, rule, effect, reason, families=None, examples=None, port=None, targets=()):
         self.reasons.append(reason)
+        self.paths.append(build_record(path, rule, effect, reason, families, examples, port, targets))
+
+    def add(self, path, rule, fams, examples, reason, named=None, port=None):
+        """Select `examples` on `fams`; `named` is the families the rule itself names
+        (None: the rule applies to every family)."""
+        self.note(path, rule, 'select', reason, named,
+                  None if examples == 'all' or rule == 'port' else examples, port)
         for f in fams:
             cur = self.fam_ex.get(f)
             if examples == 'all' or cur == 'all':
@@ -1099,28 +1238,41 @@ class _BSel:
             else:
                 self.fam_ex[f] = (cur or set()) | set(examples)
 
-    def force_full(self, reason):
+    def force_full(self, path, rule, reason, targets=()):
         self.full = True
-        self.reasons.append(reason)
+        self.note(path, rule, 'full', reason, targets=targets)
+
+
+def build_record(path, rule, effect, reason, families=None, examples=None, port=None, targets=()):
+    """One path's build-axis classification. `effect` is its contribution (none: nothing
+    to verify; gap: firmware no build compiles; select; full), not a coverage verdict.
+    `families`/`examples` are None when the rule names none, i.e. every one."""
+    return {'path': path, 'rule': rule, 'effect': effect,
+            'families': None if families is None else sorted(families),
+            'examples': None if examples is None else sorted(examples),
+            'port': port, 'targets': sorted(targets), 'reason': reason}
 
 
 def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
     base = os.path.basename(path)
+    if _SELECTOR_RE.match(path):                                  # rule 2e
+        s.force_full(path, 'selector', f'{path}: the selection contract -> full build matrix')
+        return
     if _NONCODE_RE.match(path) or _META_RE.match(path):           # rules 1, 1b
-        s.reasons.append(f'{path}: non-code, no build contribution')
+        s.note(path, 'noncode', 'none', f'{path}: non-code, no build contribution')
         return
     if re.match(r'test/hil/', path):                              # rule 2
-        s.reasons.append(f'{path}: HIL harness, no build contribution')
+        s.note(path, 'hil-harness', 'none', f'{path}: HIL harness, no build contribution')
         return
     if path == GET_DEPS_PATH:                                     # rule 16b
         if get_deps_families is None:
-            s.force_full(f'{path}: dep changes not resolvable -> full build matrix')
+            s.force_full(path, 'get-deps', f'{path}: dep changes not resolvable -> full build matrix')
             return
         if not get_deps_families:
-            s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
+            s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
             return
         fams = sorted(get_deps_families)
-        s.add(fams, 'all', f'{path}: dep entries changed -> families {fams}')
+        s.add(path, 'get-deps', fams, 'all', f'{path}: dep entries changed -> families {fams}', fams)
         return
     m = _PORT_PATH_RE.match(path)
     if m:                                                         # rules 3-5
@@ -1129,21 +1281,24 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         roles = _port_roles(base)
         exs = 'all' if roles == {'device', 'host'} else \
             role_examples(repo_root, tuple(roles) + ('dual',))
-        # rule 5b: fams empty -> s.add iterates nothing -> no contribution
-        s.add(fams, exs, f'{path}: port {port} -> families {sorted(fams)}')
+        reason = f'{path}: port {port} -> families {sorted(fams)}'
+        if not fams:                                              # rule 5b
+            s.note(path, 'port', 'gap', reason, port=port)
+            return
+        s.add(path, 'port', fams, exs, reason, fams, port)
         return
     if re.match(r'hw/bsp/[^/]+/', path):                          # rule 6
         fam = path.split('/')[2]
-        s.add({fam}, 'all', f'{path}: bsp family {fam}')
+        s.add(path, 'bsp', {fam}, 'all', f'{path}: bsp family {fam}', {fam})
         return
     if re.match(r'hw/mcu/', path):                                # rule 7
         fams = mcu_families(path, repo_root)
         if not fams:
             # empty means empty, same reading as the HIL walk: no family's build
             # references the path, so no build compiles it
-            s.reasons.append(f'{path}: hw/mcu path resolves to no family, no contribution')
+            s.note(path, 'mcu', 'gap', f'{path}: hw/mcu path resolves to no family, no contribution')
             return
-        s.add(fams, 'all', f'{path}: mcu -> families {sorted(fams)}')
+        s.add(path, 'mcu', fams, 'all', f'{path}: mcu -> families {sorted(fams)}', fams)
         return
     m = re.match(r'src/class/([^/]+)/', path)
     if m:                                                         # rules 8-10
@@ -1157,27 +1312,27 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             # (src/CMakeLists.txt, src/tinyusb.mk list class sources unconditionally,
             # the CFG_ guard sits inside), so a break outside the guard surfaces on the
             # next master push - the accepted safety net.
-            s.reasons.append(f'{path}: class {cls} enabled by no example config, '
-                             f'no contribution')
+            s.note(path, 'class', 'gap', f'{path}: class {cls} enabled by no example config, '
+                                         f'no contribution')
             return
-        s.add(all_bsp_families(repo_root), exs,
+        s.add(path, 'class', all_bsp_families(repo_root), exs,
               f'{path}: class {cls} -> {sorted(exs)}')
         return
     m = re.match(r'src/(device|host)/', path)
     if m:                                                         # rules 11-12
         role = m.group(1)
-        s.add(all_bsp_families(repo_root), role_examples(repo_root, (role, 'dual')),
+        s.add(path, 'core', all_bsp_families(repo_root), role_examples(repo_root, (role, 'dual')),
               f'{path}: core {role} stack')
         return
     m = _BUILD_EX_RE.match(path)
     if m:                                                         # rules 13-14
         ex = f'{m.group(1)}/{m.group(2)}'
         if ex in all_examples(repo_root):
-            s.add(all_bsp_families(repo_root), {ex}, f'{path}: example {ex}')
+            s.add(path, 'example', all_bsp_families(repo_root), {ex}, f'{path}: example {ex}')
         else:
             # a deleted example builds nothing; removing it from the role
             # CMakeLists (rule 15) is what forces the full matrix
-            s.reasons.append(f'{path}: not an example dir, no build contribution')
+            s.note(path, 'example', 'none', f'{path}: not an example dir, no build contribution')
         return
     if re.match(r'src/typec/', path):                             # rule 12b
         # listed unconditionally by src/CMakeLists.txt and src/tinyusb.mk, but the whole
@@ -1187,9 +1342,9 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         exs = examples_enabling(role_examples(repo_root, ('typec',)),
                                 ('CFG_TUC_ENABLED',), repo_root)
         if not exs:
-            s.reasons.append(f'{path}: typec enabled by no example config, no contribution')
+            s.note(path, 'typec', 'gap', f'{path}: typec enabled by no example config, no contribution')
             return
-        s.add(all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
+        s.add(path, 'typec', all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
         return
     m = re.match(r'lib/([^/]+)/', path)
     if m:                                                         # rule 16a
@@ -1203,27 +1358,33 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             # No committed CI roster has such a board yet, so a SEGGER_RTT edit is
             # currently neither built nor HIL-tested by CI -- verify vendor bumps
             # manually until a rig board adopts "logger": "rtt".)
-            s.reasons.append(f'{path}: lib {lib} built by no example, no contribution')
+            s.note(path, 'lib', 'gap', f'{path}: lib {lib} built by no example, no contribution')
             return
-        s.add(all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
+        s.add(path, 'lib', all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
         return
     if _LOCAL_TOOLING_RE.match(path):                                   # rule 2b
-        s.reasons.append(f'{path}: local coverage tooling, no build contribution')
+        s.note(path, 'local-tooling', 'none', f'{path}: local coverage tooling, no build contribution')
         return
     if _CI_BOARDS_RE.match(path):                                 # rule 2c
-        s.force_full(f'{path}: CI board data changes which boards build -> full build matrix')
+        s.force_full(path, 'ci-boards', f'{path}: CI board data changes which boards build -> full build matrix')
         return
     if _MEMBROWSE_SCRIPT_RE.match(path):                          # rule 2d
-        s.force_full(f'{path}: CI size script -> full build matrix')
+        # verified by the upload target family_add_membrowse() declares, which `all` never runs
+        s.force_full(path, 'membrowse-script', f'{path}: CI size script -> full build matrix',
+                     (MEMBROWSE_TARGET,))
+        return
+    if _SIZE_SCRIPT_RE.match(path):                               # rule 2d
+        # no build target runs it: CI's code-size step does (build_util.yml snapshot)
+        s.force_full(path, 'size-script', f'{path}: CI size script -> full build matrix')
         return
     if _FULL_RE.match(path):                                      # rules 15-16
         # attribution, not behaviour: these already reached `full` through the
         # fall-through below. Naming them means a future narrowing of rule 17 cannot
         # silently change what they do. Deliberately last, so every earlier rule keeps
         # priority - examples/device/board_test is rule 14 (just board_test), not ALL.
-        s.force_full(f'{path}: core/infra -> full build matrix')
+        s.force_full(path, 'core-infra', f'{path}: core/infra -> full build matrix')
         return
-    s.force_full(f'{path}: unclassified -> full build matrix')    # rule 17
+    s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17
 
 
 @contextlib.contextmanager
@@ -1257,7 +1418,7 @@ def _prune_buildable(fams, fam_ex, repo_root):
     union applies to every broadcom_64bit board while the make scrape applies it to
     none - asking cmake alone drops the only aarch64-gcc family in the matrix and
     `build-make-aarch64-gcc` stops compiling dfu at all."""
-    out_fams, out_ex, reasons = [], {}, []
+    out_fams, out_ex, reasons, dropped = [], {}, [], {}
     allex = list(all_examples(repo_root))
     with _in_repo(repo_root):
         for fam in fams:
@@ -1265,12 +1426,14 @@ def _prune_buildable(fams, fam_ex, repo_root):
                 # a PR that deletes or renames hw/bsp/<fam> still names it in the
                 # diff (rule 6); the family builds nothing now, and get_family_boards
                 # would raise FileNotFoundError out of the whole selector
-                reasons.append(f'{fam}: family dir gone from tree, dropped')
+                dropped[fam] = f'{fam}: family dir gone from tree, dropped'
+                reasons.append(dropped[fam])
                 continue
             try:
                 boards = build_py.get_family_boards(fam, False, False)
             except OSError as e:                 # belt and braces: never traceback here
-                reasons.append(f'{fam}: boards unreadable ({e}), dropped')
+                dropped[fam] = f'{fam}: boards unreadable ({e}), dropped'
+                reasons.append(dropped[fam])
                 continue
             if not boards:
                 out_fams.append(fam)         # unknown layout: keep unfiltered
@@ -1312,7 +1475,7 @@ def _prune_buildable(fams, fam_ex, repo_root):
             out_fams.append(fam)
             if kept is not None:
                 out_ex[fam] = kept
-    return out_fams, out_ex, reasons
+    return out_fams, out_ex, reasons, dropped
 
 
 def classify_build(changed_files, repo_root, get_deps_families=None):
@@ -1321,13 +1484,13 @@ def classify_build(changed_files, repo_root, get_deps_families=None):
         _classify_build_one(p, repo_root, s, get_deps_families)
     if s.full:
         return {'full': True, 'families': list(all_bsp_families(repo_root)),
-                'family_examples': {}, 'reasons': s.reasons}
+                'family_examples': {}, 'reasons': s.reasons, 'paths': s.paths, 'dropped': {}}
     fams = sorted(s.fam_ex)
     fam_ex = {f: sorted(e) for f, e in s.fam_ex.items() if e != 'all'}
-    fams, fam_ex, pruned = _prune_buildable(fams, fam_ex, repo_root)
+    fams, fam_ex, pruned, dropped = _prune_buildable(fams, fam_ex, repo_root)
     s.reasons += pruned
     return {'full': False, 'families': fams, 'family_examples': fam_ex,
-            'reasons': s.reasons}
+            'reasons': s.reasons, 'paths': s.paths, 'dropped': dropped}
 
 
 if __name__ == '__main__':

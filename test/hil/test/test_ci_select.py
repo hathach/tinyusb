@@ -1718,8 +1718,8 @@ class TestGetDepsRule(unittest.TestCase):
 
 
 class TestGetDepsGitPlumbing(unittest.TestCase):
-    """--base mode: merge-base, the diff, and both blobs come from git, and only
-    tools/get_deps.py in the diff triggers the blob reads."""
+    """--base mode: the refs resolve once, then merge-base, the diff and both blobs come
+    from git at those commits, and only tools/get_deps.py in the diff triggers the blob reads."""
 
     HEAD = _GD_BASE.replace("'bbb'", "'bbb2'")
 
@@ -1729,7 +1729,10 @@ class TestGetDepsGitPlumbing(unittest.TestCase):
 
         def fake_run(argv, **kw):
             calls.append(argv)
-            if argv[:2] == ['git', 'merge-base']:
+            if argv[:2] == ['git', 'rev-parse']:
+                out = 'HEADSHA\n' if argv[-1] == 'HEAD^{commit}' else 'BASESHA\n'
+            elif argv[:2] == ['git', 'merge-base']:
+                self.assertEqual(argv[2:], ['HEADSHA', 'BASESHA'])
                 out = 'MB123\n'
             elif argv[:3] == ci_select.GIT_DIFF_ARGV[:3]:
                 out = diff
@@ -1750,7 +1753,8 @@ class TestGetDepsGitPlumbing(unittest.TestCase):
     def test_base_mode_reads_the_merge_base_blob(self):
         out, calls = self.run_main('tools/get_deps.py\n')
         self.assertIn(['git', 'show', 'MB123:tools/get_deps.py'], calls)
-        self.assertIn(['git', 'show', 'HEAD:tools/get_deps.py'], calls)
+        self.assertIn(['git', 'show', 'HEADSHA:tools/get_deps.py'], calls)
+        self.assertIn(['git', 'diff', '--no-renames', '--name-only', 'MB123..HEADSHA'], calls)
         self.assertFalse(out['build']['full'])
         self.assertEqual(out['build']['families'], ['stm32f4', 'stm32f7'])
 
