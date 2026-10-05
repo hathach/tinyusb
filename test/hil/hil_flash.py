@@ -163,6 +163,7 @@ def reset_openocd(board, timeout=None):
 # discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
 # attributes of every USB device and blocks on a wedged one.
 JLINK_CFG = 'interface/jlink.cfg'
+VID_FILTERED_CFGS = ('interface/stlink.cfg', 'interface/ti-icdi.cfg')
 
 
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
@@ -239,6 +240,8 @@ def convoy_safe(flasher: dict) -> bool:
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
     * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
+    * openocd over interface/stlink.cfg or interface/ti-icdi.cfg -- discovery is VID/PID
+      filtered by the cfg's own `adapter usb vid_pid` (below).
     * pyocd with one `vid_pid` pair -- run_pyocd.py makes pyusb drop every other device
       before pyocd's matcher opens it, and leaves only the CMSIS-DAP probe plugin.
 
@@ -290,7 +293,14 @@ def convoy_safe(flasher: dict) -> bool:
     # never opens a foreign node. Verified against openocd 0ce743125 and libjaylink 0.4.0,
     # and by strace on ci.lan (2026-09-21): only SEGGER usbfs nodes opened, and the only
     # locking sysfs attribute read is the selected probe's bConfigurationValue.
-    return JLINK_CFG in (flasher.get('args') or '')
+    args = flasher.get('args') or ''
+    if JLINK_CFG in args:
+        return True
+    # stlink_usb.c:3403 and ti_icdi_usb.c:675 discover through jtag_libusb_open with the
+    # cfg's vid_pid list, which skips every non-matching descriptor before libusb_open
+    # (libusb_helper.c:170-176); both cfgs always set that list. Verified against
+    # openocd 0ce743125.
+    return any(cfg in args for cfg in VID_FILTERED_CFGS)
 
 
 def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:

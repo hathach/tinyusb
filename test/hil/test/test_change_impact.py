@@ -826,9 +826,16 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertTrue(hil_flash.convoy_safe(
             {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}))
 
-    def test_openocd_with_neither_a_pin_nor_jlink_is_not_safe(self):
+    def test_openocd_over_a_vid_filtered_cfg_is_convoy_safe_without_a_pin(self):
+        """stlink.cfg and ti-icdi.cfg set `adapter usb vid_pid` themselves, and their drivers
+        match it against the cached descriptor before libusb_open (jtag_libusb_open)."""
+        for cfg in ('interface/stlink.cfg', 'interface/ti-icdi.cfg'):
+            self.assertTrue(hil_flash.convoy_safe(
+                {'name': 'openocd', 'args': f'-f {cfg} -f target/stm32h7x.cfg'}), cfg)
+
+    def test_openocd_with_neither_a_pin_nor_a_filtered_cfg_is_not_safe(self):
         self.assertFalse(hil_flash.convoy_safe(
-            {'name': 'openocd', 'args': '-f interface/stlink.cfg -f target/stm32h7x.cfg'}))
+            {'name': 'openocd', 'args': '-f interface/cmsis-dap.cfg -f target/rp2040.cfg'}))
 
     def test_the_existing_rules_are_unchanged(self):
         self.assertTrue(hil_flash.convoy_safe(
@@ -1010,6 +1017,36 @@ class FlasherRecoverEntry(unittest.TestCase):
             self.assertEqual(hil_flash.FLASHER_SUFFIX[rec['name']], hil_flash.FLASHER_SUFFIX['jlink'],
                              f'{name}: the recovery reflashes the artifact jlink flashed')
         self.assertEqual(seen, demonstrated)
+
+
+class TestUsbtestRecoveryCoverage(unittest.TestCase):
+    """A usbtest battery that hangs is recovered only through a convoy-safe recovery
+    flasher (usbtest.recover_hang); every other board stays wedged for the rest of the run.
+    So every board the roster runs usbtest on must have one."""
+
+    # not yet demonstrated on hardware; drop a board once its flasher_recover lands
+    PENDING = {'tinyusb.json': {'ek_tm4c123gxl', 'ra4m1_ek', 'stm32h743nucleo',
+                                'stm32g0b1nucleo', 'stm32u083nucleo'},
+               'hfp.json': {'stm32l412nucleo', 'stm32f746disco'}}
+
+    @staticmethod
+    def runs_usbtest(board):
+        """hil_test._tests_for's roster default, without its -t/-bt overrides."""
+        tests = board.get('tests', {})
+        if 'only' in tests:
+            selected = 'device/usbtest' in tests['only']
+        else:
+            selected = tests.get('device') is True and 'device/usbtest' in device_tests
+        return selected and 'device/usbtest' not in tests.get('skip', [])
+
+    def test_every_usbtest_board_can_be_recovered(self):
+        uncovered = {}
+        for name in self.PENDING:
+            with open(os.path.join(REPO, 'test/hil', name)) as f:
+                boards = json.load(f)['boards']
+            uncovered[name] = {b['name'] for b in boards if self.runs_usbtest(b)
+                               and not hil_flash.convoy_safe(hil_flash.recover_flasher(b))}
+        self.assertEqual(uncovered, self.PENDING)
 
 
 class TestModuleMove(unittest.TestCase):

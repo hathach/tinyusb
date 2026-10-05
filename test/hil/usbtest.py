@@ -446,6 +446,14 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
+sudo_forbidden = False   # set by main when a post-hang recovery was requested
+
+
+def needs_sudo(node):
+    """Device nodes are usually opened directly (udev rule); sudo only if not."""
+    return not os.access(node, os.W_OK) and os.geteuid() != 0
+
+
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
     if quick:
@@ -453,10 +461,14 @@ def run_case(num, dev, testusb, quick, timeout):
     # -A <node> confines testusb's ftw() device scan to the DUT: with -D alone it opens every
     # usbfs node, blocking on any peer's held device lock (#4047). -A must precede -D, it clears it.
     cmd = [testusb, '-A', dev['node'], '-D', dev['node'], '-t', str(num)] + fs_hs.split()
-    # device nodes are usually opened directly (udev rule); sudo only if not
-    if not os.access(dev['node'], os.W_OK) and os.geteuid() != 0:
-        cmd = ['sudo', '-n'] + cmd
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
+    if needs_sudo(dev['node']):
+        if sudo_forbidden:
+            # a re-enumeration after main's check can hand back a node only root may open
+            result.update(status='FAIL', detail=f"{dev['node']} is not writable: refusing a "
+                          'sudo-wrapped testusb under a recovery request')
+            return result
+        cmd = ['sudo', '-n'] + cmd
 
     # NO start_new_session: testusb must stay in OUR process group so the caller's outer
     # killpg still reaps it.
@@ -667,6 +679,13 @@ def main():
 
     # before touching the device: an incompatible host exits here, before any bind
     check_host_compat(dev)
+    # run_case would wrap testusb in sudo, where a HUNG case's reap only proves the wrapper
+    # exited, so the recovery the caller asked for could never be confirmed
+    global sudo_forbidden
+    sudo_forbidden = bool(args.recover_board)
+    if sudo_forbidden and needs_sudo(dev['node']):
+        sys.exit(f"{dev['node']} is not writable: testusb would run under sudo, where a "
+                 'post-hang recovery cannot be confirmed; install tools/88-tinyusb.rules')
 
     register_usbtest_id()
     results = []
