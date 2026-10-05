@@ -106,9 +106,6 @@ family_list = {
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(REPO, 'tools'))
-import ci_select  # noqa: E402  check_manifest, the one reading of a selection every CI reader shares
-
 # the toolchains cmake-required builds a changed board with: every one a GitHub runner
 # can set up (.github/actions/setup_toolchain), espressif's through its IDF container
 REQUIRED_TOOLCHAINS = ['aarch64-gcc', 'arm-gcc', 'esp-idf', 'ft9xx-gcc', 'msp430-gcc', 'riscv-gcc', 'rx-gcc']
@@ -139,8 +136,12 @@ def usable(select):
     if select is None:
         return None
     try:
+        # imported here, under the fall-open: a broken selector must still leave the
+        # unscoped matrix
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import ci_select
         return ci_select.check_manifest(select)
-    except ValueError as e:
+    except Exception as e:
         print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full matrix', file=sys.stderr)
         return None
 

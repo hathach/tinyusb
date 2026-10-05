@@ -1102,7 +1102,7 @@ def check_manifest(m):
     def strs(x):
         return isinstance(x, list) and all(isinstance(s, str) for s in x)
 
-    need(isinstance(m, dict) and m.get('version') == 1, 'not version 1')
+    need(isinstance(m, dict) and type(m.get('version')) is int and m['version'] == 1, 'not version 1')
     b, h = m.get('build'), m.get('hil')
     need(isinstance(b, dict) and isinstance(h, dict), 'build/hil not objects')
     for name, axis in (('build', b), ('hil', h)):

@@ -2394,6 +2394,39 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertFalse(any(json.loads(r.stdout).values()))
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
 
+    def test_the_unscoped_matrices_survive_a_broken_selector(self):
+        # the selector suites gating a broken selector send CI to these fall-backs
+        import shutil, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            for name in ('.github', 'hw', 'test'):
+                os.symlink(os.path.join(REPO, name), os.path.join(d, name))
+            os.mkdir(os.path.join(d, 'tools'))
+            with open(os.path.join(d, 'tools', 'ci_select.py'), 'w') as f:
+                f.write('raise ImportError("broken selector")\n')
+            for script, args in ((SET_MATRIX, ['--pinned']), (SET_MATRIX, ['--required']),
+                                 (HIL_SET_MATRIX, [os.path.join(REPO, 'test/hil/tinyusb.json')])):
+                os.makedirs(os.path.join(d, 'x', 'y'), exist_ok=True)
+                # the scripts find the repo two levels above themselves
+                moved = os.path.join(d, 'x', 'y', os.path.basename(script))
+                shutil.copy(script, moved)
+                for sel in ([], ['--select', json.dumps(mf(['stm32f4']))]):
+                    r = subprocess.run([sys.executable, moved, *args, *sel], capture_output=True, text=True)
+                    self.assertEqual(r.returncode, 0, f'{script} {sel}: {r.stderr}')
+                    self.assertTrue(json.loads(r.stdout))
+                    if sel:
+                        self.assertIn('broken selector', r.stderr)
+
+    def test_every_rp2040_board_gets_the_pico_sdk(self):
+        # cmake-required hands get_deps a bare `-b <board>`: the action keys the SDK
+        # checkout on the arg's spelling, so every rp2040 board must match it
+        with open(os.path.join(REPO, '.github', 'actions', 'get_deps', 'action.yml')) as f:
+            text = f.read()
+        cond = text[text.index('- name: Checkout pico-sdk'):text.index('uses:', text.index('- name: Checkout pico-sdk'))]
+        keys = re.findall(r"contains\(inputs\.arg, '([^']+)'\)", cond)
+        self.assertTrue(keys)
+        for board in os.listdir(os.path.join(REPO, 'hw', 'bsp', 'rp2040', 'boards')):
+            self.assertTrue(any(k in f'-b {board}' for k in keys), board)
+
     def test_every_listed_family_has_a_required_toolchain(self):
         sys.path.insert(0, os.path.dirname(SET_MATRIX))
         import ci_set_matrix
@@ -2419,6 +2452,8 @@ class TestCheckManifest(unittest.TestCase):
         cases = {
             'legacy shape': {'full': False, 'boards': {}, 'build': {'full': False, 'families': []}},
             'version': bad(lambda m: m.update(version=2)),
+            'version a bool': bad(lambda m: m.update(version=True)),
+            'version a float': bad(lambda m: m.update(version=1.0)),
             'full not bool': bad(lambda m: m['build'].update(full='false')),
             'families a list': bad(lambda m: m['build'].update(families=['stm32f4'])),
             'empty example list': bad(lambda m: m['build']['families'].update(stm32f4={'examples': []})),

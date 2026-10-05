@@ -6,8 +6,6 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
 import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
-import ci_select  # noqa: E402  check_manifest, the reading every CI consumer shares
 
 
 def _resolve_config_path(config_file):
@@ -42,6 +40,10 @@ def main():
             with open(args.select_file) as f:
                 raw = f.read()
         if raw:
+            # imported here, under the fall-open: a broken selector must still leave the
+            # full roster
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
+            import ci_select
             hil = ci_select.check_manifest(json.loads(raw))['hil']
     except Exception as e:  # fail-open: an unusable selection must never red the job
         # ALL of it is unusable, hil_examples included: keeping the -e lists would build

@@ -12,7 +12,7 @@ runs:
       if: >-
         contains(inputs.arg, 'rp2040') ||
         contains(inputs.arg, 'rp2350') ||
-        contains(inputs.arg, 'raspberry_pi_pico') ||
+        contains(inputs.arg, 'pico') ||
         contains(inputs.arg, 'adafruit_fruit_jam')
       uses: actions/checkout@v6
       with:
