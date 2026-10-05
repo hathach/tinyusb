@@ -54,9 +54,11 @@ python3 .claude/skills/usbtest/scripts/wedge_drill.py --config <this host's conf
 Only `pass` is evidence that the board's recovery works: HUNG, probe reset rc 0, the original
 testusb reaped, a fresh enumeration and case 1 passing. `inconclusive` means no wedge was produced
 (the case ended first, the halt failed or nothing hung); try another `--delay`, do not count it.
-Case 27 often ends within 1 s: `--delay 0` suits HS boards (max32666fthr, mimxrt1064_evk). On
-nanoch32v203-fsdev, ch32v103r_r1_1v0 and ch32v307v_r1_1v0-usbhs the halt produced no hang at the
-delays tried (0.3, 1 and 3 s, and 0 for the usbhs variant; 2026-10-06).
+Case 27 often ends within 1 s: `--delay 0` suits HS boards (max32666fthr, mimxrt1064_evk,
+ch32v307v_r1_1v0-usbhs). On a WCH-Link (`target/wch-riscv.cfg`) openocd's shutdown resumes the
+core, so the drill SIGKILLs a halted openocd instead. On nanoch32v203-fsdev the WCH-LinkE attach
+(openocd 0ce743125) itself rewrote RCC, taking the USB clock off 48 MHz, so case 27 failed -EPIPE
+instead of hanging and the drill stayed inconclusive (2026-10-06).
 Its `cleanup` is the drill's own reset and never stands in for the harness's recovery. Boards
 whose recovery flasher is not openocd are refused.
 

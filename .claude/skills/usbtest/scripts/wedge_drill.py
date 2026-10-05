@@ -30,7 +30,9 @@ import argparse
 import json
 import os
 import re
+import shlex
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -52,11 +54,76 @@ def halt_bound():
     return HALT_TIMEOUT + hil_util.REAP_GRACE
 
 
+HALTED_MARK = 'WEDGE_DRILL_HALTED'
+
+
+class ProbeHeld(Exception):
+    """A halt's openocd survived SIGKILL: likely in D state on the probe's device lock, which
+    any further open of the probe would also block on."""
+
+    def __init__(self, pid):
+        super().__init__(f'openocd {pid} survived SIGKILL and may still hold the probe')
+        self.pid = pid
+
+
+def wch(rec_board):
+    return 'target/wch-riscv.cfg' in rec_board['flasher'].get('args', '')
+
+
+def kill_and_reap(p):
+    """SIGKILL `p`'s session and wait REAP_GRACE for it, through signals: an interruption is
+    re-raised only once its death is confirmed, and an unconfirmed death is ProbeHeld whatever
+    interrupted."""
+    deadline = time.monotonic() + hil_util.REAP_GRACE
+    interrupted = None
+    while True:
+        try:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait(timeout=max(0, deadline - time.monotonic()))
+            break
+        except (Terminated, KeyboardInterrupt) as e:
+            interrupted = interrupted or e
+        except subprocess.TimeoutExpired:
+            raise ProbeHeld(p.pid) from None
+    if interrupted:
+        raise interrupted
+
+
+def halt_held(rec_board, timeout):
+    """halt_openocd for a WCH-Link: its openocd shutdown sends the probe's detach (wlinke.c
+    wlink_quit), which resumes the core, so the halt holds only if openocd is SIGKILLed once
+    halted. The probe opens once, so openocd is dead when this returns; ProbeHeld otherwise."""
+    cmd = (hil_flash._openocd_cmd_base(rec_board['flasher'])
+           + f' -c "init; halt; echo {HALTED_MARK}; sleep {int(timeout * 1000)}; shutdown"')
+    # no shell: the process reaped below must be openocd itself
+    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, errors='replace', start_new_session=True)
+    out, halted = [], threading.Event()
+
+    def read():
+        for line in p.stdout:
+            out.append(line)
+            if line.strip() == HALTED_MARK:
+                halted.set()
+                return
+
+    try:
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        reader.join(timeout)
+    finally:
+        kill_and_reap(p)
+    return subprocess.CompletedProcess(cmd, 0 if halted.is_set() else 1, ''.join(out), '')
+
+
 def on_signal(signum, frame):
     """SIGTERM and SIGINT alike: kill the battery and unwind to the cleanup, once."""
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    run_case.kill_children()
+    run_case.kill_children(INHERITED)
     raise Terminated()
 
 
@@ -118,9 +185,12 @@ def alive(pid):
 def recovery_from(stderr):
     """What usbtest.py's recover_hang reported: {attempted, reset_rc, reaped}."""
     m = re.search(r'^reset rc (-?\d+)$', stderr, re.M)
-    return {'attempted': 'auto-recovering: resetting' in stderr,
-            'reset_rc': int(m.group(1)) if m else None,
-            'reaped': 'recovery freed the device: testusb reaped' in stderr}
+    rec = {'attempted': 'auto-recovering: resetting' in stderr,
+           'reset_rc': int(m.group(1)) if m else None,
+           'reaped': 'recovery freed the device: testusb reaped' in stderr}
+    if rec['attempted'] and rec['reset_rc'] != 0:
+        rec['log'] = stderr[-800:]   # the failed reset's own output
+    return rec
 
 
 def inject(rec_board, node, delay, timeout, battery_done, report):
@@ -145,7 +215,8 @@ def inject(rec_board, node, delay, timeout, battery_done, report):
         return False
     report['halt']['issued'] = True   # before the call: a halt that times out may still land
     t = time.monotonic()
-    ret = hil_flash.halt_openocd(rec_board, timeout=HALT_TIMEOUT)
+    halt = halt_held if wch(rec_board) else hil_flash.halt_openocd
+    ret = halt(rec_board, timeout=HALT_TIMEOUT)
     report['halt'].update(rc=ret.returncode, took=round(time.monotonic() - t, 2),
                           caseRunningAfter=alive(pid))
     if ret.returncode != 0:
@@ -221,6 +292,10 @@ def drill(board, rec_board, fw, delay, timeout, report):
     worker.start()
     try:
         halted = inject(rec_board, before[0], delay, timeout, done, report)
+    except ProbeHeld as e:
+        report['halt']['probeHeld'] = e.pid
+        run_case.kill_children(INHERITED)   # before the battery's own recovery opens the probe
+        raise
     finally:
         join(worker)
     if 'e' in result:
@@ -263,9 +338,40 @@ def drill(board, rec_board, fw, delay, timeout, report):
     return 'pass'
 
 
+INHERITED = set()   # children we did not spawn, e.g. a launching shell's `2> >(...)`
+
+
+def live_children(grace):
+    """Pids of this process's children still not exited after up to `grace` s, INHERITED
+    aside. Every child is reaped or SIGKILLed by now, so one still alive is stuck in D state,
+    e.g. a halt's openocd on the probe's device lock."""
+    me, deadline = str(os.getpid()), time.monotonic() + grace
+    while True:
+        pids = []
+        for d in PROC.glob('[0-9]*'):
+            try:
+                fields = (d / 'stat').read_text().rsplit(')', 1)[1].split()
+            except (OSError, IndexError):
+                continue
+            if fields[1] == me and fields[0] != 'Z' and int(d.name) not in INHERITED:
+                pids.append(int(d.name))
+        if not pids or time.monotonic() > deadline:
+            return pids
+        time.sleep(0.1)
+
+
 def finish_locked(board, rec_board, park_fw, report):
     """Cleanup and parking under the lock, on every path out of the drill."""
     if report['boardState'] == 'flash failed':
+        return
+    if not report['halt'].get('probeHeld'):
+        # whatever path got here, signals included: no probe access past a live child
+        stuck = live_children(hil_util.REAP_GRACE)
+        if stuck:
+            report['halt']['probeHeld'] = stuck[0]
+    if report['halt'].get('probeHeld'):
+        report['boardState'] = (f'unknown, not parked: openocd {report["halt"]["probeHeld"]} may '
+                                f'still hold the probe (usb-kernel-recover)')
         return
     if report['drill'] == 'pass':
         safe = True
@@ -318,6 +424,7 @@ def main():
                            f'before the {args.timeout}s case timeout')
         return finish(2)
 
+    INHERITED.update(live_children(0))
     cwd = os.getcwd()
     previous = {s: signal.signal(s, on_signal) for s in (signal.SIGTERM, signal.SIGINT)}
     try:

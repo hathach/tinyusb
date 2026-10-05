@@ -5,10 +5,12 @@ wedge and its recovery are proved by a run on a rig board."""
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -29,6 +31,8 @@ ROSTER = {'boards': [
     {'name': 'norec', 'uid': 'UID2', 'flasher': {'name': 'jlink', 'uid': 'P2', 'args': '-device X'},
      'tests': {'device': True}},
     {'name': 'esp', 'uid': 'UID3', 'flasher': {'name': 'esptool', 'uid': 'P3'}, 'tests': {'device': True}},
+    {'name': 'wch', 'uid': 'UID4', 'flasher': {'name': 'openocd', 'uid': 'P4', 'args': '-f target/wch-riscv.cfg',
+                                               'vid_pid': '0x1a86 0x8010'}, 'tests': {'device': True}},
 ]}
 RECOVERED = ('auto-recovering: resetting ok via openocd probe\nreset rc 0\n'
              'recovery freed the device: testusb reaped\n')
@@ -65,6 +69,7 @@ class Rig:
         self.smoke_raises = None
         self.flash_raises = {}       # firmware -> exception
         self.halted = threading.Event()
+        self.live_children = []
         tmp = tempfile.TemporaryDirectory()
         test.addCleanup(tmp.cleanup)
         self.config = Path(tmp.name) / 'rig.json'
@@ -80,8 +85,8 @@ class Rig:
                 return self.case27
             return self.smoke
 
-        def halt(board, timeout):
-            self.calls.append(('halt', board['flasher']['name'], timeout))
+        def halt(board, timeout, kind='halt'):
+            self.calls.append((kind, board['flasher']['name'], timeout))
             self.halted.set()
             if self.halt_raises:
                 raise self.halt_raises
@@ -115,12 +120,14 @@ class Rig:
             (run_case.hil_lock, 'acquire_board_lock', lambda name, reason: self.lock),
             (run_case.hil_lock, 'clear_record', lambda fh: None),
             (run_case.hil_flash, 'halt_openocd', halt),
+            (wedge_drill, 'halt_held', lambda board, timeout: halt(board, timeout, 'halt-held')),
             (run_case.hil_flash, 'reset_primitive', lambda name: reset),
             (wedge_drill, 'identity', lambda uid: self.ids.pop(0) if len(self.ids) > 1 else self.ids[0]),
             (wedge_drill, 'testusb_pid', lambda node, case=None: (4242 if self.case_seen else None)
              if case == 27 else self.left_testusb),
             (wedge_drill, 'age', lambda pid: 0.5),
             (wedge_drill, 'alive', alive),
+            (wedge_drill, 'live_children', lambda grace: self.live_children),
         )
         for obj, name, value in stubs:
             patcher = mock.patch.object(obj, name, value)
@@ -384,6 +391,157 @@ class Refusals(unittest.TestCase):
     def test_no_room_for_the_halt(self):
         self.refused('--board', 'ok', '--delay', '50', '--timeout', '60', says='must end before')
         self.refused('--board', 'ok', '--delay', '-1', says='must end before')
+
+
+class WchHeldHalt(unittest.TestCase):
+    """A WCH-Link's openocd shutdown resumes the core, so its halt is held by SIGKILLing a
+    halted openocd; the probe opens once, so that openocd must be gone before the recovery."""
+
+    def test_a_wch_board_halts_through_the_held_halt(self):
+        rig = Rig(self)
+        rc, r = rig.run('--board', 'wch', '--delay', '0')
+        self.assertEqual(r['drill'], 'pass', r)
+        self.assertIn('halt-held', [c[0] for c in rig.calls])
+        self.assertNotIn('halt', [c[0] for c in rig.calls])
+
+    def test_other_boards_keep_the_plain_halt(self):
+        rig = Rig(self)
+        rig.run('--board', 'ok', '--delay', '0')
+        self.assertNotIn('halt-held', [c[0] for c in rig.calls])
+
+    def fake_openocd(self, body, timeout):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        script = Path(tmp.name) / 'fake.py'
+        script.write_text('import sys, time\n' + body)
+        board = {'name': 'wch', 'flasher': {'name': 'openocd'}}
+        started, real_popen = [], subprocess.Popen
+
+        def popen(*a, **kw):
+            started.append(real_popen(*a, **kw))
+            return started[-1]
+        t = time.monotonic()
+        try:
+            with mock.patch.object(run_case.hil_flash, '_openocd_cmd_base',
+                                   lambda flasher: f'{sys.executable} {script} --'), \
+                    mock.patch.object(wedge_drill.subprocess, 'Popen', popen):
+                ret = wedge_drill.halt_held(board, timeout)
+        finally:
+            self.assertEqual(len(started), 1)
+            self.assertIsNotNone(started[0].poll(), 'openocd outlived halt_held')
+        return ret, time.monotonic() - t
+
+    def test_the_halt_is_held_by_killing_openocd_once_halted(self):
+        ret, took = self.fake_openocd(
+            f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n', 10)
+        self.assertEqual(ret.returncode, 0)
+        self.assertLess(took, 5)
+        self.assertIn('-c "init; halt; echo WEDGE_DRILL_HALTED; sleep 10000; shutdown"', ret.args)
+
+    def test_an_openocd_that_exits_unhalted_fails_at_once(self):
+        ret, took = self.fake_openocd('print("Error: no device found", flush=True)\nsys.exit(1)\n', 10)
+        self.assertEqual(ret.returncode, 1)
+        self.assertIn('no device found', ret.stdout)
+        self.assertLess(took, 5)
+
+    def test_an_unreaped_openocd_is_not_a_halt(self):
+        real_wait = subprocess.Popen.wait
+
+        def wait(proc, timeout=None):
+            real_wait(proc)
+            raise subprocess.TimeoutExpired('openocd', timeout)
+        with mock.patch.object(subprocess.Popen, 'wait', wait), self.assertRaises(wedge_drill.ProbeHeld):
+            self.fake_openocd(f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n', 10)
+
+    def interrupted_reap(self, then):
+        real_wait, calls = subprocess.Popen.wait, []
+
+        def wait(proc, timeout=None):
+            calls.append(timeout)
+            if len(calls) == 1:
+                raise run_case.Terminated()
+            if then == 'dead':
+                return real_wait(proc)
+            real_wait(proc)
+            raise subprocess.TimeoutExpired('openocd', timeout)
+        return mock.patch.object(subprocess.Popen, 'wait', wait)
+
+    def test_a_signal_during_the_reap_is_raised_once_openocd_is_dead(self):
+        with self.interrupted_reap('dead'), self.assertRaises(run_case.Terminated):
+            self.fake_openocd(f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n', 10)
+
+    def test_a_signal_during_an_unconfirmed_reap_is_still_a_held_probe(self):
+        with self.interrupted_reap('alive'), self.assertRaises(wedge_drill.ProbeHeld):
+            self.fake_openocd(f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n', 10)
+
+    def test_a_signal_during_the_kill_still_confirms_the_death(self):
+        real_killpg, calls = os.killpg, []
+
+        def killpg(pid, sig):
+            calls.append(pid)
+            if len(calls) == 1:
+                raise run_case.Terminated()
+            real_killpg(pid, sig)
+        with mock.patch.object(wedge_drill.os, 'killpg', killpg), self.assertRaises(run_case.Terminated):
+            self.fake_openocd(f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n', 10)
+
+    def test_a_live_child_at_cleanup_blocks_the_probe_whatever_the_path(self):
+        rig = Rig(self)
+        rig.live_children = [999]
+        rig.halt_rc = 1
+        rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual(r['halt']['probeHeld'], 999)
+        self.assertNotIn('cleanup-reset', [c[0] for c in rig.calls])
+        self.assertFalse(rig.parked())
+        self.assertTrue(rig.lock.closed)
+
+    def test_live_children_sees_only_unexited_children(self):
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+        try:
+            self.assertIn(child.pid, wedge_drill.live_children(0))
+            with mock.patch.object(wedge_drill, 'INHERITED', {child.pid}):
+                self.assertNotIn(child.pid, wedge_drill.live_children(0))   # not ours to judge
+        finally:
+            child.kill()
+        time.sleep(0.3)   # a zombie, not yet reaped, is not alive
+        self.assertNotIn(child.pid, wedge_drill.live_children(0))
+        child.wait()
+
+    def test_a_held_probe_stops_the_battery_and_touches_the_probe_no_more(self):
+        rig = Rig(self)
+        rig.halt_raises = wedge_drill.ProbeHeld(777)
+        killed = []
+        with mock.patch.object(run_case, 'kill_children', lambda spare=(): killed.append(spare)):
+            rc, r = rig.run('--board', 'wch', '--delay', '0')
+        self.assertEqual(rc, 1)
+        self.assertEqual(killed, [wedge_drill.INHERITED])   # an inherited logger is spared
+        self.assertEqual(r['halt']['probeHeld'], 777)
+        self.assertIn('openocd 777', r['boardState'])
+        self.assertNotIn('cleanup-reset', [c[0] for c in rig.calls])
+        self.assertFalse(rig.parked())
+        self.assertTrue(rig.lock.closed)
+
+    def test_a_reader_that_fails_to_start_still_kills_openocd(self):
+        with mock.patch.object(wedge_drill.threading.Thread, 'start', side_effect=RuntimeError('no thread')), \
+                self.assertRaises(RuntimeError):
+            self.fake_openocd('time.sleep(30)\n', 10)
+
+    def test_a_silent_openocd_is_bounded_and_killed(self):
+        ret, took = self.fake_openocd('time.sleep(30)\n', 1)
+        self.assertEqual(ret.returncode, 1)
+        self.assertLess(took, 5)
+
+
+class RecoveryReport(unittest.TestCase):
+    def test_a_failed_reset_keeps_its_output(self):
+        stderr = ('auto-recovering: resetting b via openocd probe\n'
+                  'COMMAND FAILED: openocd ...\nError: claim interface failed\nreset rc 1\n')
+        rec = wedge_drill.recovery_from(stderr)
+        self.assertEqual(rec['reset_rc'], 1)
+        self.assertIn('claim interface failed', rec['log'])
+
+    def test_a_good_reset_carries_no_log(self):
+        self.assertNotIn('log', wedge_drill.recovery_from(RECOVERED))
 
 
 if __name__ == '__main__':
