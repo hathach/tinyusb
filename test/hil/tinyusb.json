@@ -275,7 +275,7 @@
                 "name": "pyocd",
                 "uid": "GSA0CQEQ",
                 "vid_pid": "0x1fc9 0x0090",
-                "args": "-t lpc55s28 --script test/hil/pyocd/lpc55_reset_catch.py"
+                "args": "-t lpc55s28"
             }
         },
         {

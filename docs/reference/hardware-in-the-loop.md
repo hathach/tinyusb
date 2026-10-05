@@ -186,7 +186,7 @@ boards use have to be installed. The mapping is not always guessable:
 | `openocd`  | [`hathach/openocd`][openocd-fork] branch `tinyusb` — one build merging the Raspberry Pi (RP2350), WCH and Analog Devices (MAX32) forks, none upstream |
 | `esptool`  | `esptool` (pip)                                                                                                                                       |
 | `lm4flash` | `lm4flash` (apt)                                                                                                                                      |
-| `pyocd`    | `pyocd` (`pipx install pyocd==0.45.1`), run through `test/hil/pyocd/pinned.py`, so the roster entry needs a `vid_pid` pair                            |
+| `pyocd`    | `pyocd` (`pipx install pyocd==0.45.1`), run through `test/hil/pyocd/run_pyocd.py`, so the roster entry needs a `vid_pid` pair                         |
 
 [openocd-fork]: https://github.com/hathach/openocd/tree/tinyusb
 

@@ -167,7 +167,7 @@ class FlasherCfg(TypedDict):
     name: str
     uid: str
     args: NotRequired[str]     # stlink entries carry no args
-    vid_pid: NotRequired[str]  # openocd/pyocd probe pin, verbatim (e.g. "0x2e8a 0x000c")
+    vid_pid: NotRequired[str]  # openocd/pyocd probe filter, verbatim (e.g. "0x2e8a 0x000c")
     verify: NotRequired[bool]  # openocd read-back verify opt-out (WCH)
 
 
@@ -2344,7 +2344,7 @@ def main() -> None:
         _config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
     bad_pyocd = sorted({e['name'] for e in config_boards
                         for f in (e['flasher'], hil_flash.recover_flasher(e))
-                        if (f.get('name') or '').lower() == 'pyocd' and hil_flash.pyocd_pin(f) is None})
+                        if (f.get('name') or '').lower() == 'pyocd' and hil_flash.pyocd_vid_pid(f) is None})
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')

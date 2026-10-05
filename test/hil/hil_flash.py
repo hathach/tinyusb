@@ -239,7 +239,7 @@ def convoy_safe(flasher: dict) -> bool:
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
     * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
-    * pyocd pinned with one `vid_pid` pair -- pinned.py makes pyusb drop every other device
+    * pyocd with one `vid_pid` pair -- run_pyocd.py makes pyusb drop every other device
       before pyocd's matcher opens it, and leaves only the CMSIS-DAP probe plugin.
 
     Everything else enumerates by OPENING nodes, would block in D state on the poisoned
@@ -273,7 +273,7 @@ def convoy_safe(flasher: dict) -> bool:
     if name == 'esptool':
         return True
     if name == 'pyocd':
-        return pyocd_pin(flasher) is not None
+        return pyocd_vid_pid(flasher) is not None
     # EXACT, not startswith: rescue_openocd and usbtest's
     # hil_flash.flash_primitive(name) both require the exact name, so an
     # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
@@ -321,9 +321,9 @@ def flash_lm4flash(board, firmware, timeout=None):
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
-def pyocd_pin(flasher: dict) -> list | None:
-    """[vid, pid] a pyocd entry pins discovery to, or None when it lacks a uid or exactly one
-    valid `vid_pid` pair: unpinned, pyocd opens every CMSIS-DAP-class device (pinned.py)."""
+def pyocd_vid_pid(flasher: dict) -> list | None:
+    """[vid, pid] a pyocd entry filters discovery to, or None when it lacks a uid or exactly one
+    valid `vid_pid` pair: unfiltered, pyocd opens every CMSIS-DAP-class device (run_pyocd.py)."""
     vid_pid = flasher.get('vid_pid')
     if not (flasher.get('uid') and valid_vid_pid(vid_pid) and len(vid_pid.split()) == 2):
         return None
@@ -331,7 +331,7 @@ def pyocd_pin(flasher: dict) -> list | None:
 
 
 def _pyocd_python() -> str:
-    # the launcher must import the pyocd it pins, so it runs under pyocd's own interpreter
+    # the launcher must patch the pyocd it runs, so it runs under pyocd's own interpreter
     exe = shutil.which('pyocd')
     if exe is None:
         raise RuntimeError('pyocd is not on PATH')
@@ -344,23 +344,20 @@ def _pyocd_python() -> str:
 
 
 def _pyocd_argv(flasher: dict, verb: str, *extra: str) -> list:
-    pin = pyocd_pin(flasher)
-    if pin is None:
+    vid_pid = pyocd_vid_pid(flasher)
+    if vid_pid is None:
         raise ValueError(f'pyocd flasher {flasher.get("uid")!r} needs a uid and one "vid_pid" pair')
     # -W: with no matching probe pyocd otherwise waits for one to be plugged in
-    return [_pyocd_python(), str(hil_util.TINYUSB_ROOT / 'test/hil/pyocd/pinned.py'), *pin, verb, '-W',
+    return [_pyocd_python(), str(hil_util.TINYUSB_ROOT / 'test/hil/pyocd/run_pyocd.py'), *vid_pid, verb, '-W',
             '-u', f'cmsisdap:{flasher["uid"]}', *shlex.split(flasher.get('args', '')), *extra]
 
 
-# cwd is the repo root so roster args can name a repo-relative --script (test/hil/pyocd/)
 def flash_pyocd(board, firmware, timeout=None):
-    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'flash', str(firmware)),
-                            cwd=str(hil_util.TINYUSB_ROOT), timeout=timeout)
+    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'flash', str(firmware)), timeout=timeout)
 
 
 def reset_pyocd(board, timeout=None):
-    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'reset'),
-                            cwd=str(hil_util.TINYUSB_ROOT), timeout=timeout)
+    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'reset'), timeout=timeout)
 
 
 def flash_primitive(flasher_name: str):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""The pyocd flasher and its VID/PID-pinned launcher (test/hil/pyocd/pinned.py).
+"""The pyocd flasher, its VID/PID-filtering launcher (test/hil/pyocd/run_pyocd.py) and its user script.
 
 The launcher cases run it against fake usb/libusb_package/pyocd packages whose find() applies
 keyword filters before custom_match, as pyusb's does. They prove the plumbing only; that the
@@ -20,7 +20,8 @@ sys.path.insert(0, str(HIL_DIR))
 
 import hil_flash    # noqa: E402
 
-LAUNCHER = HIL_DIR / 'pyocd' / 'pinned.py'
+LAUNCHER = HIL_DIR / 'pyocd' / 'run_pyocd.py'
+USER_SCRIPT = HIL_DIR / 'pyocd' / 'user_script.py'
 PROBE = [0x1fc9, 0x0090]
 OTHER = [0x1366, 0x1024]
 
@@ -98,7 +99,7 @@ class Launcher(unittest.TestCase):
         return subprocess.run([sys.executable, str(LAUNCHER), *args], env=env,
                               capture_output=True, text=True, timeout=30)
 
-    def test_only_the_pinned_probe_reaches_pyocds_matcher(self):
+    def test_only_the_filtered_probe_reaches_pyocds_matcher(self):
         for libusb_package in (True, False):
             with self.subTest(libusb_package=libusb_package):
                 r = self.run_launcher('0x1fc9', '0x0090', 'flash', '-u', 'cmsisdap:X', 'fw.elf',
@@ -107,30 +108,30 @@ class Launcher(unittest.TestCase):
                 self.assertEqual(json.loads(r.stdout), {
                     'touched': [PROBE, PROBE],            # once per backend, nothing else
                     'classes': ['cmsisdap'],
-                    'backend': 'pyusb',                   # hidapi would bypass the pin
-                    'argv': ['flash', '-u', 'cmsisdap:X', 'fw.elf']})
+                    'backend': 'pyusb',                   # hidapi would bypass the filter
+                    'argv': ['flash', '-u', 'cmsisdap:X', 'fw.elf', '--script', str(USER_SCRIPT)]})
 
     def test_a_selector_naming_another_plugin_fails(self):
         r = self.run_launcher('0x1fc9', '0x0090', 'reset', '-u', 'cmsisdap:X', '--probe=jlink:Y')
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("unknown debug probe type 'jlink'", r.stderr)
 
-    def test_a_backend_that_did_not_bind_the_pinned_find_stops_before_discovery(self):
+    def test_a_backend_that_did_not_bind_the_filtered_find_stops_before_discovery(self):
         r = self.run_launcher('0x1fc9', '0x0090', 'flash', 'fw.elf', FAKE_BIND_ELSEWHERE='1')
         self.assertEqual((r.returncode, r.stdout), (2, ''))
-        self.assertIn('is not the pinned find', r.stderr)
+        self.assertIn('is not the filtered find', r.stderr)
 
-    def test_a_malformed_pin_stops_before_pyocd(self):
+    def test_a_malformed_vid_pid_stops_before_pyocd(self):
         for args in (('flash', 'fw.elf'), ('0x1fc9',), ()):
             r = self.run_launcher(*args)
             self.assertEqual((r.returncode, r.stdout), (2, ''), args)
 
     def test_a_caller_asking_for_another_vid_is_refused(self):
         import importlib.util
-        spec = importlib.util.spec_from_file_location('pinned', LAUNCHER)
-        pinned = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(pinned)
-        find = pinned._pin(lambda **kw: kw, 0x1fc9, 0x0090)
+        spec = importlib.util.spec_from_file_location('run_pyocd', LAUNCHER)
+        run_pyocd = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(run_pyocd)
+        find = run_pyocd._filter_vid_pid(lambda **kw: kw, 0x1fc9, 0x0090)
         self.assertEqual(find(find_all=True), {'find_all': True, 'idVendor': 0x1fc9, 'idProduct': 0x0090})
         with self.assertRaises(RuntimeError):
             find(idVendor=0x1366)
@@ -138,7 +139,7 @@ class Launcher(unittest.TestCase):
 
 class Flasher(unittest.TestCase):
     FLASHER = {'name': 'pyocd', 'uid': 'GSA0CQEQ', 'vid_pid': '0x1fc9 0x0090',
-               'args': '-t lpc55s28 --script test/hil/pyocd/lpc55_reset_catch.py'}
+               'args': '-t lpc55s28'}
 
     def capture(self, fn, *args, **kw):
         seen = {}
@@ -151,20 +152,20 @@ class Flasher(unittest.TestCase):
             fn({'name': 'b', 'flasher': self.FLASHER}, *args, **kw)
         return seen['cmd'], seen['kw']
 
-    def test_flash_and_reset_run_the_launcher_from_the_repo_root(self):
-        head = ['/py', str(hil_flash.hil_util.TINYUSB_ROOT / 'test/hil/pyocd/pinned.py'), '0x1fc9', '0x0090']
-        tail = ['-W', '-u', 'cmsisdap:GSA0CQEQ', '-t', 'lpc55s28', '--script', 'test/hil/pyocd/lpc55_reset_catch.py']
+    def test_flash_and_reset_run_the_launcher(self):
+        head = ['/py', str(hil_flash.hil_util.TINYUSB_ROOT / 'test/hil/pyocd/run_pyocd.py'), '0x1fc9', '0x0090']
+        tail = ['-W', '-u', 'cmsisdap:GSA0CQEQ', '-t', 'lpc55s28']
         for fn, fw, verb in ((hil_flash.flash_pyocd, ('/tmp/a b/fw.elf',), 'flash'),
                              (hil_flash.reset_pyocd, (), 'reset')):
             cmd, kw = self.capture(fn, *fw, timeout=7)
             self.assertEqual(cmd, [*head, verb, *tail, *fw])
-            self.assertEqual((kw.get('cwd'), kw.get('timeout')), (str(hil_flash.hil_util.TINYUSB_ROOT), 7))
+            self.assertEqual(kw, {'timeout': 7})
 
-    def test_an_unpinned_entry_is_refused(self):
+    def test_an_unfiltered_entry_is_refused(self):
         for bad in ({'vid_pid': None}, {'vid_pid': '0x1fc9 0x0090 0x1fc9 0x0143'},
                     {'vid_pid': '1fc9:0090'}, {'uid': ''}):
             flasher = {**self.FLASHER, **bad}
-            self.assertIsNone(hil_flash.pyocd_pin(flasher), bad)
+            self.assertIsNone(hil_flash.pyocd_vid_pid(flasher), bad)
             self.assertFalse(hil_flash.convoy_safe(flasher), bad)
             with self.assertRaises(ValueError):
                 hil_flash._pyocd_argv(flasher, 'reset')
@@ -186,7 +187,7 @@ class Flasher(unittest.TestCase):
             with mock.patch.dict(os.environ, {'PATH': td}):
                 self.assertRaises(RuntimeError, hil_flash._pyocd_python)
 
-    def test_hil_test_refuses_an_unpinned_entry_before_touching_a_board(self):
+    def test_hil_test_refuses_an_unfiltered_entry_before_touching_a_board(self):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / 'c.json'
             cfg.write_text(json.dumps({'boards': [{'name': 'b', 'uid': 'X', 'tests': {'device': True},
@@ -196,6 +197,34 @@ class Flasher(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 1)
         self.assertIn('a pyocd flasher needs a uid and one "vid_pid" pair', r.stdout)
+
+
+
+class UserScript(unittest.TestCase):
+    """set_reset_catch as pyocd calls it: the script's globals hold `target`, the delegate's
+    falsy return keeps pyocd's own reset catch."""
+    def load(self):
+        lpc5500 = mock.MagicMock()
+        lpc5500.DM_AP = 2
+        lpc5500.CortexM_LPC5500 = type('CortexM_LPC5500', (), {})
+        target = mock.MagicMock()
+        target.aps = {0: 'ahb', 2: 'dm'}
+        ns = {'target': target}
+        with mock.patch.dict(sys.modules, {'pyocd': mock.MagicMock(), 'pyocd.target': mock.MagicMock(),
+                                           'pyocd.target.family': mock.MagicMock(),
+                                           'pyocd.target.family.target_lpc5500': lpc5500}):
+            exec(compile(USER_SCRIPT.read_text(), str(USER_SCRIPT), 'exec'), ns)
+        return ns, target, lpc5500.CortexM_LPC5500
+
+    def test_an_lpc55_core_is_unlocked_through_the_debug_mailbox_first(self):
+        ns, target, lpc55 = self.load()
+        self.assertFalse(ns['set_reset_catch'](lpc55(), 'sw'))
+        target.unlock.assert_called_once_with('dm')
+
+    def test_any_other_core_is_left_to_pyocd(self):
+        ns, target, _ = self.load()
+        self.assertFalse(ns['set_reset_catch'](object(), 'sw'))
+        target.unlock.assert_not_called()
 
 
 if __name__ == '__main__':
