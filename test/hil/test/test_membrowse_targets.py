@@ -68,6 +68,8 @@ class TestMembrowseTargetMirror(unittest.TestCase):
         self.assertEqual(registered_targets([d]), python_targets('stm32f407disco', 'stm32f407disco'))
 
     def test_rp2040_with_its_pio_usb_host_examples(self):
+        if not os.environ.get('PICO_SDK_PATH'):
+            self.skipTest('PICO_SDK_PATH not set')
         d = self.configure('raspberry_pi_pico')
         self.assertEqual(registered_targets([d]), python_targets('raspberry_pi_pico', 'raspberry_pi_pico'))
 
