@@ -1055,7 +1055,7 @@ class TestOrphanInvariant(unittest.TestCase):
     # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
     # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
     # toolchain, since hil-build-esp builds its boards by name.
-    UNBUILT_FAMILIES = {'cxd56', 'efm32', 'pic32mz', 'py32f0'}
+    UNBUILT_FAMILIES = {'cxd56', 'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -2160,10 +2160,10 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertNotIn('UNSCOPED', r.stderr)
 
     def test_pinned_keeps_the_unbuilt_family_fall_open_intact(self):
-        # efm32 is built by no toolchain: the selection is still usable (stm32f0 scopes
+        # py32f0 is built by no toolchain: the selection is still usable (stm32f0 scopes
         # it), so the pinned filter must not turn that into "nothing buildable" and
         # widen back to the full matrix
-        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0', 'efm32'],
+        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0', 'py32f0'],
                                     'family_examples': {}}})
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertNotIn('UNSCOPED', r.stderr)
@@ -2188,7 +2188,7 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_pinned_survives_the_unbuildable_selection_fall_open(self):
         # the recursive fall-open path: a selection of families no toolchain builds
         # re-emits the FULL matrix, which must still be pinned-filtered
-        sel = json.dumps({'build': {'full': False, 'families': ['efm32'],
+        sel = json.dumps({'build': {'full': False, 'families': ['py32f0'],
                                     'family_examples': {}}})
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
@@ -2253,13 +2253,13 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)   # build.yml greps this
 
     def test_families_no_toolchain_builds_falls_open(self):
-        # hw/bsp/efm32 is real but in no toolchain's list, so scoping to it emits an
+        # hw/bsp/py32f0 is real but in no toolchain's list, so scoping to it emits an
         # all-empty matrix: every leg skips and the PR goes green from a build job that
         # ran no compiler. Unusable, not "nothing selected" - and the marker matters,
         # because that is what build.yml and CircleCI grep to drop the build extras too.
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select',
-                            json.dumps({'build': {'full': False, 'families': ['efm32']}}))
+                            json.dumps({'build': {'full': False, 'families': ['py32f0']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
@@ -2267,11 +2267,19 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_a_partial_toolchain_miss_still_scopes(self):
         # one buildable family is real coverage: scope to it and just note the other
         r = self.run_matrix('--select', json.dumps(
-            {'build': {'full': False, 'families': ['stm32f4', 'efm32']}}))
+            {'build': {'full': False, 'families': ['stm32f4', 'py32f0']}}))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['stm32f4'])
         self.assertNotIn('UNSCOPED', r.stderr)
-        self.assertIn('efm32', r.stderr)
+        self.assertIn('py32f0', r.stderr)
+
+    def test_efm32_selection_scopes_to_its_leg(self):
+        # the orphan invariant checks keys only: "efm32": [] would pass it and build nothing
+        r = self.run_matrix('--select', json.dumps(
+            {'build': {'full': False, 'families': ['efm32']}}))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['efm32'])
+        self.assertNotIn('UNSCOPED', r.stderr)
 
     def test_explicit_empty_families_selects_nothing(self):
         # an explicit [] IS a legitimate answer (a diff that builds nothing)

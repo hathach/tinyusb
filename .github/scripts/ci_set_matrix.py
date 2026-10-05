@@ -40,6 +40,7 @@ family_list = {
     "ch32x035": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
+    "efm32": ["arm-gcc"],
     "f1c100s": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
     "espressif": [],
@@ -145,7 +146,7 @@ def set_matrix_json(select=None, pinned=False):
         matrix[toolchain] = fams
     if sel_fams:
         # a family this file does not list builds on no toolchain, so it contributes no
-        # leg. hw/bsp holds a few CI has never built (efm32, pic32mz, py32f0, ...) - a
+        # leg. hw/bsp holds a few CI has never built (pic32mz, py32f0, ...) - a
         # missing family.cmake or no CI toolchain support, not a gap in this file.
         # espressif is in family_list with no toolchain: hil-build-esp builds its boards
         # BY NAME in an IDF container (an esp-idf leg here would double-build them, and
