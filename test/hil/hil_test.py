@@ -79,6 +79,10 @@ import string
 # module global is safe because each pool worker is its own process.
 ENUM_TIMEOUT = 8
 ENUM_TIMEOUT_RETRY = 4
+# Board-as-host tests must outlast one usbh watchdog recovery: CFG_TUH_CONTROL_TIMEOUT_MS (5 s)
+# + port re-reset + re-enumeration, on the first attempt and on a retry alike.
+HOST_ENUM_TIMEOUT = 12
+HOST_ENUM_TIMEOUT_RETRY = 8
 _enum_timeout = ENUM_TIMEOUT
 
 
@@ -206,6 +210,7 @@ class Board(TypedDict):
     variant: NotRequired[list[VariantCfg]]
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
+    uart_uid: NotRequired[str]   # console bridge serial when the flasher probe has no CDC (e.g. J-Trace)
 
 
 class HilConfig(TypedDict):
@@ -306,7 +311,7 @@ def open_board_console(board: Board):
         assert board['flasher']['name'].lower() == 'jlink', \
             f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
         return hil_util.JlinkRtt(board)
-    ser = open_serial_dev(hil_util.get_serial_dev(board['flasher']["uid"], None, None, 0))
+    ser = open_serial_dev(hil_util.get_serial_dev(board.get('uart_uid') or board['flasher']["uid"], None, None, 0))
     ser.timeout = 0.1
     return ser
 
@@ -1733,7 +1738,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             # for every local run and for the workflows that pass no -r.
             wedge_break = True
             break
-        _enum_timeout = ENUM_TIMEOUT if i == 0 else ENUM_TIMEOUT_RETRY
+        if example.startswith(('host/', 'dual/')):
+            _enum_timeout = HOST_ENUM_TIMEOUT if i == 0 else HOST_ENUM_TIMEOUT_RETRY
+        else:
+            _enum_timeout = ENUM_TIMEOUT if i == 0 else ENUM_TIMEOUT_RETRY
         attempt_out = io.StringIO()
         with redirect_stdout(attempt_out):
             if not skip_flash:
@@ -2432,7 +2440,8 @@ def main() -> None:
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
              f'flash/usbtest parallel per controller: {hil_lock.FLASH_PARALLEL}/{hil_lock.USBTEST_PARALLEL}; '
-             f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s; '
+             f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s '
+             f'(host {HOST_ENUM_TIMEOUT}/{HOST_ENUM_TIMEOUT_RETRY}s); '
              # all three are env-tunable, so a run that dies on the guard is otherwise
              # unattributable from the log alone
              f'pool guard: {POOL_TIMEOUT}s')
