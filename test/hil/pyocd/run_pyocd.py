@@ -44,7 +44,8 @@ def main(argv: list) -> int:
     # hidapi would bypass pyusb; pyocd reads this when its interface package is imported
     os.environ['PYOCD_USB_BACKEND'] = 'pyusb'
     # CMSIS-DAP discovery builds a bare Session (pyocd 0.45.1 dap_access_cmsis_dap.py:81) that
-    # ignores --no-config and loads pyocd.yaml from this dir, else the cwd; this dir holds none
+    # ignores --no-config and loads pyocd.yaml from this dir, else the cwd; this dir holds none.
+    # pyocd then chdirs here, so relative paths in roster args (--pack...) resolve from here
     os.environ['PYOCD_PROJECT_DIR'] = str(Path(__file__).resolve().parent)
 
     # before any pyocd import: its backends bind `find` at import time
