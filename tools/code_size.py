@@ -778,12 +778,12 @@ def render_comment(pairs, engine, base_only=(), cur_only=(), failures=(), symbol
     rows = []
     for p in _changed_paths(stats):
         extremes = [stats[p][k] for k in ('flash', 'ram')]
-        rows.append([p] + [_fmt(v[0]) for e in extremes for v in e]
+        rows.append([p] + [cell for (lo, _i), (hi, _j) in extremes for cell in (f'{_fmt(lo)} →', _fmt(hi))]
                     + [_comment_build(v, any(d for d, _i in e)) for e in extremes for v in e])
     if rows:
-        lines += [f'{files_label} file size: min and max change across builds containing the file, '
+        lines += [f'{files_label} file size: min → max change across builds containing the file, '
                   'and the build (board/example) of each; — marks a zero end.', '',
-                  md_table(['File', 'Flash Δ min', 'Flash Δ max', 'RAM Δ min', 'RAM Δ max', 'Flash Δ min build',
+                  md_table(['File', 'Flash Δ', '', 'RAM Δ', '', 'Flash Δ min build',
                             'Flash Δ max build', 'RAM Δ min build', 'RAM Δ max build'], rows, left=(0, 5, 6, 7, 8))]
     other = sum(not any(any(d) for d in file_deltas[i].values()) for i in changed)
     if other:

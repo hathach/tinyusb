@@ -2534,9 +2534,9 @@ class Compare(unittest.TestCase):
                       'RAM Δ 0 → +8', comment)
         rows = [line for line in comment.splitlines() if line.startswith('| ') and 'File' not in line]
         self.assertEqual([[c.strip() for c in r.strip('|').split('|')] for r in rows],
-                         [['class/msc/msc_device.c', '+180', '+200', '0', '0', 'b2/msc', 'b1/msc', '', ''],
-                          ['class/hid/hid_device.c', '+24', '+24', '+8', '+8', 'b1/hid', 'b1/hid', 'b1/hid', 'b1/hid'],
-                          ['device/usbd.c', '0', '0', '0', '+4', '', '', '—', 'b1/msc']])
+                         [['class/msc/msc_device.c', '+180 →', '+200', '0 →', '0', 'b2/msc', 'b1/msc', '', ''],
+                          ['class/hid/hid_device.c', '+24 →', '+24', '+8 →', '+8', 'b1/hid', 'b1/hid', 'b1/hid', 'b1/hid'],
+                          ['device/usbd.c', '0 →', '0', '0 →', '+4', '', '', '—', 'b1/msc']])
         self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
         self.assertNotIn('boards: ', comment)
         self.assertNotIn('Not compared', comment)
@@ -2556,15 +2556,15 @@ class Compare(unittest.TestCase):
         lines = comment.splitlines()
         head = lines.index(next(line for line in lines if line.startswith('| File')))
         self.assertEqual([c.strip() for c in lines[head].strip('|').split('|')],
-                         ['File', 'Flash Δ min', 'Flash Δ max', 'RAM Δ min', 'RAM Δ max',
+                         ['File', 'Flash Δ', '', 'RAM Δ', '',
                           'Flash Δ min build', 'Flash Δ max build', 'RAM Δ min build', 'RAM Δ max build'])
         self.assertEqual([c[-1] == ':' for c in lines[head + 1].strip('|').split('|')],
                          [False, True, True, True, True, False, False, False, False])
         rows = [[c.strip() for c in r.strip('|').split('|')] for r in lines[head + 2:] if r.startswith('| ')]
-        self.assertEqual(rows, [['a.c', '-32', '0', '0', '0', 'b1/x', '—', '', ''],
-                                ['d.c', '-16', '+32', '0', '0', 'b1/x', 'b2/firmware', '', ''],
-                                ['b.c', '0', '+8', '0', '0', '—', 'b2/firmware', '', ''],
-                                ['c.c', '-4', '-4', '0', '0', 'b1/x', 'b1/x', '', '']])
+        self.assertEqual(rows, [['a.c', '-32 →', '0', '0 →', '0', 'b1/x', '—', '', ''],
+                                ['d.c', '-16 →', '+32', '0 →', '0', 'b1/x', 'b2/firmware', '', ''],
+                                ['b.c', '0 →', '+8', '0 →', '0', '—', 'b2/firmware', '', ''],
+                                ['c.c', '-4 →', '-4', '0 →', '0', 'b1/x', 'b1/x', '', '']])
 
     def test_a_comment_over_the_limit_is_cut_at_a_line(self):
         base = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (10, 0) for j in range(50)})})
