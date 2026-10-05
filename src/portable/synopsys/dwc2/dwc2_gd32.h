@@ -44,17 +44,17 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_ro
   (void) role;
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_enable(uint8_t rhport)
-{
-  __eclic_enable_interrupt(_dwc2_controller[rhport].irqnum);
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
+  (void) role;
+  if (enabled) {
+    __eclic_enable_interrupt(_dwc2_controller[rhport].irqnum);
+  } else {
+    __eclic_disable_interrupt(_dwc2_controller[rhport].irqnum);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_disable (uint8_t rhport)
-{
-  __eclic_disable_interrupt(_dwc2_controller[rhport].irqnum);
-}
+#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
+#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
 
 static inline void dwc2_remote_wakeup_delay(void)
 {
