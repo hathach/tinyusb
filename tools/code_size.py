@@ -502,9 +502,9 @@ def _md_cell(text):
     return text.translate(_MD_CELL)
 
 
-def md_table(header, rows, total=None):
-    """Markdown table padded so its columns also line up as plain text: the first
-    column left-aligned, the others right-aligned. Cells are strings; a `total` row
+def md_table(header, rows, total=None, *, left=(0,)):
+    """Markdown table padded so its columns also line up as plain text: the `left`
+    columns left-aligned, the others right-aligned. Cells are strings; a `total` row
     follows the rows under a plain rule."""
     header = [_md_cell(c) for c in header]
     rows = [[_md_cell(c) for c in r] for r in rows]
@@ -513,9 +513,9 @@ def md_table(header, rows, total=None):
     widths = [max(len(r[i]) for r in [header] + body) for i in range(len(header))]
 
     def line(cells):
-        return '| ' + ' | '.join(c.ljust(w) if i == 0 else c.rjust(w)
+        return '| ' + ' | '.join(c.ljust(w) if i in left else c.rjust(w)
                                  for i, (c, w) in enumerate(zip(cells, widths))) + ' |'
-    sep = '|' + '|'.join('-' * (w + 2) if i == 0 else '-' * (w + 1) + ':' for i, w in enumerate(widths)) + '|'
+    sep = '|' + '|'.join('-' * (w + 2) if i in left else '-' * (w + 1) + ':' for i, w in enumerate(widths)) + '|'
     # only the header's rule is a delimiter; this one renders as a row, so colons would show as text
     rule = sep.replace(':', '-')
     return '\n'.join([line(header), sep] + [line(r) for r in rows] + ([rule, line(total)] if total else []))
@@ -697,6 +697,26 @@ def _extreme(value_id):
     return f'{_fmt(delta)} ({_label(elf_id)})' if delta else '0'
 
 
+def _aligned_ranges(spans):
+    """`min → max` cells of one right-aligned column, both numbers right-aligned so the arrows
+    line up when rendered: leading figure spaces (a digit's width, not collapsed by HTML) pad each,
+    U+2212 minus is as wide as `+` where `-` is narrower, and no-break spaces keep a cell on one
+    line in a table too wide for the page. Trailing padding would not do: a browser lets it hang."""
+    pad = '\u2007'
+    spans = [(_fmt(lo).replace('-', '\u2212'), _fmt(hi).replace('-', '\u2212')) for lo, hi in spans]
+    lo_w, hi_w = (max((len(s[i]) for s in spans), default=0) for i in (0, 1))
+    return [f'{lo.rjust(lo_w, pad)}\u00a0→\u00a0{hi.rjust(hi_w, pad)}' for lo, hi in spans]
+
+
+def _comment_build(value_id, metric_changed):
+    """A comment's build cell for one extreme: `board/example` when its Δ is nonzero, `—` for
+    a zero end of a changed metric, empty when the metric changed in no build."""
+    delta, (board, elf) = value_id
+    if delta:
+        return f'{board}/{os.path.splitext(os.path.basename(elf))[0]}'
+    return '—' if metric_changed else ''
+
+
 def _file_stats(file_deltas):
     """Per file: pairs present/changed and the (Δ, elf id) extremes of each
     metric, the first id winning ties. `file_deltas` maps sorted elf ids to
@@ -749,9 +769,9 @@ def _changed_paths(stats):
 
 
 def render_comment(pairs, engine, base_only=(), cur_only=(), failures=(), symbols=False, files_label='TinyUSB'):
-    """The PR comment's view as (body, footnote): a row per changed file with its min to max
-    Δ over the builds containing it, so each changed driver shows however heavy the others
-    are. The footnote explains the whole-firmware totals, when the body has them."""
+    """The PR comment's view as (body, footnote): a row per changed file with its min and max
+    Δ over the builds containing it and the build of each, so each changed driver shows however
+    heavy the others are. The footnote explains the whole-firmware totals, when the body has them."""
     file_deltas = {i: _file_deltas(b, c) for i, (b, c) in pairs.items()}
     changed = [i for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)]
     head = (f'{len(pairs)} builds on {len({board for board, _elf in pairs})} boards compared, '
@@ -766,10 +786,15 @@ def render_comment(pairs, engine, base_only=(), cur_only=(), failures=(), symbol
     if not changed:
         return '\n'.join(lines + ['_no changes_' if pairs else '_no comparable pairs_', '']), footnote
     stats = _file_stats(file_deltas)
-    rows = [[p] + [_range(*(v[0] for v in stats[p][k])) for k in ('flash', 'ram')] for p in _changed_paths(stats)]
+    paths, metrics = _changed_paths(stats), ('flash', 'ram')
+    ranges = [_aligned_ranges([(stats[p][k][0][0], stats[p][k][1][0]) for p in paths]) for k in metrics]
+    rows = [[p, *cells] + [_comment_build(v, any(d for d, _i in stats[p][k])) for k in metrics for v in stats[p][k]]
+            for p, *cells in zip(paths, *ranges)]
     if rows:
-        lines += [f'{files_label} file size: min to max change across builds containing the file.', '',
-                  md_table(['File', 'Flash Δ', 'RAM Δ'], rows)]
+        lines += [f'{files_label} file size: min → max change across builds containing the file, '
+                  'and the build (board/example) of each; — marks a zero end.', '',
+                  md_table(['File', 'Flash Δ', 'RAM Δ', 'Flash Δ min build', 'Flash Δ max build',
+                            'RAM Δ min build', 'RAM Δ max build'], rows, left=(0, 3, 4, 5, 6))]
     other = sum(not any(any(d) for d in file_deltas[i].values()) for i in changed)
     if other:
         lines += ['', f'{other} other build{"" if other == 1 else "s"} changed without a '

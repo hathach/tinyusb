@@ -108,6 +108,14 @@ class MdTable(unittest.TestCase):
                              '| a/long/path.c |     +1 |\n'
                              '| └ f           |   -120 |')
 
+    def test_left_names_the_left_aligned_columns(self):
+        md = sd.md_table(['File', 'n', 'build'], [['a.c', '+1', 'b1/x']], total=['TOTAL', '+1', 'all'], left=(0, 2))
+        self.assertEqual(md, '| File  |  n | build |\n'
+                             '|-------|---:|-------|\n'
+                             '| a.c   | +1 | b1/x  |\n'
+                             '|-------|----|-------|\n'
+                             '| TOTAL | +1 | all   |')
+
 
 class CompareReports(unittest.TestCase):
     def test_delta_table(self):
@@ -2377,6 +2385,11 @@ def _run_dir(root, shards, legs=None, scope=None):
     return sd.load_snapshots(root)
 
 
+def _cells(row):
+    """A table row's cells, runs of padding (figure and no-break spaces included) as one space."""
+    return [' '.join(c.split()) for c in row.strip('|').split('|')]
+
+
 class Compare(unittest.TestCase):
     SCOPE = {'code_changed': True, 'legs': [{'toolchain': 'arm-gcc', 'arg': 'fam'}]}
 
@@ -2525,10 +2538,10 @@ class Compare(unittest.TestCase):
         self.assertIn('4 builds on 2 boards compared, 4 changed. Whole firmware¹ Flash Δ +4 → +200, '
                       'RAM Δ 0 → +8', comment)
         rows = [line for line in comment.splitlines() if line.startswith('| ') and 'File' not in line]
-        self.assertEqual([[c.strip() for c in r.strip('|').split('|')] for r in rows],
-                         [['class/msc/msc_device.c', '+180 → +200', '0'],
-                          ['class/hid/hid_device.c', '+24', '+8'],
-                          ['device/usbd.c', '0', '0 → +4']])
+        self.assertEqual([_cells(r) for r in rows],
+                         [['class/msc/msc_device.c', '+180 → +200', '0 → 0', 'b2/msc', 'b1/msc', '', ''],
+                          ['class/hid/hid_device.c', '+24 → +24', '+8 → +8', 'b1/hid', 'b1/hid', 'b1/hid', 'b1/hid'],
+                          ['device/usbd.c', '0 → 0', '0 → +4', '', '', '—', 'b1/msc']])
         self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
         self.assertNotIn('boards: ', comment)
         self.assertNotIn('Not compared', comment)
@@ -2537,6 +2550,32 @@ class Compare(unittest.TestCase):
         self.assertIn('<details>', md)
         self.assertIn('| b1: device/hid/hid.elf ', md)  # the full report keeps every pair
 
+    def test_the_comment_names_the_build_of_each_extreme(self):
+        def files(a, b, c, d):
+            return elf({'a.c': (a, 0), 'b.c': (b, 0), 'c.c': (c, 0), 'd.c': (d, 0)})
+        base = [_shard('b2', {'device/example_dir/firmware.elf': files(100, 100, 100, 100)}),
+                _shard('b1', {'device/x/x.elf': files(100, 100, 100, 100)})]
+        cur = [_shard('b2', {'device/example_dir/firmware.elf': files(100, 108, 96, 132)}),
+               _shard('b1', {'device/x/x.elf': files(68, 100, 96, 84)})]
+        _md, comment, _data = self.compare(base, cur)
+        lines = comment.splitlines()
+        head = lines.index(next(line for line in lines if line.startswith('| File')))
+        self.assertEqual(_cells(lines[head]), ['File', 'Flash Δ', 'RAM Δ', 'Flash Δ min build', 'Flash Δ max build',
+                                               'RAM Δ min build', 'RAM Δ max build'])
+        self.assertEqual([c[-1] == ':' for c in lines[head + 1].strip('|').split('|')],
+                         [False, True, True, False, False, False, False])
+        rows = [r for r in lines[head + 2:] if r.startswith('| ')]
+        self.assertEqual([_cells(r) for r in rows], [['a.c', '−32 → 0', '0 → 0', 'b1/x', '—', '', ''],
+                                                     ['d.c', '−16 → +32', '0 → 0', 'b1/x', 'b2/firmware', '', ''],
+                                                     ['b.c', '0 → +8', '0 → 0', '—', 'b2/firmware', '', ''],
+                                                     ['c.c', '−4 → −4', '0 → 0', 'b1/x', 'b1/x', '', '']])
+        # leading figure spaces, U+2212 minus and no-break spaces line the arrows up as rendered
+        flash = [r.split('|')[2] for r in rows]
+        self.assertEqual(len({c.index('→') for c in flash}), 1)
+        self.assertEqual(len({len(c) for c in flash}), 1)
+        self.assertNotIn(' →', ''.join(flash))
+        self.assertNotIn('→ ', ''.join(flash))
+
     def test_a_comment_over_the_limit_is_cut_at_a_line(self):
         base = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (10, 0) for j in range(50)})})
         cur = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (11, 0) for j in range(50)})})
@@ -2544,6 +2583,9 @@ class Compare(unittest.TestCase):
             _md, comment, _data = self.compare([base], [cur])
         self.assertLessEqual(len(comment), 800)
         self.assertIn('Whole firmware¹', comment)
+        rows = [r for r in comment.splitlines() if r.startswith('| f')]
+        self.assertTrue(rows)
+        self.assertTrue(all(len(r.strip('|').split('|')) == 7 for r in rows))
         self.assertTrue(comment.endswith('_Truncated: see the full report._\n\n'
                                          '¹ Sum of all symbols measured by membrowse, not the exact image size.\n'))
 
