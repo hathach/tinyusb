@@ -77,6 +77,8 @@ class TestMembrowseTargetMirror(unittest.TestCase):
         # one idf tree per example: configure one, enough for the name and the mirror
         if not shutil.which('idf.py'):
             self.skipTest('ESP-IDF not exported')
+        if not shutil.which('ninja'):
+            self.skipTest('ninja not installed')
         board, name, example = 'espressif_s3_devkitm', 'espressif_s3_devkitm-DMA', 'device/cdc_msc_freertos'
         d = os.path.join(self.tmp.name, 'esp')
         r = subprocess.run(['idf.py', '-C', f'examples/{example}', '-B', d, '-GNinja', f'-DBOARD={board}',
