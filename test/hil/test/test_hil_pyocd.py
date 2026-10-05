@@ -102,14 +102,16 @@ class Launcher(unittest.TestCase):
     def test_only_the_filtered_probe_reaches_pyocds_matcher(self):
         for libusb_package in (True, False):
             with self.subTest(libusb_package=libusb_package):
-                r = self.run_launcher('0x1fc9', '0x0090', 'flash', '-u', 'cmsisdap:X', 'fw.elf',
-                                      libusb_package=libusb_package)
+                r = self.run_launcher('0x1fc9', '0x0090', 'flash', '-u', 'cmsisdap:X', '--script', 'roster.py',
+                                      'fw.elf', libusb_package=libusb_package)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertEqual(json.loads(r.stdout), {
                     'touched': [PROBE, PROBE],            # once per backend, nothing else
                     'classes': ['cmsisdap'],
                     'backend': 'pyusb',                   # hidapi would bypass the filter
-                    'argv': ['flash', '-u', 'cmsisdap:X', 'fw.elf', '--script', str(USER_SCRIPT)]})
+                    # argparse keeps the last --script
+                    'argv': ['flash', '-u', 'cmsisdap:X', '--script', 'roster.py', 'fw.elf',
+                             '--no-config', '--script', str(USER_SCRIPT)]})
 
     def test_a_selector_naming_another_plugin_fails(self):
         r = self.run_launcher('0x1fc9', '0x0090', 'reset', '-u', 'cmsisdap:X', '--probe=jlink:Y')

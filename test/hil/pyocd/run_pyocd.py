@@ -66,8 +66,9 @@ def main(argv: list) -> int:
         del PROBE_CLASSES[name]
 
     from pyocd.__main__ import main as pyocd_main
-    # last, so it wins over any --script in the args
-    sys.argv = ['pyocd', *argv[2:], '--script', str(Path(__file__).resolve().with_name('user_script.py'))]
+    # last, so they win over the args; no pyocd.yaml from whatever cwd the harness runs in
+    sys.argv = ['pyocd', *argv[2:], '--no-config',
+                '--script', str(Path(__file__).resolve().with_name('user_script.py'))]
     return pyocd_main()
 
 
