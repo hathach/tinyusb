@@ -232,7 +232,7 @@ def convoy_safe(flasher: dict) -> bool:
     """Can this flasher DELIVER a recovery while a usbfs node on the rig is poisoned?
 
     A post-HUNG reflash only helps if the flasher reaches its probe without opening the
-    wedged node. Four shapes qualify:
+    wedged node. Following shapes qualify:
 
     * openocd pinned with the roster's `vid_pid` -- the match is made from the cached
       descriptor and the loop `continue`s BEFORE libusb_open, so a foreign node is never
