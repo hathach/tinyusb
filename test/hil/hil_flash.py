@@ -330,6 +330,12 @@ def pyocd_vid_pid(flasher: dict) -> list | None:
     return vid_pid.split()
 
 
+def unfiltered_pyocd(board: dict) -> bool:
+    """Is the board's primary or recovery flasher a pyocd entry without its VID/PID filter?"""
+    return any((f.get('name') or '').lower() == 'pyocd' and pyocd_vid_pid(f) is None
+               for f in (board['flasher'], recover_flasher(board)))
+
+
 def _pyocd_python() -> str:
     # the launcher must patch the pyocd it runs, so it runs under pyocd's own interpreter
     exe = shutil.which('pyocd')

@@ -31,7 +31,6 @@ def _filter_vid_pid(find, vid: int, pid: int):
             if kwargs.setdefault(key, want) != want:
                 raise RuntimeError(f'run_pyocd.py: a caller asked for {key}={kwargs[key]:#06x}')
         return find(*args, **kwargs)
-    filtered.vid_pid_filtered = True
     return filtered
 
 
@@ -48,15 +47,17 @@ def main(argv: list) -> int:
     # before any pyocd import: its backends bind `find` at import time
     import usb.core
     usb.core.find = _filter_vid_pid(usb.core.find, vid, pid)
+    filtered = [usb.core.find]
     try:
         import libusb_package
         libusb_package.find = _filter_vid_pid(libusb_package.find, vid, pid)
+        filtered.append(libusb_package.find)
     except ImportError:
         pass
 
     from pyocd.probe.pydapaccess.interface import pyusb_backend, pyusb_v2_backend
     for mod in (pyusb_backend, pyusb_v2_backend):
-        if not getattr(getattr(mod, 'usb_find', None), 'vid_pid_filtered', False):
+        if getattr(mod, 'usb_find', None) not in filtered:
             _fail(f'{mod.__name__}.usb_find is not the filtered find; pyocd changed how it imports it')
 
     from pyocd.probe.aggregator import PROBE_CLASSES

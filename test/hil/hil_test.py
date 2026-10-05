@@ -2342,9 +2342,7 @@ def main() -> None:
     if bad_rtt:
         # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
         _config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
-    bad_pyocd = sorted({e['name'] for e in config_boards
-                        for f in (e['flasher'], hil_flash.recover_flasher(e))
-                        if (f.get('name') or '').lower() == 'pyocd' and hil_flash.pyocd_vid_pid(f) is None})
+    bad_pyocd = [e['name'] for e in config_boards if hil_flash.unfiltered_pyocd(e)]
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')

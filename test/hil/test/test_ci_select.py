@@ -674,9 +674,7 @@ class TestOpenocdVidPid(unittest.TestCase):
     def test_roster_pyocd_entries_filter_vid_pid(self):
         # unfiltered, pyocd opens every CMSIS-DAP-class device on the rig (test/hil/pyocd/run_pyocd.py)
         for path, board in roster_flashers():
-            for f in (board['flasher'], hil_flash.recover_flasher(board)):
-                if f['name'] == 'pyocd':
-                    self.assertIsNotNone(hil_flash.pyocd_vid_pid(f), f"{path}: {board['name']}")
+            self.assertFalse(hil_flash.unfiltered_pyocd(board), f"{path}: {board['name']}")
 
 
 class TestRosterFlashersDispatch(unittest.TestCase):

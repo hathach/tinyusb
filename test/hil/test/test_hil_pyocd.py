@@ -48,9 +48,6 @@ import json, os, sys
 def main():
     from pyocd.probe.aggregator import PROBE_CLASSES
     from pyocd.probe.pydapaccess.interface import pyusb_backend, pyusb_v2_backend
-    plugin = next((a.split('=', 1)[1].split(':')[0] for a in sys.argv if a.startswith('--probe=')), 'cmsisdap')
-    if plugin not in PROBE_CLASSES:
-        sys.exit(f"unknown debug probe type '{plugin}'")
     touched = []
     for mod in (pyusb_backend, pyusb_v2_backend):
         mod.usb_find(find_all=True, custom_match=lambda d: touched.append([d.idVendor, d.idProduct]))
@@ -113,11 +110,6 @@ class Launcher(unittest.TestCase):
                     'argv': ['flash', '-u', 'cmsisdap:X', '--script', 'roster.py', 'fw.elf',
                              '--no-config', '--script', str(USER_SCRIPT)]})
 
-    def test_a_selector_naming_another_plugin_fails(self):
-        r = self.run_launcher('0x1fc9', '0x0090', 'reset', '-u', 'cmsisdap:X', '--probe=jlink:Y')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("unknown debug probe type 'jlink'", r.stderr)
-
     def test_a_backend_that_did_not_bind_the_filtered_find_stops_before_discovery(self):
         r = self.run_launcher('0x1fc9', '0x0090', 'flash', 'fw.elf', FAKE_BIND_ELSEWHERE='1')
         self.assertEqual((r.returncode, r.stdout), (2, ''))
@@ -173,6 +165,14 @@ class Flasher(unittest.TestCase):
                 hil_flash._pyocd_argv(flasher, 'reset')
         self.assertTrue(hil_flash.convoy_safe(self.FLASHER))
 
+    def test_an_unfiltered_primary_or_recovery_pyocd_entry_is_found(self):
+        jlink = {'name': 'jlink', 'uid': 'X'}
+        for board, want in (({'flasher': self.FLASHER}, False),
+                            ({'flasher': {**self.FLASHER, 'name': 'PyOCD', 'vid_pid': None}}, True),
+                            ({'flasher': jlink, 'flasher_recover': {'name': 'pyocd'}}, True),
+                            ({'flasher': jlink}, False)):
+            self.assertEqual(hil_flash.unfiltered_pyocd(board), want, board)
+
     def test_the_interpreter_comes_from_pyocds_shebang(self):
         with tempfile.TemporaryDirectory() as td:
             exe = Path(td) / 'pyocd'
@@ -199,7 +199,6 @@ class Flasher(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 1)
         self.assertIn('a pyocd flasher needs a uid and one "vid_pid" pair', r.stdout)
-
 
 
 class UserScript(unittest.TestCase):
