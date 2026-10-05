@@ -7,19 +7,21 @@ nothing in selection reads its output.
 
 `graph` builds every example of each board with tools/build.py in CHECKOUT - an isolated
 checkout, since a fresh default configure may rewrite hw/bsp/family.json - and writes
-DIR/<board>.json: per example, the repo files its live objects compiled or included
-(ninja -t deps), its link inputs (ninja -t query), and the files CMake read to configure
-the board. An object that defines no symbol (a class or port driver whose CFG_* guard
-compiled its body away) contributes nothing: its source changing cannot change the
-firmware. The build dir is removed afterwards; an existing DIR/<board>.json for the same
-HEAD is kept unless --force.
+DIR/<board>.json: per example, every repo file its elf links. That is found by walking
+the elf's link inputs through archives (ninja -t query): each live object's source and
+recorded deps (ninja -t deps), the linker script and other files the link command names,
+and the files CMake read to configure the board. An object that defines no symbol (a
+class or port driver whose CFG_* guard compiled its body away) contributes nothing: its
+source changing cannot change the firmware. The build dir is removed afterwards; an
+existing DIR/<board>.json for the same HEAD and format is kept unless --force. A build or
+extraction error records the board as failed, never as an empty success.
 
 `replay` walks first-parent commits of REF (default HEAD) and, for each, compares the
 (board, example) pairs whose recorded files the commit changed against what the current
 ci_select's build view selects for the same paths. A required pair the selection does
-not cover is an under-selection candidate, to be confirmed by reading the source. A
-commit that deletes a file, or whose changed paths the graph never saw, is listed as
-needing its historical tree: the current graph cannot judge it.
+not cover is an under-selection candidate, to be confirmed by reading the source. Paths
+the graph never saw are listed per commit; a commit that deletes a file needs its
+historical tree, since the current graph cannot know what built the deleted file.
 """
 import argparse
 import json
@@ -33,7 +35,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 DEPS_HEADER = re.compile(r'^(\S.*): #deps \d+')
-FORMAT = 1
+ROLES = ('device', 'host', 'dual', 'typec')
+FORMAT = 2
+
+
+class ExtractError(Exception):
+    pass
 
 
 def rel(path, root, base=None):
@@ -58,11 +65,29 @@ def parse_ninja_deps(text):
     return out
 
 
+def parse_query(text):
+    """{target: [explicit and implicit inputs]} from `ninja -t query t...`. Order-only
+    (`||`) inputs only sequence the build, and outputs point the other way."""
+    out, cur, section = {}, None, None
+    for line in text.splitlines():
+        if not line.startswith(' ') and line.endswith(':'):
+            cur, section = out.setdefault(line[:-1], []), None
+        elif line.startswith('  ') and not line.startswith('    '):
+            section = line.split(':', 1)[0].strip()
+        elif line.startswith('    ') and section == 'input' and cur is not None:
+            s = line.strip()
+            if not s.startswith('||'):
+                cur.append(s.lstrip('|').strip())
+    return out
+
+
 def defines_symbols(readelf_text):
-    """Whether `readelf -sW` lists any FUNC or OBJECT symbol defined in a section."""
+    """Whether `readelf -sW` lists a symbol the object defines: any FUNC or OBJECT, or a
+    global/weak NOTYPE (an assembly label without .type, e.g. Default_Handler)."""
     for line in readelf_text.splitlines():
         f = line.split()
-        if len(f) >= 8 and f[3] in ('FUNC', 'OBJECT') and f[6] != 'UND':
+        if len(f) >= 8 and f[6] != 'UND' and (
+                f[3] in ('FUNC', 'OBJECT') or (f[3] == 'NOTYPE' and f[4] in ('GLOBAL', 'WEAK'))):
             return True
     return False
 
@@ -74,6 +99,82 @@ def nm_defines_symbols(nm_text):
         if len(f) >= 3 and f[1] in 'TtDdBbRrCVvWw':
             return True
     return False
+
+
+def link_files(link_cmd, root, build_dir):
+    """Repo files a link command names only as option values, e.g. -Wl,--script=x.ld or -T x.ld."""
+    out = set()
+    for tok in link_cmd.split():
+        for part in re.split('[,=]', tok):
+            p = part[2:] if part.startswith('-T') else part
+            if p and not p.startswith('-'):
+                f = rel(p, root, build_dir)
+                if f and os.path.isfile(os.path.join(root, f)):
+                    out.add(f)
+    return out
+
+
+def example_elves(targets_text, example=None):
+    """{example: elf target} from `ninja -t targets all`; with `example`, the tree is that
+    example's own build (espressif) and its elf sits at the top."""
+    names = {line.split(':', 1)[0] for line in targets_text.splitlines()}
+    if example:
+        elf = f'{example.split("/")[1]}.elf'
+        return {example: elf} if elf in names else {}
+    out = {}
+    for n in names:
+        parts = n.split('/')
+        if len(parts) == 3 and parts[0] in ROLES and parts[2] == f'{parts[1]}.elf':
+            out[f'{parts[0]}/{parts[1]}'] = n
+    return out
+
+
+def walk_link_inputs(elf, query, known):
+    """(objects, other inputs) an elf links, through archives and phony object groups;
+    `query(targets)` returns parse_query()'s mapping, `known` is every build target."""
+    objs, others, seen, frontier = set(), set(), {elf}, [elf]
+    while frontier:
+        nxt = []
+        for i in range(0, len(frontier), 100):
+            for ins in query(frontier[i:i + 100]).values():
+                for t in ins:
+                    if t.endswith(('.obj', '.o')):
+                        objs.add(t)
+                    elif t in known:
+                        if t not in seen:
+                            seen.add(t)
+                            nxt.append(t)
+                    else:
+                        others.add(t)
+        frontier = nxt
+    return objs, others
+
+
+def scope_cmake_inputs(files, examples):
+    """({example: [cmake inputs]}, [shared inputs]): an input inside examples/<role>/<name>/
+    reaches that example alone (none when it is not built), every other one all of them."""
+    own = {ex: [] for ex in examples}
+    shared = []
+    for f in files:
+        parts = f.split('/')
+        if len(parts) > 3 and parts[0] == 'examples' and parts[1] in ROLES:
+            ex = f'{parts[1]}/{parts[2]}'
+            if ex in own:
+                own[ex].append(f)
+        else:
+            shared.append(f)
+    return own, shared
+
+
+def run(cmd, cwd, **kw):
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
+
+
+def run_ok(cmd, cwd):
+    r = run(cmd, cwd)
+    if r.returncode != 0:
+        raise ExtractError(f'{" ".join(cmd[:6])}: rc {r.returncode}: {(r.stdout + r.stderr)[-1000:]}')
+    return r.stdout
 
 
 def is_live(obj_path, compiler, cwd):
@@ -96,96 +197,83 @@ def compiler_of(entry):
     return entry['arguments'][0] if 'arguments' in entry else entry['command'].split()[0]
 
 
-def example_of(obj):
-    """'role/name' of an object under the examples build tree, or None (libraries)."""
-    parts = obj.split('/')
-    if len(parts) > 3 and parts[2] == 'CMakeFiles' and parts[0] in ('device', 'host', 'dual', 'typec'):
-        return f'{parts[0]}/{parts[1]}'
-    return None
-
-
-def query_inputs(query_text):
-    """Input paths listed by `ninja -t query <target>` (explicit, `|` implicit, `||` order-only)."""
-    out = []
-    for line in query_text.splitlines():
-        if line.startswith('    '):
-            t = line.strip().lstrip('|').strip()
-            if t:
-                out.append(t)
-    return out
-
-
-def scope_cmake_inputs(files, examples):
-    """({example: [cmake inputs]}, [shared inputs]): an input inside examples/<role>/<name>/
-    reaches that example alone (none when it is not built), every other one all of them."""
-    own = {ex: [] for ex in examples}
-    shared = []
-    for f in files:
-        parts = f.split('/')
-        if len(parts) > 3 and parts[0] == 'examples' and parts[1] in ('device', 'host', 'dual', 'typec'):
-            ex = f'{parts[1]}/{parts[2]}'
-            if ex in own:
-                own[ex].append(f)
-        else:
-            shared.append(f)
-    return own, shared
-
-
-def run(cmd, cwd, **kw):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
-
-
 def extract(build_dir, root, example=None):
-    """{'examples': {ex: [files]}, 'cmake_inputs': [files]} from a built tree. With
-    `example`, the tree is that one example's own build (espressif: one idf.py build per
-    example), so every object and every CMake input belongs to it."""
-    cc = json.load(open(os.path.join(build_dir, 'compile_commands.json')))
-    live = {}
-    for e in cc:
-        obj = os.path.relpath(e['output'] if os.path.isabs(e['output'])
-                              else os.path.join(e['directory'], e['output']), build_dir)
-        ex = example or example_of(obj)
-        if ex is None:
-            continue
-        live[obj] = (ex, is_live(os.path.join(build_dir, obj), compiler_of(e), build_dir))
-    deps = parse_ninja_deps(run(['ninja', '-C', build_dir, '-t', 'deps'], root).stdout)
-    files = {}
-    for obj, (ex, alive) in live.items():
-        if alive:
-            s = files.setdefault(ex, set())
-            for d in deps.get(obj, []):
-                f = rel(d, root, build_dir)
+    """{'examples': {ex: [files]}, 'cmake_inputs': [files], 'nodeps': [objects]} from a
+    built tree. With `example`, the tree is that one example's own build (espressif), so
+    its CMake inputs are its own too. `nodeps` lists live objects ninja recorded no deps
+    for: only their source is known."""
+    src_of = {}
+    for e in json.load(open(os.path.join(build_dir, 'compile_commands.json'))):
+        out = e['output'] if os.path.isabs(e['output']) else os.path.join(e['directory'], e['output'])
+        src_of[os.path.relpath(out, build_dir)] = e
+    targets = run_ok(['ninja', '-C', build_dir, '-t', 'targets', 'all'], root)
+    known = {line.split(':', 1)[0] for line in targets.splitlines()}
+    deps = parse_ninja_deps(run_ok(['ninja', '-C', build_dir, '-t', 'deps'], root))
+
+    def query(ts):
+        return parse_query(run_ok(['ninja', '-C', build_dir, '-t', 'query', *ts], root))
+
+    obj_files, nodeps = {}, set()
+
+    def files_of(obj):
+        if obj in obj_files:
+            return obj_files[obj]
+        s = set()
+        e = src_of.get(obj)
+        if e is None:
+            f = rel(obj, root, build_dir)               # a prebuilt object in the tree
+            if f:
+                s.add(f)
+        else:
+            src = e['file'] if os.path.isabs(e['file']) else os.path.join(e['directory'], e['file'])
+            # assembly may define nothing readelf can name yet still place vectors or code
+            if src.endswith(('.s', '.S')) or is_live(os.path.join(build_dir, obj), compiler_of(e), build_dir):
+                f = rel(src, root)
                 if f:
                     s.add(f)
-    for ex in list(files):
-        name = ex.split('/')[1]
-        elf = f'{name}.elf' if example else f'{ex}/{name}.elf'
-        q = run(['ninja', '-C', build_dir, '-t', 'query', elf], root).stdout
-        for t in query_inputs(q):
-            if not t.endswith(('.obj', '.o')):
-                f = rel(t, root, build_dir)
-                if f and os.path.isfile(os.path.join(root, f)):
-                    files[ex].add(f)
-    q = run(['ninja', '-C', build_dir, '-t', 'query', 'build.ninja'], root).stdout
-    cm = sorted({f for f in (rel(p, root, build_dir) for p in query_inputs(q)) if f})
+                if obj not in deps:
+                    nodeps.add(obj)
+                s.update(f for f in (rel(d, root, build_dir) for d in deps.get(obj, [])) if f)
+        obj_files[obj] = s
+        return s
+
+    elves = example_elves(targets, example)
+    if not elves:
+        raise ExtractError('no example elf among the build targets')
+    files = {}
+    for ex, elf in sorted(elves.items()):
+        objs, others = walk_link_inputs(elf, query, known)
+        s = set().union(*map(files_of, objs))
+        s.update(f for f in (rel(t, root, build_dir) for t in others)
+                 if f and os.path.isfile(os.path.join(root, f)))
+        link = run_ok(['ninja', '-C', build_dir, '-t', 'commands', elf], root).strip().splitlines()
+        if link:
+            s |= link_files(link[-1], root, build_dir)
+        files[ex] = s
+    cm = sorted({f for f in (rel(p, root, build_dir) for p in query(['build.ninja']).get('build.ninja', [])) if f})
     if example:
-        files.setdefault(example, set()).update(cm)
+        files[example].update(cm)
         cm = []
-    return {'examples': {ex: sorted(s) for ex, s in sorted(files.items())}, 'cmake_inputs': cm}
+    return {'examples': {ex: sorted(s) for ex, s in sorted(files.items())}, 'cmake_inputs': cm,
+            'nodeps': sorted(nodeps)}
 
 
 def extract_board(build_dir, root):
     """extract() over a board's build: one tree, or one per example (espressif)."""
     if os.path.isfile(os.path.join(build_dir, 'build.ninja')):
         return extract(build_dir, root)
-    out = {'examples': {}, 'cmake_inputs': []}
-    for role in ('device', 'host', 'dual', 'typec'):
+    out = {'examples': {}, 'cmake_inputs': [], 'nodeps': []}
+    for role in ROLES:
         rd = os.path.join(build_dir, role)
         for name in sorted(os.listdir(rd)) if os.path.isdir(rd) else ():
             d = os.path.join(rd, name)
             if os.path.isfile(os.path.join(d, 'build.ninja')):
-                out['examples'].update(extract(d, root, f'{role}/{name}')['examples'])
-    return out if out['examples'] else None
+                g = extract(d, root, f'{role}/{name}')
+                out['examples'].update(g['examples'])
+                out['nodeps'] += [f'{role}/{name}:{o}' for o in g['nodeps']]
+    if not out['examples']:
+        raise ExtractError('no build.ninja at the board build dir or any example dir')
+    return out
 
 
 def cmd_graph(a):
@@ -212,11 +300,13 @@ def cmd_graph(a):
         r = run([sys.executable, 'tools/build.py', '-b', board], root)
         rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
                'family': tools_build.find_family(board)}
-        g = extract_board(build_dir, root) if r.returncode == 0 else None
-        if g is None:
+        if r.returncode != 0:
             rec.update(status='failed', error=(r.stdout + r.stderr)[-2000:])
         else:
-            rec.update(status='ok', **g)
+            try:
+                rec.update(status='ok', **extract_board(build_dir, root))
+            except (ExtractError, OSError, ValueError) as e:
+                rec.update(status='failed', error=f'extract: {e}')
         rec['secs'] = round(time.monotonic() - t0, 1)
         shutil.rmtree(build_dir, ignore_errors=True)
         with open(path, 'w') as fh:
@@ -291,7 +381,8 @@ def cmd_replay(a):
     summary = {'graph_boards': {s: sum(1 for x in status.values() if x == s) for s in set(status.values())},
                'commits': len(results),
                'with_missed': sum(1 for r in results if r['missed']),
-               'need_historical': sum(1 for r in results if r['deleted'])}
+               'with_deleted': sum(1 for r in results if r['deleted']),
+               'with_unseen': sum(1 for r in results if r['unseen'])}
     with open(a.out, 'w') as fh:
         json.dump({'summary': summary, 'commits': results}, fh, indent=1)
     print(json.dumps(summary))
