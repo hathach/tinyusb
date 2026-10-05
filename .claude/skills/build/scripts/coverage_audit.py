@@ -13,8 +13,10 @@ recorded deps (ninja -t deps), the linker script and other files the link comman
 and the files CMake read to configure the board. An object that defines no symbol (a
 class or port driver whose CFG_* guard compiled its body away) contributes nothing: its
 source changing cannot change the firmware. The build dir is removed afterwards; an
-existing DIR/<board>.json for the same HEAD and format is kept unless --force. A build or
-extraction error records the board as failed, never as an empty success.
+existing DIR/<board>.json for the same HEAD and format is kept unless --force. Only the
+examples whose elf the build wrote are recorded: a board some of whose examples failed is
+'partial' with its error, one with none or an extraction error 'failed', never an empty
+success.
 
 `replay` walks first-parent commits of REF (default HEAD) and, for each, compares the
 (board, example) pairs whose recorded files the commit changed against what the current
@@ -297,9 +299,11 @@ def extract(build_dir, root, example=None):
         obj_files[obj] = s
         return s
 
-    elves = example_elves(targets, example)
+    # only what this build produced: a failed example's link edges exist all the same
+    elves = {ex: elf for ex, elf in example_elves(targets, example).items()
+             if os.path.isfile(os.path.join(build_dir, elf))}
     if not elves:
-        raise ExtractError('no example elf among the build targets')
+        raise ExtractError('no example elf was built')
     files = {}
     for ex, elf in sorted(elves.items()):
         objs, others = walk_link_inputs(elf, query, known)
@@ -327,7 +331,7 @@ def extract_board(build_dir, root):
         rd = os.path.join(build_dir, role)
         for name in sorted(os.listdir(rd)) if os.path.isdir(rd) else ():
             d = os.path.join(rd, name)
-            if os.path.isfile(os.path.join(d, 'build.ninja')):
+            if os.path.isfile(os.path.join(d, 'build.ninja')) and os.path.isfile(os.path.join(d, f'{name}.elf')):
                 g = extract(d, root, f'{role}/{name}')
                 out['examples'].update(g['examples'])
                 out['nodeps'] += [f'{role}/{name}:{o}' for o in g['nodeps']]
@@ -362,13 +366,12 @@ def cmd_graph(a):
         r = run([sys.executable, 'tools/build.py', '-b', board], root)
         rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
                'family': tools_build.find_family(board)}
-        if r.returncode != 0:
-            rec.update(status='failed', error=(r.stdout + r.stderr)[-2000:])
-        else:
-            try:
-                rec.update(status='ok', **extract_board(build_dir, root))
-            except (ExtractError, OSError, ValueError) as e:
-                rec.update(status='failed', error=f'extract: {e}')
+        try:
+            rec.update(status='ok' if r.returncode == 0 else 'partial', **extract_board(build_dir, root))
+            if r.returncode != 0:
+                rec['error'] = (r.stdout + r.stderr)[-2000:]
+        except (ExtractError, OSError, ValueError) as e:
+            rec.update(status='failed', error=(r.stdout + r.stderr)[-2000:] if r.returncode else f'extract: {e}')
         rec['secs'] = round(time.monotonic() - t0, 1)
         shutil.rmtree(build_dir, ignore_errors=True)
         with open(path, 'w') as fh:
@@ -387,7 +390,7 @@ def load_index(graph_dir):
             g = json.load(fh)
         status[g['board']] = g['status']
         family[g['board']] = g.get('family')
-        if g['status'] != 'ok':
+        if g['status'] not in ('ok', 'partial'):      # partial: the examples that built
             continue
         own, shared = scope_cmake_inputs(g['cmake_inputs'], g['examples'])
         for f in shared:

@@ -115,12 +115,15 @@ class ScopeTest(unittest.TestCase):
             for rec in ({'board': 'b1', 'family': 'f1', 'status': 'ok',
                          'examples': {'device/a': ['src/a.c'], 'device/b': ['src/b.c']},
                          'cmake_inputs': ['examples/device/a/CMakeLists.txt', 'hw/bsp/f1/family.cmake']},
-                        {'board': 'b2', 'family': 'f2', 'status': 'failed'}):
+                        {'board': 'b2', 'family': 'f2', 'status': 'failed'},
+                        {'board': 'b3', 'family': 'f3', 'status': 'partial', 'examples': {'device/a': ['src/a.c']},
+                         'cmake_inputs': []}):
                 with open(os.path.join(d, rec['board'] + '.json'), 'w') as fh:
                     json.dump(rec, fh)
             index, family, status = ca.load_index(d)
-        self.assertEqual(status, {'b1': 'ok', 'b2': 'failed'})
-        self.assertEqual(family, {'b1': 'f1', 'b2': 'f2'})
+        self.assertEqual(status, {'b1': 'ok', 'b2': 'failed', 'b3': 'partial'})
+        self.assertEqual(family, {'b1': 'f1', 'b2': 'f2', 'b3': 'f3'})
+        self.assertIn(('b3', 'device/a'), index['src/a.c'])
         self.assertEqual(index['examples/device/a/CMakeLists.txt'], {('b1', 'device/a')})
         self.assertEqual(index['hw/bsp/f1/family.cmake'], {('b1', 'device/a'), ('b1', 'device/b')})
         self.assertEqual(index['src/b.c'], {('b1', 'device/b')})
@@ -141,8 +144,10 @@ class ExtractBoardTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as d:
                 for ex in ('device/cdc_msc', 'host/cdc_msc_hid', 'device/unbuilt'):
                     os.makedirs(os.path.join(d, ex))
-                for ex in ('device/cdc_msc', 'host/cdc_msc_hid'):
+                for ex in ('device/cdc_msc', 'host/cdc_msc_hid', 'device/unbuilt'):
                     open(os.path.join(d, ex, 'build.ninja'), 'w').close()
+                for ex in ('device/cdc_msc', 'host/cdc_msc_hid'):     # unbuilt failed: no elf
+                    open(os.path.join(d, ex, ex.split('/')[1] + '.elf'), 'w').close()
                 g = ca.extract_board(d, d)
         finally:
             ca.extract = orig
@@ -153,13 +158,16 @@ class ExtractBoardTest(unittest.TestCase):
 class FakeBuild:
     """A built tree on disk (sources, compile_commands.json) whose ninja and readelf answers
     are canned: two examples, each linking a different library archive."""
-    def __init__(self, root, fail=None):
+    def __init__(self, root, fail=None, built=('device/a', 'device/b')):
         self.root, self.bd, self.fail = root, os.path.join(root, 'cmake-build', 'b'), fail
         for f in ('examples/device/a/main.c', 'examples/device/b/main.c', 'lib/os/os.c', 'lib/os/os.h',
                   'lib/usb/usb.c', 'hw/bsp/f/start.S', 'hw/bsp/f/mem.ld', 'src/dead.c', 'src/prog.pio'):
             os.makedirs(os.path.dirname(os.path.join(root, f)), exist_ok=True)
             open(os.path.join(root, f), 'w').close()
         os.makedirs(self.bd)
+        for ex in built:
+            os.makedirs(os.path.join(self.bd, ex))
+            open(os.path.join(self.bd, ex, ex.split('/')[1] + '.elf'), 'w').close()
         with open(os.path.join(root, 'hw/bsp/f/link.ld'), 'w') as fh:
             fh.write('INCLUDE mem.ld\nSECTIONS {}\n')
         self.objs = {'device/a/CMakeFiles/a.dir/main.c.obj': 'examples/device/a/main.c',
@@ -203,10 +211,10 @@ class FakeBuild:
 
 
 class ExtractTest(unittest.TestCase):
-    def extract(self, fail=None):
+    def extract(self, fail=None, built=('device/a', 'device/b')):
         orig = ca.run
         with tempfile.TemporaryDirectory() as root:
-            fb = FakeBuild(root, fail)
+            fb = FakeBuild(root, fail, built)
             ca.run = fb
             try:
                 return ca.extract(fb.bd, root)
@@ -221,6 +229,11 @@ class ExtractTest(unittest.TestCase):
                                                      'lib/os/os.h', 'lib/usb/usb.c', 'src/prog.pio'])
         self.assertEqual(g['nodeps'], ['device/a/CMakeFiles/a.dir/start.S.obj'])
         self.assertEqual(g['cmake_inputs'], ['examples/device/a/CMakeLists.txt'])
+
+    def test_an_example_whose_elf_was_not_built_is_not_recorded(self):
+        self.assertEqual(list(self.extract(built=('device/a',))['examples']), ['device/a'])
+        with self.assertRaises(ca.ExtractError):
+            self.extract(built=())
 
     def test_a_failing_ninja_tool_fails_the_extraction(self):
         for tool in ('targets', 'deps', 'query', 'commands'):
