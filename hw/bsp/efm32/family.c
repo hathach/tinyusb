@@ -40,7 +40,7 @@
 
 void USB_IRQHandler(void)
 {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 /*--------------------------------------------------------------------*/
