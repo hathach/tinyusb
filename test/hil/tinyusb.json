@@ -294,6 +294,10 @@
                 "name": "jlink",
                 "uid": "000831174392",
                 "args": "-device R7FA4M1AB"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra4m1 cpu -expected-id 0\" -c \"dap create ra4m1.dap -chain-position ra4m1.cpu\" -c \"target create ra4m1.cpu cortex_m -dap ra4m1.dap\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
