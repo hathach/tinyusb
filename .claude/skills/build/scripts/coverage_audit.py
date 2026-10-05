@@ -12,8 +12,9 @@ the elf's link inputs through archives (ninja -t query): each live object's sour
 recorded deps (ninja -t deps), the linker script and other files the link command names,
 and the files CMake read to configure the board. An object that defines no symbol (a
 class or port driver whose CFG_* guard compiled its body away) contributes nothing: its
-source changing cannot change the firmware. The build dir is removed afterwards; an
-existing DIR/<board>.json for the same HEAD and format is kept unless --force. Only the
+source changing cannot change the firmware. The build goes to a private dir,
+cmake-build-audit-<pid>-<board>, removed afterwards; an existing DIR/<board>.json for
+the same HEAD and format is kept unless --force. Only the
 examples whose elf the build wrote are recorded: a board some of whose examples failed is
 'partial' with its error, one with none or an extraction error 'failed', never an empty
 success.
@@ -342,7 +343,10 @@ def extract_board(build_dir, root):
 
 def cmd_graph(a):
     root = os.path.abspath(a.root)
-    head = run(['git', 'rev-parse', 'HEAD'], root).stdout.strip()
+    try:
+        head = run_ok(['git', 'rev-parse', 'HEAD'], root).strip()
+    except ExtractError as e:
+        sys.exit(f'graph: {root} has no HEAD to key the cache on: {e}')
     boards = list(a.board or [])
     if a.boards_file:
         with open(a.boards_file) as fh:
@@ -361,9 +365,10 @@ def cmd_graph(a):
                 print(f'{board}: cached', flush=True)
                 continue
         t0 = time.monotonic()
-        build_dir = os.path.join(root, 'cmake-build', f'cmake-build-{board}')
+        name = f'audit-{os.getpid()}-{board}'        # never the checkout's own cmake-build-<board>
+        build_dir = os.path.join(root, 'cmake-build', f'cmake-build-{name}')
         shutil.rmtree(build_dir, ignore_errors=True)
-        r = run([sys.executable, 'tools/build.py', '-b', board], root)
+        r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
         rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
                'family': tools_build.find_family(board)}
         try:
@@ -432,7 +437,10 @@ def cmd_replay(a):
                                ROOT).stdout.split()
     results = []
     for c in commits:
-        ns = run(['git', 'diff', '--no-renames', '--name-status', f'{c}^1', c], ROOT).stdout.split('\n')
+        try:
+            ns = run_ok(['git', 'diff', '--no-renames', '--name-status', f'{c}^1', c], ROOT).split('\n')
+        except ExtractError as e:      # a root commit has no ^1: no diff is not a clean one
+            sys.exit(f'replay: {c}: {e}')
         rows = [l.split('\t', 1) for l in ns if '\t' in l]
         files = [p for _, p in rows]
         deleted = [p for s, p in rows if s.startswith('D')]
