@@ -112,11 +112,11 @@ class ScopeTest(unittest.TestCase):
 
     def test_load_index_skips_failed_boards_and_scopes_cmake(self):
         with tempfile.TemporaryDirectory() as d:
-            for rec in ({'board': 'b1', 'family': 'f1', 'status': 'ok',
+            for rec in ({'format': ca.FORMAT, 'board': 'b1', 'family': 'f1', 'status': 'ok',
                          'examples': {'device/a': ['src/a.c'], 'device/b': ['src/b.c']},
                          'cmake_inputs': ['examples/device/a/CMakeLists.txt', 'hw/bsp/f1/family.cmake']},
-                        {'board': 'b2', 'family': 'f2', 'status': 'failed'},
-                        {'board': 'b3', 'family': 'f3', 'status': 'partial', 'examples': {'device/a': ['src/a.c']},
+                        {'format': ca.FORMAT, 'board': 'b2', 'family': 'f2', 'status': 'failed'},
+                        {'format': ca.FORMAT, 'board': 'b3', 'family': 'f3', 'status': 'partial', 'examples': {'device/a': ['src/a.c']},
                          'cmake_inputs': []}):
                 with open(os.path.join(d, rec['board'] + '.json'), 'w') as fh:
                     json.dump(rec, fh)
@@ -127,6 +127,14 @@ class ScopeTest(unittest.TestCase):
         self.assertEqual(index['examples/device/a/CMakeLists.txt'], {('b1', 'device/a')})
         self.assertEqual(index['hw/bsp/f1/family.cmake'], {('b1', 'device/a'), ('b1', 'device/b')})
         self.assertEqual(index['src/b.c'], {('b1', 'device/b')})
+
+
+    def test_a_graph_of_another_format_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, 'b.json'), 'w') as fh:
+                json.dump({'format': ca.FORMAT - 1, 'board': 'b', 'status': 'ok', 'examples': {}, 'cmake_inputs': []}, fh)
+            with self.assertRaises(SystemExit):
+                ca.load_index(d)
 
 
 class ExtractBoardTest(unittest.TestCase):

@@ -388,6 +388,9 @@ def load_index(graph_dir):
             continue
         with open(os.path.join(graph_dir, name)) as fh:
             g = json.load(fh)
+        if g.get('format') != FORMAT:
+            raise SystemExit(f'{name}: graph format {g.get("format")}, this script reads {FORMAT}: '
+                             f'regenerate it with `graph --force`')
         status[g['board']] = g['status']
         family[g['board']] = g.get('family')
         if g['status'] not in ('ok', 'partial'):      # partial: the examples that built
