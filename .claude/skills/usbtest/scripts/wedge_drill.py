@@ -295,7 +295,7 @@ def main():
     p.add_argument('--config', required=True, help="this host's HIL config json (hil skill)")
     p.add_argument('--board', required=True)
     p.add_argument('--variant', help='roster variant, required when the board has several')
-    p.add_argument('--delay', type=float, default=1.0, help='seconds into case 27 before the halt (default 1)')
+    p.add_argument('--delay', type=float, default=0.3, help='seconds into case 27 before the halt (default 0.3)')
     p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
     p.add_argument('--allow-concurrent', action='store_true',
                    help="skip the live-battery check; see run_case.py's description first")
