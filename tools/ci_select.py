@@ -991,17 +991,8 @@ def rev(ref, repo_root):
         raise SelectError(f'{ref!r} does not name a commit here') from None
 
 
-def merge_base(base, repo_root):
-    return _git(['merge-base', 'HEAD', base], repo_root).strip()
-
-
 def git_show(spec, repo_root):
     return _git(['show', spec], repo_root)
-
-
-def changed_files_from_git(base, repo_root):
-    return [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{merge_base(base, repo_root)}..HEAD'],
-                            repo_root).splitlines() if l.strip()]
 
 
 def _deps_families(base_text_fn, head_text_fn, repo_root):
@@ -1012,12 +1003,6 @@ def _deps_families(base_text_fn, head_text_fn, repo_root):
     except (subprocess.CalledProcessError, OSError) as e:
         print(f'ci_select: {GET_DEPS_PATH}: base content unreadable ({e})', file=sys.stderr)
         return None
-
-
-def get_deps_families_from_git(base, repo_root):
-    """The changed dep entries' families for a --base run, or None (-> full matrix)."""
-    return _deps_families(lambda: git_show(f'{merge_base(base, repo_root)}:{GET_DEPS_PATH}', repo_root),
-                          lambda: git_show(f'HEAD:{GET_DEPS_PATH}', repo_root), repo_root)
 
 
 def _worktree_files(base_sha, repo_root):
