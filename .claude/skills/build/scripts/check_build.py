@@ -491,7 +491,7 @@ def port_gap(record, results):
     return '; '.join(why) or None
 
 
-def coverage(records, scope, results, chosen=False, targets=(), dropped=()):
+def coverage(records, results, chosen=False, targets=(), dropped=()):
     """ci_select's per-path build records as (nothing to verify, uncovered firmware),
     judged against what was actually built, each entry the record's reason. Effect
     'none' is nothing to verify (non-code, a get_deps.py edit that changes no entry);
@@ -542,10 +542,7 @@ def coverage(records, scope, results, chosen=False, targets=(), dropped=()):
         if len(benign) + len(gaps) > n:
             explained.add(rec['path'])
     if not results:
-        for path in scope:
-            if path not in explained:
-                gaps.append(next((rec['reason'] for rec in records if rec['path'] == path),
-                                 f'{path}: no build reason from ci_select'))
+        gaps += [rec['reason'] for rec in records if rec['path'] not in explained]
     return benign, gaps
 
 
@@ -870,7 +867,7 @@ def main(argv=None):
         # an uncovered path fails the scope even when every board built green: a class
         # driver plus the core file that registers it is the common shape
         extra['nothingToBuild'], extra['uncovered'] = coverage(
-            records, [r['path'] for r in records], results, bool(a.example or a.target), a.target,
+            records, results, bool(a.example or a.target), a.target,
             manifest['build']['dropped'].values())
     ok = built_ok and not extra.get('uncovered')
     if ok and a.receipt is not None:

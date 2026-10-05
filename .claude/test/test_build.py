@@ -127,11 +127,11 @@ class ResolveTest(unittest.TestCase):
                    rec("src/portable/x/y/dcd_y.c: port x/y -> families ['lpc18']", 'port', families=['lpc18'], port='x/y'),
                    rec('hw/bsp/stm32f4/family.c: bsp family stm32f4', 'bsp', families=['stm32f4'])]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        benign, gaps = build.coverage(records, [r['path'] for r in records], built)
+        benign, gaps = build.coverage(records, built)
         self.assertEqual((benign, gaps), ([], [r['reason'] for r in records[:2]]))
-        # nothing built and no record at all: still a gap, never a pass
-        _, gaps = build.coverage([], ['src/portable/x/y/dcd_y.c'], [])
-        self.assertEqual(gaps, ['src/portable/x/y/dcd_y.c: no build reason from ci_select'])
+        # nothing built: a contributing record is still a gap, never a pass
+        _, gaps = build.coverage(records[1:2], [])
+        self.assertEqual(gaps, [records[1]['reason']])
 
     def test_full_matrix_builds_a_board_for_a_port_family_the_pair_lacks(self):
         # the representative pair stands in for the matrix on core code, not on a port
@@ -158,13 +158,12 @@ class ResolveTest(unittest.TestCase):
                    rec('hw/bsp/stm32f4/family.c: bsp family stm32f4', 'bsp', families=['stm32f4']),
                    rec("src/class/cdc/cdc_host.c: class cdc -> ['host/cdc_msc_hid']", 'class',
                        examples=['host/cdc_msc_hid'])]
-        scope = [r['path'] for r in records]
         without = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        self.assertEqual(build.coverage(records, scope, without)[1], [records[0]['reason'], records[2]['reason']])
+        self.assertEqual(build.coverage(records, without)[1], [records[0]['reason'], records[2]['reason']])
         with_it = [{'family': 'stm32f4', 'okExamples': ['cdc_msc_hid']}]
-        self.assertEqual(build.coverage(records, scope, with_it)[1], [])
+        self.assertEqual(build.coverage(records, with_it)[1], [])
         # -e or -T: the caller chose what to build, so the narrowing is theirs, not a gap
-        self.assertEqual(build.coverage(records, scope, without, chosen=True)[1], [])
+        self.assertEqual(build.coverage(records, without, chosen=True)[1], [])
 
     def test_espressif_verifies_only_the_example_trees_this_run_attempted(self):
         # one idf tree per example; a shared dir keeps the tree of an example skipped
@@ -185,9 +184,9 @@ class ResolveTest(unittest.TestCase):
         # only evidence is that some elf came out
         r = rec('src/tusb.c: core/infra -> full build matrix', 'core-infra', 'full')
         nothing = [{'family': 'stm32f4', 'okExamples': []}]
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], nothing)[1], [r['reason']])
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], nothing, chosen=True)[1], [])
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}])[1], [])
+        self.assertEqual(build.coverage([r], nothing)[1], [r['reason']])
+        self.assertEqual(build.coverage([r], nothing, chosen=True)[1], [])
+        self.assertEqual(build.coverage([r], [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}])[1], [])
 
     def test_a_membrowse_script_change_needs_its_own_target_not_a_default_sweep(self):
         # examples-membrowse-upload is a plain add_custom_target: `all` never runs
@@ -196,11 +195,11 @@ class ResolveTest(unittest.TestCase):
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         gap = (f"{r['reason']} (the default sweep builds `all`, which does not run "
                f'examples-membrowse-upload: rerun with -T all -T examples-membrowse-upload)')
-        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built)[1], [gap])
+        self.assertEqual(build.coverage([r], built)[1], [gap])
         # another -e/-T does not stand in for the target
-        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built,
+        self.assertEqual(build.coverage([r], built,
                                         chosen=True, targets=('all',))[1], [gap])
-        self.assertEqual(build.coverage([r], ['tools/membrowse_cli.py'], built, chosen=True,
+        self.assertEqual(build.coverage([r], built, chosen=True,
                                         targets=('all', 'examples-membrowse-upload'))[1], [])
 
     def test_the_size_script_is_never_verified_by_a_local_build(self):
@@ -208,7 +207,7 @@ class ResolveTest(unittest.TestCase):
         r = build.ci_select.classify_build(['tools/code_size.py'], str(build.ROOT))['paths'][0]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         for kw in ({}, {'chosen': True, 'targets': ('all', 'examples-membrowse-upload')}):
-            gaps = build.coverage([r], ['tools/code_size.py'], built, **kw)[1]
+            gaps = build.coverage([r], built, **kw)[1]
             self.assertEqual(len(gaps), 1, kw)
             self.assertIn("CI's code-size step", gaps[0])
 
@@ -216,15 +215,15 @@ class ResolveTest(unittest.TestCase):
         records = build.ci_select.classify_build(['src/host/usbh.c', 'src/device/usbd.c'], str(build.ROOT))['paths']
         scope = [r['path'] for r in records]
         device_only = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        self.assertEqual(build.coverage(records, scope, device_only)[1], [records[0]['reason']])
+        self.assertEqual(build.coverage(records, device_only)[1], [records[0]['reason']])
         both = [{'family': 'stm32f4', 'okExamples': ['cdc_msc', 'cdc_msc_hid']}]
-        self.assertEqual(build.coverage(records, scope, both)[1], [])
+        self.assertEqual(build.coverage(records, both)[1], [])
         dual = [{'family': 'stm32f4', 'okExamples': ['host_hid_to_device_cdc']}]
-        self.assertEqual(build.coverage(records, scope, dual)[1], [])
+        self.assertEqual(build.coverage(records, dual)[1], [])
 
     def test_get_deps_edit_changing_no_entry_is_nothing_to_build(self):
         r = build.ci_select.classify_build(['tools/get_deps.py'], str(build.ROOT), set())['paths'][0]
-        self.assertEqual(build.coverage([r], ['tools/get_deps.py'], []), ([r['reason']], []))
+        self.assertEqual(build.coverage([r], []), ([r['reason']], []))
 
     def test_non_code_paths_beside_code_do_not_fail_the_scope(self):
         rc, printed, b1 = self._main_scope(['docs/index.rst', 'src/tusb.c'])

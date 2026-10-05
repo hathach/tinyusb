@@ -21,6 +21,8 @@ jobs:
       contents: read
     outputs:
       code_changed: ${{ steps.gate.outputs.code }}
+      # hil-hfp-iar trusts its own selector run on this, not rerunning the suites on the rig runner
+      selector_suites_ok: ${{ steps.gate.outputs.suites_ok }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -44,8 +46,10 @@ jobs:
             SEL="--endpoints $BEFORE..HEAD"
           fi
           CODE=true
+          SUITES_OK=false
           if [ -n "$SEL" ] && python3 test/hil/test/test_ci_select.py >/dev/null 2>&1 &&
              python3 .claude/test/test_build_select.py >/dev/null 2>&1; then
+            SUITES_OK=true
             CODE=$(python3 .claude/skills/build/scripts/check_build.py --select-only $SEL \
                      --config test/hil/tinyusb.json --config test/hil/hfp.json | python3 -c '
           import json, sys
@@ -54,8 +58,8 @@ jobs:
           print(str(ci_select.build_gate(json.load(sys.stdin))).lower())') || CODE=true
           fi
           [ "$CODE" = false ] || CODE=true
-          echo "code=$CODE"
-          echo "code=$CODE" >> $GITHUB_OUTPUT
+          echo "code=$CODE suites_ok=$SUITES_OK"
+          printf 'code=%s\nsuites_ok=%s\n' "$CODE" "$SUITES_OK" >> $GITHUB_OUTPUT
 
   set-matrix:
     runs-on: ubuntu-latest
@@ -194,9 +198,8 @@ jobs:
           # matrix entries would multiply GHA legs and break CircleCI's family parameter.
           EXAMPLE_MAP='{}'
           if [ -n "$BUILD_SELECT_FILE" ]; then
-            # a family that builds every example has no entry: build_util builds all
-            EXAMPLE_MAP=$(jq -c '.build.families | with_entries(select(.value.examples != "all")) | map_values(.examples)' \
-                            "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
+            EXAMPLE_MAP=$(python .github/scripts/ci_set_matrix.py --example-map --select-file "$BUILD_SELECT_FILE") ||
+              EXAMPLE_MAP='{}'
           fi
           # the changed boards the pinned matrix does not build (cmake-required); from
           # SELECT_FILE, since a build matrix fallen open to full still leaves them out
@@ -231,7 +234,7 @@ jobs:
 
           # membrowse-identical's legs: the pinned and espressif legs no build above uploads
           MEMBROWSE_JSON=$(python .github/scripts/ci_set_matrix.py --membrowse --pinned-json "$PINNED_JSON" \
-            --example-map "$EXAMPLE_MAP" --hil-json "$HIL_MATRIX_JSON" \
+            --hil-json "$HIL_MATRIX_JSON" \
             --hil-full-json "$(python .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json)" $WITH_ESP) || {
             echo "::warning::membrowse partition failed - no --identical uploads this run"
             MEMBROWSE_JSON='{"all": [], "identical": []}'
@@ -446,13 +449,11 @@ jobs:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
           LEGS: ${{ needs.check-paths.outputs.code_changed == 'true' && needs.set-matrix.outputs.membrowse_identical || needs.set-matrix.outputs.membrowse_all }}
         run: |
-          # one build.py call per leg: a later one still gets its upload after a failure
-          rc=0
-          while IFS= read -r arg; do
-            # a -DMA variant uploads as <build-name>/<example> (tools/build.py)
-            python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || rc=1
-          done < <(echo "$LEGS" | jq -r '.[]')
-          exit $rc
+          # one build.py call per leg, its words split as argv (never through a shell), 8 at
+          # a time: a docs-only run is ~1100 uploads. A failed leg leaves the others theirs
+          # and fails the step at the end. A -DMA variant uploads as <build-name>/<example>.
+          echo "$LEGS" | jq -r '.[]' |
+            xargs -r -P 8 -L 1 python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -701,11 +702,13 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
+          SUITES_OK: ${{ needs.check-paths.outputs.selector_suites_ok }}
         run: |
           # Best-effort: a selector failure here falls back to the full hfp matrix (no
-          # ci_select.json, no SEL_* vars), never fails the job.
-          if ! python3 test/hil/test/test_ci_select.py || ! python3 .claude/test/test_build_select.py; then
-            echo "::warning::selector unit suites failed - running the full hfp matrix"
+          # ci_select.json, no SEL_* vars), never fails the job. check-paths ran the
+          # selector's suites on this commit; this is the rig's runner, so no rerun here.
+          if [ "$SUITES_OK" != true ]; then
+            echo "::warning::selector unit suites did not pass in check-paths - running the full hfp matrix"
             rm -f ci_select.json
             exit 0
           fi

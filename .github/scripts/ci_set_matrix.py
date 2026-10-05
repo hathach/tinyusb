@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import contextlib
 import json
 import os
 import shlex
@@ -176,6 +175,14 @@ def required_json(select):
     print(json.dumps(out))
 
 
+def example_map_json(select):
+    """{family: [examples]} for build_util.yml/config2.yml's -e filter: a family that
+    builds every example has no entry, and an unusable selection filters nothing."""
+    select = usable(select)
+    fams = select['build']['families'] if select else {}
+    print(json.dumps({f: v['examples'] for f, v in fams.items() if v['examples'] != 'all'}))
+
+
 def leg_key(arg):
     """(board, upload name) of a `-b <board> [--build-name <name>] ...` leg."""
     words = shlex.split(arg)
@@ -183,25 +190,19 @@ def leg_key(arg):
     return board, words[words.index('--build-name') + 1] if '--build-name' in words else board
 
 
-def membrowse_json(pinned, example_map, hil_esp, hil_esp_all, with_esp):
+def membrowse_json(pinned, hil_esp, hil_esp_all, with_esp):
     """{'all': legs, 'identical': legs} for the membrowse-identical job. Every leg of the
     universe - the pinned boards, plus the tinyusb roster's espressif legs where
-    hil-build-esp runs (with_esp) - is uploaded once per commit: measured by the leg that
-    builds it, else --identical. The cmake job uploads the pinned boards its own upload step
-    resolves (build.py resolve_ci_boards, so a pinned board building none of its family's
-    -e examples goes identical here), hil-build-esp its scoped espressif legs. 'all' is for
-    a run whose gate builds nothing."""
-    sys.path.insert(0, os.path.join(REPO, 'tools'))
-    import build
+    hil-build-esp runs (with_esp) - is uploaded once per commit: by the leg that owns it,
+    else --identical. A cmake leg uploads every pinned board of its family (build.py
+    --ci-pinned-boards-only), hil-build-esp its scoped espressif legs. 'all' is for a run
+    whose gate builds nothing."""
     universe = {(b, b): f'-b {b}' for b in sorted(pinned_boards()) if board_family(b) != 'espressif'}
     if with_esp:
         universe.update((leg_key(a), a) for a in hil_esp_all)
     measured = {leg_key(a) for a in hil_esp} if with_esp else set()
-    with contextlib.chdir(REPO):  # build.py reads hw/bsp and examples relative to the repo
-        for tc in CMAKE_JOB_TOOLCHAINS:
-            for fam in pinned.get(tc, []):
-                measured.update((b, b) for b in build.resolve_ci_boards(
-                    build.CI_PINNED_BOARDS, fam, True, example_map.get(fam), 'cmake', ('TOOLCHAIN=gcc',)))
+    fams = {f for tc in CMAKE_JOB_TOOLCHAINS for f in pinned.get(tc, [])}
+    measured.update((b, b) for b in pinned_boards() if board_family(b) in fams)
     print(json.dumps({'all': list(universe.values()),
                       'identical': [a for k, a in universe.items() if k not in measured]}))
 
@@ -265,17 +266,17 @@ def main():
                              '(the GHA cmake leg; CircleCI builds every board unfiltered)')
     parser.add_argument('--required', action='store_true',
                         help='print the cmake-required legs instead: changed boards the pinned matrix does not build')
+    parser.add_argument('--example-map', action='store_true',
+                        help="print the selection's per-family example filter instead")
     mb = parser.add_argument_group('membrowse', 'print the membrowse-identical legs instead (JSON values)')
     mb.add_argument('--membrowse', action='store_true')
     mb.add_argument('--pinned-json', default='{}', help="the cmake job's matrix")
-    mb.add_argument('--example-map', default='{}', help="the cmake job's example map")
     mb.add_argument('--hil-json', default='{}', help="hil-build's matrix (its esp-idf legs)")
     mb.add_argument('--hil-full-json', default='{}', help='the unscoped tinyusb.json matrix')
     mb.add_argument('--with-esp', action='store_true', help='hil-build-esp runs here (repository owner)')
     args = parser.parse_args()
     if args.membrowse:
-        membrowse_json(json.loads(args.pinned_json), json.loads(args.example_map),
-                       json.loads(args.hil_json).get('esp-idf', []),
+        membrowse_json(json.loads(args.pinned_json), json.loads(args.hil_json).get('esp-idf', []),
                        json.loads(args.hil_full_json).get('esp-idf', []), args.with_esp)
         return
 
@@ -298,7 +299,9 @@ def main():
         print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full '
               f'matrix', file=sys.stderr)
         select = None
-    if args.required:
+    if args.example_map:
+        example_map_json(select)
+    elif args.required:
         required_json(select)
     else:
         set_matrix_json(select, args.pinned)

@@ -426,7 +426,6 @@ def judge(files, deleted, index, family_of, build_view):
 
 def cmd_replay(a):
     sys.path.insert(0, str(ROOT / 'tools'))
-    sys.path.insert(0, str(ROOT / 'test' / 'hil'))
     import ci_select  # noqa: E402  the rules this branch ships
     index, family_of, status = load_index(a.graph)
     commits = a.commits or run(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
@@ -439,9 +438,9 @@ def cmd_replay(a):
         deleted = [p for s, p in rows if s.startswith('D')]
         gd = None
         if ci_select.GET_DEPS_PATH in files:
-            gd = ci_select.get_deps_changed_families(
-                run(['git', 'show', f'{c}^1:{ci_select.GET_DEPS_PATH}'], ROOT).stdout,
-                run(['git', 'show', f'{c}:{ci_select.GET_DEPS_PATH}'], ROOT).stdout, str(ROOT))
+            gd = ci_select._deps_families(
+                lambda: ci_select.git_show(f'{c}^1:{ci_select.GET_DEPS_PATH}', str(ROOT)),
+                lambda: ci_select.git_show(f'{c}:{ci_select.GET_DEPS_PATH}', str(ROOT)), str(ROOT))
         view = ci_select.classify_build(files, str(ROOT), gd)
         v = judge(files, deleted, index, family_of, view)
         v.update(commit=c[:9], subject=run(['git', 'log', '-1', '--format=%s', c], ROOT).stdout.strip(),

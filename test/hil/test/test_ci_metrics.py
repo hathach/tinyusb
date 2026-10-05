@@ -141,7 +141,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
     def test_membrowse_identical_uploads_every_leg_past_a_failure(self):
         import subprocess, tempfile
         i = self.build.index('run: |\n', self.build.index('- name: Membrowse identical upload')) + len('run: |\n')
-        block = re.sub(r'^ {10}', '', self.build[i:self.build.index('exit $rc', i) + len('exit $rc')], flags=re.M)
+        block = re.sub(r'^ {10}', '', self.build[i:self.build.index('\n\n', i)], flags=re.M)
         with tempfile.TemporaryDirectory() as d:
             with open(os.path.join(d, 'python3'), 'w') as f:
                 f.write('#!/bin/sh\necho "$*" >> log\ncase "$*" in *bad*) exit 1 ;; esac\n')
@@ -149,9 +149,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
                                env={**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'],
                                     'LEGS': json.dumps(['-b bad', '-b x --build-name x-DMA --cflag=-DY=1'])})
-            self.assertEqual(r.returncode, 1)
+            self.assertNotEqual(r.returncode, 0)
             with open(os.path.join(d, 'log')) as f:
-                self.assertEqual(f.read().splitlines(), [
+                self.assertEqual(sorted(f.read().splitlines()), [
                     'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b bad',
                     'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b x --build-name x-DMA '
                     '--cflag=-DY=1'])
@@ -467,9 +467,10 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             return {'PATH': os.path.join(d, 'bin') + os.pathsep + os.environ['PATH'],
                     'EVENT': event, 'BASE_REF': 'master', 'BEFORE': before}
         with tempfile.TemporaryDirectory() as d:
-            code = self._run_block_in(d, block, sel, setup)['code']
+            out = self._run_block_in(d, block, sel, setup)
+            self.assertEqual(out['suites_ok'], 'true' if suites_rc == 0 and 'argv' in os.listdir(d) else 'false')
             argv = os.path.join(d, 'argv')
-            return code, (open(argv).read().split() if os.path.exists(argv) else None)
+            return out['code'], (open(argv).read().split() if os.path.exists(argv) else None)
 
     def test_the_gate_skips_only_what_the_selector_clears(self):
         doc = {'path': 'README.rst', 'effect': 'none'}
@@ -564,6 +565,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                          "needs.set-matrix.outputs.hil_run_hfp != 'false')")
         # it still narrows (or falls back to full) by itself
         self.assertIn('check_build.py --select-only --base "origin/$BASE_REF"', job)
+        # the suites ran in check-paths on this commit: not again on the rig runner
+        self.assertIn('SUITES_OK: ${{ needs.check-paths.outputs.selector_suites_ok }}', job)
+        self.assertNotIn('test_ci_select.py', job)
         self.assertIn('--config test/hil/hfp.json > ci_select.json', job)
         self.assertIn('ci_select.check_manifest(json.load(open("ci_select.json")))', job)
 

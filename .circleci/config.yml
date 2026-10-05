@@ -63,9 +63,8 @@ jobs:
 
             EXAMPLE_MAP='{}'
             if [ -f "$SELECT_FILE" ]; then
-              # a family that builds every example has no entry: config2 builds all
-              EXAMPLE_MAP=$(jq -c '.build.families | with_entries(select(.value.examples != "all")) | map_values(.examples)' \
-                              < "$SELECT_FILE") || EXAMPLE_MAP='{}'
+              EXAMPLE_MAP=$(python .github/scripts/ci_set_matrix.py --example-map --select-file "$SELECT_FILE") ||
+                EXAMPLE_MAP='{}'
             fi
 
             # /pipeline/continue caps parameter values at 512 chars - a scoped map is

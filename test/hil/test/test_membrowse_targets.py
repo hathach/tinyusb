@@ -16,16 +16,12 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import build  # noqa: E402
-import build_utils  # noqa: E402
 
 TARGET_NAME = re.compile(r'--target-name (\S+)')
 
 
 def python_targets(board, name, examples=None):
-    family = build.find_family(board)
-    return {f'{name}/{e.split("/", 1)[1]}' for e in build.get_examples(family)
-            if (examples is None or e in examples)
-            and not build_utils.skip_example(e, board, ('TOOLCHAIN=gcc',))}
+    return {f'{name}/{e.split("/", 1)[1]}' for e in build.membrowse_examples(board, examples, ('TOOLCHAIN=gcc',))}
 
 
 def registered_targets(build_dirs):

@@ -140,6 +140,13 @@ def print_build_result(board, build_target, status, duration):
 # -----------------------------
 # CMake
 # -----------------------------
+def membrowse_examples(board, examples=None, defines=()):
+    """The examples family_add_membrowse registers for `board`, optionally narrowed to
+    `examples`: test_membrowse_targets.py checks this against a real configure."""
+    return [e for e in get_examples(find_family(board))
+            if (examples is None or e in examples) and not build_utils.skip_example(e, board, defines)]
+
+
 def identical_uploads(board, build_name, examples):
     """examples-membrowse-upload with nothing built or configured: report each example
     unchanged (`membrowse_cli.py report --identical-only`), no toolchain needed. The list
@@ -211,9 +218,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
     else:
         if build_targets == ['examples-membrowse-upload'] and not os.path.isdir(build_dir):
             # nothing built here: no configure, so no toolchain either
-            return identical_uploads(board, build_name, [
-                e for e in get_examples(family)
-                if (examples is None or e in examples) and not build_utils.skip_example(e, board, defines)])
+            return identical_uploads(board, build_name, membrowse_examples(board, examples, defines))
         # the skip.txt/only.txt prefilter reads no configure output: answer it first,
         # so a selection this board builds nothing of costs no cmake run at all
         if examples is not None:
@@ -561,7 +566,10 @@ def main():
     all_boards = list(boards)
     for f in all_families:
         if ci_boards_path:
-            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only, examples,
+            # the upload takes every pinned board: one the Build step skipped for the -e
+            # filter still uploads, all of it --identical (ci_set_matrix.py --membrowse)
+            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only,
+                                                None if ci_boards_only else examples,
                                                 build_system, tuple(build_defines)))
         else:
             all_boards.extend(get_family_boards(f, one_random, one_first, examples,

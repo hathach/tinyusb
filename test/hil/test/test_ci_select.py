@@ -2428,11 +2428,10 @@ class TestCiSetMatrix(unittest.TestCase):
         for board in os.listdir(os.path.join(REPO, 'hw', 'bsp', 'rp2040', 'boards')):
             self.assertTrue(any(k in f'-b {board}' for k in keys), board)
 
-    def membrowse(self, pinned, example_map=None, hil=None, with_esp=True):
+    def membrowse(self, pinned, hil=None, with_esp=True):
         full = json.loads(subprocess.run([sys.executable, HIL_SET_MATRIX, os.path.join(REPO, 'test/hil/tinyusb.json')],
                                          capture_output=True, text=True, check=True).stdout)
         r = self.run_matrix('--membrowse', '--pinned-json', json.dumps(pinned),
-                            '--example-map', json.dumps(example_map or {}),
                             '--hil-json', json.dumps(full if hil is None else hil),
                             '--hil-full-json', json.dumps(full), *(['--with-esp'] if with_esp else []))
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -2449,19 +2448,17 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertTrue(any('--build-name' in a for a in esp))  # the -DMA legs are their own targets
 
     def test_membrowse_legs_no_build_uploads_go_identical(self):
-        # G1 an unselected pinned family, G3 a pinned board that builds none of the -e
-        # examples (cdc_dual_ports/skip.txt skips stm32f407disco), G4 espressif legs the
-        # HIL selection left out
-        m, esp = self.membrowse({'arm-gcc': ['stm32f4', 'rp2040']},
-                                {'stm32f4': ['device/cdc_dual_ports'], 'rp2040': ['device/cdc_msc']},
-                                hil={'esp-idf': []})
-        self.assertIn('-b stm32f407disco', m['identical'])
+        # G1 an unselected pinned family, G4 espressif legs the HIL selection left out. A
+        # cmake leg's upload owns every pinned board of its family, even one its Build
+        # step skipped for the -e filter (that board's targets all go identical there)
+        m, esp = self.membrowse({'arm-gcc': ['stm32f4', 'rp2040']}, hil={'esp-idf': []})
+        self.assertNotIn('-b stm32f407disco', m['identical'])
         self.assertNotIn('-b raspberry_pi_pico', m['identical'])
         self.assertIn('-b frdm_k64f', m['identical'])
         for leg in esp:
             self.assertIn(leg, m['identical'])
-        # rp2040's pinned boards measured: pico, pico2 and fruit jam
-        self.assertEqual(len(m['all']) - len(m['identical']), 3)
+        # stm32f4's pinned board, and rp2040's pico, pico2 and fruit jam
+        self.assertEqual(len(m['all']) - len(m['identical']), 4)
         # a selected espressif leg is measured by hil-build-esp, under its own name
         m, esp = self.membrowse({}, hil={'esp-idf': [esp[0] + ' -e device/cdc_msc_freertos']})
         self.assertNotIn(esp[0], m['identical'])
@@ -2471,6 +2468,15 @@ class TestCiSetMatrix(unittest.TestCase):
         m, _ = self.membrowse({}, with_esp=False)
         self.assertFalse([a for a in m['all'] if 'espressif' in a])
         self.assertEqual(m['all'], m['identical'])
+
+    def test_example_map_omits_families_that_build_everything(self):
+        sel = mf(['stm32f4', 'rp2040'])
+        sel['build']['families']['stm32f4']['examples'] = ['device/cdc_msc']
+        r = self.run_matrix('--example-map', '--select', json.dumps(sel))
+        self.assertEqual(json.loads(r.stdout), {'stm32f4': ['device/cdc_msc']})
+        r = self.run_matrix('--example-map', '--select', 'not json {')
+        self.assertEqual((json.loads(r.stdout), r.returncode), ({}, 0))
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
 
     def test_every_listed_family_has_a_required_toolchain(self):
         sys.path.insert(0, os.path.dirname(SET_MATRIX))
@@ -2681,6 +2687,20 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertIn('membrowse_cli.py', calls[0][1])
         self.assertEqual(calls[0][2:], ['report', '--identical-only', '--target-name',
                                         'espressif_s3_devkitc/cdc_msc_freertos', '--upload'])
+
+    def test_the_upload_takes_every_pinned_board_the_build_step_may_skip(self):
+        # cdc_dual_ports/skip.txt skips stm32f407disco: the Build step falls back to another
+        # board, the upload still owns the pinned one (ci_set_matrix.py --membrowse)
+        from unittest import mock
+        argv = ['build.py', 'stm32f4', '-e', 'device/cdc_dual_ports', '-T', 'examples-membrowse-upload']
+        for flag, want in (('--ci-pinned-boards-only', ['stm32f407disco']), ('--ci-pinned-boards', None)):
+            with mock.patch.object(sys, 'argv', argv + [flag] + (['.github/ci-pinned-boards.json'] if flag == '--ci-pinned-boards' else [])), \
+                 mock.patch.object(self.build, 'build_boards_list', return_value=[0, 0, 0]) as bl:
+                self.build.main()
+            if want:
+                self.assertEqual(bl.call_args[0][0], want)
+            else:
+                self.assertNotIn('stm32f407disco', bl.call_args[0][0])
 
     def test_the_upload_target_keeps_going_past_a_failed_example(self):
         from unittest import mock

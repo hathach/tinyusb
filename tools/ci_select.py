@@ -1005,10 +1005,13 @@ def _deps_families(base_text_fn, head_text_fn, repo_root):
         return None
 
 
+def _diff_files(spec, repo_root):
+    return [f for f in _git(GIT_DIFF_ARGV[1:] + [spec], repo_root).splitlines() if f.strip()]
+
+
 def _worktree_files(base_sha, repo_root):
-    tracked = _git(GIT_DIFF_ARGV[1:] + [base_sha], repo_root).splitlines()
     untracked = _git(['ls-files', '--others', '--exclude-standard'], repo_root).splitlines()
-    return [f for f in dict.fromkeys(tracked + untracked) if f.strip()]
+    return [f for f in dict.fromkeys(_diff_files(base_sha, repo_root) + untracked) if f.strip()]
 
 
 def select_input(repo_root, base=None, endpoints=None, worktree=False, diff_file=None, deps_base=None):
@@ -1044,7 +1047,7 @@ def select_input(repo_root, base=None, endpoints=None, worktree=False, diff_file
         if b_sha != head:
             raise SelectError(f'--endpoints {endpoints!r}: B is not the checked-out HEAD {head}')
         inp.update(base_sha=a_sha, head=head)
-        files = [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{a_sha}..{b_sha}'], repo_root).splitlines() if l.strip()]
+        files = _diff_files(f'{a_sha}..{b_sha}', repo_root)
         if GET_DEPS_PATH in files:
             gd = _deps_families(lambda: git_show(f'{a_sha}:{GET_DEPS_PATH}', repo_root),
                                 lambda: git_show(f'{b_sha}:{GET_DEPS_PATH}', repo_root), repo_root)
@@ -1058,7 +1061,7 @@ def select_input(repo_root, base=None, endpoints=None, worktree=False, diff_file
         head_text = lambda: _read(os.path.join(repo_root, GET_DEPS_PATH))  # noqa: E731
     else:
         inp['mode'] = 'base'
-        files = [l for l in _git(GIT_DIFF_ARGV[1:] + [f'{mb}..{head}'], repo_root).splitlines() if l.strip()]
+        files = _diff_files(f'{mb}..{head}', repo_root)
         head_text = lambda: git_show(f'{head}:{GET_DEPS_PATH}', repo_root)  # noqa: E731
     if GET_DEPS_PATH in files:
         gd = _deps_families(lambda: git_show(f'{mb}:{GET_DEPS_PATH}', repo_root), head_text, repo_root)
