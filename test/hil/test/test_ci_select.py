@@ -904,6 +904,16 @@ class FlasherRecoverEntry(unittest.TestCase):
         _, kw = self._capture(hil_flash.reset_stlink, board)
         self.assertIsNone(kw.get('timeout'))                  # run_cmd's CMD_TIMEOUT, as before
 
+    def test_pyocd_runs_from_the_repo_root(self):
+        """Roster args name the LPC55 user script repo-relative; the harness runs from anywhere."""
+        args = '-t lpc55s28 --script test/hil/pyocd/lpc55_reset_catch.py'
+        board = {'name': 'b', 'flasher': {'name': 'pyocd', 'uid': 'GSA0CQEQ', 'args': args}}
+        for fn, fw, want in ((hil_flash.flash_pyocd, ('/tmp/fw.elf',), f'pyocd flash -u GSA0CQEQ {args} /tmp/fw.elf'),
+                             (hil_flash.reset_pyocd, (), f'pyocd reset -u GSA0CQEQ {args}')):
+            cmd, kw = self._capture(fn, board, *fw, timeout=7)
+            self.assertEqual(cmd, want)
+            self.assertEqual((kw.get('cwd'), kw.get('timeout')), (str(hil_flash.hil_util.TINYUSB_ROOT), 7))
+
     def test_roster_recover_entries_are_demonstrated_openocd_over_jlink_ones(self):
         """Every `flasher_recover` in a HIL config is openocd over interface/jlink.cfg on the SAME
         probe as its jlink primary and dispatches. The set is the boards whose reset over

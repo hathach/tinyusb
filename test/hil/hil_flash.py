@@ -315,6 +315,19 @@ def flash_lm4flash(board, firmware, timeout=None):
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
 
 
+# cwd is the repo root so roster args can name a repo-relative --script (test/hil/pyocd/)
+def flash_pyocd(board, firmware, timeout=None):
+    flasher = board['flasher']
+    return hil_util.run_cmd(f'pyocd flash -u {flasher["uid"]} {flasher["args"]} {firmware}',
+                            cwd=str(hil_util.TINYUSB_ROOT), timeout=timeout)
+
+
+def reset_pyocd(board, timeout=None):
+    flasher = board['flasher']
+    return hil_util.run_cmd(f'pyocd reset -u {flasher["uid"]} {flasher["args"]}',
+                            cwd=str(hil_util.TINYUSB_ROOT), timeout=timeout)
+
+
 def flash_primitive(flasher_name: str):
     """The flasher's flash_* callable, case-folded from the roster name.
 
@@ -343,6 +356,7 @@ FLASHER_SUFFIX = {
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'pyocd': '.elf',
     'stlink': '.elf',
 }
 
