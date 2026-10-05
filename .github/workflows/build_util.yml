@@ -36,6 +36,11 @@ on:
         required: false
         default: true
         type: boolean
+      code-size-check:
+        description: 'code_size.py -b/-e args to check tools/code_size.py on this host with'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   family:
@@ -114,6 +119,27 @@ jobs:
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
+          fi
+        shell: bash
+
+      - name: Code size check
+        # code_size.py on a host CI never snapshots on (build-os's Windows leg); its diffs
+        # rebuild twice more, so only a manual run takes them
+        if: inputs.code-size-check != ''
+        env:
+          PYTHONUTF8: '1'
+          CHECK: ${{ inputs.code-size-check }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install --only-binary :all: membrowse==1.2.12 pyyaml pyelftools
+          (cd test/hil/test && python -m unittest -q test_code_size test_code_size_ci test_membrowse_cli)
+          python tools/code_size.py report $CHECK
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            git fetch -q --depth=1 origin master:refs/remotes/origin/master
+            python tools/code_size.py diff $CHECK --base-source local --base-branch HEAD --json
+            # diff passes a size change and some INCOMPLETE results; HEAD against HEAD must be neither
+            python -c "import glob, json; d = json.load(open(*glob.glob('cmake-code-size/*/diff_*.json'))); assert d['status'] == 'complete' and all(p['base']['files'] == p['current']['files'] for p in d['pairs']), d['status']"
+            python tools/code_size.py diff $CHECK --base-source ci --base-branch origin/master
           fi
         shell: bash
 

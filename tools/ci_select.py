@@ -122,7 +122,7 @@ _META_RE = re.compile(
     # .github, minus the build machinery named in _FULL_RE and _CI_BOARDS_RE
     r'\.github/(FUNDING\.yml$|labeler\.yml$|'
     r'ISSUE_TEMPLATE/|scripts/code_size_ci\.py$|'
-    r'workflows/(cifuzz|claude|claude-code-review|code_size_windows|labeler|'
+    r'workflows/(cifuzz|claude|claude-code-review|labeler|'
     r'pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and local tooling are handled separately)
     r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
