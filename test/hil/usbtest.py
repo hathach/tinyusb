@@ -95,7 +95,7 @@ UNLINK_CASES = (11, 12, 24)   # URB unlink mid-transfer: can strand a hub TT buf
 # (vary >= length is -EINVAL in the kernel).
 PARAMS = {
     0: ('-c 1', '-c 1'),
-    9: ('-c 256', '-c 1000'),
+    9: ('-c 256', '-c 500'),  # HS: 1000 took 56 s of the 60 s case bound with 5 batteries on a hub
     10: ('-c 64 -g 16', '-c 256 -g 16'),
     **{n: ('-c 128 -s 1024 -v 512', '-c 512 -s 1024 -v 512') for n in (1, 2, 3, 4, 17, 18, 19, 20)},
     **{n: ('-c 8 -s 1024 -g 8', '-c 32 -s 1024 -g 16') for n in (5, 6, 7, 8)},
