@@ -8,8 +8,10 @@ import concurrent.futures
 import contextlib
 import errno
 import functools
+import hashlib
 import io
 import json
+import ntpath
 import os
 import re
 import shutil
@@ -26,6 +28,9 @@ from unittest import mock
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import code_size as sd  # noqa: E402
+
+posix_only = unittest.skipIf(os.name == 'nt', 'needs a POSIX shell and signals')
+no_esp_on_windows = unittest.skipIf(os.name == 'nt', 'code_size.py refuses ESP-IDF on Windows')
 
 
 def fake_report(symbols):
@@ -66,6 +71,7 @@ class ReportForElf(unittest.TestCase):
             self.assertEqual(cmd[cmd.index('--def') + 1], 'X=1')
             self.assertEqual(run.call_args.kwargs['cwd'], build)
 
+    @no_esp_on_windows
     def test_an_esp_idf_build_uses_its_generated_scripts(self):
         with tempfile.TemporaryDirectory() as build:
             open(os.path.join(build, 'build.ninja'), 'w').close()
@@ -636,7 +642,7 @@ THREE_SECTIONS = ([('.text', PROGBITS, AX, 0x10000000, 0x400),
 
 
 class DwarfSources(unittest.TestCase):
-    @unittest.skipUnless(shutil.which('gcc'), 'needs gcc to build an elf with DWARF')
+    @unittest.skipUnless(shutil.which('gcc') and os.name != 'nt', 'needs a gcc that builds an elf with DWARF')
     def test_compile_units_are_found_by_basename(self):
         with tempfile.TemporaryDirectory() as tmp:
             for rel, code in (('src/device/usbd.c', 'int usbd(void) { return 1; }\n'),
@@ -1037,6 +1043,7 @@ class BuildOutput(unittest.TestCase):
             error = sd.build_board(self._esp_src(tmp), os.path.join(tmp, 'b'), 'esp', example, 'build')
         return error, runs
 
+    @no_esp_on_windows
     def test_an_espressif_board_builds_each_examples_app_as_an_idf_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             error, runs = self._build_esp(tmp)
@@ -1045,6 +1052,7 @@ class BuildOutput(unittest.TestCase):
                                   '-B', os.path.join(tmp, 'b', 'device', 'a_freertos'), '-GNinja', '-DBOARD=esp',
                                   'app'], 600)])
 
+    @no_esp_on_windows
     def test_without_an_exported_idf_it_builds_in_cis_image_as_this_user(self):
         with tempfile.TemporaryDirectory() as tmp:
             error, runs = self._build_esp(tmp, which=('docker',))
@@ -1068,6 +1076,7 @@ class BuildOutput(unittest.TestCase):
             self.assertEqual(runs, [])
             self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
 
+    @mock.patch.object(sd, 'WINDOWS', new=False)
     def test_without_idf_report_and_diff_refuse_an_espressif_board_before_building(self):
         pinned = ['stm32f407disco', 'espressif_s3_devkitm']
         for argv in (['report', '-b', pinned[0], '-b', pinned[1]], ['diff', '-b', pinned[0], '-b', pinned[1]],
@@ -1090,6 +1099,7 @@ class BuildOutput(unittest.TestCase):
                 error, runs = self._build_esp(tmp, example=example)
             self.assertEqual((error, runs), (f'esp builds no {example}', []))
 
+    @no_esp_on_windows
     def test_a_timed_out_or_interrupted_docker_build_removes_its_container(self):
         rm = ['docker', 'rm', '-f', f'tinyusb-code-size-{os.getpid()}']
         for which, rc, removed in ((('docker',), 124, True), (('docker',), 2, False), (('idf.py',), 124, False)):
@@ -1114,6 +1124,7 @@ class BuildOutput(unittest.TestCase):
                 self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
                 self.assertTrue(ret.stderr.startswith('\ufffd'))
 
+    @posix_only
     def test_sigterm_to_the_script_alone_stops_its_command_and_runs_cleanup(self):
         """Popen's exit waits for the command, so the handler passes the signal on, and
         kills a command ignoring it after the grace."""
@@ -1157,6 +1168,7 @@ class BuildOutput(unittest.TestCase):
             ret = sd.run(['sh', '-c', "trap '' TERM; while :; do sleep 0.1; done"], timeout=1)
         self.assertEqual(ret.returncode, 124)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_the_kill_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
@@ -1167,6 +1179,7 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertIn('Command timed out after 1s', ret.stderr)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_sigterm_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5), mock.patch.object(sd, 'KILL_DRAIN', 0.2):
@@ -1236,6 +1249,7 @@ class ShortHash(unittest.TestCase):
         self.assertRegex(sd.short_hash(sd.TINYUSB_ROOT), r'^[0-9a-f]{7,}(-dirty)?$')
 
 
+@unittest.skipIf(os.name == 'nt', 'the Windows filter drops the drive')
 class SymlinkedCheckout(unittest.TestCase):
     def test_the_root_matches_its_own_filter_through_a_symlink(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1246,6 +1260,165 @@ class SymlinkedCheckout(unittest.TestCase):
                                  cwd=tmp, env={**os.environ, 'PYTHONPATH': os.path.join(link, 'tools')},
                                  capture_output=True, text=True, check=True).stdout
         self.assertEqual(out, 'True\n')
+
+
+def cmake_shortened(obj_dir, obj_name):
+    """CMake v4.1.2 cmLocalGeneratorCheckObjectName and cmLocalGeneratorShortenObjectName
+    (Source/cmLocalGenerator.cxx) at Windows' CMAKE_OBJECT_PATH_MAX of 250."""
+    max_len = 250 - len(obj_dir)
+    if len(obj_name) <= max_len:
+        return obj_name
+    pos = obj_name.find('/', len(obj_name) - max_len + 32)
+    return hashlib.md5(obj_name[:pos].encode()).hexdigest() + obj_name[pos:]
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class CMakeShortenedObject(unittest.TestCase):
+    CHECKOUT = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/_worktree'
+    BUILD = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/base/'
+    TARGET = 'device/audio_4_channel_mic_freertos/CMakeFiles/audio_4_channel_mic_freertos.dir/'
+    FILTER = CHECKOUT[2:] + '/src/'
+    USBD = CHECKOUT + '/src/device/usbd.c'
+    CDC = CHECKOUT + '/src/class/cdc/cdc_device.c'
+    STARTUP = CHECKOUT + '/hw/mcu/st/cmsis_device_f4/Source/Templates/gcc/startup_stm32f407xx.s'
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.build_dir = tmp.name
+        self.elf = os.path.join(tmp.name, 'device', 'audio_4_channel_mic_freertos', 'audio_4_channel_mic_freertos.elf')
+
+    def obj(self, source):
+        """The map path of source's object, and its build.ninja compile edge."""
+        obj = self.TARGET + cmake_shortened(self.BUILD + self.TARGET, source.replace(':', '_') + '.obj')
+        self.assertRegex(obj, r'\.dir/[0-9a-f]{32}/')
+        self.assertNotIn(self.FILTER, obj)
+        edge = f'build {obj}: C_COMPILER__audio_4_channel_mic_freertos_unscanned_MinSizeRel {source.replace(":", "$:")}' \
+               ' || cmake_object_order_depends_target_audio_4_channel_mic_freertos\n'
+        return obj.replace('/', '\\'), edge
+
+    def sizes(self, edges, filters=(FILTER,)):
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'w') as f:
+            f.writelines(edges)
+        return sd._Sizes(list(filters), self.elf)
+
+    def test_a_shortened_vendor_object_counts_in_all_only(self):
+        obj, edge = self.obj(self.STARTUP)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.isr_vector', {'flash'}, 4, 'g_pfnVectors')
+        self.assertEqual(sizes.result()['files'], {})
+        self.assertEqual(sizes.result()['all'], {'flash': 4, 'ram': 0})
+
+    def test_a_shortened_tinyusb_object_keeps_its_source_key(self):
+        obj, edge = self.obj(self.USBD)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {'device/usbd.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_later_filter_matching_the_kept_tail_keys_as_for_the_full_source(self):
+        obj, edge = self.obj(self.CDC)
+        self.assertIn('/class/cdc/', obj.replace('\\', '/'))
+        sizes = self.sizes([edge], (self.FILTER, 'class/'))
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_cdc_n_write')
+        self.assertEqual(sizes.result()['files'], {'class/cdc/cdc_device.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_shortened_object_without_build_ninja_fails(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, '_find_ninja_build_dir', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no build\\.ninja was found above'):
+                sd._Sizes([self.FILTER], self.elf).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
+    def test_a_shortened_object_build_ninja_does_not_build_fails(self):
+        obj, _ = self.obj(self.USBD)
+        _, edge = self.obj(self.STARTUP)
+        with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no compile edge'):
+            self.sizes([edge]).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
+    def test_a_build_ninja_not_in_utf_8_fails(self):
+        obj, edge = self.obj(self.USBD)
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'wb') as f:
+            f.write(b'# Calf\xe9\n' + edge.encode())
+        sizes = sd._Sizes([self.FILTER], self.elf)
+        with self.assertRaisesRegex(RuntimeError, r'build\.ninja is not UTF-8: .* use ninja >= 1\.11 whose '
+                                    r'`ninja -t wincodepage` reports UTF-8') as cm:
+            sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertNotIn('position', str(cm.exception))  # relative to the decoder's chunk, not the file
+
+    def test_linux_does_not_resolve_a_shortened_object(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, 'WINDOWS', new=False):
+            sizes = self.sizes([])
+            sizes.add(obj.replace('\\', '/'), '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {})
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class WindowsHost(unittest.TestCase):
+    def test_a_backslash_object_path_matches_the_forward_slash_filter(self):
+        for f in ('/a/tinyusb/src/', '\\a\\tinyusb\\src\\'):
+            self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [sd.filter_arg(f)]),
+                             'device/usbd.c')
+
+    def test_a_drive_is_stripped_from_a_filter(self):
+        with mock.patch.object(sd.os, 'path', ntpath):
+            self.assertEqual(sd.filter_arg('D:\\a\\tinyusb\\src\\'), '/a/tinyusb/src/')
+
+    def test_a_backslash_example_names_the_forward_slash_elf_id(self):
+        self.assertEqual(sd.example_arg('device\\cdc_msc\\'), 'device/cdc_msc')
+
+    def test_a_filter_matches_regardless_of_case_and_the_key_keeps_the_recorded_case(self):
+        self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
+                                          ['/nomatch/', '/a/tinyusb/src/']), 'Device/usbd.c')
+
+    def test_espressif_boards_are_refused(self):
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
+                         r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
+        self.assertIsNone(sd.esp_without_idf(['stm32f407disco']))
+
+    def test_a_timeout_kills_the_command_tree(self):
+        with mock.patch('subprocess.run') as taskkill:
+            ret = sd.run([sys.executable, '-c', 'import time; time.sleep(30)'], timeout=0.5)
+        self.assertEqual(ret.returncode, 124)
+        argv = taskkill.call_args.args[0]
+        self.assertEqual(argv[:2] + argv[3:], ['taskkill', '/PID', '/T', '/F'])
+
+    @unittest.skipUnless(os.name == 'nt', 'a real Windows process tree')
+    def test_a_timeout_stops_a_grandchild_holding_the_pipes(self):
+        # as ninja's compilers do: terminate() alone stops only the direct child
+        parent = ('import subprocess, sys, time; '
+                  'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], '
+                  'stdout=sys.stdout, stderr=sys.stderr); '
+                  'print(p.pid, flush=True); time.sleep(60)')
+        start = time.monotonic()
+        ret = sd.run([sys.executable, '-c', parent], timeout=5)
+        elapsed = time.monotonic() - start
+        pid = ret.stdout.strip()
+        try:
+            self.assertEqual(ret.returncode, 124)
+            self.assertTrue(pid.isdigit(), ret.stdout)
+            tasks = subprocess.run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
+                                   capture_output=True, text=True, check=True, timeout=10).stdout
+            self.assertNotIn(f'"{pid}"', tasks)
+            self.assertLess(elapsed, 30)  # well before the grandchild's own exit
+        finally:
+            if pid.isdigit():
+                subprocess.run(['taskkill', '/PID', pid, '/F'], capture_output=True)
+
+    def test_a_symlink_without_the_privilege_names_developer_mode(self):
+        denied = OSError(22, 'A required privilege is not held by the client')
+        denied.winerror = 1314
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            os.makedirs(os.path.join(main, 'lib/lwip'))
+            os.makedirs(os.path.join(wt, 'tools'))
+            with open(os.path.join(wt, 'tools', 'get_deps.py'), 'w') as f:
+                f.write("deps_all = {'lib/lwip': []}\n")
+            with mock.patch('os.symlink', side_effect=denied), \
+                    self.assertRaisesRegex(SystemExit, 'Developer Mode, or use --base-source ci'):
+                sd.symlink_deps(main, wt)
+
+    def test_a_path_on_another_drive_is_shown_absolute(self):
+        with mock.patch('os.path.relpath', side_effect=ValueError('path is on mount C:, start on mount D:')):
+            self.assertEqual(sd._shown('C:/x/report.md'), 'C:/x/report.md')
 
 
 # main() tests stub the builds and sizing, so need no engine tool
@@ -1949,6 +2122,7 @@ class CiBoardSet(unittest.TestCase):
                                             '"uncovered": []}')
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
+    @mock.patch.object(sd, 'WINDOWS', new=False)
     def test_ci_builds_pinned_espressif_boards_too(self):
         with tempfile.TemporaryDirectory() as tmp:
             built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '
@@ -2014,6 +2188,13 @@ class Snapshot(unittest.TestCase):
             self.assertEqual(sd._cmake_compiler(tmp), {'id': 'GNU', 'version': '13.3.1',
                                                        'name': 'arm-none-eabi-gcc', 'build_type': 'MinSizeRel'})
         self.assertEqual(sd._cmake_compiler('/nonexistent'), {'id': '', 'version': '', 'name': '', 'build_type': ''})
+
+    def test_a_windows_compiler_is_named_without_exe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'CMakeFiles', '4.1.2'))
+            with open(os.path.join(tmp, 'CMakeFiles', '4.1.2', 'CMakeCCompiler.cmake'), 'w') as f:
+                f.write('set(CMAKE_C_COMPILER "C:/arm/bin/arm-none-eabi-gcc.EXE")\n')
+            self.assertEqual(sd._cmake_compiler(tmp)['name'], 'arm-none-eabi-gcc')
 
     def test_an_esp_idf_board_reads_its_first_example_project(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2139,7 +2320,7 @@ class Snapshot(unittest.TestCase):
                 self.assertEqual(json.load(f)['boards'], ['b1-DMA'])
             with open(os.path.join(out, 'code-size-b1-DMA.json')) as f:
                 self.assertEqual(json.load(f)['board'], 'b1-DMA')
-        self.assertEqual([os.path.relpath(p, build_root) for p in sized], ['cmake-build-b1-DMA/device/a/a.elf'])
+        self.assertEqual([os.path.relpath(p, build_root) for p in sized], [os.path.join('cmake-build-b1-DMA', 'device', 'a', 'a.elf')])
         # the board's own skip rules, with the leg's defines as build.py applied them
         boards.assert_called_once_with([], ['b1'], ['device/a'], ('MAX3421_HOST=1',))
         skip.assert_called_with('device/a', 'b1', ('MAX3421_HOST=1',))
