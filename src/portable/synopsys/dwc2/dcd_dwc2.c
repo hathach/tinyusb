@@ -28,26 +28,6 @@
 #include "device/usbd_pvt.h"
 #include "dwc2_common.h"
 
-// diepempmsk gates the TXFE (TxFIFO empty) interrupt of every IN endpoint in one
-// 32-bit register. It is read-modify-written from two places that touch
-// *different* endpoints' bits of the *same* word: edpt_schedule_packets() sets
-// an endpoint's bit, handle_epin_slave() clears it. A write based on a stale
-// snapshot therefore wipes the other writer's bit. A bulk IN endpoint then never
-// gets its TXFE interrupt and the already armed transfer (DIEPTSIZ.XferSize > 0)
-// never completes, because a bulk endpoint is only re-armed on completion.
-// Isochronous endpoints re-arm every frame and self-heal, which is why this
-// presents as "audio keeps working, CDC silently dies".
-//
-// usbd_spin_lock() serializes the register. The set site is reached with a
-// non-zero epnum only from dcd_edpt_xfer()/dcd_edpt_xfer_fifo(), which hold that
-// lock for the whole scheduling (the ISR-side callers pass epnum == 0 and never
-// set a bit; dcd_edpt_close_all() zeroes the register under the lock as well).
-// The clear site runs in the endpoint ISR, which does not hold the lock, so it
-// takes it there, around the epin->tsiz read as well as the update. Deliberately
-// the same lock and not a dedicated one: OSAL spinlocks must not be nested - on
-// OPT_OS_NONE each spinlock tracks its own nesting, so releasing an inner lock
-// would re-enable interrupts while the outer critical section is still running.
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -455,6 +435,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
       // Enable TXFE interrupt if there are still data to be sent
       // EP0 only sends one packet at a time, so no need to check for EP0
       if ((epnum != 0) && (xfer->total_len - xferred_bytes > 0)) {
+        // non-EP0 callers hold usbd_spin_lock, pairs with the clear in handle_epin_slave()
         dwc2->diepempmsk |= (1u << epnum);
       }
     }
@@ -1047,10 +1028,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   if (diepint_bm.txfifo_empty && tu_bit_test(dwc2->diepempmsk, epnum)) {
     epin_write_tx_fifo(dwc2, epnum);
 
-    // Turn off TXFE if all bytes are written.
-    // The tsiz read has to be inside the lock: the completion queued above lets
-    // the task re-arm this endpoint (set a new tsiz and the mask bit) at any
-    // point, and a clear based on the pre-arm tsiz would wipe that new bit.
+    // Turn off TXFE if all bytes are written; lock includes the tsiz read since the task may re-arm this EP
     usbd_spin_lock(true);
     dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
     if (tsiz.xfer_size == 0) {
