@@ -129,11 +129,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void) {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ? true : false;
 }
 
-// VECTACTIVE is the exception number, IRQn + 16 (ARMv7-M B3.2.4, ARMv8-M D1.2 ICSR)
-TU_ATTR_ALWAYS_INLINE static inline bool is_in_usbd_isr(void) {
-  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) == (uint32_t) USBD_IRQn + 16u;
-}
-
 // Errata 199 "USBD cannot receive tasks during DMA": while an EasyDMA transfer is in progress the
 // controller may drop an incoming SETUP/IN/OUT token (lost event -> stuck EP0, esp. under rapid
 // back-to-back control transfers). The workaround latches an undocumented "DMA in progress" test
@@ -492,6 +487,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   (void) rhport;
+  (void) is_isr;
+  // VECTACTIVE is the exception number, IRQn + 16 (ARMv7-M B3.2.4, ARMv8-M D1.2 ICSR)
+  uint32_t const vectactive = SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk;
+  bool const in_isr = vectactive != 0;
+  bool const in_usbd_isr = vectactive == (uint32_t) USBD_IRQn + 16u;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
@@ -505,12 +505,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   if (control_status) {
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
-    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
+    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, in_isr);
   }
 
   // a SETUP or EPDATA handled by the ISR must not interleave with arming the td and its DMA request
   uint32_t req = 0;
-  usbd_spin_lock(is_isr);
+  usbd_spin_lock(in_usbd_isr);
   xfer->xferid++;
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
@@ -537,10 +537,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     req = dma_req_bit(epnum, TUSB_DIR_IN);
   }
   dma_request(req);
-  usbd_spin_unlock(is_isr);
+  usbd_spin_unlock(in_usbd_isr);
 
   // dma_dispatch_isr() runs in the USBD ISR: in it, dcd_int_handler() calls it after handle_events_isr()
-  if (req && !is_in_usbd_isr()) {
+  if (req && !in_usbd_isr) {
     NVIC_SetPendingIRQ(USBD_IRQn);
   }
 
