@@ -129,6 +129,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         for heavy in ('setup_toolchain', 'docker', 'get_deps'):
             self.assertNotIn(heavy, job)
         self.assertIn('fetch-depth: 0', job)  # membrowse reads the PR head history
+        # only a gate that succeeded says true/false; a failed one must not mean "all identical"
+        self.assertIn("needs.check-paths.result == 'success'", re.search(r'^    if: (.*)$', job, re.M).group(1))
         # the gate builds nothing => no producer ran => every leg is identical
         self.assertIn("LEGS: ${{ needs.check-paths.outputs.code_changed == 'true' && "
                       "needs.set-matrix.outputs.membrowse_identical || needs.set-matrix.outputs.membrowse_all }}", job)

@@ -422,7 +422,9 @@ jobs:
   # Never on hil-build-esp's own gate, so it cannot reach the rig.
   membrowse-identical:
     needs: [ check-paths, set-matrix ]
-    if: ${{ !cancelled() && needs.set-matrix.result == 'success' }}
+    # a failed gate has no code_changed: reading that as "nothing built" would upload
+    # unchanged rows for firmware that may have changed
+    if: ${{ !cancelled() && needs.check-paths.result == 'success' && needs.set-matrix.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TinyUSB

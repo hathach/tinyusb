@@ -48,16 +48,20 @@ class TestMembrowseTargetMirror(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def configure(self, board, *flags):
-        if not (shutil.which('cmake') and shutil.which('ninja')):
-            self.skipTest('cmake/ninja not installed')
+        # only a missing tool skips: any configure failure past that is a real one
+        for tool in ('cmake', 'ninja', 'arm-none-eabi-gcc'):
+            if not shutil.which(tool):
+                self.skipTest(f'{tool} not installed')
         d = os.path.join(self.tmp.name, board)
         r = subprocess.run(['cmake', 'examples', '-B', d, '-GNinja', f'-DBOARD={board}',
                             '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DTOOLCHAIN=gcc', *flags],
                            capture_output=True, text=True)
-        if r.returncode != 0 and 'compiler' in r.stderr.lower() + r.stdout.lower():
-            self.skipTest(f'{board}: no toolchain')
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         return d
+
+    def test_a_configure_failure_fails(self):
+        with self.assertRaises(AssertionError):
+            self.configure('stm32f407disco', '-DCMAKE_PROJECT_INCLUDE=/no/such/include.cmake')
 
     def test_a_pinned_board(self):
         d = self.configure('stm32f407disco')
