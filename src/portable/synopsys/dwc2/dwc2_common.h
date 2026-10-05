@@ -25,8 +25,7 @@
   - dwc2_clock_init(): clock init call before
   - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
   - dwc2_phy_deinit(dwc2, hs_phy_type): phy deinit to disable PHY power, only deinit the phy used by core
-  - dwc2_dcd_int_enable/dwc2_dcd_int_disable
-  - dwc2_int_set(rhport, role, enabled): required for host
+  - dwc2_int_set(rhport, role, enabled): required for device and host
   - dwc2_remote_wakeup_delay
 */
 
