@@ -65,6 +65,8 @@ jobs:
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
       required_json: ${{ steps.set-matrix-json.outputs.required_json }}
+      membrowse_all: ${{ steps.set-matrix-json.outputs.membrowse_all }}
+      membrowse_identical: ${{ steps.set-matrix-json.outputs.membrowse_identical }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
       # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
@@ -160,6 +162,9 @@ jobs:
 
       - name: Generate matrix json
         id: set-matrix-json
+        env:
+          # hil-build-esp's own owner gate
+          WITH_ESP: ${{ github.repository_owner == 'hathach' && '--with-esp' || '' }}
         run: |
           # Build matrix, scoped by the PR selection when one exists. Best-effort:
           # ci_set_matrix falls back to the full matrix itself on unusable JSON,
@@ -224,6 +229,17 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
+          # membrowse-identical's legs: the pinned and espressif legs no build above uploads
+          MEMBROWSE_JSON=$(python .github/scripts/ci_set_matrix.py --membrowse --pinned-json "$PINNED_JSON" \
+            --example-map "$EXAMPLE_MAP" --hil-json "$HIL_MATRIX_JSON" \
+            --hil-full-json "$(python .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json)" $WITH_ESP) || {
+            echo "::warning::membrowse partition failed - no --identical uploads this run"
+            MEMBROWSE_JSON='{"all": [], "identical": []}'
+          }
+          echo "membrowse=$MEMBROWSE_JSON"
+          echo "membrowse_all=$(echo "$MEMBROWSE_JSON" | jq -c .all)" >> $GITHUB_OUTPUT
+          echo "membrowse_identical=$(echo "$MEMBROWSE_JSON" | jq -c .identical)" >> $GITHUB_OUTPUT
+
   # The legs this run expects a code-size snapshot from, for pr_comment.yml's compare: a
   # leg that dies before its snapshot step leaves no artifact, which only this manifest
   # can tell apart from a leg that was never selected: the cmake job's pinned families and
@@ -274,6 +290,8 @@ jobs:
   # ------------------------------------------------------------------------------
   cmake:
     needs: [ check-paths, set-matrix ]
+    # with nothing to build, membrowse-identical uploads these boards instead
+    if: needs.check-paths.outputs.code_changed == 'true'
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -288,7 +306,6 @@ jobs:
       example-map: ${{ needs.set-matrix.outputs.example_map }}
       upload-artifacts: false
       upload-membrowse: true
-      code-changed: ${{ needs.check-paths.outputs.code_changed == 'true' }}
     secrets: inherit
 
   # Changed boards the cmake job does not build (an unpinned board, or a pinned one whose
@@ -398,21 +415,14 @@ jobs:
       upload-membrowse: true
     secrets: inherit
 
-  # espressif has no leg in the `cmake` job above (it would double-build the same
-  # board on the slowest toolchain - see that job's comment), so unlike every other
-  # CI board its --identical upload has nowhere to run on a no-code-change push:
-  # hil-build-esp is gated on code_changed, and loosening that gate would let
-  # hil-tinyusb-esp's hardware run start on a docs-only push too (its own SEL_RUN
-  # gate is PR-only - see build.yml's "CI selection (PR only)" step - so on a push
-  # event it defaults to "run everything", not "skip"). This job takes the opposite
-  # gate instead, with no downstream dependents, so it can never reach the rig.
-  # --identical needs neither a compiled elf nor a configured build dir
-  # (`tools/membrowse_cli.py report`'s --elf-missing path; tools/build.py's espressif
-  # branch routes straight to it when there is no build dir), so plain python on
-  # ubuntu-latest is enough - no ESP-IDF docker image, no idf.py, no compiler.
-  hil-build-esp-identical:
-    needs: [ check-paths ]
-    if: needs.check-paths.outputs.code_changed != 'true' && github.repository_owner == 'hathach'
+  # Every membrowse leg no build uploads goes --identical here, so each commit has one
+  # upload per target: the pinned and espressif legs ci_set_matrix.py --membrowse leaves to
+  # it, or all of them when the gate builds nothing. No toolchain: build.py derives each
+  # board's targets without configuring (test_membrowse_targets.py guards that list).
+  # Never on hil-build-esp's own gate, so it cannot reach the rig.
+  membrowse-identical:
+    needs: [ check-paths, set-matrix ]
+    if: ${{ !cancelled() && needs.set-matrix.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TinyUSB
@@ -428,20 +438,19 @@ jobs:
         # pinned runs no new release unreviewed
         run: 'pip install --only-binary :all: membrowse==1.2.12'
 
-      - name: Membrowse identical upload (espressif, no code change)
+      - name: Membrowse identical upload
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          LEGS: ${{ needs.check-paths.outputs.code_changed == 'true' && needs.set-matrix.outputs.membrowse_identical || needs.set-matrix.outputs.membrowse_all }}
         run: |
-          # one tools/build.py call per board, not one call for all of them: the
-          # default shell here is `bash -eo pipefail`, and a later board must still
-          # get its upload attempt even if an earlier one fails
-          python3 .github/scripts/hil_ci_set_matrix.py test/hil/tinyusb.json |
-          python3 -c 'import json, sys; [print(a) for a in json.load(sys.stdin)["esp-idf"]]' |
+          # one build.py call per leg: a later one still gets its upload after a failure
+          rc=0
           while IFS= read -r arg; do
             # a -DMA variant uploads as <build-name>/<example> (tools/build.py)
-            python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || true
-          done
+            python3 tools/build.py -s cmake --target examples-membrowse-upload -j 1 $arg || rc=1
+          done < <(echo "$LEGS" | jq -r '.[]')
+          exit $rc
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

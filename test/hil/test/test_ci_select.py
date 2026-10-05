@@ -1299,6 +1299,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_verdict.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_cli.py',
+            'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
@@ -2427,6 +2428,50 @@ class TestCiSetMatrix(unittest.TestCase):
         for board in os.listdir(os.path.join(REPO, 'hw', 'bsp', 'rp2040', 'boards')):
             self.assertTrue(any(k in f'-b {board}' for k in keys), board)
 
+    def membrowse(self, pinned, example_map=None, hil=None, with_esp=True):
+        full = json.loads(subprocess.run([sys.executable, HIL_SET_MATRIX, os.path.join(REPO, 'test/hil/tinyusb.json')],
+                                         capture_output=True, text=True, check=True).stdout)
+        r = self.run_matrix('--membrowse', '--pinned-json', json.dumps(pinned),
+                            '--example-map', json.dumps(example_map or {}),
+                            '--hil-json', json.dumps(full if hil is None else hil),
+                            '--hil-full-json', json.dumps(full), *(['--with-esp'] if with_esp else []))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        m = json.loads(r.stdout)
+        return m, full['esp-idf']
+
+    def test_membrowse_partition_covers_every_leg_once(self):
+        full_pinned = json.loads(self.run_matrix('--pinned').stdout)
+        m, esp = self.membrowse(full_pinned)
+        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json')) as f:
+            pinned = sorted(e['board'] for e in json.load(f)['boards'] if not e['board'].startswith('espressif'))
+        self.assertEqual(m['all'], [f'-b {b}' for b in pinned] + esp)
+        self.assertEqual(m['identical'], [])  # a full build measures everything
+        self.assertTrue(any('--build-name' in a for a in esp))  # the -DMA legs are their own targets
+
+    def test_membrowse_legs_no_build_uploads_go_identical(self):
+        # G1 an unselected pinned family, G3 a pinned board that builds none of the -e
+        # examples (cdc_dual_ports/skip.txt skips stm32f407disco), G4 espressif legs the
+        # HIL selection left out
+        m, esp = self.membrowse({'arm-gcc': ['stm32f4', 'rp2040']},
+                                {'stm32f4': ['device/cdc_dual_ports'], 'rp2040': ['device/cdc_msc']},
+                                hil={'esp-idf': []})
+        self.assertIn('-b stm32f407disco', m['identical'])
+        self.assertNotIn('-b raspberry_pi_pico', m['identical'])
+        self.assertIn('-b frdm_k64f', m['identical'])
+        for leg in esp:
+            self.assertIn(leg, m['identical'])
+        # rp2040's pinned boards measured: pico, pico2 and fruit jam
+        self.assertEqual(len(m['all']) - len(m['identical']), 3)
+        # a selected espressif leg is measured by hil-build-esp, under its own name
+        m, esp = self.membrowse({}, hil={'esp-idf': [esp[0] + ' -e device/cdc_msc_freertos']})
+        self.assertNotIn(esp[0], m['identical'])
+        self.assertEqual(len(m['all']) - len(m['identical']), 1)
+
+    def test_membrowse_without_hil_build_esp_has_no_espressif_leg(self):
+        m, _ = self.membrowse({}, with_esp=False)
+        self.assertFalse([a for a in m['all'] if 'espressif' in a])
+        self.assertEqual(m['all'], m['identical'])
+
     def test_every_listed_family_has_a_required_toolchain(self):
         sys.path.insert(0, os.path.dirname(SET_MATRIX))
         import ci_set_matrix
@@ -2611,40 +2656,71 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(r, [0, 0, 1])
         self.assertEqual(calls, [])
 
-    def test_espressif_no_build_dir_uploads_identical_instead_of_skipping(self):
+    def _no_build_dir_upload(self, board, **kw):
         from unittest import mock
-        # regression: any target other than 'all' with no build dir (a no-code-change
-        # CI run, since idf.py never ran 'all' here) used to print "no build dir" and
-        # skip - silently uploading nothing, unlike every other CI board, which still
-        # gets an --identical upload via its cheap `cmake` configure. This target must
-        # instead invoke `membrowse_cli.py report` directly (its --identical path needs
-        # neither idf.py nor a build dir) rather than going through idf.py/cmake.
         calls = []
+
         def fake_run(cmd):
             calls.append(cmd)
             return types.SimpleNamespace(returncode=0)
-
-        # the checkout may hold a real cmake-build/cmake-build-espressif_s3_devkitc from HIL work
+        # the checkout may hold real cmake-build dirs from HIL work
         real_isdir = os.path.isdir
         no_build_dir = lambda p: False if str(p).startswith('cmake-build/') else real_isdir(p)
         with mock.patch.object(self.build, 'run_cmd', fake_run), \
              mock.patch.object(self.build.os.path, 'isdir', no_build_dir):
-            r = self.build.cmake_board('espressif_s3_devkitc', [], None, [],
-                                       ['examples-membrowse-upload'],
-                                       examples=['device/cdc_msc_freertos'])
+            r = self.build.cmake_board(board, [], kw.get('build_name'), [], ['examples-membrowse-upload'],
+                                       examples=kw.get('examples'), defines=('TOOLCHAIN=gcc',))
+        return r, calls
+
+    def test_espressif_no_build_dir_uploads_identical_instead_of_skipping(self):
+        # a no-code-change run never ran idf.py 'all' here: each example goes --identical
+        # straight through membrowse_cli, with no idf.py, cmake or build dir
+        r, calls = self._no_build_dir_upload('espressif_s3_devkitc', examples=['device/cdc_msc_freertos'])
         self.assertEqual(r, [1, 0, 0])
         self.assertEqual(len(calls), 1)
-        cmd = calls[0]
-        self.assertIn('membrowse_cli.py', cmd[1])
-        self.assertEqual(cmd[2], 'report')
-        self.assertNotIn('idf.py', cmd[0])
-        self.assertIn('--upload', cmd)
-        self.assertEqual(cmd[cmd.index('--target-name') + 1],
-                         'espressif_s3_devkitc/cdc_msc_freertos')
-        # the whole point: --elf names the file the (absent) build dir would hold, so
-        # `membrowse_cli.py report`'s own elf-missing check takes the --identical branch
-        self.assertEqual(cmd[cmd.index('--elf') + 1],
-                         'cmake-build/cmake-build-espressif_s3_devkitc/device/cdc_msc_freertos/cdc_msc_freertos.elf')
+        self.assertIn('membrowse_cli.py', calls[0][1])
+        self.assertEqual(calls[0][2:], ['report', '--identical-only', '--target-name',
+                                        'espressif_s3_devkitc/cdc_msc_freertos', '--upload'])
+
+    def test_the_upload_target_keeps_going_past_a_failed_example(self):
+        from unittest import mock
+        calls = []
+
+        def fake_run(cmd):
+            calls.append(cmd)
+            return types.SimpleNamespace(returncode=0)
+        with mock.patch.object(self.build, 'run_cmd', fake_run), \
+             mock.patch.object(self.build.os.path, 'isdir', lambda p: True):
+            self.build.cmake_board('stm32f407disco', [], None, [], ['examples-membrowse-upload'], defines=())
+        self.assertEqual(calls[-1][-5:], ['--target', 'examples-membrowse-upload', '--', '-k', '0'])
+
+    def test_expect_built_names_the_built_examples_for_membrowse_cli(self):
+        from unittest import mock
+        argv = ['build.py', '-b', 'stm32f407disco', '-T', 'examples-membrowse-upload', '--expect-built']
+        for extra, want in (([], 'all'), (['-e', 'device/cdc_msc', '-e', 'host/bare_api'], 'cdc_msc bare_api')):
+            with mock.patch.object(sys, 'argv', argv + extra), \
+                 mock.patch.object(self.build, 'build_boards_list', return_value=[0, 0, 0]), \
+                 mock.patch.dict(os.environ, {}):
+                self.build.main()
+                self.assertEqual(os.environ['TUSB_MEMBROWSE_EXPECT_BUILT'], want)
+        with mock.patch.object(sys, 'argv', ['build.py', '-b', 'stm32f407disco', '--expect-built']), \
+             contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self.build.main()
+
+    def test_any_family_without_a_build_dir_uploads_identical_with_no_configure(self):
+        # the membrowse-identical job has no toolchain: no cmake configure, and exactly the
+        # targets family_add_membrowse would register (TestMembrowseTargetMirror checks that)
+        import build_utils
+        r, calls = self._no_build_dir_upload('stm32f407disco')
+        expected = [e for e in self.build.get_examples('stm32f4')
+                    if not build_utils.skip_example(e, 'stm32f407disco', ('TOOLCHAIN=gcc',))]
+        self.assertEqual(r, [len(expected), 0, 0])
+        self.assertFalse([c for c in calls if 'cmake' in c[0]])
+        self.assertEqual([c[c.index('--target-name') + 1] for c in calls],
+                         ['stm32f407disco/' + e.split('/', 1)[1] for e in expected])
+        _, calls = self._no_build_dir_upload('raspberry_pi_pico', build_name='raspberry_pi_pico-X',
+                                             examples=['device/cdc_msc'])
+        self.assertEqual([c[c.index('--target-name') + 1] for c in calls], ['raspberry_pi_pico-X/cdc_msc'])
 
     def test_a_variant_is_a_membrowse_board_named_by_its_build_name(self):
         from unittest import mock

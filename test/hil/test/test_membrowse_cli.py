@@ -180,7 +180,7 @@ class ReportCli(unittest.TestCase):
 
     def _run(self, tmp, args, env_extra=None):
         stub_dir = os.path.join(tmp, 'stubbin')
-        os.mkdir(stub_dir)
+        os.makedirs(stub_dir, exist_ok=True)
         _write_stub(stub_dir, 'membrowse', '#!/usr/bin/env python3\n'
                                            'import os, sys\n'
                                            'print("STUB_ARGV:" + " ".join(sys.argv[1:]))\n'
@@ -263,6 +263,32 @@ class ReportCli(unittest.TestCase):
                                 '--elf', os.path.join(tmp, 'never-built.elf')])
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn('STUB_ARGV:report --identical', r.stdout)
+
+    def test_identical_only_needs_no_build_at_all(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self._run(tmp, ['--identical-only', '--upload'])
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('STUB_ARGV:report --identical --upload --github --target-name board/example', r.stdout)
+            r = self._run(tmp, ['--identical-only', '--elf', self._elf(tmp)])
+            self.assertEqual(r.returncode, 2)
+            r = self._run(tmp, ['--elf', self._elf(tmp)])
+            self.assertEqual(r.returncode, 2)
+            self.assertIn('required unless --identical-only', r.stderr)
+
+    def test_a_target_expected_built_without_an_elf_fails(self):
+        # M3: a failed build is never papered over with --identical
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = ['--build-dir', tmp, '--ninja', '/no/such/ninja', '--elf', os.path.join(tmp, 'none.elf')]
+            for expect in ('all', 'other example'):
+                r = self._run(tmp, missing, {'TUSB_MEMBROWSE_EXPECT_BUILT': expect})
+                self.assertEqual(r.returncode, 1, expect)
+                self.assertIn('board/example was expected built', r.stderr)
+                self.assertNotIn('STUB_ARGV', r.stdout)
+            r = self._run(tmp, missing, {'TUSB_MEMBROWSE_EXPECT_BUILT': 'other'})
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('STUB_ARGV:report --identical', r.stdout)
+            r = self._run(tmp, ['--identical-only'], {'TUSB_MEMBROWSE_EXPECT_BUILT': 'all'})
+            self.assertEqual(r.returncode, 1)
 
     def test_report_rejects_unknown_arguments(self):
         # only onboard forwards extra arguments (to `membrowse onboard`)

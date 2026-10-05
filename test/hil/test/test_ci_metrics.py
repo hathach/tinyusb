@@ -114,26 +114,45 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                       'the args_*/run_* emitter must screen each board filter')
 
     def test_membrowse_upload_owners(self):
-        # Exactly the cmake job and the espressif pair upload; hil-build
+        # Exactly the cmake job, hil-build-esp and the identical job upload; hil-build
         # builds for the rig only. A `upload-membrowse: true` reappearing on
         # hil-build re-opens the target-name collision between its
         # raspberry_pi_pico PIO-USB variant build and cmake's plain build.
-        # hil-build-esp-identical is not a build_util.yml caller (it has no
-        # elf to build - see its own comment), so it never carries the
-        # `upload-membrowse: true` input; it is caught instead by its direct
-        # MEMBROWSE_API_KEY env reference, the only one in this file.
+        # membrowse-identical is not a build_util.yml caller, so it is caught instead by
+        # its direct MEMBROWSE_API_KEY env reference.
         uploaders = sorted(name for name, j in self.jobs.items()
                            if 'upload-membrowse: true' in j or 'MEMBROWSE_API_KEY' in j)
-        self.assertEqual(uploaders,
-                         ['cmake', 'hil-build-esp', 'hil-build-esp-identical'])
+        self.assertEqual(uploaders, ['cmake', 'hil-build-esp', 'membrowse-identical'])
 
-    def test_esp_identical_upload_uses_full_roster(self):
-        job = self.jobs['hil-build-esp-identical']
-        self.assertIn('hil_ci_set_matrix.py test/hil/tinyusb.json', job)
-        self.assertNotIn('needs.set-matrix.outputs.hil_json', job)
+    def test_membrowse_identical_needs_no_toolchain_and_follows_the_gate(self):
+        job = self.jobs['membrowse-identical']
+        for heavy in ('setup_toolchain', 'docker', 'get_deps'):
+            self.assertNotIn(heavy, job)
+        self.assertIn('fetch-depth: 0', job)  # membrowse reads the PR head history
+        # the gate builds nothing => no producer ran => every leg is identical
+        self.assertIn("LEGS: ${{ needs.check-paths.outputs.code_changed == 'true' && "
+                      "needs.set-matrix.outputs.membrowse_identical || needs.set-matrix.outputs.membrowse_all }}", job)
+        # and the producers it complements share that gate
+        for producer in ('cmake', 'hil-build-esp'):
+            self.assertIn("needs.check-paths.outputs.code_changed == 'true'", self.jobs[producer])
 
-    def test_esp_identical_upload_fetches_pr_head_history(self):
-        self.assertIn('fetch-depth: 0', self.jobs['hil-build-esp-identical'])
+    def test_membrowse_identical_uploads_every_leg_past_a_failure(self):
+        import subprocess, tempfile
+        i = self.build.index('run: |\n', self.build.index('- name: Membrowse identical upload')) + len('run: |\n')
+        block = re.sub(r'^ {10}', '', self.build[i:self.build.index('exit $rc', i) + len('exit $rc')], flags=re.M)
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, 'python3'), 'w') as f:
+                f.write('#!/bin/sh\necho "$*" >> log\ncase "$*" in *bad*) exit 1 ;; esac\n')
+            os.chmod(os.path.join(d, 'python3'), 0o755)
+            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
+                               env={**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'],
+                                    'LEGS': json.dumps(['-b bad', '-b x --build-name x-DMA --cflag=-DY=1'])})
+            self.assertEqual(r.returncode, 1)
+            with open(os.path.join(d, 'log')) as f:
+                self.assertEqual(f.read().splitlines(), [
+                    'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b bad',
+                    'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b x --build-name x-DMA '
+                    '--cflag=-DY=1'])
 
     def test_the_guards_accept_what_the_selector_actually_emits(self):
         """A guard that rejects a NORMAL value is worse than no guard: build.yml throws
@@ -592,6 +611,10 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 if '--target examples-membrowse-upload' in l][0]
         self.assertIn('$EX_ARGS', line)
         self.assertIn('--ci-pinned-boards-only', line)
+        # M3: what the Build step should have built fails, never goes identical
+        self.assertIn('--expect-built', line)
+        step = self.util[self.util.index('- name: Membrowse Upload'):]
+        self.assertIn("if: ${{ !cancelled() && inputs.upload-membrowse }}", step.split('run: |')[0])
 
     def test_the_build_step_stays_scoped_by_the_pr_filter(self):
         # the fix above only touches the Membrowse Upload step - the Build step

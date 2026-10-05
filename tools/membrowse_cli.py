@@ -90,7 +90,7 @@ def build_membrowse_cmd(args, commands_text):
         ld_scripts = extract_ld_scripts(commands_text)
 
     cmd = ['membrowse', 'report'] + shlex.split(args.option)
-    if os.path.isfile(args.elf):
+    if args.elf and os.path.isfile(args.elf):
         if not ld_scripts:
             # same silent default-regions report as a failed ninja query
             sys.exit(f'error: no linker script found in the ninja build graph for '
@@ -115,9 +115,21 @@ def redacted(cmd, secret):
     return [('***' if secret and part == secret else part) for part in cmd]
 
 
+def expected_built(target_name):
+    """Whether the leg's Build step was meant to produce this target: TUSB_MEMBROWSE_EXPECT_BUILT
+    (build.py --expect-built) holds 'all' or the example names it built."""
+    expect = os.environ.get('TUSB_MEMBROWSE_EXPECT_BUILT', '').split()
+    return 'all' in expect or target_name.rsplit('/', 1)[-1] in expect
+
+
 def report(args):
+    built = not args.identical_only and os.path.isfile(args.elf)
+    if not built and expected_built(args.target_name):
+        # a failed build is a failure, never an --identical upload that hides it
+        raise RuntimeError(f'{args.target_name} was expected built, but there is no elf'
+                           f'{" at " + args.elf if args.elf else ""}')
     # an --identical report (no elf) must work against a never-configured build dir
-    link = link_command(args.ninja, args.build_dir, args.elf) if os.path.isfile(args.elf) else ''
+    link = link_command(args.ninja, args.build_dir, args.elf) if built else ''
     cmd = build_membrowse_cmd(args, link)
 
     # flush: piped stdout is block-buffered and the child's output would land first
@@ -256,10 +268,13 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='command', required=True, metavar='{report,onboard}')
 
     rep = sub.add_parser('report', help='size report for one build target')
-    rep.add_argument('--build-dir', required=True, help='CMake binary dir (ninja -C)')
-    rep.add_argument('--ninja', required=True, help='ninja executable')
+    rep.add_argument('--build-dir', help='CMake binary dir (ninja -C)')
+    rep.add_argument('--ninja', help='ninja executable')
     # absolute: membrowse runs from the build dir
-    rep.add_argument('--elf', required=True, type=os.path.abspath, help='path to the built ELF')
+    rep.add_argument('--elf', type=os.path.abspath, help='path to the built ELF')
+    rep.add_argument('--identical-only', action='store_true',
+                     help='report the target unchanged (--identical), with no build to read; '
+                          'takes none of --build-dir/--ninja/--elf')
     rep.add_argument('--option', default='',
                      help='extra membrowse report options, space-separated '
                           '(cmake -DMEMBROWSE_OPTION=...)')
@@ -292,6 +307,12 @@ def main(argv=None):
     args, extra = parser.parse_known_args(argv)
     if extra and args.command != 'onboard':
         sub.choices[args.command].error(f'unrecognized arguments: {" ".join(extra)}')
+    if args.command == 'report':
+        given = [f for f in ('build_dir', 'ninja', 'elf') if getattr(args, f) is not None]
+        if args.identical_only and given:
+            rep.error('--identical-only takes none of --build-dir/--ninja/--elf')
+        if not args.identical_only and len(given) < 3:
+            rep.error('--build-dir, --ninja and --elf are required unless --identical-only')
     try:
         if args.command == 'onboard':
             return onboard(args, extra)

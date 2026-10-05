@@ -32,10 +32,6 @@ on:
         required: false
         default: false
         type: boolean
-      code-changed:
-        required: false
-        default: true
-        type: boolean
 
 jobs:
   family:
@@ -101,7 +97,6 @@ jobs:
 
       - name: Build
         id: build
-        if: ${{ inputs.code-changed }}
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
@@ -122,7 +117,7 @@ jobs:
         # measurement only: it also runs after a failed Build and records that in the
         # snapshot, and a sizing failure never fails the leg. Before the membrowse upload,
         # so a membrowse service error cannot cost the local measurement.
-        if: ${{ !cancelled() && inputs.upload-membrowse && inputs.code-changed }}
+        if: ${{ !cancelled() && inputs.upload-membrowse }}
         continue-on-error: true
         env:
           ARG: ${{ matrix.arg }}
@@ -143,18 +138,20 @@ jobs:
         shell: bash
 
       - name: Membrowse Upload
-        if: inputs.upload-membrowse == true
+        # after a failed Build too: its unbuilt examples still go --identical, and
+        # --expect-built fails the ones it should have built instead (never identical)
+        if: ${{ !cancelled() && inputs.upload-membrowse }}
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
           ARG: ${{ matrix.arg }}
         run: |
-          # code-changed false -> no elf -> membrowse uploads with --identical.
           # --ci-pinned-boards-only: families without a CI board were built as compile
           # smoke-checks only and must not upload. -e (in $EX_ARGS or $ARG) only picks
-          # the board there (see resolve_ci_boards()); every example of it uploads.
+          # the board there (see resolve_ci_boards()); every example of it uploads,
+          # the unbuilt ones --identical.
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload -j 1 $ARG $EX_ARGS"
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload --expect-built -j 1 $ARG $EX_ARGS"
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
             # docker run only inherits what -e names explicitly (a GHA container gets
             # none of the runner's env by default): membrowse's --github metadata
