@@ -19,36 +19,43 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
     outputs:
-      code_changed: ${{ steps.filter.outputs.code }}
+      code_changed: ${{ steps.gate.outputs.code }}
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 2  # Needed for push commit comparison
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            code:
-              - 'src/**'
-              - 'examples/**'
-              - 'lib/**'
-              - 'hw/**'
-              - 'test/hil/**'
-              - 'tools/build.py'
-              - 'tools/build_utils.py'
-              - 'tools/ci_select.py'
-              - 'tools/family_json.py'
-              - 'tools/get_deps.py'
-              - 'tools/rtt.py'
-              - 'tools/membrowse_cli.py'
-              - 'tools/code_size.py'
-              - '.github/ci-pinned-boards.json'
-              - '.github/actions/**'
-              - '.github/workflows/build.yml'
-              - '.github/workflows/build_util.yml'
-              - '.github/scripts/**'
+          fetch-depth: 0  # the selector diffs against the PR base or the push's before
+
+      - name: Selection gate
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # code=false only when the selector, its suites passing, says nothing builds,
+          # nothing is tested on a rig, and no firmware path is left uncompiled (a gap).
+          # Every failure, and an event with no diff to read (dispatch, release, a new
+          # branch's all-zero before), runs everything.
+          SEL=''
+          if [ "$EVENT" = pull_request ]; then
+            SEL="--base origin/$BASE_REF"
+          elif [ "$EVENT" = push ] && [ -n "${BEFORE//0/}" ]; then
+            SEL="--endpoints $BEFORE..HEAD"
+          fi
+          CODE=true
+          if [ -n "$SEL" ] && python3 test/hil/test/test_ci_select.py >/dev/null 2>&1 &&
+             python3 .claude/test/test_build_select.py >/dev/null 2>&1; then
+            CODE=$(python3 .claude/skills/build/scripts/check_build.py --select-only $SEL \
+                     --config test/hil/tinyusb.json --config test/hil/hfp.json | python3 -c '
+          import json, sys
+          sys.path.insert(0, "tools")
+          import ci_select
+          print(str(ci_select.build_gate(json.load(sys.stdin))).lower())') || CODE=true
+          fi
+          [ "$CODE" = false ] || CODE=true
+          echo "code=$CODE"
+          echo "code=$CODE" >> $GITHUB_OUTPUT
 
   set-matrix:
     runs-on: ubuntu-latest
@@ -57,6 +64,7 @@ jobs:
       pinned_json: ${{ steps.set-matrix-json.outputs.pinned_matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
+      required_json: ${{ steps.set-matrix-json.outputs.required_json }}
       # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
       # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
@@ -82,16 +90,17 @@ jobs:
           # must fall back to the FULL matrix (no --select, run=true, no args) instead
           # of failing the job. Same fail-open shape as pr_comment.yml's `|| true`.
           #
-          # The selector's own unit suite gates it (stdlib-only, seconds): a selector
+          # The selector's own unit suites gate it (stdlib-only, seconds): a selector
           # whose tests fail can still exit 0 with valid-but-WRONG JSON -- fail-open alone
           # never catches that class, and the pre-commit hil-test hook is a separate,
           # advisory workflow that nothing here can `needs:`. Test-failing selector =>
           # full matrix, same as a crashing one.
           SELECT_JSON=''
-          if ! python3 test/hil/test/test_ci_select.py; then
-            echo "::warning::ci_select unit suite failed - falling back to the full HIL matrix"
-          elif ! SELECT_JSON=$(python3 tools/ci_select.py --base "origin/$BASE_REF" test/hil/tinyusb.json test/hil/hfp.json); then
-            echo "::warning::ci_select failed - falling back to the full HIL matrix"
+          if ! python3 test/hil/test/test_ci_select.py || ! python3 .claude/test/test_build_select.py; then
+            echo "::warning::selector unit suites failed - falling back to the full matrix"
+          elif ! SELECT_JSON=$(python3 .claude/skills/build/scripts/check_build.py --select-only --base "origin/$BASE_REF" \
+                                 --config test/hil/tinyusb.json --config test/hil/hfp.json); then
+            echo "::warning::selector failed - falling back to the full matrix"
             SELECT_JSON=''
           fi
 
@@ -112,19 +121,16 @@ jobs:
           if [ -s ci_select_out.json ]; then
             OUT=$(python3 -c '
           import json, re, sys
-          s = json.load(open("ci_select_out.json"))
-          # the same reading hil_ci_set_matrix.py applies: full false with no usable
-          # boards map is an UNUSABLE selection, not "nothing selected". Both must agree
-          # - one falling open to the whole roster while the other computes run=false
-          # buys a full 37-leg build and still zero hardware coverage.
-          if not isinstance(s.get("full"), bool):
-              sys.exit("selection has no boolean full")
-          if not s["full"] and not isinstance(s.get("boards"), dict):
-              sys.exit("selection has full false but no usable boards map")
+          sys.path.insert(0, "tools")
+          import ci_select
+          # the reading hil_ci_set_matrix.py applies too: both must agree - one falling
+          # open to the whole roster while the other computes run=false buys a full
+          # 37-leg build and still zero hardware coverage
+          s = ci_select.check_manifest(json.load(open("ci_select_out.json")))["hil"]
           # a missing rig entry must not read as "nothing selected": run_hfp=false skips
           # hil-hfp-iar before it can run its own selection
-          tin = s.get("args_flasher", {}).get("tinyusb.json")
-          hfp = s.get("args", {}).get("hfp.json")
+          tin = s["args_flasher"].get("tinyusb.json")
+          hfp = s["args"].get("hfp.json")
           if not isinstance(tin, dict) or not isinstance(hfp, str):
               sys.exit("selection has no args for a rig")
           legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
@@ -183,8 +189,19 @@ jobs:
           # matrix entries would multiply GHA legs and break CircleCI's family parameter.
           EXAMPLE_MAP='{}'
           if [ -n "$BUILD_SELECT_FILE" ]; then
-            EXAMPLE_MAP=$(jq -c '.build.family_examples // {}' "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
+            # a family that builds every example has no entry: build_util builds all
+            EXAMPLE_MAP=$(jq -c '.build.families | with_entries(select(.value.examples != "all")) | map_values(.examples)' \
+                            "$BUILD_SELECT_FILE") || EXAMPLE_MAP='{}'
           fi
+          # the changed boards the pinned matrix does not build (cmake-required); from
+          # SELECT_FILE, since a build matrix fallen open to full still leaves them out
+          REQUIRED_JSON=$(python .github/scripts/ci_set_matrix.py --required ${SELECT_FILE:+--select-file "$SELECT_FILE"}) ||
+            REQUIRED_JSON=$(python .github/scripts/ci_set_matrix.py --required)
+          for b in $(echo "$REQUIRED_JSON" | jq -r '.unbuildable[]'); do
+            echo "::warning::changed board $b is built by no CI toolchain"
+          done
+          echo "required_json=$REQUIRED_JSON"
+          echo "required_json=$REQUIRED_JSON" >> $GITHUB_OUTPUT
           echo "pinned_matrix=$PINNED_JSON"
           echo "pinned_matrix=$PINNED_JSON" >> $GITHUB_OUTPUT
           echo "example_map=$EXAMPLE_MAP" >> $GITHUB_OUTPUT
@@ -273,6 +290,23 @@ jobs:
       upload-membrowse: true
       code-changed: ${{ needs.check-paths.outputs.code_changed == 'true' }}
     secrets: inherit
+
+  # Changed boards the cmake job does not build (an unpinned board, or a pinned one whose
+  # family the selection left out), each on its family's toolchain. Builds only: sizes
+  # stay the pinned boards' (cmake, hil-build-esp). An empty toolchain leg skips.
+  cmake-required:
+    needs: [ check-paths, set-matrix ]
+    if: needs.check-paths.outputs.code_changed == 'true'
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        # ci_set_matrix.py's REQUIRED_TOOLCHAINS
+        toolchain: [ 'aarch64-gcc', 'arm-gcc', 'esp-idf', 'ft9xx-gcc', 'msp430-gcc', 'riscv-gcc', 'rx-gcc' ]
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.required_json)[matrix.toolchain]) }}
 
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
@@ -659,24 +693,27 @@ jobs:
         run: |
           # Best-effort: a selector failure here falls back to the full hfp matrix (no
           # ci_select.json, no SEL_* vars), never fails the job.
-          if ! python3 test/hil/test/test_ci_select.py; then
-            echo "::warning::ci_select unit suite failed - running the full hfp matrix"
+          if ! python3 test/hil/test/test_ci_select.py || ! python3 .claude/test/test_build_select.py; then
+            echo "::warning::selector unit suites failed - running the full hfp matrix"
             rm -f ci_select.json
             exit 0
           fi
-          if ! python3 tools/ci_select.py --base "origin/$BASE_REF" test/hil/hfp.json > ci_select.json; then
-            echo "::warning::ci_select failed - running the full hfp matrix"
+          if ! python3 .claude/skills/build/scripts/check_build.py --select-only --base "origin/$BASE_REF" \
+                 --config test/hil/hfp.json > ci_select.json; then
+            echo "::warning::selector failed - running the full hfp matrix"
             rm -f ci_select.json
             exit 0
           fi
           # ci_select.json is passed to hil_ci_set_matrix.py --select below to scope the
-          # build; it already honours full=true by ignoring the board list.
+          # build; it already honours hil.full by ignoring the board list.
           # The hil_test.py args go to a file, never to $GITHUB_ENV: they are derived
           # from roster board names, which a PR can edit. Only SEL_RUN (a literal
           # true/false computed here, needed by the step-level `if:`) goes to the env.
           if ! SEL_RUN=$(python3 -c '
-          import json
-          s = json.load(open("ci_select.json"))
+          import json, sys
+          sys.path.insert(0, "tools")
+          import ci_select
+          s = ci_select.check_manifest(json.load(open("ci_select.json")))["hil"]
           a = s["args"]["hfp.json"]
           open("hil_sel_args.txt", "w").write(a)
           print("true" if (s["full"] or a) else "false")

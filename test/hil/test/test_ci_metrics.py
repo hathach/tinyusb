@@ -12,6 +12,8 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 CIRCLECI = os.path.join(REPO, '.circleci')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_ci_select import mf  # noqa: E402  a manifest v1 fixture
 SENTINEL = 'example-map-default'
 
 
@@ -162,20 +164,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                          'src/portable/synopsys/dwc2/dcd_dwc2.c',
                          'examples/device/cdc_msc/src/main.c',
                          'hw/bsp/stm32f4/family.cmake'):
-                f = os.path.join(d, 'diff.txt')
-                with open(f, 'w') as fh:
-                    fh.write(path + '\n')
-                r = subprocess.run([sys.executable, os.path.join(repo, 'tools/ci_select.py'),
-                                    '--diff-file', f,
-                                    os.path.join(repo, 'test/hil/tinyusb.json'),
-                                    os.path.join(repo, 'test/hil/hfp.json')],
+                r = subprocess.run([sys.executable, os.path.join(repo, '.claude/skills/build/scripts/check_build.py'),
+                                    '--select-only', '--scope', path,
+                                    '--config', 'test/hil/tinyusb.json', '--config', 'test/hil/hfp.json'],
                                    capture_output=True, text=True, cwd=repo)
                 self.assertEqual(r.returncode, 0, r.stderr)
-                s = json.loads(r.stdout)
-                for flasher, a in s.get('args_flasher', {}).get('tinyusb.json', {}).items():
+                m = json.loads(r.stdout)
+                s = m['hil']
+                for flasher, a in s['args_flasher']['tinyusb.json'].items():
                     self.assertTrue(ok(classes['args'], a),
                                     f'{path}/{flasher}: the args guard rejects {a!r}')
-                hfp = s.get('args', {}).get('hfp.json', '')
+                hfp = s['args']['hfp.json']
                 self.assertTrue(ok(classes['args'], hfp), f'{path}: hfp {hfp!r}')
                 # BUILD_ARGS is the hfp job's `-b <board> [-e ...]` list, not the -bt
                 # test filter above - screen the value that step actually builds
@@ -194,7 +193,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     tag = re.sub(r' -e [^ ]+', '', entry)
                     self.assertTrue(ok(classes['TAG'], tag),
                                     f'{path}: the artifact-name guard rejects {tag!r}')
-                for fam, exs in (s.get('build', {}).get('family_examples') or {}).items():
+                for fam, v in m['build']['families'].items():
+                    exs = [] if v['examples'] == 'all' else v['examples']
                     ex_args = ' '.join('-e ' + e for e in exs)
                     self.assertTrue(ok(classes['EX_ARGS'], ex_args),
                                     f'{path}/{fam}: the EX_ARGS guard rejects {ex_args!r}')
@@ -208,6 +208,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # the Build step keeps its -e filter: --ci-pinned-boards-only would null it
         # (tools/build.py sets build_examples=None) and compile every example
         self.assertNotIn('--ci-pinned-boards-only', self.jobs['cmake'])
+
+    def test_the_toolchain_lists_match_ci_set_matrix(self):
+        # cmake-required dedupes against the boards the cmake job builds, so both must
+        # name the same toolchains as the workflow
+        sys.path.insert(0, os.path.join(REPO, '.github', 'scripts'))
+        import ci_set_matrix
+        m = re.search(r"echo 'cmake_toolchains=(\[.*\])' >> \$GITHUB_OUTPUT", self.build)
+        self.assertEqual(json.loads(m.group(1)), ci_set_matrix.CMAKE_JOB_TOOLCHAINS)
+        m = re.search(r"^        toolchain: (\[.*\])$", self.jobs['cmake-required'], re.M)
+        self.assertEqual(json.loads(m.group(1).replace("'", '"')), ci_set_matrix.REQUIRED_TOOLCHAINS)
+        self.assertIn('needs.set-matrix.outputs.required_json', self.jobs['cmake-required'])
 
     def test_the_code_size_scope_lists_every_cmake_leg_and_esp_leg(self):
         # pr_comment.yml's compare expects a snapshot artifact per listed leg: the list
@@ -329,18 +340,22 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         """Run a dedented build.yml step block with `sel` as ci_select_out.json in a temp
         dir; `setup(dir)` may prepare the dir and return extra env. Returns the block's
         $GITHUB_OUTPUT as a dict."""
-        import subprocess, tempfile
+        import tempfile
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
-                json.dump(sel, fh)
-            out = os.path.join(d, 'gh_output')
-            open(out, 'w').close()
-            env = {**os.environ, **((setup and setup(d)) or {}), 'GITHUB_OUTPUT': out}
-            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
-                               capture_output=True, text=True, env=env)
-            self.assertEqual(r.returncode, 0, r.stderr)
-            with open(out) as fh:
-                return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
+            return self._run_block_in(d, block, sel, setup)
+
+    def _run_block_in(self, d, block, sel, setup=None):
+        import subprocess
+        with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
+            json.dump(sel, fh)
+        out = os.path.join(d, 'gh_output')
+        open(out, 'w').close()
+        env = {**os.environ, **((setup and setup(d)) or {}), 'GITHUB_OUTPUT': out}
+        r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
+                           capture_output=True, text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(out) as fh:
+            return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
 
     def _run_matrix_step(self, sel, fail_pinned=False):
         """Run the whole 'Generate matrix json' step for real, optionally with the
@@ -356,7 +371,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         def setup(d):
             # ci_set_matrix resolves the repo from its own path and reads hw/bsp for
             # the pinned families, so the fake tree needs both
-            for name in ('.github', 'hw'):
+            for name in ('.github', 'hw', 'test', 'tools'):
                 os.symlink(os.path.join(repo, name), os.path.join(d, name))
             bin_dir = os.path.join(d, 'bin')
             os.mkdir(bin_dir)
@@ -370,17 +385,25 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         return self._run_block(block, sel, setup)
 
     def test_the_pinned_matrix_is_scoped_with_the_example_map(self):
-        sel = {'build': {'full': False, 'families': ['stm32f4'],
-                         'family_examples': {'stm32f4': ['device/cdc_msc']}}}
+        sel = mf(['stm32f4', 'rp2040'])
+        sel['build']['families']['stm32f4']['examples'] = ['device/cdc_msc']
         got = self._run_matrix_step(sel)
-        self.assertEqual(json.loads(got['pinned_matrix'])['arm-gcc'], ['stm32f4'])
-        self.assertEqual(json.loads(got['example_map']), sel['build']['family_examples'])
+        self.assertEqual(json.loads(got['pinned_matrix'])['arm-gcc'], ['rp2040', 'stm32f4'])
+        # rp2040 builds every example: no map entry
+        self.assertEqual(json.loads(got['example_map']), {'stm32f4': ['device/cdc_msc']})
+
+    def test_the_required_legs_come_from_the_selection(self):
+        got = self._run_matrix_step(mf(['stm32f4'], required=['stm32f407disco', 'stm32u083cdk']))
+        self.assertEqual(json.loads(got['required_json'])['arm-gcc'], ['-b stm32u083cdk'])
+        # a build matrix fallen open to full still builds no unpinned board: keep them
+        got = self._run_matrix_step(mf(['stm32f4'], required=['stm32u083cdk']), fail_pinned=True)
+        self.assertEqual(json.loads(got['required_json'])['arm-gcc'], ['-b stm32u083cdk'])
 
     def test_a_failed_pinned_matrix_drops_the_example_map_too(self):
         # the pinned matrix falls open on its own failure; leaving the example map
         # scoped would filter the examples of a full build and upload those sizes
-        sel = {'build': {'full': False, 'families': ['stm32f4'],
-                         'family_examples': {'stm32f4': ['device/cdc_msc']}}}
+        sel = mf(['stm32f4'])
+        sel['build']['families']['stm32f4']['examples'] = ['device/cdc_msc']
         import subprocess
         got = self._run_matrix_step(sel, fail_pinned=True)
         self.assertEqual(json.loads(got['example_map']), {})
@@ -395,39 +418,106 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         i = self.build.index("          OUT=''\n")
         j = self.build.index('echo "$OUT" >> $GITHUB_OUTPUT', i)
         j = self.build.index('\n', j) + 1
-        return self._run_block(re.sub(r'^ {10}', '', self.build[i:j], flags=re.M), sel)
+        def setup(d):
+            for name in ('test', 'tools'):  # ci_select, and the roster helpers it imports
+                os.symlink(os.path.join(REPO, name), os.path.join(d, name))
+        return self._run_block(re.sub(r'^ {10}', '', self.build[i:j], flags=re.M), sel, setup)
+
+    def _run_gate(self, event, before='', sel=None, suites_rc=0):
+        """Run check-paths' gate step with the suites and check_build.py stubbed:
+        check_build prints `sel` (fails when None). Returns (code, check_build argv)."""
+        import shlex, tempfile
+        i = self.build.index('run: |\n', self.build.index('- name: Selection gate')) + len('run: |\n')
+        j = self.build.index('\n\n', i)
+        block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
+
+        def setup(d):
+            for name in ('test', 'tools'):
+                os.symlink(os.path.join(REPO, name), os.path.join(d, name))
+            os.mkdir(os.path.join(d, 'bin'))
+            with open(os.path.join(d, 'bin', 'python3'), 'w') as fh:
+                fh.write('#!/bin/sh\n'
+                         f'case "$*" in *test_ci_select.py*|*test_build_select.py*) exit {suites_rc} ;;\n'
+                         '  *check_build.py*) echo "$*" > argv; exec cat ci_select_out.json ;; esac\n'
+                         f'exec {shlex.quote(sys.executable)} "$@"\n')
+            os.chmod(os.path.join(d, 'bin', 'python3'), 0o755)
+            if sel is None:
+                os.unlink(os.path.join(d, 'ci_select_out.json'))
+            return {'PATH': os.path.join(d, 'bin') + os.pathsep + os.environ['PATH'],
+                    'EVENT': event, 'BASE_REF': 'master', 'BEFORE': before}
+        with tempfile.TemporaryDirectory() as d:
+            code = self._run_block_in(d, block, sel, setup)['code']
+            argv = os.path.join(d, 'argv')
+            return code, (open(argv).read().split() if os.path.exists(argv) else None)
+
+    def test_the_gate_skips_only_what_the_selector_clears(self):
+        doc = {'path': 'README.rst', 'effect': 'none'}
+        gap = {'path': 'src/class/bth/bth_device.c', 'effect': 'gap'}
+        code, argv = self._run_gate('pull_request', sel=mf(paths=[doc]))
+        self.assertEqual(code, 'false')
+        self.assertIn('--base origin/master', ' '.join(argv))
+        self.assertIn('--config test/hil/tinyusb.json --config test/hil/hfp.json', ' '.join(argv))
+        self.assertEqual(self._run_gate('pull_request', sel=mf(paths=[doc, gap]))[0], 'true')
+        self.assertEqual(self._run_gate('pull_request', sel=mf(['stm32f4']))[0], 'true')
+        self.assertEqual(self._run_gate('pull_request', sel=mf(boards={'x': 'all'}))[0], 'true')
+        code, argv = self._run_gate('push', before='a1b2c3', sel=mf(paths=[doc]))
+        self.assertEqual(code, 'false')
+        self.assertIn('--endpoints a1b2c3..HEAD', ' '.join(argv))
+
+    def test_the_gate_runs_everything_without_a_usable_selection(self):
+        doc = mf(paths=[{'path': 'README.rst', 'effect': 'none'}])
+        for name, kw in {'new branch push': dict(event='push', before='0' * 40, sel=doc),
+                         'push without before': dict(event='push', sel=doc),
+                         'dispatch': dict(event='workflow_dispatch', sel=doc),
+                         'release': dict(event='release', sel=doc),
+                         'suites fail': dict(event='pull_request', sel=doc, suites_rc=1),
+                         'selector fails': dict(event='pull_request', sel=None),
+                         'legacy selection': dict(event='pull_request', sel={'full': False, 'build': {}})}.items():
+            with self.subTest(name):
+                code, argv = self._run_gate(**kw)
+                self.assertEqual(code, 'true')
+                if name in ('new branch push', 'push without before', 'dispatch', 'release', 'suites fail'):
+                    self.assertIsNone(argv)
 
     ALL_RUN = {'run_tinyusb': 'true', 'run_tinyusb_esp': 'true', 'run_hfp': 'true'}
 
     def test_rig_outputs_skip_an_unselected_rig(self):
-        sel = {'full': False, 'boards': {'raspberry_pi_pico': 'all'},
-               'args': {'tinyusb.json': '-b raspberry_pi_pico', 'hfp.json': ''},
-               'args_flasher': {'tinyusb.json': {'openocd': '-b raspberry_pi_pico'}, 'hfp.json': {}}}
+        sel = mf(boards={'raspberry_pi_pico': 'all'})
+        sel['hil'].update(args={'tinyusb.json': '-b raspberry_pi_pico', 'hfp.json': ''},
+                          args_flasher={'tinyusb.json': {'openocd': '-b raspberry_pi_pico'}, 'hfp.json': {}})
         got = self._run_rig_outputs(sel)
         self.assertEqual((got['run_tinyusb'], got['run_tinyusb_esp'], got['run_hfp']),
                          ('true', 'false', 'false'))
 
     def test_rig_outputs_full_runs_every_rig(self):
-        sel = {'full': True, 'boards': {}, 'args': {'tinyusb.json': '', 'hfp.json': ''},
-               'args_flasher': {'tinyusb.json': {}, 'hfp.json': {}}}
+        sel = mf(hil_full=True)
+        sel['hil'].update(args={'tinyusb.json': '', 'hfp.json': ''},
+                          args_flasher={'tinyusb.json': {}, 'hfp.json': {}})
         got = self._run_rig_outputs(sel)
         self.assertEqual({k: got[k] for k in self.ALL_RUN}, self.ALL_RUN)
 
     def test_rig_outputs_fall_open_on_a_malformed_selection(self):
         # run_hfp=false now skips hil-hfp-iar before its own selection can fall back,
         # so a selection missing a rig's entry must run every rig, not skip that one
-        good = {'full': False, 'boards': {},
-                'args': {'tinyusb.json': '', 'hfp.json': ''},
-                'args_flasher': {'tinyusb.json': {}, 'hfp.json': {}}}
+        def bad(**hil):
+            m = mf()
+            m['hil'].update(args={'tinyusb.json': '', 'hfp.json': ''},
+                            args_flasher={'tinyusb.json': {}, 'hfp.json': {}})
+            m['hil'].update(hil)
+            return m
+        no_boards = bad()
+        del no_boards['hil']['boards']
         bad = {
-            'no hfp args': {**good, 'args': {'tinyusb.json': ''}},
-            'no tinyusb flasher map': {**good, 'args_flasher': {'hfp.json': {}}},
-            'full not a bool': {**good, 'full': 'false'},
-            'no full': {k: v for k, v in good.items() if k != 'full'},
+            'no hfp args': bad(args={'tinyusb.json': ''}),
+            'no tinyusb flasher map': bad(args_flasher={'hfp.json': {}}),
+            'full not a bool': bad(full='false'),
             # hil_ci_set_matrix falls open to the whole roster here: run_*=false instead
             # would build everything and still skip the rigs
-            'no boards map': {k: v for k, v in good.items() if k != 'boards'},
-            'bad characters': {**good, 'args': {'tinyusb.json': '', 'hfp.json': '-b x\nrun_hfp=false'}},
+            'no boards map': no_boards,
+            'needed contradicts boards': bad(needed=True),
+            'legacy shape': {'full': False, 'boards': {}, 'args': {'tinyusb.json': '', 'hfp.json': ''},
+                             'args_flasher': {'tinyusb.json': {}, 'hfp.json': {}}},
+            'bad characters': bad(args={'tinyusb.json': '', 'hfp.json': '-b x\nrun_hfp=false'}),
         }
         for name, sel in bad.items():
             with self.subTest(name):
@@ -452,7 +542,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                          "(needs.set-matrix.result != 'success' || "
                          "needs.set-matrix.outputs.hil_run_hfp != 'false')")
         # it still narrows (or falls back to full) by itself
-        self.assertIn('tools/ci_select.py --base "origin/$BASE_REF" test/hil/hfp.json', job)
+        self.assertIn('check_build.py --select-only --base "origin/$BASE_REF"', job)
+        self.assertIn('--config test/hil/hfp.json > ci_select.json', job)
+        self.assertIn('ci_select.check_manifest(json.load(open("ci_select.json")))', job)
 
     def test_the_build_extras_drop_when_the_matrix_falls_open(self):
         # ci_set_matrix falls open with rc 0, so the example map and family regex must
@@ -484,17 +576,13 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         #3842 (docs + .gitignore) and #3840 (test/hil only) each rebuilt all 74 cmake
         legs after the selector had correctly chosen none, because an earlier version
         of this block conflated an empty families list with an unusable one."""
-        legs = self._matrix_legs(
-            {'build': {'full': False, 'families': [], 'family_examples': {}}})
+        legs = self._matrix_legs(mf())
         self.assertEqual(legs, 0, 'an empty families list must keep the all-empty matrix')
 
     def test_a_real_family_list_stays_scoped(self):
-        legs = self._matrix_legs(
-            {'build': {'full': False, 'families': ['stm32f4', 'rp2040'],
-                       'family_examples': {}}})
+        legs = self._matrix_legs(mf(['stm32f4', 'rp2040']))
         self.assertGreater(legs, 0)
-        self.assertLess(legs, self._matrix_legs(
-            {'build': {'full': True, 'families': [], 'family_examples': {}}}))
+        self.assertLess(legs, self._matrix_legs(mf(full=True)))
 
     def test_membrowse_upload_is_not_scoped_by_the_pr_filter(self):
         # $EX_ARGS must reach build.py so the upload resolves the same board the Build

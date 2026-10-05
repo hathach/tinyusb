@@ -2153,6 +2153,18 @@ class TestCliJson(unittest.TestCase):
 SET_MATRIX = os.path.join(REPO, '.github/scripts/ci_set_matrix.py')
 
 
+def mf(families=(), full=False, boards=None, hil_full=False, hil_examples=None, required=(), paths=()):
+    """A manifest v1 (check_build.py --select-only) with every family at examples 'all'."""
+    fams = {f: {'examples': 'all'} for f in families}
+    boards = boards or {}
+    return {'version': 1, 'input': {},
+            'build': {'full': full, 'needed': bool(full or fams), 'families': fams,
+                      'required_boards': list(required), 'required_targets': [], 'dropped': {},
+                      'paths': list(paths)},
+            'hil': {'full': hil_full, 'needed': bool(hil_full or boards), 'boards': boards,
+                    'args': {}, 'args_flasher': {}, 'hil_examples': hil_examples or {}}}
+
+
 class TestCiSetMatrix(unittest.TestCase):
     def run_matrix(self, *args):
         return subprocess.run([sys.executable, SET_MATRIX, *args],
@@ -2166,12 +2178,11 @@ class TestCiSetMatrix(unittest.TestCase):
 
     def test_select_full_is_identical(self):
         base = json.loads(self.run_matrix().stdout)
-        sel = json.dumps({'build': {'full': True, 'families': [], 'family_examples': {}}})
+        sel = json.dumps(mf(full=True))
         self.assertEqual(json.loads(self.run_matrix('--select', sel).stdout), base)
 
     def test_select_narrow_is_a_subset(self):
-        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f4'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['rp2040', 'stm32f4']))
         m = json.loads(self.run_matrix('--select', sel).stdout)
         self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f4'])
         self.assertEqual(m['riscv-gcc'], [])
@@ -2197,8 +2208,7 @@ class TestCiSetMatrix(unittest.TestCase):
             self.assertNotIn(fam, pinned['arm-gcc'])
 
     def test_pinned_composes_with_select_scoping(self):
-        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f4', 'stm32f0'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['rp2040', 'stm32f4', 'stm32f0']))
         m = json.loads(self.run_matrix('--pinned', '--select', sel).stdout)
         # stm32f0 has no pinned board; rp2040 and stm32f4 do
         self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f4'])
@@ -2206,8 +2216,7 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_pinned_selection_with_no_pinned_family_is_empty_not_unscoped(self):
         # a legitimate "nothing pinned was selected": widening to the full matrix here
         # would build every family from a diff that touched one unpinned one
-        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['stm32f0']))
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
@@ -2217,8 +2226,7 @@ class TestCiSetMatrix(unittest.TestCase):
         # py32f0 is built by no toolchain: the selection is still usable (stm32f0 scopes
         # it), so the pinned filter must not turn that into "nothing buildable" and
         # widen back to the full matrix
-        sel = json.dumps({'build': {'full': False, 'families': ['stm32f0', 'py32f0'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['stm32f0', 'py32f0']))
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertNotIn('UNSCOPED', r.stderr)
         self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
@@ -2233,8 +2241,7 @@ class TestCiSetMatrix(unittest.TestCase):
 
     def test_pinned_espressif_only_selection_adds_no_leg(self):
         # espressif boards are built by name in hil-build-esp, never as a family leg
-        sel = json.dumps({'build': {'full': False, 'families': ['espressif'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['espressif']))
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertNotIn('UNSCOPED', r.stderr)
         self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
@@ -2242,15 +2249,13 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_pinned_survives_the_unbuildable_selection_fall_open(self):
         # the recursive fall-open path: a selection of families no toolchain builds
         # re-emits the FULL matrix, which must still be pinned-filtered
-        sel = json.dumps({'build': {'full': False, 'families': ['py32f0'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['py32f0']))
         r = self.run_matrix('--pinned', '--select', sel)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
         self.assertEqual(json.loads(r.stdout), json.loads(self.run_matrix('--pinned').stdout))
 
     def test_unflagged_output_is_unchanged_for_circleci(self):
-        sel = json.dumps({'build': {'full': False, 'families': ['rp2040', 'stm32f0'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['rp2040', 'stm32f0']))
         m = json.loads(self.run_matrix('--select', sel).stdout)
         self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f0'])
 
@@ -2266,8 +2271,12 @@ class TestCiSetMatrix(unittest.TestCase):
         # AttributeError here reds the step - the very outcome that handler exists to
         # prevent (GHA and CircleCI only survive it through their own shell `||`)
         base = json.loads(self.run_matrix().stdout)
+        legacy = {'build': {'full': False, 'families': ['stm32f4'], 'family_examples': {}}}
+        contradictory = mf(['stm32f4'])
+        contradictory['build']['needed'] = False
         for bad in ('{"build": ["stm32f4"]}', '{"build": {"full": false}}',
-                    '{"build": {"full": false, "families": "stm32f4"}}', '["stm32f4"]'):
+                    '{"build": {"full": false, "families": "stm32f4"}}', '["stm32f4"]',
+                    json.dumps(legacy), json.dumps(contradictory)):
             r = self.run_matrix('--select', bad)
             self.assertEqual(r.returncode, 0, f'{bad}: {r.stderr}')
             self.assertEqual(json.loads(r.stdout), base, bad)
@@ -2285,8 +2294,7 @@ class TestCiSetMatrix(unittest.TestCase):
         # build.yml hands the selection over as a FILE: a ~128KiB step env var makes
         # the step's own exec fail with E2BIG before any fallback can run
         import tempfile
-        sel = json.dumps({'build': {'full': False, 'families': ['rp2040'],
-                                    'family_examples': {}}})
+        sel = json.dumps(mf(['rp2040']))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
             f.write(sel)
             path = f.name
@@ -2313,15 +2321,14 @@ class TestCiSetMatrix(unittest.TestCase):
         # because that is what build.yml and CircleCI grep to drop the build extras too.
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select',
-                            json.dumps({'build': {'full': False, 'families': ['py32f0']}}))
+                            json.dumps(mf(['py32f0'])))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
 
     def test_a_partial_toolchain_miss_still_scopes(self):
         # one buildable family is real coverage: scope to it and just note the other
-        r = self.run_matrix('--select', json.dumps(
-            {'build': {'full': False, 'families': ['stm32f4', 'py32f0']}}))
+        r = self.run_matrix('--select', json.dumps(mf(['stm32f4', 'py32f0'])))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['stm32f4'])
         self.assertNotIn('UNSCOPED', r.stderr)
@@ -2329,8 +2336,7 @@ class TestCiSetMatrix(unittest.TestCase):
 
     def test_efm32_selection_scopes_to_its_leg(self):
         # the orphan invariant checks keys only: "efm32": [] would pass it and build nothing
-        r = self.run_matrix('--select', json.dumps(
-            {'build': {'full': False, 'families': ['efm32']}}))
+        r = self.run_matrix('--select', json.dumps(mf(['efm32'])))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['efm32'])
         self.assertNotIn('UNSCOPED', r.stderr)
@@ -2338,7 +2344,7 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_explicit_empty_families_selects_nothing(self):
         # an explicit [] IS a legitimate answer (a diff that builds nothing)
         r = self.run_matrix('--select',
-                            json.dumps({'build': {'full': False, 'families': []}}))
+                            json.dumps(mf([])))
         self.assertEqual(r.returncode, 0)
         self.assertEqual(set().union(*json.loads(r.stdout).values()), set())
 
@@ -2355,6 +2361,91 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(json.loads(r.stdout), base)
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)   # build.yml greps this
+
+    def required(self, sel):
+        r = self.run_matrix('--required', '--select', json.dumps(sel))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout), r.stderr
+
+    def test_required_builds_the_changed_boards_the_pinned_matrix_does_not(self):
+        # stm32f407disco is the stm32f4 pinned board, built by the cmake job when stm32f4
+        # is selected; the others need a leg of their own on their family's toolchain
+        m, err = self.required(mf(['stm32f4'], required=['stm32f407disco', 'stm32u083cdk',
+                                                         'gr_citrus', 'espressif_s3_devkitm']))
+        self.assertEqual({tc: v for tc, v in m.items() if v},
+                         {'arm-gcc': ['-b stm32u083cdk'], 'rx-gcc': ['-b gr_citrus'],
+                          'esp-idf': ['-b espressif_s3_devkitm']})
+        self.assertEqual(err, '')
+
+    def test_required_builds_a_pinned_board_whose_family_is_not_selected(self):
+        m, _ = self.required(mf([], required=['stm32f407disco']))
+        self.assertEqual(m['arm-gcc'], ['-b stm32f407disco'])
+        m, _ = self.required(mf([], full=True, required=['stm32f407disco']))
+        self.assertEqual(m['arm-gcc'], [])  # a full build covers every pinned board
+
+    def test_required_names_a_board_no_toolchain_builds(self):
+        m, err = self.required(mf([], required=['py32f071_dev_board']))
+        self.assertEqual(m['unbuildable'], ['py32f071_dev_board'])
+        self.assertIn('py32f071_dev_board', err)
+
+    def test_required_is_empty_for_an_unusable_selection(self):
+        r = self.run_matrix('--required', '--select', 'not json {')
+        self.assertEqual(r.returncode, 0)
+        self.assertFalse(any(json.loads(r.stdout).values()))
+        self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+
+    def test_every_listed_family_has_a_required_toolchain(self):
+        sys.path.insert(0, os.path.dirname(SET_MATRIX))
+        import ci_set_matrix
+        for fam, tcs in ci_set_matrix.family_list.items():
+            self.assertTrue(fam == 'espressif' or set(tcs) & set(ci_set_matrix.REQUIRED_TOOLCHAINS), fam)
+        self.assertLessEqual(set(ci_set_matrix.CMAKE_JOB_TOOLCHAINS), set(ci_set_matrix.REQUIRED_TOOLCHAINS))
+
+
+class TestCheckManifest(unittest.TestCase):
+    """The one reading every CI consumer applies before it scopes or skips anything."""
+
+    def test_a_real_manifest_passes(self):
+        sel = mf(['stm32f4'], boards={'stm32f407disco': 'all'}, required=['stm32f407disco'],
+                 hil_examples={'stm32f407disco': ['device/cdc_msc']})
+        sel['build']['families']['stm32f4'] = {'examples': ['device/cdc_msc']}
+        self.assertIs(ci_select.check_manifest(sel), sel)
+
+    def test_malformed_or_contradictory_manifests_are_refused(self):
+        def bad(edit):
+            m = mf(['stm32f4'], boards={'stm32f407disco': 'all'})
+            edit(m)
+            return m
+        cases = {
+            'legacy shape': {'full': False, 'boards': {}, 'build': {'full': False, 'families': []}},
+            'version': bad(lambda m: m.update(version=2)),
+            'full not bool': bad(lambda m: m['build'].update(full='false')),
+            'families a list': bad(lambda m: m['build'].update(families=['stm32f4'])),
+            'empty example list': bad(lambda m: m['build']['families'].update(stm32f4={'examples': []})),
+            'build needed false with families': bad(lambda m: m['build'].update(needed=False)),
+            'build needed true with nothing': bad(lambda m: m['build'].update(families={})),
+            'required_boards a string': bad(lambda m: m['build'].update(required_boards='x')),
+            'unknown effect': bad(lambda m: m['build'].update(paths=[{'path': 'a', 'effect': 'maybe'}])),
+            'hil boards a list': bad(lambda m: m['hil'].update(boards=['stm32f407disco'])),
+            'hil needed false with boards': bad(lambda m: m['hil'].update(needed=False)),
+            'args not strings': bad(lambda m: m['hil'].update(args={'hfp.json': None})),
+            'args_flasher flat': bad(lambda m: m['hil'].update(args_flasher={'tinyusb.json': '-b x'})),
+            'hil_examples a string': bad(lambda m: m['hil'].update(hil_examples={'x': 'device/cdc_msc'})),
+        }
+        for name, m in cases.items():
+            with self.subTest(name), self.assertRaises(ValueError):
+                ci_select.check_manifest(m)
+
+    def test_build_gate(self):
+        gap = {'path': 'src/class/bth/bth_device.c', 'effect': 'gap'}
+        doc = {'path': 'README.rst', 'effect': 'none'}
+        self.assertFalse(ci_select.build_gate(mf(paths=[doc])))
+        self.assertTrue(ci_select.build_gate(mf(paths=[doc, gap])))  # no build compiles it: keep the net
+        self.assertTrue(ci_select.build_gate(mf(['stm32f4'])))
+        self.assertTrue(ci_select.build_gate(mf(boards={'stm32f407disco': 'all'})))
+        self.assertTrue(ci_select.build_gate(mf(hil_full=True)))
+        with self.assertRaises(ValueError):
+            ci_select.build_gate({'full': True})
 
 
 HIL_SET_MATRIX = os.path.join(REPO, '.github/scripts/hil_ci_set_matrix.py')
@@ -2389,7 +2480,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_no_hil_examples_is_byte_identical(self):
         plain = self.run_matrix()
-        sel = json.dumps({'full': True, 'boards': {}})
+        sel = json.dumps(mf(hil_full=True))
         self.assertEqual(self.run_matrix('--select', sel), plain)
 
     def test_absent_boards_key_falls_open_to_the_full_roster(self):
@@ -2398,14 +2489,17 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         # both rig jobs skip through needs: - an all-green PR with zero hardware
         # coverage. An explicit boards: {} stays a legitimate nothing-selected.
         plain = self.run_matrix()
+        listed = mf()
+        listed['hil']['boards'] = []
         for bad in ('{"full": false, "hil_examples": {}}', '{"full": false, "boards": []}',
+                    json.dumps(listed),
                     'not json {', '["a board"]',
                     # the whole selection is unusable, hil_examples included: keeping the
                     # -e lists builds a few examples per board while the rig, unfiltered,
                     # runs that board's whole test list
                     '{"full": false, "hil_examples": {"frdm_k64f": ["device/cdc_msc"]}}'):
             self.assertEqual(self.run_matrix('--select', bad), plain, bad)
-        self.assertNotEqual(self.run_matrix('--select', '{"full": false, "boards": {}}'),
+        self.assertNotEqual(self.run_matrix('--select', json.dumps(mf())),
                             plain, 'an explicit empty boards map still means nothing')
 
     def test_select_file_matches_select(self):
@@ -2413,8 +2507,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         # MAX_ARG_STRLEN on a big diff, so the file form must be equivalent
         import tempfile
         board = on_roster(self, 'stm32f407disco')[0]
-        sel = json.dumps({'full': False, 'boards': {board: 'all'},
-                          'hil_examples': {board: ['device/board_test']}})
+        sel = json.dumps(mf(boards={board: 'all'}, hil_examples={board: ['device/board_test']}))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
             f.write(sel)
             path = f.name
@@ -2426,8 +2519,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_examples_appended_per_board(self):
         board = on_roster(self, 'stm32f407disco')[0]
-        sel = json.dumps({'full': False, 'boards': {board: 'all'},
-                          'hil_examples': {board: ['device/board_test', 'device/cdc_msc']}})
+        sel = json.dumps(mf(boards={board: 'all'}, hil_examples={board: ['device/board_test', 'device/cdc_msc']}))
         m = json.loads(self.run_matrix('--select', sel))
         entries = [e for entries in m.values() for e in entries]
         self.assertTrue(entries)

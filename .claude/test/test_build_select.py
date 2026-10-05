@@ -140,6 +140,20 @@ class InputModeTest(unittest.TestCase):
         self.assertEqual(sorted(files), ['b.c', 'm.c'])
         self.assertEqual(ci_select.select_input(self.repo, base=main)[0], ['b.c'])
 
+    def test_a_stacked_branch_selects_against_base_not_its_parent(self):
+        # CircleCI has no base-branch var and passes master (.circleci/config.yml): for a
+        # branch stacked on topic, the parent's file is selected too, and a file the parent
+        # changed and the branch changed back drops out
+        self.write('a.c', 'parent\n')
+        git(self.repo, 'commit', '-qam', 'parent edits a.c')
+        git(self.repo, 'checkout', '-qb', 'child')
+        self.write('a.c', 'a\n')
+        self.write('c.c', 'c\n')
+        git(self.repo, 'add', '.')
+        git(self.repo, 'commit', '-qm', 'child reverts a.c')
+        self.assertEqual(sorted(ci_select.select_input(self.repo, base='main')[0]), ['b.c', 'c.c'])
+        self.assertEqual(sorted(ci_select.select_input(self.repo, base='topic')[0]), ['a.c', 'c.c'])
+
     def test_a_get_deps_edit_resolves_its_families_in_every_mode(self):
         # never the None that would mean "unresolvable, full matrix"
         self.write('tools/get_deps.py', "deps_optional = {'x': ['u', 'abc', 'fam1']}\n")

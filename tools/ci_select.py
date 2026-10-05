@@ -1088,6 +1088,58 @@ def manifest(files, repo_root, rosters, gd, inp):
     return {'version': 1, 'input': inp, 'build': build, 'hil': hil}, s['reasons'], b['reasons']
 
 
+EFFECTS = ('none', 'gap', 'select', 'full')
+
+
+def check_manifest(m):
+    """Raise ValueError unless `m` is a usable manifest v1: what every CI reader checks
+    before it scopes or skips anything, so a malformed, contradictory or legacy
+    selection falls open instead."""
+    def need(ok, what):
+        if not ok:
+            raise ValueError(f'manifest: {what}')
+
+    def strs(x):
+        return isinstance(x, list) and all(isinstance(s, str) for s in x)
+
+    need(isinstance(m, dict) and m.get('version') == 1, 'not version 1')
+    b, h = m.get('build'), m.get('hil')
+    need(isinstance(b, dict) and isinstance(h, dict), 'build/hil not objects')
+    for name, axis in (('build', b), ('hil', h)):
+        need(isinstance(axis.get('full'), bool) and isinstance(axis.get('needed'), bool),
+             f'{name}.full/needed not booleans')
+    fams = b.get('families')
+    need(isinstance(fams, dict) and all(
+        isinstance(f, str) and isinstance(v, dict) and
+        (v.get('examples') == 'all' or (strs(v.get('examples')) and v['examples']))
+        for f, v in fams.items()), 'build.families malformed')
+    need(b['needed'] == bool(b['full'] or fams), 'build.needed contradicts full/families')
+    for key in ('required_boards', 'required_targets'):
+        need(strs(b.get(key)), f'build.{key} malformed')
+    need(isinstance(b.get('paths'), list) and all(
+        isinstance(r, dict) and r.get('effect') in EFFECTS and isinstance(r.get('path'), str)
+        for r in b['paths']), 'build.paths malformed')
+    boards = h.get('boards')
+    need(isinstance(boards, dict) and all(v == 'all' or strs(v) for v in boards.values()),
+         'hil.boards malformed')
+    need(h['needed'] == bool(h['full'] or boards), 'hil.needed contradicts full/boards')
+    need(isinstance(h.get('args'), dict) and all(isinstance(v, str) for v in h['args'].values()),
+         'hil.args malformed')
+    need(isinstance(h.get('args_flasher'), dict) and all(
+        isinstance(v, dict) and all(isinstance(a, str) for a in v.values()) for v in h['args_flasher'].values()),
+        'hil.args_flasher malformed')
+    need(isinstance(h.get('hil_examples'), dict) and all(strs(v) for v in h['hil_examples'].values()),
+         'hil.hil_examples malformed')
+    return m
+
+
+def build_gate(m):
+    """Whether a workflow has any work: something to build or test, or a firmware path
+    no build compiles (effect gap), which keeps the full builds' syntax-check net."""
+    b = check_manifest(m)['build']
+    return b['needed'] or m['hil']['needed'] or any(r['effect'] == 'gap' for r in b['paths'])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     g = ap.add_mutually_exclusive_group(required=True)
