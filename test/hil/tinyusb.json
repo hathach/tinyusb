@@ -46,6 +46,10 @@
                 "name": "lm4flash",
                 "uid": "0E205D19",
                 "args": "-v"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/ti-icdi.cfg -c \"transport select jtag\" -c \"set WORKAREASIZE 0x8000\" -c \"set CHIPNAME tm4c123gh6pm\" -f target/ti/stellaris.cfg -c \"reset_config none\" -c \"tm4c123gh6pm.cpu configure -event reset-assert-post {sleep 100}\""
             }
         },
         {
