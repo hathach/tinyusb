@@ -551,61 +551,6 @@ class ConvoySafeFlasher(unittest.TestCase):
             self.assertFalse(self.f(flasher))
 
 
-class UnresolvedControllerBucket(unittest.TestCase):
-    """An unresolved controller must budget in ONE bucket. Taking a permit on every slot
-    serialized the whole fleet the moment a single board could not be resolved."""
-
-    def setUp(self):
-        import threading
-        from helper import hil_lock
-        self.hil_lock = hil_lock
-        self.saved = (hil_lock.controller_map, hil_lock.controller_meta, hil_lock.log)
-        hil_lock.controller_map, hil_lock.controller_meta = {}, threading.Lock()
-        hil_lock.log = lambda *a, **k: None
-
-    def tearDown(self):
-        (self.hil_lock.controller_map, self.hil_lock.controller_meta,
-         self.hil_lock.log) = self.saved
-
-    def _slots(self, uid):
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        return self.hil_lock.controller_permit(sems, uid).slots
-
-    def test_unresolved_boards_share_one_slot(self):
-        slots = self._slots('NOSUCHUID')
-        self.assertEqual(len(slots), 1, 'unresolved uid took more than one slot')
-        self.assertEqual(slots, self._slots('OTHERUID'),
-                         'unresolved boards must share the bucket, not spread over it')
-
-    def test_the_semaphore_array_is_long_enough_for_the_unknown_slot(self):
-        """UNKNOWN_SLOT indexes one PAST the real slots. An array sized to
-        CONTROLLER_SLOTS IndexErrors on the first unresolved board, inside a pool worker,
-        which map_async turns into a total loss of every board's results."""
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        self.assertGreater(len(sems), self.hil_lock.UNKNOWN_SLOT)
-
-    def test_the_unknown_bucket_never_lends_a_controller_a_second_budget(self):
-        """A private FULL budget let 2 unknown batteries join 2 resolved ones on the same
-        physical controller -- 4 where the width is 2. One at a time caps that at +1."""
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        first = self.hil_lock.controller_permit(sems, 'NOSUCHUID')
-        first.__enter__()
-        self.addCleanup(first.__exit__)
-        second = self.hil_lock.controller_permit(sems, 'OTHERUID')
-        self.assertFalse(sems[second.slots[0]].acquire(blocking=False),
-                         'a second unresolved board got in alongside the first')
-
-    def test_every_real_slot_keeps_the_full_width(self):
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        for s in sems[:self.hil_lock.CONTROLLER_SLOTS]:
-            self.assertTrue(s.acquire(blocking=False) and s.acquire(blocking=False))
-            self.assertFalse(s.acquire(blocking=False))
-
-
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the
     payload actually requested."""
@@ -1104,11 +1049,10 @@ class UsbScanIsTheOneWalk(unittest.TestCase):
 class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     """run_cmd's kill is the ONE bound, and it must carry a recovery reserve only when a
     recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
-    worker and its battery permit idle for the difference, under a usbtest width of 2."""
+    worker idle for the difference."""
 
     def _invoke(self, flasher, skip_flash=False, recover=None):
-        from contextlib import contextmanager
-        from helper import hil_lock, hil_util
+        from helper import hil_util
 
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
@@ -1121,9 +1065,6 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
             self.addCleanup(setattr, obj, name, getattr(obj, name))
             setattr(obj, name, value)
 
-        def _permit(uid):
-            yield
-
         seen = {}
 
         def fake_run(cmd, **kw):
@@ -1134,7 +1075,6 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         from helper import hil_util as _hu
         patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
         patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
-        patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', skip_flash)
         patch(hil_test, '_current_fw', '/tmp/fw.elf')
         patch(hil_util, 'run_cmd', fake_run)
@@ -1266,8 +1206,6 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
     thing left to unpoison the DUT where usbtest's in-band recovery is off."""
 
     def setUp(self):
-        from contextlib import contextmanager
-        from helper import hil_lock
         self.td = TemporaryDirectory()
         self.addCleanup(self.td.cleanup)
         dev = Path(self.td.name) / 'dev1'
@@ -1285,10 +1223,6 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
         from helper import hil_util as _hu
         patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
         patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
-        def _permit(uid):        # a real generator: a lambda returning an iterator has
-            yield                # no .throw(), so any raise inside the `with` would
-                                 # surface as an AttributeError from contextlib instead
-        patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', True)
 
     def test_rc_124_stays_retryable(self):
@@ -1430,7 +1364,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         no_settle(self)
 
     def _run(self, stdout, rc=0, flasher=None):
-        from helper import hil_lock, hil_util
+        from helper import hil_util
         class R:
             returncode = rc
             stderr = b''
@@ -1441,9 +1375,6 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
         hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
                                            'pid': '4010', 'serial': 'U'}], False)
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
-        hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         self.raised = None
@@ -1494,7 +1425,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
 
     def _cell(self, js):
         """Returns ('pass', cell) or ('fail', message)."""
-        from helper import hil_lock, hil_util
+        from helper import hil_util
         class R:
             returncode = 0
             stderr = b''
@@ -1504,9 +1435,6 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
         hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
                                            'pid': '4010', 'serial': 'U'}], False)
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
-        hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1744,27 +1672,87 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
                       'the re-run spec must still name the boards that never reported')
 
 
+class UsbtestLearnsTopology(unittest.TestCase):
+    """The battery is where the DUT is known enumerated, so it feeds the dispatch cache's
+    uid -> controller map; that lookup is best effort and never stands between the board
+    and its battery."""
+
+    PASS = ('{"serial":"U","speed":"480","tier":1,"passed":30,"failed":0,"notrun":0,'
+            '"wedged":false,"cases":[]}')
+
+    def setUp(self):
+        from helper import hil_lock, hil_util
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+        no_settle(self)
+        self.order = []
+
+        class R:
+            returncode = 0
+            stderr = b''
+            stdout = self.PASS.encode()
+        for obj, name, value in (
+                (hil_util, 'run_cmd', lambda *a, **k: self.order.append('battery') or R()),
+                (hil_util, 'usb_scan', lambda **k: [{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
+                                                     'pid': '4010', 'serial': 'U'}])):
+            self.addCleanup(setattr, obj, name, getattr(obj, name))
+            setattr(obj, name, value)
+        self.hil_lock = hil_lock
+        self.addCleanup(setattr, hil_lock, 'controller_of', hil_lock.controller_of)
+        self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+
+    def test_the_controller_is_learned_before_the_battery(self):
+        self.hil_lock.controller_of = lambda uid: self.order.append(('learn', uid))
+        hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, [('learn', 'U'), 'battery'])
+
+    def test_a_cold_map_learns_the_controller_through_the_real_resolver(self):
+        from unittest import mock
+        from helper import hil_util
+        self.addCleanup(setattr, self.hil_lock, 'controller_map', self.hil_lock.controller_map)
+        for name in ('print_lock', 'shuffle_seed'):
+            self.addCleanup(setattr, hil_test, name, getattr(hil_test, name))
+        cmap = {}
+        hil_test.init_worker(None, '1', cmap)
+        self.addCleanup(setattr, hil_util, 'read_sysfs', hil_util.read_sysfs)
+        hil_util.read_sysfs = lambda path, *a, **k: '3' if path.endswith('busnum') else None
+        real = os.path.realpath
+
+        def realpath(p, *a, **k):
+            if p == '/sys/bus/usb/devices/usb3':
+                return '/sys/devices/pci0000:00/0000:00:1c.0/0000:02:00.0/usb3'
+            return real(p, *a, **k)
+        with mock.patch.object(self.hil_lock.os.path, 'realpath', realpath):
+            hil_test.test_device_usbtest(self.board)
+        self.assertEqual(cmap, {'uid:U': '0000:02:00.0'})
+        self.assertEqual(self.order, ['battery'])
+
+    def test_a_dead_topology_map_still_runs_the_battery(self):
+        def dead(uid):
+            raise EOFError('Manager gone')
+        self.hil_lock.controller_of = dead
+        hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, ['battery'])
+
+
 class UsbtestAbsentDeviceVerdict(unittest.TestCase):
-    """The arm that fails BEFORE usbtest_permit: an absent device must not queue on the
-    battery mutex for minutes just to have usbtest.py report "no device", and the cell
-    needs the 0/30 denominator or the row reads as a bare failure."""
+    """An absent device fails before the battery is launched, and the cell needs the 0/30
+    denominator or the row reads as a bare failure."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
         hil_test.board_wedged = ''
         no_settle(self)
-        from helper import hil_lock, hil_util
+        from helper import hil_util
         self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
         hil_util.usb_scan = lambda **k: []          # a readable bus, no such device
         self.addCleanup(setattr, hil_test, '_enum_timeout', hil_test._enum_timeout)
         hil_test._enum_timeout = 0
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
+        self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
 
-        def boom(uid):
-            raise AssertionError('took the battery permit for an absent device')
-            yield
-        hil_lock.usbtest_permit = contextmanager(boom)
+        def boom(*a, **k):
+            raise AssertionError('launched a battery for an absent device')
+        hil_util.run_cmd = boom
 
     def test_a_readable_bus_without_the_device_says_absent_with_a_denominator(self):
         with self.assertRaises(hil_test.TestFail) as cm:
@@ -1772,32 +1760,6 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
         self.assertIn('no cafe:4010 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
-
-class PermitReleasesOnlyWhatItTook(unittest.TestCase):
-    """The bounded acquire skips a slot it could not get ('proceeding over-subscribed') and
-    deliberately leaves it out of `taken`, but __exit__ released every slot in self.slots.
-    multiprocessing.Semaphore is unbounded, so each timeout permanently widened that
-    controller's permit -- the throttle USBTEST_PARALLEL narrowed (4->2) for xHCI
-    bandwidth margin."""
-
-    def test_a_timed_out_slot_is_not_released_on_exit(self):
-        from helper import hil_lock
-        import multiprocessing
-
-        sems = [multiprocessing.Semaphore(1)]
-        sems[0].acquire()                      # width 1, already held: the next wait times out
-        self.addCleanup(setattr, hil_lock, 'PERMIT_TIMEOUT', hil_lock.PERMIT_TIMEOUT)
-        hil_lock.PERMIT_TIMEOUT = 0.1
-
-        permit = hil_lock.controller_permit(sems, 'UID')
-        permit.slots = [0]
-        with permit:
-            pass
-
-        # one holder still holds it, so a correct exit leaves it unavailable
-        self.assertFalse(sems[0].acquire(timeout=0.1),
-                         'the permit released a slot it never acquired: width grew')
-
 
 class SudoSoftNeverRaises(unittest.TestCase):
     """Two of its four call sites are inside run_case's timeout handler, where ANY raise

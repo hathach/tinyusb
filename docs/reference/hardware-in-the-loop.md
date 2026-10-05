@@ -256,8 +256,8 @@ Why the rule matters:
   puts a second hub's whole subtree behind one of those uplinks, and the `usbtest`
   battery saturates whatever it is given.
 - **Blast radius.** A board that wedges its hub costs seven ports, not the rig.
-- **Scheduling.** `hil_test.py` budgets `usbtest` concurrency per host controller
-  (`test/hil/helper/hil_lock.py`: `USBTEST_PARALLEL`), which
+- **Scheduling.** `hil_test.py` dispatches boards round-robin across host controllers
+  (`schedule_boards` in `test/hil/hil_test.py`), which
   only means anything when a controller's set of devices is fixed.
 
 Bus numbers are *not* stable across reboots or recabling, so nothing in the harness

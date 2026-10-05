@@ -13,9 +13,8 @@ the board sits in boards-skip, does not run device/usbtest or lacks a uid or fla
 roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
 is held or unusable, or a testusb, usbtest.py, hil_test.py or other run_case.py process is alive
 on this host, checked before and again after taking the lock. That check is host-wide and does
-not see a hil_test.py started after it, nor join hil_test.py's per-controller battery permits:
---allow-concurrent skips it only once you have established that no battery shares this board's
-host controller.
+not see a hil_test.py started after it: --allow-concurrent skips it only when another battery's
+load on this board's host controller does not matter for what you are measuring.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py

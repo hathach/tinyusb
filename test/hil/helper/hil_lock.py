@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Board locks + controller permits for the TinyUSB HIL rig.
+"""Board locks for the TinyUSB HIL rig, plus the DUT -> host-controller resolver.
 
 Board locks are kernel flocks in BOARD_LOCK_DIR arbitrating hardware access
 between dev sessions and CI's hil_test.py (never stop the actions-runner).
-Controller permits are in-process semaphores budgeting usbtest batteries per
-host controller; they have no CLI meaning. The CLI below
-(hold/release/status) manages board locks only.
+controller_of feeds hil_test's dispatch-order cache and has no CLI meaning. The
+CLI below (hold/release/status) manages board locks only.
 """
 import argparse
 import fcntl
@@ -24,7 +23,6 @@ from helper import hil_util
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
 PROTECTED_REASONS = {CI_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
-PROFILE = os.environ.get('HIL_PROFILE') == '1'
 
 
 def lock_path(board: str) -> str:
@@ -118,52 +116,24 @@ def acquire_board_lock(board_name, reason=CI_REASON):
     return fh
 
 
-# Per-host-controller concurrency (see controller_of/controller_slot below): a usbtest
-# battery saturates its DUT's host controller, so batteries are budgeted per controller.
-# Width 2 trades ~3.5 min on the usbtest leg for bandwidth margin on the shared leaf-hub
-# uplinks (profiled 2026-07-13/14: 22.2/14.3/12.5/10.8 min at width 1/2/3/4, plateau
-# after). Raise per run via HIL_USBTEST_PARALLEL.
-# - uPD720201 cards need firmware >= 2.0.2.6 (RAM-uploaded, reloads every power cycle):
-#   the ROM firmware dies under battery + re-enumeration churn.
-# - a marginal DUT port bouncing during concurrent batteries can kill a uPD720201 ("xHCI
-#   host not responding to stop endpoint command"): fix the port/cable or pull the board
-#   -- lowering the width does not fix a bad port (2026-07-16, every death).
-USBTEST_PARALLEL = hil_util.pos_int_env('HIL_USBTEST_PARALLEL', 2)
-CONTROLLER_SLOTS = 12  # lock slots; controllers are assigned to slots on first sight
-# Bound on ONE permit wait. Generous: a real queue behind a slow board is normal,
-# and this only has to beat the pool guard so a leaked permit cannot consume it.
-PERMIT_TIMEOUT = hil_util.pos_int_env('HIL_PERMIT_TIMEOUT', 900)
-# CONTROLLER_SLOTS + 1 entries each, built by make_permit_sems: UNKNOWN_SLOT indexes the
-# extra one. Sized to CONTROLLER_SLOTS instead, the first unresolved board IndexErrors
-# inside a pool worker -- which now surfaces through drain_pool as a worker-raise (the
-# finished boards survive), but still loses this board and aborts the run.
-usbtest_sems = None     # per-slot usbtest-battery permits
-controller_map = None         # shared dict: 'pci:<addr>' -> slot, 'uid:<uid>' -> pci addr cache
-controller_meta = None        # guards slot assignment in controller_map
-
-
-log = print  # hil_test.init_worker points this at log_line via init_scheduling
-
-
-def init_scheduling(b_sems, cmap, cmeta, log_fn=None):
-    """Install per-worker scheduling state (called from hil_test.init_worker)."""
-    global usbtest_sems, controller_map, controller_meta, log
-    usbtest_sems = b_sems
-    controller_map, controller_meta = cmap, cmeta
-    if log_fn is not None:
-        log = log_fn
-
-
 # -------------------------------------------------------------
-# Per-controller scheduling
+# DUT topology
 # -------------------------------------------------------------
+controller_map = None   # shared dict: 'uid:<uid>' -> pci addr, read back into the dispatch cache
+
+
+def init_topology(cmap):
+    """Install the shared topology map (called from hil_test.init_worker)."""
+    global controller_map
+    controller_map = cmap
+
+
 def controller_of(uid: str):
     """Resolve a DUT uid to its root host controller's PCI address, or None when it cannot
     be resolved — the device is not enumerated (e.g. parked in board_test firmware with USB
     off), or sysfs would not answer. Successful resolutions are cached — cabling does not
     change mid-run. Dual-port parts (e.g. CH32V307 usbhs/usbfs variants) share one uid and
-    one cache entry: budgeting is only exact when both ports sit on the same controller
-    (true on this rig)."""
+    one cache entry, the first port seen."""
     if controller_map is None:
         return None
     cached = controller_map.get(f'uid:{uid}')
@@ -186,100 +156,6 @@ def controller_of(uid: str):
             controller_map[f'uid:{uid}'] = m[-1]
             return m[-1]
     return None
-
-
-def controller_slot(pci: str) -> int:
-    """Map a controller PCI address to a lock slot (assigned on first sight)."""
-    key = f'pci:{pci}'
-    with controller_meta:
-        slot = controller_map.get(key)
-        if slot is None:
-            slot = controller_map.get('nslots', 0)
-            if slot >= CONTROLLER_SLOTS:
-                slot = 0  # more controllers than slots: overflow shares slot 0 (safe, over-serialized)
-            else:
-                controller_map['nslots'] = slot + 1
-            controller_map[key] = slot
-        return slot
-
-
-# Unresolved boards budget in a slot of their OWN, one past the real ones, and that slot
-# holds exactly ONE permit whatever the per-controller width is. Neither neighbour works:
-# a permit on every slot (the old fail-closed rule) serialized the whole fleet the moment
-# one board could not be resolved, while a full private budget let unknown boards run a second
-# controller's worth of batteries on top of the resolved ones -- doubling the load on
-# whichever physical controller they actually sit on, which is the saturation the
-# uPD720201 deaths above are attributed to. Width 1 caps the over-subscription at +1.
-UNKNOWN_SLOT = CONTROLLER_SLOTS
-
-
-def make_permit_sems(semaphore, width: int) -> list:
-    """One semaphore per controller slot at `width`, plus the unknown bucket at 1."""
-    return [semaphore(width) for _ in range(CONTROLLER_SLOTS)] + [semaphore(1)]
-
-
-class controller_permit:
-    """Context manager: one permit from `sems` on the board's controller slot. An
-    unresolved controller budgets in UNKNOWN_SLOT, which admits one at a time: unresolved
-    boards serialize against each other, never against the whole rig, and never add a
-    second full budget to a controller, and logs that fallback: the caller expects the
-    device to be enumerated."""
-    def __init__(self, sems, uid: str):
-        self.sems = sems
-        self.slots = None
-        self.uid = uid
-        # what __enter__ actually ACQUIRED. Not the same as self.slots: a bounded acquire
-        # that times out is skipped on purpose, and releasing it anyway would add a permit
-        # that was never taken -- multiprocessing semaphores are unbounded, so the width
-        # grows for the rest of the run, on the controller throttle that exists to keep
-        # concurrent batteries from killing the uPD720201 xHCI.
-        self.taken: list = []
-        if sems is None:
-            return
-        pci = controller_of(uid)
-        if pci is None:
-            log(f'warning: cannot resolve {uid} to a host controller; '
-                f'budgeting it in the unknown bucket')
-        self.slots = [controller_slot(pci) if pci else UNKNOWN_SLOT]
-
-    def __enter__(self):
-        if self.slots:
-            t0 = time.monotonic()
-            taken = self.taken = []
-            try:
-                for s in self.slots:
-                    # BOUNDED. multiprocessing semaphores are NOT released when a holder
-                    # dies, so a permit lost to a killed worker would block every later
-                    # worker on this controller until the pool guard. On
-                    # expiry proceed over-subscribed and say so: a slower controller is a
-                    # far better failure than a hung run.
-                    if not self.sems[s].acquire(timeout=PERMIT_TIMEOUT):
-                        log(f'warning: waited {PERMIT_TIMEOUT}s for a permit on slot {s} '
-                            f'(uid {self.uid}); a holder probably died without releasing '
-                            f'it -- proceeding over-subscribed')
-                        continue
-                    taken.append(s)
-                # inside the try: a failed __enter__ never gets its __exit__, so a raise
-                # here (e.g. broken stdout) must still release the permits
-                if PROFILE and time.monotonic() - t0 > 1.0:
-                    log(f'[prof] permit wait {time.monotonic() - t0:.1f}s '
-                             f'(uid {self.uid}, slots {self.slots})')
-            except BaseException:
-                for s in reversed(taken):
-                    self.sems[s].release()
-                raise
-        return self
-
-    def __exit__(self, *exc):
-        if self.slots:
-            for s in reversed(self.taken):
-                self.sems[s].release()
-            self.taken = []
-        return False
-
-
-def usbtest_permit(uid: str) -> controller_permit:
-    return controller_permit(usbtest_sems, uid)
 
 
 # --- operator CLI (hold/release/status) ------------------------------------

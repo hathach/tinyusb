@@ -65,12 +65,12 @@ import usbtest    # the recovery bounds and the id registration; batteries run i
 from helper import hil_args, hil_lock, hil_report, hil_tt, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
 
-# Raw Lock/Semaphore objects in Pool initargs are inheritable only under fork
+# Raw Lock objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
 # interpreter default change.
 
 _mp = multiprocessing.get_context('fork')
-Pool, Lock, Semaphore, Manager = _mp.Pool, _mp.Lock, _mp.Semaphore, _mp.Manager
+Pool, Lock, Manager = _mp.Pool, _mp.Lock, _mp.Manager
 import string
 
 # Enumeration wait budget: first attempt ENUM_TIMEOUT, retries the shorter
@@ -137,11 +137,11 @@ shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SH
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 
 
-def init_worker(lock, seed, b_mutexes, cmap, cmeta):
+def init_worker(lock, seed, cmap):
     global print_lock, shuffle_seed
     print_lock = lock
     shuffle_seed = seed
-    hil_lock.init_scheduling(b_mutexes, cmap, cmeta, log_fn=log_line)
+    hil_lock.init_topology(cmap)
 
 
 def log_line(msg: str) -> None:
@@ -1515,8 +1515,7 @@ def test_device_usbtest(board):
     while time.monotonic() < end and not seen:
         time.sleep(0.2)
         seen = usbtest_enumerated()
-    # fail before usbtest_permit: an absent device would otherwise queue on the battery
-    # mutex for minutes behind real batteries just to have usbtest.py report "no device"
+    # fail here rather than in usbtest.py: the cell then says the battery never ran
     if not seen:
         # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
         raise TestFail(f'no cafe:4010 device with serial {uid}',
@@ -1569,10 +1568,15 @@ def test_device_usbtest(board):
     # one already-started case, and a hang there needs room for the recovery (whose step
     # is bounded by usbtest.RECOVER_*_TIMEOUT, not HIL_CMD_TIMEOUT). Without it run_cmd
     # SIGKILLs usbtest.py mid-recovery, losing the JSON and the diagnosis.
-    with hil_lock.usbtest_permit(uid):
-        # split_stderr: the battery's final JSON is parsed from stdout, and stderr is the
-        # only detail left when the outer timeout kills the battery before it prints
-        r = hil_util.run_cmd(cmd, timeout=outer, split_stderr=True)
+    # the DUT is enumerated now, so this is when its controller can be learned for the next
+    # run's dispatch order; best effort, a dead Manager must not cost the battery
+    try:
+        hil_lock.controller_of(uid)
+    except Exception:
+        pass
+    # split_stderr: the battery's final JSON is parsed from stdout, and stderr is the
+    # only detail left when the outer timeout kills the battery before it prints
+    r = hil_util.run_cmd(cmd, timeout=outer, split_stderr=True)
     out = hil_util.cmd_stdout_text(r.stdout)
     brace = out.find('{')
     try:
@@ -2063,15 +2067,15 @@ def test_board(board: Board) -> tuple:
 
 
 # controller hints from previous runs: uid -> {'name', 'pci', 'duration'}. Only 'pci' is
-# consumed (dispatch order and first-flash budgeting, never battery serialization). PCI
+# consumed, for dispatch order. PCI
 # addresses are boot-stable, so the cache survives reboots and goes stale on re-cabling.
 CONTROLLER_CACHE = Path.home() / '.cache' / 'tinyusb-hil' / 'controller_cache.json'
 
 
 def schedule_boards(boards: list, pci_of_uid: dict) -> list:
-    """Dispatch order: round-robin across host controllers so every controller's
-    serialized usbtest battery chain is fed from t=0 instead of one card's boards
-    convoying at the head of the queue. Boards without a controller hint form their
+    """Dispatch order: round-robin across host controllers so the load is spread over
+    every controller from t=0 instead of one card's boards convoying at the head of the
+    queue. Boards without a controller hint form their
     own bucket; config order is kept within a bucket."""
     buckets = {}
     for b in boards:
@@ -2264,9 +2268,7 @@ def _start_pool(mgr, seed: str):
     against a flash+test cycle.
     """
     cmap = mgr.dict()
-    initargs = (Lock(), seed,
-                hil_lock.make_permit_sems(Semaphore, hil_lock.USBTEST_PARALLEL),
-                cmap, Lock())
+    initargs = (Lock(), seed, cmap)
     pool = Pool(processes=os.cpu_count() or 1, initializer=init_worker,
                 initargs=initargs, maxtasksperchild=1)
     return cmap, pool
@@ -2437,7 +2439,6 @@ def main() -> None:
 
     seed = os.getenv('HIL_SHUFFLE_SEED') or str(int(time.time()))
     log_line(f'test-order shuffle seed: {seed} (HIL_SHUFFLE_SEED={seed} to replay); '
-             f'usbtest parallel per controller: {hil_lock.USBTEST_PARALLEL}; '
              f'enum timeout first/retry: {ENUM_TIMEOUT}/{ENUM_TIMEOUT_RETRY}s '
              f'(host {HOST_ENUM_TIMEOUT}/{HOST_ENUM_TIMEOUT_RETRY}s); '
              # all three are env-tunable, so a run that dies on the guard is otherwise
@@ -2490,7 +2491,7 @@ def main() -> None:
     # only (a filtered run would understate the board's real cost)
     try:
         if PROFILE:
-            # debug snapshot of the run's live uid->PCI / PCI->slot resolutions
+            # debug snapshot of the run's live uid->PCI resolutions
             report_dir.mkdir(parents=True, exist_ok=True)
             with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
                 json.dump(dict(cmap), f, indent=1, sort_keys=True)
