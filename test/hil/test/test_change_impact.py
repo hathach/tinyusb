@@ -957,10 +957,11 @@ class FlasherRecoverEntry(unittest.TestCase):
         """Every `flasher_recover` in a HIL config is openocd over the SAME probe as its jlink,
         stlink or lm4flash primary and dispatches. The stlink ones (stm32h743nucleo,
         stm32g0b1nucleo, stm32u083nucleo) reset 3/3 and reflashed on ci.lan 2026-10-06.
-        ek_tm4c123gxl's too (2026-10-06), only with its reset-assert-post sleep: hla resumes the
-        core ~3 ms after SYSRESETREQ, ti_icdi_usb.c's reset is a no-op that waits for nothing, and
-        the DEMCR write then fails mid-reset (rc 1, DUT reset anyway). Its .bin artifact never
-        reaches openocd: the in-run recovery reflashes only through flashers without a reset. The
+        ek_tm4c123gxl's too (2026-10-06), only with its reset-assert-post sleep: without it hla's
+        DEMCR write ~3 ms after SYSRESETREQ fails (0x7) and openocd returns rc 1 though the DUT
+        reset. The 100 ms is empirical; the datasheet's software reset is ~2 us nominal and the
+        debug registers stay reachable in reset, so the ICDI/hla path is the likely party
+        (unverified). The
         jlink set is the boards whose reset over
         openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
         flash the part (ci.lan 2026-08-17, 2026-09-21, 2026-09-22 and 2026-10-02, tusb 2026-09-21 for
@@ -1020,7 +1021,6 @@ class FlasherRecoverEntry(unittest.TestCase):
                 self.assertEqual(rec['args'], f'-f interface/stlink.cfg -f target/{stlink_targets[name]}.cfg')
             elif prim['name'] == 'lm4flash':
                 self.assertEqual(rec['args'], tm4c_args)
-                self.assertTrue(callable(hil_flash.reset_primitive(rec['name'])), name)
             else:
                 self.assertEqual(prim['name'], 'jlink', name)
                 self.assertIn('interface/jlink.cfg', rec['args'], name)
@@ -1039,7 +1039,7 @@ class FlasherRecoverEntry(unittest.TestCase):
                     self.assertIn('-f target/', rec['args'], name)
             for fn in (f'flash_{rec["name"]}', f'reset_{rec["name"]}'):
                 self.assertTrue(callable(getattr(hil_flash, fn, None)), f'{name}: {fn}')
-            if prim['name'] != 'lm4flash':
+            if hil_flash.reset_primitive(rec['name']) is None:   # recover_hang reflashes only then
                 self.assertEqual(hil_flash.FLASHER_SUFFIX[rec['name']], hil_flash.FLASHER_SUFFIX[prim['name']],
                                  f'{name}: the recovery reflashes the artifact the primary flashed')
         self.assertEqual(seen, demonstrated)
@@ -1054,22 +1054,12 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     PENDING = {'tinyusb.json': set(),
                'hfp.json': {'stm32l412nucleo', 'stm32f746disco'}}
 
-    @staticmethod
-    def runs_usbtest(board):
-        """hil_test._tests_for's roster default, without its -t/-bt overrides."""
-        tests = board.get('tests', {})
-        if 'only' in tests:
-            selected = 'device/usbtest' in tests['only']
-        else:
-            selected = tests.get('device') is True and 'device/usbtest' in device_tests
-        return selected and 'device/usbtest' not in tests.get('skip', [])
-
     def test_every_usbtest_board_can_be_recovered(self):
         uncovered = {}
         for name in self.PENDING:
             with open(os.path.join(REPO, 'test/hil', name)) as f:
                 boards = json.load(f)['boards']
-            uncovered[name] = {b['name'] for b in boards if self.runs_usbtest(b)
+            uncovered[name] = {b['name'] for b in boards if 'device/usbtest' in change_impact.board_tests(b)
                                and not hil_flash.convoy_safe(hil_flash.recover_flasher(b))}
         self.assertEqual(uncovered, self.PENDING)
 

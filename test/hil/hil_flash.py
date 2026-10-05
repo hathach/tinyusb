@@ -159,18 +159,10 @@ def reset_openocd(board, timeout=None):
     return ret
 
 
-def halt_openocd(board, timeout=None):
-    # the usbtest wedge drill's fault injection; whether a halted core stalls the transfer in
-    # flight depends on the variant's USB engine and debug freeze
-    return hil_util.run_cmd(f'{_openocd_cmd_base(board["flasher"])} -c "init; halt; exit"',
-                            timeout=timeout)
-
-
 # A J-Link board's `flasher_recover`: the same probe driven by openocd, whose libjaylink
 # discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
 # attributes of every USB device and blocks on a wedged one.
-JLINK_CFG = 'interface/jlink.cfg'
-VID_FILTERED_CFGS = ('interface/stlink.cfg', 'interface/ti-icdi.cfg')
+CONVOY_SAFE_CFGS = ('interface/jlink.cfg', 'interface/stlink.cfg', 'interface/ti-icdi.cfg')
 
 
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
@@ -300,14 +292,11 @@ def convoy_safe(flasher: dict) -> bool:
     # never opens a foreign node. Verified against openocd 0ce743125 and libjaylink 0.4.0,
     # and by strace on ci.lan (2026-09-21): only SEGGER usbfs nodes opened, and the only
     # locking sysfs attribute read is the selected probe's bConfigurationValue.
-    args = flasher.get('args') or ''
-    if JLINK_CFG in args:
-        return True
     # stlink_usb.c:3403 and ti_icdi_usb.c:675 discover through jtag_libusb_open with the
     # cfg's vid_pid list, which skips every non-matching descriptor before libusb_open
     # (libusb_helper.c:170-176); both cfgs always set that list. Verified against
     # openocd 0ce743125.
-    return any(cfg in args for cfg in VID_FILTERED_CFGS)
+    return any(cfg in (flasher.get('args') or '') for cfg in CONVOY_SAFE_CFGS)
 
 
 def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:

@@ -49,9 +49,14 @@ HALT_TIMEOUT = 20       # openocd init + halt
 APPEAR_TIMEOUT = run_case.SETUP_S   # usbtest.py's start before its first case
 
 
-def halt_bound():
-    """The halt's worst case: run_cmd's bound plus its post-kill reap."""
-    return HALT_TIMEOUT + hil_util.REAP_GRACE
+HALT_BOUND = HALT_TIMEOUT + hil_util.REAP_GRACE   # run_cmd's bound plus its post-kill reap
+
+
+def halt_openocd(rec_board, timeout):
+    # whether a halted core stalls the transfer in flight depends on the variant's USB engine
+    # and debug freeze
+    return hil_util.run_cmd(f'{hil_flash._openocd_cmd_base(rec_board["flasher"])} '
+                            f'-c "init; halt; exit"', timeout=timeout)
 
 
 HALTED_MARK = 'WEDGE_DRILL_HALTED'
@@ -167,19 +172,18 @@ def testusb_pid(node, case=None):
 
 def age(pid):
     """Seconds since `pid` started, or None."""
+    fields = run_case.stat_fields(PROC / str(pid))
     try:
-        start = int((PROC / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()[19])
+        start = int(fields[19])
         uptime = float((PROC / 'uptime').read_text().split()[0])
-    except (OSError, ValueError, IndexError):
+    except (TypeError, OSError, ValueError, IndexError):
         return None
     return uptime - start / os.sysconf('SC_CLK_TCK')
 
 
 def alive(pid):
-    try:
-        return (PROC / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()[0] != 'Z'
-    except (OSError, IndexError):
-        return False
+    fields = run_case.stat_fields(PROC / str(pid))
+    return bool(fields) and fields[0] != 'Z'
 
 
 def recovery_from(stderr):
@@ -207,7 +211,7 @@ def inject(rec_board, node, delay, timeout, battery_done, report):
     started = age(pid)
     report['halt']['processAge'] = started and round(started, 2)
     # from the process's own start, not from when we saw it: the case's timeout runs from there
-    if started is None or started + delay + halt_bound() >= timeout:
+    if started is None or started + delay + HALT_BOUND >= timeout:
         report['halt']['note'] = 'no room left to halt before the case times out'
         return False
     if battery_done.wait(delay) or not alive(pid):
@@ -215,7 +219,7 @@ def inject(rec_board, node, delay, timeout, battery_done, report):
         return False
     report['halt']['issued'] = True   # before the call: a halt that times out may still land
     t = time.monotonic()
-    halt = halt_held if wch(rec_board) else hil_flash.halt_openocd
+    halt = halt_held if wch(rec_board) else halt_openocd
     ret = halt(rec_board, timeout=HALT_TIMEOUT)
     report['halt'].update(rc=ret.returncode, took=round(time.monotonic() - t, 2),
                           caseRunningAfter=alive(pid))
@@ -345,16 +349,9 @@ def live_children(grace):
     """Pids of this process's children still not exited after up to `grace` s, INHERITED
     aside. Every child is reaped or SIGKILLed by now, so one still alive is stuck in D state,
     e.g. a halt's openocd on the probe's device lock."""
-    me, deadline = str(os.getpid()), time.monotonic() + grace
+    deadline = time.monotonic() + grace
     while True:
-        pids = []
-        for d in PROC.glob('[0-9]*'):
-            try:
-                fields = (d / 'stat').read_text().rsplit(')', 1)[1].split()
-            except (OSError, IndexError):
-                continue
-            if fields[1] == me and fields[0] != 'Z' and int(d.name) not in INHERITED:
-                pids.append(int(d.name))
+        pids = [pid for pid, state in run_case.children(INHERITED) if state != 'Z']
         if not pids or time.monotonic() > deadline:
             return pids
         time.sleep(0.1)
@@ -419,8 +416,8 @@ def main():
         print(json.dumps(report))
         return code
 
-    if not (0 <= args.delay and args.delay + halt_bound() < args.timeout):
-        report['error'] = (f'--delay {args.delay} plus the {halt_bound()}s halt bound must end '
+    if not (0 <= args.delay and args.delay + HALT_BOUND < args.timeout):
+        report['error'] = (f'--delay {args.delay} plus the {HALT_BOUND}s halt bound must end '
                            f'before the {args.timeout}s case timeout')
         return finish(2)
 

@@ -350,7 +350,6 @@ class SudoTestusbRefusesRecovery(unittest.TestCase):
     def test_without_a_recovery_request_sudo_still_runs(self):
         usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
-        usbtest_harness.patch(self, usbtest, 'needs_sudo', lambda node: True)
         ran = []
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
                                     ran.append(num) or {'num': num, 'name': 'x', 'params': '',

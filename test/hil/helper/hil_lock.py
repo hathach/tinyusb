@@ -131,9 +131,16 @@ def init_topology(cmap):
 def controller_of(uid: str):
     """Resolve a DUT uid to its root host controller's PCI address, or None when it cannot
     be resolved — the device is not enumerated (e.g. parked in board_test firmware with USB
-    off), or sysfs would not answer. Successful resolutions are cached — cabling does not
-    change mid-run. Dual-port parts (e.g. CH32V307 usbhs/usbfs variants) share one uid and
-    one cache entry, the first port seen."""
+    off), sysfs would not answer, or the run's shared map is gone (a dead Manager). Successful
+    resolutions are cached — cabling does not change mid-run. Dual-port parts (e.g. CH32V307
+    usbhs/usbfs variants) share one uid and one cache entry, the first port seen."""
+    try:
+        return _controller_of(uid)
+    except Exception:   # best effort: dispatch order must never cost a battery
+        return None
+
+
+def _controller_of(uid: str):
     if controller_map is None:
         return None
     cached = controller_map.get(f'uid:{uid}')

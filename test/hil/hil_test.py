@@ -128,7 +128,7 @@ verbose = False
 board_wedged = ''
 max_retry = 1   # mirrors argparse's -r default (see main); defined HERE too so
                 # test_example is callable (and testable) without going through main()
-PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + permit/flash timing + ctrl-map dump
+PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + flash timing + ctrl-map dump
 test_only = []
 board_test = {}
 skip_flash = False
@@ -1569,11 +1569,8 @@ def test_device_usbtest(board):
     # is bounded by usbtest.RECOVER_*_TIMEOUT, not HIL_CMD_TIMEOUT). Without it run_cmd
     # SIGKILLs usbtest.py mid-recovery, losing the JSON and the diagnosis.
     # the DUT is enumerated now, so this is when its controller can be learned for the next
-    # run's dispatch order; best effort, a dead Manager must not cost the battery
-    try:
-        hil_lock.controller_of(uid)
-    except Exception:
-        pass
+    # run's dispatch order
+    hil_lock.controller_of(uid)
     # split_stderr: the battery's final JSON is parsed from stdout, and stderr is the
     # only detail left when the outer timeout kills the battery before it prints
     r = hil_util.run_cmd(cmd, timeout=outer, split_stderr=True)
@@ -1798,8 +1795,8 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                     last_detail = compact_output(attempt_out.getvalue())
                     if getattr(e, 'parsed', False):
                         # a PARSED per-case result (usbtest's "29/30"): retrying re-pays
-                        # the whole battery, inside the fleet's usbtest permit, to
-                        # re-observe a number the JSON already reported. Only that case.
+                        # the whole battery to re-observe a number the JSON already
+                        # reported. Only that case.
                         err_count += 1
                         metric = getattr(e, 'metric', None)
                         msg = f'{test_name}  {STATUS_FAILED}: {e}'

@@ -1097,8 +1097,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
 
     def test_the_reserve_follows_the_flasher_not_a_fleet_constant(self):
         """A flasher with a reset primitive reserves the reset bound, one without (esptool)
-        the reflash bound: the difference is dead time a pool worker and a usbtest permit
-        would otherwise hold."""
+        the reflash bound: the difference is dead time a pool worker would otherwise hold."""
         import usbtest
         ocd = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
                             'args': '-f target/rp2040.cfg'})
@@ -1729,9 +1728,11 @@ class UsbtestLearnsTopology(unittest.TestCase):
         self.assertEqual(self.order, ['battery'])
 
     def test_a_dead_topology_map_still_runs_the_battery(self):
-        def dead(uid):
-            raise EOFError('Manager gone')
-        self.hil_lock.controller_of = dead
+        class Dead(dict):
+            def get(self, *a):
+                raise EOFError('Manager gone')
+        self.addCleanup(setattr, self.hil_lock, 'controller_map', self.hil_lock.controller_map)
+        self.hil_lock.controller_map = Dead()
         hil_test.test_device_usbtest(self.board)
         self.assertEqual(self.order, ['battery'])
 
