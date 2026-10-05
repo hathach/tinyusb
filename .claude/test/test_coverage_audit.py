@@ -277,5 +277,16 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual(ca.judge([], [], self.INDEX, self.FAMILY, self.view())['required'], 0)
 
 
+class ReplayTest(unittest.TestCase):
+    def test_an_unknown_ref_fails_without_writing_a_report(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, 'replay.json')
+            with self.assertRaises(SystemExit) as cm:
+                ca.main(['replay', '--graph', d, '--out', out, '--since', '2026-01-01',
+                         '--ref', '__missing_review_ref__'])
+            self.assertIn('rev-list', str(cm.exception.code))
+            self.assertFalse(os.path.exists(out))
+
+
 if __name__ == '__main__':
     unittest.main()

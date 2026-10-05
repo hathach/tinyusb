@@ -433,8 +433,11 @@ def cmd_replay(a):
     sys.path.insert(0, str(ROOT / 'tools'))
     import ci_select  # noqa: E402  the rules this branch ships
     index, family_of, status = load_index(a.graph)
-    commits = a.commits or run(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
-                               ROOT).stdout.split()
+    try:
+        commits = a.commits or run_ok(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
+                                      ROOT).split()
+    except ExtractError as e:          # a bad ref lists no commits: not an empty clean audit
+        sys.exit(f'replay: {e}')
     results = []
     for c in commits:
         try:
