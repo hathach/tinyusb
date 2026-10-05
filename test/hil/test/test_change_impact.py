@@ -953,9 +953,12 @@ class FlasherRecoverEntry(unittest.TestCase):
         _, kw = self._capture(hil_flash.reset_stlink, board)
         self.assertIsNone(kw.get('timeout'))                  # run_cmd's CMD_TIMEOUT, as before
 
-    def test_roster_recover_entries_are_demonstrated_openocd_over_jlink_ones(self):
-        """Every `flasher_recover` in a HIL config is openocd over interface/jlink.cfg on the SAME
-        probe as its jlink primary and dispatches. The set is the boards whose reset over
+    def test_roster_recover_entries_are_demonstrated_openocd_ones(self):
+        """Every `flasher_recover` in a HIL config is openocd over the SAME probe as its jlink or
+        stlink primary and dispatches. The stlink ones (stm32h743nucleo, stm32g0b1nucleo,
+        stm32u083nucleo) reset 3/3 and reflashed on ci.lan 2026-10-06. ek_tm4c123gxl is left out:
+        openocd over ti-icdi.cfg re-enumerated its DUT but returned rc 1 (SRST error) 3/3. The
+        jlink set is the boards whose reset over
         openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
         flash the part (ci.lan 2026-08-17, 2026-09-21, 2026-09-22 and 2026-10-02, tusb 2026-09-21 for
         lpcxpresso43s67). A new one is added only
@@ -980,12 +983,15 @@ class FlasherRecoverEntry(unittest.TestCase):
         demonstrated = {'feather_nrf52840_express', 'metro_m4_express', 'stm32f072disco',
                         'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
-                        'lpcxpresso43s67'}   # hfp.json, demonstrated on tusb
+                        'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
+                        'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
                                          '-c "dap create rt1064.dap -chain-position rt1064.cpu" '
                                          '-c "target create rt1064.cpu cortex_m -dap rt1064.dap" '
                                          '-c "cortex_m reset_config sysresetreq"')}
+        stlink_targets = {'stm32h743nucleo': 'stm32h7x', 'stm32g0b1nucleo': 'stm32g0x',
+                          'stm32u083nucleo': 'stm32u0x'}
         seen = set()
         for path, board in roster_flashers():
             if 'flasher_recover' not in board:
@@ -994,28 +1000,31 @@ class FlasherRecoverEntry(unittest.TestCase):
             seen.add(name)
             self.assertNotIn('uid', board['flasher_recover'], f'{name}: the probe is the primary\'s')
             rec = hil_flash.recover_flasher(board)
-            self.assertEqual(prim['name'], 'jlink', name)
             self.assertEqual(rec['name'], 'openocd', name)
             self.assertEqual(rec['uid'], prim['uid'], name)
-            self.assertIn('interface/jlink.cfg', rec['args'], name)
-            self.assertIn('transport select swd', rec['args'], name)
-            stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
-            if name in reset_only:
-                self.assertEqual(rec['args'], reset_only[name])
-            elif stm32:
-                override = f'-c "{stm32.group(1)}.cpu configure -event reset-init {{}}"'
-                self.assertIn(override, rec['args'], name)
-                self.assertGreater(rec['args'].index(override), stm32.start(), name)
-                self.assertNotIn('adapter speed', rec['args'], name)
-            else:
-                self.assertIn('adapter speed', rec['args'], name)
-            if name not in reset_only:
-                self.assertIn('-f target/', rec['args'], name)
             self.assertTrue(hil_flash.convoy_safe(rec), name)
+            if prim['name'] == 'stlink':
+                self.assertEqual(rec['args'], f'-f interface/stlink.cfg -f target/{stlink_targets[name]}.cfg')
+            else:
+                self.assertEqual(prim['name'], 'jlink', name)
+                self.assertIn('interface/jlink.cfg', rec['args'], name)
+                self.assertIn('transport select swd', rec['args'], name)
+                stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
+                if name in reset_only:
+                    self.assertEqual(rec['args'], reset_only[name])
+                elif stm32:
+                    override = f'-c "{stm32.group(1)}.cpu configure -event reset-init {{}}"'
+                    self.assertIn(override, rec['args'], name)
+                    self.assertGreater(rec['args'].index(override), stm32.start(), name)
+                    self.assertNotIn('adapter speed', rec['args'], name)
+                else:
+                    self.assertIn('adapter speed', rec['args'], name)
+                if name not in reset_only:
+                    self.assertIn('-f target/', rec['args'], name)
             for fn in (f'flash_{rec["name"]}', f'reset_{rec["name"]}'):
                 self.assertTrue(callable(getattr(hil_flash, fn, None)), f'{name}: {fn}')
-            self.assertEqual(hil_flash.FLASHER_SUFFIX[rec['name']], hil_flash.FLASHER_SUFFIX['jlink'],
-                             f'{name}: the recovery reflashes the artifact jlink flashed')
+            self.assertEqual(hil_flash.FLASHER_SUFFIX[rec['name']], hil_flash.FLASHER_SUFFIX[prim['name']],
+                             f'{name}: the recovery reflashes the artifact the primary flashed')
         self.assertEqual(seen, demonstrated)
 
 
@@ -1025,8 +1034,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     So every board the roster runs usbtest on must have one."""
 
     # not yet demonstrated on hardware; drop a board once its flasher_recover lands
-    PENDING = {'tinyusb.json': {'ek_tm4c123gxl', 'ra4m1_ek', 'stm32h743nucleo',
-                                'stm32g0b1nucleo', 'stm32u083nucleo'},
+    PENDING = {'tinyusb.json': {'ek_tm4c123gxl', 'ra4m1_ek'},
                'hfp.json': {'stm32l412nucleo', 'stm32f746disco'}}
 
     @staticmethod

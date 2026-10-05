@@ -509,6 +509,10 @@
                 "name": "stlink",
                 "uid": "004C00343137510F39383538",
                 "verify": true
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg"
             }
         },
         {
@@ -523,6 +527,10 @@
                 "name": "stlink",
                 "uid": "066FFF495087534867063844",
                 "verify": true
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
             },
             "note": "32-bit scheme, 2KB USB SRAM"
         },
@@ -555,6 +563,10 @@
             "flasher": {
                 "name": "stlink",
                 "uid": "0668FF575457657187061314"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32u0x.cfg"
             }
         },
         {
