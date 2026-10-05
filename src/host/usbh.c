@@ -383,6 +383,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, 
   return true;
 }
 
+// true if at_ms has passed (wrap-safe)
+TU_ATTR_ALWAYS_INLINE static inline bool deadline_passed(uint32_t at_ms) {
+  return (int32_t) (at_ms - tusb_time_millis_api()) <= 0;
+}
+
 // Clamp *timeout_ms to the time left until at_ms (wrap-safe); true if at_ms has passed
 TU_ATTR_ALWAYS_INLINE static inline bool deadline_clamp(uint32_t at_ms, uint32_t* timeout_ms) {
   const int32_t remain_ms = (int32_t) (at_ms - tusb_time_millis_api());
@@ -687,16 +692,13 @@ bool tuh_task_event_ready(void) {
     return true;
   }
 
-  if (_usbh_data.call_after.func) {
-    int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
-    if (remain_ms <= 0) {
-      return true;
-    }
+  if (_usbh_data.call_after.func && deadline_passed(_usbh_data.call_after.at_ms)) {
+    return true;
   }
 
   // in-flight control transfer watchdog expired
   if (_usbh_data.ctrl_xfer_info.stage != CONTROL_STAGE_IDLE &&
-      (int32_t)(_usbh_data.ctrl_xfer_info.timeout_at_ms - tusb_time_millis_api()) <= 0) {
+      deadline_passed(_usbh_data.ctrl_xfer_info.timeout_at_ms)) {
     return true;
   }
 
@@ -746,8 +748,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     // Process call_after_ms function if ms is reached
     tusb_defer_func_t after_cb = _usbh_data.call_after.func;
     if (after_cb) {
-      int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
-      if (remain_ms <= 0) {
+      if (deadline_passed(_usbh_data.call_after.at_ms)) {
         // delay expired, run callback now
         TU_LOG_USBH("USBH invoke scheduled function\r\n");
         _usbh_data.call_after.func = NULL;
