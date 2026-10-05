@@ -754,7 +754,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     channel->hcintmsk = HCINT_HALTED;
     dwc2->haintmsk |= TU_BIT(ch_id);
 
-    channel->hcdma = (uint32_t) edpt->buffer;
+    channel->hcdma = (uintptr_t) edpt->buffer;
 
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       periodic_frame = channel_send_in_token(dwc2, channel, is_period);

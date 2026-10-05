@@ -1,6 +1,9 @@
+family:broadcom_32bit
+family:gd32vf103
 family:hpmicro
 family:samd2x_l2x
 family:samd5x_e5x
+family:xmc4000
 mcu:CH32V20X
 mcu:KINETIS_KL
 mcu:LPC175X_6X

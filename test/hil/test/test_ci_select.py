@@ -950,7 +950,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         """Every `flasher_recover` in a HIL config is openocd over interface/jlink.cfg on the SAME
         probe as its jlink primary and dispatches. The set is the boards whose reset over
         openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
-        flash the part (ci.lan 2026-08-17, 2026-09-21 and 2026-09-22, tusb 2026-09-21 for
+        flash the part (ci.lan 2026-08-17, 2026-09-21, 2026-09-22 and 2026-10-02, tusb 2026-09-21 for
         lpcxpresso43s67). A new one is added only
         after the same demonstration. frdm_k64f is host-only, so usbtest never marks
         it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate), ra4m1_ek (reset-only
@@ -972,7 +972,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         the ELF lacks, so read-back never equals the image."""
         demonstrated = {'feather_nrf52840_express', 'metro_m4_express', 'stm32f072disco',
                         'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
-                        'ea4088_quickstart', 'nrf54lm20dk', 'frdm_k64f', 'mimxrt1064_evk',
+                        'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67'}   # hfp.json, demonstrated on tusb
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
@@ -1300,6 +1300,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
+            'test/hil/test/test_setup_toolchain.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
