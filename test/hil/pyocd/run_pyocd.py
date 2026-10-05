@@ -43,6 +43,9 @@ def main(argv: list) -> int:
         _fail(f'want "0xVVVV 0xPPPP" before the pyocd args, got {argv[:2]}')
     # hidapi would bypass pyusb; pyocd reads this when its interface package is imported
     os.environ['PYOCD_USB_BACKEND'] = 'pyusb'
+    # CMSIS-DAP discovery builds a bare Session (pyocd 0.45.1 dap_access_cmsis_dap.py:81) that
+    # ignores --no-config and loads pyocd.yaml from this dir, else the cwd; this dir holds none
+    os.environ['PYOCD_PROJECT_DIR'] = str(Path(__file__).resolve().parent)
 
     # before any pyocd import: its backends bind `find` at import time
     import usb.core
@@ -67,7 +70,7 @@ def main(argv: list) -> int:
         del PROBE_CLASSES[name]
 
     from pyocd.__main__ import main as pyocd_main
-    # last, so they win over the args; no pyocd.yaml from whatever cwd the harness runs in
+    # last, so they win over the args (a roster --config included)
     sys.argv = ['pyocd', *argv[2:], '--no-config',
                 '--script', str(Path(__file__).resolve().with_name('user_script.py'))]
     return pyocd_main()

@@ -52,7 +52,8 @@ def main():
     for mod in (pyusb_backend, pyusb_v2_backend):
         mod.usb_find(find_all=True, custom_match=lambda d: touched.append([d.idVendor, d.idProduct]))
     print(json.dumps({'touched': touched, 'classes': sorted(PROBE_CLASSES),
-                      'backend': os.environ.get('PYOCD_USB_BACKEND'), 'argv': sys.argv[1:]}))
+                      'backend': os.environ.get('PYOCD_USB_BACKEND'),
+                      'project_dir': os.environ.get('PYOCD_PROJECT_DIR'), 'argv': sys.argv[1:]}))
     sys.exit(0)
 ''',
 }
@@ -106,9 +107,15 @@ class Launcher(unittest.TestCase):
                     'touched': [PROBE, PROBE],            # once per backend, nothing else
                     'classes': ['cmsisdap'],
                     'backend': 'pyusb',                   # hidapi would bypass the filter
+                    'project_dir': str(LAUNCHER.parent),  # not the caller's cwd
                     # argparse keeps the last --script
                     'argv': ['flash', '-u', 'cmsisdap:X', '--script', 'roster.py', 'fw.elf',
                              '--no-config', '--script', str(USER_SCRIPT)]})
+
+    def test_the_project_dir_holds_no_pyocd_config(self):
+        # discovery's bare Session loads one from there despite --no-config
+        for name in ('pyocd.yaml', 'pyocd.yml', '.pyocd.yaml', '.pyocd.yml'):
+            self.assertFalse((LAUNCHER.parent / name).exists(), name)
 
     def test_a_backend_that_did_not_bind_the_filtered_find_stops_before_discovery(self):
         r = self.run_launcher('0x1fc9', '0x0090', 'flash', 'fw.elf', FAKE_BIND_ELSEWHERE='1')
@@ -177,7 +184,7 @@ class Flasher(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             exe = Path(td) / 'pyocd'
             for shebang, want in ((f'#!{sys.executable}', sys.executable),
-                                  ('#!/usr/bin/env python3', None), ('', None)):
+                                  ('#!/usr/bin/env python3', None), ('#!/bin/sh', None), ('', None)):
                 exe.write_text(f'{shebang}\nimport sys\n')
                 exe.chmod(0o755)
                 with mock.patch.dict(os.environ, {'PATH': td}):

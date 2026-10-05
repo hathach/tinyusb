@@ -344,7 +344,7 @@ def _pyocd_python() -> str:
     with open(exe, 'rb') as f:
         line = f.readline().decode(errors='replace').strip()
     py = line[2:] if line.startswith('#!') else ''
-    if not (os.path.isabs(py) and os.access(py, os.X_OK)):
+    if not (os.path.isabs(py) and os.path.basename(py).startswith('python') and os.access(py, os.X_OK)):
         raise RuntimeError(f'{exe}: want an absolute python shebang, got {line!r}')
     return py
 
@@ -359,7 +359,8 @@ def _pyocd_argv(flasher: dict, verb: str, *extra: str) -> list:
 
 
 def flash_pyocd(board, firmware, timeout=None):
-    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'flash', str(firmware)), timeout=timeout)
+    # pyocd chdirs into its project dir (run_pyocd.py)
+    return hil_util.run_cmd(_pyocd_argv(board['flasher'], 'flash', os.path.abspath(firmware)), timeout=timeout)
 
 
 def reset_pyocd(board, timeout=None):
