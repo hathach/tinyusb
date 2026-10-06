@@ -567,8 +567,7 @@ jobs:
   # Hardware in the loop (HIL) - espressif boards only
   # Same rig as hil-tinyusb (tinyusb.json) but gated only on the slow esp-idf build,
   # so the main run does not wait for it. Per-board flocks arbitrate the shared rig;
-  # the runner has a single job slot, so the two HIL jobs never overlap - adding a
-  # second slot would double the per-controller flash/usbtest budgets.
+  # the runner has a single job slot, so the two HIL jobs never overlap.
   # ---------------------------------------
   hil-tinyusb-esp:
     needs: [ hil-build-esp, set-matrix ]
