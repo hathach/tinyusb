@@ -611,6 +611,12 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_AUDIO20_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
   TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__), _stridx
 
+/* Up/Down-mix Processing Unit Descriptor(4.7.2.11.1) */
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(_nrmodes)\
+  (18+4*_nrmodes)
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT(_unitid, _srcid, _nrchannels, _channelcfg, _idxchannelnames, _ctrl, _stridx, ...)\
+  TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, 0x08, _unitid, U16_TO_U8S_LE(0x01), 1, _srcid, _nrchannels, U32_TO_U8S_LE(_channelcfg), _idxchannelnames, U16_TO_U8S_LE(_ctrl), _stridx, TU_ARGS_NUM(__VA_ARGS__), TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__)
+
 /* Standard AC Interrupt Endpoint Descriptor(4.8.2.1) */
 #define TUD_AUDIO20_DESC_STD_AC_INT_EP_LEN 7
 #define TUD_AUDIO20_DESC_STD_AC_INT_EP(_ep, _interval) \
