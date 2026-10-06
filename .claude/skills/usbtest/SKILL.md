@@ -67,8 +67,10 @@ whose recovery flasher is not openocd are refused.
 - **Batteries share host controllers.** `hil_test.py` does not limit batteries per controller:
   each carries as many as it has boards in flight, and a second `hil_test.py` or a battery started
   outside it adds to them. Know what else runs on the controller before reading a timeout or a
-  slow 27/28 as a DCD bug. A marginal DUT port bouncing under concurrent batteries has killed a
-  uPD720201 (2026-07-16): fix the port or pull the board.
+  slow 27/28 as a DCD bug. Case 9 has slowed under concurrent batteries behind one hub; consider
+  contention when it nears its bound (`PARAMS` in `test/hil/usbtest.py` sets its iterations). A
+  marginal DUT port bouncing under concurrent batteries has killed a uPD720201 (2026-07-16): fix
+  the port or pull the board.
 - **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
   takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`

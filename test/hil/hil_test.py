@@ -2073,7 +2073,12 @@ def schedule_boards(boards: list, pci_of_uid: dict) -> list:
     """Dispatch order: round-robin across host controllers so the load is spread over
     every controller from t=0 instead of one card's boards convoying at the head of the
     queue. Boards without a controller hint form their
-    own bucket; config order is kept within a bucket."""
+    own bucket; config order is kept within a bucket.
+
+    Spreads, never caps: 6 batteries on one controller and 5 behind one hub passed. Reconsider
+    a limit on repeated case-time margin loss (passing-case secs in the captured usbtest JSON)
+    or a concurrency-only failure, scoped to that controller, hub or case; recheck those peaks
+    when the pool width or topology grows."""
     buckets = {}
     for b in boards:
         buckets.setdefault(pci_of_uid.get(b['uid'], '?'), []).append(b)
