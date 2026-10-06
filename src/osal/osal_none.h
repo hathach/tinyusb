@@ -98,7 +98,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t 
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
   (void) in_isr;
-  sem_hdl->count++;
+  sem_hdl->count = (uint16_t) (sem_hdl->count + 1u);
   return true;
 }
 
@@ -107,7 +107,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t se
   (void) msec;
 
   while (sem_hdl->count == 0) {}
-  sem_hdl->count--;
+  sem_hdl->count = (uint16_t) (sem_hdl->count - 1u);
 
   return true;
 }
