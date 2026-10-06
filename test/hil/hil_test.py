@@ -70,7 +70,7 @@ from helper.hil_util import device_tests, dual_tests, host_test
 # interpreter default change.
 
 _mp = multiprocessing.get_context('fork')
-Pool, Lock, Manager = _mp.Pool, _mp.Lock, _mp.Manager
+Pool, Lock = _mp.Pool, _mp.Lock
 import string
 
 # Enumeration wait budget: first attempt ENUM_TIMEOUT, retries the shorter
@@ -126,9 +126,10 @@ verbose = False
 # SIGKILL and becomes another stray. maxtasksperchild=1 gives each board its own worker,
 # so this global is board-scoped; test_board resets it anyway.
 board_wedged = ''
+board_pci = None  # this board's host controller, learned at its first battery; board-scoped too
 max_retry = 1   # mirrors argparse's -r default (see main); defined HERE too so
                 # test_example is callable (and testable) without going through main()
-PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + flash timing + ctrl-map dump
+PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + flash timing + controller dump
 test_only = []
 board_test = {}
 skip_flash = False
@@ -137,11 +138,10 @@ shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SH
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 
 
-def init_worker(lock, seed, cmap):
+def init_worker(lock, seed):
     global print_lock, shuffle_seed
     print_lock = lock
     shuffle_seed = seed
-    hil_lock.init_topology(cmap)
 
 
 def log_line(msg: str) -> None:
@@ -1498,7 +1498,7 @@ def test_device_hid_generic_inout(board):
 
 
 def test_device_usbtest(board):
-    global board_wedged
+    global board_wedged, board_pci
     # Runs test/hil/usbtest.py against the cafe:4010 device; the pass count goes in the
     # report cell ("✅ 30/30", or "❌ 29/30" on a partial).
     uid = board['uid']
@@ -1508,7 +1508,7 @@ def test_device_usbtest(board):
         # serial, different PID) can linger and would fail usbtest.py's lookup -- and
         # filtering on the two lock-free descriptor fields rules out every other device
         # on the bus before the one read that can block.
-        return bool(hil_util.usb_scan(vid_pid=('cafe', '4010'), serial=uid))
+        return hil_util.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
 
     end = time.monotonic() + enum_timeout()
     seen = usbtest_enumerated()
@@ -1520,6 +1520,10 @@ def test_device_usbtest(board):
         # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
         raise TestFail(f'no cafe:4010 device with serial {uid}',
                        metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
+    # the DUT is enumerated now, so learn its controller for the next run's dispatch order.
+    # Dual-port parts (CH32V307 usbhs/usbfs variants) share one uid: the first port seen wins.
+    if board_pci is None:
+        board_pci = controller_of(seen[0]['dir'])
     # settle: right after flashing the enumeration can bounce once (and on dual-port parts
     # the other port's stale node — same serial and PID — lingers), and testusb run into
     # that gap sees the device drop mid-case
@@ -1568,9 +1572,6 @@ def test_device_usbtest(board):
     # one already-started case, and a hang there needs room for the recovery (whose step
     # is bounded by usbtest.RECOVER_*_TIMEOUT, not HIL_CMD_TIMEOUT). Without it run_cmd
     # SIGKILLs usbtest.py mid-recovery, losing the JSON and the diagnosis.
-    # the DUT is enumerated now, so this is when its controller can be learned for the next
-    # run's dispatch order
-    hil_lock.controller_of(uid)
     # split_stderr: the battery's final JSON is parsed from stdout, and stderr is the
     # only detail left when the outer timeout kills the battery before it prints
     r = hil_util.run_cmd(cmd, timeout=outer, split_stderr=True)
@@ -1939,21 +1940,20 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
 
 
 def test_board(board: Board) -> tuple:
-    # (name, err_count, failed_tests, rows, duration)
+    # (name, err_count, failed_tests, rows, pci)
     name = board['name']
     flasher = board['flasher']
 
-    global board_wedged
+    global board_wedged, board_pci
     board_wedged = ''
+    board_pci = None
     try:
         _lock_fh = hil_lock.acquire_board_lock(name)
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
-        return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], 0.0
-    # after the lock: flock wait behind a concurrent run is not board cost
-    t_board = time.monotonic()
+        return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
     try:
         test_list, skipped = _tests_for(board)
         for skip in skipped:
@@ -1985,7 +1985,6 @@ def test_board(board: Board) -> tuple:
                 # Same example (same PID) still repeats across the boundary (a one-test
                 # -bt run has nothing to swap with). Park on board_test first: it disables
                 # the board's USB, so the next flash must re-enumerate to be seen.
-                t_park = time.monotonic()
                 park_ec, park_status, _ = (
                     test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
                     else (0, 'skip', None))
@@ -2014,7 +2013,6 @@ def test_board(board: Board) -> tuple:
                     # leave prev_last alone: the board still holds the previous variant's
                     # firmware, so the next variant must attempt the park again
                     run_list = []
-                t_board += time.monotonic() - t_park  # park is teardown, not board cost
             if run_list:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
@@ -2043,17 +2041,13 @@ def test_board(board: Board) -> tuple:
             dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
             rows.append((vname, cells, dur))
 
-        # excludes the teardown park-flash below; a partial (filtered) run reports 0.0 so
-        # it never overwrites a cached full-run duration
-        t_total = 0.0 if partial else time.monotonic() - t_board
-
         # park: flash board_test last to disable the board's usb; teardown, not a test,
         # so it is not recorded in the report.
         if _should_park(skip_flash):
             test_example(board, variants[0]['name'], 'device/board_test')
 
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
-                rows, t_total)
+                rows, board_pci)
     finally:
         if _lock_fh:
             # clear our pid record before dropping the flock: this worker process
@@ -2063,10 +2057,15 @@ def test_board(board: Board) -> tuple:
             _lock_fh.close()
 
 
-# controller hints from previous runs: uid -> {'name', 'pci', 'duration'}. Only 'pci' is
-# consumed, for dispatch order. PCI
-# addresses are boot-stable, so the cache survives reboots and goes stale on re-cabling.
+# controller hints from previous runs: uid -> {'name', 'pci'}; 'pci' sets the dispatch order.
+# PCI addresses are boot-stable, so the cache survives reboots and goes stale on re-cabling.
 CONTROLLER_CACHE = Path.home() / '.cache' / 'tinyusb-hil' / 'controller_cache.json'
+
+
+def controller_of(dev_dir: str):
+    """PCI address of the host controller above a USB device's sysfs dir, or None."""
+    m = re.findall(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]', os.path.realpath(dev_dir))
+    return m[-1] if m else None
 
 
 def schedule_boards(boards: list, pci_of_uid: dict) -> list:
@@ -2131,9 +2130,9 @@ def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> li
     so deleting the real one outright kept the suite green.
     """
     # `out` is the CALLER's list: a worker that raises something other than a timeout
-    # (get_serial_dev on a dropped adapter, a Manager EOFError) propagates bare, and a
-    # local accumulator would take every finished board with it -- the exact loss the
-    # drain replaced map_async to prevent.
+    # (get_serial_dev on a dropped adapter) propagates bare, and a local accumulator would
+    # take every finished board with it -- the exact loss the drain replaced map_async to
+    # prevent.
     mret: list = out if out is not None else []
     for _ in boards:
         left = deadline - time.monotonic()
@@ -2157,53 +2156,34 @@ def _should_park(skip_flash: bool) -> bool:
     return not skip_flash and not board_wedged
 
 
-def _load_controller_hints() -> tuple[dict, dict]:
-    """The uid -> {name, pci, duration} cache, plus the uid -> pci view scheduling wants.
-
-    Best effort throughout: a missing, hand-edited or torn cache costs dispatch ORDER,
-    never the run.
-    """
-    hints: dict = {}
+def _read_controller_cache() -> dict:
+    """uid -> entry. Best effort: a missing, hand-edited or torn cache costs dispatch
+    ORDER, never the run."""
     try:
         with CONTROLLER_CACHE.open() as f:
             loaded = json.load(f)
-        if isinstance(loaded, dict):     # keep only the expected uid -> dict shape
-            hints = {k: v for k, v in loaded.items() if isinstance(v, dict)}
     except (OSError, ValueError):
-        pass
-    return hints, {uid: h['pci'] for uid, h in hints.items() if h.get('pci')}
+        return {}
+    return {k: v for k, v in loaded.items() if isinstance(v, dict)} if isinstance(loaded, dict) else {}
 
 
-def _save_controller_hints(hints: dict, mret: list, uid_of: dict, cmap) -> None:
-    """Fold this run's PCI resolutions and durations back into the cache, atomically.
+def _load_controller_hints() -> dict:
+    """uid -> pci, for scheduling."""
+    return {uid: h['pci'] for uid, h in _read_controller_cache().items() if h.get('pci')}
+
+
+def _save_controller_hints(mret: list, uid_of: dict) -> None:
+    """Fold this run's PCI resolutions back into the cache, atomically.
 
     Merge-on-write: another HIL job (the esp split) may have finished since our startup
-    read, so overlay only this run's boards rather than publishing our whole view.
+    read, so re-read the cache and overlay only this run's boards. A board whose
+    controller was not learned this run keeps its cached one.
     """
-    for name, _, _, _, dur, *_ in mret:
+    merged = _read_controller_cache()
+    for name, _, _, _, pci in mret:
         uid = uid_of.get(name)
-        if uid is None:
-            continue
-        h = dict(hints.get(uid) or {})
-        h['name'] = name              # informational: the cache is keyed by uid
-        h['pci'] = cmap.get(f'uid:{uid}') or h.get('pci')
-        if dur > 0:                   # test_board reports 0.0 for filtered (partial) runs
-            h['duration'] = round(dur, 1)
-        hints[uid] = h
-    merged: dict = {}
-    try:
-        with CONTROLLER_CACHE.open() as f:
-            cur = json.load(f)
-        if isinstance(cur, dict):
-            merged = {k: v for k, v in cur.items() if isinstance(v, dict)}
-    except (OSError, ValueError):
-        pass
-    # overlay onto what the CACHE now holds, not onto our startup snapshot: another HIL
-    # job may have written a newer duration/pci for these boards since we read it
-    for name, *_ in mret:
-        uid = uid_of.get(name)
-        if uid is not None and uid in hints:
-            merged[uid] = {**merged.get(uid, {}), **hints[uid]}
+        if uid is not None:
+            merged[uid] = {'name': name, 'pci': pci or merged.get(uid, {}).get('pci')}
     CONTROLLER_CACHE.parent.mkdir(parents=True, exist_ok=True)
     tmp = CONTROLLER_CACHE.with_suffix('.json.tmp')
     with tmp.open('w') as f:
@@ -2233,7 +2213,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
                                          for _, c, _ in r[3])]
     try:
         _write_failed_spec(failed_fname, report_dir,
-                           [(n, 1, [], None, 0) for n in stuck]
+                           [(n, 1, [], None, None) for n in stuck]
                            + [r for r in mret if r[1] > 0])
     except Exception as werr:  # noqa: BLE001 - it mkdir()s and open()s the very report dir
         # the fallback below is FOR an unwritable/root-owned report dir; letting the spec
@@ -2261,19 +2241,14 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               flush=True)
 
 
-def _start_pool(mgr, seed: str):
-    """(cmap, pool).
-
-    maxtasksperchild=1: a fresh worker per board makes cross-board contamination
+def _start_pool(seed: str):
+    """maxtasksperchild=1: a fresh worker per board makes cross-board contamination
     structural rather than dependent on every module global being reset by hand
     (board_wedged, _current_fw, hil_flash's warn-once sets). The extra fork is noise
     against a flash+test cycle.
     """
-    cmap = mgr.dict()
-    initargs = (Lock(), seed, cmap)
-    pool = Pool(processes=os.cpu_count() or 1, initializer=init_worker,
-                initargs=initargs, maxtasksperchild=1)
-    return cmap, pool
+    return Pool(processes=os.cpu_count() or 1, initializer=init_worker,
+                initargs=(Lock(), seed), maxtasksperchild=1)
 
 
 def main() -> None:
@@ -2411,7 +2386,7 @@ def main() -> None:
                 refused.append(board['name'])
                 refused_rows.append((board['name'], 1, [], [
                     (v['name'], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)
-                    for v in hil_report.board_variants(board)], 0.0))
+                    for v in hil_report.board_variants(board)], None))
         print('-' * 30)
         print(f'Build phase done: {build_err + len(refused)} failed')
         print('-' * 30)
@@ -2447,8 +2422,7 @@ def main() -> None:
              # unattributable from the log alone
              f'pool guard: {POOL_TIMEOUT}s')
 
-    hints, hints_by_uid = _load_controller_hints()
-    config_boards = schedule_boards(config_boards, hints_by_uid)
+    config_boards = schedule_boards(config_boards, _load_controller_hints())
     log_line('dispatch order: ' + ', '.join(b['name'] for b in config_boards))
 
     if fresh:
@@ -2456,8 +2430,7 @@ def main() -> None:
         for f in (hil_report.REPORT_JSON, hil_report.REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
         failed_fname.unlink(missing_ok=True)
-    mgr = Manager()
-    cmap, pool = _start_pool(mgr, seed)
+    pool = _start_pool(seed)
     # `with` terminates and joins the pool. A worker stuck in uninterruptible sleep hangs
     # that join until the CI job ceiling; the abort paths below have written the report
     # and the re-run spec by then.
@@ -2489,22 +2462,18 @@ def main() -> None:
     err_count = build_err + sum(e[1] for e in mret)
     _write_failed_spec(failed_fname, report_dir, mret)
 
-    # refresh controller hints: pci resolved this run, plus durations from full runs
-    # only (a filtered run would understate the board's real cost)
+    # refresh controller hints with the pci each board resolved this run
     try:
+        ran = mret[len(refused_rows):]   # the refused rows lead mret and never ran
+        uid_of = {b['name']: b['uid'] for b in config['boards']}
         if PROFILE:
-            # debug snapshot of the run's live uid->PCI resolutions
+            # debug snapshot of this run's resolutions only; the cache also keeps old ones
             report_dir.mkdir(parents=True, exist_ok=True)
             with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
-                json.dump(dict(cmap), f, indent=1, sort_keys=True)
-        _save_controller_hints(
-            hints, mret[len(refused_rows):],   # the refused rows lead mret and never ran
-            {b['name']: b['uid'] for b in config['boards']}, cmap)
+                json.dump({uid_of[r[0]]: r[4] for r in ran if r[4]}, f, indent=1, sort_keys=True)
+        _save_controller_hints(ran, uid_of)
     except Exception as e:
-        # Deliberately broad, and it must stay that way: this best-effort refresh makes
-        # Manager proxy RPCs that raise EOFError / BrokenPipeError / RemoteError when
-        # the Manager child has died, none of them OSErrors -- an OSError-only guard let
-        # those skip accumulate_report(). Nothing here is worth the report.
+        # best effort: the cache only orders the next run, nothing here is worth the report
         print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
               f'{type(e).__name__}: {e}')
 

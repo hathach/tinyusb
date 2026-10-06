@@ -256,9 +256,8 @@ class BuildBoardContract(unittest.TestCase):
         with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
              mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
              mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] in refuse else (0, True)), \
-             mock.patch.object(hil_test, 'Manager', mock.Mock()), \
-             mock.patch.object(hil_test, '_start_pool', return_value=({}, pool)), \
-             mock.patch.object(hil_test, '_load_controller_hints', return_value=({}, {})), \
+             mock.patch.object(hil_test, '_start_pool', return_value=pool), \
+             mock.patch.object(hil_test, '_load_controller_hints', return_value={}), \
              mock.patch.object(hil_test, '_save_controller_hints') as hints, \
              mock.patch.object(hil_test, 'log_line'), \
              redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
@@ -272,11 +271,11 @@ class BuildBoardContract(unittest.TestCase):
                           {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
         prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                  for n in ('bad-a', 'bad-b', 'good')]
-        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         rc, d, pool, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
         self.assertEqual(rc, 1)
         self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
-        self.assertEqual([r[0] for r in hints.call_args[0][1]], ['good'], 'a refused board never ran')
+        self.assertEqual([r[0] for r in hints.call_args[0][0]], ['good'], 'a refused board never ran')
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         cells = {r['board']: r['cells'] for r in doc['rows']}
         for n in ('bad-a', 'bad-b'):
@@ -327,7 +326,7 @@ class BuildBoardContract(unittest.TestCase):
                           {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
                            'variant': [None, {'name': 'owner-a'}]},
                           {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
-        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
                                       (set(), [good_row], {'device/cdc_msc': 'pass'})):
             rc, d, _, _ = self.run_main(cfg, [], ['-b', 'good'], refuse, results)
@@ -338,8 +337,8 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
         from helper import hil_report
-        refused = ('bad', 1, [], [('bad', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)
-        good = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], 1.0)
+        refused = ('bad', 1, [], [('bad', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], None)
+        good = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         with TemporaryDirectory() as td:
             rd = Path(td)
             hil_test._abort_report('aborted: a worker raised ValueError: x', [refused, good],
@@ -1274,7 +1273,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
 
     def test_finished_rows_survive_a_guard_expiry(self):
         boards = [{'name': 'fast1'}, {'name': 'fast2'}, {'name': 'wedged'}]
-        rows = [('fast1', 0, [], [], 1.0), ('fast2', 0, [], [], 1.0)]
+        rows = [('fast1', 0, [], [], None), ('fast2', 0, [], [], None)]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual([r[0] for r in cm.exception.finished], ['fast1', 'fast2'])
@@ -1282,7 +1281,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
     def test_an_expired_deadline_stops_before_asking_for_more(self):
         """Left <= 0 must not be handed to it.next() as a zero/negative timeout."""
         boards = [{'name': 'a'}, {'name': 'b'}]
-        it = self._It([('a', 0, [], [], 1.0)])
+        it = self._It([('a', 0, [], [], None)])
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(it, boards, time.monotonic() - 1)     # already past
         self.assertEqual(cm.exception.finished, [])
@@ -1298,14 +1297,14 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
                 return super().next(timeout)
 
         boards = [{'name': n} for n in ('a', 'b', 'c', 'd')]
-        rows = [(n, 0, [], [], 1.0) for n in ('a', 'b', 'c', 'd')]
+        rows = [(n, 0, [], [], None) for n in ('a', 'b', 'c', 'd')]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(Slow(rows), boards, time.monotonic() + 0.3)
         self.assertTrue(cm.exception.finished, 'rows collected before the expiry were lost')
 
     def test_every_board_finishing_returns_them_all(self):
         boards = [{'name': 'a'}, {'name': 'b'}]
-        rows = [('a', 0, [], [], 1.0), ('b', 1, [], [], 2.0)]
+        rows = [('a', 0, [], [], None), ('b', 1, [], [], None)]
         got = hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual(got, rows)
 
@@ -1373,8 +1372,8 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_util.run_cmd = lambda *a, **k: R()
         # usbtest_enumerated is nested in test_device_usbtest, so stub what it calls
         self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
-        hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
-                                           'pid': '4010', 'serial': 'U'}], False)
+        hil_util.usb_scan = lambda **k: [{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
+                                          'pid': '4010', 'serial': 'U'}]
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         self.raised = None
@@ -1433,8 +1432,8 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
         self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
-        hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
-                                           'pid': '4010', 'serial': 'U'}], False)
+        hil_util.usb_scan = lambda **k: [{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
+                                          'pid': '4010', 'serial': 'U'}]
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1609,9 +1608,9 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
     to the re-run spec: synthetic rows (rows=None) mixed with worker rows."""
 
     def _mixed(self):
-        return [('stuck', 1, [], None, 0),                       # synthetic
+        return [('stuck', 1, [], None, None),                    # synthetic
                 ('ran', 1, ['device/dfu'],
-                 [('ran', {'device/dfu': '❌ boom'}, '8s')], 8.0)]      # worker
+                 [('ran', {'device/dfu': '❌ boom'}, '8s')], None)]      # worker
 
     def test_the_rerun_spec_accepts_both_kinds(self):
         with TemporaryDirectory() as td:
@@ -1673,17 +1672,19 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
 
 
 class UsbtestLearnsTopology(unittest.TestCase):
-    """The battery is where the DUT is known enumerated, so it feeds the dispatch cache's
-    uid -> controller map; that lookup is best effort and never stands between the board
-    and its battery."""
+    """The battery's enumeration wait is where the DUT is known enumerated, so its match
+    gives the board's controller for the dispatch cache; that lookup never stands between
+    the board and its battery."""
 
     PASS = ('{"serial":"U","speed":"480","tier":1,"passed":30,"failed":0,"notrun":0,'
             '"wedged":false,"cases":[]}')
 
     def setUp(self):
-        from helper import hil_lock, hil_util
-        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        from helper import hil_util
+        for name in ('board_wedged', 'board_pci', 'controller_of'):
+            usbtest_harness.patch(self, hil_test, name, getattr(hil_test, name))
         hil_test.board_wedged = ''
+        hil_test.board_pci = None
         no_settle(self)
         self.order = []
 
@@ -1691,50 +1692,76 @@ class UsbtestLearnsTopology(unittest.TestCase):
             returncode = 0
             stderr = b''
             stdout = self.PASS.encode()
-        for obj, name, value in (
-                (hil_util, 'run_cmd', lambda *a, **k: self.order.append('battery') or R()),
-                (hil_util, 'usb_scan', lambda **k: [{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
-                                                     'pid': '4010', 'serial': 'U'}])):
-            self.addCleanup(setattr, obj, name, getattr(obj, name))
-            setattr(obj, name, value)
-        self.hil_lock = hil_lock
-        self.addCleanup(setattr, hil_lock, 'controller_of', hil_lock.controller_of)
+        usbtest_harness.patch(self, hil_util, 'run_cmd',
+                              lambda *a, **k: self.order.append('battery') or R())
+        usbtest_harness.patch(self, hil_util, 'usb_scan', lambda **k: [
+            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': 'cafe', 'pid': '4010',
+             'serial': 'U'}])
         self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
 
     def test_the_controller_is_learned_before_the_battery(self):
-        self.hil_lock.controller_of = lambda uid: self.order.append(('learn', uid))
+        hil_test.controller_of = lambda d: self.order.append(('learn', d)) or 'P'
         hil_test.test_device_usbtest(self.board)
-        self.assertEqual(self.order, [('learn', 'U'), 'battery'])
+        self.assertEqual(self.order, [('learn', '/sys/bus/usb/devices/3-1'), 'battery'])
+        self.assertEqual(hil_test.board_pci, 'P')
 
-    def test_a_cold_map_learns_the_controller_through_the_real_resolver(self):
+    def test_the_first_port_seen_is_kept_across_variants(self):
+        hil_test.board_pci = 'FIRST'
+        hil_test.controller_of = lambda d: self.order.append(('learn', d)) or 'SECOND'
+        hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, ['battery'])
+        self.assertEqual(hil_test.board_pci, 'FIRST')
+
+    def test_the_resolver_takes_the_controller_above_the_device(self):
         from unittest import mock
-        from helper import hil_util
-        self.addCleanup(setattr, self.hil_lock, 'controller_map', self.hil_lock.controller_map)
-        for name in ('print_lock', 'shuffle_seed'):
-            self.addCleanup(setattr, hil_test, name, getattr(hil_test, name))
-        cmap = {}
-        hil_test.init_worker(None, '1', cmap)
-        self.addCleanup(setattr, hil_util, 'read_sysfs', hil_util.read_sysfs)
-        hil_util.read_sysfs = lambda path, *a, **k: '3' if path.endswith('busnum') else None
         real = os.path.realpath
 
         def realpath(p, *a, **k):
-            if p == '/sys/bus/usb/devices/usb3':
-                return '/sys/devices/pci0000:00/0000:00:1c.0/0000:02:00.0/usb3'
+            if p == '/sys/bus/usb/devices/3-1':
+                return '/sys/devices/pci0000:00/0000:00:1c.0/0000:02:00.0/usb3/3-1'
             return real(p, *a, **k)
-        with mock.patch.object(self.hil_lock.os.path, 'realpath', realpath):
+        with mock.patch.object(hil_test.os.path, 'realpath', realpath):
             hil_test.test_device_usbtest(self.board)
-        self.assertEqual(cmap, {'uid:U': '0000:02:00.0'})
+        self.assertEqual(hil_test.board_pci, '0000:02:00.0')
         self.assertEqual(self.order, ['battery'])
 
-    def test_a_dead_topology_map_still_runs_the_battery(self):
-        class Dead(dict):
-            def get(self, *a):
-                raise EOFError('Manager gone')
-        self.addCleanup(setattr, self.hil_lock, 'controller_map', self.hil_lock.controller_map)
-        self.hil_lock.controller_map = Dead()
-        hil_test.test_device_usbtest(self.board)
+    def test_an_unresolvable_device_still_runs_the_battery(self):
+        from unittest import mock
+        with mock.patch.object(hil_test.os.path, 'realpath', lambda p, *a, **k: '/gone/3-1'):
+            hil_test.test_device_usbtest(self.board)
         self.assertEqual(self.order, ['battery'])
+        self.assertIsNone(hil_test.board_pci)
+
+
+class ControllerCacheMerge(unittest.TestCase):
+    """The cache is re-read at save time so a concurrent HIL job's entries survive, and a
+    board whose controller was not learned this run keeps its cached one."""
+
+    def setUp(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        usbtest_harness.patch(self, hil_test, 'CONTROLLER_CACHE',
+                              Path(td.name) / 'controller_cache.json')
+
+    def test_merge_keeps_other_boards_and_the_cached_pci_when_unlearned(self):
+        hil_test.CONTROLLER_CACHE.write_text(json.dumps({
+            'U1': {'name': 'a', 'pci': 'old1', 'duration': 9.0},
+            'U2': {'name': 'b', 'pci': 'old2'},
+            'U3': {'name': 'esp', 'pci': 'other-job'}}))
+        hil_test._save_controller_hints(
+            [('a', 0, [], [], 'new1'), ('b', 0, [], [], None)], {'a': 'U1', 'b': 'U2'})
+        self.assertEqual(json.loads(hil_test.CONTROLLER_CACHE.read_text()), {
+            'U1': {'name': 'a', 'pci': 'new1'},
+            'U2': {'name': 'b', 'pci': 'old2'},
+            'U3': {'name': 'esp', 'pci': 'other-job'}})
+        self.assertEqual(hil_test._load_controller_hints(),
+                         {'U1': 'new1', 'U2': 'old2', 'U3': 'other-job'})
+
+    def test_a_torn_cache_costs_only_the_order(self):
+        hil_test.CONTROLLER_CACHE.write_text('{"U1": ')
+        self.assertEqual(hil_test._load_controller_hints(), {})
+        hil_test._save_controller_hints([('a', 0, [], [], 'p')], {'a': 'U1'})
+        self.assertEqual(hil_test._load_controller_hints(), {'U1': 'p'})
 
 
 class UsbtestAbsentDeviceVerdict(unittest.TestCase):

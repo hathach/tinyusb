@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Board locks for the TinyUSB HIL rig, plus the DUT -> host-controller resolver.
+"""Board locks for the TinyUSB HIL rig.
 
 Board locks are kernel flocks in BOARD_LOCK_DIR arbitrating hardware access
-between dev sessions and CI's hil_test.py (never stop the actions-runner).
-controller_of feeds hil_test's dispatch-order cache and has no CLI meaning. The
-CLI below (hold/release/status) manages board locks only.
+between dev sessions and CI's hil_test.py (never stop the actions-runner). The
+CLI below (hold/release/status) manages them.
 """
 import argparse
 import fcntl
 import json
 import os
-import re
 import select
 import signal
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # helper/ scripts import via the test/hil root
-from helper import hil_util
 
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
@@ -103,66 +99,9 @@ def acquire_board_lock(board_name, reason=CI_REASON):
             info = ''
         fh.close()
         raise RuntimeError(f'board locked: {info or "unknown holder"}')
-    # announce ourselves so the other side's conflict message is truthful;
-    # best-effort — the flock itself is already held
-    try:
-        fh.truncate(0)
-        fh.seek(0)
-        json.dump({'pid': os.getpid(), 'reason': reason,
-                   'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
-        fh.flush()
-    except OSError:
-        pass
+    # announce ourselves so the other side's conflict message is truthful
+    write_record(fh, reason)
     return fh
-
-
-# -------------------------------------------------------------
-# DUT topology
-# -------------------------------------------------------------
-controller_map = None   # shared dict: 'uid:<uid>' -> pci addr, read back into the dispatch cache
-
-
-def init_topology(cmap):
-    """Install the shared topology map (called from hil_test.init_worker)."""
-    global controller_map
-    controller_map = cmap
-
-
-def controller_of(uid: str):
-    """Resolve a DUT uid to its root host controller's PCI address, or None when it cannot
-    be resolved — the device is not enumerated (e.g. parked in board_test firmware with USB
-    off), sysfs would not answer, or the run's shared map is gone (a dead Manager). Successful
-    resolutions are cached — cabling does not change mid-run. Dual-port parts (e.g. CH32V307
-    usbhs/usbfs variants) share one uid and one cache entry, the first port seen."""
-    try:
-        return _controller_of(uid)
-    except Exception:   # best effort: dispatch order must never cost a battery
-        return None
-
-
-def _controller_of(uid: str):
-    if controller_map is None:
-        return None
-    cached = controller_map.get(f'uid:{uid}')
-    if cached:
-        return cached
-    # vid='cafe' first: the target is always a TinyUSB DUT, and the VID is a lock-free
-    # descriptor field. Without it this reads every probe's and hub's `serial` -- the one
-    # attribute served under device_lock -- so a wedged peer would block us here.
-    devs = hil_util.usb_scan(vid='cafe', serial=uid)
-    for dev in devs:
-        busnum = hil_util.read_sysfs(os.path.join(dev['dir'], 'busnum'))
-        if busnum is None:
-            continue
-        try:
-            root = os.path.realpath(f'/sys/bus/usb/devices/usb{int(busnum)}')
-        except ValueError:
-            continue
-        m = re.findall(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]', root)
-        if m:
-            controller_map[f'uid:{uid}'] = m[-1]
-            return m[-1]
-    return None
 
 
 # --- operator CLI (hold/release/status) ------------------------------------

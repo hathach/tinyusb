@@ -244,7 +244,7 @@ class RunCmdCleanupShape(unittest.TestCase):
 class BoundedReadForGuardlessCallers(unittest.TestCase):
     """`serial` is served under the device lock a wedged usbfs ioctl holds, so the read is
     bounded BY DEFAULT -- not opt-in. usb_scan reads it on every device matching the VID to
-    find the one it wants, and hil_lock.controller_of does that before every usbtest
+    find the one it wants, and hil_test's usbtest enumeration wait does that before every
     battery, so one wedged DUT would stall every worker rather than one.
     hil_pool_check has no guard behind it at all."""
 
@@ -268,7 +268,7 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
 
     def test_the_bound_is_the_default_not_an_opt_in(self):
         """usb_scan reads `serial` on every device matching the VID to find the one it
-        wants, and hil_lock's controller_of does that before every usbtest battery --
+        wants, and hil_test's usbtest enumeration wait does that before every battery --
         so an opt-in bound that ONE call site forgets lets a
         single wedged DUT stall every worker, not one. Three call sites forgot it once."""
         import inspect
