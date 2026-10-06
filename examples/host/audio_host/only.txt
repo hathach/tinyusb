@@ -30,4 +30,7 @@ mcu:STM32U5
 mcu:STM32WBA
 mcu:LPC43XX
 mcu:MIMXRT1XXX
-mcu:LPC55
+# LPC55S28/69: switch RHPORT_HOST to 1 in board.cmake/board.mk for host-only audio (IP3516).
+# Port 0 (OHCI) does not support ISO.
+board:lpcxpresso55s28
+board:lpcxpresso55s69
