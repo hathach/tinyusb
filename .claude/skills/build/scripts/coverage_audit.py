@@ -343,10 +343,7 @@ def extract_board(build_dir, root):
 
 def cmd_graph(a):
     root = os.path.abspath(a.root)
-    try:
-        head = run_ok(['git', 'rev-parse', 'HEAD'], root).strip()
-    except ExtractError as e:
-        sys.exit(f'graph: {root} has no HEAD to key the cache on: {e}')
+    head = run_ok(['git', 'rev-parse', 'HEAD'], root).strip()
     boards = list(a.board or [])
     if a.boards_file:
         with open(a.boards_file) as fh:
@@ -365,20 +362,22 @@ def cmd_graph(a):
                 print(f'{board}: cached', flush=True)
                 continue
         t0 = time.monotonic()
-        name = f'audit-{os.getpid()}-{board}'        # never the checkout's own cmake-build-<board>
+        name = f'audit-{os.getpid()}-{board}'
         build_dir = os.path.join(root, 'cmake-build', f'cmake-build-{name}')
         shutil.rmtree(build_dir, ignore_errors=True)
-        r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
-        rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
-               'family': tools_build.find_family(board)}
         try:
-            rec.update(status='ok' if r.returncode == 0 else 'partial', **extract_board(build_dir, root))
-            if r.returncode != 0:
-                rec['error'] = (r.stdout + r.stderr)[-2000:]
-        except (ExtractError, OSError, ValueError) as e:
-            rec.update(status='failed', error=(r.stdout + r.stderr)[-2000:] if r.returncode else f'extract: {e}')
+            r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
+            rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
+                   'family': tools_build.find_family(board)}
+            try:
+                rec.update(status='ok' if r.returncode == 0 else 'partial', **extract_board(build_dir, root))
+                if r.returncode != 0:
+                    rec['error'] = (r.stdout + r.stderr)[-2000:]
+            except (ExtractError, OSError, ValueError) as e:
+                rec.update(status='failed', error=(r.stdout + r.stderr)[-2000:] if r.returncode else f'extract: {e}')
+        finally:
+            shutil.rmtree(build_dir, ignore_errors=True)
         rec['secs'] = round(time.monotonic() - t0, 1)
-        shutil.rmtree(build_dir, ignore_errors=True)
         with open(path, 'w') as fh:
             json.dump(rec, fh)
         print(f'{board}: {rec["status"]} {rec["secs"]}s '
@@ -433,17 +432,11 @@ def cmd_replay(a):
     sys.path.insert(0, str(ROOT / 'tools'))
     import ci_select  # noqa: E402  the rules this branch ships
     index, family_of, status = load_index(a.graph)
-    try:
-        commits = a.commits or run_ok(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
-                                      ROOT).split()
-    except ExtractError as e:          # a bad ref lists no commits: not an empty clean audit
-        sys.exit(f'replay: {e}')
+    commits = a.commits or run_ok(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
+                                  ROOT).split()
     results = []
     for c in commits:
-        try:
-            ns = run_ok(['git', 'diff', '--no-renames', '--name-status', f'{c}^1', c], ROOT).split('\n')
-        except ExtractError as e:      # a root commit has no ^1: no diff is not a clean one
-            sys.exit(f'replay: {c}: {e}')
+        ns = run_ok(['git', 'diff', '--no-renames', '--name-status', f'{c}^1', c], ROOT).split('\n')
         rows = [l.split('\t', 1) for l in ns if '\t' in l]
         files = [p for _, p in rows]
         deleted = [p for s, p in rows if s.startswith('D')]
@@ -454,7 +447,7 @@ def cmd_replay(a):
                 lambda: ci_select.git_show(f'{c}:{ci_select.GET_DEPS_PATH}', str(ROOT)), str(ROOT))
         view = ci_select.classify_build(files, str(ROOT), gd)
         v = judge(files, deleted, index, family_of, view)
-        v.update(commit=c[:9], subject=run(['git', 'log', '-1', '--format=%s', c], ROOT).stdout.strip(),
+        v.update(commit=c[:9], subject=run_ok(['git', 'log', '-1', '--format=%s', c], ROOT).strip(),
                  full=view['full'], families=len(view['families']))
         results.append(v)
     summary = {'graph_boards': {s: sum(1 for x in status.values() if x == s) for s in set(status.values())},
@@ -488,7 +481,10 @@ def main(argv=None):
     w.add_argument('--since')
     w.add_argument('--commits', nargs='+')
     a = p.parse_args(argv)
-    return cmd_graph(a) if a.cmd == 'graph' else cmd_replay(a)
+    try:
+        return cmd_graph(a) if a.cmd == 'graph' else cmd_replay(a)
+    except ExtractError as e:      # a failed git call is a failed audit, never an empty clean one
+        sys.exit(f'{a.cmd}: {e}')
 
 
 if __name__ == '__main__':
