@@ -1,4 +1,5 @@
 family:broadcom_32bit
+family:efm32
 family:espressif
 family:gd32vf103
 family:hpmicro

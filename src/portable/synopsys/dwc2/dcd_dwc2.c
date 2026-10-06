@@ -522,11 +522,11 @@ bool dcd_deinit(uint8_t rhport) {
 }
 
 void dcd_int_enable(uint8_t rhport) {
-  dwc2_dcd_int_enable(rhport);
+  dwc2_int_set(rhport, TUSB_ROLE_DEVICE, true);
 }
 
 void dcd_int_disable(uint8_t rhport) {
-  dwc2_dcd_int_disable(rhport);
+  dwc2_int_set(rhport, TUSB_ROLE_DEVICE, false);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
