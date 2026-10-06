@@ -600,7 +600,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
 /* Mixer Unit Descriptor(4.7.2.6) */
 #define TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m) \
-  (13+_nrinpins+(((_n * _m) % 8) != 0 ? (_n * _m / 8 + 1) : (_n * _m / 8)))
+  (13+(_nrinpins)+((((_n) * (_m)) % 8) != 0 ? ((_n) * (_m) / 8 + 1) : ((_n) * (_m) / 8)))
 #define TUD_AUDIO20_DESC_MIXER_UNIT_START(_unitid, _nrinpins, _n, _m, ...) \
   TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m), TUSB_DESC_CS_INTERFACE, 0x04, _unitid, _nrinpins, __VA_ARGS__, _m
 #define TUD_AUDIO20_DESC_MIXER_UNIT_END(_channelcfg, _idxchannelnames, _ctrl, _stridx, ...) \
