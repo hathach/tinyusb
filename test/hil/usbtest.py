@@ -576,8 +576,9 @@ def recover_hang(board_json, fw, proc, dev):
         print(f'{fname} is not convoy-safe for delivery (it enumerates by '
               f'opening usbfs nodes, and this DUT has a D-state holder on '
               f'its own node): skipping the recovery rather than adding a '
-              f'second stray. Pin the roster entry with vid_pid on an '
-              f'openocd flasher to enable recovery for this board.',
+              f'second stray. Give the board a flasher_recover entry (openocd '
+              f'pinned with vid_pid or over a VID-filtered interface cfg) to '
+              f'enable recovery for it.',
               file=sys.stderr)
         return False
     reset_fn = hil_flash.reset_primitive(fname)

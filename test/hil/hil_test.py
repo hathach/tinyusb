@@ -1515,7 +1515,6 @@ def test_device_usbtest(board):
     while time.monotonic() < end and not seen:
         time.sleep(0.2)
         seen = usbtest_enumerated()
-    # fail here rather than in usbtest.py: the cell then says the battery never ran
     if not seen:
         # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
         raise TestFail(f'no cafe:4010 device with serial {uid}',
@@ -1545,8 +1544,8 @@ def test_device_usbtest(board):
     # (own session) on the probe. Never under --skip-flash, and only when this flasher can
     # DELIVER past a poisoned node (hil_flash.convoy_safe): otherwise the delivery adds a
     # SECOND stray and the board reserves budget for a path that cannot fire. The RECOVERY
-    # flasher may be the roster's optional `flasher_recover`: a jlink/stlink board can name
-    # an openocd entry that reaches the same probe convoy-safely.
+    # flasher may be the roster's optional `flasher_recover`: a board can name an openocd
+    # entry that reaches the same probe convoy-safely.
     _rec_flasher = hil_flash.recover_flasher(board)
     recovery = bool(_current_fw and not skip_flash and hil_flash.convoy_safe(_rec_flasher))
     # ONE bound: run_cmd's kill below. It carries the recovery reserve only when a
@@ -2071,8 +2070,8 @@ def controller_of(dev_dir: str):
 def schedule_boards(boards: list, pci_of_uid: dict) -> list:
     """Dispatch order: round-robin across host controllers so the load is spread over
     every controller from t=0 instead of one card's boards convoying at the head of the
-    queue. Boards without a controller hint form their
-    own bucket; config order is kept within a bucket.
+    queue. Boards without a controller hint form their own bucket; config order is kept
+    within a bucket.
 
     Spreads, never caps: 6 batteries on one controller and 5 behind one hub passed. Reconsider
     a limit on repeated case-time margin loss (passing-case secs in the captured usbtest JSON)
@@ -2164,7 +2163,9 @@ def _read_controller_cache() -> dict:
             loaded = json.load(f)
     except (OSError, ValueError):
         return {}
-    return {k: v for k, v in loaded.items() if isinstance(v, dict)} if isinstance(loaded, dict) else {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {k: v for k, v in loaded.items() if isinstance(v, dict)}
 
 
 def _load_controller_hints() -> dict:

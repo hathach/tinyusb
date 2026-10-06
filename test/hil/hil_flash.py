@@ -119,7 +119,7 @@ def _openocd_cmd_base(flasher):
                       f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
                       f'foreign usbfs nodes', file=sys.stderr, flush=True)
     elif not convoy_safe(flasher) and flasher.get('uid') not in _VID_PID_WARNED:
-        # (unpinned yet convoy-safe is openocd over the jlink driver: nothing to warn about)
+        # (unpinned yet convoy-safe is openocd over a CONVOY_SAFE_CFGS driver: no warning)
         # stderr, once per probe: test_example captures stdout, so a passing run would
         # swallow this and the operator would never learn discovery still opens every
         # usbfs node
@@ -159,9 +159,7 @@ def reset_openocd(board, timeout=None):
     return ret
 
 
-# A J-Link board's `flasher_recover`: the same probe driven by openocd, whose libjaylink
-# discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
-# attributes of every USB device and blocks on a wedged one.
+# openocd interface cfgs whose discovery filters by VID/PID before opening; see convoy_safe
 CONVOY_SAFE_CFGS = ('interface/jlink.cfg', 'interface/stlink.cfg', 'interface/ti-icdi.cfg')
 
 
