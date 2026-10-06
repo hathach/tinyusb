@@ -435,7 +435,8 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
       // Enable TXFE interrupt if there are still data to be sent
       // EP0 only sends one packet at a time, so no need to check for EP0
       if ((epnum != 0) && (xfer->total_len - xferred_bytes > 0)) {
-         dwc2->diepempmsk |= (1u << epnum);
+        // non-EP0 callers hold usbd_spin_lock, pairs with the clear in handle_epin_slave()
+        dwc2->diepempmsk |= (1u << epnum);
       }
     }
   #endif
@@ -1027,11 +1028,13 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   if (diepint_bm.txfifo_empty && tu_bit_test(dwc2->diepempmsk, epnum)) {
     epin_write_tx_fifo(dwc2, epnum);
 
-    // Turn off TXFE if all bytes are written.
+    // Turn off TXFE if all bytes are written; lock includes the tsiz read since the task may re-arm this EP
+    usbd_spin_lock(true);
     dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
     if (tsiz.xfer_size == 0) {
       dwc2->diepempmsk &= ~(1u << epnum);
     }
+    usbd_spin_unlock(true);
   }
 }
 #endif
