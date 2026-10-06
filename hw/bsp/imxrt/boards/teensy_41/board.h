@@ -49,7 +49,7 @@
 #define UART_PORT             LPUART6
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
-#include "common/tusb_common.h"
+#include <assert.h>
 #include "fsl_device_registers.h"
 
 //--------------------------------------------------------------------
@@ -74,17 +74,7 @@ static inline void BOARD_ConfigMPU(void) {
   uint32_t nonCacheStart = (uint32_t) __NCACHE_REGION_START;
   uint32_t size = (uint32_t) __NCACHE_REGION_SIZE;
   #endif
-  uint32_t i = 0;
-  while ((size >> i) > 0x1U) {
-    i++;
-  }
-
-  // Validate before changing the MPU/cache state: TU_ASSERT returns on failure.
-  if (size != 0) {
-    TU_ASSERT(!(nonCacheStart % size), );
-    TU_ASSERT(size == (1UL << i), );
-    TU_ASSERT(i >= 5, );
-  }
+  volatile uint32_t i = 0;
 
   #if defined(__ICACHE_PRESENT) && __ICACHE_PRESENT
   /* Disable I cache and D cache */
@@ -197,7 +187,16 @@ static inline void BOARD_ConfigMPU(void) {
     #endif
   #endif
 
-  if (size != 0) {
+  while ((size >> i) > 0x1U) {
+    i++;
+  }
+
+  if (i != 0) {
+    /* The MPU region size should be 2^N, 5<=N<=32, region base should be multiples of size. */
+    assert(!(nonCacheStart % size));
+    assert(size == (uint32_t) (1 << i));
+    assert(i >= 5);
+
     /* Region 10 setting: Memory with Normal type, not shareable, non-cacheable */
     MPU->RBAR = ARM_MPU_RBAR(10, nonCacheStart);
     MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 1, 0, 0, 0, 0, i - 1);
