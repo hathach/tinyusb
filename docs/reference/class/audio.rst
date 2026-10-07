@@ -118,8 +118,10 @@ or stop the application-side I2S/DMA path.  Do not produce or consume samples
 merely because the device is mounted; wait until the streaming interface is
 active.
 
-The optional ``tud_audio_*_isr()`` callbacks run in interrupt context; see
-:doc:`device`.
+``tud_audio_feedback_interval_isr()`` runs in interrupt context from the SOF
+handler.  The optional ``tud_audio_rx_done_isr()`` and
+``tud_audio_tx_done_isr()`` callbacks usually run in interrupt context but may
+run in the context of the call that arms the endpoint; see :doc:`device`.
 
 Control requests
 ----------------
