@@ -91,6 +91,8 @@ section 2) needs no shield; for openocd:
 openocd -c "adapter serial <probe-sn>" <flasher args> -c "init; reset run; shutdown"
 ```
 
+For stlink: `STM32_Programmer_CLI --connect port=swd sn=<probe-sn> --rst --go`.
+
 Any other runs only behind the shield (section 2), then unshield; for JLink:
 
 ```bash

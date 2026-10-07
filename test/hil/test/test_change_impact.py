@@ -1050,7 +1050,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     flasher (usbtest.recover_hang); every other board stays wedged for the rest of the run.
     So every board the roster runs usbtest on must have one."""
 
-    # not yet demonstrated on hardware; drop a board once its flasher_recover lands
+    # not yet demonstrated on hardware; drop a board once its recovery flasher is proven
     PENDING = {'tinyusb.json': set(), 'hfp.json': set()}
 
     def test_every_usbtest_board_can_be_recovered(self):
