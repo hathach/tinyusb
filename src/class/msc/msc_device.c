@@ -292,9 +292,11 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
   return true;
 }
 
+// default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
 TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lun) {
-  // default sense is NOT READY, MEDIUM NOT PRESENT
-  (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  if (_mscd_itf.sense_key == 0) {
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  }
 }
 
 static void proc_async_io_done(void *bytes_io) {
@@ -669,9 +671,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
 
@@ -683,9 +683,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
     }
@@ -698,9 +696,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
     }
@@ -719,9 +715,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       } else {
         scsi_read_capacity10_resp_t read_capa10;
 
@@ -753,9 +747,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       } else {
         read_fmt_capa.block_num = tu_htonl(block_count);
         read_fmt_capa.block_size_u16 = tu_htons(block_size);
