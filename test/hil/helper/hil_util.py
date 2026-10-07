@@ -507,3 +507,11 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
         if len(port_list) == 0:
             raise RuntimeError(f'No serial device found for {pattern}')
         return port_list[0]
+
+
+def ramp_gaps(samples: list, start: int) -> list:
+    """(index, delta) of every sample after `start` that does not continue a +1 uint16 ramp;
+    delta is got - expected, wrapped to [-32768, 32767]."""
+    return [(i + 1, ((samples[i + 1] - samples[i] - 1 + 0x8000) & 0xFFFF) - 0x8000)
+            for i in range(start, len(samples) - 1)
+            if (samples[i + 1] - samples[i]) & 0xFFFF != 1]

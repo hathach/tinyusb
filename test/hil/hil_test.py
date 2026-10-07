@@ -38,6 +38,7 @@
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
+import collections
 import io
 import itertools
 import os
@@ -1473,12 +1474,30 @@ def test_device_audio_test_freertos(board):
     # initial overwritable software FIFO (at most 224 samples) can transition
     # between ramp generations. After that startup window, require an exact ramp.
     startup_samples = 256
-    for i in range(startup_samples, sample_count - 1):
-        expected = (samples[i] + 1) & 0xFFFF
-        assert samples[i + 1] == expected, (
-            f'Audio mismatch at sample {i + 1}: expected {expected}, got {samples[i + 1]}')
+    gaps = hil_util.ramp_gaps(samples, startup_samples)
+    if gaps:
+        first, delta = gaps[0]
+        hist = ', '.join(f'{d:+d} x{n}' for d, n in collections.Counter(d for _, d in gaps).most_common(4))
+        raise AssertionError(
+            f'Audio mismatch at sample {first}: expected {(samples[first] - delta) & 0xFFFF}, '
+            f'got {samples[first]} ({len(gaps)} gaps: {hist}; at {[i for i, _ in gaps[:6]]}; '
+            f'raw {_keep_audio_capture(raw)})')
 
     print(f'  ALSA {pcm}', end='')
+
+
+def _keep_audio_capture(raw: bytes) -> str:
+    """Save a failing capture under $HIL_REPORT_DIR/audio for offline analysis; returns its path."""
+    variant = next((p.removeprefix('cmake-build-') for p in Path(_current_fw or '').parts
+                    if p.startswith('cmake-build-')), 'unknown')
+    path = Path(os.environ.get('HIL_REPORT_DIR', '.')) / 'audio' / \
+        f'{variant}-audio_test_freertos-{time.strftime("%Y%m%d-%H%M%S")}.raw'
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    except OSError as e:
+        return f'not saved ({e})'
+    return str(path)
 
 
 def test_device_hid_generic_inout(board):
