@@ -199,7 +199,7 @@ See ``usbd.c``.
 - ``close()``: Clean up class resources
 - ``deinit()``: Deinitialize class driver
 - ``sof()``: Start-of-frame processing
-- ``xfer_isr()``: Called from USB ISR context on transfer completion. Data will get queued for ``xfer_cb()`` only if this returns ``false``.
+- ``xfer_isr()``: Called on transfer completion, usually from USB ISR context but possibly in the context of the call that arms the endpoint. Data will get queued for ``xfer_cb()`` only if this returns ``false``.
 
 Descriptor Management
 ---------------------
