@@ -612,6 +612,71 @@ def recover_hang(board_json, fw, proc, dev):
     return True
 
 
+def strays_on(serial):
+    """D-state testusb processes holding the usbfs node of the device with this serial.
+
+    recover_hang only runs inside a live battery: a run cancelled or SIGKILLed mid-wedge
+    leaves its testusb orphaned on the node, and the next run's flasher blocks on it (#4126).
+    Matched from the holder's `-D` node to the device, never by scanning for our serial: the
+    held device's `serial` attribute is exactly the one that cannot be read.
+    """
+    hu = _hu()
+    serial_of = {}
+    found = []
+    for h in hu.dstate_holders('testusb'):
+        if h['node'] not in serial_of:
+            d = hu.usb_dev_dir(h['node'])
+            serial_of[h['node']] = hu.usb_dev_serial(d) if d else None
+        sn = serial_of[h['node']]
+        if sn and sn.lower() == serial.lower():
+            found.append(h)
+    return found
+
+
+def recover_strays(board, strays):
+    """Free this board's node from `strays` (strays_on) before it is flashed: recover_hang's
+    probe reset through the convoy-safe recovery flasher, then confirm every stray is gone.
+
+    Returns '' when they are gone, or when the board's own flasher is convoy-safe without a
+    reset-only mode (esptool), whose flash then delivers the reset. Otherwise the reason the
+    board stays wedged: flashing it would block on the held node and add another stray.
+    """
+    import hil_flash
+    name = board['name']
+    nodes = ', '.join(sorted({s['node'] for s in strays}))
+    pids = ', '.join(str(s['pid']) for s in strays)
+    print(f'{name}: D-state testusb (pid {pids}) holds {nodes}, left by an earlier run')
+    rec = hil_flash.recover_flasher(board)
+    fname = rec.get('name') or '?'
+    reset_fn = None
+    if hil_flash.convoy_safe(rec):
+        try:
+            reset_fn = hil_flash.reset_primitive(fname)
+        except AttributeError:
+            pass
+    if reset_fn is None:
+        if hil_flash.convoy_safe(board['flasher']):
+            print(f'{board["flasher"]["name"]} has no reset-only mode; its flash delivers the reset')
+            return ''
+        return f'{name}: a D-state testusb holds {nodes} and {fname} cannot deliver a reset past it'
+    print(f'auto-recovering: resetting {name} via {fname} probe')
+    try:
+        reset_fn({**board, 'flasher': rec}, timeout=RECOVER_RESET_TIMEOUT)
+    except Exception as e:   # the reap check below is the verdict either way
+        print(f'recovery step raised: {e}')
+    time.sleep(RECOVER_SETTLE)
+    deadline = time.monotonic() + RECOVER_REAP
+    while True:
+        held = [s for s in strays if _hu().proc_holds(s)]
+        if not held:
+            print('reset freed the device: testusb reaped')
+            return ''
+        if time.monotonic() >= deadline:
+            return (f'{name}: testusb pid {", ".join(str(s["pid"]) for s in held)} still in '
+                    f'D state on {nodes} after a reset via {fname}')
+        time.sleep(0.5)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--serial', help='board uid (USB serial string) to select the device')
