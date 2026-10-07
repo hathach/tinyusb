@@ -153,12 +153,6 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir
   return &_dcd.xfer[epnum][dir];
 }
 
-// its completion and re-arm must no longer see the retired transfer
-static inline void retire_xfer(xfer_td_t* xfer) {
-  xfer->started = false;
-  xfer->xferid++;
-}
-
 // EasyDMA requests, one bit each: EPIN n at bit n, EPOUT n at bit 16+n (ISO is n = 8), plus the two
 // EP0 tasks that only need the channel to be free.
 #define DMA_REQ_EP0STATUS TU_BIT(9)
@@ -173,6 +167,14 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t dma_req_bit(uint8_t epnum, uint8_t 
 // USBD ISR, or task holding usbd_spin_lock() then pending the USBD IRQ
 TU_ATTR_ALWAYS_INLINE static inline void dma_request(uint32_t req) {
   _dcd.dma_pending |= req;
+}
+
+// its completion, re-arm and DMA request must no longer see the retired transfer; same context as dma_request()
+static inline void retire_xfer(uint8_t epnum, uint8_t dir) {
+  xfer_td_t* xfer = get_td(epnum, dir);
+  xfer->started = false;
+  xfer->xferid++;
+  _dcd.dma_pending &= ~(epnum == 0 ? DMA_REQ_EP0 : dma_req_bit(epnum, dir));
 }
 
 static void dma_start_out_isr(uint8_t epnum);
@@ -456,10 +458,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // class's next arm trips TU_ASSERT(!xfer->started) in dcd_edpt_xfer().
   xfer_td_t* xfer = get_td(epnum, dir);
   usbd_spin_lock(false);
-  retire_xfer(xfer);
+  retire_xfer(epnum, dir);
   xfer->data_received         = false;
   xfer->iso_in_transfer_ready = false;
-  _dcd.dma_pending &= ~dma_req_bit(epnum, dir);
   usbd_spin_unlock(false);
 
   xfer->mps = tu_edpt_packet_size(desc_ep);
@@ -581,8 +582,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       (void) test_reg[1];
     }
   }
-  retire_xfer(xfer);
-  _dcd.dma_pending &= ~(epnum == 0 ? DMA_REQ_EP0 : dma_req_bit(epnum, dir));
+  retire_xfer(epnum, dir);
   usbd_spin_unlock(false);
 
   __ISB();
@@ -718,9 +718,8 @@ static void handle_usbevent_isr(void) {
 static void handle_setup_isr(void) {
   // a SETUP supersedes an EP0 transfer the host abandoned, e.g. a data stage it stopped reading
   for (uint8_t dir = 0; dir < 2; dir++) {
-    retire_xfer(get_td(0, dir));
+    retire_xfer(0, dir);
   }
-  _dcd.dma_pending &= ~DMA_REQ_EP0;
   uint8_t const setup[8] = {
       NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
       NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
@@ -747,7 +746,7 @@ static void handle_setup_isr(void) {
  *  - Host -> Endpoint
  *      EPDATA (or EP0DATADONE) interrupted, check EPDATASTATUS.EPOUT[i]
  *      to start DMA. For Bulk/Interrupt, this step can occur automatically (without sw),
- *      which means data may or may not be ready (out_received flag).
+ *      which means data may or may not be ready (data_received flag).
  *  - Endpoint -> RAM
  *      ENDEPOUT[i] interrupted, transaction complete, sw prepare next transaction
  *
@@ -905,7 +904,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & EDPT_END_ALL_MASK) {
     // DMA complete move data from SRAM <-> Endpoint
-    // Must before endpoint transfer handling
+    // Must before dma_dispatch_isr() starts the next request
     dma_release();
   }
 
