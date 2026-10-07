@@ -76,9 +76,9 @@ sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh unshield <busport>
 - **JLinkExe always needs it**, even with `-USB`/`-SelectEmuBySN`: to find its probe
   it reads `product`, `serial` and `bNumInterfaces` of every USB device on the host
   (strace, ci.lan 2026-09-21), and those are served under each device's lock.
-- **Not needed for openocd pinned with `vid_pid`** or over `interface/jlink.cfg`
-  (`hil_flash.convoy_safe`) — those skip a foreign device before `libusb_open`
-  and read no other device's locking attributes.
+- **Not needed for openocd pinned with `vid_pid`**, over `interface/jlink.cfg`, or
+  for `STM32_Programmer_CLI` (`hil_flash.convoy_safe`) — those skip a foreign device
+  before `libusb_open` and read no other device's locking attributes.
 
 ## 3. The rungs — go straight to the one triage names
 
@@ -116,8 +116,8 @@ DWC2** — measured 2026-08-16 on stm32f407disco: `r; g` gave
 
 **Park-flash** (`--recover-board`/`--recover-fw`, what `usbtest.py` automates) is
 the fallback where the reset cannot reach the peripheral. Delivery must be
-convoy-safe: **openocd pinned with `vid_pid`** or over `interface/jlink.cfg`, or
-esptool (`-p <ttyACM>`). JLinkExe needs the shield (section 2).
+convoy-safe: **openocd pinned with `vid_pid`** or over `interface/jlink.cfg`,
+`STM32_Programmer_CLI`, or esptool (`-p <ttyACM>`). JLinkExe needs the shield (section 2).
 
 **Rung 2 — wedged PROBE: `root-cycle`.** A probe has no probe to reset it, so the
 port-side drop is the only lever left that avoids the KERNEL device lock. It

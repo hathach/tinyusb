@@ -236,6 +236,10 @@ def convoy_safe(flasher: dict) -> bool:
       descriptor and the loop `continue`s BEFORE libusb_open, so a foreign node is never
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
+    * stlink (STM32_Programmer_CLI v2.23) -- its libSTLinkUSBDriver.so lists devices through
+      libusb's lock-free sysfs walk (descriptors, busnum, devnum, speed, uevent) and opens
+      only ST-Link (0483) nodes. strace on ci.lan 2026-10-07; with a testusb D-state on the
+      wedged DUT's node, `--rst --go` returned 0 in 1.7 s and the holder reaped.
     * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
     * openocd over interface/stlink.cfg or interface/ti-icdi.cfg -- discovery is VID/PID
       filtered by the cfg's own `adapter usb vid_pid` (below).
@@ -270,7 +274,7 @@ def convoy_safe(flasher: dict) -> bool:
     every path openocd can take.
     """
     name = (flasher.get('name') or '').lower()
-    if name == 'esptool':
+    if name in ('esptool', 'stlink'):
         return True
     if name == 'pyocd':
         return pyocd_vid_pid(flasher) is not None
