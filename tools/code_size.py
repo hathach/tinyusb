@@ -875,13 +875,14 @@ def _filter_failure(engine):
 
 def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols=False, labels=SIDE_LABELS,
                   files_label='TinyUSB'):
-    """Pair two sides and render them. Returns (md, failures, ok, data).
+    """Pair two sides and render them. Returns (md, failures, ok, data, changed).
 
     `failures` comes back with a filter failure for `scope` added when no
     compared pair matched a file (wrong filters, or an engine output change
     broke its parsing); pass `scope=None` when each scope was already checked.
     `ok` is False on any failure or when nothing was compared. `data` is the
-    report's raw paired sizes, for JSON, symbols included only when `symbols` is set.
+    report's raw paired sizes, for JSON, symbols included only when `symbols` is set;
+    `changed` the pairs whose sizes changed, {elf id: (base, current)}.
     `files_label` is render_pairs()'.
     """
     pairs, base_only, cur_only = pair_elfs(base, cur)
@@ -901,7 +902,8 @@ def compare_sides(base, cur, engine, failures=(), boards=(), scope=None, symbols
         'failures': [{**_elf_record(i), 'side': side, 'stage': stage, 'message': message}
                      for i, side, stage, message in failures],
     }
-    return md, failures, bool(pairs) and not failures, data
+    changed = {i: (b, c) for i, (b, c) in pairs.items() if _pair_changed(b, c, symbols)}
+    return md, failures, bool(pairs) and not failures, data, changed
 
 
 def tinyusb_src_filter(checkout_dir):
@@ -1230,11 +1232,17 @@ def generate_sizes(build_dir, filters, example=None, engine='membrowse'):
     return sizes, errors
 
 
-def diff_summary(data, symbols, files_label='TinyUSB'):
-    """Console lines of one diff from its JSON-shaped `data`: coverage, the single
-    pair's filtered Δ, unmatched elfs and failures."""
+def size_tree(build_dir, board, example, filters, engine):
+    """A built tree's scope sized: ({(board, elf): sizes}, [((board, elf), stage, message)]),
+    generate_sizes() keyed by board."""
+    sizes, errors = generate_sizes(build_dir, filters, example, engine)
+    return {(board, rel): v for rel, v in sizes.items()}, [((board, rel), 'report', msg) for rel, msg in errors]
+
+
+def diff_summary(data, changed, files_label='TinyUSB'):
+    """Console lines of one diff from its JSON-shaped `data` and its `changed` pair count:
+    coverage, the single pair's filtered Δ, unmatched elfs and failures."""
     pairs = {(p['board'], p['elf']): (p['base'], p['current']) for p in data['pairs']}
-    changed = sum(_pair_changed(b, c, symbols) for b, c in pairs.values())
     line = f'{len(pairs)} pair{"" if len(pairs) == 1 else "s"}, {changed} changed'
     if len(pairs) == 1:
         (b, c), = pairs.values()
@@ -1342,9 +1350,7 @@ def run_report(args):
                 failures.append(((board, None), 'build', _build_failed(example, error)))
             else:
                 phase = Phase(f'size{scope}')
-                rel_sizes, errors = generate_sizes(build, filters, example, args.engine)
-                sizes = {(board, rel): v for rel, v in rel_sizes.items()}
-                failures += [((board, rel), 'report', msg) for rel, msg in errors]
+                sizes, failures = size_tree(build, board, example, filters, args.engine)
                 # per scope, as diff: an example need not link TinyUSB (board_test)
                 sized = [s for s in sizes.values() if s is not None]
                 if sized and not any(s['files'] for s in sized):
@@ -1366,6 +1372,215 @@ def run_report(args):
             print_result(report_summary(sizes, failures, ok, files_label), f'{example}: ' if scope else '',
                          tables)
             write_report(report_path(board, example, 'report'), md, data)
+    return 1 if failed else 0
+
+
+def run_diff(args, requested_sha, unsupported):
+    """`diff`: size the working tree against `requested_sha`, its CI snapshots or a local
+    build, one report per board and example, plus one over every board with --combined.
+    `unsupported` names the options that need a local base."""
+    worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
+    files_label = 'filtered' if args.filter else 'TinyUSB'
+
+    # Per-side filters: when no override is given, each build uses its own
+    # absolute <checkout>/src/ path so we only match TinyUSB stack code from that
+    # checkout (and never vendored-dep `src/` like pico-sdk/src/...).
+    if args.filter:
+        base_filters = cur_filters = list(args.filter)
+    else:
+        base_filters = [tinyusb_src_filter(worktree_dir)]
+        cur_filters = [tinyusb_src_filter(TINYUSB_ROOT)]
+
+    examples = args.example or [None]
+    combined_dir = os.path.join(CODE_SIZE_DIR, '_combined')
+    if args.combined:
+        shutil.rmtree(combined_dir, ignore_errors=True)
+    drop_stale_reports(args.board, examples, 'diff')
+    try:
+        base_source, reason, baseline, snapshots = resolve_base(args.base_source, unsupported, args.baseline_repo,
+                                                                requested_sha)
+    except BaselineUnavailable as e:
+        print(f'Error: CI base unavailable: {e} (--base-source local builds it)')
+        return 1
+    provenance = {'requested': args.base_source or 'default', 'effective': base_source, 'reason': reason,
+                  'requested_sha': requested_sha, 'base_sha': baseline['sha'] if baseline else requested_sha,
+                  'baseline': baseline}
+    if baseline:
+        subject = _commit_subject(baseline['sha'])
+        base_line = (f'Base: CI snapshots of {_clean(baseline["sha"][:10])}' + (f' "{subject}"' if subject else '')
+                     + (f', {baseline["note"]}' if baseline.get('note') else '')
+                     + f' {_clean(baseline.get("url"), 200)}')
+    else:
+        base_line = f'Base: local build of {requested_sha[:10]}' + (f' (CI base unavailable: {reason})' if reason else '')
+
+    if os.path.isdir(worktree_dir):
+        # twice: a killed `worktree add` leaves it locked `initializing`
+        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir])
+    failed = False
+    try:
+        if base_source == 'local':
+            # --detach: check out the commit at a detached HEAD instead of trying to claim
+            # the branch, which may be checked out elsewhere (main repo, another worktree)
+            ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'add', '--detach', worktree_dir, requested_sha])
+            if ret.returncode != 0:
+                print(f'Error creating worktree: {ret.stderr}')
+                sys.exit(1)
+            symlink_deps(TINYUSB_ROOT, worktree_dir)
+        else:
+            base_shards, base_failures = baseline_shards(snapshots, baseline, args.board)
+            # a failure of the downloaded run itself, not of one board, belongs in every report
+            run_failures = [f for f in base_failures if f[0][0] not in args.board]
+            membrowse_version = _membrowse_version()
+        base_sha = provenance['base_sha']
+        current_rev = short_hash(TINYUSB_ROOT)
+        base_label = short_hash(worktree_dir) if base_source == 'local' else base_sha[:10]
+        labels = (base_label or SIDE_LABELS[0], current_rev or SIDE_LABELS[1])
+        print(f'diff {args.base_branch} ({labels[0]}) vs working tree ({labels[1]}) · {args.engine}')
+        if base_source == 'ci' or reason:
+            print(f'  {base_line}')
+        focused = _focused(args.board, examples)
+
+        def report_data(data):
+            """The JSON report for --json, None without it."""
+            if not args.json:
+                return None
+            return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha, 'current_rev': current_rev,
+                    'base_source': provenance,
+                    'filters': {'base': base_filters if base_source == 'local' else None, 'current': cur_filters}}
+
+        def preface(warnings):
+            """The report's base provenance and metadata warnings, above its tables."""
+            return '\n'.join([base_line] + [f'- {w}' for w in warnings]) + '\n\n'
+
+        def write_scope(board, example, sides, failures, warnings, symbols, phase=None):
+            """Compare one scope's sides, print its result and write its report: (ok, failures)."""
+            scope = _scope_label(examples, example)
+            md, failures, ok, data, changed = compare_sides(
+                sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
+                symbols=symbols, labels=labels, files_label=files_label)
+            md = preface(warnings) + md
+            data['warnings'] = warnings
+            if phase:
+                phase.done(failed=not ok)
+            tables = _labelled({i: _pair_tables(b, c, symbols, args.engine, labels) for i, (b, c) in changed.items()},
+                               len(data['pairs'])) if focused else ()
+            print_result(diff_summary(data, len(changed), files_label), f'{example}: ' if scope else '', tables)
+            write_report(report_path(board, example), md, report_data(data))
+            return ok, failures
+
+        # --combined: every board's elf sizes and failures, paired at the end
+        combined_sides = {'base': {}, 'current': {}}
+        combined_failures = []
+        combined_warnings = []
+        combined_symbols = args.symbols
+        # side: (checkout, filters, build phase label)
+        trees = {'base': (worktree_dir, base_filters, f'build {args.base_branch}'),
+                 'current': (TINYUSB_ROOT, cur_filters, 'build current')}
+        local_sides = ['base', 'current'] if base_source == 'local' else ['current']
+
+        for n, board in enumerate(args.board, 1):
+            print(f'[{n}/{len(args.board)}] {board}{_single_example(examples)}')
+            board_dir = os.path.join(CODE_SIZE_DIR, board)
+            build_dirs = {'base': os.path.join(board_dir, 'base'), 'current': os.path.join(board_dir, 'build')}
+            for build_dir in build_dirs.values():
+                shutil.rmtree(build_dir, ignore_errors=True)
+
+            build_failure = None
+            for example in examples:
+                for side in local_sides:
+                    src, _filters, label = trees[side]
+                    if error := build_board(src, build_dirs[side], board, example,
+                                            label + _scope_label(examples, example)):
+                        build_failure = ((board, None), side, 'build', _build_failed(example, error))
+                        break
+                if build_failure:
+                    break
+            if build_failure:
+                failed = True
+                # still write each scope's report, with the build failure in it
+                combined_failures.append(build_failure)
+                for example in examples:
+                    write_scope(board, example, {'base': {}, 'current': {}}, [build_failure], [], args.symbols)
+                continue
+
+            warnings, symbols, shard = [], args.symbols, base_shards.get(board) if base_source == 'ci' else None
+            if shard:
+                warnings = metadata_warnings(board, shard, _cmake_compiler(build_dirs['current']), membrowse_version)
+                if symbols and not all('symbols' in s for s in shard['elfs'].values()):
+                    symbols = False
+                    warnings.append(f'{board}: symbols omitted: the CI snapshot has none')
+            combined_symbols = combined_symbols and symbols
+            combined_warnings += warnings
+            for w in warnings:
+                print(f'  WARNING {w}')
+
+            for example in examples:
+                phase = Phase(f'size and compare{_scope_label(examples, example)}')
+                sides, failures = {'base': {}, 'current': {}}, []
+                for side in local_sides:
+                    sides[side], errors = size_tree(build_dirs[side], board, example, trees[side][1], args.engine)
+                    failures += [(i, side, stage, msg) for i, stage, msg in errors]
+                if base_source == 'ci':
+                    failures += run_failures + [f for f in base_failures if f[0][0] == board]
+                    cur_elfs = {elf: s for (_b, elf), s in sides['current'].items()}
+                    if shard:
+                        sides['base'], scoped, sides['current'], _out = _pair_base_shard(
+                            board, shard, cur_elfs, [example] if example else None)
+                        failures += scoped
+                    else:  # no usable baseline: nothing of this board is new, none compared
+                        sides['current'] = {}
+
+                ok, failures = write_scope(board, example, sides, failures, warnings, symbols, phase)
+                failed |= not ok
+                for side, sizes in sides.items():
+                    combined_sides[side].update(sizes)
+                combined_failures += failures
+
+                if args.bloaty and example:
+                    elf_name = os.path.basename(example)
+                    base_elf = os.path.join(build_dirs['base'], example, f'{elf_name}.elf')
+                    cur_elf = os.path.join(build_dirs['current'], example, f'{elf_name}.elf')
+                    if os.path.exists(base_elf) and os.path.exists(cur_elf):
+                        # Bloaty expects one regex; OR-join all filters (current side
+                        # for the new ELF, base side for the base ELF).
+                        bloaty_regex = '(' + '|'.join(
+                            re.escape(f) for f in (cur_filters + base_filters)
+                        ) + ')'
+                        bloaty_common = ['bloaty', '--domain=vm', f'--source-filter={bloaty_regex}']
+                        for title, options in (('sections', ['-d', 'compileunits,sections']),
+                                               ('symbols', ['-d', 'compileunits,symbols', '-s', 'vm'])):
+                            print(f'--- bloaty {title} ---')
+                            ret = run(bloaty_common + options + [cur_elf, '--', base_elf])
+                            if ret.returncode == 0:
+                                print(ret.stdout)
+                            else:
+                                print(f'  bloaty FAILED (exit {ret.returncode})')
+                                print('\n'.join('    ' + line for line in output_excerpt(ret)))
+                                failed = True
+                    else:
+                        print('  bloaty: ELF not found')
+
+        if args.combined:
+            os.makedirs(combined_dir, exist_ok=True)
+            print(f'combined ({len(args.board)} boards)')
+            # every scope was filter-checked above, and its failures carried over
+            # a board's or the run's baseline failure is in each of its scopes' failures
+            md, _failures, ok, data, changed = compare_sides(
+                combined_sides['base'], combined_sides['current'], args.engine, list(dict.fromkeys(combined_failures)),
+                args.board, symbols=combined_symbols, labels=labels, files_label=files_label)
+            md = preface(combined_warnings) + md
+            data['warnings'] = combined_warnings
+            failed |= not ok
+            print_result(diff_summary(data, len(changed), files_label)
+                         + ([f'  {len(combined_warnings)} metadata warnings, see the report'] if combined_warnings else []))
+            write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
+    finally:
+        # an add stopped by a signal leaves it too, locked `initializing`
+        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir]) \
+            if os.path.isdir(worktree_dir) else None
+        if ret and ret.returncode != 0:
+            print(f'Error removing worktree {worktree_dir}: {ret.stderr.strip()}')
+            failed = True
     return 1 if failed else 0
 
 
@@ -1761,7 +1976,7 @@ def compare_runs(base, cur, baseline=None, symbols=False):
                     + (f' - {_clean(baseline["note"])}' if baseline.get('note') else ''))
     head += [f'- {n}' for n in notes]
     boards = sorted(cur_shards)
-    full, _fails, _ok, data = compare_sides(sides['base'], sides['current'], 'membrowse', failures, boards,
+    full, _fails, _ok, data, _changed = compare_sides(sides['base'], sides['current'], 'membrowse', failures, boards,
                                             symbols=symbols, labels=labels)
     pairs, base_only, cur_only = pair_elfs(sides['base'], sides['current'])
     body, footnote = render_comment(pairs, 'membrowse', base_only, cur_only, failures, symbols)
@@ -2059,215 +2274,10 @@ def main():
     if args.base_source == 'ci' and unsupported:
         parser.error(f'--base-source ci cannot be used with {", ".join(unsupported)}')
 
-    worktree_dir = os.path.join(CODE_SIZE_DIR, '_worktree')
-    files_label = 'filtered' if args.filter else 'TinyUSB'
-
-    # Per-side filters: when no override is given, each build uses its own
-    # absolute <checkout>/src/ path so we only match TinyUSB stack code from that
-    # checkout (and never vendored-dep `src/` like pico-sdk/src/...).
-    if args.filter:
-        base_filters = cur_filters = list(args.filter)
-    else:
-        base_filters = [tinyusb_src_filter(worktree_dir)]
-        cur_filters = [tinyusb_src_filter(TINYUSB_ROOT)]
-
-    examples = args.example or [None]
-    combined_dir = os.path.join(CODE_SIZE_DIR, '_combined')
-    if args.combined:
-        shutil.rmtree(combined_dir, ignore_errors=True)
-    drop_stale_reports(args.board, examples, 'diff')
     ret = run(['git', '-C', TINYUSB_ROOT, 'rev-parse', '--verify', '--quiet', f'{args.base_branch}^{{commit}}'])
     if ret.returncode != 0:
         parser.error(f'--base-branch {args.base_branch} names no commit')
-    requested_sha = ret.stdout.strip()
-    try:
-        base_source, reason, baseline, snapshots = resolve_base(args.base_source, unsupported, args.baseline_repo,
-                                                                requested_sha)
-    except BaselineUnavailable as e:
-        print(f'Error: CI base unavailable: {e} (--base-source local builds it)')
-        return 1
-    provenance = {'requested': args.base_source or 'default', 'effective': base_source, 'reason': reason,
-                  'requested_sha': requested_sha, 'base_sha': baseline['sha'] if baseline else requested_sha,
-                  'baseline': baseline}
-    if baseline:
-        subject = _commit_subject(baseline['sha'])
-        base_line = (f'Base: CI snapshots of {_clean(baseline["sha"][:10])}' + (f' "{subject}"' if subject else '')
-                     + (f', {baseline["note"]}' if baseline.get('note') else '')
-                     + f' {_clean(baseline.get("url"), 200)}')
-    else:
-        base_line = f'Base: local build of {requested_sha[:10]}' + (f' (CI base unavailable: {reason})' if reason else '')
-
-    if os.path.isdir(worktree_dir):
-        # twice: a killed `worktree add` leaves it locked `initializing`
-        run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir])
-    failed = False
-    try:
-        if base_source == 'local':
-            # --detach: check out the commit at a detached HEAD instead of trying to claim
-            # the branch, which may be checked out elsewhere (main repo, another worktree)
-            ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'add', '--detach', worktree_dir, requested_sha])
-            if ret.returncode != 0:
-                print(f'Error creating worktree: {ret.stderr}')
-                sys.exit(1)
-            symlink_deps(TINYUSB_ROOT, worktree_dir)
-        else:
-            base_shards, base_failures = baseline_shards(snapshots, baseline, args.board)
-            # a failure of the downloaded run itself, not of one board, belongs in every report
-            run_failures = [f for f in base_failures if f[0][0] not in args.board]
-            membrowse_version = _membrowse_version()
-        base_sha = provenance['base_sha']
-        current_rev = short_hash(TINYUSB_ROOT)
-        base_label = short_hash(worktree_dir) if base_source == 'local' else base_sha[:10]
-        labels = (base_label or SIDE_LABELS[0], current_rev or SIDE_LABELS[1])
-        print(f'diff {args.base_branch} ({labels[0]}) vs working tree ({labels[1]}) · {args.engine}')
-        if base_source == 'ci' or reason:
-            print(f'  {base_line}')
-        focused = _focused(args.board, examples)
-
-        def report_data(data):
-            """The JSON report for --json, None without it."""
-            if not args.json:
-                return None
-            return {**data, 'base_ref': args.base_branch, 'base_sha': base_sha, 'current_rev': current_rev,
-                    'base_source': provenance,
-                    'filters': {'base': base_filters if base_source == 'local' else None, 'current': cur_filters}}
-
-        def preface(warnings):
-            """The report's base provenance and metadata warnings, above its tables."""
-            return '\n'.join([base_line] + [f'- {w}' for w in warnings]) + '\n\n'
-
-        # --combined: every board's elf sizes and failures, paired at the end
-        combined_sides = {'base': {}, 'current': {}}
-        combined_failures = []
-        combined_warnings = []
-        combined_symbols = args.symbols
-
-        for n, board in enumerate(args.board, 1):
-            print(f'[{n}/{len(args.board)}] {board}{_single_example(examples)}')
-            board_dir = os.path.join(CODE_SIZE_DIR, board)
-            base_build = os.path.join(board_dir, 'base')
-            cur_build = os.path.join(board_dir, 'build')
-            shutil.rmtree(base_build, ignore_errors=True)
-            shutil.rmtree(cur_build, ignore_errors=True)
-
-            build_failure = None
-            for example in examples:
-                scope = _scope_label(examples, example)
-                for side, src, build, label in (('base', worktree_dir, base_build, f'build {args.base_branch}{scope}'),
-                                                ('current', TINYUSB_ROOT, cur_build, f'build current{scope}')):
-                    if side == 'base' and base_source == 'ci':
-                        continue
-                    error = build_board(src, build, board, example, label)
-                    if error:
-                        build_failure = ((board, None), side, 'build', _build_failed(example, error))
-                        break
-                if build_failure:
-                    break
-            if build_failure:
-                failed = True
-                # still write each scope's report, with the build failure in it
-                combined_failures.append(build_failure)
-
-            warnings, symbols, shard = [], args.symbols, base_shards.get(board) if base_source == 'ci' else None
-            if shard and not build_failure:
-                warnings = metadata_warnings(board, shard, _cmake_compiler(cur_build), membrowse_version)
-                if symbols and not all('symbols' in s for s in shard['elfs'].values()):
-                    symbols = False
-                    warnings.append(f'{board}: symbols omitted: the CI snapshot has none')
-            combined_symbols = combined_symbols and symbols
-            combined_warnings += warnings
-            for w in warnings:
-                print(f'  WARNING {w}')
-
-            for example in examples:
-                scope = _scope_label(examples, example)
-                sides = {'base': {}, 'current': {}}
-                failures = [build_failure] if build_failure else []
-                if not build_failure:
-                    phase = Phase(f'size and compare{scope}')
-                    for side, build, filters in (('base', base_build, base_filters),
-                                                 ('current', cur_build, cur_filters)):
-                        if side == 'base' and base_source == 'ci':
-                            continue
-                        sizes, errors = generate_sizes(build, filters, example, args.engine)
-                        sides[side] = {(board, rel): v for rel, v in sizes.items()}
-                        failures += [((board, rel), side, 'report', msg) for rel, msg in errors]
-                    if base_source == 'ci':
-                        failures += run_failures + [f for f in base_failures if f[0][0] == board]
-                        cur_elfs = {elf: s for (_b, elf), s in sides['current'].items()}
-                        if shard:
-                            sides['base'], scoped, sides['current'], _out = _pair_base_shard(
-                                board, shard, cur_elfs, [example] if example else None)
-                            failures += scoped
-                        else:  # no usable baseline: nothing of this board is new, none compared
-                            sides['current'] = {}
-
-                md, failures, ok, data = compare_sides(
-                    sides['base'], sides['current'], args.engine, failures, [board], scope=(board, None),
-                    symbols=symbols, labels=labels, files_label=files_label)
-                md = preface(warnings) + md
-                data['warnings'] = warnings
-                if not build_failure:
-                    phase.done(failed=not ok)
-                failed |= not ok
-                if not build_failure:  # a build failure is recorded once, above
-                    for side, sizes in sides.items():
-                        combined_sides[side].update(sizes)
-                    combined_failures += failures
-                tables = _labelled({(p['board'], p['elf']): _pair_tables(p['base'], p['current'], symbols,
-                                                                         args.engine, labels)
-                                    for p in data['pairs'] if _pair_changed(p['base'], p['current'], symbols)},
-                                   len(data['pairs'])) if focused else ()
-                print_result(diff_summary(data, symbols, files_label), f'{example}: ' if scope else '',
-                             tables)
-                write_report(report_path(board, example), md, report_data(data))
-
-                if args.bloaty and example and not build_failure:
-                    elf_name = os.path.basename(example)
-                    base_elf = os.path.join(base_build, example, f'{elf_name}.elf')
-                    cur_elf = os.path.join(cur_build, example, f'{elf_name}.elf')
-                    if os.path.exists(base_elf) and os.path.exists(cur_elf):
-                        # Bloaty expects one regex; OR-join all filters (current side
-                        # for the new ELF, base side for the base ELF).
-                        bloaty_regex = '(' + '|'.join(
-                            re.escape(f) for f in (cur_filters + base_filters)
-                        ) + ')'
-                        bloaty_common = ['bloaty', '--domain=vm', f'--source-filter={bloaty_regex}']
-                        for title, options in (('sections', ['-d', 'compileunits,sections']),
-                                               ('symbols', ['-d', 'compileunits,symbols', '-s', 'vm'])):
-                            print(f'--- bloaty {title} ---')
-                            ret = run(bloaty_common + options + [cur_elf, '--', base_elf])
-                            if ret.returncode == 0:
-                                print(ret.stdout)
-                            else:
-                                print(f'  bloaty FAILED (exit {ret.returncode})')
-                                print('\n'.join('    ' + line for line in output_excerpt(ret)))
-                                failed = True
-                    else:
-                        print('  bloaty: ELF not found')
-
-        if args.combined:
-            os.makedirs(combined_dir, exist_ok=True)
-            print(f'combined ({len(args.board)} boards)')
-            # every scope was filter-checked above, and its failures carried over
-            # a board's or the run's baseline failure is in each of its scopes' failures
-            md, _failures, ok, data = compare_sides(
-                combined_sides['base'], combined_sides['current'], args.engine, list(dict.fromkeys(combined_failures)),
-                args.board, symbols=combined_symbols, labels=labels, files_label=files_label)
-            md = preface(combined_warnings) + md
-            data['warnings'] = combined_warnings
-            failed |= not ok
-            print_result(diff_summary(data, combined_symbols, files_label)
-                         + ([f'  {len(combined_warnings)} metadata warnings, see the report'] if combined_warnings else []))
-            write_report(os.path.join(combined_dir, 'diff'), md, report_data(data))
-    finally:
-        # an add stopped by a signal leaves it too, locked `initializing`
-        ret = run(['git', '-C', TINYUSB_ROOT, 'worktree', 'remove', '--force', '--force', worktree_dir]) \
-            if os.path.isdir(worktree_dir) else None
-        if ret and ret.returncode != 0:
-            print(f'Error removing worktree {worktree_dir}: {ret.stderr.strip()}')
-            failed = True
-    return 1 if failed else 0
+    return run_diff(args, ret.stdout.strip(), unsupported)
 
 
 if __name__ == '__main__':
