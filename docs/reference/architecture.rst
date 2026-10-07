@@ -20,7 +20,7 @@ Thread Safety
 TinyUSB achieves thread safety through a deferred interrupt model:
 
 - **ISR deferral**: USB interrupts are captured and deferred to task context
-- **Single-threaded processing**: All USB protocol handling occurs in task context
+- **Single-threaded processing**: Most USB protocol handling occurs in task context; a class driver's ``sof()`` and ``xfer_isr()`` usually run in USB ISR context, and a transfer completion reaches ``xfer_cb()`` only when ``xfer_isr()`` is absent or returns ``false``
 - **Queue-based design**: Events are queued from ISR and processed in ``tud_task()``
 - **RTOS integration**: Proper semaphore/mutex usage for shared resources
 
