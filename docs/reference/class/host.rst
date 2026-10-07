@@ -63,6 +63,13 @@ Common configuration options
      - ``256`` bytes
      - Temporary descriptor buffer used during enumeration.  Increase it for
        long configuration or HID report descriptors; this consumes static RAM.
+   * - ``CFG_TUH_CONTROL_TIMEOUT_MS``
+     - ``5000``
+     - Timeout in milliseconds for an in-flight control transfer.
+   * - ``CFG_TUH_ENUM_ATTEMPT_MAX``
+     - ``2``
+     - Maximum enumeration attempts per attachment after core enumeration
+       transfers fail or time out; ``1`` disables retries.
    * - ``CFG_TUH_TASK_EVENTS_PER_RUN``
      - ``16``
      - Maximum events handled by one ``tuh_task_ext()`` call.  ``0`` is
@@ -113,10 +120,13 @@ Core API and callbacks
        transfers to fetch descriptors.
    * - ``tuh_control_xfer()``
      - Submits a control transfer described by ``tuh_xfer_t``.  A non-null
-       completion callback makes it asynchronous; a null callback blocks.
+       completion callback makes it asynchronous; a null callback blocks.  An
+       in-flight transfer that times out completes with
+       ``XFER_RESULT_TIMEOUT``; ``tuh_task()`` must keep running.
    * - ``tuh_edpt_xfer()``
      - Submits a bulk or interrupt transfer on an endpoint opened with
-       ``tuh_edpt_open()``.  The completion callback is delivered only when
+       ``tuh_edpt_open()``.  Rejects ``buflen`` above 65535 bytes.  The
+       completion callback is delivered only when
        ``CFG_TUH_API_EDPT_XFER`` is ``1`` (default ``0``).  Application class
        drivers normally use their class-specific wrappers instead.
 

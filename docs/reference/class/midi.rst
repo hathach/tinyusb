@@ -147,6 +147,11 @@ for UMP, as required by the MIDI 2.0 class specification.
      - ``0``
      - Optional string-descriptor index (``iBlockItem``) for the default Group
        Terminal Block; zero means no string.
+   * - ``CFG_TUD_MIDI2_GTB_PROTOCOL``
+     - ``MIDI2_GTB_PROTOCOL_MIDI2``
+     - Default ``bMIDIProtocol`` for the built-in Group Terminal Block and
+       ``TUD_MIDI2_GTB_BLOCK`` entries; ``TUD_MIDI2_GTB_BLOCK_PROTOCOL``
+       entries set their own.
 
 On alternate setting 1, read and write arrays of 32-bit words with
 ``tud_midi2_ump_read()`` and ``tud_midi2_ump_write()``.  On alternate setting
@@ -154,6 +159,9 @@ On alternate setting 1, read and write arrays of 32-bit words with
 USB-MIDI 1.0 event packets.  Query ``tud_midi2_alt_setting()``,
 ``tud_midi2_negotiated()`` and ``tud_midi2_protocol()`` when choosing the
 format to send; ``tud_midi2_mounted()`` reports whether the endpoints are open.
+At interface open and on selecting alternate setting 1, the protocol is
+initialized from the first Group Terminal Block: MIDI 1.0 for its MIDI1 values,
+otherwise MIDI 2.0.  Stream negotiation may change it later.
 ``tud_midi2_set_itf_cb()`` announces the active alternate setting so the
 application can switch its parser and producer.
 

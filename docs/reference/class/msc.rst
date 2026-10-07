@@ -108,7 +108,8 @@ callback's transfer result and command status.
        enumeration (LUN 0 only).
    * - ``tuh_msc_read10()`` / ``tuh_msc_write10()``
      - Queues an integral number of logical blocks and completes through the
-       supplied callback.
+       supplied callback.  Returns ``false`` without queuing if the device is
+       not mounted or the byte count exceeds 32 bits.
    * - ``tuh_msc_inquiry()`` / ``tuh_msc_request_sense()``
      - Queues standard SCSI identification or detailed-error requests into an
        application-owned response buffer.

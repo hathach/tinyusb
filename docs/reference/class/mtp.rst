@@ -40,8 +40,8 @@ formats that the application actually implements:
      - What it controls
    * - ``CFG_TUD_MTP_EP_BUFSIZE``
      - Required
-     - Shared bulk data buffer and maximum data chunk.  Larger values improve
-       throughput but consume static RAM.
+     - Shared bulk data buffer and maximum data chunk, at most 65535 bytes.
+       Larger values improve throughput but consume static RAM.
    * - ``CFG_TUD_MTP_EP_CONTROL_BUFSIZE``
      - Required
      - Staging buffer for MTP class control requests and responses.
@@ -81,19 +81,24 @@ Application flow
      - Delivers the operation container and starts the application transaction
        state machine.  A negative return stalls the bulk endpoints.
    * - ``tud_mtp_data_send()`` / ``tud_mtp_data_receive()``
-     - Starts or continues the operation's data phase.  ``false`` means the
-       transfer could not be queued in the current phase.
+     - Starts or continues the operation's data phase.  Returns ``false``
+       without changing phase if the transfer cannot be queued.
    * - ``tud_mtp_response_send()``
      - Queues the final response container with the current transaction ID.
+       Returns ``false`` without changing phase if the response cannot be
+       queued.
    * - ``tud_mtp_event_send()``
      - Copies and queues one asynchronous event.  Send the next event only
        after the previous one has gone out: a call while the event endpoint is
        busy overwrites the event still in flight before returning ``false``.
    * - ``tud_mtp_data_xfer_cb()``
-     - Supplies or consumes the next chunk of a multi-packet data phase.
-   * - ``tud_mtp_data_complete_cb()`` /
-       ``tud_mtp_response_complete_cb()``
-     - Advances application state after the entire data or response phase.
+     - Supplies or consumes the next chunk of a multi-packet data phase.  A
+       negative return stalls both bulk endpoints.
+   * - ``tud_mtp_data_complete_cb()``
+     - Advances application state after the entire data phase.  A negative
+       return stalls both bulk endpoints.
+   * - ``tud_mtp_response_complete_cb()``
+     - Advances application state after the response phase.
    * - ``tud_mtp_request_*_cb()``
      - Handles cancel, reset, status, extended-event, and vendor control
        requests.  Return ``false`` or a negative length where documented to
@@ -102,18 +107,24 @@ Application flow
 ``tud_mtp_command_received_cb()`` receives an operation container.  The
 application performs any data phase with ``tud_mtp_data_send()`` or
 ``tud_mtp_data_receive()``, then completes the transaction with
-``tud_mtp_response_send()``.  Use ``tud_mtp_event_send()`` for asynchronous
-events such as ObjectAdded.
+``tud_mtp_response_send()``.  A data callback may send the response before
+the data-complete notification; a pending terminating OUT ZLP is absorbed.
+Responding before all OUT payload arrives instead stalls both bulk endpoints
+and discards the queued response.  Use ``tud_mtp_event_send()`` for
+asynchronous events such as ObjectAdded.
 
 The ``tud_mtp_data_xfer_cb()``, ``tud_mtp_data_complete_cb()``, and
 ``tud_mtp_response_complete_cb()`` callbacks advance multi-stage transfers.
-Control callbacks handle cancel, reset, status, and vendor requests.  Validate
+The driver handles transport recovery for Cancel and Device Reset; their
+callbacks update application state.  While the bulk endpoints are halted after
+an error, the driver answers Get Device Status without calling the
+application.  Validate
 container lengths, object handles, property codes, and storage bounds before
 using them.
 
 The :doc:`../../examples/device/mtp` example is the recommended template.  It
-implements a small in-memory object store, core session/object operations, an
-upload, and an event.  Replace its storage functions while preserving the
+implements a small in-memory object store, core session/object operations, and an
+upload.  Replace its storage functions while preserving the
 command/data/response state machine.
 
 TinyUSB supplies the USB transport and MTP containers; it does not provide a
