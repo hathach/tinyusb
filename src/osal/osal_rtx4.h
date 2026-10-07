@@ -154,7 +154,9 @@ TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_de
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
   void* buf;
-  os_mbx_wait(qhdl->mbox, &buf, msec2wait(msec));
+  if (os_mbx_wait(qhdl->mbox, &buf, msec2wait(msec)) == OS_R_TMO) {
+    return false;
+  }
   memcpy(data, buf, qhdl->item_sz);
   _free_box(qhdl->pool, buf);
   return true;
