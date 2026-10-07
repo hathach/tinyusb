@@ -1849,7 +1849,8 @@ static void audiod_tx_trim_to_threshold(audiod_function_t *audio) {
   tu_fifo_t *ff = &audio->ep_in_ff;
   const uint16_t frame_sz = (uint16_t) (audio->n_channels_tx * audio->n_bytes_per_sample_tx);
   const uint16_t count = tu_fifo_count(ff);
-  if (frame_sz == 0 || count <= audio->ep_in_fifo_threshold) {
+  // channel/width fields are stale for a non-PCM alt, whose frames they cannot align
+  if (audio->format_type_tx != AUDIO20_FORMAT_TYPE_I || frame_sz == 0 || count <= audio->ep_in_fifo_threshold) {
     return;
   }
   if (tu_fifo_full(ff)) {
