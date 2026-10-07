@@ -1510,3 +1510,15 @@ void test_response_refused_for_bad_length_leaves_buffer(void) {
   }
   expect_still_in_command_phase(&io, tid, 100);
 }
+
+void test_event_send_while_busy_keeps_in_flight_event(void) {
+  open_device(TUSB_SPEED_FULL);
+  mtp_event_t first = { .code = MTP_EVENT_OBJECT_ADDED, .params = { 1 } };
+  mtp_event_t second = { .code = MTP_EVENT_OBJECT_REMOVED, .params = { 2 } };
+
+  TEST_ASSERT_TRUE(tud_mtp_event_send(&first));
+  const dcd_call_t* c = expect_call(DCD_XFER, EP_EVT_IN, sizeof(mtp_event_t));
+  TEST_ASSERT_FALSE(tud_mtp_event_send(&second));
+  expect_no_more_calls();
+  TEST_ASSERT_EQUAL_MEMORY(&first, c->buf, sizeof(mtp_event_t));
+}
