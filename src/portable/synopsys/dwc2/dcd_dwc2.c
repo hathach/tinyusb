@@ -311,7 +311,9 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
   dep->ctl = depctl.value;
+  usbd_spin_lock(false);
   dwc2->daintmsk |= TU_BIT(epnum + DAINT_SHIFT(dir));
+  usbd_spin_unlock(false);
 }
 
 static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
@@ -546,8 +548,10 @@ void dcd_remote_wakeup(uint8_t rhport) {
   dwc2->dctl |= DCTL_RWUSIG;
 
   // enable SOF to detect bus resume
+  usbd_spin_lock(false);
   dwc2->gintsts = GINTSTS_SOF;
   dwc2->gintmsk |= GINTMSK_SOFM;
+  usbd_spin_unlock(false);
 
   // Per specs: remote wakeup signal bit must be clear within 1-15ms
   dwc2_remote_wakeup_delay();
@@ -600,6 +604,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   (void) rhport;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
+  usbd_spin_lock(false);
   _dcd_data.sof_en = en;
 
   if (en) {
@@ -608,6 +613,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   } else {
     dwc2->gintmsk &= ~GINTMSK_SOFM;
   }
+  usbd_spin_unlock(false);
 }
 
 /*------------------------------------------------------------------*/
@@ -1255,19 +1261,25 @@ void dcd_int_handler(uint8_t rhport) {
     dwc2->gintsts = GINTSTS_ENUMDNE;
     // There may be a pending suspend event, so we clear it first
     dwc2->gintsts = GINTSTS_USBSUSP;
+    usbd_spin_lock(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
+    usbd_spin_unlock(true);
     handle_enum_done(rhport);
   }
 
   if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
+    usbd_spin_lock(true);
     dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
+    usbd_spin_unlock(true);
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if (gintsts & GINTSTS_WKUINT) {
     dwc2->gintsts = GINTSTS_WKUINT;
+    usbd_spin_lock(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
+    usbd_spin_unlock(true);
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
@@ -1279,7 +1291,9 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t otg_int = dwc2->gotgint;
 
     if (otg_int & GOTGINT_SEDET) {
+      usbd_spin_lock(true);
       dwc2->gintmsk &= ~GINTMSK_OTGINT;
+      usbd_spin_unlock(true);
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
@@ -1288,6 +1302,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(gintsts & GINTSTS_SOF && dwc2->gintmsk & GINTMSK_SOFM) {
     dwc2->gintsts = GINTSTS_SOF;
+    usbd_spin_lock(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
@@ -1295,6 +1310,7 @@ void dcd_int_handler(uint8_t rhport) {
     if (!_dcd_data.sof_en) {
       dwc2->gintmsk &= ~GINTMSK_SOFM;
     }
+    usbd_spin_unlock(true);
 
     dcd_event_sof(rhport, frame, true);
   }
@@ -1309,13 +1325,17 @@ void dcd_int_handler(uint8_t rhport) {
   // RxFIFO non-empty interrupt handling.
   if (gintsts & GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
+    usbd_spin_lock(true);
     dwc2->gintmsk &= ~GINTMSK_RXFLVLM; // disable RXFLVL interrupt while reading
+    usbd_spin_unlock(true);
 
     do {
       handle_rxflvl_irq(rhport); // read all packets
     } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
+    usbd_spin_lock(true);
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
+    usbd_spin_unlock(true);
   }
 #endif
 
