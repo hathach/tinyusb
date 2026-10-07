@@ -522,6 +522,10 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
     // 29.2.39, 29.3.7.5): stop reception, then drain what arrived while nothing was armed (parked
     // by process_pipe_brdy), at most one packet per buffer plane
     bool ok = pipe_reset(rusb, num, 0);
+    if (ok) {
+      // BRDY status is cleared before the FIFO is accessed (RA6M5 UM 29.2.20 note 2)
+      rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
+    }
     for (unsigned i = 0; ok && i < 2 && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
       if (pipe_xfer_out(rusb, num)) {
         rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num)); // drained here, no BRDY to service
@@ -530,8 +534,9 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
       }
     }
     if (!ok || (*ctr & RUSB2_PIPE_CTR_BSTS_Msk)) {
-      pipe->queued = false; // refused: usbd releases the endpoint and its buffer
-      pipe->buf    = NULL;
+      pipe->queued    = false; // refused: usbd releases the endpoint and its buffer
+      pipe->buf       = NULL;
+      pipe->remaining = 0;
       return false;
     }
     rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
