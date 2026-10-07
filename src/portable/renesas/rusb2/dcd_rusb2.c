@@ -161,6 +161,10 @@ static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
     if (!spin--) return false;
   }
   *ctr = clr;
+  if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
+    (void) *ctr; // the write has landed before the ACLRM interval starts
+    rusb2_aclrm_delay();
+  }
   *ctr = 0;
   return true;
 }
@@ -907,6 +911,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   dcd_int_disable(rhport);
   rusb->PIPESEL = (uint16_t) num;
+  // leaves the pipe NAKing until dcd_edpt_iso_activate()
   if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
     dcd_int_enable(rhport);
     return false;
@@ -918,7 +923,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
     // FIXME (as in dcd_edpt_open): BUFNMB is a fixed 0x08 for every pipe; a real allocator is needed.
     rusb->PIPEBUF = 0x7C08;
   }
-  rusb->PIPEMAXP = largest_packet_size; // the pipe NAKs until activated
+  rusb->PIPEMAXP = largest_packet_size;
   rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
   rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
   rusb->BRDYENB |= TU_BIT(num);
