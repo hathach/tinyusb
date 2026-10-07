@@ -66,9 +66,7 @@ the report descriptor exactly.
        must remain valid.
    * - ``tud_hid_get_report_cb()``
      - Fills a control GET_REPORT response and returns its byte count.  Returning
-       zero stalls the request, except when the host asks for a nonzero report
-       ID with ``wLength`` above 1: TinyUSB has already placed the ID byte, so
-       a one-byte response is sent instead.
+       zero stalls the request.
    * - ``tud_hid_set_report_cb()``
      - Receives an output or feature report from either the control endpoint or
        interrupt OUT endpoint.
