@@ -1339,6 +1339,8 @@ def _shown(path):
 def write_report(path, md, data=None):
     """Write a report to `path`.md, and `data` to `path`.json when given, printing
     their paths."""
+    # a board whose every build returned before making its dir still gets its report
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(f'{path}.md', 'w') as f:
         f.write(md)
     print(f'  report: {_shown(path)}.md')

@@ -1828,11 +1828,14 @@ class MainFailure(unittest.TestCase):
         Returns (rc, out, sized sides)."""
         sized = []
         def build(src, _build_dir, board, example, _label):
-            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            # as the real one: a skip returns before making the board's build dir
             side = 'current' if src == sd.TINYUSB_ROOT else 'base'
             if (side, example) in absent:
                 return sd.Absent(f'{example} is not in this tree')
-            return sd.Skipped(f'{board} does not build {example}') if (side, example) in skip else None
+            if (side, example) in skip:
+                return sd.Skipped(f'{board} does not build {example}')
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return None
         def generate(build_dir, _filters, example, _engine):
             sized.append((os.path.basename(build_dir), example))
             return {f'{example}/x.elf': _elf(1)}, []
@@ -3109,8 +3112,10 @@ class DiffBaseSource(unittest.TestCase):
 
         def build(src, _build_dir, board, example, _label):
             builds.append((src, board))
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
-            return sd.Skipped(f'{board} does not build {example}') if example in skip else None
+            return None
 
         def run(cmd, **_kwargs):
             cmds.append(cmd[3:5])
