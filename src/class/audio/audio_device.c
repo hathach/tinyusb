@@ -218,6 +218,8 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   uint32_t sample_rate_tx;
   uint16_t packet_sz_tx[3];
+  uint8_t ctrl_blackout_tx; // frames left before the flow control may reverse its correction
+  int8_t ctrl_last_tx;      // direction of the last correction: -1 smaller, +1 larger
   uint8_t bclock_id_tx;
   uint8_t interval_tx;
   uint8_t format_type_tx;
@@ -392,7 +394,7 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
-static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
+static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -519,7 +521,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
 
   #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   // packet_sz_tx is based on total packet size, here we want size for each support buffer.
-  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_fifo_threshold, audio->ep_in_sz);
+  n_bytes_tx = audiod_tx_packet_size(audio, tu_fifo_count(&audio->ep_in_ff));
   #else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);// Limit up to max packet size, more can not be done for ISO
   #endif
@@ -1839,42 +1841,42 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   return true;
 }
 
-static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
+static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count) {
+  const uint16_t *nominal_size = audio->packet_sz_tx;
+  const uint16_t fifo_threshold = audio->ep_in_fifo_threshold;
   // Flow control need a FIFO size of at least 4*Navg
-  if (nominal_size[1] && nominal_size[1] * 4 <= fifo_depth) {
+  if (nominal_size[1] && nominal_size[1] * 4 <= audio->ep_in_ff.depth) {
     // Use blackout to prioritize normal size packet. It only holds off a reversal: repeating the
     // last correction must stay possible, or a source more than ~0.2% off nominal overflows.
-    static int ctrl_blackout = 0;
-    static int8_t ctrl_last = 0;
     uint16_t packet_size;
     uint16_t slot_size = nominal_size[2] - nominal_size[1];
     if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < (fifo_threshold - slot_size) && (!ctrl_blackout || ctrl_last < 0)) {
+    } else if (data_count < (fifo_threshold - slot_size) && (!audio->ctrl_blackout_tx || audio->ctrl_last_tx < 0)) {
       packet_size = nominal_size[0];
-      ctrl_blackout = 10;
-      ctrl_last = -1;
-    } else if (data_count > (fifo_threshold + slot_size) && (!ctrl_blackout || ctrl_last > 0)) {
+      audio->ctrl_blackout_tx = 10;
+      audio->ctrl_last_tx = -1;
+    } else if (data_count > (fifo_threshold + slot_size) && (!audio->ctrl_blackout_tx || audio->ctrl_last_tx > 0)) {
       packet_size = nominal_size[2];
-      ctrl_last = 1;
+      audio->ctrl_last_tx = 1;
       if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
-        ctrl_blackout = 0;
+        audio->ctrl_blackout_tx = 0;
       } else {
         // nav = INT(nav), eg. 48k, 96k
-        ctrl_blackout = 10;
+        audio->ctrl_blackout_tx = 10;
       }
     } else {
       packet_size = nominal_size[1];
-      if (ctrl_blackout) {
-        ctrl_blackout--;
+      if (audio->ctrl_blackout_tx) {
+        audio->ctrl_blackout_tx--;
       }
     }
     // Normally this cap is not necessary
-    return tu_min16(packet_size, max_depth);
+    return tu_min16(packet_size, audio->ep_in_sz);
   } else {
-    return tu_min16(data_count, max_depth);
+    return tu_min16(data_count, audio->ep_in_sz);
   }
 }
 
