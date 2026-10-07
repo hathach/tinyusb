@@ -119,7 +119,7 @@ def _openocd_cmd_base(flasher):
                       f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
                       f'foreign usbfs nodes', file=sys.stderr, flush=True)
     elif not convoy_safe(flasher) and flasher.get('uid') not in _VID_PID_WARNED:
-        # (unpinned yet convoy-safe is openocd over the jlink driver: nothing to warn about)
+        # (unpinned yet convoy-safe is openocd over a CONVOY_SAFE_CFGS driver: no warning)
         # stderr, once per probe: test_example captures stdout, so a passing run would
         # swallow this and the operator would never learn discovery still opens every
         # usbfs node
@@ -159,10 +159,8 @@ def reset_openocd(board, timeout=None):
     return ret
 
 
-# A J-Link board's `flasher_recover`: the same probe driven by openocd, whose libjaylink
-# discovery opens SEGGER devices only (convoy_safe), where JLinkExe reads locking sysfs
-# attributes of every USB device and blocks on a wedged one.
-JLINK_CFG = 'interface/jlink.cfg'
+# openocd interface cfgs whose discovery filters by VID/PID before opening; see convoy_safe
+CONVOY_SAFE_CFGS = ('interface/jlink.cfg', 'interface/stlink.cfg', 'interface/ti-icdi.cfg')
 
 
 # OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
@@ -239,6 +237,8 @@ def convoy_safe(flasher: dict) -> bool:
       opened. On 2026-08-12 it was the only flasher that still reached its probe.
     * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
     * openocd over interface/jlink.cfg -- libjaylink opens SEGGER devices only (below).
+    * openocd over interface/stlink.cfg or interface/ti-icdi.cfg -- discovery is VID/PID
+      filtered by the cfg's own `adapter usb vid_pid` (below).
     * pyocd with one `vid_pid` pair -- run_pyocd.py makes pyusb drop every other device
       before pyocd's matcher opens it, and leaves only the CMSIS-DAP probe plugin.
 
@@ -290,7 +290,11 @@ def convoy_safe(flasher: dict) -> bool:
     # never opens a foreign node. Verified against openocd 0ce743125 and libjaylink 0.4.0,
     # and by strace on ci.lan (2026-09-21): only SEGGER usbfs nodes opened, and the only
     # locking sysfs attribute read is the selected probe's bConfigurationValue.
-    return JLINK_CFG in (flasher.get('args') or '')
+    # stlink_usb.c:3403 and ti_icdi_usb.c:675 discover through jtag_libusb_open with the
+    # cfg's vid_pid list, which skips every non-matching descriptor before libusb_open
+    # (libusb_helper.c:170-176); both cfgs always set that list. Verified against
+    # openocd 0ce743125.
+    return any(cfg in (flasher.get('args') or '') for cfg in CONVOY_SAFE_CFGS)
 
 
 def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:

@@ -507,6 +507,13 @@ class KillChildren(unittest.TestCase):
         self.assertTrue(self.wait_gone(grandchild))
         self.assertFalse(gone(stranger))
 
+    def test_a_spared_child_lives(self):
+        spared, plain = self.spawn('exec sleep 30'), self.spawn('exec sleep 30')
+        with mock.patch.object(run_case, 'PROC', OnlyThese(spared.pid, plain.pid)):
+            run_case.kill_children(spare={spared.pid})
+        self.assertEqual(plain.wait(timeout=5), -9)
+        self.assertIsNone(spared.poll())
+
     def test_a_permission_error_is_swallowed(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / '31').mkdir()

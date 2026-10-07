@@ -203,9 +203,9 @@ def read_sysfs(path: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
 
     "Only the wedged board's own worker pays" is FALSE, which is why the bound is not
     opt-in: usb_scan reads `serial` on every device matching the VID to find the one it
-    wants, so resolving MY board touches every peer's locked attribute. hil_lock's
-    controller_of does that from controller_permit, on essentially every board -- one
-    wedged DUT would stall every worker, not one. hil_pool_check has no guard at all.
+    wants, so resolving MY board touches every peer's locked attribute. hil_test's
+    usbtest enumeration wait does that before every battery -- one wedged DUT would stall
+    every worker, not one. hil_pool_check has no guard at all.
 
     A give-up reads as None, the same as unreadable: there is no third value and no
     per-attribute blindness. The memo is keyed by inode so the cost stays on the device

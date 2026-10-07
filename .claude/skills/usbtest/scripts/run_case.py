@@ -11,11 +11,10 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
 roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
-is held or unusable, or a testusb, usbtest.py, hil_test.py or other run_case.py process is alive
-on this host, checked before and again after taking the lock. That check is host-wide and does
-not see a hil_test.py started after it, nor join hil_test.py's per-controller battery permits:
---allow-concurrent skips it only once you have established that no battery shares this board's
-host controller.
+is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
+process is alive on this host, checked before and again after taking the lock. That check is
+host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
+another battery's load on this board's host controller does not matter for what you are measuring.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -49,7 +48,7 @@ from helper import hil_lock, hil_report, hil_util  # noqa: E402
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
-PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py')
+PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
 HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
 # host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
@@ -76,17 +75,29 @@ def on_sigterm(signum, frame):
     raise Terminated()
 
 
-def kill_children():
-    """SIGKILL every child and its session: run_cmd's cleanup misses a child forked before its
-    try, e.g. when the signal lands inside Popen, which does not kill a child it has started."""
-    me = os.getpid()
+def stat_fields(proc_dir):
+    """<proc_dir>/stat's fields after the command name (state first), or None."""
+    try:
+        return (proc_dir / 'stat').read_text().rsplit(')', 1)[1].split()
+    except (OSError, IndexError):
+        return None
+
+
+def children(spare=()):
+    """[(pid, state)] of this process's children, zombies included, `spare` aside."""
+    me, found = str(os.getpid()), []
     for d in PROC.glob('[0-9]*'):
-        try:
-            if int((d / 'stat').read_text().rsplit(')', 1)[1].split()[1]) != me:
-                continue
-        except (OSError, ValueError, IndexError):
-            continue
-        pid = int(d.name)   # unreaped, so neither this pid nor its group can be reused
+        fields = stat_fields(d)
+        if fields and len(fields) > 1 and fields[1] == me and int(d.name) not in spare:
+            found.append((int(d.name), fields[0]))
+    return found
+
+
+def kill_children(spare=()):
+    """SIGKILL every child and its session, `spare` aside: run_cmd's cleanup misses a child
+    forked before its try, e.g. when the signal lands inside Popen, which does not kill a child
+    it has started."""
+    for pid, _ in children(spare):   # unreaped, so neither this pid nor its group can be reused
         for kill in (os.killpg, os.kill):   # kill: a child not yet in its own session
             try:
                 kill(pid, signal.SIGKILL)
@@ -136,9 +147,10 @@ def lineage():
     pids, pid = set(), os.getpid()
     while pid > 1 and pid not in pids:
         pids.add(pid)
+        fields = stat_fields(PROC / str(pid))
         try:
-            pid = int((PROC / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()[1])
-        except (OSError, ValueError, IndexError):
+            pid = int(fields[1])
+        except (TypeError, ValueError, IndexError):
             break
     return pids
 

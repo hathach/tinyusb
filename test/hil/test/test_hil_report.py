@@ -445,11 +445,11 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         d = Path(td.name)
         cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}, {'name': 'b-hs'}]}]}
         wedge = [('b', 1, [], [('b-fs', {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, '9s'),
-                               ('b-hs', {'cdc_msc': '⚪ board wedged', hil_report.WEDGED_CELL: 'fail'}, '1s')], 10.0)]
+                               ('b-hs', {'cdc_msc': '⚪ board wedged', hil_report.WEDGED_CELL: 'fail'}, '1s')], None)]
         doc = self._acc(d, wedge, True)
         self.assertTrue(hil_report.summarize(cfg, ['b'], doc)['results'][0]['wedged'])
         # re-run green: no wedge cell survives on any row
-        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s'), ('b-hs', {'cdc_msc': 'pass'}, '2s')], 10.0)]
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s'), ('b-hs', {'cdc_msc': 'pass'}, '2s')], None)]
         doc = self._acc(d, clean, False)
         for row in doc['rows']:
             self.assertNotIn(hil_report.WEDGED_CELL, row['cells'], row)
@@ -465,7 +465,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
             {'board': 'b', 'cells': {hil_report.LOCKED_CELL: 'fail'}, 'duration': None},
             {'board': 'b-fs', 'cells': {'usbtest': '❌ 3/30', hil_report.WEDGED_CELL: 'fail'}, 'duration': '9s'}],
             'scope': '', 'caveat': ''})
-        unbuilt = [('b', 1, [], [('b-fs', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], 0.0)]
+        unbuilt = [('b', 1, [], [('b-fs', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], None)]
         doc = self._acc(d, unbuilt, False)
         cells = {r['board']: r['cells'] for r in doc['rows']}
         self.assertEqual(cells['b'], {hil_report.LOCKED_CELL: 'fail'})
@@ -474,7 +474,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual((r['ran'], r['pass'], r['locked'], r['wedged']), (False, False, False, True))
         self.assertIn('build refused', r['detail'])
-        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s')], 10.0)]
+        clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s')], None)]
         doc = self._acc(d, clean, False)
         self.assertEqual([(r['board'], r['cells']) for r in doc['rows']], [('b-fs', {'usbtest': 'pass'})])
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]

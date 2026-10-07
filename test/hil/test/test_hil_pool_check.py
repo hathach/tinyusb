@@ -37,6 +37,15 @@ class Lock(unittest.TestCase):
         self.assertIn('hil_test.py', got)
         self.assertFalse(got.startswith('ERROR:'))
 
+    def test_acquire_records_the_holder_a_refused_peer_names(self):
+        fh = hil_lock.acquire_board_lock('b', reason='holder-x')
+        self.addCleanup(fh.close)
+        rec = hil_lock.read_record('b')
+        self.assertEqual((rec['pid'], rec['reason']), (os.getpid(), 'holder-x'))
+        # flock is per open file description, so a second open in this process conflicts
+        with self.assertRaisesRegex(RuntimeError, 'holder-x'):
+            hil_lock.acquire_board_lock('b', reason='peer')
+
     def test_an_unopenable_lock_file_is_an_error_not_a_holder(self):
         os.mkdir(os.path.join(self.dir, 'b.lock'))   # open(O_RDWR) on a dir: EISDIR
         got = hil_pool_check.lock_board('b')

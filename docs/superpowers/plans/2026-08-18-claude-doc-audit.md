@@ -10,8 +10,6 @@
 
 **Tech Stack:** Python 3 (validators, stdlib only), bash (mechanical scans), `ssh ci.lan` read-only probes, the repo's existing gates (`.claude/workflows/check.sh`, `test/hil/test/test_*.py`, `pre-commit`).
 
-**Spec:** `docs/superpowers/specs/2026-08-18-claude-doc-audit-design.md`
-
 ## Status (2026-08-18, end of session)
 
 | Task | State |

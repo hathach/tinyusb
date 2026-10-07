@@ -46,6 +46,10 @@
                 "name": "lm4flash",
                 "uid": "0E205D19",
                 "args": "-v"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/ti-icdi.cfg -c \"transport select jtag\" -c \"set WORKAREASIZE 0x8000\" -c \"set CHIPNAME tm4c123gh6pm\" -f target/ti/stellaris.cfg -c \"reset_config none\" -c \"tm4c123gh6pm.cpu configure -event reset-assert-post {sleep 100}\""
             }
         },
         {
@@ -290,6 +294,10 @@
                 "name": "jlink",
                 "uid": "000831174392",
                 "args": "-device R7FA4M1AB"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra4m1 cpu -expected-id 0\" -c \"dap create ra4m1.dap -chain-position ra4m1.cpu\" -c \"target create ra4m1.cpu cortex_m -dap ra4m1.dap\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
@@ -509,6 +517,10 @@
                 "name": "stlink",
                 "uid": "004C00343137510F39383538",
                 "verify": true
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg"
             }
         },
         {
@@ -523,6 +535,10 @@
                 "name": "stlink",
                 "uid": "066FFF495087534867063844",
                 "verify": true
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
             },
             "note": "32-bit scheme, 2KB USB SRAM"
         },
@@ -555,6 +571,10 @@
             "flasher": {
                 "name": "stlink",
                 "uid": "0668FF575457657187061314"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/stlink.cfg -f target/stm32u0x.cfg"
             }
         },
         {

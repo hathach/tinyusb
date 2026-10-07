@@ -95,7 +95,7 @@ UNLINK_CASES = (11, 12, 24)   # URB unlink mid-transfer: can strand a hub TT buf
 # (vary >= length is -EINVAL in the kernel).
 PARAMS = {
     0: ('-c 1', '-c 1'),
-    9: ('-c 256', '-c 1000'),
+    9: ('-c 256', '-c 500'),  # HS 1000 took 56 of 60 s with 5 batteries on a hub; 500 leaves ~2x
     10: ('-c 64 -g 16', '-c 256 -g 16'),
     **{n: ('-c 128 -s 1024 -v 512', '-c 512 -s 1024 -v 512') for n in (1, 2, 3, 4, 17, 18, 19, 20)},
     **{n: ('-c 8 -s 1024 -g 8', '-c 32 -s 1024 -g 16') for n in (5, 6, 7, 8)},
@@ -446,6 +446,14 @@ def dmesg_tail():
     return '\n'.join(lines[-8:])
 
 
+sudo_forbidden = False   # set by main when a post-hang recovery was requested
+
+
+def needs_sudo(node):
+    """Device nodes are usually opened directly (udev rule); sudo only if not."""
+    return not os.access(node, os.W_OK) and os.geteuid() != 0
+
+
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
     if quick:
@@ -453,10 +461,14 @@ def run_case(num, dev, testusb, quick, timeout):
     # -A <node> confines testusb's ftw() device scan to the DUT: with -D alone it opens every
     # usbfs node, blocking on any peer's held device lock (#4047). -A must precede -D, it clears it.
     cmd = [testusb, '-A', dev['node'], '-D', dev['node'], '-t', str(num)] + fs_hs.split()
-    # device nodes are usually opened directly (udev rule); sudo only if not
-    if not os.access(dev['node'], os.W_OK) and os.geteuid() != 0:
-        cmd = ['sudo', '-n'] + cmd
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
+    if needs_sudo(dev['node']):
+        if sudo_forbidden:
+            # a re-enumeration after main's check can hand back a node only root may open
+            result.update(status='FAIL', detail=f"{dev['node']} is not writable: refusing a "
+                          'sudo-wrapped testusb under a recovery request')
+            return result
+        cmd = ['sudo', '-n'] + cmd
 
     # NO start_new_session: testusb must stay in OUR process group so the caller's outer
     # killpg still reaps it.
@@ -564,8 +576,9 @@ def recover_hang(board_json, fw, proc, dev):
         print(f'{fname} is not convoy-safe for delivery (it enumerates by '
               f'opening usbfs nodes, and this DUT has a D-state holder on '
               f'its own node): skipping the recovery rather than adding a '
-              f'second stray. Pin the roster entry with vid_pid on an '
-              f'openocd flasher to enable recovery for this board.',
+              f'second stray. Give the board a flasher_recover entry (openocd '
+              f'pinned with vid_pid or over a VID-filtered interface cfg) to '
+              f'enable recovery for it.',
               file=sys.stderr)
         return False
     reset_fn = hil_flash.reset_primitive(fname)
@@ -575,7 +588,8 @@ def recover_hang(board_json, fw, proc, dev):
         with redirect_stdout(sys.stderr):
             if reset_fn:
                 print(f'auto-recovering: resetting {bname} via {fname} probe', file=sys.stderr)
-                reset_fn(board, timeout=RECOVER_RESET_TIMEOUT)
+                ret = reset_fn(board, timeout=RECOVER_RESET_TIMEOUT)
+                print(f'reset rc {ret.returncode}', file=sys.stderr)
             else:
                 print(f'auto-recovering: reflashing {bname} via {fname}', file=sys.stderr)
                 ret = flash_fn(board, fw, timeout=RECOVER_FLASH_TIMEOUT)
@@ -667,6 +681,13 @@ def main():
 
     # before touching the device: an incompatible host exits here, before any bind
     check_host_compat(dev)
+    # run_case would wrap testusb in sudo, where a HUNG case's reap only proves the wrapper
+    # exited, so the recovery the caller asked for could never be confirmed
+    global sudo_forbidden
+    sudo_forbidden = bool(args.recover_board)
+    if sudo_forbidden and needs_sudo(dev['node']):
+        sys.exit(f"{dev['node']} is not writable: testusb would run under sudo, where a "
+                 'post-hang recovery cannot be confirmed; install tools/88-tinyusb.rules')
 
     register_usbtest_id()
     results = []

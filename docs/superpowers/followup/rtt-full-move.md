@@ -1,6 +1,6 @@
 # Follow-up: move rtt.py out of tinyusb for good
 
-**2026-09-16: superseded in part by `hil-farm.md`** — both design rounds folded
+**2026-09-16: superseded in part by the HIL farm extraction proposal** (dropped 2026-09-30) — both design rounds folded
 this move into the HIL farm extraction (rtt.py becomes the farm skill's console
 layer); the loader/pin design below is kept only as reference.
 
