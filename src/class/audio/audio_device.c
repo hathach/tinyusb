@@ -1842,18 +1842,22 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
 static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
   if (nominal_size[1] && nominal_size[1] * 4 <= fifo_depth) {
-    // Use blackout to prioritize normal size packet
+    // Use blackout to prioritize normal size packet. It only holds off a reversal: repeating the
+    // last correction must stay possible, or a source more than ~0.2% off nominal overflows.
     static int ctrl_blackout = 0;
+    static int8_t ctrl_last = 0;
     uint16_t packet_size;
     uint16_t slot_size = nominal_size[2] - nominal_size[1];
     if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < (fifo_threshold - slot_size) && !ctrl_blackout) {
+    } else if (data_count < (fifo_threshold - slot_size) && (!ctrl_blackout || ctrl_last < 0)) {
       packet_size = nominal_size[0];
       ctrl_blackout = 10;
-    } else if (data_count > (fifo_threshold + slot_size) && !ctrl_blackout) {
+      ctrl_last = -1;
+    } else if (data_count > (fifo_threshold + slot_size) && (!ctrl_blackout || ctrl_last > 0)) {
       packet_size = nominal_size[2];
+      ctrl_last = 1;
       if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
         ctrl_blackout = 0;
