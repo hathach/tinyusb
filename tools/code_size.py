@@ -1153,9 +1153,9 @@ def build_board(src_dir, build_dir, board, example, label):
     if is_espressif(board, src_dir):
         ret = _build_idf(src_dir, build_dir, board, example)
     else:
-        ret = run(['cmake', '-B', build_dir, '-G', 'Ninja',
-                   f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
-                   os.path.join(src_dir, 'examples')])
+        import build  # tools/build.py; its import has no side effects
+        # TOOLCHAIN=gcc: build.py's default, which it always passes
+        ret = run(build.cmake_configure_cmd(board, build_dir, ['-DTOOLCHAIN=gcc'], os.path.join(src_dir, 'examples')))
         if ret.returncode == 0:
             # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
             cmd = ['ninja', '-C', build_dir]

@@ -1016,6 +1016,18 @@ class BuildOutput(unittest.TestCase):
             sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
         self.assertEqual(run.call_args, mock.call(['ninja', '-C', os.path.join(tmp, 'b'), 'ex'], timeout=600))
 
+    def test_the_configure_is_build_pys_with_its_default_toolchain(self):
+        import build
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'run', return_value=ok) as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            build_dir = os.path.join(tmp, 'b')
+            sd.build_board(tmp, build_dir, 'b', None, 'build')
+        self.assertEqual(run.call_args_list[0],
+                         mock.call(build.cmake_configure_cmd('b', build_dir, ['-DTOOLCHAIN=gcc'],
+                                                             os.path.join(tmp, 'examples'))))
+
     def _esp_src(self, tmp):
         """A checkout with one espressif board, one example and a dependency linked in two
         hops, as a base worktree's: src -> checkout -> main checkout."""
