@@ -82,10 +82,9 @@ used at once.  ``CFG_TUH_MSC_MAXLUN`` is the LUN limit per device.  After
 ``tuh_msc_mount_cb(dev_addr)``, query cached geometry with
 ``tuh_msc_get_block_count()`` and ``tuh_msc_get_block_size()``.
 
-Pass a LUN below both ``tuh_msc_get_maxlun()`` and ``CFG_TUH_MSC_MAXLUN``: the
-LUN argument is not range-checked, and ``tuh_msc_get_maxlun()`` returns the
-LUN count the device reports without clamping it.  ``CFG_TUH_MSC_MAXLUN``
-defaults to 4 and allocates cached state per possible LUN for each of the
+``tuh_msc_get_maxlun()`` returns the LUN count the device reports, clamped to
+``CFG_TUH_MSC_MAXLUN``; for a LUN at or past it the geometry getters return 0
+and commands are refused.  ``CFG_TUH_MSC_MAXLUN`` defaults to 4 and allocates cached state per possible LUN for each of the
 ``CFG_TUH_DEVICE_MAX`` addresses.  Enumeration only reads the geometry of
 LUN 0, so other LUNs read back as 0.
 
@@ -109,13 +108,13 @@ own.
    * - ``tuh_msc_get_maxlun()`` /
        ``tuh_msc_get_block_count()`` /
        ``tuh_msc_get_block_size()``
-     - Returns the device-reported LUN count and the geometry cached during
-       enumeration (LUN 0 only).
+     - Returns the LUN count, clamped to ``CFG_TUH_MSC_MAXLUN``, and the
+       geometry cached during enumeration (LUN 0 only).
    * - ``tuh_msc_read10()`` / ``tuh_msc_write10()``
      - Queues an integral number of logical blocks and completes through the
        supplied callback.  Returns ``false`` without queuing if the device is
-       not mounted or ``block_count`` x block size exceeds the 32-bit CBW
-       data length.
+       not mounted, the LUN is not below ``tuh_msc_get_maxlun()``, or
+       ``block_count`` x block size exceeds the 32-bit CBW data length.
    * - ``tuh_msc_inquiry()`` / ``tuh_msc_request_sense()``
      - Queues standard SCSI identification or detailed-error requests into an
        application-owned response buffer.
