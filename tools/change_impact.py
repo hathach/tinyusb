@@ -5,9 +5,7 @@
 
 Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
 hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
-any file no rule classifies forces the full matrix. See
-docs/superpowers/specs/2026-07-29-hil-pr-scoped-selection-design.md and
-docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md.
+any file no rule classifies forces the full matrix.
 
 JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers
@@ -17,11 +15,11 @@ args split by each board's flasher, for CI legs that split one rig by flasher).
 through `check_build.py --select-only`, the build skill's SKILL.md documents it).
 
 THE RULE TABLE. First match wins; answers union per family (build) and per board
-(HIL). A CARBON COPY of the table in the design spec above - edit both, or
-TestRuleTableIsCarbonOfTheSpec fails. `FAM` = the families whose family.cmake
-references the changed path (CMake only; make follows it). `DEV`/`HOST`/`DUAL`/
-`TYPEC`/`ALL` are the example role sets. The Build families column is PRE-PRUNE:
-_prune_buildable then intersects each family with what it can actually build.
+(HIL). Every row id needs a `# rule N` marker on its branch (TestRuleTableMatchesTheCode).
+`FAM` = the families whose family.cmake references the changed path (CMake only; make
+follows it). `DEV`/`HOST`/`DUAL`/`TYPEC`/`ALL` are the example role sets. The Build
+families column is PRE-PRUNE: _prune_buildable then intersects each family with what it
+can actually build.
 
 | # | Changed path | Build families | Build examples | HIL boards → tests |
 | 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
@@ -36,7 +34,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
 | 5b | `src/portable/<port>/**` where `FAM` is empty | — | — | — (empty resolves to nothing on BOTH axes) |
 | 6 | `hw/bsp/<family>/**` | that family | `ALL` | that family's boards → all tests (a `boards/<board>/` path narrows to that board) |
-| 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling)  ⚠ *see below* |
+| 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling) |
 | 8 | `src/class/<cls>/*_device.[ch]` | `ALL` | examples enabling `CFG_TUD_<CLS>` | device-role boards → HIL tests enabling `CFG_TUD_<CLS>` |
 | 9 | `src/class/<cls>/*_host.[ch]` | `ALL` | examples enabling `CFG_TUH_<CLS>` | host-role boards → HIL tests enabling `CFG_TUH_<CLS>` |
 | 10 | `src/class/<cls>/**` (shared header) | `ALL` | either, **plus include-edge classes and direct includers** | both roles → same, plus include-edge classes and direct includers |
@@ -358,7 +356,8 @@ def port_families(port_dir: str, repo_root: str) -> set:
 
 def mcu_families(path: str, repo_root: str) -> set:
     """Families referencing a changed hw/mcu path: longest resolving dir prefix,
-    hw/mcu/<vendor>/<sub>/... down to hw/mcu/<vendor>."""
+    hw/mcu/<vendor>/<sub>/... down to hw/mcu/<vendor>. The same scan as port_families on
+    a second tree: hw/mcu is mostly gitignored deps, so only its tracked dirs reach a diff."""
     parts = path.split('/')
     for n in range(len(parts) - 1, 2, -1):
         fams = path_families('/'.join(parts[:n]), repo_root)
@@ -1205,8 +1204,7 @@ def main():
 
 
 # -------------------------------------------------------------
-# Build-axis classifier (spec rule table, docs/superpowers/specs/
-# 2026-08-19-ci-build-family-filter-design.md). Independent of the HIL
+# Build-axis classifier (the rule table in the module docstring). Independent of the HIL
 # classifier: same diff, second walk, its own fail-open.
 # -------------------------------------------------------------
 # Both walks recognise an example path with the SAME regex, so a role can never be

@@ -1411,14 +1411,10 @@ class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
         self.assertTrue(duals, 'a dcd change selected no dual example')
 
 
-class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
-    """change_impact's module docstring carries the rule table so a reader landing in the
-    code does not have to open the spec to learn what rule 6 is. Both are maintained by
-    hand, so this pins them cell-for-cell: edit one without the other and this fails.
-
-    It also pins the table against the CODE - every rule id the docstring claims must
-    appear as a `# rule N` marker on a branch of _classify_build_one, so a row cannot be
-    documented without a branch, or a branch renumbered without the table."""
+class TestRuleTableMatchesTheCode(unittest.TestCase):
+    """The rule table lives in change_impact's module docstring. Every rule id it
+    claims must appear as a `# rule N` marker on a branch of _classify_build_one, so a row
+    cannot be documented without a branch, or a branch renumbered without the table."""
 
     @staticmethod
     def _rows(text):
@@ -1431,15 +1427,6 @@ class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
             if len(c) == 5 and _re.fullmatch(r'\d+[a-z]?', c[0]):
                 out.append(c)
         return out
-
-    def test_docstring_table_matches_the_spec(self):
-        spec = _read(os.path.join(REPO, 'docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md'))
-        doc, spec_rows = self._rows(change_impact.__doc__), self._rows(spec)
-        self.assertTrue(spec_rows, 'no rule table found in the spec')
-        self.assertEqual([r[0] for r in doc], [r[0] for r in spec_rows],
-                         'rule ids differ between change_impact.__doc__ and the spec')
-        for d, s in zip(doc, spec_rows):
-            self.assertEqual(d, s, f'rule {d[0]} differs between the docstring and the spec')
 
     def test_every_documented_rule_has_a_branch(self):
         import re as _re
@@ -1454,6 +1441,7 @@ class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
                 elif _re.fullmatch(r'\d+[a-z]?', tok.strip()):
                     marked.add(tok.strip())
         documented = {r[0] for r in self._rows(change_impact.__doc__)}
+        self.assertTrue(documented, 'no rule table found in the module docstring')
         missing = sorted(documented - marked, key=lambda s: (int(_re.match(r'\d+', s).group()), s))
         self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
 
