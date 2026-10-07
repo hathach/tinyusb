@@ -196,8 +196,8 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
    * - ``CFG_TUH_AUDIO_STREAM_BUFSIZE``
      - ``1024`` bytes
      - Per-stream FIFO depth.  Playback sends silence when a complete packet
-       is unavailable; capture overwrites the oldest complete frames when the
-       FIFO is full.
+       is unavailable; capture drops each newly received packet that does not
+       fit in the FIFO.
 
 Increase the endpoint buffers for high channel counts, sample rates, or sample
 widths.  All buffers are statically allocated, so these maxima directly affect
@@ -236,8 +236,7 @@ every channel; obtain its byte size with ``tuh_audio_config_frame_size()``.
 may be shorter than requested.  Use ``tuh_audio_read_available()`` and
 ``tuh_audio_write_available()`` to service the FIFOs from the application task;
 the transfer callbacks are notifications and need not drive FIFO servicing.
-If the capture FIFO overflows while a task other than the one running
-``tuh_task()`` reads it, a read can mix old and new samples; keep up with
+When the capture FIFO is full the newest packets are dropped, so keep up with
 capture.
 
 Callbacks and failures

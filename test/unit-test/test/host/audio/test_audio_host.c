@@ -1316,8 +1316,8 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
   complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
 
-  // Keep polling without application reads. Once full, the capture FIFO must
-  // overwrite its oldest frames while retaining the newest complete packets.
+  // Keep polling without application reads. Once full, the capture FIFO keeps
+  // its oldest frames and drops the newest packet that no longer fits.
   for (uint8_t packet = 0; packet < 11; packet++) {
     TEST_ASSERT_NOT_NULL(edpt_xfer_buffer[packet]);
     memset(edpt_xfer_buffer[packet], packet + 1, 96);
@@ -1326,11 +1326,19 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
     TEST_ASSERT_EQUAL_UINT8(packet + 2, edpt_xfer_count);
   }
 
-  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read_available(0, 0));
-  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read(0, 0, captured, fifo_depth / 3));
-  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 63);
-  TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + 63, 96);
-  TEST_ASSERT_EACH_EQUAL_UINT8(11, captured + fifo_depth - 96, 96);
+  const uint32_t kept = (fifo_depth / 96) * 96; // packets 1-10; packet 11 did not fit
+  TEST_ASSERT_EQUAL_UINT32(kept / 3, tuh_audio_read_available(0, 0));
+  TEST_ASSERT_EQUAL_UINT32(kept / 3, tuh_audio_read(0, 0, captured, fifo_depth / 3));
+  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 96);
+  TEST_ASSERT_EACH_EQUAL_UINT8(10, captured + kept - 96, 96);
+
+  // room again: the next packet is queued
+  memset(edpt_xfer_buffer[11], 12, 96);
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_EQUAL_UINT32(32, tuh_audio_read_available(0, 0));
+  TEST_ASSERT_EQUAL_UINT32(32, tuh_audio_read(0, 0, captured, 32));
+  TEST_ASSERT_EACH_EQUAL_UINT8(12, captured, 96);
 }
 
 void test_audio_host_maps_duplex_fus_declared_before_usb_terminals(void) {

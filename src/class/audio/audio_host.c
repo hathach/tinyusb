@@ -80,7 +80,7 @@
  *
  *   host controller -> audioh_xfer_cb()
  *     +-- capture data
- *     |     +-- copy whole audio frames to the overwrite FIFO
+ *     |     +-- copy whole audio frames to the FIFO, dropping the packet if it does not fit
  *     |     +-- tuh_audio_capture_cb()
  *     |     `-- audioh_stream_capture_xfer()
  *     +-- playback data
@@ -886,7 +886,8 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   if (s->dir == TUSB_DIR_IN) {
     // Queue whole capture frames, notify the application, then re-arm.
     const uint16_t bytes = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
-    if (bytes > 0) {
+    // On overrun drop the newest packet: overwriting unread frames could tear one a reader is copying
+    if (bytes > 0 && tu_fifo_remaining(&s->edpt.ff) >= bytes) {
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
@@ -2021,9 +2022,9 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     playback->rem_acc             = 0;
   }
   if (s->dir == TUSB_DIR_IN) {
-    // Overwrite mode is frame-safe only when FIFO depth is a whole-frame multiple.
+    // Whole-frame depth: a full FIFO then holds only complete frames
     const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % s->frame_bytes);
-    if (!tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true)) {
+    if (!tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, false)) {
       audioh_stream_fail(s);
       return false;
     }
