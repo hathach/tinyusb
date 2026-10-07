@@ -111,12 +111,10 @@ bool tud_ready(void) {
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
-// Enable pull-up resistor on D+ D-
-// Return false on unsupported MCUs
+// Disable pull-up resistor on D+ D-, a no-op on MCUs without software control. Always returns true
 bool tud_disconnect(void);
 
-// Disable pull-up resistor on D+ D-
-// Return false on unsupported MCUs
+// Enable pull-up resistor on D+ D-, a no-op on MCUs without software control. Always returns true
 bool tud_connect(void);
 
 // Enable or disable the Start Of Frame callback support
