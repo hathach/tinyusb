@@ -3134,6 +3134,59 @@ class TestSkipExampleMakeSemantics(unittest.TestCase):
         self.assertFalse(self.build_utils.skip_example(ex, board, build_system='cmake'))
 
 
+class TestEspNoNativeUsb(unittest.TestCase):
+    """src/common/tusb_mcu.h #errors any device stack on the IDF targets without native
+    USB (#3929): their boards build only what leaves CFG_TUD_ENABLED off."""
+
+    NO_NATIVE = ('adafruit_feather_esp32_v2', 'adafruit_feather_esp32c6',
+                 'espressif_c3_devkitc', 'espressif_c6_devkitc')
+
+    def setUp(self):
+        import build_utils
+        self.build_utils = build_utils
+        self.old = os.getcwd()
+        os.chdir(REPO)                  # skip_example uses repo-relative paths
+
+    def tearDown(self):
+        os.chdir(self.old)
+
+    def test_target_list_is_tusb_mcu_h_guard(self):
+        text = _read(os.path.join(REPO, 'src/common/tusb_mcu.h'))
+        head = text[:text.index('MCUs are only supported with CFG_TUH_MAX3421 enabled')]
+        self.assertEqual(set(re.findall(r'OPT_MCU_(\w+)', head[head.rindex('#elif'):])),
+                         set(self.build_utils._ESP_NO_NATIVE_USB))
+
+    def test_no_native_boards_drop_device_enabled_examples(self):
+        for board in self.NO_NATIVE:
+            for ex in ('device/cdc_msc_freertos', 'device/usbtest', 'dual/dynamic_switch'):
+                self.assertTrue(self.build_utils.skip_example(ex, board), (board, ex))
+            for ex in ('device/board_test', 'host/device_info', 'host/cdc_msc_hid_freertos'):
+                self.assertFalse(self.build_utils.skip_example(ex, board), (board, ex))
+
+    def test_native_boards_keep_device_examples(self):
+        for board in ('espressif_s3_devkitc', 'espressif_p4_function_ev', 'espressif_s2_devkitc'):
+            self.assertFalse(self.build_utils.skip_example('device/cdc_msc_freertos', board), board)
+
+    def test_only_a_literal_enable_counts(self):
+        cases = {'#define CFG_TUD_ENABLED 1\n': True,
+                 '#define CFG_TUD_ENABLED 0\n': False,
+                 '#ifdef X\n#define CFG_TUD_ENABLED 1\n#else\n#define CFG_TUD_ENABLED 0\n#endif\n': False,
+                 '#define CFG_TUD_ENABLED 1 && 0\n': False,
+                 '#define CFG_TUD_ENABLED 1 // device on\n': True,
+                 '#define CFG_TUD_ENABLED  1  /* on */\n': True,
+                 '/*\n#define CFG_TUD_ENABLED 1\n*/\n': False,
+                 '#define CFG_TUD_ENABLED 1\n#define CFG_TUD_ENABLED\n': False,
+                 '#define CFG_TUD_ENABLED_X 1\n': False,
+                 '': False}
+        with tempfile.TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'src'))
+            for body, want in cases.items():
+                with open(os.path.join(d, 'src', 'tusb_config.h'), 'w') as f:
+                    f.write(body)
+                self.assertEqual(self.build_utils._enables_device(d), want, body)
+        self.assertFalse(self.build_utils._enables_device('/nonexistent'))
+
+
 class TestConfigEnables(unittest.TestCase):
     """_config_enables decides which examples a class change selects, on BOTH the
     build and the HIL axis. A define it cannot evaluate must read as ON: reading
