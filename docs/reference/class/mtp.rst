@@ -79,14 +79,17 @@ Application flow
      - Tests whether the bulk OUT and bulk IN endpoints are open.
    * - ``tud_mtp_command_received_cb()``
      - Delivers the operation container and starts the application transaction
-       state machine.  A negative return stalls the bulk endpoints.
+       state machine.  A negative return stalls both bulk endpoints.
    * - ``tud_mtp_data_send()`` / ``tud_mtp_data_receive()``
      - Starts or continues the operation's data phase.  Returns ``false``
        without changing phase if the transfer cannot be queued.
    * - ``tud_mtp_response_send()``
      - Queues the final response container with the current transaction ID.
        Returns ``false`` without changing phase if the response cannot be
-       queued.
+       queued.  May also be called from ``tud_mtp_data_xfer_cb()`` before the
+       data-complete notification; the driver absorbs a pending terminating
+       OUT ZLP.  Responding before all OUT payload arrives stalls both bulk
+       endpoints and discards the queued response.
    * - ``tud_mtp_event_send()``
      - Copies and queues one asynchronous event.  Send the next event only
        after the previous one has gone out: a call while the event endpoint is
@@ -102,29 +105,25 @@ Application flow
    * - ``tud_mtp_request_*_cb()``
      - Handles cancel, reset, status, extended-event, and vendor control
        requests.  Return ``false`` or a negative length where documented to
-       stall an unsupported request.
+       stall an unsupported request.  The driver handles transport recovery
+       for Cancel and Device Reset; their callbacks update application state.
+       In the error phase, the driver answers Get Device Status without
+       calling the application.
 
 ``tud_mtp_command_received_cb()`` receives an operation container.  The
 application performs any data phase with ``tud_mtp_data_send()`` or
 ``tud_mtp_data_receive()``, then completes the transaction with
-``tud_mtp_response_send()``.  A data callback may send the response before
-the data-complete notification; a pending terminating OUT ZLP is absorbed.
-Responding before all OUT payload arrives instead stalls both bulk endpoints
-and discards the queued response.  Use ``tud_mtp_event_send()`` for
-asynchronous events such as ObjectAdded.
+``tud_mtp_response_send()``.  Use ``tud_mtp_event_send()`` for asynchronous
+events such as ObjectAdded.
 
 The ``tud_mtp_data_xfer_cb()``, ``tud_mtp_data_complete_cb()``, and
 ``tud_mtp_response_complete_cb()`` callbacks advance multi-stage transfers.
-The driver handles transport recovery for Cancel and Device Reset; their
-callbacks update application state.  While the bulk endpoints are halted after
-an error, the driver answers Get Device Status without calling the
-application.  Validate
-container lengths, object handles, property codes, and storage bounds before
-using them.
+Validate container lengths, object handles, property codes, and storage bounds
+before using them.
 
 The :doc:`../../examples/device/mtp` example is the recommended template.  It
-implements a small in-memory object store, core session/object operations, and an
-upload.  Replace its storage functions while preserving the
+implements a small in-memory object store, core session/object operations,
+and an upload.  Replace its storage functions while preserving the
 command/data/response state machine.
 
 TinyUSB supplies the USB transport and MTP containers; it does not provide a

@@ -120,15 +120,15 @@ Core API and callbacks
        transfers to fetch descriptors.
    * - ``tuh_control_xfer()``
      - Submits a control transfer described by ``tuh_xfer_t``.  A non-null
-       completion callback makes it asynchronous; a null callback blocks.  An
-       in-flight transfer that times out completes with
-       ``XFER_RESULT_TIMEOUT``; ``tuh_task()`` must keep running.
+       completion callback makes it asynchronous; a null callback blocks.
+       In-flight transfers use ``CFG_TUH_CONTROL_TIMEOUT_MS``; a timeout
+       completes with ``XFER_RESULT_TIMEOUT``.
    * - ``tuh_edpt_xfer()``
      - Submits a bulk or interrupt transfer on an endpoint opened with
-       ``tuh_edpt_open()``.  Rejects ``buflen`` above 65535 bytes.  The
-       completion callback is delivered only when
+       ``tuh_edpt_open()``.  The completion callback is delivered only when
        ``CFG_TUH_API_EDPT_XFER`` is ``1`` (default ``0``).  Application class
-       drivers normally use their class-specific wrappers instead.
+       drivers normally use their class-specific wrappers instead.  Limited
+       to 65535 bytes per transfer.
 
 Synchronous host control calls are forbidden from the host task when
 ``CFG_TUSB_OS_HAS_SCHEDULER`` is true: that task is needed to make the same

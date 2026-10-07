@@ -159,9 +159,6 @@ On alternate setting 1, read and write arrays of 32-bit words with
 USB-MIDI 1.0 event packets.  Query ``tud_midi2_alt_setting()``,
 ``tud_midi2_negotiated()`` and ``tud_midi2_protocol()`` when choosing the
 format to send; ``tud_midi2_mounted()`` reports whether the endpoints are open.
-At interface open and on selecting alternate setting 1, the protocol is
-initialized from the first Group Terminal Block: MIDI 1.0 for its MIDI1 values,
-otherwise MIDI 2.0.  Stream negotiation may change it later.
 ``tud_midi2_set_itf_cb()`` announces the active alternate setting so the
 application can switch its parser and producer.
 
@@ -189,6 +186,9 @@ RX FIFO completely in the callback:
    }
 
 The driver handles standard UMP Stream discovery and protocol negotiation.
+At interface open and on selecting alternate setting 1, the protocol is
+initialized from the first Group Terminal Block: MIDI 1.0 for its MIDI1 values,
+otherwise MIDI 2.0.  Stream negotiation may change it later.
 Override ``tud_midi2_gtb_desc_cb()`` to describe a custom Group Terminal Block
 topology, ``tud_midi2_fb_name_cb()`` for Function Block names and
 ``tud_midi2_device_identity_cb()`` to send a Device Identity Notification.  Use
