@@ -378,7 +378,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
     pipe->buf = NULL;
-    return NULL != buf;
+    return pipe->queued; // an armed zero-length receive has buf == NULL too
   }
 
   return false;
@@ -490,7 +490,8 @@ static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
   return ready;
 }
 
-static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
+static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes,
+                              bool is_isr)
 {
   const unsigned epn = tu_edpt_number(ep_addr);
   const unsigned dir = tu_edpt_dir(ep_addr);
@@ -517,23 +518,27 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
   } else {
     // OUT
     volatile uint16_t *ctr = get_pipectr(rusb, num);
-    // Packets parked while nothing was armed (process_pipe_brdy) already had their BRDY: deliver
-    // them now. At most one per buffer plane.
-    for (unsigned i = 0; i < 2 && total_bytes && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
+    // TRE/TRN change only at PID = NAK with PBUSY = 0, TRCLR only with an empty buffer (RA6M5 UM
+    // 29.2.39, 29.3.7.5): stop reception, then drain what arrived while nothing was armed (parked
+    // by process_pipe_brdy), at most one packet per buffer plane
+    bool ok = pipe_reset(rusb, num, 0);
+    for (unsigned i = 0; ok && i < 2 && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
       if (pipe_xfer_out(rusb, num)) {
-        pipe_xfer_complete(rhport, num, false);
-        return true; // the pipe keeps NAKing until the next transfer is armed
+        rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num)); // drained here, no BRDY to service
+        pipe_xfer_complete(rhport, num, is_isr);
+        return true; // left NAKing until the next transfer is armed
       }
     }
+    if (!ok || (*ctr & RUSB2_PIPE_CTR_BSTS_Msk)) {
+      pipe->queued = false; // refused: usbd releases the endpoint and its buffer
+      pipe->buf    = NULL;
+      return false;
+    }
+    rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
 
     volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
     if (pt) {
       const uint16_t mps = edpt_max_packet_size(rusb, num);
-      // TRE/TRN change only at PID = NAK with PBUSY = 0; TRCLR also needs the buffer empty
-      // (RA6M5 UM 29.2.39, 29.3.7.5), which the drain above ensured
-      if (!pipe_reset(rusb, num, 0)) {
-        return false;
-      }
       pt->TRE   = TU_BIT(8);
       pt->TRN   = (pipe->remaining + mps - 1) / mps;
       pt->TRENB = 1;
@@ -545,13 +550,14 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
   return true;
 }
 
-static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
+static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes,
+                              bool is_isr)
 {
   const unsigned epn = tu_edpt_number(ep_addr);
   if (0 == epn) {
     return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes);
   } else {
-    return process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes);
+    return process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
   }
 }
 
@@ -594,8 +600,12 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     } else if (!pipe->queued && !pipe_is_iso(rusb, num)) {
       // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
       // next transfer's first packets into its buffer planes). Park the packet and NAK the host
-      // until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
-      *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_NAK;
+      // until the next transfer drains it in process_pipe_xfer(); discarding it loses data. A halt
+      // set since the packet arrived stays.
+      volatile uint16_t *ctr = get_pipectr(rusb, num);
+      if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_BUF) {
+        *ctr = RUSB2_PIPE_CTR_PID_NAK;
+      }
       completed = false;
     } else {
       completed = pipe_xfer_out(rusb, num);
@@ -993,11 +1003,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
-  (void) is_isr;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
   dcd_int_disable(rhport);
-  bool r = process_edpt_xfer(rhport, rusb, 0, ep_addr, buffer, total_bytes);
+  bool r = process_edpt_xfer(rhport, rusb, 0, ep_addr, buffer, total_bytes, is_isr);
   dcd_int_enable(rhport);
 
   return r;
@@ -1005,12 +1014,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
-  (void) is_isr;
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
   dcd_int_disable(rhport);
-  bool r = process_edpt_xfer(rhport, rusb, 1, ep_addr, ff, total_bytes);
+  bool r = process_edpt_xfer(rhport, rusb, 1, ep_addr, ff, total_bytes, is_isr);
   dcd_int_enable(rhport);
 
   return r;
