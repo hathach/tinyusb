@@ -218,8 +218,7 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   uint32_t sample_rate_tx;
   uint16_t packet_sz_tx[3];
-  uint8_t ctrl_blackout_tx; // frames left before the flow control may reverse its correction
-  int8_t ctrl_last_tx;      // direction of the last correction: -1 smaller, +1 larger
+  int8_t ctrl_blackout_tx; // frames before flow control may reverse; sign = last correction (-smaller, +larger)
   uint8_t bclock_id_tx;
   uint8_t interval_tx;
   uint8_t format_type_tx;
@@ -1853,7 +1852,7 @@ static void audiod_tx_trim_to_threshold(audiod_function_t *audio) {
   if (audio->format_type_tx != AUDIO20_FORMAT_TYPE_I || frame_sz == 0 || count <= audio->ep_in_fifo_threshold) {
     return;
   }
-  if (tu_fifo_full(ff)) {
+  if (count >= ff->depth) {
     tu_fifo_correct_read_pointer(ff); // an overflowed FIFO keeps a stale read index
   }
   tu_fifo_discard_n(ff, (uint16_t) ((count - audio->ep_in_fifo_threshold) / frame_sz * frame_sz));
@@ -1866,31 +1865,33 @@ static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_co
   if (nominal_size[1] && nominal_size[1] * 4 <= audio->ep_in_ff.depth) {
     // Use blackout to prioritize normal size packet. It only holds off a reversal: repeating the
     // last correction must stay possible, or a source more than ~0.2% off nominal overflows.
+    int8_t blackout = audio->ctrl_blackout_tx;
     uint16_t packet_size;
     uint16_t slot_size = nominal_size[2] - nominal_size[1];
     if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < (fifo_threshold - slot_size) && (!audio->ctrl_blackout_tx || audio->ctrl_last_tx < 0)) {
+    } else if (data_count < (fifo_threshold - slot_size) && blackout <= 0) {
       packet_size = nominal_size[0];
-      audio->ctrl_blackout_tx = 10;
-      audio->ctrl_last_tx = -1;
-    } else if (data_count > (fifo_threshold + slot_size) && (!audio->ctrl_blackout_tx || audio->ctrl_last_tx > 0)) {
+      blackout = -10;
+    } else if (data_count > (fifo_threshold + slot_size) && blackout >= 0) {
       packet_size = nominal_size[2];
-      audio->ctrl_last_tx = 1;
       if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
-        audio->ctrl_blackout_tx = 0;
+        blackout = 0;
       } else {
         // nav = INT(nav), eg. 48k, 96k
-        audio->ctrl_blackout_tx = 10;
+        blackout = 10;
       }
     } else {
       packet_size = nominal_size[1];
-      if (audio->ctrl_blackout_tx) {
-        audio->ctrl_blackout_tx--;
+      if (blackout > 0) {
+        blackout--;
+      } else if (blackout < 0) {
+        blackout++;
       }
     }
+    audio->ctrl_blackout_tx = blackout;
     // Normally this cap is not necessary
     return tu_min16(packet_size, audio->ep_in_sz);
   } else {
