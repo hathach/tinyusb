@@ -341,7 +341,7 @@ TinyUSB Event System & Thread Safety
 Deferred Interrupt Processing
 -----------------------------
 
-**Core Architectural Principle**: TinyUSB uses a deferred interrupt processing model where all USB hardware events are captured in interrupt service routines (ISRs) but processed later in non-interrupt context.
+**Core Architectural Principle**: TinyUSB uses a deferred interrupt processing model where all USB hardware events are captured in interrupt service routines (ISRs) and most are processed later in non-interrupt context by ``tud_task()`` or ``tuh_task()``. Device class ``sof``/``xfer_isr`` handlers and callbacks named ``*_isr`` run in interrupt context; see :doc:`class/device`.
 
 **Event Flow**:
 
@@ -350,7 +350,7 @@ Deferred Interrupt Processing
 3. **Deferred Processing**: Application calls ``tud_task()`` or ``tuh_task()`` to process queued events
 4. **Class Driver Callbacks**: Events trigger appropriate class driver functions and user callbacks
 
-**Buffer Integration**: The deferred processing model works seamlessly with TinyUSB's buffer/FIFO design. Since callbacks run in task context (not ISR), it's safe and straightforward to enqueue TX data directly in RX callbacks - for example, processing incoming CDC data and immediately sending a response.
+**Buffer Integration**: The deferred processing model works seamlessly with TinyUSB's buffer/FIFO design. Since most callbacks run in task context (not ISR), it's safe and straightforward to enqueue TX data directly in RX callbacks - for example, processing incoming CDC data and immediately sending a response.
 
 Controller Event Flow
 ---------------------
