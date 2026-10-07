@@ -55,10 +55,10 @@ and ``tud_msc_scsi_cb()``.  The other callbacks below have weak defaults.
 
 Read and write callbacks may cover only part of a logical block; honor both
 ``lba`` and ``offset`` instead of assuming one callback per block.
-``TUD_MSC_RET_ERROR`` from read10/write10 overwrites the stored sense with
-NOT READY / MEDIUM NOT PRESENT.  For other command callbacks, such as
-``tud_msc_scsi_cb()``, set useful sense data with ``tud_msc_set_sense()``
-before returning an error.
+Set useful sense data with ``tud_msc_set_sense()`` before returning an error
+from a command callback, such as ``tud_msc_scsi_cb()`` or read10/write10.
+For a ``TUD_MSC_RET_ERROR`` from read10/write10, TinyUSB keeps any sense still
+stored and otherwise defaults to NOT READY / MEDIUM NOT PRESENT.
 
 For temporarily busy media, return ``TUD_MSC_RET_BUSY``; TinyUSB will invoke
 the callback again with the same parameters.  For true background I/O, return
