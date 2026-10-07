@@ -43,8 +43,8 @@ def main():
             # imported here, under the fall-open: a broken selector must still leave the
             # full roster
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
-            import ci_select
-            hil = ci_select.check_manifest(json.loads(raw))['hil']
+            import change_impact
+            hil = change_impact.check_manifest(json.loads(raw))['hil']
     except Exception as e:  # fail-open: an unusable selection must never red the job
         # ALL of it is unusable, hil_examples included: keeping the -e lists would build
         # a few examples per board while the rig, unfiltered, runs its whole test list

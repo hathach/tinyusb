@@ -388,7 +388,7 @@ def reset_primitive(flasher_name: str):
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls
-# back to .elf-or-.bin and can be handed the wrong file — test_ci_select's
+# back to .elf-or-.bin and can be handed the wrong file — test_change_impact's
 # TestRosterFlashersDispatch fails if a roster names one.
 FLASHER_SUFFIX = {
     'esptool': '.bin',

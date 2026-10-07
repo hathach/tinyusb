@@ -384,7 +384,7 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
         one_first: If True, return only the first board (alphabetical)
         examples: PR example filter (-e). The one-board pick then prefers a board that
             can build at least one of them: the family is in the matrix BECAUSE some
-            board of it builds these examples (ci_select._prune_buildable asks about
+            board of it builds these examples (change_impact._prune_buildable asks about
             every board, since CircleCI builds every board), but GHA builds one. Without
             this, lpc54 selected for host/msc_file_explorer picks lpcxpresso54114 -
             which every one of those examples skips - and the leg runs to green having
@@ -521,7 +521,7 @@ def main():
             parser.error(f"-e/--example takes 'role/name' (e.g. device/cdc_msc), got '{e}'")
         # a name no example dir answers to would silently build nothing on every board
         # and still exit 0 (every row is a Skipped, and main() returns the FAILED count).
-        # The -e lists are generated - from ci_select's example map and from HIL roster
+        # The -e lists are generated - from change_impact's example map and from HIL roster
         # test names - so a stale one must be loud, not green
         if not os.path.isdir(os.path.join('examples', e)):
             parser.error(f"-e/--example '{e}': no such example directory examples/{e}")

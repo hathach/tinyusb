@@ -270,7 +270,7 @@ class RealFiles(unittest.TestCase):
 
 
 class HilCoverage(unittest.TestCase):
-    """Spot checks for the ci_select rule-3/4 reuse: family membership
+    """Spot checks for the change_impact rule-3/4 reuse: family membership
     (dcd_dwc2, dcd_rp2040) and no rig board at all (dcd_ft9xx)."""
 
     def test_dwc2_is_covered_by_stm32f4(self):

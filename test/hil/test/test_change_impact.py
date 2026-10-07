@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Unit tests for ci_select.py — pure logic, no hardware, no git. Run directly:
-#   python3 test/hil/test/test_ci_select.py
+# Unit tests for change_impact.py — pure logic, no hardware, no git. Run directly:
+#   python3 test/hil/test/test_change_impact.py
 #
-# Imports stay stdlib + ci_select/hil_util/hil_flash ONLY: the pre-commit hil-test
+# Imports stay stdlib + change_impact/hil_util/hil_flash ONLY: the pre-commit hil-test
 # hook runs this suite, on GitHub's bare runner in the pre-commit workflow as well as
 # locally, and that runner has no pyserial/pymtp. hil_flash is admissible because it
 # is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
@@ -28,12 +28,12 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # test/hil, for hil_flash/helper
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import hil_flash
-import ci_select
+import change_impact
 from helper.hil_util import device_tests, dual_tests
 
 
 def _read(path):
-    # Fixed encoding, like ci_select._read: a non-UTF-8 locale would fail on tracked non-ASCII bytes.
+    # Fixed encoding, like change_impact._read: a non-UTF-8 locale would fail on tracked non-ASCII bytes.
     with open(path, encoding='utf-8', errors='replace') as f:
         return f.read()
 
@@ -97,7 +97,7 @@ ROSTERS = [('test/hil/tinyusb.json', ROSTER)]
 
 
 def sel(files):
-    return ci_select.classify(files, REPO, ROSTERS)
+    return change_impact.classify(files, REPO, ROSTERS)
 
 
 class TestPortRule(unittest.TestCase):
@@ -167,20 +167,20 @@ class TestClassIncludeEdges(unittest.TestCase):
     device/audio_test_freertos. On boards that skip that example the per-board
     intersection emptied and an audio.h-only PR ran ZERO HIL on them."""
     def test_edges_derived_from_includes(self):
-        edges = ci_select.class_include_edges(REPO)
+        edges = change_impact.class_include_edges(REPO)
         self.assertEqual({c for c, _ in edges.get('audio/audio.h')}, {'midi'})
         self.assertIn(('midi', 'midi2_device.h'), edges.get('audio/audio.h'))
         self.assertEqual({c for c, _ in edges.get('cdc/cdc.h')}, {'net'})
 
     def test_audio_header_selects_midi_example(self):
-        s = ci_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
+        s = change_impact.classify(['src/class/audio/audio.h'], REPO, real_rosters())
         self.assertFalse(s['full'])
         # every board that runs device/midi_test at all must run it here (boards with
         # a tests.only list, e.g. espressif, run the freertos examples instead)
         by_name = {b['name']: b for _, bs in real_rosters() for b in bs}
         checked = 0
         for name, tests in s['boards'].items():
-            if 'device/midi_test' in ci_select.board_tests(by_name[name]):
+            if 'device/midi_test' in change_impact.board_tests(by_name[name]):
                 self.assertIn('device/midi_test', tests, name)
                 checked += 1
         self.assertTrue(checked)
@@ -189,21 +189,21 @@ class TestClassIncludeEdges(unittest.TestCase):
         # both skip device/audio_test_freertos: without the midi edge their
         # intersection is empty and they drop out of the selection entirely
         boards = on_roster(self, 'metro_m4_express', 'nrf54lm20dk')
-        s = ci_select.classify(['src/class/audio/audio.h'], REPO, real_rosters())
+        s = change_impact.classify(['src/class/audio/audio.h'], REPO, real_rosters())
         for board in boards:
             self.assertEqual(s['boards'].get(board), ['device/midi_test'], board)
 
     def test_edge_keeps_the_including_files_own_macro(self):
         # mutant: map the edge to class_macros(c, '') again. midi2_{device,host}.h include
         # audio.h but compile under CFG_TUx_MIDI2, which only the midi2 examples enable
-        got = ci_select._build_class_examples('audio', 'audio.h', {'device', 'host'}, REPO)
+        got = change_impact._build_class_examples('audio', 'audio.h', {'device', 'host'}, REPO)
         self.assertIn('device/midi2_device', got)
         self.assertIn('host/midi2_host', got)
 
     def test_edge_is_per_header_not_per_class(self):
         # midi includes audio.h, not audio_device.h: an audio_device change must
         # not drag midi's examples in
-        s = ci_select.classify(['src/class/audio/audio_device.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/class/audio/audio_device.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for tests in s['boards'].values():
             if tests != 'all':
@@ -293,17 +293,17 @@ class TestHfpJointSoloParity(unittest.TestCase):
         solo = [r for r in joint if r[0].endswith('hfp.json')]
         for files in self.DIFFS:
             with self.subTest(files=files):
-                a = ci_select.classify(list(files), REPO, joint)
-                b = ci_select.classify(list(files), REPO, solo)
+                a = change_impact.classify(list(files), REPO, joint)
+                b = change_impact.classify(list(files), REPO, solo)
                 self.assertEqual(a['full'], b['full'])
-                self.assertEqual(ci_select.selection_args(a, joint)['hfp.json'],
-                                 ci_select.selection_args(b, solo)['hfp.json'])
+                self.assertEqual(change_impact.selection_args(a, joint)['hfp.json'],
+                                 change_impact.selection_args(b, solo)['hfp.json'])
 
 
 class TestArgsEmission(unittest.TestCase):
     def test_args_for_scoped_selection(self):
         s = sel(['src/portable/raspberrypi/rp2040/dcd_rp2040.c'])
-        args = ci_select.selection_args(s, ROSTERS)
+        args = change_impact.selection_args(s, ROSTERS)
         a = args['tinyusb.json']
         self.assertIn('-b raspberry_pi_pico', a)
         self.assertNotIn('stm32f407disco', a)
@@ -311,17 +311,17 @@ class TestArgsEmission(unittest.TestCase):
 
     def test_args_full_is_empty(self):
         s = sel(['tools/random_new_script.py'])
-        self.assertEqual(ci_select.selection_args(s, ROSTERS), {'tinyusb.json': ''})
+        self.assertEqual(change_impact.selection_args(s, ROSTERS), {'tinyusb.json': ''})
 
     def test_args_all_board_gets_bare_b(self):
         s = sel(['hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'])
-        a = ci_select.selection_args(s, ROSTERS)['tinyusb.json']
+        a = change_impact.selection_args(s, ROSTERS)['tinyusb.json']
         self.assertIn('-b raspberry_pi_pico', a)
         self.assertNotIn('-bt', a)
 
     def test_args_by_flasher_splits_esp_from_the_rest(self):
         s = sel(['src/device/usbd.c'])
-        per = ci_select.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
+        per = change_impact.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
         self.assertIn('espressif_s3_devkitm', per['esptool'])
         self.assertIn('raspberry_pi_pico', per['openocd'])
         self.assertNotIn('espressif_s3_devkitm', per.get('openocd', '') + per.get('jlink', ''))
@@ -329,19 +329,19 @@ class TestArgsEmission(unittest.TestCase):
     def test_args_by_flasher_omits_a_flasher_with_no_selected_board(self):
         # the esp CI leg must see no args at all here, not a filter matching zero boards
         s = sel(['hw/bsp/rp2040/boards/raspberry_pi_pico/board.h'])
-        per = ci_select.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
+        per = change_impact.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
         self.assertEqual(per, {'openocd': '-b raspberry_pi_pico'})
 
     def test_args_by_flasher_full_is_empty(self):
         s = sel(['tools/random_new_script.py'])
-        self.assertEqual(ci_select.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
+        self.assertEqual(change_impact.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
 
     def test_cli_diff_file(self):
         import subprocess, tempfile, json as j
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
             f.write('src/class/cdc/cdc_device.c\n')
             path = f.name
-        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/ci_select.py'),
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/change_impact.py'),
                             '--diff-file', path, os.path.join(REPO, 'test/hil/tinyusb.json')],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -367,7 +367,7 @@ class TestRealRosterPortFamilies(unittest.TestCase):
     lives in a component CMakeLists.txt rather than family.cmake/family.mk."""
     def test_dwc2_change_selects_espressif_boards(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             self.assertIn(board, s['boards'])
@@ -391,26 +391,26 @@ class TestOptionGatedPort(unittest.TestCase):
 
     def test_real_roster_max3421_selects_option_board(self):
         boards = on_roster(self, 'metro_m4_express')
-        s = ci_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             self.assertIn(board, s['boards'])
 
     def test_option_selects_via_defines_and_flags(self):
-        s = ci_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, self.OPT_ROSTER)
+        s = change_impact.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, self.OPT_ROSTER)
         self.assertFalse(s['full'])
         self.assertIn('fake_dual_board', s['boards'])    # variant defines
         self.assertIn('fake_host_board', s['boards'])    # variant flags
         self.assertNotIn('fake_off_board', s['boards'])  # variant defines, but =0
 
     def test_device_role_port_does_not_pull_host_only_option_board(self):
-        s = ci_select.classify(['src/portable/analog/max3421/dcd_max3421.c'], REPO, self.OPT_ROSTER)
+        s = change_impact.classify(['src/portable/analog/max3421/dcd_max3421.c'], REPO, self.OPT_ROSTER)
         self.assertFalse(s['full'])
         self.assertNotIn('fake_host_board', s['boards'])  # host-only board, device change
         self.assertIn('fake_dual_board', s['boards'])     # device-capable option board
 
     def test_gates_parsed_from_family_support(self):
-        self.assertEqual(ci_select.port_option_gates(REPO).get('analog/max3421'),
+        self.assertEqual(change_impact.port_option_gates(REPO).get('analog/max3421'),
                          {'MAX3421_HOST'})
 
     def test_board_cmake_option_counts(self):
@@ -418,12 +418,12 @@ class TestOptionGatedPort(unittest.TestCase):
         (hw/bsp/espressif/boards/*/board.cmake -> set(MAX3421_HOST 1)); board_options()
         must see those too, or such a board joining the roster is silently dropped."""
         self.assertIn('MAX3421_HOST',
-                      ci_select.bsp_board_options('adafruit_feather_esp32s3', REPO))
+                      change_impact.bsp_board_options('adafruit_feather_esp32s3', REPO))
         self.assertIn('CFG_TUH_RPI_PIO_USB',
-                      ci_select.bsp_board_options('adafruit_fruit_jam', REPO))
+                      change_impact.bsp_board_options('adafruit_fruit_jam', REPO))
         # commented-out `# set(MAX3421_HOST 1)` must not count
         self.assertNotIn('MAX3421_HOST',
-                         ci_select.bsp_board_options('feather_nrf52840_express', REPO))
+                         change_impact.bsp_board_options('feather_nrf52840_express', REPO))
 
     def test_board_cmake_option_selects_off_family_board(self):
         # adafruit_feather_esp32s3 is not on any rig roster; stand it in as one to
@@ -431,7 +431,7 @@ class TestOptionGatedPort(unittest.TestCase):
         roster = [('test/hil/opt.json', [
             {'name': 'adafruit_feather_esp32s3', 'uid': 'o1', 'flasher': {'name': 'esptool'},
              'tests': {'device': False, 'host': True, 'dual': False}}])]
-        s = ci_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
+        s = change_impact.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
         self.assertFalse(s['full'])
         self.assertIn('adafruit_feather_esp32s3', s['boards'])
 
@@ -441,7 +441,7 @@ class TestOptionGatedPort(unittest.TestCase):
         roster = [('test/hil/opt.json', [
             {'name': 'nrf5340dk', 'uid': 'o1', 'flasher': {'name': 'jlink'},
              'tests': {'device': False, 'host': True, 'dual': False}}])]
-        s = ci_select.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
+        s = change_impact.classify(['src/portable/analog/max3421/hcd_max3421.c'], REPO, roster)
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
@@ -451,11 +451,11 @@ class TestPortFamiliesCmakeOnly(unittest.TestCase):
     'port_dir/' so a port dir is not a prefix of a sibling."""
     def test_make_only_family_is_not_a_family(self):
         # hw/bsp/pic32mz has family.mk but no family.cmake
-        self.assertEqual(ci_select.port_families('microchip/pic32mz', REPO), set())
+        self.assertEqual(change_impact.port_families('microchip/pic32mz', REPO), set())
 
     def test_prefix_port_does_not_inherit_sibling_families(self):
         # bare-substring matching let 'microchip/pic' match '.../microchip/pic32mz/...'
-        self.assertEqual(ci_select.port_families('microchip/pic', REPO), set())
+        self.assertEqual(change_impact.port_families('microchip/pic', REPO), set())
 
     def test_make_only_port_contributes_nothing(self):
         s = sel(['src/portable/microchip/pic32mz/dcd_pic32mz.c'])
@@ -464,8 +464,8 @@ class TestPortFamiliesCmakeOnly(unittest.TestCase):
         self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
 
     def test_cmake_families_still_found(self):
-        self.assertEqual(ci_select.port_families('raspberrypi/rp2040', REPO), {'rp2040'})
-        self.assertIn('stm32f4', ci_select.port_families('synopsys/dwc2', REPO))
+        self.assertEqual(change_impact.port_families('raspberrypi/rp2040', REPO), {'rp2040'})
+        self.assertIn('stm32f4', change_impact.port_families('synopsys/dwc2', REPO))
 
 
 class TestPortFamiliesCoverage(unittest.TestCase):
@@ -511,7 +511,7 @@ class TestPortFamiliesCoverage(unittest.TestCase):
         for port in ports:
             if port in self.NO_FAMILY:
                 continue
-            fams = ci_select.port_families(port, REPO)
+            fams = change_impact.port_families(port, REPO)
             self.assertTrue(fams, f'{port}: no family references this port '
                                    f'(port_families() scan gap, or add to NO_FAMILY)')
 
@@ -521,7 +521,7 @@ class TestRealRosterOnlyListTests(unittest.TestCase):
     being invisible to the selector because it only knew the shared hil_util lists."""
     def test_only_list_example_change_selects_it(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['examples/device/hid_composite_freertos/src/main.c'], REPO, real_rosters())
+        s = change_impact.classify(['examples/device/hid_composite_freertos/src/main.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             self.assertEqual(s['boards'][board], ['device/hid_composite_freertos'])
@@ -530,16 +530,16 @@ class TestRealRosterOnlyListTests(unittest.TestCase):
         # cdc_msc_throughput is not a *_freertos example: espressif builds it only via
         # build.py's extra list, and selects it only via the roster only-list
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['examples/device/cdc_msc_throughput/src/main.c'], REPO, real_rosters())
+        s = change_impact.classify(['examples/device/cdc_msc_throughput/src/main.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             self.assertEqual(s['boards'][board], ['device/cdc_msc_throughput'])
-        self.assertIn('espressif', ci_select.classify_build(
+        self.assertIn('espressif', change_impact.classify_build(
             ['examples/device/cdc_msc_throughput/src/main.c'], REPO)['families'])
 
     def test_class_change_includes_only_list_boards(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['src/class/hid/hid_device.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/class/hid/hid_device.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             self.assertIn(board, s['boards'])
@@ -552,7 +552,7 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
     (e.g. hid_composite_freertos) that aren't in the shared device_tests list."""
     def test_dcd_change_includes_only_list_test(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
@@ -565,7 +565,7 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
 
     def test_core_device_change_includes_only_list_test(self):
         boards = on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
-        s = ci_select.classify(['src/device/usbd.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/device/usbd.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board in boards:
             tests = s['boards'][board]
@@ -577,7 +577,7 @@ class TestPortAndCoreRoleUseExtras(unittest.TestCase):
             self.assertIn('device/usbtest', tests)
 
     def test_host_change_does_not_leak_device_only_list_test(self):
-        s = ci_select.classify(['src/host/usbh.c'], REPO, real_rosters())
+        s = change_impact.classify(['src/host/usbh.c'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for board, tests in s['boards'].items():
             if tests == 'all':
@@ -615,8 +615,8 @@ class TestFamilies(unittest.TestCase):
         # full stays full: every roster board, and no args to narrow the run
         self.assertEqual(set(s['boards']), {b['name'] for b in ROSTER})
         self.assertTrue(all(v == 'all' for v in s['boards'].values()))
-        self.assertEqual(ci_select.selection_args(s, ROSTERS), {'tinyusb.json': ''})
-        self.assertEqual(ci_select.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
+        self.assertEqual(change_impact.selection_args(s, ROSTERS), {'tinyusb.json': ''})
+        self.assertEqual(change_impact.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
 
     def test_family_order_does_not_matter(self):
         # same as above with the full-matrix file last (was the only order that worked)
@@ -629,7 +629,7 @@ class TestGitDiffArgv(unittest.TestCase):
     def test_diff_disables_rename_detection(self):
         """Without --no-renames git reports only a rename's destination, so moving an
         HIL-relevant file to a non-code path would be classified as non-code only."""
-        self.assertIn('--no-renames', ci_select.GIT_DIFF_ARGV)
+        self.assertIn('--no-renames', change_impact.GIT_DIFF_ARGV)
 
 
 class TestPortWithoutFamilyContributesNothing(unittest.TestCase):
@@ -638,13 +638,13 @@ class TestPortWithoutFamilyContributesNothing(unittest.TestCase):
     nothing to run. Forcing the full 30-board rig here bought no coverage - the build
     walk answered the identical condition with zero families for the same path."""
     def test_unreferenced_port_contributes_nothing(self):
-        orig = ci_select.port_families
-        ci_select.port_families = lambda port_dir, repo_root: set()
+        orig = change_impact.port_families
+        change_impact.port_families = lambda port_dir, repo_root: set()
         try:
             s = sel(['src/portable/vendor/newip/dcd_newip.c'])
-            b = ci_select.classify_build(['src/portable/vendor/newip/dcd_newip.c'], REPO)
+            b = change_impact.classify_build(['src/portable/vendor/newip/dcd_newip.c'], REPO)
         finally:
-            ci_select.port_families = orig
+            change_impact.port_families = orig
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
         self.assertTrue(any('no board family' in r for r in s['reasons']), s['reasons'])
@@ -1016,42 +1016,42 @@ class TestModuleMove(unittest.TestCase):
     def test_repo_root_guard(self):
         # __file__-derived root: moving the module without re-deriving the parent
         # count re-points every scan at the wrong tree (it happened once already)
-        self.assertTrue(os.path.isdir(os.path.join(ci_select._REPO_ROOT, 'src')))
-        self.assertTrue(os.path.isdir(os.path.join(ci_select._REPO_ROOT, 'hw', 'bsp')))
-        self.assertEqual(os.path.realpath(ci_select._REPO_ROOT), os.path.realpath(REPO))
+        self.assertTrue(os.path.isdir(os.path.join(change_impact._REPO_ROOT, 'src')))
+        self.assertTrue(os.path.isdir(os.path.join(change_impact._REPO_ROOT, 'hw', 'bsp')))
+        self.assertEqual(os.path.realpath(change_impact._REPO_ROOT), os.path.realpath(REPO))
 
 
 class TestPathFamilies(unittest.TestCase):
     def test_port_wrapper_unchanged(self):
-        self.assertEqual(ci_select.port_families('raspberrypi/rp2040', REPO), {'rp2040'})
-        self.assertIn('stm32f4', ci_select.port_families('synopsys/dwc2', REPO))
+        self.assertEqual(change_impact.port_families('raspberrypi/rp2040', REPO), {'rp2040'})
+        self.assertIn('stm32f4', change_impact.port_families('synopsys/dwc2', REPO))
 
     def test_boundary_without_trailing_slash(self):
         # hw/bsp/nrf/family.cmake writes `${TOP}/hw/mcu/nordic/nrfx` — no trailing
         # slash; the match must accept a directory-boundary end-of-token
-        self.assertEqual(ci_select.path_families('hw/mcu/nordic/nrfx', REPO), {'nrf'})
+        self.assertEqual(change_impact.path_families('hw/mcu/nordic/nrfx', REPO), {'nrf'})
 
     def test_boundary_rejects_prefix_sibling(self):
         # 'microchip/pic' must not inherit pic32mz's references (and pic32mz itself
         # is family.mk-only, which the CMake-only scan never reads)
-        self.assertEqual(ci_select.port_families('microchip/pic', REPO), set())
-        self.assertEqual(ci_select.port_families('microchip/pic32mz', REPO), set())
+        self.assertEqual(change_impact.port_families('microchip/pic', REPO), set())
+        self.assertEqual(change_impact.port_families('microchip/pic32mz', REPO), set())
 
     def test_mcu_families_prefix_walk(self):
-        self.assertEqual(ci_select.mcu_families('hw/mcu/nordic/nrf5x/nrf_clock.h', REPO), {'nrf'})
-        self.assertEqual(ci_select.mcu_families('hw/mcu/dialog/da1469x/x.h', REPO), {'da1469x'})
-        self.assertEqual(ci_select.mcu_families('hw/mcu/no_such_vendor/x.c', REPO), set())
+        self.assertEqual(change_impact.mcu_families('hw/mcu/nordic/nrf5x/nrf_clock.h', REPO), {'nrf'})
+        self.assertEqual(change_impact.mcu_families('hw/mcu/dialog/da1469x/x.h', REPO), {'da1469x'})
+        self.assertEqual(change_impact.mcu_families('hw/mcu/no_such_vendor/x.c', REPO), set())
 
 
 class TestMcuHilRule(unittest.TestCase):
     def test_mcu_no_longer_forces_full(self):
-        s = ci_select.classify(['hw/mcu/nordic/nrf5x/nrf_clock.h'], REPO, ROSTERS)
+        s = change_impact.classify(['hw/mcu/nordic/nrf5x/nrf_clock.h'], REPO, ROSTERS)
         self.assertFalse(s['full'])
         self.assertIn('nrf', s['families'])   # recorded even with no nrf rig board
 
     def test_mcu_selects_family_boards(self):
         got = on_roster(self, 'feather_nrf52840_express', 'pca10056', 'pca10095')
-        s = ci_select.classify(['hw/mcu/nordic/nrf5x/nrf_clock.h'], REPO, real_rosters())
+        s = change_impact.classify(['hw/mcu/nordic/nrf5x/nrf_clock.h'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for b in got:
             self.assertIn(b, s['boards'])
@@ -1060,7 +1060,7 @@ class TestMcuHilRule(unittest.TestCase):
         # empty means empty (maintainer ruling): if no family's build references the
         # path, no build consumes the change - there is nothing to compile or run.
         # test_tracked_mcu_vendors_resolve is the drift guard for a real vendor dir
-        s = ci_select.classify(['hw/mcu/no_such_vendor/x.c'], REPO, ROSTERS)
+        s = change_impact.classify(['hw/mcu/no_such_vendor/x.c'], REPO, ROSTERS)
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
         self.assertEqual(s['families'], [])
@@ -1074,7 +1074,7 @@ class TestOrphanInvariant(unittest.TestCase):
             if not os.path.isdir(d):
                 continue
             port = os.path.relpath(d, os.path.join(REPO, 'src/portable')).replace(os.sep, '/')
-            fams = ci_select.port_families(port, REPO)
+            fams = change_impact.port_families(port, REPO)
             if port in self.ALLOW:
                 self.assertEqual(fams, set(), f'{port}: no longer an orphan - drop it from ALLOW')
             else:
@@ -1087,7 +1087,7 @@ class TestOrphanInvariant(unittest.TestCase):
             self.skipTest('not a git checkout')
         vendors = sorted({'/'.join(p.split('/')[:3]) for p in r.stdout.split()})
         for v in vendors:
-            self.assertTrue(ci_select.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
+            self.assertTrue(change_impact.mcu_families(v + '/x.c', REPO), f'{v}: resolves to no family')
 
     # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
     # gets no compile coverage (ci_set_matrix treats a selection that intersects
@@ -1099,7 +1099,7 @@ class TestOrphanInvariant(unittest.TestCase):
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
         import ci_set_matrix
-        fams = set(ci_select.all_bsp_families(REPO))
+        fams = set(change_impact.all_bsp_families(REPO))
         self.assertEqual(fams - set(ci_set_matrix.family_list), self.UNBUILT_FAMILIES,
                          'a hw/bsp family that no toolchain in ci_set_matrix.family_list '
                          'builds: a PR touching only it now selects zero build legs. Wire '
@@ -1112,7 +1112,7 @@ class TestOrphanInvariant(unittest.TestCase):
         appearing is a real bug in get_deps.py, not something to swallow."""
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
-        fams = set(ci_select.all_bsp_families(REPO))
+        fams = set(change_impact.all_bsp_families(REPO))
         stale = {}
         for name, d in (('deps_mandatory', get_deps.deps_mandatory),
                         ('deps_optional', get_deps.deps_optional)):
@@ -1123,9 +1123,9 @@ class TestOrphanInvariant(unittest.TestCase):
         # subset, not equality: correcting a token in get_deps.py (fc100s -> f1c100s)
         # should be a one-file change, while a NEW unmappable token - which force-fulls
         # every get_deps edit that touches its entry - has to be a deliberate act
-        self.assertFalse(set(stale) - set(ci_select._DEPS_ALIAS_TOKENS),
+        self.assertFalse(set(stale) - set(change_impact._DEPS_ALIAS_TOKENS),
                          f'get_deps family tokens naming no hw/bsp dir: '
-                         f'{ {k: v for k, v in stale.items() if k not in ci_select._DEPS_ALIAS_TOKENS} }')
+                         f'{ {k: v for k, v in stale.items() if k not in change_impact._DEPS_ALIAS_TOKENS} }')
 
 
 class TestRostersDoNotOverlap(unittest.TestCase):
@@ -1149,7 +1149,7 @@ class TestTypecRule(unittest.TestCase):
     and force-fulled 82 families and all 30 rig boards."""
 
     def test_build_axis_selects_only_the_typec_examples(self):
-        s = ci_select.classify_build(['src/typec/usbc.c'], REPO)
+        s = change_impact.classify_build(['src/typec/usbc.c'], REPO)
         self.assertFalse(s['full'])
         self.assertTrue(s['families'], 'typec must be compiled somewhere')
         self.assertTrue(s['family_examples'], 'and the examples must be named')
@@ -1161,7 +1161,7 @@ class TestTypecRule(unittest.TestCase):
     def test_every_typec_file_answers_the_same(self):
         for f in ('src/typec/usbc.c', 'src/typec/usbc.h', 'src/typec/tcd.h',
                   'src/typec/pd_types.h'):
-            s = ci_select.classify_build([f], REPO)
+            s = change_impact.classify_build([f], REPO)
             self.assertFalse(s['full'], f)
             self.assertTrue(s['families'], f)
 
@@ -1174,17 +1174,17 @@ class TestTypecRule(unittest.TestCase):
     def test_it_tracks_the_enabling_config_rather_than_a_hardcoded_list(self):
         # the answer must come from CFG_TUC_ENABLED in the example configs, so it
         # follows a new typec example (or an old one switched off) on its own
-        want = ci_select.examples_enabling(
-            ci_select.role_examples(REPO, ('typec',)), ('CFG_TUC_ENABLED',), REPO)
+        want = change_impact.examples_enabling(
+            change_impact.role_examples(REPO, ('typec',)), ('CFG_TUC_ENABLED',), REPO)
         self.assertTrue(want, 'no example enables CFG_TUC_ENABLED - rule 12b is dead')
         got = set()
-        for exs in ci_select.classify_build(['src/typec/usbc.c'], REPO)['family_examples'].values():
+        for exs in change_impact.classify_build(['src/typec/usbc.c'], REPO)['family_examples'].values():
             got |= set(exs)
         self.assertEqual(got, want)
 
 
 class TestCachesAreKeyedOnTheTree(unittest.TestCase):
-    """build_utils caches on repo-RELATIVE paths while ci_select._in_repo() chdirs
+    """build_utils caches on repo-RELATIVE paths while change_impact._in_repo() chdirs
     between trees, so the cwd has to be part of every cache key. Without it a second
     tree gets the first tree's skip.txt/only.txt and FAMILY_MCUS."""
 
@@ -1227,8 +1227,8 @@ class TestClassesWithNoEnablingExample(unittest.TestCase):
             cls = os.path.basename(d)
             hit = False
             for base in sorted(os.path.basename(f) for f in _glob.glob(os.path.join(d, '*.[ch]'))):
-                roles = ci_select._class_roles(base)
-                if ci_select._build_class_examples(cls, base, roles, REPO):
+                roles = change_impact._class_roles(base)
+                if change_impact._build_class_examples(cls, base, roles, REPO):
                     hit = True
                     break
             if not hit:
@@ -1244,19 +1244,19 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
     Rule 2 is a bare `test/hil/` prefix, so the harness's own unit tests were booking
     the full 27-board rig - ~11 minutes of exclusive hardware for a diff that cannot
     reach it. Nothing on the rig runs them: pre-commit does, and build.yml runs
-    test_ci_select.py as the gate before trusting a selection at all.
+    test_change_impact.py as the gate before trusting a selection at all.
 
     The carve-out is only safe while that directory holds nothing rig-affecting, which
     is what the second test pins."""
 
     def test_the_harness_own_tests_select_nothing_on_either_axis(self):
-        for p in ('test/hil/test/test_ci_select.py', 'test/hil/test/test_ci_metrics.py',
+        for p in ('test/hil/test/test_change_impact.py', 'test/hil/test/test_ci_metrics.py',
                   'test/hil/test/test_hil_bounded.py', 'test/hil/test/stubs/pymtp.py',
                   'test/hil/test/stubs/hid.py', 'test/hil/test/usbtest_harness.py'):
-            s = ci_select.classify([p], REPO, ROSTERS)
+            s = change_impact.classify([p], REPO, ROSTERS)
             self.assertFalse(s['full'], p)
             self.assertFalse(s['boards'], p)
-            b = ci_select.classify_build([p], REPO)
+            b = change_impact.classify_build([p], REPO)
             self.assertFalse(b['full'], p)
             self.assertFalse(b['families'], p)
 
@@ -1265,7 +1265,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         # trusted to narrow their own blast radius
         for p in ('test/hil/hil_test.py', 'test/hil/tinyusb.json',
                   'test/hil/helper/hil_ci_set_matrix.py'):
-            s = ci_select.classify([p], REPO, ROSTERS)
+            s = change_impact.classify([p], REPO, ROSTERS)
             self.assertTrue(s['full'], f'{p} must still force the full rig')
 
     def test_nothing_rig_affecting_has_moved_into_the_carve_out(self):
@@ -1278,9 +1278,9 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
         self.assertEqual(sorted(out.stdout.split()), [
             'test/hil/test/stubs/hid.py',
             'test/hil/test/stubs/pymtp.py',
+            'test/hil/test/test_change_impact.py',
             'test/hil/test/test_ci_boards.py',
             'test/hil/test/test_ci_metrics.py',
-            'test/hil/test/test_ci_select.py',
             'test/hil/test/test_code_size.py',
             'test/hil/test/test_code_size_ci.py',
             'test/hil/test/test_drivers_coverage.py',
@@ -1319,7 +1319,7 @@ class TestExampleMapOmitsFullFamilies(unittest.TestCase):
     def test_a_device_only_port_diff_still_omits_families_it_cannot_narrow(self):
         # dcd_dwc2.c selects device+dual examples only, but a family whose host examples
         # are all unbuildable anyway ends up wanting its entire buildable set
-        b = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        b = change_impact.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
         self.assertFalse(b['full'])
         self.assertTrue(b['families'])
         omitted = [f for f in b['families'] if f not in b['family_examples']]
@@ -1331,7 +1331,7 @@ class TestExampleMapOmitsFullFamilies(unittest.TestCase):
     def test_a_family_that_can_build_more_than_the_diff_wants_keeps_its_list(self):
         # the other direction: one example selects itself and nothing else, so every
         # family it lands on must carry an explicit -e or CI builds all 46
-        b = ci_select.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
+        b = change_impact.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
         self.assertFalse(b['full'])
         for fam in b['families']:
             self.assertEqual(b['family_examples'].get(fam), ['device/cdc_msc'], fam)
@@ -1393,32 +1393,28 @@ class TestSelectionBehavioursThatHadNoTest(unittest.TestCase):
         # mutant: delete the _CLS_STEM_RE block. src/class/midi holds MIDI 1.0 AND 2.0;
         # examples/device/midi2_device is the only example enabling CFG_TUD_MIDI2 and the
         # only one that compiles midi2_device.c, but the directory macro alone misses it.
-        got = ci_select._build_class_examples('midi', 'midi2_device.c', {'device'}, REPO)
+        got = change_impact._build_class_examples('midi', 'midi2_device.c', {'device'}, REPO)
         self.assertIn('device/midi2_device', got,
                       'a midi2 change must select the example that compiles it')
-        host = ci_select._build_class_examples('midi', 'midi2_host.c', {'host'}, REPO)
+        host = change_impact._build_class_examples('midi', 'midi2_host.c', {'host'}, REPO)
         self.assertIn('host/midi2_host', host)
         # and the plain midi files must NOT drag midi2 in
-        plain = ci_select._build_class_examples('midi', 'midi_device.c', {'device'}, REPO)
+        plain = change_impact._build_class_examples('midi', 'midi_device.c', {'device'}, REPO)
         self.assertNotIn('device/midi2_device', plain)
 
     def test_a_port_change_selects_the_dual_examples(self):
         # mutant: drop `+ ('dual',)`. A dcd/hcd change must build the dual examples -
         # they exercise both stacks on one board, so a dwc2 break lands there first.
-        s = ci_select.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
+        s = change_impact.classify_build(['src/portable/synopsys/dwc2/dcd_dwc2.c'], REPO)
         duals = {e for exs in s['family_examples'].values() for e in exs
                  if e.startswith('dual/')}
         self.assertTrue(duals, 'a dcd change selected no dual example')
 
 
-class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
-    """ci_select's module docstring carries the rule table so a reader landing in the
-    code does not have to open the spec to learn what rule 6 is. Both are maintained by
-    hand, so this pins them cell-for-cell: edit one without the other and this fails.
-
-    It also pins the table against the CODE - every rule id the docstring claims must
-    appear as a `# rule N` marker on a branch of _classify_build_one, so a row cannot be
-    documented without a branch, or a branch renumbered without the table."""
+class TestRuleTableMatchesTheCode(unittest.TestCase):
+    """The rule table lives in change_impact's module docstring. Every rule id it
+    claims must appear as a `# rule N` marker on a branch of _classify_build_one, so a row
+    cannot be documented without a branch, or a branch renumbered without the table."""
 
     @staticmethod
     def _rows(text):
@@ -1432,18 +1428,9 @@ class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
                 out.append(c)
         return out
 
-    def test_docstring_table_matches_the_spec(self):
-        spec = _read(os.path.join(REPO, 'docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md'))
-        doc, spec_rows = self._rows(ci_select.__doc__), self._rows(spec)
-        self.assertTrue(spec_rows, 'no rule table found in the spec')
-        self.assertEqual([r[0] for r in doc], [r[0] for r in spec_rows],
-                         'rule ids differ between ci_select.__doc__ and the spec')
-        for d, s in zip(doc, spec_rows):
-            self.assertEqual(d, s, f'rule {d[0]} differs between the docstring and the spec')
-
     def test_every_documented_rule_has_a_branch(self):
         import re as _re
-        src = _read(os.path.join(REPO, 'tools/ci_select.py'))
+        src = _read(os.path.join(REPO, 'tools/change_impact.py'))
         marked = set()
         # handles `# rule 6`, `# rules 1, 1b` and `# rules 8-10`
         for m in _re.finditer(r'#\s*rules?\s+([0-9a-z, -]+)', src):
@@ -1453,7 +1440,8 @@ class TestRuleTableIsCarbonOfTheSpec(unittest.TestCase):
                     marked.update(str(n) for n in range(int(rng.group(1)), int(rng.group(2)) + 1))
                 elif _re.fullmatch(r'\d+[a-z]?', tok.strip()):
                     marked.add(tok.strip())
-        documented = {r[0] for r in self._rows(ci_select.__doc__)}
+        documented = {r[0] for r in self._rows(change_impact.__doc__)}
+        self.assertTrue(documented, 'no rule table found in the module docstring')
         missing = sorted(documented - marked, key=lambda s: (int(_re.match(r'\d+', s).group()), s))
         self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
 
@@ -1479,8 +1467,8 @@ class TestNoTrackedFileIsUnclassified(unittest.TestCase):
         self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
         out = []
         for f in files:
-            s = (ci_select.classify_build([f], REPO) if axis == 'build'
-                 else ci_select.classify([f], REPO, real_rosters()))
+            s = (change_impact.classify_build([f], REPO) if axis == 'build'
+                 else change_impact.classify([f], REPO, real_rosters()))
             if any('unclassified' in why for why in s['reasons']):
                 out.append(f)
         return out
@@ -1501,21 +1489,21 @@ class TestLibRule(unittest.TestCase):
     """lib/** is not a full-matrix path: only the examples that build the lib need it."""
 
     def b(self, files):
-        return ci_select.classify_build(files, REPO)
+        return change_impact.classify_build(files, REPO)
 
     def test_lib_examples_ground_truth(self):
-        self.assertEqual(ci_select.lib_examples('embedded-cli', REPO),
+        self.assertEqual(change_impact.lib_examples('embedded-cli', REPO),
                          {'host/msc_file_explorer', 'host/msc_file_explorer_freertos'})
-        self.assertEqual(ci_select.lib_examples('networking', REPO),
+        self.assertEqual(change_impact.lib_examples('networking', REPO),
                          {'device/net_lwip_webserver'})
         # only family_support.cmake's LOGGER=rtt plumbing names it, and no CI example
         # build turns that on - the scan is per-example on purpose
-        self.assertEqual(ci_select.lib_examples('SEGGER_RTT', REPO), set())
-        self.assertEqual(ci_select.lib_examples('rt-thread', REPO), set())
+        self.assertEqual(change_impact.lib_examples('SEGGER_RTT', REPO), set())
+        self.assertEqual(change_impact.lib_examples('rt-thread', REPO), set())
 
     def test_lib_examples_matches_at_a_directory_boundary(self):
         # 'lib/net' must not inherit lib/networking's example
-        self.assertEqual(ci_select.lib_examples('net', REPO), set())
+        self.assertEqual(change_impact.lib_examples('net', REPO), set())
 
     def test_build_lib_selects_only_the_using_examples(self):
         s = self.b(['lib/embedded-cli/embedded_cli.h'])
@@ -1583,7 +1571,7 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
     """Pure text-in, families-out: no git, no exec of the parsed module."""
 
     def f(self, head, base=_GD_BASE):
-        return ci_select.get_deps_changed_families(base, head, REPO)
+        return change_impact.get_deps_changed_families(base, head, REPO)
 
     def test_no_change_selects_nothing(self):
         self.assertEqual(self.f(_GD_BASE), set())
@@ -1657,7 +1645,7 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
     def test_real_get_deps_parses(self):
         with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
             real = f.read()
-        self.assertEqual(ci_select.get_deps_changed_families(real, real, REPO), set())
+        self.assertEqual(change_impact.get_deps_changed_families(real, real, REPO), set())
         # a real optional entry bumped resolves to that entry's real family. The commit
         # is read out of get_deps.py rather than pinned here - a routine dep bump must
         # not fail this suite, and pinning a hash tests the tree, not the code
@@ -1666,7 +1654,7 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
         commit, tokens = get_deps.deps_optional['hw/mcu/nordic/nrfx'][1:3]
         bumped = real.replace(commit, '0' * len(commit))
         self.assertNotEqual(bumped, real)
-        self.assertEqual(ci_select.get_deps_changed_families(real, bumped, REPO),
+        self.assertEqual(change_impact.get_deps_changed_families(real, bumped, REPO),
                          set(tokens.split()))
 
 
@@ -1674,7 +1662,7 @@ class TestGetDepsRule(unittest.TestCase):
     """tools/get_deps.py: the changed dep entries' families, or full when unknowable."""
 
     def test_build_selects_the_changed_families(self):
-        s = ci_select.classify_build(['tools/get_deps.py'], REPO,
+        s = change_impact.classify_build(['tools/get_deps.py'], REPO,
                                      get_deps_families={'stm32f4'})
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], ['stm32f4'])
@@ -1682,25 +1670,25 @@ class TestGetDepsRule(unittest.TestCase):
 
     def test_build_without_a_base_is_full(self):
         # --diff-file mode has no git and so no base content: fail open
-        self.assertTrue(ci_select.classify_build(['tools/get_deps.py'], REPO)['full'])
+        self.assertTrue(change_impact.classify_build(['tools/get_deps.py'], REPO)['full'])
 
     def test_build_no_dep_entry_changed_selects_nothing(self):
-        s = ci_select.classify_build(['tools/get_deps.py'], REPO, get_deps_families=set())
+        s = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=set())
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
 
     def test_hil_selects_the_changed_families_boards(self):
-        s = ci_select.classify(['tools/get_deps.py'], REPO, ROSTERS,
+        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS,
                                get_deps_families={'stm32f4'})
         self.assertFalse(s['full'])
         self.assertEqual(list(s['boards']), ['stm32f407disco'])
         self.assertEqual(s['families'], ['stm32f4'])
 
     def test_hil_without_a_base_is_full(self):
-        self.assertTrue(ci_select.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
+        self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
     def test_hil_no_dep_entry_changed_selects_nothing(self):
-        s = ci_select.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
+        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
@@ -1709,7 +1697,7 @@ class TestGetDepsRule(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
             f.write('tools/get_deps.py\n')
             path = f.name
-        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/ci_select.py'),
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/change_impact.py'),
                             '--diff-file', path, os.path.join(REPO, 'test/hil/tinyusb.json')],
                            capture_output=True, text=True)
         os.unlink(path)
@@ -1736,7 +1724,7 @@ class TestGetDepsGitPlumbing(unittest.TestCase):
             elif argv[:2] == ['git', 'merge-base']:
                 self.assertEqual(argv[2:], ['HEADSHA', 'BASESHA'])
                 out = 'MB123\n'
-            elif argv[:3] == ci_select.GIT_DIFF_ARGV[:3]:
+            elif argv[:3] == change_impact.GIT_DIFF_ARGV[:3]:
                 out = diff
             elif argv[:2] == ['git', 'show']:
                 out = _GD_BASE if argv[2].startswith('MB123:') else self.HEAD
@@ -1746,10 +1734,10 @@ class TestGetDepsGitPlumbing(unittest.TestCase):
 
         buf = io.StringIO()
         argv = [sys.executable, '--base', 'origin/master']
-        with mock.patch.object(ci_select.subprocess, 'run', fake_run), \
+        with mock.patch.object(change_impact.subprocess, 'run', fake_run), \
              mock.patch.object(sys, 'argv', argv), \
              contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
-            ci_select.main()
+            change_impact.main()
         return json.loads(buf.getvalue()), calls
 
     def test_base_mode_reads_the_merge_base_blob(self):
@@ -1775,16 +1763,16 @@ class TestGetDepsGitPlumbing(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, stdout=out, stderr='')
 
         buf = io.StringIO()
-        with mock.patch.object(ci_select.subprocess, 'run', fake_run), \
+        with mock.patch.object(change_impact.subprocess, 'run', fake_run), \
              mock.patch.object(sys, 'argv', [sys.executable, '--base', 'origin/master']), \
              contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
-            ci_select.main()
+            change_impact.main()
         self.assertTrue(json.loads(buf.getvalue())['build']['full'])
 
 
 class TestBuildClassifier(unittest.TestCase):
     def b(self, files):
-        return ci_select.classify_build(files, REPO)
+        return change_impact.classify_build(files, REPO)
 
     def test_noncode_and_test_hil_contribute_nothing(self):        # rules 1, 2
         s = self.b(['docs/info/index.rst', 'README.rst', 'test/hil/hil_test.py', '.claude/skills/hil/SKILL.md'])
@@ -1803,8 +1791,8 @@ class TestBuildClassifier(unittest.TestCase):
         # survives Task 4's buildability pruning depends on the environment-gated
         # CI board pick, so the classifier-output assertion must not rely on it
         self.assertIn('dual/host_info_to_device_cdc',
-                      ci_select.role_examples(REPO, ('device', 'dual')))
-        self.assertNotIn('host/bare_api', ci_select.role_examples(REPO, ('device', 'dual')))
+                      change_impact.role_examples(REPO, ('device', 'dual')))
+        self.assertNotIn('host/bare_api', change_impact.role_examples(REPO, ('device', 'dual')))
 
     def test_port_host_rule(self):                                 # rule 4
         s = self.b(['src/portable/analog/max3421/hcd_max3421.c'])
@@ -1923,7 +1911,7 @@ class TestBuildClassifier(unittest.TestCase):
     def test_the_build_machinery_is_still_full(self):
         # the other side of the same line: these DECIDE what gets built
         for p in ('.circleci/config.yml', '.github/workflows/build.yml',
-                  '.github/scripts/ci_set_matrix.py', 'tools/ci_select.py',
+                  '.github/scripts/ci_set_matrix.py', 'tools/change_impact.py',
                   'tools/build_utils.py', '.github/ci-pinned-boards.json'):
             self.assertTrue(self.b([p])['full'], p)
 
@@ -1936,7 +1924,7 @@ class TestBuildClassifier(unittest.TestCase):
         self.assertNotIn('device/hid_composite', s['family_examples']['stm32f4'])  # cdc-only there
 
     def test_example_names_are_real_dirs(self):
-        for ex in ci_select.all_examples(REPO):
+        for ex in change_impact.all_examples(REPO):
             role, name = ex.split('/')
             self.assertTrue(os.path.isdir(os.path.join(REPO, 'examples', role, name)), ex)
             self.assertRegex(ex, r'^(device|dual|host|typec)/[A-Za-z0-9_]+$')
@@ -1945,7 +1933,7 @@ class TestBuildClassifier(unittest.TestCase):
 class TestBuildPostFilter(unittest.TestCase):
     def test_kept_examples_are_buildable(self):
         import build_utils, build as build_py
-        s = ci_select.classify_build(['src/class/msc/msc_host.c'], REPO)
+        s = change_impact.classify_build(['src/class/msc/msc_host.c'], REPO)
         self.assertFalse(s['full'])
         # families that cannot build a single TUH_MSC example drop out entirely
         self.assertNotIn('msp430', s['families'])
@@ -1962,7 +1950,7 @@ class TestBuildPostFilter(unittest.TestCase):
             os.chdir(old)
 
     def test_unfiltered_family_has_no_map_key(self):
-        s = ci_select.classify_build(['hw/bsp/stm32f4/family.c'], REPO)
+        s = change_impact.classify_build(['hw/bsp/stm32f4/family.c'], REPO)
         self.assertEqual(s['families'], ['stm32f4'])
         self.assertEqual(s['family_examples'], {})
 
@@ -1970,19 +1958,19 @@ class TestBuildPostFilter(unittest.TestCase):
         # build.py's espressif branch builds get_examples('espressif') only (the
         # examples with an ESP-IDF component), so keeping espressif for a
         # device/cdc_msc diff spins CircleCI's most expensive leg up to skip everything
-        s = ci_select.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
+        s = change_impact.classify_build(['examples/device/cdc_msc/src/main.c'], REPO)
         self.assertFalse(s['full'])
         self.assertNotIn('espressif', s['families'])
 
     def test_espressif_survives_an_example_it_does_build(self):
-        s = ci_select.classify_build(['examples/device/cdc_msc_freertos/src/main.c'], REPO)
+        s = change_impact.classify_build(['examples/device/cdc_msc_freertos/src/main.c'], REPO)
         self.assertFalse(s['full'])
         self.assertIn('espressif', s['families'])
 
     def test_ra_survives_the_dual_example_prune(self):
         # ra's only buildable dual example is gated on only.txt's mcu:ra6m5, which
         # exists only if the ${MCU_VARIANT} token in FAMILY_MCUS resolves
-        s = ci_select.classify_build(
+        s = change_impact.classify_build(
             ['examples/dual/host_info_to_device_cdc/src/main.c'], REPO)
         self.assertFalse(s['full'])
         self.assertIn('ra', s['families'], s['families'])
@@ -1990,7 +1978,7 @@ class TestBuildPostFilter(unittest.TestCase):
     def test_deleted_family_dir_does_not_crash(self):
         # rule 6 extracts a family from the path; a PR that deletes or renames
         # hw/bsp/<fam> used to traceback in get_family_boards' scandir
-        s = ci_select.classify_build(['hw/bsp/no_such_family_xyz/family.cmake'], REPO)
+        s = change_impact.classify_build(['hw/bsp/no_such_family_xyz/family.cmake'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertTrue(any('gone from tree' in r for r in s['reasons']), s['reasons'])
@@ -2007,7 +1995,7 @@ class TestBuildPostFilter(unittest.TestCase):
         # path reached the same branch and the test passed vacuously.
         real = os.path.join(REPO, 'src/class/bth/bth_device.c')
         self.assertTrue(os.path.isfile(real), 'the case needs a file that exists')
-        s = ci_select.classify_build(['src/class/bth/bth_device.c'], REPO)
+        s = change_impact.classify_build(['src/class/bth/bth_device.c'], REPO)
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertTrue(any('no contribution' in r for r in s['reasons']), s['reasons'])
@@ -2015,7 +2003,7 @@ class TestBuildPostFilter(unittest.TestCase):
         self.assertTrue(any('bth' in r for r in s['reasons']), s['reasons'])
 
     def test_class_source_with_examples_still_scopes(self):
-        s = ci_select.classify_build(['src/class/cdc/cdc_device.c'], REPO)
+        s = change_impact.classify_build(['src/class/cdc/cdc_device.c'], REPO)
         self.assertFalse(s['full'])
 
     def test_no_stdout_pollution(self):
@@ -2023,7 +2011,7 @@ class TestBuildPostFilter(unittest.TestCase):
         import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            ci_select.classify_build(['src/class/msc/msc_host.c'], REPO)
+            change_impact.classify_build(['src/class/msc/msc_host.c'], REPO)
         self.assertEqual(buf.getvalue(), '')
 
 
@@ -2038,7 +2026,7 @@ class TestNoContributionPaths(unittest.TestCase):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
-            b = ci_select.classify_build([p], REPO)
+            b = change_impact.classify_build([p], REPO)
             self.assertFalse(b['full'], p)
             self.assertEqual(b['families'], [], p)
 
@@ -2048,7 +2036,7 @@ class TestNoContributionPaths(unittest.TestCase):
         h = sel([p])
         self.assertFalse(h['full'], p)
         self.assertEqual(h['boards'], {}, p)
-        self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+        self.assertTrue(change_impact.classify_build([p], REPO)['full'], p)
 
     def test_ci_size_scripts_are_a_full_build_matrix_without_hil(self):
         # run by every pinned build leg (rule 2d): membrowse_cli.py from
@@ -2057,7 +2045,7 @@ class TestNoContributionPaths(unittest.TestCase):
             h = sel([p])
             self.assertFalse(h['full'], p)
             self.assertEqual(h['boards'], {}, p)
-            self.assertTrue(ci_select.classify_build([p], REPO)['full'], p)
+            self.assertTrue(change_impact.classify_build([p], REPO)['full'], p)
 
     def test_typec_example_builds_but_runs_nothing(self):
         # examples/typec is compiled by the build matrix and run by no rig board; the
@@ -2066,28 +2054,28 @@ class TestNoContributionPaths(unittest.TestCase):
         h = sel([p])
         self.assertFalse(h['full'])
         self.assertEqual(h['boards'], {})
-        b = ci_select.classify_build([p], REPO)
+        b = change_impact.classify_build([p], REPO)
         self.assertFalse(b['full'])
         self.assertTrue(b['families'], 'typec still has to be compiled somewhere')
 
 
 class TestHilExamples(unittest.TestCase):
     def test_board_test_always_present_and_full_emits(self):
-        s = ci_select.classify(['src/common/tusb_fifo.c'], REPO, ROSTERS)  # full
-        he = ci_select.hil_examples(s, ROSTERS)
+        s = change_impact.classify(['src/common/tusb_fifo.c'], REPO, ROSTERS)  # full
+        he = change_impact.hil_examples(s, ROSTERS)
         self.assertEqual(set(he), {b['name'] for b in ROSTER})
         for name, exs in he.items():
             self.assertIn('device/board_test', exs)
 
     def test_narrowed_board_gets_chosen_tests_only(self):
-        s = ci_select.classify(['examples/device/cdc_msc/src/main.c'], REPO, ROSTERS)
-        he = ci_select.hil_examples(s, ROSTERS)
+        s = change_impact.classify(['examples/device/cdc_msc/src/main.c'], REPO, ROSTERS)
+        he = change_impact.hil_examples(s, ROSTERS)
         self.assertEqual(he['stm32f407disco'], ['device/board_test', 'device/cdc_msc'])
 
     def test_full_board_gets_its_whole_test_list(self):
-        s = ci_select.classify(['hw/bsp/stm32f4/boards/stm32f407disco/board.h'], REPO, ROSTERS)
-        he = ci_select.hil_examples(s, ROSTERS)
-        want = set(ci_select.board_tests(ROSTER[1])) | {'device/board_test'}
+        s = change_impact.classify(['hw/bsp/stm32f4/boards/stm32f407disco/board.h'], REPO, ROSTERS)
+        he = change_impact.hil_examples(s, ROSTERS)
+        want = set(change_impact.board_tests(ROSTER[1])) | {'device/board_test'}
         self.assertEqual(set(he['stm32f407disco']), want)
         self.assertNotIn('raspberry_pi_pico', he)   # deselected board: no firmware needed
 
@@ -2097,14 +2085,14 @@ class TestExampleDirectClassIncludes(unittest.TestCase):
     enables: host/bare_api includes class/hid/hid.h with no CFG_TUH_HID."""
 
     def test_build_selects_the_direct_includer(self):
-        s = ci_select.classify_build(['src/class/hid/hid.h'], REPO)
+        s = change_impact.classify_build(['src/class/hid/hid.h'], REPO)
         self.assertFalse(s['full'])
         self.assertTrue(any('host/bare_api' in exs for exs in s['family_examples'].values()))
 
     def test_hil_runs_a_direct_includer_a_roster_lists(self):
         roster = [{'name': 'raspberry_pi_pico', 'uid': 'u1', 'flasher': {'name': 'openocd'},
                    'tests': {'only': ['host/bare_api', 'device/cdc_msc']}}]
-        s = ci_select.classify(['src/class/hid/hid.h'], REPO, [('test/hil/x.json', roster)])
+        s = change_impact.classify(['src/class/hid/hid.h'], REPO, [('test/hil/x.json', roster)])
         self.assertEqual(s['boards'].get('raspberry_pi_pico'), ['host/bare_api'])
 
 
@@ -2121,7 +2109,7 @@ class TestHilExamplesDuplicateRosters(unittest.TestCase):
     ]
 
     def test_duplicate_board_unions_the_test_lists(self):
-        he = ci_select.hil_examples({'full': True, 'boards': {}}, self.ROSTERS)
+        he = change_impact.hil_examples({'full': True, 'boards': {}}, self.ROSTERS)
         self.assertEqual(he['dup_board'],
                          ['device/board_test', 'device/cdc_msc',
                           'device/hid_boot_interface'])
@@ -2129,7 +2117,7 @@ class TestHilExamplesDuplicateRosters(unittest.TestCase):
 
 class TestCliJson(unittest.TestCase):
     def test_build_key_without_rosters(self):
-        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/ci_select.py'),
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/change_impact.py'),
                             '--diff-file', '/dev/null'], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         j = json.loads(r.stdout)
@@ -2141,7 +2129,7 @@ class TestCliJson(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False) as f:
             f.write('src/portable/raspberrypi/rp2040/dcd_rp2040.c\n')
             df = f.name
-        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/ci_select.py'),
+        r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/change_impact.py'),
                             '--diff-file', df, os.path.join(REPO, 'test/hil/tinyusb.json')],
                            capture_output=True, text=True)
         os.unlink(df)
@@ -2403,7 +2391,7 @@ class TestCiSetMatrix(unittest.TestCase):
             for name in ('.github', 'hw', 'test'):
                 os.symlink(os.path.join(REPO, name), os.path.join(d, name))
             os.mkdir(os.path.join(d, 'tools'))
-            with open(os.path.join(d, 'tools', 'ci_select.py'), 'w') as f:
+            with open(os.path.join(d, 'tools', 'change_impact.py'), 'w') as f:
                 f.write('raise ImportError("broken selector")\n')
             for script, args in ((SET_MATRIX, ['--pinned']), (SET_MATRIX, ['--required']),
                                  (HIL_SET_MATRIX, [os.path.join(REPO, 'test/hil/tinyusb.json')])):
@@ -2503,7 +2491,7 @@ class TestCheckManifest(unittest.TestCase):
         sel = mf(['stm32f4'], boards={'stm32f407disco': 'all'}, required=['stm32f407disco'],
                  hil_examples={'stm32f407disco': ['device/cdc_msc']})
         sel['build']['families']['stm32f4'] = {'examples': ['device/cdc_msc']}
-        self.assertIs(ci_select.check_manifest(sel), sel)
+        self.assertIs(change_impact.check_manifest(sel), sel)
 
     def test_malformed_or_contradictory_manifests_are_refused(self):
         def bad(edit):
@@ -2531,18 +2519,18 @@ class TestCheckManifest(unittest.TestCase):
         }
         for name, m in cases.items():
             with self.subTest(name), self.assertRaises(ValueError):
-                ci_select.check_manifest(m)
+                change_impact.check_manifest(m)
 
     def test_build_gate(self):
         gap = {'path': 'src/class/bth/bth_device.c', 'effect': 'gap'}
         doc = {'path': 'README.rst', 'effect': 'none'}
-        self.assertFalse(ci_select.build_gate(mf(paths=[doc])))
-        self.assertTrue(ci_select.build_gate(mf(paths=[doc, gap])))  # no build compiles it: keep the net
-        self.assertTrue(ci_select.build_gate(mf(['stm32f4'])))
-        self.assertTrue(ci_select.build_gate(mf(boards={'stm32f407disco': 'all'})))
-        self.assertTrue(ci_select.build_gate(mf(hil_full=True)))
+        self.assertFalse(change_impact.build_gate(mf(paths=[doc])))
+        self.assertTrue(change_impact.build_gate(mf(paths=[doc, gap])))  # no build compiles it: keep the net
+        self.assertTrue(change_impact.build_gate(mf(['stm32f4'])))
+        self.assertTrue(change_impact.build_gate(mf(boards={'stm32f407disco': 'all'})))
+        self.assertTrue(change_impact.build_gate(mf(hil_full=True)))
         with self.assertRaises(ValueError):
-            ci_select.build_gate({'full': True})
+            change_impact.build_gate({'full': True})
 
 
 HIL_SET_MATRIX = os.path.join(REPO, '.github/scripts/hil_ci_set_matrix.py')
@@ -2813,7 +2801,7 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         # the post-configure check still reports both as covered. No collision today,
         # and the -e lists are machine-generated, so nothing else would notice one.
         seen = {}
-        for ex in ci_select.all_examples(REPO):
+        for ex in change_impact.all_examples(REPO):
             role, name = ex.split('/', 1)
             self.assertNotIn(name, seen,
                              f'{ex} and {seen.get(name)}/{name} share a cmake target name; '
@@ -3154,7 +3142,7 @@ class TestConfigEnables(unittest.TestCase):
     def test_identifier_value_is_enabled(self):
         # examples/host/midi_rx: `#define CFG_TUH_MIDI CFG_TUH_DEVICE_MAX`
         cfg = os.path.join(REPO, 'examples/host/midi_rx/src/tusb_config.h')
-        self.assertTrue(ci_select._config_enables(cfg, ['CFG_TUH_MIDI']))
+        self.assertTrue(change_impact._config_enables(cfg, ['CFG_TUH_MIDI']))
 
     def test_literal_zero_is_disabled(self):
         import tempfile
@@ -3168,10 +3156,10 @@ class TestConfigEnables(unittest.TestCase):
                         '#define CFG_TUD_MIDI  01\n'
                         '#define CFG_TUD_DFU   (1)\n')
             for m in ('CFG_TUD_CDC', 'CFG_TUD_MSC', 'CFG_TUD_HID', 'CFG_TUH_HID'):
-                self.assertFalse(ci_select._config_enables(cfg, [m]), m)
+                self.assertFalse(change_impact._config_enables(cfg, [m]), m)
             for m in ('CFG_TUD_MIDI', 'CFG_TUD_DFU'):
-                self.assertTrue(ci_select._config_enables(cfg, [m]), m)
-            self.assertFalse(ci_select._config_enables(cfg, ['CFG_TUD_VIDEO']))
+                self.assertTrue(change_impact._config_enables(cfg, [m]), m)
+            self.assertFalse(change_impact._config_enables(cfg, ['CFG_TUD_VIDEO']))
 
     def test_two_branch_define_reads_on(self):
         # examples/device/uac2_speaker_fb defines CFG_TUD_HID 1 under
@@ -3179,7 +3167,7 @@ class TestConfigEnables(unittest.TestCase):
         # defaults to 1) compiles the HID class in, so a CFG_TUD_HID change must keep
         # this example on both axes - the #else's zero must not decide it.
         cfg = os.path.join(REPO, 'examples/device/uac2_speaker_fb/src/tusb_config.h')
-        self.assertTrue(ci_select._config_enables(cfg, ['CFG_TUD_HID']))
+        self.assertTrue(change_impact._config_enables(cfg, ['CFG_TUD_HID']))
 
     def test_any_nonzero_define_wins_over_a_zero_one(self):
         import tempfile
@@ -3190,11 +3178,11 @@ class TestConfigEnables(unittest.TestCase):
                         '#define CFG_TUD_MSC 0\n#endif\n'
                         '#if BAR\n#define CFG_TUD_CDC 0\n#else\n'
                         '#define CFG_TUD_CDC (0)\n#endif\n')
-            self.assertTrue(ci_select._config_enables(cfg, ['CFG_TUD_MSC']))
-            self.assertFalse(ci_select._config_enables(cfg, ['CFG_TUD_CDC']))
+            self.assertTrue(change_impact._config_enables(cfg, ['CFG_TUD_MSC']))
+            self.assertFalse(change_impact._config_enables(cfg, ['CFG_TUD_CDC']))
 
     def test_midi_host_change_selects_midi_rx(self):
-        s = ci_select.classify_build(['src/class/midi/midi_host.c'], REPO)
+        s = change_impact.classify_build(['src/class/midi/midi_host.c'], REPO)
         self.assertFalse(s['full'])
         self.assertTrue(s['families'], 'a TUH_MIDI change must select some family')
         self.assertTrue(any('host/midi_rx' in exs
@@ -3208,7 +3196,7 @@ class TestPruneUsesEveryFamilyBoard(unittest.TestCase):
     family's one-first board cannot build it."""
 
     def test_board_gated_example_keeps_its_family(self):
-        s = ci_select.classify_build(
+        s = change_impact.classify_build(
             ['examples/dual/host_hid_to_device_cdc/src/main.c'], REPO)
         self.assertFalse(s['full'])
         self.assertIn('imxrt', s['families'], s['families'])
@@ -3231,7 +3219,7 @@ class TestPruneUsesEveryFamilyBoard(unittest.TestCase):
                                                       (), 'make'))
         finally:
             os.chdir(old)
-        s = ci_select.classify_build(['examples/device/dfu/src/main.c'], REPO)
+        s = change_impact.classify_build(['examples/device/dfu/src/main.c'], REPO)
         self.assertIn('broadcom_64bit', s['families'], s['families'])
 
 
@@ -3250,8 +3238,8 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
         os.chdir(self.old)
 
     def test_only_espressif_narrows_the_pool(self):
-        allex = list(ci_select.all_examples(REPO))
-        for fam in ci_select.all_bsp_families(REPO):
+        allex = list(change_impact.all_examples(REPO))
+        for fam in change_impact.all_bsp_families(REPO):
             pool = [e for e in allex if e in set(self.build_py.get_examples(fam))]
             if fam == 'espressif':
                 self.assertNotEqual(pool, allex)          # the carve-out is real
@@ -3281,7 +3269,7 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
         for files, carve in ((['src/portable/synopsys/dwc2/dcd_dwc2.c'], True),
                              (['src/class/msc/msc_host.c'], True),
                              (['examples/device/cdc_msc_freertos/src/main.c'], False)):
-            s = ci_select.classify_build(files, REPO)
+            s = change_impact.classify_build(files, REPO)
             self.assertFalse(s['full'], files)
             self.assertIn('espressif', s['families'], files)
             esp = set(s['family_examples'].get('espressif') or [])

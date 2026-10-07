@@ -13,7 +13,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 CIRCLECI = os.path.join(REPO, '.circleci')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_ci_select import mf  # noqa: E402  a manifest v1 fixture
+from test_change_impact import mf  # noqa: E402  a manifest v1 fixture
 SENTINEL = 'example-map-default'
 
 
@@ -65,9 +65,9 @@ class TestCircleCiSentinelContract(unittest.TestCase):
         self.assertNotIn('ci_set_matrix.py)', tail)
 
     def test_the_selector_gate_runs_both_suites(self):
-        # test_ci_select.py owns the rules; this file owns the sentinel contract the
+        # test_change_impact.py owns the rules; this file owns the sentinel contract the
         # very same job rewrites. Gating on one of the two leaves the other unguarded.
-        for suite in ('test_ci_select.py', 'test_ci_metrics.py'):
+        for suite in ('test_change_impact.py', 'test_ci_metrics.py'):
             self.assertIn(suite, self.config, f'{suite} does not gate the CircleCI selector')
 
 
@@ -86,11 +86,11 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # SELECT_JSON="$SELECT_JSON" python3 -c ... E2BIGs at ~128KiB: measured 261KB
         # for a `git ls-files hw/bsp/**` sweep. Every reader takes the file instead.
         self.assertNotIn('SELECT_JSON="$SELECT_JSON"', self.build)
-        self.assertIn('json.load(open("ci_select_out.json"))', self.build)
+        self.assertIn('json.load(open("selection.json"))', self.build)
 
     def test_the_file_is_written_before_its_first_reader(self):
-        self.assertLess(self.build.index("printf '%s' \"$SELECT_JSON\" > ci_select_out.json"),
-                        self.build.index('json.load(open("ci_select_out.json"))'),
+        self.assertLess(self.build.index("printf '%s' \"$SELECT_JSON\" > selection.json"),
+                        self.build.index('json.load(open("selection.json"))'),
                         'the selection file must exist before the step that reads it')
 
     def test_pr_derived_env_values_are_character_guarded(self):
@@ -358,7 +358,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
 
     def _run_block(self, block, sel, setup=None):
-        """Run a dedented build.yml step block with `sel` as ci_select_out.json in a temp
+        """Run a dedented build.yml step block with `sel` as selection.json in a temp
         dir; `setup(dir)` may prepare the dir and return extra env. Returns the block's
         $GITHUB_OUTPUT as a dict."""
         import tempfile
@@ -367,7 +367,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def _run_block_in(self, d, block, sel, setup=None):
         import subprocess
-        with open(os.path.join(d, 'ci_select_out.json'), 'w') as fh:
+        with open(os.path.join(d, 'selection.json'), 'w') as fh:
             json.dump(sel, fh)
         out = os.path.join(d, 'gh_output')
         open(out, 'w').close()
@@ -384,7 +384,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         broken script would not). Returns the step's $GITHUB_OUTPUT as a dict."""
         import shlex
         repo = os.path.dirname(CIRCLECI)
-        i = self.build.index('SELECT_FILE=ci_select_out.json')
+        i = self.build.index('SELECT_FILE=selection.json')
         i = self.build.rindex('\n', 0, i) + 1
         j = self.build.index('# HIL matrix', i)
         block = re.sub(r'^ {10}', '', self.build[i:j], flags=re.M)
@@ -440,7 +440,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         j = self.build.index('echo "$OUT" >> $GITHUB_OUTPUT', i)
         j = self.build.index('\n', j) + 1
         def setup(d):
-            for name in ('test', 'tools'):  # ci_select, and the roster helpers it imports
+            for name in ('test', 'tools'):  # change_impact, and the roster helpers it imports
                 os.symlink(os.path.join(REPO, name), os.path.join(d, name))
         return self._run_block(re.sub(r'^ {10}', '', self.build[i:j], flags=re.M), sel, setup)
 
@@ -458,12 +458,12 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             os.mkdir(os.path.join(d, 'bin'))
             with open(os.path.join(d, 'bin', 'python3'), 'w') as fh:
                 fh.write('#!/bin/sh\n'
-                         f'case "$*" in *test_ci_select.py*|*test_build_select.py*) exit {suites_rc} ;;\n'
-                         '  *check_build.py*) echo "$*" > argv; exec cat ci_select_out.json ;; esac\n'
+                         f'case "$*" in *test_change_impact.py*|*test_build_select.py*) exit {suites_rc} ;;\n'
+                         '  *check_build.py*) echo "$*" > argv; exec cat selection.json ;; esac\n'
                          f'exec {shlex.quote(sys.executable)} "$@"\n')
             os.chmod(os.path.join(d, 'bin', 'python3'), 0o755)
             if sel is None:
-                os.unlink(os.path.join(d, 'ci_select_out.json'))
+                os.unlink(os.path.join(d, 'selection.json'))
             return {'PATH': os.path.join(d, 'bin') + os.pathsep + os.environ['PATH'],
                     'EVENT': event, 'BASE_REF': 'master', 'BEFORE': before}
         with tempfile.TemporaryDirectory() as d:
@@ -567,9 +567,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('check_build.py --select-only --base "origin/$BASE_REF"', job)
         # the suites ran in check-paths on this commit: not again on the rig runner
         self.assertIn('SUITES_OK: ${{ needs.check-paths.outputs.selector_suites_ok }}', job)
-        self.assertNotIn('test_ci_select.py', job)
-        self.assertIn('--config test/hil/hfp.json > ci_select.json', job)
-        self.assertIn('ci_select.check_manifest(json.load(open("ci_select.json")))', job)
+        self.assertNotIn('test_change_impact.py', job)
+        self.assertIn('--config test/hil/hfp.json > selection.json', job)
+        self.assertIn('change_impact.check_manifest(json.load(open("selection.json")))', job)
 
     def test_the_build_extras_drop_when_the_matrix_falls_open(self):
         # ci_set_matrix falls open with rc 0, so the example map and family regex must

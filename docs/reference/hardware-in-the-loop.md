@@ -281,7 +281,7 @@ Both files are the source of truth — this table is generated from them.
    `test/hil/hil_test.py`, which flashes each board and runs its tests. Espressif boards
    run in `hil-tinyusb-esp`, gated on the slower ESP-IDF build, and `hil-hfp-iar` builds
    with IAR inside the job.
-3. On pull requests, `tools/ci_select.py` narrows the run to the boards a diff can
+3. On pull requests, `tools/change_impact.py` narrows the run to the boards a diff can
    affect — and each board's build to the examples its tests need — falling open to the
    full matrix when it cannot tell. The same pass scopes the build matrix.
 4. Each board is arbitrated by a kernel flock in `/tmp/tinyusb-hil-locks/`, so interactive

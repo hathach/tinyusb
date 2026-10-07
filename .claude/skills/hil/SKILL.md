@@ -48,11 +48,11 @@ Use it before a HIL campaign, after rig maintenance/reboot, or when boards fail 
 
 ## PR-scoped selection
 
-`tools/ci_select.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
+`tools/change_impact.py` maps a diff to affected boards/tests (used by CI on PRs; fail-open
 to the full matrix). Manual use:
 
 ```bash
-SEL=$(python3 tools/ci_select.py --base master test/hil/tinyusb.json)
+SEL=$(python3 tools/change_impact.py --base master test/hil/tinyusb.json)
 FULL=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['full'])")
 ARGS=$(printf '%s' "$SEL" | python3 -c "import json,sys; print(json.load(sys.stdin)['args']['tinyusb.json'])")
 if [ "$FULL" = "True" ] || [ -n "$ARGS" ]; then
@@ -66,8 +66,8 @@ Read `full`, never `args` alone: `args` is empty for BOTH `full: true` (run the 
 unclassified change) and "nothing selected" (skip). Skip only when `full` is false AND `args` is empty.
 
 Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-commit hook
-runs every `test_hil*.py`, `ci-select-test` the two `test_ci_*` suites plus
-`test_hil_util.BottomLayer`. `test_ci_select.py` covers only selection, `test_ci_metrics.py`
+runs every `test_hil*.py`, `change-impact-test` `test_change_impact.py`, `test_ci_metrics.py` and
+`test_hil_util.BottomLayer`. `test_change_impact.py` covers only selection, `test_ci_metrics.py`
 only the code-size plumbing; the bounded reads and the build and pool guards live in
 `test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document, `test_hil_rtt.py`
 the RTT console and `test_hil_pool_check.py` the pool check's verdicts and output. Run them all when changing `test/hil`:

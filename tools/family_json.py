@@ -399,7 +399,7 @@ def check(path=CATALOG, root=ROOT):
 def changed_cmake(root=ROOT, run=subprocess.run):
     """The hw/bsp cmake files the tree changes against HEAD, which is what a commit is about
     to carry; nothing when git cannot say (no git, no repository, no HEAD). --no-renames as
-    ci_select does: rename detection reports only a rename's destination, so the board or
+    change_impact does: rename detection reports only a rename's destination, so the board or
     family a file moved out of would keep its row from before the move."""
     try:
         r = run(['git', '-C', str(root), 'diff', '--no-renames', '--name-only', '-z', 'HEAD', '--', 'hw/bsp'],

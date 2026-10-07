@@ -47,15 +47,15 @@ jobs:
           fi
           CODE=true
           SUITES_OK=false
-          if [ -n "$SEL" ] && python3 test/hil/test/test_ci_select.py >/dev/null 2>&1 &&
+          if [ -n "$SEL" ] && python3 test/hil/test/test_change_impact.py >/dev/null 2>&1 &&
              python3 .claude/test/test_build_select.py >/dev/null 2>&1; then
             SUITES_OK=true
             CODE=$(python3 .claude/skills/build/scripts/check_build.py --select-only $SEL \
                      --config test/hil/tinyusb.json --config test/hil/hfp.json | python3 -c '
           import json, sys
           sys.path.insert(0, "tools")
-          import ci_select
-          print(str(ci_select.build_gate(json.load(sys.stdin))).lower())') || CODE=true
+          import change_impact
+          print(str(change_impact.build_gate(json.load(sys.stdin))).lower())') || CODE=true
           fi
           [ "$CODE" = false ] || CODE=true
           echo "code=$CODE suites_ok=$SUITES_OK"
@@ -102,7 +102,7 @@ jobs:
           # advisory workflow that nothing here can `needs:`. Test-failing selector =>
           # full matrix, same as a crashing one.
           SELECT_JSON=''
-          if ! python3 test/hil/test/test_ci_select.py || ! python3 .claude/test/test_build_select.py; then
+          if ! python3 test/hil/test/test_change_impact.py || ! python3 .claude/test/test_build_select.py; then
             echo "::warning::selector unit suites failed - falling back to the full matrix"
           elif ! SELECT_JSON=$(python3 .claude/skills/build/scripts/check_build.py --select-only --base "origin/$BASE_REF" \
                                  --config test/hil/tinyusb.json --config test/hil/hfp.json); then
@@ -115,24 +115,24 @@ jobs:
           # KB, and an env var that big makes the consuming exec fail with E2BIG BEFORE
           # any fallback in it can run. Written here, ahead of its first reader.
           # No file (non-PR event, or any fallback) = full matrix.
-          rm -f ci_select_out.json
+          rm -f selection.json
           if [ -n "$SELECT_JSON" ]; then
-            printf '%s' "$SELECT_JSON" > ci_select_out.json
+            printf '%s' "$SELECT_JSON" > selection.json
           fi
 
           # One args/run pair per rig job, split by flasher: a job whose own subset is
           # empty skips explicitly instead of running a board filter that matches zero
           # boards ("No tests were run." exits 0 and would read as a green HIL run).
           OUT=''
-          if [ -s ci_select_out.json ]; then
+          if [ -s selection.json ]; then
             OUT=$(python3 -c '
           import json, re, sys
           sys.path.insert(0, "tools")
-          import ci_select
+          import change_impact
           # the reading hil_ci_set_matrix.py applies too: both must agree - one falling
           # open to the whole roster while the other computes run=false buys a full
           # 37-leg build and still zero hardware coverage
-          s = ci_select.check_manifest(json.load(open("ci_select_out.json")))["hil"]
+          s = change_impact.check_manifest(json.load(open("selection.json")))["hil"]
           # a missing rig entry must not read as "nothing selected": run_hfp=false skips
           # hil-hfp-iar before it can run its own selection
           tin = s["args_flasher"].get("tinyusb.json")
@@ -146,16 +146,16 @@ jobs:
               # roster board names reach $GITHUB_OUTPUT as bare NAME=VALUE lines; a
               # newline in one would inject extra run_* lines and flip which rig jobs run.
               # ":" and "," are part of the normal shape - a partial filter is
-              # `-bt <board>:<test>,<test>` (ci_select._board_args)
+              # `-bt <board>:<test>,<test>` (change_impact._board_args)
               if not re.fullmatch(r"[-A-Za-z0-9_/ .=+:,]*", a):
                   sys.exit("unexpected characters in the " + key + " board filter")
               print("args_" + key + "=" + a)
               print("run_" + key + "=" + ("true" if (s["full"] or a) else "false"))
           ') || OUT=''
             if [ -z "$OUT" ]; then
-              echo "::warning::ci_select output unusable - falling back to the full HIL matrix"
+              echo "::warning::change_impact output unusable - falling back to the full HIL matrix"
               # the same unusable selection must not stay behind for the build axis
-              rm -f ci_select_out.json
+              rm -f selection.json
             fi
           fi
           if [ -z "$OUT" ]; then
@@ -173,7 +173,7 @@ jobs:
           # Build matrix, scoped by the PR selection when one exists. Best-effort:
           # ci_set_matrix falls back to the full matrix itself on unusable JSON,
           # and a missing file (non-PR event, selector fallback) means no flags.
-          SELECT_FILE=ci_select_out.json
+          SELECT_FILE=selection.json
           [ -s "$SELECT_FILE" ] || SELECT_FILE=''
           BUILD_SELECT_FILE="$SELECT_FILE"
           PINNED_JSON=''
@@ -705,20 +705,20 @@ jobs:
           SUITES_OK: ${{ needs.check-paths.outputs.selector_suites_ok }}
         run: |
           # Best-effort: a selector failure here falls back to the full hfp matrix (no
-          # ci_select.json, no SEL_* vars), never fails the job. check-paths ran the
+          # selection.json, no SEL_* vars), never fails the job. check-paths ran the
           # selector's suites on this commit; this is the rig's runner, so no rerun here.
           if [ "$SUITES_OK" != true ]; then
             echo "::warning::selector unit suites did not pass in check-paths - running the full hfp matrix"
-            rm -f ci_select.json
+            rm -f selection.json
             exit 0
           fi
           if ! python3 .claude/skills/build/scripts/check_build.py --select-only --base "origin/$BASE_REF" \
-                 --config test/hil/hfp.json > ci_select.json; then
+                 --config test/hil/hfp.json > selection.json; then
             echo "::warning::selector failed - running the full hfp matrix"
-            rm -f ci_select.json
+            rm -f selection.json
             exit 0
           fi
-          # ci_select.json is passed to hil_ci_set_matrix.py --select below to scope the
+          # selection.json is passed to hil_ci_set_matrix.py --select below to scope the
           # build; it already honours hil.full by ignoring the board list.
           # The hil_test.py args go to a file, never to $GITHUB_ENV: they are derived
           # from roster board names, which a PR can edit. Only SEL_RUN (a literal
@@ -726,14 +726,14 @@ jobs:
           if ! SEL_RUN=$(python3 -c '
           import json, sys
           sys.path.insert(0, "tools")
-          import ci_select
-          s = ci_select.check_manifest(json.load(open("ci_select.json")))["hil"]
+          import change_impact
+          s = change_impact.check_manifest(json.load(open("selection.json")))["hil"]
           a = s["args"]["hfp.json"]
           open("hil_sel_args.txt", "w").write(a)
           print("true" if (s["full"] or a) else "false")
           '); then
-            echo "::warning::ci_select output unusable - running the full hfp matrix"
-            rm -f ci_select.json hil_sel_args.txt
+            echo "::warning::change_impact output unusable - running the full hfp matrix"
+            rm -f selection.json hil_sel_args.txt
             exit 0
           fi
           echo "SEL_RUN=$SEL_RUN"
@@ -746,8 +746,8 @@ jobs:
           # can exceed MAX_ARG_STRLEN on a big diff, and this job's design is to fall
           # back to the full hfp matrix on any selector trouble, not to fail the step.
           MATRIX_JSON=''
-          if [ -f ci_select.json ]; then
-            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select-file ci_select.json test/hil/hfp.json) || MATRIX_JSON=''
+          if [ -f selection.json ]; then
+            MATRIX_JSON=$(python .github/scripts/hil_ci_set_matrix.py --select-file selection.json test/hil/hfp.json) || MATRIX_JSON=''
             if [ -z "$MATRIX_JSON" ]; then
               echo "::warning::scoped hfp matrix failed - building the full hfp matrix"
             fi

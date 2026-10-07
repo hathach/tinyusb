@@ -28,7 +28,7 @@ blank reason, and a driver neither covered nor waived. Exit 0 otherwise, with
 INFO lines on stdout: each waiver with the pinned boards it suppresses, and
 drivers with no rig board.
 
-The HIL family mapping reuses tools/ci_select.py's rule-3/4 machinery
+The HIL family mapping reuses tools/change_impact.py's rule-3/4 machinery
 (port_families()/port_option_gates()/board_roles(), the same data and role
 filter that pick which rig boards a src/portable/ diff selects) rather than
 a second heuristic.
@@ -42,7 +42,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 FAMILY_JSON = os.path.join(REPO, 'hw', 'bsp', 'family.json')
 PORTABLE = os.path.join(REPO, 'src', 'portable')
 sys.path.insert(0, os.path.join(REPO, 'tools'))
-import ci_select  # noqa: E402
+import change_impact  # noqa: E402
 sys.path.insert(0, os.path.join(REPO, '.github', 'scripts'))
 import ci_set_matrix  # noqa: E402
 
@@ -91,7 +91,7 @@ def _port_scope(driver_path, gates_by_port, repo_root):
     port = _driver_port(driver_path, repo_root)
     if not port:
         return None, set(), set()
-    return port, ci_select.port_families(port, repo_root), gates_by_port.get(port, set())
+    return port, change_impact.port_families(port, repo_root), gates_by_port.get(port, set())
 
 
 def _load_object(path):
@@ -119,7 +119,7 @@ def _entry_coverage(entry, where, catalog, ci_families):
         return None, None, [f'{where}: missing "board"' if not board else
                             f'{where}: "board" must be a string, not {type(board).__name__}']
     where = f'{where} ({board})'
-    family = ci_select.board_family(board, REPO)
+    family = change_impact.board_family(board, REPO)
     if family is None:
         return board, None, [f'{where}: unknown board (no hw/bsp/*/boards/{board})']
     errors = []
@@ -213,12 +213,12 @@ def membrowse_gaps(coverage, uncovered):
 
 
 def _driver_port(driver_path, repo_root):
-    """Port dir per ci_select's rule-3/4 extraction, e.g. 'synopsys/dwc2' from
+    """Port dir per change_impact's rule-3/4 extraction, e.g. 'synopsys/dwc2' from
     'src/portable/synopsys/dwc2/dcd_dwc2.c', or None if it doesn't match (it
-    always should - DriverScan pins the tree shape ci_select._PORT_PATH_RE
+    always should - DriverScan pins the tree shape change_impact._PORT_PATH_RE
     expects)."""
     rel = os.path.relpath(driver_path, repo_root).replace(os.sep, '/')
-    m = ci_select._PORT_PATH_RE.match(rel)
+    m = change_impact._PORT_PATH_RE.match(rel)
     return m.group(1) if m else None
 
 
@@ -235,24 +235,24 @@ def hil_gaps(repo_root=REPO):
     """('INFO', message) for every driver with no board on the HIL rig.
     A driver is covered when a roster board (a) has the matching role for the
     driver - device for dcd_*, host for hcd_*/ehci/ohci, checked against
-    ci_select.board_roles(), exactly the `board_roles(b) & roles` filter
+    change_impact.board_roles(), exactly the `board_roles(b) & roles` filter
     rule 3/4 applies - and (b) either its family is in the driver's port's
-    family set (ci_select.port_families - the same family.cmake references
+    family set (change_impact.port_families - the same family.cmake references
     rule 3/4 reads for a src/portable/ diff) or it turns on a build option
-    that gates the port regardless of family (ci_select.port_option_gates/
+    that gates the port regardless of family (change_impact.port_option_gates/
     board_options - e.g. analog/max3421's MAX3421_HOST)."""
     roster_boards = _hil_roster_boards(repo_root)
-    gates_by_port = ci_select.port_option_gates(repo_root)
+    gates_by_port = change_impact.port_option_gates(repo_root)
     driver_paths = list_driver_paths(os.path.join(repo_root, 'src', 'portable'))
     out = []
     for d in sorted(driver_paths):
         _port, fams, gates = _port_scope(driver_paths[d], gates_by_port, repo_root)
-        # not ci_select._port_roles: bare ehci.c/ohci.c would read as "both" roles there
+        # not change_impact._port_roles: bare ehci.c/ohci.c would read as "both" roles there
         role = 'host' if _is_host_driver(d) else 'device'
         covered = any(
-            (ci_select.board_family(b['name'], repo_root) in fams or
-             (gates and ci_select.board_options(b, repo_root) & gates)) and
-            role in ci_select.board_roles(b)
+            (change_impact.board_family(b['name'], repo_root) in fams or
+             (gates and change_impact.board_options(b, repo_root) & gates)) and
+            role in change_impact.board_roles(b)
             for b in roster_boards)
         if not covered:
             out.append(('INFO', f'hil: {d} has no board on the rig'))

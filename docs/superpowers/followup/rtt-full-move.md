@@ -14,7 +14,7 @@ here as a byte-identical copy because the HIL harness imports its classes.
   re-exports `JlinkRtt`, `OpenocdRtt`, `RttError`, `strip_banner`,
   `RTT_BANNER_RE`; `hil_test.py` opens `JlinkRtt` as the console of a board with
   `"logger": "rtt"` (only `ea4088_quickstart` in `tinyusb.json`).
-- `tools/ci_select.py` imports `hil_util` on GitHub-hosted ubuntu-latest runners
+- `tools/change_impact.py` imports `hil_util` on GitHub-hosted ubuntu-latest runners
   (build.yml path-selection jobs), so the file must be present there today.
 - `hil_remote.py` (hil skill) stages `tools/rtt.py` next to `test/hil`; build.yml's path filter
   and the pre-commit `hil-test` pattern name the file; `test_hil_rtt.py` asserts
@@ -28,7 +28,7 @@ here as a byte-identical copy because the HIL harness imports its classes.
    `strip_banner`, from `HIL_RTT_PY` (default
    `~/.claude/skills/rtt/scripts/rtt.py`), registered in `sys.modules` so
    `RttError` still pickles across the fork pool; the ImportError names the
-   resolved path, the variable and the install command. `ci_select` then never
+   resolved path, the variable and the install command. `change_impact` then never
    touches it.
 2. Delete `tools/rtt.py`; drop its `HARNESS_FILES` entry in `hil_remote.py`, the build.yml path
    filter entry, the pre-commit pattern and the staging assertion.

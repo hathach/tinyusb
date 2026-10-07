@@ -5,10 +5,10 @@
            [-e role/name]... [-T target]... [-D SYMBOL]... [--cflag FLAG]... [--shared [--variants CONFIG [--receipt FILE]]]
   check_build.py --select-only (--scope PATH... | --base REF [--worktree] | --endpoints A..B) [--config ROSTER]...
 
---select-only prints ci_select's selection manifest v1 (SKILL.md) and stops: the selection
+--select-only prints change_impact's selection manifest v1 (SKILL.md) and stops: the selection
 contract CI and agents read.
 
-Scope resolution goes through tools/ci_select.py: one board per affected family
+Scope resolution goes through tools/change_impact.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
 preferring one that builds an example the change affects), plus one more board per
 changed driver none of them compiles by its hw/bsp/family.json row, or the
@@ -31,7 +31,7 @@ stdout ends with one JSON line: {"pass", "boards": [{"board", "family", "buildDi
 "status", "built" and "okExamples" (elfs this run wrote), "firstError", "familyJson"
 (tools/build.py's line on the board's catalog row, when the configure was the default
 one)}], "resolution", "nothingToBuild", "uncovered", "familyJsonChanged" (a build
-rewrote hw/bsp/family.json; commit it with the change)}. A scope path nothing builds is one of two kinds, in ci_select's words:
+rewrote hw/bsp/family.json; commit it with the change)}. A scope path nothing builds is one of two kinds, in change_impact's words:
 "nothingToBuild" is nothing to verify (docs, .claude/, unit tests, HIL harness);
 "uncovered" is firmware no board's build compiled (a class no example enables, a lib
 nothing builds, a port no built board kept a line of after preprocessing - wrong
@@ -59,7 +59,7 @@ FULL_MATRIX_BOARDS = ['stm32f407disco', 'raspberry_pi_pico']
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
 import build as tools_build  # noqa: E402  tools/build.py, first on the path above
-import ci_select  # noqa: E402  the same classifier run below, here for its option knowledge
+import change_impact  # noqa: E402  the same classifier run below, here for its option knowledge
 import family_json  # noqa: E402  hw/bsp/family.json: what each board's default configure compiles
 sys.path.insert(0, str(ROOT / 'test' / 'hil' / 'helper'))
 import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
@@ -78,7 +78,7 @@ def family_boards(family):
 
 
 def expand_scope(scope):
-    """The files of every directory in the scope, new ones included. ci_select and the
+    """The files of every directory in the scope, new ones included. change_impact and the
     changed-board rule both classify file paths: a bare directory matches neither, so a
     board directory would resolve to its family's sample instead of the board itself.
     Untracked-but-not-ignored files count, because the work being verified is usually
@@ -97,7 +97,7 @@ def expand_scope(scope):
         elif (ROOT / p).exists() or tracked(p):
             out.append(p)
         else:
-            # ci_select classifies an unknown path as the full matrix, whose pair then
+            # change_impact classifies an unknown path as the full matrix, whose pair then
             # covers it: a typo would come back green for a path no change touched
             fail(f'{p} does not exist and is not a tracked file; only a path present in the '
                  f'tree or deleted from it can be in the scope')
@@ -112,12 +112,12 @@ def tracked(path):
 
 
 def select(scope=None, base=None, configs=(HIL_CONFIG,), endpoints=None, worktree=False):
-    """ci_select's selection manifest v1 for a path list, the branch diff against base
+    """change_impact's selection manifest v1 for a path list, the branch diff against base
     (with worktree, the uncommitted tree too) or a push's endpoints A..B. A scope that
     carries a get_deps.py edit resolves its dep entries against HEAD (--deps-base).
     Isolated (-I -S) as on a bare CI runner: the selector is stdlib-only, so an import
     that needs site-packages fails here first."""
-    selector = [sys.executable, '-I', '-S', str(ROOT / 'tools' / 'ci_select.py'), '--manifest']
+    selector = [sys.executable, '-I', '-S', str(ROOT / 'tools' / 'change_impact.py'), '--manifest']
     with tempfile.TemporaryDirectory() as tmp:   # the path list goes away with it, fail() included
         if base:
             cmd = selector + ['--base', base] + (['--worktree'] if worktree else [])
@@ -129,7 +129,7 @@ def select(scope=None, base=None, configs=(HIL_CONFIG,), endpoints=None, worktre
             cmd = selector + ['--diff-file', str(listing), '--deps-base', 'HEAD']
         r = subprocess.run(cmd + [str(c) for c in configs], capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
-        fail(f'ci_select failed:\n{r.stderr.strip()}')
+        fail(f'change_impact failed:\n{r.stderr.strip()}')
     return json.loads(r.stdout.splitlines()[-1])
 
 
@@ -145,7 +145,7 @@ def representatives(candidates, examples, drivers=(), keep=()):
     not a claim that guarded drivers have no variant-specific behaviour. Add a plain
     first pick when that leaves nothing. A candidate that compiles
     one of the affected examples is preferred, the criterion dropped when it leaves no
-    candidate: ci_select keeps a family when ANY of its boards builds the selection under
+    candidate: change_impact keeps a family when ANY of its boards builds the selection under
     EITHER build system, so the first candidate can be one skipped for every affected
     example (samd11's cynthion_d11 is skip.txt'd out of device/mtp) and verify none of the
     change.
@@ -492,7 +492,7 @@ def port_gap(record, results):
 
 
 def coverage(records, results, chosen=False, targets=(), dropped=()):
-    """ci_select's per-path build records as (nothing to verify, uncovered firmware),
+    """change_impact's per-path build records as (nothing to verify, uncovered firmware),
     judged against what was actually built, each entry the record's reason. Effect
     'none' is nothing to verify (non-code, a get_deps.py edit that changes no entry);
     'gap' is firmware no build compiles (a class, typec or lib no example enables, a
@@ -808,7 +808,7 @@ def main(argv=None):
     p.add_argument('--worktree', action='store_true',
                    help='with --base: include uncommitted and untracked changes in the scope')
     p.add_argument('--select-only', action='store_true',
-                   help="print ci_select's selection manifest for the scope and stop: no dependency check, no build")
+                   help="print change_impact's selection manifest for the scope and stop: no dependency check, no build")
     p.add_argument('-e', '--example', action='append', default=[], help='only these examples (role/name)')
     p.add_argument('-T', '--target', action='append', default=[], help='build target (default all)')
     p.add_argument('-D', '--define', action='append', default=[],
@@ -826,7 +826,7 @@ def main(argv=None):
     p.add_argument('--receipt', metavar='FILE',
                    help='with --variants and every example: write the HIL build receipt after a passing build')
     p.add_argument('--config', action='append', default=None,
-                   help='rig roster for ci_select (repeatable; default: tinyusb.json)')
+                   help='rig roster for change_impact (repeatable; default: tinyusb.json)')
     p.add_argument('-v', '--verbose', action='store_true', help='stream build output to stderr')
     a = p.parse_args(argv)
     os.chdir(ROOT)  # tools/build.py's example listing reads examples/ relative to the root

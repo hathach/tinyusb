@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit tools/ci_select.py's build selection against the real build graph. Audit only:
+"""Audit tools/change_impact.py's build selection against the real build graph. Audit only:
 nothing in selection reads its output.
 
   coverage_audit.py graph --root CHECKOUT --out DIR (--board B... | --boards-file F) [--force]
@@ -21,7 +21,7 @@ success.
 
 `replay` walks first-parent commits of REF (default HEAD) and, for each, compares the
 (board, example) pairs whose recorded files the commit changed against what the current
-ci_select's build view selects for the same paths. A required pair the selection does
+change_impact's build view selects for the same paths. A required pair the selection does
 not cover is an under-selection candidate, to be confirmed by reading the source. Paths
 the graph never saw are listed per commit; a commit that deletes a file needs its
 historical tree, since the current graph cannot know what built the deleted file.
@@ -430,7 +430,7 @@ def judge(files, deleted, index, family_of, build_view):
 
 def cmd_replay(a):
     sys.path.insert(0, str(ROOT / 'tools'))
-    import ci_select  # noqa: E402  the rules this branch ships
+    import change_impact  # noqa: E402  the rules this branch ships
     index, family_of, status = load_index(a.graph)
     commits = a.commits or run_ok(['git', 'rev-list', '--first-parent', f'--since={a.since}', a.ref],
                                   ROOT).split()
@@ -441,11 +441,11 @@ def cmd_replay(a):
         files = [p for _, p in rows]
         deleted = [p for s, p in rows if s.startswith('D')]
         gd = None
-        if ci_select.GET_DEPS_PATH in files:
-            gd = ci_select._deps_families(
-                lambda: ci_select.git_show(f'{c}^1:{ci_select.GET_DEPS_PATH}', str(ROOT)),
-                lambda: ci_select.git_show(f'{c}:{ci_select.GET_DEPS_PATH}', str(ROOT)), str(ROOT))
-        view = ci_select.classify_build(files, str(ROOT), gd)
+        if change_impact.GET_DEPS_PATH in files:
+            gd = change_impact._deps_families(
+                lambda: change_impact.git_show(f'{c}^1:{change_impact.GET_DEPS_PATH}', str(ROOT)),
+                lambda: change_impact.git_show(f'{c}:{change_impact.GET_DEPS_PATH}', str(ROOT)), str(ROOT))
+        view = change_impact.classify_build(files, str(ROOT), gd)
         v = judge(files, deleted, index, family_of, view)
         v.update(commit=c[:9], subject=run_ok(['git', 'log', '-1', '--format=%s', c], ROOT).strip(),
                  full=view['full'], families=len(view['families']))
