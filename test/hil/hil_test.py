@@ -1488,16 +1488,18 @@ def test_device_audio_test_freertos(board):
 
 def _keep_audio_capture(raw: bytes) -> str:
     """Save a failing capture under $HIL_REPORT_DIR/audio for offline analysis; returns its path."""
-    variant = next((p.removeprefix('cmake-build-') for p in Path(_current_fw or '').parts
+    # innermost: a custom -B root may itself be named cmake-build-*
+    variant = next((p.removeprefix('cmake-build-') for p in reversed(Path(_current_fw or '').parts)
                     if p.startswith('cmake-build-')), 'unknown')
-    path = Path(os.environ.get('HIL_REPORT_DIR', '.')) / 'audio' / \
-        f'{variant}-audio_test_freertos-{time.strftime("%Y%m%d-%H%M%S")}.raw'
+    out_dir = Path(os.environ.get('HIL_REPORT_DIR', '.')) / 'audio'
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(raw)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=out_dir, prefix=f'{variant}-audio_test_freertos-',
+                                         suffix='.raw', delete=False) as f:
+            f.write(raw)
     except OSError as e:
         return f'not saved ({e})'
-    return str(path)
+    return f.name
 
 
 def test_device_hid_generic_inout(board):
