@@ -140,6 +140,31 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   return true;
 }
 
+// Write `clr` (SQCLR and/or ACLRM) to pipe `num` (not 0), leaving PID = NAK; USB IRQ masked by the
+// caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no FIFO port's CURPIPE;
+// STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3). Only D0FIFO serves
+// non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM 29.3.7.1): on timeout
+// nothing is cleared, the pipe stays NAKing and false is returned; the next bus reset re-inits it.
+static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
+  volatile uint16_t *ctr = get_pipectr(rusb, num);
+  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
+    *ctr = RUSB2_PIPE_CTR_PID_STALL;
+  }
+  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) != RUSB2_PIPE_CTR_PID_NAK) {
+    *ctr = RUSB2_PIPE_CTR_PID_NAK;
+  }
+  if (rusb->D0FIFOSEL_b.CURPIPE == num) {
+    rusb->D0FIFOSEL = 0;
+  }
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while (rusb->D0FIFOSEL_b.CURPIPE == num || (*ctr & RUSB2_PIPE_CTR_PBUSY_Msk)) {
+    if (!spin--) return false;
+  }
+  *ctr = clr;
+  *ctr = 0;
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
@@ -785,13 +810,18 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     TU_ASSERT(num);
   }
 
-  _dcd.pipe[num].ep = ep_addr;
-  _dcd.ep[dir][epn] = num;
-
   /* setup pipe */
   dcd_int_disable(rhport);
 
   rusb->PIPESEL = num;
+  // PIPECFG/PIPEMAXP (and PIPEBUF) change only on an idle NAKing pipe out of CURPIPE (RA4M1 UM 27.3.4.1)
+  if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
+    dcd_int_enable(rhport);
+    return false;
+  }
+  _dcd.pipe[num].ep = ep_addr;
+  _dcd.ep[dir][epn] = num;
+
   if ( rusb2_is_highspeed_rhport(rhport) ) {
     // PIPEBUF is PIPESEL-windowed (RA6M5 UM 29.2.35): write it after selecting the pipe.
     // FIXME BUFNMB is a fixed 0x08 for every pipe; a real per-pipe allocation scheme is needed.
@@ -799,8 +829,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
   rusb->PIPEMAXP = mps;
   volatile uint16_t *ctr = get_pipectr(rusb, num);
-  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk;
-  *ctr = 0;
   unsigned cfg = (dir << 4) | epn;
 
   if (xfer == TUSB_XFER_BULK) {
@@ -876,20 +904,21 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   // shared-register IP would churn PIPESEL/PIPECFG and disturb the other pipes).
   const unsigned num = find_pipe(TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(num);
-  _dcd.pipe[num].ep = ep_addr;
-  _dcd.ep[dir][epn] = num;
 
   dcd_int_disable(rhport);
   rusb->PIPESEL = (uint16_t) num;
+  if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
+    dcd_int_enable(rhport);
+    return false;
+  }
+  _dcd.pipe[num].ep = ep_addr;
+  _dcd.ep[dir][epn] = num;
   if (rusb2_is_highspeed_rhport(rhport)) {
     // PIPEBUF is PIPESEL-windowed (RA6M5 UM 29.2.35): write it after selecting the pipe.
     // FIXME (as in dcd_edpt_open): BUFNMB is a fixed 0x08 for every pipe; a real allocator is needed.
     rusb->PIPEBUF = 0x7C08;
   }
-  rusb->PIPEMAXP = largest_packet_size;
-  volatile uint16_t *ctr = get_pipectr(rusb, num);
-  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk;
-  *ctr = 0; // leave the pipe NAKing until activated
+  rusb->PIPEMAXP = largest_packet_size; // the pipe NAKs until activated
   rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
   rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
   rusb->BRDYENB |= TU_BIT(num);
@@ -907,10 +936,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
   dcd_int_disable(rhport);
   rusb->PIPESEL = (uint16_t) num;
-  rusb->PIPEMAXP = tu_edpt_packet_size(desc_ep);
-  volatile uint16_t *ctr = get_pipectr(rusb, num);
-  *ctr = RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk; // abort in-flight + reset data toggle
-  *ctr = 0;
   // a transfer armed before SET_INTERFACE survives to here (no dcd close on this port): drop the
   // stale bookkeeping so a BRDY firing before the class re-arms can't replay it
   pipe_state_t *pipe = &_dcd.pipe[num];
@@ -918,7 +943,13 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   pipe->remaining = 0;
   pipe->queued = false;
   pipe->zlp_pending = false;
-  *ctr = RUSB2_PIPE_CTR_PID_BUF; // enable
+  // abort in-flight + reset data toggle, before PIPEMAXP may change
+  if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
+    dcd_int_enable(rhport);
+    return false;
+  }
+  rusb->PIPEMAXP = tu_edpt_packet_size(desc_ep);
+  *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
   dcd_int_enable(rhport);
   return true;
 }
@@ -958,24 +989,6 @@ static unsigned halting_in_pipe(rusb2_reg_t *rusb, uint8_t ep_addr) {
   return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) != RUSB2_PIPECFG_TYPE_ISO ? num : 0;
 }
 
-// Discard the packets in a halted IN pipe's buffer, leaving PID = NAK. ACLRM needs PID = NAK (STALL
-// 11b goes through 10b), PBUSY = 0 and the pipe in no FIFO port's CURPIPE (RA4M1 UM PIPEnCTR notes
-// 2-3, p641); only D0FIFO serves non-control pipes here. If those are not reached the packet stays:
-// clear-halt cannot fail, and usbd has already released the endpoint.
-static void pipe_in_discard(rusb2_reg_t *rusb, unsigned num, volatile uint16_t *ctr) {
-  *ctr = RUSB2_PIPE_CTR_PID_STALL;
-  *ctr = RUSB2_PIPE_CTR_PID_NAK;
-  if (rusb->D0FIFOSEL_b.CURPIPE == num) {
-    rusb->D0FIFOSEL = 0;
-  }
-  uint32_t spin = RUSB2_FIFO_READY_SPIN;
-  while ((rusb->D0FIFOSEL_b.CURPIPE == num || (*ctr & RUSB2_PIPE_CTR_PBUSY_Msk)) && --spin) {}
-  if (spin) {
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
-  }
-}
-
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   volatile uint16_t *ctr = ep_addr_to_pipectr(rhport, ep_addr);
@@ -997,34 +1010,35 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
-  volatile uint16_t *ctr = ep_addr_to_pipectr(rhport, ep_addr);
-  if (!ctr) {
-    return;
+  const unsigned num = _dcd.ep[tu_edpt_dir(ep_addr)][tu_edpt_number(ep_addr)];
+  if (num == 0) {
+    return; // EP0 halt never reaches the dcd; an unopened endpoint has no pipe
   }
+  volatile uint16_t *ctr = get_pipectr(rusb, num);
 
   dcd_int_disable(rhport);
-  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL) {
-    const unsigned num_in = halting_in_pipe(rusb, ep_addr);
-    if (num_in) {
-      pipe_in_discard(rusb, num_in, ctr);
-    }
-  }
-  *ctr = RUSB2_PIPE_CTR_SQCLR_Msk;
-
+  uint16_t clr = RUSB2_PIPE_CTR_SQCLR_Msk;
   if (tu_edpt_dir(ep_addr)) { /* IN */
-    *ctr = RUSB2_PIPE_CTR_PID_BUF;
+    // discard the packets a halt left in a non-iso IN buffer
+    if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL && halting_in_pipe(rusb, ep_addr)) {
+      clr |= RUSB2_PIPE_CTR_ACLRM_Msk;
+    }
   } else {
-    const unsigned num = _dcd.ep[0][tu_edpt_number(ep_addr)];
-    rusb->PIPESEL = (uint16_t)num;
     // Drop any packet parked in the buffer while halted: a data-OUT packet the host sent before
     // aborting its transfer would otherwise be delivered into the next read after recovery
     // (BOT reset + clear-halt re-arms a 31-byte CBW read which then receives stale WRITE data,
     // "SCSI CBW is not valid" -> stall -> reset loop; ra6m5 msc write wedge).
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
+    clr |= RUSB2_PIPE_CTR_ACLRM_Msk;
+  }
+  if (!pipe_reset(rusb, num, clr)) {
+    TU_LOG1("RUSB2: pipe %u clear-halt timed out, left NAKing\r\n", num);
+  } else if (tu_edpt_dir(ep_addr)) { /* IN */
+    *ctr = RUSB2_PIPE_CTR_PID_BUF;
+  } else {
+    rusb->PIPESEL = (uint16_t)num;
     // Non-bulk OUT re-enables straight away. Bulk OUT is normally armed together with its transaction
     // counter (TRE) by process_pipe_xfer(), so we don't blindly re-enable it here — but if a receive
-    // was already armed (still queued), SQCLR above just left it NAKing. Re-assert BUF so it keeps
+    // was already armed (still queued), pipe_reset() just left it NAKing. Re-assert BUF so it keeps
     // receiving; the class driver still considers that read submitted and never re-arms it, so
     // otherwise the endpoint NAKs forever (usbtest toggle test 29 clears the halt on an armed pipe).
     // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
