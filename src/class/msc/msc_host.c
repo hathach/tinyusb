@@ -105,11 +105,13 @@ uint8_t tuh_msc_get_maxlun(uint8_t dev_addr) {
 
 uint32_t tuh_msc_get_block_count(uint8_t dev_addr, uint8_t lun) {
   msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(lun < p_msc->max_lun, 0);
   return p_msc->capacity[lun].block_count;
 }
 
 uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun) {
   msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(lun < p_msc->max_lun, 0);
   return p_msc->capacity[lun].block_size;
 }
 
@@ -140,6 +142,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
                           tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(daddr);
   TU_VERIFY(p_msc->configured);
+  TU_VERIFY(cbw->lun < p_msc->max_lun);
 
   // claim endpoint
   TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
@@ -233,7 +236,7 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void* response,
 bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, uint16_t block_count,
                     tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && lun < p_msc->max_lun);
 
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
@@ -257,7 +260,7 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
 bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t lba, uint16_t block_count,
                      tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && lun < p_msc->max_lun);
 
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
@@ -455,7 +458,7 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   // MAXLUN's response is minus 1 by specs, STALL means 1
   if (XFER_RESULT_SUCCESS == xfer->result) {
     uint8_t* enum_buf = usbh_get_enum_buf();
-    p_msc->max_lun = enum_buf[0] + 1;
+    p_msc->max_lun = (uint8_t) tu_min16((uint16_t) (enum_buf[0] + 1u), CFG_TUH_MSC_MAXLUN);
   } else {
     p_msc->max_lun = 1;
   }
