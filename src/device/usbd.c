@@ -654,6 +654,14 @@ static void usbd_reset(uint8_t rhport) {
   _usbd_queued_setup = 0;
 }
 
+// unlike unplug or SET_CONFIGURATION, a bus reset is also DFU runtime's cue to enter DFU mode
+static void usbd_bus_reset(uint8_t rhport) {
+  #if CFG_TUD_DFU_RUNTIME
+  dfu_rtd_bus_reset();
+  #endif
+  usbd_reset(rhport);
+}
+
 bool tud_task_event_ready(void) {
   TU_VERIFY(tud_inited()); // Skip if stack is not initialized
   return !osal_queue_empty(_usbd_q) || _usbd_after_queue.func != NULL;
@@ -722,14 +730,14 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     switch (event.event_id) {
       case DCD_EVENT_BUS_RESET_START:
         TU_LOG_USBD("\r\n");
-        usbd_reset(event.rhport);
+        usbd_bus_reset(event.rhport);
         break;
 
       case DCD_EVENT_BUS_RESET_END:
         TU_LOG_USBD(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
         // TODO a DCD that reports both edges pays for two teardowns: track a per-rhport
         // "start seen" flag and skip this reset, keeping it for the single-event DCDs.
-        usbd_reset(event.rhport);
+        usbd_bus_reset(event.rhport);
         _usbd_dev.speed = event.bus_reset.speed;
         break;
 
