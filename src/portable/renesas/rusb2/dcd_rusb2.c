@@ -137,6 +137,11 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
   return rusb->PIPEMAXP;
 }
 
+static bool pipe_is_iso(rusb2_reg_t *rusb, unsigned num) {
+  rusb->PIPESEL = (uint16_t) num;
+  return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) == RUSB2_PIPECFG_TYPE_ISO;
+}
+
 // Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
 // normally settle within a few cycles (the pipe was just armed, or a BRDY freed a plane). But an
 // IN pipe whose double buffer is already full stalls FRDY until the host drains it, and a
@@ -152,11 +157,12 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   return true;
 }
 
-// Write `clr` (SQCLR and/or ACLRM) to pipe `num` (not 0), leaving PID = NAK; USB IRQ masked by the
-// caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no FIFO port's CURPIPE;
-// STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3). Only D0FIFO serves
-// non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM 29.3.7.1): on timeout
-// nothing is cleared, the pipe stays NAKing and false is returned; the next bus reset re-inits it.
+// Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
+// USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
+// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
+// Only D0FIFO serves non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM
+// 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; the next
+// bus reset re-inits it.
 static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
   volatile uint16_t *ctr = get_pipectr(rusb, num);
   if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
@@ -484,7 +490,7 @@ static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
   return ready;
 }
 
-static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
+static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
 {
   const unsigned epn = tu_edpt_number(ep_addr);
   const unsigned dir = tu_edpt_dir(ep_addr);
@@ -510,19 +516,29 @@ static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
     }
   } else {
     // OUT
-    volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
-
-    if (pt) {
-      const uint16_t     mps = edpt_max_packet_size(rusb, num);
-      volatile uint16_t *ctr = get_pipectr(rusb, num);
-
-      if (*ctr & 0x3) *ctr = RUSB2_PIPE_CTR_PID_NAK;
-
-      pt->TRE   = TU_BIT(8);
-      pt->TRN   = (total_bytes + mps - 1) / mps;
-      pt->TRENB = 1;
-      *ctr = RUSB2_PIPE_CTR_PID_BUF;
+    volatile uint16_t *ctr = get_pipectr(rusb, num);
+    // Packets parked while nothing was armed (process_pipe_brdy) already had their BRDY: deliver
+    // them now. At most one per buffer plane.
+    for (unsigned i = 0; i < 2 && total_bytes && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
+      if (pipe_xfer_out(rusb, num)) {
+        pipe_xfer_complete(rhport, num, false);
+        return true; // the pipe keeps NAKing until the next transfer is armed
+      }
     }
+
+    volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+    if (pt) {
+      const uint16_t mps = edpt_max_packet_size(rusb, num);
+      // TRE/TRN change only at PID = NAK with PBUSY = 0; TRCLR also needs the buffer empty
+      // (RA6M5 UM 29.2.39, 29.3.7.5), which the drain above ensured
+      if (!pipe_reset(rusb, num, 0)) {
+        return false;
+      }
+      pt->TRE   = TU_BIT(8);
+      pt->TRN   = (pipe->remaining + mps - 1) / mps;
+      pt->TRENB = 1;
+    }
+    *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
 
   //  TU_LOG2("X %x %d %d\r\n", ep_addr, total_bytes, buffer_type);
@@ -535,7 +551,7 @@ static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
   if (0 == epn) {
     return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes);
   } else {
-    return process_pipe_xfer(rusb, buffer_type, ep_addr, buffer, total_bytes);
+    return process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes);
   }
 }
 
@@ -573,10 +589,16 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     }
   } else {
     // OUT
-    if (num) {
-      completed = pipe_xfer_out(rusb, num);
-    } else {
+    if (num == 0) {
       completed = pipe0_xfer_out(rusb);
+    } else if (!pipe->queued && !pipe_is_iso(rusb, num)) {
+      // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
+      // next transfer's first packets into its buffer planes). Park the packet and NAK the host
+      // until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
+      *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_NAK;
+      completed = false;
+    } else {
+      completed = pipe_xfer_out(rusb, num);
     }
   }
   if (completed) {
