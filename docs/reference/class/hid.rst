@@ -99,9 +99,9 @@ controller can expose several interfaces.
      - What it controls
    * - ``CFG_TUH_HID_EPIN_BUFSIZE``
      - ``64`` bytes
-     - Interrupt IN buffer per HID instance; must be at least the endpoint's
-       ``wMaxPacketSize`` (not checked).  Reports longer than one packet are not
-       assembled.
+     - Interrupt IN buffer per HID instance.  An interface whose IN
+       ``wMaxPacketSize`` exceeds it is not mounted.  Reports longer than one
+       packet are not assembled.
    * - ``CFG_TUH_HID_EPOUT_BUFSIZE``
      - ``64`` bytes
      - Largest interrupt OUT report that can be sent per HID instance.
