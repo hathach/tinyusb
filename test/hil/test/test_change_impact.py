@@ -1051,7 +1051,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     So every board the roster runs usbtest on must have one."""
 
     # not yet demonstrated on hardware; drop a board once its recovery flasher is proven
-    PENDING = {'tinyusb.json': set(), 'hfp.json': set()}
+    PENDING = {'tinyusb.json': {'ra6m5_ek'}, 'hfp.json': set()}
 
     def test_every_usbtest_board_can_be_recovered(self):
         uncovered = {}
