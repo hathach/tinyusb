@@ -1040,7 +1040,7 @@ class BuildOutput(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'run') as run, \
              contextlib.redirect_stdout(io.StringIO()):
             error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
-        self.assertEqual((type(error), error), (sd.Skipped, 'device/ex is not in this tree'))
+        self.assertEqual((type(error), error), (sd.Absent, 'device/ex is not in this tree'))
         run.assert_not_called()
 
     def test_an_example_the_configure_does_not_register_is_skipped_without_ninja(self):
@@ -1163,11 +1163,11 @@ class BuildOutput(unittest.TestCase):
 
     def test_an_example_the_tree_does_not_build_for_espressif_is_skipped(self):
         # device/no_idf has no ESP-IDF component; device/board_test is absent from this tree
-        for example, why in (('device/no_idf', 'esp does not build device/no_idf'),
-                             ('device/board_test', 'device/board_test is not in this tree')):
+        for example, kind, why in (('device/no_idf', sd.Skipped, 'esp does not build device/no_idf'),
+                                   ('device/board_test', sd.Absent, 'device/board_test is not in this tree')):
             with tempfile.TemporaryDirectory() as tmp:
                 error, runs = self._build_esp(tmp, example=example)
-            self.assertEqual((type(error), error, runs), (sd.Skipped, why, []))
+            self.assertEqual((type(error), error, runs), (kind, why, []))
 
     def test_an_espressif_board_building_no_example_at_all_fails(self):
         with tempfile.TemporaryDirectory() as tmp, \
@@ -1450,6 +1450,10 @@ class WindowsHost(unittest.TestCase):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
                          r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
         self.assertIsNone(sd.esp_without_idf(['stm32f407disco']))
+        # an espressif board that skips every example asked for builds nothing
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc', 'device/cdc_msc_freertos']),
+                         'espressif_s3_devkitm need ESP-IDF')
 
     def test_a_timeout_kills_the_command_tree(self):
         with mock.patch('subprocess.run') as taskkill:
@@ -1818,13 +1822,16 @@ class MainFailure(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn('2 of 2 matched elf pairs compared, 0 changed', md)
 
-    def _main_skip(self, tmp, argv, skip):
+    def _main_skip(self, tmp, argv, skip, absent=()):
         """main() for board `b` with `argv` added; `skip` {(side, example)} build as
-        Skipped, the rest size one elf of their example. Returns (rc, out, sized sides)."""
+        Skipped, `absent` ones as Absent, the rest size one elf of their example.
+        Returns (rc, out, sized sides)."""
         sized = []
         def build(src, _build_dir, board, example, _label):
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             side = 'current' if src == sd.TINYUSB_ROOT else 'base'
+            if (side, example) in absent:
+                return sd.Absent(f'{example} is not in this tree')
             return sd.Skipped(f'{board} does not build {example}') if (side, example) in skip else None
         def generate(build_dir, _filters, example, _engine):
             sized.append((os.path.basename(build_dir), example))
@@ -1847,6 +1854,15 @@ class MainFailure(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertEqual(sized, [('build', 'device/new')])
             self.assertIn('current-only: b: device/new/x.elf', out)
+
+    def test_an_example_absent_from_one_side_is_never_a_skip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/gone', '--combined'], {('base', 'device/gone')},
+                                             absent={('current', 'device/gone')})
+            self.assertEqual((rc, sized), (1, []))
+            self.assertIn('INCOMPLETE: 0 pairs', out)
+            self.assertTrue(os.path.exists(os.path.join(tmp, 'b', 'diff_device_gone.md')))
+            self.assertNotIn('all scopes skipped', out)
 
     def test_combined_of_only_skipped_scopes_is_not_written(self):
         skip = {('base', 'device/skip'), ('current', 'device/skip')}

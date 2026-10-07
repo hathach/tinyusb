@@ -1097,9 +1097,11 @@ def _idf_image():
     return bool(shutil.which('docker')) and run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode == 0
 
 
-def esp_without_idf(boards):
-    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None."""
-    esp = [b for b in boards if is_espressif(b)]
+def esp_without_idf(boards, examples=None):
+    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None;
+    a board that skips each of `examples` builds nothing."""
+    esp = [b for b in boards if is_espressif(b)
+           and (not examples or any(type(_skip_reason(TINYUSB_ROOT, b, e)) is not Skipped for e in examples))]
     if esp and WINDOWS:
         return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):
@@ -1160,16 +1162,21 @@ class Skipped(str):
     """build_board()'s result for an example its tree does not build: why."""
 
 
+class Absent(Skipped):
+    """An example its tree does not have: a diff's other side may, so it never makes a scope skipped."""
+
+
 def _skip_reason(src_dir, board, example):
-    """Why the `src_dir` tree builds no `example` for `board`, as tools/build.py decides, else None."""
+    """Why the `src_dir` tree builds no `example` for `board`, as tools/build.py decides
+    (Skipped, or Absent), else None."""
     if not os.path.isdir(os.path.join(src_dir, 'examples', example)):
-        return f'{example} is not in this tree'
+        return Absent(f'{example} is not in this tree')
     if is_espressif(board, src_dir):
         skip = not _esp_examples(src_dir, board, example)
     else:
         with contextlib.chdir(src_dir):  # build_utils reads examples/ and hw/bsp from the cwd
             skip = build_utils.skip_example(example, board)
-    return f'{board} does not build {example}' if skip else None
+    return Skipped(f'{board} does not build {example}') if skip else None
 
 
 def build_board(src_dir, build_dir, board, example, label):
@@ -1184,7 +1191,7 @@ def build_board(src_dir, build_dir, board, example, label):
     phase = Phase(label)
     if example and (skip := _skip_reason(src_dir, board, example)):
         phase.done(skipped=skip)
-        return Skipped(skip)
+        return skip
     os.makedirs(build_dir, exist_ok=True)
     if is_espressif(board, src_dir):
         ret = _build_idf(src_dir, build_dir, board, example)
@@ -1529,13 +1536,13 @@ def run_diff(args, requested_sha, unsupported):
             for build_dir in build_dirs.values():
                 shutil.rmtree(build_dir, ignore_errors=True)
 
-            build_failure, skipped = None, set()
+            build_failure, skipped = None, {}
             for example in examples:
                 for side in local_sides:
                     src, _filters, label = trees[side]
                     error = build_board(src, build_dirs[side], board, example, label + _scope_label(examples, example))
                     if isinstance(error, Skipped):
-                        skipped.add((side, example))
+                        skipped[side, example] = error
                     elif error:
                         build_failure = ((board, None), side, 'build', _build_failed(example, error))
                         break
@@ -1562,7 +1569,7 @@ def run_diff(args, requested_sha, unsupported):
                 print(f'  WARNING {w}')
 
             for example in examples:
-                all_skipped = all((side, example) in skipped for side in local_sides)
+                all_skipped = all(type(skipped.get((side, example))) is Skipped for side in local_sides)
                 phase = None if all_skipped else Phase(f'size and compare{_scope_label(examples, example)}')
                 sides, failures = {'base': {}, 'current': {}}, []
                 for side in local_sides:
@@ -2308,7 +2315,7 @@ def main():
             report_parser.error(f'unknown board: {", ".join(unknown)}')
         if missing := missing_examples(args.example or []):
             report_parser.error(f'no such example: {", ".join(missing)}')
-        if error := esp_without_idf(args.board):
+        if error := esp_without_idf(args.board, args.example):
             report_parser.error(error)
         return run_report(args)
 
@@ -2328,7 +2335,7 @@ def main():
     if unknown := unknown_boards(args.board):
         parser.error(f'unknown board: {", ".join(unknown)}')
     # before any board builds: a --ci run would otherwise fail its espressif boards last
-    if error := esp_without_idf(args.board):
+    if error := esp_without_idf(args.board, args.example):
         parser.error(error)
 
     # CI snapshots hold membrowse sizes under the TinyUSB filter, and no elf
