@@ -9,7 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import contextmanager, redirect_stdout
+from contextlib import redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -187,7 +187,6 @@ class TestBoardSweep(unittest.TestCase):
         p(hil_test, 'log_line', lambda msg: None)
         p(hil_lock, 'acquire_board_lock', lambda name: open(os.devnull))
         p(hil_lock, 'clear_record', lambda fh: None)
-        p(hil_lock, 'flash_permit', contextmanager(lambda uid: iter([None])))
         self.ran = []
         p(hil_test, 'test_example', lambda board, v, ex: self.ran.append(ex) or (0, 'pass', None))
         p(usbtest, 'strays_on', lambda serial: [{'pid': 1, 'start': '1', 'node': NODE}])

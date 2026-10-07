@@ -1973,7 +1973,7 @@ def test_board(board: Board) -> tuple:
             strays = usbtest.strays_on(board['uid'])
             if strays:
                 sweep_out = io.StringIO()
-                with hil_lock.flash_permit(board['uid']), redirect_stdout(sweep_out):
+                with redirect_stdout(sweep_out):
                     board_wedged = usbtest.recover_strays(board, strays)
                 log_line(f'{name:25} stray testusb: {compact_output(sweep_out.getvalue())}')
                 if board_wedged:
