@@ -395,6 +395,7 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
 static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count);
+static void audiod_tx_trim_to_threshold(audiod_function_t *audio);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1178,6 +1179,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             // If flow control is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
   #if  CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
             audiod_parse_flow_control_params(audio, p_desc_parse_for_params);
+            audiod_tx_trim_to_threshold(audio);
   #endif
             // Schedule first transmit if alternate interface is not zero, as sample data is available a ZLP is loaded
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
@@ -1839,6 +1841,21 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   }
 
   return true;
+}
+
+// Drop what was queued while the stream was closed down to the threshold: starting full, flow
+// control needs ~100 frames to drain it and the overwritable FIFO overflows meanwhile.
+static void audiod_tx_trim_to_threshold(audiod_function_t *audio) {
+  tu_fifo_t *ff = &audio->ep_in_ff;
+  const uint16_t frame_sz = (uint16_t) (audio->n_channels_tx * audio->n_bytes_per_sample_tx);
+  const uint16_t count = tu_fifo_count(ff);
+  if (frame_sz == 0 || count <= audio->ep_in_fifo_threshold) {
+    return;
+  }
+  if (tu_fifo_full(ff)) {
+    tu_fifo_correct_read_pointer(ff); // an overflowed FIFO keeps a stale read index
+  }
+  tu_fifo_discard_n(ff, (uint16_t) ((count - audio->ep_in_fifo_threshold) / frame_sz * frame_sz));
 }
 
 static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count) {
