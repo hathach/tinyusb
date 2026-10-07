@@ -446,7 +446,7 @@ static void pipe_xfer_complete(uint8_t rhport, unsigned num, bool in_isr) {
 }
 
 static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type, uint8_t ep_addr, void *buffer,
-                               uint16_t total_bytes) {
+                               uint16_t total_bytes, bool is_isr) {
   uint16_t fifo_sel =
     (rusb2_is_highspeed_reg(rusb) ? RUSB2_FIFOSEL_MBW_32BIT : RUSB2_FIFOSEL_MBW_16BIT) | FIFOSEL_BIGEND;
 
@@ -477,7 +477,7 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
          for it. Runs with the USB IRQ masked (dcd_edpt_xfer). Detected via the hardware DTLN
          rather than a driver flag: the BCLR at SETUP/bus-reset then self-heals any parked state. */
       if (pipe0_xfer_out(rusb)) {
-        pipe_xfer_complete(rhport, 0, false);
+        pipe_xfer_complete(rhport, 0, is_isr);
         return true; // PID stays NAK (set by pipe0_xfer_out) until the next chunk is armed
       }
     }
@@ -576,7 +576,7 @@ static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
 {
   const unsigned epn = tu_edpt_number(ep_addr);
   if (0 == epn) {
-    return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes);
+    return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
   } else {
     return process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
   }
