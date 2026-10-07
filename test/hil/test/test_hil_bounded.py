@@ -1604,7 +1604,7 @@ class HidEchoRunsInAChild(unittest.TestCase):
 
 
 class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
-    """_abort_report hands `[(n, 1, [], None, 0) for n in stuck] + [r for r in mret ...]`
+    """_abort_report hands `[(n, 1, [], None, None) for n in stuck] + [r for r in mret ...]`
     to the re-run spec: synthetic rows (rows=None) mixed with worker rows."""
 
     def _mixed(self):

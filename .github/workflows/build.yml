@@ -800,11 +800,7 @@ jobs:
           fi
           # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
           SEL_ARGS=$(cat hil_sel_args.txt 2>/dev/null || true)
-          # --retry 1, like the other two HIL legs. The pool guard is a FLAT 3600s and
-          # does NOT scale with max_retry, so argparse's default of 3 would multiply the
-          # serialized usbtest tail (hfp.json runs four batteries) by three against an
-          # unchanged guard -- on a runner with a single job slot that queues every other
-          # job behind it.
+          # one attempt per test, matching the other HIL legs
           python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
 
       - name: Upload HIL report
