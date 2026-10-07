@@ -76,7 +76,7 @@ void board_init(void) {
    * interrupts are globally enabled while running in U-mode regardless of mstatus.MIE. */
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config(SystemCoreClock / 1000);
+  SysTick_Config(SystemCoreClock / 8 / 1000); // STK counts HCLK/8 (RM 9.5.3.1)
 #endif
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
