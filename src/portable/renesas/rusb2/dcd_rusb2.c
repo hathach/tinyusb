@@ -95,6 +95,18 @@ static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num) {
   }
 }
 
+// HS FIFO (RA6M5 UM 29.2.35): 64-byte blocks, pipes 1-5 own 0x08-0x87, each double-buffered over
+// 2 x (BUFSIZE + 1) blocks from BUFNMB; pipes 6-9 have fixed 64-byte buffers and take BUFSIZE 0.
+// Non-overlapping: pipes 1-2 (iso-capable, MXPS up to 1024) 2 x 1 KB, pipes 3-5 2 x 512 B.
+static uint16_t pipe_buf_value(unsigned num) {
+  static const uint8_t bufnmb[] = { 0, 8, 40, 72, 88, 104 };
+  if (num == 0 || num > 5) {
+    return 0;
+  }
+  const unsigned blocks = (num <= 2) ? 16 : 8;
+  return (uint16_t) (((blocks - 1) << RUSB2_PIPEBUF_BUFSIZE_Pos) | bufnmb[num]);
+}
+
 static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num) {
   volatile reg_pipetre_t* tre = NULL;
   if ((1 <= num) && (num <= 5)) {
@@ -828,8 +840,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   if ( rusb2_is_highspeed_rhport(rhport) ) {
     // PIPEBUF is PIPESEL-windowed (RA6M5 UM 29.2.35): write it after selecting the pipe.
-    // FIXME BUFNMB is a fixed 0x08 for every pipe; a real per-pipe allocation scheme is needed.
-    rusb->PIPEBUF = 0x7C08;
+    rusb->PIPEBUF = pipe_buf_value(num);
   }
   rusb->PIPEMAXP = mps;
   volatile uint16_t *ctr = get_pipectr(rusb, num);
@@ -920,8 +931,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   _dcd.ep[dir][epn] = num;
   if (rusb2_is_highspeed_rhport(rhport)) {
     // PIPEBUF is PIPESEL-windowed (RA6M5 UM 29.2.35): write it after selecting the pipe.
-    // FIXME (as in dcd_edpt_open): BUFNMB is a fixed 0x08 for every pipe; a real allocator is needed.
-    rusb->PIPEBUF = 0x7C08;
+    rusb->PIPEBUF = pipe_buf_value(num);
   }
   rusb->PIPEMAXP = largest_packet_size;
   rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
