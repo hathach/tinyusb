@@ -621,24 +621,16 @@ def strays_on(serial):
     held device's `serial` attribute is exactly the one that cannot be read.
     """
     hu = _hu()
-    serial_of = {}
-    found = []
-    for h in hu.dstate_holders('testusb'):
-        if h['node'] not in serial_of:
-            d = hu.usb_dev_dir(h['node'])
-            serial_of[h['node']] = hu.usb_dev_serial(d) if d else None
-        sn = serial_of[h['node']]
-        if sn and sn.lower() == serial.lower():
-            found.append(h)
-    return found
+    return [h for h in hu.dstate_holders('testusb')
+            if (hu.usb_node_serial(h['node']) or '').lower() == serial.lower()]
 
 
 def recover_strays(board, strays):
     """Free this board's node from `strays` (strays_on) before it is flashed: recover_hang's
     probe reset through the convoy-safe recovery flasher, then confirm every stray is gone.
 
-    Returns '' when they are gone, or when the board's own flasher is convoy-safe without a
-    reset-only mode (esptool), whose flash then delivers the reset. Otherwise the reason the
+    Returns '' when they are gone, or when the convoy-safe recovery flasher has no reset-only
+    mode (esptool), whose flash then delivers the reset. Otherwise the reason the
     board stays wedged: flashing it would block on the held node and add another stray.
     """
     import hil_flash
@@ -647,18 +639,13 @@ def recover_strays(board, strays):
     pids = ', '.join(str(s['pid']) for s in strays)
     print(f'{name}: D-state testusb (pid {pids}) holds {nodes}, left by an earlier run')
     rec = hil_flash.recover_flasher(board)
-    fname = rec.get('name') or '?'
-    reset_fn = None
-    if hil_flash.convoy_safe(rec):
-        try:
-            reset_fn = hil_flash.reset_primitive(fname)
-        except AttributeError:
-            pass
-    if reset_fn is None:
-        if hil_flash.convoy_safe(board['flasher']):
-            print(f'{board["flasher"]["name"]} has no reset-only mode; its flash delivers the reset')
-            return ''
+    fname = rec['name']
+    if not hil_flash.convoy_safe(rec):
         return f'{name}: a D-state testusb holds {nodes} and {fname} cannot deliver a reset past it'
+    reset_fn = hil_flash.reset_primitive(fname)
+    if reset_fn is None:
+        print(f'{fname} has no reset-only mode; its flash delivers the reset')
+        return ''
     print(f'auto-recovering: resetting {name} via {fname} probe')
     try:
         reset_fn({**board, 'flasher': rec}, timeout=RECOVER_RESET_TIMEOUT)

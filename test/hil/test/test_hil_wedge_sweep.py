@@ -27,13 +27,13 @@ RESET_BOARD = {'name': 'b', 'uid': 'ABC123', 'flasher': {'name': 'jlink', 'uid':
 
 
 class FakeRig:
-    """/proc, /sys/bus/usb/devices and /run/udev/data under one temp dir."""
+    """/proc, /sys/dev/char and /run/udev/data under one temp dir."""
 
     def __init__(self, test):
         tmp = tempfile.TemporaryDirectory()
         test.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
-        for name, attr in (('proc', 'PROC_ROOT'), ('sys', 'SYS_USB_DEVICES'), ('udev', 'UDEV_DATA')):
+        for name, attr in (('proc', 'PROC_ROOT'), ('sys', 'SYS_DEV_CHAR'), ('udev', 'UDEV_DATA')):
             (self.root / name).mkdir()
             usbtest_harness.patch(test, hil_util, attr, str(self.root / name))
 
@@ -50,19 +50,15 @@ class FakeRig:
             f.unlink()
         d.rmdir()
 
-    def device(self, busport='3-1.2', bus=3, dev=7, serial='ABC123', minor=262, udev_serial=None):
-        d = self.root / 'sys' / busport
+    def device(self, bus=3, dev=7, serial='ABC123', udev_serial=None):
+        devt = f'189:{(bus - 1) * 128 + dev - 1}'
+        d = self.root / 'sys' / devt
         d.mkdir()
-        (d / 'busnum').write_text(f'{bus}\n')
-        (d / 'devnum').write_text(f'{dev}\n')
-        (d / 'dev').write_text(f'189:{minor}\n')
         if serial is not None:
             (d / 'serial').write_text(f'{serial}\n')
         if udev_serial is not None:
-            (self.root / 'udev' / f'c189:{minor}').write_text(
+            (self.root / 'udev' / f'c{devt}').write_text(
                 f'I:1\nE:ID_SERIAL=X_{udev_serial}\nE:ID_SERIAL_SHORT={udev_serial}\n')
-        (self.root / 'sys' / f'{busport}:1.0').mkdir()   # an interface dir, never a match
-        return str(d)
 
 
 class HolderLookup(unittest.TestCase):
@@ -77,10 +73,8 @@ class HolderLookup(unittest.TestCase):
         self.rig.process(14, comm='a) b', argv=TESTUSB_ARGV)
         self.assertEqual(hil_util.dstate_holders('testusb'),
                          [{'pid': 10, 'start': '4242', 'node': NODE}])
-
-    def test_comm_with_a_paren_parses(self):
-        self.rig.process(20, comm='testusb) D x')
-        self.assertEqual(hil_util.dstate_holders('testusb) D x')[0]['pid'], 20)
+        self.assertEqual([h['pid'] for h in hil_util.dstate_holders('a) b')], [14],
+                         'comm may contain ") "')
 
     def test_reaped_zombie_and_recycled_pids_no_longer_hold(self):
         self.rig.process(30)
@@ -93,26 +87,21 @@ class HolderLookup(unittest.TestCase):
         self.rig.reap(30)
         self.assertFalse(hil_util.proc_holds(h))
 
-    def test_node_maps_to_the_device_by_busnum_and_devnum(self):
-        self.rig.device(busport='3-1.1', dev=6)
-        d = self.rig.device()
-        self.assertEqual(hil_util.usb_dev_dir(NODE), d)
-        self.assertIsNone(hil_util.usb_dev_dir('/dev/bus/usb/003/099'))
-        self.assertIsNone(hil_util.usb_dev_dir('/dev/null'))
-
     def test_the_udev_record_spares_the_locked_serial_read(self):
-        d = self.rig.device(serial=None, udev_serial='ABC123')
+        self.rig.device(serial=None, udev_serial='ABC123')
         reads = []
         usbtest_harness.patch(self, hil_util, 'read_sysfs',
                               lambda path, timeout=0: reads.append(path))
-        self.assertEqual(hil_util.usb_dev_serial(d), 'ABC123')
+        self.assertEqual(hil_util.usb_node_serial(NODE), 'ABC123')
         self.assertEqual(reads, [], 'a held device would strand this read for its grace')
 
     def test_without_a_udev_record_the_bounded_read_decides(self):
-        d = self.rig.device(serial='ABC123')
-        self.assertEqual(hil_util.usb_dev_serial(d), 'ABC123')
-        d2 = self.rig.device(busport='3-2', dev=8, minor=263, serial=None)
-        self.assertIsNone(hil_util.usb_dev_serial(d2), 'unidentified, not a guess')
+        self.rig.device(serial='ABC123')
+        self.assertEqual(hil_util.usb_node_serial(NODE), 'ABC123')
+        self.rig.device(dev=8, serial=None)
+        self.assertIsNone(hil_util.usb_node_serial('/dev/bus/usb/003/008'), 'unidentified, not a guess')
+        self.assertIsNone(hil_util.usb_node_serial('/dev/bus/usb/003/099'))
+        self.assertIsNone(hil_util.usb_node_serial('/dev/null'))
 
 
 class StraysOnBoard(unittest.TestCase):
@@ -121,7 +110,7 @@ class StraysOnBoard(unittest.TestCase):
 
     def test_matches_this_boards_node_only(self):
         self.rig.device(serial=None, udev_serial='abc123')
-        self.rig.device(busport='3-2', dev=8, minor=263, serial='OTHER')
+        self.rig.device(dev=8, serial='OTHER')
         self.rig.process(40)
         self.rig.process(41, argv=['testusb', '-D', '/dev/bus/usb/003/008', '-t', '1'])
         self.assertEqual([s['pid'] for s in usbtest.strays_on('ABC123')], [40])

@@ -312,7 +312,7 @@ def usb_scan(vid_pid=None, serial=None, vid=None, timeout=SYSFS_READ_GRACE) -> l
 
 # Roots of the stray-holder lookup below; module globals so unit tests can point them at a tree
 PROC_ROOT = '/proc'
-SYS_USB_DEVICES = '/sys/bus/usb/devices'
+SYS_DEV_CHAR = '/sys/dev/char'
 UDEV_DATA = '/run/udev/data'
 
 
@@ -362,46 +362,27 @@ def proc_holds(holder: dict) -> bool:
     return bool(st) and st[2] == holder['start'] and st[1] not in ('Z', 'X')
 
 
-def usb_dev_dir(node: str) -> str | None:
-    """The sysfs dir of the device behind usbfs node /dev/bus/usb/BBB/DDD, matched on the
-    lock-free busnum/devnum attributes. None when no device has that address."""
-    bus, _, dev = node.removeprefix('/dev/bus/usb/').partition('/')
-    if not (bus.isdigit() and dev.isdigit()):
-        return None
-    for d in glob.glob(f'{SYS_USB_DEVICES}/*-*'):
-        if ':' in os.path.basename(d):
-            continue          # an interface, not a device (see usb_scan)
-        try:
-            with open(os.path.join(d, 'busnum')) as f:
-                d_bus = int(f.read())
-            with open(os.path.join(d, 'devnum')) as f:
-                d_dev = int(f.read())
-        except (OSError, ValueError):
-            continue
-        if (d_bus, d_dev) == (int(bus), int(dev)):
-            return d
-    return None
-
-
-def usb_dev_serial(devdir: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
-    """The device's serial as udev recorded it when the device was added, else the bounded
-    sysfs read.
+def usb_node_serial(node: str, timeout: float = SYSFS_READ_GRACE) -> str | None:
+    """The serial of the device behind usbfs node /dev/bus/usb/BBB/DDD, as udev recorded it
+    when the device was added, else the bounded sysfs read. None when unidentified.
 
     udev first because the device asked about is usually one a D-state usbfs ioctl holds:
     its `serial` is served under that device lock (read_sysfs), so the read would only give
-    up after `timeout` and strand a reader. The udev database is a plain file, and the `dev`
-    attribute naming its entry is a lock-free print of the devt.
+    up after `timeout` and strand a reader. The node's devt names both records without
+    touching the device: usbcore's MKDEV(189, (busnum-1)*128 + devnum-1).
     """
+    bus, _, dev = node.removeprefix('/dev/bus/usb/').partition('/')
+    if not (bus.isdigit() and dev.isdigit()):
+        return None
+    devt = f'189:{(int(bus) - 1) * 128 + int(dev) - 1}'
     try:
-        with open(os.path.join(devdir, 'dev')) as f:
-            devt = f.read().strip()
         with open(os.path.join(UDEV_DATA, f'c{devt}')) as f:
             for line in f:
                 if line.startswith('E:ID_SERIAL_SHORT='):
                     return line.split('=', 1)[1].strip()
     except OSError:
         pass
-    return read_sysfs(os.path.join(devdir, 'serial'), timeout)
+    return read_sysfs(os.path.join(SYS_DEV_CHAR, devt, 'serial'), timeout)
 
 
 def _close_pipes(p: subprocess.Popen) -> None:
