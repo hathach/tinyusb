@@ -137,6 +137,7 @@ skip_flash = False
 print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
+_current_variant = None  # and its build variant
 
 
 def init_worker(lock, seed):
@@ -1476,25 +1477,22 @@ def test_device_audio_test_freertos(board):
     startup_samples = 256
     gaps = hil_util.ramp_gaps(samples, startup_samples)
     if gaps:
-        first, delta = gaps[0]
+        first = gaps[0][0]
         hist = ', '.join(f'{d:+d} x{n}' for d, n in collections.Counter(d for _, d in gaps).most_common(4))
+        kept = _keep_audio_capture(raw)
         raise AssertionError(
-            f'Audio mismatch at sample {first}: expected {(samples[first] - delta) & 0xFFFF}, '
-            f'got {samples[first]} ({len(gaps)} gaps: {hist}; at {[i for i, _ in gaps[:6]]}; '
-            f'raw {_keep_audio_capture(raw)})')
+            f'Audio mismatch at sample {first}: expected {(samples[first - 1] + 1) & 0xFFFF}, '
+            f'got {samples[first]} ({len(gaps)} gaps: {hist}; at {[i for i, _ in gaps[:6]]}; raw {kept})')
 
     print(f'  ALSA {pcm}', end='')
 
 
 def _keep_audio_capture(raw: bytes) -> str:
     """Save a failing capture under $HIL_REPORT_DIR/audio for offline analysis; returns its path."""
-    # innermost: a custom -B root may itself be named cmake-build-*
-    variant = next((p.removeprefix('cmake-build-') for p in reversed(Path(_current_fw or '').parts)
-                    if p.startswith('cmake-build-')), 'unknown')
     out_dir = Path(os.environ.get('HIL_REPORT_DIR', '.')) / 'audio'
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=out_dir, prefix=f'{variant}-audio_test_freertos-',
+        with tempfile.NamedTemporaryFile(dir=out_dir, prefix=f'{_current_variant}-audio_test_freertos-',
                                          suffix='.raw', delete=False) as f:
             f.write(raw)
     except OSError as e:
@@ -1734,8 +1732,9 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         return 0, 'skip', None
     # usbtest's hang recovery reflashes the exact artifact under test; re-deriving it from
     # board['name'] breaks on variant-only boards
-    global _current_fw
+    global _current_fw, _current_variant
     _current_fw = str(fw_name)
+    _current_variant = variant
 
     if verbose:
         log_line(f'Firmware {fw_name}')

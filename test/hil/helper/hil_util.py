@@ -512,6 +512,5 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
 def ramp_gaps(samples: list, start: int) -> list:
     """(index, delta) of every sample after `start` that does not continue a +1 uint16 ramp;
     delta is got - expected, wrapped to [-32768, 32767]."""
-    return [(i + 1, ((samples[i + 1] - samples[i] - 1 + 0x8000) & 0xFFFF) - 0x8000)
-            for i in range(start, len(samples) - 1)
-            if (samples[i + 1] - samples[i]) & 0xFFFF != 1]
+    deltas = (((b - a - 1 + 0x8000) & 0xFFFF) - 0x8000 for a, b in zip(samples[start:], samples[start + 1:]))
+    return [(i, d) for i, d in enumerate(deltas, start + 1) if d]
