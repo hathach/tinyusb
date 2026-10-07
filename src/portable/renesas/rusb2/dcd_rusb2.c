@@ -518,6 +518,13 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
 
   TU_ASSERT(num);
 
+  if (dir && (*get_pipectr(rusb, num) & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL && !pipe_is_iso(rusb, num)) {
+    // Halted: usbd can re-arm after a completion queued behind the SET_FEATURE(HALT). Drop it as the
+    // halt dropped the transfer before it (nothing loads under STALL); usbd releases the endpoint on
+    // clear-halt and the class submits afresh.
+    return true;
+  }
+
   pipe_state_t *pipe  = &_dcd.pipe[num];
   pipe->ff          = buffer_type;
   pipe->buf         = buffer;
@@ -1103,6 +1110,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   if (!pipe_reset(rusb, num, clr)) {
     TU_LOG1("RUSB2: pipe %u clear-halt timed out, left NAKing\r\n", num);
   } else if (tu_edpt_dir(ep_addr)) { /* IN */
+    if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
+      pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer submitted from here on
+    }
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
     rusb->PIPESEL = (uint16_t)num;
