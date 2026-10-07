@@ -816,7 +816,7 @@ static void handle_epdata_isr(uint32_t int_status) {
   }
 }
 
-static void handle_xfer_isr(uint32_t int_status) {
+static void handle_out_end_isr(uint32_t int_status) {
   /* CBI OUT: Endpoint -> SRAM (aka transaction complete)
    * Note: Since nRF controller auto ACK next packet without SW awareness
    * We must handle this stage before Host -> Endpoint just in case 2 event happens at once
@@ -828,8 +828,8 @@ static void handle_xfer_isr(uint32_t int_status) {
   for (uint8_t epnum = 0; epnum < EP_CBI_COUNT + 1; epnum++) {
     if (tu_bit_test(int_status, USBD_INTEN_ENDEPOUT0_Pos + epnum)) {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-      if (xfer->dma_xferid != xfer->xferid) {
-        continue; // the DMA was started for a transfer since retired: the packet is dropped
+      if (!xfer->started || xfer->dma_xferid != xfer->xferid) {
+        continue; // no armed transfer, or the DMA was started for one since retired: the packet is dropped
       }
       uint16_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
@@ -846,7 +846,6 @@ static void handle_xfer_isr(uint32_t int_status) {
           // nothing to do
         }
       } else {
-        TU_ASSERT(xfer->started,);
         xfer->total_len = xfer->actual_len;
         xfer->started = false;
 
@@ -856,11 +855,6 @@ static void handle_xfer_isr(uint32_t int_status) {
     }
 
     // Ended event for CBI IN : nothing to do
-  }
-
-  // nested here so a failed TU_ASSERT above also skips the EPDATA handling
-  if (int_status & (USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk)) {
-    handle_epdata_isr(int_status);
   }
 }
 
@@ -915,7 +909,12 @@ void dcd_int_handler(uint8_t rhport) {
     dma_release();
   }
 
-  handle_xfer_isr(int_status);
+  // OUT END first: EPDATA may already report the next packet
+  handle_out_end_isr(int_status);
+
+  if (int_status & (USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk)) {
+    handle_epdata_isr(int_status);
+  }
 
   // after END events released the channel, also on a USBD IRQ pended by dcd_edpt_xfer()
   dma_dispatch_isr();
