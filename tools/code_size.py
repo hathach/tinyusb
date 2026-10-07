@@ -1002,6 +1002,19 @@ def invalid_boards(boards):
     return [b for b in boards if not re.fullmatch(r'[A-Za-z0-9_-]+', b)]
 
 
+def unknown_boards(boards):
+    """Boards no hw/bsp/<family>/boards/<board> of this checkout names: build_utils would
+    skip every example of one, so a typo must fail instead."""
+    return [b for b in boards if not glob.glob(os.path.join(glob.escape(TINYUSB_ROOT), 'hw', 'bsp', '*', 'boards', b))]
+
+
+def missing_examples(examples, sha=None):
+    """Examples with no examples/<example> dir in this checkout, nor in commit `sha` when
+    given: one of either tree reaches the report as one-sided, a typo must fail."""
+    return [e for e in examples if not os.path.isdir(os.path.join(TINYUSB_ROOT, 'examples', e))
+            and (sha is None or run(['git', '-C', TINYUSB_ROOT, 'cat-file', '-e', f'{sha}:examples/{e}']).returncode)]
+
+
 def ci_pinned_boards():
     """Boards of .github/ci-pinned-boards.json: CI's membrowse set, which covers every
     dcd/hcd driver not waived in its `uncovered` list (drivers-coverage hook)."""
@@ -1010,14 +1023,15 @@ def ci_pinned_boards():
 
 
 class Phase:
-    """A progress line `  label… 1.2s`, or `FAILED after 1.2s`; with -v the commands
-    print between the label and its time, so the time gets a line of its own."""
+    """A progress line `  label… 1.2s`, `FAILED after 1.2s` or `skipped: <why>`; with -v
+    the commands print between the label and its time, so the time gets a line of its own."""
     def __init__(self, label):
         self.label, self.start = label, time.monotonic()
         print(f'  {label}…', end='\n' if verbose else ' ', flush=True)
 
-    def done(self, failed=False):
-        took = f'{"FAILED after " if failed else ""}{time.monotonic() - self.start:.1f}s'
+    def done(self, failed=False, skipped=None):
+        took = (f'skipped: {skipped}' if skipped else
+                f'{"FAILED after " if failed else ""}{time.monotonic() - self.start:.1f}s')
         print(f'  {self.label}: {took}' if verbose else took)
 
 
@@ -1142,15 +1156,35 @@ def _build_idf(src_dir, build_dir, board, example):
     return ret
 
 
+class Skipped(str):
+    """build_board()'s result for an example its tree does not build: why."""
+
+
+def _skip_reason(src_dir, board, example):
+    """Why the `src_dir` tree builds no `example` for `board`, as tools/build.py decides, else None."""
+    if not os.path.isdir(os.path.join(src_dir, 'examples', example)):
+        return f'{example} is not in this tree'
+    if is_espressif(board, src_dir):
+        skip = not _esp_examples(src_dir, board, example)
+    else:
+        with contextlib.chdir(src_dir):  # build_utils reads examples/ and hw/bsp from the cwd
+            skip = build_utils.skip_example(example, board)
+    return f'{board} does not build {example}' if skip else None
+
+
 def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
-    an excerpt of the output on failure. Returns None on success, else build_error().
+    an excerpt of the output on failure. Returns None on success, Skipped when `example`
+    is one the tree does not build for the board, else build_error().
 
     When `example` is given, only that target is built (`ninja -C DIR NAME`),
     keeping single-example workflows fast. An espressif board builds each example as
     its own ESP-IDF project.
     """
     phase = Phase(label)
+    if example and (skip := _skip_reason(src_dir, board, example)):
+        phase.done(skipped=skip)
+        return Skipped(skip)
     os.makedirs(build_dir, exist_ok=True)
     if is_espressif(board, src_dir):
         ret = _build_idf(src_dir, build_dir, board, example)
@@ -1158,6 +1192,13 @@ def build_board(src_dir, build_dir, board, example, label):
         import build  # tools/build.py; its import has no side effects
         # TOOLCHAIN=gcc: build.py's default, which it always passes
         ret = run(build.cmake_configure_cmd(board, build_dir, ['-DTOOLCHAIN=gcc'], os.path.join(src_dir, 'examples')))
+        if ret.returncode == 0 and example:
+            # skip.txt/only.txt only mirror the CMake family filter: the configure is the truth
+            registered = build.cmake_registered_targets(build_dir)
+            if registered is not None and os.path.basename(example) not in registered:
+                skip = f'{board} has no {os.path.basename(example)} target'
+                phase.done(skipped=skip)
+                return Skipped(skip)
         if ret.returncode == 0:
             # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
             cmd = ['ninja', '-C', build_dir]
@@ -1346,6 +1387,8 @@ def run_report(args):
             scope = _scope_label(examples, example)
             sizes, failures = {}, []
             error = build_board(TINYUSB_ROOT, build, board, example, f'build{scope}')
+            if isinstance(error, Skipped):
+                continue
             if error:
                 failures.append(((board, None), 'build', _build_failed(example, error)))
             else:
@@ -1473,6 +1516,7 @@ def run_diff(args, requested_sha, unsupported):
         combined_failures = []
         combined_warnings = []
         combined_symbols = args.symbols
+        skipped_scopes = 0
         # side: (checkout, filters, build phase label)
         trees = {'base': (worktree_dir, base_filters, f'build {args.base_branch}'),
                  'current': (TINYUSB_ROOT, cur_filters, 'build current')}
@@ -1485,12 +1529,14 @@ def run_diff(args, requested_sha, unsupported):
             for build_dir in build_dirs.values():
                 shutil.rmtree(build_dir, ignore_errors=True)
 
-            build_failure = None
+            build_failure, skipped = None, set()
             for example in examples:
                 for side in local_sides:
                     src, _filters, label = trees[side]
-                    if error := build_board(src, build_dirs[side], board, example,
-                                            label + _scope_label(examples, example)):
+                    error = build_board(src, build_dirs[side], board, example, label + _scope_label(examples, example))
+                    if isinstance(error, Skipped):
+                        skipped.add((side, example))
+                    elif error:
                         build_failure = ((board, None), side, 'build', _build_failed(example, error))
                         break
                 if build_failure:
@@ -1504,7 +1550,8 @@ def run_diff(args, requested_sha, unsupported):
                 continue
 
             warnings, symbols, shard = [], args.symbols, base_shards.get(board) if base_source == 'ci' else None
-            if shard:
+            # nothing built, no compiler to compare: every scope here is skipped or fails without one
+            if shard and not all(('current', e) in skipped for e in examples):
                 warnings = metadata_warnings(board, shard, _cmake_compiler(build_dirs['current']), membrowse_version)
                 if symbols and not all('symbols' in s for s in shard['elfs'].values()):
                     symbols = False
@@ -1515,11 +1562,13 @@ def run_diff(args, requested_sha, unsupported):
                 print(f'  WARNING {w}')
 
             for example in examples:
-                phase = Phase(f'size and compare{_scope_label(examples, example)}')
+                all_skipped = all((side, example) in skipped for side in local_sides)
+                phase = None if all_skipped else Phase(f'size and compare{_scope_label(examples, example)}')
                 sides, failures = {'base': {}, 'current': {}}, []
                 for side in local_sides:
-                    sides[side], errors = size_tree(build_dirs[side], board, example, trees[side][1], args.engine)
-                    failures += [(i, side, stage, msg) for i, stage, msg in errors]
+                    if (side, example) not in skipped:
+                        sides[side], errors = size_tree(build_dirs[side], board, example, trees[side][1], args.engine)
+                        failures += [(i, side, stage, msg) for i, stage, msg in errors]
                 if base_source == 'ci':
                     failures += run_failures + [f for f in base_failures if f[0][0] == board]
                     cur_elfs = {elf: s for (_b, elf), s in sides['current'].items()}
@@ -1529,6 +1578,12 @@ def run_diff(args, requested_sha, unsupported):
                         failures += scoped
                     else:  # no usable baseline: nothing of this board is new, none compared
                         sides['current'] = {}
+                # a CI base proves the skip only when its leg selected the example
+                base_covers = base_source == 'local' or (
+                    shard is not None and (shard['_examples'] is None or example in shard['_examples']))
+                if all_skipped and base_covers and not failures and not any(sides.values()):
+                    skipped_scopes += 1
+                    continue
 
                 ok, failures = write_scope(board, example, sides, failures, warnings, symbols, phase)
                 failed |= not ok
@@ -1560,7 +1615,9 @@ def run_diff(args, requested_sha, unsupported):
                     else:
                         print('  bloaty: ELF not found')
 
-        if args.combined:
+        if args.combined and skipped_scopes == len(args.board) * len(examples):
+            print('combined: all scopes skipped')
+        elif args.combined:
             os.makedirs(combined_dir, exist_ok=True)
             print(f'combined ({len(args.board)} boards)')
             # every scope was filter-checked above, and its failures carried over
@@ -2247,6 +2304,10 @@ def main():
             report_parser.error('at least one -b BOARD is required')
         if invalid := invalid_boards(args.board):
             report_parser.error(f'invalid board name: {", ".join(invalid)}')
+        if unknown := unknown_boards(args.board):
+            report_parser.error(f'unknown board: {", ".join(unknown)}')
+        if missing := missing_examples(args.example or []):
+            report_parser.error(f'no such example: {", ".join(missing)}')
         if error := esp_without_idf(args.board):
             report_parser.error(error)
         return run_report(args)
@@ -2264,6 +2325,8 @@ def main():
         parser.error('at least one -b BOARD is required (or pass --ci)')
     if invalid := invalid_boards(args.board):
         parser.error(f'invalid board name: {", ".join(invalid)}')
+    if unknown := unknown_boards(args.board):
+        parser.error(f'unknown board: {", ".join(unknown)}')
     # before any board builds: a --ci run would otherwise fail its espressif boards last
     if error := esp_without_idf(args.board):
         parser.error(error)
@@ -2277,7 +2340,10 @@ def main():
     ret = run(['git', '-C', TINYUSB_ROOT, 'rev-parse', '--verify', '--quiet', f'{args.base_branch}^{{commit}}'])
     if ret.returncode != 0:
         parser.error(f'--base-branch {args.base_branch} names no commit')
-    return run_diff(args, ret.stdout.strip(), unsupported)
+    requested_sha = ret.stdout.strip()
+    if missing := missing_examples(args.example or [], requested_sha):
+        parser.error(f'no such example here or in {args.base_branch}: {", ".join(missing)}')
+    return run_diff(args, requested_sha, unsupported)
 
 
 if __name__ == '__main__':
