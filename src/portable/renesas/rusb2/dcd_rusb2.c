@@ -196,6 +196,19 @@ static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
+// Arm queued OUT pipe `num`, idle at NAK with an empty buffer, for its remaining length. TRE/TRN
+// change only at PID = NAK with PBUSY = 0, TRCLR only with an empty buffer (RA6M5 UM 29.2.39, 29.3.7.5).
+static void pipe_out_arm(rusb2_reg_t *rusb, unsigned num) {
+  volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+  if (pt) {
+    const uint16_t mps = edpt_max_packet_size(rusb, num);
+    pt->TRE   = TU_BIT(8);
+    pt->TRN   = (_dcd.pipe[num].remaining + mps - 1) / mps;
+    pt->TRENB = 1;
+  }
+  *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF;
+}
+
 static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
   pipe_state_t  *pipe = &_dcd.pipe[0];
   const unsigned rem  = pipe->remaining;
@@ -524,9 +537,13 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
   } else {
     // OUT
     volatile uint16_t *ctr = get_pipectr(rusb, num);
-    // TRE/TRN change only at PID = NAK with PBUSY = 0, TRCLR only with an empty buffer (RA6M5 UM
-    // 29.2.39, 29.3.7.5): stop reception, then drain what arrived while nothing was armed (parked
-    // by process_pipe_brdy), at most one packet per buffer plane
+    if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL) {
+      // Halted: usbd can re-arm after a completion queued behind the SET_FEATURE(HALT). Keep the
+      // halt; dcd_edpt_clear_stall() drops anything parked and arms this transfer.
+      return true;
+    }
+    // Stop reception, then drain what arrived while nothing was armed (parked by
+    // process_pipe_brdy), at most one packet per buffer plane
     bool ok = pipe_reset(rusb, num, 0);
     if (ok) {
       // BRDY status is cleared before each FIFO access (RA6M5 UM 29.2.20 note 2)
@@ -547,15 +564,7 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
       pipe->remaining = 0;
       return false;
     }
-
-    volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
-    if (pt) {
-      const uint16_t mps = edpt_max_packet_size(rusb, num);
-      pt->TRE   = TU_BIT(8);
-      pt->TRN   = (pipe->remaining + mps - 1) / mps;
-      pt->TRENB = 1;
-    }
-    *ctr = RUSB2_PIPE_CTR_PID_BUF;
+    pipe_out_arm(rusb, num);
   }
 
   //  TU_LOG2("X %x %d %d\r\n", ep_addr, total_bytes, buffer_type);
@@ -1092,13 +1101,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
     rusb->PIPESEL = (uint16_t)num;
-    // Non-bulk OUT re-enables straight away. Bulk OUT is normally armed together with its transaction
-    // counter (TRE) by process_pipe_xfer(), so we don't blindly re-enable it here — but if a receive
-    // was already armed (still queued), pipe_reset() just left it NAKing. Re-assert BUF so it keeps
-    // receiving; the class driver still considers that read submitted and never re-arms it, so
-    // otherwise the endpoint NAKs forever (usbtest toggle test 29 clears the halt on an armed pipe).
+    // Non-bulk OUT re-enables straight away. Bulk OUT is armed together with its transaction counter
+    // (TRE), so we don't blindly re-enable it here — but a receive queued before or during the halt
+    // was just left NAKing with an empty buffer. Arm it; the class driver still considers that read
+    // submitted and never re-arms it, so otherwise the endpoint NAKs forever (usbtest toggle test 29
+    // clears the halt on an armed pipe).
     // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
-    if (rusb->PIPECFG_b.TYPE != 1 || _dcd.pipe[num].queued) {
+    if (_dcd.pipe[num].queued) {
+      pipe_out_arm(rusb, num);
+    } else if (rusb->PIPECFG_b.TYPE != 1) {
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
