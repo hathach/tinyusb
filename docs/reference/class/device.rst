@@ -104,7 +104,8 @@ Core API and callbacks
        after the scheduler starts, from the task that runs ``tud_task()``.
    * - ``tud_task()`` / ``tud_task_ext()``
      - Dispatches bus, control, class, and completion events.  The extended
-       form selects a wait timeout and states whether the call is from an ISR.
+       form selects a wait timeout; its ``in_isr`` argument is currently
+       ignored.  Never call either from an ISR.
    * - ``tud_connected()`` / ``tud_mounted()`` / ``tud_ready()``
      - Reports progressively stronger states: bus activity, configured by the
        host, and configured plus not suspended.  Use ``tud_ready()`` before
@@ -147,8 +148,11 @@ Buffers and callbacks
 =====================
 
 Most class callbacks run from ``tud_task()``.  ``*_isr`` callbacks, such as
-``tud_audio_tx_done_isr()``, run in interrupt context, and
-``tud_event_hook_cb()`` may too.  A few, such as
+``tud_audio_tx_done_isr()``, and ``tud_event_hook_cb()`` usually run in
+interrupt context, but some ports run them synchronously inside the API call
+that arms the endpoint (on MUSB, re-arming an OUT endpoint can drain a staged
+packet and complete the transfer there).  Make them safe in both contexts: no
+blocking and no ISR-only OS calls.  A few, such as
 ``tud_video_prepare_payload_cb()`` and ``tud_network_xmit_cb()``, can also run
 inside the API call that triggers them.  Keep callbacks short and move lengthy
 work to an application task.
@@ -165,5 +169,6 @@ Before testing on hardware, verify that:
 * the configuration descriptor's total length and interface count are exact;
 * every endpoint address is unique within the configuration;
 * descriptor packet sizes are legal for the endpoint type and speed, and each
-  ``CFG_TUD_*_EPSIZE`` buffer holds at least one packet;
+  class endpoint buffer (``CFG_TUD_*_EPSIZE`` or ``CFG_TUD_*_EP_BUFSIZE``, see
+  the class guide) holds at least one packet;
 * callbacks never retain a pointer whose documented lifetime has ended.

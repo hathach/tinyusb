@@ -43,8 +43,9 @@ USB-MIDI event packets.  Drain received data in ``tud_midi_rx_cb()``.
      - What it does
    * - ``tud_midi_n_available()`` /
        ``tud_midi_n_stream_read()``
-     - Report raw FIFO bytes (4-byte event packets) and read MIDI bytes for
-       one interface.  Both ignore ``cable_num``: the read merges every cable.
+     - Report the RX FIFO byte count plus the bytes left in a partially
+       consumed packet, and read MIDI bytes for one interface.  Both ignore
+       ``cable_num``: the read merges every cable.
    * - ``tud_midi_n_demux_stream_read()``
      - Reads bytes from one cable at a time, returns the byte count and writes
        the cable number to ``*p_cable_num``.  Do not mix it with the legacy

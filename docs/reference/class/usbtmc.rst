@@ -33,8 +33,8 @@ contains.
        ``0`` for base USBTMC only.
    * - ``CFG_TUD_USBTMC_INT_EP_SIZE``
      - ``2`` bytes
-     - Internal interrupt notification buffer.  It must fit the notification
-       format and descriptor packet size.
+     - Internal interrupt notification buffer.  It must hold the largest
+       notification sent: 2 bytes for USB488 notifications.
 
 Return a static capabilities structure from
 ``tud_usbtmc_get_capabilities_cb()``.  Its flags must agree with the descriptor
@@ -66,8 +66,10 @@ Message flow
      - Releases the response buffer and lets the application queue more data or
        restart command reception.
    * - ``tud_usbtmc_transmit_notification_data()``
-     - Copies one interrupt notification when that endpoint is present;
-       ``false`` means the previous notification is still pending.
+     - Copies one interrupt notification when that endpoint is present.
+       ``false`` means the previous notification is still pending, the
+       transfer could not be queued, or ``len`` exceeds
+       ``CFG_TUD_USBTMC_INT_EP_SIZE``; the last is permanent, so do not retry.
    * - ``tud_usbtmc_bulkOut_clearFeature_cb()`` /
        ``tud_usbtmc_bulkIn_clearFeature_cb()``
      - Required.  Report that the host cleared a halt on the bulk OUT or IN

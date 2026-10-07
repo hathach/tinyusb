@@ -104,13 +104,18 @@ Core API and callbacks
        ``tuh_task()``.
    * - ``tuh_task()`` / ``tuh_task_ext()``
      - Advances enumeration and transfers and dispatches callbacks.  The
-       extended form controls wait timeout and ISR context.
+       extended form selects a wait timeout; its ``in_isr`` argument is
+       currently ignored.  Never call either from an ISR.
    * - ``tuh_mount_cb()`` / ``tuh_umount_cb()``
      - Announces a configured device or detachment.  Class mount callbacks
        provide the interface-specific indices used for I/O.
    * - ``tuh_mounted()`` / ``tuh_ready()`` / ``tuh_connected()``
-     - Tests whether an address is configured/ready or has merely shown bus
-       activity.  Do not start class I/O based only on ``tuh_connected()``.
+     - Tests whether an address is configured/ready or connected.  For a
+       nonzero address ``tuh_connected()`` is true once SET_ADDRESS has
+       succeeded, which can precede configuration and mounting; for address 0
+       it is true while a newly attached device is being enumerated at the
+       default address.  Do not start class I/O based only on
+       ``tuh_connected()``.
    * - ``tuh_vid_pid_get()`` / ``tuh_speed_get()`` / ``tuh_bus_info_get()``
      - Returns cached identity, speed, and hub/root-port location for an
        enumerated address.

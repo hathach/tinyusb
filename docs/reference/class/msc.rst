@@ -64,8 +64,11 @@ For temporarily busy media, return ``TUD_MSC_RET_BUSY``; TinyUSB will invoke
 the callback again with the same parameters.  For true background I/O, return
 ``TUD_MSC_RET_ASYNC`` and later call ``tud_msc_async_io_done()`` with the byte
 count or error.  Do not report a write complete until data has reached the
-durability level promised by the product.  ``tud_msc_write10_complete_cb()`` is
-a useful place to flush a cache.
+durability level promised by the product: finish that storage work before
+returning success from ``tud_msc_write10_cb()`` or calling
+``tud_msc_async_io_done()``.  ``tud_msc_write10_complete_cb()`` runs only after
+the host has received the command status, so a cache flush there is
+best-effort and cannot make an acknowledged write durable.
 
 See :doc:`../../examples/device/cdc_msc` for a RAM disk and
 :doc:`../../examples/device/msc_dual_lun` for multiple LUNs.
@@ -89,8 +92,10 @@ LUN 0, so other LUNs read back as 0.
 ``tuh_msc_read10()`` and ``tuh_msc_write10()`` are asynchronous.  Keep the
 buffer valid, correctly aligned, cache coherent, and accessible to the USB
 controller until the ``tuh_msc_complete_cb_t`` callback runs.  Check
-``tuh_msc_ready()`` before starting another command and inspect the completion
-callback's transfer result and command status.
+``tuh_msc_ready()`` before starting another command and check
+``cb_data->csw->status`` in the completion callback.  The callback has no
+separate USB transfer result, so it does not report transfer failures on its
+own.
 
 .. list-table::
    :header-rows: 1

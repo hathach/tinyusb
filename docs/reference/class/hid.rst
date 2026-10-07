@@ -34,7 +34,9 @@ Send only when the interface is ready:
 .. code-block:: c
 
    if (tud_hid_ready()) {
-     tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycodes);
+     if (!tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycodes)) {
+       // Not queued: keep the state and send it on a later attempt.
+     }
    }
 
 Use ``tud_hid_report()`` for a custom layout.  Handle host-to-device output or
@@ -127,13 +129,17 @@ default instead (see ``CFG_TUH_HID_SET_PROTOCOL_ON_ENUM``).
      if (desc != NULL) {
        parse_report_descriptor(desc, desc_len);
      }
-     tuh_hid_receive_report(dev_addr, idx);
+     if (!tuh_hid_receive_report(dev_addr, idx)) {
+       // No further reports arrive until a receive is queued: log or retry.
+     }
    }
 
    void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx,
                                    uint8_t const *report, uint16_t len) {
      process_report(report, len);
-     tuh_hid_receive_report(dev_addr, idx); // Re-arm interrupt IN.
+     if (!tuh_hid_receive_report(dev_addr, idx)) { // Re-arm interrupt IN.
+       // No further reports arrive until a receive is queued: log or retry.
+     }
    }
 
 If a report descriptor is larger than ``CFG_TUH_ENUMERATION_BUFSIZE``, the
