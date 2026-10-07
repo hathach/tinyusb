@@ -142,6 +142,10 @@ static bool pipe_is_iso(rusb2_reg_t *rusb, unsigned num) {
   return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) == RUSB2_PIPECFG_TYPE_ISO;
 }
 
+static inline void pipe_brdy_clear(rusb2_reg_t *rusb, unsigned num) {
+  rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
+}
+
 // Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
 // normally settle within a few cycles (the pipe was just armed, or a BRDY freed a plane). But an
 // IN pipe whose double buffer is already full stalls FRDY until the host drains it, and a
@@ -178,12 +182,14 @@ static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
   while (rusb->D0FIFOSEL_b.CURPIPE == num || (*ctr & RUSB2_PIPE_CTR_PBUSY_Msk)) {
     if (!spin--) return false;
   }
-  *ctr = clr;
-  if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
-    (void) *ctr; // the write has landed before the ACLRM interval starts
-    rusb2_aclrm_delay();
+  if (clr) {
+    *ctr = clr;
+    if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
+      (void) *ctr; // the write has landed before the ACLRM interval starts
+      rusb2_aclrm_delay();
+    }
+    *ctr = 0;
   }
-  *ctr = 0;
   return true;
 }
 
@@ -523,23 +529,24 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
     // by process_pipe_brdy), at most one packet per buffer plane
     bool ok = pipe_reset(rusb, num, 0);
     if (ok) {
-      // BRDY status is cleared before the FIFO is accessed (RA6M5 UM 29.2.20 note 2)
-      rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
-    }
-    for (unsigned i = 0; ok && i < 2 && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
-      if (pipe_xfer_out(rusb, num)) {
-        rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num)); // drained here, no BRDY to service
-        pipe_xfer_complete(rhport, num, is_isr);
-        return true; // left NAKing until the next transfer is armed
+      // BRDY status is cleared before each FIFO access (RA6M5 UM 29.2.20 note 2)
+      pipe_brdy_clear(rusb, num);
+      for (unsigned i = 0; i < 2 && (*ctr & RUSB2_PIPE_CTR_BSTS_Msk); i++) {
+        const bool done = pipe_xfer_out(rusb, num);
+        pipe_brdy_clear(rusb, num); // drained here, no BRDY to service
+        if (done) {
+          pipe_xfer_complete(rhport, num, is_isr);
+          return true; // left NAKing until the next transfer is armed
+        }
       }
+      ok = !(*ctr & RUSB2_PIPE_CTR_BSTS_Msk);
     }
-    if (!ok || (*ctr & RUSB2_PIPE_CTR_BSTS_Msk)) {
+    if (!ok) {
       pipe->queued    = false; // refused: usbd releases the endpoint and its buffer
       pipe->buf       = NULL;
       pipe->remaining = 0;
       return false;
     }
-    rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
 
     volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
     if (pt) {
@@ -892,7 +899,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   rusb->PIPECFG = cfg;
-  rusb->BRDYSTS = 0x3FFu ^ TU_BIT(num);
+  pipe_brdy_clear(rusb, num);
   rusb->BRDYENB |= TU_BIT(num);
 
   if (dir || (xfer != TUSB_XFER_BULK)) {
@@ -972,7 +979,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   }
   rusb->PIPEMAXP = largest_packet_size;
   rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
-  rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
+  pipe_brdy_clear(rusb, num);
   rusb->BRDYENB |= TU_BIT(num);
   dcd_int_enable(rhport);
   return true;
@@ -1035,8 +1042,7 @@ static unsigned halting_in_pipe(rusb2_reg_t *rusb, uint8_t ep_addr) {
   if (num == 0) {
     return 0;
   }
-  rusb->PIPESEL = (uint16_t) num;
-  return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) != RUSB2_PIPECFG_TYPE_ISO ? num : 0;
+  return pipe_is_iso(rusb, num) ? 0 : num;
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
