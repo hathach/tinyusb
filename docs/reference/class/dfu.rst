@@ -10,15 +10,21 @@ Runtime mode
 ============
 
 Enable ``CFG_TUD_DFU_RUNTIME`` and add ``TUD_DFU_RT_DESCRIPTOR``.  When the
-host sends DFU_DETACH, TinyUSB calls ``tud_dfu_runtime_reboot_to_dfu_cb()``.
-Store any required boot flag, safely stop the application, and reset into the
-DFU image from that callback.
+host sends DFU_DETACH, TinyUSB calls ``tud_dfu_runtime_reboot_to_dfu_cb()``
+right after queuing the request's status stage.  Record the request and any
+required boot flag there, but do not reset inside the callback: the host would
+see DFU_DETACH fail.  Stop the application and switch to the DFU image once the
+status stage has completed.  The runtime driver exposes no application callback
+for status-stage completion; returning from ``tud_task()`` does not guarantee it
+has completed.
 
-The descriptor's detach attributes must describe the actual behavior.  In
-particular, do not set ``bitWillDetach`` unless the callback will initiate the
-detach/reset without a USB reset from the host.
+The descriptor's detach attributes must describe the actual behavior.  Set
+``bitWillDetach`` only when the firmware detaches and re-attaches by itself.
+Otherwise wait for the host's USB reset and enter DFU mode only if it arrives
+before the detach timeout expires (DFU 1.1 section 5.1).
 
-See :doc:`../../examples/device/dfu_runtime`.
+See :doc:`../../examples/device/dfu_runtime`; its callback only changes the LED
+blink rate and does not detach.
 
 .. list-table::
    :header-rows: 1

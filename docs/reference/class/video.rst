@@ -36,7 +36,7 @@ driver follows.
      - ``0``
      - Number of VideoControl functions retained by the driver.
    * - ``CFG_TUD_VIDEO_STREAMING``
-     - ``0``
+     - Required
      - Total VideoStreaming interfaces across all control functions.
    * - ``CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE``
      - Required
@@ -81,7 +81,9 @@ Frame flow
        error.
    * - ``tud_video_prepare_payload_cb()``
      - Fills payload bytes on demand when the frame was queued with a null data
-       pointer; honor the requested offset and maximum length.
+       pointer; honor the requested offset and maximum length.  The first call
+       runs inside ``tud_video_n_frame_xfer()`` in the caller's context, later
+       ones from ``tud_task()``.
 
 Wait for ``tud_video_n_streaming(ctl_idx, stm_idx)`` before submitting a frame.
 Queue it with ``tud_video_n_frame_xfer()`` and do not modify or reuse the buffer

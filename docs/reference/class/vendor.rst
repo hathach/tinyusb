@@ -28,15 +28,19 @@ of bulk endpoints.  Buffered mode is the practical default.
    * - ``CFG_TUD_VENDOR_RX_EPSIZE`` /
        ``CFG_TUD_VENDOR_TX_EPSIZE``
      - Device bulk maximum
-     - Bulk endpoint transfer buffers and descriptor packet sizes.
+     - Bulk endpoint transfer buffer sizes.  Each must be at least the
+       endpoint's ``wMaxPacketSize``.
    * - ``CFG_TUD_VENDOR_RX_MANUAL_XFER``
      - ``0``
-     - Requires the application to call ``tud_vendor_n_read_xfer()`` to arm
-       each buffered bulk OUT transfer.
+     - Disables automatic receive arming at open and transfer completion.
+       Use ``tud_vendor_n_read_xfer()`` to arm reception explicitly; buffered
+       reads and ``tud_vendor_n_read_flush()`` also attempt to re-arm it.
    * - ``CFG_TUD_VENDOR_RX_NEED_ZLP``
      - ``0``
      - Allows multi-packet receive termination by a zero-length packet; enable
-       only when the custom host protocol sends that terminator.
+       only when the custom host protocol sends that terminator.  RX transfers
+       then can request up to ``CFG_TUD_VENDOR_RX_EPSIZE`` (otherwise one packet);
+       make it a multiple of the OUT endpoint's ``wMaxPacketSize``.
    * - ``CFG_TUD_VENDOR_EP_INT_OUT`` /
        ``CFG_TUD_VENDOR_EP_INT_IN``
      - ``0``

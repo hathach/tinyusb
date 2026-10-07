@@ -27,8 +27,8 @@ example, confirm that it enumerates, and then change one property at a time:
 Configuration
 -------------
 
-Set ``CFG_TUD_AUDIO`` to the number of audio functions.  The principal options
-are:
+Set ``CFG_TUD_AUDIO`` to the number of audio functions, at most three.  The
+principal options are:
 
 .. list-table::
    :header-rows: 1
@@ -54,8 +54,8 @@ are:
    * - ``CFG_TUD_AUDIO_FUNC_n_EP_IN_SW_BUF_SZ`` /
        ``CFG_TUD_AUDIO_FUNC_n_EP_OUT_SW_BUF_SZ``
      - ``0``
-     - Software FIFO size.  Set it to at least the corresponding maximum
-       endpoint size when using the FIFO APIs.
+     - Software FIFO size.  Required for each enabled direction; a value below
+       the maximum endpoint size (the default ``0`` included) is a build error.
    * - ``CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL``
      - ``1``
      - Adapts IN packet consumption to the FIFO fill level to reduce
@@ -85,14 +85,15 @@ Data path
    * - Operation
      - Main API
    * - ``tud_audio_mounted()`` / ``tud_audio_version()``
-     - Tests whether function zero is configured and returns its negotiated
-       Audio Class version.
+     - Tests whether function zero is configured and returns its Audio Class
+       version, read from the AudioControl interface descriptor.
    * - ``tud_audio_available()`` / ``tud_audio_read()``
      - Reports and removes speaker bytes from the OUT software FIFO.  The read
        count can be shorter than requested.
    * - ``tud_audio_write()``
      - Copies microphone bytes into the IN software FIFO and returns the number
-       accepted.
+       written.  When the FIFO is full the oldest unsent bytes are overwritten,
+       so pace writes to the stream.
    * - ``tud_audio_clear_ep_*_ff()``
      - Discards queued samples in the selected endpoint FIFO, useful when a
        streaming alternate setting closes.
@@ -101,8 +102,9 @@ Data path
        integration; the application must preserve its invariants.
    * - ``tud_audio_n_fb_set()``
      - Supplies the feedback value for one audio function when application
-       feedback mode is used.  Pass 16.16 samples per frame; TinyUSB converts
-       it to full-speed 10.14 format when required.
+       feedback mode is used.  Pass 16.16 samples per frame at full speed, or
+       per microframe at high speed.  UAC1 functions send it as 3-byte 10.14;
+       UAC2 functions always send 4-byte 16.16.
    * - ``tud_audio_feedback_update()``
      - Updates internally calculated feedback from elapsed master-clock cycles
        and returns the current 16.16 value, or zero on error.
@@ -115,6 +117,9 @@ Use ``tud_audio_set_itf_cb()`` and ``tud_audio_set_itf_close_ep_cb()`` to start
 or stop the application-side I2S/DMA path.  Do not produce or consume samples
 merely because the device is mounted; wait until the streaming interface is
 active.
+
+The optional ``tud_audio_*_isr()`` callbacks run in interrupt context; see
+:doc:`device`.
 
 Control requests
 ----------------
@@ -182,7 +187,9 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
    * - ``CFG_TUH_AUDIO_EPIN_BUFSIZE`` /
        ``CFG_TUH_AUDIO_EPOUT_BUFSIZE``
      - ``256`` bytes
-     - Largest capture/playback packet the driver can submit.  A configuration
+     - Largest capture/playback packet the driver can submit.  Capture
+       alternate settings whose ``wMaxPacketSize`` exceeds the IN buffer or
+       ``CFG_TUH_AUDIO_STREAM_BUFSIZE`` are dropped; a playback configuration
        whose packet for one polling interval is larger is rejected.
    * - ``CFG_TUH_AUDIO_STREAM_BUFSIZE``
      - ``1024`` bytes
@@ -227,6 +234,9 @@ every channel; obtain its byte size with ``tuh_audio_config_frame_size()``.
 may be shorter than requested.  Use ``tuh_audio_read_available()`` and
 ``tuh_audio_write_available()`` to service the FIFOs from the application task;
 the transfer callbacks are notifications and need not drive FIFO servicing.
+If the capture FIFO overflows while a task other than the one running
+``tuh_task()`` reads it, a read can mix old and new samples; keep up with
+capture.
 
 Callbacks and failures
 ----------------------

@@ -10,11 +10,11 @@ receive callbacks advance the application state.
 Setup checklist
 ===============
 
-1. Enable ``CFG_TUH_ENABLED`` and set each ``CFG_TUH_*`` pool size in
+1. Enable ``CFG_TUH_ENABLED`` and set each ``CFG_TUH_*`` class value in
    ``tusb_config.h``.  HID and MIDI values count interfaces, so allow for more
    than one interface per physical device.
-2. Set ``CFG_TUH_DEVICE_MAX`` for the number of attached devices and enable
-   ``CFG_TUH_HUB`` if hubs are required.
+2. Set ``CFG_TUH_DEVICE_MAX`` for the number of attached non-hub devices and
+   enable ``CFG_TUH_HUB`` if hubs are required.
 3. Initialize a host-capable root port and provide VBUS as required by the
    board.
 4. Call ``tuh_task()`` continuously, or run it in a dedicated RTOS task.
@@ -53,7 +53,8 @@ Common configuration options
        full-speed-only controller operate at high speed.
    * - ``CFG_TUH_DEVICE_MAX``
      - ``1``
-     - Number of USB device addresses tracked simultaneously, including hubs.
+     - Number of non-hub USB devices tracked simultaneously.  Hubs use
+       separate ``CFG_TUH_HUB`` slots and addresses.
    * - ``CFG_TUH_HUB``
      - ``0``
      - Number of hubs supported simultaneously.  Hub ports can require higher
@@ -74,9 +75,11 @@ Common configuration options
      - Selects TinyUSB's synchronization backend.  Set the matching OS option
        when host APIs and ``tuh_task()`` run in different RTOS tasks.
 
-Each ``CFG_TUH_<CLASS>`` value sizes a simultaneous interface pool.  It is not
-a VID/PID allowlist and, for composite devices, may need to exceed
-``CFG_TUH_DEVICE_MAX``.
+``CFG_TUH_CDC``, ``CFG_TUH_HID``, ``CFG_TUH_MIDI`` and ``CFG_TUH_MIDI2`` size a
+simultaneous interface pool.  Such a value is not a VID/PID allowlist and, for
+composite devices, may need to exceed ``CFG_TUH_DEVICE_MAX``.
+``CFG_TUH_MSC`` and ``CFG_TUH_AUDIO`` are enables, not pools; see :doc:`msc`
+and :doc:`audio`.
 
 Core API and callbacks
 ======================
@@ -89,7 +92,9 @@ Core API and callbacks
      - What it does
    * - ``tusb_init()``
      - Initializes a root port with host role and selected speed.  Call it
-       after board/VBUS setup and check its boolean result.
+       after board/VBUS setup and check its boolean result.  With an RTOS,
+       call it after the scheduler starts, from the task that runs
+       ``tuh_task()``.
    * - ``tuh_task()`` / ``tuh_task_ext()``
      - Advances enumeration and transfers and dispatches callbacks.  The
        extended form controls wait timeout and ISR context.
@@ -110,7 +115,9 @@ Core API and callbacks
      - Submits a control transfer described by ``tuh_xfer_t``.  A non-null
        completion callback makes it asynchronous; a null callback blocks.
    * - ``tuh_edpt_xfer()``
-     - Submits a bulk or interrupt endpoint transfer.  Application class
+     - Submits a bulk or interrupt transfer on an endpoint opened with
+       ``tuh_edpt_open()``.  The completion callback is delivered only when
+       ``CFG_TUH_API_EDPT_XFER`` is ``1`` (default ``0``).  Application class
        drivers normally use their class-specific wrappers instead.
 
 Synchronous host control calls are forbidden from the host task when

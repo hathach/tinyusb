@@ -63,8 +63,10 @@ pages.  Defaults come from ``src/tusb_option.h``.
        in the device descriptor and the controller's capability.
    * - ``CFG_TUD_ENDPOINT0_BUFSIZE``
      - Endpoint 0 size
-     - Staging space for control transfers.  Increase it when a class control
-       request must hold more than one endpoint packet.
+     - Staging buffer for control data stages; longer requests are moved
+       through it in chunks of this size.  Keep it a multiple of
+       ``CFG_TUD_ENDPOINT0_SIZE``.  Audio uses it as its control buffer when
+       ``CFG_TUD_AUDIO_CTRL_BUF_SZ`` fits.
    * - ``CFG_TUD_INTERFACE_MAX``
      - ``16``
      - Maximum total USB interfaces across the active configuration, including
@@ -98,7 +100,8 @@ Core API and callbacks
      - What it does
    * - ``tusb_init()``
      - Initializes a root port with an explicit role and speed.  Call it before
-       the task function and check its boolean result.
+       the task function and check its boolean result.  With an RTOS, call it
+       after the scheduler starts, from the task that runs ``tud_task()``.
    * - ``tud_task()`` / ``tud_task_ext()``
      - Dispatches bus, control, class, and completion events.  The extended
        form selects a wait timeout and states whether the call is from an ISR.
@@ -110,8 +113,9 @@ Core API and callbacks
      - Tests suspend state and requests remote wakeup.  Wakeup succeeds only
        when the host enabled it and the device is suspended.
    * - ``tud_disconnect()`` / ``tud_connect()``
-     - Controls the USB pull-up to force a logical detach or attach.  These
-       return ``false`` when the controller cannot provide the operation.
+     - Controls the USB pull-up to force a logical detach or attach.  Both
+       always return ``true``; on a controller without pull-up control the
+       call does nothing.
    * - ``tud_mount_cb()`` / ``tud_umount_cb()``
      - Announces configuration and removal.  Initialize or discard
        configuration-dependent application state here.
@@ -119,9 +123,9 @@ Core API and callbacks
      - Announces bus power-state changes.  The suspend callback also reports
        whether remote wakeup was enabled by the host.
    * - ``tud_descriptor_*_cb()``
-     - Supplies device, configuration, string, BOS, and high-speed companion
-       descriptors on request.  Returned storage must remain valid through the
-       control transfer.
+     - Supplies device, configuration, string, BOS, device qualifier, and
+       other-speed configuration descriptors on request.  Returned storage
+       must remain valid through the control transfer.
    * - ``tud_control_xfer()`` / ``tud_control_status()``
      - Completes the data/status stages of an application-handled control
        request.  The data length is truncated to the request's ``wLength``.
@@ -142,18 +146,24 @@ Endpoint direction is always described from the USB device's point of view:
 Buffers and callbacks
 =====================
 
-Class callbacks run when ``tud_task()`` processes an event, unless a header
-explicitly labels a helper as ISR-safe.  Keep callbacks short and move lengthy
+Most class callbacks run from ``tud_task()``.  ``*_isr`` callbacks, such as
+``tud_audio_tx_done_isr()``, run in interrupt context, and
+``tud_event_hook_cb()`` may too.  A few, such as
+``tud_video_prepare_payload_cb()`` and ``tud_network_xmit_cb()``, can also run
+inside the API call that triggers them.  Keep callbacks short and move lengthy
 work to an application task.
 
 Buffered write APIs return the number of bytes accepted, which can be shorter
-than requested.  Check the return value and use the class's flush function when
-latency matters.  Size endpoint and software buffers for the active bus speed;
-copy the full-speed/high-speed pattern from an example that supports both.
+than requested.  Audio is the exception: its FIFOs overwrite the oldest unsent
+data when full (see :doc:`audio`).  Check the return value and use the class's
+flush function when latency matters.  Size endpoint and software buffers for
+the active bus speed; copy the full-speed/high-speed pattern from an example
+that supports both.
 
 Before testing on hardware, verify that:
 
 * the configuration descriptor's total length and interface count are exact;
 * every endpoint address is unique within the configuration;
-* descriptor packet sizes agree with the relevant ``CFG_TUD_*_EPSIZE`` values;
+* descriptor packet sizes are legal for the endpoint type and speed, and each
+  ``CFG_TUD_*_EPSIZE`` buffer holds at least one packet;
 * callbacks never retain a pointer whose documented lifetime has ended.

@@ -25,11 +25,13 @@ Enable ``CFG_TUD_CDC`` with the required port count and add one
        application scheduling gaps.
    * - ``CFG_TUD_CDC_RX_EPSIZE`` / ``CFG_TUD_CDC_TX_EPSIZE``
      - Device bulk maximum
-     - Endpoint transfer buffer and descriptor packet size.  Use
-       speed-appropriate values.
+     - Endpoint transfer buffer per direction, at least the ``_epsize`` of
+       ``TUD_CDC_DESCRIPTOR``.
    * - ``CFG_TUD_CDC_NOTIFY``
      - ``0``
-     - Enables the interrupt notification endpoint and serial-state API.
+     - Compiles the ``tud_cdc_n_notify_*`` API and its buffer for sending
+       serial-state and other notifications.  The notification endpoint is
+       opened whenever the descriptor has one, regardless of this option.
    * - ``CFG_TUD_CDC_RX_PERSISTENT`` / ``CFG_TUD_CDC_TX_PERSISTENT``
      - ``0``
      - Keeps the corresponding FIFO contents across disconnect/reconnect.
@@ -38,20 +40,24 @@ Enable ``CFG_TUD_CDC`` with the required port count and add one
      - ``0``
      - Enables multi-packet receive transfers terminated by a host-sent
        zero-length packet.  Enable only when the host side supports this
-       framing.
+       framing.  RX transfers then can request up to ``CFG_TUD_CDC_RX_EPSIZE``
+       (otherwise one packet); make it a multiple of ``_epsize``.
    * - ``CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED``
      - ``1``
      - Allows writes made before DTR connection to replace old queued data
        rather than permanently filling the FIFO.
 
 Use speed-dependent values from an example when the device can enumerate at
-high speed.  ``CFG_TUD_CDC_NOTIFY`` enables serial-state notifications.
+high speed.
 
-The common data path is:
+The common data path polls each port from the application loop, after
+``tud_task()``.  Polling is needed if ``tud_cdc_rx_cb()`` can leave bytes unread
+(for example because the TX FIFO is full): reception stops while the RX FIFO
+has less than one packet of room.
 
 .. code-block:: c
 
-   void tud_cdc_rx_cb(uint8_t itf) {
+   void cdc_echo_task(uint8_t itf) {
      uint8_t buf[64];
      uint32_t count = tud_cdc_n_available(itf);
      uint32_t room = tud_cdc_n_write_available(itf);
@@ -76,8 +82,9 @@ physical UART; TinyUSB does not configure that UART for you.
    * - Device API or callback
      - What it does
    * - ``tud_cdc_n_connected()`` / ``tud_cdc_n_ready()``
-     - Tests DTR connection, or whether the port is connected and can accept
-       output now.
+     - Both require the device configured and not suspended; ``connected``
+       also needs DTR asserted, ``ready`` needs both data endpoints open.
+       Neither checks TX FIFO room; use ``tud_cdc_n_write_available()``.
    * - ``tud_cdc_n_available()`` / ``tud_cdc_n_read()``
      - Reports and removes bytes received from the host.
    * - ``tud_cdc_n_write_available()`` / ``tud_cdc_n_write()``
@@ -127,8 +134,8 @@ part of enumeration.
 Line-control functions such as ``tuh_cdc_set_baudrate()`` and
 ``tuh_cdc_set_line_coding()`` accept a completion callback.  Their ``_sync``
 forms block and should only be used where the host task can continue running.
-Support varies by adapter family; in particular, the combined line-coding call
-is not implemented for every non-CDC adapter.
+``tuh_cdc_set_line_coding()`` works with every adapter family; for FTDI,
+CP210x, and CH34x it sends the baud rate and data format as two requests.
 
 .. list-table::
    :header-rows: 1
@@ -137,8 +144,9 @@ is not implemented for every non-CDC adapter.
    * - Host API or callback
      - What it does
    * - ``tuh_cdc_mounted()`` / ``tuh_cdc_itf_get_info()``
-     - Tests an interface index and returns its address, interface descriptor,
-       and serial-driver type.
+     - Tests an interface index and returns its device address and a rebuilt
+       interface descriptor.  ``bInterfaceClass`` reads CDC for every adapter
+       family; the serial-driver type is not reported.
    * - ``tuh_cdc_read_available()`` / ``tuh_cdc_read()``
      - Reports and removes bytes buffered from the serial device.
    * - ``tuh_cdc_write()`` / ``tuh_cdc_write_flush()``

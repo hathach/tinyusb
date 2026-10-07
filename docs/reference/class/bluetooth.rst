@@ -25,19 +25,21 @@ descriptor.
        IN/OUT packet size per setting to ``TUD_BTH_DESCRIPTOR``.
    * - ``CFG_TUD_BTH_EVENT_EPSIZE``
      - ``16`` bytes
-     - Maximum HCI event interrupt-IN packet.
+     - Not used by the driver.  The event endpoint size is the
+       ``_ep_evt_size`` argument of ``TUD_BTH_DESCRIPTOR``.
    * - ``CFG_TUD_BTH_DATA_EPSIZE``
      - ``64`` bytes
      - ACL bulk endpoint packet size.  Keep it consistent with the descriptor
        and active bus speed.
    * - ``CFG_TUD_BTH_HISTORICAL_COMPATIBLE``
      - ``0``
-     - Uses the legacy HCI command request value required by some historical
-       controller implementations.
+     - Also accepts device-addressed HCI commands with ``bRequest = 0xe0``;
+       see below.
 
-Set ``CFG_TUD_BTH_HISTORICAL_COMPATIBLE`` only for a controller that requires
-the legacy ``bRequest = 0xe0`` behavior described by the Bluetooth Core
-specification.  It is not a general compatibility switch.
+Some hosts send HCI commands with ``bRequest = 0xe0``, and the Bluetooth Core
+specification (v5.3, Vol 4, Part B, 2.2.1) says the controller should accept
+them.  Enable ``CFG_TUD_BTH_HISTORICAL_COMPATIBLE`` when the device must work
+with such hosts; otherwise those commands are stalled.
 
 Data path
 =========
@@ -53,10 +55,11 @@ Data path
    * - ``tud_bt_acl_data_received_cb()``
      - Delivers received host-to-controller ACL bytes.
    * - ``tud_bt_event_send()``
-     - Queues a controller-to-host HCI event; ``false`` means it was not
-       accepted.
+     - Starts sending a controller-to-host HCI event; ``false`` means the
+       endpoint is still busy or the transfer was not started.
    * - ``tud_bt_acl_data_send()``
-     - Queues controller-to-host ACL data; ``false`` means it was not accepted.
+     - Starts sending controller-to-host ACL data; ``false`` means the
+       endpoint is still busy or the transfer was not started.
    * - ``tud_bt_event_sent_cb()`` /
        ``tud_bt_acl_data_sent_cb()``
      - Reports completion and releases the corresponding application-owned
@@ -66,9 +69,16 @@ The host delivers HCI commands through ``tud_bt_hci_cmd_cb()`` and ACL data
 through ``tud_bt_acl_data_received_cb()``.  The controller sends HCI events with
 ``tud_bt_event_send()`` and ACL data with ``tud_bt_acl_data_send()``.
 
-The send APIs do not copy the whole packet.  Keep each buffer valid and
-unchanged until ``tud_bt_event_sent_cb()`` or ``tud_bt_acl_data_sent_cb()``.
-Check the boolean return value before considering a packet queued.
+Both receive callbacks pass a pointer into the driver's own buffer, which the
+next transfer reuses once the callback returns.  Consume or copy the data
+before returning.
+
+The send APIs do not copy: the controller reads the buffer directly.  Place it
+in ``CFG_TUD_MEM_SECTION`` and align it with ``CFG_TUD_MEM_ALIGN`` (see
+:doc:`device`), to whole D-cache lines when ``CFG_TUD_MEM_DCACHE_ENABLE`` is
+set.  Keep it valid and unchanged until
+``tud_bt_event_sent_cb()`` or ``tud_bt_acl_data_sent_cb()``.  Check the boolean
+return value before considering a packet sent.
 
 There is currently no dedicated Bluetooth device example.  Use the public API
 in ``src/class/bth/bth_device.h`` together with the Bluetooth Core USB

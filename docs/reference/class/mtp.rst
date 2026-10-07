@@ -19,8 +19,17 @@ formats that the application actually implements:
    #define CFG_TUD_MTP_EP_BUFSIZE         512
    #define CFG_TUD_MTP_EP_CONTROL_BUFSIZE 16
 
+   #define CFG_TUD_MTP_DEVICEINFO_EXTENSIONS "microsoft.com: 1.0; "
    #define CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS \
      MTP_OP_GET_DEVICE_INFO, MTP_OP_OPEN_SESSION, MTP_OP_CLOSE_SESSION
+   #define CFG_TUD_MTP_DEVICEINFO_SUPPORTED_EVENTS \
+     MTP_EVENT_OBJECT_ADDED
+   #define CFG_TUD_MTP_DEVICEINFO_SUPPORTED_DEVICE_PROPERTIES \
+     MTP_DEV_PROP_DEVICE_FRIENDLY_NAME
+   #define CFG_TUD_MTP_DEVICEINFO_CAPTURE_FORMATS \
+     MTP_OBJ_FORMAT_UNDEFINED, MTP_OBJ_FORMAT_ASSOCIATION
+   #define CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS \
+     MTP_OBJ_FORMAT_UNDEFINED, MTP_OBJ_FORMAT_ASSOCIATION
 
 .. list-table::
    :header-rows: 1
@@ -54,9 +63,8 @@ formats that the application actually implements:
      - Required
      - Object formats the device can create or expose for playback.
 
-The other ``CFG_TUD_MTP_DEVICEINFO_*`` lists describe supported events, device
-properties, capture formats, and playback formats.  These lists form the
-GetDeviceInfo response and are a contract with the host.
+The ``CFG_TUD_MTP_DEVICEINFO_*`` lists form the GetDeviceInfo response and are
+a contract with the host.
 
 Application flow
 ================
@@ -68,7 +76,7 @@ Application flow
    * - API or callback
      - What it does
    * - ``tud_mtp_mounted()``
-     - Tests whether all three MTP endpoints are open.
+     - Tests whether the bulk OUT and bulk IN endpoints are open.
    * - ``tud_mtp_command_received_cb()``
      - Delivers the operation container and starts the application transaction
        state machine.  A negative return stalls the bulk endpoints.
@@ -78,8 +86,9 @@ Application flow
    * - ``tud_mtp_response_send()``
      - Queues the final response container with the current transaction ID.
    * - ``tud_mtp_event_send()``
-     - Copies and queues one asynchronous event.  Retry later when it returns
-       ``false`` because the event endpoint is busy.
+     - Copies and queues one asynchronous event.  Send the next event only
+       after the previous one has gone out: a call while the event endpoint is
+       busy overwrites the event still in flight before returning ``false``.
    * - ``tud_mtp_data_xfer_cb()``
      - Supplies or consumes the next chunk of a multi-packet data phase.
    * - ``tud_mtp_data_complete_cb()`` /

@@ -11,10 +11,10 @@ Configuration and descriptors
 =============================
 
 Enable ``CFG_TUD_USBTMC``.  Set ``CFG_TUD_USBTMC_ENABLE_488`` when USB488 is
-implemented and ``CFG_TUD_USBTMC_ENABLE_INT_EP`` when an interrupt IN endpoint
-is present.  Construct the configuration from
-``TUD_USBTMC_IF_DESCRIPTOR``, ``TUD_USBTMC_BULK_DESCRIPTORS``, and, when
-enabled, ``TUD_USBTMC_INT_DESCRIPTOR``.
+implemented.  Construct the configuration from ``TUD_USBTMC_IF_DESCRIPTOR``,
+``TUD_USBTMC_BULK_DESCRIPTORS``, and, for an interrupt IN endpoint,
+``TUD_USBTMC_INT_DESCRIPTOR``; the driver opens the endpoints the descriptor
+contains.
 
 .. list-table::
    :header-rows: 1
@@ -31,10 +31,6 @@ enabled, ``TUD_USBTMC_INT_DESCRIPTOR``.
      - ``1``
      - Builds USB488 capability, status-byte, and trigger support.  Set it to
        ``0`` for base USBTMC only.
-   * - ``CFG_TUD_USBTMC_ENABLE_INT_EP``
-     - Example-defined
-     - Selects whether the example descriptor includes the notification
-       endpoint; keep this consistent with the capabilities response.
    * - ``CFG_TUD_USBTMC_INT_EP_SIZE``
      - ``2`` bytes
      - Internal interrupt notification buffer.  It must fit the notification
@@ -72,6 +68,11 @@ Message flow
    * - ``tud_usbtmc_transmit_notification_data()``
      - Copies one interrupt notification when that endpoint is present;
        ``false`` means the previous notification is still pending.
+   * - ``tud_usbtmc_bulkOut_clearFeature_cb()`` /
+       ``tud_usbtmc_bulkIn_clearFeature_cb()``
+     - Required.  Report that the host cleared a halt on the bulk OUT or IN
+       endpoint and the pending transfer was dropped; restart the bus read
+       from the OUT callback.
    * - ``tud_usbtmc_start_bus_read()``
      - Arms the next bulk OUT transfer.  Call it after every path that becomes
        ready to receive another command.

@@ -10,8 +10,8 @@ Configuration
 =============
 
 Enable ``CFG_TUD_PRINTER`` and define the RX/TX FIFO and endpoint sizes.  Add a
-``TUD_PRINTER_DESCRIPTOR``; protocol 2 is the bidirectional interface used by
-the TinyUSB example.
+``TUD_PRINTER_DESCRIPTOR``, which always emits a bidirectional (protocol 2)
+interface with both bulk endpoints.
 
 .. code-block:: c
 
@@ -36,7 +36,8 @@ the TinyUSB example.
    * - ``CFG_TUD_PRINTER_RX_EPSIZE`` /
        ``CFG_TUD_PRINTER_TX_EPSIZE``
      - Device bulk maximum
-     - Endpoint transfer buffer and descriptor packet size in each direction.
+     - Endpoint transfer buffer size in each direction.  Each must be at least
+       the ``_epsize`` packet size passed to ``TUD_PRINTER_DESCRIPTOR``.
 
 Data received from the host is available through
 ``tud_printer_read_available()`` and ``tud_printer_read()``.  Send status or
