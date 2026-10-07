@@ -559,7 +559,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-${{ matrix.display }}
-          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          path: |
+            ${{ env.HIL_REPORT_DIR }}/hil_report.md
+            ${{ env.HIL_REPORT_DIR }}/audio/
           if-no-files-found: ignore
           overwrite: true
 
@@ -644,7 +646,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-tinyusb-esp.json
-          path: ${{ env.HIL_REPORT_DIR }}/hil_report.md
+          path: |
+            ${{ env.HIL_REPORT_DIR }}/hil_report.md
+            ${{ env.HIL_REPORT_DIR }}/audio/
           if-no-files-found: ignore
           overwrite: true
 
@@ -808,6 +812,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-hfp-iar
-          path: hil_report.md
+          path: |
+            hil_report.md
+            audio/
           if-no-files-found: ignore
           overwrite: true

@@ -402,5 +402,20 @@ class BoundedReadForGuardlessCallers(unittest.TestCase):
         self.assertIsNone(self.hil_util.read_sysfs(os.path.join(self.td.name, 'nope')))
 
 
+class RampGaps(unittest.TestCase):
+    def test_clean_ramp_across_the_uint16_wrap(self):
+        self.assertEqual(hil_util.ramp_gaps([0xFFFE, 0xFFFF, 0, 1], 0), [])
+
+    def test_forward_and_backward_jumps(self):
+        s = [10, 11, 12, 208, 209, 149, 150]
+        self.assertEqual(hil_util.ramp_gaps(s, 0), [(3, 195), (5, -61)])
+
+    def test_jump_across_the_wrap_is_small(self):
+        self.assertEqual(hil_util.ramp_gaps([0xFFF0, 0x00B4], 0), [(1, 195)])
+
+    def test_gaps_before_start_are_ignored(self):
+        self.assertEqual(hil_util.ramp_gaps([5, 0, 1, 2, 9], 1), [(4, 6)])
+
+
 if __name__ == '__main__':
     unittest.main()

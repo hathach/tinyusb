@@ -38,6 +38,7 @@
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
+import collections
 import io
 import itertools
 import os
@@ -136,6 +137,7 @@ skip_flash = False
 print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
+_current_variant = None  # and its build variant
 
 
 def init_worker(lock, seed):
@@ -1473,12 +1475,29 @@ def test_device_audio_test_freertos(board):
     # initial overwritable software FIFO (at most 224 samples) can transition
     # between ramp generations. After that startup window, require an exact ramp.
     startup_samples = 256
-    for i in range(startup_samples, sample_count - 1):
-        expected = (samples[i] + 1) & 0xFFFF
-        assert samples[i + 1] == expected, (
-            f'Audio mismatch at sample {i + 1}: expected {expected}, got {samples[i + 1]}')
+    gaps = hil_util.ramp_gaps(samples, startup_samples)
+    if gaps:
+        first = gaps[0][0]
+        hist = ', '.join(f'{d:+d} x{n}' for d, n in collections.Counter(d for _, d in gaps).most_common(4))
+        kept = _keep_audio_capture(raw)
+        raise AssertionError(
+            f'Audio mismatch at sample {first}: expected {(samples[first - 1] + 1) & 0xFFFF}, '
+            f'got {samples[first]} ({len(gaps)} gaps: {hist}; at {[i for i, _ in gaps[:6]]}; raw {kept})')
 
     print(f'  ALSA {pcm}', end='')
+
+
+def _keep_audio_capture(raw: bytes) -> str:
+    """Save a failing capture under $HIL_REPORT_DIR/audio for offline analysis; returns its path."""
+    out_dir = Path(os.environ.get('HIL_REPORT_DIR', '.')) / 'audio'
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=out_dir, prefix=f'{_current_variant}-audio_test_freertos-',
+                                         suffix='.raw', delete=False) as f:
+            f.write(raw)
+    except OSError as e:
+        return f'not saved ({e})'
+    return f.name
 
 
 def test_device_hid_generic_inout(board):
@@ -1713,8 +1732,9 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
         return 0, 'skip', None
     # usbtest's hang recovery reflashes the exact artifact under test; re-deriving it from
     # board['name'] breaks on variant-only boards
-    global _current_fw
+    global _current_fw, _current_variant
     _current_fw = str(fw_name)
+    _current_variant = variant
 
     if verbose:
         log_line(f'Firmware {fw_name}')
