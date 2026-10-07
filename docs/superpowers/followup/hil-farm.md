@@ -26,7 +26,7 @@ bounded subprocess helpers (`helper/hil_util.py`), pool check
 Project layer: the ~30 `test_*` cases and `_tests_for` map in `hil_test.py`
 (~1500 lines), the example list in `hil_util.py:31-52`, `find_firmware` and the
 `examples/cmake-build-<board>[-variant]/<example>` layout, `build_board`,
-`tools/ci_select.py`, DUT identity (VID `cafe`), "missing binary = skip" and
+`tools/change_impact.py`, DUT identity (VID `cafe`), "missing binary = skip" and
 "metric string = pass" policies.
 
 Seams where TinyUSB leaks into generic files (Codex, verified by path):
