@@ -42,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[4]
 HIL_DIR = ROOT / 'test' / 'hil'
 sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, str(ROOT / 'tools'))
-import ci_select  # noqa: E402
+import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
 from helper import hil_lock, hil_report, hil_util  # noqa: E402
@@ -109,7 +109,7 @@ def resolve(config, board_name, variant):
             raise Refused(f'{board_name} is in boards-skip of {config}')
         raise Refused(f'{board_name} is not a board in {config}')
     board = boards[board_name]
-    if 'device/usbtest' not in ci_select.board_tests(board):
+    if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
     flasher = board.get('flasher')

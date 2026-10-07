@@ -57,7 +57,7 @@ def _cwd_cache(fn):
     """lru_cache, keyed on the working directory as well as the arguments.
 
     Every cached helper below takes repo-RELATIVE paths ('hw/bsp/<fam>',
-    'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while ci_select._in_repo()
+    'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while change_impact._in_repo()
     chdirs around each call so one process can classify more than one tree (e.g. a
     test fixture).
     Without the cwd in the key the second tree silently gets the first tree's

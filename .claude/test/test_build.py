@@ -1,4 +1,4 @@
-"""Tests for the build skill's check_build.py: scope resolution through ci_select, the
+"""Tests for the build skill's check_build.py: scope resolution through change_impact, the
 dependency preflight, and the verdict it derives from tools/build.py's rows.
 The build itself is stubbed; a real board build is verified by running the script."""
 import importlib.util
@@ -22,8 +22,8 @@ def row(board, target, status):
 
 
 def rec(reason, rule, effect='select', families=None, examples=None, port=None, targets=()):
-    """ci_select's build record for a reason line, its path the text before ': '."""
-    return build.ci_select.build_record(reason.split(': ', 1)[0], rule, effect, reason,
+    """change_impact's build record for a reason line, its path the text before ': '."""
+    return build.change_impact.build_record(reason.split(': ', 1)[0], rule, effect, reason,
                                         families, examples, port, targets)
 
 
@@ -41,8 +41,8 @@ class ResolveTest(unittest.TestCase):
         boards, how = build.boards_for(manifest(full=True, required=['stm32f411blackpill']))
         self.assertEqual(boards, build.FULL_MATRIX_BOARDS + ['stm32f411blackpill'])
 
-    def test_base_mode_selects_through_ci_select_base_and_keeps_changed_boards(self):
-        # ci_select --base sees dependency revision changes that a path list cannot;
+    def test_base_mode_selects_through_change_impact_base_and_keeps_changed_boards(self):
+        # change_impact --base sees dependency revision changes that a path list cannot;
         # the manifest's required boards keep the board the diff changed
         m = manifest(families=['stm32f4'], required=['stm32f411blackpill'])
         with mock.patch.object(build, 'select', return_value=m) as sel, \
@@ -51,7 +51,7 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(sel.call_args[0][:2], (None, 'master'))
         self.assertEqual(b1.call_args[0][0], 'stm32f411blackpill')
 
-    def test_select_forwards_each_mode_to_ci_select_manifest(self):
+    def test_select_forwards_each_mode_to_change_impact_manifest(self):
         cases = ((dict(base='master'), ['--base', 'master']),
                  (dict(base='master', worktree=True), ['--base', 'master', '--worktree']),
                  (dict(endpoints='a..b'), ['--endpoints', 'a..b']))
@@ -74,7 +74,7 @@ class ResolveTest(unittest.TestCase):
     def _main_scope(self, scope, built=None, args=()):
         built = built or {'board': 'b', 'family': 'f', 'buildDir': 'd', 'status': 'ok', 'firstError': '',
                           'okExamples': ['cdc_msc', 'cdc_msc_hid']}
-        # the scopes below name paths that exist nowhere, to drive ci_select's records:
+        # the scopes below name paths that exist nowhere, to drive change_impact's records:
         # let them through the existence check as tracked deletions would be
         with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out, \
              mock.patch.object(build, 'tracked', return_value=True):
@@ -89,7 +89,7 @@ class ResolveTest(unittest.TestCase):
 
     def test_firmware_no_build_compiles_is_exit_3_with_the_reason_per_path(self):
         # a class no example enables, a lib nothing builds and a port mapping to no
-        # family are unverified firmware, in ci_select's own words
+        # family are unverified firmware, in change_impact's own words
         for scope, marker in (
             (['src/class/bth/bth_device.c'], 'enabled by no example'),
             (['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'], 'built by no example'),
@@ -191,7 +191,7 @@ class ResolveTest(unittest.TestCase):
     def test_a_membrowse_script_change_needs_its_own_target_not_a_default_sweep(self):
         # examples-membrowse-upload is a plain add_custom_target: `all` never runs
         # tools/membrowse_cli.py, so a green sweep is no evidence for it
-        r = build.ci_select.classify_build(['tools/membrowse_cli.py'], str(build.ROOT))['paths'][0]
+        r = build.change_impact.classify_build(['tools/membrowse_cli.py'], str(build.ROOT))['paths'][0]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         gap = (f"{r['reason']} (the default sweep builds `all`, which does not run "
                f'examples-membrowse-upload: rerun with -T all -T examples-membrowse-upload)')
@@ -204,7 +204,7 @@ class ResolveTest(unittest.TestCase):
 
     def test_the_size_script_is_never_verified_by_a_local_build(self):
         # code_size.py runs in CI's code-size step only; no target or example stands in
-        r = build.ci_select.classify_build(['tools/code_size.py'], str(build.ROOT))['paths'][0]
+        r = build.change_impact.classify_build(['tools/code_size.py'], str(build.ROOT))['paths'][0]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         for kw in ({}, {'chosen': True, 'targets': ('all', 'examples-membrowse-upload')}):
             gaps = build.coverage([r], built, **kw)[1]
@@ -212,7 +212,7 @@ class ResolveTest(unittest.TestCase):
             self.assertIn("CI's code-size step", gaps[0])
 
     def test_a_core_stack_path_needs_a_built_example_of_its_role(self):
-        records = build.ci_select.classify_build(['src/host/usbh.c', 'src/device/usbd.c'], str(build.ROOT))['paths']
+        records = build.change_impact.classify_build(['src/host/usbh.c', 'src/device/usbd.c'], str(build.ROOT))['paths']
         scope = [r['path'] for r in records]
         device_only = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
         self.assertEqual(build.coverage(records, device_only)[1], [records[0]['reason']])
@@ -222,7 +222,7 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.coverage(records, dual)[1], [])
 
     def test_get_deps_edit_changing_no_entry_is_nothing_to_build(self):
-        r = build.ci_select.classify_build(['tools/get_deps.py'], str(build.ROOT), set())['paths'][0]
+        r = build.change_impact.classify_build(['tools/get_deps.py'], str(build.ROOT), set())['paths'][0]
         self.assertEqual(build.coverage([r], []), ([r['reason']], []))
 
     def test_non_code_paths_beside_code_do_not_fail_the_scope(self):
@@ -274,11 +274,11 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(build.representatives(pool, None, ['raspberrypi/rp2040/dcd_rp2040.c']), [pool[0]])
 
     def test_a_directory_scope_expands_to_its_tracked_files(self):
-        # a bare board directory matches neither ci_select's rules nor the changed-board
+        # a bare board directory matches neither change_impact's rules nor the changed-board
         # rule, and would resolve to the family's sample instead of the board edited
         files = build.expand_scope(['hw/bsp/stm32f4/boards/stm32f411blackpill'])
         self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/board.h', files)
-        m = build.ci_select.manifest(files, str(build.ROOT), [], None, {})[0]
+        m = build.change_impact.manifest(files, str(build.ROOT), [], None, {})[0]
         self.assertEqual(m['build']['required_boards'], ['stm32f411blackpill'])
         self.assertEqual(build.boards_for(m)[0], ['stm32f411blackpill'])
 

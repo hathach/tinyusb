@@ -24,7 +24,7 @@ The classes (JlinkRtt for J-Link, OpenocdRtt for openocd-driven probes) expose
 the slice of pyserial the HIL harness uses — read/in_waiting/write/close/timeout,
 reset_input_buffer, context-manager use, plus an `eof` latch — and are imported
 by test/hil/helper/hil_util.py, so this file is HARNESS-CRITICAL: a change here
-is classified like a test/hil/ harness change (tools/ci_select.py) and runs the
+is classified like a test/hil/ harness change (tools/change_impact.py) and runs the
 console unit tests (pre-commit hil-test hook, test/hil/test/test_hil_rtt.py).
 Stdlib only — hil_util imports this file, never the other way around.
 """

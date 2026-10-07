@@ -140,8 +140,8 @@ def usable(select):
         # imported here, under the fall-open: a broken selector must still leave the
         # unscoped matrix
         sys.path.insert(0, os.path.join(REPO, 'tools'))
-        import ci_select
-        return ci_select.check_manifest(select)
+        import change_impact
+        return change_impact.check_manifest(select)
     except Exception as e:
         print(f'ci_set_matrix: UNSCOPED - selection unusable ({e}), emitting the full matrix', file=sys.stderr)
         return None

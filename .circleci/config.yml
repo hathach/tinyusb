@@ -23,14 +23,14 @@ jobs:
             # The selection lands in a FILE and never travels as an argv: a mass-sweep
             # diff selects hundreds of KB, and E2BIG would fail the step before the
             # `||` fallback could fire while EXAMPLE_MAP below stayed scoped.
-            SELECT_FILE=ci_select_out.json
+            SELECT_FILE=selection.json
             rm -f "$SELECT_FILE"
             if [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
               git fetch --no-tags origin master || true
-              # the suites gate the selector: test_ci_select.py owns the rules,
+              # the suites gate the selector: test_change_impact.py owns the rules,
               # test_build_select.py the check_build contract, and test_ci_metrics.py the
               # config2 sentinel contract this job rewrites
-              if python3 test/hil/test/test_ci_select.py >/dev/null 2>&1 &&
+              if python3 test/hil/test/test_change_impact.py >/dev/null 2>&1 &&
                  python3 .claude/test/test_build_select.py >/dev/null 2>&1 &&
                  python3 test/hil/test/test_ci_metrics.py >/dev/null 2>&1; then
                 python3 .claude/skills/build/scripts/check_build.py --select-only --base origin/master > "$SELECT_FILE" ||

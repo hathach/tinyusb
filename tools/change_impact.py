@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""PR-diff -> CI selection: which rig boards and which tests a change can affect.
+"""Change impact: which builds and which HIL tests a set of changed files can affect
+(build = board families and their examples, HIL = rig boards and their tests).
 
-Lives in tools/ so it can serve both HIL selection and, from Task 3, build-family
-selection. Stdlib-only (runs on bare CI runners; imports hil_util for the example
-rosters, never hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib
-closure). Fail-open: any file no rule classifies forces the full matrix. See
+Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
+hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
+any file no rule classifies forces the full matrix. See
 docs/superpowers/specs/2026-07-29-hil-pr-scoped-selection-design.md and
 docs/superpowers/specs/2026-08-19-ci-build-family-filter-design.md.
 
@@ -46,7 +46,7 @@ _prune_buildable then intersects each family with what it can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,ci_select,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -118,7 +118,7 @@ _META_RE = re.compile(
     r'hw/bsp/family\.json$|'
     r'.*/[0-9]+-tinyusb[^/]*\.rules$|tools/usb_drivers/|tools/codespell/|'
     # test/hil/test/ holds the harness's own unit tests, not the harness: nothing on
-    # the rig runs them (pre-commit does, and build.yml runs test_ci_select.py as the
+    # the rig runs them (pre-commit does, and build.yml runs test_change_impact.py as the
     # gate before trusting a selection), so they cannot change what the rig does.
     # The harness itself stays under _FULL_RE's test/hil/ prefix.
     r'test/(fuzz|unit-test)/|test/hil/test/|'
@@ -158,10 +158,10 @@ _FULL_RE = re.compile(
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
     # rule 16 says `tools/build*.py`; name the siblings the glob implies. build_utils
-    # and ci_select decide what gets built, so neither can be trusted to narrow its own
+    # and change_impact decide what gets built, so neither can be trusted to narrow its own
     # change; family_json runs inside build.py after every default configure, so a
     # break in it fails the build the same way
-    r'tools/(build|build_utils|ci_select|family_json)\.py$|'
+    r'tools/(build|build_utils|change_impact|family_json)\.py$|'
     # the make twins of family_support.cmake are the same authority for the make legs
     r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
     r'board_api\.h|board\.c|ansi_escape\.h)$|'
@@ -1001,7 +1001,7 @@ def _deps_families(base_text_fn, head_text_fn, repo_root):
     try:
         return get_deps_changed_families(base_text_fn(), head_text_fn(), repo_root)
     except (subprocess.CalledProcessError, OSError) as e:
-        print(f'ci_select: {GET_DEPS_PATH}: base content unreadable ({e})', file=sys.stderr)
+        print(f'change_impact: {GET_DEPS_PATH}: base content unreadable ({e})', file=sys.stderr)
         return None
 
 
@@ -1172,15 +1172,15 @@ def main():
     try:
         files, gd, inp = select_input(repo_root, a.base, a.endpoints, a.worktree, a.diff_file, a.deps_base)
     except SelectError as e:
-        print(f'ci_select: {e}', file=sys.stderr)
+        print(f'change_impact: {e}', file=sys.stderr)
         sys.exit(2)
 
     if a.manifest:
         m, hil_reasons, build_reasons = manifest(files, repo_root, rosters, gd, inp)
         for r in build_reasons:
-            print(f'ci_select[build]: {r}', file=sys.stderr)
+            print(f'change_impact[build]: {r}', file=sys.stderr)
         for r in hil_reasons:
-            print(f'ci_select: {r}', file=sys.stderr)
+            print(f'change_impact: {r}', file=sys.stderr)
         print(json.dumps(m))
         return
 
@@ -1191,9 +1191,9 @@ def main():
         s['hil_examples'] = hil_examples(s, rosters)
     s['build'] = classify_build(files, repo_root, gd)
     for r in s['build']['reasons']:
-        print(f'ci_select[build]: {r}', file=sys.stderr)
+        print(f'change_impact[build]: {r}', file=sys.stderr)
     for r in s['reasons']:
-        print(f'ci_select: {r}', file=sys.stderr)
+        print(f'change_impact: {r}', file=sys.stderr)
     # reasons go to stderr ONLY - they are a human diagnostic and no consumer reads them
     # back. They are also ~97% of the payload (a whole-tree diff: 453 KB -> 12 KB), which
     # build.yml re-parses with ci_set_matrix, hil_ci_set_matrix, an inline python and

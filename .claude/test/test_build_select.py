@@ -1,6 +1,6 @@
-"""The selection contract: `check_build.py --select-only` prints tools/ci_select.py's
+"""The selection contract: `check_build.py --select-only` prints tools/change_impact.py's
 manifest v1 and stops before any dependency check or build, under the bare-runner
-interpreter CI gives it; ci_select's input modes resolve their revisions once and
+interpreter CI gives it; change_impact's input modes resolve their revisions once and
 refuse what they cannot answer."""
 import json
 import os
@@ -13,7 +13,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-import ci_select  # noqa: E402
+import change_impact  # noqa: E402
 
 CHECK_BUILD = ROOT / '.claude' / 'skills' / 'build' / 'scripts' / 'check_build.py'
 # runs inside an isolated interpreter: every path to a build raises there
@@ -78,7 +78,7 @@ class InputModeTest(unittest.TestCase):
 
     def setUp(self):
         # a pre-commit hook exports GIT_DIR/GIT_INDEX_FILE for the outer repo: git in the
-        # scratch repo (ours and ci_select's) must not inherit them
+        # scratch repo (ours and change_impact's) must not inherit them
         env = mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if not k.startswith('GIT_')},
                               clear=True)
         env.start()
@@ -109,7 +109,7 @@ class InputModeTest(unittest.TestCase):
         p.write_text(text)
 
     def test_base_diffs_merge_base_to_head_and_records_the_shas(self):
-        files, gd, inp = ci_select.select_input(self.repo, base='main')
+        files, gd, inp = change_impact.select_input(self.repo, base='main')
         self.assertEqual(files, ['b.c'])
         self.assertIsNone(gd)
         self.assertEqual(inp, {'mode': 'base', 'base': 'main', 'base_sha': self.base, 'merge_base': self.base,
@@ -118,12 +118,12 @@ class InputModeTest(unittest.TestCase):
     def test_worktree_adds_uncommitted_and_untracked_files(self):
         self.write('a.c', 'changed\n')
         self.write('new.c', 'n\n')
-        files, _, inp = ci_select.select_input(self.repo, base='main', worktree=True)
+        files, _, inp = change_impact.select_input(self.repo, base='main', worktree=True)
         self.assertEqual(sorted(files), ['a.c', 'b.c', 'new.c'])
         self.assertEqual(inp['mode'], 'worktree')
 
     def test_endpoints_diff_a_to_b_without_a_merge_base(self):
-        files, _, inp = ci_select.select_input(self.repo, endpoints=f'{self.base}..HEAD')
+        files, _, inp = change_impact.select_input(self.repo, endpoints=f'{self.base}..HEAD')
         self.assertEqual(files, ['b.c'])
         self.assertEqual((inp['mode'], inp['base_sha'], inp['merge_base'], inp['head']),
                          ('endpoints', self.base, None, self.head))
@@ -136,9 +136,9 @@ class InputModeTest(unittest.TestCase):
         git(self.repo, 'commit', '-qm', 'main moves')
         main = git(self.repo, 'rev-parse', 'HEAD')
         git(self.repo, 'checkout', '-q', 'topic')
-        files, _, inp = ci_select.select_input(self.repo, endpoints=f'{main}..HEAD')
+        files, _, inp = change_impact.select_input(self.repo, endpoints=f'{main}..HEAD')
         self.assertEqual(sorted(files), ['b.c', 'm.c'])
-        self.assertEqual(ci_select.select_input(self.repo, base=main)[0], ['b.c'])
+        self.assertEqual(change_impact.select_input(self.repo, base=main)[0], ['b.c'])
 
     def test_a_stacked_branch_selects_against_base_not_its_parent(self):
         # CircleCI has no base-branch var and passes master (.circleci/config.yml): for a
@@ -151,42 +151,42 @@ class InputModeTest(unittest.TestCase):
         self.write('c.c', 'c\n')
         git(self.repo, 'add', '.')
         git(self.repo, 'commit', '-qm', 'child reverts a.c')
-        self.assertEqual(sorted(ci_select.select_input(self.repo, base='main')[0]), ['b.c', 'c.c'])
-        self.assertEqual(sorted(ci_select.select_input(self.repo, base='topic')[0]), ['a.c', 'c.c'])
+        self.assertEqual(sorted(change_impact.select_input(self.repo, base='main')[0]), ['b.c', 'c.c'])
+        self.assertEqual(sorted(change_impact.select_input(self.repo, base='topic')[0]), ['a.c', 'c.c'])
 
     def test_a_get_deps_edit_resolves_its_families_in_every_mode(self):
         # never the None that would mean "unresolvable, full matrix"
         self.write('tools/get_deps.py', "deps_optional = {'x': ['u', 'abc', 'fam1']}\n")
         listing = Path(self.repo, 'scope.txt')
         listing.write_text('tools/get_deps.py\n')
-        self.assertEqual(ci_select.select_input(self.repo, diff_file=str(listing), deps_base='HEAD')[1], {'fam1'})
-        self.assertEqual(ci_select.select_input(self.repo, base='main', worktree=True)[1], {'fam1'})
+        self.assertEqual(change_impact.select_input(self.repo, diff_file=str(listing), deps_base='HEAD')[1], {'fam1'})
+        self.assertEqual(change_impact.select_input(self.repo, base='main', worktree=True)[1], {'fam1'})
         git(self.repo, 'commit', '-qam', 'bump')
-        self.assertEqual(ci_select.select_input(self.repo, base='main')[1], {'fam1'})
-        self.assertEqual(ci_select.select_input(self.repo, endpoints=f'{self.head}..HEAD')[1], {'fam1'})
+        self.assertEqual(change_impact.select_input(self.repo, base='main')[1], {'fam1'})
+        self.assertEqual(change_impact.select_input(self.repo, endpoints=f'{self.head}..HEAD')[1], {'fam1'})
 
     def test_endpoints_refuse_what_they_cannot_answer(self):
         for bad in (f'{self.base}..{self.base}', '0000000000000000000000000000000000000000..HEAD',
                     'HEAD', '..HEAD', 'HEAD...main', 'nosuchref..HEAD'):
-            with self.assertRaises(ci_select.SelectError, msg=bad):
-                ci_select.select_input(self.repo, endpoints=bad)
+            with self.assertRaises(change_impact.SelectError, msg=bad):
+                change_impact.select_input(self.repo, endpoints=bad)
 
     def test_a_ref_that_names_no_commit_is_refused(self):
-        with self.assertRaises(ci_select.SelectError):
-            ci_select.select_input(self.repo, base='nosuchref')
+        with self.assertRaises(change_impact.SelectError):
+            change_impact.select_input(self.repo, base='nosuchref')
 
     def test_paths_with_deps_base_refuse_an_unchanged_get_deps(self):
         listing = Path(self.repo, 'scope.txt')
         listing.write_text('tools/get_deps.py\n')
-        with self.assertRaises(ci_select.SelectError):
-            ci_select.select_input(self.repo, diff_file=str(listing), deps_base='HEAD')
-        files, gd, inp = ci_select.select_input(self.repo, diff_file=str(listing))
+        with self.assertRaises(change_impact.SelectError):
+            change_impact.select_input(self.repo, diff_file=str(listing), deps_base='HEAD')
+        files, gd, inp = change_impact.select_input(self.repo, diff_file=str(listing))
         self.assertEqual((files, gd, inp['mode'], inp['deps_base']), (['tools/get_deps.py'], None, 'paths', None))
 
 
 class ManifestTest(unittest.TestCase):
     def test_paths_carry_null_for_every_family_never_an_empty_list(self):
-        m, _, _ = ci_select.manifest(['src/class/cdc/cdc_device.c', 'hw/bsp/stm32f4/family.c',
+        m, _, _ = change_impact.manifest(['src/class/cdc/cdc_device.c', 'hw/bsp/stm32f4/family.c',
                                       'src/portable/no_vendor/no_driver/dcd_bogus.c'], str(ROOT), [], None, {})
         recs = {p['path']: p for p in m['build']['paths']}
         self.assertIsNone(recs['src/class/cdc/cdc_device.c']['families'])
@@ -196,7 +196,7 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(m['build']['families']['stm32f4']['examples'], 'all')
 
     def test_full_lists_no_families_and_targets_come_from_records(self):
-        m, _, _ = ci_select.manifest(['tools/membrowse_cli.py'], str(ROOT), [], None, {})
+        m, _, _ = change_impact.manifest(['tools/membrowse_cli.py'], str(ROOT), [], None, {})
         self.assertEqual((m['build']['full'], m['build']['families'], m['build']['required_targets']),
                          (True, {}, ['examples-membrowse-upload']))
         self.assertIs(m['hil']['needed'], False)

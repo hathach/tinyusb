@@ -20,7 +20,7 @@ from typing import Any
 
 
 # -------------------------------------------------------------
-# HIL example test lists, shared by hil_test.py (runner) and ci_select.py (PR-diff
+# HIL example test lists, shared by hil_test.py (runner) and change_impact.py (PR-diff
 # selector). Run order is shuffled per board (see test_board); every example carries a
 # unique hardcoded idProduct (see its usb_descriptors.c).
 # -------------------------------------------------------------

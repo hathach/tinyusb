@@ -97,7 +97,7 @@ class RunCmdModes(unittest.TestCase):
 
 class BottomLayer(unittest.TestCase):
     def test_bad_timeout_env_falls_back(self):
-        # ci_select (the PR-diff selector) imports hil_util for the example rosters;
+        # change_impact (the PR-diff selector) imports hil_util for the example rosters;
         # a malformed HIL_CMD_TIMEOUT must not crash the selector at import and knock
         # CI back to the full-matrix fallback
         import subprocess
@@ -107,7 +107,7 @@ class BottomLayer(unittest.TestCase):
             env={**os.environ, 'HIL_CMD_TIMEOUT': 'bogus'},
             capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        # the warning must NOT be on stdout: ci_select's stdout is machine-read JSON
+        # the warning must NOT be on stdout: change_impact's stdout is machine-read JSON
         self.assertEqual(r.stdout.strip(), '180')
         self.assertIn('warning', r.stderr)  # but a silent fallback hides the misconfiguration
 
@@ -131,15 +131,15 @@ class BottomLayer(unittest.TestCase):
         # hil_examples.py used to make this structural (a list of strings cannot grow a
         # dependency); with the rosters folded into hil_util the invariant needs teeth:
         # everything the bare GitHub runner imports (selector + this suite) must stay
-        # stdlib + local. Adding pyserial/pymtp here breaks ci_select on CI.
+        # stdlib + local. Adding pyserial/pymtp here breaks change_impact on CI.
         import ast
         hil_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         # ONLY the modules the bare runner can import -- not every stem in the tree.
         # Globbing the directory allowed `import pymtp` (and hil_test, usbtest,
         # mtp_test) through, so the pymtp case this test names could never fail: that
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
-        # is no libmtp, taking ci_select down with it.
-        local = {'helper', 'hil_util', 'ci_select', 'hil_flash',
+        # is no libmtp, taking change_impact down with it.
+        local = {'helper', 'hil_util', 'change_impact', 'hil_flash',
                  'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json',
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
@@ -147,10 +147,10 @@ class BottomLayer(unittest.TestCase):
         # on the bare runner, and its `import serial` is function-local for exactly
         # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
         # ../../tools/rtt: hil_util exec_module's it at import (helper/hil_util.py's
-        # loader block), so a non-stdlib import THERE kills ci_select on the bare
+        # loader block), so a non-stdlib import THERE kills change_impact on the bare
         # runner just as surely -- and the spec_from_file_location call is invisible to
         # the ast.Import walk below, which is why it must be listed explicitly
-        for mod in ('helper/hil_util', 'hil_flash', '../../tools/ci_select',
+        for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
                     'helper/hil_lock', 'helper/hil_pool_check',
                     '../../tools/build', '../../tools/build_utils', '../../tools/rtt',
                     '../../tools/get_deps', '../../tools/family_json',
