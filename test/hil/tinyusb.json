@@ -306,9 +306,7 @@
             "tests": {
                 "device": true,
                 "host": false,
-                "dual": false,
-                "skip": ["device/cdc_msc_throughput", "device/msc_dual_lun"],
-                "note": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
+                "dual": false
             },
             "flasher": {
                 "name": "jlink",
