@@ -1987,6 +1987,19 @@ def test_board(board: Board) -> tuple:
         partial = bool(test_only) or name in board_test
         variants = hil_report.board_variants(board)
 
+        if not skip_flash:
+            # board_wedged does not outlive a cancelled or SIGKILLed run, but its D-state
+            # testusb does, and the first flash would block on it (#4126)
+            strays = usbtest.strays_on(board['uid'])
+            if strays:
+                sweep_out = io.StringIO()
+                with redirect_stdout(sweep_out):
+                    board_wedged = usbtest.recover_strays(board, strays)
+                log_line(f'{name:25} stray testusb: {compact_output(sweep_out.getvalue())}')
+                if board_wedged:
+                    # no test runs to charge it, unlike a wedge test_device_usbtest latches
+                    err_count += 1
+
         prev_last = None  # last test of the previous variant: the variant boundary is an adjacency too
         for v in variants:
             vname = v['name']

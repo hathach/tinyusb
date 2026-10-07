@@ -806,7 +806,7 @@ class ResetPrimitive(unittest.TestCase):
 class FlasherRecoverEntry(unittest.TestCase):
     """Optional roster key: a SECOND flasher used only to deliver recovery while a usbfs
     node is poisoned. Boards whose primary flasher cannot get past a convoy (jlink,
-    stlink, lm4flash) name an openocd entry here instead of changing how they are
+    lm4flash) name an openocd entry here instead of changing how they are
     normally flashed."""
 
     def test_recover_flasher_prefers_the_optional_entry(self):
@@ -1050,9 +1050,8 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     flasher (usbtest.recover_hang); every other board stays wedged for the rest of the run.
     So every board the roster runs usbtest on must have one."""
 
-    # not yet demonstrated on hardware; drop a board once its flasher_recover lands
-    PENDING = {'tinyusb.json': set(),
-               'hfp.json': {'stm32l412nucleo', 'stm32f746disco'}}
+    # not yet demonstrated on hardware; drop a board once its recovery flasher is proven
+    PENDING = {'tinyusb.json': set(), 'hfp.json': set()}
 
     def test_every_usbtest_board_can_be_recovered(self):
         uncovered = {}
@@ -1350,6 +1349,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_tt.py',
             'test/hil/test/test_hil_usbtest_verdict.py',
             'test/hil/test/test_hil_util.py',
+            'test/hil/test/test_hil_wedge_sweep.py',
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/test_setup_toolchain.py',

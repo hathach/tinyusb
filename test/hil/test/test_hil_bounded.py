@@ -540,8 +540,12 @@ class ConvoySafeFlasher(unittest.TestCase):
         """Delivery is `-p <ttyACM>`; there is no usbfs walk to poison."""
         self.assertTrue(self.f({'name': 'esptool'}))
 
+    def test_stlink_is_safe_without_a_pin(self):
+        """STM32_Programmer_CLI opens only ST-Link nodes, matched on cached descriptors."""
+        self.assertTrue(self.f({'name': 'stlink', 'uid': 'X'}))
+
     def test_enumerating_flashers_are_not(self):
-        for name in ('jlink', 'stlink', 'lm4flash', 'dfu-util'):
+        for name in ('jlink', 'lm4flash', 'dfu-util'):
             self.assertFalse(self.f({'name': name, 'vid_pid': '0x1366 0x1024'}),
                              f'{name} must not be treated as convoy-safe')
 
@@ -1106,7 +1110,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
         import usbtest
-        seen = self._invoke({'name': 'stlink', 'uid': 'X'})   # never convoy_safe
+        seen = self._invoke({'name': 'jlink', 'uid': 'X'})   # never convoy_safe
         # It does not carry the RECOVERY reserve it cannot spend, only the window in which
         # the child watches a HUNG node before calling it a wedge (#3944): that runs on
         # every path, and an outer kill inside it loses the JSON and the verdict.
@@ -1394,11 +1398,11 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
 
     def test_a_late_cleared_timeout_on_a_board_without_recovery_does_not_latch(self):
         """usbtest watches a HUNG node before it says wedged (#3944); the old inference
-        `not recovery and 'HUNG' in out` latched a healthy stlink board on a slow case."""
+        `not recovery and 'HUNG' in out` latched a healthy board on a slow case."""
         js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
               '"wedged":false,"cases":[{"num":10,"status":"FAIL","detail":"timeout after 60s '
               '(the kill landed 7s late; no holder left on the node); was HUNG"}]}')
-        self.assertFalse(self._run(js, flasher={'name': 'stlink', 'uid': 'X'}),
+        self.assertFalse(self._run(js, flasher={'name': 'jlink', 'uid': 'X'}),
                          'a cleared holder latched the board as wedged')
 
     def test_an_unparseable_battery_does_not_latch(self):
