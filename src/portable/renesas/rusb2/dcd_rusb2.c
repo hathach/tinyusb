@@ -950,13 +950,15 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   const unsigned num = _dcd.ep[dir][epn];
 
   rusb->BRDYENB &= (uint16_t)~TU_BIT(num);
-  volatile uint16_t *ctr = get_pipectr(rusb, num);
-  *ctr = 0;
-  rusb->PIPESEL = (uint16_t)num;
-  rusb->PIPECFG = 0;
-  _dcd.pipe[num].ep          = 0;
-  _dcd.pipe[num].queued      = false;
-  _dcd.pipe[num].zlp_pending = false;
+  // PIPECFG changes only on an idle NAKing pipe; on timeout the pipe stays configured but NAKing,
+  // and the next open resets it
+  if (pipe_reset(rusb, num, 0)) {
+    rusb->PIPESEL = (uint16_t)num;
+    rusb->PIPECFG = 0;
+  } else {
+    TU_LOG1("RUSB2: pipe %u close timed out, left NAKing\r\n", num);
+  }
+  _dcd.pipe[num] = (pipe_state_t) {0};
   _dcd.ep[dir][epn] = 0;
 }
 
