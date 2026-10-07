@@ -1003,15 +1003,20 @@ def invalid_boards(boards):
 
 
 def unknown_boards(boards):
-    """Boards no hw/bsp/<family>/boards/<board> of this checkout names: build_utils would
-    skip every example of one, so a typo must fail instead."""
-    return [b for b in boards if not glob.glob(os.path.join(glob.escape(TINYUSB_ROOT), 'hw', 'bsp', '*', 'boards', b))]
+    """Boards of no family in this checkout: build_utils would skip every example of one,
+    so a typo must fail instead."""
+    import build  # tools/build.py; its import has no side effects
+    with contextlib.chdir(TINYUSB_ROOT):  # build.py reads hw/bsp from the cwd
+        return [b for b in boards if build.find_family(b) is None]
 
 
 def missing_examples(examples, sha=None):
-    """Examples with no examples/<example> dir in this checkout, nor in commit `sha` when
-    given: one of either tree reaches the report as one-sided, a typo must fail."""
-    return [e for e in examples if not os.path.isdir(os.path.join(TINYUSB_ROOT, 'examples', e))
+    """Examples not named role/name (build.py's -e check), or with no examples/<example>
+    dir in this checkout nor in commit `sha` when given: one of either tree reaches the
+    report as one-sided, a typo must fail."""
+    import build  # tools/build.py; its import has no side effects
+    return [e for e in examples if not build.EXAMPLE_RE.fullmatch(e)
+            or not os.path.isdir(os.path.join(TINYUSB_ROOT, 'examples', e))
             and (sha is None or run(['git', '-C', TINYUSB_ROOT, 'cat-file', '-e', f'{sha}:examples/{e}']).returncode)]
 
 
@@ -1097,11 +1102,14 @@ def _idf_image():
     return bool(shutil.which('docker')) and run(['docker', 'image', 'inspect', ESP_IDF_IMAGE]).returncode == 0
 
 
-def esp_without_idf(boards, examples=None):
-    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None;
-    a board that skips each of `examples` builds nothing."""
-    esp = [b for b in boards if is_espressif(b)
-           and (not examples or any(type(_skip_reason(TINYUSB_ROOT, b, e)) is not Skipped for e in examples))]
+def esp_without_idf(boards, examples=None, base_built=False):
+    """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None.
+    A board builds nothing that skips each of `examples` here, unless `base_built` and one is
+    absent here, which that base may have."""
+    def builds(board, example):
+        skip = _skip_reason(TINYUSB_ROOT, board, example)
+        return skip is None or base_built and isinstance(skip, Absent)
+    esp = [b for b in boards if is_espressif(b) and (not examples or any(builds(b, e) for e in examples))]
     if esp and WINDOWS:
         return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):
@@ -1139,7 +1147,7 @@ def _build_idf(src_dir, build_dir, board, example):
     not sized); the first failure stops."""
     examples = _esp_examples(src_dir, board, example)
     if not examples:
-        return subprocess.CompletedProcess([], 1, '', f'{board} builds no {example or "example"}')
+        return subprocess.CompletedProcess([], 1, '', f'{board} builds no example')
     container = f'tinyusb-code-size-{os.getpid()}'
     idf = _idf_command(src_dir, build_dir, container)
     if idf is None:
@@ -1197,21 +1205,20 @@ def build_board(src_dir, build_dir, board, example, label):
         ret = _build_idf(src_dir, build_dir, board, example)
     else:
         import build  # tools/build.py; its import has no side effects
-        # TOOLCHAIN=gcc: build.py's default, which it always passes
-        ret = run(build.cmake_configure_cmd(board, build_dir, ['-DTOOLCHAIN=gcc'], os.path.join(src_dir, 'examples')))
-        if ret.returncode == 0 and example:
+        name = example and os.path.basename(example)
+        # build.py always passes its default toolchain
+        ret = run(build.cmake_configure_cmd(board, build_dir, [f'-DTOOLCHAIN={build.DEFAULT_TOOLCHAIN}'],
+                                            os.path.join(src_dir, 'examples')))
+        if ret.returncode == 0 and name:
             # skip.txt/only.txt only mirror the CMake family filter: the configure is the truth
             registered = build.cmake_registered_targets(build_dir)
-            if registered is not None and os.path.basename(example) not in registered:
-                skip = f'{board} has no {os.path.basename(example)} target'
+            if registered is not None and name not in registered:
+                skip = Skipped(f'{board} has no {name} target')
                 phase.done(skipped=skip)
-                return Skipped(skip)
+                return skip
         if ret.returncode == 0:
             # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
-            cmd = ['ninja', '-C', build_dir]
-            if example:
-                cmd.append(os.path.basename(example))
-            ret = run(cmd, timeout=600)
+            ret = run(['ninja', '-C', build_dir] + ([name] if name else []), timeout=600)
     failed = ret.returncode != 0
     phase.done(failed=failed)
     if not failed:
@@ -1339,7 +1346,7 @@ def _shown(path):
 def write_report(path, md, data=None):
     """Write a report to `path`.md, and `data` to `path`.json when given, printing
     their paths."""
-    # a board whose every build returned before making its dir still gets its report
+    # a board's dir exists only once something built there
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(f'{path}.md', 'w') as f:
         f.write(md)
@@ -1576,7 +1583,8 @@ def run_diff(args, requested_sha, unsupported):
                 sides, failures = {'base': {}, 'current': {}}, []
                 for side in local_sides:
                     if (side, example) not in skipped:
-                        sides[side], errors = size_tree(build_dirs[side], board, example, trees[side][1], args.engine)
+                        _src, filters, _label = trees[side]
+                        sides[side], errors = size_tree(build_dirs[side], board, example, filters, args.engine)
                         failures += [(i, side, stage, msg) for i, stage, msg in errors]
                 if base_source == 'ci':
                     failures += run_failures + [f for f in base_failures if f[0][0] == board]
@@ -1627,7 +1635,6 @@ def run_diff(args, requested_sha, unsupported):
         if args.combined and skipped_scopes == len(args.board) * len(examples):
             print('combined: all scopes skipped')
         elif args.combined:
-            os.makedirs(combined_dir, exist_ok=True)
             print(f'combined ({len(args.board)} boards)')
             # every scope was filter-checked above, and its failures carried over
             # a board's or the run's baseline failure is in each of its scopes' failures
@@ -2336,13 +2343,12 @@ def main():
         parser.error(f'invalid board name: {", ".join(invalid)}')
     if unknown := unknown_boards(args.board):
         parser.error(f'unknown board: {", ".join(unknown)}')
-    # before any board builds: a --ci run would otherwise fail its espressif boards last
-    if error := esp_without_idf(args.board, args.example):
-        parser.error(error)
-
     # CI snapshots hold membrowse sizes under the TinyUSB filter, and no elf
     unsupported = [opt for opt, used in (('-f', args.filter), ('--bloaty', args.bloaty),
                                          (f'--engine {args.engine}', args.engine != 'membrowse')) if used]
+    # before any board builds: a --ci run would otherwise fail its espressif boards last
+    if error := esp_without_idf(args.board, args.example, args.base_source == 'local' or bool(unsupported)):
+        parser.error(error)
     if args.base_source == 'ci' and unsupported:
         parser.error(f'--base-source ci cannot be used with {", ".join(unsupported)}')
 

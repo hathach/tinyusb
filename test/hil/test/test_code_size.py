@@ -1046,7 +1046,8 @@ class BuildOutput(unittest.TestCase):
     def test_an_example_the_configure_does_not_register_is_skipped_without_ninja(self):
         ok = subprocess.CompletedProcess([], 0, '', '')
         for registered, skipped in ((('other',), True), (None, False)):
-            with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp, registered=registered), \
+            with self.subTest(registered=registered), tempfile.TemporaryDirectory() as tmp, \
+                 self._cmake_tree(tmp, registered=registered), \
                  mock.patch.object(sd, 'run', return_value=ok) as run, contextlib.redirect_stdout(io.StringIO()):
                 error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
             # None: the target list is unreadable, so ninja decides
@@ -1453,6 +1454,10 @@ class WindowsHost(unittest.TestCase):
         # an espressif board that skips every example asked for builds nothing
         self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc']))
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc', 'device/cdc_msc_freertos']),
+                         'espressif_s3_devkitm need ESP-IDF')
+        # an example absent here needs ESP-IDF only for a base built locally, which may have it
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone'], base_built=True),
                          'espressif_s3_devkitm need ESP-IDF')
 
     def test_a_timeout_kills_the_command_tree(self):
@@ -2064,14 +2069,15 @@ class MainFailure(unittest.TestCase):
 @mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
 @mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class MainReport(unittest.TestCase):
-    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True):
+    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True, skip=()):
         """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
-        `build_ok(example)` is each build's result, `sizes` what generate_sizes()
-        returns. Returns (rc, build mock, generate mock)."""
+        `build_ok(example)` is each build's result, the `skip` examples skipped, `sizes`
+        what generate_sizes() returns. Returns (rc, build mock, generate mock)."""
         def build_board(_src, _build_dir, board, example, _label):
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
-            ok = build_ok(example)
-            return ok if isinstance(ok, sd.Skipped) else None if ok else 'boom'
+            return None if build_ok(example) else 'boom'
         build = mock.Mock(side_effect=build_board)
         generate = mock.Mock(side_effect=lambda *_a, **_k: sizes)
         with mock.patch.object(sys, 'argv', ['code_size.py', 'report', '-b', 'b'] + argv), \
@@ -2115,17 +2121,17 @@ class MainReport(unittest.TestCase):
             self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
 
     def test_a_skipped_example_writes_no_report_and_fails_nothing(self):
-        skip = lambda example: sd.Skipped('b does not build device/skip') if example == 'device/skip' else True
+        skip = ('device/skip',)
         with tempfile.TemporaryDirectory() as tmp:
             rc, _build, generate = self._run(tmp, ['-e', 'device/skip', '-e', 'device/cdc_msc'],
-                                             ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []), skip)
+                                             ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []), skip=skip)
             self.assertEqual(rc, 0)
             self.assertEqual(generate.call_args.args[2], 'device/cdc_msc')
             self.assertEqual(generate.call_count, 1)
             self.assertEqual(sorted(os.listdir(os.path.join(tmp, 'b'))), ['report_device_cdc_msc.md'])
         with tempfile.TemporaryDirectory() as tmp:
-            rc, _build, generate = self._run(tmp, ['-e', 'device/skip'], ({}, []), skip)
-            self.assertEqual((rc, generate.call_count, os.listdir(os.path.join(tmp, 'b'))), (0, 0, []))
+            rc, _build, generate = self._run(tmp, ['-e', 'device/skip'], ({}, []), skip=skip)
+            self.assertEqual((rc, generate.call_count, os.path.exists(os.path.join(tmp, 'b'))), (0, 0, False))
 
     def test_an_examples_trailing_slash_is_dropped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -3076,6 +3082,8 @@ class BoardAndExampleNames(unittest.TestCase):
         with mock.patch.object(sd, 'run', side_effect=run):
             self.assertEqual(sd.missing_examples(['device/gone', 'device/typo'], 'b' * 40), ['device/typo'])
         self.assertEqual(sd.missing_examples(['device/cdc_msc']), [])
+        # a role dir exists but names no example: build.py's -e check refuses it too
+        self.assertEqual(sd.missing_examples(['device', 'device/cdc_msc/src']), ['device', 'device/cdc_msc/src'])
 
 
 @mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])

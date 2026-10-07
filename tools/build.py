@@ -59,6 +59,7 @@ def run_cmd(cmd):
 
 
 CI_PINNED_BOARDS = '.github/ci-pinned-boards.json'
+DEFAULT_TOOLCHAIN = 'gcc'
 
 
 def find_family(board):
@@ -161,7 +162,7 @@ def identical_uploads(board, build_name, examples):
     return ret
 
 
-def cmake_configure_cmd(board, build_dir, build_args=(), src='examples'):
+def cmake_configure_cmd(board, build_dir, build_args, src='examples'):
     """The argv configuring `board`'s examples in `src` into `build_dir`; code_size.py
     configures through it too, so its local sizes are of the build CI makes."""
     return ['cmake', src, '-B', build_dir, '-GNinja', f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
@@ -460,7 +461,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to build')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
-    parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
+    parser.add_argument('-t', '--toolchain', default=DEFAULT_TOOLCHAIN, help=f'Toolchain to use, default is {DEFAULT_TOOLCHAIN}')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
     parser.add_argument('--build-name', default=None,
