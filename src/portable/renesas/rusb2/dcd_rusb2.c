@@ -1104,11 +1104,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
     rusb->PIPESEL = (uint16_t)num;
-    // Non-bulk OUT re-enables straight away. Bulk OUT is armed together with its transaction counter
-    // (TRE), so we don't blindly re-enable it here — but a receive queued before or during the halt
-    // was just left NAKing with an empty buffer. Arm it; the class driver still considers that read
-    // submitted and never re-arms it, so otherwise the endpoint NAKs forever (usbtest toggle test 29
-    // clears the halt on an armed pipe).
+    // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
+    // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
     // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
     if (_dcd.pipe[num].queued) {
       pipe_out_arm(rusb, num);
