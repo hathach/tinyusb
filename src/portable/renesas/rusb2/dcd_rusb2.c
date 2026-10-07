@@ -618,18 +618,21 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     // OUT
     if (num == 0) {
       completed = pipe0_xfer_out(rusb);
-    } else if (!pipe->queued && !pipe_is_iso(rusb, num)) {
-      // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
-      // next transfer's first packets into its buffer planes). Park the packet and NAK the host
-      // until the next transfer drains it in process_pipe_xfer(); discarding it loses data. A halt
-      // set since the packet arrived stays.
-      volatile uint16_t *ctr = get_pipectr(rusb, num);
-      if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_BUF) {
-        *ctr = RUSB2_PIPE_CTR_PID_NAK;
-      }
-      completed = false;
     } else {
-      completed = pipe_xfer_out(rusb, num);
+      volatile uint16_t *ctr = get_pipectr(rusb, num);
+      const uint16_t     pid = *ctr & RUSB2_PIPE_CTR_PID_Msk;
+      if (pid >= RUSB2_PIPE_CTR_PID_STALL || (!pipe->queued && !pipe_is_iso(rusb, num))) {
+        // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
+        // next transfer's first packets into its buffer planes). Park the packet and NAK the host
+        // until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
+        // Halted: the packet stays parked for dcd_edpt_clear_stall() to drop, even if armed.
+        if (pid == RUSB2_PIPE_CTR_PID_BUF) {
+          *ctr = RUSB2_PIPE_CTR_PID_NAK;
+        }
+        completed = false;
+      } else {
+        completed = pipe_xfer_out(rusb, num);
+      }
     }
   }
   if (completed) {
