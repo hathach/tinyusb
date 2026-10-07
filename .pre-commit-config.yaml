@@ -118,6 +118,14 @@ repos:
     language: python
     additional_dependencies: [pyyaml, pyelftools]
 
+  - id: membrowse-targets
+    name: membrowse-targets
+    # build.py's toolchain-free target list vs a real configure: only the files that list reads
+    files: ^(tools/(build|build_utils|membrowse_cli)\.py|hw/bsp/.*\.(cmake|mk)|examples/.*/(skip|only)\.txt|examples/.*CMakeLists\.txt|test/hil/test/test_membrowse_targets\.py)$
+    entry: python3 test/hil/test/test_membrowse_targets.py
+    language: system
+    pass_filenames: false
+
 #  - id: build-fuzzer
 #    name: build-fuzzer
 #    files: ^(src/|test/fuzz/)

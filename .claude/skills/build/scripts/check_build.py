@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Build TinyUSB examples for the boards a change affects, or for named boards.
 
-  check_build.py (--scope PATH... | --base REF | --board B...) [-e role/name]... [-T target]...
-           [-D SYMBOL]... [--cflag FLAG]... [--shared [--variants CONFIG [--receipt FILE]]]
+  check_build.py (--scope PATH... | --base REF [--worktree] | --endpoints A..B | --board B...)
+           [-e role/name]... [-T target]... [-D SYMBOL]... [--cflag FLAG]... [--shared [--variants CONFIG [--receipt FILE]]]
+  check_build.py --select-only (--scope PATH... | --base REF [--worktree] | --endpoints A..B) [--config ROSTER]...
+
+--select-only prints ci_select's selection manifest v1 (SKILL.md) and stops: the selection
+contract CI and agents read.
 
 Scope resolution goes through tools/ci_select.py: one board per affected family
 (a rig-roster board of that family first, else the first in hw/bsp/<family>/boards,
@@ -52,7 +56,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 HIL_CONFIG = ROOT / 'test' / 'hil' / 'tinyusb.json'
 FULL_MATRIX_BOARDS = ['stm32f407disco', 'raspberry_pi_pico']
-BOARD_PATH = re.compile(r'^hw/bsp/([^/]+)/boards/([^/]+)/')
 ROW = re.compile(r'^\|\s*(\S+)\s*\|\s*(.+?)\s*\|\s*\x1b\[\d+m(OK|Failed|Skipped)\x1b\[0m', re.M)
 sys.path.insert(0, str(ROOT / 'tools'))
 import build as tools_build  # noqa: E402  tools/build.py, first on the path above
@@ -108,69 +111,26 @@ def tracked(path):
     return r.returncode == 0
 
 
-def changed_paths(base):
-    """The branch's changed paths against base, the same set ci_select --base classifies.
-    --no-renames as ci_select does: rename detection reports only a rename's destination,
-    so the board or port a file moved out of would never be built."""
-    r = subprocess.run(['git', 'diff', '--no-renames', '--name-only', f'{base}...HEAD'],
-                       capture_output=True, text=True, cwd=ROOT)
-    if r.returncode != 0:
-        fail(f'git diff against {base} failed:\n{r.stderr.strip()}')
-    return r.stdout.split()
-
-
-GET_DEPS = 'tools/get_deps.py'
-DEPS_UNRESOLVED = f'{GET_DEPS}: dep changes not resolvable -> full build matrix'
-
-
-def worktree_dep_reasons():
-    """ci_select's rule 16b answer for a get_deps.py edit the working tree carries, the one
-    a path list cannot reach: --diff-file mode has no base blob of the file, so the rule
-    falls open to the full matrix and boards_for stands the representative pair in for it -
-    an nRF-only pin bump would report green with no nrf board built. HEAD is the base the
-    scope form has, and ci_select classifies the entries changed against it. A file that
-    matches HEAD carries its change in a commit instead, where only --base can say which
-    entries it touched, so the run is refused rather than answered from the pair. A change
-    the entry diff cannot resolve (a logic change to get_deps.py itself) keeps ci_select's
-    full-matrix reason, the fail-open the pair does stand in for."""
-    r = subprocess.run(['git', 'show', f'HEAD:{GET_DEPS}'], capture_output=True, text=True, cwd=ROOT)
-    try:
-        work = (ROOT / GET_DEPS).read_text(encoding='utf-8', errors='replace')
-    except OSError:
-        work = None
-    if r.returncode != 0 or work is None or work == r.stdout:
-        fail(f'{GET_DEPS} is in the scope with no working-tree change to read its dep entries off, so '
-             f'the families the edit affects cannot be resolved here and the scope would build the '
-             f'representative pair alone, verifying no dependency: rerun with --base <ref> for a dep '
-             f'bump that is already committed')
-    fams = ci_select.get_deps_changed_families(r.stdout, work, str(ROOT))
-    if fams is None:                 # a logic change to get_deps itself: every family, ci_select's fail-open
-        return [DEPS_UNRESOLVED]
-    return ci_select.classify_build([GET_DEPS], str(ROOT), fams)['reasons']
-
-
-def select(scope=None, base=None, config=HIL_CONFIG):
-    """(ci_select's JSON, its per-path build-axis reasons) for a path list or, with
-    --base, for the branch diff. Only the base form sees a dependency revision change
-    (a get_deps.py table edit) through ci_select; for the scope form the uncommitted one
-    is resolved here (worktree_dep_reasons)."""
-    selector = [sys.executable, str(ROOT / 'tools' / 'ci_select.py')]
+def select(scope=None, base=None, configs=(HIL_CONFIG,), endpoints=None, worktree=False):
+    """ci_select's selection manifest v1 for a path list, the branch diff against base
+    (with worktree, the uncommitted tree too) or a push's endpoints A..B. A scope that
+    carries a get_deps.py edit resolves its dep entries against HEAD (--deps-base).
+    Isolated (-I -S) as on a bare CI runner: the selector is stdlib-only, so an import
+    that needs site-packages fails here first."""
+    selector = [sys.executable, '-I', '-S', str(ROOT / 'tools' / 'ci_select.py'), '--manifest']
     with tempfile.TemporaryDirectory() as tmp:   # the path list goes away with it, fail() included
         if base:
-            cmd = selector + ['--base', base, str(config)]
+            cmd = selector + ['--base', base] + (['--worktree'] if worktree else [])
+        elif endpoints:
+            cmd = selector + ['--endpoints', endpoints]
         else:
             listing = Path(tmp) / 'scope.txt'
             listing.write_text('\n'.join(scope) + '\n')
-            cmd = selector + ['--diff-file', str(listing), str(config)]
-        r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
+            cmd = selector + ['--diff-file', str(listing), '--deps-base', 'HEAD']
+        r = subprocess.run(cmd + [str(c) for c in configs], capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0:
         fail(f'ci_select failed:\n{r.stderr.strip()}')
-    reasons = [l.split('ci_select[build]: ', 1)[1] for l in r.stderr.splitlines()
-               if l.startswith('ci_select[build]: ')]
-    if not base and DEPS_UNRESOLVED in reasons:
-        resolved = worktree_dep_reasons()
-        reasons = [x for r in reasons for x in (resolved if r == DEPS_UNRESOLVED else [r])]
-    return json.loads(r.stdout.splitlines()[-1]), reasons
+    return json.loads(r.stdout.splitlines()[-1])
 
 
 def representatives(candidates, examples, drivers=(), keep=()):
@@ -370,7 +330,7 @@ def compiles(board, driver):
     return ips is None or source_usbips(src) <= ips
 
 
-def boards_for(selection, scope=(), reasons=()):
+def boards_for(manifest):
     """One board per affected family, plus one more per changed driver the first does not
     compile: a board whose own hw/bsp dir is in the scope, else a rig-roster board of the
     family, else one under hw/bsp/<family>/boards, and then a board per USB-IP requirement
@@ -380,21 +340,21 @@ def boards_for(selection, scope=(), reasons=()):
     path names (a port, bsp or mcu path): the pair stands in for the matrix on core
     code, not on a port it does not contain. No family is not a verdict on its own:
     see coverage() for what the scope's unbuilt paths mean."""
-    build = selection['build']
-    changed = {m.group(2): m.group(1) for m in map(BOARD_PATH.match, scope) if m}
-    # a board the change deletes is still in the diff: drop it, so its family falls
+    build = manifest['build']
+    records = build.get('paths', [])
+    # required_boards holds only boards still in the tree: one the change deletes falls
     # through to the rig-roster/first-board pick instead of failing family_of()
-    changed = {b: f for b, f in changed.items() if (ROOT / 'hw' / 'bsp' / f / 'boards' / b).is_dir()}
-    rig = {b: family_of(b) for b in selection.get('boards', {})}
+    changed = {b: family_of(b) for b in build['required_boards']}
+    rig = {b: family_of(b) for b in manifest.get('hil', {}).get('boards', {})}
     changed_note = f', changed boards {sorted(changed)}' if changed else ''
-    drivers = family_drivers(reasons)
+    drivers = family_drivers(records)
     if build['full']:
         boards = list(dict.fromkeys(FULL_MATRIX_BOARDS + sorted(changed)))
         have = {}
         for b in boards:
             have.setdefault(family_of(b), []).append(b)
         added = []
-        for fam in sorted(set().union(*(named_families(r) or set() for r in reasons))):
+        for fam in sorted(set().union(*(set(r['families'] or ()) for r in records))):
             # the whole family, not the rig roster alone: the roster hides the one board
             # that selects the changed IP (stm32l4 is stm32l476disco on the rig, DWC2,
             # while only stm32l412nucleo is fsdev), and a family already in the pair still
@@ -413,48 +373,27 @@ def boards_for(selection, scope=(), reasons=()):
     if not build['families']:
         return [], 'no build family'
     boards = []
-    fam_ex = build.get('family_examples', {})
-    for fam in build['families']:
+    for fam, sel in build['families'].items():
         own = sorted(b for b, f in changed.items() if f == fam)
         on_rig = sorted(b for b, f in rig.items() if f == fam)
         candidates = list(dict.fromkeys(own + on_rig + family_boards(fam)))
         if not candidates:
             fail(f'family {fam} has no boards under hw/bsp/{fam}/boards')
-        boards.extend(representatives(candidates, fam_ex.get(fam), drivers.get(fam, ()), own))
-    return boards, f'one board per family {build["families"]}' + changed_note
+        exs = None if sel['examples'] == 'all' else sel['examples']
+        boards.extend(representatives(candidates, exs, drivers.get(fam, ()), own))
+    return boards, f'one board per family {list(build["families"])}' + changed_note
 
 
-FAMILIES_IN = re.compile(r"-> families \[(.*?)\]|: bsp family (\S+)$")
-EXAMPLES_IN = re.compile(r"-> \[(.*?)\]$|: example (\S+)$")
-ROLE_IN = re.compile(r": core (device|host) stack$")
-PORT_IN = re.compile(r": port (\S+) -> families \[")
-# the one build reason whose path is verified by a cmake target outside `all`:
-# family_support.cmake declares examples-membrowse-upload with add_custom_target
-MEMBROWSE_IN = re.compile(r': membrowse build-time script\b')
-MEMBROWSE_TARGET = 'examples-membrowse-upload'
-
-
-def _named(pattern, reason):
-    m = pattern.search(reason)
-    if not m:
-        return None
-    return set(re.findall(r"'([^']+)'", m.group(1))) if m.group(1) is not None else {m.group(2)}
-
-
-def named_families(reason):
-    return _named(FAMILIES_IN, reason)
-
-
-def family_drivers(reasons):
+def family_drivers(records):
     """family -> the src/portable-relative drivers the scope changed that its picks must compile
     between them. A family carrying two IPs (stm32l4 is fsdev and dwc2, ch32v20x fsdev
     and wch usbhs) is named by a port change whatever its boards are, so without this a
     pick can be a board the changed driver preprocesses away to nothing."""
     out = {}
-    for r in reasons:
-        if PORT_IN.search(r):
-            for fam in named_families(r) or ():
-                out.setdefault(fam, set()).update(drivers_of(r.split(': ', 1)[0]))
+    for r in records:
+        if r['port'] is not None:
+            for fam in r['families'] or ():
+                out.setdefault(fam, set()).update(drivers_of(r['path']))
     return out
 
 
@@ -531,17 +470,17 @@ def body_verdict(result, driver):
     return failure or 'body preprocessed away'
 
 
-def port_gap(reason, results):
+def port_gap(record, results):
     """Why the boards built do not cover a changed port path, None when they do: for
     each driver the path stands for, some built board of its families must have compiled
     a translation unit of it, in an example it built, that kept lines of the driver
     after preprocessing. That is the final word, whatever the USB-IP probe said at
     selection: dcd_nrf5x.c is in every nrf build and empty on NRF54, hcd_rp2040.c empty
     under MAX3421. A driver the change deleted has no body to compile."""
-    path = reason.split(': ', 1)[0]
-    if not PORT_IN.search(reason) or not (ROOT / path).exists():
+    path = record['path']
+    if record['port'] is None or not (ROOT / path).exists():
         return None
-    fams = named_families(reason) or set()
+    fams = set(record['families'] or ())
     built = [r for r in results if r.get('board') and r['family'] in fams and r.get('buildDir')]
     why = []
     for d in drivers_of(path):
@@ -552,66 +491,58 @@ def port_gap(reason, results):
     return '; '.join(why) or None
 
 
-def named_examples(reason):
-    """Examples the reason names; for a core stack path, every example of that role
-    (dual examples run both), since any one of them compiles the stack."""
-    m = ROLE_IN.search(reason)
-    if m:
-        return {f'{role}/{p.name}' for role in (m.group(1), 'dual')
-                for p in (ROOT / 'examples' / role).iterdir() if p.is_dir()}
-    return _named(EXAMPLES_IN, reason)
-
-
-def coverage(reasons, scope, results, chosen=False, targets=()):
-    """ci_select's per-path build reasons as (nothing to verify, uncovered firmware),
-    judged against what was actually built. 'no build contribution' is its wording
-    for non-code paths, and a get_deps.py edit that changes no entry is the same;
-    every other 'no contribution' is a class, typec or lib no example enables. A path
-    that named families is a gap when none was built: a port mapping to no family, a
-    family _prune_buildable dropped (dir gone, boards unreadable, or every example
-    filtered, which it drops without a reason line), or a full-matrix run whose pair
-    does not contain the port. A port path is a gap too when the boards built are of its
-    families but none compiled the changed body (port_gap): the driver is in no built
-    board's default configuration, or its guard preprocessed it away there. A path that
-    named examples is a gap when no board wrote an elf for any of them; a core stack path
-    names every example of its role; any other contributing path is a gap when the run
-    produced no elf at all (-T help is a green build of nothing). A path whose reason names
-    a build target rather than families or examples (a membrowse build-time script is
-    verified by examples-membrowse-upload) is a gap unless the run selected that target:
-    the default sweep builds `all`, which never runs it, and another -e or -T does not
-    stand in for it.
+def coverage(records, results, chosen=False, targets=(), dropped=()):
+    """ci_select's per-path build records as (nothing to verify, uncovered firmware),
+    judged against what was actually built, each entry the record's reason. Effect
+    'none' is nothing to verify (non-code, a get_deps.py edit that changes no entry);
+    'gap' is firmware no build compiles (a class, typec or lib no example enables, a
+    port or hw/mcu path mapping to no family), as is every family _prune_buildable
+    dropped (`dropped`, its own line). A path that named families is a gap when none was
+    built: a family pruned away (dir gone, boards unreadable, or every example filtered),
+    or a full-matrix run whose pair does not contain the port. A port path is a gap too
+    when the boards built are of its families but none compiled the changed body
+    (port_gap): the driver is in no built board's default configuration, or its guard
+    preprocessed it away there. A path that named examples is a gap when no board wrote
+    an elf for any of them (a core stack path names every example of its role); any
+    other contributing path is a gap when the run produced no elf at all (-T help is a
+    green build of nothing). A path whose record names build targets (membrowse_cli.py:
+    examples-membrowse-upload) is a gap unless the run selected each: the default sweep
+    builds `all`, which never runs them, and another -e or -T does not stand in for one.
+    code_size.py is validated by CI's code-size step, which no local build runs.
     `chosen` (-e or -T given) hands the rest to the caller, bar a family no board of which
-    was built and bar that target: narrowing the examples does not change which families
-    the scope resolves to. With no
-    board at all, every path not explained as nothing-to-verify is a gap."""
+    was built, bar those targets and bar code_size.py: narrowing the examples does not
+    change which families the scope resolves to. With no board at all, every path not
+    explained as nothing-to-verify is a gap."""
     built_fams = {r['family'] for r in results}
     ok_ex = set().union(*(set(r.get('okExamples', ())) for r in results)) if results else set()
-    benign, gaps = [], []
-    for r in reasons:
-        fams, exs = named_families(r), named_examples(r)
-        if r.endswith('no build contribution') or r.endswith('no build-family dependency changed, no contribution'):
+    benign, gaps, explained = [], list(dropped), set()
+    for rec in records:
+        r, fams, exs = rec['reason'], rec['families'], rec['examples']
+        missing = [t for t in rec['targets'] if t not in targets]
+        n = len(benign) + len(gaps)
+        if rec['effect'] == 'none':
             benign.append(r)
-        elif r.endswith('no contribution') or r.endswith('dropped'):
+        elif rec['effect'] == 'gap':
             gaps.append(r)
-        elif fams is not None and not fams & built_fams:
+        elif fams is not None and not set(fams) & built_fams:
             gaps.append(r)
-        elif MEMBROWSE_IN.search(r) and MEMBROWSE_TARGET not in targets:
+        elif missing:
             gaps.append(f'{r} (the default sweep builds `all`, which does not run '
-                        f'{MEMBROWSE_TARGET}: rerun with -T all -T {MEMBROWSE_TARGET})')
+                        f'{", ".join(missing)}: rerun with -T all' + ''.join(f' -T {t}' for t in missing) + ')')
+        elif rec['rule'] == 'size-script':
+            gaps.append(f"{r} (its snapshot is validated by CI's code-size step; not verified by this run)")
         elif chosen:
             continue
-        elif fams is not None and (gap := port_gap(r, results)):
+        elif (gap := port_gap(rec, results)):
             gaps.append(f'{r} ({gap})')
         elif exs is not None and not {e.split('/', 1)[1] for e in exs} & ok_ex:
             gaps.append(r)
         elif results and not ok_ex:
             gaps.append(r)
+        if len(benign) + len(gaps) > n:
+            explained.add(rec['path'])
     if not results:
-        explained = {r.split(': ', 1)[0] for r in benign + gaps}
-        for path in scope:
-            if path not in explained:
-                gaps.append(next((r for r in reasons if r.startswith(path + ': ')),
-                                 f'{path}: no build reason from ci_select'))
+        gaps += [rec['reason'] for rec in records if rec['path'] not in explained]
     return benign, gaps
 
 
@@ -871,7 +802,13 @@ def main(argv=None):
     how.add_argument('--scope', nargs='+', metavar='PATH',
                      help='changed paths or directories, repo-relative')
     how.add_argument('--base', metavar='REF', help='resolve the scope from git diff against REF')
+    how.add_argument('--endpoints', metavar='A..B',
+                     help="resolve the scope from a push's A..B diff; B must be the checked-out HEAD")
     how.add_argument('--board', action='append', default=None, help='build this board (repeatable)')
+    p.add_argument('--worktree', action='store_true',
+                   help='with --base: include uncommitted and untracked changes in the scope')
+    p.add_argument('--select-only', action='store_true',
+                   help="print ci_select's selection manifest for the scope and stop: no dependency check, no build")
     p.add_argument('-e', '--example', action='append', default=[], help='only these examples (role/name)')
     p.add_argument('-T', '--target', action='append', default=[], help='build target (default all)')
     p.add_argument('-D', '--define', action='append', default=[],
@@ -888,12 +825,22 @@ def main(argv=None):
                         'in its cmake-build-<variant> with its defines and flags')
     p.add_argument('--receipt', metavar='FILE',
                    help='with --variants and every example: write the HIL build receipt after a passing build')
-    p.add_argument('--config', default=str(HIL_CONFIG), help='rig roster for ci_select (default: tinyusb.json)')
+    p.add_argument('--config', action='append', default=None,
+                   help='rig roster for ci_select (repeatable; default: tinyusb.json)')
     p.add_argument('-v', '--verbose', action='store_true', help='stream build output to stderr')
     a = p.parse_args(argv)
     os.chdir(ROOT)  # tools/build.py's example listing reads examples/ relative to the root
 
     extra = {}
+    configs = a.config or [str(HIL_CONFIG)]
+    if a.worktree and not a.base:
+        fail('--worktree needs --base')
+    if a.select_only:
+        if a.board:
+            fail('--select-only selects from a scope, --base or --endpoints, not named boards')
+        paths = expand_scope(a.scope) if a.scope is not None else None
+        print(json.dumps(select(paths, a.base, configs, a.endpoints, a.worktree)))
+        return 0
     if a.variants is not None and not (a.board and a.shared):
         fail('--variants needs --board and --shared: it builds the dirs hil_test.py flashes')
     if a.receipt is not None and (a.variants is None or a.example or a.target):
@@ -904,9 +851,10 @@ def main(argv=None):
     if a.board:
         boards, how_resolved = a.board, 'named boards'
     else:
-        paths = expand_scope(a.scope) if a.scope is not None else changed_paths(a.base)
-        sel, reasons = select(scope=paths if a.scope is not None else None, base=a.base, config=Path(a.config))
-        boards, how_resolved = boards_for(sel, paths, reasons)
+        manifest = select(expand_scope(a.scope) if a.scope is not None else None, a.base, configs,
+                          a.endpoints, a.worktree)
+        records = manifest['build']['paths']
+        boards, how_resolved = boards_for(manifest)
     before = catalog_text()
     builds = roster_variants(boards, a.variants) if a.variants is not None else [(b, None, [], []) for b in boards]
     results = [build_one(b, a.example, a.target, a.define + d, a.cflag + f, a.shared, a.fetch_deps, a.verbose, n)
@@ -919,7 +867,8 @@ def main(argv=None):
         # an uncovered path fails the scope even when every board built green: a class
         # driver plus the core file that registers it is the common shape
         extra['nothingToBuild'], extra['uncovered'] = coverage(
-            reasons, paths, results, bool(a.example or a.target), a.target)
+            records, results, bool(a.example or a.target), a.target,
+            manifest['build']['dropped'].values())
     ok = built_ok and not extra.get('uncovered')
     if ok and a.receipt is not None:
         extra['receipt'] = write_receipt(a.receipt, head, boards, a.variants)
