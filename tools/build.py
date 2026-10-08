@@ -199,7 +199,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     existed.append(example_build_dir)
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
-                    f'-DBOARD={board}', *build_flags, 'reconfigure' if configure_only else 'build'
+                    f'-DBOARD={board}', *build_args, *build_flags, 'reconfigure' if configure_only else 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
                 configured.append(example_build_dir)

@@ -2739,6 +2739,27 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(calls[0][2:], ['report', '--identical-only', '--target-name',
                                         'espressif_s3_devkitc/cdc_msc_freertos', '--upload'])
 
+    def test_espressif_passes_the_build_defines_to_idf_py(self):
+        from unittest import mock
+        real_isdir = os.path.isdir
+        no_build_dir = lambda p: False if str(p).startswith('cmake-build/') else real_isdir(p)
+        for configure_only, action in ((False, 'build'), (True, 'reconfigure')):
+            calls = []
+
+            def fake_run(cmd):
+                calls.append(cmd)
+                return types.SimpleNamespace(returncode=0)
+            with mock.patch.object(self.build, 'run_cmd', fake_run), \
+                 mock.patch.object(self.build.os.path, 'isdir', no_build_dir), \
+                 mock.patch.object(self.build, 'configure_only', configure_only):
+                r = self.build.cmake_board('espressif_s3_devkitc', ['-DTOOLCHAIN=gcc', '-DLOG=2'], 'v',
+                                           ['-DX=1'], ['all'], examples=['device/cdc_msc_freertos'])
+            self.assertEqual(r, [1, 0, 0])
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][calls[0].index('-GNinja') + 1:],
+                             ['-DBOARD=espressif_s3_devkitc', '-DTOOLCHAIN=gcc', '-DLOG=2',
+                              '-DCFLAGS_CLI=-DX=1', '-DMEMBROWSE_BOARD=v', action])
+
     def test_the_upload_takes_every_pinned_board_the_build_step_may_skip(self):
         # cdc_dual_ports/skip.txt skips stm32f407disco: the Build step falls back to another
         # board, the upload still owns the pinned one (ci_set_matrix.py --membrowse)
