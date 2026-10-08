@@ -3,20 +3,24 @@
 """Try to wedge one roster board on purpose and check that usbtest.py's in-run recovery clears it.
 
   wedge_drill.py --config CONFIG --board BOARD [--variant NAME] [--delay S] [--timeout S]
-                 [--allow-concurrent]
+                 [--halt-openocd ARGS] [--allow-concurrent]
 
 Lock, flash device/usbtest, start case 27 (bulk write perf, whose kernel wait in test_queue is
 unbounded) with post-hang recovery, and --delay seconds after its testusb process appears halt
-the DUT core through the board's recovery flasher. The intent: a halted core arms no new buffers,
-the transfer in flight never completes, testusb sits in D state on the device lock, and usbtest.py
-must call it HUNG, reset the DUT through the probe and reap the original testusb. Whether a halt
-does that is variant-dependent (USB engine, DMA, debug freeze): read the variant's reference
-manual (read-doc) before drilling it. With no flash between, case 1 must then pass on the same
-serial. The board is parked on device/board_test only when it is known to be usable.
+the DUT core through the board's openocd recovery flasher, or through --halt-openocd's openocd
+args on the board's probe when its recovery flasher is not openocd. The intent: a halted core
+arms no new buffers, the transfer in flight never completes, testusb sits in D state on the
+device lock, and usbtest.py must call it HUNG, reset the DUT through the probe and reap the
+original testusb. Whether a halt does that is variant-dependent (USB engine, DMA, debug freeze):
+read the variant's reference manual (read-doc) before drilling it. With no flash between, case 1
+must then pass on the same serial. The board is parked on device/board_test only when it is
+known to be usable.
 
-Refuses before touching hardware (exit 2) as run_case.py does, and when the board's recovery
-flasher is not openocd (the halt runs through it) or is not convoy-safe, or --delay plus the halt
-bound leaves the halt no room to finish before the case times out.
+Refuses before touching hardware (exit 2) as run_case.py does; when the board's recovery flasher
+is not convoy-safe or has no probe reset; when there is no openocd halt (no openocd recovery
+flasher and no --halt-openocd), or --halt-openocd is not convoy-safe, lacks a probe uid or
+overrides an openocd recovery flasher; or when --delay plus the halt bound leaves the halt no
+room to finish before the case times out.
 
 stdout ends with one JSON line: {"drill", "board", "variant", "reason", "halt", "cases", "wedged",
 "recovery", "device", "smoke", "cleanup", "boardState", "error"}. drill is "pass" (HUNG, reset
@@ -135,13 +139,34 @@ def on_signal(signum, frame):
 def recovery_board(board):
     """The board with its recovery flasher as `flasher`, or Refused when the drill cannot use it."""
     rec = hil_flash.recover_flasher(board)
-    if rec.get('name') != 'openocd':
-        raise Refused(f'{board["name"]}: the drill halts through an openocd recovery flasher; '
-                      f'this board recovers through {rec.get("name")}')
     if not hil_flash.convoy_safe(rec):
         raise Refused(f'{board["name"]}: its recovery flasher is not convoy-safe, so usbtest.py '
                       f'would not attempt a recovery')
+    if hil_flash.reset_primitive(rec['name']) is None:
+        raise Refused(f'{board["name"]}: {rec["name"]} has no probe reset, the recovery the drill '
+                      f'checks for')
     return {'name': board['name'], 'flasher': rec}
+
+
+def halt_board(board, rec_board, halt_args):
+    """The board with the openocd entry that halts it as `flasher`: its openocd recovery flasher,
+    else `halt_args` on its probe."""
+    name = board['name']
+    if rec_board['flasher']['name'] == 'openocd':
+        if halt_args is not None:
+            raise Refused(f'{name}: --halt-openocd is for a recovery flasher that is not openocd; '
+                          f'this board halts through its own')
+        return rec_board
+    if halt_args is None:
+        raise Refused(f'{name}: the drill halts through openocd and this board recovers through '
+                      f'{rec_board["flasher"]["name"]}; name the openocd halt with --halt-openocd')
+    uid = board['flasher'].get('uid')
+    if not uid:
+        raise Refused(f'{name}: no probe uid for openocd\'s adapter serial')
+    halt = {'name': 'openocd', 'uid': uid, 'args': halt_args}
+    if not hil_flash.convoy_safe(halt):
+        raise Refused(f'{name}: --halt-openocd {halt_args!r} is not convoy-safe')
+    return {'name': name, 'flasher': halt}
 
 
 def identity(uid):
@@ -197,7 +222,7 @@ def recovery_from(stderr):
     return rec
 
 
-def inject(rec_board, node, delay, timeout, battery_done, report):
+def inject(halt_with, node, delay, timeout, battery_done, report):
     """Halt the core while case 27's testusb is in flight, finishing before the case can time
     out. True only when the halt succeeded and the case was still running after it."""
     deadline = time.monotonic() + APPEAR_TIMEOUT
@@ -219,8 +244,8 @@ def inject(rec_board, node, delay, timeout, battery_done, report):
         return False
     report['halt']['issued'] = True   # before the call: a halt that times out may still land
     t = time.monotonic()
-    halt = halt_held if wch(rec_board) else halt_openocd
-    ret = halt(rec_board, timeout=HALT_TIMEOUT)
+    halt = halt_held if wch(halt_with) else halt_openocd
+    ret = halt(halt_with, timeout=HALT_TIMEOUT)
     report['halt'].update(rc=ret.returncode, took=round(time.monotonic() - t, 2),
                           caseRunningAfter=alive(pid))
     if ret.returncode != 0:
@@ -266,7 +291,7 @@ def usable(uid):
     return now is not None and testusb_pid(now[0]) is None
 
 
-def drill(board, rec_board, fw, delay, timeout, report):
+def drill(board, halt_with, fw, delay, timeout, report):
     err = run_case.flash(board, fw)
     report['boardState'] = 'flash failed' if err else 'usbtest firmware'
     if err:
@@ -295,7 +320,7 @@ def drill(board, rec_board, fw, delay, timeout, report):
     worker = threading.Thread(target=run_battery)
     worker.start()
     try:
-        halted = inject(rec_board, before[0], delay, timeout, done, report)
+        halted = inject(halt_with, before[0], delay, timeout, done, report)
     except ProbeHeld as e:
         report['halt']['probeHeld'] = e.pid
         run_case.kill_children(INHERITED)   # before the battery's own recovery opens the probe
@@ -367,7 +392,7 @@ def finish_locked(board, rec_board, park_fw, report):
         if stuck:
             report['halt']['probeHeld'] = stuck[0]
     if report['halt'].get('probeHeld'):
-        report['boardState'] = (f'unknown, not parked: openocd {report["halt"]["probeHeld"]} may '
+        report['boardState'] = (f'unknown, not parked: probe process {report["halt"]["probeHeld"]} may '
                                 f'still hold the probe (usb-kernel-recover)')
         return
     if report['drill'] == 'pass':
@@ -400,6 +425,9 @@ def main():
     p.add_argument('--variant', help='roster variant, required when the board has several')
     p.add_argument('--delay', type=float, default=0.3, help='seconds into case 27 before the halt (default 0.3)')
     p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
+    p.add_argument('--halt-openocd', metavar='ARGS',
+                   help='openocd args that halt the core on the board\'s probe, required when its recovery '
+                        'flasher is not openocd, e.g. "-f interface/stlink.cfg -f target/stm32l4x.cfg"')
     p.add_argument('--allow-concurrent', action='store_true',
                    help="skip the live-battery check; see run_case.py's description first")
     args = p.parse_args()
@@ -429,6 +457,7 @@ def main():
             board, variant = run_case.resolve(args.config, args.board, args.variant)
             report['variant'] = variant
             rec_board = recovery_board(board)
+            halt_with = halt_board(board, rec_board, args.halt_openocd)
             flasher = board['flasher']['name']
             fw = run_case.firmware(variant, 'device/usbtest', flasher)
             park_fw = run_case.firmware(variant, 'device/board_test', flasher)
@@ -452,7 +481,7 @@ def main():
                 try:
                     if not args.allow_concurrent:
                         run_case.check_peers()   # again: a peer may have started before the lock
-                    report['drill'] = drill(board, rec_board, fw, args.delay, args.timeout, report)
+                    report['drill'] = drill(board, halt_with, fw, args.delay, args.timeout, report)
                 except Refused as e:
                     report['error'] = str(e)
                     return finish(2)

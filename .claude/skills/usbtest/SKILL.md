@@ -59,8 +59,14 @@ ch32v307v_r1_1v0-usbhs). On a WCH-Link (`target/wch-riscv.cfg`) openocd's shutdo
 core, so the drill SIGKILLs a halted openocd instead. On nanoch32v203-fsdev the WCH-LinkE attach
 (openocd 0ce743125) itself rewrote RCC, taking the USB clock off 48 MHz, so case 27 failed -EPIPE
 instead of hanging and the drill stayed inconclusive (2026-10-06).
+The halt runs through openocd. A board whose recovery flasher is not openocd (the hfp stlink
+boards) names the openocd halt with `--halt-openocd`, whose interface and target cfgs must match
+its probe and MCU, e.g. `--halt-openocd "-f interface/stlink.cfg -f target/stm32l4x.cfg"` for
+stm32l412nucleo; it injects the wedge only, and the recovery under test stays the board's own.
+`STM32_Programmer_CLI -halt` cannot stand in: the core ran again after the CLI exited (DHCSR,
+stm32g0b1nucleo, CubeProgrammer v2.23.0).
 Its `cleanup` is the drill's own reset and never stands in for the harness's recovery. Boards
-whose recovery flasher is not openocd are refused.
+whose recovery flasher is not convoy-safe or has no probe reset are refused.
 
 ## Rig hazards
 
