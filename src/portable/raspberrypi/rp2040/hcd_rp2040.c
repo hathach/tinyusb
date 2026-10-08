@@ -192,16 +192,20 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
   }
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool epx_is_pending(const hw_endpoint_t *ep) {
+  return ep->state == EPSTATE_PENDING || ep->state == EPSTATE_PENDING_SETUP;
+}
+
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
   const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
   for (uint i = cur_idx + 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    if (ep_pool[i].state >= EPSTATE_PENDING) {
+    if (epx_is_pending(&ep_pool[i])) {
       return &ep_pool[i];
     }
   }
   for (uint i = 0; i < cur_idx; i++) {
-    if (ep_pool[i].state >= EPSTATE_PENDING) {
+    if (epx_is_pending(&ep_pool[i])) {
       return &ep_pool[i];
     }
   }
@@ -311,6 +315,10 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     for (size_t e = 0; e < TU_ARRAY_SIZE(ep_pool); e++) {
       hw_endpoint_t *ep = &ep_pool[e];
       if (ep->interrupt_num == epnum) {
+        if (ep->state == EPSTATE_ABORTING) {
+          ep->next_pid ^= 1u; // the aborted packet completed on the wire after all
+          break;
+        }
         io_rw_32  *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
         io_rw_32  *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
         const bool done    = rp2usb_xfer_continue(ep, ep_reg, buf_reg, 0, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN);
@@ -526,6 +534,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
         *buf_reg          = 0;
         *ep_reg           = 0;
+        ep->interrupt_num = 0; // the slot may go to another endpoint
       }
 
       ep->max_packet_size = 0; // mark as unused
@@ -579,10 +588,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   if (ep->transfer_type != TUSB_XFER_INTERRUPT) {
     ep->dpram_buf = usbh_dpram->epx_data;
   } else {
-    // from 15 interrupt endpoints pool
+    // from 15 interrupt endpoints pool; not from INT_EP_CTRL, which an abort clears while it keeps the slot
+    uint32_t used = 0;
+    for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+      used |= TU_BIT(ep_pool[i].interrupt_num);
+    }
     uint8_t int_idx;
     for (int_idx = 0; int_idx < USB_HOST_INTERRUPT_ENDPOINTS; int_idx++) {
-      if (!tu_bit_test(usb_hw->int_ep_ctrl, 1 + int_idx)) {
+      if (!tu_bit_test(used, 1 + int_idx)) {
         ep->interrupt_num = int_idx + 1;
         break;
       }
@@ -623,10 +636,51 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return false; // TODO not implemented yet
 }
 
+// Clearing the slot's INT_EP_CTRL bit stops new polls, but one already on the wire may still complete. Wait out its
+// frame before reclaiming the buffer, so a late completion is neither reported nor lost from the data toggle.
+static bool int_edpt_abort(hw_endpoint_t *ep) {
+  io_rw_32      *buf_reg    = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+  const uint32_t status_bit = TU_BIT(2u * ep->interrupt_num + (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ? 1u : 0u));
+
+  rp2usb_critical_enter();
+  if (ep->state != EPSTATE_ACTIVE) {
+    rp2usb_critical_exit();
+    return false; // already completed, its event is queued
+  }
+  usb_hw_clear->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+  const uint32_t buf_ctrl   = *buf_reg;
+  if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
+    ep->next_pid = (buf_ctrl & USB_BUF_CTRL_DATA1_PID) ? 1u : 0u; // armed packet not done: reuse its PID
+  } else {
+    usb_hw_clear->buf_status = status_bit; // completed before abort: drop it, keep its toggle
+  }
+  ep->state = EPSTATE_ABORTING;
+  rp2usb_critical_exit();
+
+  busy_wait_us(1100); // a transaction never crosses its 1 ms frame
+
+  rp2usb_critical_enter();
+  if (ep->state == EPSTATE_ABORTING) { // not closed meanwhile
+    if (usb_hw->buf_status & status_bit) {
+      usb_hw_clear->buf_status = status_bit;
+      ep->next_pid ^= 1u;
+    }
+    *buf_reg = 0;
+    rp2usb_reset_transfer(ep);
+    usb_hw_set->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+  }
+  rp2usb_critical_exit();
+  return true;
+}
+
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
   hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
-  TU_VERIFY(ep != NULL && ep->interrupt_num == 0); // TODO abort interrupt endpoint
+  TU_VERIFY(ep != NULL);
+
+  if (ep->interrupt_num > 0) {
+    return int_edpt_abort(ep);
+  }
 
   rp2usb_critical_enter();
   epx_retire(ep);

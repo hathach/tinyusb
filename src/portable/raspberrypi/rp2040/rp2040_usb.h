@@ -98,7 +98,8 @@ enum {
   EPSTATE_IDLE = 0,
   EPSTATE_ACTIVE,
   EPSTATE_PENDING,
-  EPSTATE_PENDING_SETUP
+  EPSTATE_PENDING_SETUP,
+  EPSTATE_ABORTING // host interrupt endpoint: abort waits for a poll already on the wire
 };
 
 // Hardware information per endpoint
