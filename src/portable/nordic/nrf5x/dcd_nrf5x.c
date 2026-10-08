@@ -116,6 +116,7 @@ static struct {
   volatile bool dma_running; // polled by dcd_edpt_close_all(), released by the VBUS-removed handler
   bool dma_pre_reset; // the running DMA predates the last bus reset, which may have aborted it without END
   uint8_t dma_rr; // bit position of the last bulk/interrupt request started, for round-robin
+  volatile uint8_t setup_dir; // data stage direction captured with the last SETUP (#4060)
 
   // Track whether sof has been manually enabled
   bool sof_enabled;
@@ -515,7 +516,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   TU_ASSERT(!xfer->started);
 
   // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
-  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir((uint8_t)NRF_USBD->BMREQUESTTYPE));
+  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != _dcd.setup_dir);
 
   if (control_status) {
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
@@ -737,10 +738,15 @@ static void handle_setup_isr(void) {
   for (uint8_t dir = 0; dir < 2; dir++) {
     retire_xfer(0, dir);
   }
+  // SETUP registers can read zero while an EasyDMA runs (#4060, nRF52840 AAC0, undocumented): wait for its
+  // END, left latched for the next ISR pass. Bounded (~2000 scans, ~ms; END came within 1k cycles on
+  // nRF52840), as a DMA a bus reset aborted may never end.
+  for (uint32_t n = 0; _dcd.dma_running && !dma_end_latched(false) && (n < 2000u); n++) {}
   uint8_t const setup[8] = {
       NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
       NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
   };
+  _dcd.setup_dir = tu_edpt_dir(setup[0]);
 
   // nrf5x hw auto handle set address, there is no need to inform usb stack
   tusb_control_request_t const* request = (tusb_control_request_t const*) setup;
@@ -788,9 +794,9 @@ static void handle_epdata_isr(uint32_t int_status) {
 
   // EP0DATADONE is set with either Control Out on IN Data
   // Since EPDATASTATUS cannot be used to determine whether it is control OUT or IN.
-  // We will use BMREQUESTTYPE in setup packet to determine the direction
-  bool const is_control_in = (int_status & USBD_INTEN_EP0DATADONE_Msk) && (NRF_USBD->BMREQUESTTYPE & TUSB_DIR_IN_MASK);
-  bool const is_control_out = (int_status & USBD_INTEN_EP0DATADONE_Msk) && !(NRF_USBD->BMREQUESTTYPE & TUSB_DIR_IN_MASK);
+  // We will use the setup packet's direction to determine it
+  bool const is_control_in = (int_status & USBD_INTEN_EP0DATADONE_Msk) && (_dcd.setup_dir == TUSB_DIR_IN);
+  bool const is_control_out = (int_status & USBD_INTEN_EP0DATADONE_Msk) && (_dcd.setup_dir == TUSB_DIR_OUT);
 
   // CBI In: Endpoint -> Host (transaction complete)
   for (uint8_t epnum = 0; epnum < EP_CBI_COUNT; epnum++) {
