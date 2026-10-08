@@ -2739,6 +2739,60 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(calls[0][2:], ['report', '--identical-only', '--target-name',
                                         'espressif_s3_devkitc/cdc_msc_freertos', '--upload'])
 
+    def test_select_examples_names_why_each_example_is_dropped(self):
+        b = self.build
+        self.assertEqual(b.select_examples('stm32f407disco', ['device/no_such_example']),
+                         ([], {'device/no_such_example': b.NO_SUCH_EXAMPLE}))
+        self.assertEqual(b.select_examples('espressif_s3_devkitc', ['device/cdc_msc']),
+                         ([], {'device/cdc_msc': b.NOT_FOR_FAMILY}))
+        self.assertEqual(b.select_examples('stm32f407disco', ['typec/power_delivery']),
+                         ([], {'typec/power_delivery': b.BOARD_SKIPS}))
+
+    def test_select_examples_in_a_tree_without_examples(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.build.select_examples('stm32f407disco', ['device/cdc_msc'], root=tmp),
+                             ([], {'device/cdc_msc': self.build.NO_SUCH_EXAMPLE}))
+        self.assertEqual(os.getcwd(), REPO)
+
+    def test_select_examples_reads_max3421_from_the_defines(self):
+        ex = ['host/audio_host']
+        self.assertEqual(self.build.select_examples('metro_m4_express', ex)[0], [])
+        self.assertEqual(self.build.select_examples('metro_m4_express', ex, ('MAX3421_HOST=1',))[0], ex)
+
+    def test_select_examples_order(self):
+        # a requested list keeps its order and repeats; espressif builds what get_examples lists
+        ex = ['device/dfu', 'device/cdc_msc', 'device/dfu']
+        self.assertEqual(self.build.select_examples('stm32f407disco', ex)[0], ex)
+        esp = ['device/hid_composite_freertos', 'device/cdc_msc_freertos', 'device/cdc_msc_freertos']
+        self.assertEqual(self.build.select_examples('espressif_s3_devkitc', esp)[0],
+                         ['device/cdc_msc_freertos', 'device/hid_composite_freertos'])
+
+    def test_select_examples_restores_the_cwd(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'examples', 'device', 'x'))
+            with mock.patch.object(self.build.build_utils, 'skip_example', side_effect=RuntimeError):
+                with self.assertRaises(RuntimeError):
+                    self.build.select_examples('b', ['device/x'], root=tmp)
+        self.assertEqual(os.getcwd(), REPO)
+
+    def test_registered_examples(self):
+        from unittest import mock
+        ex = ['device/cdc_msc', 'device/dfu', 'device/cdc_msc']
+        for registered, want in ((None, None), ({'cdc_msc'}, ['device/cdc_msc', 'device/cdc_msc']), (set(), [])):
+            with mock.patch.object(self.build, 'cmake_registered_targets', return_value=registered):
+                self.assertEqual(self.build.registered_examples('d', ex), want)
+
+    def test_a_nonexistent_example_is_dropped_before_configure(self):
+        from unittest import mock
+        calls = []
+        out = io.StringIO()
+        with mock.patch.object(self.build, 'run_cmd', calls.append), contextlib.redirect_stdout(out):
+            r = self.build.cmake_board('stm32f407disco', [], None, [], ['all'], examples=['nonexistent/example'])
+        self.assertEqual(r, [0, 0, 1])
+        self.assertEqual(calls, [])
+        self.assertIn('examples (PR filter)', out.getvalue())
+
     def test_espressif_passes_the_build_defines_to_idf_py(self):
         from unittest import mock
         real_isdir = os.path.isdir
