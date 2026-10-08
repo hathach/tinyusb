@@ -23,7 +23,9 @@ spec = importlib.util.spec_from_file_location('wedge_drill', SCRIPTS / 'wedge_dr
 wedge_drill = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wedge_drill)
 run_case = wedge_drill.run_case
+REAL_RESET_PRIMITIVE = run_case.hil_flash.reset_primitive
 
+ST_HALT = '-f interface/stlink.cfg -f target/stm32l4x.cfg'
 JLINK_REC = {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}
 ROSTER = {'boards': [
     {'name': 'ok', 'uid': 'UID1', 'flasher': {'name': 'jlink', 'uid': 'P1', 'args': '-device X'},
@@ -33,6 +35,8 @@ ROSTER = {'boards': [
     {'name': 'esp', 'uid': 'UID3', 'flasher': {'name': 'esptool', 'uid': 'P3'}, 'tests': {'device': True}},
     {'name': 'wch', 'uid': 'UID4', 'flasher': {'name': 'openocd', 'uid': 'P4', 'args': '-f target/wch-riscv.cfg',
                                                'vid_pid': '0x1a86 0x8010'}, 'tests': {'device': True}},
+    {'name': 'st', 'uid': 'UID5', 'flasher': {'name': 'stlink', 'uid': 'P5'}, 'tests': {'device': True}},
+    {'name': 'st-nouid', 'uid': 'UID7', 'flasher': {'name': 'stlink', 'uid': ''}, 'tests': {'device': True}},
 ]}
 RECOVERED = ('auto-recovering: resetting ok via openocd probe\nreset rc 0\n'
              'recovery freed the device: testusb reaped\n')
@@ -71,6 +75,8 @@ class Rig:
         self.halted = threading.Event()
         self.injected = threading.Event()   # inject returned, halted or not
         self.live_children = []
+        self.battery_boards = []
+        self.halt_boards = []
         tmp = tempfile.TemporaryDirectory()
         test.addCleanup(tmp.cleanup)
         self.config = Path(tmp.name) / 'rig.json'
@@ -78,6 +84,7 @@ class Rig:
 
         def battery(board, fw, tests, timeout):
             self.calls.append(('battery', tuple(tests)))
+            self.battery_boards.append(board)
             if tests == [SMOKE_CASE] and self.smoke_raises:
                 raise self.smoke_raises
             if tests == [27]:
@@ -88,6 +95,7 @@ class Rig:
 
         def halt(board, timeout, kind='halt'):
             self.calls.append((kind, board['flasher']['name'], timeout))
+            self.halt_boards.append(board)
             self.halted.set()
             if self.halt_raises:
                 raise self.halt_raises
@@ -394,9 +402,25 @@ class Refusals(unittest.TestCase):
         self.assertEqual(r['boardState'], 'untouched')
         self.assertEqual(rig.calls, [])
 
-    def test_no_openocd_recovery_flasher(self):
-        self.refused('--board', 'norec', says='halts through an openocd recovery flasher')
-        self.refused('--board', 'esp', says='halts through an openocd recovery flasher')
+    def test_a_recovery_flasher_the_drill_cannot_check(self):
+        self.refused('--board', 'norec', says='not convoy-safe')
+        rig = Rig(self)   # its reset stub would hide esptool's missing reset
+        with mock.patch.object(run_case.hil_flash, 'reset_primitive', REAL_RESET_PRIMITIVE):
+            rc, r = rig.run('--board', 'esp')
+        self.assertEqual(rc, 2)
+        self.assertIn('has no probe reset', r['error'])
+        self.assertEqual(rig.calls, [])
+
+    def test_a_non_openocd_recovery_needs_a_halt_override(self):
+        self.refused('--board', 'st', says='--halt-openocd')
+
+    def test_a_bad_halt_override(self):
+        self.refused('--board', 'st', '--halt-openocd', '  ', says='not convoy-safe')
+        self.refused('--board', 'st', '--halt-openocd', '-f interface/cmsis-dap.cfg', says='not convoy-safe')
+        self.refused('--board', 'st-nouid', '--halt-openocd', ST_HALT, says='no probe uid')
+
+    def test_an_override_on_an_openocd_recovery_board(self):
+        self.refused('--board', 'ok', '--halt-openocd', ST_HALT, says='halts through its own')
 
     def test_no_room_for_the_halt(self):
         self.refused('--board', 'ok', '--delay', '50', '--timeout', '60', says='must end before')
@@ -404,6 +428,27 @@ class Refusals(unittest.TestCase):
 
 
 HALTS = f'print({wedge_drill.HALTED_MARK!r}, flush=True)\ntime.sleep(30)\n'   # a fake openocd that halts
+
+
+class HaltOverride(unittest.TestCase):
+    """--halt-openocd injects the wedge on the board's probe; the battery and the cleanup keep
+    the board's own recovery flasher."""
+
+    def test_the_override_halts_and_stlink_recovers(self):
+        rig = Rig(self)
+        rc, r = rig.run('--board', 'st', '--halt-openocd', ST_HALT, '--delay', '0')
+        self.assertEqual((rc, r['drill']), (0, 'pass'), r)
+        self.assertEqual(rig.halt_boards[0]['flasher'], {'name': 'openocd', 'uid': 'P5', 'args': ST_HALT})
+        self.assertTrue(rig.battery_boards)
+        for b in rig.battery_boards:   # the halt entry must not become the battery's recovery
+            self.assertEqual(run_case.hil_flash.recover_flasher(b), {'name': 'stlink', 'uid': 'P5'})
+
+    def test_a_failed_override_halt_cleans_up_through_stlink(self):
+        rig = Rig(self)
+        rig.halt_rc = 1
+        _, r = rig.run('--board', 'st', '--halt-openocd', ST_HALT, '--delay', '0')
+        self.assertEqual(r['drill'], 'inconclusive')
+        self.assertIn(('cleanup-reset', 'stlink'), rig.calls)
 
 
 class WchHeldHalt(unittest.TestCase):
@@ -529,7 +574,7 @@ class WchHeldHalt(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertEqual(killed, [wedge_drill.INHERITED])   # an inherited logger is spared
         self.assertEqual(r['halt']['probeHeld'], 777)
-        self.assertIn('openocd 777', r['boardState'])
+        self.assertIn('probe process 777', r['boardState'])
         self.assertNotIn('cleanup-reset', [c[0] for c in rig.calls])
         self.assertFalse(rig.parked())
         self.assertTrue(rig.lock.closed)
