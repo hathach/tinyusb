@@ -228,6 +228,23 @@ void test_getstate_out_stalls(void) {
   TEST_ASSERT_EQUAL(0, reboot_count);
 }
 
+// an OUT GETSTATUS or GETSTATE is unsupported, so it stalls and cancels a pending detach
+void test_get_out_cancels_detach(void) {
+  open_device(desc_config_host_reset);
+  const uint8_t requests[] = { DFU_REQUEST_GETSTATUS, DFU_REQUEST_GETSTATE };
+  for (size_t i = 0; i < TU_ARRAY_SIZE(requests); i++) {
+    host_no_data(&req_detach);
+    const tusb_control_request_t req = { .bmRequestType = 0x21, .bRequest = requests[i] };
+    dcd_event_setup_received(RHPORT, (const uint8_t*) &req, false);
+    tud_task();
+    TEST_ASSERT_TRUE(ep0_stalled);
+    ep0_stalled = false;
+    TEST_ASSERT_EQUAL(APP_IDLE, host_get_state());
+  }
+  bus_reset();
+  TEST_ASSERT_EQUAL(0, reboot_count);
+}
+
 void test_other_request_cancels_detach(void) {
   open_device(desc_config_host_reset);
   host_no_data(&req_detach);
