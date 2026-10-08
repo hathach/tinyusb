@@ -13,12 +13,12 @@ When writing code, keep in mind that the OS (if using an RTOS) may swap out your
 Application Code
 ----------------
 
-The USB core does not execute application callbacks while in an interrupt context. Calls to application code are from within the USB core task context. Note that the application core will call class drivers from within its own task.
+Most application callbacks run from the USB core task, ``tud_task()`` or ``tuh_task()``. Callbacks named ``*_isr`` usually run in interrupt context, and some others run synchronously in the calling API's context; see :doc:`class/device`. Note that the application core will call class drivers from within its own task.
 
 Class Drivers
 -------------
 
-Class driver code should never be called from an interrupt context by the USB core, though the application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
+The USB core calls class driver code from its task, except a device class driver's ``sof`` handler, which runs in interrupt context, and its ``xfer_isr`` handler, which usually does but may run in the context of the call that arms the endpoint. The application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
 
 Class drivers are allowed to call ``usbd_*`` functions, but not ``dcd_*`` functions.
 
@@ -27,7 +27,7 @@ USB Core
 
 All functions that may be called from an (USB core) interrupt context have a ``bool in_isr`` parameter to remind the implementer that special care must be taken.
 
-Interrupt handlers must not directly call class driver code, they must pass a message to the USB core's task.
+Apart from the device ``sof`` and ``xfer_isr`` handlers, interrupt handlers must not directly call class driver code; they must pass a message to the USB core's task.
 
  ``usbd_*`` functions may be called from interrupts without any notice. They may also be called simultaneously by multiple tasks.
 

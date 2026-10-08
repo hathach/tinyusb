@@ -20,7 +20,7 @@ Thread Safety
 TinyUSB achieves thread safety through a deferred interrupt model:
 
 - **ISR deferral**: USB interrupts are captured and deferred to task context
-- **Single-threaded processing**: All USB protocol handling occurs in task context
+- **Single-threaded processing**: Most USB protocol handling occurs in task context; see :doc:`concurrency` for the device class ``sof()`` and ``xfer_isr()`` exceptions
 - **Queue-based design**: Events are queued from ISR and processed in ``tud_task()``
 - **RTOS integration**: Proper semaphore/mutex usage for shared resources
 
@@ -115,7 +115,7 @@ TinyUSB uses a deferred interrupt model for thread safety:
 2. **ISR Handler**: ``dcd_int_handler()`` captures event, minimal processing
 3. **Event Queuing**: Events queued for later processing
 4. **Task Processing**: ``tud_task()`` (called by application code) processes queued events
-5. **Callback Execution**: Application callbacks executed in task context
+5. **Callback Execution**: Most application callbacks executed in task context; ``*_isr`` callbacks usually run in interrupt context (see :doc:`class/device`)
 
 .. code-block:: none
 
@@ -199,7 +199,7 @@ See ``usbd.c``.
 - ``close()``: Clean up class resources
 - ``deinit()``: Deinitialize class driver
 - ``sof()``: Start-of-frame processing
-- ``xfer_isr()``: Called from USB ISR context on transfer completion. Data will get queued for ``xfer_cb()`` only if this returns ``false``.
+- ``xfer_isr()``: Called on transfer completion, usually from USB ISR context but possibly in the context of the call that arms the endpoint. Data will get queued for ``xfer_cb()`` only if this returns ``false``.
 
 Descriptor Management
 ---------------------
@@ -236,7 +236,7 @@ Threading Model
 Task-Based Design
 -----------------
 
-TinyUSB uses a cooperative task model; it provides main tasks - ``tud_task()`` for device and ``tuh_task()`` for host operation. These tasks must be called regularly (typically less than 1ms intervals) to ensure all USB events are processed in task context, where application callbacks also execute.
+TinyUSB uses a cooperative task model; it provides main tasks - ``tud_task()`` for device and ``tuh_task()`` for host operation. These tasks must be called regularly (typically less than 1ms intervals) to ensure queued USB events are processed in task context, where most application callbacks also execute; callbacks named ``*_isr`` usually run in interrupt context (see :doc:`class/device`).
 
 RTOS Integration
 ----------------
