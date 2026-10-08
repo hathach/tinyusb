@@ -6,6 +6,7 @@
 import errno
 import os
 import sys
+import threading
 import types
 import unittest
 import unittest.mock
@@ -41,14 +42,15 @@ for name in pyusb_stub:   # other suites must still see pyusb as missing
 
 
 class FakeDev:
-    """usbtest as teardown_stress sees it: bulk succeeds unless `bulk_ok` is false; a
-    SET_CONFIGURATION(value) after the initial one raises `set_config_error[value]` if present;
-    GET_DESCRIPTOR returns `device_desc`."""
+    """usbtest as teardown_stress sees it: bulk moves `read_len`/`write_len` bytes (default the
+    full request) unless `bulk_ok` is false; a SET_CONFIGURATION(value) after the initial one raises
+    `set_config_error[value]` if present; GET_DESCRIPTOR returns `device_desc`."""
 
-    def __init__(self, set_config_error=None, device_desc=bytes(18), bulk_ok=True):
+    def __init__(self, set_config_error=None, device_desc=bytes(18), bulk_ok=True, read_len=None, write_len=None):
         self.set_config_error = set_config_error or {}
         self.device_desc = device_desc
         self.bulk_ok = bulk_ok
+        self.read_len, self.write_len = read_len, write_len
         self.set_configs = 0
 
     def is_kernel_driver_active(self, itf):
@@ -60,12 +62,12 @@ class FakeDev:
     def read(self, ep, size, timeout=None):
         if not self.bulk_ok:
             raise usb.core.USBTimeoutError('t', errno=errno.ETIMEDOUT)
-        return bytes(size)
+        return bytes(size if self.read_len is None else self.read_len)
 
     def write(self, ep, data, timeout=None):
         if not self.bulk_ok:
             raise usb.core.USBTimeoutError('t', errno=errno.ETIMEDOUT)
-        return len(data)
+        return len(data) if self.write_len is None else self.write_len
 
     def ctrl_transfer(self, bm, req, val, idx, data_or_len=None, timeout=None):
         if req == ts.REQ_SET_CONFIGURATION:
@@ -77,21 +79,25 @@ class FakeDev:
         return 0
 
 
-def one_pump_pass(dev, ep_out, ep_in, stop, counts):
-    """ts.pump's work for one pass, done before the thread is joined: the verdict tests must not
-    depend on the worker being scheduled before stop is set."""
-    for fn in (lambda: dev.read(ep_in, 512), lambda: dev.write(ep_out, bytes(512))):
-        try:
-            fn()
-            counts['ok'] += 1
-        except usb.core.USBError:
-            counts['err'] += 1
+class OnePassStop:
+    """pump's stop event, ignoring main's set(): exactly one pass runs before the thread is joined,
+    so the verdict tests do not depend on the worker being scheduled before stop is set."""
+
+    def __init__(self):
+        self.checks = 0
+
+    def is_set(self):
+        self.checks += 1
+        return self.checks > 1
+
+    def set(self):
+        pass
 
 
 def run(dev, *argv):
     with unittest.mock.patch.object(ts, 'find', return_value=dev), \
          unittest.mock.patch.object(ts, 'bulk_eps', return_value=(0, 0x01, 0x81)), \
-         unittest.mock.patch.object(ts, 'pump', one_pump_pass), \
+         unittest.mock.patch.object(ts, 'threading', types.SimpleNamespace(Event=OnePassStop, Thread=threading.Thread)), \
          unittest.mock.patch.object(ts.time, 'sleep'), \
          unittest.mock.patch.object(sys, 'argv', ['teardown_stress.py', '-n', '2', *argv]), \
          unittest.mock.patch('builtins.print') as out:
@@ -148,6 +154,27 @@ class Endpoints(unittest.TestCase):
             ts.bulk_eps(dev)
 
 
+class Pump(unittest.TestCase):
+    def pump(self, dev):
+        counts = {'ok': 0, 'err': 0}
+        ts.pump(dev, 0x01, 0x81, OnePassStop(), counts)
+        return counts
+
+    def test_full_transfers_count_ok(self):
+        self.assertEqual({'ok': 2, 'err': 0}, self.pump(FakeDev()))
+
+    def test_short_or_empty_read_counts_err(self):
+        for n in (0, ts.BULK_LEN - 1):
+            with self.subTest(read_len=n):
+                self.assertEqual({'ok': 1, 'err': 1}, self.pump(FakeDev(read_len=n)))
+
+    def test_short_write_counts_err(self):
+        self.assertEqual({'ok': 1, 'err': 1}, self.pump(FakeDev(write_len=ts.BULK_LEN - 1)))
+
+    def test_usb_error_counts_err(self):
+        self.assertEqual({'ok': 0, 'err': 2}, self.pump(FakeDev(bulk_ok=False)))
+
+
 class Verdict(unittest.TestCase):
     def test_every_iteration_recovered_passes(self):
         rc, out = run(FakeDev())
@@ -163,6 +190,19 @@ class Verdict(unittest.TestCase):
         rc, out = run(FakeDev(bulk_ok=False))
         self.assertEqual(1, rc)
         self.assertIn('no bulk traffic', out)
+
+    def test_only_short_bulk_traffic_fails(self):
+        rc, out = run(FakeDev(read_len=0, write_len=0))
+        self.assertEqual(1, rc)
+        self.assertIn('no bulk traffic', out)
+
+    def test_short_bulk_after_reconfigure_fails(self):
+        for kw, wrote_read in (({'read_len': 0}, f'wrote {ts.BULK_LEN} read 0'),
+                               ({'write_len': 1}, f'wrote 1 read {ts.BULK_LEN}')):
+            with self.subTest(**kw):
+                rc, out = run(FakeDev(**kw))
+                self.assertEqual(1, rc)
+                self.assertIn(f'short bulk after SET_CONFIGURATION(1): {wrote_read}', out)
 
     def test_reconfigure_failure_fails(self):
         rc, out = run(FakeDev(set_config_error={1: usb.core.USBError('pipe', errno=errno.EPIPE)}))
