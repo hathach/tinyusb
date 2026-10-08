@@ -572,9 +572,8 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
     -e narrows that further to the examples asked for: a shared dir also keeps the elf
     of one this run never built."""
     if family == 'espressif':
-        attempted = {e.split('/', 1)[1] for e in tools_build.get_examples(family)
-                     if (not examples or e in examples)
-                     and not tools_build.build_utils.skip_example(e, board, defines)}
+        attempted = {e.split('/', 1)[1] for e in
+                     tools_build.select_examples(board, examples or None, defines, root=str(ROOT))[0]}
         return [e for e in elfs if e.parent.name in attempted]
     reg = tools_build.cmake_registered_targets(str(ROOT / build_dir))
     if not reg:
@@ -628,8 +627,9 @@ def stale_options(build_dir, supplied):
     CFG_TUSB_DEBUG=.
     An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
-    idf.py's own untyped defines; -D is refused for that family (build_one), so there only
-    the sticky trio can have come from a command line."""
+    idf.py's own untyped defines, so the UNINITIALIZED fallback reads the root cache only;
+    there the record covers every tree. Earlier tools/build.py runs did not forward a -D
+    to idf.py, but a tree idf.py configured directly may hold one."""
     out = {}
     root = ROOT / build_dir
     recorded = recorded_options(build_dir)
@@ -673,12 +673,6 @@ def roster_variants(boards, config):
 
 def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose, name=None):
     family = family_of(board)
-    # tools/build.py hands -D to cmake but not to idf.py, so a define would be
-    # dropped and the build would pass without the configuration it was asked for
-    if defines and family == 'espressif':
-        fail(f'-D is not forwarded to idf.py, so it cannot configure {board} (family espressif). '
-             'A preprocessor macro can go through --cflag; a build-system setting (LOG, LOGGER) has no '
-             'path here, since the BSP translates those into other defines')
     # tools/build.py puts its own -DBOARD and friends before the caller's, so a -D on
     # one of those keys would win and the artifacts would carry another board's name
     owned = sorted({d.partition('=')[0].partition(':')[0] for d in defines} & set(BUILD_PY_OPTIONS))

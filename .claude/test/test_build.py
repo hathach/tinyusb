@@ -540,15 +540,22 @@ class VerdictTest(unittest.TestCase):
         finally:
             shutil.rmtree(d)
 
-    def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
+    def test_a_define_on_an_espressif_board_reaches_tools_build_py(self):
         esp = build.family_boards('espressif')[0]
-        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
-            with self.assertRaises(SystemExit) as cm:
-                build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
-        self.assertEqual(cm.exception.code, 2)
-        self.assertIn('idf.py', err.write.call_args[0][0])
-        self.assertNotIn('instead', err.write.call_args[0][0])  # no non-equivalent replacement offered
-        run.assert_not_called()
+        with mock.patch.object(build, 'run', return_value=(0, row(esp, 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]):
+            build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index('LOG=2') - 1], '-D')
+
+    def test_a_recorded_define_in_a_nested_idf_cache_is_stale(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (Path(root) / 'd' / build.AGENT_DEFINES).write_text('["FOO"]\n')
+            (tree / 'CMakeCache.txt').write_text('FOO:UNINITIALIZED=1\n')
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
 
     def test_shared_uses_the_canonical_hil_dir(self):
         with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
