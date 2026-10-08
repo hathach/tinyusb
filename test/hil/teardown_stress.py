@@ -19,6 +19,7 @@ import usbtest
 REQ_SET_CONFIGURATION, REQ_GET_DESCRIPTOR = 0x09, 0x06
 DESC_DEVICE = 0x0100
 CTRL_TIMEOUT_MS = 500
+BULK_LEN = 512
 
 
 def find(serial):
@@ -54,14 +55,14 @@ def bulk_eps(dev):
 
 
 def pump(dev, ep_out, ep_in, stop, counts):
-    data = bytes(512)
+    data = bytes(BULK_LEN)
     while not stop.is_set():
-        for fn in (lambda: dev.read(ep_in, 512, timeout=20), lambda: dev.write(ep_out, data, timeout=20)):
+        for fn in (lambda: len(dev.read(ep_in, BULK_LEN, timeout=20)), lambda: dev.write(ep_out, data, timeout=20)):
             try:
-                fn()
-                counts['ok'] += 1
+                full = fn() == BULK_LEN  # usbtest never sends a short packet: a short transfer is an error
             except usb.core.USBError:
-                counts['err'] += 1
+                full = False
+            counts['ok' if full else 'err'] += 1
 
 
 def ep0_alive(dev):
@@ -110,8 +111,10 @@ def main():
             try:
                 dev.ctrl_transfer(0x00, REQ_SET_CONFIGURATION, 1, 0, timeout=CTRL_TIMEOUT_MS)
                 dev.set_interface_altsetting(itf, 1)
-                dev.write(ep_out, bytes(512), timeout=500)
-                dev.read(ep_in, 512, timeout=500)
+                written = dev.write(ep_out, bytes(BULK_LEN), timeout=500)
+                read = len(dev.read(ep_in, BULK_LEN, timeout=500))
+                if (written, read) != (BULK_LEN, BULK_LEN):
+                    failed = f'short bulk after SET_CONFIGURATION(1): wrote {written} read {read} of {BULK_LEN}'
             except usb.core.USBError as e:
                 failed = f'reconfigure/bulk after SET_CONFIGURATION(1): {e}'
         if failed:

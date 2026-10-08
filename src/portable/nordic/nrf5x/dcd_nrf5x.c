@@ -1200,12 +1200,13 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // disable all interrupt
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
 
-        // PS 6.35.4: let a running EasyDMA end before disabling USBD; without its END the channel stays
-        // owned. This handler must not preempt the USBD ISR (BSP: POWER/SoftDevice below USBD priority).
-        for (uint32_t n = SystemCoreClock / 1000; _dcd.dma_running && n > 0; n--) {
-          if (dma_end_latched(true)) {
-            (void) dma_release();
-          }
+        // PS 6.35.4: let a running EasyDMA end before disabling USBD. This handler must not preempt the USBD
+        // ISR (BSP: POWER/SoftDevice below USBD priority). A DMA whose END does not come in time is abandoned
+        // with USBD: no END would ever release the channel, which bus reset keeps owned after the next plug.
+        if (_dcd.dma_running) {
+          for (uint32_t n = SystemCoreClock / 1000; n > 0 && !dma_end_latched(false); n--) {}
+          (void) dma_end_latched(true);
+          (void) dma_release();
         }
         _dcd.dma_pending = 0;
 
