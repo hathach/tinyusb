@@ -123,7 +123,10 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     case DFU_REQUEST_GETSTATUS:
     {
       TU_LOG_DRV("  DFU RT Request: GETSTATUS\r\n");
-      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+      if (request->bmRequestType_bit.direction != TUSB_DIR_IN) {
+        _dfu_rt.state = APP_IDLE; // DFU 1.1 Table 3.1: GETSTATUS is IN, so this is "any other request" (A.2.2)
+        return false;
+      }
       dfu_status_response_t resp;
       // Status = OK, Poll timeout is ignored during RT, IString = 0
       TU_VERIFY(tu_memset_s(&resp, sizeof(resp), 0x00, sizeof(resp))==0);
@@ -135,7 +138,10 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     case DFU_REQUEST_GETSTATE:
     {
       TU_LOG_DRV("  DFU RT Request: GETSTATE\r\n");
-      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+      if (request->bmRequestType_bit.direction != TUSB_DIR_IN) {
+        _dfu_rt.state = APP_IDLE; // DFU 1.1 Table 3.1: GETSTATE is IN, so this is "any other request" (A.2.2)
+        return false;
+      }
       tud_control_xfer(rhport, request, &_dfu_rt.state, 1);
     }
     break;
