@@ -142,6 +142,9 @@
     :test_dfu_rt_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU_RUNTIME=1
+    :test_hid_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_HID=1
     :test_hid_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_HID=2
