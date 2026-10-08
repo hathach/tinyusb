@@ -540,15 +540,44 @@ class VerdictTest(unittest.TestCase):
         finally:
             shutil.rmtree(d)
 
-    def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
+    def test_a_define_on_an_espressif_board_reaches_tools_build_py(self):
         esp = build.family_boards('espressif')[0]
-        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
-            with self.assertRaises(SystemExit) as cm:
-                build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
-        self.assertEqual(cm.exception.code, 2)
-        self.assertIn('idf.py', err.write.call_args[0][0])
-        self.assertNotIn('instead', err.write.call_args[0][0])  # no non-equivalent replacement offered
-        run.assert_not_called()
+        with mock.patch.object(build, 'run', return_value=(0, row(esp, 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]):
+            build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index('LOG=2') - 1], '-D')
+
+    def test_a_recorded_define_in_a_nested_idf_cache_is_stale(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (Path(root) / 'd' / build.AGENT_DEFINES).write_text('["FOO"]\n')
+            (tree / 'CMakeCache.txt').write_text('FOO:UNINITIALIZED=1\n')
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
+
+    def test_an_unrecorded_define_in_a_nested_idf_cache_is_stale_past_idf_py_own(self):
+        # a direct tools/build.py -D run writes no sidecar; idf.py's own defines are not the caller's
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (tree / 'CMakeCache.txt').write_text(
+                ''.join(f'{n}:UNINITIALIZED=1\n'
+                        for n in ('CCACHE_ENABLE', 'ESP_PLATFORM', 'PYTHON', 'PYTHON_DEPS_CHECKED', 'FOO')))
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
+
+    def test_membrowse_board_is_stale_only_when_it_is_not_the_dirs_own_name(self):
+        # tools/build.py passes a named build -DMEMBROWSE_BOARD=<build name>
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            d = Path(root) / 'cmake-build' / 'cmake-build-stm32f723disco-DMA'
+            d.mkdir(parents=True)
+            for value, stale in [('stm32f723disco-DMA', {}), ('stm32f723disco', {'MEMBROWSE_BOARD': 'stm32f723disco'})]:
+                with self.subTest(value=value):
+                    (d / 'CMakeCache.txt').write_text(f'MEMBROWSE_BOARD:UNINITIALIZED={value}\n')
+                    self.assertEqual(build.stale_options('cmake-build/cmake-build-stm32f723disco-DMA', set()), stale)
 
     def test_shared_uses_the_canonical_hil_dir(self):
         with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \

@@ -64,6 +64,8 @@ DEFAULT_TOOLCHAIN = 'gcc'
 
 def find_family(board):
     bsp_dir = Path("hw/bsp")
+    if not bsp_dir.is_dir():
+        return None
     for family_dir in bsp_dir.iterdir():
         if family_dir.is_dir():
             board_dir = family_dir / 'boards' / board
@@ -84,6 +86,55 @@ def get_examples(family):
 
     all_examples.sort()
     return all_examples
+
+
+# select_examples' reasons for dropping an example
+NO_SUCH_EXAMPLE = 'no such example'
+NOT_FOR_FAMILY = 'not built for this family'
+BOARD_SKIPS = 'skipped for this board'
+
+
+def select_examples(board, examples=None, defines=(), root='.'):
+    """The examples cmake_board builds for `board` in the `root` tree, and why it drops
+    the others: (kept, {example: reason}). None means every example of the family, in
+    get_examples order; a list keeps its order and repeats, except on espressif, which
+    builds only (and in the order) what get_examples lists."""
+    old = os.getcwd()
+    os.chdir(root)  # build_utils and get_examples read examples/ and hw/bsp from the cwd
+    try:
+        family = find_family(board)
+        dropped = {}
+        if examples is None:
+            candidates = get_examples(family)
+        else:
+            candidates = []
+            for e in examples:
+                if not os.path.isdir(os.path.join('examples', e)):
+                    dropped[e] = NO_SUCH_EXAMPLE
+                else:
+                    candidates.append(e)
+            if family == 'espressif' and candidates:
+                listed = get_examples(family)
+                dropped.update((e, NOT_FOR_FAMILY) for e in candidates if e not in listed)
+                candidates = [e for e in listed if e in candidates]
+        kept = []
+        for e in candidates:
+            if build_utils.skip_example(e, board, tuple(defines)):
+                dropped[e] = BOARD_SKIPS
+            else:
+                kept.append(e)
+        return kept, dropped
+    finally:
+        os.chdir(old)
+
+
+def registered_examples(build_dir, examples):
+    """`examples` (order and repeats kept) whose target the configure of build_dir
+    created, or None when that cannot be read."""
+    registered = cmake_registered_targets(build_dir)
+    if registered is None:
+        return None
+    return [e for e in examples if e.split('/', 1)[1] in registered]
 
 
 def resolve_example_target_groups(build_targets, examples, board, extra_defines=()):
@@ -183,23 +234,21 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
     family = find_family(board)
     if family == 'espressif':
         # for espressif, we have to build example individually
-        all_examples = get_examples(family)
+        kept, dropped = select_examples(board, examples, defines)
+        skipped = [e for e, reason in dropped.items() if reason == BOARD_SKIPS]
         configured, existed = [], []
-        if examples is not None:
-            all_examples = [e for e in all_examples if e in examples]
-            if not all_examples:
-                print_build_result(board, 'examples (PR filter)', 2, '-')
-                return [0, 0, 1]
-        for example in all_examples:
+        if examples is not None and not kept and not skipped:
+            print_build_result(board, 'examples (PR filter)', 2, '-')
+            return [0, 0, 1]
+        ret[2] += len(skipped)
+        for example in kept:
             example_build_dir = f'{build_dir}/{example}'
-            if build_utils.skip_example(example, board, defines):
-                ret[2] += 1
-            elif 'all' in build_targets:
+            if 'all' in build_targets:
                 if os.path.isdir(example_build_dir):
                     existed.append(example_build_dir)
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
-                    f'-DBOARD={board}', *build_flags, 'reconfigure' if configure_only else 'build'
+                    f'-DBOARD={board}', *build_args, *build_flags, 'reconfigure' if configure_only else 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
                 configured.append(example_build_dir)
@@ -230,8 +279,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
         # the skip.txt/only.txt prefilter reads no configure output: answer it first,
         # so a selection this board builds nothing of costs no cmake run at all
         if examples is not None:
-            examples = [e for e in examples
-                        if not build_utils.skip_example(e, board, defines)]
+            examples = select_examples(board, examples, defines)[0]
             if not examples:
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
@@ -244,9 +292,8 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
         elif rcmd.returncode == 0:
             target_groups = [[t] for t in build_targets]
             if examples is not None:
-                registered = cmake_registered_targets(build_dir)
-                if registered is not None:
-                    kept = [e for e in examples if e.split('/', 1)[1] in registered]
+                kept = registered_examples(build_dir, examples)
+                if kept is not None:
                     for e in examples:
                         if e not in kept:
                             print_build_result(board, f'{e} (no such target)', 2, '-')
@@ -255,7 +302,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     print_build_result(board, 'examples (no such target)', 2, '-')
                     return [0, 0, 1]
                 target_groups = resolve_example_target_groups(build_targets, examples, board, defines)
-                if registered is None:
+                if kept is None:
                     # ground truth unavailable, so nothing checked these names against
                     # what CMake created. ninja validates a whole invocation up front:
                     # one unknown name in the batch builds NOTHING, where a target each

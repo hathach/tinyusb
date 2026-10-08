@@ -1054,17 +1054,6 @@ class BuildOutput(unittest.TestCase):
             self.assertEqual(error, 'b has no ex target' if skipped else None)
             self.assertEqual(run.call_count, 1 if skipped else 2)
 
-    def test_skip_rules_are_the_trees_own(self):
-        seen = []
-        def skip_example(example, board):
-            seen.append(os.getcwd())
-            return False
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, 'examples', 'device', 'ex'))
-            with mock.patch.object(sd.build_utils, 'skip_example', side_effect=skip_example):
-                self.assertIsNone(sd._skip_reason(tmp, 'b', 'device/ex'))
-        self.assertEqual(seen, [os.path.realpath(tmp)])
-
     def test_the_configure_is_build_pys_with_its_default_toolchain(self):
         import build
         ok = subprocess.CompletedProcess([], 0, '', '')
@@ -1172,7 +1161,7 @@ class BuildOutput(unittest.TestCase):
 
     def test_an_espressif_board_building_no_example_at_all_fails(self):
         with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch.object(sd, '_esp_examples', return_value=[]):
+             mock.patch('build.select_examples', return_value=([], {})):
             error, runs = self._build_esp(tmp, example=None)
         self.assertEqual((type(error), error, runs), (str, 'esp builds no example', []))
 

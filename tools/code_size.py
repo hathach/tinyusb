@@ -1075,16 +1075,6 @@ ESP_IDF_MISSING = (f'ESP-IDF: source $IDF_PATH/export.sh, or docker with {ESP_ID
                    f'(docker tag espressif/idf:v5.5.3 {ESP_IDF_IMAGE}, as CI does)')
 
 
-def _esp_examples(src_dir, board, example):
-    """The examples tools/build.py builds for espressif `board` (`example` alone when given):
-    those get_examples('espressif') lists that `src_dir` has, less skip_example's."""
-    import build  # tools/build.py; its import has no side effects
-    with contextlib.chdir(src_dir):  # build.py and build_utils read examples/ and hw/bsp from the cwd
-        return [e for e in build.get_examples('espressif')
-                if example in (None, e) and os.path.isdir(os.path.join('examples', e))
-                and not build_utils.skip_example(e, board)]
-
-
 def _link_hops(path):
     """The paths a symlink resolves through, its real path last."""
     hops = []
@@ -1106,10 +1096,12 @@ def esp_without_idf(boards, examples=None, base_built=False):
     """The error for espressif `boards` no exported ESP-IDF or CI's image can build, else None.
     A board builds nothing that skips each of `examples` here, unless `base_built` and one is
     absent here, which that base may have."""
-    def builds(board, example):
-        skip = _skip_reason(TINYUSB_ROOT, board, example)
-        return skip is None or base_built and isinstance(skip, Absent)
-    esp = [b for b in boards if is_espressif(b) and (not examples or any(builds(b, e) for e in examples))]
+    import build  # tools/build.py; its import has no side effects
+
+    def builds(board):
+        kept, dropped = build.select_examples(board, examples, root=TINYUSB_ROOT)
+        return bool(kept) or base_built and build.NO_SUCH_EXAMPLE in dropped.values()
+    esp = [b for b in boards if is_espressif(b) and (not examples or builds(b))]
     if esp and WINDOWS:
         return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):
@@ -1145,7 +1137,8 @@ def _idf_command(src_dir, build_dir, name):
 def _build_idf(src_dir, build_dir, board, example):
     """Build each ESP-IDF example project's app, as tools/build.py does (its bootloader is
     not sized); the first failure stops."""
-    examples = _esp_examples(src_dir, board, example)
+    import build  # tools/build.py; its import has no side effects
+    examples = build.select_examples(board, None if example is None else [example], root=src_dir)[0]
     if not examples:
         return subprocess.CompletedProcess([], 1, '', f'{board} builds no example')
     container = f'tinyusb-code-size-{os.getpid()}'
@@ -1174,19 +1167,6 @@ class Absent(Skipped):
     """An example its tree does not have: a diff's other side may, so it never makes a scope skipped."""
 
 
-def _skip_reason(src_dir, board, example):
-    """Why the `src_dir` tree builds no `example` for `board`, as tools/build.py decides
-    (Skipped, or Absent), else None."""
-    if not os.path.isdir(os.path.join(src_dir, 'examples', example)):
-        return Absent(f'{example} is not in this tree')
-    if is_espressif(board, src_dir):
-        skip = not _esp_examples(src_dir, board, example)
-    else:
-        with contextlib.chdir(src_dir):  # build_utils reads examples/ and hw/bsp from the cwd
-            skip = build_utils.skip_example(example, board)
-    return Skipped(f'{board} does not build {example}') if skip else None
-
-
 def build_board(src_dir, build_dir, board, example, label):
     """Configure and build examples for a board as a `label` progress phase, printing
     an excerpt of the output on failure. Returns None on success, Skipped when `example`
@@ -1196,26 +1176,28 @@ def build_board(src_dir, build_dir, board, example, label):
     keeping single-example workflows fast. An espressif board builds each example as
     its own ESP-IDF project.
     """
+    import build  # tools/build.py; its import has no side effects
     phase = Phase(label)
-    if example and (skip := _skip_reason(src_dir, board, example)):
-        phase.done(skipped=skip)
-        return skip
+    if example:
+        kept, dropped = build.select_examples(board, [example], root=src_dir)
+        if not kept:
+            skip = (Absent(f'{example} is not in this tree') if dropped[example] == build.NO_SUCH_EXAMPLE
+                    else Skipped(f'{board} does not build {example}'))
+            phase.done(skipped=skip)
+            return skip
     os.makedirs(build_dir, exist_ok=True)
     if is_espressif(board, src_dir):
         ret = _build_idf(src_dir, build_dir, board, example)
     else:
-        import build  # tools/build.py; its import has no side effects
         name = example and os.path.basename(example)
         # build.py always passes its default toolchain
         ret = run(build.cmake_configure_cmd(board, build_dir, [f'-DTOOLCHAIN={build.DEFAULT_TOOLCHAIN}'],
                                             os.path.join(src_dir, 'examples')))
-        if ret.returncode == 0 and name:
-            # skip.txt/only.txt only mirror the CMake family filter: the configure is the truth
-            registered = build.cmake_registered_targets(build_dir)
-            if registered is not None and name not in registered:
-                skip = Skipped(f'{board} has no {name} target')
-                phase.done(skipped=skip)
-                return skip
+        # skip.txt/only.txt only mirror the CMake family filter: the configure is the truth
+        if ret.returncode == 0 and name and build.registered_examples(build_dir, [example]) == []:
+            skip = Skipped(f'{board} has no {name} target')
+            phase.done(skipped=skip)
+            return skip
         if ret.returncode == 0:
             # ninja itself, not `cmake --build`: cmake does not pass a timeout's SIGTERM on
             ret = run(['ninja', '-C', build_dir] + ([name] if name else []), timeout=600)
