@@ -1370,14 +1370,10 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
 
   if (hcint & HCINT_HALTED) {
     if (xfer->retry_disabled) {
-      // Halt from our split-NAK throttle disable (below): re-arm the start-split, or let teardown finish
-      // if the endpoint is closing. Programming Guide 3.5 "Halting a Channel" (p73).
+      // Halt from our split-NAK throttle disable (below): re-arm the start-split.
+      // Programming Guide 3.5 "Halting a Channel" (p73).
       xfer->retry_disabled = 0;
-      if (xfer->closing) {
-        is_done = true;
-      } else {
-        channel_send_in_token(dwc2, channel, false);
-      }
+      channel_send_in_token(dwc2, channel, false);
     } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       if (edpt->hcchar_bm.ep_num != 0 && (hcint & HCINT_XFER_COMPLETE)) {
         edpt->next_pid = hctsiz.pid; // save pid (already toggled)
@@ -1465,10 +1461,6 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         channel_xfer_in_retry(dwc2, ch_id, hcint);
       }
     }
-
-    if (xfer->closing == 1) {
-      is_done = true;
-    }
   }
 
   return is_done;
@@ -1489,11 +1481,7 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       // Halt from our split-XactErr throttle disable (below): re-issue the start-split (pointers already
       // rewound), giving the hub TT a recovery gap. Programming Guide 3.5 "Halting a Channel" (p73).
       xfer->retry_disabled = 0;
-      if (xfer->closing) {
-        is_done = true;
-      } else {
-        channel_xfer_start(dwc2, ch_id, false);
-      }
+      channel_xfer_start(dwc2, ch_id, false);
     } else if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
       is_done = true;
       xfer->err_count = 0;
@@ -1560,10 +1548,6 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       channel_xfer_out_wrapup(dwc2, ch_id);
       channel_xfer_start(dwc2, ch_id, false);
     }
-
-    if (xfer->closing == 1) {
-      is_done = true;
-    }
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
     channel->hcintmsk &= ~HCINT_ACK;
@@ -1591,7 +1575,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
       channel->hcint = hcint_clear;
 
-      if (is_dma && xfer->aborting && (hcint & HCINT_HALTED)) {
+      // Retire closing/aborted DMA channels before retry handling can re-arm them (Programming Guide 3.5, p73).
+      if (is_dma && (xfer->aborting || xfer->closing) && (hcint & HCINT_HALTED)) {
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
         const bool closing = xfer->closing;
         // channel_xfer_start() predicts the PID after all requested packets;
