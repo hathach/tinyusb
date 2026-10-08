@@ -1098,10 +1098,10 @@ def esp_without_idf(boards, examples=None, base_built=False):
     absent here, which that base may have."""
     import build  # tools/build.py; its import has no side effects
 
-    def builds(board, example):
-        kept, dropped = build.select_examples(board, [example], root=TINYUSB_ROOT)
-        return bool(kept) or base_built and dropped[example] == build.NO_SUCH_EXAMPLE
-    esp = [b for b in boards if is_espressif(b) and (not examples or any(builds(b, e) for e in examples))]
+    def builds(board):
+        kept, dropped = build.select_examples(board, examples, root=TINYUSB_ROOT)
+        return bool(kept) or base_built and build.NO_SUCH_EXAMPLE in dropped.values()
+    esp = [b for b in boards if is_espressif(b) and (not examples or builds(b))]
     if esp and WINDOWS:
         return f'{", ".join(esp)} need ESP-IDF, which code_size.py does not support on Windows'
     if esp and not (shutil.which('idf.py') or _idf_image()):

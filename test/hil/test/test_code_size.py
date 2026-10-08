@@ -1054,20 +1054,6 @@ class BuildOutput(unittest.TestCase):
             self.assertEqual(error, 'b has no ex target' if skipped else None)
             self.assertEqual(run.call_count, 1 if skipped else 2)
 
-    def test_skip_rules_are_the_trees_own(self):
-        seen = []
-        import build
-        def skip_example(example, board, defines=()):
-            seen.append(os.getcwd())
-            return False
-        cwd = os.getcwd()
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, 'examples', 'device', 'ex'))
-            with mock.patch.object(sd.build_utils, 'skip_example', side_effect=skip_example):
-                self.assertEqual(build.select_examples('b', ['device/ex'], root=tmp), (['device/ex'], {}))
-        self.assertEqual(seen, [os.path.realpath(tmp)])
-        self.assertEqual(os.getcwd(), cwd)
-
     def test_the_configure_is_build_pys_with_its_default_toolchain(self):
         import build
         ok = subprocess.CompletedProcess([], 0, '', '')

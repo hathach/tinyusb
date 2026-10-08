@@ -2713,7 +2713,8 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(r, [0, 0, 1])
         self.assertEqual(calls, [])
 
-    def _no_build_dir_upload(self, board, **kw):
+    def _cmake_board_no_build_dir(self, board, build_args=(), cflags=(), targets=('examples-membrowse-upload',),
+                                  configure_only=False, **kw):
         from unittest import mock
         calls = []
 
@@ -2724,15 +2725,16 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         real_isdir = os.path.isdir
         no_build_dir = lambda p: False if str(p).startswith('cmake-build/') else real_isdir(p)
         with mock.patch.object(self.build, 'run_cmd', fake_run), \
-             mock.patch.object(self.build.os.path, 'isdir', no_build_dir):
-            r = self.build.cmake_board(board, [], kw.get('build_name'), [], ['examples-membrowse-upload'],
+             mock.patch.object(self.build.os.path, 'isdir', no_build_dir), \
+             mock.patch.object(self.build, 'configure_only', configure_only):
+            r = self.build.cmake_board(board, list(build_args), kw.get('build_name'), list(cflags), list(targets),
                                        examples=kw.get('examples'), defines=('TOOLCHAIN=gcc',))
         return r, calls
 
     def test_espressif_no_build_dir_uploads_identical_instead_of_skipping(self):
         # a no-code-change run never ran idf.py 'all' here: each example goes --identical
         # straight through membrowse_cli, with no idf.py, cmake or build dir
-        r, calls = self._no_build_dir_upload('espressif_s3_devkitc', examples=['device/cdc_msc_freertos'])
+        r, calls = self._cmake_board_no_build_dir('espressif_s3_devkitc', examples=['device/cdc_msc_freertos'])
         self.assertEqual(r, [1, 0, 0])
         self.assertEqual(len(calls), 1)
         self.assertIn('membrowse_cli.py', calls[0][1])
@@ -2767,10 +2769,19 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         self.assertEqual(self.build.select_examples('espressif_s3_devkitc', esp)[0],
                          ['device/cdc_msc_freertos', 'device/hid_composite_freertos'])
 
-    def test_select_examples_restores_the_cwd(self):
+    def test_select_examples_reads_the_root_tree_and_restores_the_cwd(self):
         from unittest import mock
+        seen = []
+
+        def skip_example(example, board, defines=()):
+            seen.append(os.getcwd())
+            return False
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, 'examples', 'device', 'x'))
+            with mock.patch.object(self.build.build_utils, 'skip_example', side_effect=skip_example):
+                self.assertEqual(self.build.select_examples('b', ['device/x'], root=tmp), (['device/x'], {}))
+            self.assertEqual(seen, [os.path.realpath(tmp)])
+            self.assertEqual(os.getcwd(), REPO)
             with mock.patch.object(self.build.build_utils, 'skip_example', side_effect=RuntimeError):
                 with self.assertRaises(RuntimeError):
                     self.build.select_examples('b', ['device/x'], root=tmp)
@@ -2783,31 +2794,11 @@ class TestBuildPyExampleFilter(unittest.TestCase):
             with mock.patch.object(self.build, 'cmake_registered_targets', return_value=registered):
                 self.assertEqual(self.build.registered_examples('d', ex), want)
 
-    def test_a_nonexistent_example_is_dropped_before_configure(self):
-        from unittest import mock
-        calls = []
-        out = io.StringIO()
-        with mock.patch.object(self.build, 'run_cmd', calls.append), contextlib.redirect_stdout(out):
-            r = self.build.cmake_board('stm32f407disco', [], None, [], ['all'], examples=['nonexistent/example'])
-        self.assertEqual(r, [0, 0, 1])
-        self.assertEqual(calls, [])
-        self.assertIn('examples (PR filter)', out.getvalue())
-
     def test_espressif_passes_the_build_defines_to_idf_py(self):
-        from unittest import mock
-        real_isdir = os.path.isdir
-        no_build_dir = lambda p: False if str(p).startswith('cmake-build/') else real_isdir(p)
         for configure_only, action in ((False, 'build'), (True, 'reconfigure')):
-            calls = []
-
-            def fake_run(cmd):
-                calls.append(cmd)
-                return types.SimpleNamespace(returncode=0)
-            with mock.patch.object(self.build, 'run_cmd', fake_run), \
-                 mock.patch.object(self.build.os.path, 'isdir', no_build_dir), \
-                 mock.patch.object(self.build, 'configure_only', configure_only):
-                r = self.build.cmake_board('espressif_s3_devkitc', ['-DTOOLCHAIN=gcc', '-DLOG=2'], 'v',
-                                           ['-DX=1'], ['all'], examples=['device/cdc_msc_freertos'])
+            r, calls = self._cmake_board_no_build_dir('espressif_s3_devkitc', ['-DTOOLCHAIN=gcc', '-DLOG=2'],
+                                                      ['-DX=1'], ['all'], configure_only, build_name='v',
+                                                      examples=['device/cdc_msc_freertos'])
             self.assertEqual(r, [1, 0, 0])
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0][calls[0].index('-GNinja') + 1:],
@@ -2871,14 +2862,14 @@ class TestBuildPyExampleFilter(unittest.TestCase):
         # the membrowse-identical job has no toolchain: no cmake configure, and exactly the
         # targets family_add_membrowse would register (TestMembrowseTargetMirror checks that)
         import build_utils
-        r, calls = self._no_build_dir_upload('stm32f407disco')
+        r, calls = self._cmake_board_no_build_dir('stm32f407disco')
         expected = [e for e in self.build.get_examples('stm32f4')
                     if not build_utils.skip_example(e, 'stm32f407disco', ('TOOLCHAIN=gcc',))]
         self.assertEqual(r, [len(expected), 0, 0])
         self.assertFalse([c for c in calls if 'cmake' in c[0]])
         self.assertEqual([c[c.index('--target-name') + 1] for c in calls],
                          ['stm32f407disco/' + e.split('/', 1)[1] for e in expected])
-        _, calls = self._no_build_dir_upload('raspberry_pi_pico', build_name='raspberry_pi_pico-X',
+        _, calls = self._cmake_board_no_build_dir('raspberry_pi_pico', build_name='raspberry_pi_pico-X',
                                              examples=['device/cdc_msc'])
         self.assertEqual([c[c.index('--target-name') + 1] for c in calls], ['raspberry_pi_pico-X/cdc_msc'])
 
@@ -2961,17 +2952,17 @@ class TestBuildPyExampleFilter(unittest.TestCase):
 
     def test_pr_filter_answers_before_configuring(self):
         # nothing the -e list names is buildable here: the skip.txt mirror needs no
-        # configure output, so the whole cmake run must be skipped, not just its build
-        calls = []
-        real_run_cmd = self.build.run_cmd
-        self.build.run_cmd = lambda cmd: calls.append(cmd)
-        try:
-            r = self.build.cmake_board('stm32f407disco', [], None, [], ['all'],
-                                       examples=['typec/power_delivery'])
-        finally:
-            self.build.run_cmd = real_run_cmd
-        self.assertEqual(r, [0, 0, 1])
-        self.assertEqual(calls, [])
+        # configure output, so the whole cmake run must be skipped, not just its build;
+        # an example with no dir is dropped there too
+        from unittest import mock
+        for example in ('typec/power_delivery', 'nonexistent/example'):
+            calls = []
+            out = io.StringIO()
+            with mock.patch.object(self.build, 'run_cmd', calls.append), contextlib.redirect_stdout(out):
+                r = self.build.cmake_board('stm32f407disco', [], None, [], ['all'], examples=[example])
+            self.assertEqual(r, [0, 0, 1])
+            self.assertEqual(calls, [])
+            self.assertIn('examples (PR filter)', out.getvalue())
 
     def _cmake_board_with_targets(self, registered, examples):
         """cmake_board with the configure/build stubbed and CMake's registered-target

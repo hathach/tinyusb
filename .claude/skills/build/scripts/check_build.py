@@ -628,8 +628,7 @@ def stale_options(build_dir, supplied):
     An option this run does set is no risk: its -D overwrites the cached value.
     Espressif builds one idf tree per example under the dir, each with a cache full of
     idf.py's own untyped defines, so the UNINITIALIZED fallback reads the root cache only;
-    there the record covers every tree. Earlier tools/build.py runs did not forward a -D
-    to idf.py, but a tree idf.py configured directly may hold one."""
+    there the record covers every tree."""
     out = {}
     root = ROOT / build_dir
     recorded = recorded_options(build_dir)
