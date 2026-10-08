@@ -991,10 +991,21 @@ class BuildOutput(unittest.TestCase):
     def test_trailing_blank_lines_are_not_shown(self):
         self.assertEqual(self.excerpt('', 'CMake Error: x\n\n\n'), ['CMake Error: x'])
 
+    @staticmethod
+    @contextlib.contextmanager
+    def _cmake_tree(tmp, skip=False, registered=('ex',)):
+        """`tmp` a tree with examples/device/ex, which skip.txt/only.txt `skip` and whose
+        configure creates the `registered` targets."""
+        import build
+        os.makedirs(os.path.join(tmp, 'examples', 'device', 'ex'), exist_ok=True)
+        with mock.patch.object(sd.build_utils, 'skip_example', return_value=skip), \
+             mock.patch.object(build, 'cmake_registered_targets', return_value=registered and set(registered)):
+            yield
+
     def test_a_failed_build_prints_its_phase_and_output_and_returns_the_error(self):
         failed = subprocess.CompletedProcess([], 1, 'FAILED: bad.c.obj\nbad.c:1: error: x undeclared\n', '')
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp), \
              mock.patch.object(sd, 'run', side_effect=[ok, failed]), \
              contextlib.redirect_stdout(io.StringIO()) as out:
             error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build master')
@@ -1010,11 +1021,61 @@ class BuildOutput(unittest.TestCase):
 
     def test_the_build_step_runs_ninja_for_the_example_with_a_timeout(self):
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp), \
              mock.patch.object(sd, 'run', return_value=ok) as run, \
              contextlib.redirect_stdout(io.StringIO()):
             sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
         self.assertEqual(run.call_args, mock.call(['ninja', '-C', os.path.join(tmp, 'b'), 'ex'], timeout=600))
+
+    def test_an_example_the_board_skips_is_skipped_before_any_configure(self):
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp, skip=True), \
+             mock.patch.object(sd, 'run') as run, contextlib.redirect_stdout(io.StringIO()) as out:
+            error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+        self.assertIsInstance(error, sd.Skipped)
+        self.assertEqual(error, 'b does not build device/ex')
+        self.assertEqual(out.getvalue(), '  build… skipped: b does not build device/ex\n')
+        run.assert_not_called()
+
+    def test_an_example_absent_from_the_tree_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'run') as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+        self.assertEqual((type(error), error), (sd.Absent, 'device/ex is not in this tree'))
+        run.assert_not_called()
+
+    def test_an_example_the_configure_does_not_register_is_skipped_without_ninja(self):
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        for registered, skipped in ((('other',), True), (None, False)):
+            with self.subTest(registered=registered), tempfile.TemporaryDirectory() as tmp, \
+                 self._cmake_tree(tmp, registered=registered), \
+                 mock.patch.object(sd, 'run', return_value=ok) as run, contextlib.redirect_stdout(io.StringIO()):
+                error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+            # None: the target list is unreadable, so ninja decides
+            self.assertEqual(error, 'b has no ex target' if skipped else None)
+            self.assertEqual(run.call_count, 1 if skipped else 2)
+
+    def test_skip_rules_are_the_trees_own(self):
+        seen = []
+        def skip_example(example, board):
+            seen.append(os.getcwd())
+            return False
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'examples', 'device', 'ex'))
+            with mock.patch.object(sd.build_utils, 'skip_example', side_effect=skip_example):
+                self.assertIsNone(sd._skip_reason(tmp, 'b', 'device/ex'))
+        self.assertEqual(seen, [os.path.realpath(tmp)])
+
+    def test_the_configure_is_build_pys_with_its_default_toolchain(self):
+        import build
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'run', return_value=ok) as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            build_dir = os.path.join(tmp, 'b')
+            sd.build_board(tmp, build_dir, 'b', None, 'build')
+        self.assertEqual(run.call_args_list[0],
+                         mock.call(build.cmake_configure_cmd('b', build_dir, ['-DTOOLCHAIN=gcc'],
+                                                             os.path.join(tmp, 'examples'))))
 
     def _esp_src(self, tmp):
         """A checkout with one espressif board, one example and a dependency linked in two
@@ -1023,6 +1084,7 @@ class BuildOutput(unittest.TestCase):
         os.makedirs(os.path.join(src, 'hw', 'bsp', 'espressif', 'boards', 'esp'))
         # an ESP-IDF component, which get_examples('espressif') requires
         _touch(src, 'examples/device/a_freertos/src/CMakeLists.txt')
+        _touch(src, 'examples/device/no_idf/CMakeLists.txt')
         os.makedirs(os.path.join(src, 'tools'))
         os.makedirs(os.path.join(src, 'lib'))
         os.makedirs(os.path.join(tmp, 'main', 'lib', 'dep'))
@@ -1100,12 +1162,19 @@ class BuildOutput(unittest.TestCase):
             run.assert_not_called()
             self.assertIn('espressif_s3_devkitm need ESP-IDF: source $IDF_PATH/export.sh', err.getvalue())
 
-    def test_an_example_the_tree_does_not_build_for_espressif_fails_the_build(self):
-        # device/board_test: an espressif example absent from this tree
-        for example in ('device/cdc_msc', 'device/board_test'):
+    def test_an_example_the_tree_does_not_build_for_espressif_is_skipped(self):
+        # device/no_idf has no ESP-IDF component; device/board_test is absent from this tree
+        for example, kind, why in (('device/no_idf', sd.Skipped, 'esp does not build device/no_idf'),
+                                   ('device/board_test', sd.Absent, 'device/board_test is not in this tree')):
             with tempfile.TemporaryDirectory() as tmp:
                 error, runs = self._build_esp(tmp, example=example)
-            self.assertEqual((error, runs), (f'esp builds no {example}', []))
+            self.assertEqual((type(error), error, runs), (kind, why, []))
+
+    def test_an_espressif_board_building_no_example_at_all_fails(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, '_esp_examples', return_value=[]):
+            error, runs = self._build_esp(tmp, example=None)
+        self.assertEqual((type(error), error, runs), (str, 'esp builds no example', []))
 
     @no_esp_on_windows
     def test_a_timed_out_or_interrupted_docker_build_removes_its_container(self):
@@ -1382,6 +1451,14 @@ class WindowsHost(unittest.TestCase):
         self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
                          r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
         self.assertIsNone(sd.esp_without_idf(['stm32f407disco']))
+        # an espressif board that skips every example asked for builds nothing
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc', 'device/cdc_msc_freertos']),
+                         'espressif_s3_devkitm need ESP-IDF')
+        # an example absent here needs ESP-IDF only for a base built locally, which may have it
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone'], base_built=True),
+                         'espressif_s3_devkitm need ESP-IDF')
 
     def test_a_timeout_kills_the_command_tree(self):
         with mock.patch('subprocess.run') as taskkill:
@@ -1429,8 +1506,10 @@ class WindowsHost(unittest.TestCase):
             self.assertEqual(sd._shown('C:/x/report.md'), 'C:/x/report.md')
 
 
-# main() tests stub the builds and sizing, so need no engine tool
+# main() tests stub the builds and sizing, so need no engine tool, and use made-up boards and examples
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class MainFailure(unittest.TestCase):
     def _run_main(self, tmp, argv, build_board, generate=None, run=None):
         """main() with the build, sizing and command steps stubbed. `build_board`
@@ -1748,6 +1827,60 @@ class MainFailure(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn('2 of 2 matched elf pairs compared, 0 changed', md)
 
+    def _main_skip(self, tmp, argv, skip, absent=()):
+        """main() for board `b` with `argv` added; `skip` {(side, example)} build as
+        Skipped, `absent` ones as Absent, the rest size one elf of their example.
+        Returns (rc, out, sized sides)."""
+        sized = []
+        def build(src, _build_dir, board, example, _label):
+            # as the real one: a skip returns before making the board's build dir
+            side = 'current' if src == sd.TINYUSB_ROOT else 'base'
+            if (side, example) in absent:
+                return sd.Absent(f'{example} is not in this tree')
+            if (side, example) in skip:
+                return sd.Skipped(f'{board} does not build {example}')
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return None
+        def generate(build_dir, _filters, example, _engine):
+            sized.append((os.path.basename(build_dir), example))
+            return {f'{example}/x.elf': _elf(1)}, []
+        rc, out = self._run_main(tmp, ['-b', 'b'] + argv, build, generate)
+        return rc, out, sized
+
+    def test_an_example_skipped_on_both_sides_writes_no_report_and_fails_nothing(self):
+        skip = {('base', 'device/skip'), ('current', 'device/skip')}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/skip', '-e', 'device/a'], skip)
+            self.assertEqual(rc, 0)
+            self.assertEqual(sized, [('base', 'device/a'), ('build', 'device/a')])
+            self.assertEqual(sorted(os.listdir(os.path.join(tmp, 'b'))), ['diff_device_a.md'])
+            self.assertEqual(out.count('size and compare'), 1)
+
+    def test_an_example_skipped_on_one_side_is_one_sided(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/new'], {('base', 'device/new')})
+            self.assertEqual(rc, 1)
+            self.assertEqual(sized, [('build', 'device/new')])
+            self.assertIn('current-only: b: device/new/x.elf', out)
+
+    def test_an_example_absent_from_one_side_is_never_a_skip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/gone', '--combined'], {('base', 'device/gone')},
+                                             absent={('current', 'device/gone')})
+            self.assertEqual((rc, sized), (1, []))
+            self.assertIn('INCOMPLETE: 0 pairs', out)
+            self.assertTrue(os.path.exists(os.path.join(tmp, 'b', 'diff_device_gone.md')))
+            self.assertNotIn('all scopes skipped', out)
+
+    def test_combined_of_only_skipped_scopes_is_not_written(self):
+        skip = {('base', 'device/skip'), ('current', 'device/skip')}
+        with tempfile.TemporaryDirectory() as tmp:
+            self._seed_combined_report(tmp)
+            rc, out, _sized = self._main_skip(tmp, ['-e', 'device/skip', '--combined'], skip)
+            self.assertEqual(rc, 0)
+            self.assertIn('combined: all scopes skipped\n', out)
+            self.assertFalse(os.path.exists(os.path.join(tmp, '_combined')))
+
     def test_combined_replaces_the_previous_report_when_no_board_builds(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._seed_combined_report(tmp)
@@ -1933,12 +2066,16 @@ class MainFailure(unittest.TestCase):
 
 
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class MainReport(unittest.TestCase):
-    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True):
+    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True, skip=()):
         """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
-        `build_ok(example)` is each build's result, `sizes` what generate_sizes()
-        returns. Returns (rc, build mock, generate mock)."""
+        `build_ok(example)` is each build's result, the `skip` examples skipped, `sizes`
+        what generate_sizes() returns. Returns (rc, build mock, generate mock)."""
         def build_board(_src, _build_dir, board, example, _label):
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             return None if build_ok(example) else 'boom'
         build = mock.Mock(side_effect=build_board)
@@ -1982,6 +2119,19 @@ class MainReport(unittest.TestCase):
             self.assertRegex(self.out, r'^report working tree · bloaty\n\[1/1\] b / device/cdc_msc\n'
                                        r'  size… \d+\.\ds\n  1 of 1 elfs sized; TinyUSB Flash 4, RAM 0\n')
             self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
+
+    def test_a_skipped_example_writes_no_report_and_fails_nothing(self):
+        skip = ('device/skip',)
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _build, generate = self._run(tmp, ['-e', 'device/skip', '-e', 'device/cdc_msc'],
+                                             ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []), skip=skip)
+            self.assertEqual(rc, 0)
+            self.assertEqual(generate.call_args.args[2], 'device/cdc_msc')
+            self.assertEqual(generate.call_count, 1)
+            self.assertEqual(sorted(os.listdir(os.path.join(tmp, 'b'))), ['report_device_cdc_msc.md'])
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _build, generate = self._run(tmp, ['-e', 'device/skip'], ({}, []), skip=skip)
+            self.assertEqual((rc, generate.call_count, os.path.exists(os.path.join(tmp, 'b'))), (0, 0, False))
 
     def test_an_examples_trailing_slash_is_dropped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2101,6 +2251,7 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
 
 
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
 class CiBoardSet(unittest.TestCase):
     def _boards_built(self, tmp, pinned_json):
         """Boards main() builds for `--ci -b extra -b b1 -b extra`, with `pinned_json` as the pinned file."""
@@ -2904,6 +3055,39 @@ class MetadataWarnings(unittest.TestCase):
                          ['b1: membrowse version unknown on the current side: comparability cannot be established'])
 
 
+@mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+class BoardAndExampleNames(unittest.TestCase):
+    def _refused(self, argv):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sys, 'argv', ['code_size.py'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), mock.patch.object(sd, 'build_board') as build, \
+             contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit) as exit_:
+            sd.main()
+        build.assert_not_called()
+        self.assertEqual(exit_.exception.code, 2)
+        return err.getvalue()
+
+    def test_an_unknown_board_is_refused_not_skipped(self):
+        for command in ('report', 'diff'):
+            self.assertIn('error: unknown board: nosuch', self._refused([command, '-b', 'nosuch']))
+
+    def test_an_example_in_neither_tree_is_refused_not_skipped(self):
+        self.assertIn('error: no such example: device/typo',
+                      self._refused(['report', '-b', 'stm32f407disco', '-e', 'device/typo']))
+        self.assertIn('error: no such example here or in HEAD: device/typo',
+                      self._refused(['diff', '-b', 'stm32f407disco', '-e', 'device/typo', '--base-branch', 'HEAD']))
+
+    def test_an_example_only_in_the_base_commit_is_accepted(self):
+        def run(cmd):
+            return subprocess.CompletedProcess(cmd, 0 if cmd[-1] == 'b' * 40 + ':examples/device/gone' else 128, '', '')
+        with mock.patch.object(sd, 'run', side_effect=run):
+            self.assertEqual(sd.missing_examples(['device/gone', 'device/typo'], 'b' * 40), ['device/typo'])
+        self.assertEqual(sd.missing_examples(['device/cdc_msc']), [])
+        # a role dir exists but names no example: build.py's -e check refuses it too
+        self.assertEqual(sd.missing_examples(['device', 'device/cdc_msc/src']), ['device', 'device/cdc_msc/src'])
+
+
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class DiffBaseSource(unittest.TestCase):
     """main()'s diff with the base from CI snapshots, from a local build, or the fallback."""
     GCC = MetadataWarnings.GCC
@@ -2914,7 +3098,7 @@ class DiffBaseSource(unittest.TestCase):
                 'compiler': self.GCC, 'membrowse_version': '1.2.9'}
 
     def diff(self, tmp, argv, unavailable=None, cur=None, base_shards=None, compiler=None, extra=None,
-             note=None, subject="ci: base's commit (#1)"):
+             note=None, subject="ci: base's commit (#1)", skip=()):
         """main()'s diff of `-b b1 --json` + `argv`: ci_baseline() returns `base_shards` (plus
         `extra` files) as run 7 of 'b'*40, approximate with `note`, or raises `unavailable`; git
         knows the base commit as `subject`, not at all when None; the current side sizes as
@@ -2934,9 +3118,12 @@ class DiffBaseSource(unittest.TestCase):
             info = {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': note is None, 'run_id': 7}
             return root, {**info, 'note': note} if note else info
 
-        def build(src, _build_dir, board, *_a):
+        def build(src, _build_dir, board, example, _label):
             builds.append((src, board))
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return None
 
         def run(cmd, **_kwargs):
             cmds.append(cmd[3:5])
@@ -2987,6 +3174,26 @@ class DiffBaseSource(unittest.TestCase):
                                                               'exact': True, 'run_id': 7}})
         self.assertIsNone(r.data['filters']['base'])
         self.assertEqual(r.data['warnings'], [])
+
+    def test_an_example_skipped_here_that_the_baseline_built_nothing_of_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['-e', 'device/skip'], skip=('device/skip',),
+                          compiler={'id': '', 'version': '', 'name': '', 'build_type': ''})
+        self.assertEqual((r.rc, r.md), (0, None))
+        self.assertNotIn('size and compare', r.out)
+        self.assertNotIn('WARNING', r.out)  # no build, no compiler to compare
+
+    def test_a_skip_the_baseline_cannot_confirm_stays_incomplete(self):
+        skip_elf = {'device/skip/skip.elf': _elf(1)}
+        failure = [{'elf': 'device/skip/skip.elf', 'stage': 'report', 'message': 'membrowse failed'}]
+        for name, shards in (('the leg selected other examples', [self.base(examples=['device/a'])]),
+                             ('its measurement failed', [self.base(failures=failure)]),
+                             ('it built the example', [self.base(elfs=skip_elf)]),
+                             ('no baseline of the board', [_shard('b2', {}, sha='b')])):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                r = self.diff(tmp, ['-e', 'device/skip'], base_shards=shards, skip=('device/skip',))
+                self.assertEqual(r.rc, 1)
+                self.assertEqual(r.data['status'], 'INCOMPLETE')
 
     def test_an_ancestor_base_says_how_far_back_it_is(self):
         note = '2 master commits before this build\'s base c0ffee: their changes count as yours'

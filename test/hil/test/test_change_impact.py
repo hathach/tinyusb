@@ -2765,6 +2765,20 @@ class TestBuildPyExampleFilter(unittest.TestCase):
             self.build.cmake_board('stm32f407disco', [], None, [], ['examples-membrowse-upload'], defines=())
         self.assertEqual(calls[-1][-5:], ['--target', 'examples-membrowse-upload', '--', '-k', '0'])
 
+    def test_the_configure_passes_defines_then_variant_flags(self):
+        from unittest import mock
+        calls = []
+
+        def fake_run(cmd):
+            calls.append(cmd)
+            return types.SimpleNamespace(returncode=1)
+        with mock.patch.object(self.build, 'run_cmd', fake_run), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.build.cmake_board('stm32f407disco', ['-DTOOLCHAIN=gcc'], 'v', ['-DX=1'], ['all'])
+        self.assertEqual(calls, [['cmake', 'examples', '-B', 'cmake-build/cmake-build-v', '-GNinja',
+                                  '-DBOARD=stm32f407disco', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DTOOLCHAIN=gcc',
+                                  '-DCFLAGS_CLI=-DX=1', '-DMEMBROWSE_BOARD=v']])
+
     def test_expect_built_names_the_built_examples_for_membrowse_cli(self):
         from unittest import mock
         argv = ['build.py', '-b', 'stm32f407disco', '-T', 'examples-membrowse-upload', '--expect-built']

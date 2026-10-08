@@ -29,7 +29,7 @@ Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 
 ## Results
 
-Reports go under `cmake-code-size/<board>/`, combined diffs under `cmake-code-size/_combined/`. A local command exits nonzero on a build or report failure or when no TinyUSB file matched; `report` also when it sized no elf, `diff` when it compared no pair. A failed build prints an excerpt on the console; its report records the first compiler, linker or CMake error.
+Reports go under `cmake-code-size/<board>/`, combined diffs under `cmake-code-size/_combined/`. A local command exits nonzero on a build or report failure or when no TinyUSB file matched; `report` also when it sized no elf, `diff` when it compared no pair. An `-e` example the board does not build, as `tools/build.py` decides (`skip.txt`/`only.txt`, an ESP-IDF example without a component, no such target after configure), is skipped: no report and no failure, so a run of only skipped scopes exits 0; in a diff, only when each side has the example and skips it, and against a CI base only when the base's build leg selected the example; otherwise it is one-sided or INCOMPLETE as usual. An unknown board, or an example in neither tree, is refused. A failed build prints an excerpt on the console; its report records the first compiler, linker or CMake error.
 
 Approximate times: one diff example ~30 s, one board ~1-1.5 min, an espressif board 10+ min, `--ci` 30+ min. A report is about half a diff. A diff rebuilds every tree it builds on each run, so ask for `--symbols` or `--bloaty` in the same run. Run a long sweep in the background.
 
