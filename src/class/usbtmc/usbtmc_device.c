@@ -413,7 +413,6 @@ static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len) {
 }
 
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen) {
-  (void) rhport;
   // return true upon failure, as we can assume error is being handled elsewhere.
   TU_VERIFY(usbtmc_state.state == STATE_RCV, true);
 
@@ -424,6 +423,19 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
   if (len >= usbtmc_state.transfer_size_remaining || shortPacket) {
     atEnd = true;
     TU_VERIFY(atomicChangeState(STATE_RCV, STATE_NAK));
+  }
+
+  // More than the expected message data bytes and alignment bytes (USBTMC 1.0 Table 7 index 6): "The
+  // device must Halt the Bulk-OUT endpoint. The device must forward the expected number of USBTMC message
+  // data bytes to the Function Layer". Alignment pads each transaction to a multiple of 4 bytes (section
+  // 3.2 rule 2), and the data starts on a multiple of 4 in every packet, after the 12-byte header in the
+  // first, so up to 3 bytes past the data are alignment and anything more is excess. The Halt comes
+  // first, so the application cannot arm bulk-OUT again from its callback before it.
+  if (len > usbtmc_state.transfer_size_remaining) {
+    uint32_t const alignment = (4u - (usbtmc_state.transfer_size_remaining & 3u)) & 3u;
+    if ((len - usbtmc_state.transfer_size_remaining) > alignment) {
+      usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+    }
   }
 
   len = tu_min32(len, usbtmc_state.transfer_size_remaining);
