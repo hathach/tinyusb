@@ -584,6 +584,8 @@ def configured(board, family, examples, defines, build_dir, elfs, fresh):
 
 STICKY_OPTIONS = ('LOG', 'LOGGER', 'CFLAGS_CLI')   # family_support.cmake reads these with if(DEFINED)
 BUILD_PY_OPTIONS = ('BOARD', 'CMAKE_BUILD_TYPE', 'TOOLCHAIN')
+# what idf.py's ensure_build_directory() passes cmake on its own (ESP-IDF v5.5 tools/idf_py_actions/tools.py)
+IDF_PY_OPTIONS = ('CCACHE_ENABLE', 'ESP_PLATFORM', 'PYTHON', 'PYTHON_DEPS_CHECKED')
 CACHE_ENTRY = re.compile(r'^([A-Za-z_]\w*):([A-Z]+)=(.*)$')
 AGENT_DEFINES = '.agent-defines'
 
@@ -621,20 +623,22 @@ def stale_options(build_dir, supplied):
     left to say a command line gave it. The entry type is the fallback for a dir configured
     before the sidecar existed: a -D no cmake code declares keeps UNINITIALIZED, the type
     only a command line gives, and BUILD_PY_OPTIONS, which tools/build.py passes on
-    every configure, are this run's own. A recorded name the cache no longer carries is
+    every configure, are this run's own, as is the MEMBROWSE_BOARD it passes a named
+    build: the dir's own name. A recorded name the cache no longer carries is
     no risk either - nothing holds its value. An empty value is an option too: -DLOG=
     leaves a cache entry, if(DEFINED LOG) is true for it, and the build compiles with
     CFG_TUSB_DEBUG=.
     An option this run does set is no risk: its -D overwrites the cached value.
-    Espressif builds one idf tree per example under the dir, each with a cache full of
-    idf.py's own untyped defines, so the UNINITIALIZED fallback reads the root cache only;
-    there the record covers every tree."""
+    Espressif builds one idf tree per example under the dir, whose cache also holds
+    IDF_PY_OPTIONS, idf.py's own untyped defines; past those, the fallback reads each
+    tree too, since a direct tools/build.py -D run leaves a tree no record speaks for."""
     out = {}
     root = ROOT / build_dir
     recorded = recorded_options(build_dir)
-    caches = [(root / 'CMakeCache.txt', True)] + \
-        [(c, False) for c in sorted(root.glob('*/*/CMakeCache.txt'))]
-    for cache, from_build_py in caches:
+    caches = [(root / 'CMakeCache.txt', ())] + \
+        [(c, IDF_PY_OPTIONS) for c in sorted(root.glob('*/*/CMakeCache.txt'))]
+    own_name = Path(build_dir).name.removeprefix('cmake-build-')
+    for cache, tool_options in caches:
         try:
             text = cache.read_text(encoding='utf-8', errors='replace')
         except OSError:
@@ -644,9 +648,10 @@ def stale_options(build_dir, supplied):
             if not m:
                 continue
             name, kind, value = m.groups()
-            if name in supplied or name in BUILD_PY_OPTIONS:
+            if name in supplied or name in BUILD_PY_OPTIONS or name in tool_options or \
+                    (name == 'MEMBROWSE_BOARD' and value == own_name):
                 continue
-            if name in recorded or name in STICKY_OPTIONS or (from_build_py and kind == 'UNINITIALIZED'):
+            if name in recorded or name in STICKY_OPTIONS or kind == 'UNINITIALIZED':
                 out[name] = value
     return out
 
