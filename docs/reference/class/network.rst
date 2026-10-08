@@ -110,8 +110,9 @@ interface.
      - Copies the complete frame into TinyUSB's destination and returns its
        actual byte length.
    * - ``tud_network_init_cb()``
-     - Optional.  ECM/RNDIS call it when the data interface becomes active, to
-       reset network state; NCM does not call it.
+     - Optional.  ECM/RNDIS call it once per configuration, when the data
+       endpoints open (RNDIS on SET_CONFIGURATION, ECM on the first alternate
+       setting 1), to reset network state; NCM does not call it.
    * - ``tud_network_set_packet_filter_cb()``
      - Reports ECM and NCM host filter bits so the application can adjust
        multicast or promiscuous delivery.

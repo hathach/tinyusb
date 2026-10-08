@@ -75,7 +75,8 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg);
 
 //------------- ECM/RNDIS -------------//
 
-// Optional: invoked when the data interface becomes active, to reset network state
+// Optional: invoked once per configuration when the data endpoints open (RNDIS: on
+// SET_CONFIGURATION, ECM: first SET_INTERFACE alt 1), to reset network state
 void tud_network_init_cb(void);
 
 // client must provide this: 48-bit MAC address
