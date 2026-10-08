@@ -557,6 +557,28 @@ class VerdictTest(unittest.TestCase):
             (tree / 'CMakeCache.txt').write_text('FOO:UNINITIALIZED=1\n')
             self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
 
+    def test_an_unrecorded_define_in_a_nested_idf_cache_is_stale_past_idf_py_own(self):
+        # a direct tools/build.py -D run writes no sidecar; idf.py's own defines are not the caller's
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (tree / 'CMakeCache.txt').write_text(
+                ''.join(f'{n}:UNINITIALIZED=1\n'
+                        for n in ('CCACHE_ENABLE', 'ESP_PLATFORM', 'PYTHON', 'PYTHON_DEPS_CHECKED', 'FOO')))
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
+
+    def test_membrowse_board_is_stale_only_when_it_is_not_the_dirs_own_name(self):
+        # tools/build.py passes a named build -DMEMBROWSE_BOARD=<build name>
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            d = Path(root) / 'cmake-build' / 'cmake-build-stm32f723disco-DMA'
+            d.mkdir(parents=True)
+            for value, stale in [('stm32f723disco-DMA', {}), ('stm32f723disco', {'MEMBROWSE_BOARD': 'stm32f723disco'})]:
+                with self.subTest(value=value):
+                    (d / 'CMakeCache.txt').write_text(f'MEMBROWSE_BOARD:UNINITIALIZED={value}\n')
+                    self.assertEqual(build.stale_options('cmake-build/cmake-build-stm32f723disco-DMA', set()), stale)
+
     def test_shared_uses_the_canonical_hil_dir(self):
         with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
              mock.patch.object(build, 'missing_deps', return_value=[]):
