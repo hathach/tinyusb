@@ -72,7 +72,7 @@ enum {
 
   // Mask of all END event (IN & OUT) for all endpoints. ENDEPIN0-7, ENDEPOUT0-7, ENDISOIN, ENDISOOUT
   EDPT_END_ALL_MASK = (0xff << USBD_INTEN_ENDEPIN0_Pos) | (0xff << USBD_INTEN_ENDEPOUT0_Pos) |
-                      USBD_INTENCLR_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
+                      USBD_INTEN_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
 };
 
 enum {
@@ -91,8 +91,8 @@ typedef struct {
   volatile bool data_received;
   volatile bool started;
 
-  // Bumped at every arm and retire (stall, SETUP), wrapping at 256: an ENDEPOUT carrying another
-  // id belongs to a retired transfer, whatever the td holds by then.
+  // Bumped at every arm and retire (stall, SETUP), wrapping at 256: an END carrying another id belongs
+  // to a retired transfer, whatever the td holds by then; a cleared td (!started) drops it too.
   volatile uint8_t xferid;
   uint8_t dma_xferid;
 
@@ -113,8 +113,8 @@ static struct {
   uint32_t dma_pending;
 
   // nRF can only carry one DMA at a time; owned by the USBD ISR
-  bool dma_running;
-  bool dma_discard; // the running DMA's transfer was torn down: its END only releases the channel
+  volatile bool dma_running; // polled by dcd_edpt_close_all(), released by the VBUS-removed handler
+  bool dma_pre_reset; // the running DMA predates the last bus reset, which may have aborted it without END
   uint8_t dma_rr; // bit position of the last bulk/interrupt request started, for round-robin
 
   // Track whether sof has been manually enabled
@@ -223,16 +223,14 @@ static void dma_dispatch_isr(void) {
   }
 }
 
-// DMA is complete, dma_dispatch_isr() starts the next one. Returns whether its transfer was torn down.
-static bool dma_release(void) {
+// DMA is complete, dma_dispatch_isr() starts the next one
+static void dma_release(void) {
   // Clear the ERRATA-199 "DMA in progress" latch set in dma_trigger_isr().
   if (nrf52_errata_199()) {
     NRF_USBD_ERRATA_199_REG = 0x00000000UL;
   }
   _dcd.dma_running = false;
-  bool const discard = _dcd.dma_discard;
-  _dcd.dma_discard = false;
-  return discard;
+  _dcd.dma_pre_reset = false;
 }
 
 // Whether the running DMA's END is latched, consuming it if asked. Only one DMA runs and the ISR consumes
@@ -288,6 +286,7 @@ static void dma_start_in_isr(uint8_t epnum) {
   // Each transaction is up to Max Packet Size
   uint16_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
 
+  xfer->dma_xferid = xfer->xferid;
   NRF_USBD->EPIN[epnum].PTR = (uint32_t) xfer->buffer;
   NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
 
@@ -425,11 +424,9 @@ void dcd_edpt_close_all(uint8_t rhport) {
   usbd_spin_lock(false);
   _dcd.dma_pending &= DMA_REQ_EP0;
 
-  // A running DMA keeps the channel until its END, which stays enabled and only releases it: its transfer
-  // goes now, an EP0 one included (handle_setup_isr() retired EP0 for this SET_CONFIGURATION). Wait for
-  // that END before the stack reuses the buffers (PS 6.35.8), unless a bus reset already took it over.
-  while (_dcd.dma_running && !_dcd.dma_discard && !dma_end_latched(false) && !NRF_USBD->EVENTS_USBRESET) {}
-  _dcd.dma_discard = _dcd.dma_running;
+  // A running DMA keeps the channel until its END: wait for it before the stack reuses the buffers (PS 6.35.8),
+  // unless it predates a bus reset, which may have aborted it without END (the task would never return)
+  while (_dcd.dma_running && !_dcd.dma_pre_reset && !dma_end_latched(false) && !NRF_USBD->EVENTS_USBRESET) {}
 
   // disable all non-control (bulk + interrupt) endpoints
   for (uint8_t ep = 1; ep < EP_CBI_COUNT; ep++) {
@@ -653,12 +650,12 @@ static void bus_reset_isr(void) {
   NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |
                        USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | EDPT_END_ALL_MASK;
 
-  // A DMA still running keeps the channel until its END, which only releases it. Whether USBRESET aborts
-  // a DMA without END is undocumented (PS 6.35.6); if so the channel stays owned.
+  // A DMA still running keeps the channel until its END. Whether USBRESET aborts a DMA without END is
+  // undocumented (PS 6.35.6); if so the channel stays owned until VBUS removal.
   bool const dma_running = _dcd.dma_running;
   tu_varclr(&_dcd);
   _dcd.dma_running = dma_running;
-  _dcd.dma_discard = dma_running;
+  _dcd.dma_pre_reset = dma_running;
   _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
   _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
@@ -902,20 +899,20 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
   }
 
-  // DMA complete move data from SRAM <-> Endpoint. Release before the END handlers below, which must not
-  // see the END of a torn-down transfer, and before dma_dispatch_isr() starts the next request.
-  if ((int_status & EDPT_END_ALL_MASK) && dma_release()) {
-    int_status &= ~EDPT_END_ALL_MASK;
+  // DMA complete: release the channel before dma_dispatch_isr() starts the next request
+  if (int_status & EDPT_END_ALL_MASK) {
+    dma_release();
   }
 
   // ISOIN: Data was moved to endpoint buffer, client will be notified in SOF
   if (int_status & USBD_INTEN_ENDISOIN_Msk) {
     xfer_td_t* xfer = get_td(EP_ISO_NUM, TUSB_DIR_IN);
-
-    xfer->actual_len = NRF_USBD->ISOIN.AMOUNT;
-    // Data transferred from RAM to endpoint output buffer.
-    // Next transfer can be scheduled after SOF.
-    xfer->iso_in_transfer_ready = true;
+    if (xfer->started && xfer->dma_xferid == xfer->xferid) {
+      xfer->actual_len = NRF_USBD->ISOIN.AMOUNT;
+      // Data transferred from RAM to endpoint output buffer.
+      // Next transfer can be scheduled after SOF.
+      xfer->iso_in_transfer_ready = true;
+    }
   }
 
   if (int_status & USBD_INTEN_SOF_Msk) {
@@ -1206,7 +1203,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         if (_dcd.dma_running) {
           for (uint32_t n = SystemCoreClock / 1000; n > 0 && !dma_end_latched(false); n--) {}
           (void) dma_end_latched(true);
-          (void) dma_release();
+          dma_release();
         }
         _dcd.dma_pending = 0;
 
