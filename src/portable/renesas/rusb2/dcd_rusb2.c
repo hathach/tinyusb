@@ -99,12 +99,12 @@ static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num) {
 // 2 x (BUFSIZE + 1) blocks from BUFNMB; pipes 6-9 have fixed 64-byte buffers and take BUFSIZE 0.
 // Non-overlapping: pipes 1-2 (iso-capable, MXPS up to 1024) 2 x 1 KB, pipes 3-5 2 x 512 B.
 static uint16_t pipe_buf_value(unsigned num) {
-  static const uint8_t bufnmb[] = { 0, 8, 40, 72, 88, 104 };
+  static const uint8_t bufnmb[] = {0, 8, 40, 72, 88, 104};
   if (num == 0 || num > 5) {
     return 0;
   }
   const unsigned blocks = (num <= 2) ? 16 : 8;
-  return (uint16_t) (((blocks - 1) << RUSB2_PIPEBUF_BUFSIZE_Pos) | bufnmb[num]);
+  return (uint16_t)(((blocks - 1) << RUSB2_PIPEBUF_BUFSIZE_Pos) | bufnmb[num]);
 }
 
 static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num) {
@@ -138,12 +138,12 @@ static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
 }
 
 static bool pipe_is_iso(rusb2_reg_t *rusb, unsigned num) {
-  rusb->PIPESEL = (uint16_t) num;
+  rusb->PIPESEL = (uint16_t)num;
   return (rusb->PIPECFG & RUSB2_PIPECFG_TYPE_Msk) == RUSB2_PIPECFG_TYPE_ISO;
 }
 
 static inline void pipe_brdy_clear(rusb2_reg_t *rusb, unsigned num) {
-  rusb->BRDYSTS = (uint16_t) (0x3FFu ^ TU_BIT(num));
+  rusb->BRDYSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
 }
 
 // Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
@@ -180,12 +180,14 @@ static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
   }
   uint32_t spin = RUSB2_FIFO_READY_SPIN;
   while (rusb->D0FIFOSEL_b.CURPIPE == num || (*ctr & RUSB2_PIPE_CTR_PBUSY_Msk)) {
-    if (!spin--) return false;
+    if (!spin--) {
+      return false;
+    }
   }
   if (clr) {
     *ctr = clr;
     if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
-      (void) *ctr; // the write has landed before the ACLRM interval starts
+      (void)*ctr; // the write has landed before the ACLRM interval starts
       rusb2_aclrm_delay();
     }
     *ctr = 0;
@@ -202,9 +204,9 @@ static void pipe_out_arm(rusb2_reg_t *rusb, unsigned num) {
   volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
   if (pt) {
     const uint16_t mps = edpt_max_packet_size(rusb, num);
-    pt->TRE   = TU_BIT(8);
-    pt->TRN   = (_dcd.pipe[num].remaining + mps - 1) / mps;
-    pt->TRENB = 1;
+    pt->TRE            = TU_BIT(8);
+    pt->TRN            = (_dcd.pipe[num].remaining + mps - 1) / mps;
+    pt->TRENB          = 1;
   }
   *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF;
 }
@@ -509,16 +511,16 @@ static bool pipe_zlp_in(rusb2_reg_t *rusb, unsigned num) {
   return ready;
 }
 
-static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes,
-                              bool is_isr)
-{
+static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type, uint8_t ep_addr, void *buffer,
+                              uint16_t total_bytes, bool is_isr) {
   const unsigned epn = tu_edpt_number(ep_addr);
   const unsigned dir = tu_edpt_dir(ep_addr);
   const unsigned num = _dcd.ep[dir][epn];
 
   TU_ASSERT(num);
 
-  if (dir && (*get_pipectr(rusb, num) & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL && !pipe_is_iso(rusb, num)) {
+  if (dir && (*get_pipectr(rusb, num) & RUSB2_PIPE_CTR_PID_Msk) >= RUSB2_PIPE_CTR_PID_STALL &&
+      !pipe_is_iso(rusb, num)) {
     // Halted: usbd can re-arm after a completion queued behind the SET_FEATURE(HALT). Drop it as the
     // halt dropped the transfer before it (nothing loads under STALL); usbd releases the endpoint on
     // clear-halt and the class submits afresh.
@@ -560,7 +562,7 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
         pipe_brdy_clear(rusb, num); // drained here, no BRDY to service
         if (done) {
           pipe_xfer_complete(rhport, num, is_isr);
-          return true; // left NAKing until the next transfer is armed
+          return true;              // left NAKing until the next transfer is armed
         }
       }
       ok = !(*ctr & RUSB2_PIPE_CTR_BSTS_Msk);
@@ -578,9 +580,8 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type
   return true;
 }
 
-static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes,
-                              bool is_isr)
-{
+static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type, uint8_t ep_addr, void *buffer,
+                              uint16_t total_bytes, bool is_isr) {
   const unsigned epn = tu_edpt_number(ep_addr);
   if (0 == epn) {
     return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
@@ -965,7 +966,7 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   } else {
     TU_LOG1("RUSB2: pipe %u close timed out, left NAKing\r\n", num);
   }
-  _dcd.pipe[num] = (pipe_state_t) {0};
+  _dcd.pipe[num]    = (pipe_state_t){0};
   _dcd.ep[dir][epn] = 0;
 }
 
@@ -1028,7 +1029,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
     dcd_int_enable(rhport);
     return false;
   }
-  rusb->PIPEMAXP = tu_edpt_packet_size(desc_ep);
+  rusb->PIPEMAXP          = tu_edpt_packet_size(desc_ep);
   *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
   dcd_int_enable(rhport);
   return true;
@@ -1087,7 +1088,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
-  const unsigned num = _dcd.ep[tu_edpt_dir(ep_addr)][tu_edpt_number(ep_addr)];
+  const unsigned num  = _dcd.ep[tu_edpt_dir(ep_addr)][tu_edpt_number(ep_addr)];
   if (num == 0) {
     return; // EP0 halt never reaches the dcd; an unopened endpoint has no pipe
   }
@@ -1111,7 +1112,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     TU_LOG1("RUSB2: pipe %u clear-halt timed out, left NAKing\r\n", num);
   } else if (tu_edpt_dir(ep_addr)) { /* IN */
     if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
-      pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer submitted from here on
+      pipe_brdy_clear(rusb, num);    // a stale BRDY must not advance a transfer submitted from here on
     }
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
