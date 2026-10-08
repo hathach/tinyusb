@@ -489,7 +489,12 @@ bool hcd_deinit(uint8_t rhport) {
 
 void hcd_port_reset(uint8_t rhport) {
   (void)rhport;
-  // TODO: Nothing to do here yet. Perhaps need to reset some state?
+  // The controller's line-state machine resets the bus itself on attach, so first enumeration needs nothing here.
+  // Measured on RP2040 and RP2350 via SIE_STATUS.LINE_STATE: 100 ms after attach (or VBUS_DETECT) it drives SE0 for
+  // 50 ms, then sets SPEED and raises HOST_CONN_DIS. SIE_CTRL.RESET_BUS self-clears within ~1 us, no usable reset.
+  // TODO a reset of a device already attached (enumeration retry, tuh_rhport_reset_bus()) is not done: clearing then
+  // setting USB_PWR.VBUS_DETECT re-runs the sequence (pico-feedback #387), but drops the connection for ~150 ms,
+  // longer than usbh waits after hcd_port_reset_end().
 }
 
 void hcd_port_reset_end(uint8_t rhport) {
