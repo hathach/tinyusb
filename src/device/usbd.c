@@ -817,16 +817,19 @@ static bool usbd_process_event(dcd_event_t* event) {
 
       while(1) { // the mainloop
         application_code();
-        tud_task(); // tinyusb device task
+        if (tud_task()) // tinyusb device task
+          break;
       }
+      // device task stopped
+      tusb_deinit(0);
     }
  */
-void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
+bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
   if (!tud_inited()) {
-    return;
+    return true;
   }
 
   // Loop until there are no more events in the queue or CFG_TUD_TASK_EVENTS_PER_RUN is reached
@@ -840,7 +843,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     dcd_event_t event;
     if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
       if (!run_after_queue_call()) {
-        return;
+        return false;
       }
       timeout_ms = 0;
       continue;
@@ -853,18 +856,42 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     TU_LOG_USBD("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
 #endif
 
+    if (event.event_id == USBD_EVENT_STOP_TASK) {
+      TU_LOG_USBD("Stopping tud_task\r\n");
+      return true;
+    }
+
     TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
     bool const cont = usbd_process_event(&event);
     TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
     if (!cont) {
-      return;
+      return false;
     }
 
     tu_sysview_stack_report(TUSB_ROLE_DEVICE);
 
+#if CFG_TUD_TASK_EVENTS_PER_RUN > 0
     // allow to exit tud_task() if there is no event in the next run
     timeout_ms = 0;
+#endif
   }
+
+  return false;
+}
+
+// Stop the tud_task
+void tud_stop(void){
+
+  if (!tud_inited()) {
+    return;
+  }
+
+  dcd_event_t event = {
+      .rhport   = 0,
+      .event_id = USBD_EVENT_STOP_TASK,
+  };
+
+  queue_event(&event, false);
 }
 
 //--------------------------------------------------------------------+
