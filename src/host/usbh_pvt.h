@@ -55,12 +55,12 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr);
 // Schedules a function to be called after certain time asynchronously
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param);
 
-// Critical section against the USB host ISR, other tasks and, on multi-core, the other cores.
-// Keep it short and bounded: no callback, queue, mutex or wait on software state inside, and never re-enter it.
-// in_isr reports the actual context; only tasks and the USB host ISR may call it (#4186). The ISR side excludes nothing on
-// single core.
+// Rules for both pairs: docs/porting.rst "Critical sections"
 void usbh_critical_enter(bool in_isr);
 void usbh_critical_exit(bool in_isr);
+
+void usbh_int_mask_enter(bool in_isr);
+void usbh_int_mask_exit(bool in_isr);
 
 // Deprecated names
 #define usbh_spin_lock   usbh_critical_enter

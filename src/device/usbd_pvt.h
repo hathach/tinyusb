@@ -51,12 +51,12 @@ typedef bool (*usbd_control_xfer_cb_t)(uint8_t rhport, uint8_t stage, tusb_contr
 
 void usbd_int_set(bool enabled);
 
-// Critical section against the USB ISR, other tasks and, on multi-core, the other cores.
-// Keep it short and bounded: no callback, queue, mutex or wait on software state inside, and never re-enter it.
-// in_isr reports the actual context; only tasks and the USB ISR may call it (#4186). The ISR side excludes nothing on
-// single core.
+// Rules for both pairs: docs/porting.rst "Critical sections"
 void usbd_critical_enter(bool in_isr);
 void usbd_critical_exit(bool in_isr);
+
+void usbd_int_mask_enter(bool in_isr);
+void usbd_int_mask_exit(bool in_isr);
 
 // Deprecated names
 #define usbd_spin_lock   usbd_critical_enter
