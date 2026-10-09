@@ -13,6 +13,7 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
+#include "host/usbh_pvt.h"
 #include "rusb2_common.h"
 
   #define TU_RUSB2_HCD_DBG 2
@@ -641,12 +642,12 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   const unsigned num = find_pipe(xfer);
   if (!num) return false;
 
+  /* setup pipe */
+  usbh_critical_enter(false);
+
   _hcd.pipe[num].dev = dev_addr;
   _hcd.pipe[num].ep  = ep_addr;
   _hcd.ep[dev_addr - 1][dir_in][epn - 1] = num;
-
-  /* setup pipe */
-  hcd_int_disable(rhport);
 
   rusb->PIPESEL = num;
   rusb->PIPEMAXP = (dev_addr << 12) | mps;
@@ -672,7 +673,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
 
-  hcd_int_enable(rhport);
+  usbh_critical_exit(false);
 
   return true;
 }
@@ -685,10 +686,11 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen)
 {
   bool r;
-  hcd_int_disable(rhport);
+  // IRQ mask, not a critical section: the FIFO path has unbounded hardware waits and asserts
+  usbh_int_mask_enter(false);
   TU_LOG(TU_RUSB2_HCD_DBG, "X %d %x %u\r\n", dev_addr, ep_addr, buflen);
   r = process_edpt_xfer(rhport, dev_addr, ep_addr, buffer, buflen);
-  hcd_int_enable(rhport);
+  usbh_int_mask_exit(false);
   return r;
 }
 
