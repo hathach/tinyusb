@@ -249,7 +249,7 @@ static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
   if (!in_isr) {
     (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-    tuh_max3421_int_api(rhport, false);
+    usbh_int_mask_enter(false);
   }
 
   // assert CS
@@ -262,7 +262,7 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
 
   // mutex unlock and re-enable interrupt
   if (!in_isr) {
-    tuh_max3421_int_api(rhport, true);
+    usbh_int_mask_exit(false);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
   }
 }
@@ -513,8 +513,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Enable IRQ
   hien_write(rhport, DEFAULT_HIEN, false);
 
-  tuh_max3421_int_api(rhport, true);
-
   // Enable Interrupt pin
   reg_write(rhport, CPUCTL_ADDR, _tuh_cfg.cpuctl | CPUCTL_IE, false);
 
@@ -757,16 +755,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 }
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
+  usbh_critical_enter(false);
   if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-    hcd_int_disable(rhport);
     ep->state = EP_STATE_ABORTING;
-    hcd_int_enable(rhport);
   }
+  usbh_critical_exit(false);
 
   return true;
 }
