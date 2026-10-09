@@ -456,9 +456,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // Enable in host mode with SOF / Keep alive on
   usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
   usb_hw->sie_ctrl  = SIE_CTRL_BASE;
-  usb_hw->inte      = USB_INTE_BUFF_STATUS_BITS | USB_INTE_HOST_CONN_DIS_BITS | USB_INTE_HOST_RESUME_BITS |
-                 USB_INTE_STALL_BITS | USB_INTE_TRANS_COMPLETE_BITS | USB_INTE_ERROR_RX_TIMEOUT_BITS |
-                 USB_INTE_ERROR_DATA_SEQ_BITS;
+  // HOST_RESUME stays off: no host suspend support, and nothing would clear SIE_STATUS.RESUME
+  usb_hw->inte      = USB_INTE_BUFF_STATUS_BITS | USB_INTE_HOST_CONN_DIS_BITS | USB_INTE_STALL_BITS |
+                 USB_INTE_TRANS_COMPLETE_BITS | USB_INTE_ERROR_RX_TIMEOUT_BITS | USB_INTE_ERROR_DATA_SEQ_BITS;
 
   #ifdef HAS_STOP_EPX_ON_NAK
   usb_hw_set->inte = USB_INTE_EPX_STOPPED_ON_NAK_BITS;
