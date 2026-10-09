@@ -741,8 +741,8 @@ class DepsTest(unittest.TestCase):
     @classmethod
     def repo(cls, path):
         """A fresh repository with one commit; its HEAD."""
-        import subprocess
-        subprocess.run(['git', 'init', '-q', str(path)], check=True, env=cls.CLEAN_ENV)
+        path.mkdir()
+        cls.git(path, 'init', '-q')
         cls.git(path, 'commit', '-q', '--allow-empty', '-m', str(path))
         return cls.git(path, 'rev-parse', 'HEAD')
 
