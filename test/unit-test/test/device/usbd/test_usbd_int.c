@@ -70,8 +70,8 @@ static bool dcd_init_locks(uint8_t rhport, const tusb_rhport_init_t *rh_init, in
   (void) rhport;
   (void) rh_init;
   (void) num_calls;
-  usbd_spin_lock(false);
-  usbd_spin_unlock(false);
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
   return true;
 }
 
@@ -89,8 +89,8 @@ static void device_init(bool expect_enable) {
 static bool dcd_deinit_locks(uint8_t rhport, int num_calls) {
   (void) rhport;
   (void) num_calls;
-  usbd_spin_lock(false);
-  usbd_spin_unlock(false);
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
   return true;
 }
 
@@ -113,8 +113,8 @@ void tearDown(void) {
 }
 
 void test_usbd_int_lock_before_init_touches_no_irq(void) {
-  usbd_spin_lock(false);
-  usbd_spin_unlock(false);
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
 }
 
 void test_usbd_int_init_enables_after_dcd_init(void) {
@@ -126,22 +126,22 @@ void test_usbd_int_nested_mask_unmasks_once(void) {
   device_init(true);
 
   dcd_int_disable_Expect(0);
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
 
   // queue access inside the spinlock, as osal_queue_send/receive do without an OS
   usbd_int_set(false);
   usbd_int_set(true);
 
   dcd_int_enable_Expect(0);
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   device_deinit(true);
 }
 
 void test_usbd_int_isr_lock_touches_no_irq(void) {
   device_init(true);
-  usbd_spin_lock(true);
-  usbd_spin_unlock(true);
+  usbd_critical_enter(true);
+  usbd_critical_exit(true);
   device_deinit(true);
 }
 
@@ -156,8 +156,8 @@ void test_usbd_int_deinit_while_masked_stays_off(void) {
   // outermost unmask after deinit leaves the IRQ off
   usbd_int_set(true);
 
-  usbd_spin_lock(false);
-  usbd_spin_unlock(false);
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
 }
 
 void test_usbd_int_unmatched_unmask_ignored(void) {
@@ -165,13 +165,13 @@ void test_usbd_int_unmatched_unmask_ignored(void) {
 
   usbd_int_set(true);
   TEST_ASSERT_EQUAL(1, assert_count);
-  usbd_spin_unlock(false); // osal_none: unlock without lock
+  usbd_critical_exit(false); // osal_none: unlock without lock
   TEST_ASSERT_EQUAL(2, assert_count);
 
   dcd_int_disable_Expect(0);
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   dcd_int_enable_Expect(0);
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   device_deinit(true);
 }
