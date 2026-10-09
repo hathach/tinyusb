@@ -37,13 +37,17 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
-typedef struct rt_spinlock osal_spinlock_t;
+// rt_spin_lock() only locks the scheduler on UP, the irqsave variant also masks interrupts (UP and SMP)
+typedef struct {
+  struct rt_spinlock lock;
+  rt_base_t level;
+} osal_spinlock_t;
 
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
   osal_spinlock_t _name
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
-  rt_spin_lock_init(ctx);
+  rt_spin_lock_init(&ctx->lock);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
@@ -54,14 +58,14 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bo
   if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
     return; // single core MCU does not need to lock in ISR
   }
-  rt_spin_lock(ctx);
+  ctx->level = rt_spin_lock_irqsave(&ctx->lock);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
   if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
     return; // single core MCU does not need to lock in ISR
   }
-  rt_spin_unlock(ctx);
+  rt_spin_unlock_irqrestore(&ctx->lock, ctx->level);
 }
 
 //--------------------------------------------------------------------+
