@@ -31,6 +31,21 @@ Apart from the device ``sof`` and ``xfer_isr`` handlers, interrupt handlers must
 
  ``usbd_*`` functions may be called from interrupts without any notice. They may also be called simultaneously by multiple tasks.
 
+Locking
+-------
+
+TinyUSB uses three kinds of exclusion. Each one does no exclusion work where none is needed.
+
+========================================  ===========================================  ====================================
+Primitive                                 Excludes                                     No exclusion work
+========================================  ===========================================  ====================================
+``usbd_critical_enter()``, ``usbh_..()``  the USB interrupt, other tasks, other cores  ISR side on a single-core MCU
+``osal_mutex``                            other tasks, long holds allowed              without an RTOS on a single-core MCU
+``osal_semaphore``, ``osal_queue``        none, they signal ISR to task                not applicable
+========================================  ===========================================  ====================================
+
+A spinlock is never used alone: on a multi-core MCU it sits inside the critical section, because a task holding a bare spinlock would deadlock against the USB interrupt on its own core. See :ref:`critical-section` in the porting guide for the rules a driver follows.
+
 Device Drivers
 --------------
 
