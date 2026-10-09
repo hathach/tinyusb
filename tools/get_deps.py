@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -347,8 +348,16 @@ MCU low-level peripheral drivers and external libraries for building TinyUSB exa
 """)
 
 
+# repository-locating subset of `git rev-parse --local-env-vars`; config and transport vars stay
+GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+                'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SHALLOW_FILE',
+                'GIT_GRAFT_FILE', 'GIT_PREFIX')
+
+
 def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     title = f'Command Error: {cmd}'
     if r.returncode != 0:
         print(title)
