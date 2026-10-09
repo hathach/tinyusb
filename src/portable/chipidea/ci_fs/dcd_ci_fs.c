@@ -11,6 +11,7 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 #include "ci_fs_type.h"
 
 #if defined(TUP_USBIP_CHIPIDEA_FS_KINETIS)
@@ -66,6 +67,7 @@ CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) static dcd_data_t _dcd;
 
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
 
+// Only called from the USB ISR
 static void prepare_next_setup_packet(uint8_t rhport)
 {
   const unsigned out_odd = _dcd.endpoint[0][0].odd;
@@ -77,7 +79,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-                _dcd.setup_packet, sizeof(_dcd.setup_packet), false);
+                _dcd.setup_packet, sizeof(_dcd.setup_packet), true);
 }
 
 static void process_stall(uint8_t rhport)
@@ -338,25 +340,25 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) {
+  (void) rhport;
   const unsigned    epn = tu_edpt_number(ep_desc->bEndpointAddress);
   const unsigned    dir = tu_edpt_dir(ep_desc->bEndpointAddress);
   endpoint_state_t *ep  = &_dcd.endpoint[epn][dir];
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
   ep->max_packet_size = tu_edpt_packet_size(ep_desc);
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 
   return true;
 }
 
 void dcd_edpt_close_all(uint8_t rhport) {
-  dcd_int_disable(rhport);
+  (void) rhport;
+  usbd_critical_enter(false);
 
   for (unsigned i = 1; i < 16; ++i) {
     CI_REG->EP[i].CTL = 0;
   }
-
-  dcd_int_enable(rhport);
 
   buffer_descriptor_t *bd = _dcd.bdt[1][0];
   for (unsigned i = 2; i < sizeof(_dcd.bdt)/sizeof(*bd); ++i, ++bd) {
@@ -370,18 +372,20 @@ void dcd_edpt_close_all(uint8_t rhport) {
     ep->length          = 0;
     ep->remaining       = 0;
   }
+
+  usbd_critical_exit(false);
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
-  (void) is_isr;
+  (void) rhport;
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];
   buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][ep->odd];
   TU_ASSERT(0 == bd->own);
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(is_isr);
 
   ep->length    = total_bytes;
   ep->remaining = total_bytes;
@@ -400,7 +404,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   __DSB();
   bd->own  = 1; /* This bit must be set last */
 
-  dcd_int_enable(rhport);
+  usbd_critical_exit(is_isr);
 
   return true;
 }
@@ -411,25 +415,29 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   const unsigned epn = tu_edpt_number(ep_addr);
 
   if (0 == epn) {
+    // process_stall() clears EPSTALL in the ISR with its own read-modify-write
+    usbd_critical_enter(false);
     CI_REG->EP[epn].CTL |=  USB_ENDPT_EPSTALL_MASK;
+    usbd_critical_exit(false);
   } else {
     const unsigned dir      = tu_edpt_dir(ep_addr);
     const unsigned odd      = _dcd.endpoint[epn][dir].odd;
     buffer_descriptor_t *bd = &_dcd.bdt[epn][dir][odd];
     TU_ASSERT(0 == bd->own,);
 
-    dcd_int_disable(rhport);
+    usbd_critical_enter(false);
 
     bd->bdt_stall = 1;
     __DSB();
     bd->own       = 1; /* This bit must be set last */
 
-    dcd_int_enable(rhport);
+    usbd_critical_exit(false);
   }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
   const unsigned epn      = tu_edpt_number(ep_addr);
   TU_VERIFY(epn,);
   const unsigned dir      = tu_edpt_dir(ep_addr);
@@ -437,7 +445,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
   TU_VERIFY(bd[odd].own,);
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
 
   bd[odd].own = 0;
   __DSB();
@@ -455,7 +463,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     CI_REG->EP[epn].CTL = ep_ctl & ~USB_ENDPT_EPSTALL_MASK;
   }
 
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 //--------------------------------------------------------------------+
