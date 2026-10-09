@@ -270,19 +270,18 @@ bool hcd_deinit(uint8_t rhport) {
   return true;
 }
 
-static bool int_state_for_portreset = false;
-
 void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
   LOG_CH32_USBFSH("hcd_port_reset()\r\n");
-  int_state_for_portreset = interrupt_enabled;
-  // NVIC_DisableIRQ(USBFS_IRQn);
-  hcd_int_disable(rhport);
+  usbh_critical_enter(false);
+  // Mask the detect IRQ until hcd_port_reset_end(), which clears the event the reset raises
+  USBOTG_H_FS->INT_EN &= ~USBFS_UIE_DETECT;
   hardware_update_device_address(0x00);
 
   // USBOTG_H_FS->HOST_SETUP = 0x00;
 
   USBOTG_H_FS->HOST_CTRL |= USBFS_UH_BUS_RESET;
+  usbh_critical_exit(false);
 
   return;
 }
@@ -304,11 +303,10 @@ void hcd_port_reset_end(uint8_t rhport) {
   USBOTG_H_FS->HOST_SETUP |= USBFS_UH_SOF_EN;
 
   // Suppress the attached event
+  usbh_critical_enter(false);
   USBOTG_H_FS->INT_FG |= USBFS_UIF_DETECT;
-
-  if (int_state_for_portreset) {
-    hcd_int_enable(rhport);
-  }
+  USBOTG_H_FS->INT_EN |= USBFS_UIE_DETECT;
+  usbh_critical_exit(false);
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
