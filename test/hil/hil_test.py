@@ -922,6 +922,18 @@ def link_is_fs(speed) -> bool:
     return speed not in ('480', '5000', '10000')
 
 
+# `stty raw -echo` applied with TCSANOW: stty's TCSADRAIN never completes while a device that
+# streams on DTR keeps the tty echoing. The flush stops the final close waiting up to closing_wait
+# for queued echo; a child, so run_cmd bounds an open or close on a wedged device.
+TTY_RAW = (
+    'import os, sys, termios, tty\n'
+    'fd = os.open(sys.argv[1], os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)\n'
+    'tty.setraw(fd, termios.TCSANOW)\n'
+    'termios.tcflush(fd, termios.TCIOFLUSH)\n'
+    'os.close(fd)\n'
+)
+
+
 def dd_timeout(mib: float) -> int:
     """Bound one dd by what was ASKED for: 2.5 s/MiB is the slowest rate this test has
     measured (FS CDC, ~420 kB/s), over a 30 s floor. A flat bound fails a healthy board as
@@ -968,8 +980,8 @@ def test_device_cdc_msc_throughput(board):
         speed_known = speed is not None
 
     # Put tty in raw mode so dd sees pure binary throughput.
-    rs = hil_util.run_cmd(f'timeout 30 stty -F {tty} raw -echo')
-    assert rs.returncode == 0, f'stty failed: {hil_util.cmd_stdout_text(rs.stdout)}'
+    rs = hil_util.run_cmd([sys.executable, '-c', TTY_RAW, tty], timeout=30)
+    assert rs.returncode == 0, f'tty raw failed: {hil_util.cmd_stdout_text(rs.stdout)}'
 
     # Payload aim: ~5 s per direction at FS (~830 kB/s), much less at HS.
     msc_count = 2 if is_fs else 16    # bs=1M
