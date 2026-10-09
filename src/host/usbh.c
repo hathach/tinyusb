@@ -1318,6 +1318,25 @@ void usbh_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbh_spin, in_isr);
 }
 
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbh_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(false);
+  usbh_critical_exit(false);
+}
+
+void usbh_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(true);
+  usbh_critical_exit(false);
+}
+
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   hcd_event_t event = { 0 };
   event.event_id = USBH_EVENT_FUNC_CALL;

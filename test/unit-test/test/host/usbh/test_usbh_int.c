@@ -177,3 +177,38 @@ void test_usbh_int_reinit_while_masked_enables_on_unmask(void) {
   host_deinit_port(true);
   TEST_ASSERT_EQUAL(0, assert_count);
 }
+
+void test_usbh_int_mask_holds_across_critical_section(void) {
+  host_init_port(true);
+
+  hcd_int_disable_Expect(1);
+  usbh_int_mask_enter(false);
+
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
+
+  hcd_int_enable_Expect(1);
+  usbh_int_mask_exit(false);
+
+  host_deinit_port(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+void test_usbh_int_mask_isr_leaves_task_mask(void) {
+  host_init_port(true);
+
+  hcd_int_disable_Expect(1);
+  usbh_int_mask_enter(false);
+
+  usbh_int_mask_enter(true);
+  usbh_int_mask_exit(true);
+
+  hcd_int_enable_Expect(1);
+  usbh_int_mask_exit(false);
+
+  usbh_int_mask_enter(true);
+  usbh_int_mask_exit(true);
+
+  host_deinit_port(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}

@@ -1575,6 +1575,25 @@ void usbd_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbd_spin, in_isr);
 }
 
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbd_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(false);
+  usbd_critical_exit(false);
+}
+
+void usbd_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(true);
+  usbd_critical_exit(false);
+}
+
 // Parse consecutive endpoint descriptors (IN & OUT)
 bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t *ep_out,
                          uint8_t *ep_in) {
