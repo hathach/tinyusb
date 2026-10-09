@@ -18,6 +18,7 @@
 #endif
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 #include "dcd_eptri.h"
 #include "csr.h"
 #include "irq.h"
@@ -466,7 +467,6 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
-  (void) is_isr;
   (void)rhport;
   uint8_t ep_num = tu_edpt_number(ep_addr);
   uint8_t ep_dir = tu_edpt_dir(ep_addr);
@@ -487,29 +487,32 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     while (tx_buffer[ep_num] != NULL)
       ;
 
-    dcd_int_disable(0);
+    usbd_critical_enter(is_isr);
 #if LOG_USB
     queue_log_append(ep_addr, total_bytes);
 #endif
     // If a reset happens while we're waiting, abort the transfer
-    if (previous_reset_count != reset_count)
-      return true;
+    const bool aborted = (previous_reset_count != reset_count);
+    const bool busy    = !aborted && (tx_buffer[ep_num] != NULL);
 
-    TU_ASSERT(tx_buffer[ep_num] == NULL);
-    tx_buffer_offset[ep_num] = 0;
-    tx_buffer_max[ep_num] = total_bytes;
-    tx_buffer[ep_num] = buffer;
+    if (!aborted && !busy) {
+      tx_buffer_offset[ep_num] = 0;
+      tx_buffer_max[ep_num] = total_bytes;
+      tx_buffer[ep_num] = buffer;
 
-    // If the current buffer is NULL, then that means the tx logic is idle.
-    // Update the tx_ep to point to our endpoint number and queue the data.
-    // Otherwise, let it be and it'll get picked up after the next transfer
-    // finishes.
-    if (!tx_active) {
-      tx_ep = ep_num;
-      tx_active = true;
-      tx_more_data();
+      // If the current buffer is NULL, then that means the tx logic is idle.
+      // Update the tx_ep to point to our endpoint number and queue the data.
+      // Otherwise, let it be and it'll get picked up after the next transfer
+      // finishes.
+      if (!tx_active) {
+        tx_ep = ep_num;
+        tx_active = true;
+        tx_more_data();
+      }
     }
-    dcd_int_enable(0);
+    usbd_critical_exit(is_isr);
+
+    TU_ASSERT(!busy);
   }
 
   else if (ep_dir == TUSB_DIR_OUT) {
@@ -517,7 +520,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       ;
 
     TU_ASSERT(rx_buffer[ep_num] == NULL);
-    dcd_int_disable(0);
+    usbd_critical_enter(is_isr);
 #if LOG_USB
     queue_log_append(ep_addr, total_bytes);
 #endif
@@ -538,7 +541,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       }
     }
 #endif
-    dcd_int_enable(0);
+    usbd_critical_exit(is_isr);
   }
   return true;
 }
