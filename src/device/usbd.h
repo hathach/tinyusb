@@ -69,12 +69,13 @@ bool tud_inited(void);
 // Task function should be called in main/rtos loop, extended version of tud_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tud_task_ext(uint32_t timeout_ms, bool in_isr);
+// returns true if the task should stop or not initialized
+bool tud_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
 TU_ATTR_ALWAYS_INLINE static inline
-void tud_task (void) {
-  tud_task_ext(UINT32_MAX, false);
+bool tud_task (void) {
+  return tud_task_ext(UINT32_MAX, false);
 }
 
 // Check if there is pending events need processing by tud_task()
@@ -129,6 +130,9 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
+
+// Stop the tud_task
+void tud_stop(void);
 
 //--------------------------------------------------------------------+
 // Application Callbacks

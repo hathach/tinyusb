@@ -36,6 +36,7 @@ typedef enum {
   DCD_EVENT_SETUP_RECEIVED,  // 7
   DCD_EVENT_XFER_COMPLETE,   // 8
   USBD_EVENT_FUNC_CALL,      // 9 Not an DCD event, just a convenient way to defer ISR function
+  USBD_EVENT_STOP_TASK,      // 10 Not an DCD event, a way to stop the tud_task properly
   DCD_EVENT_COUNT
 } dcd_eventid_t;
 
