@@ -59,6 +59,11 @@ Configuration options
    * - ``CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB``
      - ``6``
      - Maximum frames the device tells the host to place in one receive NTB.
+   * - ``CFG_TUD_NCM_DOWNLINK_BITRATE`` / ``CFG_TUD_NCM_UPLINK_BITRATE``
+     - ``0`` each (USB bus speed)
+     - Link speed in bit/s reported in the CONNECTION_SPEED_CHANGE
+       notification.  Hosts use it to rank the interface (Windows derives the
+       route metric from it); it does not limit the transfer rate.
    * - ``CFG_TUD_NCM_DEFAULT_LINK_UP``
      - Undefined (link up)
      - Initial NCM link state returned by the default
