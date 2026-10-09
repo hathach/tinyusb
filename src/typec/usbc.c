@@ -256,6 +256,7 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
 //
 //--------------------------------------------------------------------+
 void usbc_int_set(bool enabled) {
+  TU_ASSERT(_usbc_int_depth < UINT8_MAX, ); // saturated by a leaked mask: the IRQs stay off for good
   if (!enabled) {
     if (_usbc_int_depth++ != 0) {
       return;

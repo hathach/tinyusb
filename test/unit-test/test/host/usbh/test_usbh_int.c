@@ -177,3 +177,73 @@ void test_usbh_int_reinit_while_masked_enables_on_unmask(void) {
   host_deinit_port(true);
   TEST_ASSERT_EQUAL(0, assert_count);
 }
+
+void test_usbh_int_mask_holds_across_critical_section(void) {
+  host_init_port(true);
+
+  hcd_int_disable_Expect(1);
+  usbh_int_mask_enter(false);
+
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
+
+  hcd_int_enable_Expect(1);
+  usbh_int_mask_exit(false);
+
+  host_deinit_port(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+void test_usbh_int_mask_isr_leaves_task_mask(void) {
+  host_init_port(true);
+
+  hcd_int_disable_Expect(1);
+  usbh_int_mask_enter(false);
+
+  usbh_int_mask_enter(true);
+  usbh_int_mask_exit(true);
+
+  hcd_int_enable_Expect(1);
+  usbh_int_mask_exit(false);
+
+  usbh_int_mask_enter(true);
+  usbh_int_mask_exit(true);
+
+  host_deinit_port(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+// Keep last: a saturated depth masks the IRQ for the rest of the run
+void test_usbh_int_depth_saturation_fails_closed(void) {
+  host_init_port(true);
+
+  // the deepest legal nesting still unwinds
+  hcd_int_disable_Expect(1);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbh_int_set(false);
+  }
+  hcd_int_enable_Expect(1);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbh_int_set(true);
+  }
+  TEST_ASSERT_EQUAL(0, assert_count);
+
+  hcd_int_disable_Expect(1);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbh_int_set(false);
+  }
+  usbh_int_set(false); // one leaked mask reaches the sentinel, reported by the next call
+  TEST_ASSERT_EQUAL(0, assert_count);
+
+  // no IRQ enable expected from any unwind, including the helpers' own critical section
+  for (unsigned i = 0; i <= UINT8_MAX; i++) {
+    usbh_int_set(true);
+  }
+  usbh_int_mask_enter(false);
+  usbh_int_mask_exit(false);
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
+  TEST_ASSERT_GREATER_THAN(1, assert_count);
+
+  host_deinit_port(false);
+}

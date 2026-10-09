@@ -1382,6 +1382,7 @@ uint8_t *usbh_get_enum_buf(void) {
 
 void usbh_int_set(bool enabled) {
   // TODO all host controller if multiple are used since they shared the same event queue
+  TU_ASSERT(_usbh_int_depth < UINT8_MAX, ); // saturated by a leaked mask: the IRQ stays off for good
   if (!enabled) {
     if (_usbh_int_depth++ == 0 && _usbh_int_owned) {
       hcd_int_disable(_usbh_controller_id);
@@ -1400,6 +1401,25 @@ void usbh_critical_enter(bool in_isr) {
 
 void usbh_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbh_spin, in_isr);
+}
+
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbh_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(false);
+  usbh_critical_exit(false);
+}
+
+void usbh_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(true);
+  usbh_critical_exit(false);
 }
 
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {

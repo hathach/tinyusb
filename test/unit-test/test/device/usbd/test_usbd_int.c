@@ -202,3 +202,83 @@ void test_usbd_int_reinit_while_masked_enables_on_unmask(void) {
   device_deinit(true);
   TEST_ASSERT_EQUAL(0, assert_count);
 }
+
+void test_usbd_int_mask_holds_across_critical_section(void) {
+  device_init(true);
+
+  dcd_int_disable_Expect(0);
+  usbd_int_mask_enter(false);
+
+  // a critical section and a queue access inside the mask leave the IRQ off
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
+  usbd_int_set(false);
+  usbd_int_set(true);
+
+  dcd_int_enable_Expect(0);
+  usbd_int_mask_exit(false);
+
+  device_deinit(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+void test_usbd_int_mask_before_init_touches_no_irq(void) {
+  usbd_int_mask_enter(false);
+  usbd_int_mask_exit(false);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+void test_usbd_int_mask_isr_leaves_task_mask(void) {
+  device_init(true);
+
+  dcd_int_disable_Expect(0);
+  usbd_int_mask_enter(false);
+
+  usbd_int_mask_enter(true);
+  usbd_int_mask_exit(true);
+
+  dcd_int_enable_Expect(0);
+  usbd_int_mask_exit(false);
+
+  // from the ISR without a task mask: touches no IRQ state
+  usbd_int_mask_enter(true);
+  usbd_int_mask_exit(true);
+
+  device_deinit(true);
+  TEST_ASSERT_EQUAL(0, assert_count);
+}
+
+// Keep last: a saturated depth masks the IRQ for the rest of the run
+void test_usbd_int_depth_saturation_fails_closed(void) {
+  device_init(true);
+
+  // the deepest legal nesting still unwinds
+  dcd_int_disable_Expect(0);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbd_int_set(false);
+  }
+  dcd_int_enable_Expect(0);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbd_int_set(true);
+  }
+  TEST_ASSERT_EQUAL(0, assert_count);
+
+  dcd_int_disable_Expect(0);
+  for (unsigned i = 0; i < UINT8_MAX - 1; i++) {
+    usbd_int_set(false);
+  }
+  usbd_int_set(false); // one leaked mask reaches the sentinel, reported by the next call
+  TEST_ASSERT_EQUAL(0, assert_count);
+
+  // no IRQ enable expected from any unwind, including the helpers' own critical section
+  for (unsigned i = 0; i <= UINT8_MAX; i++) {
+    usbd_int_set(true);
+  }
+  usbd_int_mask_enter(false);
+  usbd_int_mask_exit(false);
+  usbd_critical_enter(false);
+  usbd_critical_exit(false);
+  TEST_ASSERT_GREATER_THAN(1, assert_count);
+
+  device_deinit(false);
+}

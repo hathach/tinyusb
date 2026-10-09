@@ -1619,6 +1619,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 //--------------------------------------------------------------------+
 
 void usbd_int_set(bool enabled) {
+  TU_ASSERT(_usbd_int_depth < UINT8_MAX, ); // saturated by a leaked mask: the IRQ stays off for good
   if (!enabled) {
     if (_usbd_int_depth++ == 0 && _usbd_int_owned) {
       dcd_int_disable(_usbd_rhport);
@@ -1637,6 +1638,25 @@ void usbd_critical_enter(bool in_isr) {
 
 void usbd_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbd_spin, in_isr);
+}
+
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbd_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(false);
+  usbd_critical_exit(false);
+}
+
+void usbd_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(true);
+  usbd_critical_exit(false);
 }
 
 // Parse consecutive endpoint descriptors (IN & OUT)
