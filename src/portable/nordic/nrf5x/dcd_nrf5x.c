@@ -31,7 +31,7 @@
 
 // TODO remove later
 #include "device/usbd.h"
-#include "device/usbd_pvt.h" // for usbd_spin_lock()
+#include "device/usbd_pvt.h" // for usbd_critical_enter()
 
 #if CFG_TUSB_OS == OPT_OS_MYNEWT
 #include "mcu/mcu.h"
@@ -109,7 +109,7 @@ static struct {
   xfer_td_t xfer[EP_CBI_COUNT + 1][2];
 
   // EasyDMA requests waiting for the channel (DMA_REQ_*), started by dma_dispatch_isr() in the USBD ISR.
-  // Written only by the USBD ISR and by task code holding usbd_spin_lock().
+  // Written only by the USBD ISR and by task code inside usbd_critical_enter().
   uint32_t dma_pending;
 
   // nRF can only carry one DMA at a time; owned by the USBD ISR
@@ -186,7 +186,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t dma_req_bit(uint8_t epnum, uint8_t 
   return TU_BIT(epnum + (dir == TUSB_DIR_OUT ? 16u : 0u));
 }
 
-// USBD ISR, or task holding usbd_spin_lock() then pending the USBD IRQ
+// USBD ISR, or task inside usbd_critical_enter() then pending the USBD IRQ
 TU_ATTR_ALWAYS_INLINE static inline void dma_request(uint32_t req) {
   _dcd.dma_pending |= req;
 }
@@ -372,9 +372,9 @@ void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
   NRF_USBD->USBPULLUP = 0;
 
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   _ep0.setup_rcv_tagid++; // as a physical unplug
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   // Disable Pull-up does not trigger Power USB Removed, in fact it have no
   // impact on the USB Power status at all -> need to submit unplugged event to the stack.
@@ -456,7 +456,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
 void dcd_edpt_close_all(uint8_t rhport) {
   (void) rhport;
   // disable interrupt to prevent race condition
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   _dcd.dma_pending &= DMA_REQ_EP0;
 
   // A running DMA keeps the channel until its END: wait for it before the stack reuses the buffers (PS 6.35.8),
@@ -484,7 +484,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   NRF_USBD->EPOUTEN = 1UL;
   NRF_USBD->EPINEN = 1UL;
 
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -507,11 +507,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // just reset the endpoint's claim/busy state, so drop the stale descriptor too — otherwise the
   // class's next arm trips TU_ASSERT(!xfer->started) in dcd_edpt_xfer().
   xfer_td_t* xfer = get_td(epnum, dir);
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   retire_xfer(epnum, dir);
   xfer->data_received         = false;
   xfer->iso_in_transfer_ready = false;
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   xfer->mps = tu_edpt_packet_size(desc_ep);
 
@@ -536,10 +536,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
 bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
   (void) rhport;
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   _ep0.setup_served_tagid = setup_tagid;
   bool const current = !ep0_superseded();
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
   return current;
 }
 
@@ -558,9 +558,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   // a SETUP or EPDATA handled by the ISR must not interleave with arming the td and its DMA request
   uint32_t req = 0;
-  usbd_spin_lock(in_usbd_isr);
+  usbd_critical_enter(in_usbd_isr);
   if (epnum == 0 && ep0_superseded()) {
-    usbd_spin_unlock(in_usbd_isr);
+    usbd_critical_exit(in_usbd_isr);
     return true; // the host abandoned that control transfer: the newer SETUP resets EP0 in usbd
   }
 
@@ -591,7 +591,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     req = dma_req_bit(epnum, TUSB_DIR_IN);
   }
   dma_request(req);
-  usbd_spin_unlock(in_usbd_isr);
+  usbd_critical_exit(in_usbd_isr);
 
   // dma_dispatch_isr() runs in the USBD ISR: in it, dcd_int_handler() calls it last
   if (req && !in_usbd_isr) {
@@ -613,9 +613,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_td_t* xfer = get_td(epnum, dir);
 
   // retire before the ISR can continue a multi-packet transfer into the disarmed buffer
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   if (epnum == 0 && ep0_superseded()) {
-    usbd_spin_unlock(false);
+    usbd_critical_exit(false);
     return; // a stall for an abandoned control transfer must not stall the newer one
   }
   if (epnum == 0) {
@@ -640,7 +640,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     }
   }
   retire_xfer(epnum, dir);
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   __ISB();
   __DSB();
@@ -663,10 +663,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // clear it with the write so the next transfer does not DMA the dropped packet in. Done before clearing the stall
     // so a packet ACKed after it is flagged, not released.
     if (dir == TUSB_DIR_OUT) {
-      usbd_spin_lock(false);
+      usbd_critical_enter(false);
       get_td(epnum, dir)->data_received = false;
       NRF_USBD->SIZE.EPOUT[epnum] = 0;
-      usbd_spin_unlock(false);
+      usbd_critical_exit(false);
     }
 
     // clear stall
