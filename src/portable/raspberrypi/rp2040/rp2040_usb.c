@@ -207,8 +207,9 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
 }
 
 void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
-                       uint16_t total_len) {
+                       uint16_t total_len, bool is_isr) {
   (void)ff;
+  (void)is_isr; // device only
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->state == EPSTATE_ACTIVE) {
@@ -251,7 +252,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     if (ep->remaining_len == 0) {
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
-      dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
+      dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, is_isr);
       hw_endpoint_lock_update(ep, -1);
       return;
     }

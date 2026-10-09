@@ -773,7 +773,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       ret = false;
     } else {
       rp2usb_xfer_start(ep, dpram_int_ep_ctrl(ep->interrupt_num), dpram_int_ep_buffer_ctrl(ep->interrupt_num), buffer,
-                        NULL, buflen);
+                        NULL, buflen, false);
     }
     rp2usb_critical_exit();
     return ret;
@@ -811,7 +811,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       epx = ep;
 
       epx_ctrl_prepare(ep->transfer_type);
-      rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen); // prepare bufctrl
+      rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen, false); // prepare bufctrl
       usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (tu_edpt_number(ep->ep_addr) << USB_ADDR_ENDP_ENDPOINT_LSB));
       sie_start_xfer(false, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN, ep->need_pre);
     }
