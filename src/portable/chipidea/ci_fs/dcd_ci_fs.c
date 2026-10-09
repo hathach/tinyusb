@@ -329,7 +329,7 @@ static bool edpt_open(uint8_t rhport, uint8_t ep_addr, uint16_t max_packet_size,
   return true;
 }
 
-bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) {
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc, uint8_t const * desc_end TU_ATTR_UNUSED) {
   return edpt_open(rhport, ep_desc->bEndpointAddress, tu_edpt_packet_size(ep_desc), ep_desc->bmAttributes.xfer);
 }
 

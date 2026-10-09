@@ -146,7 +146,7 @@ TU_ATTR_DEPRECATED("Please use tusb_init(rhport, rh_init) instead")
 TU_ATTR_ALWAYS_INLINE static inline bool tuh_init(uint8_t rhport) {
   const tusb_rhport_init_t rh_init = {
     .role = TUSB_ROLE_HOST,
-    .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL,
+    .speed = TUH_OPT_SUPER_SPEED ? TUSB_SPEED_SUPER : (TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL),
   };
   return tuh_rhport_init(rhport, &rh_init);
 }

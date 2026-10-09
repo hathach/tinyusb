@@ -164,6 +164,54 @@ void setUp(void) {
 void tearDown(void) {
 }
 
+void test_usbd_config_descriptor_superspeed_100ma(void) {
+  uint8_t const descriptor[] = {
+    TUD_CONFIG_DESCRIPTOR_SUPERSPEED(2, 3, 4, 0x1234, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100)
+  };
+  TEST_ASSERT_EQUAL_UINT8(13, descriptor[8]);
+}
+
+void test_usbd_config_descriptor_superspeed_power_boundaries(void) {
+  uint8_t const descriptors[][TUD_CONFIG_DESC_LEN] = {
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 0)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 1)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 7)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 8)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 96)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 104)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 2039)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 2040)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 2041)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 2048)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, INT32_MAX)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, UINT32_MAX)},
+    {TUD_CONFIG_DESCRIPTOR_SUPERSPEED(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, UINT64_MAX)},
+  };
+  uint8_t const expected_power[] = {0, 1, 1, 1, 12, 13, 255, 255, 255, 255, 255, 255, 255};
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(descriptors); i++) {
+    TEST_ASSERT_EQUAL_UINT8(expected_power[i], descriptors[i][8]);
+  }
+}
+
+void test_usbd_config_descriptor_usb2_power_unchanged(void) {
+  uint8_t const descriptors[][TUD_CONFIG_DESC_LEN] = {
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 0)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 8)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 100)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 101)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 510)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 511)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, 512)},
+    {TUD_CONFIG_DESCRIPTOR(1, 0, 0, TUD_CONFIG_DESC_LEN, 0, UINT32_MAX)},
+  };
+  uint8_t const expected_power[] = {0, 4, 50, 50, 255, 255, 255, 255};
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(descriptors); i++) {
+    TEST_ASSERT_EQUAL_UINT8(expected_power[i], descriptors[i][8]);
+  }
+}
+
 //--------------------------------------------------------------------+
 // Get Descriptor
 //--------------------------------------------------------------------+
@@ -330,10 +378,11 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
     .wMaxPacketSize   = 64,
     .bInterval        = 0
   };
+  uint8_t const* desc_end = (uint8_t const*) &desc_ep + sizeof(desc_ep);
   static uint8_t xfer_buf[64];
 
-  dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, true);
-  TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep));
+  dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, desc_end, true);
+  TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep, desc_end));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x01));
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x01, xfer_buf, 64, false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x01, xfer_buf, 64, false));
