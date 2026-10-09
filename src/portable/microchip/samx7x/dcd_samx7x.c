@@ -11,6 +11,7 @@
 #if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMX7X
 
   #include "device/dcd.h"
+  #include "device/usbd_pvt.h"
   #include "sam.h"
   #include "samx7x_common.h"
   //--------------------------------------------------------------------+
@@ -110,7 +111,9 @@ void dcd_remote_wakeup(uint8_t rhport) {
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport) {
   (void)rhport;
-  dcd_int_disable(rhport);
+  // IRQ mask, not a critical section: CLKUSABLE has no time bound, and registers are read-only while
+  // FRZCLK is set (DS60001527J p808)
+  usbd_int_mask_enter(false);
   // Enable the USB controller in device mode
   USB_REG->CTRL = CTRL_UIMOD | CTRL_USBE;
   while (!(USB_REG->SR & SR_CLKUSABLE))
@@ -132,12 +135,14 @@ void dcd_connect(uint8_t rhport) {
   USB_REG->DEVCTRL &= ~DEVCTRL_DETACH;
   // Freeze USB clock
   USB_REG->CTRL |= CTRL_FRZCLK;
+  usbd_int_mask_exit(false);
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport) {
   (void)rhport;
-  dcd_int_disable(rhport);
+  // IRQ mask, not a critical section: see dcd_connect()
+  usbd_int_mask_enter(false);
   // Disable all endpoints
   USB_REG->DEVEPT &= ~(0x3FF << DEVEPT_EPEN0_Pos);
   // Unfreeze USB clock
@@ -152,6 +157,7 @@ void dcd_disconnect(uint8_t rhport) {
   USB_REG->DEVCTRL |= DEVCTRL_DETACH;
   // Disable the device address
   USB_REG->DEVCTRL &= ~(DEVCTRL_ADDEN | DEVCTRL_UADD);
+  usbd_int_mask_exit(false);
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
