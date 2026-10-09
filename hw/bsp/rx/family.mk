@@ -35,4 +35,4 @@ $(BUILD)/$(PROJECT).mot: $(BUILD)/$(PROJECT).elf
 
 # flash using rfp-cli
 flash-rfp: $(BUILD)/$(PROJECT).mot
-	rfp-cli -device rx65x -tool e2l -if fine -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -auto $^
+	rfp-cli -device rx65x -tool e2l -if fine -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -a $^
