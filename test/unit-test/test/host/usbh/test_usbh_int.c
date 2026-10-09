@@ -54,8 +54,8 @@ static bool hcd_init_locks(uint8_t rhport, const tusb_rhport_init_t *rh_init, in
   (void) rhport;
   (void) rh_init;
   (void) num_calls;
-  usbh_spin_lock(false);
-  usbh_spin_unlock(false);
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
   return true;
 }
 
@@ -72,8 +72,8 @@ static void host_init_port(bool expect_enable) {
 static bool hcd_deinit_locks(uint8_t rhport, int num_calls) {
   (void) rhport;
   (void) num_calls;
-  usbh_spin_lock(false);
-  usbh_spin_unlock(false);
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
   return true;
 }
 
@@ -95,8 +95,8 @@ void tearDown(void) {
 }
 
 void test_usbh_int_lock_before_init_touches_no_irq(void) {
-  usbh_spin_lock(false);
-  usbh_spin_unlock(false);
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
 }
 
 void test_usbh_int_init_enables_after_hcd_init(void) {
@@ -108,14 +108,14 @@ void test_usbh_int_nested_mask_unmasks_once(void) {
   host_init_port(true);
 
   hcd_int_disable_Expect(1);
-  usbh_spin_lock(false);
+  usbh_critical_enter(false);
 
   // queue access inside the spinlock, as osal_queue_send/receive do without an OS
   usbh_int_set(false);
   usbh_int_set(true);
 
   hcd_int_enable_Expect(1);
-  usbh_spin_unlock(false);
+  usbh_critical_exit(false);
 
   host_deinit_port(true);
 }
@@ -131,8 +131,8 @@ void test_usbh_int_deinit_while_masked_stays_off(void) {
   // outermost unmask after deinit leaves the IRQ off and does not use the invalid controller id
   usbh_int_set(true);
 
-  usbh_spin_lock(false);
-  usbh_spin_unlock(false);
+  usbh_critical_enter(false);
+  usbh_critical_exit(false);
 }
 
 void test_usbh_int_unmatched_unmask_ignored(void) {
@@ -140,13 +140,13 @@ void test_usbh_int_unmatched_unmask_ignored(void) {
 
   usbh_int_set(true);
   TEST_ASSERT_EQUAL(1, assert_count);
-  usbh_spin_unlock(false); // osal_none: unlock without lock
+  usbh_critical_exit(false); // osal_none: unlock without lock
   TEST_ASSERT_EQUAL(2, assert_count);
 
   hcd_int_disable_Expect(1);
-  usbh_spin_lock(false);
+  usbh_critical_enter(false);
   hcd_int_enable_Expect(1);
-  usbh_spin_unlock(false);
+  usbh_critical_exit(false);
 
   host_deinit_port(true);
 }

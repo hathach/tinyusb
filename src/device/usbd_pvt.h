@@ -50,8 +50,17 @@ usbd_class_driver_t const* usbd_app_driver_get_cb(uint8_t* driver_count);
 typedef bool (*usbd_control_xfer_cb_t)(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 void usbd_int_set(bool enabled);
-void usbd_spin_lock(bool in_isr);
-void usbd_spin_unlock(bool in_isr);
+
+// Critical section against the USB ISR, other tasks and, on multi-core, the other cores.
+// Keep it short and bounded: no callback, queue, mutex or wait on software state inside, and never re-enter it.
+// in_isr reports the actual context; only tasks and the USB ISR may call it (#4186). The ISR side excludes nothing on
+// single core.
+void usbd_critical_enter(bool in_isr);
+void usbd_critical_exit(bool in_isr);
+
+// Deprecated names
+#define usbd_spin_lock   usbd_critical_enter
+#define usbd_spin_unlock usbd_critical_exit
 
 uint8_t* usbd_get_ctrl_buf(void);
 

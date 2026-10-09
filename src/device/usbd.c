@@ -1566,10 +1566,11 @@ void usbd_int_set(bool enabled) {
   }
 }
 
-void usbd_spin_lock(bool in_isr) {
+void usbd_critical_enter(bool in_isr) {
   osal_spin_lock(&_usbd_spin, in_isr);
 }
-void usbd_spin_unlock(bool in_isr) {
+
+void usbd_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbd_spin, in_isr);
 }
 

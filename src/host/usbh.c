@@ -1310,11 +1310,11 @@ void usbh_int_set(bool enabled) {
   }
 }
 
-void usbh_spin_lock(bool in_isr) {
+void usbh_critical_enter(bool in_isr) {
   osal_spin_lock(&_usbh_spin, in_isr);
 }
 
-void usbh_spin_unlock(bool in_isr) {
+void usbh_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbh_spin, in_isr);
 }
 
