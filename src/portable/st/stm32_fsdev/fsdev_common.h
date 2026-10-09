@@ -312,16 +312,8 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
   return FSDEV_REG->ep[ep_id].reg;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value, bool need_exclusive) {
-  if (need_exclusive) {
-    fsdev_int_disable(0);
-  }
-
+TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
   FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t)value;
-
-  if (need_exclusive) {
-    fsdev_int_enable(0);
-  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_write_clear_ctr(uint32_t ep_id, tusb_dir_t dir) {
@@ -329,7 +321,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ep_write_clear_ctr(uint32_t ep_id, tusb
   reg |= U_EP_CTR_TX | U_EP_CTR_RX;
   reg &= U_EPREG_MASK;
   reg &= ~(1u << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0u : 8u)));
-  ep_write(ep_id, reg, false);
+  ep_write(ep_id, reg);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_change_status(uint32_t *reg, tusb_dir_t dir, ep_stat_t state) {
@@ -354,7 +346,15 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ch_read(uint32_t ch_id) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ch_write(uint32_t ch_id, uint32_t value, bool need_exclusive) {
-  ep_write(ch_id, value, need_exclusive);
+  if (need_exclusive) {
+    fsdev_int_disable(0);
+  }
+
+  ep_write(ch_id, value);
+
+  if (need_exclusive) {
+    fsdev_int_enable(0);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ch_write_clear_ctr(uint32_t ch_id, tusb_dir_t dir) {
@@ -362,7 +362,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ch_write_clear_ctr(uint32_t ch_id, tusb
   reg |= U_EP_CTR_TX | U_EP_CTR_RX;
   reg &= U_EPREG_MASK;
   reg &= ~(1u << (U_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 8u : 0u)));
-  ep_write(ch_id, reg, false);
+  ep_write(ch_id, reg);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ch_change_status(uint32_t *reg, tusb_dir_t dir, ep_stat_t state) {
