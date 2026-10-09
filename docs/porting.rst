@@ -105,7 +105,7 @@ This function should enable internal D+/D- pull-up for enumeration.
 ``dcd_int_enable()`` / ``dcd_int_disable()``
 """"""""""""""""""""""""""""""""""""""""""""
 
-Enables or disables the USB device interrupt(s). The stack calls these around ``dcd_init()``/``dcd_deinit()`` and, without an RTOS or under ThreadX and RTX4, as part of its critical section. A driver must not use them as its own critical section: the pair does not nest and, under an RTOS, does not stop another task from preempting. Use ``usbd_critical_enter()`` instead.
+Enables or disables the USB device interrupt(s). The stack calls these around ``dcd_init()``/``dcd_deinit()`` and, without an RTOS or under ThreadX and RTX4, as part of its critical section. A driver must not use them as its own critical section: the pair does not nest and, under an RTOS, does not stop another task from preempting. Use ``usbd_critical_enter()`` instead, with the exceptions listed under :ref:`critical-section`.
 
 .. _critical-section:
 
@@ -118,6 +118,8 @@ State a driver shares between task code and its USB interrupt handler is protect
 * Never re-enter it: several OSAL ports do not nest.
 * Pass the actual context in ``in_isr``. Only task code and the USB interrupt handler may call it. On a single-core MCU the interrupt-side call excludes nothing, which is only safe because the USB interrupt cannot preempt itself.
 * For long work or task-to-task exclusion, use ``osal_mutex`` instead.
+* A transfer that completes in task code (for example ``dcd_edpt_xfer()`` draining a packet already received) must still reach the stack after every event the interrupt queued before it. Raising its event after the exit breaks that order: the interrupt can queue a bus reset or a SETUP in between. Until the stack has an ordered completion path, such a driver masks its USB interrupt around the work and the event instead, as below; called from the interrupt handler, the order already holds.
+* ``usbd_int_mask_enter(in_isr)``/``usbd_int_mask_exit(in_isr)`` (``usbh_int_mask_enter()``/``usbh_int_mask_exit()`` in a host driver) mask only the USB interrupt, from task code, for work that cannot go inside a critical section: an event to raise in order, or a hardware wait without a documented bound. They nest with the stack's own masking and may be called from ``dcd_init()`` and ``dcd_deinit()`` and anywhere in between; inside those two the interrupt is not the stack's yet, or any more, so they leave it off. They exclude neither other tasks nor other cores, and do nothing when ``in_isr`` is true.
 
 ``dcd_int_handler()``
 """""""""""""""""""""
