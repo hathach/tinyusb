@@ -99,7 +99,8 @@ enum {
   EPSTATE_ACTIVE,
   EPSTATE_PENDING,
   EPSTATE_PENDING_SETUP,
-  EPSTATE_ABORTING // host interrupt endpoint: abort waits for a poll already on the wire
+  EPSTATE_ABORTING,        // host interrupt endpoint: abort waits for a poll already on the wire
+  EPSTATE_ABORTING_PENDING // as ABORTING, with the next transfer queued in user_buf/remaining_len
 };
 
 // Hardware information per endpoint
@@ -127,6 +128,7 @@ typedef struct hw_endpoint {
   struct TU_ATTR_PACKED {
     uint8_t transfer_type : 2;
     uint8_t need_pre      : 1; // preamble for low-speed device behind full speed hub
+    uint8_t abort_frame   : 5; // SOF_RD (modulo 32) when an interrupt endpoint abort stopped polling
   };
 #endif
 

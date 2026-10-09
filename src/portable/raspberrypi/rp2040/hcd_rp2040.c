@@ -196,6 +196,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_is_pending(const hw_endpoint_t *ep)
   return ep->state == EPSTATE_PENDING || ep->state == EPSTATE_PENDING_SETUP;
 }
 
+enum {
+  ABORT_FRAME_MASK = 0x1Fu // hw_endpoint_t.abort_frame keeps SOF_RD modulo 32
+};
+
+TU_ATTR_ALWAYS_INLINE static inline bool int_edpt_is_aborting(const hw_endpoint_t *ep) {
+  return ep->state == EPSTATE_ABORTING || ep->state == EPSTATE_ABORTING_PENDING;
+}
+
+// BUFF_STATUS bit of an interrupt endpoint slot: 2n for IN, 2n+1 for OUT
+TU_ATTR_ALWAYS_INLINE static inline uint32_t int_edpt_status_bit(const hw_endpoint_t *ep) {
+  return TU_BIT(2u * ep->interrupt_num + (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ? 1u : 0u));
+}
+
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
   const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
@@ -315,7 +328,7 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     for (size_t e = 0; e < TU_ARRAY_SIZE(ep_pool); e++) {
       hw_endpoint_t *ep = &ep_pool[e];
       if (ep->interrupt_num == epnum) {
-        if (ep->state == EPSTATE_ABORTING) {
+        if (int_edpt_is_aborting(ep)) {
           ep->next_pid ^= 1u; // the aborted packet completed on the wire after all
           break;
         }
@@ -328,6 +341,82 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
         break;
       }
     }
+  }
+}
+
+// Reclaim an aborted interrupt endpoint's slot, quiet since a frame has passed; start the transfer queued meanwhile
+TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
+  const uint32_t status_bit = int_edpt_status_bit(ep);
+  if (usb_hw->buf_status & status_bit) {
+    usb_hw_clear->buf_status = status_bit;
+    ep->next_pid ^= 1u; // defensive: a late completion lands before the next SOF and the ISR has taken it
+  }
+
+  io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+  *buf_reg          = 0;
+  if (ep->state == EPSTATE_ABORTING_PENDING) {
+    ep->state = EPSTATE_ACTIVE;
+    rp2usb_buffer_start(ep, dpram_int_ep_ctrl(ep->interrupt_num), buf_reg, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN);
+  } else {
+    rp2usb_reset_transfer(ep);
+  }
+  usb_hw_set->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+}
+
+  #ifndef HAS_STOP_EPX_ON_NAK
+// RP2040: on SOF, switch EPX if another endpoint is pending.
+// First SOF sets epx_switch_request. If a transfer completes before next SOF, the flag is
+// cleared (data is flowing, no need to force-switch). Second SOF with flag still set means
+// no data exchanged (endpoint NAK-retrying): STOP_TRANS is safe and we switch.
+// This avoids stopping mid-data-transfer which corrupts double-buffered PID tracking.
+// Return true while an endpoint is pending.
+TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
+  hw_endpoint_t *next_ep = epx_next_pending(epx);
+  if (next_ep == NULL) {
+    usb_hw->nak_poll   = USB_NAK_POLL_RESET;
+    epx_switch_request = false;
+    return false;
+  }
+
+  if (epx->state == EPSTATE_ACTIVE) {
+    if (epx_switch_request) {
+      // Second SOF with no transfer completion: endpoint is NAK-retrying, safe to switch.
+      epx_switch_request = false;
+      sie_stop_xfer();
+      epx_save_context(epx);
+      epx_switch_ep(next_ep);
+    } else {
+      epx_switch_request = true;
+    }
+  }
+  return true;
+}
+  #endif
+
+// HOST_SOF is enabled while an EPX endpoint is pending (RP2040) or an interrupt endpoint is aborting. A SOF hidden by
+// another SOF_RD read only delays the reclaim, which counts frames.
+static void __tusb_irq_path_func(sof_service)(void) {
+  const uint32_t frame      = usb_hw->sof_rd; // also acknowledges HOST_SOF
+  bool           sof_needed = false;
+  #ifndef HAS_STOP_EPX_ON_NAK
+  sof_needed = epx_sof_round_robin(); // first, as close to SOF as possible: its STOP_TRANS relies on it
+  #endif
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (int_edpt_is_aborting(ep)) {
+      // a poll on the wire when the abort stopped polling ended before the next SOF (USB 2.0 §11.3); the second
+      // frame is margin, as when SOF_RD updates relative to the SOF packet is undocumented
+      if (((frame - ep->abort_frame) & ABORT_FRAME_MASK) >= 2u) {
+        int_edpt_reclaim(ep);
+      } else {
+        sof_needed = true;
+      }
+    }
+  }
+
+  if (!sof_needed) {
+    usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
   }
 }
 
@@ -383,8 +472,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     handle_buf_status_isr();
   }
 
-  // SOF-based round-robin MUST run BEFORE BUFF_STATUS to avoid processing
-  // buf_status on the wrong EPX after a completion+switch in handle_buf_status_isr.
+  // EPX switching below runs after BUFF_STATUS, so a completion is credited to the EPX endpoint it belongs to
   #ifdef HAS_STOP_EPX_ON_NAK
   if (status & USB_INTS_EPX_STOPPED_ON_NAK_BITS) {
     usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
@@ -400,32 +488,11 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
       }
     }
   }
-  #else
-  // RP2040: on SOF, switch EPX if another endpoint is pending.
-  // First SOF sets epx_switch_request. If a transfer completes before next SOF, the flag is
-  // cleared (data is flowing, no need to force-switch). Second SOF with flag still set means
-  // no data exchanged (endpoint NAK-retrying): STOP_TRANS is safe and we switch.
-  // This avoids stopping mid-data-transfer which corrupts double-buffered PID tracking.
-  if (status & USB_INTS_HOST_SOF_BITS) {
-    (void)usb_hw->sof_rd; // clear SOF by reading SOF_RD
-    hw_endpoint_t *next_ep = epx_next_pending(epx);
-    if (next_ep == NULL) {
-      usb_hw_clear->inte = USB_INTE_HOST_SOF_BITS;
-      usb_hw->nak_poll   = USB_NAK_POLL_RESET;
-      epx_switch_request = false;
-    } else if (epx->state == EPSTATE_ACTIVE) {
-      if (epx_switch_request) {
-        // Second SOF with no transfer completion: endpoint is NAK-retrying, safe to switch.
-        epx_switch_request = false;
-        sie_stop_xfer();
-        epx_save_context(epx);
-        epx_switch_ep(next_ep);
-      } else {
-        epx_switch_request = true;
-      }
-    }
-  }
   #endif
+
+  if (status & USB_INTS_HOST_SOF_BITS) {
+    sof_service();
+  }
 
   if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
@@ -641,42 +708,31 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return false; // TODO not implemented yet
 }
 
-// Clearing the slot's INT_EP_CTRL bit stops new polls, but one already on the wire may still complete. Wait out its
-// frame before reclaiming the buffer, so a late completion is neither reported nor lost from the data toggle.
+// Clearing the slot's INT_EP_CTRL bit stops new polls, but one already on the wire may still complete. sof_service()
+// reclaims the buffer two frames later, so a late completion is neither reported nor lost from the data toggle.
 static bool int_edpt_abort(hw_endpoint_t *ep) {
-  io_rw_32      *buf_reg    = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-  const uint32_t status_bit = TU_BIT(2u * ep->interrupt_num + (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ? 1u : 0u));
+  bool ret = true;
 
   rp2usb_critical_enter();
-  if (ep->state != EPSTATE_ACTIVE) {
-    rp2usb_critical_exit();
-    return false; // already completed, its event is queued
-  }
-  usb_hw_clear->int_ep_ctrl = TU_BIT(ep->interrupt_num);
-  const uint32_t buf_ctrl   = *buf_reg;
-  if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
-    ep->next_pid = (buf_ctrl & USB_BUF_CTRL_DATA1_PID) ? 1u : 0u; // armed packet not done: reuse its PID
-  } else {
-    usb_hw_clear->buf_status = status_bit; // completed before abort: drop it, keep its toggle
-  }
-  ep->state = EPSTATE_ABORTING;
-  rp2usb_critical_exit();
-
-  busy_wait_us(1100); // a transaction never crosses its 1 ms frame
-
-  rp2usb_critical_enter();
-  // hcd_device_close() may reset the state during the wait; the lock forces the reload, volatile is for static analysis
-  if (*(volatile uint8_t *)&ep->state == EPSTATE_ABORTING) {
-    if (usb_hw->buf_status & status_bit) {
-      usb_hw_clear->buf_status = status_bit;
-      ep->next_pid ^= 1u;
+  if (ep->state == EPSTATE_ABORTING_PENDING) {
+    ep->state = EPSTATE_ABORTING; // the queued transfer never reached the controller
+  } else if (ep->state == EPSTATE_ACTIVE) {
+    usb_hw_clear->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+    const uint32_t buf_ctrl   = *dpram_int_ep_buffer_ctrl(ep->interrupt_num);
+    if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
+      ep->next_pid = (buf_ctrl & USB_BUF_CTRL_DATA1_PID) ? 1u : 0u; // armed packet not done: reuse its PID
+    } else {
+      usb_hw_clear->buf_status = int_edpt_status_bit(ep); // completed before abort: drop it, keep its toggle
     }
-    *buf_reg = 0;
-    rp2usb_reset_transfer(ep);
-    usb_hw_set->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+    ep->state        = EPSTATE_ABORTING;
+    ep->abort_frame  = usb_hw->sof_rd & ABORT_FRAME_MASK;
+    usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+  } else {
+    ret = false; // already completed, its event is queued
   }
   rp2usb_critical_exit();
-  return true;
+
+  return ret;
 }
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
@@ -705,9 +761,22 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   if (ep->interrupt_num > 0) {
     // For interrupt endpoint control and buffer is already configured
     // Note: Interrupt is single buffered only
-    io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
-    io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-    rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen);
+    bool ret = true;
+
+    rp2usb_critical_enter();
+    if (ep->state == EPSTATE_ABORTING) {
+      ep->user_buf      = buffer; // started by sof_service() once the abort reclaims the slot
+      ep->remaining_len = buflen;
+      ep->xferred_len   = 0;
+      ep->state         = EPSTATE_ABORTING_PENDING;
+    } else if (ep->state == EPSTATE_ABORTING_PENDING) {
+      ret = false;
+    } else {
+      rp2usb_xfer_start(ep, dpram_int_ep_ctrl(ep->interrupt_num), dpram_int_ep_buffer_ctrl(ep->interrupt_num), buffer,
+                        NULL, buflen);
+    }
+    rp2usb_critical_exit();
+    return ret;
   } else {
     // Control transfer data and status stages always start with DATA1, regardless of
     // whether the direction changed since the previous stage. SET_REPORT (and any other
