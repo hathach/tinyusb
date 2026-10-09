@@ -517,25 +517,23 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
   (void)rhport;
-  (void)is_isr;
   const uint8_t    epnum = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
   hw_endpoint_t *ep = hw_endpoint_get(epnum, dir);
   io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
   io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
-  rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes);
+  rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes, is_isr);
   return true;
 }
 
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes, bool is_isr) {
   (void)rhport;
-  (void)is_isr;
   hw_endpoint_t *ep = hw_endpoint_get(epnum, dir);
   io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
   io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
-  rp2usb_xfer_start(ep, ep_reg, buf_reg, NULL, ff, total_bytes);
+  rp2usb_xfer_start(ep, ep_reg, buf_reg, NULL, ff, total_bytes, is_isr);
   return true;
 }
 #endif
@@ -595,7 +593,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       }
       hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
       ep->next_pid = 0;           // DATA0
-      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining, false);
       // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
       // the eventual completion reports the full length, not just the post-clear-halt remainder.
       ep->xferred_len += xferred;

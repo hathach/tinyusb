@@ -143,6 +143,8 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
       - CFG_TUSB_DEBUG=0
+    :test_usbd_xfer_isr:
+      - CFG_TUD_MSC=0
     :test_usbd_int:
       - CFG_TUSB_DEBUG_BREAKPOINT=test_assert_hit
     :test_usbh_int:

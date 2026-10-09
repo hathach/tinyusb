@@ -18,7 +18,7 @@ Most application callbacks run from the USB core task, ``tud_task()`` or ``tuh_t
 Class Drivers
 -------------
 
-The USB core calls class driver code from its task, except a device class driver's ``sof`` handler, which runs in interrupt context, and its ``xfer_isr`` handler, which usually does but may run in the context of the call that arms the endpoint. The application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
+The USB core calls class driver code from its task, except a device class driver's ``sof`` handler, which runs in interrupt context, and its ``xfer_isr`` handler, which usually does but may run in the context of the call that arms the endpoint; its ``in_isr`` argument says which. The application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
 
 Class drivers are allowed to call ``usbd_*`` functions, but not ``dcd_*`` functions.
 
