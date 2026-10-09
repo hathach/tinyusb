@@ -301,6 +301,24 @@
             }
         },
         {
+            "name": "ra6m5_ek",
+            "uid": "8419032D32363657364EF4622D294B4E",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000831915224",
+                "args": "-device R7FA6M5BH"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra6m5 cpu -expected-id 0\" -c \"dap create ra6m5.dap -chain-position ra6m5.cpu\" -c \"target create ra6m5.cpu cortex_m -dap ra6m5.dap\" -c \"cortex_m reset_config sysresetreq\""
+            }
+        },
+        {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
             "variant": [
@@ -755,23 +773,6 @@
                 "name": "jlink",
                 "uid": "000778170924",
                 "args": "-device stm32f769ni"
-            }
-        },
-        {
-            "name": "ra6m5_ek",
-            "uid": "8419032D32363657364EF4622D294B4E",
-            "note": "Unstable in CI: intermittent usbtest failures plus cdc_dual_ports/hid_boot_interface/midi_test/mtp/printer_to_cdc flapping. Parked until diagnosed",
-            "tests": {
-                "device": true,
-                "host": false,
-                "dual": false,
-                "skip": ["device/cdc_msc_throughput", "device/msc_dual_lun"],
-                "note": "MSC writes wedge the uPD720201 host (URBs queued, zero wire activity, bus-15 ctrl xfers time out until the device's URBs are killed); reproduced identically with master firmware - device side armed+BUF and exonerated. MSC reads and usbtest bulk (15.8 MB/s) are fine"
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000831915224",
-                "args": "-device R7FA6M5BH"
             }
         }
     ]

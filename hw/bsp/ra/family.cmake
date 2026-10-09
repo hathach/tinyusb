@@ -135,9 +135,10 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
-  family_add_bin_hex(${TARGET})
 
+  # No .bin/.hex otherwise: option-setting and data-flash sections pad the .bin to 16 MB (RA4/RA6) or 620 MB (RA8)
   if (DEFINED DFU_UTIL_VID_PID)
+    family_add_bin_hex(${TARGET}) # dfu-util flashes the .bin
     family_flash_dfu_util(${TARGET} ${DFU_UTIL_VID_PID})
   endif ()
 endfunction()

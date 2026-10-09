@@ -2,7 +2,7 @@
 
 ### ci rig
 
-29 boards, from `test/hil/tinyusb.json`.
+30 boards, from `test/hil/tinyusb.json`.
 
 | Board                    | Roles              | Flasher   | Variants                                               | Note                                                                                                                                                                   |
 |--------------------------|--------------------|-----------|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -17,6 +17,7 @@
 | ea4088_quickstart        | device, host, dual | jlink     | ea4088_quickstart                                      | console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)                                                                                             |
 | lpcxpresso55s28          | device             | pyocd     |                                                        |                                                                                                                                                                        |
 | ra4m1_ek                 | device             | jlink     |                                                        |                                                                                                                                                                        |
+| ra6m5_ek                 | device             | jlink     |                                                        |                                                                                                                                                                        |
 | raspberry_pi_pico        | device, host, dual | openocd   | raspberry_pi_pico                                      |                                                                                                                                                                        |
 | raspberry_pi_pico_w      | host               | openocd   |                                                        | Test native host                                                                                                                                                       |
 | raspberry_pi_pico2       | host               | openocd   |                                                        |                                                                                                                                                                        |

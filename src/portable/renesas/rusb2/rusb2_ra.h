@@ -101,6 +101,11 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void) {
 }
 
+// PIPEnCTR.ACLRM needs >= 100 ns between its 1 and 0 writes (RA4M1 UM p678, RA6M5 UM p907/p1009)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
+  R_BSP_SoftwareDelay((uint32_t)1, BSP_DELAY_UNITS_MICROSECONDS);
+}
+
 #ifdef RUSB2_SUPPORT_HIGHSPEED
 // UTMI PHY power-up per the FSP reference sequence (r_usb_preg_access.c), shared by dcd_init and
 // hcd_init: program CLKSEL to the board XTAL while the PHY is powered down (DIRPD=1), 1 us,
