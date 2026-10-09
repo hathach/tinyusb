@@ -105,8 +105,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 // Deinitialize controller, unset device mode.
 bool dcd_deinit(uint8_t rhport);
 
-// Interrupt Handler
+// Interrupt Handler, also declared by usbd.h: whichever header comes first declares it
+#ifndef TUSB_USBD_H_
 void dcd_int_handler(uint8_t rhport);
+#endif
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
