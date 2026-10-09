@@ -764,6 +764,11 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
 }
 
 static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
+  // the failure path clears the entry, usbh still needs the device and interface
+  const uint8_t daddr      = p_cdc->daddr;
+  const uint8_t itf_num    = p_cdc->bInterfaceNumber;
+  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
+
   if (success) {
     const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted    = true;
@@ -777,8 +782,7 @@ static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
   }
 
   // notify usbh that driver enumeration is complete
-  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-  usbh_driver_set_config_complete(p_cdc->daddr, p_cdc->bInterfaceNumber + itf_offset);
+  usbh_driver_set_config_complete(daddr, itf_num + itf_offset);
 }
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
