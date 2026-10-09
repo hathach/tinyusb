@@ -970,7 +970,10 @@ class FlasherRecoverEntry(unittest.TestCase):
         it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate).
         ra4m1_ek is reset-only (openocd 0ce743125 has no RA target cfg or flash driver): 20/20
         resets re-enumerated it and its wedge drill passed (2026-10-06); the ~80% seen 2026-09-22
-        did not reproduce in 70 resets. mimxrt1064_evk is reset-only: openocd 0ce743125 has no target cfg and no flash driver for
+        did not reproduce in 70 resets. ra6m5_ek is reset-only the same way (SYSRESETREQ is an
+        internal MCU reset, RA6M5 UM 5.3.7): 20/20 resets re-enumerated it at 480 Mbps and 3/3
+        wedge drills passed (ci.lan 2026-10-09).
+        mimxrt1064_evk is reset-only: openocd 0ce743125 has no target cfg and no flash driver for
         it (FlexSPI), so its entry declares a bare SWD DAP and Cortex-M target with SYSRESETREQ;
         3/3 resets each re-enumerated the DUT (2026-09-22). Same trade as
         nrf54lm20dk below. nrf54lm20dk's reset works (libjaylink 0.5.0 finds its PID 0x1069; 0.4.0 did
@@ -990,7 +993,7 @@ class FlasherRecoverEntry(unittest.TestCase):
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
                         'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
-                        'ra4m1_ek'}
+                        'ra4m1_ek', 'ra6m5_ek'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
                                          '-c "dap create rt1064.dap -chain-position rt1064.cpu" '
@@ -1000,6 +1003,11 @@ class FlasherRecoverEntry(unittest.TestCase):
                                    '-c "swd newdap ra4m1 cpu -expected-id 0" '
                                    '-c "dap create ra4m1.dap -chain-position ra4m1.cpu" '
                                    '-c "target create ra4m1.cpu cortex_m -dap ra4m1.dap" '
+                                   '-c "cortex_m reset_config sysresetreq"'),
+                      'ra6m5_ek': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
+                                   '-c "swd newdap ra6m5 cpu -expected-id 0" '
+                                   '-c "dap create ra6m5.dap -chain-position ra6m5.cpu" '
+                                   '-c "target create ra6m5.cpu cortex_m -dap ra6m5.dap" '
                                    '-c "cortex_m reset_config sysresetreq"')}
         stlink_targets = {'stm32h743nucleo': 'stm32h7x', 'stm32g0b1nucleo': 'stm32g0x',
                           'stm32u083nucleo': 'stm32u0x'}
@@ -1051,7 +1059,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
     So every board the roster runs usbtest on must have one."""
 
     # not yet demonstrated on hardware; drop a board once its recovery flasher is proven
-    PENDING = {'tinyusb.json': {'ra6m5_ek'}, 'hfp.json': set()}
+    PENDING = {'tinyusb.json': set(), 'hfp.json': set()}
 
     def test_every_usbtest_board_can_be_recovered(self):
         uncovered = {}
