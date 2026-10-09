@@ -665,7 +665,8 @@ static bool int_edpt_abort(hw_endpoint_t *ep) {
   busy_wait_us(1100); // a transaction never crosses its 1 ms frame
 
   rp2usb_critical_enter();
-  if (ep->state == EPSTATE_ABORTING) { // not closed meanwhile
+  // volatile: hcd_device_close() on another task or core may have reset the state during the wait
+  if (*(volatile uint8_t *)&ep->state == EPSTATE_ABORTING) {
     if (usb_hw->buf_status & status_bit) {
       usb_hw_clear->buf_status = status_bit;
       ep->next_pid ^= 1u;
