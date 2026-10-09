@@ -253,19 +253,22 @@ static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const* rep
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
   (void) len;
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+  // report is NULL when the transfer failed. Nothing to process then, but keep polling.
+  if (report != NULL) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
-  switch (itf_protocol) {
-    case HID_ITF_PROTOCOL_KEYBOARD:
-      process_kbd_report(dev_addr, (hid_keyboard_report_t const*) report);
-      break;
+    switch (itf_protocol) {
+      case HID_ITF_PROTOCOL_KEYBOARD:
+        process_kbd_report(dev_addr, (hid_keyboard_report_t const*) report);
+        break;
 
-    case HID_ITF_PROTOCOL_MOUSE:
-      process_mouse_report(dev_addr, (hid_mouse_report_t const*) report);
-      break;
+      case HID_ITF_PROTOCOL_MOUSE:
+        process_mouse_report(dev_addr, (hid_mouse_report_t const*) report);
+        break;
 
-    default:
-      break;
+      default:
+        break;
+    }
   }
 
   // continue to request to receive report
