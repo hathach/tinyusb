@@ -16,9 +16,10 @@
 
 #include "musb_type.h"
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 
 // Following symbols must be defined by port header
-// - musb_dcd_int_enable/disable/clear/get_enable
+// - musb_dcd_int_enable/disable/clear
 // - musb_dcd_int_handler_enter/exit
 #if defined(TUP_USBIP_MUSB_TI)
   #include "musb_ti.h"
@@ -266,7 +267,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
 
 #endif
 
-// Flush FIFO and clear data toggle
+// Flush FIFO and clear data toggle. Bounded (TX: at most 2 x 1000 polls), so it may run in a critical section.
 static void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool clear_dtog) {
   (void) epnum;
   const uint8_t csrl_dtog = clear_dtog ? MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
@@ -846,8 +847,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc )
   const tusb_dir_t dir_in  = tu_edpt_dir(ep_addr);
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
 
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  usbd_critical_enter(false);
 
   pipe_state_t *pipe = pipe_get(epn, dir_in);
   pipe->buf       = NULL;
@@ -878,7 +878,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc )
 
   musb->intren_ep[is_rx ^ MUSB_INTR_EP_TX_RX_SWAP] |= TU_BIT(epn);
 
-  if (ie) musb_dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 
   return true;
 }
@@ -886,8 +886,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc )
 void dcd_edpt_close_all(uint8_t rhport)
 {
   musb_regs_t* musb = MUSB_REGS(rhport);
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  usbd_critical_enter(false);
 
   musb->intr_txen = 1; /* Enable only EP0 */
   musb->intr_rxen = 0;
@@ -906,7 +905,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
 #endif
 
-  if (ie) musb_dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
@@ -915,8 +914,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   (void)rhport;
   bool ret;
   unsigned const epnum = tu_edpt_number(ep_addr);
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  // IRQ mask, not a critical section: the event must be published before the ISR can queue a reset or SETUP
+  // ahead of it. Same in dcd_edpt_xfer_fifo() and dcd_edpt_stall().
+  usbd_int_mask_enter(is_isr);
 
   if (epnum) {
     ret = edpt_n_xfer(rhport, ep_addr, buffer, total_bytes, false, is_isr);
@@ -925,9 +925,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     ret = edpt0_xfer(rhport, ep_addr, buffer, total_bytes, is_isr);
   }
 
-  if (ie) {
-    musb_dcd_int_enable(rhport);
-  }
+  usbd_int_mask_exit(is_isr);
   return ret;
 }
 
@@ -939,17 +937,15 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   bool ret;
   unsigned const epnum = tu_edpt_number(ep_addr);
   TU_ASSERT(epnum);
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  usbd_int_mask_enter(is_isr);
   ret = edpt_n_xfer(rhport, ep_addr, ff, total_bytes, true, is_isr);
-  if (ie) musb_dcd_int_enable(rhport);
+  usbd_int_mask_exit(is_isr);
   return ret;
 }
 
 // Stall endpoint
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  usbd_int_mask_enter(false);
 
   unsigned const epn = tu_edpt_number(ep_addr);
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
@@ -983,15 +979,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     pipe->armed = false;
   }
 
-  if (ie) musb_dcd_int_enable(rhport);
+  usbd_int_mask_exit(false);
 }
 
 // clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
+  usbd_critical_enter(false);
 
   unsigned const epn = tu_edpt_number(ep_addr);
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
@@ -1000,7 +995,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
   ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
 
-  if (ie) musb_dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 /*-------------------------------------------------------------------
