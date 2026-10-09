@@ -77,6 +77,7 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV) && !(defined(TUP_USBIP_FSDEV_CH32) && CFG_TUD_WCH_USBIP_FSDEV == 0)
 
   #include "device/dcd.h"
+  #include "device/usbd_pvt.h"
   #include "fsdev_common.h"
 
 //--------------------------------------------------------------------+
@@ -115,8 +116,8 @@ static bool       ep0_ctrl_has_data;
 
 // into the stack.
 static void handle_bus_reset(uint8_t rhport);
-static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix);
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir);
+static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix, bool in_isr);
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir, bool in_isr);
 
 // PMA allocation/access
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
@@ -139,18 +140,12 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint
 
 #if defined(TUP_USBIP_FSDEV_CH32)
 // CH32 EP0 workaround: gate handshakes by switching EP0 type CONTROL<->BULK.
-// need_exclusive brackets the read-modify-write so the USB ISR can't race it.
-TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type, bool need_exclusive) {
-  if (need_exclusive) {
-    fsdev_int_disable(0);
-  }
+// Task callers must hold usbd_critical_enter() across this read-modify-write.
+TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type) {
   uint32_t ep_reg = ep_read(0) | U_EP_CTR_TX | U_EP_CTR_RX;
   ep_reg &= U_EPREG_MASK;
   ep_reg = (ep_reg & ~U_EP_T_FIELD) | ep_type;
-  ep_write(0, ep_reg, false);
-  if (need_exclusive) {
-    fsdev_int_enable(0);
-  }
+  ep_write(0, ep_reg);
 }
 #endif
 
@@ -265,12 +260,12 @@ static void handle_ctr_tx(uint32_t ep_id) {
   }
 
   if (xfer->total_len != xfer->queued_len) {
-    dcd_transmit_packet(xfer, (uint16_t)ep_id);
+    dcd_transmit_packet(xfer, (uint16_t)ep_id, true);
   } else {
 #if defined(TUP_USBIP_FSDEV_CH32)
     // Control read: block unsolicited EP0 OUT ACK.
     if ((ep_num == 0u) && ep0_ctrl_dir_in && ep0_ctrl_has_data) {
-      ep0_set_type(U_EP_BULK, false);
+      ep0_set_type(U_EP_BULK);
     }
 #endif
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -296,7 +291,7 @@ static void handle_ctr_setup(uint32_t ep_id) {
 
     // For control write, block unsolicited EP0 OUT ACK until transfer is armed in edpt_xfer().
     if (!ep0_ctrl_dir_in && ep0_ctrl_has_data) {
-      ep0_set_type(U_EP_BULK, false);
+      ep0_set_type(U_EP_BULK);
     }
 #endif
     dcd_event_setup_received(0, (uint8_t *)setup_packet, true);
@@ -318,7 +313,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
 #if defined(TUP_USBIP_FSDEV_CH32)
   // Control write: re-lock EP0 OUT after each DATA OUT packet until next edpt_xfer().
   if ((ep_num == 0u) && !ep0_ctrl_dir_in && ep0_ctrl_has_data) {
-    ep0_set_type(U_EP_BULK, false);
+    ep0_set_type(U_EP_BULK);
     ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_BULK;
   }
 #endif
@@ -364,7 +359,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
     }
     ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_OUT); // will change RX Status, reserved other toggle bits
     ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
-    ep_write(ep_id, ep_reg, false);
+    ep_write(ep_id, ep_reg);
   }
 }
 
@@ -554,7 +549,7 @@ void edpt0_open(uint8_t rhport) {
   // no need to explicitly set DTOG bits since we aren't masked DTOG bit
 
   edpt0_prepare_setup(); // prepare for setup packet
-  ep_write(0, ep_reg, false);
+  ep_write(0, ep_reg);
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
@@ -566,16 +561,13 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   const uint8_t    ep_idx      = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
 
-  uint32_t ep_reg = ep_read(ep_idx) & ~U_EPREG_MASK;
-  ep_reg |= tu_edpt_number(ep_addr) | U_EP_CTR_TX | U_EP_CTR_RX;
-
-  // Set type
+  uint32_t ep_type;
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_BULK:
-      ep_reg |= U_EP_BULK;
+      ep_type = U_EP_BULK;
       break;
     case TUSB_XFER_INTERRUPT:
-      ep_reg |= U_EP_INTERRUPT;
+      ep_type = U_EP_INTERRUPT;
       break;
 
     default:
@@ -591,6 +583,10 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   xfer->max_packet_size = packet_size;
   xfer->ep_idx          = ep_idx;
 
+  usbd_critical_enter(false);
+  uint32_t ep_reg = ep_read(ep_idx) & ~U_EPREG_MASK;
+  ep_reg |= tu_edpt_number(ep_addr) | ep_type | U_EP_CTR_TX | U_EP_CTR_RX;
+
   ep_change_status(&ep_reg, dir, EP_STAT_NAK);
   ep_change_dtog(&ep_reg, dir, 0);
 
@@ -601,17 +597,20 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
     ep_reg &= ~(U_EPTX_STAT | U_EP_DTOG_TX);
   }
 
-  ep_write(ep_idx, ep_reg, true);
+  ep_write(ep_idx, ep_reg);
+  usbd_critical_exit(false);
 
   return true;
 }
 
 void dcd_edpt_close_all(uint8_t rhport) {
-  dcd_int_disable(rhport);
+  (void)rhport;
+
+  usbd_critical_enter(false);
 
   for (uint32_t i = 1; i < FSDEV_EP_COUNT; i++) {
     // Reset endpoint
-    ep_write(i, 0, false);
+    ep_write(i, 0);
     // Clear EP allocation status
     ep_alloc_status[i].ep_num       = 0xFF;
     ep_alloc_status[i].ep_type      = 0xFF;
@@ -619,10 +618,10 @@ void dcd_edpt_close_all(uint8_t rhport) {
     ep_alloc_status[i].allocated[1] = false;
   }
 
-  dcd_int_enable(rhport);
-
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT + 2 * CFG_TUD_ENDPOINT0_SIZE;
+
+  usbd_critical_exit(false);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -665,6 +664,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
   xfer->max_packet_size = tu_edpt_packet_size(desc_ep);
 
+  usbd_critical_enter(false);
   uint32_t ep_reg = ep_read(ep_idx) & ~U_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | U_EP_ISOCHRONOUS | U_EP_CTR_TX | U_EP_CTR_RX;
   #if FSDEV_USE_SBUF_ISO != 0
@@ -685,17 +685,18 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   ep_change_dtog(&ep_reg, (tusb_dir_t)(1 - dir), 1);
   #endif
 
-  ep_write(ep_idx, ep_reg, true);
+  ep_write(ep_idx, ep_reg);
+  usbd_critical_exit(false);
 
   return true;
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)
-static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
+static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix, bool in_isr) {
   uint16_t len    = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
-  uint32_t ep_reg = ep_read(ep_ix) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
+  const uint32_t ep_cfg = ep_read(ep_ix);
 
-  const bool is_iso = ep_is_iso(ep_reg);
+  const bool is_iso = ep_is_iso(ep_cfg);
 
   uint8_t buf_id;
   #if FSDEV_USE_SBUF_ISO == 0
@@ -704,7 +705,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   bool const dbl_buf = false;
   #endif
   if (dbl_buf) {
-    buf_id = (ep_reg & U_EP_DTOG_TX) ? 1 : 0;
+    buf_id = (ep_cfg & U_EP_DTOG_TX) ? 1 : 0;
   } else {
     buf_id = BTABLE_BUF_TX;
   }
@@ -719,16 +720,21 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   xfer->queued_len += len;
 
   btable_set_count(ep_ix, buf_id, len);
-  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
 
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
+
+  // Re-read inside the section: the fifo copy above may take the fifo mutex, so it stays outside
+  usbd_critical_enter(in_isr);
+  uint32_t ep_reg = ep_read(ep_ix) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
-  ep_write(ep_ix, ep_reg, true);
+  ep_write(ep_ix, ep_reg);
+  usbd_critical_exit(in_isr);
 }
 
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir, bool in_isr) {
   (void)rhport;
 
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, dir);
@@ -737,11 +743,14 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 #if defined(TUP_USBIP_FSDEV_CH32)
     // Safe to restore CONTROL before arming IN: no pending OUT for the errata to blind-ACK.
     if (ep_num == 0u) {
-      ep0_set_type(U_EP_CONTROL, true);
+      usbd_critical_enter(in_isr);
+      ep0_set_type(U_EP_CONTROL);
+      usbd_critical_exit(in_isr);
     }
 #endif
-    dcd_transmit_packet(xfer, ep_idx);
+    dcd_transmit_packet(xfer, ep_idx, in_isr);
   } else {
+    usbd_critical_enter(in_isr);
     uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
     ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir);
 
@@ -767,14 +776,14 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
     }
 #endif
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
-    ep_write(ep_idx, ep_reg, true);
+    ep_write(ep_idx, ep_reg);
+    usbd_critical_exit(in_isr);
   }
 
   return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
-  (void)is_isr;
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
@@ -784,11 +793,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   xfer->total_len  = total_bytes;
   xfer->queued_len = 0;
 
-  return edpt_xfer(rhport, ep_num, dir);
+  return edpt_xfer(rhport, ep_num, dir, is_isr);
 }
 
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes, bool is_isr) {
-  (void)is_isr;
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
@@ -798,7 +806,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   xfer->total_len  = total_bytes;
   xfer->queued_len = 0;
 
-  return edpt_xfer(rhport, ep_num, dir);
+  return edpt_xfer(rhport, ep_num, dir, is_isr);
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -808,6 +816,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t    ep_idx = xfer->ep_idx;
 
+  usbd_critical_enter(false);
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir);
   ep_change_status(&ep_reg, dir, EP_STAT_STALL);
@@ -820,7 +829,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 #endif
 
-  ep_write(ep_idx, ep_reg, true);
+  ep_write(ep_idx, ep_reg);
+  usbd_critical_exit(false);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -831,6 +841,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t    ep_idx = xfer->ep_idx;
 
+  usbd_critical_enter(false);
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
@@ -848,7 +859,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     }
   }
   ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
-  ep_write(ep_idx, ep_reg, true);
+  ep_write(ep_idx, ep_reg);
+  usbd_critical_exit(false);
 }
 
 void dcd_int_enable(uint8_t rhport) {
