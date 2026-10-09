@@ -11,6 +11,7 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBFS) && CFG_TUD_WCH_USBIP_USBFS
 
   #include "device/dcd.h"
+  #include "device/usbd_pvt.h"
   #include "ch32_usbfs_reg.h"
 
   /* private defines */
@@ -530,16 +531,16 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
-  (void)is_isr;
   (void)rhport;
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
 
   struct usb_xfer *xfer = &data.xfer[ep][dir];
-  // Keep the IRQ masked across the whole arming sequence: update_in()/ep_rx_set_response() do a
+  // Hold the critical section across the whole arming sequence: update_in()/ep_rx_set_response() do a
   // read-modify-write of the (combined) EP control register, which the ISR also RMWs to flip the
-  // manual data toggle; re-enabling before they run lets a transfer IRQ clobber that toggle.
-  dcd_int_disable(rhport);
+  // manual data toggle; releasing it before they run lets a transfer IRQ clobber that toggle.
+  // update_in(force) never raises an event, so nothing here enqueues.
+  usbd_critical_enter(is_isr);
   // The status stage is opposite the data direction (or IN when there is no data) and always
   // uses DATA1. A zero-length data packet remains in the data direction and keeps its sequence.
   if (ep == 0 && total_bytes == 0 && dir == data.ep0_status_dir) { data.ep0_tog = true; }
@@ -559,7 +560,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       ep_rx_set_response(ep, rx_res);
     }
   }
-  dcd_int_enable(rhport);
+  usbd_critical_exit(is_isr);
   return true;
 }
 
