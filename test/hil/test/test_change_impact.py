@@ -988,7 +988,7 @@ class FlasherRecoverEntry(unittest.TestCase):
         own: lpc1xxx.cfg sets 10 kHz, which made lpcxpresso11u37's flash take 118 s. The LPC
         entries (lpc11xx, lpc40xx, lpc4357) keep verify off: openocd rewrites the vector checksum word
         the ELF lacks, so read-back never equals the image."""
-        demonstrated = {'feather_nrf52840_express', 'metro_m4_express', 'stm32f072disco',
+        demonstrated = {'nrf52840dk', 'metro_m4_express', 'stm32f072disco',
                         'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
@@ -1109,7 +1109,7 @@ class TestMcuHilRule(unittest.TestCase):
         self.assertIn('nrf', s['families'])   # recorded even with no nrf rig board
 
     def test_mcu_selects_family_boards(self):
-        got = on_roster(self, 'feather_nrf52840_express', 'pca10056', 'pca10095')
+        got = on_roster(self, 'nrf52840dk', 'feather_nrf52840_express', 'pca10056', 'pca10095')
         s = change_impact.classify(['hw/mcu/nordic/nrf5x/nrf_clock.h'], REPO, real_rosters())
         self.assertFalse(s['full'])
         for b in got:
@@ -1353,6 +1353,8 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',
             'test/hil/test/test_hil_rtt.py',
+            'test/hil/test/test_hil_teardown_stress.py',
+            'test/hil/test/test_hil_tty_raw.py',
             'test/hil/test/test_hil_usbtest_id.py',
             'test/hil/test/test_hil_usbtest_tt.py',
             'test/hil/test/test_hil_usbtest_verdict.py',

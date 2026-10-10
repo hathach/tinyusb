@@ -139,8 +139,8 @@
             "note": "Use TS3USB30 mux to test both device and host"
         },
         {
-            "name": "feather_nrf52840_express",
-            "uid": "1F0479CD0F764471",
+            "name": "nrf52840dk",
+            "uid": "2D4F0E6E23EB6724",
             "tests": {
                 "device": true,
                 "host": false,
@@ -148,7 +148,7 @@
             },
             "flasher": {
                 "name": "jlink",
-                "uid": "681295394",
+                "uid": "683944004",
                 "args": "-device nrf52840_xxaa"
             },
             "flasher_recover": {
