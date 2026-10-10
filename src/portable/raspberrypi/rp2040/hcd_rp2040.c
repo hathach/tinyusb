@@ -344,7 +344,7 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
   }
 }
 
-// Reclaim an aborted interrupt endpoint's slot, quiet since a frame has passed; start the transfer queued meanwhile
+// Reclaim an aborted interrupt endpoint's slot once no poll can still complete; start the transfer queued meanwhile
 TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
   const uint32_t status_bit = int_edpt_status_bit(ep);
   if (usb_hw->buf_status & status_bit) {
@@ -405,8 +405,8 @@ static void __tusb_irq_path_func(sof_service)(void) {
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
     if (int_edpt_is_aborting(ep)) {
-      // a poll on the wire when the abort stopped polling ended before the next SOF (USB 2.0 §11.3); the second
-      // frame is margin, as when SOF_RD updates relative to the SOF packet is undocumented
+      // an abort just before SOF_RD advances can still see a poll in frame abort_frame + 1 (measured on RP2350); that
+      // poll ends before the following SOF (USB 2.0 §11.3)
       if (((frame - ep->abort_frame) & ABORT_FRAME_MASK) >= 2u) {
         int_edpt_reclaim(ep);
       } else {
@@ -708,8 +708,8 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return false; // TODO not implemented yet
 }
 
-// Clearing the slot's INT_EP_CTRL bit stops new polls, but one already on the wire may still complete. sof_service()
-// reclaims the buffer two frames later, so a late completion is neither reported nor lost from the data toggle.
+// Clearing the slot's INT_EP_CTRL bit stops polling, but one poll may still complete. sof_service() reclaims the buffer
+// two frames later, so a late completion is neither reported nor lost from the data toggle.
 static bool int_edpt_abort(hw_endpoint_t *ep) {
   bool ret = true;
 
