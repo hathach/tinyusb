@@ -107,6 +107,24 @@ typedef struct {
 } hcd_data_t;
 
 static hcd_data_t _hcd_data;
+
+// Periodic start-splits (full/low-speed interrupt/iso device behind a high-speed hub) must be issued early in the
+// 1 ms frame, so the hub's transaction translator can run the downstream transaction and return its result to the
+// complete-splits within the same frame (USB 2.0 section 11.18). A start-split issued late in the frame (e.g. in
+// microframe 6) only ever gets NYET for its complete-splits: the transfer is abandoned after
+// HCD_XFER_PERIOD_SPLIT_NYET_MAX retries although the TT already accepted the device's data, which then
+// desynchronizes the data toggle. Since the interval of such endpoints is a multiple of 8 microframes, a late phase
+// persists forever and the endpoint never delivers data again.
+#define HCD_PERIODIC_SPLIT_LAST_START_UFRAME 3
+
+TU_ATTR_ALWAYS_INLINE static inline bool periodic_split_start_allowed(dwc2_regs_t* dwc2, uint32_t edpt_hcsplt) {
+  const dwc2_channel_split_t hcsplt = {.value = edpt_hcsplt};
+  if (!hcsplt.split_en) {
+    return true;
+  }
+  // the transaction is scheduled for the next (micro)frame, see channel_enable()
+  return ((dwc2->hfnum + 1u) & 7u) <= HCD_PERIODIC_SPLIT_LAST_START_UFRAME;
+}
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 
 //--------------------------------------------------------------------
@@ -910,6 +928,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     }
   }
 
+  if (channel_is_periodic(edpt->hcchar) && hprt_speed_get(dwc2) == TUSB_SPEED_HIGH &&
+      !periodic_split_start_allowed(dwc2, edpt->hcsplt)) {
+    periodic_xfer_defer(dwc2, edpt, 0); // start-split at the next allowed microframe
+    return true;
+  }
   return edpt_xfer_kickoff(dwc2, ep_id);
 }
 
@@ -1649,6 +1672,10 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       if (edpt->hcchar_bm.enable && channel_is_periodic(edpt->hcchar) && edpt->xfer_pending) {
         if (edpt->uframe_countdown > 0) {
           edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
+        }
+        if (edpt->uframe_countdown == 0 && ucount == 1 && !periodic_split_start_allowed(dwc2, edpt->hcsplt)) {
+          more_isr = true; // too late in this frame for a start-split, retry next microframe
+          continue;
         }
         if (edpt->uframe_countdown == 0) {
           if (!edpt_xfer_kickoff(dwc2, ep_id)) {
