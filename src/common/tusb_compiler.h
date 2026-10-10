@@ -139,6 +139,11 @@
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
+  // armcc v5 (AC5) in --gnu mode lacks __has_attribute operator, emulate as macro
+  #ifdef __CC_ARM
+    #define __has_attribute(x) 0
+  #endif
+
   #if (defined(__has_attribute) && __has_attribute(__fallthrough__)) || defined(__TI_COMPILER_VERSION__)
     #define TU_ATTR_FALLTHROUGH __attribute__((fallthrough))
   #else
@@ -164,6 +169,20 @@
                             (((u32) & 0x00ff0000) >> 8)  |  \
                             (((u32) & 0x0000ff00) << 8)  |  \
                             (((u32) & 0x000000ff) << 24))
+  // armcc v5 (AC5) in --gnu mode defines __GNUC__ but lacks __builtin_bswap16/32
+  #elif defined(__CC_ARM)
+    TU_ATTR_ALWAYS_INLINE static inline unsigned short tu_bswap16_armcc(unsigned short value) {
+      return (unsigned short) (((value & 0x00ffU) << 8) |
+                              ((value & 0xff00U) >> 8));
+    }
+    TU_ATTR_ALWAYS_INLINE static inline unsigned long tu_bswap32_armcc(unsigned long value) {
+      return ((value & 0xff000000UL) >> 24) |
+            ((value & 0x00ff0000UL) >> 8)  |
+            ((value & 0x0000ff00UL) << 8)  |
+            ((value & 0x000000ffUL) << 24);
+    }
+    #define TU_BSWAP16(u16) tu_bswap16_armcc(u16)
+    #define TU_BSWAP32(u32) tu_bswap32_armcc(u32)
   #else
     #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
     #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
