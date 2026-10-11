@@ -50,6 +50,8 @@ CFLAGS += \
   -DBOARD_TUH_RHPORT=$(RHPORT_HOST) \
   -DBOARD_TUH_MAX_SPEED=$(RHPORT_HOST_SPEED) \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section("NonCacheable")))' \
+  -DCFG_TUD_UNCACHED_MEM_SECTION='__attribute__((section("NonCacheable")))' \
+  -DCFG_TUH_UNCACHED_MEM_SECTION='__attribute__((section("NonCacheable")))' \
 
 ifneq ($(M4), 1)
 CFLAGS += \
