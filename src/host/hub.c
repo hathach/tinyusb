@@ -18,6 +18,9 @@
 #define HUB_DEBUG   2
 #define TU_LOG_DRV(...)   TU_LOG(HUB_DEBUG, __VA_ARGS__)
 
+// consecutive failed status-change polls before the hub or a port status is read directly
+#define HUB_POLL_FAIL_THRESHOLD  3
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -30,7 +33,9 @@ typedef struct {
   uint8_t bPwrOn2PwrGood_2ms; // port power on to good, in 2ms unit
   // uint16_t wHubCharacteristics;
   bool mtt;
-  hub_port_status_response_t port_status;
+
+  uint8_t poll_failed_count; // consecutive failed status-change interrupt polls
+  uint8_t recover_port;      // last status read by the recovery: 0 = hub, 1..bNbrPorts = port
 } hub_interface_t;
 
 typedef struct {
@@ -38,7 +43,6 @@ typedef struct {
   TUH_EPBUF_DEF(ctrl_buf, CFG_TUH_HUB_BUFSIZE);
 } hub_epbuf_t;
 
-static tuh_xfer_cb_t user_complete_cb = NULL;
 static hub_interface_t hub_itfs[CFG_TUH_HUB];
 CFG_TUH_MEM_SECTION static hub_epbuf_t hub_epbufs[CFG_TUH_HUB];
 
@@ -49,6 +53,11 @@ TU_ATTR_ALWAYS_INLINE static inline hub_interface_t* get_hub_itf(uint8_t daddr) 
 
 TU_ATTR_ALWAYS_INLINE static inline hub_epbuf_t* get_hub_epbuf(uint8_t daddr) {
   return &hub_epbufs[daddr-1-CFG_TUH_DEVICE_MAX];
+}
+
+// last port GET_STATUS response, kept in ctrl_buf until the next data-stage request to this hub
+TU_ATTR_ALWAYS_INLINE static inline const hub_port_status_response_t* get_port_status(uint8_t daddr) {
+  return (const hub_port_status_response_t*) (uintptr_t) get_hub_epbuf(daddr)->ctrl_buf;
 }
 
 #if CFG_TUSB_DEBUG >= HUB_DEBUG
@@ -129,19 +138,6 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
   return true;
 }
 
-static void port_get_status_complete (tuh_xfer_t* xfer) {
-  if (xfer->result == XFER_RESULT_SUCCESS) {
-    hub_interface_t* p_hub = get_hub_itf(xfer->daddr);
-    p_hub->port_status = *((const hub_port_status_response_t *) (uintptr_t) xfer->buffer);
-  }
-
-  xfer->complete_cb = user_complete_cb;
-  user_complete_cb = NULL;
-  if (xfer->complete_cb) {
-    xfer->complete_cb(xfer);
-  }
-}
-
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
                          tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request = {
@@ -160,20 +156,10 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
     .daddr       = hub_addr,
     .ep_addr     = 0,
     .setup       = &request,
-    .buffer      = resp,
+    .buffer      = (hub_port != 0) ? get_hub_epbuf(hub_addr)->ctrl_buf : resp,
     .complete_cb = complete_cb,
     .user_data   = user_data
   };
-
-  if (hub_port != 0) {
-    // intercept complete callback to save port status, ignore resp
-    hub_epbuf_t* p_epbuf = get_hub_epbuf(hub_addr);
-    xfer.complete_cb = port_get_status_complete;
-    xfer.buffer = p_epbuf->ctrl_buf;
-    user_complete_cb = complete_cb;
-  } else {
-    user_complete_cb = NULL;
-  }
 
   TU_LOG_DRV("HUB Get Port Status: addr = %u port = %u\r\n", hub_addr, hub_port);
   TU_VERIFY(tuh_control_xfer(&xfer));
@@ -182,8 +168,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
 
 bool hub_port_get_status_local(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp) {
   (void) hub_port;
-  hub_interface_t* p_hub = get_hub_itf(hub_addr);
-  *resp = p_hub->port_status;
+  *resp = *get_port_status(hub_addr);
   return true;
 }
 
@@ -250,6 +235,7 @@ bool hub_edpt_status_xfer(uint8_t daddr) {
   hub_interface_t* p_hub = get_hub_itf(daddr);
   hub_epbuf_t* p_epbuf = get_hub_epbuf(daddr);
 
+  TU_VERIFY(p_hub->ep_in != 0); // closed
   TU_VERIFY(usbh_edpt_claim(daddr, p_hub->ep_in));
   if (!usbh_edpt_xfer(daddr, p_hub->ep_in, p_epbuf->status_change, 1)) {
     usbh_edpt_release(daddr, p_hub->ep_in);
@@ -364,9 +350,10 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
   (void) ep_addr;
 
   bool processed = false; // true if new status is processed
+  hub_interface_t* p_hub = get_hub_itf(daddr);
 
   if (result == XFER_RESULT_SUCCESS) {
-    hub_interface_t* p_hub = get_hub_itf(daddr);
+    p_hub->poll_failed_count = 0;
     hub_epbuf_t *p_epbuf = get_hub_epbuf(daddr);
     const uint8_t status_change = p_epbuf->status_change[0];
     TU_LOG_DRV("  Hub Status Change = 0x%02X\r\n", status_change);
@@ -387,6 +374,22 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
         }
       }
     }
+  } else if (result == XFER_RESULT_FAILED || result == XFER_RESULT_STALLED || result == XFER_RESULT_TIMEOUT) {
+    // A poll that keeps failing never reports a change (e.g. a downstream unplug). Fall back to reading
+    // one status per round over EP0, ports 1..bNbrPorts then the hub, so a latched change still goes the
+    // normal path. This does not repair the status endpoint itself.
+    if (p_hub->bNbrPorts && ++p_hub->poll_failed_count >= HUB_POLL_FAIL_THRESHOLD) {
+      p_hub->poll_failed_count = 0;
+      const uint8_t port = (p_hub->recover_port < p_hub->bNbrPorts) ? (uint8_t) (p_hub->recover_port + 1) : 0;
+      TU_LOG_DRV("HUB status poll keeps failing, addr = %u: read port %u status\r\n", daddr, port);
+      processed = hub_port_get_status(daddr, port, get_hub_epbuf(daddr)->ctrl_buf, process_new_status,
+                                      port ? STATE_CLEAR_CHANGE : STATE_HUB_STATUS);
+      if (processed) {
+        p_hub->recover_port = port;
+      }
+    }
+  } else {
+    p_hub->poll_failed_count = 0;
   }
 
   // If new status event is processed: next status pool is queued by usbh.c after handled this request
@@ -401,13 +404,16 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
 static void process_new_status(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
 
+  // usbh fails a removed hub's requests after hub_close(): nothing to re-arm
+  TU_VERIFY(get_hub_itf(daddr)->ep_in != 0,);
+
   if (xfer->result != XFER_RESULT_SUCCESS) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
     return;
   }
 
   const uint8_t port_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  hub_interface_t *p_hub = get_hub_itf(daddr);
+  const hub_port_status_response_t *port_status = get_port_status(daddr);
   const uintptr_t state = xfer->user_data;
   bool processed = false; // true if new status is processed
 
@@ -429,7 +435,7 @@ static void process_new_status(tuh_xfer_t* xfer) {
 
     case STATE_CLEAR_CHANGE:
       // Get port status complete --> clear change
-      if (p_hub->port_status.change.connection) {
+      if (port_status->change.connection) {
         // Connection change
         // Port is powered and enabled
         //TU_VERIFY(port_status.status_current.port_power && port_status.status_current.port_enable, );
@@ -437,16 +443,16 @@ static void process_new_status(tuh_xfer_t* xfer) {
         // Acknowledge Port Connection Change
         processed = hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_CONNECTION_CHANGE,
                                            process_new_status, STATE_CHECK_CONN);
-      } else if (p_hub->port_status.change.port_enable) {
+      } else if (port_status->change.port_enable) {
         processed = hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_ENABLE_CHANGE,
                                            process_new_status, STATE_COMPLETE);
-      } else if (p_hub->port_status.change.suspend) {
+      } else if (port_status->change.suspend) {
         processed = hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_SUSPEND_CHANGE,
                                            process_new_status, STATE_COMPLETE);
-      } else if (p_hub->port_status.change.over_current) {
+      } else if (port_status->change.over_current) {
         processed = hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_OVER_CURRENT_CHANGE,
                                            process_new_status, STATE_COMPLETE);
-      } else if (p_hub->port_status.change.reset) {
+      } else if (port_status->change.reset) {
         processed = hub_port_clear_feature(daddr, port_num, HUB_FEATURE_PORT_RESET_CHANGE,
                                            process_new_status, STATE_COMPLETE);
       }
@@ -455,7 +461,7 @@ static void process_new_status(tuh_xfer_t* xfer) {
     case STATE_CHECK_CONN: {
       const hcd_event_t event = {
         .rhport     = usbh_get_rhport(daddr),
-        .event_id   = p_hub->port_status.status.connection ? HCD_EVENT_DEVICE_ATTACH : HCD_EVENT_DEVICE_REMOVE,
+        .event_id   = port_status->status.connection ? HCD_EVENT_DEVICE_ATTACH : HCD_EVENT_DEVICE_REMOVE,
         .connection = {
           .hub_addr = daddr,
           .hub_port = port_num

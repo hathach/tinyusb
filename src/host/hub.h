@@ -162,7 +162,8 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void *resp,
                          tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-// Get port status from local cache. This does not send a request to the device
+// Get the last port status read by hub_port_get_status(), valid until the next data-stage request to this hub.
+// This does not send a request to the device
 bool hub_port_get_status_local(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp);
 
 // Get status from Interrupt endpoint
