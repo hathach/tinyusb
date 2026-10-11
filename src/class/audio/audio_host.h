@@ -339,9 +339,11 @@ void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_byt
 // Reports completion of asynchronous start/stop operations and unrecoverable
 // transfer failures. START_COMPLETE is emitted after the complete activation
 // sequence and initial endpoint transfers are submitted. XFER_FAILED means the
-// HCD could not submit a transfer or completed it unsuccessfully; it is not a
-// notification for an individual dropped isochronous packet. The driver stops
-// the stream before reporting START_COMPLETE failure or XFER_FAILED.
+// HCD could not submit a transfer, stalled the endpoint, or failed several
+// consecutive transfers; it is not a notification for an individual dropped
+// isochronous packet. A dropped capture or playback packet is reported to the
+// data callback with xferred_bytes = 0. The driver stops the stream before
+// reporting START_COMPLETE failure or XFER_FAILED.
 void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result);
 
 //--------------------------------------------------------------------+
