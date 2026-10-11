@@ -74,6 +74,9 @@ def jlink_erase_ranges(flasher: dict) -> list:
     if not isinstance(ranges, list) or not all(isinstance(r, str) and JLINK_ERASE_RANGE.fullmatch(r)
                                                for r in ranges):
         raise ValueError(f'"erase" must be a list of "0xSTART 0xEND" strings, not {ranges!r}')
+    if any(int(lo, 16) >= int(hi, 16) for lo, hi in (r.split() for r in ranges)):
+        # a reversed or empty range would erase nothing and blind the load guard below
+        raise ValueError(f'"erase" ranges need START < END, not {ranges!r}')
     return ranges
 
 

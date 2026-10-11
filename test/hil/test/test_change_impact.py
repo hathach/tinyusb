@@ -981,7 +981,8 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertEqual(hil_flash.jlink_erase_ranges({**ok, 'erase': []}), [])
         # strings reach the command file verbatim: no other command can ride along
         for bad in ('0x1A000000 0x1A002000', ['0x1A000000'], ['0x1A000000 0x1A002000\nexec x'],
-                    ['1A000000 1A002000'], [['0x1A000000', '0x1A002000']]):
+                    ['1A000000 1A002000'], [['0x1A000000', '0x1A002000']],
+                    ['0x1A002000 0x1A000000'], ['0x1A000000 0x1A000000']):
             with self.assertRaises(ValueError, msg=repr(bad)):
                 hil_flash.jlink_erase_ranges({**ok, 'erase': bad})
         with self.assertRaises(ValueError):
