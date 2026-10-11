@@ -9,19 +9,19 @@ updater, and DFU mode, where firmware images are transferred.
 Runtime mode
 ============
 
-Enable ``CFG_TUD_DFU_RUNTIME`` and add ``TUD_DFU_RT_DESCRIPTOR``.  When the
-host sends DFU_DETACH, TinyUSB calls ``tud_dfu_runtime_reboot_to_dfu_cb()``
-right after queuing the request's status stage.  Record the request and any
-required boot flag there, but do not reset inside the callback: the host would
-see DFU_DETACH fail.  Stop the application and switch to the DFU image once the
-status stage has completed.  The runtime driver exposes no application callback
-for status-stage completion; returning from ``tud_task()`` does not guarantee it
-has completed.
+Enable ``CFG_TUD_DFU_RUNTIME`` and add ``TUD_DFU_RT_DESCRIPTOR``.  TinyUSB
+calls ``tud_dfu_runtime_reboot_to_dfu_cb()`` once DFU_DETACH has completed:
+right after its status stage when ``bitWillDetach`` is set, otherwise on the
+next USB bus reset (not on unplug or SET_CONFIGURATION).  Detaching or rebooting
+into the DFU image from the callback is safe.  Between DFU_DETACH and that
+reset, DFU_GETSTATUS and DFU_GETSTATE report appDETACH; a repeated DFU_DETACH
+is accepted, and any unsupported DFU request stalls and cancels the pending
+detach.
 
 The descriptor's detach attributes must describe the actual behavior.  Set
 ``bitWillDetach`` only when the firmware detaches and re-attaches by itself.
-Otherwise wait for the host's USB reset and enter DFU mode only if it arrives
-before the detach timeout expires (DFU 1.1 section 5.1).
+Otherwise the host's USB reset triggers the callback.  The driver does not run
+the detach timer: a reset arriving after ``wDetachTimeOut`` still triggers it.
 
 See :doc:`../../examples/device/dfu_runtime`; its callback only changes the LED
 blink rate and does not detach.

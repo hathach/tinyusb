@@ -125,7 +125,7 @@ void tud_resume_cb(void)
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
-// Invoked on DFU_DETACH request to reboot to the bootloader
+// Invoked on the bus reset after DFU_DETACH (bitWillDetach is clear): reboot to the bootloader here
 void tud_dfu_runtime_reboot_to_dfu_cb(void)
 {
   blink_interval_ms = BLINK_DFU_MODE;

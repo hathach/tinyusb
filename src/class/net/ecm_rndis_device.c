@@ -70,6 +70,9 @@ TU_ATTR_WEAK void tud_network_set_packet_filter_cb(uint16_t packet_filter) {
   (void) packet_filter;
 }
 
+TU_ATTR_WEAK void tud_network_init_cb(void) {
+}
+
 void tud_network_recv_renew(void) {
   usbd_edpt_xfer(0, _netd_itf.ep_out, _netd_epbuf.rx, NETD_PACKET_SIZE, false);
 }
@@ -176,6 +179,8 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     // Open endpoint pair for RNDIS
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in), 0);
 
+    tud_network_init_cb();
+
     // we are ready to transmit a packet
     can_xmit = true;
 
@@ -253,6 +258,7 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
 
                 // TODO should be merge with RNDIS's after endpoint opened
                 // Also should have opposite callback for application to disable network !!
+                tud_network_init_cb();
                 can_xmit = true; // we are ready to transmit a packet
                 tud_network_recv_renew(); // prepare for incoming packets
               }

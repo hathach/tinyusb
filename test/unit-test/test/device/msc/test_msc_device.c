@@ -143,9 +143,14 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
+static bool read10_medium_error; // read10 sets MEDIUM ERROR sense and fails
+
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  (void) lun;
+  if (read10_medium_error) {
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+    return TUD_MSC_RET_ERROR;
+  }
 
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
@@ -219,6 +224,7 @@ void setUp(void)
 
 void tearDown(void)
 {
+  read10_medium_error = false;
 }
 
 //--------------------------------------------------------------------+
@@ -350,5 +356,89 @@ void test_msc_read10_block_size_over_16bit(void)
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
+  tud_task();
+}
+
+// A read10 error keeps the sense the callback set instead of reporting MEDIUM NOT PRESENT
+void test_msc_read10_error_keeps_callback_sense(void)
+{
+  msc_cbw_t cbw_read10 =
+  {
+    .signature = MSC_CBW_SIGNATURE,
+    .tag = 0xCAFECAFE,
+    .total_bytes = 512,
+    .lun = 0,
+    .dir = TUSB_DIR_IN_MASK,
+    .cmd_len = sizeof(scsi_read10_t)
+  };
+  scsi_read10_t const cmd_read10 =
+  {
+    .cmd_code    = SCSI_CMD_READ_10,
+    .lba         = tu_htonl(0),
+    .block_count = tu_htons(1)
+  };
+  memcpy(cbw_read10.command, &cmd_read10, cbw_read10.cmd_len);
+
+  msc_cbw_t cbw_sense =
+  {
+    .signature = MSC_CBW_SIGNATURE,
+    .tag = 0xBEEFBEEF,
+    .total_bytes = sizeof(scsi_sense_fixed_resp_t),
+    .lun = 0,
+    .dir = TUSB_DIR_IN_MASK,
+    .cmd_len = sizeof(scsi_request_sense_t)
+  };
+  scsi_request_sense_t const cmd_sense =
+  {
+    .cmd_code     = SCSI_CMD_REQUEST_SENSE,
+    .alloc_length = sizeof(scsi_sense_fixed_resp_t)
+  };
+  memcpy(cbw_sense.command, &cmd_sense, cbw_sense.cmd_len);
+
+  read10_medium_error = true;
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_read10, sizeof(msc_cbw_t));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  tud_task();
+
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = EDPT_MSC_IN,
+    .wLength       = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  scsi_sense_fixed_resp_t const sense =
+  {
+    .response_code       = 0x70,
+    .valid               = 1,
+    .sense_key           = SCSI_SENSE_MEDIUM_ERROR,
+    .add_sense_len       = sizeof(scsi_sense_fixed_resp_t) - 8,
+    .add_sense_code      = 0x11,
+    .add_sense_qualifier = 0x00
+  };
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_sense, sizeof(msc_cbw_t));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &sense, sizeof(sense), sizeof(sense), false, true);
   tud_task();
 }
