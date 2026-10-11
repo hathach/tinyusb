@@ -29,8 +29,9 @@ tu_static osal_queue_t _usbc_q;
 // if stack is initialized
 static bool _usbc_inited = false;
 
-// if port is initialized
+// if port is initialized: the stack owns its IRQ while set, usbc_int_set() masks all owned ports on top, nested
 static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
+static uint8_t _usbc_int_depth;
 static bool _port_attached[TUP_TYPEC_RHPORTS_NUM];
 
 // Max possible PD size is 262 bytes
@@ -113,9 +114,11 @@ bool tuc_init(uint8_t rhport, uint32_t port_type) {
   TU_LOG_INT(USBC_DEBUG, sizeof(tcd_event_t));
 
   TU_ASSERT(tcd_init(rhport, port_type));
-  tcd_int_enable(rhport);
 
   _port_inited[rhport] = true;
+  if (_usbc_int_depth == 0) {
+    tcd_int_enable(rhport);
+  }
   return true;
 }
 
@@ -233,6 +236,17 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
 //
 //--------------------------------------------------------------------+
 void usbc_int_set(bool enabled) {
+  if (!enabled) {
+    if (_usbc_int_depth++ != 0) {
+      return;
+    }
+  } else {
+    TU_ASSERT(_usbc_int_depth > 0, );
+    if (--_usbc_int_depth != 0) {
+      return;
+    }
+  }
+
   // Disable all controllers since they shared the same event queue
   for (uint8_t p = 0; p < TUP_TYPEC_RHPORTS_NUM; p++) {
     if ( _port_inited[p] ) {

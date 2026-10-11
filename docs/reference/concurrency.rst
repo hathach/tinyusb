@@ -18,7 +18,7 @@ Most application callbacks run from the USB core task, ``tud_task()`` or ``tuh_t
 Class Drivers
 -------------
 
-The USB core calls class driver code from its task, except a device class driver's ``sof`` handler, which runs in interrupt context, and its ``xfer_isr`` handler, which usually does but may run in the context of the call that arms the endpoint. The application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
+The USB core calls class driver code from its task, except a device class driver's ``sof`` handler, which runs in interrupt context, and its ``xfer_isr`` handler, which usually does but may run in the context of the call that arms the endpoint; its ``in_isr`` argument says which. The application is allowed to call class driver functions from interrupts. USB core functions may be called simultaneously by multiple tasks. Use care that proper locking is used to guard the USBD core functions from this case.
 
 Class drivers are allowed to call ``usbd_*`` functions, but not ``dcd_*`` functions.
 
@@ -30,6 +30,21 @@ All functions that may be called from an (USB core) interrupt context have a ``b
 Apart from the device ``sof`` and ``xfer_isr`` handlers, interrupt handlers must not directly call class driver code; they must pass a message to the USB core's task.
 
  ``usbd_*`` functions may be called from interrupts without any notice. They may also be called simultaneously by multiple tasks.
+
+Locking
+-------
+
+TinyUSB uses three kinds of exclusion. Each one does no exclusion work where none is needed.
+
+========================================  ===========================================  ====================================
+Primitive                                 Excludes                                     No exclusion work
+========================================  ===========================================  ====================================
+``usbd_critical_enter()``, ``usbh_..()``  the USB interrupt, other tasks, other cores  ISR side on a single-core MCU
+``osal_mutex``                            other tasks, long holds allowed              without an RTOS on a single-core MCU
+``osal_semaphore``, ``osal_queue``        none, they signal ISR to task                not applicable
+========================================  ===========================================  ====================================
+
+A spinlock is never used alone: on a multi-core MCU it sits inside the critical section, because a task holding a bare spinlock would deadlock against the USB interrupt on its own core. See :ref:`critical-section` in the porting guide for the rules a driver follows.
 
 Device Drivers
 --------------

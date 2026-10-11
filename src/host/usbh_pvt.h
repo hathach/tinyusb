@@ -55,8 +55,16 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr);
 // Schedules a function to be called after certain time asynchronously
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param);
 
-void usbh_spin_lock(bool in_isr);
-void usbh_spin_unlock(bool in_isr);
+// Rules for both pairs: docs/porting.rst "Critical sections"
+void usbh_critical_enter(bool in_isr);
+void usbh_critical_exit(bool in_isr);
+
+void usbh_int_mask_enter(bool in_isr);
+void usbh_int_mask_exit(bool in_isr);
+
+// Deprecated names
+#define usbh_spin_lock   usbh_critical_enter
+#define usbh_spin_unlock usbh_critical_exit
 
 //--------------------------------------------------------------------+
 // USBH Endpoint API

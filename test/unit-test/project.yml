@@ -143,6 +143,16 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
       - CFG_TUSB_DEBUG=0
+    :test_usbd_xfer_isr:
+      - CFG_TUD_MSC=0
+    :test_usbd_int:
+      - CFG_TUSB_DEBUG_BREAKPOINT=test_assert_hit
+    :test_usbh_int:
+      - CFG_TUSB_DEBUG_BREAKPOINT=test_assert_hit
+      - CFG_TUSB_RHPORT0_MODE=OPT_MODE_HOST
+      - CFG_TUD_ENABLED=0
+      - CFG_TUH_ENABLED=1
+      - CFG_TUSB_DEBUG=0
     :test_midi2_device_gtb_default:
       - CFG_TUD_MSC=0
       - CFG_TUD_MIDI2=1

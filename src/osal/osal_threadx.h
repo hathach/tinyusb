@@ -52,18 +52,27 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
-// Spinlock API
+// Spinlock API: interrupt mask with saved posture, which also stops thread preemption (single core only), plus the
+// USB IRQ mask in case a BASEPRI port leaves the USB IRQ above TX_PORT_BASEPRI
 //--------------------------------------------------------------------+
-//--------------------------------------------------------------------+
-// Spinlock API
-//--------------------------------------------------------------------+
+#ifdef TX_THREAD_SMP_MAX_CORES
+  #error "ThreadX SMP is not supported: tx_interrupt_control() does not exclude other cores"
+#endif
+
+// tx_interrupt_control() writes its argument to BASEPRI in that mode, where TX_INT_DISABLE (1) masks nothing
+#ifdef TX_PORT_USE_BASEPRI
+  #define OSAL_TX_INT_DISABLE TX_PORT_BASEPRI
+#else
+  #define OSAL_TX_INT_DISABLE TX_INT_DISABLE
+#endif
+
 typedef struct {
-  void (* interrupt_set)(bool);
+  void (*interrupt_set)(bool enabled);
+  UINT posture;
 } osal_spinlock_t;
 
-// For SMP, spinlock must be locked by hardware, cannot just use interrupt
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name = { .interrupt_set = _int_set }
+  osal_spinlock_t _name = {.interrupt_set = _int_set}
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
@@ -74,15 +83,17 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) 
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
- if (!in_isr) {
-   ctx->interrupt_set(false);
- }
+  if (!in_isr) {
+    ctx->posture = tx_interrupt_control(OSAL_TX_INT_DISABLE);
+    ctx->interrupt_set(false);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
- if (!in_isr) {
-   ctx->interrupt_set(true);
- }
+  if (!in_isr) {
+    ctx->interrupt_set(true);
+    (void) tx_interrupt_control(ctx->posture);
+  }
 }
 
 

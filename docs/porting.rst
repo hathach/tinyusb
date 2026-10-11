@@ -68,6 +68,24 @@ The OS Abstraction Layer is responsible for providing basic data structures for 
 
 In RTOS configurations, ``tud_task()``/``tuh_task()`` blocks behind a synchronization structure when the event queue is empty, so that the scheduler may give the CPU to a different task. To take advantage of the library's capability to yield the CPU when there are no actionable USB device events, ensure that the ``CFG_TUSB_OS`` symbol is defined, e.g ``OPT_OS_FREERTOS`` enables the FreeRTOS scheduler to schedule other threads than that which calls ``tud_task()``/``tuh_task()``.
 
+``osal_spin_lock()`` / ``osal_spin_unlock()`` back the stack's critical section (see :ref:`critical-section` below). An OSAL port, including an ``OPT_OS_CUSTOM`` one, must make the task side exclude the USB interrupt, other tasks and, on a multi-core MCU, the other cores, and undo on unlock only what the lock changed. The ISR side may be empty on a single-core MCU. Without an RTOS the lock restores TinyUSB's own USB IRQ state, not a mask the application set itself. The in-tree ports implement it as follows:
+
+===============  =======================================================================  ==========================================
+OSAL             Task side                                                                ISR side
+===============  =======================================================================  ==========================================
+None             masks the USB IRQ through ``usbd_int_set()``/``usbh_int_set()``, nested  none; single core only
+FreeRTOS         ``taskENTER_CRITICAL()``                                                 ``taskENTER_CRITICAL_FROM_ISR()`` on SMP
+FreeRTOS (ESP)   ``portENTER_CRITICAL(portMUX)``                                          ``portENTER_CRITICAL_ISR(portMUX)`` on SMP
+Pico SDK         ``critical_section_enter_blocking()``                                    same
+Zephyr           ``k_spin_lock()``                                                        same on SMP
+RT-Thread (5.x)  ``rt_spin_lock_irqsave()``                                               same on SMP
+ThreadX          ``tx_interrupt_control()`` plus the USB IRQ mask; SMP is rejected        none
+Mynewt           ``OS_ENTER_CRITICAL()``                                                  none; single core only
+RTX4             RTX mutex plus the USB IRQ mask, nested                                  none
+===============  =======================================================================  ==========================================
+
+Where the task side relies on the kernel's interrupt mask (FreeRTOS, Pico SDK, Zephyr, RT-Thread, Mynewt), the USB IRQ must be one the kernel masks: on FreeRTOS its priority must be logically at or below ``configMAX_SYSCALL_INTERRUPT_PRIORITY`` (the same rule FreeRTOS sets for any ISR that calls its API), and on Zephyr it must not be a zero-latency interrupt. ThreadX and RTX4 also mask the USB IRQ itself, so its priority does not matter for the exclusion there.
+
 Device API
 ^^^^^^^^^^
 
@@ -87,7 +105,21 @@ This function should enable internal D+/D- pull-up for enumeration.
 ``dcd_int_enable()`` / ``dcd_int_disable()``
 """"""""""""""""""""""""""""""""""""""""""""
 
-Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
+Enables or disables the USB device interrupt(s). The stack calls these around ``dcd_init()``/``dcd_deinit()`` and, without an RTOS or under ThreadX and RTX4, as part of its critical section. A driver must not use them as its own critical section: the pair does not nest and, under an RTOS, does not stop another task from preempting. Use ``usbd_critical_enter()`` instead, with the exceptions listed under :ref:`critical-section`.
+
+.. _critical-section:
+
+Critical sections
+"""""""""""""""""
+
+State a driver shares between task code and its USB interrupt handler is protected with ``usbd_critical_enter(in_isr)`` / ``usbd_critical_exit(in_isr)`` (``usbh_critical_enter()``/``usbh_critical_exit()`` in a host driver). The section excludes the USB interrupt, other tasks and, on a multi-core MCU, the other cores. Rules:
+
+* Keep it short and bounded. A hardware wait with a documented bound is allowed, such as the DWC2 FIFO flush, which completes in eight cycles of the slower of the PHY and AHB clocks once the core is idle (no transaction in progress, NAK in effect). Never call a callback, a queue or mutex function, or wait on software state inside.
+* Never re-enter it: several OSAL ports do not nest.
+* Pass the actual context in ``in_isr``. Only task code and the USB interrupt handler may call it. On a single-core MCU the interrupt-side call excludes nothing, which is only safe because the USB interrupt cannot preempt itself.
+* For long work or task-to-task exclusion, use ``osal_mutex`` instead.
+* A transfer that completes in task code (for example ``dcd_edpt_xfer()`` draining a packet already received) must still reach the stack after every event the interrupt queued before it. Raising its event after the exit breaks that order: the interrupt can queue a bus reset or a SETUP in between. Until the stack has an ordered completion path, such a driver masks its USB interrupt around the work and the event instead, as below; called from the interrupt handler, the order already holds.
+* ``usbd_int_mask_enter(in_isr)``/``usbd_int_mask_exit(in_isr)`` (``usbh_int_mask_enter()``/``usbh_int_mask_exit()`` in a host driver) mask only the USB interrupt, from task code, for work that cannot go inside a critical section: an event to raise in order, or a hardware wait without a documented bound. They nest with the stack's own masking and may be called from ``dcd_init()`` and ``dcd_deinit()`` and anywhere in between; inside those two the interrupt is not the stack's yet, or any more, so they leave it off. They exclude neither other tasks nor other cores, and do nothing when ``in_isr`` is true.
 
 ``dcd_int_handler()``
 """""""""""""""""""""
