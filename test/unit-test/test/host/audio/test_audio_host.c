@@ -991,6 +991,31 @@ static void mount_descriptors(const uint8_t *desc, uint16_t desc_len) {
   complete_mount();
 }
 
+void test_audio_host_instance_pool_capacity_and_reuse(void) {
+  const tusb_desc_interface_t *desc = (const tusb_desc_interface_t *)playback_with_explicit_feedback;
+  const uint16_t len = sizeof(playback_with_explicit_feedback);
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
+    TEST_ASSERT_EQUAL_UINT16(len, audioh_open(0, idx + 1, desc, len));
+    TEST_ASSERT_EQUAL_UINT8(idx, descriptor_cb_idx);
+    TEST_ASSERT_EQUAL_UINT8(idx + 1, tuh_audio_get_dev_addr(idx));
+    TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(idx));
+  }
+  TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, CFG_TUH_AUDIO + 1, desc, len));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(CFG_TUH_AUDIO));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_stream_count(CFG_TUH_AUDIO));
+
+  audioh_close(1);
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_get_dev_addr(0));
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_audio_stream_count(0));
+  TEST_ASSERT_EQUAL_UINT16(len, audioh_open(0, CFG_TUH_AUDIO + 1, desc, len));
+  TEST_ASSERT_EQUAL_UINT8(0, descriptor_cb_idx);
+  TEST_ASSERT_EQUAL_UINT8(CFG_TUH_AUDIO + 1, tuh_audio_get_dev_addr(0));
+  for (uint8_t idx = 1; idx < CFG_TUH_AUDIO; idx++) {
+    TEST_ASSERT_EQUAL_UINT8(idx + 1, tuh_audio_get_dev_addr(idx));
+    TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(idx));
+  }
+}
+
 void test_audio_host_rejects_midi1_collection_without_consuming_instance(void) {
   TEST_ASSERT_EQUAL_UINT16(0, audioh_open(0, AUDIO_DEV_ADDR, (const tusb_desc_interface_t *)midi1_only_collection,
                                           sizeof(midi1_only_collection)));
