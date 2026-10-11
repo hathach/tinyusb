@@ -164,3 +164,4 @@ target_compile_definitions(test_dwc2_split PRIVATE
   )
 
 enable_testing()
+add_subdirectory(host)
