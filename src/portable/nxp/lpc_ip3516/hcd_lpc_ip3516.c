@@ -16,6 +16,9 @@
 #include "common/tusb_common.h"
 #include "host/hcd.h"
 #include "host/usbh.h"
+#if CFG_TUH_HUB
+#include "host/hub.h"
+#endif
 #include "hcd_lpc_ip3516.h"
 
 #if TU_CHECK_MCU(OPT_MCU_LPC55, OPT_MCU_LPC54)
@@ -64,6 +67,15 @@
 
 CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(1024) static ip3516_ptd_t _ptd;
 
+// ISO scheduling fields are consumed by hardware and must be restored for each transfer.
+static struct {
+  uint16_t interval;
+  uint16_t max_packet_size;
+  uint8_t uframe_active;
+  uint8_t uframe_complete;
+  uint8_t split_slot;
+} _iso_ep[IP3516_PTL_NUM];
+
 static struct {
   uint32_t uframe_number;
   uint32_t uframe_length;
@@ -81,6 +93,27 @@ static inline bool is_ptd_free(const ptd_ctrl1_t ctrl1) {
 static inline bool is_xfer_async(tusb_xfer_type_t xfer_type) {
   return (xfer_type == TUSB_XFER_CONTROL || xfer_type == TUSB_XFER_BULK);
 }
+
+// Reserve coarse ISO payload windows on the downstream bus. Assume MTT hubs:
+// each (hub address, downstream port) has an independent schedule.
+// OUT grows from slot 0, IN from the end, leaving two extra complete attempts
+// before the frame ends. Windows use maximum packet sizes, not current data.
+// This is best effort: no full bus-time admission or interrupt reservations.
+#if CFG_TUH_HUB
+static bool iso_split_slot(uint8_t hub_addr, uint8_t hub_port, uint16_t packet_size, uint8_t dir, uint8_t *slot) {
+  uint8_t used = 0;
+  for (uint8_t i = 0; i < IP3516_PTL_NUM; i++) {
+    const ip3516_ptl_t *ptd = &_ptd.iso[i];
+    if (!is_ptd_free(ptd->ctrl1) && ptd->ctrl2.split &&
+        ptd->ctrl2.hub_addr == hub_addr && ptd->ctrl2.hub_port == hub_port) {
+      const uint8_t count = (uint8_t)((_iso_ep[i].max_packet_size + 187u) / 188u);
+      used |= ((1u << count) - 1u) << _iso_ep[i].split_slot;
+    }
+  }
+
+  return hub_iso_split_slot(used, packet_size, dir, slot);
+}
+#endif
 
 static inline void ptd_clear_state(ptd_state_t *state) {
   ptd_state_t local = {.value = 0};
@@ -279,6 +312,30 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
   ptd_data_t  *ptd_data  = (ptd_data_t *)(ptd_ptr + offsetof(ip3516_atl_t, data));
   ptd_state_t *ptd_state = (ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
 
+  if (ptd_state->ep_type == TUSB_XFER_ISOCHRONOUS) {
+    ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
+    const uint8_t index = (uint8_t)(ptd - _ptd.iso);
+    // Each submission covers at most one endpoint packet, including splits.
+    TU_VERIFY(buflen <= _iso_ep[index].max_packet_size);
+    const uint32_t interval = _iso_ep[index].interval;
+    const uint32_t now = (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >>
+                         USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
+    const uint32_t next = (now + interval) & ~(interval - 1u);
+
+    // UM11126, Table 814: ISO uFrame[7:3] is a frame number; bits [2:0]
+    // do not encode a polling interval. Select one service slot per transfer.
+    ptd_ctrl1->uframe = next & 0xf8u;
+    ptd->status.value = 0;
+    ptd->status.uframe_active = ptd_ctrl2->split ? _iso_ep[index].uframe_active : (1u << (next & 7u));
+    if (ptd_ctrl2->split && ep_dir == TUSB_DIR_OUT) {
+      const uint8_t slots = (uint8_t)tu_max32(1, (buflen + 187u) / 188u);
+      ptd->status.uframe_active = ((1u << slots) - 1u) << _iso_ep[index].split_slot;
+    }
+    ptd->iso_in_0.value = _iso_ep[index].uframe_complete;
+    ptd->iso_in_1 = 0;
+    ptd->iso_in_2 = 0;
+  }
+
   // Setup data buffer and length
   ptd_data->data_addr = (uint32_t)(uintptr_t)buffer & IP3516_PTD_DATA_ADDR_MASK;
   ptd_data->xfer_len  = buflen;
@@ -303,7 +360,7 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
     ptd_state->nak_cnt = 0x0f;
   }
 
-  // Activate PTD
+  // Activate only after the ISO scheduling fields have been restored.
   ptd_ctrl1->valid  = 1;
   ptd_state->active = 1;
 
@@ -326,6 +383,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   USBHSH->PORTMODE = USBHSH_PORTMODE_SW_CTRL_PDCOM_MASK;
 
   tu_memclr(&_ptd, sizeof(_ptd));
+  tu_memclr(_iso_ep, sizeof(_iso_ep));
   tu_varclr(&_hcd_data);
 
   // Set base addresses
@@ -479,155 +537,127 @@ static inline intptr_t get_ptd_from_index(tusb_xfer_type_t xfer_type, uint8_t pt
 
 // Open an endpoint
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
-  (void)rhport;
-
   const uint8_t          ep_num    = tu_edpt_number(ep_desc->bEndpointAddress);
+  const tusb_dir_t       ep_dir    = tu_edpt_dir(ep_desc->bEndpointAddress);
   const tusb_xfer_type_t xfer_type = (tusb_xfer_type_t)ep_desc->bmAttributes.xfer;
 
   tuh_bus_info_t bus_info;
   tuh_bus_info_get(dev_addr, &bus_info);
 
-  // Find a free PTD
-  uint8_t ptd_index = ptd_find_free(xfer_type);
-  TU_ASSERT(ptd_index != TUSB_INDEX_INVALID_8);
+  const bool high_speed = bus_info.speed == TUSB_SPEED_HIGH;
+  const bool split = hcd_port_speed_get(rhport) == TUSB_SPEED_HIGH && !high_speed;
+  if (split) {
+    // A full-speed hub may sit between this device and its high-speed TT.
+    while (bus_info.hub_addr != 0) {
+      tuh_bus_info_t hub;
+      TU_VERIFY(tuh_bus_info_get(bus_info.hub_addr, &hub));
+      if (hub.speed == TUSB_SPEED_HIGH) {
+        break;
+      }
+      bus_info.hub_addr = hub.hub_addr;
+      bus_info.hub_port = hub.hub_port;
+    }
+    TU_VERIFY(bus_info.hub_addr != 0);
+  }
 
-  // Configure PTD
-  intptr_t              ptd_ptr = get_ptd_from_index(xfer_type, ptd_index);
-  volatile ptd_ctrl1_t *ctrl1   = (volatile ptd_ctrl1_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl1));
-  volatile ptd_ctrl2_t *ctrl2   = (volatile ptd_ctrl2_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl2));
-  volatile ptd_data_t  *data    = (volatile ptd_data_t *)(ptd_ptr + offsetof(ip3516_atl_t, data));
-  volatile ptd_state_t *state   = (volatile ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
+  const uint8_t ptd_index = ptd_find_free(xfer_type);
+  TU_VERIFY(ptd_index != TUSB_INDEX_INVALID_8);
 
-  // Initialize PTD fields
-  ctrl1->mps  = ep_desc->wMaxPacketSize;
-  ctrl1->mult = 1;
+  uint16_t mps = ep_desc->wMaxPacketSize;
+  uint8_t uframe = 0;
+  uint8_t uframe_active = 0;
+  uint8_t uframe_complete = 0;
 
+  switch (xfer_type) {
+    case TUSB_XFER_ISOCHRONOUS: {
+      // ISO compares five frame bits, allowing at most 32 ms at HS. FS/split
+      // must target a different frame, so its power-of-two limit is 16 ms.
+      const uint8_t max_binterval = high_speed ? 9 : 5;
+      TU_VERIFY(ep_desc->bInterval > 0 && ep_desc->bInterval <= max_binterval);
+      const uint16_t interval = (uint16_t)(1u << (ep_desc->bInterval - 1u + (high_speed ? 0u : 3u)));
+      uint8_t split_slot = 0;
+      uframe_active = 1; // Non-split ISO gets its actual frame/slot at submission.
+      #if CFG_TUH_HUB
+      if (split) {
+        // Reserve before publishing this endpoint. Existing windows stay put.
+        TU_VERIFY(bus_info.speed == TUSB_SPEED_FULL);
+        TU_VERIFY(mps > 0 && mps <= (ep_dir == TUSB_DIR_IN ? 564 : 1023));
+        TU_VERIFY(iso_split_slot(bus_info.hub_addr, bus_info.hub_port, mps, ep_dir, &split_slot));
+        uframe_active = 1u << split_slot;
+        if (ep_dir == TUSB_DIR_IN) {
+          const uint8_t slots = (uint8_t)((mps + 187u) / 188u);
+          uframe_complete = ((1u << (slots + 2u)) - 1u) << (split_slot + 2u);
+          mps = tu_min16(mps, 192);
+        } else {
+          mps = tu_min16(mps, 188);
+        }
+      }
+      #endif
+      _iso_ep[ptd_index].interval = interval;
+      _iso_ep[ptd_index].max_packet_size = ep_desc->wMaxPacketSize;
+      _iso_ep[ptd_index].split_slot = split_slot;
+      _iso_ep[ptd_index].uframe_active = uframe_active;
+      _iso_ep[ptd_index].uframe_complete = uframe_complete;
+      break;
+    }
+
+    case TUSB_XFER_INTERRUPT: {
+      TU_VERIFY(ep_desc->bInterval > 0);
+      uint32_t interval;
+      if (high_speed) {
+        TU_VERIFY(ep_desc->bInterval <= 16);
+        interval = 1u << (ep_desc->bInterval - 1u);
+      } else {
+        // Full-/low-speed interrupt intervals are linear frame counts.
+        interval = 1u << tu_log2((uint32_t)ep_desc->bInterval << 3);
+      }
+      interval = tu_min32(interval, IP3516_MAX_UFRAME);
+      switch (interval) {
+        case 1: uframe_active = 0xff; break;
+        case 2: uframe_active = 0xaa; break;
+        case 4: uframe_active = 0x11; break;
+        default:
+          uframe_active = 0x01;
+          uframe = (uint8_t)(tu_log2(interval) - 3);
+          break;
+      }
+      if (split) {
+        // Spread starts between slots 0/1, with three complete attempts.
+        const uint8_t slot = ep_num & 1u;
+        uframe_active = 1u << slot;
+        uframe_complete = 0x1c << slot;
+      }
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  // All validation is complete; publish the endpoint configuration.
+  const intptr_t ptd_ptr = get_ptd_from_index(xfer_type, ptd_index);
+  volatile ptd_ctrl1_t *ctrl1 = (volatile ptd_ctrl1_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl1));
+  volatile ptd_ctrl2_t *ctrl2 = (volatile ptd_ctrl2_t *)(ptd_ptr + offsetof(ip3516_atl_t, ctrl2));
+  volatile ptd_data_t  *data  = (volatile ptd_data_t *)(ptd_ptr + offsetof(ip3516_atl_t, data));
+  volatile ptd_state_t *state = (volatile ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
+
+  ctrl1->mps    = mps;
+  ctrl1->mult   = 1;
+  ctrl1->uframe = uframe;
   ctrl2->dev_addr = dev_addr;
   ctrl2->ep_num   = ep_num;
   ctrl2->speed    = bus_info.speed == TUSB_SPEED_LOW ? 2 : 0;
   ctrl2->hub_addr = bus_info.hub_addr;
   ctrl2->hub_port = bus_info.hub_port;
-  ctrl2->split    = (hcd_port_speed_get(rhport) == TUSB_SPEED_HIGH) && (bus_info.speed != TUSB_SPEED_HIGH) ? 1 : 0;
-
+  ctrl2->split    = split;
   data->intr = 1;
-
   state->ep_type = (uint32_t)xfer_type;
-  state->token   = tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN ? IP3516_PTD_TOKEN_IN : IP3516_PTD_TOKEN_OUT;
-
+  state->token   = ep_dir == TUSB_DIR_IN ? IP3516_PTD_TOKEN_IN : IP3516_PTD_TOKEN_OUT;
   if (!is_xfer_async(xfer_type)) {
     ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
-
-    uint32_t uframe_interval;
-    if (bus_info.speed == TUSB_SPEED_HIGH) {
-      uframe_interval = 1 << (ep_desc->bInterval - 1);
-    } else {
-      uframe_interval = ep_desc->bInterval << 3;
-      // round down to nearest power of 2
-      uframe_interval = 1 << tu_log2(uframe_interval);
-    }
-    uframe_interval = tu_min32(uframe_interval, IP3516_MAX_UFRAME);
-
-    // uframe_active is an 8-bit mask, where each bit corresponds to a micro-frame within a 1ms frame.
-    // A '1' indicates the endpoint should be polled in that micro-frame.
-    // For example:
-    // Interval 1 (poll every u-frame) -> mask is 0b11111111 (0xFF)
-    // Interval 2 (poll every 2nd u-frame, e.g., 0, 2, 4, 6) -> mask is 0b10101010 (0xAA)
-    // Interval 4 (poll every 4th u-frame, e.g., 0, 4) -> mask is 0b10001000 (0x88)
-    // Interval 8 (poll every 8th u-frame, e.g., 0) -> mask is 0b10000000 (0x80)
-    switch (uframe_interval) {
-      case 1:
-        ptd->status.uframe_active = 0xFF;
-        break;
-      case 2:
-        ptd->status.uframe_active = 0xAA;
-        break;
-      case 4:
-        ptd->status.uframe_active = 0x11;
-        break;
-      case 8:
-        ptd->status.uframe_active = 0x01;
-        break;
-      default:
-        // For intervals > 8, we poll once per frame (every 8 u-frames) and use ctrl1.uframe to skip frames.
-        ptd->status.uframe_active = 0x01;
-        if (uframe_interval >= 16) {
-          ctrl1->uframe = tu_log2(uframe_interval) - 3;
-        }
-        break;
-    }
-
-    if (ctrl2->split) {
-      // 11.18.1 Best Case Full-Speed Budget
-      //
-      // A microframe of time allows at most 187.5 raw bytes of signaling on a full-speed bus.
-      // The best case full-speed budget assumes that 188 full-speed bytes occur in each microframe.
-      //
-      // A 1 ms frame subdivided into microframes of budget time:
-      //
-      // Microframes            Y_0   Y_1   Y_2   Y_3   Y_4   Y_5   Y_6   Y_7
-      // Max wire time          187.5 187.5 187.5 187.5 187.5 187.5 32
-      // Best case wire budget  188   188   188   188   188   188   29
-      //
-      // 11.18.4  Host Split Transaction Scheduling Requirements
-      //
-      // 1. The host must never schedule a start-split in microframe Y_6.
-      // 2. For isochronous OUT full-speed transactions, for each microframe in which the transaction is
-      // budgeted, the host must schedule a 188 (or the remaining data size) data byte start-split transaction.
-      // For isochronous IN and interrupt IN/OUT full-/low-speed transactions, a single start-split must be
-      // scheduled in the microframe before the transaction is budgeted to start on the full-/low-speed bus.
-      // 3. For isochronous OUT full-speed transactions, the host must never schedule a complete-split. The
-      // TT response to a complete-split for an isochronous OUT is undefined.
-      //    For interrupt IN/OUT full-/low-speed transactions, the host must schedule a complete-split
-      // transaction in each of the two microframes following the first microframe in which the full-/low-
-      // speed transaction is budgeted.  An additional complete-split must also be scheduled in the third
-      // following microframe unless the full-/low-speed transaction was budgeted to start in microframe Y_6
-      //    For isochronous IN full-speed transactions, for each microframe in which the full-speed transaction
-      // is budgeted, a complete-split must be scheduled for each following microframe.
-      // Also, determine the last microframe in which a complete-split is scheduled, call it L.
-      // If L is less than Y_6, schedule additional complete-splits in microframe L+1 and L+2.
-      // If L is equal to Y_6, schedule one complete-split in microframe Y_7.
-      //
-      // TODO: Implement budget check scheduling
-      // Otherwise, it may cause bus contention with other split transfers
-      // Here we simply start interrupt transfers for Y_0 and Y1 and isochronous transfers for Y_2
-      if (xfer_type == TUSB_XFER_ISOCHRONOUS) {
-        const uint8_t    ss_slot = 2; // Start-split slot
-        const uint8_t    slots   = (ep_desc->wMaxPacketSize + 187) / 188;
-        const tusb_dir_t ep_dir  = tu_edpt_dir(ep_desc->bEndpointAddress);
-        if (ep_dir == TUSB_DIR_IN) {
-          if (ep_desc->wMaxPacketSize > 192) {
-            ctrl1->mps = 192;
-          }
-          ptd->status.uframe_active = 1 << ss_slot;
-          for (uint8_t i = 0; i < slots; i++) {
-            ptd->iso_in_0.uframe_complete |= 1 << (2 + ss_slot + i);
-          }
-          // Schedule additional complete-splits if needed
-          uint8_t last_complete = ss_slot + slots + 1;
-          if (last_complete < 6) {
-            ptd->iso_in_0.uframe_complete |= 1 << (ss_slot + last_complete + 1);
-            ptd->iso_in_0.uframe_complete |= 1 << (ss_slot + last_complete + 2);
-          } else if (last_complete == 6) {
-            ptd->iso_in_0.uframe_complete |= 1 << 7;
-          }
-        } else {
-          if (ep_desc->wMaxPacketSize > 188) {
-            ctrl1->mps = 188;
-          }
-          for (uint8_t i = 0; i < slots; i++) {
-            ptd->status.uframe_active |= 1 << (ss_slot + i);
-          }
-        }
-      } else {
-        // Start-split slot, jigging to avoid bus contention: EP odd -> Y_1, EP even -> Y_0
-        const uint8_t ss_slot     = ep_num & 0x01;
-        ptd->status.uframe_active = 1 << ss_slot;
-        // Complete-split slots: next 3 u-frames
-        ptd->iso_in_0.uframe_complete = 0x1c << ss_slot;
-      }
-    }
+    ptd->status.uframe_active = uframe_active;
+    ptd->iso_in_0.uframe_complete = uframe_complete;
   }
-
   return true;
 }
 
