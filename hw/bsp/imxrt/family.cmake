@@ -159,6 +159,9 @@ function(family_configure_example TARGET RTOS)
     __START=main # required with -nostartfiles
     __STARTUP_CLEAR_BSS
     [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
+    # NonCacheable is placed in DTCM by the stock linker scripts
+    [=[CFG_TUD_UNCACHED_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
+    [=[CFG_TUH_UNCACHED_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
