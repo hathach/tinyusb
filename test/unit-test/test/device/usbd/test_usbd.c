@@ -147,6 +147,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport_, uint8_t stage, tusb_control_req
 void setUp(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_Ignore();
 
   if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
@@ -305,6 +306,23 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// dcd_edpt0_setup_begin
+//--------------------------------------------------------------------+
+
+// called once per SETUP usbd processes, with the DCD's tag; a SETUP skipped for a newer one is not
+void test_usbd_setup_begin_once_per_processed_setup(void) {
+  desc_device = NULL;
+  dcd_event_setup_received_gen(rhport, (uint8_t const*) &req_get_desc_device, 7, false);
+  dcd_event_setup_received_gen(rhport, (uint8_t const*) &req_get_desc_device, 8, false);
+
+  dcd_edpt0_setup_begin_Expect(rhport, 8);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
 
   tud_task();
 }
