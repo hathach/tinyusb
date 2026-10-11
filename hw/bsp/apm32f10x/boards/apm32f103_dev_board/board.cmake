@@ -1,0 +1,14 @@
+set(MCU_VARIANT apm32f103xb)
+set(MCU_LINKER_NAME apm32f103xb)
+
+set(JLINK_DEVICE APM32F103VB)
+
+function(update_board TARGET)
+  target_compile_definitions(${TARGET} PUBLIC
+    APM32F103xB
+    SYSTEM_CLOCK_72MHz
+    HSE_VALUE=8000000U
+    CFG_EXAMPLE_VIDEO_READONLY
+    )
+  set(FAMILY_MCUS APM32F103 CACHE INTERNAL "" FORCE)
+endfunction()
