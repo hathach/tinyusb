@@ -2256,6 +2256,7 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   usbh_device_t* dev = get_device(dev_addr);
+  TU_ASSERT(dev != NULL,);
 
   for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++) {
     // continue with next valid interface

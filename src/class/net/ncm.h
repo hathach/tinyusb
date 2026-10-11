@@ -59,6 +59,16 @@
   #define CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB 6
 #endif
 
+// Link speed in bit/s advertised in CONNECTION_SPEED_CHANGE, 0 = USB bus speed.
+// Informational only: hosts use it to rank the interface (e.g. Windows route metric)
+#ifndef CFG_TUD_NCM_DOWNLINK_BITRATE
+  #define CFG_TUD_NCM_DOWNLINK_BITRATE 0
+#endif
+
+#ifndef CFG_TUD_NCM_UPLINK_BITRATE
+  #define CFG_TUD_NCM_UPLINK_BITRATE 0
+#endif
+
 // Table 6.2 Class-Specific Request Codes for Network Control Model subclass
 typedef enum
 {

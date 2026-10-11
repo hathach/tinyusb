@@ -9,8 +9,8 @@
 
 #if CFG_TUD_ENABLED
 
-#include "device/dcd.h"
 #include "tusb.h"
+#include "device/dcd.h"
 #include "common/tusb_private.h"
 
 #include "device/usbd.h"
