@@ -48,14 +48,19 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t msec2wait(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
-// Spinlock API, stub not implemented
+// Spinlock API: a mutex excludes other tasks, the USB IRQ mask excludes the ISR; RTX4 is single core.
+// Not tsk_lock(): it does not nest, so its unlock would end a scheduler lock the caller already holds.
 //--------------------------------------------------------------------+
-typedef uint8_t osal_spinlock_t;
+typedef struct {
+  void (*interrupt_set)(bool enabled);
+  OS_MUT mutex;
+} osal_spinlock_t;
+
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name
+  osal_spinlock_t _name = {.interrupt_set = _int_set}
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
-  (void) ctx;
+  os_mut_init(&ctx->mutex);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
@@ -63,11 +68,17 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) 
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) ctx; (void) in_isr;
+  if (!in_isr) {
+    (void) os_mut_wait(&ctx->mutex, 0xFFFF);
+    ctx->interrupt_set(false);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) ctx; (void) in_isr;
+  if (!in_isr) {
+    ctx->interrupt_set(true);
+    (void) os_mut_release(&ctx->mutex);
+  }
 }
 
 //--------------------------------------------------------------------+

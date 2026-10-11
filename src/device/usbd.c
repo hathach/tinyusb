@@ -393,6 +393,22 @@ enum {
 };
 static uint8_t _usbd_rhport = RHPORT_INVALID;
 
+// USB IRQ masking without an OS: the stack owns the IRQ (on from tud_rhport_init() until tud_deinit()), and
+// usbd_int_set() masks it on top, nested. Task context only: ISR-side lock and queue calls never reach usbd_int_set().
+static bool    _usbd_int_owned;
+static uint8_t _usbd_int_depth;
+
+static void usbd_int_set_owned(bool enabled) {
+  _usbd_int_owned = enabled;
+  if (_usbd_int_depth == 0) {
+    if (enabled) {
+      dcd_int_enable(_usbd_rhport);
+    } else {
+      dcd_int_disable(_usbd_rhport);
+    }
+  }
+}
+
 static OSAL_SPINLOCK_DEF(_usbd_spin, usbd_int_set);
 
 // Event queue: usbd_int_set() is used as mutex in OS NONE config
@@ -584,7 +600,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Init device controller driver
   TU_ASSERT(dcd_init(rhport, rh_init));
-  dcd_int_enable(rhport);
+  usbd_int_set_owned(true);
 
   return true;
 }
@@ -599,7 +615,7 @@ bool tud_deinit(uint8_t rhport) {
   const uint8_t cfg_num = _usbd_dev.cfg_num;
 
   // Deinit device controller driver
-  dcd_int_disable(rhport);
+  usbd_int_set_owned(false);
   dcd_disconnect(rhport);
   TU_ASSERT(dcd_deinit(rhport));
 
@@ -1501,7 +1517,8 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
           // Clear busy + claimed
           _usbd_dev.ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
 
-          send = !driver->xfer_isr(event->rhport, ep_addr, (xfer_result_t) event->xfer_complete.result, event->xfer_complete.len);
+          send = !driver->xfer_isr(event->rhport, ep_addr, (xfer_result_t) event->xfer_complete.result,
+                                  event->xfer_complete.len, in_isr);
 
           // xfer_isr() is deferred to xfer_cb(), revert busy/claimed status
           if (send) {
@@ -1538,18 +1555,43 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 //--------------------------------------------------------------------+
 
 void usbd_int_set(bool enabled) {
-  if (enabled) {
-    dcd_int_enable(_usbd_rhport);
+  if (!enabled) {
+    if (_usbd_int_depth++ == 0 && _usbd_int_owned) {
+      dcd_int_disable(_usbd_rhport);
+    }
   } else {
-    dcd_int_disable(_usbd_rhport);
+    TU_ASSERT(_usbd_int_depth > 0, );
+    if (--_usbd_int_depth == 0 && _usbd_int_owned) {
+      dcd_int_enable(_usbd_rhport);
+    }
   }
 }
 
-void usbd_spin_lock(bool in_isr) {
+void usbd_critical_enter(bool in_isr) {
   osal_spin_lock(&_usbd_spin, in_isr);
 }
-void usbd_spin_unlock(bool in_isr) {
+
+void usbd_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbd_spin, in_isr);
+}
+
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbd_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(false);
+  usbd_critical_exit(false);
+}
+
+void usbd_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbd_critical_enter(false);
+  usbd_int_set(true);
+  usbd_critical_exit(false);
 }
 
 // Parse consecutive endpoint descriptors (IN & OUT)

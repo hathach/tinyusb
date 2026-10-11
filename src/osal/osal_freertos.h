@@ -104,7 +104,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
   osal_spinlock_t _name
 
 #ifdef ESP_PLATFORM
-// Espressif critical take spinlock as argument and does not use in_isr
+// Espressif critical sections take the spinlock (portMUX) as argument
 typedef portMUX_TYPE osal_spinlock_t;
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
@@ -116,17 +116,23 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) 
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
-    return; // single core MCU does not need to lock in ISR
+  if (in_isr) {
+  #if TUP_MCU_MULTIPLE_CORE
+    portENTER_CRITICAL_ISR(ctx); // task variant aborts in ISR with CONFIG_FREERTOS_CHECK_PORT_CRITICAL_COMPLIANCE
+  #endif
+  } else {
+    portENTER_CRITICAL(ctx);
   }
-  portENTER_CRITICAL(ctx);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
-    return; // single core MCU does not need to lock in ISR
+  if (in_isr) {
+  #if TUP_MCU_MULTIPLE_CORE
+    portEXIT_CRITICAL_ISR(ctx);
+  #endif
+  } else {
+    portEXIT_CRITICAL(ctx);
   }
-  portEXIT_CRITICAL(ctx);
 }
 
 #else

@@ -227,6 +227,23 @@ typedef struct {
 } usbh_data_t;
 
 static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
+
+// USB IRQ masking without an OS: the stack owns the IRQ (on from tuh_rhport_init() until tuh_deinit()), and
+// usbh_int_set() masks it on top, nested. Task context only: ISR-side lock and queue calls never reach usbh_int_set().
+static bool    _usbh_int_owned;
+static uint8_t _usbh_int_depth;
+
+static void usbh_int_set_owned(bool enabled) {
+  _usbh_int_owned = enabled;
+  if (_usbh_int_depth == 0) {
+    if (enabled) {
+      hcd_int_enable(_usbh_controller_id);
+    } else {
+      hcd_int_disable(_usbh_controller_id);
+    }
+  }
+}
+
 static usbh_data_t _usbh_data;
 
 typedef struct {
@@ -603,7 +620,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Init host controller
   _usbh_controller_id = rhport;
   TU_ASSERT(hcd_init(rhport, rh_init));
-  hcd_int_enable(rhport);
+  usbh_int_set_owned(true);
 
   return true;
 }
@@ -614,7 +631,7 @@ bool tuh_deinit(uint8_t rhport) {
   }
 
   // deinit host controller
-  hcd_int_disable(rhport);
+  usbh_int_set_owned(false);
   TU_ASSERT(hcd_deinit(rhport));
   _usbh_controller_id = TUSB_INDEX_INVALID_8;
 
@@ -1281,19 +1298,43 @@ uint8_t *usbh_get_enum_buf(void) {
 
 void usbh_int_set(bool enabled) {
   // TODO all host controller if multiple are used since they shared the same event queue
-  if (enabled) {
-    hcd_int_enable(_usbh_controller_id);
+  if (!enabled) {
+    if (_usbh_int_depth++ == 0 && _usbh_int_owned) {
+      hcd_int_disable(_usbh_controller_id);
+    }
   } else {
-    hcd_int_disable(_usbh_controller_id);
+    TU_ASSERT(_usbh_int_depth > 0, );
+    if (--_usbh_int_depth == 0 && _usbh_int_owned) {
+      hcd_int_enable(_usbh_controller_id);
+    }
   }
 }
 
-void usbh_spin_lock(bool in_isr) {
+void usbh_critical_enter(bool in_isr) {
   osal_spin_lock(&_usbh_spin, in_isr);
 }
 
-void usbh_spin_unlock(bool in_isr) {
+void usbh_critical_exit(bool in_isr) {
   osal_spin_unlock(&_usbh_spin, in_isr);
+}
+
+// The critical section serializes the depth update with the IRQ mask change against other task callers
+void usbh_int_mask_enter(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(false);
+  usbh_critical_exit(false);
+}
+
+void usbh_int_mask_exit(bool in_isr) {
+  if (in_isr) {
+    return; // the USB ISR cannot preempt itself
+  }
+  usbh_critical_enter(false);
+  usbh_int_set(true);
+  usbh_critical_exit(false);
 }
 
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
