@@ -2,6 +2,7 @@ set(MCU_VARIANT apm32f107xc)
 set(MCU_LINKER_NAME apm32f107xc)
 
 set(JLINK_DEVICE APM32F107VC)
+set(FAMILY_MCUS APM32F107 CACHE INTERNAL "" FORCE)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
@@ -10,5 +11,5 @@ function(update_board TARGET)
     HSE_VALUE=25000000U
     CFG_EXAMPLE_VIDEO_READONLY
     )
-  set(FAMILY_MCUS APM32F107 CACHE INTERNAL "" FORCE)
+
 endfunction()
