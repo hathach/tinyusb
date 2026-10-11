@@ -297,9 +297,9 @@ typedef struct {
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
 } audioh_epbuf_t;
 
-static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
+static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO];
 
-CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO];
 
 //--------------------------------------------------------------------+
 // WEAK APPLICATION CALLBACKS
@@ -351,7 +351,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_fu_ctrl(audioh_epbuf_t *epbu
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_new_audio_index(void) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     if (_audioh_itf[idx].daddr == 0) {
       return idx;
     }
@@ -528,7 +528,7 @@ static void audioh_playback_reset(audioh_playback_t *playback) {
 }
 
 static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     audioh_interface_t *p_audio = &_audioh_itf[idx];
     for (uint8_t s = 0; s < 2; s++) {
       tuh_audio_stream_t *stream = (s == 0) ? &p_audio->in_stream : &p_audio->out_stream;
@@ -753,7 +753,7 @@ static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
 bool audioh_init(void) {
   tu_memclr(&_audioh_itf, sizeof(_audioh_itf));
 
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     tuh_audio_stream_t *in  = &_audioh_itf[idx].in_stream;
     tuh_audio_stream_t *out = &_audioh_itf[idx].out_stream;
 
@@ -775,7 +775,7 @@ bool audioh_init(void) {
 }
 
 bool audioh_deinit(void) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     tu_edpt_stream_deinit(&_audioh_itf[idx].in_stream.edpt);
     tu_edpt_stream_deinit(&_audioh_itf[idx].out_stream.edpt);
   }
@@ -783,7 +783,7 @@ bool audioh_deinit(void) {
 }
 
 void audioh_close(uint8_t daddr) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     audioh_interface_t *p_audio = &_audioh_itf[idx];
     if (p_audio->daddr != daddr) {
       continue;
@@ -1599,7 +1599,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   TU_VERIFY(audioh_protocol_enabled(desc_itf->bInterfaceProtocol), 0);
 
   const uint8_t idx = find_new_audio_index();
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   p_audio->daddr              = dev_addr;
   p_audio->ac_itf_num         = desc_itf->bInterfaceNumber;
@@ -1868,7 +1868,7 @@ static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
 
 bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
   uint8_t idx = TUSB_INDEX_INVALID_8;
-  for (uint8_t i = 0; i < CFG_TUH_AUDIO_MAX; i++) {
+  for (uint8_t i = 0; i < CFG_TUH_AUDIO; i++) {
     if (_audioh_itf[i].daddr == dev_addr && _audioh_itf[i].ac_itf_num == itf_num) {
       idx = i;
       break;
@@ -1900,17 +1900,17 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tuh_audio_mounted(uint8_t idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX);
+  TU_VERIFY(idx < CFG_TUH_AUDIO);
   return _audioh_itf[idx].mounted;
 }
 
 uint8_t tuh_audio_get_dev_addr(uint8_t idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, 0);
   return _audioh_itf[idx].daddr;
 }
 
 bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -1918,7 +1918,7 @@ bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx) {
 }
 
 bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volume_range_t *range) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX && range != NULL, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO && range != NULL, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -1928,21 +1928,21 @@ bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volum
 }
 
 uint8_t tuh_audio_stream_count(uint8_t dev_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
   return p_audio->stream_count;
 }
 
 bool tuh_audio_stream_exists(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, false);
   return audioh_get_stream_by_idx(p_audio, stream_idx) != NULL;
 }
 
 tuh_audio_direction_t tuh_audio_stream_direction(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, TUH_AUDIO_STREAM_DIRECTION_COUNT);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, TUH_AUDIO_STREAM_DIRECTION_COUNT);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, TUH_AUDIO_STREAM_DIRECTION_COUNT);
 
@@ -1952,7 +1952,7 @@ tuh_audio_direction_t tuh_audio_stream_direction(uint8_t dev_idx, uint8_t stream
 }
 
 uint8_t tuh_audio_config_count(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -1961,7 +1961,7 @@ uint8_t tuh_audio_config_count(uint8_t dev_idx, uint8_t stream_idx) {
   return s->config_count;
 }
 uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, TUSB_INDEX_INVALID_8);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, TUSB_INDEX_INVALID_8);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, TUSB_INDEX_INVALID_8);
 
@@ -1970,7 +1970,7 @@ uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx) {
   return s->active_config;
 }
 bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_stream_config_t *config) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, false);
 
@@ -1981,7 +1981,7 @@ bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_id
 }
 
 bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2124,7 +2124,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
 }
 
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2189,7 +2189,7 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
 }
 
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2208,7 +2208,7 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
 }
 
 uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer, uint32_t frame_count) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
@@ -2227,7 +2227,7 @@ uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer
 }
 
 uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint32_t frame_count) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
@@ -2244,7 +2244,7 @@ uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint3
 }
 
 uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -2255,7 +2255,7 @@ uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx) {
 }
 
 uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -2297,7 +2297,7 @@ static uint8_t audioh_control_cur_request(uint8_t protocol, tusb_dir_t direction
 static bool audioh_control_submit(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,
                                   uint8_t control_selector, uint8_t channel, void *buffer, uint16_t length,
                                   tuh_xfer_t *xfer) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX && entity_id != 0 && request != 0, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO && entity_id != 0 && request != 0, false);
   TU_VERIFY(direction == TUSB_DIR_OUT || direction == TUSB_DIR_IN, false);
   TU_VERIFY(buffer != NULL || length == 0, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
@@ -2553,7 +2553,7 @@ static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
 static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
                           uint8_t last_channel, uint16_t value, uint8_t width, tuh_xfer_cb_t complete_cb,
                           uintptr_t user_data) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -2616,7 +2616,7 @@ static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
 
 static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel, void *value,
                           uint8_t width, uint8_t value_type, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted && value, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
