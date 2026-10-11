@@ -210,6 +210,8 @@
 
 // Geehy
 #define OPT_MCU_APM32F0XX        2800  ///< Geehy APM32F0xx
+#define OPT_MCU_APM32F103        2801  ///< Geehy APM32F103
+#define OPT_MCU_APM32F107        2802  ///< Geehy APM32F107
 
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input

@@ -45,6 +45,8 @@
   #include "dwc2_at32.h"
 #elif defined(TUP_USBIP_DWC2_NRF)
   #include "dwc2_nrf.h"
+#elif defined(TUP_USBIP_DWC2_APM32)
+  #include "dwc2_apm32.h"
 #else
   #error "Unsupported MCUs"
 #endif

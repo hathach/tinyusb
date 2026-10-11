@@ -502,7 +502,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   dwc2->gotgctl = gotgctl;
 
-  #ifdef TUP_USBIP_DWC2_STM32
+  #if defined(TUP_USBIP_DWC2_STM32) || defined(TUP_USBIP_DWC2_APM32)
   dwc2_stm32_gccfg_cfg(dwc2, _tud_cfg.vbus_sensing, false);
   #endif
 

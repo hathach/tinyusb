@@ -1,2 +1,3 @@
 board:stm32f407disco
 board:stm32f411disco
+board:apm32f107_dev_board

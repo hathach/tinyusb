@@ -88,6 +88,8 @@ Geehy
 Board                Name                 Family     URL                    Note
 ===================  ===================  =========  =====================  ======
 apm32f072_dev_board  APM32F072 Dev Board  apm32f0xx  https://www.geehy.com
+apm32f103_dev_board  APM32F103 Dev Board  apm32f10x  https://www.geehy.com
+apm32f107_dev_board  APM32F107 Dev Board  apm32f10x  https://www.geehy.com
 ===================  ===================  =========  =====================  ======
 
 GigaDevice
