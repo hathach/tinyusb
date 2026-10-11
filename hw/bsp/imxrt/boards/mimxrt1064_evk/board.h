@@ -49,7 +49,9 @@
 #define UART_PORT             LPUART1
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
-static inline void BOARD_ConfigMPU(void) {
-}
+// XIP flash region for the shared RT106x MPU setup
+#define BOARD_MPU_FLASH_BASE  0x70000000U
+#define BOARD_MPU_FLASH_SIZE  ARM_MPU_REGION_SIZE_4MB
+#include "../../mpu_rt106x.h"
 
 #endif
