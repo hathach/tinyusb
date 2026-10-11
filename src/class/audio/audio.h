@@ -684,6 +684,7 @@ typedef enum {
   AUDIO20_TE_CTRL_UNDERFLOW = 0x05,
   AUDIO20_TE_CTRL_OVERFLOW = 0x06,
   AUDIO20_TE_CTRL_LATENCY = 0x07,
+  AUDIO20_TE_CTRL_PHANTOM_POWER = 0x08,
 } audio20_terminal_control_selector_t;
 
 /// A.17.5 - Mixer Control Selectors
@@ -1037,6 +1038,7 @@ typedef enum {
   AUDIO20_IN_TERM_CTRL_CLUSTER_POS = 6,
   AUDIO20_IN_TERM_CTRL_UNDERFLOW_POS = 8,
   AUDIO20_IN_TERM_CTRL_OVERFLOW_POS = 10,
+  AUDIO20_IN_TERM_CTRL_PHANTOM_POWER_POS = 12,
 } audio20_terminal_input_control_pos_t;
 
 /// Audio Class-Output Terminal Controls UAC2

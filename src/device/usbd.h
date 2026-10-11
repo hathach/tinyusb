@@ -598,10 +598,24 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_AUDIO20_DESC_OUTPUT_TERM(_termid, _termtype, _assocTerm, _srcid, _clkid, _ctrl, _stridx) \
   TUD_AUDIO20_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _clkid, U16_TO_U8S_LE(_ctrl), _stridx
 
+/* Mixer Unit Descriptor(4.7.2.6) */
+#define TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m) \
+  (13+(_nrinpins)+((((_n) * (_m)) % 8) != 0 ? ((_n) * (_m) / 8 + 1) : ((_n) * (_m) / 8)))
+#define TUD_AUDIO20_DESC_MIXER_UNIT_START(_unitid, _nrinpins, _n, _m, ...) \
+  TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m), TUSB_DESC_CS_INTERFACE, 0x04, _unitid, _nrinpins, __VA_ARGS__, _m
+#define TUD_AUDIO20_DESC_MIXER_UNIT_END(_channelcfg, _idxchannelnames, _ctrl, _stridx, ...) \
+  U32_TO_U8S_LE(_channelcfg), _idxchannelnames, __VA_ARGS__, _ctrl, _stridx
+
 /* Feature Unit Descriptor(4.7.2.8) */
 #define TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(_nchannels) (6 + ((_nchannels) + 1) * 4)
 #define TUD_AUDIO20_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
   TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__), _stridx
+
+/* Up/Down-mix Processing Unit Descriptor(4.7.2.11.1) */
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(_nrmodes)\
+  (18+4*_nrmodes)
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT(_unitid, _srcid, _nrchannels, _channelcfg, _idxchannelnames, _ctrl, _stridx, ...)\
+  TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, 0x08, _unitid, U16_TO_U8S_LE(0x01), 1, _srcid, _nrchannels, U32_TO_U8S_LE(_channelcfg), _idxchannelnames, U16_TO_U8S_LE(_ctrl), _stridx, TU_ARGS_NUM(__VA_ARGS__), TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__)
 
 /* Standard AC Interrupt Endpoint Descriptor(4.8.2.1) */
 #define TUD_AUDIO20_DESC_STD_AC_INT_EP_LEN 7

@@ -106,6 +106,25 @@
 #define TU_ARGS_APPLY_EXPAND_7(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1), TU_ARGS_APPLY_EXPAND_6(_X, _a2, _a3, _a4, _a5, _a6, _a7)
 #define TU_ARGS_APPLY_EXPAND_8(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1), TU_ARGS_APPLY_EXPAND_7(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
+#define TU_ARGS_APPLY_EXPAND_9(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_8(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9)
+#define TU_ARGS_APPLY_EXPAND_10(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_9(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10)
+#define TU_ARGS_APPLY_EXPAND_11(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_10(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11)
+#define TU_ARGS_APPLY_EXPAND_12(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_11(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12)
+#define TU_ARGS_APPLY_EXPAND_13(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_12(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13)
+#define TU_ARGS_APPLY_EXPAND_14(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_13(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14)
+#define TU_ARGS_APPLY_EXPAND_15(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_14(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15)
+#define TU_ARGS_APPLY_EXPAND_16(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15, _a16) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_15(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15, _a16)
+#define TU_ARGS_APPLY_EXPAND_17(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15, _a16, _a17) \
+  _X(_a1), TU_ARGS_APPLY_EXPAND_16(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8, _a9, _a10, _a11, _a12, _a13, _a14, _a15, _a16, _a17)
+
 //--------------------------------------------------------------------+
 // Macro for function default arguments
 //--------------------------------------------------------------------+
