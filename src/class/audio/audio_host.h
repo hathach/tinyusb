@@ -36,10 +36,6 @@ extern "C" {
   #error CFG_TUH_AUDIO_PROTOCOLS contains an unsupported protocol bit
 #endif
 
-// Maximum number of Audio devices
-#ifndef CFG_TUH_AUDIO_MAX
-  #define CFG_TUH_AUDIO_MAX 1
-#endif
 // Maximum discrete sampling frequencies retained per rate source. UAC1 uses
 // one rate source per alternate setting; UAC2 alternate settings may share a
 // Clock Source.
@@ -140,7 +136,11 @@ typedef struct {
 // Stream Enumeration
 //--------------------------------------------------------------------+
 
-// Number of logical audio streams exposed by one mounted device. The
+// idx/dev_idx identifies an Audio Control function in the shared pool
+// [0, CFG_TUH_AUDIO), independent of USB device address. One device may
+// expose multiple instances. The index is supplied by the mount callback.
+
+// Number of logical audio streams exposed by one audio instance. The
 // application iterates stream indices [0, tuh_audio_stream_count()) and
 // inspects each with tuh_audio_stream_exists()/tuh_audio_stream_direction().
 uint8_t tuh_audio_stream_count(uint8_t dev_idx);
