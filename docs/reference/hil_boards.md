@@ -41,8 +41,8 @@
 
 3 boards, from `test/hil/hfp.json`.
 
-| Board           | Roles   | Flasher   | Variants                           | Note   |
-|-----------------|---------|-----------|------------------------------------|--------|
-| stm32l412nucleo | device  | stlink    |                                    |        |
-| stm32f746disco  | device  | stlink    | stm32f746disco, stm32f746disco-DMA |        |
-| lpcxpresso43s67 | device  | jlink     |                                    |        |
+| Board           | Roles   | Flasher   | Variants                           | Note                                                                                                    |
+|-----------------|---------|-----------|------------------------------------|---------------------------------------------------------------------------------------------------------|
+| stm32l412nucleo | device  | stlink    |                                    |                                                                                                         |
+| stm32f746disco  | device  | stlink    | stm32f746disco, stm32f746disco-DMA |                                                                                                         |
+| lpcxpresso43s67 | device  | jlink     | lpcxpresso43s67                    | runs from flash bank B (bank A wore out); each load erases bank A sector 0 so the boot ROM picks bank B |

@@ -18,6 +18,19 @@ CFLAGS += \
 
 LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
+# Flash bank the image is linked to: A (default) or B. Bank B boots only while bank A holds no
+# valid image, see linker/flash_bank_B/lpc43_flash_bank.ld
+FLASH_BANK ?= A
+ifeq ($(filter A B,$(FLASH_BANK)),)
+  $(error FLASH_BANK must be A or B, not '$(FLASH_BANK)')
+endif
+LDFLAGS += -L$(TOP)/hw/bsp/lpc43/linker/flash_bank_$(FLASH_BANK)
+
+# J-Link patches the boot checksum for bank A only: a bank-B image carries its own
+ifeq ($(FLASH_BANK),B)
+  POST_LINK = $(PYTHON) $(TOP)/tools/lpc_vector_checksum.py --address 0x1B000000 $@
+endif
+
 SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
 	src/portable/chipidea/ci_hs/hcd_ci_hs.c \

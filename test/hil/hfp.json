@@ -29,13 +29,18 @@
         {
             "name": "lpcxpresso43s67",
             "uid": "08F000044528BAAA8D858F58C50700F5",
+            "note": "runs from flash bank B (bank A wore out); each load erases bank A sector 0 so the boot ROM picks bank B",
+            "variant": [
+                { "name": "lpcxpresso43s67", "defines": ["FLASH_BANK=B"] }
+            ],
             "tests": {
                 "device": true, "host": false, "dual": false
             },
             "flasher": {
                 "name": "jlink",
                 "uid": "728973776",
-                "args": "-device LPC43S67_M4"
+                "args": "-device LPC43S67_M4",
+                "erase": ["0x1A000000 0x1A002000"]
             },
             "flasher_recover": {
                 "name": "openocd",

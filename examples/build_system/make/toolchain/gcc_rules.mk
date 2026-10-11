@@ -65,6 +65,11 @@ $(BUILD)/$(PROJECT).hex: $(BUILD)/$(PROJECT).elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
 
+# a recipe that fails after writing its target (POST_LINK after the link) must not leave it
+# looking up to date: the next make would skip the step that failed
+.DELETE_ON_ERROR:
+
 $(BUILD)/$(PROJECT).elf: $(OBJ)
 	@echo LINK $@
 	@$(LD) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(if $(POST_LINK),@$(POST_LINK))

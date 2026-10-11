@@ -175,6 +175,7 @@ class FlasherCfg(TypedDict):
     args: NotRequired[str]     # stlink entries carry no args
     vid_pid: NotRequired[str]  # openocd/pyocd probe filter, verbatim (e.g. "0x2e8a 0x000c")
     verify: NotRequired[bool]  # openocd read-back verify opt-out (WCH)
+    erase: NotRequired[list[str]]  # jlink: "0xSTART 0xEND" ranges erased before every load
 
 
 class AttachedDevCfg(TypedDict, total=False):
@@ -2373,6 +2374,11 @@ def main() -> None:
     if bad_rtt:
         # JlinkRtt speaks JLinkExe only (the OpenOCD RTT route is manual — rtt skill)
         _config_abort(f'"logger": "rtt" needs a jlink flasher: {", ".join(bad_rtt)}')
+    for e in config_boards:
+        try:
+            hil_flash.jlink_erase_ranges(e['flasher'])
+        except ValueError as err:
+            _config_abort(f'{e["name"]}: {err}')
     bad_pyocd = [e['name'] for e in config_boards if hil_flash.unfiltered_pyocd(e)]
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
