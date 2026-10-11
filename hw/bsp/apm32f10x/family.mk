@@ -1,4 +1,4 @@
-﻿APM32_FAMILY = apm32f10x
+APM32_FAMILY = apm32f10x
 APM32_SDK = hw/mcu/geehy/APM32F10x_SDK/Libraries
 
 include $(TOP)/$(BOARD_PATH)/board.mk
@@ -14,7 +14,7 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
-	src/portable/st/stm32_fsdev/fsdev_common.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c
 else ifeq ($(BOARD),apm32f107_dev_board)
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_APM32F107
@@ -22,7 +22,7 @@ CFLAGS += \
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
-	src/portable/synopsys/dwc2/dwc2_common.c \
+	src/portable/synopsys/dwc2/dwc2_common.c
 endif
 
 LDFLAGS += \
