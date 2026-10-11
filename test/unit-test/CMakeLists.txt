@@ -136,7 +136,7 @@ add_ceedling_test(
   )
 target_compile_definitions(test_audio_host PRIVATE
   CFG_TUH_ENABLED=1
-  CFG_TUH_AUDIO=1
+  CFG_TUH_AUDIO=2
   CFG_TUH_AUDIO_PROTOCOLS=3
   CFG_TUSB_DEBUG=0
   CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
@@ -144,3 +144,4 @@ target_compile_definitions(test_audio_host PRIVATE
   )
 
 enable_testing()
+add_subdirectory(host)
