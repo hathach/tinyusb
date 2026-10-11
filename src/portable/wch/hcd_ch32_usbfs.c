@@ -375,7 +375,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   (void) rhport;
   (void) in_isr;
 
-  if (USBOTG_H_FS->INT_FG & USBFS_UIF_DETECT) {
+  // Port reset raises UIF_DETECT with UIE_DETECT masked; hcd_port_reset_end() clears it
+  if ((USBOTG_H_FS->INT_EN & USBFS_UIE_DETECT) && (USBOTG_H_FS->INT_FG & USBFS_UIF_DETECT)) {
     // Clear the flag
     USBOTG_H_FS->INT_FG = USBFS_UIF_DETECT;
     // Read the detection state
