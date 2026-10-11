@@ -143,6 +143,10 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
       - CFG_TUSB_DEBUG=0
+    :test_hub_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_HUB=2
+      - CFG_TUSB_DEBUG=0
     :test_midi2_device_gtb_default:
       - CFG_TUD_MSC=0
       - CFG_TUD_MIDI2=1
