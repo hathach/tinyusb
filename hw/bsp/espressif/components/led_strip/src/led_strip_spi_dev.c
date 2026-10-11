@@ -8,6 +8,7 @@
 #include <sys/cdefs.h>
 #include "esp_log.h"
 #include "esp_check.h"
+#include "esp_heap_caps.h"
 #include "esp_rom_gpio.h"
 #include "soc/spi_periph.h"
 #include "led_strip.h"
