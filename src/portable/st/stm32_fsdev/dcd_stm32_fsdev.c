@@ -721,12 +721,12 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix, bool in_isr) {
 
   btable_set_count(ep_ix, buf_id, len);
 
+  // Re-read inside the section: the fifo copy above may take the fifo mutex, so it stays outside
+  usbd_critical_enter(in_isr);
+  // Set inside the section so a spurious ISO CTR cannot claim the packet before it is armed
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
-
-  // Re-read inside the section: the fifo copy above may take the fifo mutex, so it stays outside
-  usbd_critical_enter(in_isr);
   uint32_t ep_reg = ep_read(ep_ix) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
   ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
