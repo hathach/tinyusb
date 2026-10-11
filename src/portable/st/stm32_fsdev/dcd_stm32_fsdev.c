@@ -719,10 +719,10 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix, bool in_isr) {
   }
   xfer->queued_len += len;
 
-  btable_set_count(ep_ix, buf_id, len);
-
   // Re-read inside the section: the fifo copy above may take the fifo mutex, so it stays outside
   usbd_critical_enter(in_isr);
+  // A VALID single-buffered ISO IN sends as soon as the count is set, so set it with iso_in_sending
+  btable_set_count(ep_ix, buf_id, len);
   // Set inside the section so a spurious ISO CTR cannot claim the packet before it is armed
   if (is_iso) {
     xfer->iso_in_sending = true;
