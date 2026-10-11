@@ -581,8 +581,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_Stall << USBD_EPSTALL_STALL_Pos) | ep_addr;
 
     if (dir == TUSB_DIR_OUT) {
-      // a packet nRF auto-ACKed before the stall stays in the endpoint buffer until
-      // dcd_edpt_clear_stall() writes SIZE.EPOUT, which lets the next one overwrite it
+      // a transfer re-armed while stalled (a completion queued before the stall frees the endpoint in usbd)
+      // must not DMA a packet nRF ACKed before the stall
       xfer->data_received = false;
     } else {
       // EPSTALL does not discard a packet already loaded into the IN buffer: it would go out
@@ -615,11 +615,19 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     NRF_USBD->DTOGGLE = ep_addr;
     NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
 
+    // Writing any value to SIZE.EPOUT releases the buffer for nRF to ACK the next packet, dropping one it
+    // ACKed before the stall. That packet's EPDATA may be handled after dcd_edpt_stall() and set data_received:
+    // clear it with the write so the next transfer does not DMA the dropped packet in. Done before clearing the stall
+    // so a packet ACKed after it is flagged, not released.
+    if (dir == TUSB_DIR_OUT) {
+      usbd_spin_lock(false);
+      get_td(epnum, dir)->data_received = false;
+      NRF_USBD->SIZE.EPOUT[epnum] = 0;
+      usbd_spin_unlock(false);
+    }
+
     // clear stall
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
-
-    // Write any value to SIZE register will allow nRF to ACK/accept data
-    if (dir == TUSB_DIR_OUT) NRF_USBD->SIZE.EPOUT[epnum] = 0;
 
     __ISB();
     __DSB();
