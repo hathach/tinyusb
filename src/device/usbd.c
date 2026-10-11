@@ -683,16 +683,19 @@ static bool run_after_queue_call(void) {
 
       while(1) { // the mainloop
         application_code();
-        tud_task(); // tinyusb device task
+        if (tud_task()) // tinyusb device task
+          break;
       }
+      // device task stopped
+      tusb_deinit(0);
     }
  */
-void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
+bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
   if (!tud_inited()) {
-    return;
+    return true;
   }
 
   // Loop until there are no more events in the queue or CFG_TUD_TASK_EVENTS_PER_RUN is reached
@@ -706,7 +709,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     dcd_event_t event;
     if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
       if (!run_after_queue_call()) {
-        return;
+        return false;
       }
       timeout_ms = 0;
       continue;
@@ -778,7 +781,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
         if (0 != epnum) {
           driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TU_ASSERT(driver,);
+          TU_ASSERT(driver, true);
         }
 
         // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
@@ -831,6 +834,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         }
         break;
 
+      case USBD_EVENT_STOP_TASK:
+        TU_LOG_USBD("Stopping tud_task\r\n");
+        return true;
+
       case DCD_EVENT_SOF:
         if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
           TU_LOG_USBD("\r\n");
@@ -843,9 +850,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
     }
 
+#if CFG_TUD_TASK_EVENTS_PER_RUN > 0
     // allow to exit tud_task() if there is no event in the next run
     timeout_ms = 0;
+#endif
   }
+  return false;
 }
 
 //--------------------------------------------------------------------+
@@ -917,6 +927,21 @@ bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t* request, voi
   }
 
   return true;
+}
+
+// Stop the tud_task
+void tud_stop(void){
+
+  if (!tud_inited()) {
+    return;
+  }
+
+  dcd_event_t event = {
+      .rhport   = 0,
+      .event_id = USBD_EVENT_STOP_TASK,
+  };
+ 
+  queue_event(&event, false);
 }
 
 // Callback when a transaction completes on the DATA stage or Status stage of EP0
