@@ -138,6 +138,12 @@ enum {
   AUDIOH_CTRL_READ_WRITE = 3
 };
 
+// Consecutive failed isochronous completions tolerated as dropped packets
+// before the stream is stopped and XFER_FAILED is reported.
+enum {
+  AUDIOH_XFER_ERROR_LIMIT = 8
+};
+
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
     #define AUDIOH_MAX_RATE_SOURCES (2 * CFG_TUH_AUDIO_MAX_AS)
   #else
@@ -238,6 +244,8 @@ typedef struct {
   uint8_t state;
   uint8_t operation;
   bool    running;
+  // Consecutive failed completions on the data [0] and feedback [1] endpoints.
+  uint8_t xfer_errors[2];
 
   // Directly associated Feature Unit, or zero when none is usable.
   uint8_t                  feature_unit_id;
@@ -867,16 +875,30 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     return true;
   }
 
-  // Failed, stalled, and aborted transfers do not carry valid audio data.
+  const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
+  const bool    is_feedback = s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep;
+  uint8_t      *errors      = &s->xfer_errors[is_feedback ? 1 : 0];
+
+  // Failed, stalled, and aborted transfers do not carry valid audio data. An
+  // isochronous packet is never retried, so one failed completion (bus error,
+  // missed service interval) is a dropped packet: continue with an empty one.
+  // Stop on a stall or when failures persist.
   if (result != XFER_RESULT_SUCCESS) {
     TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
-    audioh_stream_xfer_failed(s, (tusb_xfer_result_t)result);
-    return true;
+    if (result != XFER_RESULT_FAILED || *errors >= AUDIOH_XFER_ERROR_LIMIT) {
+      audioh_stream_xfer_failed(s, (tusb_xfer_result_t)result);
+      return true;
+    }
+    (*errors)++;
+    xferred_bytes = 0;
+  } else {
+    *errors = 0;
   }
 
-  const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
-  if (s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep) {
-    audioh_feedback_received(s, xferred_bytes);
+  if (is_feedback) {
+    if (result == XFER_RESULT_SUCCESS) {
+      audioh_feedback_received(s, xferred_bytes);
+    }
     if (!audioh_stream_feedback_xfer(s)) {
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }
@@ -2157,8 +2179,10 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
     p_audio->playback.target_frames_q16 = p_audio->playback.nominal_frames_q16;
     p_audio->playback.rem_acc           = 0;
   }
-  s->running   = true;
-  s->operation = AUDIOH_STREAM_OP_START;
+  s->running        = true;
+  s->xfer_errors[0] = 0;
+  s->xfer_errors[1] = 0;
+  s->operation      = AUDIOH_STREAM_OP_START;
   // UAC2 controls a Clock Source that exists before endpoint activation. UAC1
   // controls the endpoint itself, so its alternate setting must be active first.
   bool submitted = false;
