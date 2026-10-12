@@ -17,7 +17,7 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.1")
     endif()
 endif()
 
-# IDF v6 driver component only holds legacy drivers
+# esp_driver_* split from driver in IDF 5.3; v6 driver holds only legacy drivers
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.3")
     set(requires "esp_driver_rmt" "esp_driver_spi")
 else()

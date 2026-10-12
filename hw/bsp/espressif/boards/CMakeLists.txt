@@ -4,7 +4,7 @@ set(hw_dir "${CMAKE_CURRENT_LIST_DIR}/../../../")
 if (IDF_VERSION_MAJOR LESS 6)
   set(priv_requires driver usb)
 else ()
-  set(priv_requires esp_driver_gpio esp_driver_uart esp_driver_spi esp_hal_usb)
+  set(priv_requires esp_driver_gpio esp_driver_uart esp_driver_spi)
 endif ()
 
 idf_component_register(SRCS family.c
