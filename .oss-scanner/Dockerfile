@@ -23,4 +23,4 @@ RUN python3 tools/get_deps.py && \
       || exit 1; \
     done
 
-RUN cd test/unit-test && (ceedling test:all || echo "WARNING: ceedling reported failures")
+RUN cd test/unit-test && ceedling test:all

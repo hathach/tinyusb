@@ -54,9 +54,10 @@ provenance. A controller event is an attacker capability only when a real driver
 ## Anything to leave alone
 - Crashes that exist only in a fuzz harness, misuse of a documented API by the application, impossible controller
   events, and unsupported configuration combinations, unless a production path is shown.
-- On failure `TU_VERIFY` returns; the default `TU_ASSERT` (`src/common/tusb_verify.h`) first calls `TU_BREAKPOINT()`,
-  regardless of `CFG_TUSB_DEBUG`. Inspect the affected configuration's breakpoint expansion and any `TU_ASSERT`
-  override before assuming it returns or rating its impact.
+- On failure `TU_VERIFY` returns; the default `TU_ASSERT` (`src/common/tusb_verify.h`) calls `TU_MESS_FAILED()` (a log
+  only under `CFG_TUSB_DEBUG`) and then `TU_BREAKPOINT()` before returning, regardless of `CFG_TUSB_DEBUG`. Inspect
+  the affected configuration's breakpoint expansion and any `TU_ASSERT` override before assuming it returns or rating
+  its impact.
 - Intended MSC writes or DFU operations, and the absence of application-level authentication: that is application
   policy.
 - Physical, electrical, glitching and side-channel attacks.
