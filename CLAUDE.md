@@ -36,6 +36,6 @@
 
 - Before opening or updating a PR, follow Build and Validate. HIL is not part of it.
 - After opening a PR, ask the human to authorize one headless `chief` invocation to drive reviews and CI to green under agentrc chief's Authorization exception. Name the PR URL, head repository and branch, and actions: push commits to that branch, post replies to the PR's review feedback, and resolve review threads through `pr-babysit` with `autoPush: true`. On an affirmative answer, launch it in the PR worktree through agentrc's `headless-chief` skill (`chief_run.py`), never a bare `claude -p`, and relay its exit as that skill directs. The task names the PR, head repository and branch, expected HEAD and scope, and includes the question and answer verbatim. Leave the checkout to chief until it exits; a new chief invocation requires a fresh exchange. TinyUSB `pr-babysit` args:
-  `{"pr": <num>, "protected": "^test/hil/[^/]+\\.json$"}`; reviewers are agentrc's default.
+  `{"pr": <num>, "reviewers": ["coderabbit", "greptile", "code-scanning"], "protected": "^test/hil/[^/]+\\.json$"}`.
   (`protected` excludes the HIL rig rosters from automated fixes).
 - The follow-up label is `followup`.
