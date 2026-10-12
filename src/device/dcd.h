@@ -139,9 +139,10 @@ void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector)
 //--------------------------------------------------------------------+
 
 // Invoked when the stack starts processing a SETUP, with the setup_gen its DCD put in the event.
-// A DCD can then drop EP0 arms and stalls made for a SETUP that a newer one superseded, this API is
-// optional.
-void dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen);
+// A DCD can then drop EP0 arms and stalls made for a SETUP that a newer one superseded. Return false
+// if it is already superseded (newer SETUP or bus reset): the stack drops it unprocessed. True does
+// not prevent a later supersession. This API is optional.
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen);
 
 // Invoked when a control transfer's status stage is complete.
 // May help DCD to prepare for next control transfer, this API is optional.

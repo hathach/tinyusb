@@ -534,9 +534,13 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   return true;
 }
 
-void dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
   (void) rhport;
+  usbd_spin_lock(false);
   _ep0.setup_served = setup_gen;
+  bool const current = !ep0_superseded();
+  usbd_spin_unlock(false);
+  return current;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
