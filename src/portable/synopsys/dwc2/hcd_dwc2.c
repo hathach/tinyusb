@@ -34,6 +34,18 @@
 
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+// The FS core cannot run two low-speed transactions in the same frame: a low-speed device behind a
+// full-speed hub is addressed with a preamble packet, and a second one in the same frame makes the
+// core clear HPRT.PENA, which kills the whole root port. ESP-IDF works around this in hcd_dwc.c with
+// a 1 ms delay per low-speed control stage (espressif/esp-idf#15683). Reserve one frame per
+// low-speed transaction instead, which also covers the periodic IN of a second low-speed device.
+// Directly attached low-speed devices use no preamble and are not affected.
+#define DWC2_LS_ONE_XACT_PER_FRAME 1
+#else
+#define DWC2_LS_ONE_XACT_PER_FRAME 0
+#endif
+
 enum {
   HPRT_W1_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE | HPRT_SUSPEND
 };
@@ -99,7 +111,22 @@ typedef struct {
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
   uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
   volatile bool aborting;  // periodic DMA abort waiting for the channel's automatic halt
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  uint8_t  ls_defer;       // channel is programmed but waiting for a free low-speed frame, see ls_defer_kind_t
+#endif
 } hcd_xfer_t;
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+// The call that found the frame busy, so SOF can replay it in full. Replaying the enable on its own
+// is not enough: an IN token has to re-check request-queue space, and an OUT has to write its FIFO.
+typedef enum {
+  LS_DEFER_NONE = 0,
+  LS_DEFER_IN_TOKEN,           // channel_send_in_token(.., next_periodic_frame = false)
+  LS_DEFER_IN_TOKEN_PERIODIC,  // channel_send_in_token(.., next_periodic_frame = true)
+  LS_DEFER_XFER_START,         // channel_xfer_start(.., defer_periodic_out = false)
+  LS_DEFER_XFER_START_PERIODIC // channel_xfer_start(.., defer_periodic_out = true)
+} ls_defer_kind_t;
+#endif
 
 typedef struct {
   hcd_xfer_t xfer[DWC2_CHANNEL_COUNT_MAX];
@@ -186,13 +213,87 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* d
   }
 }
 
+#if DWC2_LS_ONE_XACT_PER_FRAME
+#define DWC2_LS_FRAME_MASK 0x3FFFu // FrNum counts 0..0x3FFF
+#define DWC2_LS_FRAME_CLAIM_MAX 2  // furthest a claim can reach: offset of 1 plus a span of 1
+
+static uint32_t _ls_frame_end = 0; // last frame claimed by a low-speed transaction
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ls_frame_now(const dwc2_regs_t* dwc2) {
+  return dwc2->hfnum & DWC2_LS_FRAME_MASK;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline int32_t ls_frame_diff(uint32_t a, uint32_t b) {
+  const uint32_t d = (a - b) & DWC2_LS_FRAME_MASK;
+  return (int32_t)(d << 18) >> 18; // sign-extend 14-bit so the FrNum wrap compares correctly
+}
+
+// A transaction is free to run once the frames claimed by the previous one have passed. offset is
+// where this channel would start: periodic channels are armed for the next frame (ODDFRM), non-periodic
+// ones go out in the current frame.
+TU_ATTR_ALWAYS_INLINE static inline bool ls_frame_free(const dwc2_regs_t* dwc2, uint32_t offset) {
+  const int32_t diff = ls_frame_diff(ls_frame_now(dwc2) + offset, _ls_frame_end);
+  // A claim reaches at most DWC2_LS_FRAME_CLAIM_MAX frames ahead, so a reservation that appears to sit
+  // further out than that is a stale one the frame counter has since wrapped past. Without this, a bus
+  // left idle for half a counter cycle (8.192 s) would read as permanently busy.
+  return diff > 0 || diff < -((int32_t) DWC2_LS_FRAME_CLAIM_MAX);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool ls_needs_preamble(const dwc2_regs_t* dwc2, uint32_t hcchar, uint32_t hcsplt) {
+  const dwc2_channel_char_t char_bm = {.value = hcchar};
+  const dwc2_channel_split_t splt_bm = {.value = hcsplt};
+  const dwc2_hprt_t hprt = {.value = dwc2->hprt};
+  // high/full speed device, split transaction or low-speed root port: no preamble, nothing to space out
+  return char_bm.low_speed_dev && !splt_bm.split_en && hprt.speed == HPRT_SPEED_FULL;
+}
+
+// Claim the frames this channel's transaction will occupy. Returns false when a previous low-speed
+// transaction still holds them, in which case the caller must leave the channel alone. Never waits,
+// because the callers are reached from interrupt context on every NAK retry and control stage.
+static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+  if (!ls_needs_preamble(dwc2, channel->hcchar, channel->hcsplt)) {
+    return true;
+  }
+
+  const bool is_period = channel_is_periodic(channel->hcchar);
+  const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+  const uint32_t offset = is_period ? 1u : 0u;
+  // the core runs the packets of a multi-packet transfer back-to-back, which at low speed can spill
+  // past the end of the frame it started in
+  const uint32_t span = (!is_period && hctsiz.packet_count > 1) ? 1u : 0u;
+
+  if (!ls_frame_free(dwc2, offset)) {
+    return false;
+  }
+  _ls_frame_end = (ls_frame_now(dwc2) + offset + span) & DWC2_LS_FRAME_MASK;
+  return true;
+}
+
+// Park a channel whose frame is still busy and make sure SOF is running to pick it up.
+TU_ATTR_ALWAYS_INLINE static inline void ls_defer_channel(dwc2_regs_t* dwc2, dwc2_channel_t* channel, ls_defer_kind_t kind) {
+  _hcd_data.xfer[channel - dwc2->channel].ls_defer = (uint8_t) kind;
+  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
+    dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_SOFM;
+  }
+}
+#endif
+
 TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   xfer->allocated = false;
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  xfer->ls_defer = LS_DEFER_NONE;
+#endif
   dwc2->haintmsk &= ~TU_BIT(ch_id);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // A channel parked waiting for a free low-speed frame is never in the request queue, so CHDIS|CHENA
+  // below halts it without putting anything on the bus. Drop the park so SOF does not arm it afterwards.
+  _hcd_data.xfer[channel - dwc2->channel].ls_defer = LS_DEFER_NONE;
+#endif
   const bool is_period = channel_is_periodic(channel->hcchar);
   if (dma_host_enabled(dwc2)) {
     // In buffer DMA or external DMA mode:
@@ -224,6 +325,16 @@ static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
   dwc2->haintmsk = 0;
 
   const uint8_t max_channel = dwc2_channel_count(dwc2);
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // SOF stops while the port is down, so anything parked here would never be replayed. Drop the parks
+  // and release the frame, the channels are halted below anyway.
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+    _hcd_data.xfer[ch_id].ls_defer = LS_DEFER_NONE;
+  }
+  _ls_frame_end = (ls_frame_now(dwc2) - 1u) & DWC2_LS_FRAME_MASK;
+#endif
+
   #if CFG_TUH_DWC2_SLAVE_ENABLE
   if (!dma_host_enabled(dwc2)) {
     // With CHENA clear, CHDIS flushes a posted request without consuming
@@ -262,6 +373,7 @@ static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
   }
 }
 
+
 // Enable a channel, selecting the following frame for a new periodic transfer.
 // Return that frame from the same HFNUM sample used for ODDFRM selection.
 // Clear CHDIS explicitly: a halted channel may retain it in HCCHAR.
@@ -289,6 +401,22 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_enable(dwc2_regs_t* dwc2, d
 // select its frame only after request-queue space is available.
 TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
                                                                    bool next_periodic_frame) {
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // Ahead of the queue wait, so a channel that cannot have the frame leaves without entering it: SOF
+  // replays this whole function, and that wait must not run on the deferral path. Taking the frame is a
+  // read-modify-write on state shared with the ISR, and hcd_edpt_xfer() reaches here from task context,
+  // so mask this controller's interrupt across it.
+  const uint32_t gahbcfg = dwc2->gahbcfg;
+  dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+  const bool claimed = ls_frame_claim(dwc2, channel);
+  if (!claimed) {
+    ls_defer_channel(dwc2, channel, next_periodic_frame ? LS_DEFER_IN_TOKEN_PERIODIC : LS_DEFER_IN_TOKEN);
+  }
+  dwc2->gahbcfg = gahbcfg;
+  if (!claimed) {
+    return 0;
+  }
+#endif
   while (0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
     // blocking wait for request queue available
   }
@@ -803,6 +931,18 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
           return false;
         }
       }
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      // Must come before the enable: the final FIFO word below creates the OUT request, so a channel
+      // parked here would post one without ever being enabled. Retreat the way the check above does
+      // and let SOF run this transfer from the top.
+      if (!ls_frame_claim(dwc2, channel)) {
+        edpt->next_pid = saved_pid;
+        edpt->next_do_ping = saved_do_ping;
+        ls_defer_channel(dwc2, channel, defer_periodic_out ? LS_DEFER_XFER_START_PERIODIC : LS_DEFER_XFER_START);
+        dwc2->gahbcfg = gahbcfg;
+        return true; // accepted, SOF will start it
+      }
+#endif
       periodic_frame = channel_enable(dwc2, channel, is_period);
       if (edpt->buflen > 0 && channel_txfifo_write(dwc2, ch_id, is_period)) {
         // The FIFO-empty interrupt handles only work that did not fit in the
@@ -811,6 +951,12 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
       }
       dwc2->gahbcfg = gahbcfg;
     }
+  }
+#endif
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  if (_hcd_data.xfer[ch_id].ls_defer != LS_DEFER_NONE) {
+    return true; // IN token parked, SOF replays it and picks up periodic_frame then
   }
 #endif
 
@@ -1138,6 +1284,11 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
     const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
+#if DWC2_LS_ONE_XACT_PER_FRAME
+    if (xfer->ls_defer != LS_DEFER_NONE) {
+      continue; // parked on a busy frame: the final FIFO word would post a request for a channel that is not enabled
+    }
+#endif
     if (xfer->allocated && channel_is_periodic(hcchar.value) == is_periodic &&
         0 == (channel->hcintmsk & HCINT_HALTED) && hcchar.ep_dir == TUSB_DIR_OUT) {
       if (channel_txfifo_write(dwc2, ch_id, is_periodic)) {
@@ -1660,6 +1811,39 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       }
     }
   }
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // Replay the call that hit a busy frame. The periodic endpoints above come back through
+  // edpt_xfer_kickoff(), but a control transfer has no schedule of its own, so this is the only thing
+  // that gets it going again. Each replay parks itself if the frame is still taken.
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+    hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+    if (!xfer->allocated || xfer->ls_defer == LS_DEFER_NONE) {
+      continue;
+    }
+    hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+    const ls_defer_kind_t kind = (ls_defer_kind_t) xfer->ls_defer;
+    xfer->ls_defer = LS_DEFER_NONE;
+
+    if (xfer->closing || edpt->closing || edpt->aborting) {
+      continue; // teardown is already under way, leave the channel alone
+    }
+
+    if (kind == LS_DEFER_IN_TOKEN || kind == LS_DEFER_IN_TOKEN_PERIODIC) {
+      const uint16_t periodic_frame = channel_send_in_token(dwc2, &dwc2->channel[ch_id],
+                                                            kind == LS_DEFER_IN_TOKEN_PERIODIC);
+      if (xfer->ls_defer == LS_DEFER_NONE && kind == LS_DEFER_IN_TOKEN_PERIODIC) {
+        edpt->periodic_frame = periodic_frame;
+      }
+    } else if (!channel_xfer_start(dwc2, ch_id, kind == LS_DEFER_XFER_START_PERIODIC)) {
+      // same retreat edpt_xfer_kickoff() does, otherwise the transfer would be stranded here
+      channel_dealloc(dwc2, ch_id);
+      periodic_xfer_defer(dwc2, edpt, 0);
+    }
+    more_isr = true;
+  }
+#endif
 
   return more_isr;
 }
