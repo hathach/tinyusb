@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-# an external fuzzing engine may supply main(); keep CMake's compiler checks from linking
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-
 project(tinyusb_fuzz C CXX)
 
 cmake_path(SET TOP NORMALIZE ${CMAKE_CURRENT_LIST_DIR}/../..)
@@ -17,12 +14,13 @@ endif ()
 if (DEFINED ENV{LIB_FUZZING_ENGINE})
   separate_arguments(FUZZ_ENGINE UNIX_COMMAND "$ENV{LIB_FUZZING_ENGINE}")
   set(FUZZ_OPTIONS "")
-  set(FUZZ_SANITIZER "")
 else ()
   set(FUZZ_ENGINE -fsanitize=fuzzer,address)
   set(FUZZ_OPTIONS -fsanitize=fuzzer-no-link,address -O1 -g -Werror)
-  set(FUZZ_SANITIZER -fsanitize=address)
 endif ()
+
+# unconditional so a reused build dir never keeps seed tests from an earlier local-mode configure
+enable_testing()
 
 set(FUZZ_WARNINGS
   -Wall
@@ -48,12 +46,31 @@ set(FUZZ_WARNINGS
   $<$<COMPILE_LANGUAGE:CXX>:-Wno-c++11-narrowing>
   )
 
+# target_link_libraries rather than link options: OSS-Fuzz's AFL, honggfuzz and centipede engines are archive paths
 function(fuzz_target_common TARGET)
+  target_link_libraries(${TARGET} PRIVATE ${FUZZ_ENGINE})
   # sections + gc drop stack paths whose controller hooks the harness lacks (e.g. dcd_edpt_iso_alloc); GNU ld keeps
   # them alive through the sanitizer-coverage tables, lld does not
   target_compile_options(${TARGET} PRIVATE -ffunction-sections -fdata-sections -fno-strict-aliasing ${FUZZ_WARNINGS} ${FUZZ_OPTIONS})
   target_link_options(${TARGET} PRIVATE -fuse-ld=lld -Wl,--gc-sections)
   set_target_properties(${TARGET} PROPERTIES C_STANDARD 99 CXX_STANDARD 17 LINKER_LANGUAGE CXX)
+endfunction()
+
+# Replay the seed archive once (local libFuzzer builds only; OSS-Fuzz exercises its own engines)
+function(fuzz_add_seed_test NAME)
+  cmake_parse_arguments(ARG "" "SEED" "" ${ARGN})
+  if (DEFINED ENV{LIB_FUZZING_ENGINE})
+    return()
+  endif ()
+  set(CORPUS ${CMAKE_CURRENT_BINARY_DIR}/corpus/${NAME})
+  file(REMOVE_RECURSE ${CORPUS})
+  file(MAKE_DIRECTORY ${CORPUS})
+  if (ARG_SEED)
+    file(ARCHIVE_EXTRACT INPUT ${ARG_SEED} DESTINATION ${CORPUS})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ARG_SEED})
+  endif ()
+  add_test(NAME ${NAME}_seed_replay COMMAND ${NAME} -runs=0 ${CORPUS})
+  set_tests_properties(${NAME}_seed_replay PROPERTIES TIMEOUT 300)
 endfunction()
 
 # Device stack harness driven through the synthetic controller in dcd_fuzz.cc
@@ -73,12 +90,12 @@ function(fuzz_add_device_harness NAME)
     )
   target_include_directories(${NAME} PRIVATE ${DIR}/src ${TOP}/src ${TOP}/test ${ARG_INCLUDES})
   target_compile_definitions(${NAME} PRIVATE OPT_MCU_FUZZ=1 CFG_TUSB_MCU=OPT_MCU_FUZZ _FUZZ)
-  target_link_libraries(${NAME} PRIVATE ${FUZZ_ENGINE})
   fuzz_target_common(${NAME})
 endfunction()
 
 if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "cdc")
   fuzz_add_device_harness(cdc SOURCES ${TOP}/src/class/cdc/cdc_device.c)
+  fuzz_add_seed_test(cdc SEED ${CMAKE_CURRENT_LIST_DIR}/device/cdc/cdc_seed_corpus.zip)
 endif ()
 
 if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "msc")
@@ -86,6 +103,7 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "msc")
     ${TOP}/src/class/msc/msc_device.c
     ${CMAKE_CURRENT_LIST_DIR}/msc_fuzz.cc
     )
+  fuzz_add_seed_test(msc SEED ${CMAKE_CURRENT_LIST_DIR}/device/msc/msc_seed_corpus.zip)
 endif ()
 
 if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net")
@@ -103,6 +121,7 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net")
       ${TOP}/lib/lwip/src/include
       ${TOP}/lib/networking
     )
+  fuzz_add_seed_test(net)
 endif ()
 
 # NCM receive validator alone: fuzz.c #includes ncm_device.c
@@ -110,37 +129,6 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net_ncm")
   set(DIR ${CMAKE_CURRENT_LIST_DIR}/device/net_ncm)
   add_executable(net_ncm ${DIR}/fuzz.c)
   target_include_directories(net_ncm PRIVATE ${DIR} ${TOP}/src)
-  target_compile_definitions(net_ncm PRIVATE NO_MAIN)
-  target_link_libraries(net_ncm PRIVATE ${FUZZ_ENGINE})
   fuzz_target_common(net_ncm)
-
-  # standalone replay with its own main(), no fuzzing engine
-  add_executable(net_ncm_regression EXCLUDE_FROM_ALL ${DIR}/fuzz.c)
-  target_include_directories(net_ncm_regression PRIVATE ${DIR} ${TOP}/src)
-  target_link_options(net_ncm_regression PRIVATE ${FUZZ_SANITIZER})
-  fuzz_target_common(net_ncm_regression)
-  if (NOT DEFINED ENV{LIB_FUZZING_ENGINE})
-    # fuzzer-no-link instrumentation is not wanted without an engine
-    target_compile_options(net_ncm_regression PRIVATE -fno-sanitize=fuzzer-no-link)
-  endif ()
-endif ()
-
-# Seed replay with the libFuzzer binaries (local builds only; OSS-Fuzz runs other engines itself)
-if (NOT DEFINED ENV{LIB_FUZZING_ENGINE})
-  enable_testing()
-  foreach (NAME cdc msc net net_ncm)
-    if (NOT TARGET ${NAME})
-      continue()
-    endif ()
-    set(CORPUS ${CMAKE_CURRENT_BINARY_DIR}/corpus/${NAME})
-    set(SEED ${CMAKE_CURRENT_LIST_DIR}/device/${NAME}/${NAME}_seed_corpus.zip)
-    file(REMOVE_RECURSE ${CORPUS})
-    file(MAKE_DIRECTORY ${CORPUS})
-    if (EXISTS ${SEED})
-      file(ARCHIVE_EXTRACT INPUT ${SEED} DESTINATION ${CORPUS})
-      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SEED})
-    endif ()
-    add_test(NAME ${NAME}_seed_replay COMMAND ${NAME} -runs=0 ${CORPUS})
-    set_tests_properties(${NAME}_seed_replay PROPERTIES TIMEOUT 300)
-  endforeach ()
+  fuzz_add_seed_test(net_ncm SEED ${DIR}/net_ncm_seed_corpus.zip)
 endif ()

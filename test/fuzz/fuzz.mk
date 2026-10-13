@@ -3,8 +3,6 @@
 TOP := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 HARNESS := $(notdir $(CURDIR))
 BUILD := _build
-# configured --fresh every time so CC/CXX/CFLAGS/CXXFLAGS/LDFLAGS changes are never masked by CMake's cache
-CMAKE_BUILD := $(BUILD)/cmake
 
 # make's built-in cc must not reach CMake; an environment or command-line CC still wins
 ifeq ($(origin CC),default)
@@ -16,10 +14,10 @@ endif
 
 .PHONY: all get-deps clean
 
+# --fresh so CC/CXX/CFLAGS/CXXFLAGS/LDFLAGS changes are never masked by CMake's cache
 all:
-	cmake --fresh -S $(TOP)/test/fuzz -B $(CMAKE_BUILD) -DTINYUSB_FUZZ_TARGET=$(HARNESS)
-	cmake --build $(CMAKE_BUILD) --target $(HARNESS)
-	cmake -E copy $(CMAKE_BUILD)/$(HARNESS) $(BUILD)/$(HARNESS)
+	cmake --fresh -S $(TOP)/test/fuzz -B $(BUILD) -DTINYUSB_FUZZ_TARGET=$(HARNESS)
+	cmake --build $(BUILD) --target $(HARNESS) --parallel
 
 get-deps:
 

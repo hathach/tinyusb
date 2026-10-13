@@ -36,5 +36,5 @@ the engine, sanitizers and optimisation come from `LIB_FUZZING_ENGINE` and `CFLA
 
 OSS-Fuzz's `projects/tinyusb/build.sh` runs `make -C test/fuzz/device/<harness> get-deps all` and copies
 `_build/<harness>` and `<harness>_seed_corpus.zip`. Those Makefiles are thin wrappers around the CMake build
-(`fuzz.mk`); keep that interface. `make -C test/fuzz/device/net_ncm regression` replays the crafted NCM seed
-without a fuzzing engine.
+(`fuzz.mk`); keep that interface. `make -C test/fuzz/device/net_ncm regression` replays the NCM seed
+archive (a crafted out-of-bounds NTB) once.
