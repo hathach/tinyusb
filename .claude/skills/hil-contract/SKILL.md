@@ -214,7 +214,7 @@ keyed by every requested board:
 - `usbtest` (`[]` when none): each red usbtest row as `<row>: ` plus the last `device/usbtest`
   failure line for that row, never a `retry i/N` line, in the output of the run whose cell the
   report shows.
-- `retried` (`{}` only when the retry left the board out): `rows`, each red row the first
+- `retried` (`{}` when no retry ran or the retry left the board out): `rows`, each red row the first
   attempt left on the board as `<row> <test>: ` plus its failure line in that run's output, and
   each row that passed first but failed its re-run as `<row> <test> (re-run): ` plus that line; and
   `report`, the first attempt's `hil_report.md`, copied into a fresh `mktemp -d` directory
