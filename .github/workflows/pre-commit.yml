@@ -34,15 +34,12 @@ jobs:
     - name: Run pre-commit
       uses: pre-commit/action@v3.0.1
 
-    - name: Build Fuzzer
+    - name: Fuzz
       run: |
-        sudo apt install libc++-dev libc++abi-dev
-        clang --version
-        export CC=clang
-        export CXX=clang++
-        fuzz_harness=$(ls -d test/fuzz/device/*/)
-        for h in $fuzz_harness
-        do
-          make -C $h get-deps
-          make -C $h all
+        python3 tools/get_deps.py
+        cmake -S test/fuzz -B test/fuzz/_build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+        cmake --build test/fuzz/_build --parallel
+        ctest --test-dir test/fuzz/_build --output-on-failure
+        for h in cdc msc net net_ncm; do
+          test/fuzz/_build/$h -max_total_time=10 test/fuzz/_build/corpus/$h
         done

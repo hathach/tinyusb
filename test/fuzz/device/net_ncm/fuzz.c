@@ -116,28 +116,40 @@ static void run_crafted_seed(void) {
   LLVMFuzzerTestOneInput(buf, sizeof(buf));
 }
 
+static int replay_file(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if (f == NULL) {
+    return 1;
+  }
+  int ret = 1;
+  long len = -1;
+  if (fseek(f, 0, SEEK_END) == 0) {
+    len = ftell(f);
+  }
+  if (len >= 0 && fseek(f, 0, SEEK_SET) == 0) {
+    uint8_t *buf = (uint8_t *) malloc(len > 0 ? (size_t) len : 1);
+    if (buf != NULL && fread(buf, 1, (size_t) len, f) == (size_t) len) {
+      LLVMFuzzerTestOneInput(buf, (size_t) len);
+      ret = 0;
+    }
+    free(buf);
+  }
+  fclose(f);
+  return ret;
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     run_crafted_seed();
     return 0;
   }
+  int failed = 0;
   for (int i = 1; i < argc; i++) {
-    FILE *f = fopen(argv[i], "rb");
-    if (f == NULL) {
-      continue;
+    if (replay_file(argv[i]) != 0) {
+      fprintf(stderr, "net_ncm: cannot replay %s\n", argv[i]);
+      failed = 1;
     }
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (len > 0) {
-      uint8_t *buf = (uint8_t *) malloc((size_t) len);
-      if (buf != NULL && fread(buf, 1, (size_t) len, f) == (size_t) len) {
-        LLVMFuzzerTestOneInput(buf, (size_t) len);
-      }
-      free(buf);
-    }
-    fclose(f);
   }
-  return 0;
+  return failed;
 }
 #endif
