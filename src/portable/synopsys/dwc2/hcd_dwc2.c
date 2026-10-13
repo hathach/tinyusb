@@ -882,7 +882,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   dwc2_channel_char_t* hcchar_bm = &edpt->hcchar_bm;
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
   bool const is_period = channel_is_periodic(edpt->hcchar);
-#if CFG_TUH_DWC2_SLAVE_ENABLE
+#if CFG_TUH_DWC2_SLAVE_ENABLE || DWC2_LS_ONE_XACT_PER_FRAME
   const uint8_t saved_pid = edpt->next_pid;
   const uint8_t saved_do_ping = edpt->next_do_ping;
 #endif
@@ -927,8 +927,24 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       periodic_frame = channel_send_in_token(dwc2, channel, is_period);
     } else {
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      // Claim and enable in one go, see channel_send_in_token(). Without a claim here a SETUP would leave the
+      // frame free for the next stage of its own control transfer.
+      const uint32_t gahbcfg = dwc2->gahbcfg;
+      dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+      if (!ls_frame_claim(dwc2, channel)) {
+        edpt->next_pid = saved_pid;
+        edpt->next_do_ping = saved_do_ping;
+        ls_defer_channel(dwc2, channel, defer_periodic_out ? LS_DEFER_XFER_START_PERIODIC : LS_DEFER_XFER_START);
+        dwc2->gahbcfg = gahbcfg;
+        return true; // accepted, SOF will start it
+      }
+#endif
       hcd_dcache_clean(edpt->buffer, edpt->buflen);
       periodic_frame = channel_enable(dwc2, channel, is_period);
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      dwc2->gahbcfg = gahbcfg;
+#endif
     }
   }
 #if CFG_TUH_DWC2_SLAVE_ENABLE
