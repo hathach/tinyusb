@@ -361,7 +361,7 @@ class RemoteStaging(unittest.TestCase):
         # suite needs nothing the wrapper imports.
         import ast
         hil_dir = Path(TEST_DIR).parents[0]
-        wrapper = hil_dir.parents[1] / '.claude/skills/hil/scripts/hil_remote.py'
+        wrapper = hil_dir.parents[1] / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
 

@@ -1,6 +1,6 @@
 ---
 name: hil-pool-check
-description: Use when asked for a pool check or board/probe health scan on a TinyUSB HIL rig, when probes or boards are offline or fail to flash, after rig maintenance, reboot, or re-cabling, or before starting a HIL test campaign. Running or interpreting HIL tests is the hil skill's.
+description: Use when asked for a pool check or board/probe health scan on a TinyUSB HIL rig, when probes or boards are offline or fail to flash, after rig maintenance, reboot, or re-cabling, or before starting a HIL test campaign. Running or interpreting HIL tests is the HIL contract's (hil-contract).
 ---
 
 # HIL Pool Check (board/probe health)
@@ -13,7 +13,7 @@ back, and it is re-parked with `board_test` from the same variant. It never buil
 and never recovers a probe or a board: a wedge is reported for `usb-kernel-recover`. Flags:
 `--help`.
 
-The `hil` skill owns config selection by hostname and the board-lock protocol. The tool takes
+The HIL contract (`hil-contract` skill) owns config selection by hostname and the board-lock protocol. The tool takes
 each board's lock itself; a held board is reported 🔒 locked and skipped, never waited on or
 bypassed. A CI job reaching a board the pool check holds fails it as "board locked", so prefer
 running between CI runs.

@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPT = REPO / '.claude' / 'skills' / 'hil' / 'scripts' / 'hil_remote.py'
+SCRIPT = REPO / '.claude' / 'skills' / 'hil-contract' / 'scripts' / 'hil_remote.py'
 spec = importlib.util.spec_from_file_location('hil_remote', SCRIPT)
 hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)

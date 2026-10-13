@@ -23,7 +23,7 @@ class RttHarnessContracts(unittest.TestCase):
         # tripwires for couplings no import-walk can see:
         # (a) hil_remote.py must stage tools/rtt.py -- hil_util exec_module's it, so an
         #     unstaged rig tree kills every harness import
-        wrapper = Path(__file__).resolve().parents[3] / '.claude/skills/hil/scripts/hil_remote.py'
+        wrapper = Path(__file__).resolve().parents[3] / '.claude/skills/hil-contract/scripts/hil_remote.py'
         self.assertIn("    'tools/rtt.py',\n", wrapper.read_text())
         # (b) the shared RTT banner filter must drop ALL THREE J-Link banner lines,
         #     including the middle one, which is the PROBE MODEL string and in

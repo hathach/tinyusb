@@ -420,7 +420,7 @@ def finish_locked(board, rec_board, park_fw, report):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (hil skill)")
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
     p.add_argument('--board', required=True)
     p.add_argument('--variant', help='roster variant, required when the board has several')
     p.add_argument('--delay', type=float, default=0.3, help='seconds into case 27 before the halt (default 0.3)')

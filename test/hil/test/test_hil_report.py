@@ -82,7 +82,7 @@ class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
 
 class ModuleWorksImportedAndAsAScript(unittest.TestCase):
     """It is imported as helper.hil_report by hil_test, and run as a script by the operator
-    (the HIL contract, .claude/skills/hil/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,
+    (the HIL contract, .claude/skills/hil-contract/SKILL.md). A script run puts helper/ on sys.path, NOT test/hil,
     so a plain `from helper import ...` breaks the CLI and only the CLI."""
 
     def test_importable_as_a_package_module(self):

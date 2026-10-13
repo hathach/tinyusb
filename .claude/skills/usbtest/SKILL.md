@@ -19,7 +19,7 @@ and the full battery still passes across reflash cycles.
 
 | Situation                                        | Do                                                                                  |
 |--------------------------------------------------|-------------------------------------------------------------------------------------|
-| Routine full battery on rig boards               | The HIL contract (`hil` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
+| Routine full battery on rig boards               | The HIL contract (`hil-contract` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
 | Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
 | Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
 | What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
@@ -190,7 +190,7 @@ bound interface keeps the profile it was probed with. The right one probes as `L
 in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
 22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
 
-1. Reserve the whole fleet as the `hil` skill's rig-wide rule says, and confirm no `testusb` or
+1. Reserve the whole fleet as the HIL contract's rig-wide rule says, and confirm no `testusb` or
    `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
    behind any case still in flight. It is never refused for an interface in use.
 2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.
