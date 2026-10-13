@@ -124,12 +124,12 @@ static struct {
 
 // EP0 control-transfer identity, kept across bus_reset_isr()'s tu_varclr(&_dcd)
 static struct {
-  // SETUPs received (hardware-handled SET_ADDRESS included) plus bus resets and unplugs, and the
-  // count the stack is serving (dcd_edpt0_setup_begin()). They differ while an EP0 arm or stall
-  // made for an older SETUP is still possible: such an arm is dropped. Aliasing needs 65536 of
-  // them while the stack is still on one SETUP, with every newer SETUP event lost.
-  volatile uint16_t setup_rcv;
-  uint16_t setup_served;
+  // Tag bumped on every SETUP (hardware-handled SET_ADDRESS included), bus reset and unplug, and the
+  // tag of the SETUP the stack is serving (dcd_edpt0_setup_begin()). They differ while an EP0 arm or
+  // stall made for an older SETUP is still possible: such an arm is dropped. A nonzero multiple of 256
+  // bumps while the served tag is unchanged aliases, allowing stale SETUP processing, EP0 arms or stalls.
+  volatile uint8_t setup_rcv_tagid;
+  uint8_t setup_served_tagid;
 
   // the received SETUP's status stage endpoint (USB 2.0 8.5.3), captured with it rather than read later
   uint8_t status_ep;
@@ -172,7 +172,7 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir
 // but not yet handled by the ISR. Caller excludes the USBD ISR. Not caught: a SETUP landing between
 // this check and the EP0 task, and an old SETUP's deferred arm run after the stack began a newer one.
 TU_ATTR_ALWAYS_INLINE static inline bool ep0_superseded(void) {
-  return (_ep0.setup_served != _ep0.setup_rcv) || (NRF_USBD->EVENTS_EP0SETUP != 0);
+  return (_ep0.setup_served_tagid != _ep0.setup_rcv_tagid) || (NRF_USBD->EVENTS_EP0SETUP != 0);
 }
 
 // EasyDMA requests, one bit each: EPIN n at bit n, EPOUT n at bit 16+n (ISO is n = 8), plus the two
@@ -373,7 +373,7 @@ void dcd_disconnect(uint8_t rhport) {
   NRF_USBD->USBPULLUP = 0;
 
   usbd_spin_lock(false);
-  _ep0.setup_rcv++; // as a physical unplug
+  _ep0.setup_rcv_tagid++; // as a physical unplug
   usbd_spin_unlock(false);
 
   // Disable Pull-up does not trigger Power USB Removed, in fact it have no
@@ -534,10 +534,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   return true;
 }
 
-bool dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
   (void) rhport;
   usbd_spin_lock(false);
-  _ep0.setup_served = setup_gen;
+  _ep0.setup_served_tagid = setup_tagid;
   bool const current = !ep0_superseded();
   usbd_spin_unlock(false);
   return current;
@@ -706,7 +706,7 @@ static void bus_reset_isr(void) {
   // undocumented (PS 6.35.6); if so the channel stays owned until VBUS removal.
   bool const dma_running = _dcd.dma_running;
   tu_varclr(&_dcd);
-  _ep0.setup_rcv++; // a reset supersedes any control transfer the stack is still on
+  _ep0.setup_rcv_tagid++; // a reset supersedes any control transfer the stack is still on
   _dcd.dma_running = dma_running;
   _dcd.dma_pre_reset = dma_running;
   _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
@@ -803,14 +803,14 @@ static void handle_setup_isr(void) {
   // nrf5x hw auto handle set address, there is no need to inform usb stack
   tusb_control_request_t const* request = (tusb_control_request_t const*) setup;
 
-  _ep0.setup_rcv++;
+  _ep0.setup_rcv_tagid++;
   // IN for a request without data stage, else opposite to the data stage
   _ep0.status_ep = ((setup[6] | setup[7]) && (setup[0] & TUSB_DIR_IN_MASK)) ? 0x00 : TUSB_DIR_IN_MASK;
 
   if (!(TUSB_REQ_RCPT_DEVICE == request->bmRequestType_bit.recipient &&
         TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
         TUSB_REQ_SET_ADDRESS == request->bRequest)) {
-    dcd_event_setup_received_gen(0, setup, _ep0.setup_rcv, true);
+    dcd_event_setup_received_tagid(0, setup, _ep0.setup_rcv_tagid, true);
   }
 }
 
@@ -1275,7 +1275,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
 
         hfclk_disable();
 
-        _ep0.setup_rcv++; // as a bus reset, with the USBD IRQ already disabled
+        _ep0.setup_rcv_tagid++; // as a bus reset, with the USBD IRQ already disabled
         dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, is_in_isr());
       }
       break;

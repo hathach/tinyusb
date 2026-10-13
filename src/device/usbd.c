@@ -749,7 +749,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
           TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
           break;
         }
-        if (!dcd_edpt0_setup_begin(event.rhport, event.setup_gen)) {
+        if (!dcd_edpt0_setup_begin(event.rhport, event.setup_tagid)) {
           TU_LOG_USBD("  Skipped since DCD saw a newer SETUP or bus reset\r\n");
           break;
         }
@@ -857,9 +857,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 //--------------------------------------------------------------------+
 
 // Weak hook: invoked when the stack starts processing a SETUP
-TU_ATTR_WEAK bool dcd_edpt0_setup_begin(uint8_t rhport, uint16_t setup_gen) {
+TU_ATTR_WEAK bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
   (void) rhport;
-  (void) setup_gen;
+  (void) setup_tagid;
   return true;
 }
 
