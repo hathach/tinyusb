@@ -218,9 +218,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* d
 #if DWC2_LS_ONE_XACT_PER_FRAME
 #define DWC2_LS_FRAME_MASK 0x3FFFu // FrNum counts 0..0x3FFF
 #define DWC2_LS_FRAME_CLAIM_MAX 1  // furthest a claim can reach: the next frame, for a periodic channel
+#define DWC2_LS_PARKED 0xFFFFu     // channel_send_in_token() parked the channel, never a frame number
 
 static uint32_t _ls_frame_end = 0; // last frame used by a low-speed transaction
 static uint8_t _ls_busy_ch = TUSB_INDEX_INVALID_8; // preamble channel in flight: claimed, not yet halted
+static uint8_t _ls_last_ch = TUSB_INDEX_INVALID_8; // preamble channel that held the bus last
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ls_frame_now(const dwc2_regs_t* dwc2) {
   return dwc2->hfnum & DWC2_LS_FRAME_MASK;
@@ -265,6 +267,16 @@ static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
     return false;
   }
 
+  // Take turns: the channel that had the bus last waits while another one is parked. Otherwise a channel re-armed
+  // from its own halt, such as a NAKing bInterval=1 IN or a control stage retried on NAK, would keep the bus for good.
+  if (ch_id == _ls_last_ch) {
+    for (uint8_t i = 0; i < DWC2_CHANNEL_COUNT_MAX; i++) {
+      if (i != ch_id && _hcd_data.xfer[i].allocated && _hcd_data.xfer[i].ls_defer != LS_DEFER_NONE) {
+        return false;
+      }
+    }
+  }
+
   const uint32_t offset = channel_is_periodic(channel->hcchar) ? 1u : 0u;
   if (!ls_frame_free(dwc2, offset)) {
     return false;
@@ -278,6 +290,7 @@ static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
 TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2, uint8_t ch_id) {
   if (_ls_busy_ch == ch_id) {
     _ls_busy_ch = TUSB_INDEX_INVALID_8;
+    _ls_last_ch = ch_id;
     const uint32_t now = ls_frame_now(dwc2);
     if (ls_frame_diff(now, _ls_frame_end) > 0) {
       _ls_frame_end = now;
@@ -371,6 +384,7 @@ static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
     _hcd_data.xfer[ch_id].ls_defer = LS_DEFER_NONE;
   }
   _ls_busy_ch = TUSB_INDEX_INVALID_8;
+  _ls_last_ch = TUSB_INDEX_INVALID_8;
   _ls_frame_end = (ls_frame_now(dwc2) - 1u) & DWC2_LS_FRAME_MASK;
 #endif
 
@@ -438,9 +452,15 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_enable(dwc2_regs_t* dwc2, d
 
 // Attempt to send an IN token to receive data. For a new periodic transfer,
 // select its frame only after request-queue space is available.
+// With DWC2_LS_ONE_XACT_PER_FRAME, returns DWC2_LS_PARKED when the channel was parked instead.
 TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
                                                                    bool next_periodic_frame) {
 #if DWC2_LS_ONE_XACT_PER_FRAME
+  // ls_frame_claim() books a periodic channel for the next frame, so pick ODDFRM at the enable. A retry that set it
+  // beforehand may be a frame late by then, and so would the SOF replay of a parked call.
+  if (channel_is_periodic(channel->hcchar) && ls_needs_preamble(dwc2, channel->hcchar, channel->hcsplt)) {
+    next_periodic_frame = true;
+  }
   // Ahead of the queue wait, so a channel that cannot have the frame leaves without entering it: SOF
   // replays this whole function, and that wait must not run on the deferral path. Taking the frame is a
   // read-modify-write on state shared with the ISR, and hcd_edpt_xfer() reaches here from task context,
@@ -453,7 +473,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_send_in_token(dwc2_regs_t* 
   }
   dwc2->gahbcfg = gahbcfg;
   if (!claimed) {
-    return 0;
+    return DWC2_LS_PARKED; // the park itself may already be replayed by now, so callers go by this
   }
 #endif
   while (0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
@@ -1028,7 +1048,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
 #endif
 
 #if DWC2_LS_ONE_XACT_PER_FRAME
-  if (_hcd_data.xfer[ch_id].ls_defer != LS_DEFER_NONE) {
+  if (periodic_frame == DWC2_LS_PARKED) {
     return true; // IN token parked, SOF replays it and picks up periodic_frame then
   }
 #endif
@@ -1932,7 +1952,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
     if (kind == LS_DEFER_IN_TOKEN || kind == LS_DEFER_IN_TOKEN_PERIODIC) {
       const uint16_t periodic_frame = channel_send_in_token(dwc2, &dwc2->channel[ch_id],
                                                             kind == LS_DEFER_IN_TOKEN_PERIODIC);
-      if (xfer->ls_defer == LS_DEFER_NONE && kind == LS_DEFER_IN_TOKEN_PERIODIC) {
+      if (periodic_frame != DWC2_LS_PARKED && kind == LS_DEFER_IN_TOKEN_PERIODIC) {
         edpt->periodic_frame = periodic_frame;
       }
     } else if (!channel_xfer_start(dwc2, ch_id, kind == LS_DEFER_XFER_START_PERIODIC)) {
