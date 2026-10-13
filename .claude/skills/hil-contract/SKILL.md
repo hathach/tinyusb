@@ -210,26 +210,26 @@ keyed by every requested board:
 - `skipped` (`[]` when none): each skipped test as `<row> <test>`: a `⚪` cell in
   `hil_report.md`, a `Skip (no binary)` or `Skipped` line in the run's output, or a requested
   test with no cell in the board's rows (a `-t` test its `only` list or capability flags drop),
-  never a roster `skip` test (a `… Skip` line).
+  never a roster `skip` test (a `… Skip` line with nothing after `Skip`).
 - `usbtest` (`[]` when none): each red usbtest row as `<row>: ` plus the last `device/usbtest`
   failure line for that row, never a `retry i/N` line, in the output of the run whose cell the
   report shows.
-- `retried` (`{}` when the retry did not re-run the board): `rows`, each red row the first
+- `retried` (`{}` only when the retry left the board out): `rows`, each red row the first
   attempt left on the board as `<row> <test>: ` plus its failure line in that run's output, and
   each row that passed first but failed its re-run as `<row> <test> (re-run): ` plus that line; and
   `report`, the first attempt's `hil_report.md`, copied into a fresh `mktemp -d` directory
-  before the retry.
+  before the retry. A board the retry included but found `locked` or `build refused` still
+  carries both.
 
 A failure line is copied from after its status word and colon (`Failed`, colored in the raw
-output, or `not retrying`), less any trailing `in Ns`. `results` has exactly one entry per requested board. `pass` is the verdict of this
-report snapshot: every row can pass on an aborted or no-boards run, so the run-level `caveat`
-(aborted, no boards; empty on every other run) gates it. `--accumulate` clears an earlier
-attempt's caveat by design, so the verdict of a retry sequence is the caller's, and a re-run's
-own caveat fails the sequence.
-Each row's `wedged`
-is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
-not rule out) and is copied with the row; the
-top-level `wedged` names requested boards, never a variant row name.
+output, or `not retrying`), less any trailing `in Ns`. `results` has exactly one entry per
+requested board. `pass` is the verdict of this report snapshot: every row can pass on an
+aborted or no-boards run, so the run-level `caveat` (aborted, no boards; empty on every other
+run) gates it. `--accumulate` clears an earlier attempt's caveat by design, so the verdict of a
+retry sequence is the caller's, and a re-run's own caveat fails the sequence. Each row's
+`wedged` is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the
+battery could not rule out) and is copied with the row; the top-level `wedged` names requested
+boards, never a variant row name.
 A run refused with `board(s) not in <config>` is re-run without the unknown names only while
 a known name remains — an empty `-b` list runs every configured board — keeping the full
 requested list on the `hil_report.py` call, which emits a `ran: false` row for each unknown
@@ -283,7 +283,8 @@ board when none of its rows is; nothing left means no retry. Keep
 `--accumulate`: a fresh run unlinks the report, replacing the whole-fleet table with a one-row
 table. A `-bt` left with one test per variant parks at each variant boundary (Build). A row the
 retry re-ran though not retryable keeps its first verdict, from `retried`; one that passed first
-but failed its re-run makes the board flaky, and `retried.rows` lists it.
+but failed its re-run fails the board by the re-run's FAIL cell, and `retried.rows` records that
+it passed first.
 If a board or fixture stops enumerating, or a tool of
 yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
 report (never into the report's rows) and name the board in `wedged`, without recovering it.
