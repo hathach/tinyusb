@@ -107,7 +107,7 @@ _NONCODE_RE = re.compile(
 _META_RE = re.compile(
     r'^('
     r'\.(gitignore|gitattributes|clang-format|codespellrc|readthedocs\.yaml)$|'
-    r'\.pre-commit-config\.yaml$|\.PVS-Studio/|\.agents$|\.codex/|\.idea/|\.vscode/|'
+    r'\.pre-commit-config\.yaml$|\.PVS-Studio/|\.oss-scanner/|\.agents$|\.codex/|\.idea/|\.vscode/|'
     r'sonar-project\.properties$|library\.json$|pkg\.yml$|repository\.yml$|'
     r'version\.yml$|SConscript$|'
     r'.*CMakePresets\.json$|hw/bsp/BoardPresets\.json$|examples/west\.yml$|'
