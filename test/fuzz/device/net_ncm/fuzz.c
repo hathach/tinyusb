@@ -21,7 +21,6 @@
 // this reproduces that out-of-bounds read under -fsanitize=address.
 
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -88,56 +87,3 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   free(ntb);
   return 0;
 }
-
-//--------------------------------------------------------------------+
-// Standalone driver (built when there is no libFuzzer engine): replays the
-// crafted NTB, or any corpus files passed on the command line.
-//--------------------------------------------------------------------+
-#ifndef NO_MAIN
-static void run_crafted_seed(void) {
-  uint8_t buf[64];
-  memset(buf, 0, sizeof(buf));
-
-  // NTH16: signature, wHeaderLength = sizeof(nth16_t), wSequence, wBlockLength, wNdpIndex
-  uint32_t nth_sig = NTH16_SIGNATURE;
-  memcpy(buf + 0, &nth_sig, 4);
-  uint16_t v;
-  v = sizeof(nth16_t); memcpy(buf + 4, &v, 2);
-  v = 0;               memcpy(buf + 6, &v, 2);
-  v = sizeof(buf);     memcpy(buf + 8, &v, 2);
-  v = sizeof(nth16_t); memcpy(buf + 10, &v, 2);
-
-  // NDP16 at wNdpIndex: signature, wLength (unbounded pre-fix), wNextNdpIndex
-  uint32_t ndp_sig = NDP16_SIGNATURE_NCM0;
-  memcpy(buf + sizeof(nth16_t) + 0, &ndp_sig, 4);
-  v = 0xFFF0; memcpy(buf + sizeof(nth16_t) + 4, &v, 2);
-  v = 0;      memcpy(buf + sizeof(nth16_t) + 6, &v, 2);
-
-  LLVMFuzzerTestOneInput(buf, sizeof(buf));
-}
-
-int main(int argc, char **argv) {
-  if (argc < 2) {
-    run_crafted_seed();
-    return 0;
-  }
-  for (int i = 1; i < argc; i++) {
-    FILE *f = fopen(argv[i], "rb");
-    if (f == NULL) {
-      continue;
-    }
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (len > 0) {
-      uint8_t *buf = (uint8_t *) malloc((size_t) len);
-      if (buf != NULL && fread(buf, 1, (size_t) len, f) == (size_t) len) {
-        LLVMFuzzerTestOneInput(buf, (size_t) len);
-      }
-      free(buf);
-    }
-    fclose(f);
-  }
-  return 0;
-}
-#endif

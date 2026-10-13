@@ -28,9 +28,14 @@ provenance. A controller event is an attacker capability only when a real driver
   those libraries stays in scope.
 
 ## How to exercise it
-- libFuzzer + ASan harnesses: `test/fuzz/device/<cdc|msc|net|net_ncm>/_build/<name>`; where a seed archive exists
-  it is unpacked to `test/fuzz/device/<name>/corpus/`. The `cdc`, `msc` and `net` harnesses drive the device stack through a synthetic
-  controller; `net_ncm` tests the NCM receive validator alone. None covers host mode.
+- libFuzzer + ASan harnesses: `test/fuzz/device/<cdc|msc|net|net_ncm>/_build/<name>`, seeds unpacked to
+  `test/fuzz/device/<name>/corpus/` (empty for `net`). Replay with `<binary> -runs=0 <corpus or file>`; rebuild offline
+  with `make -C test/fuzz/device/<name> all` (CMake, `test/fuzz/CMakeLists.txt`).
+- Harness reach is narrow; absence of a harness crash is not evidence of safety. `cdc`, `msc` and `net` drive the device
+  stack through a synthetic controller that delivers bus events and SETUP packets but never completes a transfer, so
+  control data stages and class bulk data (MSC SCSI, RNDIS/ECM payloads) are not reached. The MSC and ECM/RNDIS
+  drivers are never opened either: `msc` uses endpoint 5 while its build allows five endpoints (0-4), and `net`'s
+  descriptor advertises only CDC. `net_ncm` tests the NCM receive validator alone. None covers host mode.
 - Unit tests: `cd test/unit-test && ceedling test:all` (device and host classes, hub, FIFO).
 
 ## How you rate severity
