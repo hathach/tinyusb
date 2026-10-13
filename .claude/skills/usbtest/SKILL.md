@@ -17,14 +17,14 @@ and the full battery still passes across reflash cycles.
 
 ## Choose the path
 
-| Situation                                        | Do                                                                                  |
-|--------------------------------------------------|-------------------------------------------------------------------------------------|
+| Situation                                        | Do                                                                                           |
+|--------------------------------------------------|----------------------------------------------------------------------------------------------|
 | Routine full battery on rig boards               | The HIL contract (`hil-contract` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
-| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
-| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
-| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
-| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                    |
-| New MCU or DCD                                   | Bring-up ladder                                                                     |
+| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                                |
+| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                            |
+| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls                      |
+| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                             |
+| New MCU or DCD                                   | Bring-up ladder                                                                              |
 
 Build first, through the build contract; `--variants` gives each roster variant its own
 `cmake-build-<variant>` dir, the one HIL and `run_case.py` flash from. A board not yet in the

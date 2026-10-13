@@ -13,7 +13,7 @@ back, and it is re-parked with `board_test` from the same variant. It never buil
 and never recovers a probe or a board: a wedge is reported for `usb-kernel-recover`. Flags:
 `--help`.
 
-The HIL contract (`hil-contract` skill) owns config selection by hostname and the board-lock protocol. The tool takes
+The HIL contract (`hil-contract` skill) owns config selection by hostname, the lock helper and the lock names; agentrc's `hil` skill owns the lock rules. The tool takes
 each board's lock itself; a held board is reported 🔒 locked and skipped, never waited on or
 bypassed. A CI job reaching a board the pool check holds fails it as "board locked", so prefer
 running between CI runs.
