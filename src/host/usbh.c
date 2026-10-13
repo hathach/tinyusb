@@ -121,7 +121,8 @@ typedef struct {
   struct TU_ATTR_PACKED {
     volatile uint8_t connected  : 1; // After 1st transfer
     volatile uint8_t addressed  : 1; // After SET_ADDR
-    volatile uint8_t configured : 1; // After SET_CONFIG and all drivers are configured
+    volatile uint8_t configured : 1; // After SET_CONFIG, while class drivers are still being configured
+    volatile uint8_t mounted    : 1; // All drivers configured and tuh_mount_cb() invoked
     volatile uint8_t suspended  : 1; // Bus suspended
     // volatile uint8_t removing : 1; // Physically disconnected, waiting to be processed by usbh
   };
@@ -1707,12 +1708,13 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
           removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1;
         } else
         #endif
-        // Invoke callback before closing driver (maybe call it later ?). Only for a device that
-        // reached tuh_mounted(): enumeration marks a device connected as soon as it has an address,
-        // so failing after that point would otherwise report an unmount for a device the
-        // application was never told about.
-        if (dev->configured) {
-          tuh_umount_cb(daddr);
+        {
+          // Invoke callback before closing driver (maybe call it later ?). Only for a device the application got
+          // tuh_mount_cb() for: enumeration marks a device connected once it has an address and configured at
+          // SET_CONFIG, ahead of its class drivers, so it can still fail after either.
+          if (dev->mounted) {
+            tuh_umount_cb(daddr);
+          }
         }
 
         // Close class driver
@@ -2311,6 +2313,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
+      dev->mounted = 1;
       tuh_mount_cb(dev_addr);
     }
   }
