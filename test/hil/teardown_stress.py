@@ -54,6 +54,19 @@ def bulk_eps(dev):
     return intf.bInterfaceNumber, out, in_
 
 
+def open_alt1(serial):
+    """The device configured with interface alt 1, as (dev, itf, ep_out, ep_in), else None."""
+    dev = find(serial)
+    if dev is None:
+        return None
+    itf, ep_out, ep_in = bulk_eps(dev)
+    if dev.is_kernel_driver_active(itf):
+        dev.detach_kernel_driver(itf)
+    dev.ctrl_transfer(0x00, REQ_SET_CONFIGURATION, 1, 0, timeout=CTRL_TIMEOUT_MS)
+    dev.set_interface_altsetting(itf, 1)
+    return dev, itf, ep_out, ep_in
+
+
 def pump(dev, ep_out, ep_in, stop, counts):
     data = bytes(BULK_LEN)
     while not stop.is_set():
@@ -80,14 +93,10 @@ def main():
     if args.iterations < 1:
         ap.error('need --iterations >= 1')
 
-    dev = find(args.serial)
-    if dev is None:
+    opened = open_alt1(args.serial)
+    if opened is None:
         return 2
-    itf, ep_out, ep_in = bulk_eps(dev)
-    if dev.is_kernel_driver_active(itf):
-        dev.detach_kernel_driver(itf)
-    dev.ctrl_transfer(0x00, REQ_SET_CONFIGURATION, 1, 0, timeout=CTRL_TIMEOUT_MS)
-    dev.set_interface_altsetting(itf, 1)
+    dev, itf, ep_out, ep_in = opened
 
     oks = []
     for i in range(args.iterations):
