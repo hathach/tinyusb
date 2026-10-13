@@ -209,17 +209,19 @@ overwrites the first attempt's cells. So the reply adds three objects beside `re
 keyed by every requested board:
 - `skipped` (`[]` when none): each skipped test as `<row> <test>`: a `⚪` cell in
   `hil_report.md`, a `Skip (no binary)` or `Skipped` line in the run's output, or a requested
-  test with no cell in the board's rows (a `-t` test its `only` list or capability flags drop).
+  test with no cell in the board's rows (a `-t` test its `only` list or capability flags drop),
+  never a roster `skip` test (a `… Skip` line).
 - `usbtest` (`[]` when none): each red usbtest row as `<row>: ` plus the last `device/usbtest`
   failure line for that row, never a `retry i/N` line, in the output of the run whose cell the
   report shows.
 - `retried` (`{}` when the retry did not re-run the board): `rows`, each red row the first
   attempt left on the board as `<row> <test>: ` plus its failure line in that run's output, and
+  each row that passed first but failed its re-run as `<row> <test> (re-run): ` plus that line; and
   `report`, the first attempt's `hil_report.md`, copied into a fresh `mktemp -d` directory
   before the retry.
 
-A failure line is copied from after its status (`Failed:`, `not retrying:`), less any trailing
-`in Ns`. `results` has exactly one entry per requested board. `pass` is the verdict of this
+A failure line is copied from after its status word and colon (`Failed`, colored in the raw
+output, or `not retrying`), less any trailing `in Ns`. `results` has exactly one entry per requested board. `pass` is the verdict of this
 report snapshot: every row can pass on an aborted or no-boards run, so the run-level `caveat`
 (aborted, no boards; empty on every other run) gates it. `--accumulate` clears an earlier
 attempt's caveat by design, so the verdict of a retry sequence is the caller's, and a re-run's
@@ -267,19 +269,21 @@ PREFIX, since each carries trailing detail:
   Either way the exit code is nonzero. Report what the message shows (the filter, or the
   refused boards), never `"pass": true`.
 
-The operator retries once, with `-v`, the rows Verdicts calls fail but not final, only on a
-report with no `locked` or `wedged` board and an empty `caveat`: the `.failed` spec lists locked
-and wedged boards too, and an accumulated retry would clear a caveat the caller must keep. Any
+The operator retries once, with `-v`, the rows matching Verdicts' fail bullet but not final, only
+on a report with no `locked` or `wedged` board, no blocker row and an empty `caveat`: the `.failed`
+spec lists locked and wedged boards too, a blocker row's stray `testusb` is swept only on a board
+the run flashes (Recovery), and an accumulated retry would clear a caveat the caller must keep. Any
 other outcome returns to the caller as it is. A final row is a `usbtest P/T` line with no
 never-ran count (every case ran, `usbtest 0/0` included: the harness's `parsed`); its FAIL,
 NOTRUN or HUNG cases go to the `usbtest` skill for diagnosis. Retry from the `<config>.failed`
 spec the run just wrote, which begins with `--accumulate` and restricts each board to its
 failed tests, scoped by hand: a `-bt` test runs on every variant and a board with no `-bt`
 re-runs whole, so drop a test only when none of the board's rows of it is retryable, and a
-board when none of its rows is or one is a blocker; nothing left means no retry. Keep
+board when none of its rows is; nothing left means no retry. Keep
 `--accumulate`: a fresh run unlinks the report, replacing the whole-fleet table with a one-row
 table. A `-bt` left with one test per variant parks at each variant boundary (Build). A row the
-retry re-ran though not retryable keeps its first verdict, from `retried`.
+retry re-ran though not retryable keeps its first verdict, from `retried`; one that passed first
+but failed its re-run makes the board flaky, and `retried.rows` lists it.
 If a board or fixture stops enumerating, or a tool of
 yours hangs in D state, that is a wedge: save `dmesg | tail -50` as an artifact beside the
 report (never into the report's rows) and name the board in `wedged`, without recovering it.
@@ -298,20 +302,23 @@ budget is therefore not-run, naming those tests and cases:
   `wedged`; an aborted run (an `HIL run aborted` notice), the boards it never reported
   included; a launched run that left no report; a usbtest row the rig or host cut short, which
   establishes no DUT failure: a `usbtest did not run` line not about the device (an outer
-  `COMMAND TIMEOUT` kill, no output, a host tool, module, sudo or host-controller refusal; a
-  killed battery can leave a `testusb` holding the board's node), or a never-ran reason
+  `COMMAND TIMEOUT` kill, no output, a host tool, module, sudo or host-controller refusal, a
+  `write … blocked >15s: a device lock is held`, `multiple devices with serial …`, or any line
+  the fail bullet does not list, a traceback included; a killed battery can leave a `testusb`
+  holding the board's node), or a never-ran reason
   `Reset_TT after case N unconfirmed`, a hub fault whose case N may be a PASS rewritten to FAIL.
 - fail: a test that ran and failed: a FAIL cell but the boundary row under not-run, or a red
   usbtest row but those under blocker and not-run, its NOTRUN cases included, since nothing the
   operator can supply separates them from FAIL. A line about the device (`no cafe:4010 device`,
   `did not bind`, `advertises tier`) counts as ran: the DUT left no passing result. A HUNG case
   the in-run recovery cleared is not a blocker by itself; the row's `wedged` decides. A
-  never-ran reason `device dropped off the bus` is the DUT's failure.
+  never-ran reason `device dropped off the bus` is the DUT's failure. A board whose retry did not
+  execute (`locked`, `build refused`) is fail from its `retried.rows`.
 - not-run: `locked`, `build refused`, a `same-PID boundary` FAIL whose line says
   `no board_test binary` (an unbuilt variant, Build), a board not in the config, a run that
   never started for a known refusal (missing config, scope gap, unbuilt firmware), or a usbtest
   row with any other never-ran reason (`battery budget … exhausted`) and no `cases failed` list.
-- pass: every requested test ran and passed; with a `retried` entry, a flaky pass quoting its
+- pass: every requested test ran and passed; with a non-empty `retried`, a flaky pass quoting its
   `report` and this one.
 
 ## Recovery
