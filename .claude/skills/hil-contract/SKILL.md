@@ -185,7 +185,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 - A hold refused by another holder: report holder and reason (`hil_lock.py status`). A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test: wait within the lock-wait budget and retry once, otherwise return the holder to the caller. A `hil_test.py` holder whose record has `role: cleanup-holder` (a TinyUF2 board held after a failed cleanup) is a recovery blocker, never waited on.
 
 - A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
-- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait. `--all` covers this config's names only: on a host another project's rig also uses (htpc: TinyUF2's `test/hil/local.json`), hold the union first, adding that project's lock names (its contract's Reservation names them) not already in this config, and stop if any of them is unavailable, releasing the holds you took.
+- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve 27 boards that do not exist there and none of the three that do. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait. `--all` covers this config's names only and ignores board names given beside it: on a host another project's rig also uses (htpc: TinyUF2's `test/hil/local.json`), also take a separate `hil_lock.py hold <names> --reason "..."` for that project's lock names (its contract's Reservation names them) not already in this config. Proceed only when both holds succeed; if either is refused, `hil_lock.py release` a name of each hold you took, never `release --all`, and stop.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. It risks colliding with whatever holds it.
 
@@ -203,11 +203,17 @@ python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 
 Copy it verbatim: rows are named per variant, a variant name need not start with the board
 name, and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come
-out wrong before. `results` has exactly one entry per requested board. `pass` is the verdict of
-this report snapshot: every row can pass on an aborted or no-boards run, so the run-level
-`caveat` (aborted, no boards; empty on every other run) gates it. `--accumulate`
-clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's,
-and a re-run's own caveat fails the sequence. Each row's `wedged`
+out wrong before. It cannot carry all that Verdicts needs: a skipped cell counts toward
+`cell(s) ok`, and a red usbtest cell is `❌ passed/total` whichever cases made it red. Beside it,
+per board, list each skipped test (a `⚪` cell in `hil_report.md`, `Skip (no binary)` or
+`Skipped` in the run's output) and, for each red usbtest row, what its `device/usbtest` `Failed:
+usbtest` line in the run's output says: the `cases failed: [...]` numbers and the `N case(s) never
+ran` count. That line is the only per-case source a run leaves: `cases failed` lumps FAIL, HUNG and
+NOTRUN, and the never-ran (BUDGET) cases come as a count. `results` has exactly one entry per
+requested board. `pass` is the verdict of this report snapshot: every row can pass on an aborted
+or no-boards run, so the run-level `caveat` (aborted, no boards; empty on every other run) gates
+it. `--accumulate` clears an earlier attempt's caveat by design, so the verdict of a retry
+sequence is the caller's, and a re-run's own caveat fails the sequence. Each row's `wedged`
 is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
 not rule out) and is copied with the row; the
 top-level `wedged` names requested boards, never a variant row name.
@@ -267,14 +273,17 @@ failure for diagnosis instead.
 
 ### Verdicts
 
-The caller maps each requested board onto the `hil` verdicts from the copied output:
+The caller maps each requested board onto the `hil` verdicts from the copied output and the
+skipped tests and usbtest cases listed beside it (Results):
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
   `wedged`; an aborted run (an `HIL run aborted` notice), the boards it never reported
   included; a launched run that left no report.
-- fail: a test that ran and failed (a FAIL cell, a usbtest FAIL case). A HUNG case the in-run
-  recovery cleared is not a blocker by itself; the row's `wedged` decides. A usbtest row red
-  only from NOTRUN or BUDGET cases is not a fail: those cases are not-run.
+- fail: a test that ran and failed (a FAIL cell; any red usbtest row but the one below, its
+  NOTRUN cases included, since nothing the operator can supply separates them from FAIL). A HUNG
+  case the in-run recovery cleared is not a blocker by itself; the row's `wedged` decides. A
+  usbtest row whose line gives a never-ran count and no `cases failed` list, and that is not
+  wedged, is not-run for those cases, not a fail.
 - not-run: `locked`, `build refused`, a board not in the config, or a run that never started
   for a known refusal (missing config, scope gap, unbuilt firmware).
 - pass: every requested test ran and passed. A folded `ran: true, pass: true` row can still
