@@ -101,6 +101,12 @@ repos:
     entry: python3 test/hil/test/test_setup_toolchain.py
     pass_filenames: false
     language: system
+  - id: lpc-vector-checksum-test
+    name: lpc-vector-checksum-test
+    files: ^(tools/lpc_vector_checksum\.py|test/hil/test/test_lpc_vector_checksum\.py)$
+    entry: python3 test/hil/test/test_lpc_vector_checksum.py
+    pass_filenames: false
+    language: system
   # language: python, not system, for the next two hooks: their suites are
   # stdlib-only except where they parse YAML (skill front matter,
   # .pre-commit-config.yaml), so pre-commit's venv supplies PyYAML rather than

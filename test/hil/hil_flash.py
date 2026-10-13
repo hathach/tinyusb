@@ -14,6 +14,7 @@ import re
 import shlex
 import shutil
 import signal
+import struct
 import subprocess
 import time
 from pathlib import Path
@@ -56,8 +57,62 @@ def _run_jlink(flasher: dict, command_file: Path, timeout=None) -> subprocess.Co
     return ret
 
 
+# "START END" hex addresses: the roster's strings reach the J-Link command file verbatim
+JLINK_ERASE_RANGE = re.compile(r'0x[0-9A-Fa-f]{1,8} 0x[0-9A-Fa-f]{1,8}')
+
+
+def jlink_erase_ranges(flasher: dict) -> list:
+    """The flasher's optional "erase": ["START END", ...], flash ranges J-Link erases before
+    every load. lpcxpresso43s67 runs from flash bank B, which the boot ROM picks only while
+    bank A holds no valid image, and any bank-A flash (another branch, a manual load) makes it
+    valid again. ValueError for a non-jlink flasher or a malformed range."""
+    ranges = flasher.get('erase')
+    if ranges is None:
+        return []
+    if flasher.get('name', '').lower() != 'jlink':
+        raise ValueError(f'"erase" is a jlink flasher option, not {flasher.get("name")!r}')
+    if not isinstance(ranges, list) or not all(isinstance(r, str) and JLINK_ERASE_RANGE.fullmatch(r)
+                                               for r in ranges):
+        raise ValueError(f'"erase" must be a list of "0xSTART 0xEND" strings, not {ranges!r}')
+    if any(int(lo, 16) >= int(hi, 16) for lo, hi in (r.split() for r in ranges)):
+        # a reversed or empty range would erase nothing and blind the load guard below
+        raise ValueError(f'"erase" ranges need START < END, not {ranges!r}')
+    return ranges
+
+
+def elf_load_ranges(path: str) -> list | None:
+    """[(start, end)] load addresses of an ELF32's PT_LOAD segments that carry file data,
+    None when the file is not a little-endian ELF32 (a .hex/.bin cannot be checked)."""
+    try:
+        with open(path, 'rb') as f:
+            elf = f.read()
+    except OSError:
+        return None
+    if elf[:4] != b'\x7fELF' or elf[4:6] != b'\x01\x01':
+        return None
+    e_phoff, = struct.unpack_from('<I', elf, 0x1C)
+    e_phentsize, e_phnum = struct.unpack_from('<HH', elf, 0x2A)
+    ranges = []
+    for i in range(e_phnum):
+        p_type, _, _, p_paddr, p_filesz = struct.unpack_from('<5I', elf, e_phoff + i * e_phentsize)
+        if p_type == 1 and p_filesz:  # PT_LOAD
+            ranges.append((p_paddr, p_paddr + p_filesz))
+    return ranges
+
+
 def flash_jlink(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
-    script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
+    ranges = jlink_erase_ranges(board['flasher'])
+    # an image that loads into a range the roster erases would make that bank bootable again
+    # (a bank-A build of lpcxpresso43s67, e.g. a stale cache or a build without its variant)
+    for r in ranges:
+        lo, hi = (int(a, 16) for a in r.split())
+        hits = [f'0x{s:08X}-0x{e:08X}' for s, e in elf_load_ranges(firmware) or [] if s < hi and lo < e]
+        if hits:
+            msg = (f'{firmware} loads into {", ".join(hits)}, inside the erase range {r} of '
+                   f'{board["name"]}: rebuild with the roster variant\'s defines (--variants)')
+            return subprocess.CompletedProcess('flash_jlink', 1, msg, msg)
+    erase = [f'erase {r}' for r in ranges]
+    script = ['halt', 'r', *erase, f'loadfile {firmware}', 'r', 'go', 'exit']
     f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
     with f_jlink.open('w') as f:
         f.writelines(f'{s}\n' for s in script)

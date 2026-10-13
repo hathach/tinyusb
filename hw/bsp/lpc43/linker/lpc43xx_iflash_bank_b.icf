@@ -1,0 +1,30 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 HiFiPhile
+ * SPDX-License-Identifier: MIT
+ */
+
+/* FLASH_BANK=B for IAR: lpcopen's lpc18xx_43xx_ldscript_iflash.icf moved to flash bank B.
+ * See flash_bank_B/lpc43_flash_bank.ld for the boot requirements. */
+
+define symbol __ICFEDIT_intvec_start__     = 0x1B000000;
+define symbol __ICFEDIT_region_ROM_start__ = 0x1B000140;
+define symbol __ICFEDIT_region_ROM_end__   = 0x1B080000;
+define symbol __ICFEDIT_region_RAM_start__ = 0x10000000;
+define symbol __ICFEDIT_region_RAM_end__   = 0x10007FFF;
+
+define symbol __ICFEDIT_size_cstack__ = 0x400;
+define symbol __ICFEDIT_size_heap__   = 0x200;
+
+define memory mem with size = 4G;
+define region ROM_region = mem:[from __ICFEDIT_region_ROM_start__ to __ICFEDIT_region_ROM_end__];
+define region RAM_region = mem:[from __ICFEDIT_region_RAM_start__ to __ICFEDIT_region_RAM_end__ repeat 2 displacement 0x80000];
+
+define block CSTACK with alignment = 8, size = __ICFEDIT_size_cstack__ { };
+define block HEAP   with alignment = 8, size = __ICFEDIT_size_heap__   { };
+
+initialize by copy { readwrite };
+do not initialize  { section .noinit };
+
+place at address mem:__ICFEDIT_intvec_start__ { section .intvec };
+place in ROM_region { readonly };
+place in RAM_region { readwrite, block CSTACK, block HEAP };

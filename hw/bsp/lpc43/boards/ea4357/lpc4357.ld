@@ -20,6 +20,10 @@ MEMORY
   RamAHB_ETB16 (rwx) : ORIGIN = 0x2000c000, LENGTH = 0x4000 /* 16K bytes (alias RAM5) */
 }
 
+/* FlashCode: the flash bank code and load images go to, chosen by the build (FLASH_BANK) through
+ * the linker search path - hw/bsp/lpc43/linker/flash_bank_<A|B>/lpc43_flash_bank.ld */
+INCLUDE lpc43_flash_bank.ld
+
   /* Define a symbol for the top of each memory region */
   __base_MFlashA512 = 0x1a000000  ; /* MFlashA512 */
   __base_Flash = 0x1a000000 ; /* Flash */
@@ -109,14 +113,14 @@ SECTIONS
 
         *(.after_vectors*)
 
-    } > MFlashA512
+    } > FlashCode
 
     .text : ALIGN(4)
     {
        *(.text*)
        *(.rodata .rodata.* .constdata .constdata.*)
        . = ALIGN(4);
-    } > MFlashA512
+    } > FlashCode
     /*
      * for exception handling/unwind - some Newlib functions (in common
      * with C++ and STDC++) use this.
@@ -124,14 +128,14 @@ SECTIONS
     .ARM.extab : ALIGN(4)
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
-    } > MFlashA512
+    } > FlashCode
 
     __exidx_start = .;
 
     .ARM.exidx : ALIGN(4)
     {
         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-    } > MFlashA512
+    } > FlashCode
     __exidx_end = .;
 
     _etext = .;
@@ -148,7 +152,7 @@ SECTIONS
         *(.data.$RamLoc40*)
         . = ALIGN(4) ;
         PROVIDE(__end_data_RAM2 = .) ;
-     } > RamLoc40 AT>MFlashA512
+     } > RamLoc40 AT>FlashCode
     /* DATA section for RamAHB32 */
 
     .data_RAM3 : ALIGN(4)
@@ -161,7 +165,7 @@ SECTIONS
         *(.data.$RamAHB32*)
         . = ALIGN(4) ;
         PROVIDE(__end_data_RAM3 = .) ;
-     } > RamAHB32 AT>MFlashA512
+     } > RamAHB32 AT>FlashCode
     /* DATA section for RamAHB16 */
 
     .data_RAM4 : ALIGN(4)
@@ -174,7 +178,7 @@ SECTIONS
         *(.data.$RamAHB16*)
         . = ALIGN(4) ;
         PROVIDE(__end_data_RAM4 = .) ;
-     } > RamAHB16 AT>MFlashA512
+     } > RamAHB16 AT>FlashCode
     /* DATA section for RamAHB_ETB16 */
 
     .data_RAM5 : ALIGN(4)
@@ -187,7 +191,7 @@ SECTIONS
         *(.data.$RamAHB_ETB16*)
         . = ALIGN(4) ;
         PROVIDE(__end_data_RAM5 = .) ;
-     } > RamAHB_ETB16 AT>MFlashA512
+     } > RamAHB_ETB16 AT>FlashCode
     /* MAIN DATA SECTION */
     .uninit_RESERVED : ALIGN(4)
     {
@@ -206,7 +210,7 @@ SECTIONS
        *(.data*)
        . = ALIGN(4) ;
        _edata = . ;
-    } > RamLoc32 AT>MFlashA512
+    } > RamLoc32 AT>FlashCode
 
     /* BSS section for RamLoc40 */
     .bss_RAM2 : ALIGN(4)

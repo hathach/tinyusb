@@ -19,7 +19,21 @@ set(FAMILY_MCUS LPC43XX CACHE INTERNAL "")
 set(STARTUP_FILE_GNU ${SDK_DIR}/../gcc/cr_startup_lpc43xx.c)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 set(STARTUP_FILE_IAR ${SDK_DIR}/../iar/iar_startup_lpc18xx43xx.s)
-set(LD_FILE_IAR ${SDK_DIR}/../iar/linker/lpc18xx_43xx_ldscript_iflash.icf)
+
+# Flash bank the image is linked to: A (default) or B. Bank B boots only while bank A holds no
+# valid image, see linker/flash_bank_B/lpc43_flash_bank.ld
+if (NOT DEFINED FLASH_BANK)
+  set(FLASH_BANK A)
+endif ()
+if (NOT FLASH_BANK MATCHES "^[AB]$")
+  message(FATAL_ERROR "FLASH_BANK must be A or B, not '${FLASH_BANK}'")
+endif ()
+
+if (FLASH_BANK STREQUAL "B")
+  set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/linker/lpc43xx_iflash_bank_b.icf)
+else ()
+  set(LD_FILE_IAR ${SDK_DIR}/../iar/linker/lpc18xx_43xx_ldscript_iflash.icf)
+endif ()
 
 #------------------------------------
 # BOARD_TARGET
@@ -76,11 +90,13 @@ function(family_configure_example TARGET RTOS)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
+      -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/flash_bank_${FLASH_BANK}
       --specs=nosys.specs --specs=nano.specs
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
+      -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/flash_bank_${FLASH_BANK}
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC
@@ -91,6 +107,14 @@ function(family_configure_example TARGET RTOS)
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
     SKIP_LINTING ON
     COMPILE_OPTIONS -w)
+
+  # J-Link patches the boot checksum for bank A only: a bank-B image carries its own (before bin/hex)
+  if (FLASH_BANK STREQUAL "B")
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${Python3_EXECUTABLE} ${TOP}/tools/lpc_vector_checksum.py --address 0x1B000000 $<TARGET_FILE:${TARGET}>
+      VERBATIM)
+  endif ()
 
   # Flashing
   family_add_bin_hex(${TARGET})

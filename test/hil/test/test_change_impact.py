@@ -17,6 +17,8 @@ import json
 import os
 import pathlib
 import re
+import shlex
+import struct
 import subprocess
 import sys
 import tempfile
@@ -214,6 +216,11 @@ class TestFallbackRules(unittest.TestCase):
     def test_unknown_tool_is_full(self):
         s = sel(['tools/random_new_script.py'])
         self.assertTrue(s['full'])
+
+    def test_family_build_tool_selects_that_familys_boards(self):  # rule 16c
+        s = change_impact.classify(['tools/lpc_vector_checksum.py'], REPO, real_rosters())
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {'lpcxpresso43s67': 'all'})
 
     def test_docs_only_is_empty_not_full(self):
         s = sel(['docs/info/contributing.rst', 'README.rst'])
@@ -939,6 +946,79 @@ class FlasherRecoverEntry(unittest.TestCase):
         # the bound is spent: no rerun
         self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [139], board, timeout=5, took=5), (139, [5]))
 
+    @staticmethod
+    def _jlink_script(board, firmware='/tmp/fw.elf'):
+        """flash_jlink's J-Link command file lines, read while run_cmd is stubbed."""
+        from unittest import mock
+        seen = {}
+
+        def fake(cmd, **k):
+            path = shlex.split(cmd)[shlex.split(cmd).index('-CommandFile') + 1]
+            seen['lines'] = pathlib.Path(path).read_text().splitlines()
+            return subprocess.CompletedProcess(cmd, 0, '', '')
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(hil_flash.hil_util, 'run_cmd', fake):
+            os.chdir(d)
+            try:
+                hil_flash.flash_jlink(board, firmware)
+            finally:
+                os.chdir(cwd)
+        return seen['lines']
+
+    def test_jlink_erases_the_roster_ranges_before_loading(self):
+        """lpcxpresso43s67 boots flash bank B only while bank A is not a valid image."""
+        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x',
+                                          'erase': ['0x1A000000 0x1A002000', '0x1A010000 0x1A020000']}}
+        self.assertEqual(self._jlink_script(board),
+                         ['halt', 'r', 'erase 0x1A000000 0x1A002000', 'erase 0x1A010000 0x1A020000',
+                          'loadfile /tmp/fw.elf', 'r', 'go', 'exit'])
+        del board['flasher']['erase']
+        self.assertEqual(self._jlink_script(board), ['halt', 'r', 'loadfile /tmp/fw.elf', 'r', 'go', 'exit'])
+
+    def test_jlink_erase_ranges_are_validated(self):
+        ok = {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}
+        self.assertEqual(hil_flash.jlink_erase_ranges(ok), [])
+        self.assertEqual(hil_flash.jlink_erase_ranges({**ok, 'erase': []}), [])
+        # strings reach the command file verbatim: no other command can ride along
+        for bad in ('0x1A000000 0x1A002000', ['0x1A000000'], ['0x1A000000 0x1A002000\nexec x'],
+                    ['1A000000 1A002000'], [['0x1A000000', '0x1A002000']],
+                    ['0x1A002000 0x1A000000'], ['0x1A000000 0x1A000000']):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                hil_flash.jlink_erase_ranges({**ok, 'erase': bad})
+        with self.assertRaises(ValueError):
+            hil_flash.jlink_erase_ranges({'name': 'openocd', 'uid': 'S1', 'args': '', 'erase': ['0x0 0x1']})
+
+    @staticmethod
+    def _elf(path, *loads):
+        """An ELF32 holding only program headers: one PT_LOAD per (paddr, filesz)."""
+        ph = b''.join(struct.pack('<8I', 1, 0, paddr, paddr, filesz, filesz, 5, 4) for paddr, filesz in loads)
+        header = (b'\x7fELF' + bytes([1, 1, 1]) + b'\0' * 9 +
+                  struct.pack('<HHIIIIIHHHHHH', 2, 40, 1, 0, 52, 0, 0, 52, 32, len(loads), 40, 0, 0))
+        pathlib.Path(path).write_bytes(header + ph)
+
+    def test_jlink_refuses_an_image_loading_into_an_erase_range(self):
+        """A bank-A build of lpcxpresso43s67 (stale pool-check cache, a build without its
+        variant) would make the erased bank bootable again: refuse before J-Link runs."""
+        from unittest import mock
+        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x',
+                                          'erase': ['0x1A000000 0x1A002000']}}
+        with tempfile.TemporaryDirectory() as d:
+            bank_a, bank_b, hexfile = (os.path.join(d, n) for n in ('a.elf', 'b.elf', 'fw.hex'))
+            self._elf(bank_a, (0x1A000000, 0x3000), (0x10000000, 0))
+            self._elf(bank_b, (0x1B000000, 0x3000), (0x10000000, 0x20))
+            pathlib.Path(hexfile).write_text(':00000001FF\n')
+            run = mock.MagicMock(return_value=subprocess.CompletedProcess('x', 0, '', ''))
+            with mock.patch.object(hil_flash.hil_util, 'run_cmd', run):
+                ret = hil_flash.flash_jlink(board, bank_a)
+            self.assertEqual(ret.returncode, 1)
+            self.assertIn('0x1A000000-0x1A003000', ret.stdout)
+            run.assert_not_called()
+            self.assertEqual(self._jlink_script(board, bank_b)[2], 'erase 0x1A000000 0x1A002000')
+            self.assertIn(f'loadfile {hexfile}', self._jlink_script(board, hexfile))  # unknown format: no check
+            # no erase range, no check: a bank-A image is any other board's normal firmware
+            del board['flasher']['erase']
+            self.assertIn(f'loadfile {bank_a}', self._jlink_script(board, bank_a))
+
     def test_jlink_does_not_rerun_other_failures(self):
         board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
         for rc in (1, 124):
@@ -1361,6 +1441,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_verdict.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_hil_wedge_sweep.py',
+            'test/hil/test/test_lpc_vector_checksum.py',
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/test_setup_toolchain.py',
@@ -1900,6 +1981,14 @@ class TestBuildClassifier(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertEqual(s['family_examples'], {})
+
+    def test_family_build_tool_rule(self):                         # rule 16c
+        # lpc43's family.cmake runs it on every FLASH_BANK=B link
+        s = self.b(['tools/lpc_vector_checksum.py'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], ['lpc43'])
+        # a tools/ script no family.cmake names is still unclassified
+        self.assertTrue(self.b(['tools/random_new_script.py'])['full'])
 
     def test_class_device_rule(self):                              # rule 8
         s = self.b(['src/class/cdc/cdc_device.c'])

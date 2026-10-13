@@ -47,6 +47,7 @@ can actually build.
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 16c | `tools/<file>` a family.cmake references (`tools/lpc_vector_checksum.py`), after rules 15-16 | `FAM` | `ALL` | `FAM`'s boards → all tests; a tool no family.cmake names falls through to rule 17 |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 """
 import argparse
@@ -352,6 +353,12 @@ def port_families(port_dir: str, repo_root: str) -> set:
     # so a leading 'src/' in the needle would never match there and silently drop
     # espressif boards (see TestRealRosterPortFamilies).
     return path_families('portable/' + port_dir, repo_root)
+
+
+def tool_families(path: str, repo_root: str) -> set:
+    """Families whose family.cmake runs a changed tools/ script (lpc43's bank-B vector
+    checksum); empty for anything deeper than tools/<file> or no family names."""
+    return path_families(path, repo_root) if re.fullmatch(r'tools/[^/]+', path) else set()
 
 
 def mcu_families(path: str, repo_root: str) -> set:
@@ -864,6 +871,16 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
             s.add(boards, [test], f'{path}: example -> {test} on all boards')
         else:
             s.reasons.append(f'{path}: example not in HIL lists, no contribution')
+        return
+
+    fams = tool_families(path, repo_root)
+    if fams:
+        # a build step of those families (rule 16c): their firmware changes, so their boards run
+        s.families.update(fams)
+        boards = [b['name'] for b in roster_boards
+                  if board_family(b['name'], repo_root) in fams]
+        s.roles.update(('device', 'host'))
+        s.add(boards, 'all', f'{path}: build tool of families {sorted(fams)} -> boards {boards}')
         return
 
     s.force_full(f'{path}: unclassified -> full matrix')
@@ -1422,6 +1439,10 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         # silently change what they do. Deliberately last, so every earlier rule keeps
         # priority - examples/device/board_test is rule 14 (just board_test), not ALL.
         s.force_full(path, 'core-infra', f'{path}: core/infra -> full build matrix')
+        return
+    fams = tool_families(path, repo_root)
+    if fams:                                                      # rule 16c
+        s.add(path, 'tool', fams, 'all', f'{path}: build tool of families {sorted(fams)}', fams)
         return
     s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17
 
