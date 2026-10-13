@@ -218,6 +218,8 @@ typedef struct {
   uint8_t enum_attempt;       // enumeration attempts used for the current attach
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   uint8_t attach_teardown;    // an attach event is tearing down what was on its port
+  uint8_t root_retry_count;   // root port re-enumerations used for the current attachment
+  uint8_t root_retry_rhport;  // the port root_retry_count belongs to
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
@@ -433,6 +435,11 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+    // Torn down from outside the enumeration (an unplug, or an attach on its port), which ends its attachment. Waiting
+    // in a delay or between transfers, it never reaches enum_full_complete(), so give the root retry budget back here:
+    // the next device must not inherit a spent one. enum_teardown() clears enumerating_daddr first, so its own closes
+    // keep the budget.
+    _usbh_data.root_retry_count = 0;
     // clear enum delay function of the device being removed
     if (_usbh_data.call_after.func == enum_delay_async) {
       _usbh_data.call_after.func = NULL;
@@ -2346,8 +2353,6 @@ static void enum_teardown(bool success) {
 }
 
 static void enum_full_complete(bool success) {
-  static uint8_t root_retry_count = 0;
-  static uint8_t root_retry_rhport = TUSB_INDEX_INVALID_8; // the port root_retry_count belongs to
   TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
   enum_teardown(success);
 
@@ -2359,9 +2364,9 @@ static void enum_full_complete(bool success) {
   #endif
 
   const uint8_t rhport = _usbh_data.dev0_bus.rhport;
-  if (rhport != root_retry_rhport) {
-    root_retry_rhport = rhport; // the budget is per port, and only one port enumerates at a time
-    root_retry_count = 0;
+  if (rhport != _usbh_data.root_retry_rhport) {
+    _usbh_data.root_retry_rhport = rhport; // the budget is per port, and only one port enumerates at a time
+    _usbh_data.root_retry_count = 0;
   }
 
   if (success || _usbh_data.attach_teardown || _usbh_data.dev0_bus.hub_addr != 0 ||
@@ -2371,17 +2376,17 @@ static void enum_full_complete(bool success) {
     // into the next device would deny it the retries it has not used. An attach event that tore
     // down this enumeration is such a fresh start, and needs no retry of its own: the handler that
     // set the flag goes on to enumerate the device that has just arrived.
-    root_retry_count = 0;
+    _usbh_data.root_retry_count = 0;
   } else {
     // A device behind a hub gets another chance from the next port status change, but nothing ever
     // retries the root port: the host stays dead until reboot. Re-post the attach so the port is
     // reset and enumerated again, e.g. after the controller dropped it on a bus error.
-    if (root_retry_count < USBH_ENUM_ROOT_RETRY_MAX) {
-      root_retry_count++;
-      TU_LOG_USBH("Retry root port enumeration %u/%u\r\n", root_retry_count, USBH_ENUM_ROOT_RETRY_MAX);
+    if (_usbh_data.root_retry_count < USBH_ENUM_ROOT_RETRY_MAX) {
+      _usbh_data.root_retry_count++;
+      TU_LOG_USBH("Retry root port enumeration %u/%u\r\n", _usbh_data.root_retry_count, USBH_ENUM_ROOT_RETRY_MAX);
       hcd_event_device_attach(rhport, false);
     } else {
-      root_retry_count = 0; // give up on this attach, but allow a later one to retry again
+      _usbh_data.root_retry_count = 0; // give up on this attach, but allow a later one to retry again
     }
   }
 }
