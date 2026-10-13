@@ -101,6 +101,13 @@ repos:
     entry: python3 test/hil/test/test_setup_toolchain.py
     pass_filenames: false
     language: system
+  # a second copy lets GHA and CircleCI build on different IDF versions after a bump
+  - id: esp-idf-image-pin
+    name: esp-idf image pinned only in toolchain.json
+    files: ^(\.github|\.circleci|tools|\.claude/skills)/
+    exclude: ^\.github/actions/setup_toolchain/toolchain\.json$
+    entry: 'espressif/idf:v\d'
+    language: pygrep
   # language: python, not system, for the next two hooks: their suites are
   # stdlib-only except where they parse YAML (skill front matter,
   # .pre-commit-config.yaml), so pre-commit's venv supplies PyYAML rather than

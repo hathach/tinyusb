@@ -26,14 +26,22 @@ exit 2
 '''
 
 class Manifest(unittest.TestCase):
-    def test_every_entry_pins_an_https_url_and_sha256(self):
+    def setUp(self):
         with open(os.path.join(ACTION, 'toolchain.json')) as f:
-            manifest = json.load(f)
-        for name, entry in manifest.items():
+            self.manifest = json.load(f)
+
+    def test_every_archive_entry_pins_an_https_url_and_sha256(self):
+        for name, entry in self.manifest.items():
+            if name == 'esp-idf':
+                continue
             with self.subTest(name):
                 self.assertEqual(set(entry), {'url', 'sha256'})
                 self.assertTrue(entry['url'].startswith('https://'))
                 self.assertRegex(entry['sha256'], r'^[0-9a-f]{64}$')
+
+    def test_esp_idf_pins_a_release_image(self):
+        self.assertEqual(set(self.manifest['esp-idf']), {'image'})
+        self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
 
 
 class Fetch(unittest.TestCase):

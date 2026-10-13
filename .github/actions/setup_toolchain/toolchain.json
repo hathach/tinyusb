@@ -42,5 +42,8 @@
   "iar-lmsc-tools": {
     "url": "https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb",
     "sha256": "c54bdbaee9b4c73723ee4de4285bb6915bf05c9ec4643eaedf0b56cd8bf3e538"
+  },
+  "esp-idf": {
+    "image": "espressif/idf:v6.1"
   }
 }
