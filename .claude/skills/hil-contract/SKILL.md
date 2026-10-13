@@ -206,14 +206,15 @@ name, and lock contention is a cell rather than a phrase, so any of it re-derive
 out wrong before. It cannot carry all that Verdicts needs: a skipped cell counts toward
 `cell(s) ok`, and a red usbtest cell is `❌ passed/total` whichever cases made it red. Beside it,
 per board, list each skipped test (a `⚪` cell in `hil_report.md`, `Skip (no binary)` or
-`Skipped` in the run's output) and, for each red usbtest row, what its `device/usbtest` `Failed:
-usbtest` line in the run's output says: the `cases failed: [...]` numbers and the `N case(s) never
-ran` count. That line is the only per-case source a run leaves: `cases failed` lumps FAIL, HUNG and
-NOTRUN, and the never-ran (BUDGET) cases come as a count. `results` has exactly one entry per
-requested board. `pass` is the verdict of this report snapshot: every row can pass on an aborted
-or no-boards run, so the run-level `caveat` (aborted, no boards; empty on every other run) gates
-it. `--accumulate` clears an earlier attempt's caveat by design, so the verdict of a retry
-sequence is the caller's, and a re-run's own caveat fails the sequence. Each row's `wedged`
+`Skipped` in the run's output) and, for each red usbtest row, what its `device/usbtest` failure
+line in the run's output says after `usbtest passed/total`: the `cases failed: [...]` numbers
+and the `N case(s) never ran` count. That line is the only per-case source a run leaves: `cases
+failed` lumps FAIL, HUNG and NOTRUN, and the never-ran (BUDGET) cases come as a count. `results`
+has exactly one entry per requested board. `pass` is the verdict of this report snapshot: every
+row can pass on an aborted or no-boards run, so the run-level `caveat` (aborted, no boards;
+empty on every other run) gates it. `--accumulate` clears an earlier attempt's caveat by design,
+so the verdict of a retry sequence is the caller's, and a re-run's own caveat fails the sequence.
+Each row's `wedged`
 is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
 not rule out) and is copied with the row; the
 top-level `wedged` names requested boards, never a variant row name.
