@@ -24,7 +24,7 @@ Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 - `--engine` membrowse unless asked (`pip install membrowse`; `membrowse==1.2.12` matches CI's attribution); linkermap needs `python3 tools/get_deps.py tools/linkermap`, bloaty needs `bloaty` on PATH. Flash/RAM come from the elf's headers for every engine. Membrowse's all-symbol total can overlap aliases and omit padding, so compare whole-elf totals only within one engine.
 - `--symbols` when Flash/RAM cancel: a pair counts as changed when its sections or symbols moved.
 - `--ci` for "all boards" / "CI"; it needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF or docker.
-- An espressif board builds each example `tools/build.py` picks as its own ESP-IDF project: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (once: `docker pull espressif/idf:v5.5.3 && docker tag espressif/idf:v5.5.3 espressif/idf:tinyusb`, about 8.4 GB).
+- An espressif board builds each example `tools/build.py` picks as its own ESP-IDF project: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (once: `docker pull espressif/idf:v6.1 && docker tag espressif/idf:v6.1 espressif/idf:tinyusb`, about 8.5 GB).
 - Windows: run `python -X utf8 tools/code_size.py …` (or set `PYTHONUTF8=1`), else redirected output fails on `Δ`. `report` and `diff` work for paths without spaces, and a non-ASCII checkout, CMake or toolchain path needs ninja >= 1.11 whose `ninja -t wincodepage` reports UTF-8; espressif boards are refused. A local base, including the fallback, symlinks its dependencies: enable Developer Mode unless running elevated.
 
 ## Results

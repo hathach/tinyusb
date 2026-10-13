@@ -1072,7 +1072,7 @@ def build_error(ret, src_dir):
 
 ESP_IDF_IMAGE = 'espressif/idf:tinyusb'  # .github/actions/setup_toolchain/espressif's tag
 ESP_IDF_MISSING = (f'ESP-IDF: source $IDF_PATH/export.sh, or docker with {ESP_IDF_IMAGE} '
-                   f'(docker tag espressif/idf:v5.5.3 {ESP_IDF_IMAGE}, as CI does)')
+                   f'(docker tag espressif/idf:v6.1 {ESP_IDF_IMAGE}, as CI does)')
 
 
 def _link_hops(path):

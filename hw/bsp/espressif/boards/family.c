@@ -90,7 +90,7 @@ void board_init(void) {
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
-#if CONFIG_USB_OTG_SUPPORTED
+#if CONFIG_SOC_USB_OTG_SUPPORTED
   #if CFG_TUD_ENABLED
   usb_init(BOARD_TUD_RHPORT, false);
   #endif
