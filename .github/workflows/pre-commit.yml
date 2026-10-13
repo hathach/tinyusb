@@ -48,5 +48,5 @@ jobs:
         done
         rc=0
         for p in $pids; do wait $p || rc=1; done
-        tail -n 3 fuzz-*.log
+        if [ $rc -ne 0 ]; then cat fuzz-*.log; else tail -n 3 fuzz-*.log; fi
         exit $rc
