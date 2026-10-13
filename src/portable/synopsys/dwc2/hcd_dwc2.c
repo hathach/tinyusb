@@ -35,11 +35,13 @@
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-// The FS core cannot run two low-speed transactions in the same frame: a low-speed device behind a
-// full-speed hub is addressed with a preamble packet, and a second one in the same frame makes the
-// core clear HPRT.PENA, which kills the whole root port. ESP-IDF works around this in hcd_dwc.c with
-// a 1 ms delay per low-speed control stage (espressif/esp-idf#15683). Reserve one frame per
-// low-speed transaction instead, which also covers the periodic IN of a second low-speed device.
+// The FS core cannot follow a low-speed transaction with another one in the frame it ended in: a low-speed
+// device behind a full-speed hub is addressed with a preamble packet, and a new transfer stage started in that
+// frame (seen right after an IN data stage) makes the core clear HPRT.PENA, which kills the whole root port.
+// ESP-IDF works around this in hcd_dwc.c with a 1 ms delay per low-speed control stage (espressif/esp-idf#15683).
+// Here one preamble channel owns the bus at a time, and the next may start only in a frame after the one its
+// predecessor halted in. That holds in DMA mode too, where the core retries NAKed tokens and runs the packets of
+// a transfer by itself, and it covers the periodic IN of a second low-speed device.
 // Directly attached low-speed devices use no preamble and are not affected.
 #define DWC2_LS_ONE_XACT_PER_FRAME 1
 #else
@@ -215,9 +217,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* d
 
 #if DWC2_LS_ONE_XACT_PER_FRAME
 #define DWC2_LS_FRAME_MASK 0x3FFFu // FrNum counts 0..0x3FFF
-#define DWC2_LS_FRAME_CLAIM_MAX 2  // furthest a claim can reach: offset of 1 plus a span of 1
+#define DWC2_LS_FRAME_CLAIM_MAX 1  // furthest a claim can reach: the next frame, for a periodic channel
 
-static uint32_t _ls_frame_end = 0; // last frame claimed by a low-speed transaction
+static uint32_t _ls_frame_end = 0; // last frame used by a low-speed transaction
+static uint8_t _ls_busy_ch = TUSB_INDEX_INVALID_8; // preamble channel in flight: claimed, not yet halted
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ls_frame_now(const dwc2_regs_t* dwc2) {
   return dwc2->hfnum & DWC2_LS_FRAME_MASK;
@@ -228,9 +231,8 @@ TU_ATTR_ALWAYS_INLINE static inline int32_t ls_frame_diff(uint32_t a, uint32_t b
   return (int32_t)(d << 18) >> 18; // sign-extend 14-bit so the FrNum wrap compares correctly
 }
 
-// A transaction is free to run once the frames claimed by the previous one have passed. offset is
-// where this channel would start: periodic channels are armed for the next frame (ODDFRM), non-periodic
-// ones go out in the current frame.
+// A transaction is free to run once the frame used by the previous one has passed. offset is where this channel
+// would start: periodic channels are armed for the next frame (ODDFRM), non-periodic ones go out in the current frame.
 TU_ATTR_ALWAYS_INLINE static inline bool ls_frame_free(const dwc2_regs_t* dwc2, uint32_t offset) {
   const int32_t diff = ls_frame_diff(ls_frame_now(dwc2) + offset, _ls_frame_end);
   // A claim reaches at most DWC2_LS_FRAME_CLAIM_MAX frames ahead, so a reservation that appears to sit
@@ -247,26 +249,40 @@ TU_ATTR_ALWAYS_INLINE static inline bool ls_needs_preamble(const dwc2_regs_t* dw
   return char_bm.low_speed_dev && !splt_bm.split_en && hprt.speed == HPRT_SPEED_FULL;
 }
 
-// Claim the frames this channel's transaction will occupy. Returns false when a previous low-speed
-// transaction still holds them, in which case the caller must leave the channel alone. Never waits,
-// because the callers are reached from interrupt context on every NAK retry and control stage.
+// Take the bus for this channel until it halts. Returns false while another preamble channel is in flight or the
+// frame its predecessor ended in has not passed, in which case the caller must leave the channel alone. Never
+// waits, because the callers are reached from interrupt context on every NAK retry and control stage.
 static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
   if (!ls_needs_preamble(dwc2, channel->hcchar, channel->hcsplt)) {
     return true;
   }
 
-  const bool is_period = channel_is_periodic(channel->hcchar);
-  const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
-  const uint32_t offset = is_period ? 1u : 0u;
-  // the core runs the packets of a multi-packet transfer back-to-back, which at low speed can spill
-  // past the end of the frame it started in
-  const uint32_t span = (!is_period && hctsiz.packet_count > 1) ? 1u : 0u;
+  // Held until the halt: where the transaction actually ran is not known up front. It can slip into the next frame
+  // when armed late, and in DMA mode the core repeats NAKed tokens and runs every packet without software. A channel
+  // claiming again has halted since, so a stale hold of its own, or of a channel since freed, does not count.
+  const uint8_t ch_id = (uint8_t) (channel - dwc2->channel);
+  if (_ls_busy_ch != TUSB_INDEX_INVALID_8 && _ls_busy_ch != ch_id && _hcd_data.xfer[_ls_busy_ch].allocated) {
+    return false;
+  }
 
+  const uint32_t offset = channel_is_periodic(channel->hcchar) ? 1u : 0u;
   if (!ls_frame_free(dwc2, offset)) {
     return false;
   }
-  _ls_frame_end = (ls_frame_now(dwc2) + offset + span) & DWC2_LS_FRAME_MASK;
+  _ls_busy_ch = ch_id;
+  _ls_frame_end = (ls_frame_now(dwc2) + offset) & DWC2_LS_FRAME_MASK;
   return true;
+}
+
+// The channel halted: free the bus, but not the frame its last transaction ran in.
+TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2, uint8_t ch_id) {
+  if (_ls_busy_ch == ch_id) {
+    _ls_busy_ch = TUSB_INDEX_INVALID_8;
+    const uint32_t now = ls_frame_now(dwc2);
+    if (ls_frame_diff(now, _ls_frame_end) > 0) {
+      _ls_frame_end = now;
+    }
+  }
 }
 
 // Park a channel whose frame is still busy and make sure SOF is running to pick it up.
@@ -354,6 +370,7 @@ static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     _hcd_data.xfer[ch_id].ls_defer = LS_DEFER_NONE;
   }
+  _ls_busy_ch = TUSB_INDEX_INVALID_8;
   _ls_frame_end = (ls_frame_now(dwc2) - 1u) & DWC2_LS_FRAME_MASK;
 #endif
 
@@ -1792,6 +1809,13 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       // another cause, leave it pending so the next pass retires the halt.
       const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
       channel->hcint = hcint_clear;
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      // ahead of the handlers below, which re-arm through ls_frame_claim()
+      if (hcint & HCINT_HALTED) {
+        ls_bus_release(dwc2, ch_id);
+      }
+#endif
 
       // Retire closing/aborted DMA channels before retry handling can re-arm them (Programming Guide 3.5, p73).
       if (is_dma && (xfer->aborting || xfer->closing) && (hcint & HCINT_HALTED)) {
