@@ -301,13 +301,10 @@ budget is therefore not-run, naming those tests and cases:
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
   `wedged`; an aborted run (an `HIL run aborted` notice), the boards it never reported
-  included; a launched run that left no report; a usbtest row the rig or host cut short, which
-  establishes no DUT failure: a `usbtest did not run` line not about the device (an outer
-  `COMMAND TIMEOUT` kill, no output, a host tool, module, sudo or host-controller refusal, a
-  `write … blocked >15s: a device lock is held`, `multiple devices with serial …`, or any line
-  the fail bullet does not list, a traceback included; a killed battery can leave a `testusb`
-  holding the board's node), or a never-ran reason
-  `Reset_TT after case N unconfirmed`, a hub fault whose case N may be a PASS rewritten to FAIL.
+  included; a launched run that left no report; a `usbtest did not run` line except the device
+  messages listed under fail (no DUT failure established; a killed battery can leave a `testusb`
+  holding the board's node), or a never-ran reason `Reset_TT after case N unconfirmed`, a hub
+  fault whose case N may be a PASS rewritten to FAIL.
 - fail: a test that ran and failed: a FAIL cell but the boundary row under not-run, or a red
   usbtest row but those under blocker and not-run, its NOTRUN cases included, since nothing the
   operator can supply separates them from FAIL. A line about the device (`no cafe:4010 device`,
