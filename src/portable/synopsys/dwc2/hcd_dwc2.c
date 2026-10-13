@@ -299,7 +299,8 @@ TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2,
 }
 
 // Park a channel whose frame is still busy and make sure SOF is running to pick it up.
-TU_ATTR_ALWAYS_INLINE static inline void ls_defer_channel(dwc2_regs_t* dwc2, dwc2_channel_t* channel, ls_defer_kind_t kind) {
+TU_ATTR_ALWAYS_INLINE static inline void ls_defer_channel(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
+                                                          ls_defer_kind_t kind) {
   _hcd_data.xfer[channel - dwc2->channel].ls_defer = (uint8_t) kind;
   if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
     dwc2->gintsts = GINTSTS_SOF;
