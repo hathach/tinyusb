@@ -288,6 +288,28 @@ TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint
   dwc2->haintmsk &= ~TU_BIT(ch_id);
 }
 
+#if DWC2_LS_ONE_XACT_PER_FRAME
+// Take back a channel parked on a busy low-speed frame. It is programmed but was never enabled, so nothing of it
+// is on the bus and no halt will come to retire it: in DMA mode channel_disable() leaves a periodic channel to an
+// automatic halt that only an enabled channel produces. Returns false when the channel is not parked. The caller
+// masks this controller's interrupt so SOF cannot replay the channel meanwhile.
+static bool ls_park_retire(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  const hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  if (!xfer->allocated || xfer->ls_defer == LS_DEFER_NONE) {
+    return false;
+  }
+  // channel_xfer_start() predicts the PID after the whole transfer, give back the one it was armed with
+  const dwc2_channel_t* channel = &dwc2->channel[ch_id];
+  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
+  if (hcchar.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
+    const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+    _hcd_data.edpt[xfer->ep_id].next_pid = hctsiz.pid;
+  }
+  channel_dealloc(dwc2, ch_id);
+  return true;
+}
+#endif
+
 TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
 #if DWC2_LS_ONE_XACT_PER_FRAME
   // A channel parked waiting for a free low-speed frame is never in the request queue, so CHDIS|CHENA
@@ -458,20 +480,38 @@ TU_ATTR_ALWAYS_INLINE static inline void edpt_dealloc(hcd_endpoint_t *edpt) {
 // close an opened endpoint
 static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // Look for a parked channel and mark the endpoint closing in one go: in between, SOF could replay the channel or
+  // the channel ISR could park it.
+  const uint32_t gahbcfg = dwc2->gahbcfg;
+  dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+#endif
   edpt->closing        = 1; // mark endpoint as closing
 
   // disable active channel belong to this endpoint
+  bool channel_active = false;
   for (uint8_t ch_id = 0; ch_id < DWC2_CHANNEL_COUNT_MAX; ch_id++) {
     hcd_xfer_t *xfer = &_hcd_data.xfer[ch_id];
     if (xfer->allocated && xfer->ep_id == ep_id) {
+#if DWC2_LS_ONE_XACT_PER_FRAME
+      if (ls_park_retire(dwc2, ch_id)) {
+        break; // never enabled, nothing left to wait for
+      }
+#endif
       dwc2_channel_t *channel = &dwc2->channel[ch_id];
       xfer->closing           = 1;
       channel_disable(dwc2, channel);
-      return; // only 1 active channel per endpoint
+      channel_active = true;
+      break; // only 1 active channel per endpoint
     }
   }
 
-  edpt_dealloc(edpt); // no active channel, safe to de-alloc now
+  if (!channel_active) {
+    edpt_dealloc(edpt); // no active channel, safe to de-alloc now
+  }
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  dwc2->gahbcfg = gahbcfg;
+#endif
 }
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
@@ -1081,6 +1121,17 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     hcd_int_enable(rhport);
     return true;
   }
+
+#if DWC2_LS_ONE_XACT_PER_FRAME
+  // A channel parked on a busy low-speed frame never reached the bus and would never halt: drop it now.
+  {
+    const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
+    if (ch_id < 16 && ls_park_retire(dwc2, ch_id)) {
+      hcd_int_enable(rhport);
+      return true;
+    }
+  }
+#endif
 
   // A periodic DMA channel must halt naturally at the next service boundary. Prevent a replacement transfer until the
   // halt ISR retires the channel, and suppress completion for the aborted transfer.
@@ -1823,12 +1874,20 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       continue;
     }
     hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+    if (xfer->closing || edpt->closing || edpt->aborting) {
+      // Teardown is under way. The channel never reached the bus, so no halt will come to finish it here.
+      const bool closing = xfer->closing || edpt->closing;
+      ls_park_retire(dwc2, ch_id);
+      if (closing) {
+        edpt_dealloc(edpt);
+      } else {
+        edpt->aborting = 0;
+      }
+      continue;
+    }
+
     const ls_defer_kind_t kind = (ls_defer_kind_t) xfer->ls_defer;
     xfer->ls_defer = LS_DEFER_NONE;
-
-    if (xfer->closing || edpt->closing || edpt->aborting) {
-      continue; // teardown is already under way, leave the channel alone
-    }
 
     if (kind == LS_DEFER_IN_TOKEN || kind == LS_DEFER_IN_TOKEN_PERIODIC) {
       const uint16_t periodic_frame = channel_send_in_token(dwc2, &dwc2->channel[ch_id],
