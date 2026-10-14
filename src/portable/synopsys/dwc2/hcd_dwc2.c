@@ -99,6 +99,8 @@ typedef struct {
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
   uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
   volatile bool aborting;  // periodic DMA abort waiting for the channel's automatic halt
+  uint16_t split_uframe;   // microframe of the periodic start-split (Y)
+  bool     csplit_wait;    // periodic complete-split held back until microframe Y+2 (sent from the SOF interrupt)
 } hcd_xfer_t;
 
 typedef struct {
@@ -107,6 +109,14 @@ typedef struct {
 } hcd_data_t;
 
 static hcd_data_t _hcd_data;
+
+// A periodic complete-split must not be issued before microframe Y+2, Y being the start-split's microframe
+// (USB 2.0 section 11.18.4). Enabling the channel while still in Y sends it in Y (same frame parity). A hub's TT may
+// then drop the transaction and answer NYET to every later complete-split, so the transfer is abandoned. Once in Y+1,
+// the channel can be enabled with the start-split's parity: the complete-split then goes out in Y+2.
+TU_ATTR_ALWAYS_INLINE static inline bool periodic_csplit_enable_allowed(dwc2_regs_t* dwc2, const hcd_xfer_t* xfer) {
+  return ((dwc2->hfnum - xfer->split_uframe) & HCD_FRAME_NUMBER_MASK) >= 1u;
+}
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 
 //--------------------------------------------------------------------
@@ -338,6 +348,7 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
     if (xfer->allocated && xfer->ep_id == ep_id) {
       dwc2_channel_t *channel = &dwc2->channel[ch_id];
       xfer->closing           = 1;
+      xfer->csplit_wait       = false; // the SOF handler must not re-enable it while it halts
       channel_disable(dwc2, channel);
       return; // only 1 active channel per endpoint
     }
@@ -788,6 +799,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     // call hcd_edpt_xfer() once, we will need to manage de-allocate/re-allocate IN channel dynamically.
     if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       periodic_frame = channel_send_in_token(dwc2, channel, is_period);
+      xfer->split_uframe = periodic_frame;
     } else {
       // The final FIFO word creates the OUT request. Keep CHENA and that write
       // atomic with respect to this controller's ISR.
@@ -1226,7 +1238,16 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
         channel->hcintmsk |= HCINT_NYET;
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
-        channel_send_in_token(dwc2, channel, false);
+        if (channel_is_periodic(channel->hcchar) && !periodic_csplit_enable_allowed(dwc2, xfer)) {
+          // still in the start-split's microframe: send the complete-split from the next SOF
+          xfer->csplit_wait = true;
+          if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
+            dwc2->gintsts = GINTSTS_SOF;
+            dwc2->gintmsk |= GINTMSK_SOFM;
+          }
+        } else {
+          channel_send_in_token(dwc2, channel, false);
+        }
       } else {
         // do nothing for complete split with DATA, this will trigger XferComplete and handled there
       }
@@ -1642,6 +1663,20 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 
   // If highspeed then SOF is 125us, else 1ms
   const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
+
+  // periodic complete-splits held back until their start-split's microframe has passed
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+    hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+    if (xfer->allocated && xfer->csplit_wait) {
+      if (periodic_csplit_enable_allowed(dwc2, xfer)) {
+        xfer->csplit_wait = false;
+        channel_send_in_token(dwc2, &dwc2->channel[ch_id], false); // start-split's parity: goes out in Y+2
+      } else {
+        more_isr = true;
+      }
+    }
+  }
 
   for(uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
     hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
