@@ -27,6 +27,7 @@
 /* metadata:
    name: Espressif S31 Function CoreBoard
    url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s31/esp32-s31-function-coreboard-1/index.html
+   note: J4 is a host-wired Type-A port that always supplies VBUS; device role needs an A-to-A cable with VBUS cut
 */
 
 #ifndef BOARD_H_

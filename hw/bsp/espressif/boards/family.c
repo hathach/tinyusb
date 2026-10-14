@@ -116,9 +116,7 @@ void board_init(void) {
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   // factory MAC-48: esp_efuse_mac_get_default() is an 8-byte EUI-64 on 802.15.4 targets
   (void) max_len;
-  if (esp_read_mac(id, ESP_MAC_EFUSE_FACTORY) != ESP_OK) {
-    return 0;
-  }
+  TU_ASSERT(esp_read_mac(id, ESP_MAC_EFUSE_FACTORY) == ESP_OK, 0);
   return 6;
 }
 
