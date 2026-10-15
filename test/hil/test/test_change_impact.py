@@ -215,8 +215,8 @@ class TestFallbackRules(unittest.TestCase):
         s = sel(['tools/random_new_script.py'])
         self.assertTrue(s['full'])
 
-    def test_docs_only_is_empty_not_full(self):
-        s = sel(['docs/info/contributing.rst', 'README.rst'])
+    def test_noncode_only_is_empty_not_full(self):
+        s = sel(['docs/info/contributing.rst', 'README.rst', 'src/portable/synopsys/dwc2/dwc2_info.py'])
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
@@ -1838,7 +1838,8 @@ class TestBuildClassifier(unittest.TestCase):
         return change_impact.classify_build(files, REPO)
 
     def test_noncode_and_test_hil_contribute_nothing(self):        # rules 1, 2
-        s = self.b(['docs/info/index.rst', 'README.rst', 'test/hil/hil_test.py', '.claude/skills/hil/SKILL.md'])
+        s = self.b(['docs/info/index.rst', 'README.rst', 'test/hil/hil_test.py', '.claude/skills/hil/SKILL.md',
+                    'src/portable/synopsys/dwc2/dwc2_info.py'])
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertEqual(s['family_examples'], {})

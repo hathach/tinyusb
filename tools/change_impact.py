@@ -22,7 +22,7 @@ families column is PRE-PRUNE: _prune_buildable then intersects each family with 
 can actually build.
 
 | # | Changed path | Build families | Build examples | HIL boards → tests |
-| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
+| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `src/**/*.py`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
 | 2b | `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
@@ -90,8 +90,9 @@ def _read(path: str) -> str:
 _NONCODE_RE = re.compile(
     # LICENSE is anchored and LICENSES/ named separately: a bare `LICENSE` alternative
     # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
-    # which is the silent-under-selection direction
-    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE$|LICENSES/)')
+    # which is the silent-under-selection direction. src/ builds from C sources only; its
+    # Python is hand-run helpers (dwc2_info.py)
+    r'^(docs/|\.claude/|.*\.(md|rst)$|src/.*\.py$|LICENSE$|LICENSES/)')
 # Repo metadata and tooling that no CI build reads. Enumerated rather than left to
 # rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
 # creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
