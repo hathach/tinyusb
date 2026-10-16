@@ -35,14 +35,14 @@
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-// The FS core cannot follow a low-speed transaction with another one in the frame it ended in: a low-speed
-// device behind a full-speed hub is addressed with a preamble packet, and a new transfer stage started in that
-// frame (seen right after an IN data stage) makes the core clear HPRT.PENA, which kills the whole root port.
-// ESP-IDF works around this in hcd_dwc.c with a 1 ms delay per low-speed control stage (espressif/esp-idf#15683).
-// Here one preamble channel owns the bus at a time, and the next may start only in a frame after the one its
-// predecessor halted in. That holds in DMA mode too, where the core retries NAKed tokens and runs the packets of
-// a transfer by itself, and it covers the periodic IN of a second low-speed device.
-// Directly attached low-speed devices use no preamble and are not affected.
+// On ESP32-S2/S3 a low-speed device behind a full-speed hub can hang the host's transmitter: it sends the preamble
+// packet but never the low-speed packet after it, and drops the port on the timeout. ESP-IDF delays each low-speed
+// control stage by 1 ms (espressif/esp-idf#15683). On ESP32-S3 the hang only hit the preamble of a transaction the
+// driver started while the last packet on the bus was a low-speed one, about one in fifty of those whatever the gap.
+// A preamble after an SOF or another full-speed packet, within a transaction, or of the core's own NAK retries and
+// packet sequence never hung. So one preamble channel owns the bus at a time, and the next may start only in a frame
+// after the one its predecessor halted in, which puts an SOF in between. The port-disable recovery remains the
+// backstop. Directly attached low-speed devices use no preamble and are not affected.
 #define DWC2_LS_ONE_XACT_PER_FRAME 1
 #else
 #define DWC2_LS_ONE_XACT_PER_FRAME 0
