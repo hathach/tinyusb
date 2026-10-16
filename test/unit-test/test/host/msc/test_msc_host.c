@@ -13,6 +13,7 @@ TEST_SOURCE_FILE("msc_host.c")
 
 enum {
   DADDR     = 1,
+  ITF_NUM   = 2, // not 0, so an interface number the driver loses or zeroes shows
   EP_OUT    = 0x01,
   EP_IN     = 0x81,
   MAX_XFERS = 8,
@@ -22,6 +23,15 @@ static uint8_t  xfer_ep[MAX_XFERS];
 static uint8_t *xfer_buf[MAX_XFERS];
 static uint16_t xfer_len[MAX_XFERS];
 static uint8_t  xfer_count;
+static uint8_t  xfer_fail_index; // xfer_count value whose submission fails
+static uint8_t  complete_count;
+static uint8_t  set_config_count;
+static uint8_t  set_config_daddr;
+static uint8_t  set_config_itf;
+static msc_csw_t complete_csw;
+static bool     retry_submitted;
+static bool     ctrl_xfer_fail;
+static tuh_xfer_cb_t ctrl_complete_cb;
 static uint8_t  enum_buf[64];
 static uint8_t  data[98304];
 
@@ -32,8 +42,8 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
 }
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
-  (void) xfer;
-  return true;
+  ctrl_complete_cb = xfer->complete_cb;
+  return !ctrl_xfer_fail;
 }
 
 uint8_t *usbh_get_enum_buf(void) {
@@ -41,8 +51,9 @@ uint8_t *usbh_get_enum_buf(void) {
 }
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
-  (void) dev_addr;
-  (void) itf_num;
+  set_config_daddr = dev_addr;
+  set_config_itf   = itf_num;
+  set_config_count++;
 }
 
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
@@ -72,38 +83,107 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
   xfer_ep[xfer_count]  = ep_addr;
   xfer_buf[xfer_count] = buffer;
   xfer_len[xfer_count] = total_bytes;
-  xfer_count++;
+  return xfer_count++ != xfer_fail_index;
+}
+
+static bool record_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  (void) daddr;
+  complete_count++;
+  complete_csw = *cb_data->csw;
   return true;
 }
 
-static void mount_bot_interface(void) {
+// like the enumeration and msc_file_explorer, issue the next command straight from the callback
+static bool retry_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  (void) record_complete(daddr, cb_data);
+  retry_submitted = tuh_msc_test_unit_ready(daddr, 0, record_complete, 0);
+  return true;
+}
+
+static void open_bot_interface(void) {
   struct TU_ATTR_PACKED {
     tusb_desc_interface_t itf;
     tusb_desc_endpoint_t  ep_out;
     tusb_desc_endpoint_t  ep_in;
   } const desc = {
-    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
+    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, ITF_NUM, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
                MSC_PROTOCOL_BOT, 0},
     .ep_out = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
     .ep_in  = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
   };
 
   TEST_ASSERT_EQUAL(sizeof(desc), msch_open(0, DADDR, &desc.itf, sizeof(desc)));
-  TEST_ASSERT_TRUE(msch_set_config(DADDR, 0));
+}
+
+// usbh resumes enumeration from the interface it is told completed
+static void assert_config_completed(void) {
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(DADDR, set_config_daddr);
+  TEST_ASSERT_EQUAL(ITF_NUM, set_config_itf);
+}
+
+static void mount_bot_interface(void) {
+  open_bot_interface();
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
+}
+
+static void reply_csw(uint8_t status) {
+  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .status = status};
+  memcpy(xfer_buf[xfer_count - 1], &csw, sizeof(csw));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));
+}
+
+static void reply_csw_passed(void) {
+  reply_csw(MSC_CSW_STATUS_PASSED);
+}
+
+// Get Max LUN STALLs (one LUN): Test Unit Ready follows
+static void get_max_lun_stalled(void) {
+  tuh_xfer_t ctrl = {.daddr = DADDR, .result = XFER_RESULT_STALLED};
+  ctrl_complete_cb(&ctrl);
+}
+
+// run Get Max LUN, Test Unit Ready and Read Capacity 10 to completion
+static void enumerate(void) {
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw_passed();
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  scsi_read_capacity10_resp_t cap;
+  cap.last_lba   = tu_htonl(1023);
+  cap.block_size = tu_htonl(512);
+  memcpy(xfer_buf[xfer_count - 1], &cap, sizeof(cap));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(cap)));
+  reply_csw_passed();
+
+  TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
+  assert_config_completed();
+  xfer_count = 0;
 }
 
 void setUp(void) {
-  xfer_count = 0;
+  xfer_count      = 0;
+  xfer_fail_index = UINT8_MAX;
+  complete_count  = 0;
+  set_config_count = 0;
+  retry_submitted = false;
+  ctrl_xfer_fail  = false;
   msch_init();
   mount_bot_interface();
 }
 
 void tearDown(void) {}
 
-static void start_data_in(void) {
-  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
-  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, NULL, 0));
+static void start_data_in_cb(tuh_msc_complete_cb_t complete_cb) {
+  const msc_cbw_t cbw = {
+    .signature = MSC_CBW_SIGNATURE, .tag = 0x1234, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, complete_cb, 0));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+}
+
+static void start_data_in(void) {
+  start_data_in_cb(record_complete);
 }
 
 // usbh_edpt_xfer() takes a 16-bit length, so a data stage of 64 KiB or more must be split into
@@ -137,4 +217,159 @@ void test_msc_host_data_stage_short_ends_early(void) {
 
   TEST_ASSERT_EQUAL(3, xfer_count);
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+}
+
+// A stage that fails to submit leaves no transfer pending: the command must still complete, and only once.
+// The device is then left mid-command, so no further CBW may reach it until it is re-enumerated.
+static void assert_submit_fail_completed(uint8_t submitted, uint32_t residue) {
+  TEST_ASSERT_EQUAL(submitted, xfer_count);
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL_HEX32(MSC_CSW_SIGNATURE, complete_csw.signature);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(residue, complete_csw.data_residue);
+
+  // refused from the completion callback and afterwards, with nothing submitted
+  TEST_ASSERT_FALSE(retry_submitted);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+  TEST_ASSERT_FALSE(tuh_msc_read10(DADDR, 0, data, 0, 1, record_complete, 0));
+  TEST_ASSERT_EQUAL(submitted, xfer_count);
+  TEST_ASSERT_EQUAL(1, complete_count);
+}
+
+void test_msc_host_data_stage_first_chunk_submit_fail_completes(void) {
+  enumerate();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  xfer_fail_index = 1; // CBW, then the first chunk fails
+  start_data_in_cb(retry_complete);
+
+  assert_submit_fail_completed(2, sizeof(data));
+}
+
+void test_msc_host_no_data_status_submit_fail_completes(void) {
+  enumerate();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  xfer_fail_index = 1; // CBW, then the CSW fails
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, retry_complete, 0));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  assert_submit_fail_completed(2, 0);
+}
+
+void test_msc_host_data_stage_status_submit_fail_completes(void) {
+  enumerate();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  xfer_fail_index = 2; // CBW, a short first chunk, then the CSW fails
+  start_data_in_cb(retry_complete);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
+
+  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+  assert_submit_fail_completed(3, sizeof(data) - 512);
+}
+
+void test_msc_host_data_stage_chunk_submit_fail_completes(void) {
+  enumerate();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  xfer_fail_index = 2; // CBW, first chunk, then the second chunk fails
+  start_data_in_cb(retry_complete);
+  (void) msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[1]);
+
+  assert_submit_fail_completed(3, sizeof(data) - xfer_len[1]);
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
+
+  // re-enumeration clears it: the next command runs through all its stages
+  msch_close(DADDR);
+  xfer_fail_index  = UINT8_MAX;
+  set_config_count = 0;
+  mount_bot_interface();
+  enumerate();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[0]);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
+
+  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .tag = 0x5678, .status = MSC_CSW_STATUS_PASSED};
+  memcpy(xfer_buf[1], &csw, sizeof(csw));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));
+  TEST_ASSERT_EQUAL(2, complete_count);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PASSED, complete_csw.status);
+  TEST_ASSERT_EQUAL_HEX32(0x5678, complete_csw.tag);
+}
+
+// A failed enumeration command leaves the interface unmounted, but usbh must still be told its configuration
+// is done: until then it holds the enumeration, blocking this device's other interfaces and every later device.
+static void assert_enum_ended_unmounted(uint8_t submitted) {
+  TEST_ASSERT_EQUAL(submitted, xfer_count);
+  assert_config_completed();
+  TEST_ASSERT_FALSE(tuh_msc_mounted(DADDR));
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+}
+
+void test_msc_host_enum_tur_cbw_submit_fail(void) {
+  xfer_fail_index = 0;
+  get_max_lun_stalled();
+
+  assert_enum_ended_unmounted(1);
+}
+
+// the synthesized PHASE_ERROR fails Test Unit Ready, and its Request Sense retry is refused
+void test_msc_host_enum_tur_status_submit_fail(void) {
+  xfer_fail_index = 1; // TUR CBW, then its CSW fails
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  assert_enum_ended_unmounted(2);
+}
+
+void test_msc_host_enum_request_sense_submit_fail(void) {
+  xfer_fail_index = 3; // TUR CBW and CSW, Request Sense CBW, then its data stage fails
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw(MSC_CSW_STATUS_FAILED);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  assert_enum_ended_unmounted(4);
+}
+
+void test_msc_host_enum_read_capacity_submit_fail(void) {
+  xfer_fail_index = 3; // TUR CBW and CSW, Read Capacity CBW, then its data stage fails
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw_passed();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  assert_enum_ended_unmounted(4);
+}
+
+// usbh ignores set_config's result, so a Get Max LUN that fails to submit must end the configuration itself
+void test_msc_host_enum_get_max_lun_submit_fail(void) {
+  msch_close(DADDR);
+  set_config_count = 0;
+  ctrl_xfer_fail   = true;
+  open_bot_interface();
+  (void) msch_set_config(DADDR, ITF_NUM);
+
+  assert_enum_ended_unmounted(0);
+}
+
+// usbh closes the driver before failing the in-flight Get Max LUN, and has already ended the enumeration
+void test_msc_host_enum_unplug_during_get_max_lun(void) {
+  msch_close(DADDR);
+  tuh_xfer_t ctrl = {.daddr = DADDR, .result = XFER_RESULT_FAILED};
+  ctrl_complete_cb(&ctrl);
+
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+  TEST_ASSERT_FALSE(tuh_msc_mounted(DADDR));
 }
