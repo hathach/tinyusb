@@ -178,7 +178,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   xfer_status[0][TUSB_DIR_IN].max_size  = CFG_TUD_ENDPOINT0_SIZE;
 
   USBHSD->DEV_AD = 0;
-  USBHSD->CONTROL |= USBHS_DEV_PU_EN;
+  dcd_connect(rhport);
 
   return true;
 }
@@ -216,6 +216,18 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 
 void dcd_remote_wakeup(uint8_t rhport) {
   (void)rhport;
+}
+
+void dcd_connect(uint8_t rhport) {
+  (void)rhport;
+  USBHSD->HOST_CTRL |= USBHS_PHY_SUSPENDM;
+  USBHSD->CONTROL |= USBHS_DEV_PU_EN;
+}
+
+void dcd_disconnect(uint8_t rhport) {
+  (void)rhport;
+  USBHSD->CONTROL &= ~USBHS_DEV_PU_EN;
+  USBHSD->HOST_CTRL &= ~USBHS_PHY_SUSPENDM;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
