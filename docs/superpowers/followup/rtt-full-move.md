@@ -16,7 +16,7 @@ here as a byte-identical copy because the HIL harness imports its classes.
   `"logger": "rtt"` (only `ea4088_quickstart` in `tinyusb.json`).
 - `tools/change_impact.py` imports `hil_util` on GitHub-hosted ubuntu-latest runners
   (build.yml path-selection jobs), so the file must be present there today.
-- `hil_remote.py` (hil skill) stages `tools/rtt.py` next to `test/hil`; build.yml's path filter
+- `hil_remote.py` (`hil-contract` skill) stages `tools/rtt.py` next to `test/hil`; build.yml's path filter
   and the pre-commit `hil-test` pattern name the file; `test_hil_rtt.py` asserts
   its `HARNESS_FILES` entry and keeps the harness-side contracts only.
 - agentrc `skills/rtt/scripts/rtt.py` is identical; `tests/test_rtt.py` there
