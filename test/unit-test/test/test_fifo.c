@@ -120,7 +120,8 @@ void test_write_n(void) {
   // case 2: wr + count > depth
   tu_fifo_write_n(ff, test_data + 32, 40); // wr = 72 -> 8, count = 56
 
-  tu_fifo_read_n(ff, rd_buf, 32);          // count = 24
+  rd_count = tu_fifo_read_n(ff, rd_buf, 32);      // count = 24
+  TEST_ASSERT_EQUAL(32, rd_count);
   TEST_ASSERT_EQUAL_MEMORY(test_data + 16, rd_buf, rd_count);
 
   TEST_ASSERT_EQUAL(24, tu_fifo_count(ff));
