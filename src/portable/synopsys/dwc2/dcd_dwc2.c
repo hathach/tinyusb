@@ -224,7 +224,17 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, b
   uint16_t fifo_size = (uint16_t)tu_div_ceil(packet_size, 4);
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
-    const uint16_t new_sz = calc_device_grxfsiz(4 * fifo_size, ep_count);
+    uint16_t new_sz = calc_device_grxfsiz(4 * fifo_size, ep_count);
+
+    // The "2 x largest packet" RxFIFO size is a databook performance
+    // recommendation, not a functional requirement. On cores with a small
+    // total DFIFO (e.g. ESP32-S2/S3 with 256 words) the doubled size cannot
+    // fit for large OUT endpoints (full-speed isochronous can be up to
+    // 1023 bytes), which made dfifo_alloc() fail and left the endpoint
+    // silently receiving nothing. Fall back to the 1x minimum in that case.
+    if (new_sz > _dcd_data.dfifo_top) {
+      new_sz = 13 + 1 + (fifo_size + 1) + 2 * ep_count;
+    }
 
     // If size_rx needs to be extended check if there is enough free space
     if (dwc2->grxfsiz < new_sz) {
