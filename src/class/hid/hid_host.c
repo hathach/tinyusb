@@ -506,6 +506,20 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
     TU_ASSERT(tu_desc_type(desc_hid) == HID_DESC_TYPE_HID, 0);
   }
 
+  // Check every endpoint before allocating or opening anything, so a rejected interface leaves nothing behind
+  const uint8_t *p_ep = p_desc;
+  for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
+    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_ep;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
+    // every IN transfer is wMaxPacketSize long
+    const uint16_t mps = tu_edpt_packet_size(desc_ep);
+    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN && mps > CFG_TUH_HID_EPIN_BUFSIZE) {
+      TU_LOG_DRV("  IN wMaxPacketSize %u > CFG_TUH_HID_EPIN_BUFSIZE\r\n", mps);
+      return 0;
+    }
+    p_ep = tu_desc_next(p_ep);
+  }
+
   // Allocate new interface
   hidh_interface_t *p_hid = find_new_itf();
   TU_ASSERT(p_hid, 0); // not enough interface, try to increase CFG_TUH_HID
@@ -515,7 +529,6 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
   // Endpoint Descriptors
   for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
     TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {

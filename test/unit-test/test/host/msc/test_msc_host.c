@@ -23,6 +23,7 @@ static uint8_t *xfer_buf[MAX_XFERS];
 static uint16_t xfer_len[MAX_XFERS];
 static uint8_t  xfer_count;
 static uint8_t  enum_buf[64];
+static uint8_t  max_lun_resp; // GET_MAX_LUN response: highest LUN index
 static uint8_t  data[98304];
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
@@ -31,8 +32,12 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   return true;
 }
 
+// completes GET_MAX_LUN at once, as if the device answered max_lun_resp
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
-  (void) xfer;
+  TEST_ASSERT_EQUAL(MSC_REQ_GET_MAX_LUN, xfer->setup->bRequest);
+  enum_buf[0]  = max_lun_resp;
+  xfer->result = XFER_RESULT_SUCCESS;
+  xfer->complete_cb(xfer);
   return true;
 }
 
@@ -93,9 +98,11 @@ static void mount_bot_interface(void) {
 }
 
 void setUp(void) {
+  max_lun_resp = 0;
   xfer_count = 0;
   msch_init();
   mount_bot_interface();
+  xfer_count = 0; // drop the TEST UNIT READY the configuration sent
 }
 
 void tearDown(void) {}
@@ -137,4 +144,27 @@ void test_msc_host_data_stage_short_ends_early(void) {
 
   TEST_ASSERT_EQUAL(3, xfer_count);
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+}
+
+// A device reporting more LUNs than CFG_TUH_MSC_MAXLUN is clamped, and LUNs past it are refused
+void test_msc_host_max_lun_clamped(void) {
+  msch_close(DADDR);
+  xfer_count   = 0;
+  max_lun_resp = 255; // 256 LUNs, wraps to 0 in a uint8_t count
+  mount_bot_interface();
+  TEST_ASSERT_EQUAL(CFG_TUH_MSC_MAXLUN, tuh_msc_get_maxlun(DADDR));
+
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_count(DADDR, CFG_TUH_MSC_MAXLUN));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_size(DADDR, CFG_TUH_MSC_MAXLUN));
+  xfer_count = 0;
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .lun = CFG_TUH_MSC_MAXLUN};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+}
+
+void test_msc_host_lun_past_reported_count_refused(void) {
+  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .lun = 1};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
 }
