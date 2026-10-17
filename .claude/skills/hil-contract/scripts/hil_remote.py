@@ -45,10 +45,10 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
-# tools/rtt.py is loaded by hil_util through exec_module, and test/hil/pyocd/ runs as pyocd's
-# launcher and its user script: no import walk can see either. helper/hil_lock.py likewise
-# exec_module's agentrc's board-lock primitive, after checking tools/agentrc/.git/HEAD against
-# the commit tools/get_deps.py pins: those three files let the rig's tree pass the same check.
+# test/hil/pyocd/ runs as pyocd's launcher and its user script: no import walk can see it.
+# helper/agentrc.py exec_module's agentrc's board-lock primitive (for helper/hil_lock.py) and RTT
+# console (for hil_test.py), after checking tools/agentrc/.git/HEAD against the commit
+# tools/get_deps.py pins: those four files let the rig's tree pass the same check.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -57,6 +57,7 @@ HARNESS_FILES = (
     'test/hil/mtp_test.py',
     'test/hil/mtp_raw.py',
     'test/hil/helper/__init__.py',
+    'test/hil/helper/agentrc.py',
     'test/hil/helper/hil_args.py',
     'test/hil/helper/hil_lock.py',
     'test/hil/helper/hil_report.py',
@@ -64,10 +65,10 @@ HARNESS_FILES = (
     'test/hil/helper/hil_util.py',
     'test/hil/pyocd/run_pyocd.py',
     'test/hil/pyocd/user_script.py',
-    'tools/rtt.py',
     'tools/get_deps.py',
     'tools/agentrc/.git/HEAD',
     'tools/agentrc/skills/hil/scripts/hil_lock.py',
+    'tools/agentrc/skills/rtt/scripts/rtt.py',
 )
 
 # A stalled link must end the run, not hang it: no subprocess timeout fits a HIL run of

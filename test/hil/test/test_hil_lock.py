@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
 # pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
-# whose lock is unavailable before flashing, `hold --all` takes the roster, and a missing or
-# off-pin tools/agentrc refuses at import. Every lock lives in a temp dir under a name no rig
-# uses. Run directly:
+# whose lock is unavailable before flashing, `hold --all` takes the roster, and a missing
+# tools/agentrc refuses at import (test_hil_agentrc.py covers the loader's pin check). Every
+# lock lives in a temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
 import importlib.util
 import json
@@ -98,15 +98,15 @@ class Adapter(LockDir):
 
 
 class PinnedDependency(unittest.TestCase):
-    """The adapter in a scratch tree: refused at import, the fetch command and the pin in the
-    last line a caller's traceback prints, unless tools/agentrc is at the pin; then its CLI
-    runs, against a lock dir of its own."""
+    """The adapter in a scratch tree: refused at import through helper/agentrc.py unless
+    tools/agentrc is at the pin; then its CLI runs, against a lock dir of its own."""
 
     def setUp(self):
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         self.root = td.name
-        for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/hil_lock.py', 'tools/get_deps.py'):
+        for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/agentrc.py', 'test/hil/helper/hil_lock.py',
+                    'tools/get_deps.py'):
             os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
         self.pin = pinned_commit()
@@ -128,7 +128,8 @@ class PinnedDependency(unittest.TestCase):
         return subprocess.run([sys.executable, '-c', code], cwd=self.root, capture_output=True, text=True, timeout=30)
 
     def cli(self, *argv):
-        r = subprocess.run([sys.executable, 'test/hil/helper/hil_lock.py', *argv], cwd=self.root,
+        # -P: the script must find helper/agentrc.py without the script-dir sys.path entry
+        r = subprocess.run([sys.executable, '-P', 'test/hil/helper/hil_lock.py', *argv], cwd=self.root,
                            capture_output=True, text=True, timeout=30)
         return r.returncode, r.stdout + r.stderr
 
@@ -141,18 +142,6 @@ class PinnedDependency(unittest.TestCase):
 
     def test_missing_dependency_refuses(self):
         self.assert_refused(self.load())
-
-    def test_off_pin_dependency_refuses(self):
-        for head in ('0' * 40, 'ref: refs/heads/main'):
-            with self.subTest(head=head):
-                self.provide(head)
-                self.assert_refused(self.load())
-
-    def test_the_pinned_commit_loads(self):
-        self.provide(self.pin)
-        r = self.load()
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), os.path.join(self.root, PROVIDER))
 
     def test_hold_all_takes_the_roster_with_boards_skip(self):
         lock_dir = os.path.join(self.root, 'locks')

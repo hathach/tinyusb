@@ -1353,6 +1353,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_code_size_ci.py',
             'test/hil/test/test_drivers_coverage.py',
             'test/hil/test/test_family_json.py',
+            'test/hil/test/test_hil_agentrc.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
             'test/hil/test/test_hil_lock.py',
@@ -3556,9 +3557,9 @@ class TestGetDepsExampleShim(unittest.TestCase):
 class TestNoLockDependency(unittest.TestCase):
     def test_the_selector_never_loads_hil_lock(self):
         # build.yml's check-paths gate selects on a checkout that never fetched tools/agentrc,
-        # which helper/hil_lock.py refuses to import without
+        # which helper/agentrc.py refuses to load hil_lock or the RTT console without
         code = ('import sys; sys.path.insert(0, "tools"); import change_impact; '
-                'print(sorted(m for m in sys.modules if "hil_lock" in m))')
+                'print(sorted(m for m in sys.modules if "hil_lock" in m or "rtt" in m))')
         r = subprocess.run([sys.executable, '-c', code], cwd=REPO, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), '[]')

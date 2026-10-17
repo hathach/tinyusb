@@ -63,8 +63,10 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
-from helper import hil_args, hil_lock, hil_report, hil_tt, hil_util
+from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util
 from helper.hil_util import device_tests, dual_tests, host_test
+# Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
+rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
 
 # Raw Lock objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
@@ -308,11 +310,11 @@ def open_board_console(board: Board):
         # JlinkRtt speaks JLinkExe only; an openocd/stlink flasher would yield
         # `-device ''` and fail 15 s later with a misleading port error. The OpenOCD
         # RTT route is validated manually on native probes but has no harness backend
-        # yet (rtt skill; followup doc) — and never point it at ea4088's LPC-Link2
+        # yet (rtt skill) — and never point it at ea4088's LPC-Link2
         # (measured: knocks that probe off USB; other J-Link-OB probes untested)
         assert board['flasher']['name'].lower() == 'jlink', \
             f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
-        return hil_util.JlinkRtt(board)
+        return rtt.JlinkRtt(board)
     ser = open_serial_dev(hil_util.get_serial_dev(board.get('uart_uid') or board['flasher']["uid"], None, None, 0))
     ser.timeout = 0.1
     return ser
@@ -349,7 +351,7 @@ def serial_write_all(ser: serial.Serial, data: bytes):
         ser.write(data)
     except serial.SerialTimeoutException:
         raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
-    except hil_util.RttError as e:
+    except rtt.RttError as e:
         # the RTT console's failure contract (stall/closed/peer death): same
         # drain-stopped meaning as the serial timeout -- a test failure, not a harness
         # crash. Deliberately NOT bare RuntimeError: NotImplementedError and CPython's
@@ -359,8 +361,8 @@ def serial_write_all(ser: serial.Serial, data: bytes):
 
 
 # J-Link Commander's telnet greeting: never target output (defined with the console
-# in tools/rtt.py)
-RTT_BANNER_RE = hil_util.RTT_BANNER_RE
+# in agentrc's rtt.py)
+RTT_BANNER_RE = rtt.RTT_BANNER_RE
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc
 # Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_remote.py's
@@ -615,7 +617,7 @@ def test_host_device_info(board):
         # JLinkExe's telnet banner is delivered at connect, whether or not it ever
         # finds the control block, so len(data) alone cannot tell "board said nothing"
         # from "console never attached to the ring" -- drop the banner first
-        target_lines = hil_util.strip_banner(data).splitlines()
+        target_lines = rtt.strip_banner(data).splitlines()
         assert target_lines, ('No data from device: the RTT console attached but the target '
                               'produced nothing -- firmware built without LOGGER=rtt, or SWD lost')
     elif len(data) == 0:

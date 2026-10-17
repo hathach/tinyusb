@@ -139,20 +139,16 @@ class BottomLayer(unittest.TestCase):
         # mtp_test) through, so the pymtp case this test names could never fail: that
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
         # is no libmtp, taking change_impact down with it.
-        local = {'helper', 'hil_util', 'change_impact', 'hil_flash',
+        local = {'helper', 'hil_util', 'change_impact', 'hil_flash', 'agentrc',
                  'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json',
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
         # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
         # on the bare runner, and its `import serial` is function-local for exactly
         # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
-        # ../../tools/rtt: hil_util exec_module's it at import (helper/hil_util.py's
-        # loader block), so a non-stdlib import THERE kills change_impact on the bare
-        # runner just as surely -- and the spec_from_file_location call is invisible to
-        # the ast.Import walk below, which is why it must be listed explicitly
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
-                    'helper/hil_lock', 'helper/hil_pool_check',
-                    '../../tools/build', '../../tools/build_utils', '../../tools/rtt',
+                    'helper/hil_lock', 'helper/agentrc', 'helper/hil_pool_check',
+                    '../../tools/build', '../../tools/build_utils',
                     '../../tools/get_deps', '../../tools/family_json',
                     # the selection contract CI calls: check_build.py --select-only
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):

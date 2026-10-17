@@ -149,10 +149,7 @@ MEMBROWSE_TARGET = 'examples-membrowse-upload'
 _SELECTOR_RE = re.compile(r'^\.claude/skills/build/scripts/check_build\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
-    # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
-    # at module load, so a break in it breaks every rig run the same way a test/hil/
-    # edit can (the pre-commit hil-test hook runs its unit tests for the same reason)
-    r'test/hil/|tools/rtt\.py$|'
+    r'test/hil/|'
     r'\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
@@ -369,7 +366,7 @@ def mcu_families(path: str, repo_root: str) -> set:
 
 GET_DEPS_PATH = 'tools/get_deps.py'
 _DEPS_DICTS = ('deps_mandatory', 'deps_optional')
-# Dep paths the HIL harness itself loads (test/hil/helper/hil_lock.py), not a family build:
+# Dep paths the HIL harness itself loads (helper/hil_lock.py, hil_util's RTT console), not a family build:
 # a pin change is a harness change, rule 2's HIL answer and no build.
 _HIL_HARNESS_DEPS = frozenset({'tools/agentrc'})
 

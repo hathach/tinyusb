@@ -10,32 +10,21 @@ is the module and CLI (hold/release/status) every caller uses, and adds
 `hold --all [--config CONFIG.json]` over tinyusb's roster.
 """
 import argparse
-import importlib.util
 import json
 import os
 import sys
 from pathlib import Path
 
+if __package__:
+    from . import agentrc
+else:  # run as a script: helper/ is sys.path[0], unless -P or PYTHONSAFEPATH dropped it
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import agentrc
+
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]
-PROVIDER = TINYUSB_ROOT / 'tools' / 'agentrc' / 'skills' / 'hil' / 'scripts' / 'hil_lock.py'
-FETCH = 'python3 tools/get_deps.py tools/agentrc'
 
-
-def _load(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-# Proves the checked-out commit, not the file contents: a locally edited provider at the pin
-# still loads, and the rig's staged tree has no git objects to check it against.
-_deps = _load('tinyusb_get_deps', TINYUSB_ROOT / 'tools' / 'get_deps.py')
-_pin, _head = _deps.deps_optional['tools/agentrc'][1], _deps.dep_head('tools/agentrc')
-if _head != _pin or not PROVIDER.is_file():
-    raise ImportError(f"tools/agentrc must be at {_pin} (found {_head or 'nothing'}): {FETCH}")
 # A __main__ run must not load the provider as __main__ too, or its own CLI would run.
-_lock = _load('hil_lock' if __name__ == '__main__' else __name__, PROVIDER)
+_lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ == '__main__' else __name__)
 
 
 def boards_from_config(config: str) -> list:
