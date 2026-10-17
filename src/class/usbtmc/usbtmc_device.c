@@ -665,10 +665,11 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       TU_VERIFY(request->wLength == sizeof(rsp));
       TU_VERIFY(request->wIndex == usbtmc_state.ep_bulk_out);
 
-      // wValue is the requested bTag to abort
+      // wValue D7..D0 is the bTag of the transfer to abort (USBTMC 1.0 Table 18). A transfer is in
+      // progress, but the specified bTag does not match: STATUS_TRANSFER_NOT_IN_PROGRESS (Table 20).
       if (usbtmc_state.state != STATE_RCV) {
         rsp.USBTMC_status = USBTMC_STATUS_FAILED;
-      } else if (usbtmc_state.lastBulkOutTag == (request->wValue & 0x7Fu)) {
+      } else if (usbtmc_state.lastBulkOutTag != tu_u16_low(request->wValue)) {
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
       } else {
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
