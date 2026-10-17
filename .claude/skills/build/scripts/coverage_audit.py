@@ -50,7 +50,10 @@ def rel(path, root, base=None):
     """Repo-relative path of `path` (relative ones resolved against `base`, default `root`),
     or None for a file outside the checkout (toolchain headers) or a generated one."""
     p = os.path.normpath(path if os.path.isabs(path) else os.path.join(base or root, path))
-    r = os.path.relpath(p, root)
+    try:
+        r = Path(os.path.relpath(p, root)).as_posix()
+    except ValueError:      # Windows: another drive (a toolchain header) is outside
+        return None
     return None if r.startswith('..') or r.startswith('cmake-build') else r
 
 
@@ -219,7 +222,8 @@ def is_live(obj_path, compiler, cwd):
     if '__gnu_lto_slim' not in r.stdout:
         return defines_symbols(r.stdout)
     try:
-        n = run([compiler + '-nm', obj_path], cwd)
+        nm = compiler[:-4] + '-nm.exe' if compiler.lower().endswith('.exe') else compiler + '-nm'
+        n = run([nm, obj_path], cwd)
     except OSError:
         return True
     return n.returncode != 0 or nm_defines_symbols(n.stdout)
@@ -235,11 +239,11 @@ def extract(build_dir, root, example=None):
     its CMake inputs are its own too. `nodeps` lists live objects ninja recorded no deps
     for: only their source is known."""
     src_of = {}
-    with open(os.path.join(build_dir, 'compile_commands.json')) as fh:
+    with open(os.path.join(build_dir, 'compile_commands.json'), encoding='utf-8') as fh:
         cc = json.load(fh)
     for e in cc:
         out = e['output'] if os.path.isabs(e['output']) else os.path.join(e['directory'], e['output'])
-        src_of[os.path.relpath(out, build_dir)] = e
+        src_of[Path(os.path.relpath(out, build_dir)).as_posix()] = e   # as ninja names it
     targets = run_ok(['ninja', '-C', build_dir, '-t', 'targets', 'all'], root)
     known = {line.split(':', 1)[0] for line in targets.splitlines()}
     deps = parse_ninja_deps(run_ok(['ninja', '-C', build_dir, '-t', 'deps'], root))
@@ -272,7 +276,7 @@ def extract(build_dir, root, example=None):
                 s.add(f)
                 continue
             a = os.path.normpath(os.path.join(build_dir, d))
-            for t in (d, os.path.relpath(a, build_dir), a):
+            for t in (d, Path(os.path.relpath(a, build_dir)).as_posix(), a):
                 if t in known:
                     s |= generated_inputs(t)
                     break

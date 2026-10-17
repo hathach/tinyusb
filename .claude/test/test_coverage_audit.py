@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'build' / 'scripts' / 'coverage_audit.py'
 spec = importlib.util.spec_from_file_location('coverage_audit', SCRIPT)
@@ -99,6 +100,23 @@ class ParseTest(unittest.TestCase):
         self.assertIsNone(ca.rel('/opt/gcc/include/stdint.h', '/repo'))
         self.assertIsNone(ca.rel('/repo/cmake-build/cmake-build-x/gen.h', '/repo'))
         self.assertEqual(ca.rel('../../src/tusb.c', '/repo', '/repo/cmake-build/b'), 'src/tusb.c')
+
+    @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
+    def test_rel_is_posix_and_another_drive_is_outside(self):
+        self.assertEqual(ca.rel('E:\\repo\\src\\tusb.h', 'E:/repo'), 'src/tusb.h')
+        self.assertIsNone(ca.rel('C:/Tool/arm/include/stdint.h', 'E:/repo'))
+
+    def test_an_lto_object_is_asked_through_its_compilers_own_nm(self):
+        for compiler, nm in (('/x/arm-none-eabi-gcc', '/x/arm-none-eabi-gcc-nm'),
+                             ('C:\\x\\arm-none-eabi-gcc.exe', 'C:\\x\\arm-none-eabi-gcc-nm.exe')):
+            calls = []
+
+            def run(cmd, cwd):
+                calls.append(cmd[0])
+                return subprocess.CompletedProcess(cmd, 0, '__gnu_lto_slim\n' if cmd[0] == 'readelf' else '00000000 T f\n', '')
+            with mock.patch.object(ca, 'run', run):
+                self.assertTrue(ca.is_live('x.obj', compiler, '.'))
+            self.assertEqual(calls, ['readelf', nm])
 
 
 class ScopeTest(unittest.TestCase):

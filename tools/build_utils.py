@@ -610,8 +610,8 @@ def board_jdebug(board):
     hits = sorted((board_dir / 'ozone').glob('*.jdebug'))
     if len(hits) > 1:
         raise BoardInfoError(f'{board}: several reference projects: '
-                             + ', '.join(str(h) for h in hits))
-    return str(hits[0]) if hits else None
+                             + ', '.join(h.as_posix() for h in hits))
+    return hits[0].as_posix() if hits else None
 
 
 def main(argv=None):
