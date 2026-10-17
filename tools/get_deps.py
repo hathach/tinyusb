@@ -306,9 +306,9 @@ deps_optional = {
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
-    # HIL board-lock primitive test/hil/helper/hil_lock.py loads: no family builds with it
+    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'tools/agentrc': ['https://github.com/hathach/agentrc.git',
-                      'c39335881c3ee51a22bee453acda28fc95014977',
+                      '0d3fe946692d21be357c99fde6012cb6ac91073d',
                       ''],
     # local size tooling only (tools/code_size.py, <ex>-linkermap): no family builds with it
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',

@@ -174,7 +174,7 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 ## Reservation
 
-The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. Its lock mechanics come from `tools/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py tools/agentrc`; missing or off that commit, every HIL entry point refuses at import, before any board access.
+The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. The harness's shared scripts (the lock mechanics, the bounded sysfs reads and bus scan of `test/hil/helper/usb_observe.py`, the RTT console) are loaded by `test/hil/helper/agentrc.py` from `tools/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py tools/agentrc`; missing or off that commit, every HIL entry point refuses at import, before any board access.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
@@ -327,9 +327,9 @@ A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as i
 Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-commit hook
 runs every `test_hil*.py`, `change-impact-test` `test_change_impact.py`, `test_ci_metrics.py` and
 `test_hil_util.BottomLayer`. `test_change_impact.py` covers only selection, `test_ci_metrics.py`
-only the code-size plumbing; the bounded reads and the build and pool guards live in
-`test_hil_bounded.py` and `test_hil_util.py`; `test_hil_report.py` covers the report document, `test_hil_rtt.py`
-how the harness loads agentrc's RTT console and `test_hil_pool_check.py` the pool check's verdicts and
+only the code-size plumbing; the build and pool guards live in `test_hil_bounded.py` and
+`test_hil_util.py` (the bounded sysfs reads' own tests are agentrc's, with the module); `test_hil_report.py`
+covers the report document, `test_hil_rtt.py` and `test_hil_agentrc.py` how the harness loads agentrc's scripts and `test_hil_pool_check.py` the pool check's verdicts and
 output. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).

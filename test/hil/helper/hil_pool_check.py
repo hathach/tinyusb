@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
 import hil_flash
-from helper import hil_lock, hil_report, hil_util
+from helper import hil_lock, hil_report, hil_util, usb_observe
 
 REPO_ROOT = hil_util.TINYUSB_ROOT
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: dev PC -> local.json
@@ -65,7 +65,7 @@ def scan_usb() -> dict:
     (their 'serial' is a fabricated PCI address). Keyed by busport, not serial: an
     Espressif USB-Serial-JTAG bridge and the cafe device it flashes share one (the MAC)."""
     return {d['busport']: {'serial': d['serial'].lower(), 'vidpid': f"{d['vid']}:{d['pid']}"}
-            for d in hil_util.usb_scan()}
+            for d in usb_observe.usb_scan()}
 
 
 def find_usb(uid: str) -> str | None:
@@ -96,7 +96,7 @@ def find_device(uid: str):
     """(busport, vidpid, inode) of the board's TinyUSB device (idVendor cafe, so an
     Espressif USB-Serial-JTAG sharing the MAC serial cannot false-pass). usb_scan reads the
     lock-guarded `serial` of cafe devices only, not of every probe and hub on the bus."""
-    for d in hil_util.usb_scan(vid='cafe', serial=uid):
+    for d in usb_observe.usb_scan(vid='cafe', serial=uid):
         try:
             return d['busport'], f"cafe:{d['pid']}", os.stat(d['dir'] + '/').st_ino
         except OSError:

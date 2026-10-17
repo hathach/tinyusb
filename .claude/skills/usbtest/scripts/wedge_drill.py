@@ -45,7 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_case  # noqa: E402
-from run_case import PROC, Refused, Terminated, hil_flash, hil_lock, hil_util, usbtest  # noqa: E402
+from run_case import PROC, Refused, Terminated, hil_flash, hil_lock, hil_util, usb_observe, usbtest  # noqa: E402
 
 CASE = 27
 SMOKE = 1
@@ -171,7 +171,7 @@ def halt_board(board, rec_board, halt_args):
 
 def identity(uid):
     """(node, devnum) of the one enumerated device with this serial, else None."""
-    found = hil_util.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid)
+    found = usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid)
     if len(found) != 1:
         return None
     d = Path(found[0]['dir'])

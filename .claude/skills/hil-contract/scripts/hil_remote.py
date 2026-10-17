@@ -63,11 +63,13 @@ HARNESS_FILES = (
     'test/hil/helper/hil_report.py',
     'test/hil/helper/hil_tt.py',
     'test/hil/helper/hil_util.py',
+    'test/hil/helper/usb_observe.py',
     'test/hil/pyocd/run_pyocd.py',
     'test/hil/pyocd/user_script.py',
     'tools/get_deps.py',
     'tools/agentrc/.git/HEAD',
     'tools/agentrc/skills/hil/scripts/hil_lock.py',
+    'tools/agentrc/skills/hil/scripts/usb_observe.py',
     'tools/agentrc/skills/rtt/scripts/rtt.py',
 )
 

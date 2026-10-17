@@ -63,7 +63,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
-from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util
+from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
 rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
@@ -516,7 +516,7 @@ def get_printer_dev(id: str, vendor_str, product_str, ifnum: int):
     product_str = product_str.replace(' ', '_') if product_str else ''
     for lp in glob.glob('/sys/class/usbmisc/lp*'):
         try:
-            sn = hil_util.read_sysfs(f'{lp}/device/../serial')
+            sn = usb_observe.read_sysfs(f'{lp}/device/../serial')
             if sn is None:
                 continue
             if sn == id:
@@ -975,9 +975,9 @@ def test_device_cdc_msc_throughput(board):
     # descriptor pair before touching `serial`.
     is_fs = True
     speed_known = False
-    devs = hil_util.usb_scan(vid='cafe', serial=uid)
+    devs = usb_observe.usb_scan(vid='cafe', serial=uid)
     if devs:
-        speed = hil_util.read_sysfs(os.path.join(devs[0]['dir'], 'speed'))
+        speed = usb_observe.read_sysfs(os.path.join(devs[0]['dir'], 'speed'))
         is_fs = link_is_fs(speed)
         speed_known = speed is not None
 
@@ -1541,7 +1541,7 @@ def test_device_usbtest(board):
         # serial, different PID) can linger and would fail usbtest.py's lookup -- and
         # filtering on the two lock-free descriptor fields rules out every other device
         # on the bus before the one read that can block.
-        return hil_util.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
+        return usb_observe.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
 
     end = time.monotonic() + enum_timeout()
     seen = usbtest_enumerated()
@@ -1704,12 +1704,12 @@ def reset_dut_tt(board: Board) -> bool:
     """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
     buffer from the previous test would otherwise fail this one's enumeration. False when
     hil_tt.reset_tt could not confirm the reset."""
-    found = hil_util.usb_scan(vid='cafe', serial=board['uid'])
+    found = usb_observe.usb_scan(vid='cafe', serial=board['uid'])
     if len(found) > 1:
         return True  # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
         busport = found[0]['busport']
-        speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
+        speed = usb_observe.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
         last = _dut_port.get(board['uid'])
         if speed is None and last and last[0] == busport:
             speed = last[1]  # unreadable mid-re-enumeration: keep the speed last seen there

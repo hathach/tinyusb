@@ -169,8 +169,8 @@ class BeforeFlash(unittest.TestCase):
 
     def resets(self, *scans, ok=True):
         it = iter(scans)
-        usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: '12')
+        usbtest_harness.patch(self, hil_test.usb_observe, 'usb_scan', lambda **kw: next(it))
+        usbtest_harness.patch(self, hil_test.usb_observe, 'read_sysfs', lambda path, *a: '12')
         seen = []
         usbtest_harness.patch(self, hil_test.hil_tt, 'reset_tt',
                               lambda busport, speed: seen.append((busport, speed)) or ok)
@@ -199,8 +199,8 @@ class BeforeFlash(unittest.TestCase):
             spawned.clear()
             it = iter([[{'busport': '5-1.2', 'dir': '/x'}], []])
             sysfs = iter([speed])   # read only while the device is present
-            usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-            usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: next(sysfs))
+            usbtest_harness.patch(self, hil_test.usb_observe, 'usb_scan', lambda **kw: next(it))
+            usbtest_harness.patch(self, hil_test.usb_observe, 'read_sysfs', lambda path, *a: next(sysfs))
             usbtest_harness.patch(self, hil_test, '_dut_port', {})
             hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'})
             spawned.clear()

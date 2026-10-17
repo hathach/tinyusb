@@ -33,7 +33,7 @@ def stub_device(test, usbtest, run_case):
     patch(test, usbtest, 'check_host_compat', lambda d: None)
     patch(test, usbtest, 'set_pattern', lambda v: None)
     patch(test, usbtest, 'dmesg_tail', lambda: '')
-    patch(test, usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False))
+    patch(test, usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: False))
     patch(test, usbtest, 'run_case', run_case)
     patch(test, usbtest, 'needs_sudo', lambda node: False)
     patch(test, usbtest, 'sudo_forbidden', False)   # main() sets it; restored after the test
