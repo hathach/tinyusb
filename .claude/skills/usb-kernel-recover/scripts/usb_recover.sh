@@ -46,6 +46,8 @@ DRIVER_RE='^[A-Za-z0-9_-]+$'
 
 die() { echo "usb_recover: $*" >&2; exit 1; }
 
+[ "$(uname -s)" = Linux ] || die "Linux-only (sysfs, procfs, uhubctl)"
+
 lock_read() {
   # Read an attribute served under the device lock (serial, product) with a 2s bound.
   # Prints the value, '' when the attribute is absent, or '?' when it did not answer.

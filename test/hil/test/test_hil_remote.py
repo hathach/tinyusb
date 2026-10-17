@@ -116,10 +116,42 @@ class RunRecords(unittest.TestCase):
         self.assertEqual(self.wait('r6', '--timeout', '20'), (0, {'state': 'done', 'runId': 'r6', 'exit': 0, 'reports': ['hil_report.md']}))
 
     def test_a_wrapper_killed_before_its_done_record_is_dead(self):
-        self.launch('os.kill(os.getpid(), signal.SIGKILL)', 'r7').wait()
+        # Windows has no SIGKILL; its SIGTERM is TerminateProcess, as abrupt
+        self.launch('os.kill(os.getpid(), getattr(signal, "SIGKILL", signal.SIGTERM))', 'r7').wait()
         rc, status = self.wait('r7', '--timeout', '5')
         self.assertEqual((rc, status['state']), (hil_remote.DEAD, 'dead'))
         self.assertFalse(hil_remote.run_paths('r7')[1].exists())
+
+    @unittest.skipUnless(os.name == 'nt', 'msvcrt has no shared lock: two waiters probes contend there')
+    def test_another_waiters_probe_does_not_read_as_a_live_run(self):
+        self.started('r12')
+        started = hil_remote.run_paths('r12')[0]
+        fd = os.open(started, os.O_RDONLY)
+        self.addCleanup(os.close, fd)
+        hil_remote.win_lock(fd, block=False)   # the other waiter, mid-probe
+        threading.Timer(0.05, hil_remote.win_unlock, (fd,)).start()
+        self.assertFalse(hil_remote.run_alive(started))
+        hil_remote.win_lock(fd, block=False)   # the probe released its hold, not left it to the close
+        hil_remote.win_unlock(fd)
+
+    @unittest.skipUnless(os.name == 'nt', 'only Windows defers the unlink of the hidden name')
+    def test_a_killed_runs_hidden_record_name_is_swept_at_the_next_run(self):
+        runs = self.root / hil_remote.RUNS_DIR
+        runs.mkdir()
+        hidden = {}
+        for run_id, pid in (('killed', 4242), ('live', 4343)):
+            started = runs / f'{run_id}.started.json'
+            started.write_text('{}')
+            hidden[run_id] = runs / f'.{started.name}.{pid}.tmp'
+            os.link(started, hidden[run_id])
+        fd = os.open(hidden['live'], os.O_RDONLY)   # its run still holds it
+        self.addCleanup(os.close, fd)
+        writing = runs / '.new.started.json.4444.tmp'   # a launch that has not linked its record yet
+        writing.write_text('{}')
+        self.stub_run(lambda argv, receipt=None: (0, []))
+        self.assertEqual(hil_remote.main(['--run-id', 'r13']), 0)
+        self.assertEqual(sorted(p.name for p in runs.glob('.*.tmp')), sorted([hidden['live'].name, writing.name]))
+        self.assertTrue((runs / 'killed.started.json').is_file(), 'the record itself stays')
 
     def test_a_wait_begun_before_the_launch_wrote_its_record_waits_for_it(self):
         self.stub_run(lambda argv, receipt=None: (0, []))
@@ -338,8 +370,8 @@ class BuildReceipts(unittest.TestCase):
         def rsync(guard, *args, optional=False):
             if '--prune-empty-dirs' not in args:
                 return 0
-            for src in (Path(a) for a in args if not a.startswith('-') and ':' not in a):
-                sent.update({str(f.relative_to(src.parent.parent)): hil_remote.digest(f) for f in src.rglob('*')
+            for src in (a for a in args if isinstance(a, Path)):   # local files are Paths
+                sent.update({f.relative_to(src.parent.parent).as_posix(): hil_remote.digest(f) for f in src.rglob('*')
                              if f.suffix in hil_remote.STAGED_SUFFIXES or f.name in hil_remote.STAGED_NAMES})
             return 1  # stop the run once the firmware transfer is seen
         with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
@@ -363,7 +395,7 @@ class BuildReceipts(unittest.TestCase):
 
         def rsync(guard, *args, optional=False):
             if '--prune-empty-dirs' in args:
-                state['sources'] += [Path(a) for a in args if not a.startswith('-') and ':' not in a]
+                state['sources'] += [a for a in args if isinstance(a, Path)]
             return 0
 
         def run_command(*a, **k):

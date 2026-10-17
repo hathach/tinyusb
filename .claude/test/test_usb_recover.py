@@ -5,8 +5,10 @@ foreign owner blocks unshield while a dead one does not. Never run as root: the 
 (USB_RECOVER_SYSFS/USB_RECOVER_STATE) are ignored under root and the partial-acquisition
 case chmods a root-owned procfs file expecting EPERM."""
 import os
+import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,7 +23,8 @@ def mode(path):
     return os.stat(path).st_mode & 0o777
 
 
-@unittest.skipIf(os.geteuid() == 0, 'the fake-tree seams are ignored under root')
+@unittest.skipUnless(sys.platform.startswith('linux') and os.geteuid() != 0,
+                     'Linux only, and the fake-tree seams are ignored under root')
 class Shield(unittest.TestCase):
     def setUp(self):
         self.td = tempfile.TemporaryDirectory()
@@ -225,6 +228,17 @@ class Shield(unittest.TestCase):
                      'unshield', 'shield-status'):
             self.assertIn(f'#   {verb}', out)
         self.assertNotIn('owner <pid>', out)
+
+
+@unittest.skipIf(sys.platform.startswith('linux'), 'the refusal is for hosts that are not Linux')
+class NotLinux(unittest.TestCase):
+    def test_every_verb_is_refused_before_it_runs(self):
+        bash = shutil.which('bash')
+        if not bash or Path(bash).parent.name.lower() == 'system32':   # Windows' WSL launcher
+            self.skipTest('no bash to run the script with')
+        r = subprocess.run([bash, str(SCRIPT), 'resolve', '/dev/ttyACM3'], capture_output=True,
+                           encoding='utf-8', timeout=60)
+        self.assertEqual((r.returncode, r.stderr), (1, 'usb_recover: Linux-only (sysfs, procfs, uhubctl)\n'))
 
 
 if __name__ == '__main__':

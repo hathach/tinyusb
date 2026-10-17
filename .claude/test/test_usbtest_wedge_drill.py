@@ -16,6 +16,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+if os.name == 'nt':
+    raise unittest.SkipTest('wedge_drill.py imports test/hil/usbtest.py, which needs fcntl')
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts'
 sys.path.insert(0, str(SCRIPTS))

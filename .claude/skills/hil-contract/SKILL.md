@@ -110,7 +110,7 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ### Remote (dev PC → ci.lan only)
 
-`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
+`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root. On a Windows dev PC it needs an MSYS2 or Cygwin `rsync.exe` on PATH and refuses without one; that rsync must find its own distribution's `ssh` first on PATH, since with Windows OpenSSH (`System32\OpenSSH`) the argument conversion and the pipes rsync relies on break. The Windows path is not yet proved end to end on a rig:
 
 ```bash
 # All boards built under cmake-build/:
