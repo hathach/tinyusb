@@ -979,7 +979,11 @@ class FlasherRecoverEntry(unittest.TestCase):
         nrf54lm20dk below. nrf54lm20dk's reset works (libjaylink 0.5.0 finds its PID 0x1069; 0.4.0 did
         not) but its reflash cannot: nrf54l.cfg declares no RRAM flash bank. Accepted trade:
         the entry arms in-run recovery (a reset) where JLinkExe allowed none; a wedge the reset
-        does not clear stays wedged for the run. The STM32 entries empty
+        does not clear stays wedged for the run. lpcxpresso55s69 is reset-only like mimxrt1064_evk
+        (no LPC55 target cfg or flash driver in 0ce743125), its DAP pinned to DPIDR 0x6ba02477 and
+        AP 0; SYSRESETREQ is a chip reset (UM11126 4.6.1) and libjaylink finds its LPCXpresso V2
+        probe (PID 0x1024) from 0.4.0; 3/3 resets each re-enumerated the DUT (ci.lan 2026-10-17).
+        The STM32 entries empty
         their target's reset-init event: stm32f0x/f4x/f7x/l4x.cfg set `adapter speed 8000` there,
         these on-board J-Link probes cap at 4000 and fail even at 4000 (auto_probe failed, SWD
         parity mismatch; stm32f407disco and stm32f072disco, 2026-09-22), and `program` runs
@@ -993,7 +997,7 @@ class FlasherRecoverEntry(unittest.TestCase):
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
                         'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
-                        'ra4m1_ek', 'ra6m5_ek'}
+                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
                                          '-c "dap create rt1064.dap -chain-position rt1064.cpu" '
@@ -1008,7 +1012,12 @@ class FlasherRecoverEntry(unittest.TestCase):
                                    '-c "swd newdap ra6m5 cpu -expected-id 0" '
                                    '-c "dap create ra6m5.dap -chain-position ra6m5.cpu" '
                                    '-c "target create ra6m5.cpu cortex_m -dap ra6m5.dap" '
-                                   '-c "cortex_m reset_config sysresetreq"')}
+                                   '-c "cortex_m reset_config sysresetreq"'),
+                      'lpcxpresso55s69': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
+                                          '-c "swd newdap lpc55s69 cpu -expected-id 0x6ba02477" '
+                                          '-c "dap create lpc55s69.dap -chain-position lpc55s69.cpu" '
+                                          '-c "target create lpc55s69.cpu cortex_m -dap lpc55s69.dap -ap-num 0" '
+                                          '-c "cortex_m reset_config sysresetreq"')}
         stlink_targets = {'stm32h743nucleo': 'stm32h7x', 'stm32g0b1nucleo': 'stm32g0x',
                           'stm32u083nucleo': 'stm32u0x'}
         tm4c_args = ('-f interface/ti-icdi.cfg -c "transport select jtag" -c "set WORKAREASIZE 0x8000" '
