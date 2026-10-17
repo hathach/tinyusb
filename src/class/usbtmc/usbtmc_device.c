@@ -109,6 +109,7 @@ typedef struct
   uint32_t ep_bulk_out_wMaxPacketSize;
   uint32_t transfer_size_remaining;// also used for requested length for bulk IN.
   uint32_t transfer_size_sent;     // To keep track of data bytes that have been queued in FIFO (not header bytes)
+  bool clearShortPending;          // INITIATE_CLEAR left a full packet in flight, and a short packet must follow it
 
   uint8_t lastBulkOutTag;// used for aborts (mostly)
   uint8_t lastBulkInTag; // used for aborts (mostly)
@@ -466,6 +467,13 @@ static bool handle_devMsgIn(void *data, size_t len) {
 bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   TU_VERIFY(result == XFER_RESULT_SUCCESS);
   //uart_tx_str_sync("TMC XFER CB\r\n");
+  if ((ep_addr == usbtmc_state.ep_bulk_in) && usbtmc_state.clearShortPending) {
+    // The full packet INITIATE_CLEAR could not remove has gone: end its transfer (USBTMC 1.0 Table 32).
+    // Whatever the state is by now: a CLEAR_FEATURE of bulk-OUT may already have left CLEARING.
+    usbtmc_state.clearShortPending = false;
+    TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false));
+    return true;
+  }
   if (usbtmc_state.state == STATE_CLEARING) {
     return true; /* I think we can ignore everything here */
   }
@@ -596,6 +604,13 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         usbtmc_state.state = STATE_ABORTING_BULK_IN_ABORTED;
         return true;
 
+      case STATE_NAK:
+      case STATE_IDLE:
+      case STATE_RCV:
+        // The last packet of a clear's transfer, completing after a CLEAR_FEATURE of bulk-OUT moved the
+        // state on. Nothing is left to send for it.
+        return true;
+
       default:
         TU_ASSERT(false);
     }
@@ -707,11 +722,16 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           usbtmc_state.lastBulkInTag == (request->wValue & 0x7Fu)) {
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         usbtmc_state.transfer_size_remaining = 0u;
-        // Check if we've queued a short packet
+        // Check if we've queued a short packet. The packet in flight decides, not the count of data
+        // bytes sent: the first packet carries the 12-byte header as well, so in TX_INITIATED that count
+        // is never a multiple of wMaxPacketSize although every packet queued there is a full one.
+        //   TX_REQUESTED  nothing is queued: queue the short packet now.
+        //   TX_INITIATED  a full packet is in flight: the short packet follows it (usbtmcd_xfer_cb).
+        usbtmcd_state_enum const oldState = usbtmc_state.state;
         criticalEnter();
-        usbtmc_state.state = ((usbtmc_state.transfer_size_sent % usbtmc_state.ep_bulk_in_wMaxPacketSize) == 0) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
+        usbtmc_state.state = STATE_ABORTING_BULK_IN;
         criticalLeave();
-        if (usbtmc_state.transfer_size_sent == 0) {
+        if (oldState == STATE_TX_REQUESTED) {
           // Send short packet, nothing is in the buffer yet
           TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false));
           usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
@@ -766,6 +786,11 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
       usbtmc_state.transfer_size_remaining = 0;
       criticalEnter();
+      // A full packet already queued cannot be removed, so the transfer it belongs to still needs its
+      // short packet: "If a short packet has not been queued, queue a short packet to terminate the
+      // transfer" (USBTMC 1.0 Table 32, step 4b). It follows that packet (usbtmcd_xfer_cb).
+      usbtmc_state.clearShortPending = (usbtmc_state.state == STATE_TX_INITIATED) ||
+                                       (usbtmc_state.state == STATE_ABORTING_BULK_IN);
       usbtmc_state.state = STATE_CLEARING;
       criticalLeave();
       TU_VERIFY(tud_usbtmc_initiate_clear_cb(&tmcStatusCode));
