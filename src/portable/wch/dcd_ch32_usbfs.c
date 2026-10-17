@@ -137,7 +137,8 @@ static struct {
   bool            ep0_tog;
   uint8_t         ep0_status_dir;
 #ifdef CH32_USBFS_H2D_IN_HOLD
-  bool            in_hold; // non-EP0 IN endpoints held at NAK for a host-to-device control transfer
+  bool            in_hold;   // non-EP0 IN endpoints held at NAK for a host-to-device control transfer
+  uint8_t         in_parked; // bit n: IN endpoint n was NAKed by the hold and is re-armed on release
 #endif
   bool            isochronous[EP_MAX][2]; // per [ep][dir]: an ep number may be iso in one direction
   struct usb_xfer xfer[EP_MAX][2];
@@ -242,8 +243,15 @@ static inline bool ep_shares_ep0_dma(uint8_t ep) {
 // the host times out the data or status stage (seen on CH32V203 with bulk IN streaming alongside
 // CDC SET_LINE_CODING / SET_CONTROL_LINE_STATE). Hold the non-iso IN endpoints at NAK from such a
 // SETUP until its status stage completes. OUT traffic and device-to-host transfers are unaffected.
+// The release re-arms only the endpoints the hold itself parked: a transfer can stay marked valid
+// after a stall + clear-stall cancelled it, and re-arming that would resend a stale packet.
 static inline bool ep_in_held(void) {
   return data.in_hold;
+}
+
+static inline void ep_in_park(uint8_t ep) {
+  ep_tx_set_response(ep, USBFS_EP_T_RES_NAK);
+  data.in_parked |= (uint8_t) TU_BIT(ep);
 }
 
 static void ep_in_hold(bool hold) {
@@ -251,20 +259,45 @@ static void ep_in_hold(bool hold) {
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     if (data.isochronous[ep][TUSB_DIR_IN]) { continue; }
     const uint8_t res = ep_tx_get_response(ep);
-    if (hold && res == USBFS_EP_T_RES_ACK) {
-      ep_tx_set_response(ep, USBFS_EP_T_RES_NAK);
-    } else if (!hold && res == USBFS_EP_T_RES_NAK && data.xfer[ep][TUSB_DIR_IN].valid) {
-      ep_tx_set_response(ep, USBFS_EP_T_RES_ACK); // a packet is loaded: re-arm it (STALL stays)
+    if (hold) {
+      if (res == USBFS_EP_T_RES_ACK) { ep_in_park(ep); }
+    } else if ((data.in_parked & TU_BIT(ep)) && res == USBFS_EP_T_RES_NAK && data.xfer[ep][TUSB_DIR_IN].valid) {
+      ep_tx_set_response(ep, USBFS_EP_T_RES_ACK);
     }
   }
+  if (!hold) { data.in_parked = 0; }
+}
+
+// Open, stall and clear-stall take an IN endpoint's response over from the hold. The IRQ stays
+// masked until their write is done, so neither a SETUP nor a status stage can interleave with it.
+static inline void ep_in_claim_begin(uint8_t rhport, uint8_t ep) {
+  dcd_int_disable(rhport);
+  data.in_parked &= (uint8_t) ~TU_BIT(ep);
+}
+
+static inline void ep_in_claim_end(uint8_t rhport) {
+  dcd_int_enable(rhport);
 }
 #else
 static inline bool ep_in_held(void) {
   return false;
 }
 
+static inline void ep_in_park(uint8_t ep) {
+  (void) ep;
+}
+
 static inline void ep_in_hold(bool hold) {
   (void) hold;
+}
+
+static inline void ep_in_claim_begin(uint8_t rhport, uint8_t ep) {
+  (void) rhport;
+  (void) ep;
+}
+
+static inline void ep_in_claim_end(uint8_t rhport) {
+  (void) rhport;
 }
 #endif
 
@@ -289,7 +322,11 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
       } else if (data.isochronous[ep][TUSB_DIR_IN]) {
         ep_tx_set_response(ep, USBFS_EP_T_RES_NYET);
       } else {
-        ep_tx_set_response(ep, ep_in_held() ? USBFS_EP_T_RES_NAK : USBFS_EP_T_RES_ACK);
+        if (ep_in_held()) {
+          ep_in_park(ep); // armed during a host-to-device control transfer: sent after its status stage
+        } else {
+          ep_tx_set_response(ep, USBFS_EP_T_RES_ACK);
+        }
       }
     } else {
       xfer->valid = false;
@@ -529,7 +566,9 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
     if (dir == TUSB_DIR_OUT) {
       ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
     } else {
+      ep_in_claim_begin(rhport, ep);
       ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_in_claim_end(rhport);
     }
   }
   return true;
@@ -632,7 +671,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     if (dir == TUSB_DIR_OUT) {
       ep_rx_set_response(ep, USBFS_EP_R_RES_STALL);
     } else {
+      ep_in_claim_begin(rhport, ep);
       ep_tx_set_response(ep, USBFS_EP_T_RES_STALL);
+      ep_in_claim_end(rhport);
     }
   }
 }
@@ -659,10 +700,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 #endif
       ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
     } else {
+      ep_in_claim_begin(rhport, ep);
 #ifdef CH32_USBFS_EP4_MANUAL_TOG
       ep_tx_ctrl_set(ep, USBFS_EP_T_RES_NAK);
 #endif
       ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_in_claim_end(rhport);
     }
   }
 }
