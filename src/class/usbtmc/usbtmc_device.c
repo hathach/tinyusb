@@ -730,29 +730,36 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       TU_VERIFY(request->bmRequestType == 0xA2);// in,class,EP
       TU_VERIFY(request->wLength == 8u);
 
-      usbtmc_check_abort_bulk_rsp_t rsp =
-          {
-              .USBTMC_status = USBTMC_STATUS_FAILED,
-              .bmAbortBulkIn =
-                  {
-                      .BulkInFifoBytes = (usbtmc_state.state != STATE_ABORTING_BULK_IN_ABORTED)},
-              .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
-          };
-      TU_VERIFY(tud_usbtmc_check_abort_bulk_in_cb(&rsp));
+      // USBTMC 1.0 Table 29. SUCCESS once the short packet has been sent, with bmAbortBulkIn.D0 = 0 and
+      // NBYTES_TXD the message data bytes sent. PENDING until then, with NBYTES_TXD = 0 and D0 = 1: in
+      // ABORTING_BULK_IN a full packet the host can read is queued, in ABORTING_BULK_IN_SHORTED the short
+      // one. The status is decided before the application is called, so it can see what it is answering.
+      usbtmc_check_abort_bulk_rsp_t rsp = {
+          .USBTMC_status = USBTMC_STATUS_FAILED,
+      };
       criticalEnter();
       switch (usbtmc_state.state) {
         case STATE_ABORTING_BULK_IN_ABORTED:
           rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-          usbtmc_state.state = STATE_IDLE;
+          rsp.NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent;
           break;
         case STATE_ABORTING_BULK_IN:
-        case STATE_ABORTING_BULK_OUT:
+        case STATE_ABORTING_BULK_IN_SHORTED:
           rsp.USBTMC_status = USBTMC_STATUS_PENDING;
+          rsp.bmAbortBulkIn.BulkInFifoBytes = 1u;
           break;
         default:
           break;
       }
       criticalLeave();
+      TU_VERIFY(tud_usbtmc_check_abort_bulk_in_cb(&rsp));
+      if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
+        // SUCCESS says the device "is ready to receive a USBTMC command message that expects a response"
+        // (Table 29). The application arms bulk-OUT from its callback, which moves ABORTED to IDLE; if it
+        // did not, NAK is where tud_usbtmc_start_bus_read() can still arm it. IDLE with bulk-OUT unarmed,
+        // where this used to go, is a state tud_usbtmc_start_bus_read() refuses to leave.
+        (void) atomicChangeState(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
+      }
       TU_VERIFY(tud_control_xfer(rhport, request, (void *) &rsp, sizeof(rsp)));
 
       return true;

@@ -26,7 +26,8 @@
 // * tud_usbtmc_msg_data_cb
 // * tud_usbtmc_msgBulkIn_complete_cb
 // * (successful) tud_usbtmc_check_abort_bulk_out_cb
-// * (successful) tud_usbtmc_check_abort_bulk_in_cb
+// * (successful) tud_usbtmc_check_abort_bulk_in_cb: the driver fills rsp before the call, and
+//   rsp->USBTMC_status is USBTMC_STATUS_SUCCESS when the abort is complete
 // * (successful) tud_usmtmc_bulkOut_clearFeature_cb
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
