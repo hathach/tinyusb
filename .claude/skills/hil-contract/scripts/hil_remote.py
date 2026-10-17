@@ -46,7 +46,9 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
 # tools/rtt.py is loaded by hil_util through exec_module, and test/hil/pyocd/ runs as pyocd's
-# launcher and its user script: no import walk can see either.
+# launcher and its user script: no import walk can see either. helper/hil_lock.py likewise
+# exec_module's agentrc's board-lock primitive, after checking tools/agentrc/.git/HEAD against
+# the commit tools/get_deps.py pins: those three files let the rig's tree pass the same check.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -63,6 +65,9 @@ HARNESS_FILES = (
     'test/hil/pyocd/run_pyocd.py',
     'test/hil/pyocd/user_script.py',
     'tools/rtt.py',
+    'tools/get_deps.py',
+    'tools/agentrc/.git/HEAD',
+    'tools/agentrc/skills/hil/scripts/hil_lock.py',
 )
 
 # A stalled link must end the run, not hang it: no subprocess timeout fits a HIL run of
@@ -490,6 +495,10 @@ def run(argv, receipt=None):
     remote_dir = os.environ.get('REMOTE_DIR', '/tmp/tinyusb-hil')
     check_remote_dir(remote_dir)
     args, config, config_path = parse_run(argv)
+    try:
+        helper('hil_lock')   # the rig refuses an off-pin tools/agentrc too, but only after the wipe
+    except ImportError as e:
+        fail(e)
     if args.build:
         fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')

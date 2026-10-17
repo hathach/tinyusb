@@ -78,6 +78,7 @@ lib/fatfs
 lib/lwip
 lib/sct_neopixel
 lib/threadx
+tools/agentrc
 tools/linkermap
 tools/uf2
 hw/mcu/allwinner

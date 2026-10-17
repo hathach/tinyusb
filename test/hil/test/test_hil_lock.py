@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# hil_lock fails closed: an unusable lock dir, lock file or holder record refuses the board,
-# contention names its holder, and release never kills a protected or cleanup holder. Every
-# lock lives in a temp dir under a name no rig uses. Run directly:
+# The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
+# pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
+# whose lock is unavailable before flashing, `hold --all` takes the roster, and a missing or
+# off-pin tools/agentrc refuses at import. Every lock lives in a temp dir under a name no rig
+# uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
-import fcntl
-import io
+import importlib.util
 import json
 import os
-import resource
-import signal
-import stat
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.dirname(os.path.dirname(HIL_DIR))
 sys.path.insert(0, HIL_DIR)
 
 from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_test imports it
@@ -27,19 +26,15 @@ import hil_test          # noqa: E402
 from helper import hil_lock   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
+PROVIDER = 'tools/agentrc/skills/hil/scripts/hil_lock.py'
+FETCH = 'python3 tools/get_deps.py tools/agentrc'
 
-# Another process holding BOARD's flock with the given record bytes ('PID' is replaced by its
-# own pid); it prints 'ready' and holds until stdin closes.
-HOLDER = r'''
-import fcntl, os, sys
-fh = open(os.path.join(sys.argv[1], sys.argv[2] + '.lock'), 'ab+')
-fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-fh.truncate(0)
-fh.write(bytes.fromhex(sys.argv[3]).replace(b'PID', str(os.getpid()).encode()))
-fh.flush()
-print('ready', flush=True)
-sys.stdin.read()
-'''
+
+def pinned_commit():
+    spec = importlib.util.spec_from_file_location('get_deps_under_test', os.path.join(REPO, 'tools/get_deps.py'))
+    get_deps = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(get_deps)
+    return get_deps.deps_optional['tools/agentrc'][1]
 
 
 class LockDir(unittest.TestCase):
@@ -53,161 +48,10 @@ class LockDir(unittest.TestCase):
         self.addCleanup(env.stop)
         os.environ.pop('HIL_NO_BOARD_LOCK', None)
 
-    def holder(self, record: bytes):
-        p = subprocess.Popen([sys.executable, '-c', HOLDER, self.dir, BOARD, record.hex()],
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-        self.addCleanup(p.wait)
-        self.addCleanup(p.stdin.close)
-        self.addCleanup(p.stdout.close)
-        self.assertEqual(p.stdout.readline().strip(), 'ready')
-        return p
-
-    def record(self, **fields) -> bytes:
-        return json.dumps({'pid': 'PID', 'since': '2026-10-17T00:00:00+0000', **fields}
-                          ).replace('"PID"', 'PID').encode()
-
     def lock_dir_is_a_file(self):
         path = os.path.join(self.dir, 'not-a-dir')
         open(path, 'w').close()
         patch(self, hil_lock, 'BOARD_LOCK_DIR', path)
-
-    def acquire(self):
-        fh = hil_lock.acquire_board_lock(BOARD, reason='selftest')
-        if fh is not None:
-            self.addCleanup(fh.close)
-        return fh
-
-
-class FailsClosed(LockDir):
-    def assert_unavailable(self):
-        with self.assertRaises(hil_lock.LockUnavailable) as cm:
-            self.acquire()
-        self.assertTrue(str(cm.exception).startswith('board lock unavailable: '), cm.exception)
-        self.assertIsInstance(cm.exception.__cause__, OSError)
-        return cm.exception
-
-    def test_lock_dir_is_a_regular_file(self):
-        self.lock_dir_is_a_file()
-        self.assert_unavailable()
-
-    @unittest.skipIf(os.geteuid() == 0, 'root ignores the dir mode')
-    def test_unwritable_lock_dir(self):
-        os.chmod(self.dir, stat.S_IRUSR | stat.S_IXUSR)
-        self.addCleanup(os.chmod, self.dir, stat.S_IRWXU)
-        self.assert_unavailable()
-
-    def test_record_write_failing_in_the_buffered_flush_refuses_and_drops_the_flock(self):
-        # RLIMIT_FSIZE 0 fails the record at its flush (EFBIG), and close() re-raises it;
-        # in a child, so the limit never reaches this process
-        r, w = os.pipe()
-        pid = os.fork()
-        if pid == 0:
-            os.close(r)
-            try:
-                signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
-                resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
-                try:
-                    hil_lock.acquire_board_lock(BOARD, reason='selftest')
-                    got = 'returned'
-                except BaseException as e:
-                    got = f'{type(e).__name__}|{type(e.__cause__).__name__}|{e}'
-                with open(hil_lock.lock_path(BOARD), 'r+') as fh:
-                    fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)   # raises if still held
-                os.write(w, f'{got}|{hil_lock.read_record(BOARD)}'.encode())
-            finally:
-                os._exit(0)
-        os.close(w)
-        os.waitpid(pid, 0)
-        with os.fdopen(r) as f:
-            kind, cause, msg, record = f.read().split('|')
-        self.assertEqual((kind, cause), ('LockUnavailable', 'OSError'))
-        self.assertTrue(msg.startswith('board lock unavailable: holder record: '), msg)
-        self.assertEqual(record, 'None')
-
-    def test_bypass_still_returns_none(self):
-        self.lock_dir_is_a_file()
-        os.environ['HIL_NO_BOARD_LOCK'] = '1'
-        self.assertIsNone(hil_lock.acquire_board_lock(BOARD))
-
-
-class Contention(LockDir):
-    def test_another_process_holds_it(self):
-        self.holder(self.record(reason='hil_test.py'))
-        with self.assertRaisesRegex(RuntimeError, r'^board locked: .*hil_test\.py') as cm:
-            self.acquire()
-        self.assertNotIsInstance(cm.exception, hil_lock.LockUnavailable)
-
-    def test_an_unparsable_record_is_an_unknown_holder(self):
-        for record in (b'{"pid": PID, "rea', b'\xff\xfe\x00garbage'):
-            with self.subTest(record=record):
-                proc = self.holder(record)
-                with self.assertRaisesRegex(RuntimeError, '^board locked: unknown holder$'):
-                    self.acquire()
-                proc.stdin.close()
-                proc.wait()
-
-
-CLEANUP = {'reason': 'tinyuf2 cleanup', 'role': 'cleanup-holder', 'board': 'x',
-           'detail': 'park failed', 'survivors': []}
-
-
-class CleanupHolder(LockDir):
-    def setUp(self):
-        super().setUp()
-        self.holder(self.record(**CLEANUP))
-
-    def test_acquire_names_a_recovery_blocker(self):
-        with self.assertRaisesRegex(RuntimeError, '^board locked: ') as cm:
-            self.acquire()
-        self.assertIn(hil_lock.RECOVERY_BLOCKER, str(cm.exception))
-
-    def test_hold_names_a_recovery_blocker(self):
-        err = io.StringIO()
-        with redirect_stderr(err), redirect_stdout(io.StringIO()):
-            rc = hil_lock.cmd_hold([BOARD], 'selftest hold')
-        self.assertEqual(rc, 1)
-        self.assertIn(hil_lock.RECOVERY_BLOCKER, err.getvalue())
-
-    def test_status_names_a_recovery_blocker(self):
-        out = io.StringIO()
-        with redirect_stdout(out):
-            hil_lock.cmd_status()
-        self.assertIn(hil_lock.RECOVERY_BLOCKER, out.getvalue())
-
-
-class Release(LockDir):
-    def setUp(self):
-        super().setUp()
-        patch(self, hil_lock.time, 'sleep', lambda s: None)
-
-    def test_never_kills_a_protected_or_cleanup_holder(self):
-        table = [(CLEANUP, hil_lock.RECOVERY_BLOCKER)]
-        table += [({'reason': r}, 'wait for it to finish') for r in sorted(hil_lock.PROTECTED_REASONS)]
-        for fields, says in table:
-            with self.subTest(reason=fields['reason']):
-                proc = self.holder(self.record(**fields))
-                ino = os.stat(hil_lock.lock_path(BOARD)).st_ino
-                err = io.StringIO()
-                with redirect_stderr(err), redirect_stdout(io.StringIO()):
-                    rc = hil_lock.cmd_release([BOARD])
-                self.assertEqual(rc, 1)
-                self.assertIn(says, err.getvalue())
-                self.assertIsNone(proc.poll(), f'release killed {fields["reason"]}')
-                self.assertEqual(os.stat(hil_lock.lock_path(BOARD)).st_ino, ino)
-                self.assertEqual(hil_lock.read_record(BOARD)['reason'], fields['reason'])
-                proc.stdin.close()
-                proc.wait()
-
-    def test_stale_record_with_a_dead_pid_is_cleared(self):
-        dead = subprocess.Popen([sys.executable, '-c', ''])
-        dead.wait()
-        with open(hil_lock.lock_path(BOARD), 'w') as f:
-            json.dump({'pid': dead.pid, 'reason': 'gone'}, f)
-        with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
-            rc = hil_lock.cmd_release([BOARD])
-        self.assertEqual(rc, 0)
-        self.assertTrue(os.path.exists(hil_lock.lock_path(BOARD)), 'release must never unlink')
-        self.assertIsNone(hil_lock.read_record(BOARD))
 
 
 class RunnerRefusesBeforeFlash(LockDir):
@@ -242,6 +86,92 @@ class RunnerRefusesBeforeFlash(LockDir):
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 1)
         self.assertEqual(rows[0][1], {hil_test.hil_report.LOCKED_CELL: 'fail'})
+
+
+class Adapter(LockDir):
+    def test_callers_get_the_pinned_provider(self):
+        self.assertEqual(os.path.realpath(hil_lock.__file__), os.path.realpath(os.path.join(REPO, PROVIDER)))
+        self.assertIs(hil_test.hil_lock, hil_lock)
+
+    def test_a_patched_lock_dir_reaches_the_provider(self):
+        self.assertEqual(hil_lock.lock_path(BOARD), os.path.join(self.dir, f'{BOARD}.lock'))
+
+
+class PinnedDependency(unittest.TestCase):
+    """The adapter in a scratch tree: refused at import, the fetch command and the pin in the
+    last line a caller's traceback prints, unless tools/agentrc is at the pin; then its CLI
+    runs, against a lock dir of its own."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.root = td.name
+        for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/hil_lock.py', 'tools/get_deps.py'):
+            os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
+            shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
+        self.pin = pinned_commit()
+
+    def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks'):
+        os.makedirs(os.path.join(self.root, os.path.dirname(PROVIDER)), exist_ok=True)
+        with open(os.path.join(REPO, PROVIDER)) as f:
+            text = f.read()
+        moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
+        self.assertTrue(lock_dir == '/tmp/tinyusb-hil-locks' or moved != text, 'BOARD_LOCK_DIR line moved')
+        with open(os.path.join(self.root, PROVIDER), 'w') as f:
+            f.write(moved)
+        os.makedirs(os.path.join(self.root, 'tools/agentrc/.git'), exist_ok=True)
+        with open(os.path.join(self.root, 'tools/agentrc/.git/HEAD'), 'w') as f:
+            f.write(head + '\n')
+
+    def load(self):
+        code = 'import sys; sys.path.insert(0, "test/hil"); from helper import hil_lock; print(hil_lock.__file__)'
+        return subprocess.run([sys.executable, '-c', code], cwd=self.root, capture_output=True, text=True, timeout=30)
+
+    def cli(self, *argv):
+        r = subprocess.run([sys.executable, 'test/hil/helper/hil_lock.py', *argv], cwd=self.root,
+                           capture_output=True, text=True, timeout=30)
+        return r.returncode, r.stdout + r.stderr
+
+    def assert_refused(self, r):
+        self.assertNotEqual(r.returncode, 0)
+        last = r.stderr.strip().splitlines()[-1]
+        self.assertTrue(last.startswith('ImportError: '), last)
+        self.assertIn(self.pin, last)
+        self.assertIn(FETCH, last)
+
+    def test_missing_dependency_refuses(self):
+        self.assert_refused(self.load())
+
+    def test_off_pin_dependency_refuses(self):
+        for head in ('0' * 40, 'ref: refs/heads/main'):
+            with self.subTest(head=head):
+                self.provide(head)
+                self.assert_refused(self.load())
+
+    def test_the_pinned_commit_loads(self):
+        self.provide(self.pin)
+        r = self.load()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), os.path.join(self.root, PROVIDER))
+
+    def test_hold_all_takes_the_roster_with_boards_skip(self):
+        lock_dir = os.path.join(self.root, 'locks')
+        self.provide(self.pin, lock_dir)
+        names = [f'hil-lock-selftest-{n}' for n in ('a', 'b', 'parked', 'other')]
+        with open(os.path.join(self.root, 'test/hil/tinyusb.json'), 'w') as f:
+            json.dump({'boards': [{'name': names[0]}, {'name': names[1]}], 'boards-skip': [{'name': names[2]}]}, f)
+        other = os.path.join(self.root, 'other.json')
+        with open(other, 'w') as f:
+            json.dump({'boards': [{'name': names[3]}]}, f)
+        self.addCleanup(self.cli, 'release', '--all')
+        self.assertEqual(self.cli('hold', '--all', '--reason', 'selftest'), (0, f'held: {", ".join(names[:3])}\n'))
+        self.assertEqual(self.cli('hold', '--all', '--config', other, '--reason', 'selftest'),
+                         (0, f'held: {names[3]}\n'))
+        rc, out = self.cli('status')
+        self.assertEqual(sorted(line.split(':')[0] for line in out.splitlines()), sorted(names))
+        rc, _ = self.cli('release', '--all')
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.cli('status'), (0, 'no locks\n'))
 
 
 if __name__ == '__main__':

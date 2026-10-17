@@ -1715,6 +1715,7 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
         head = _GD_BASE.replace("'stm32f4 stm32f7'", "'stm32f4 stm32h7'")
         self.assertEqual(self.f(head), {'stm32f4', 'stm32f7', 'stm32h7'})
 
+
     def test_real_get_deps_parses(self):
         with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
             real = f.read()
@@ -1759,6 +1760,32 @@ class TestGetDepsRule(unittest.TestCase):
 
     def test_hil_without_a_base_is_full(self):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
+
+    def test_a_hil_harness_dep_selects_full_hil_and_no_build(self):
+        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families={'tools/agentrc'})
+        self.assertTrue(s['full'])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'tools/agentrc'})
+        self.assertFalse(b['full'])
+        self.assertEqual(b['families'], [])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO,
+                                         get_deps_families={'tools/agentrc', 'stm32f4'})
+        self.assertEqual(b['families'], ['stm32f4'])
+
+    def test_the_real_agentrc_pin_is_a_hil_harness_dep(self):
+        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+            real = f.read()
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import get_deps
+        commit = get_deps.deps_optional['tools/agentrc'][1]
+        bumped = real.replace(commit, '0' * len(commit))
+        # tools/agentrc has no family token, so without its path a pin bump would select nothing
+        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
+        self.assertEqual(gd, {'tools/agentrc'})
+        self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, gd)['full'])
+        nrfx = get_deps.deps_optional['hw/mcu/nordic/nrfx'][1]
+        both = bumped.replace(nrfx, '1' * len(nrfx))
+        self.assertEqual(change_impact.get_deps_changed_families(real, both, REPO),
+                         {'tools/agentrc', *get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()})
 
     def test_hil_no_dep_entry_changed_selects_nothing(self):
         s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
@@ -3523,6 +3550,18 @@ class TestGetDepsExampleShim(unittest.TestCase):
     def test_plain_board_still_works(self):
         r = self.run_get_deps('-b', 'stm32f407disco')
         self.assertEqual(r.returncode, 0, r.stderr)
+
+
+
+class TestNoLockDependency(unittest.TestCase):
+    def test_the_selector_never_loads_hil_lock(self):
+        # build.yml's check-paths gate selects on a checkout that never fetched tools/agentrc,
+        # which helper/hil_lock.py refuses to import without
+        code = ('import sys; sys.path.insert(0, "tools"); import change_impact; '
+                'print(sorted(m for m in sys.modules if "hil_lock" in m))')
+        r = subprocess.run([sys.executable, '-c', code], cwd=REPO, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), '[]')
 
 
 if __name__ == '__main__':
