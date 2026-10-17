@@ -102,7 +102,7 @@ lib/fatfs                                 https://github.com/abbrev/fatfs.git   
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
 lib/threadx                               https://github.com/eclipse-threadx/threadx.git                    4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae  all
-tools/agentrc                             https://github.com/hathach/agentrc.git                            0d3fe946692d21be357c99fde6012cb6ac91073d
+tools/agentrc                             https://github.com/hathach/agentrc.git                            babc9956434126953c935bcba0bc9e2b0079ce50
 tools/linkermap                           https://github.com/hathach/linkermap.git                          89b42dd5b6e5d1874769fb74e2d7b557a225213c
 tools/uf2                                 https://github.com/microsoft/uf2.git                              c594542b2faa01cc33a2b97c9fbebc38549df80a  all
 ========================================  ================================================================  ========================================  =========================================================================================================================================================================================================================================================================================================================================================

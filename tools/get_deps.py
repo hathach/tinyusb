@@ -308,7 +308,7 @@ deps_optional = {
                          'lpc55'],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'tools/agentrc': ['https://github.com/hathach/agentrc.git',
-                      '0d3fe946692d21be357c99fde6012cb6ac91073d',
+                      'babc9956434126953c935bcba0bc9e2b0079ce50',
                       ''],
     # local size tooling only (tools/code_size.py, <ex>-linkermap): no family builds with it
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',
