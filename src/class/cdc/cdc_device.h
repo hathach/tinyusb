@@ -21,6 +21,12 @@
   #define CFG_TUD_CDC_NOTIFY    0
 #endif
 
+// The longest SEND_ENCAPSULATED_COMMAND the driver takes, and the longest response
+// GET_ENCAPSULATED_RESPONSE can return. A longer command is stalled.
+#ifndef CFG_TUD_CDC_ENCAPSULATED_BUFSIZE
+  #define CFG_TUD_CDC_ENCAPSULATED_BUFSIZE    CFG_TUD_ENDPOINT0_SIZE
+#endif
+
 #ifndef CFG_TUD_CDC_TX_BUFSIZE
   #define CFG_TUD_CDC_TX_BUFSIZE TUD_EPSIZE_BULK_MAX
 #endif
@@ -177,6 +183,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_uart_state(const cdc_not
 TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_conn_speed_change(const cdc_notify_conn_speed_change_t* conn_speed_change) {
   return tud_cdc_n_notify_conn_speed_change(0, conn_speed_change);
 }
+
+// Send the RESPONSE_AVAILABLE notification: a response waits for GET_ENCAPSULATED_RESPONSE (PSTN 1.2
+// section 6.5.1, CDC 1.2 section 6.3.2)
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_n_notify_response_available(uint8_t itf) {
+  cdc_notify_msg_t notify_msg;
+  notify_msg.request.bmRequestType = CDC_REQ_TYPE_NOTIF;
+  notify_msg.request.bRequest      = CDC_NOTIF_RESPONSE_AVAILABLE;
+  notify_msg.request.wValue        = 0;
+  notify_msg.request.wIndex        = 0; // filled later
+  notify_msg.request.wLength       = 0;
+  return tud_cdc_n_notify_msg(itf, &notify_msg);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_response_available(void) {
+  return tud_cdc_n_notify_response_available(0);
+}
 #endif
 
 //--------------------------------------------------------------------+
@@ -268,6 +290,14 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 
 // Invoked when line coding is change via SET_LINE_CODING
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
+
+// Invoked when a SEND_ENCAPSULATED_COMMAND has delivered its command (CDC 1.2 section 6.2.1), `len` bytes
+// in the format of the control protocol the interface declares. The default discards it.
+void tud_cdc_send_encapsulated_command_cb(uint8_t itf, uint8_t const* command, uint16_t len);
+
+// Invoked on GET_ENCAPSULATED_RESPONSE (CDC 1.2 section 6.2.2): copy the response that is available, at
+// most `bufsize` bytes, to `buffer` and return its length; 0 when none is. The default returns 0.
+uint16_t tud_cdc_get_encapsulated_response_cb(uint8_t itf, uint8_t* buffer, uint16_t bufsize);
 
 // Invoked when received send break
 // \param[in]  itf  interface for which send break was received.
