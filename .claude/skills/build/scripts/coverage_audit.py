@@ -37,6 +37,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(ROOT / 'tools'))
+import family_json  # noqa: E402  split_command: a compile command as its compiler's argv
 DEPS_HEADER = re.compile(r'^(\S.*): #deps \d+')
 ROLES = ('device', 'host', 'dual', 'typec')
 FORMAT = 3
@@ -46,6 +48,11 @@ class ExtractError(Exception):
     pass
 
 
+# Windows: the paths rel() found on another drive than the checkout, outside it as a '..' is on
+# POSIX; graph counts them per board on stderr, so a checkout split across drives shows up
+other_drive = set()
+
+
 def rel(path, root, base=None):
     """Repo-relative path of `path` (relative ones resolved against `base`, default `root`),
     or None for a file outside the checkout (toolchain headers) or a generated one."""
@@ -53,6 +60,7 @@ def rel(path, root, base=None):
     try:
         r = Path(os.path.relpath(p, root)).as_posix()
     except ValueError:      # Windows: another drive (a toolchain header) is outside
+        other_drive.add(p)
         return None
     return None if r.startswith('..') or r.startswith('cmake-build') else r
 
@@ -230,7 +238,7 @@ def is_live(obj_path, compiler, cwd):
 
 
 def compiler_of(entry):
-    return entry['arguments'][0] if 'arguments' in entry else entry['command'].split()[0]
+    return entry['arguments'][0] if 'arguments' in entry else family_json.split_command(entry['command'])[0]
 
 
 def extract(build_dir, root, example=None):
@@ -369,6 +377,7 @@ def cmd_graph(a):
         name = f'audit-{os.getpid()}-{board}'
         build_dir = os.path.join(root, 'cmake-build', f'cmake-build-{name}')
         shutil.rmtree(build_dir, ignore_errors=True)
+        other_drive.clear()
         try:
             r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
             rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
@@ -382,6 +391,9 @@ def cmd_graph(a):
         finally:
             shutil.rmtree(build_dir, ignore_errors=True)
         rec['secs'] = round(time.monotonic() - t0, 1)
+        if other_drive:
+            print(f'{board}: {len(other_drive)} path(s) on another drive than the checkout counted as outside it, '
+                  f'e.g. {min(other_drive)}', file=sys.stderr)
         with open(path, 'w') as fh:
             json.dump(rec, fh)
         print(f'{board}: {rec["status"]} {rec["secs"]}s '

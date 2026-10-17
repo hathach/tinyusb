@@ -4,6 +4,7 @@ judgement against a build view."""
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -51,6 +52,11 @@ class ParseTest(unittest.TestCase):
     def test_compiler_of_reads_either_compile_commands_form(self):
         self.assertEqual(ca.compiler_of({'command': '/x/riscv-none-elf-gcc -c a.c'}), '/x/riscv-none-elf-gcc')
         self.assertEqual(ca.compiler_of({'arguments': ['arm-none-eabi-gcc', '-c']}), 'arm-none-eabi-gcc')
+
+    def test_compiler_of_reads_a_quoted_compiler_path(self):
+        gcc = 'C:/Program Files/Arm GNU Toolchain/bin/arm-none-eabi-gcc.exe' if os.name == 'nt' else '/opt/arm gnu/bin/arm-none-eabi-gcc'
+        join = subprocess.list2cmdline if os.name == 'nt' else shlex.join   # as CMake writes it on each host
+        self.assertEqual(ca.compiler_of({'command': join([gcc, '-c', 'a.c'])}), gcc)
 
     def test_global_assembly_label_is_live_local_one_is_not(self):
         self.assertTrue(ca.defines_symbols('    25: 00000000     2 NOTYPE  GLOBAL DEFAULT    7 Default_Handler\n'))
@@ -104,7 +110,9 @@ class ParseTest(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
     def test_rel_is_posix_and_another_drive_is_outside(self):
         self.assertEqual(ca.rel('E:\\repo\\src\\tusb.h', 'E:/repo'), 'src/tusb.h')
+        ca.other_drive.clear()
         self.assertIsNone(ca.rel('C:/Tool/arm/include/stdint.h', 'E:/repo'))
+        self.assertEqual(ca.other_drive, {os.path.normpath('C:/Tool/arm/include/stdint.h')}, 'counted for the graph note')
 
     def test_an_lto_object_is_asked_through_its_compilers_own_nm(self):
         for compiler, nm in (('/x/arm-none-eabi-gcc', '/x/arm-none-eabi-gcc-nm'),
