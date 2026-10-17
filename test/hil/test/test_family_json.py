@@ -150,6 +150,40 @@ class SplitCommand(unittest.TestCase):
         self.assertEqual(argv, ['C:\\Tool\\bin\\gcc.exe', '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'])
 
 
+@unittest.skipUnless(os.name == 'nt', 'msvcrt locks are the Windows stand-in for flock')
+class WindowsLock(unittest.TestCase):
+    def rewrite(self, locking):
+        import msvcrt
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            (root / 'family.json').write_text('{}\n', encoding='utf-8')
+            with mock.patch.object(fj, 'ROOT', root), mock.patch.object(msvcrt, 'locking', locking), \
+                    mock.patch.object(fj.time, 'sleep'):
+                return fj.rewrite(lambda data: data.update(x={}), root / 'family.json')
+
+    def test_a_writer_waits_for_the_lock_as_long_as_it_is_held(self):
+        import errno
+        import msvcrt
+        calls = []
+
+        def locking(fd, mode, n):
+            calls.append(mode)
+            if mode == msvcrt.LK_LOCK:   # what LK_LOCK gives after its ten 1 s tries
+                raise OSError(errno.EDEADLOCK, 'Resource deadlock avoided')
+            if mode == msvcrt.LK_NBLCK and calls.count(mode) < 30:
+                raise OSError(errno.EACCES, 'Permission denied')
+        self.assertEqual(self.rewrite(locking), 'updated')
+        self.assertEqual(calls, [msvcrt.LK_NBLCK] * 30 + [msvcrt.LK_UNLCK], 'released before the close')
+
+    def test_a_lock_error_that_is_not_contention_is_raised(self):
+        import errno
+
+        def locking(fd, mode, n):
+            raise OSError(errno.EBADF, 'Bad file descriptor')
+        with self.assertRaises(OSError):
+            self.rewrite(locking)
+
+
 class Observe(unittest.TestCase):
     def test_a_configured_dir_yields_the_row(self):
         with tempfile.TemporaryDirectory() as d:
