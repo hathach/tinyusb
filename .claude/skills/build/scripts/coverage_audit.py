@@ -284,7 +284,11 @@ def extract(build_dir, root, example=None):
                 s.add(f)
                 continue
             a = os.path.normpath(os.path.join(build_dir, d))
-            for t in (d, Path(os.path.relpath(a, build_dir)).as_posix(), a):
+            try:
+                r = Path(os.path.relpath(a, build_dir)).as_posix()
+            except ValueError:  # Windows: on another drive than the build, so no relative ninja name
+                r = d
+            for t in (d, r, a):
                 if t in known:
                     s |= generated_inputs(t)
                     break
