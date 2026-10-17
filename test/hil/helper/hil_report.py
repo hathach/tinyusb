@@ -539,11 +539,15 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
+        # earlier attempts' cells, per row: a red one before a green row is a pass after a
+        # failure, not a first-try pass
+        earlier = {n: history[n] for n in sorted(set(mine) | {board}) if n in history}
+        kept = {'history': earlier} if earlier else {}
         unusable = next((cells[LOCK_UNAVAILABLE_CELL] for cells in mine.values()
                          if LOCK_UNAVAILABLE_CELL in cells), None)
         if unusable is not None and not aborted and not board_wedged:
             results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': unusable})
+                            'wedged': False, 'skipped': [], **kept, 'detail': unusable})
             continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
@@ -570,14 +574,11 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
             if skipped:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
-        # earlier attempts' cells, per row: a red one before a green row is a pass after a
-        # failure, not a first-try pass
-        earlier = {n: history[n] for n in sorted(set(mine) | {board}) if n in history}
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
         results.append({'board': board, 'ran': not unbuilt, 'pass': ok,
                         'locked': locked, 'wedged': board_wedged, 'skipped': skipped,
-                        **({'history': earlier} if earlier else {}), 'detail': detail})
+                        **kept, 'detail': detail})
     # `caveat` too: an aborted or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')

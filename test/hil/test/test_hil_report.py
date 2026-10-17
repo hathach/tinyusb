@@ -366,7 +366,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         cell = "❌ board lock unavailable: [Errno 17] File exists: '/tmp/tinyusb-hil-locks'"
         got = self._sum(['alpha'], [('alpha', {hil_report.LOCK_UNAVAILABLE_CELL: cell})])
         self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
-                                  'wedged': False, 'detail': cell})
+                                  'wedged': False, 'skipped': [], 'detail': cell})
 
     def test_a_board_with_no_row_is_marked_not_run(self):
         got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
@@ -644,6 +644,14 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         self.assertTrue(res['a']['pass'])
         self.assertEqual(res['a']['history'], {'a': rows['a']['history']})
         self.assertNotIn('history', res['b'])
+
+    def test_an_unusable_lock_dir_keeps_the_earlier_attempts(self):
+        unusable = '❌ board lock unavailable: [Errno 13] x'
+        self.attempt([('a', {'usbtest': '❌ 29/30'})], fresh=True)
+        self.attempt([('a', {'usbtest': '✅ 30/30'})])
+        res = self.results(self.attempt([('a', {hil_report.LOCK_UNAVAILABLE_CELL: unusable})]), ['a'])['a']
+        self.assertEqual((res['ran'], res['pass'], res['detail']), (False, False, unusable))
+        self.assertEqual([h['usbtest'] for h in res['history']['a']], ['❌ 29/30', '✅ 30/30'])
 
     def test_a_cleared_lock_or_restamped_timeout_is_an_earlier_attempt(self):
         self.attempt([('a', {hil_report.LOCKED_CELL: 'fail'}), ('b', {'cdc': 'fail'})], fresh=True)
