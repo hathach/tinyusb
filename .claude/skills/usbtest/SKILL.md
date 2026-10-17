@@ -190,7 +190,7 @@ bound interface keeps the profile it was probed with. The right one probes as `L
 in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
 22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
 
-1. Reserve the whole fleet as the HIL contract's rig-wide rule says, and confirm no `testusb` or
+1. Reserve the whole fleet as the HIL contract's Reservation says for rig-wide operations, and confirm no `testusb` or
    `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
    behind any case still in flight. It is never refused for an interface in use.
 2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.

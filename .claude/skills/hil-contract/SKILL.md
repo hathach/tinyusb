@@ -19,12 +19,14 @@ TinyUSB's HIL mechanics; agentrc's `hil` skill holds the rules every project's H
 
 Default to **local**. Use **remote** only when on a dev PC and the request or task scope names `remote`/`ci.lan`. Never attempt remote on `ci`.
 
+htpc, a dev PC, also carries TinyUF2's rig, `test/hil/local.json` in that checkout (its contract's Hosts/rosters): a rig-wide operation there holds that roster's lock names too (Reservation).
+
 `tusb` (ssh alias `hifiphile`) is an external rig (hosted by maintainer hifiphile), exercised by the
 GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unless the user explicitly asks.**
 
 A roster lists `boards` and parked `boards-skip`. Common entry fields: `name` (also the board's lock name), `uid`, `tests`, `flasher {name, uid, args, vid_pid, verify}` (only `name` and `uid` required), and optional `flasher_recover`, `variant`, `logger`, `toolchain`, `uart_uid`, `note`; `test/hil/hil_test.py`'s `Board` type is the full shape. A review may add or enable a `local.json` entry on a dev PC: name, board uid, flasher and tests, and a flashable example to run on it.
 
-If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` or `hil_pool_check.py` run. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns one `ran: false` row per requested board whose `detail` names the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Reservation says.
+If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` or `hil_pool_check.py` run. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns the no-run rows Results defines, `detail` naming the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Reservation says.
 
 Board/probe health scanning (`test/hil/helper/hil_pool_check.py`) has its own skill, **hil-pool-check**: use it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash.
 
@@ -142,7 +144,8 @@ Env overrides: `REMOTE`, `REMOTE_DIR`, `CONFIG`, `ROOT_DIR`.
 ### Timing
 
 Runs take 2-5 min per board, but a stuck fleet runs to `HIL_POOL_TIMEOUT` — 60 min
-unless the env pins it. The run logs its guard in the startup line; never declare a run
+unless the env pins it — and in CI a worker the kernel will not let die (D state) holds the job
+until its `timeout-minutes`. The run logs its guard in the startup line; never declare a run
 stuck before THAT value has elapsed.
 The Bash tool caps a foreground timeout at 10 min, so **run it in the background** --
 never a foreground timeout, which would kill the run before its own guard can write a
@@ -169,17 +172,13 @@ python3 .claude/skills/hil-contract/scripts/hil_remote.py wait hil-1790000000
 
 A local `hil_test.py` run has no done record; wait for its completion notification.
 
-What bounds a stuck run is `HIL_POOL_TIMEOUT` plus the job's `timeout-minutes`: a worker
-the kernel will not let die (D state) holds the job until that ceiling. The `hil-pool-check`
-skill finds which boards a wedge left unusable.
-
 ## Reservation
 
-The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI; never stop the runner service. Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`.
+The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
-- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup; the auto-release on holder death is a backstop, not the plan:
+- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup:
 
 ```bash
 python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
@@ -187,16 +186,16 @@ python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
 python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
-- A hold refused by another holder: report holder and reason (`hil_lock.py status`). A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test: wait within the lock-wait budget, otherwise return the holder to the caller. A holder whose record has `role: cleanup-holder` is a recovery blocker (`hil` Board locks).
+- A hold refused by another holder: `hil_lock.py status` gives the holder and reason to report. A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test; waiting, the budget and a `role: cleanup-holder` holder follow `hil` Board locks.
 
 - A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
-- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve `tinyusb.json`'s boards, which are not there, instead of the three that are. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. If `--all` cannot be taken, wait. `--all` covers this config's names only and ignores board names given beside it: on a host another project's rig also uses (htpc: TinyUF2's `test/hil/local.json`), also take a separate `hil_lock.py hold <names> --reason "..."` for that project's lock names (its contract's Reservation names them) not already in this config. Proceed only when both holds succeed; if either is refused, `hil_lock.py release` a name of each hold you took, never `release --all`, and stop.
+- Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve `tinyusb.json`'s boards, which are not there, instead of the three that are. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. `--all` covers this config's names only and ignores board names given beside it: on a host another project's rig also uses (Hosts/rosters), also take a separate `hil_lock.py hold <names> --reason "..."` for that project's lock names (its contract's Reservation names them) not already in this config. Proceed only when every hold succeeded; on a refusal, `hil_lock.py release` a name of each hold you took, never `release --all`, then wait within the budget or return the holder (`hil` Board locks).
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. It risks colliding with whatever holds it.
 
 ## Results
 
-Interactively, the table's footer counts are part of it; commentary covers a notice from the
+Interactively, the summary table is shown with its footer counts; commentary covers a notice from the
 list below, a retry, a wedged board.
 
 A delegated run (`hil-operator`) builds its output, from the directory the run wrote its
@@ -206,15 +205,13 @@ report to, with:
 python3 test/hil/helper/hil_report.py <config> -b BOARD [-b BOARD...]
 ```
 
-Copy it verbatim: rows are named per variant, a variant name need not start with the board
+Copy it verbatim (`hil` Reporting): rows are named per variant, a variant name need not start with the board
 name, and lock contention is a cell rather than a phrase, so any of it re-derived by hand has come
-out wrong before. What it cannot show: a skipped cell counts toward `cell(s) ok`, a red usbtest
-cell is `❌ passed/total` whichever cases made it red, and a retry's `--accumulate` overwrites
-the first attempt's cells (hathach/tinyusb#4226). Where Verdicts needs them, they are read from
+out wrong before. What it cannot show is in Limits; where Verdicts needs it, it is read from
 the run's output (`Skip (no binary)` and `Skipped` lines; each red usbtest row's last
 `device/usbtest` failure line and, in full failure output, usbtest's per-case JSON), never from
 the reply, which stays the JSON the operator returns: the launcher keeps the operator's transcript,
-and the operator copies the first attempt's report directory aside (`mktemp -d`) before a retry,
+and, until #4226, the operator copies the first attempt's report directory aside (`mktemp -d`) before a retry,
 saying where in that transcript. `testedHead` for a
 review row is the build receipt's head (Build), or HEAD of the tree a local run built.
 `hil_test.py` exits with its failure count (capped at 125); `hil_report.py` exits 0 whenever it
@@ -231,16 +228,16 @@ A run refused with `board(s) not in <config>` is re-run without the unknown name
 a known name remains — an empty `-b` list runs every configured board — keeping the full
 requested list on the `hil_report.py` call, which emits a `ran: false` row for each unknown
 board. When no run started (a missing config, every name unknown, a refused hold with no
-permitted retry, a scope gap, unbuilt firmware), it authors the rows instead: one per requested
+permitted retry, a scope gap, no build for the head), it authors the rows instead: one per requested
 board, `ran: false`, `pass: false`, `locked` as observed, the reason in `detail`, top-level
 `pass: false`, `caveat` empty — and reads no stale report.
 
-The operator retries a test failure once (below), only on a report with no `locked` or `wedged`
-board and an empty `caveat`; any other outcome returns to the caller as it is. The whole board
-set goes to ONE run (Execution); locked boards are re-run with `--accumulate` once their holder
-releases. A delegated run recovers a `wedged` board only through usbtest's in-run recovery (a
-probe reset, or a reflash where the flasher has no reset); a board still wedged after that is
-reported for a separately dispatched recovery action (Recovery).
+The operator retries a test failure once, under `hil`'s Caller rules (how: below); any other
+outcome returns to the caller as it is. The whole board set goes to ONE run (Execution); a
+locked board is admitted again, once its holder releases and within the budget, by a hand-scoped
+`--accumulate -b <board>` run (below) carrying the original `-t`/`-bt` selection, which is not the
+retry. A board still wedged after usbtest's
+in-run recovery (Recovery) is reported for a separately dispatched recovery action.
 
 **First check what sits above the table.** Three notices can appear there; match on a
 PREFIX, since each carries trailing detail:
@@ -267,7 +264,7 @@ PREFIX, since each carries trailing detail:
   Either way the exit code is nonzero. Report what the message shows (the filter, or the
   refused boards), never `"pass": true`.
 
-The operator's retry (above) runs with `-v` and never on any other report: the `.failed` spec
+The operator's retry (above) runs with `-v`; `hil`'s gate on it matters here because the `.failed` spec
 lists locked and wedged boards too, and an accumulated retry would clear a caveat the caller
 must keep. Retry from the `<config>.failed` spec the run just wrote, which
 already begins with `--accumulate` and restricts each board to its failed tests. A hand-scoped
@@ -286,26 +283,24 @@ failure for diagnosis instead.
 The caller maps each requested board onto the `hil` verdicts from the copied output:
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
-  `wedged`; an aborted run (an `HIL run aborted` notice), the boards it never reported
-  included; a launched run that left no report.
-- fail: a test that ran and failed (a FAIL cell, a usbtest FAIL case); a FAIL cell whose row's
-  output shows the flash failed before any test ran is not-run, though the report folds it as
-  `ran: true`. A HUNG case the in-run
-  recovery cleared is not a blocker by itself; the row's `wedged` decides. A usbtest row red
-  only from NOTRUN or BUDGET cases is not a fail: those cases are not-run.
-- not-run: `locked`, `build refused`, a board not in the config, or a run that never started
-  for a known refusal (missing config, scope gap, unbuilt firmware).
-- pass: every requested test ran and passed. A folded `ran: true, pass: true` row can still
-  hold skipped tests (`Skip (no binary)`): the copied output stays as it is, but the board is
-  not a pass while a requested test is skipped; report it not-run for those tests.
+  `wedged`; an `HIL run aborted` notice, the boards it never reported included; a launched run
+  that left no report.
+- fail: a FAIL cell, or a usbtest FAIL case. A HUNG case the in-run recovery cleared is not a
+  blocker by itself; the row's `wedged` decides.
+- not-run: `locked`, `build refused`, a board not in the config, a run that never started (the
+  cases Results lists); a FAIL cell whose row's output shows the flash failed before any test
+  ran, and a usbtest row red only from NOTRUN or BUDGET cases, though the report folds both as
+  failures (Limits); a skipped test (`Skip (no binary)`), which does not stop its row folding as a pass.
+- pass: every requested test ran and passed; a row with a skipped requested test is not a pass
+  for that test, and the copied output stays as it is.
 
 ## Recovery
 
-A board whose usbtest battery reported the device wedged (a HUNG case the in-run recovery could not clear, or a device it could no longer identify afterwards) gets a `board-wedged` cell and the rest of its examples are skipped for that run. No admission marker blocks the next run. Before a board's first flash, a run without `--skip-flash` looks for a D-state `testusb` on that board's usbfs node, which a cancelled or killed run leaves behind, and resets the board through its convoy-safe recovery flasher (`flasher_recover`, else `flasher`); a board it cannot free is reported `board-wedged` without being flashed. A stray on a board outside the run is not swept. Interactively, follow `usb-kernel-recover` from its triage before running it again; a delegated run follows Results. `usb-kernel-recover` shows what a real wedge looks like and how to clear it; `usb-kernel-debug` explains WHY the kernel rejected a device (dmesg analysis).
+A board whose usbtest battery reported the device wedged (a HUNG case the in-run recovery could not clear, or a device it could no longer identify afterwards) gets a `board-wedged` cell and the rest of its examples are skipped for that run; that in-run recovery is a probe reset, or a reflash where the flasher has no reset. No admission marker blocks the next run. Before a board's first flash, a run without `--skip-flash` looks for a D-state `testusb` on that board's usbfs node, which a cancelled or killed run leaves behind, and resets the board through its convoy-safe recovery flasher (`flasher_recover`, else `flasher`); a board it cannot free is reported `board-wedged` without being flashed. A stray on a board outside the run is not swept. Interactively, follow `usb-kernel-recover` from its triage before running it again; a delegated run follows Results. `usb-kernel-recover` shows what a real wedge looks like and how to clear it; `usb-kernel-debug` explains WHY the kernel rejected a device (dmesg analysis).
 
 A dispatched recovery action is its own operation, never part of a run: the prompt names one
 board, its busport, the rung ceiling, the budget and the reservation. Follow `usb-kernel-recover`
-from its triage up to that ceiling and never above it, holding `--all` for every rig-wide rung.
+from its triage up to that ceiling and never above it, holding the rig-wide reservation (Reservation) for every rig-wide rung.
 Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `flasher`); one that
 is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
 busport, unshielded afterwards;
@@ -318,6 +313,12 @@ Report the cleanup explicitly: the board's state, plus any shield record or hold
 unavailable ... proceeding unlocked` and the run goes on without a lock, so the cross-project
 exclusion `hil` promises holds only while `/tmp/tinyusb-hil-locks` is usable (TinyUF2's runner
 refuses instead). A hold or run that printed that warning is unprotected: report it.
+
+`hil_report.py` folds what it cannot show (hathach/tinyusb#4226): a skipped cell (`Skip (no
+binary)`) counts toward `cell(s) ok` and does not stop its row folding `pass: true`; a FAIL cell from a
+flash that failed before any test ran is folded `ran: true`; a red usbtest cell is
+`❌ passed/total` whichever cases made it red; a retry's `--accumulate` overwrites the first
+attempt's cells.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
