@@ -3,13 +3,16 @@ unchanged version and any file its pattern no longer matches; the PR range
 refuses a previous tag that is not an ancestor and any first-parent commit
 that is not a merged PR; gh failures surface instead of thinning the list."""
 import importlib.util
+import io
 import json
-import os
+import locale
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'make-release' / 'scripts' / 'release.py'
 spec = importlib.util.spec_from_file_location('release', SCRIPT)
@@ -99,34 +102,45 @@ class PrNumbersTest(unittest.TestCase):
 
 
 class CliTest(unittest.TestCase):
-    """git and gh are stubs on PATH: git answers the ancestor check and the log, gh answers per PR."""
+    """main() in-process with git and gh answered by a stand-in for subprocess.run, so no real
+    git or gh can run: git answers the ancestor check and the log, gh answers per PR. Their output
+    is UTF-8 bytes, decoded the way subprocess.run would with the caller's arguments, and stdout
+    and stderr are a console in a legacy code page."""
 
     def run_cli(self, args, ancestor=True, gh_fail=()):
-        with tempfile.TemporaryDirectory() as d:
-            bin_dir = Path(d) / 'bin'
-            bin_dir.mkdir()
-            (bin_dir / 'git').write_text(f'''#!/bin/sh
-case "$*" in
-  *merge-base*) exit {0 if ancestor else 1} ;;
-  *log*) printf 'Merge pull request #10 from a/b\\nSquashed (#11)\\n' ;;
-esac
-''')
-            (bin_dir / 'gh').write_text(f'''#!/bin/sh
-n=$3
-case " {' '.join(map(str, gh_fail))} " in *" $n "*) echo "boom $n" >&2; exit 1 ;; esac
-author=hathach; [ "$n" = 11 ] && author='dependabot[bot]'
-printf '{{"number": %s, "title": "PR %s", "labels": [{{"name": "Port"}}], "author": {{"login": "%s"}}}}' "$n" "$n" "$author"
-''')
-            for f in (bin_dir / 'git', bin_dir / 'gh'):
-                f.chmod(0o755)
-            env = dict(os.environ, PATH=f'{bin_dir}:{os.environ["PATH"]}')
-            return subprocess.run([sys.executable, str(SCRIPT), '--root', d, *args],
-                                  capture_output=True, text=True, env=env)
+        def run(argv, capture_output=False, text=False, encoding=None, cwd=None):
+            out, err, rc = '', '', 0
+            if argv[0] == 'git':
+                rc = 0 if 'merge-base' not in argv or ancestor else 1
+                out = 'Merge pull request #10 from a/b\nSquashed (#11)\n' if 'log' in argv else ''
+            elif argv[0] == 'gh':
+                n = int(argv[3])
+                if n in gh_fail:
+                    err, rc = f'boom {n}\n', 1
+                else:
+                    out = json.dumps({'number': n, 'title': f'PR {n} \u2714', 'labels': [{'name': 'Port \U0001f6a8'}],
+                                      'author': {'login': 'dependabot[bot]' if n == 11 else 'hathach'}}, ensure_ascii=False)
+            else:
+                raise AssertionError(f'unexpected command {argv}')
+            if encoding or text:
+                decode = encoding or locale.getpreferredencoding(False)
+                out, err = (s.encode('utf-8').decode(decode) for s in (out, err))
+            return subprocess.CompletedProcess(argv, rc, out, err)
+
+        console = [io.TextIOWrapper(io.BytesIO(), encoding='cp1252', newline='\n') for _ in range(2)]
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(release.subprocess, 'run', run), \
+                mock.patch.object(sys, 'argv', [str(SCRIPT), '--root', d, *args]), \
+                mock.patch.object(sys, 'stdout', console[0]), mock.patch.object(sys, 'stderr', console[1]):
+            code = release.main()
+        for c in console:
+            c.flush()
+        return types.SimpleNamespace(returncode=code, stdout=console[0].buffer.getvalue().decode('utf-8'),
+                                     stderr=console[1].buffer.getvalue().decode('utf-8'))
 
     def test_prs_lists_number_title_and_labels(self):
         r = self.run_cli(['prs', '--prev', '0.20.0'])
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout, '#10\tPR 10\t[Port]\n#11\tPR 11\t[Port]\n')
+        self.assertEqual(r.stdout, '#10\tPR 10 \u2714\t[Port \U0001f6a8]\n#11\tPR 11 \u2714\t[Port \U0001f6a8]\n')
 
     def test_contributors_drops_bots(self):
         r = self.run_cli(['contributors', '--prev', '0.20.0'])
