@@ -164,7 +164,8 @@ def main():
                    default=Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'tinyusb-usbtest',
                    help='where fetched files are kept (default: %(default)s)')
     args = p.parse_args()
-    sys.stdout.reconfigure(encoding='utf-8')   # the kernel's source is UTF-8 whatever the console's code page
+    if os.name == 'nt':   # the kernel's source is UTF-8 whatever the console's code page
+        sys.stdout.reconfigure(encoding='utf-8')
 
     if args.tag:
         if not RE_TAG.fullmatch(args.tag):

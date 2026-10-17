@@ -37,13 +37,37 @@ import tempfile
 import time
 from pathlib import Path
 
+
+def build_parser():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
+    p.add_argument('--board', required=True)
+    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
+    p.add_argument('--after', required=True, choices=('park', 'leave'),
+                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
+    p.add_argument('--variant', help='roster variant, required when the board has several')
+    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
+    p.add_argument('--allow-concurrent', action='store_true',
+                   help='skip the live-battery check; see the description first')
+    return p
+
+
+def new_report(args):
+    return {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
+            'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+
+
+if __name__ == '__main__' and sys.platform != 'linux':   # after argparse, so --help works; before the harness imports
+    _report = new_report(build_parser().parse_args())
+    _report['error'] = 'run_case.py needs a Linux host (usbfs, /proc, the usbtest kernel module)'
+    print(f'error: {_report["error"]}', file=sys.stderr)
+    print(json.dumps(_report))
+    sys.exit(2)
+
 ROOT = Path(__file__).resolve().parents[4]
 HIL_DIR = ROOT / 'test' / 'hil'
 sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, str(ROOT / 'tools'))
-if __name__ == '__main__' and sys.platform != 'linux':   # refused before any hardware action
-    print('error: run_case.py needs a Linux host (usbfs, /proc, the usbtest kernel module)', file=sys.stderr)
-    sys.exit(2)
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
@@ -271,20 +295,8 @@ def battery(board, fw, tests, timeout):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
-    p.add_argument('--board', required=True)
-    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
-    p.add_argument('--after', required=True, choices=('park', 'leave'),
-                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
-    p.add_argument('--variant', help='roster variant, required when the board has several')
-    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
-    p.add_argument('--allow-concurrent', action='store_true',
-                   help='skip the live-battery check; see the description first')
-    args = p.parse_args()
-
-    report = {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
-              'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+    args = build_parser().parse_args()
+    report = new_report(args)
 
     def finish(code, error=''):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)   # one verdict line; the release still follows
