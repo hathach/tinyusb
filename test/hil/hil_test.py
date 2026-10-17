@@ -213,6 +213,7 @@ class Board(TypedDict):
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
     toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
     uart_uid: NotRequired[str]   # console bridge serial when the flasher probe has no CDC (e.g. J-Trace)
+    debugger: NotRequired[FlasherCfg]  # probe entry for agentrc's debug scripts (rtt, target-debug), not read here
 
 
 class HilConfig(TypedDict):
