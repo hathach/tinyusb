@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import locale
+import os
 import subprocess
 import sys
 import tempfile
@@ -89,6 +90,19 @@ class BumpTest(unittest.TestCase):
             self.assertEqual(text.count('"0.22.0": "0.22.0"'), 1)
             self.assertIn('"0-latest": "0.22.0"', text)
 
+    def test_files_are_read_and_written_as_utf8_with_lf_whatever_the_locale(self):
+        # bump runs no git or gh, so the script can run as a process here, outside UTF-8 mode
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fixture(root)
+            lib = LIBRARY_JSON.replace('"name": "TinyUSB",', '"name": "TinyUSB",\n    "authors": "ø ✔",')
+            (root / 'library.json').write_bytes(lib.encode('utf-8'))
+            env = {k: v for k, v in os.environ.items() if k != 'PYTHONUTF8'}
+            r = subprocess.run([sys.executable, '-X', 'utf8=0', str(SCRIPT), '--root', d, 'bump', '0.22.1'],
+                               capture_output=True, env=env, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual((root / 'library.json').read_bytes(), lib.replace('0.21.0', '0.22.1').encode('utf-8'))
+
 
 class PrNumbersTest(unittest.TestCase):
     def test_merge_button_and_squash_subjects_dedupe_and_sort(self):
@@ -127,7 +141,10 @@ class CliTest(unittest.TestCase):
                 out, err = (s.encode('utf-8').decode(decode) for s in (out, err))
             return subprocess.CompletedProcess(argv, rc, out, err)
 
-        console = [io.TextIOWrapper(io.BytesIO(), encoding='cp1252', newline='\n') for _ in range(2)]
+        # Windows prints UTF-8 whatever the console; elsewhere stdout keeps the encoding and errors it was given
+        console = [io.TextIOWrapper(io.BytesIO(), encoding='cp1252' if os.name == 'nt' else 'ascii',
+                                    errors='strict' if os.name == 'nt' else 'backslashreplace', newline='\n')
+                   for _ in range(2)]
         with tempfile.TemporaryDirectory() as d, mock.patch.object(release.subprocess, 'run', run), \
                 mock.patch.object(sys, 'argv', [str(SCRIPT), '--root', d, *args]), \
                 mock.patch.object(sys, 'stdout', console[0]), mock.patch.object(sys, 'stderr', console[1]):
@@ -140,7 +157,8 @@ class CliTest(unittest.TestCase):
     def test_prs_lists_number_title_and_labels(self):
         r = self.run_cli(['prs', '--prev', '0.20.0'])
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout, '#10\tPR 10 \u2714\t[Port \U0001f6a8]\n#11\tPR 11 \u2714\t[Port \U0001f6a8]\n')
+        title, label = ('PR {} \u2714', 'Port \U0001f6a8') if os.name == 'nt' else ('PR {} \\u2714', 'Port \\U0001f6a8')
+        self.assertEqual(r.stdout, f'#10\t{title.format(10)}\t[{label}]\n#11\t{title.format(11)}\t[{label}]\n')
 
     def test_contributors_drops_bots(self):
         r = self.run_cli(['contributors', '--prev', '0.20.0'])
@@ -157,6 +175,37 @@ class CliTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn('gh pr view 11 failed 3 times: boom 11', r.stderr)
         self.assertEqual(r.stdout, '')
+
+
+@unittest.skipIf(os.name == 'nt', 'the stubs are #! scripts Windows cannot exec: a miss would run the real git or gh')
+class ProcessTest(unittest.TestCase):
+    """The script as a process, git and gh stubs on PATH: main()'s status is the exit status."""
+
+    def run_script(self, args, ancestor=True):
+        with tempfile.TemporaryDirectory() as d:
+            bin_dir = Path(d) / 'bin'
+            bin_dir.mkdir()
+            (bin_dir / 'git').write_text(f'''#!/bin/sh
+case "$*" in
+  *merge-base*) exit {0 if ancestor else 1} ;;
+  *log*) printf 'Merge pull request #10 from a/b\\n' ;;
+esac
+''')
+            (bin_dir / 'gh').write_text('''#!/bin/sh
+printf '{"number": %s, "title": "PR %s", "labels": [], "author": {"login": "hathach"}}' "$3" "$3"
+''')
+            for f in (bin_dir / 'git', bin_dir / 'gh'):
+                f.chmod(0o755)
+            env = dict(os.environ, PATH=f'{bin_dir}{os.pathsep}{os.environ["PATH"]}')
+            return subprocess.run([sys.executable, str(SCRIPT), '--root', d, *args],
+                                  capture_output=True, text=True, env=env, timeout=60)
+
+    def test_the_exit_status_is_mains(self):
+        ok = self.run_script(['prs', '--prev', '0.20.0'])
+        self.assertEqual((ok.returncode, ok.stdout), (0, '#10\tPR 10\t[]\n'), ok.stderr)
+        refused = self.run_script(['prs', '--prev', '0.20.0'], ancestor=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn('not an ancestor of HEAD', refused.stderr)
 
 
 if __name__ == '__main__':
