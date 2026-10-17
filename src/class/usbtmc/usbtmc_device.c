@@ -252,6 +252,9 @@ bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
   TU_ASSERT(len > 0);
   TU_ASSERT(usbtmc_state.ep_int_in != 0);
 #endif
+  // In every build, not only the debug one: before the interface is opened, and after a bus reset clears
+  // it, ep_int_in is 0, and the claim and the transfer would land on endpoint 0x00.
+  TU_VERIFY(usbtmc_state.ep_int_in != 0);
   TU_VERIFY(usbd_edpt_claim(usbtmc_state.rhport, usbtmc_state.ep_int_in));
 
   if (tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) != 0) {
