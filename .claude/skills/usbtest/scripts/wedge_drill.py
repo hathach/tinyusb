@@ -44,6 +44,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+if __name__ == '__main__' and sys.platform != 'linux':   # refused before any hardware action
+    print('error: wedge_drill.py needs a Linux host (usbfs, /proc, the usbtest kernel module)', file=sys.stderr)
+    sys.exit(2)
 import run_case  # noqa: E402
 from run_case import PROC, Refused, Terminated, hil_flash, hil_lock, hil_util, usbtest  # noqa: E402
 

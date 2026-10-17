@@ -41,6 +41,9 @@ ROOT = Path(__file__).resolve().parents[4]
 HIL_DIR = ROOT / 'test' / 'hil'
 sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, str(ROOT / 'tools'))
+if __name__ == '__main__' and sys.platform != 'linux':   # refused before any hardware action
+    print('error: run_case.py needs a Linux host (usbfs, /proc, the usbtest kernel module)', file=sys.stderr)
+    sys.exit(2)
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
