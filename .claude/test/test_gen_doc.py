@@ -39,7 +39,8 @@ def fixture(root):
     bsp = root / 'hw' / 'bsp'
     (bsp / 'acme' / 'boards' / 'acme_one').mkdir(parents=True)
     (bsp / 'acme' / 'boards' / 'acme_bare').mkdir()
-    (bsp / 'acme' / 'family.c').write_text(METADATA_FAMILY)
+    # UTF-8 beyond the metadata block, as several real family.c have: read as UTF-8 on every host
+    (bsp / 'acme' / 'family.c').write_text('// Acme \u2192 \u2714\n' + METADATA_FAMILY, encoding='utf-8')
     (bsp / 'acme' / 'boards' / 'acme_one' / 'board.h').write_text(METADATA_BOARD)
     (bsp / 'acme' / 'boards' / 'acme_bare' / 'board.h').write_text('#define BOARD_H_\n')
     (bsp / 'nometa' / 'boards' / 'nometa_x').mkdir(parents=True)
@@ -50,7 +51,7 @@ def fixture(root):
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
         {'name': 'acme_one', 'tests': {'device': True, 'host': True, 'dual': False},
          'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
-         'note': 'needs  a | jumper'},
+         'note': 'needs  a | jumper \u00f8'},
         {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
     ]}))
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
@@ -86,8 +87,8 @@ class GenDocScriptTest(unittest.TestCase):
             fixture(root)
             r = subprocess.run([sys.executable, str(GEN_DOC), '--root', str(root)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
-            boards = (root / 'docs/reference/boards.rst').read_text()
-            hil = (root / 'docs/reference/hil_boards.md').read_text()
+            boards = (root / 'docs/reference/boards.rst').read_text(encoding='utf-8')
+            hil = (root / 'docs/reference/hil_boards.md').read_text(encoding='utf-8')
             deps = (root / 'docs/reference/dependencies.rst').read_text()
         self.assertIn('Acme\n----\n\n', boards)
         self.assertIn('acme_one  Acme One  acme      https://acme.example/one', boards)
@@ -101,8 +102,8 @@ class GenDocScriptTest(unittest.TestCase):
             '',
         ])
         self.assertTrue(hil.startswith(gen_doc.HEADER + '\n\n### ci rig\n\n2 boards, from `test/hil/tinyusb.json`.'))
-        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper |', hil)
-        self.assertIn('| acme_two | device, host |           |             |                   |', hil)
+        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper \u00f8 |', hil)
+        self.assertIn('| acme_two | device, host |           |             |                     |', hil)
         self.assertNotIn('hfp rig', hil)
         self.assertIn('lib/fatfs', deps)
 

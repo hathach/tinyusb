@@ -1,28 +1,37 @@
 """Tests for the build-doc skill's build_doc.py: it runs sphinx-build strictly
 by default, forwards the flags it documents, and propagates the build's exit
 code without inventing success."""
-import os
-import subprocess
+import importlib.util
+import io
 import sys
-import tempfile
+import types
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'build-doc' / 'scripts' / 'build_doc.py'
 ROOT = Path(__file__).resolve().parents[2]
+spec = importlib.util.spec_from_file_location('build_doc', SCRIPT)
+build_doc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(build_doc)
 
 
 def run(args, rc=0):
-    """Run build_doc.py with a stub sphinx-build on PATH that logs its argv and exits rc."""
-    with tempfile.TemporaryDirectory() as d:
-        stub = Path(d) / 'sphinx-build'
-        log = Path(d) / 'argv'
-        stub.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > {log}\nexit {rc}\n')
-        stub.chmod(0o755)
-        env = dict(os.environ, PATH=f'{d}:{os.environ["PATH"]}')
-        r = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env)
-        argv = log.read_text().split('\n')[:-1] if log.exists() else None
-    return r, argv
+    """build_doc.py's main() with its sphinx-build call recorded and answered with rc, in-process:
+    a stub on PATH that a host cannot execute would let the real sphinx-build run."""
+    calls = []
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.object(build_doc.subprocess, 'call', lambda cmd: calls.append(cmd) or rc), \
+            mock.patch.object(sys, 'argv', [str(SCRIPT), *args]), redirect_stdout(out), redirect_stderr(err):
+        try:
+            code = build_doc.main()
+        except SystemExit as e:
+            code = e.code
+    if calls:
+        assert calls[0][0] == 'sphinx-build', calls
+    return types.SimpleNamespace(returncode=code, stdout=out.getvalue(), stderr=err.getvalue()), \
+        calls[0][1:] if calls else None
 
 
 class BuildDocTest(unittest.TestCase):
