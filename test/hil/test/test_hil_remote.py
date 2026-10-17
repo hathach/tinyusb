@@ -116,7 +116,8 @@ class RunRecords(unittest.TestCase):
         self.assertEqual(self.wait('r6', '--timeout', '20'), (0, {'state': 'done', 'runId': 'r6', 'exit': 0, 'reports': ['hil_report.md']}))
 
     def test_a_wrapper_killed_before_its_done_record_is_dead(self):
-        self.launch('os.kill(os.getpid(), signal.SIGKILL)', 'r7').wait()
+        # Windows has no SIGKILL; its SIGTERM is TerminateProcess, as abrupt
+        self.launch('os.kill(os.getpid(), getattr(signal, "SIGKILL", signal.SIGTERM))', 'r7').wait()
         rc, status = self.wait('r7', '--timeout', '5')
         self.assertEqual((rc, status['state']), (hil_remote.DEAD, 'dead'))
         self.assertFalse(hil_remote.run_paths('r7')[1].exists())
@@ -338,8 +339,8 @@ class BuildReceipts(unittest.TestCase):
         def rsync(guard, *args, optional=False):
             if '--prune-empty-dirs' not in args:
                 return 0
-            for src in (Path(a) for a in args if not a.startswith('-') and ':' not in a):
-                sent.update({str(f.relative_to(src.parent.parent)): hil_remote.digest(f) for f in src.rglob('*')
+            for src in (Path(a) for a in args if not a.startswith('-') and ':' not in os.path.splitdrive(a)[1]):
+                sent.update({f.relative_to(src.parent.parent).as_posix(): hil_remote.digest(f) for f in src.rglob('*')
                              if f.suffix in hil_remote.STAGED_SUFFIXES or f.name in hil_remote.STAGED_NAMES})
             return 1  # stop the run once the firmware transfer is seen
         with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
@@ -363,7 +364,7 @@ class BuildReceipts(unittest.TestCase):
 
         def rsync(guard, *args, optional=False):
             if '--prune-empty-dirs' in args:
-                state['sources'] += [Path(a) for a in args if not a.startswith('-') and ':' not in a]
+                state['sources'] += [Path(a) for a in args if not a.startswith('-') and ':' not in os.path.splitdrive(a)[1]]
             return 0
 
         def run_command(*a, **k):
