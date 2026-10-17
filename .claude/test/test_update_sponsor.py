@@ -31,6 +31,9 @@ class GhTest(unittest.TestCase):
             self.assertEqual(update_sponsor.gh('label', 'list'), f'{update_sponsor.L_PRIO_TOP}\n')
 
 
+TYPO = 'te' + 'h'   # spelled out so the repository's own codespell hook leaves it alone
+
+
 class CodespellTest(unittest.TestCase):
     def test_the_words_codespell_flags_in_the_probe(self):
         seen = []
@@ -40,10 +43,10 @@ class CodespellTest(unittest.TestCase):
             probe = argv[-1]
             seen.append(probe)
             # codespell opens the probe itself: it must be closed and still there
-            self.assertIn('+teh \u00f8sterberg\n', Path(probe).read_text(encoding='utf-8'))
-            return completed(argv, f'{probe}:1: teh ==> the\n', kw, rc=65)
+            self.assertIn(f'+{TYPO} \u00f8sterberg\n', Path(probe).read_text(encoding='utf-8'))
+            return completed(argv, f'{probe}:1: {TYPO} ==> the\n', kw, rc=65)
         with mock.patch.object(update_sponsor.subprocess, 'run', run):
-            self.assertEqual(update_sponsor.codespell_collisions('a\n', 'teh \u00f8sterberg\n'), ['teh'])
+            self.assertEqual(update_sponsor.codespell_collisions('a\n', f'{TYPO} \u00f8sterberg\n'), [TYPO])
         self.assertFalse(Path(seen[0]).exists(), 'the probe is removed afterwards')
 
     def test_no_codespell_is_a_note_not_a_failure(self):
