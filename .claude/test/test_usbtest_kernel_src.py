@@ -208,13 +208,11 @@ class Cli(unittest.TestCase):
 
     @unittest.skipIf(os.name == 'nt', 'Windows prints UTF-8 whatever the console; elsewhere stdout stays as given')
     def test_posix_stdout_keeps_the_encoding_and_errors_it_was_given(self):
-        text = USBTEST_C.replace('	case 16:
-', '	case 16:	/* ✔ */
-')
+        text = USBTEST_C.replace('\tcase 16:\n', '\tcase 16:\t/* \u2714 */\n')
         (self.src / 'drivers/usb/misc/usbtest.c').write_text(text, encoding='utf-8')
         r = self.run_script('--tag', 'v6.12.107', '--case', '16', PYTHONIOENCODING='ascii:backslashreplace')
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('	case 16:	/* \u2714 */', r.stdout)
+        self.assertIn('\tcase 16:\t/* \\u2714 */', r.stdout)
 
     def test_cache_is_reused(self):
         self.assertEqual(self.run_script('--tag', 'v6.12.107').returncode, 0)
