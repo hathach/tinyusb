@@ -291,7 +291,8 @@ The caller maps each requested board onto the `hil` verdicts from the copied out
   re-admitted until it is repaired), a board not in the config, a run that never started (the
   cases Results lists); a FAIL cell whose row's output shows the flash failed before any test
   ran, and a usbtest row red only from NOTRUN or BUDGET cases, though the report folds both as
-  failures (Limits); a skipped test (`Skip (no binary)`), which does not stop its row folding as a pass.
+  failures (Limits); a skipped test (`Skip (no binary)`), which its row lists in `skipped` and folds
+  `pass: false`, while the row's other cells keep their own verdicts.
 - pass: every requested test ran and passed; a row with a skipped requested test is not a pass
   for that test, and the copied output stays as it is.
 
@@ -314,11 +315,11 @@ Report the cleanup explicitly: the board's state, plus any shield record or hold
 hardware access, as `<board>  Failed: board lock unavailable: <OS error>` with a `lock-unavailable` cell of
 `❌ board lock unavailable: <OS error>`.
 
-`hil_report.py` folds what it cannot show (hathach/tinyusb#4226): a skipped cell (`Skip (no
-binary)`) counts toward `cell(s) ok` and does not stop its row folding `pass: true`; a FAIL cell from a
-flash that failed before any test ran is folded `ran: true`; a red usbtest cell is
-`❌ passed/total` whichever cases made it red; a retry's `--accumulate` overwrites the first
-attempt's cells.
+`hil_report.py` still folds two things: a FAIL cell from a flash that failed before any test ran is folded
+`ran: true`, and a red usbtest cell is `❌ passed/total` whichever cases made it red; the `device/usbtest` failure
+line lists those cases per status (`FAIL: [...]; HUNG: [...]; NOTRUN: [...]; BUDGET: [...]`). A skipped cell
+(`Skip (no binary)`) is listed in the row's `skipped` and the row folds `pass: false`. `--accumulate` keeps each
+changed row's earlier cells in the sidecar's `history`, oldest first, which `summarize()` exposes per board.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 

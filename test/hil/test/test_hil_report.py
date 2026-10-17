@@ -380,9 +380,27 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertTrue(got[0]['pass'])
         self.assertFalse(got[1]['pass'])
 
-    def test_skipped_cells_do_not_fail_a_board(self):
-        got = self._sum(['a'], [('a', {'usbtest': 'skip', 'cdc_msc': 'pass'})])
+    def test_a_skipped_cell_is_not_an_executed_success(self):
+        """A skipped requested test never ran: the row says so in `skipped` and `detail`
+        and does not fold `pass: true`, so the caller derives not-run from it."""
+        got = self._sum(['a'], [('a', {'usbtest': 'skip', 'cdc_msc': 'pass',
+                                       'msc': f'{hil_report.REPORT_CELL["skip"]} board wedged'})])
+        self.assertTrue(got[0]['ran'])
+        self.assertFalse(got[0]['pass'])
+        self.assertEqual(got[0]['skipped'], ['a msc', 'a usbtest'])
+        self.assertEqual(got[0]['detail'], '1 variant(s), 1 cell(s) ok, 2 skipped: a msc, a usbtest')
+
+    def test_a_failure_beside_a_skip_names_both(self):
+        got = self._sum(['a'], [('a', {'usbtest': '❌ 29/30', 'cdc_msc': 'skip'})])
+        self.assertEqual(got[0]['skipped'], ['a cdc_msc'])
+        self.assertEqual(got[0]['detail'], 'a usbtest: ❌ 29/30; skipped: a cdc_msc')
+
+    def test_a_row_without_skips_reads_as_before(self):
+        got = self._sum(['a'], [('a', {'usbtest': 'pass', 'cdc_msc': 'pass'})])
         self.assertTrue(got[0]['pass'])
+        self.assertEqual(got[0]['skipped'], [])
+        self.assertNotIn('history', got[0])
+        self.assertEqual(got[0]['detail'], '1 variant(s), 2 cell(s) ok')
 
     def test_a_plain_metric_cell_is_a_pass(self):
         """Mirrors hil_test.py's own tally (cell_kind): failures are ALWAYS marked -- 'fail'
@@ -482,7 +500,12 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertIn('build refused', r['detail'])
         clean = [('b', 0, [], [('b-fs', {'usbtest': 'pass'}, '8s')], None)]
         doc = self._acc(d, clean, False)
-        self.assertEqual([(r['board'], r['cells']) for r in doc['rows']], [('b-fs', {'usbtest': 'pass'})])
+        # the emptied board-name row stays only for its history, out of the table
+        self.assertEqual([(r['board'], r['cells']) for r in doc['rows'] if r['cells']],
+                         [('b-fs', {'usbtest': 'pass'})])
+        self.assertEqual([(r['board'], r['history']) for r in doc['rows'] if not r['cells']],
+                         [('b', [{hil_report.LOCKED_CELL: 'fail'}])])
+        self.assertNotIn('| b ', (d / hil_report.REPORT_MD).read_text())
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual((r['ran'], r['pass']), (True, True))
 
@@ -579,6 +602,134 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         self.assertIn('| a | OK |', md, "an earlier attempt's real results were destroyed")
         doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
         self.assertEqual([r['board'] for r in doc['rows']], ['stuck'])
+
+
+class AccumulateKeepsEarlierAttempts(unittest.TestCase):
+    """A retry used to overwrite the first attempt's cells, so a pass after a failure read
+    exactly like a first-try pass. A row an --accumulate attempt changes keeps its earlier
+    cells in `history`, oldest first; the markdown shows the latest only."""
+
+    CFG = {'boards': [{'name': 'a'}, {'name': 'b'},
+                      {'name': 'nano', 'variant': [{'name': 'nano-fs'}, {'name': 'nano-hs'}]}]}
+
+    def setUp(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.rd = Path(td.name)
+
+    def attempt(self, rows, fresh=False):
+        hil_report.accumulate_report([(b, 0, [], [(b, cells, '1s')], None) for b, cells in rows],
+                                     self.rd, fresh, '', '')
+        return self.doc()
+
+    def doc(self):
+        return json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+
+    def results(self, doc, boards):
+        return {r['board']: r for r in hil_report.summarize(self.CFG, boards, doc)['results']}
+
+    def test_each_changed_row_keeps_its_earlier_cells(self):
+        self.attempt([('a', {'usbtest': '❌ 29/30', 'cdc': 'pass'}), ('b', {'cdc': 'pass'})], fresh=True)
+        self.attempt([('a', {'usbtest': '❌ 28/30'})])
+        doc = self.attempt([('a', {'usbtest': '✅ 30/30'}), ('b', {'cdc': 'pass'})])
+        rows = {r['board']: r for r in doc['rows']}
+        self.assertEqual(rows['a']['cells'], {'usbtest': '✅ 30/30', 'cdc': 'pass'})
+        self.assertEqual(rows['a']['history'], [{'usbtest': '❌ 29/30', 'cdc': 'pass'},
+                                                {'usbtest': '❌ 28/30', 'cdc': 'pass'}])
+        self.assertNotIn('history', rows['b'], 'a re-run that changed nothing gained a history')
+        bare = {**doc, 'rows': [{k: v for k, v in r.items() if k != 'history'} for r in doc['rows']]}
+        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(), hil_report.render_report(bare) + '\n',
+                         'the history reached the markdown')
+        res = self.results(doc, ['a', 'b'])
+        self.assertTrue(res['a']['pass'])
+        self.assertEqual(res['a']['history'], {'a': rows['a']['history']})
+        self.assertNotIn('history', res['b'])
+
+    def test_a_cleared_lock_or_restamped_timeout_is_an_earlier_attempt(self):
+        self.attempt([('a', {hil_report.LOCKED_CELL: 'fail'}), ('b', {'cdc': 'fail'})], fresh=True)
+        hil_report.write_timeout_report(self.rd, [{'name': 'b'}], CAVEAT)
+        hil_report.write_timeout_report(self.rd, [{'name': 'b'}], CAVEAT)
+        doc = self.attempt([('a', {'cdc': 'pass'}), ('b', {'cdc': 'pass'})])
+        rows = {r['board']: r for r in doc['rows']}
+        self.assertEqual(rows['a']['history'], [{hil_report.LOCKED_CELL: 'fail'}])
+        self.assertEqual(rows['b']['history'], [{'cdc': 'fail'},
+                                                {'cdc': 'fail', hil_report.POOL_TIMEOUT_CELL: 'fail'}])
+
+    def test_a_variant_boards_board_name_row_keeps_its_lock(self):
+        """Its board-name row held only `board-locked`; the retry's rows are variant-named,
+        so the emptied row stays in the sidecar for its history, out of the table."""
+        self.attempt([('nano', {hil_report.LOCKED_CELL: 'fail'})], fresh=True)
+        hil_report.accumulate_report(
+            [('nano', 0, [], [('nano-fs', {'cdc': 'pass'}, '1s'), ('nano-hs', {'cdc': 'pass'}, '1s')], None)],
+            self.rd, False, '', '')
+        doc = self.doc()
+        row = next(r for r in doc['rows'] if r['board'] == 'nano')
+        self.assertEqual((row['cells'], row['history'], row['retired']),
+                         ({}, [{hil_report.LOCKED_CELL: 'fail'}], True))
+        md = (self.rd / hil_report.REPORT_MD).read_text()
+        self.assertNotIn('| nano ', md)
+        res = self.results(doc, ['nano'])['nano']
+        self.assertTrue(res['pass'])
+        self.assertEqual(res['detail'], '2 variant(s), 2 cell(s) ok')
+        self.assertEqual(res['history'], {'nano': [{hil_report.LOCKED_CELL: 'fail'}]})
+        # and it survives a further retry
+        hil_report.accumulate_report(
+            [('nano', 0, [], [('nano-fs', {'cdc': 'pass'}, '1s')], None)], self.rd, False, '', '')
+        self.assertIn('nano', [r['board'] for r in self.doc()['rows']])
+
+    def test_an_emptied_variant_row_still_renders_and_keeps_its_history(self):
+        """Only a retired board-name row leaves the table: a variant row an accumulated run
+        emptied (its filters selected no tests, clearing a boundary failure) renders blank
+        as at HEAD, counts as a variant, and its earlier failure stays visible."""
+        boundary = hil_report.BOUNDARY_CELL
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'b-fs'}, {'name': 'b-hs'}]}]}
+        hil_report.accumulate_report(
+            [('b', 1, [], [('b-fs', {'cdc': 'pass'}, '1s'), ('b-hs', {boundary: 'fail'}, '1s')], None)],
+            self.rd, True, '', '')
+        hil_report.accumulate_report(
+            [('b', 0, [], [('b-fs', {}, None), ('b-hs', {}, None)], None)], self.rd, False, '', '')
+        doc = self.doc()
+        rows = {r['board']: r for r in doc['rows']}
+        self.assertEqual((rows['b-hs']['cells'], rows['b-hs']['history']), ({}, [{boundary: 'fail'}]))
+        self.assertNotIn('retired', rows['b-hs'])
+        self.assertIn('| b-hs ', (self.rd / hil_report.REPORT_MD).read_text())
+        res = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual(res['detail'], '2 variant(s), 1 cell(s) ok')
+        self.assertEqual(res['history'], {'b-hs': [{boundary: 'fail'}]})
+
+    def test_a_retired_row_that_gets_a_cell_again_renders(self):
+        self.attempt([('nano', {hil_report.LOCKED_CELL: 'fail'})], fresh=True)
+        hil_report.accumulate_report(
+            [('nano', 0, [], [('nano-fs', {'cdc': 'pass'}, '1s')], None)], self.rd, False, '', '')
+        hil_report.write_timeout_report(self.rd, [{'name': 'nano'}], CAVEAT)
+        row = next(r for r in self.doc()['rows'] if r['board'] == 'nano')
+        self.assertNotIn('retired', row)
+        self.assertIn('| nano ', (self.rd / hil_report.REPORT_MD).read_text())
+
+    def test_a_fresh_run_starts_without_history(self):
+        self.attempt([('a', {'cdc': 'fail'})], fresh=True)
+        self.attempt([('a', {'cdc': 'pass'})])
+        doc = self.attempt([('a', {'cdc': 'pass'})], fresh=True)
+        self.assertNotIn('history', doc['rows'][0])
+
+    def test_history_survives_the_other_writers(self):
+        self.attempt([('a', {'cdc': 'fail'})], fresh=True)
+        self.attempt([('a', {'cdc': 'pass'})])
+        hil_report.mark_report_no_boards(self.rd, 'filters emptied', fresh=False)
+        self.assertEqual(self.doc()['rows'][0]['history'], [{'cdc': 'fail'}])
+
+    def test_a_malformed_history_is_dropped_not_fatal(self):
+        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps({'rows': [
+            {'board': 'a', 'cells': {'cdc': 'pass'}, 'history': [{'cdc': 'fail', 'x': 3}, 'no', None]},
+            {'board': 'b', 'cells': {'cdc': 'pass'}, 'history': {'cdc': ['fail']}, 'retired': True},
+            {'board': 'c', 'cells': {}, 'retired': 'yes'}]}))
+        doc, _ = hil_report._load(self.rd)
+        self.assertEqual(doc['rows'][0]['history'], [{'cdc': 'fail'}])
+        self.assertNotIn('history', doc['rows'][1])
+        self.assertNotIn('retired', doc['rows'][1], 'a retired flag hid a row with cells')
+        self.assertNotIn('retired', doc['rows'][2])
+        doc = self.attempt([('a', {'cdc': 'skip'})])
+        self.assertEqual(doc['rows'][0]['history'], [{'cdc': 'fail'}, {'cdc': 'pass'}])
 
 
 class SummarizeSeesEveryRow(unittest.TestCase):

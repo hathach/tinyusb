@@ -104,10 +104,19 @@ def _load(report_dir: Path) -> tuple:
         # TypeError on an unhashable value, and cell_state does v.startswith. A non-str
         # cell is corrupt, and dropping it renders blank -- "not run" -- which is the
         # honest reading. Coercing it to str would make it classify as a PASS.
-        rows.append({'board': str(r['board']),
-                     'cells': {str(k): v for k, v in cells.items() if isinstance(v, str)}
-                              if isinstance(cells, dict) else {},
-                     'duration': dur if isinstance(dur, str) else None})
+        row = {'board': str(r['board']),
+               'cells': {str(k): v for k, v in cells.items() if isinstance(v, str)}
+                        if isinstance(cells, dict) else {},
+               'duration': dur if isinstance(dur, str) else None}
+        hist = r.get('history')
+        hist = [{str(k): v for k, v in h.items() if isinstance(v, str)}
+                for h in hist if isinstance(h, dict)] if isinstance(hist, list) else []
+        if hist:
+            row['history'] = hist
+        # only a cell-less row can be retired: the flag must never hide a result
+        if r.get('retired') is True and not row['cells']:
+            row['retired'] = True
+        rows.append(row)
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
     return {'rows': rows, 'scope': text('scope'), 'caveat': text('caveat')}, True
 
@@ -194,8 +203,10 @@ def render_report(doc: dict) -> str:
     table can never contain something the JSON does not."""
     # .get throughout, not subscripts: a report dir can hold an older version's sidecar or
     # an uploaded one. Same reason summarize() below reads cells as `r.get('cells') or {}`.
+    # a retired row (a variant board's emptied board-name row) is kept only for its history
     md = render_matrix([(r.get('board', '?'), r.get('cells') or {}, r.get('duration'))
-                        for r in doc.get('rows') or [] if isinstance(r, dict)])
+                        for r in doc.get('rows') or []
+                        if isinstance(r, dict) and not r.get('retired')])
     if doc.get('scope'):
         # a scoped run's small table is otherwise indistinguishable from a full one, and
         # it replaces the previous full table in the sticky PR comment
@@ -255,6 +266,12 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
         pass          # loud on stdout already; the exit code is what the job reads
 
 
+def _keep_earlier(history: list, before: dict, after: dict) -> None:
+    """Append a row's earlier cells to its history when this attempt changed them."""
+    if before and before != after:
+        history.append(before)
+
+
 def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = '',
                       caveat: str = '') -> str:
     """Merge this run's results into json in report_dir, then (re)write
@@ -268,7 +285,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     function knows something about its caller that the rest of the module does not. Folding
     mret into rows could live in hil_test and only the merge here, but that would rewrite
     the subtle parts -- stale board-locked clearing, BOUNDARY_CELL dropping, duration=None
-    preservation -- for a tidier seam. Data-shape coupling, not an import cycle."""
+    preservation -- for a tidier seam. Data-shape coupling, not an import cycle.
+
+    A row this attempt changes keeps its earlier cells in `history`, oldest first, so a pass
+    after a failure is not mistaken for a first-try pass; the markdown shows the latest."""
     # ONE canonical load: a sidecar reaching here may have been uploaded by hil_remote.py as
     # the merge base, so it is untrusted input. `caveat` does NOT carry forward: it records
     # how a RUN ENDED, and this attempt has not ended yet. Carrying it made a clean retry
@@ -276,7 +296,11 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     prior = {'rows': []}
     if not fresh:
         prior, _ = _load(report_dir)
-    acc = {r['board']: [dict(r['cells']), r['duration']] for r in prior['rows']}
+    # [cells, duration, history, retired]
+    acc = {r['board']: [dict(r['cells']), r['duration'], list(r.get('history', [])),
+                        r.get('retired', False)]
+           for r in prior['rows']}
+    before = {k: dict(row[0]) for k, row in acc.items()}
 
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
@@ -298,12 +322,17 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 # passed clean on the retry kept a red cell for ever.
                 stale[0].pop(POOL_TIMEOUT_CELL, None)
                 stale[0].pop(RUN_ABORTED_CELL, None)
-                if not stale[0]:
+                if not stale[0] and all(label != name for label, _, _ in rows):
                     # variant-keyed boards never repopulate the board-name row, so drop it
-                    # or it renders as a blank ghost row
-                    del acc[name]
+                    # or it renders as a blank ghost row -- unless it has earlier cells to
+                    # keep: then it stays retired, in the sidecar only
+                    if before.get(name) or stale[2]:
+                        stale[3] = True
+                    else:
+                        del acc[name]
         for row_label, cells, dur in rows:
-            row = acc.setdefault(row_label, [{}, None])
+            row = acc.setdefault(row_label, [{}, None, [], False])
+            row[3] = False
             if unbuilt:
                 row[0].update(cells)
                 continue
@@ -325,8 +354,12 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             if dur is not None:
                 row[1] = dur
 
+    for k, (c, _, h, _) in acc.items():
+        _keep_earlier(h, before.get(k), c)
     report_dir.mkdir(parents=True, exist_ok=True)
-    doc = {'rows': [{'board': k, 'cells': c, 'duration': d} for k, (c, d) in acc.items()],
+    doc = {'rows': [{'board': k, 'cells': c, 'duration': d, **({'history': h} if h else {}),
+                     **({'retired': True} if retired else {})}
+                    for k, (c, d, h, retired) in acc.items()],
            'scope': scope, 'caveat': caveat}
     # through write_report, not hand-rolled: writing the JSON and only then rendering is
     # the ordering write_report exists to forbid -- a render failure left the sidecar ahead
@@ -379,7 +412,13 @@ def write_timeout_report(report_dir: Path, boards, caveat: str,
                 # _load guarantees `cells` is a dict, so a null-cells row from an uploaded
                 # sidecar can no longer send this down the fallback and publish a board
                 # that ate the whole pool guard as a pass.
+                prior_cells = dict(row['cells'])
                 row['cells'][cell] = 'fail'
+                row.pop('retired', None)
+                hist = row.get('history', [])
+                _keep_earlier(hist, prior_cells, row['cells'])
+                if hist:
+                    row['history'] = hist
         out = {'rows': rows, 'scope': doc['scope'], 'caveat': caveat}
         if not readable and (report_dir / REPORT_MD).is_file():
             # `readable` covers ABSENT as well as torn: an absent sidecar beside an intact
@@ -439,7 +478,10 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
     # the caller then sees no entry for any board.
     rows = {r['board']: r.get('cells') or {}
             for r in (report.get('rows') or [])
-            if isinstance(r, dict) and 'board' in r}
+            if isinstance(r, dict) and 'board' in r and not r.get('retired')}
+    history = {r['board']: r['history'] for r in (report.get('rows') or [])
+               if isinstance(r, dict) and 'board' in r and isinstance(r.get('history'), list)
+               and r['history']}
     # the raw entries, not board_variants(): a malformed board must not crash the report of
     # the others, and its well-formed names still keep their rows from being stolen
     owner = {v['name']: b['name'] for b in cfg.get('boards', [])
@@ -505,25 +547,37 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
             continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
+        skipped = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
                 if test in (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL):
                     continue
-                if cell_state(val) == 'fail':
+                state = cell_state(val)
+                if state == 'fail':
                     bad.append(f'{vname} {test}: {val}')
-        ok = not bad and not locked and not board_wedged
+                elif state == 'skip':
+                    skipped.append(f'{vname} {test}')
+        # a skipped test never ran: the caller reads the row as not-run, never as a pass
+        ok = not bad and not skipped and not locked and not board_wedged
         if locked:
             detail = 'held by another holder; not flashed'
         elif board_wedged:
             detail = 'wedged (usbtest reported the device wedged); ' + '; '.join(bad)
         elif bad:
-            detail = '; '.join(bad)
+            detail = '; '.join(bad) + (f'; skipped: {", ".join(skipped)}' if skipped else '')
         else:
-            detail = f'{len(mine)} variant(s), {sum(len(c) for c in mine.values())} cell(s) ok'
+            cells_ok = sum(len(c) for c in mine.values()) - len(skipped)
+            detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
+            if skipped:
+                detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
+        # earlier attempts' cells, per row: a red one before a green row is a pass after a
+        # failure, not a first-try pass
+        earlier = {n: history[n] for n in sorted(set(mine) | {board}) if n in history}
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
         results.append({'board': board, 'ran': not unbuilt, 'pass': ok,
-                        'locked': locked, 'wedged': board_wedged, 'detail': detail})
+                        'locked': locked, 'wedged': board_wedged, 'skipped': skipped,
+                        **({'history': earlier} if earlier else {}), 'detail': detail})
     # `caveat` too: an aborted or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')

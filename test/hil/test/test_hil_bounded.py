@@ -1407,6 +1407,31 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.assertIn('30/30', cell)
 
 
+class UsbtestFailureLine(unittest.TestCase):
+    """The failure line lists case numbers per status, so a gated-off NOTRUN (a wrong binding
+    profile) reads differently from a FAIL (#4226)."""
+
+    def setUp(self):
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+
+    def line(self, statuses):
+        bad = sum(st not in ('PASS', 'BUDGET') for st in statuses)
+        notrun = statuses.count('BUDGET')
+        data = {'passed': len(statuses) - bad - notrun, 'failed': bad, 'notrun': notrun, 'wedged': False,
+                'cases': [{'num': n, 'status': st} for n, st in enumerate(statuses)]}
+        with self.assertRaises(hil_test.TestFail) as e:
+            hil_test._usbtest_verdict({'name': 'b'}, data, '', data['passed'], bad, True, {'name': 'openocd'})
+        return str(e.exception)
+
+    def test_each_status_names_its_own_cases(self):
+        self.assertIn('(FAIL: [2, 4]; HUNG: [3]; NOTRUN: [1]; BUDGET: [5, 6])',
+                      self.line(['PASS', 'NOTRUN', 'FAIL', 'HUNG', 'FAIL', 'BUDGET', 'BUDGET']))
+
+    def test_empty_groups_are_omitted(self):
+        self.assertIn(' (NOTRUN: [1, 2])', self.line(['PASS', 'NOTRUN', 'NOTRUN']))
+
+
 class WedgeMessageNamesTheCause(unittest.TestCase):
     """The latch text sends the operator to a probe or a setting, so it must name what
     happened: the ambiguous and unreadable-serial aborts run no recovery, and --skip-flash

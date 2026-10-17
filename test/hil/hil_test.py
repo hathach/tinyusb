@@ -1673,11 +1673,12 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
                        metric=f'{hil_report.REPORT_CELL["fail"]} {passed}/{total}', parsed=True)
     if failed == 0 and notrun == 0 and total > 0:
         return f'{hil_report.REPORT_CELL["pass"]} {passed}/{total}'
-    bad = [c.get('num') for c in data.get('cases', [])
-           if c.get('status') not in ('PASS', 'BUDGET')]
+    # per status, so a gated-off NOTRUN (a wrong binding profile) is not read as a FAIL
+    groups = [(st, [c.get('num') for c in data.get('cases', []) if c.get('status') == st])
+              for st in ('FAIL', 'HUNG', 'NOTRUN', 'BUDGET')]
     why = f'usbtest {passed}/{total}'
-    if bad:
-        why += f' (cases failed: {bad})'
+    if any(nums for _, nums in groups):
+        why += ' (' + '; '.join(f'{st}: {nums}' for st, nums in groups if nums) + ')'
     if notrun:
         # the reason is per BUDGET entry: a hang or a device drop also aborts the battery,
         # and blaming the budget points the maintainer at the wrong thing
