@@ -120,21 +120,12 @@ def lock_board(name: str):
     """Nonblocking flock per hil_lock.py protocol. Returns the handle, or a str with the
     holder's info when the board is locked elsewhere. Board locks are ALWAYS respected: a
     held board is reported and skipped, never waited on, and there is no bypass here."""
-    os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
     try:
-        fh = hil_lock.flock_nb(name)
-    except BlockingIOError:  # EWOULDBLOCK: the flock is held
-        info = hil_lock.read_record(name)
-        return json.dumps(info) if info else 'unknown holder'
-    except OSError as e:  # the lock file itself (EACCES/EROFS/ENOSPC), not a holder
-        return f'ERROR: lock file: {e.strerror}'
-    if not hil_lock.write_record(fh, 'pool_check'):
-        # an invisible lock (flock held, no record) is worse than no lock: status cannot
-        # show us and release cannot recognize the protected holder
-        hil_lock.clear_record(fh)
-        fh.close()
-        return 'ERROR: holder record write failed (lock dir unwritable?)'
-    return fh
+        return hil_lock.take_board_lock(name, 'pool_check')
+    except hil_lock.LockUnavailable as e:  # the lock dir, file or record, not a holder
+        return f'ERROR: {e}'
+    except RuntimeError as e:
+        return str(e)
 
 
 def unlock_board(fh) -> None:

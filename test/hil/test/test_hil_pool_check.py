@@ -51,6 +51,13 @@ class Lock(unittest.TestCase):
         got = hil_pool_check.lock_board('b')
         self.assertTrue(got.startswith('ERROR:'), got)
 
+    def test_a_lock_dir_that_is_a_file_is_an_error_not_a_traceback(self):
+        path = os.path.join(self.dir, 'not-a-dir')
+        open(path, 'w').close()
+        patch(self, hil_lock, 'BOARD_LOCK_DIR', path)
+        got = hil_pool_check.lock_board('b')
+        self.assertTrue(got.startswith('ERROR:'), got)
+
     def test_a_free_board_is_taken_under_the_protected_reason(self):
         fh = hil_pool_check.lock_board('b')
         self.addCleanup(hil_pool_check.unlock_board, fh)

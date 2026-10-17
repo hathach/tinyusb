@@ -19,6 +19,14 @@ import time
 BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'
 CI_REASON = 'hil_test.py'   # release-protected holder tag (release refuses to kill it)
 PROTECTED_REASONS = {CI_REASON, 'pool_check'}  # cmd_release refuses to SIGTERM these holders
+# a holder record role that never frees on its own: a recovery blocker (`hil` Board locks)
+CLEANUP_ROLE = 'cleanup-holder'
+RECOVERY_BLOCKER = "recovery blocker: release it only through the project's recovery procedure"
+
+
+class LockUnavailable(RuntimeError):
+    """The lock dir, lock file or holder record cannot be used: the board is refused, never
+    run unlocked. The OSError is the __cause__."""
 
 
 def lock_path(board: str) -> str:
@@ -39,19 +47,14 @@ def flock_nb(board: str):
     return fh
 
 
-def write_record(fh, reason: str) -> bool:
-    """Holder record; the flock itself is already held. Returns False on a write failure:
-    acquire_board_lock stays best-effort (the flock is the authority), but cmd_hold aborts
-    -- a hold whose record is missing is invisible to status/release."""
-    try:
-        fh.truncate(0)
-        fh.seek(0)
-        json.dump({'pid': os.getpid(), 'reason': reason,
-                   'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
-        fh.flush()
-        return True
-    except OSError:
-        return False
+def write_record(fh, reason: str) -> None:
+    """Holder record; the flock itself is already held. Raises OSError on a write failure: a
+    hold whose record is missing is invisible to status/release, so every caller refuses it."""
+    fh.truncate(0)
+    fh.seek(0)
+    json.dump({'pid': os.getpid(), 'reason': reason,
+               'since': time.strftime('%Y-%m-%dT%H:%M:%S%z')}, fh)
+    fh.flush()
 
 
 def clear_record(fh) -> None:
@@ -70,38 +73,48 @@ def read_record(board: str):
         return None
 
 
-def acquire_board_lock(board_name, reason=CI_REASON):
-    """Take this board's flock for the duration of its flash+test.
-    Returns an open file handle (keep it referenced; closing releases it),
-    or None when HIL_NO_BOARD_LOCK=1 or the lock dir is unusable (fail-open:
-    locking must never break a test run by itself).
-    Raises RuntimeError only when another session holds the board."""
-    import fcntl
-    if os.environ.get('HIL_NO_BOARD_LOCK') == '1':
-        return None  # user-authorized bypass — see the HIL contract
+def is_cleanup_holder(info) -> bool:
+    return isinstance(info, dict) and info.get('role') == CLEANUP_ROLE
+
+
+def holder_text(info) -> str:
+    """A holder record for a message; a cleanup holder is named a recovery blocker."""
+    if not isinstance(info, dict):
+        return 'unknown holder'
+    text = json.dumps(info)
+    return f'{text} ({RECOVERY_BLOCKER})' if info.get('role') == CLEANUP_ROLE else text
+
+
+def take_board_lock(board: str, reason: str):
+    """Take the board's flock and record ourselves as its holder; returns the open handle
+    (keep it referenced; closing releases it). Raises RuntimeError('board locked: ...') when
+    another session holds the board, and LockUnavailable when the lock cannot be taken or
+    recorded (fail-closed)."""
     try:
         os.makedirs(BOARD_LOCK_DIR, exist_ok=True)
-        fd = os.open(os.path.join(BOARD_LOCK_DIR, f'{board_name}.lock'),
-                     os.O_RDWR | os.O_CREAT, 0o666)
-        fh = os.fdopen(fd, 'r+')
+        fh = flock_nb(board)
+    except BlockingIOError:
+        raise RuntimeError(f'board locked: {holder_text(read_record(board))}') from None
     except OSError as e:
-        # odd lock dir (perms, path collision): proceed unlocked, but say so —
-        # a silent fail-open is indistinguishable from the intentional bypass
-        print(f'warning: board lock unavailable for {board_name} ({e}); proceeding unlocked',
-              flush=True)
-        return None
-    try:
-        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        try:
-            info = fh.read(500).strip()
-        except (OSError, UnicodeDecodeError):
-            info = ''
-        fh.close()
-        raise RuntimeError(f'board locked: {info or "unknown holder"}')
+        raise LockUnavailable(f'board lock unavailable: {e}') from e
     # announce ourselves so the other side's conflict message is truthful
-    write_record(fh, reason)
+    try:
+        write_record(fh, reason)
+    except OSError as e:
+        clear_record(fh)
+        try:
+            fh.close()   # re-raises the failed buffered write, but the fd (and flock) still go
+        except OSError:
+            pass
+        raise LockUnavailable(f'board lock unavailable: holder record: {e}') from e
     return fh
+
+
+def acquire_board_lock(board_name, reason=CI_REASON):
+    """take_board_lock for the duration of a flash+test, or None when HIL_NO_BOARD_LOCK=1."""
+    if os.environ.get('HIL_NO_BOARD_LOCK') == '1':
+        return None  # user-authorized bypass — see the HIL contract
+    return take_board_lock(board_name, reason)
 
 
 # --- operator CLI (hold/release/status) ------------------------------------
@@ -157,7 +170,7 @@ def cmd_hold(boards, reason):
         for b in boards:
             info = read_record(b)
             if info:
-                print(f'ERROR: {b} locked: {info}', file=sys.stderr)
+                print(f'ERROR: {b} locked: {holder_text(info)}', file=sys.stderr)
         print('ERROR: holder failed to acquire locks', file=sys.stderr)
         return 1
     # intermediate child: detach, then spawn the actual holder
@@ -181,8 +194,7 @@ def cmd_hold(boards, reason):
         handles = []
         for b in boards:
             fh = flock_nb(b)
-            if not write_record(fh, reason):
-                raise OSError(f'cannot write holder record for {b}')
+            write_record(fh, reason)
             handles.append(fh)
     except OSError:
         try:
@@ -223,9 +235,11 @@ def cmd_release(boards):
             info = read_record(b) or {}
             pid = info.get('pid')
             reason = info.get('reason')
-            if reason in PROTECTED_REASONS:
-                print(f'ERROR: {b} is mid-test by {reason} (pid {pid}) — not killing it; '
-                      'wait for it to finish', file=sys.stderr)
+            why = (RECOVERY_BLOCKER if is_cleanup_holder(info) else
+                   'wait for it to finish' if reason in PROTECTED_REASONS else None)
+            if why:
+                print(f'ERROR: {b} is held by {reason} (pid {pid}) — not killing it; {why}',
+                      file=sys.stderr)
                 rc = 1
             elif isinstance(pid, int) and pid > 0:
                 victims.add(pid)
@@ -265,7 +279,7 @@ def cmd_status():
         b = fn[:-5]
         if is_locked(b):
             any_locked = True
-            print(f'{b}: {read_record(b)}')
+            print(f'{b}: {holder_text(read_record(b))}')
     if not any_locked:
         print('no locks')
     return 0

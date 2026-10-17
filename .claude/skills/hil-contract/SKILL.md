@@ -186,7 +186,7 @@ python3 test/hil/helper/hil_lock.py hold BOARD [BOARD...] --reason "why"
 python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 ```
 
-- A hold refused by another holder: `hil_lock.py status` gives the holder and reason to report. A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test; waiting, the budget and a `role: cleanup-holder` holder follow `hil` Board locks.
+- A hold refused by another holder: `hil_lock.py status` gives the holder and reason to report. A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test; waiting and the budget follow `hil` Board locks; a `role: cleanup-holder` holder is reported as a recovery blocker, released only through the owning project's recovery procedure, and `hil_lock.py release` refuses to kill it.
 
 - A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
 - Rig-wide operations (uhubctl power cycling, `usb_recover.sh root-cycle`, pci-rebind, controller resets — bus renumbering) affect every board: `hil_lock.py hold --all --config <this host's config> --reason "..."` first — `--all` defaults to `tinyusb.json`, so on `tusb` it would reserve `tinyusb.json`'s boards, which are not there, instead of the three that are. Even a single root-port bounce needs `--all`: nothing maps a sysfs busport to a board name, and `hil_lock.py hold` accepts any string, so a "just the siblings" hold reserves nothing while reporting success. `--all` covers this config's names only and ignores board names given beside it: on a host another project's rig also uses (Hosts/rosters), also take a separate `hil_lock.py hold <names> --reason "..."` for that project's lock names (its contract's Reservation names them) not already in this config. Proceed only when every hold succeeded; on a refusal, `hil_lock.py release` a name of each hold you took, never `release --all`, then wait within the budget or return the holder (`hil` Board locks).
@@ -287,7 +287,8 @@ The caller maps each requested board onto the `hil` verdicts from the copied out
   that left no report.
 - fail: a FAIL cell, or a usbtest FAIL case. A HUNG case the in-run recovery cleared is not a
   blocker by itself; the row's `wedged` decides.
-- not-run: `locked`, `build refused`, a board not in the config, a run that never started (the
+- not-run: `locked`, `build refused`, a `lock-unavailable` cell (the host's lock dir is unusable: rig-side, not
+  re-admitted until it is repaired), a board not in the config, a run that never started (the
   cases Results lists); a FAIL cell whose row's output shows the flash failed before any test
   ran, and a usbtest row red only from NOTRUN or BUDGET cases, though the report folds both as
   failures (Limits); a skipped test (`Skip (no binary)`), which does not stop its row folding as a pass.
@@ -309,10 +310,9 @@ Report the cleanup explicitly: the board's state, plus any shield record or hold
 
 ## Limits
 
-`hil_lock.py` fails open: when the lock dir cannot be used it prints `warning: board lock
-unavailable ... proceeding unlocked` and the run goes on without a lock, so the cross-project
-exclusion `hil` promises holds only while `/tmp/tinyusb-hil-locks` is usable (TinyUF2's runner
-refuses instead). A hold or run that printed that warning is unprotected: report it.
+`hil_lock.py` fails closed: a lock dir, lock file or holder record it cannot use refuses the board before any
+hardware access, as `<board>  Failed: board lock unavailable: <OS error>` with a `lock-unavailable` cell of
+`❌ board lock unavailable: <OS error>`.
 
 `hil_report.py` folds what it cannot show (hathach/tinyusb#4226): a skipped cell (`Skip (no
 binary)`) counts toward `cell(s) ok` and does not stop its row folding `pass: true`; a FAIL cell from a

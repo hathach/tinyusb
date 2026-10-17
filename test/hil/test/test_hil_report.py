@@ -362,6 +362,12 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertTrue(got[0]['locked'])
         self.assertFalse(got[0]['pass'])
 
+    def test_an_unusable_lock_dir_is_not_contention(self):
+        cell = "❌ board lock unavailable: [Errno 17] File exists: '/tmp/tinyusb-hil-locks'"
+        got = self._sum(['alpha'], [('alpha', {hil_report.LOCK_UNAVAILABLE_CELL: cell})])
+        self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
+                                  'wedged': False, 'detail': cell})
+
     def test_a_board_with_no_row_is_marked_not_run(self):
         got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
         self.assertTrue(got[0]['ran'])
@@ -692,16 +698,35 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         self.assertNotIn(hil_report.BOUNDARY_CELL, cells)
 
     def test_a_board_that_really_ran_drops_its_stale_lock_cell(self):
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        rd = Path(td.name)
-        hil_report.accumulate_report(
-            [('b', 0, 0, [('b', {hil_report.LOCKED_CELL: 'fail'}, None)], 0)], rd, True, '', '')
-        hil_report.accumulate_report(
-            [('b', 0, 0, [('b', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
-        rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
-        self.assertEqual([r['board'] for r in rows], ['b'])
-        self.assertNotIn(hil_report.LOCKED_CELL, rows[0]['cells'])
+        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL):
+            with self.subTest(key=key):
+                td = TemporaryDirectory()
+                self.addCleanup(td.cleanup)
+                rd = Path(td.name)
+                hil_report.accumulate_report(
+                    [('b', 0, 0, [('b', {key: 'fail'}, None)], 0)], rd, True, '', '')
+                hil_report.accumulate_report(
+                    [('b', 0, 0, [('b', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
+                rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
+                self.assertEqual([r['board'] for r in rows], ['b'])
+                self.assertNotIn(key, rows[0]['cells'])
+
+    def test_a_lock_refusal_replaces_the_other_kind(self):
+        unusable = (hil_report.LOCK_UNAVAILABLE_CELL, '❌ board lock unavailable: [Errno 13] x')
+        held = (hil_report.LOCKED_CELL, 'fail')
+        for first, second, locked in ((unusable, held, True), (held, unusable, False)):
+            with self.subTest(first=first[0], then=second[0]):
+                td = TemporaryDirectory()
+                self.addCleanup(td.cleanup)
+                rd = Path(td.name)
+                for fresh, (key, val) in ((True, first), (False, second)):
+                    md = hil_report.accumulate_report(
+                        [('b', 1, [], [('b', {key: val}, None)], None)], rd, fresh, '', '')
+                doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['rows'][0]['cells'], {second[0]: second[1]})
+                self.assertIn('❌ 1 failed', md)
+                got = hil_report.summarize({'boards': [{'name': 'b'}]}, ['b'], doc)['results'][0]
+                self.assertEqual((got['locked'], got['ran']), (locked, locked))
 
     def test_a_filtered_rerun_keeps_the_previous_duration(self):
         """A -t-filtered re-run reports duration None; blanking the column loses the only

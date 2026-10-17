@@ -50,6 +50,10 @@ REPORT_JSON = 'hil_report.json'
 REPORT_CELL = {'pass': '✅', 'fail': '❌', 'skip': '⚪'}
 BOUNDARY_CELL = 'same-PID boundary'
 LOCKED_CELL = 'board-locked'
+# the host's lock dir, file or record is unusable (hil_lock.LockUnavailable): refused before any
+# flash like LOCKED_CELL, but rig-side, not contention a re-admission waits out. Its value is
+# '❌ <the error>'.
+LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
 # 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
 # recovery could not clear, or a device it could no longer identify), so the rest of the
 # board was skipped
@@ -278,7 +282,8 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
-        if rows and not unbuilt and not any(LOCKED_CELL in cells for _, cells, _ in rows):
+        if rows and not unbuilt and not any(LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells
+                                            for _, cells, _ in rows):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
             # row of the board -- a green re-run must not stay red for ever under last
@@ -286,6 +291,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             stale = acc.get(name)
             if stale is not None:
                 stale[0].pop(LOCKED_CELL, None)
+                stale[0].pop(LOCK_UNAVAILABLE_CELL, None)
                 stale[0].pop(WEDGED_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
@@ -311,6 +317,10 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             # variant that cleared the boundary must drop the previous attempt's ❌
             if BOUNDARY_CELL not in cells:
                 row[0].pop(BOUNDARY_CELL, None)
+            # one lock refusal per row: this attempt's replaces an earlier one of the other kind
+            if LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells:
+                row[0].pop(LOCKED_CELL, None)
+                row[0].pop(LOCK_UNAVAILABLE_CELL, None)
             row[0].update(cells)
             if dur is not None:
                 row[1] = dur
@@ -487,11 +497,17 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         board_wedged = any(cell_state(cells[WEDGED_CELL]) == 'fail'
                            for cells in mine.values() if WEDGED_CELL in cells)
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for cells in mine.values())
+        unusable = next((cells[LOCK_UNAVAILABLE_CELL] for cells in mine.values()
+                         if LOCK_UNAVAILABLE_CELL in cells), None)
+        if unusable is not None and not aborted and not board_wedged:
+            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                            'wedged': False, 'detail': unusable})
+            continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
-                if test in (LOCKED_CELL, WEDGED_CELL):
+                if test in (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL):
                     continue
                 if cell_state(val) == 'fail':
                     bad.append(f'{vname} {test}: {val}')

@@ -1980,6 +1980,11 @@ def test_board(board: Board) -> tuple:
     board_pci = None
     try:
         _lock_fh = hil_lock.acquire_board_lock(name)
+    except hil_lock.LockUnavailable as e:
+        log_line(f'{name:25} {STATUS_FAILED}: {e}')
+        # icon-prefixed like every failing metric cell, so the table tallies it as a failure
+        cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
+        return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
