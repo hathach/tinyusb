@@ -17,6 +17,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -407,8 +408,9 @@ def main():
   only.add_argument("--readme-only", action="store_true", help="skip the label pass")
   only.add_argument("--labels-only", action="store_true", help="skip the README pass")
   args = p.parse_args()
-  for stream in (sys.stdout, sys.stderr):  # labels carry emoji, names and titles any script
-    stream.reconfigure(encoding="utf-8")
+  if os.name == "nt":  # labels carry emoji, names and titles any script, whatever the console's code page
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 
   if args.rules:
     return print_rules()
