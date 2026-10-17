@@ -294,7 +294,7 @@ From a development PC, the same run can be driven remotely. `REMOTE` and `CONFIG
 default to `ci`, so point them at your own:
 
 ```bash
-REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil/scripts/hil_remote.py -b <board>
+REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil-contract/scripts/hil_remote.py -b <board>
 ```
 
 ## Gotchas

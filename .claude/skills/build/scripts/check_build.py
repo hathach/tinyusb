@@ -785,7 +785,7 @@ def git_head():
 def write_receipt(out, head, boards, config):
     """hil_remote.py's receipt of what this build of head left for a HIL run: its JSON line, or {"error"}
     (a build that rewrote a tracked file, hw/bsp/family.json included, leaves the tree unclean)."""
-    run = subprocess.run([sys.executable, str(ROOT / '.claude/skills/hil/scripts/hil_remote.py'), 'receipt', '--out', out,
+    run = subprocess.run([sys.executable, str(ROOT / '.claude/skills/hil-contract/scripts/hil_remote.py'), 'receipt', '--out', out,
                           '--head', head,
                           *(x for b in boards for x in ('-b', b))],
                          cwd=ROOT, env={**os.environ, 'CONFIG': str(Path(config).resolve())}, capture_output=True, text=True)

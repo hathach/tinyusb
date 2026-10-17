@@ -269,7 +269,7 @@ def battery(board, fw, tests, timeout):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (hil skill)")
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
     p.add_argument('--board', required=True)
     p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
     p.add_argument('--after', required=True, choices=('park', 'leave'),

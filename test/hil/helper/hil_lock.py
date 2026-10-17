@@ -78,7 +78,7 @@ def acquire_board_lock(board_name, reason=CI_REASON):
     Raises RuntimeError only when another session holds the board."""
     import fcntl
     if os.environ.get('HIL_NO_BOARD_LOCK') == '1':
-        return None  # user-authorized bypass — see hil skill
+        return None  # user-authorized bypass — see the HIL contract
     try:
         os.makedirs(BOARD_LOCK_DIR, exist_ok=True)
         fd = os.open(os.path.join(BOARD_LOCK_DIR, f'{board_name}.lock'),

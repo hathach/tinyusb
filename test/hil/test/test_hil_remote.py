@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 TEST_DIR = Path(__file__).resolve().parent
-SCRIPT = TEST_DIR.parents[2] / '.claude/skills/hil/scripts/hil_remote.py'
+SCRIPT = TEST_DIR.parents[2] / '.claude/skills/hil-contract/scripts/hil_remote.py'
 spec = importlib.util.spec_from_file_location('hil_remote', SCRIPT)
 hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)

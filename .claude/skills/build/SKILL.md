@@ -17,7 +17,7 @@ python3 $B --board stm32f407disco [-e device/cdc_msc] [-T target]
 python3 $B --board stm32f407disco -e host/cdc_msc_hid --cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16
 python3 $B ... --shared                       # canonical cmake-build-<board>, the dir HIL flashes from
 python3 $B --board <b> --shared --variants <hil config>   # one cmake-build-<variant> per roster variant
-python3 $B --board <b> --shared --variants <hil config> --receipt .hil-remote/<name>.json   # plus the build receipt a delegated HIL run checks (hil skill)
+python3 $B --board <b> --shared --variants <hil config> --receipt .hil-remote/<name>.json   # plus the build receipt a delegated HIL run checks (HIL contract)
 python3 $B ... --fetch-deps                   # fetch a family's missing deps instead of failing
 ```
 

@@ -204,7 +204,7 @@ def resolve_firmware(config, config_path, args):
         for i, d in enumerate(found):
             if d not in present and boards:
                 # hil_test.py logs `Skip (no binary)` and exits 0 for these cells, except that a
-                # one-test run that flashes fails a later variant's same-PID boundary (SKILL.md Prerequisites)
+                # one-test run that flashes fails a later variant's same-PID boundary (HIL contract, Build)
                 boundary = '' if args.skip_flash or i == 0 else ' or fail the same-PID boundary on a one-test run'
                 print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped{boundary}',
                       file=sys.stderr)

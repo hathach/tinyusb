@@ -8,7 +8,7 @@ that document: the cell vocabulary, the one classifier both artifacts share, ren
 writers, and the fold to one machine-readable verdict per board.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
-the operator (the HIL contract's Reporting section, .claude/skills/hil/SKILL.md). A script run puts test/hil/helper on
+the operator (the HIL contract's Results section, .claude/skills/hil-contract/SKILL.md). A script run puts test/hil/helper on
 sys.path rather than test/hil, so this module imports no sibling helper at all --
 the width helpers below are defined locally for that reason. The same property makes it
 the home of board_variants(), the roster reading the builders (check_build.py, the CI matrix)
@@ -196,7 +196,7 @@ def render_report(doc: dict) -> str:
         # a scoped run's small table is otherwise indistinguishable from a full one, and
         # it replaces the previous full table in the sticky PR comment
         md = f'_Scoped run: {doc["scope"]}. Boards/tests not listed were not run._\n\n' + md
-    # the top of the report is where hil/SKILL.md tells the agent to look
+    # the top of the report is where the HIL contract tells the agent to look
     if doc.get('caveat'):
         md = doc['caveat'] + '\n' + md
     return md
