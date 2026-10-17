@@ -70,6 +70,22 @@ class MetadataTest(unittest.TestCase):
             self.assertEqual(gen_doc.metadata(Path(d) / 'absent.h'), {})
 
 
+class BoardsTest(unittest.TestCase):
+    def test_families_and_boards_sort_by_name_case_sensitively_on_every_host(self):
+        # Windows paths compare case-insensitively; the committed boards.rst is Linux's order
+        with tempfile.TemporaryDirectory() as d:
+            bsp = Path(d)
+            for family in ('acme', 'Zeta'):
+                (bsp / family / 'family.c').parent.mkdir()
+                (bsp / family / 'family.c').write_text(METADATA_FAMILY)
+                for board in ('board_x', 'Board_Y'):
+                    (bsp / family / 'boards' / f'{family}_{board}').mkdir(parents=True)
+            vendors, skipped = gen_doc.boards(bsp)
+        self.assertEqual([p.name for p in skipped],
+                         ['Zeta_Board_Y', 'Zeta_board_x', 'acme_Board_Y', 'acme_board_x'])
+        self.assertEqual(vendors, {})
+
+
 class MdTableTest(unittest.TestCase):
     def test_github_table_pads_headers_by_two_and_strips_cells(self):
         self.assertEqual(gen_doc.md_table(['H', 'Name'], [['a ', 'long value'], ['bb', '']]).split('\n'), [

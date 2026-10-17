@@ -30,7 +30,8 @@ def metadata(path):
 def boards(bsp):
     """{manufacturer: {board: [name, family, url, note]}} plus the paths skipped for lack of metadata."""
     vendors, skipped = {}, []
-    for family_dir in sorted(p for p in bsp.iterdir() if p.is_dir()):
+    # by name: Windows paths compare case-insensitively, which would reorder boards.rst
+    for family_dir in sorted((p for p in bsp.iterdir() if p.is_dir()), key=lambda p: p.name):
         family_c = family_dir / 'family.c'
         if not family_c.exists():
             family_c = family_dir / 'boards' / 'family.c'
@@ -39,7 +40,7 @@ def boards(bsp):
             skipped.append(family_dir)
             continue
         manufacturer = f_meta.get('manufacturer', '')
-        for board_dir in sorted(p for p in (family_dir / 'boards').iterdir() if p.is_dir()):
+        for board_dir in sorted((p for p in (family_dir / 'boards').iterdir() if p.is_dir()), key=lambda p: p.name):
             b_meta = metadata(board_dir / 'board.h')
             if not b_meta:
                 skipped.append(board_dir)
