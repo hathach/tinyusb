@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -538,20 +539,71 @@ class Units(unittest.TestCase):
     def test_no_rsync_is_refused_before_the_lease(self):
         def popen(*a, **k):
             raise AssertionError('ssh started')
-        with mock.patch.object(hil_remote.shutil, 'which', return_value=None), \
-                mock.patch.object(hil_remote.subprocess, 'Popen', popen), \
-                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
-            with hil_remote.remote_lease('rig', '/tmp/x', 'cmake-build'):
-                pass
-        self.assertIn('rsync is not on PATH', str(e.exception.code))
+        cases = [('none', None, None)]
+        if os.name == 'nt':   # subprocess cannot start a .cmd by bare name, and the cwd is not PATH
+            cases += [('a .cmd on PATH', 'path', 'rsync.cmd'), ('an .exe in the cwd', 'cwd', 'rsync.exe')]
+        for case, where, name in cases:
+            with self.subTest(case), tempfile.TemporaryDirectory() as path, tempfile.TemporaryDirectory() as cwd:
+                if name:
+                    (Path(path if where == 'path' else cwd) / name).write_bytes(b'')
+                old = os.getcwd()
+                os.chdir(cwd)
+                try:
+                    with mock.patch.dict(os.environ, {'PATH': os.pathsep.join(['', path])}), \
+                            mock.patch.object(hil_remote.subprocess, 'Popen', popen), \
+                            contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
+                        with hil_remote.remote_lease('rig', '/tmp/x', 'cmake-build'):
+                            pass
+                finally:
+                    os.chdir(old)
+                self.assertIn('rsync is not on PATH', str(e.exception.code))
+
+    @unittest.skipUnless(os.name == 'nt', 'rsync.exe is the Windows name')
+    def test_windows_runs_the_rsync_exe_found_on_path(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as path:
+            (Path(path) / 'rsync.exe').write_bytes(b'')
+            with mock.patch.dict(os.environ, {'PATH': path}), \
+                    mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append(argv) or mock.Mock(returncode=0)):
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', 'rig:/tmp/t/x', hil_remote.ROOT / 'x')
+        self.assertEqual(calls[0][0], os.path.join(path, 'rsync.exe'))
+
+    def test_rsync_names_local_files_from_the_checkout_and_passes_remote_specs_as_they_are(self):
+        # a one-letter ssh host must not be read as a drive letter, the checkout's own or another
+        calls = []
+        local = hil_remote.ROOT / 'hil_report.json'
+        with mock.patch.object(hil_remote, 'rsync_program', return_value='rsync'), \
+                mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append((argv, kw)) or mock.Mock(returncode=0)):
+            for host in ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r'):
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', local, f'{host}:/tmp/t/')
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', f'{host}:/tmp/t/hil_report.json', local)
+        name = 'hil_report.json' if os.name == 'nt' else str(local)   # Windows rsync reads C: as a host
+        hosts = ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r')
+        self.assertEqual([argv[-2:] for argv, _ in calls],
+                         [x for h in hosts for x in ([name, f'{h}:/tmp/t/'], [f'{h}:/tmp/t/hil_report.json', name])])
+        self.assertEqual({kw['cwd'] for _, kw in calls}, {hil_remote.ROOT})
 
     @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
-    def test_windows_rsync_names_local_paths_relative_to_the_checkout(self):
-        calls = []
-        with mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append((argv, kw)) or mock.Mock(returncode=0)):
-            hil_remote.rsync(('/tmp/t', 'tok'), '-q', str(hil_remote.ROOT / 'hil_report.json'), 'rig:/tmp/t/')
-        argv, kw = calls[0]
-        self.assertEqual((argv[-2:], kw['cwd']), (['hil_report.json', 'rig:/tmp/t/'], hil_remote.ROOT))
+    def test_a_config_rsync_cannot_name_is_refused_before_the_lease(self):
+        leased = []
+
+        @contextlib.contextmanager
+        def lease(*a):
+            leased.append(a)
+            yield '/tmp/t', 'tok'
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            other = 'Q:' if root.drive.upper() != 'Q:' else 'R:'
+            args = types.SimpleNamespace(build=False, build_dir='cmake-build', accumulate=False)
+            with mock.patch.object(hil_remote, 'ROOT', root), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, Path(f'{other}/rig/tinyusb.json'))), \
+                    mock.patch.object(hil_remote, 'resolve_firmware', return_value=[root / 'cmake-build' / 'cmake-build-alpha']), \
+                    mock.patch.object(hil_remote, 'remote_lease', lease), \
+                    mock.patch.object(hil_remote.subprocess, 'run', side_effect=AssertionError('rsync or ssh ran')), \
+                    contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+        self.assertIn('is not on the drive of the checkout', str(e.exception.code))
+        self.assertEqual(leased, [], 'refused after the lease wiped the rig tree')
 
 
 if __name__ == '__main__':

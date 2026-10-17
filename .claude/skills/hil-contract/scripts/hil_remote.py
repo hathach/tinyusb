@@ -27,6 +27,7 @@ on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config j
 """
 import argparse
 import contextlib
+import errno
 import hashlib
 import importlib
 import json
@@ -267,27 +268,43 @@ def run_command(remote_dir, argv, config_name, token=''):
             f'exec env {shlex.join([*forwarded_env(), *run])}')
 
 
-def checkout_relative(path):
-    """A local path as Windows rsync can take it: it reads a drive letter as a remote host, and runs
-    in the checkout."""
+def local_operand(path):
+    """A local file as rsync takes it. Windows rsync reads a drive letter as a remote host, so
+    there the file is named relative to the checkout, where rsync runs."""
+    if os.name != 'nt':
+        return str(path)
     try:
         return Path(os.path.relpath(path, ROOT)).as_posix()
     except ValueError:
         fail(f'{path} is not on the drive of the checkout {ROOT}, so rsync cannot name it')
 
 
+def rsync_program():
+    """The rsync to run, None when there is none. Windows: an rsync.exe on PATH, which is all
+    subprocess can start by name, and not one in the cwd, which CreateProcess searches first."""
+    if os.name != 'nt':
+        return 'rsync' if shutil.which('rsync') else None
+    for d in os.environ.get('PATH', '').split(os.pathsep):
+        if d and os.path.isfile(os.path.join(d, 'rsync.exe')):
+            return os.path.join(d, 'rsync.exe')
+    return None
+
+
 def rsync(guard, *args, optional=False):
     """rsync with a remote endpoint under `guard` = (remote_dir, token): the remote rsync
     server starts only under a shared hold on the tree's lock with this run's token still
-    in place, so a transfer never lands in a tree another run rebuilt after our lease died."""
+    in place, so a transfer never lands in a tree another run rebuilt after our lease died.
+    Local files are Paths; options and host:path specs are str, passed as they are."""
     remote_dir, token = guard
-    if os.name == 'nt':
-        args = [checkout_relative(a) if os.path.splitdrive(a)[0] else a for a in args]
+    args = [local_operand(a) if isinstance(a, Path) else a for a in args]
+    program = rsync_program() if os.name == 'nt' else 'rsync'
+    if program is None:
+        fail('rsync.exe is no longer on PATH')
     # rsync appends its --server arguments after --rsync-path, so `sh -c '...' rsync` makes
     # them "$@" of the guard shell, which execs the real rsync on them
     server = f'sh -c {shlex.quote(tree_guard(remote_dir, token) + " && exec rsync \"$@\"")} rsync'
     # an optional fetch (a green run writes no .failed) must not print rsync's code-23 error
-    return subprocess.run(['rsync', '-e', shlex.join(['ssh', *SSH_OPTS]), f'--rsync-path={server}', *args],
+    return subprocess.run([program, '-e', shlex.join(['ssh', *SSH_OPTS]), f'--rsync-path={server}', *args],
                           cwd=ROOT, stderr=subprocess.DEVNULL if optional else None).returncode
 
 
@@ -300,7 +317,7 @@ def copy_back(remote, remote_dir, token, config_name):
     md, js = ROOT / report.REPORT_MD, ROOT / report.REPORT_JSON
     tmp = [p.with_name(p.name + '.tmp') for p in (md, js)]
     guard = (remote_dir, token)
-    ok = all(rsync(guard, '-q', f'{remote}:{remote_dir}/{p.name}', str(t), optional=True) == 0 and t.is_file()
+    ok = all(rsync(guard, '-q', f'{remote}:{remote_dir}/{p.name}', t, optional=True) == 0 and t.is_file()
              for p, t in zip((md, js), tmp))
     if ok:
         for p, t in zip((md, js), tmp):
@@ -315,7 +332,7 @@ def copy_back(remote, remote_dir, token, config_name):
     # A green run writes no .failed, so a stale local spec would re-flash boards that passed.
     spec = ROOT / f'{config_name}.failed'
     spec.unlink(missing_ok=True)
-    if rsync(guard, '-q', f'{remote}:{remote_dir}/{spec.name}', str(spec), optional=True) == 0 and spec.is_file():
+    if rsync(guard, '-q', f'{remote}:{remote_dir}/{spec.name}', spec, optional=True) == 0 and spec.is_file():
         copied.append(spec.name)
         print(f'==> {spec.name} copied to {spec}')
     return copied
@@ -326,8 +343,8 @@ def remote_lease(remote, remote_dir, build_dir):
     """Wipe and recreate remote_dir, yielding (its absolute path, this run's token) while this
     ssh session holds its lock: another runner sharing REMOTE_DIR would otherwise rm -rf this
     run's tree."""
-    if not shutil.which('rsync'):   # before the wipe: every transfer of the run needs it
-        fail('rsync is not on PATH; the staging and the copy-back need it (on Windows, MSYS2\'s or Cygwin\'s)')
+    if not rsync_program():   # before the wipe: every transfer of the run needs it
+        fail('rsync is not on PATH; the staging and the copy-back need it (on Windows, MSYS2\'s or Cygwin\'s rsync.exe)')
     token = f'{os.getpid()}-{time.time_ns()}'
     # stderr to a file, not a pipe: nothing drains a pipe while the lease is held, and a
     # remote that writes more than the pipe buffer (rm -rf reporting hundreds of entries)
@@ -513,7 +530,7 @@ def run(argv, receipt=None):
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
     snap_parent = None
-    if os.name == 'nt':   # in the checkout, where checkout_relative() can name it to rsync
+    if os.name == 'nt':   # in the checkout, where local_operand() can name it to rsync
         snap_parent = ROOT / RUNS_DIR
         snap_parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='hil-remote-', dir=snap_parent) as snap:
@@ -524,6 +541,8 @@ def run(argv, receipt=None):
             pinned = check_receipt(receipt, config_path, boards,
                                    [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
                                    staged_files(firmware, Path(snap)))
+        for p in (config_path, *firmware):
+            local_operand(p)   # Windows: refuse one rsync cannot name now, not after the lease wiped the rig's tree
 
         print(f'==> Setting up remote {remote}:{remote_dir}')
         with remote_lease(remote, remote_dir, args.build_dir) as (remote_dir, token):
@@ -544,16 +563,16 @@ def stage_and_run(remote, remote_dir, token, argv, args, config, config_path, fi
                   "uploading it; this run's table will REPLACE the previous one", file=sys.stderr)
         else:
             print('==> Uploading hil_report.json as the --accumulate merge base')
-            if rsync(guard, '-q', str(sidecar), f'{remote}:{remote_dir}/') != 0:
+            if rsync(guard, '-q', sidecar, f'{remote}:{remote_dir}/') != 0:
                 fail('could not upload hil_report.json')
 
     print('==> Copying the harness and config')
     if rsync(guard, '-aqR', *HARNESS_FILES, f'{remote}:{remote_dir}/') != 0 or \
-            rsync(guard, '-q', str(config_path), f'{remote}:{remote_dir}/test/hil/') != 0:
+            rsync(guard, '-q', config_path, f'{remote}:{remote_dir}/test/hil/') != 0:
         fail('could not stage the harness')
     print(f'==> Copying firmware from {len(firmware)} build dir(s) under {args.build_dir}/')
     # one transfer: every dir lands under the same <build_dir>/, by its own name
-    if rsync(guard, '-a', *FIRMWARE_FILTER, *map(str, firmware), f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
+    if rsync(guard, '-a', *FIRMWARE_FILTER, *firmware, f'{remote}:{remote_dir}/{args.build_dir}/') != 0:
         fail('could not stage the firmware')
     # the harness and roster went from the live checkout, which may have moved since the receipt check
     drift = pinned and list(filter(None, checkout_drift(*pinned, config_path)))
@@ -609,8 +628,8 @@ WIN_LOCK_OFFSET = 0x7FFFFFFE
 
 
 def win_lock(fd, block=True):
-    """The Windows stand-in for flock(LOCK_EX), held until the handle closes; BlockingIOError when
-    not `block` and another handle holds it."""
+    """The Windows stand-in for flock(LOCK_EX), held until win_unlock() or the handle closes;
+    BlockingIOError when not `block` and another handle holds it."""
     pos = os.lseek(fd, 0, os.SEEK_CUR)
     os.lseek(fd, WIN_LOCK_OFFSET, os.SEEK_SET)
     try:
@@ -618,12 +637,42 @@ def win_lock(fd, block=True):
             try:
                 msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
                 return
-            except OSError:
+            except OSError as e:
+                if e.errno not in (errno.EACCES, errno.EDEADLOCK):
+                    raise
                 if not block:
                     raise BlockingIOError
                 time.sleep(0.05)   # LK_LOCK gives up after about 10 s
     finally:
         os.lseek(fd, pos, os.SEEK_SET)
+
+
+def win_unlock(fd):
+    """Release win_lock() now: Windows drops a closed handle's lock only "after a delay"."""
+    pos = os.lseek(fd, 0, os.SEEK_CUR)
+    os.lseek(fd, WIN_LOCK_OFFSET, os.SEEK_SET)
+    try:
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    finally:
+        os.lseek(fd, pos, os.SEEK_SET)
+
+
+# a waiter's probe holds the lock for a moment; a run holds it for its whole life
+PROBE_TRIES, PROBE_SECS = 10, 0.02
+
+
+def win_probe(fd):
+    """flock(LOCK_SH | LOCK_NB) for run_alive(): msvcrt has no shared lock, so two waiters' probes
+    contend; BlockingIOError only when the lock stays held across the retries."""
+    for _ in range(PROBE_TRIES):
+        try:
+            win_lock(fd, block=False)
+        except BlockingIOError:
+            time.sleep(PROBE_SECS)
+            continue
+        win_unlock(fd)
+        return
+    raise BlockingIOError
 
 
 def pop_option(argv, name):
@@ -647,6 +696,8 @@ def run_recorded(run_id, argv, receipt):
     background run."""
     started, done = run_paths(run_id)
     started.parent.mkdir(exist_ok=True)
+    if not fcntl:
+        sweep_stale_tmps(started.parent)
     try:
         lock = publish_locked(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()})
     except FileExistsError:
@@ -660,9 +711,25 @@ def run_recorded(run_id, argv, receipt):
         raise
     finally:
         write_json(done, {'runId': run_id, 'exit': rc, 'reports': reports})
-        os.close(lock)
+        try:
+            if not fcntl:
+                win_unlock(lock)
+        finally:
+            os.close(lock)
         if not fcntl:
             started.with_name(f'.{started.name}.{os.getpid()}.tmp').unlink(missing_ok=True)
+
+
+def sweep_stale_tmps(runs):
+    """Windows: remove the hidden second name of each started record a killed run left behind
+    (run_recorded removes its own after the close, which a kill skips). A live run holds its
+    file open, which Windows refuses to unlink, and a launch not yet linked has one name."""
+    for tmp in runs.glob('.*.started.json.*.tmp'):
+        try:
+            if tmp.stat().st_nlink > 1:
+                tmp.unlink()
+        except OSError:
+            pass
 
 
 def run_alive(started):
@@ -672,7 +739,7 @@ def run_alive(started):
         if fcntl:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         else:
-            win_lock(fd, block=False)   # exclusive: nothing else takes it, and the close drops it
+            win_probe(fd)
         return False
     except BlockingIOError:
         return True
