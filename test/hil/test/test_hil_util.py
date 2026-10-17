@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Unit tests for hil_util.run_cmd's binary/split_stderr/quiet modes — real subprocesses, no
-# hardware. Stdlib + hil_util only (hil_util is stdlib-only), so the pre-commit hil-test
-# hook can run this on GitHub's bare runner. Run directly:
+# hardware. Stdlib + hil_util (stdlib-only) + the agentrc provider helper/usb_observe.py
+# hands out, so the pre-commit hil-test hook can run this on GitHub's bare runner once
+# tools/agentrc is fetched at the pin. Run directly:
 #   python3 test/hil/test/test_hil_util.py
 import io
 import os
 import sys
 import time
-import threading
 import unittest
-from tempfile import TemporaryDirectory
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -139,20 +138,16 @@ class BottomLayer(unittest.TestCase):
         # mtp_test) through, so the pymtp case this test names could never fail: that
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
         # is no libmtp, taking change_impact down with it.
-        local = {'helper', 'hil_util', 'change_impact', 'hil_flash',
+        local = {'helper', 'hil_util', 'change_impact', 'hil_flash', 'agentrc',
                  'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json',
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
         # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
         # on the bare runner, and its `import serial` is function-local for exactly
         # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
-        # ../../tools/rtt: hil_util exec_module's it at import (helper/hil_util.py's
-        # loader block), so a non-stdlib import THERE kills change_impact on the bare
-        # runner just as surely -- and the spec_from_file_location call is invisible to
-        # the ast.Import walk below, which is why it must be listed explicitly
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
-                    'helper/hil_lock', 'helper/hil_pool_check',
-                    '../../tools/build', '../../tools/build_utils', '../../tools/rtt',
+                    'helper/hil_lock', 'helper/agentrc', 'helper/hil_pool_check',
+                    '../../tools/build', '../../tools/build_utils',
                     '../../tools/get_deps', '../../tools/family_json',
                     # the selection contract CI calls: check_build.py --select-only
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
@@ -241,165 +236,15 @@ class RunCmdCleanupShape(unittest.TestCase):
                             'the interrupt path must re-raise, or Ctrl-C is swallowed')
 
 
-class BoundedReadForGuardlessCallers(unittest.TestCase):
-    """`serial` is served under the device lock a wedged usbfs ioctl holds, so the read is
-    bounded BY DEFAULT -- not opt-in. usb_scan reads it on every device matching the VID to
-    find the one it wants, and hil_test's usbtest enumeration wait does that before every
-    battery, so one wedged DUT would stall every worker rather than one.
-    hil_pool_check has no guard behind it at all."""
+class UsbObserveIsThePinnedModule(unittest.TestCase):
+    """helper/usb_observe.py hands callers agentrc's module itself: one strand memo per
+    process, and a patched root reaches every function that reads it."""
 
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        # the pre-commit hook runs all four suites in ONE interpreter, so capture and
-        # restore rather than assuming these start (or end) empty
-        for name in ('_stranded', '_strand_hits'):
-            self.addCleanup(setattr, hil_util, name, dict(getattr(hil_util, name)))
-            getattr(hil_util, name).clear()
-        self.td = TemporaryDirectory()
-        self.addCleanup(self.td.cleanup)
-        self.fifo = os.path.join(self.td.name, 'serial')
-        os.mkfifo(self.fifo)          # a read that never answers
-
-    def test_a_wedged_attribute_gives_up_instead_of_hanging(self):
-        t0 = time.monotonic()
-        self.assertIsNone(self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-        self.assertLess(time.monotonic() - t0, 5, 'the bounded read did not give up')
-
-    def test_the_bound_is_the_default_not_an_opt_in(self):
-        """usb_scan reads `serial` on every device matching the VID to find the one it
-        wants, and hil_test's usbtest enumeration wait does that before every battery --
-        so an opt-in bound that ONE call site forgets lets a
-        single wedged DUT stall every worker, not one. Three call sites forgot it once."""
-        import inspect
-        for fn in (self.hil_util.read_sysfs, self.hil_util.usb_scan):
-            default = inspect.signature(fn).parameters['timeout'].default
-            self.assertEqual(default, self.hil_util.SYSFS_READ_GRACE,
-                             f'{fn.__name__} must be bounded without being asked')
-        t0 = time.monotonic()
-        self.assertIsNone(self.hil_util.read_sysfs(self.fifo))   # no timeout= passed
-        self.assertLess(time.monotonic() - t0, 5, 'the default path did not bound')
-
-    def test_a_node_that_returns_during_the_grace_is_not_memoised_as_wedged(self):
-        """The inode must be captured BEFORE the reader starts. Stat it afterwards and a
-        board that came back mid-read has its brand-new HEALTHY inode recorded as the
-        wedged one -- only a SECOND re-enumeration could ever clear it, and hil_pool_check
-        would report a successful recovery as still off the bus."""
-        def swap():
-            time.sleep(0.15)
-            os.unlink(self.fifo)
-            Path(self.fifo).write_text('CAFE01\n')
-
-        threading.Thread(target=swap, daemon=True).start()
-        self.hil_util.read_sysfs(self.fifo, timeout=0.6)
-        self.assertEqual(self.hil_util.read_sysfs(self.fifo, timeout=1), 'CAFE01',
-                         'the healthy new inode was recorded as the wedged one')
-
-    def test_concurrent_readers_of_one_path_spend_one_credit(self):
-        """Several threads reading one path: counting each READER would spend the
-        per-path cap on a single wedge."""
-        ts = [threading.Thread(target=lambda: self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-              for _ in range(4)]
-        [t.start() for t in ts]
-        [t.join() for t in ts]
-        self.assertEqual(len(self.hil_util._stranded), 1)
-        self.assertEqual(self.hil_util._strand_hits[self.fifo], 1,
-                         'four readers of one path spent four credits')
-
-    def test_a_flapping_wedged_device_cannot_leak_without_bound(self):
-        """The inode all-clear re-arms on every re-enumeration, so a device that flaps
-        while STILL wedged strands again each pass -- a thread and an fd per cycle."""
-        for _ in range(self.hil_util._PATH_STRAND_MAX + 4):
-            self.hil_util.read_sysfs(self.fifo, timeout=0.2)
-            os.unlink(self.fifo)
-            os.mkfifo(self.fifo)                      # back on the same path, still wedged
-        self.assertEqual(self.hil_util._strand_hits[self.fifo],
-                         self.hil_util._PATH_STRAND_MAX,
-                         'a flapping device kept stranding past its per-path cap')
-
-    def test_a_value_that_arrived_at_the_deadline_is_not_a_strand(self):
-        """`out` is checked BEFORE is_alive(): a reader can deposit its value and still be
-        alive for a moment after join() returns. Counting that as a strand blacklists a
-        healthy attribute by inode forever."""
-        good = Path(self.td.name) / 'idVendor'
-        good.write_text('cafe\n')
-        real_thread = threading.Thread
-
-        class Lingering(real_thread):        # deposits, then outlives the join
-            def run(self):
-                super().run()
-                time.sleep(2)
-
-        self.hil_util.threading.Thread = Lingering
-        self.addCleanup(setattr, self.hil_util.threading, 'Thread', real_thread)
-        self.assertEqual(self.hil_util.read_sysfs(str(good), timeout=0.3), 'cafe')
-        self.assertNotIn(str(good), self.hil_util._stranded)
-
-    def test_path_stranded_answers_per_device(self):
-        other = Path(self.td.name) / 'peer'
-        other.write_text('PEER\n')
-        self.hil_util.read_sysfs(self.fifo, timeout=0.3)
-        self.assertTrue(self.hil_util.path_stranded(self.fifo))
-        self.assertFalse(self.hil_util.path_stranded(str(other)))
-
-    def test_a_stat_that_races_the_reader_still_memoises(self):
-        """The pre-read stat is the memo KEY, and it can fail while the open that follows
-        succeeds and blocks -- a node replaced between the two. Without a key the give-up
-        records nothing, so hil_pool_check's next poll starts another permanent thread and
-        fd for the same path, and repeats it every pass."""
-        real_stat = self.hil_util.os.stat
-        calls = []
-
-        def flaky(path, *a, **kw):
-            calls.append(path)
-            if len(calls) == 1:          # only the pre-read stat loses the race
-                raise OSError('vanished between stat and open')
-            return real_stat(path, *a, **kw)
-
-        self.addCleanup(setattr, self.hil_util.os, 'stat', real_stat)
-        self.hil_util.os.stat = flaky
-        self.assertIsNone(self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-        self.assertIn(self.fifo, self.hil_util._stranded,
-                      'a lost stat race leaks a fresh reader on every later poll')
-
-    def test_a_recovered_device_is_seen_again_on_the_same_busport(self):
-        """THE flash flow: hil_pool_check flashes a board, then wait_device polls
-        find_device -> scan_usb for the NEW inode. A busport does not
-        change when the board comes back on the same physical port, so a path-only
-        blacklist would make that poll look at everything except the device it is waiting
-        for -- the board recovers physically and the tool reports it gone for the rest of
-        the run. A re-enumeration destroys the kernfs node, so a changed inode is the
-        all-clear."""
-        self.assertIsNone(self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-        # re-enumeration: same path, new node
-        os.unlink(self.fifo)
-        Path(self.fifo).write_text('CAFE01\n')
-        self.assertEqual(self.hil_util.read_sysfs(self.fifo, timeout=1), 'CAFE01',
-                         'a board that came back on the same busport stayed blacklisted')
-
-    def test_a_stranded_path_is_never_read_twice(self):
-        """Each expiry strands a thread and an fd for the life of the process, and
-        hil_pool_check POLLS -- wait_device re-scans every 0.5s until its budget runs
-        out. Re-reading would leak one pair per poll."""
-        self.hil_util.read_sysfs(self.fifo, timeout=0.3)
-        t0 = time.monotonic()
-        for _ in range(5):
-            self.assertIsNone(self.hil_util.read_sysfs(self.fifo, timeout=0.3))
-        self.assertLess(time.monotonic() - t0, 0.3,
-                        'repeat reads of a known-stranded path paid the grace again')
-
-    def test_a_healthy_attribute_is_not_blacklisted(self):
-        good = os.path.join(self.td.name, 'idVendor')
-        Path(good).write_text('cafe\n')
-        for _ in range(3):
-            self.assertEqual(self.hil_util.read_sysfs(good, timeout=1), 'cafe')
-        self.assertFalse(self.hil_util.path_stranded(good))
-
-    def test_without_a_timeout_the_read_stays_plain(self):
-        good = os.path.join(self.td.name, 'busnum')
-        Path(good).write_text('3\n')
-        self.assertEqual(self.hil_util.read_sysfs(good), '3')
-        self.assertIsNone(self.hil_util.read_sysfs(os.path.join(self.td.name, 'nope')))
+    def test_callers_get_the_pinned_provider(self):
+        from helper import usb_observe
+        provider = Path(hil_util.TINYUSB_ROOT) / 'tools' / 'agentrc' / 'skills' / 'hil' / 'scripts' / 'usb_observe.py'
+        self.assertEqual(Path(usb_observe.__file__).resolve(), provider.resolve())
+        self.assertIs(sys.modules['helper.usb_observe'], usb_observe)
 
 
 class RampGaps(unittest.TestCase):

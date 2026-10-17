@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
 import hil_flash
-from helper import hil_lock, hil_report, hil_util
+from helper import hil_lock, hil_report, hil_util, usb_observe
 
 REPO_ROOT = hil_util.TINYUSB_ROOT
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}  # anything else: dev PC -> local.json
@@ -65,7 +65,7 @@ def scan_usb() -> dict:
     (their 'serial' is a fabricated PCI address). Keyed by busport, not serial: an
     Espressif USB-Serial-JTAG bridge and the cafe device it flashes share one (the MAC)."""
     return {d['busport']: {'serial': d['serial'].lower(), 'vidpid': f"{d['vid']}:{d['pid']}"}
-            for d in hil_util.usb_scan()}
+            for d in usb_observe.usb_scan()}
 
 
 def find_usb(uid: str) -> str | None:
@@ -96,7 +96,7 @@ def find_device(uid: str):
     """(busport, vidpid, inode) of the board's TinyUSB device (idVendor cafe, so an
     Espressif USB-Serial-JTAG sharing the MAC serial cannot false-pass). usb_scan reads the
     lock-guarded `serial` of cafe devices only, not of every probe and hub on the bus."""
-    for d in hil_util.usb_scan(vid='cafe', serial=uid):
+    for d in usb_observe.usb_scan(vid='cafe', serial=uid):
         try:
             return d['busport'], f"cafe:{d['pid']}", os.stat(d['dir'] + '/').st_ino
         except OSError:
@@ -120,21 +120,12 @@ def lock_board(name: str):
     """Nonblocking flock per hil_lock.py protocol. Returns the handle, or a str with the
     holder's info when the board is locked elsewhere. Board locks are ALWAYS respected: a
     held board is reported and skipped, never waited on, and there is no bypass here."""
-    os.makedirs(hil_lock.BOARD_LOCK_DIR, exist_ok=True)
     try:
-        fh = hil_lock.flock_nb(name)
-    except BlockingIOError:  # EWOULDBLOCK: the flock is held
-        info = hil_lock.read_record(name)
-        return json.dumps(info) if info else 'unknown holder'
-    except OSError as e:  # the lock file itself (EACCES/EROFS/ENOSPC), not a holder
-        return f'ERROR: lock file: {e.strerror}'
-    if not hil_lock.write_record(fh, 'pool_check'):
-        # an invisible lock (flock held, no record) is worse than no lock: status cannot
-        # show us and release cannot recognize the protected holder
-        hil_lock.clear_record(fh)
-        fh.close()
-        return 'ERROR: holder record write failed (lock dir unwritable?)'
-    return fh
+        return hil_lock.take_board_lock(name, 'pool_check')
+    except hil_lock.LockUnavailable as e:  # the lock dir, file or record, not a holder
+        return f'ERROR: {e}'
+    except RuntimeError as e:
+        return str(e)
 
 
 def unlock_board(fh) -> None:

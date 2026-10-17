@@ -1,5 +1,8 @@
 # `rtt` skill — design & decision record
 
+> Superseded: the RTT console is agentrc's `skills/rtt/scripts/rtt.py` at the pin in `tools/get_deps.py`,
+> loaded by `hil_test.py` through `test/hil/helper/agentrc.py`; `tools/rtt.py` is gone.
+
 Date: 2026-08-24. Branch: `rttconsole-skill`. Author sessions: lpc4088 handoff
 (measurements), sysview handoff (mechanics + probe matrix), this session
 (verification + decision). User approved promotion and the name `rtt` on
