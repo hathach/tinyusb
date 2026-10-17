@@ -18,6 +18,44 @@
       }
     }
   },
+  "apm32f10x": {
+    "apm32f103_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F103"
+        ],
+        "mcu": "OPT_MCU_APM32F103",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    },
+    "apm32f107_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F107"
+        ],
+        "mcu": "OPT_MCU_APM32F107",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "host"
+        ]
+      }
+    }
+  },
   "at32f402_405": {
     "at_start_f402": {
       "cmake": {

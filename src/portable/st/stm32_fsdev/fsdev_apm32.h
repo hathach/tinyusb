@@ -29,6 +29,8 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_APM32F0XX
   #include "apm32f0xx.h"
+#elif CFG_TUSB_MCU == OPT_MCU_APM32F103 || CFG_TUSB_MCU == OPT_MCU_APM32F107
+  #include "apm32f10x.h"
 #endif
 
 #define FSDEV_USE_SBUF_ISO 0
@@ -44,7 +46,14 @@
 //--------------------------------------------------------------------+
 
 static const IRQn_Type fsdev_irq[] = {
-  USBD_IRQn
+  #if TU_CHECK_MCU(OPT_MCU_APM32F0XX)
+  USBD_IRQn,
+  #elif TU_CHECK_MCU(OPT_MCU_APM32F103)
+  USBD1_HP_CAN1_TX_IRQn,
+  USBD1_LP_CAN1_RX0_IRQn,
+  #else
+    #error "Unknown APM32 USB IRQ mapping"
+  #endif
 };
 enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
 
