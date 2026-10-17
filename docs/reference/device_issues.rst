@@ -123,3 +123,42 @@ The USB device controller (MUSB-like) has 5 application endpoints EP1-EP5 with f
 shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 B, EP5 = 64 B.
 This is much lower than the max ISO ep size of 1024 for high EP numbers.
 Place large isochronous endpoints on EP1 and size descriptors accordingly.
+
+Espressif ESP32-S2/S3
+---------------------
+**Severity: High** for a full-speed host with a low-speed device behind a full-speed hub
+
+Reference: espressif/esp-idf#15683, where ESP-IDF delays each low-speed control stage by 1 ms.
+
+To reach a low-speed device through a full-speed hub the host sends a preamble (PRE) packet before
+each low-speed packet. The transmitter can hang right after a PRE: the low-speed packet never
+follows, the channel reports a transaction error and, after a timeout, the core drops the root port.
+
+On ESP32-S3 with a logic analyzer on D+/D-, the hang only hit the PRE of a transaction the driver
+started while the last packet on the bus was a low-speed one (about 2% of those, independent of the
+idle gap). A PRE after an SOF or another full-speed packet, inside a transaction, or of the core's
+own NAK retries and multi-packet sequence never hung.
+
+Mitigation in TinyUSB: ``hcd_dwc2`` lets one preamble channel own the bus at a time and starts the
+next one only in a frame after the previous one halted, which puts an SOF between them. A port
+disable re-enumerates the root port.
+
+STMicroelectronics STM32 OTG_FS/OTG_HS
+--------------------------------------
+**Severity: High** for a full-speed host with a low-speed device behind a hub
+
+Reference: "Host packet transmission may hang when connecting through a hub to a low-speed device",
+listed in ST's errata sheets for STM32F20x (ES0005), F401 (ES0222), F405/407 (ES0182), F411 (ES0287),
+F412 (ES0305), F427/437 (ES0206), F76x/77x (ES0334), H742/743/750/753 (ES0392), H745/747/755/757
+(ES0445), H723/725/730/733/735 (ES0491), L47x/48x (ES0250), L496/4A6 (ES0335), L4P5/Q5 (ES0510) and
+U575/585 (ES0499). On parts with an OTG_HS core it applies to its full-speed interface.
+
+ST: the transmitter internal state machine may hang, which leads, after a timeout expiry, to a port
+disconnect interrupt. There is no workaround; more capacitance on the data lines may reduce the
+occurrence.
+
+On an STM32F407 the hang hit even a PRE sent right after an SOF, and starting one low-speed
+transaction per frame did not help (9 of 10 boots still lost the port), so the ESP32-S2/S3
+mitigation is not enabled for STM32. TinyUSB re-enumerates the root port after a port disable. A
+high-speed host with a high-speed hub avoids preambles altogether (the hub's transaction translator
+talks low speed).
