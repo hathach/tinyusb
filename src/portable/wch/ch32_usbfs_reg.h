@@ -194,6 +194,13 @@
   #define CH32_USBFS_EP3_1023_BUFSIZE 1
 #endif
 
+// CH32V103/V20x USBFS lose EP0 when an IN completes on another endpoint during a host-to-device control
+// transfer (see ep_in_hold() in dcd_ch32_usbfs.c). Traced on CH32V203; CH32V103 fails the same HIL test.
+// CH32V305 USBFS was checked unaffected; X035/CH58x/F20x are untested.
+#if CFG_TUSB_MCU == OPT_MCU_CH32V103 || CFG_TUSB_MCU == OPT_MCU_CH32V20X
+  #define CH32_USBFS_H2D_IN_HOLD 1
+#endif
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
