@@ -66,9 +66,9 @@ def load(path=CATALOG):
     try:
         data = json.loads(text)
     except ValueError as e:
-        raise Failure(f'{path.relative_to(ROOT)} is not valid JSON ({e}); fix it by hand')
+        raise Failure(f'{path.relative_to(ROOT).as_posix()} is not valid JSON ({e}); fix it by hand')
     if not isinstance(data, dict):
-        raise Failure(f'{path.relative_to(ROOT)} is not a JSON object')
+        raise Failure(f'{path.relative_to(ROOT).as_posix()} is not a JSON object')
     for family, rows in data.items():
         if not isinstance(rows, dict):
             kind = 'null' if rows is None else f'a {type(rows).__name__}'
@@ -93,9 +93,45 @@ def tested_identifiers(text):
     return names
 
 
+def split_command(cmd):
+    """A compile database `command` as its compiler's argv: shell words, or on Windows, where
+    the command line reaches CreateProcess as it is, the MS C runtime's argv rules."""
+    if os.name != 'nt':
+        return shlex.split(cmd)
+    out, cur, quoted, i, n = [], None, False, 0, len(cmd)
+    while i < n:
+        c = cmd[i]
+        if c == '\\':
+            j = i
+            while j < n and cmd[j] == '\\':
+                j += 1
+            if j < n and cmd[j] == '"':
+                # 2k backslashes before a quote are k and the quote delimits; 2k+1 escape it
+                cur = (cur or '') + '\\' * ((j - i) // 2) + ('"' if (j - i) % 2 else '')
+                i = j + (j - i) % 2
+            else:
+                cur, i = (cur or '') + cmd[i:j], j
+        elif c == '"':
+            if quoted and cmd[i + 1:i + 2] == '"':   # "" inside quotes is a literal quote
+                cur, i = cur + '"', i + 2
+            else:
+                quoted, cur, i = not quoted, cur or '', i + 1
+        elif c in ' \t' and not quoted:
+            if cur is not None:
+                out.append(cur)
+                cur = None
+            i += 1
+        else:
+            cur, i = (cur or '') + c, i + 1
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
 def compile_tokens(entry):
-    """One compile command's tokens, response files expanded."""
-    tokens = list(entry['arguments']) if 'arguments' in entry else shlex.split(entry['command'])
+    """One compile command's tokens, response files expanded (gcc reads those with its own
+    shell-like quoting on every host)."""
+    tokens = list(entry['arguments']) if 'arguments' in entry else split_command(entry['command'])
     out = []
     for t in tokens:
         if t.startswith('@') and len(t) > 1:
@@ -277,7 +313,7 @@ def rewrite(edit, path=CATALOG):
     each other's change. Returns 'updated' or 'unchanged'."""
     lock = ROOT / 'cmake-build' / '.family.json.lock'
     lock.parent.mkdir(exist_ok=True)
-    with open(lock, 'w') as lf:
+    with open(lock, 'a') as lf:   # not 'w': a second opener must not truncate the holder's file
         _lock(lf)
         data = load(path)
         edit(data)
@@ -360,9 +396,9 @@ def check(path=CATALOG, root=ROOT):
         data = load(path)
         text = path.read_text(encoding='utf-8')
     except (Failure, OSError) as e:
-        return [f'{path.relative_to(root)}: {e}']
+        return [f'{path.relative_to(root).as_posix()}: {e}']
     if text != canonical_text(data):
-        out.append(f'{path.relative_to(root)} is not in canonical form')
+        out.append(f'{path.relative_to(root).as_posix()} is not in canonical form')
     tree = inventory(root)
     option_h = (root / 'src' / 'tusb_option.h').read_text(encoding='utf-8')
     mcus = set(re.findall(r'^#define (OPT_MCU_\w+)', option_h, re.M))
@@ -545,6 +581,7 @@ def row_violations(row, mcus, root):
         for p in row['portable']:
             # a plain relative path: joining an absolute one would discard the base
             if not isinstance(p, str) or p.startswith('/') or '..' in p.split('/') \
+                    or (os.name == 'nt' and ('\\' in p or Path(p).anchor)) \
                     or not (root / 'src' / 'portable' / p).is_file():
                 out.append(f'portable entry {p!r} is not a relative path to a file under src/portable/')
     if isinstance(row['roles'], list) and all(isinstance(x, str) for x in row['roles']):
@@ -579,7 +616,7 @@ def main(argv=None):
         for line in problems:
             print(line)
         if changed:
-            print(f'{CATALOG.relative_to(ROOT)} updated: stage it and commit again')
+            print(f'{CATALOG.relative_to(ROOT).as_posix()} updated: stage it and commit again')
         return 1 if changed or problems else 0
     if a.cmd == 'refresh':
         asked, failed, problems = refresh(CATALOG, ROOT, subprocess.run)
