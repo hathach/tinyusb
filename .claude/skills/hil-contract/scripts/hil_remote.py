@@ -46,9 +46,10 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
 # test/hil/pyocd/ runs as pyocd's launcher and its user script: no import walk can see it.
-# helper/agentrc.py exec_module's agentrc's board-lock primitive (for helper/hil_lock.py) and RTT
-# console (for hil_test.py), after checking tools/agentrc/.git/HEAD against the commit
-# tools/get_deps.py pins: those four files let the rig's tree pass the same check.
+# helper/agentrc.py exec_module's agentrc's shared scripts (the board-lock primitive, the USB
+# observation, the RTT console) after checking tools/agentrc/.git/HEAD against the commit
+# tools/get_deps.py pins: the tools/ entries let the rig's tree pass the same check, and
+# RemoteStaging requires one per agentrc.load target.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',

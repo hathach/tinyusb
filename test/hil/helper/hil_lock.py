@@ -7,11 +7,12 @@ between dev sessions and CI's hil_test.py (never stop the actions-runner). The
 mechanics are agentrc's shared board-lock primitive, tools/agentrc at the commit
 tools/get_deps.py pins (`python3 tools/get_deps.py tools/agentrc`); this adapter
 is the module and CLI (hold/release/status) every caller uses, and adds
-`hold --all [--config CONFIG.json]` over tinyusb's roster.
+`hold --all [--config CONFIG.json]` over tinyusb's roster. Imported, callers get the provider
+module itself (the loader registers it under this name), so a monkeypatched
+hil_lock.BOARD_LOCK_DIR reaches every function that reads it.
 """
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -20,8 +21,6 @@ if __package__:
 else:  # run as a script: helper/ is sys.path[0], unless -P or PYTHONSAFEPATH dropped it
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import agentrc
-
-TINYUSB_ROOT = Path(__file__).resolve().parents[3]
 
 # A __main__ run must not load the provider as __main__ too, or its own CLI would run.
 _lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ == '__main__' else __name__)
@@ -46,7 +45,7 @@ def main():
         ap = argparse.ArgumentParser(usage='hil_lock.py hold --all [--config CONFIG.json] --reason TEXT')
         ap.add_argument('boards', nargs='*', help='ignored: --all takes the roster')
         ap.add_argument('--all', action='store_true')
-        ap.add_argument('--config', default=str(TINYUSB_ROOT / 'test' / 'hil' / 'tinyusb.json'),
+        ap.add_argument('--config', default=str(agentrc.TINYUSB_ROOT / 'test' / 'hil' / 'tinyusb.json'),
                         help='board roster JSON (default: test/hil/tinyusb.json)')
         ap.add_argument('--reason', required=True)
         a = ap.parse_args(sys.argv[2:])
@@ -56,7 +55,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-else:
-    # Callers get the provider module itself, so a monkeypatched hil_lock.BOARD_LOCK_DIR
-    # reaches every function that reads it.
-    sys.modules[__name__] = _lock

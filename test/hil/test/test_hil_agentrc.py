@@ -5,7 +5,6 @@
 # tools/agentrc is at the pin and holds the file, and a module whose exec fails stays out of
 # sys.modules. Run directly:
 #   python3 test/hil/test/test_hil_agentrc.py
-import importlib.util
 import os
 import shutil
 import subprocess
@@ -15,15 +14,10 @@ import unittest
 
 HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(HIL_DIR))
+sys.path.insert(0, HIL_DIR)
+from helper import agentrc   # noqa: E402
+
 RTT_PY = 'skills/rtt/scripts/rtt.py'
-FETCH = 'python3 tools/get_deps.py tools/agentrc'
-
-
-def pinned_commit():
-    spec = importlib.util.spec_from_file_location('get_deps_under_test', os.path.join(REPO, 'tools/get_deps.py'))
-    get_deps = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(get_deps)
-    return get_deps.deps_optional['tools/agentrc'][1]
 
 
 class PinnedDependency(unittest.TestCase):
@@ -34,7 +28,7 @@ class PinnedDependency(unittest.TestCase):
         for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py'):
             os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
-        self.pin = pinned_commit()
+        self.pin = agentrc.PIN
 
     def provide(self, head, files=None):
         """tools/agentrc with .git/HEAD at `head`; each file copied from the real checkout, or
@@ -60,7 +54,7 @@ class PinnedDependency(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         last = r.stderr.strip().splitlines()[-1]
         self.assertTrue(last.startswith('ImportError: '), last)
-        for s in (self.pin, FETCH, *also):
+        for s in (self.pin, agentrc.FETCH, *also):
             self.assertIn(s, last)
 
     def test_missing_dependency_refuses(self):

@@ -380,19 +380,30 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
+        def loaded_paths(pyfile):
+            # agentrc.load('<rel>', ...) brings in a tools/agentrc file no import walk can see
+            for node in ast.walk(ast.parse(pyfile.read_text())):
+                if (isinstance(node, ast.Call) and ast.unparse(node.func) == 'agentrc.load'
+                        and node.args and isinstance(node.args[0], ast.Constant)):
+                    yield f'tools/agentrc/{node.args[0].value}'
+
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
-        todo, seen = list(seeds), set()
+        todo, seen, loaded = list(seeds), set(), set()
         while todo:
             f = todo.pop()
             if f in seen or not (hil_dir / f).exists():
                 continue  # stdlib/site-packages imports have no test/hil file
             seen.add(f)
             todo += list(imported_paths(hil_dir / f))
+            loaded |= set(loaded_paths(hil_dir / f))
         for f in sorted(seen):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
+        self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
+        for f in sorted(loaded):
+            self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
         # test/hil/pyocd/ runs as pyocd's launcher and its user script, which no import walk sees
         scripts = sorted(p.relative_to(hil_dir).as_posix() for p in hil_dir.glob('pyocd/*.py'))
         self.assertTrue(scripts, 'test/hil/pyocd/ holds no user script')

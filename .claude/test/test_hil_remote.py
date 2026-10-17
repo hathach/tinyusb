@@ -243,6 +243,7 @@ class Staging(Rig):
         """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
         rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
         rels += ['tools/agentrc/.git/HEAD', 'tools/agentrc/skills/hil/scripts/hil_lock.py',
+                 'tools/agentrc/skills/hil/scripts/usb_observe.py',
                  'tools/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
         for rel in rels:
             shutil.copy(REPO / rel, self.root / rel)
