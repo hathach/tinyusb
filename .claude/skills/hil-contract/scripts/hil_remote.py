@@ -27,7 +27,6 @@ on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config j
 """
 import argparse
 import contextlib
-import fcntl
 import hashlib
 import importlib
 import json
@@ -40,6 +39,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None
+    import msvcrt
 
 ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).resolve()
 
@@ -159,7 +164,7 @@ def build_command(config_path, boards, build_dir):
         config_path = config_path.relative_to(ROOT)
     board_args = ' '.join(f'--board {shlex.quote(b)}' for b in boards) or '--board <board>'
     line = (f'python3 .claude/skills/build/scripts/check_build.py {board_args} --shared '
-            f'--variants {shlex.quote(str(config_path))}')
+            f'--variants {shlex.quote(config_path.as_posix())}')
     if build_dir != 'cmake-build':
         line += f'\n  (it writes under cmake-build/, not {build_dir}/)'
     return line
@@ -199,14 +204,14 @@ def resolve_firmware(config, config_path, args):
         found = variant_dirs(config, build_dir, name)
         present = [d for d in found if d.is_dir()]
         if boards and not present:
-            missing.append(f'  {name}: none of {", ".join(str(d.relative_to(ROOT)) for d in found)}')
+            missing.append(f'  {name}: none of {", ".join(d.relative_to(ROOT).as_posix() for d in found)}')
             unbuilt.append(name)
         for i, d in enumerate(found):
             if d not in present and boards:
                 # hil_test.py logs `Skip (no binary)` and exits 0 for these cells, except that a
                 # one-test run that flashes fails a later variant's same-PID boundary (HIL contract, Build)
                 boundary = '' if args.skip_flash or i == 0 else ' or fail the same-PID boundary on a one-test run'
-                print(f'warning: {name}: no {d.relative_to(ROOT)} -- its cells will be skipped{boundary}',
+                print(f'warning: {name}: no {d.relative_to(ROOT).as_posix()} -- its cells will be skipped{boundary}',
                       file=sys.stderr)
         dirs += present
     if missing:
@@ -222,7 +227,7 @@ def sidecar_matches(sidecar, config):
     """hil_report.json is not namespaced by rig, so a sidecar from another rig or config
     would merge boards that never ran here. Require one row from this roster."""
     try:
-        rows = json.loads(sidecar.read_text()).get('rows') or []
+        rows = json.loads(sidecar.read_text(encoding='utf-8')).get('rows') or []
     except (OSError, ValueError, AttributeError):
         return False
     variants_of = helper('hil_report').variants_of
@@ -262,11 +267,22 @@ def run_command(remote_dir, argv, config_name, token=''):
             f'exec env {shlex.join([*forwarded_env(), *run])}')
 
 
+def checkout_relative(path):
+    """A local path as Windows rsync can take it: it reads a drive letter as a remote host, and runs
+    in the checkout."""
+    try:
+        return Path(os.path.relpath(path, ROOT)).as_posix()
+    except ValueError:
+        fail(f'{path} is not on the drive of the checkout {ROOT}, so rsync cannot name it')
+
+
 def rsync(guard, *args, optional=False):
     """rsync with a remote endpoint under `guard` = (remote_dir, token): the remote rsync
     server starts only under a shared hold on the tree's lock with this run's token still
     in place, so a transfer never lands in a tree another run rebuilt after our lease died."""
     remote_dir, token = guard
+    if os.name == 'nt':
+        args = [checkout_relative(a) if os.path.splitdrive(a)[0] else a for a in args]
     # rsync appends its --server arguments after --rsync-path, so `sh -c '...' rsync` makes
     # them "$@" of the guard shell, which execs the real rsync on them
     server = f'sh -c {shlex.quote(tree_guard(remote_dir, token) + " && exec rsync \"$@\"")} rsync'
@@ -310,14 +326,16 @@ def remote_lease(remote, remote_dir, build_dir):
     """Wipe and recreate remote_dir, yielding (its absolute path, this run's token) while this
     ssh session holds its lock: another runner sharing REMOTE_DIR would otherwise rm -rf this
     run's tree."""
+    if not shutil.which('rsync'):   # before the wipe: every transfer of the run needs it
+        fail('rsync is not on PATH; the staging and the copy-back need it (on Windows, MSYS2\'s or Cygwin\'s)')
     token = f'{os.getpid()}-{time.time_ns()}'
     # stderr to a file, not a pipe: nothing drains a pipe while the lease is held, and a
     # remote that writes more than the pipe buffer (rm -rf reporting hundreds of entries)
     # would block with the lock taken
-    err_file = tempfile.TemporaryFile('w+')
+    err_file = tempfile.TemporaryFile('w+', encoding='utf-8', errors='replace')
     lease = subprocess.Popen(
         ['ssh', *SSH_OPTS, remote, shlex.join(['bash', '-c', SETUP_SCRIPT, 'hil-setup', remote_dir, build_dir, token])],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err_file, text=True)
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err_file, encoding='utf-8', errors='replace')
     marked = next((ln.rstrip('\n').partition('=')[2] for ln in lease.stdout
                    if ln.startswith('HIL_REMOTE_DIR=')), '')
     if not marked.startswith('/'):
@@ -353,7 +371,7 @@ def staged_paths(dirs):
 
 def staged_files(dirs, base=None):
     """{path relative to base (default the checkout): sha256} of what FIRMWARE_FILTER stages from dirs."""
-    return {str(f.relative_to(base or ROOT)): digest(f) for f in staged_paths(dirs)}
+    return {f.relative_to(base or ROOT).as_posix(): digest(f) for f in staged_paths(dirs)}
 
 
 def snapshot(dirs, into):
@@ -373,7 +391,7 @@ def snapshot(dirs, into):
 def example_firmware(d, files):
     """The <role>/<name> example dirs of variant dir d holding staged <name>.<suffix> firmware,
     directly or in one config subdir, where hil_flash.find_firmware() looks."""
-    prefix = f'{d.relative_to(ROOT)}/'
+    prefix = f'{d.relative_to(ROOT).as_posix()}/'
     return {'/'.join(parts[:2]) for parts in (p[len(prefix):].split('/') for p in files if p.startswith(prefix))
             if len(parts) in (3, 4) and parts[0] in EXAMPLE_ROLES
             and Path(parts[-1]).stem == parts[1] and Path(parts[-1]).suffix in STAGED_SUFFIXES}
@@ -396,7 +414,7 @@ def unverified_examples(board, d, examples):
     else:
         registered = tools_build.cmake_registered_targets(str(d))
         if registered is None:
-            fail(f'cmake cannot list the targets of {d.relative_to(ROOT)}, so the firmware its build made cannot be told '
+            fail(f'cmake cannot list the targets of {d.relative_to(ROOT).as_posix()}, so the firmware its build made cannot be told '
                  f'from a stale one')
         built = {e for e in examples if e.split('/')[1] in registered}
     return sorted(examples - built)
@@ -410,7 +428,7 @@ def parse_run(argv):
     args = helper('hil_args').build_parser().parse_args([*argv, str(config_path)])
     check_build_dir(args.build_dir)
     try:
-        config = json.loads(config_path.read_text())
+        config = json.loads(config_path.read_text(encoding='utf-8'))
     except (OSError, ValueError) as e:
         fail(f'could not read the config {config_path}: {e}')
     return args, config, config_path
@@ -429,11 +447,11 @@ def write_receipt(argv):
     files = staged_files([d for _, d in dirs])
     # only example firmware: CMake's compiler-ABI probes leave a .bin in a dir never built
     examples = {d: example_firmware(d, files) for _, d in dirs}
-    unbuilt = [str(d.relative_to(ROOT)) for _, d in dirs if not examples[d]]
+    unbuilt = [d.relative_to(ROOT).as_posix() for _, d in dirs if not examples[d]]
     if unbuilt:
         fail(f'not built: {", ".join(unbuilt)}; a receipt covers every variant the run selects, build with\n'
              f'  {build_command(config_path, boards, args.build_dir)}')
-    stale = [f'{d.relative_to(ROOT)}/{e}' for b, d in dirs for e in unverified_examples(b, d, examples[d])]
+    stale = [f'{d.relative_to(ROOT).as_posix()}/{e}' for b, d in dirs for e in unverified_examples(b, d, examples[d])]
     if stale:
         fail(f'firmware of an example the build does not build: {", ".join(stale)}; a receipt pins only firmware '
              f'the build verified and a run stages every file there, so remove those dirs and write the receipt again')
@@ -457,13 +475,13 @@ def check_receipt(path, config_path, boards, dirs, staged):
     dirs are every variant dir of the run's boards, staged the checkout-relative digests of
     the firmware to stage."""
     try:
-        receipt = json.loads(Path(path).read_text())
+        receipt = json.loads(Path(path).read_text(encoding='utf-8'))
         head, pinned = receipt['head'], receipt['files']
         config_digest, built = receipt['configDigest'], receipt['boards']
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'unusable build receipt {path}: {e!r}')
     unbuilt = [b for b in boards if b not in built]
-    prefixes = tuple(f'{d.relative_to(ROOT)}/' for d in dirs)
+    prefixes = tuple(f'{d.relative_to(ROOT).as_posix()}/' for d in dirs)
     differ = sorted({*(p for p in staged if pinned.get(p) != staged[p]),
                      *(p for p in pinned if p.startswith(prefixes) and p not in staged)})
     why = [*checkout_drift(head, config_digest, config_path),
@@ -494,7 +512,11 @@ def run(argv, receipt=None):
         fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')
     firmware = resolve_firmware(config, config_path, args)
-    with tempfile.TemporaryDirectory(prefix='hil-remote-') as snap:
+    snap_parent = None
+    if os.name == 'nt':   # in the checkout, where checkout_relative() can name it to rsync
+        snap_parent = ROOT / RUNS_DIR
+        snap_parent.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='hil-remote-', dir=snap_parent) as snap:
         pinned = None
         if receipt is not None:
             firmware = snapshot(firmware, Path(snap))
@@ -568,14 +590,40 @@ def publish_locked(path, data):
     tmp.write_text(json.dumps(data) + '\n')
     fd = os.open(tmp, os.O_RDONLY)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        if fcntl:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        else:
+            win_lock(fd)
         os.link(tmp, path)
     except BaseException:
         os.close(fd)
+        tmp.unlink(missing_ok=True)
         raise
-    finally:
+    if fcntl:   # Windows cannot remove a name of a file still open: run_recorded does, after the close
         tmp.unlink(missing_ok=True)
     return fd
+
+
+# msvcrt locks are mandatory and per byte: lock one far past the record, so readers still read it
+WIN_LOCK_OFFSET = 0x7FFFFFFE
+
+
+def win_lock(fd, block=True):
+    """The Windows stand-in for flock(LOCK_EX), held until the handle closes; BlockingIOError when
+    not `block` and another handle holds it."""
+    pos = os.lseek(fd, 0, os.SEEK_CUR)
+    os.lseek(fd, WIN_LOCK_OFFSET, os.SEEK_SET)
+    try:
+        while True:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                if not block:
+                    raise BlockingIOError
+                time.sleep(0.05)   # LK_LOCK gives up after about 10 s
+    finally:
+        os.lseek(fd, pos, os.SEEK_SET)
 
 
 def pop_option(argv, name):
@@ -602,7 +650,7 @@ def run_recorded(run_id, argv, receipt):
     try:
         lock = publish_locked(started, {'runId': run_id, 'pid': os.getpid(), 'startedAt': time.time()})
     except FileExistsError:
-        fail(f'run id {run_id} was used before ({started.relative_to(ROOT)}); pick a new one')
+        fail(f'run id {run_id} was used before ({started.relative_to(ROOT).as_posix()}); pick a new one')
     rc, reports = 1, []
     try:
         rc, reports = run(argv, receipt)
@@ -613,13 +661,18 @@ def run_recorded(run_id, argv, receipt):
     finally:
         write_json(done, {'runId': run_id, 'exit': rc, 'reports': reports})
         os.close(lock)
+        if not fcntl:
+            started.with_name(f'.{started.name}.{os.getpid()}.tmp').unlink(missing_ok=True)
 
 
 def run_alive(started):
     """Its run still holds the started record's lock."""
     fd = os.open(started, os.O_RDONLY)
     try:
-        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        if fcntl:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        else:
+            win_lock(fd, block=False)   # exclusive: nothing else takes it, and the close drops it
         return False
     except BlockingIOError:
         return True
