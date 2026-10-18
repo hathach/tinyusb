@@ -431,6 +431,25 @@ class InterruptAcrossTheFork(unittest.TestCase):
                 hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
         self._assert_group_gone(self.procs[0].pid)
 
+    def test_run_alongside_sigint_after_the_leader_is_reaped(self):
+        # CPython's communicate() reaps the direct child on KeyboardInterrupt before
+        # re-raising, so a set returncode says nothing about the rest of the group
+        argv = ['sh', '-c', 'sleep 30 & echo $! > "$1"; exit 0', 'sh', self.pidfile]
+
+        def reap_leader_then_interrupt(p):
+            def communicate(*args, **kwargs):
+                p.wait()
+                signal.raise_signal(signal.SIGINT)
+            p.communicate = communicate
+
+        with self._popen_hook(reap_leader_then_interrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_alongside(argv, lambda: None, timeout=20)
+        p = self.procs[0]
+        self.assertEqual(p.returncode, 0)
+        self._assert_group_gone(p.pid)
+        self.assertTrue(p.stdout.closed and p.stderr.closed, 'our pipe ends leaked')
+
     def test_sigterm_while_holding_sigint_restores_it(self):
         # SIGTERM's raising handler fires right after SIGINT's handler was swapped, before
         # SIGTERM's is: the constructor's cleanup must still put SIGINT's back

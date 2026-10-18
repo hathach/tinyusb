@@ -241,9 +241,13 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
         hold.release()
         raise
 
+    reaped = False
+
     def _reap() -> subprocess.CompletedProcess:
+        nonlocal reaped
         try:
             out, err = p.communicate(timeout=timeout)
+            reaped = True
             return subprocess.CompletedProcess(argv, p.returncode, out, err)
         except subprocess.TimeoutExpired:
             try:
@@ -257,6 +261,7 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
                 # Abandoned.
                 out, err = b'', b''
                 _close_pipes(p)     # our own fds must not leak either
+            reaped = True
             return subprocess.CompletedProcess(argv, 124, out, err)
 
     try:
@@ -272,8 +277,9 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
         return _reap()
     except BaseException:
         # Interrupted before a reap completed: as run_cmd's interrupt path, kill and close,
-        # never wait. A reaped child's pgid may already be reused, so never kill after one.
-        if p.returncode is None:
+        # never wait. Not keyed on returncode: communicate() reaps the leader on
+        # KeyboardInterrupt, its group living on. The pgid stays ours while any member lives.
+        if not reaped:
             try:
                 os.killpg(p.pid, signal.SIGKILL)
             except OSError:
