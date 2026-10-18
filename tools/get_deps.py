@@ -389,6 +389,11 @@ def get_a_dep(d):
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
         head = None
+    elif not (p / '.git').exists():
+        print(f'Error: {d} exists without its own .git; refusing to update it because '
+              'Git would operate on the enclosing repository. Remove the dependency '
+              'directory and retry.')
+        return 1
     else:
         # Check if commit is already fetched
         result = run_cmd(f"{git_cmd} rev-parse HEAD")

@@ -750,6 +750,39 @@ class DepsTest(unittest.TestCase):
                 self.assertEqual(build.tools_build.build_utils.dep_head(dep), dep_head)
             self.assertNotEqual(dep_head, outer_head)
 
+    def test_get_deps_refuses_a_directory_without_its_own_git(self):
+        import subprocess
+        import tempfile
+        clean = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ, clean, clear=True):
+            outer = Path(td)
+            dep = outer / 'dep'
+            dep.mkdir()
+            sentinel = outer / 'sentinel.txt'
+            sentinel.write_text('preserved\n')
+            git = ['git', '-C', str(outer), '-c', 'user.name=t', '-c', 'user.email=t@t',
+                   '-c', 'commit.gpgsign=false']
+            subprocess.run(git + ['init', '-q'], check=True, env=clean)
+            subprocess.run(git + ['add', 'sentinel.txt'], check=True, env=clean)
+            subprocess.run(git + ['commit', '-q', '-m', 'fixture'], check=True, env=clean)
+            sentinel.write_text('changed\n')
+
+            get_deps = build.tools_build.build_utils.get_deps
+            entry = ['https://example.invalid/unused.git', '0' * 40, 'all']
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                 mock.patch.object(get_deps, 'deps_all', {'dep': entry}), \
+                 mock.patch.object(get_deps, 'deps_remove_files', {}), \
+                 mock.patch('sys.stdout') as out:
+                self.assertEqual(get_deps.get_a_dep('dep'), 1)
+
+            self.assertEqual(sentinel.read_text(), 'changed\n')
+            status = subprocess.run(['git', '-C', str(outer), 'status', '--short'],
+                                    capture_output=True, text=True, check=True, env=clean)
+            self.assertEqual(status.stdout, ' M sentinel.txt\n')
+            printed = ''.join(call[0][0] for call in out.write.call_args_list)
+            self.assertIn('without its own .git', printed)
+
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 
