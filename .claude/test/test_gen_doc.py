@@ -78,9 +78,9 @@ class BoardsTest(unittest.TestCase):
             for family in ('acme', 'Zeta'):
                 (bsp / family / 'family.c').parent.mkdir()
                 (bsp / family / 'family.c').write_text(METADATA_FAMILY)
-                for board in ('board_x', 'Board_Y', 'bare', 'Bare_'):
+                for board, has_header in (('board_x', True), ('Board_Y', True), ('bare', False), ('Bare_', False)):
                     (bsp / family / 'boards' / f'{family}_{board}').mkdir(parents=True)
-                    if 'are' not in board:
+                    if has_header:
                         (bsp / family / 'boards' / f'{family}_{board}' / 'board.h').write_text(METADATA_BOARD)
             with mock.patch.object(type(bsp), '__lt__', lambda a, b: str(a).casefold() < str(b).casefold()):
                 vendors, skipped = gen_doc.boards(bsp)
