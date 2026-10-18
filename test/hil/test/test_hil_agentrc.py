@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # helper/agentrc.py, the one loader for agentrc's shared scripts, in a scratch tree: it refuses
 # with the fetch command and the pin in the last line a caller's traceback prints unless
-# tools/agentrc is at the pin and holds the file, and a module whose exec fails stays out of
+# lib/agentrc is at the pin and holds the file, and a module whose exec fails stays out of
 # sys.modules. Run directly:
 #   python3 test/hil/test/test_hil_agentrc.py
 import os
@@ -31,18 +31,18 @@ class PinnedDependency(unittest.TestCase):
         self.pin = agentrc.PIN
 
     def provide(self, head, files=None):
-        """tools/agentrc with .git/HEAD at `head`; each file copied from the real checkout, or
+        """lib/agentrc with .git/HEAD at `head`; each file copied from the real checkout, or
         written from its text."""
         for rel, text in (files or {RTT_PY: None}).items():
-            path = os.path.join(self.root, 'tools/agentrc', rel)
+            path = os.path.join(self.root, 'lib/agentrc', rel)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             if text is None:
-                shutil.copy(os.path.join(REPO, 'tools/agentrc', rel), path)
+                shutil.copy(os.path.join(REPO, 'lib/agentrc', rel), path)
             else:
                 with open(path, 'w') as f:
                     f.write(text)
-        os.makedirs(os.path.join(self.root, 'tools/agentrc/.git'), exist_ok=True)
-        with open(os.path.join(self.root, 'tools/agentrc/.git/HEAD'), 'w') as f:
+        os.makedirs(os.path.join(self.root, 'lib/agentrc/.git'), exist_ok=True)
+        with open(os.path.join(self.root, 'lib/agentrc/.git/HEAD'), 'w') as f:
             f.write(head + '\n')
 
     def load(self, rel=RTT_PY, then=''):
@@ -82,7 +82,7 @@ class PinnedDependency(unittest.TestCase):
         self.provide(self.pin)
         r = self.load(then='; print(sys.modules["under_test"].RttError.__module__)')
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout, f'{os.path.join(self.root, "tools/agentrc", RTT_PY)}\nunder_test\n')
+        self.assertEqual(r.stdout, f'{os.path.join(self.root, "lib/agentrc", RTT_PY)}\nunder_test\n')
 
 
 if __name__ == '__main__':

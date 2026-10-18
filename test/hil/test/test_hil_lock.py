@@ -3,7 +3,7 @@
 # The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
 # pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
 # whose lock is unavailable before flashing, `hold --all` takes the roster, and a missing
-# tools/agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
+# lib/agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
 import json
@@ -25,7 +25,7 @@ import hil_test          # noqa: E402
 from helper import agentrc, hil_lock   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
-PROVIDER = 'tools/agentrc/skills/hil/scripts/hil_lock.py'
+PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
 
 
 class LockDir(unittest.TestCase):
@@ -89,7 +89,7 @@ class Adapter(LockDir):
 
 
 class PinnedDependency(unittest.TestCase):
-    """The adapter's CLI in a scratch tree with tools/agentrc at the pin, against a lock dir
+    """The adapter's CLI in a scratch tree with lib/agentrc at the pin, against a lock dir
     of its own."""
 
     def setUp(self):
@@ -110,8 +110,8 @@ class PinnedDependency(unittest.TestCase):
         self.assertTrue(lock_dir == '/tmp/tinyusb-hil-locks' or moved != text, 'BOARD_LOCK_DIR line moved')
         with open(os.path.join(self.root, PROVIDER), 'w') as f:
             f.write(moved)
-        os.makedirs(os.path.join(self.root, 'tools/agentrc/.git'), exist_ok=True)
-        with open(os.path.join(self.root, 'tools/agentrc/.git/HEAD'), 'w') as f:
+        os.makedirs(os.path.join(self.root, 'lib/agentrc/.git'), exist_ok=True)
+        with open(os.path.join(self.root, 'lib/agentrc/.git/HEAD'), 'w') as f:
             f.write(head + '\n')
 
     def cli(self, *argv):

@@ -3,7 +3,7 @@
 # Unit tests for hil_util.run_cmd's binary/split_stderr/quiet modes — real subprocesses, no
 # hardware. Stdlib + hil_util (stdlib-only) + the agentrc provider helper/usb_observe.py
 # hands out, so the pre-commit hil-test hook can run this on GitHub's bare runner once
-# tools/agentrc is fetched at the pin. Run directly:
+# lib/agentrc is fetched at the pin. Run directly:
 #   python3 test/hil/test/test_hil_util.py
 import io
 import os
@@ -242,7 +242,7 @@ class UsbObserveIsThePinnedModule(unittest.TestCase):
 
     def test_callers_get_the_pinned_provider(self):
         from helper import usb_observe
-        provider = Path(hil_util.TINYUSB_ROOT) / 'tools' / 'agentrc' / 'skills' / 'hil' / 'scripts' / 'usb_observe.py'
+        provider = Path(hil_util.TINYUSB_ROOT) / 'lib/agentrc/skills/hil/scripts/usb_observe.py'
         self.assertEqual(Path(usb_observe.__file__).resolve(), provider.resolve())
         self.assertIs(sys.modules['helper.usb_observe'], usb_observe)
 

@@ -381,11 +381,11 @@ class RemoteStaging(unittest.TestCase):
                         yield node.module.replace('.', '/') + '.py'
 
         def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ...) brings in a tools/agentrc file no import walk can see
+            # agentrc.load('<rel>', ...) brings in a lib/agentrc file no import walk can see
             for node in ast.walk(ast.parse(pyfile.read_text())):
                 if (isinstance(node, ast.Call) and ast.unparse(node.func) == 'agentrc.load'
                         and node.args and isinstance(node.args[0], ast.Constant)):
-                    yield f'tools/agentrc/{node.args[0].value}'
+                    yield f'lib/agentrc/{node.args[0].value}'
 
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk

@@ -303,13 +303,13 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
+    'lib/agentrc': ['https://github.com/hathach/agentrc.git',
+                    'babc9956434126953c935bcba0bc9e2b0079ce50',
+                    ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
-    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
-    'tools/agentrc': ['https://github.com/hathach/agentrc.git',
-                      'babc9956434126953c935bcba0bc9e2b0079ce50',
-                      ''],
     # local size tooling only (tools/code_size.py, <ex>-linkermap): no family builds with it
     'tools/linkermap': ['https://github.com/hathach/linkermap.git',
                         '89b42dd5b6e5d1874769fb74e2d7b557a225213c',

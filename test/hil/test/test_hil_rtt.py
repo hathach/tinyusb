@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Harness-side RTT contracts — no hardware, pyserial stubbed. The console classes and the CLI
 # themselves are tested where they live, in agentrc's tests/test_rtt.py against the same
-# file, which hil_test loads from tools/agentrc through helper/agentrc.py. Run directly:
+# file, which hil_test loads from lib/agentrc through helper/agentrc.py. Run directly:
 #   python3 test/hil/test/test_hil_rtt.py
 import multiprocessing
 import os
@@ -16,7 +16,7 @@ sys.path.insert(0, HIL_DIR)
 import usbtest_harness   # noqa: E402,F401 - stubs pyserial before hil_test imports it
 import hil_test          # noqa: E402
 
-RTT_PY = 'tools/agentrc/skills/rtt/scripts/rtt.py'
+RTT_PY = 'lib/agentrc/skills/rtt/scripts/rtt.py'
 
 
 def _raise_rtt_error(msg):

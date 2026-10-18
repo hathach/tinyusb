@@ -553,7 +553,7 @@ jobs:
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
           # the board locks come from agentrc at the commit get_deps.py pins; hil_test.py refuses without it
-          python3 tools/get_deps.py tools/agentrc
+          python3 tools/get_deps.py lib/agentrc
           python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
@@ -642,7 +642,7 @@ jobs:
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
           # the board locks come from agentrc at the commit get_deps.py pins; hil_test.py refuses without it
-          python3 tools/get_deps.py tools/agentrc
+          python3 tools/get_deps.py lib/agentrc
           python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Upload HIL report
@@ -780,8 +780,8 @@ jobs:
 
       - name: Get Dependencies
         if: env.SEL_RUN != 'false'
-        # tools/agentrc: hil_test.py's board locks, at the commit get_deps.py pins
-        run: python3 tools/get_deps.py tools/agentrc $BUILD_ARGS
+        # lib/agentrc: hil_test.py's board locks, at the commit get_deps.py pins
+        run: python3 tools/get_deps.py lib/agentrc $BUILD_ARGS
 
       - name: Build
         if: env.SEL_RUN != 'false'

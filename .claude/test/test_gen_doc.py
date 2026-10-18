@@ -168,22 +168,22 @@ class FetchByPathTest(unittest.TestCase):
         return rc, fetched, out.getvalue()
 
     def test_dependency_paths_alone_skip_the_mandatory_deps(self):
-        rc, fetched, _ = self._main('tools/linkermap', 'tools/agentrc')
+        rc, fetched, _ = self._main('tools/linkermap', 'lib/agentrc')
         self.assertEqual(rc, 0)
-        self.assertEqual(fetched, ['tools/linkermap', 'tools/agentrc'])
+        self.assertEqual(fetched, ['tools/linkermap', 'lib/agentrc'])
 
     def test_a_mandatory_path_alone_is_fetched(self):
         rc, fetched, _ = self._main('tools/uf2')
         self.assertEqual((rc, fetched), (0, ['tools/uf2']))
-        rc, fetched, _ = self._main('tools/agentrc', 'lib/fatfs')
-        self.assertEqual((rc, fetched), (0, ['tools/agentrc', 'lib/fatfs']))
+        rc, fetched, _ = self._main('lib/agentrc', 'lib/fatfs')
+        self.assertEqual((rc, fetched), (0, ['lib/agentrc', 'lib/fatfs']))
 
     def test_a_path_beside_a_family_or_board_keeps_the_mandatory_deps(self):
-        for argv in (('tools/agentrc', 'nrf'), ('tools/agentrc', '-b', 'feather_nrf52840_express')):
+        for argv in (('lib/agentrc', 'nrf'), ('lib/agentrc', '-b', 'feather_nrf52840_express')):
             with self.subTest(argv=argv):
                 rc, fetched, _ = self._main(*argv)
                 self.assertEqual(rc, 0)
-                self.assertEqual(fetched[0], 'tools/agentrc')
+                self.assertEqual(fetched[0], 'lib/agentrc')
                 self.assertLessEqual(set(get_deps.deps_mandatory), set(fetched[1:]))
 
     def test_an_unknown_path_fails_before_fetching(self):

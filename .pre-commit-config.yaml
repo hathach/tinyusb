@@ -74,7 +74,7 @@ repos:
   # No types_or: the rig rosters (*.json) are inputs too.
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
   # and md5-checks the logo header from there as its MTP fixtures.
-  # tools/get_deps.py is in scope: it holds the tools/agentrc pin the suites check.
+  # tools/get_deps.py is in scope: it holds the lib/agentrc pin the suites check.
   # language: python so pre-commit's venv supplies pyusb and pyserial, which the rig
   # scripts under test import.
   - id: hil-test
