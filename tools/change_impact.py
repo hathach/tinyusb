@@ -46,7 +46,7 @@ can actually build.
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
-| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 """
 import argparse
@@ -149,10 +149,7 @@ MEMBROWSE_TARGET = 'examples-membrowse-upload'
 _SELECTOR_RE = re.compile(r'^\.claude/skills/build/scripts/check_build\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
-    # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
-    # at module load, so a break in it breaks every rig run the same way a test/hil/
-    # edit can (the pre-commit hil-test hook runs its unit tests for the same reason)
-    r'test/hil/|tools/rtt\.py$|'
+    r'test/hil/|'
     r'\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
@@ -369,6 +366,9 @@ def mcu_families(path: str, repo_root: str) -> set:
 
 GET_DEPS_PATH = 'tools/get_deps.py'
 _DEPS_DICTS = ('deps_mandatory', 'deps_optional')
+# Dep paths the HIL harness itself loads (helper/hil_lock.py, hil_util's RTT console), not a family build:
+# a pin change is a harness change, rule 2's HIL answer and no build.
+_HIL_HARNESS_DEPS = frozenset({'lib/agentrc'})
 
 
 def _deps_split(text: str):
@@ -404,7 +404,8 @@ _DEPS_ALIAS_TOKENS = frozenset({'sam3x', 'samd21', 'samd51', 'same5x',
 
 def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
     """Families whose tools/get_deps.py dep entries changed between two versions of
-    the file, or None meaning 'cannot tell - use the full matrix'.
+    the file, plus the path of each changed _HIL_HARNESS_DEPS entry, or None meaning
+    'cannot tell - use the full matrix'.
 
     None on: anything outside deps_mandatory/deps_optional differing (a logic change
     to get_deps affects every family), a mandatory `'all'` entry changing, a token
@@ -423,12 +424,14 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         return None
     if base_rest != head_rest:
         return None
-    toks = set()
+    toks, harness = set(), set()
     for name in _DEPS_DICTS:
         base_x, head_x = base_d.get(name, {}), head_d.get(name, {})
         for key in set(base_x) | set(head_x):
             if base_x.get(key) == head_x.get(key):
                 continue
+            if key in _HIL_HARNESS_DEPS:
+                harness.add(key)
             for entry in (base_x.get(key), head_x.get(key)):
                 if entry and len(entry) > 2:
                     toks.update(str(entry[2]).split())
@@ -440,7 +443,7 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         # "nothing changed": reading it as the latter empties the entire build matrix
         # for a dep bump, so fall open instead
         return None
-    return toks & fams
+    return (toks & fams) | harness
 
 
 _CLS_INC_RE = re.compile(r'#\s*include\s*[<"]class/([^/"<>]+)/([^"<>]+)[">]')
@@ -710,6 +713,9 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if path == GET_DEPS_PATH:
         if get_deps_families is None:
             s.force_full(f'{path}: dep changes not resolvable -> full matrix')
+            return
+        if get_deps_families & _HIL_HARNESS_DEPS:
+            s.force_full(f'{path}: a HIL harness dep changed -> full matrix')
             return
         if not get_deps_families:
             s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
@@ -1308,10 +1314,10 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         if get_deps_families is None:
             s.force_full(path, 'get-deps', f'{path}: dep changes not resolvable -> full build matrix')
             return
-        if not get_deps_families:
+        fams = sorted(get_deps_families - _HIL_HARNESS_DEPS)
+        if not fams:
             s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
             return
-        fams = sorted(get_deps_families)
         s.add(path, 'get-deps', fams, 'all', f'{path}: dep entries changed -> families {fams}', fams)
         return
     m = _PORT_PATH_RE.match(path)

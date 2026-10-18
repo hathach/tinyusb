@@ -208,14 +208,19 @@ def _tt():
     return hil_tt
 
 
-SERIAL_GRACE = 1.0   # tighter than hil_util's shared default on purpose: find_device
+def _uo():
+    from helper import usb_observe
+    return usb_observe
+
+
+SERIAL_GRACE = 1.0   # tighter than usb_observe's shared default on purpose: find_device
                      # re-scans every cafe:4010 peer after each of ~30 cases and inside
                      # the 8s startup poll, so N unreadable peers cost N x this per scan
 
 
 def _read_sysfs(path):
-    """The attribute's value, or None. See hil_util.read_sysfs for why `serial` can block."""
-    return _hu().read_sysfs(str(path), SERIAL_GRACE)
+    """The attribute's value, or None. See usb_observe.read_sysfs for why `serial` can block."""
+    return _uo().read_sysfs(str(path), SERIAL_GRACE)
 
 
 _DEV_CACHE: dict = {}   # serial -> sysname, see find_device
@@ -280,7 +285,7 @@ def find_device(serial):
                 continue
             # idVendor/idProduct are cached descriptors; `serial` is served under
             # device_lock(), so on a wedged DUT this read blocks until the wedge clears.
-            # Contained by the caller's bound, not prevented here -- see hil_util.read_sysfs.
+            # Contained by the caller's bound, not prevented here -- see usb_observe.read_sysfs.
             dev_serial = _read_sysfs(dev / 'serial')
             if dev_serial is None:
                 continue
@@ -620,9 +625,9 @@ def strays_on(serial):
     Matched from the holder's `-D` node to the device, never by scanning for our serial: the
     held device's `serial` attribute is exactly the one that cannot be read.
     """
-    hu = _hu()
-    return [h for h in hu.dstate_holders('testusb')
-            if (hu.usb_node_serial(h['node']) or '').lower() == serial.lower()]
+    uo = _uo()
+    return [h for h in uo.dstate_holders('testusb')
+            if (uo.usb_node_serial(h['node']) or '').lower() == serial.lower()]
 
 
 def recover_strays(board, strays):
@@ -654,7 +659,7 @@ def recover_strays(board, strays):
     time.sleep(RECOVER_SETTLE)
     deadline = time.monotonic() + RECOVER_REAP
     while True:
-        held = [s for s in strays if _hu().proc_holds(s)]
+        held = [s for s in strays if _uo().proc_holds(s)]
         if not held:
             print('reset freed the device: testusb reaped')
             return ''
@@ -800,7 +805,7 @@ def main():
             if not live:
                 # a serial read that gave up looks like a disconnect but is probably a
                 # wedge: fail closed and latch board_wedged
-                if _hu().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
+                if _uo().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
                     abort_reason = (f'cannot tell whether the device is still present '
                                     f'after case {num}: its serial read gave up')
                     unrecovered_hang = True

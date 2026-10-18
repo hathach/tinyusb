@@ -44,7 +44,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
-from helper import hil_lock, hil_report, hil_util  # noqa: E402
+from helper import hil_lock, hil_report, hil_util, usb_observe  # noqa: E402
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
@@ -232,7 +232,7 @@ def flash(board, fw):
 def enumerated(uid):
     deadline = time.monotonic() + ENUM_TIMEOUT
     while time.monotonic() < deadline:
-        if hil_util.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid):
+        if usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid):
             time.sleep(SETTLE)
             return True
         time.sleep(0.2)

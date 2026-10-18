@@ -239,6 +239,42 @@ class Staging(Rig):
         self.assertEqual(self.remote_files(),
                          sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw]))
 
+    def lock_dependency(self, provided=True):
+        """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
+        rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
+        rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/usb_observe.py',
+                 'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
+        for rel in rels:
+            shutil.copy(REPO / rel, self.root / rel)
+        if not provided:
+            shutil.rmtree(self.root / 'lib/agentrc')
+
+    def test_the_staged_tree_passes_the_pin_check(self):
+        self.build('alpha')
+        self.lock_dependency()
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        probe = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil"); '
+                                'from helper import agentrc, hil_lock; print(hil_lock.__file__); '
+                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__)'],
+                               cwd=self.remote, capture_output=True, text=True, timeout=30)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(probe.stdout.split(), [str(self.remote / 'lib/agentrc/skills/hil/scripts/hil_lock.py'),
+                                                str(self.remote / 'lib/agentrc/skills/rtt/scripts/rtt.py')])
+
+    def test_a_missing_lock_dependency_refuses_before_the_rig(self):
+        self.build('alpha')
+        self.lock_dependency(provided=False)
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 1)
+        spec = importlib.util.spec_from_file_location('get_deps_under_test', REPO / 'tools/get_deps.py')
+        get_deps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(get_deps)
+        self.assertIn(get_deps.deps_optional['lib/agentrc'][1], r.stderr)
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertEqual(self.calls(), [])
+
     def test_a_missing_variant_warns(self):
         self.build('beta_one')
         r = self.hil_remote('-b', 'beta')
