@@ -191,11 +191,13 @@ class _InterruptHold:
                 old = signal.getsignal(sig)
                 if not callable(old):
                     continue
+                # recorded BEFORE the swap, so a signal landing right after it is restorable
+                self._held[sig] = old
                 try:
                     signal.signal(sig, self._defer)
                 except ValueError:
+                    del self._held[sig]
                     break           # not the main thread
-                self._held[sig] = old
         except BaseException:
             # SIGTERM's own handler raised after SIGINT's was swapped: never strand a deferral
             self.release()
@@ -256,25 +258,28 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
                 out, err = b'', b''
                 _close_pipes(p)     # our own fds must not leak either
             return subprocess.CompletedProcess(argv, 124, out, err)
+
+    try:
+        try:
+            hold.release()  # a signal deferred across the fork raises here, cleanup armed
+            work()
         except BaseException:
-            # interrupted while waiting: as run_cmd's interrupt path, kill and close, never wait
+            # Reap first so the child never outlives us, then let the caller's error through.
+            # A `return` inside a `finally` would SWALLOW it -- an assert in `work` would
+            # vanish and the caller would compare data it never finished sending.
+            _reap()
+            raise
+        return _reap()
+    except BaseException:
+        # Interrupted before a reap completed: as run_cmd's interrupt path, kill and close,
+        # never wait. A reaped child's pgid may already be reused, so never kill after one.
+        if p.returncode is None:
             try:
                 os.killpg(p.pid, signal.SIGKILL)
             except OSError:
                 pass
             _close_pipes(p)
-            raise
-
-    try:
-        hold.release()      # a signal deferred across the fork raises here, cleanup armed
-        work()
-    except BaseException:
-        # Reap first so the child never outlives us, then let the caller's error through.
-        # A `return` inside a `finally` would SWALLOW it -- an assert in `work` would
-        # vanish and the caller would compare data it never finished sending.
-        _reap()
         raise
-    return _reap()
 
 
 def _cmd_label(cmd) -> str:

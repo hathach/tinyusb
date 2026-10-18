@@ -5,6 +5,7 @@
 # hands out, so the pre-commit hil-test hook can run this on GitHub's bare runner once
 # lib/agentrc is fetched at the pin. Run directly:
 #   python3 test/hil/test/test_hil_util.py
+import inspect
 import io
 import os
 import shlex
@@ -323,14 +324,14 @@ class InterruptAcrossTheFork(unittest.TestCase):
             yield
 
     @contextmanager
-    def _signal_after_popen_returns(self, fn, sig):
-        """Deliver `sig` at the first instruction `fn` runs after Popen returns: the
-        bytecode between the call and the `try`, unreachable from any patched callable."""
-        armed = []
+    def _signal_in(self, fn, sig, fire):
+        """Deliver `sig` once, from a trace hook in `fn`'s frame, at the first line or
+        opcode event `fire(event, frame)` accepts: bytecode no patched callable reaches."""
+        done = []
 
         def local(frame, event, arg):
-            if event == 'opcode' and armed:
-                armed.clear()
+            if not done and fire(event, frame):
+                done.append(True)
                 signal.raise_signal(sig)
             return local
 
@@ -344,10 +345,18 @@ class InterruptAcrossTheFork(unittest.TestCase):
         prev = sys.gettrace()
         sys.settrace(tracer)
         try:
-            with self._popen_hook(lambda p: armed.append(True)):
-                yield
+            yield
         finally:
             sys.settrace(prev)
+
+    @contextmanager
+    def _signal_after_popen_returns(self, fn, sig):
+        """Deliver `sig` at the first instruction `fn` runs after Popen returns, between
+        the call and the `try`."""
+        armed = []
+        with self._popen_hook(lambda p: armed.append(True)), \
+                self._signal_in(fn, sig, lambda event, frame: event == 'opcode' and armed):
+            yield
 
     def _sigterm_raises(self):
         def handler(sig, frame):
@@ -409,6 +418,37 @@ class InterruptAcrossTheFork(unittest.TestCase):
             with self.assertRaises(KeyboardInterrupt):
                 hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
         self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_alongside_sigint_between_work_and_reap(self):
+        src, first = inspect.getsourcelines(hil_util.run_alongside)
+        reap_line = next(first + i for i, line in enumerate(src)
+                         if line.strip() == 'return _reap()')
+        with self._popen_hook(), \
+                self._signal_in(hil_util.run_alongside, signal.SIGINT,
+                                lambda event, frame: event == 'line'
+                                and frame.f_lineno == reap_line):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_sigterm_while_holding_sigint_restores_it(self):
+        # SIGTERM's raising handler fires right after SIGINT's handler was swapped, before
+        # SIGTERM's is: the constructor's cleanup must still put SIGINT's back
+        self._sigterm_raises()
+        real_signal = signal.signal
+
+        def swap(sig, handler):
+            old = real_signal(sig, handler)
+            if sig == signal.SIGINT and handler is not signal.default_int_handler:
+                signal.raise_signal(signal.SIGTERM)
+            return old
+
+        with mock.patch.object(hil_util.signal, 'signal', swap):
+            with self.assertRaises(SystemExit):
+                hil_util.run_cmd('true')
+        self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+        with self.assertRaises(KeyboardInterrupt):
+            signal.raise_signal(signal.SIGINT)
 
     def test_timeout_kills_the_grandchild(self):
         with self._popen_hook():
