@@ -249,6 +249,42 @@ class Staging(Rig):
         self.assertEqual(self.remote_files(),
                          sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw]))
 
+    def lock_dependency(self, provided=True):
+        """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
+        rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
+        rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/usb_observe.py',
+                 'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
+        for rel in rels:
+            shutil.copy(REPO / rel, self.root / rel)
+        if not provided:
+            shutil.rmtree(self.root / 'lib/agentrc')
+
+    def test_the_staged_tree_passes_the_pin_check(self):
+        self.build('alpha')
+        self.lock_dependency()
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        probe = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil"); '
+                                'from helper import agentrc, hil_lock; print(hil_lock.__file__); '
+                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__)'],
+                               cwd=self.remote, capture_output=True, text=True, timeout=30)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(probe.stdout.split(), [str(self.remote / 'lib/agentrc/skills/hil/scripts/hil_lock.py'),
+                                                str(self.remote / 'lib/agentrc/skills/rtt/scripts/rtt.py')])
+
+    def test_a_missing_lock_dependency_refuses_before_the_rig(self):
+        self.build('alpha')
+        self.lock_dependency(provided=False)
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 1)
+        spec = importlib.util.spec_from_file_location('get_deps_under_test', REPO / 'tools/get_deps.py')
+        get_deps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(get_deps)
+        self.assertIn(get_deps.deps_optional['lib/agentrc'][1], r.stderr)
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertEqual(self.calls(), [])
+
     def test_a_missing_variant_warns(self):
         self.build('beta_one')
         r = self.hil_remote('-b', 'beta')
@@ -612,7 +648,7 @@ class Units(unittest.TestCase):
             root = Path(td)
             other = 'Q:' if root.drive.upper() != 'Q:' else 'R:'
             args = types.SimpleNamespace(build=False, build_dir='cmake-build', accumulate=False)
-            with mock.patch.object(hil_remote, 'ROOT', root), \
+            with mock.patch.object(hil_remote, 'ROOT', root), mock.patch.object(hil_remote, 'helper'), \
                     mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, Path(f'{other}/rig/tinyusb.json'))), \
                     mock.patch.object(hil_remote, 'resolve_firmware', return_value=[root / 'cmake-build' / 'cmake-build-alpha']), \
                     mock.patch.object(hil_remote, 'remote_lease', lease), \
@@ -621,6 +657,18 @@ class Units(unittest.TestCase):
                 hil_remote.run([])
         self.assertIn('is not on the drive of the checkout', str(e.exception.code))
         self.assertEqual(leased, [], 'refused after the lease wiped the rig tree')
+
+    def test_the_pin_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
+        # agentrc.load() checks the pin before running agentrc's hil_lock, whose fcntl Windows lacks
+        args = types.SimpleNamespace(build=True, board=['alpha'], flasher=None, exclude_flasher=None,
+                                     build_dir='cmake-build')
+        for error, refusal in ((ModuleNotFoundError("No module named 'fcntl'", name='fcntl'), '--build would build'),
+                               (ImportError('lib/agentrc must be at the pin'), 'lib/agentrc must be at the pin')):
+            with self.subTest(error), mock.patch.object(hil_remote, 'helper', side_effect=error), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, hil_remote.ROOT / 'x.json')), \
+                    self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+            self.assertIn(refusal, str(e.exception.code))
 
 
 if __name__ == '__main__':

@@ -30,6 +30,11 @@ jobs:
         #cd test/unit-test
         #ceedling test:all
 
+    # the hil-test, change-impact-test and claude-scripts hooks import test/hil/helper/hil_lock.py,
+    # which refuses to load without agentrc at the commit get_deps.py pins
+    - name: Get the board-lock dependency
+      run: python3 tools/get_deps.py lib/agentrc
+
     # runs --all-files, so the hil-test hook fires here regardless of its `files:` scope
     - name: Run pre-commit
       uses: pre-commit/action@v3.0.1
