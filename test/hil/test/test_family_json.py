@@ -3,6 +3,7 @@ the probes that validate it, the merge that writes it, and the check pre-commit 
 No cmake here: the build dirs are fixtures. The last test is the check itself over the
 real tree, which is what the pre-commit hook guarantees."""
 import contextlib
+import errno
 import io
 import json
 import os
@@ -10,6 +11,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -150,34 +152,35 @@ class SplitCommand(unittest.TestCase):
         self.assertEqual(argv, ['C:\\Tool\\bin\\gcc.exe', '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'])
 
 
-@unittest.skipUnless(os.name == 'nt', 'msvcrt locks are the Windows stand-in for flock')
+MSVCRT = types.SimpleNamespace(LK_UNLCK=0, LK_LOCK=1, LK_NBLCK=2)
+
+
 class WindowsLock(unittest.TestCase):
+    """_locked's msvcrt path on any host: no fcntl to import, and an msvcrt whose locking() is the test's."""
     def rewrite(self, locking):
-        import msvcrt
+        msvcrt = types.SimpleNamespace(**vars(MSVCRT), locking=locking)
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)
             (root / 'family.json').write_text('{}\n', encoding='utf-8')
-            with mock.patch.object(fj, 'ROOT', root), mock.patch.object(msvcrt, 'locking', locking), \
+            with mock.patch.object(fj, 'ROOT', root), mock.patch.dict(sys.modules, {'fcntl': None, 'msvcrt': msvcrt}), \
                     mock.patch.object(fj.time, 'sleep'):
                 return fj.rewrite(lambda data: data.update(x={}), root / 'family.json')
 
     def test_a_writer_waits_for_the_lock_as_long_as_it_is_held(self):
-        import errno
-        import msvcrt
         calls = []
 
         def locking(fd, mode, n):
             calls.append(mode)
-            if mode == msvcrt.LK_LOCK:   # what LK_LOCK gives after its ten 1 s tries
-                raise OSError(errno.EDEADLOCK, 'Resource deadlock avoided')
-            if mode == msvcrt.LK_NBLCK and calls.count(mode) < 30:
+            if mode == MSVCRT.LK_LOCK:   # it gives up after about 10 s, and the retry loop would spin on that
+                raise AssertionError('LK_LOCK')
+            if mode == MSVCRT.LK_UNLCK:
+                os.fstat(fd)   # EBADF once the file is closed
+            elif calls.count(mode) < 30:
                 raise OSError(errno.EACCES, 'Permission denied')
         self.assertEqual(self.rewrite(locking), 'updated')
-        self.assertEqual(calls, [msvcrt.LK_NBLCK] * 30 + [msvcrt.LK_UNLCK], 'released before the close')
+        self.assertEqual(calls, [MSVCRT.LK_NBLCK] * 30 + [MSVCRT.LK_UNLCK], 'released before the close')
 
     def test_a_lock_error_that_is_not_contention_is_raised(self):
-        import errno
-
         def locking(fd, mode, n):
             raise OSError(errno.EBADF, 'Bad file descriptor')
         with self.assertRaises(OSError):
@@ -369,6 +372,18 @@ class Check(unittest.TestCase):
         path = root / 'hw' / 'bsp' / 'family.json'
         path.write_text(fj.canonical_text(data))
         return path
+
+    @unittest.skipIf(os.name == 'nt', 'a backslash separates there, so no one file has this name')
+    def test_a_backslash_portable_entry_is_refused_on_windows_even_when_posix_finds_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            p = 'synopsys\\dwc2\\dcd_dwc2.c'
+            (root / 'src' / 'portable' / p).write_text('')
+            row = dict(ROW, portable=[p])
+            self.assertEqual(fj.row_violations(row, {'OPT_MCU_STM32F4'}, root), [])
+            with mock.patch.object(fj, 'os', types.SimpleNamespace(name='nt')):   # row_violations' os, as on Windows
+                self.assertEqual(fj.row_violations(row, {'OPT_MCU_STM32F4'}, root),
+                                 [f'portable entry {p!r} is not a relative path to a file under src/portable/'])
 
     def test_a_complete_catalog_passes_and_every_gap_is_named_with_its_remedy(self):
         with tempfile.TemporaryDirectory() as d:

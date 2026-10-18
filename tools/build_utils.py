@@ -561,9 +561,9 @@ def _board_files(board):
     if not hits:
         raise BoardInfoError(f'unknown board {board}')
     if len(hits) > 1:
-        raise BoardInfoError(f'{board} exists in several families: ' + ', '.join(map(str, hits)))
+        raise BoardInfoError(f'{board} exists in several families: ' + ', '.join(h.as_posix() for h in hits))
     board_dir = hits[0]
-    return board_dir, (str(board_dir / 'board.cmake'), str(board_dir.parent.parent / 'family.cmake'))
+    return board_dir, ((board_dir / 'board.cmake').as_posix(), (board_dir.parent.parent / 'family.cmake').as_posix())
 
 
 def _checked_device(value, source):

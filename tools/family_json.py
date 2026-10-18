@@ -101,7 +101,9 @@ def split_command(cmd):
     the command line reaches CreateProcess as it is, the argv rules of the Microsoft C runtime
     (msvcr90 and later, the UCRT): backslashes are literal except before a quote, 2k of them
     before a quote are k and the quote delimits, 2k+1 are k and a literal quote, and `""`
-    inside quotes is a literal quote. CMake writes an embedded quote as `\\"`.
+    inside quotes is a literal quote. CMake writes an embedded quote as `\\"`. The program name
+    is split by these rules too, though the CRT reads it with quotes only toggling; the two
+    differ only on a backslash before a quote or a `""`, which no compiler path holds.
     The dialect follows the Python reading the file (os.name), which suits native and MinGW
     Pythons on Windows; a Cygwin or MSYS-runtime Python (os.name 'posix') reading a Windows
     build's file is not supported."""
