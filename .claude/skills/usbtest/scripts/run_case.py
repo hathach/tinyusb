@@ -15,6 +15,7 @@ is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or ot
 process is alive on this host, checked before and again after taking the lock. That check is
 host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
 another battery's load on this board's host controller does not matter for what you are measuring.
+A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -24,7 +25,8 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
 them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken, 2 refused before any hardware action. A SIGTERM (`hil_lock.py release` sends one
+lock was taken, 2 refused before any hardware action; a command line argparse rejects exits 2
+with its usage on stderr and no JSON line. A SIGTERM (`hil_lock.py release` sends one
 to the lock holder) kills the running flasher or usbtest.py, reports boardState unknown with a
 verdict line, then releases the lock.
 """

@@ -5,7 +5,6 @@ that is not a merged PR; gh failures surface instead of thinning the list."""
 import importlib.util
 import io
 import json
-import locale
 import os
 import subprocess
 import sys
@@ -91,13 +90,14 @@ class BumpTest(unittest.TestCase):
             self.assertIn('"0-latest": "0.22.0"', text)
 
     def test_files_are_read_and_written_as_utf8_with_lf_whatever_the_locale(self):
-        # bump runs no git or gh, so the script can run as a process here, outside UTF-8 mode
+        # bump runs no git or gh, so the script can run as a process here, outside UTF-8 mode and,
+        # on POSIX, in an ASCII locale
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             fixture(root)
             lib = LIBRARY_JSON.replace('"name": "TinyUSB",', '"name": "TinyUSB",\n    "authors": "ø ✔",')
             (root / 'library.json').write_bytes(lib.encode('utf-8'))
-            env = {k: v for k, v in os.environ.items() if k != 'PYTHONUTF8'}
+            env = {**{k: v for k, v in os.environ.items() if k != 'PYTHONUTF8'}, 'LC_ALL': 'C', 'PYTHONCOERCECLOCALE': '0'}
             r = subprocess.run([sys.executable, '-X', 'utf8=0', str(SCRIPT), '--root', d, 'bump', '0.22.1'],
                                capture_output=True, env=env, timeout=60)
             self.assertEqual(r.returncode, 0, r.stderr)
@@ -118,8 +118,8 @@ class PrNumbersTest(unittest.TestCase):
 class CliTest(unittest.TestCase):
     """main() in-process with git and gh answered by a stand-in for subprocess.run, so no real
     git or gh can run: git answers the ancestor check and the log, gh answers per PR. Their output
-    is UTF-8 bytes, decoded the way subprocess.run would with the caller's arguments, and stdout
-    and stderr are a console in a legacy code page."""
+    is UTF-8 bytes, decoded the way subprocess.run would with the caller's arguments under a
+    legacy code page's locale, and stdout and stderr are a console in a legacy code page."""
 
     def run_cli(self, args, ancestor=True, gh_fail=()):
         def run(argv, capture_output=False, text=False, encoding=None, cwd=None):
@@ -136,9 +136,9 @@ class CliTest(unittest.TestCase):
                                       'author': {'login': 'dependabot[bot]' if n == 11 else 'hathach'}}, ensure_ascii=False)
             else:
                 raise AssertionError(f'unexpected command {argv}')
+            out, err = out.encode('utf-8'), err.encode('utf-8')
             if encoding or text:
-                decode = encoding or locale.getpreferredencoding(False)
-                out, err = (s.encode('utf-8').decode(decode) for s in (out, err))
+                out, err = (s.decode(encoding or 'cp1252') for s in (out, err))
             return subprocess.CompletedProcess(argv, rc, out, err)
 
         # Windows prints UTF-8 whatever the console; elsewhere stdout keeps the encoding and errors it was given

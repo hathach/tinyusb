@@ -234,7 +234,7 @@ class Shield(unittest.TestCase):
 class NotLinux(unittest.TestCase):
     def test_every_verb_is_refused_before_it_runs(self):
         bash = shutil.which('bash')
-        if not bash or Path(bash).parent.name.lower() == 'system32':   # Windows' WSL launcher
+        if not bash or Path(bash).parent.name.lower() in ('system32', 'windowsapps'):   # Windows' WSL launchers
             self.skipTest('no bash to run the script with')
         r = subprocess.run([bash, str(SCRIPT), 'resolve', '/dev/ttyACM3'], capture_output=True,
                            encoding='utf-8', timeout=60)

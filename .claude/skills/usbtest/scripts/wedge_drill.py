@@ -28,7 +28,8 @@ rc 0, testusb reaped, the serial back as one device on a new devnum, smoke case 
 (the harness did not recover a wedge it was given), or "inconclusive" (no wedge was produced:
 the case ended before the halt landed, the halt failed, or no case hung). `cleanup` is the drill's
 own reset after a non-pass and never counts as harness recovery. Exit 0 only for a pass with the
-board parked; 1 otherwise; 2 refused.
+board parked; 1 otherwise; 2 refused (a command line argparse rejects: its usage on stderr, no JSON
+line).
 """
 import argparse
 import json

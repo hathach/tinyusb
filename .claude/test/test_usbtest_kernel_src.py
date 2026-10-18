@@ -202,7 +202,10 @@ class Cli(unittest.TestCase):
         # a comment in the case block that no legacy code page decodes or encodes
         text = USBTEST_C.replace('\tcase 16:\n', '\tcase 16:\t/* \u2192 \u2714 \u00f8 */\n')
         (self.src / 'drivers/usb/misc/usbtest.c').write_text(text, encoding='utf-8')
-        r = self.run_script('--tag', 'v6.12.107', '--case', '16')
+        # an ASCII locale on POSIX, where stdout stays as given and so is pinned; Windows reconfigures its own
+        env = {'PYTHONUTF8': '0'} if os.name == 'nt' else \
+            {'PYTHONUTF8': '0', 'LC_ALL': 'C', 'PYTHONCOERCECLOCALE': '0', 'PYTHONIOENCODING': 'utf-8'}
+        r = self.run_script('--tag', 'v6.12.107', '--case', '16', **env)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('\tcase 16:\t/* \u2192 \u2714 \u00f8 */', r.stdout)
 

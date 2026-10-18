@@ -189,11 +189,12 @@ def codespell_collisions(original, new_text):
   if not added:
     return []
   # closed before codespell reads it: Windows cannot open a file a second time while it is open
-  with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as probe:
-    # outside the repo and not dot-prefixed: codespell skips hidden files unless
-    # .codespellrc is picked up from cwd, which would make this guard fail open
-    probe.write("\n".join(added) + "\n")
+  probe = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8")
   try:
+    with probe:
+      # outside the repo and not dot-prefixed: codespell skips hidden files unless
+      # .codespellrc is picked up from cwd, which would make this guard fail open
+      probe.write("\n".join(added) + "\n")
     run = subprocess.run(["codespell", "--ignore-words", str(IGNORE_WORDS), probe.name],
                          capture_output=True, encoding="utf-8", errors="replace")
   except FileNotFoundError:

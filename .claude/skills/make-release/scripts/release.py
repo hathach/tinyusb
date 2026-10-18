@@ -83,7 +83,7 @@ def bump(root, version):
             raise Refused(f'{path.relative_to(root).as_posix()}: no line matched the version pattern; nothing written')
         pending.append((path, after))
     for path, after in pending:
-        path.write_text(after, encoding='utf-8', newline='\n')   # as on POSIX, no CRLF
+        path.write_bytes(after.encode('utf-8'))   # as on POSIX, no CRLF; write_text's newline= needs 3.10
     return [path for path, _ in pending]
 
 
