@@ -6,6 +6,7 @@ import json
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -57,6 +58,11 @@ class ParseTest(unittest.TestCase):
         gcc = 'C:/Program Files/Arm GNU Toolchain/bin/arm-none-eabi-gcc.exe' if os.name == 'nt' else '/opt/arm gnu/bin/arm-none-eabi-gcc'
         join = subprocess.list2cmdline if os.name == 'nt' else shlex.join   # as CMake writes it on each host
         self.assertEqual(ca.compiler_of({'command': join([gcc, '-c', 'a.c'])}), gcc)
+
+    def test_its_family_json_leaves_the_audited_checkouts_to_import_build(self):
+        # graph imports the audited checkout's tools/build.py, whose `import family_json` must find that checkout's
+        self.assertEqual(Path(ca.family_json.__file__), SCRIPT.parents[4] / 'tools' / 'family_json.py')
+        self.assertIsNot(sys.modules.get('family_json'), ca.family_json)
 
     def test_global_assembly_label_is_live_local_one_is_not(self):
         self.assertTrue(ca.defines_symbols('    25: 00000000     2 NOTYPE  GLOBAL DEFAULT    7 Default_Handler\n'))

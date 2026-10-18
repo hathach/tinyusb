@@ -37,7 +37,12 @@ class BuildDocTest(unittest.TestCase):
         a stub on PATH that a host cannot execute would let the real sphinx-build run."""
         calls = []
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(build_doc.subprocess, 'call', lambda cmd: calls.append(cmd) or rc), \
+
+        def call(cmd):
+            calls.append(cmd)
+            self.build_existed = self.build.exists()
+            return rc
+        with mock.patch.object(build_doc.subprocess, 'call', call), \
                 mock.patch.object(sys, 'argv', [str(SCRIPT), *args]), redirect_stdout(out), redirect_stderr(err):
             try:
                 code = build_doc.main()
@@ -64,7 +69,7 @@ class BuildDocTest(unittest.TestCase):
         (self.build / 'stale').mkdir(parents=True)
         r, argv = self.run_main(['-c'])
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertFalse(self.build.exists())
+        self.assertFalse(self.build_existed, 'removed before sphinx-build ran')
 
     def test_sphinx_failure_is_the_exit_code_and_no_success_line(self):
         r, argv = self.run_main([], rc=2)

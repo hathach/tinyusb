@@ -741,10 +741,11 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
 
 def run(cmd, verbose):
     # streamed as it arrives: a variant build runs for minutes, and a silent buffer reads as a
-    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits
+    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits;
+    # PYTHONIOENCODING, or on Windows it writes the pipe in the ANSI code page, not as decoded here
     out = []
     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', cwd=ROOT,
-                          env={**os.environ, 'PYTHONUNBUFFERED': '1'}) as p:
+                          env={**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}) as p:
         for line in p.stdout:
             out.append(line)
             if verbose:

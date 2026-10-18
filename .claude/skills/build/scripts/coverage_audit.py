@@ -27,6 +27,7 @@ the graph never saw are listed per commit; a commit that deletes a file needs it
 historical tree, since the current graph cannot know what built the deleted file.
 """
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -37,8 +38,11 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(ROOT / 'tools'))
-import family_json  # noqa: E402  split_command: a compile command as its compiler's argv
+# split_command, from this script's checkout under a private name: graph's `import build` must
+# still get the audited checkout's own family_json
+_spec = importlib.util.spec_from_file_location('_coverage_audit_family_json', ROOT / 'tools' / 'family_json.py')
+family_json = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(family_json)
 DEPS_HEADER = re.compile(r'^(\S.*): #deps \d+')
 ROLES = ('device', 'host', 'dual', 'typec')
 FORMAT = 3
@@ -123,7 +127,7 @@ def linker_includes(script, search_dirs, seen=None):
     and the -L dirs - plus the including script's own directory."""
     seen = set() if seen is None else seen
     try:
-        with open(script, errors='replace') as fh:
+        with open(script, encoding='utf-8', errors='replace') as fh:
             text = fh.read()
     except OSError:
         return seen
@@ -210,7 +214,7 @@ def scope_cmake_inputs(files, examples):
 
 
 def run(cmd, cwd, **kw):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, encoding='utf-8', errors='replace', **kw)
 
 
 def run_ok(cmd, cwd):

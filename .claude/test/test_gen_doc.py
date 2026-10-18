@@ -53,7 +53,7 @@ def fixture(root):
          'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
          'note': 'needs  a | jumper \u00f8'},
         {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
-    ]}))
+    ]}, ensure_ascii=False), encoding='utf-8')
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
 
 
@@ -72,18 +72,20 @@ class MetadataTest(unittest.TestCase):
 
 class BoardsTest(unittest.TestCase):
     def test_families_and_boards_sort_by_name_case_sensitively_on_every_host(self):
-        # Windows paths compare case-insensitively; the committed boards.rst is Linux's order
+        # the committed boards.rst is Linux's order; paths here compare case-insensitively, as on Windows
         with tempfile.TemporaryDirectory() as d:
             bsp = Path(d)
             for family in ('acme', 'Zeta'):
                 (bsp / family / 'family.c').parent.mkdir()
                 (bsp / family / 'family.c').write_text(METADATA_FAMILY)
-                for board in ('board_x', 'Board_Y'):
+                for board in ('board_x', 'Board_Y', 'bare', 'Bare_'):
                     (bsp / family / 'boards' / f'{family}_{board}').mkdir(parents=True)
-            vendors, skipped = gen_doc.boards(bsp)
-        self.assertEqual([p.name for p in skipped],
-                         ['Zeta_Board_Y', 'Zeta_board_x', 'acme_Board_Y', 'acme_board_x'])
-        self.assertEqual(vendors, {})
+                    if 'are' not in board:
+                        (bsp / family / 'boards' / f'{family}_{board}' / 'board.h').write_text(METADATA_BOARD)
+            with mock.patch.object(type(bsp), '__lt__', lambda a, b: str(a).casefold() < str(b).casefold()):
+                vendors, skipped = gen_doc.boards(bsp)
+        self.assertEqual(list(vendors['Acme']), ['Zeta_Board_Y', 'Zeta_board_x', 'acme_Board_Y', 'acme_board_x'])
+        self.assertEqual([p.name for p in skipped], ['Zeta_Bare_', 'Zeta_bare', 'acme_Bare_', 'acme_bare'])
 
 
 class MdTableTest(unittest.TestCase):
