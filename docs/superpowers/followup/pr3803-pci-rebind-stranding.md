@@ -52,9 +52,9 @@ code change.
 
 ## File Structure
 
-- `.claude/skills/usb-kernel-recover/SKILL.md` — replace the hypothesis in section 3b and
+- `lib/agentrc/skills/usb-kernel-recover/SKILL.md` — replace the hypothesis in section 3b and
   the Common-mistakes entry with whatever the experiment establishes.
-- `.claude/skills/usb-kernel-recover/scripts/usb_recover.sh` — only if the boundary is
+- `lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh` — only if the boundary is
   detectable from userspace.
 
 ---
@@ -96,7 +96,7 @@ Record whether the holder is on the SAME controller you will rebind.
 - [ ] **Step 1: Rebind, with a bounded observer**
 
 ```bash
-timeout 120 sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <addr>; echo "rc=$?"
+timeout 120 sudo lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <addr>; echo "rc=$?"
 ```
 
 - [ ] **Step 2: Record which of the three outcomes occurred**
@@ -110,7 +110,7 @@ Capture `sudo journalctl -k --since ...` around the attempt either way.
 - [ ] **Step 3: If stranded, recover**
 
 ```bash
-sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind <addr>
+sudo lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind <addr>
 ```
 
 If that hangs too, the only remaining step is a PVE host power cycle — an operator action.
@@ -125,7 +125,7 @@ holder is live on that controller at rebind time; that is the hypothesis under t
 ### Task 3: Write down what was learned
 
 **Files:**
-- Modify: `.claude/skills/usb-kernel-recover/SKILL.md`
+- Modify: `lib/agentrc/skills/usb-kernel-recover/SKILL.md`
 
 - [ ] **Step 1: Replace section 3b's scoping with the measured rule**
 
@@ -139,11 +139,16 @@ For example, refuse `pci-rebind` when a D-state holder exists on that controller
 holder is enumerable from `/proc` and the controller from `readlink`. Only add this if the
 experiment shows it predicts the outcome.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Commit in agentrc, then re-pin**
+
+The skill lives in agentrc now; `lib/agentrc` here is a pinned, ignored fetch. Commit the
+change in an agentrc checkout and open its PR there, then bump the agentrc pin in
+`tools/get_deps.py` from this repository once it lands.
 
 ```bash
-git add .claude/skills/usb-kernel-recover/
-git commit -m "skills: replace the pci-rebind stranding hypothesis with measurement"
+# in the agentrc checkout
+git add -- skills/usb-kernel-recover/
+git commit -m "usb-kernel-recover: replace the pci-rebind stranding hypothesis with measurement"
 ```
 
 ---

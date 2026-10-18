@@ -266,6 +266,16 @@ addresses a board by bus path. Boards are identified by the MCU's unique ID and 
 their serial, both recorded in the rig config — which is why every HIL board must
 implement `board_get_unique_id()`.
 
+The eight uPD720201 controllers sit at `0000:01:00.0` to `0000:08:00.0`, four per card;
+`readlink -f /sys/bus/usb/devices/usb<N>` maps a bus to its controller and `sudo uhubctl` lists the
+root hubs it can drive against the same addresses. Both their USB 2 and USB 3 root hubs advertise
+per-port power switching (`ppps`) but the silicon never drops VBUS (measured on the `05`–`08` card on
+2026-09-22; `01`–`04` unmeasured, assumed the same; the uPD720201 datasheet is not in the library, so
+this is a measurement, not a documented property), so a root-port cycle is a forced re-enumeration and
+nothing more. Which tree holds which probes moves with recabling: derive it (`lsusb -s <bus>:`) rather
+than trusting a stored map. A successful `pci-rebind` renumbers every bus the controller owns (buses 17
+and 18 came back as 1 and 2 on 2026-08-17).
+
 ## Attached boards
 
 Roles come from each board's `tests` entry; `Flasher` is the tool that programs it.
