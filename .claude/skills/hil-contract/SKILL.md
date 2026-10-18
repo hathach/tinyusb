@@ -110,7 +110,7 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ### Remote (dev PC → ci.lan only)
 
-`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root. On a Windows dev PC it needs an MSYS2 or Cygwin `rsync.exe` on PATH and refuses without one; that rsync must find its own distribution's `ssh` first on PATH, since with Windows OpenSSH (`System32\OpenSSH`) the argument conversion and the pipes rsync relies on break. The Windows path is not yet proved end to end on a rig:
+`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
 
 ```bash
 # All boards built under cmake-build/:
@@ -120,6 +120,13 @@ python3 .claude/skills/hil-contract/scripts/hil_remote.py -b raspberry_pi_pico2 
 ```
 
 An agent launches it with `--run-id` and waits on it as Timing says.
+
+It refuses, before touching the rig, when no `rsync` is on PATH. On a Windows dev PC that must be
+an MSYS2 or Cygwin `rsync.exe` in an absolute PATH dir, and it must find its own distribution's
+`ssh` first on PATH, since with Windows OpenSSH (`System32\OpenSSH`) the argument conversion and
+the pipes rsync relies on break. There it also refuses a config or firmware dir on another drive
+than the checkout, which rsync cannot name, and snapshots receipt-pinned firmware under
+`.hil-remote/`. The Windows path is not yet proved end to end on a rig.
 
 One invocation per board is wrong here, not merely slow: each run `rm -rf`s `REMOTE_DIR`
 and rewrites the report, so only the last board's rows survive. A second run sharing

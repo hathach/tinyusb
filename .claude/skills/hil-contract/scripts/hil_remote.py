@@ -280,12 +280,13 @@ def local_operand(path):
 
 
 def rsync_program():
-    """The rsync to run, None when there is none. Windows: an rsync.exe on PATH, which is all
-    subprocess can start by name, and not one in the cwd, which CreateProcess searches first."""
+    """The rsync to run, None when there is none. Windows: an rsync.exe in an absolute PATH dir,
+    which is all subprocess can start by name, and not one in the cwd, which CreateProcess
+    searches first; a relative dir would name it from the cwd, not from ROOT where it runs."""
     if os.name != 'nt':
         return 'rsync' if shutil.which('rsync') else None
     for d in os.environ.get('PATH', '').split(os.pathsep):
-        if d and os.path.isfile(os.path.join(d, 'rsync.exe')):
+        if os.path.isabs(d) and os.path.isfile(os.path.join(d, 'rsync.exe')):
             return os.path.join(d, 'rsync.exe')
     return None
 
@@ -717,7 +718,10 @@ def run_recorded(run_id, argv, receipt):
         finally:
             os.close(lock)
         if not fcntl:
-            started.with_name(f'.{started.name}.{os.getpid()}.tmp').unlink(missing_ok=True)
+            try:   # a waiter's probe holding the file open makes Windows refuse; the next sweep takes it
+                started.with_name(f'.{started.name}.{os.getpid()}.tmp').unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def sweep_stale_tmps(runs):

@@ -129,10 +129,28 @@ class RunRecords(unittest.TestCase):
         fd = os.open(started, os.O_RDONLY)
         self.addCleanup(os.close, fd)
         hil_remote.win_lock(fd, block=False)   # the other waiter, mid-probe
-        threading.Timer(0.05, hil_remote.win_unlock, (fd,)).start()
-        self.assertFalse(hil_remote.run_alive(started))
-        hil_remote.win_lock(fd, block=False)   # the probe released its hold, not left it to the close
-        hil_remote.win_unlock(fd)
+        other = threading.Timer(0.05, hil_remote.win_unlock, (fd,))
+        other.start()
+        self.addCleanup(other.join)   # before the close: it seeks and unlocks fd
+        # a retry budget of 5 s, so a late Timer on a loaded host still lands inside it
+        with mock.patch.object(hil_remote, 'PROBE_SECS', 0.5), \
+                mock.patch.object(hil_remote, 'win_unlock', wraps=hil_remote.win_unlock) as unlock:
+            self.assertFalse(hil_remote.run_alive(started))
+        unlock.assert_called_once()   # the probe released its hold, not left it to the close
+
+    def test_a_refused_unlink_of_the_hidden_name_keeps_the_runs_exit(self):
+        # Windows refuses it while a waiter's probe holds the record open; the next sweep takes it
+        self.stub_run(lambda argv, receipt=None: (3, []))
+        real_unlink = Path.unlink
+
+        def unlink(path, missing_ok=False):
+            if path.name.startswith('.r14.started.json.'):
+                raise PermissionError(13, 'The process cannot access the file')
+            return real_unlink(path, missing_ok=missing_ok)
+        with mock.patch.object(hil_remote, 'fcntl', None), mock.patch.object(hil_remote, 'win_lock'), \
+                mock.patch.object(hil_remote, 'win_unlock'), mock.patch.object(Path, 'unlink', unlink):
+            self.assertEqual(hil_remote.main(['--run-id', 'r14']), 3)
+        self.assertEqual(self.wait('r14')[1], {'state': 'done', 'runId': 'r14', 'exit': 3, 'reports': []})
 
     @unittest.skipUnless(os.name == 'nt', 'only Windows defers the unlink of the hidden name')
     def test_a_killed_runs_hidden_record_name_is_swept_at_the_next_run(self):

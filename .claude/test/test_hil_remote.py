@@ -1,8 +1,9 @@
 """hil_remote.py against a local "rig": a fake ssh runs each remote command under sh with a
 clean environment and a temp HOME, a fake rsync strips the host prefix, and a fake python3
 in that HOME's ~/.local/bin stands in for hil_test.py. So the quoting, the tilde expansion,
-the PATH shim and every refusal-before-wipe execute for real. Plumbing only: the real
-transport is proved by a run on ci.lan."""
+the PATH shim and every refusal-before-wipe execute for real. Windows cannot exec the #!
+fakes, so there only the Refusals and Units run. Plumbing only: the real transport is proved
+by a run on ci.lan."""
 import contextlib
 import importlib.util
 import io
@@ -523,7 +524,7 @@ class Units(unittest.TestCase):
                 self.assertEqual(hil_remote.sidecar_matches(p, CONFIG), ok, body)
             p.write_text('{')
             self.assertFalse(hil_remote.sidecar_matches(p, CONFIG))
-            p.write_text(json.dumps({'rows': [{'board': 'alpha', 'note': '\u2714'}]}), encoding='utf-8')
+            p.write_text(json.dumps({'rows': [{'board': 'alpha', 'note': '\u2714'}]}, ensure_ascii=False), encoding='utf-8')
             self.assertTrue(hil_remote.sidecar_matches(p, CONFIG), 'the rig writes it as UTF-8')
 
     def test_staged_files_are_named_as_rsync_and_the_rig_name_them(self):
@@ -558,6 +559,22 @@ class Units(unittest.TestCase):
                     os.chdir(old)
                 self.assertIn('rsync is not on PATH', str(e.exception.code))
 
+    def test_windows_takes_rsync_exe_only_from_an_absolute_path_dir(self):
+        # the os module as Windows' rsync_program sees it, on any host
+        with tempfile.TemporaryDirectory() as path, tempfile.TemporaryDirectory() as cwd:
+            for d in (path, cwd):
+                (Path(d) / 'rsync.exe').write_bytes(b'')
+            old = os.getcwd()
+            os.chdir(cwd)
+            try:
+                for entries, found in ((['.', 'bin', ''], None), (['.', path], os.path.join(path, 'rsync.exe'))):
+                    nt = types.SimpleNamespace(name='nt', path=os.path, pathsep=os.pathsep,
+                                               environ={'PATH': os.pathsep.join(entries)})
+                    with self.subTest(entries), mock.patch.object(hil_remote, 'os', nt):
+                        self.assertEqual(hil_remote.rsync_program(), found)
+            finally:
+                os.chdir(old)
+
     @unittest.skipUnless(os.name == 'nt', 'rsync.exe is the Windows name')
     def test_windows_runs_the_rsync_exe_found_on_path(self):
         calls = []
@@ -572,13 +589,13 @@ class Units(unittest.TestCase):
         # a one-letter ssh host must not be read as a drive letter, the checkout's own or another
         calls = []
         local = hil_remote.ROOT / 'hil_report.json'
+        hosts = ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r')
         with mock.patch.object(hil_remote, 'rsync_program', return_value='rsync'), \
                 mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append((argv, kw)) or mock.Mock(returncode=0)):
-            for host in ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r'):
+            for host in hosts:
                 hil_remote.rsync(('/tmp/t', 'tok'), '-q', local, f'{host}:/tmp/t/')
                 hil_remote.rsync(('/tmp/t', 'tok'), '-q', f'{host}:/tmp/t/hil_report.json', local)
         name = 'hil_report.json' if os.name == 'nt' else str(local)   # Windows rsync reads C: as a host
-        hosts = ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r')
         self.assertEqual([argv[-2:] for argv, _ in calls],
                          [x for h in hosts for x in ([name, f'{h}:/tmp/t/'], [f'{h}:/tmp/t/hil_report.json', name])])
         self.assertEqual({kw['cwd'] for _, kw in calls}, {hil_remote.ROOT})
