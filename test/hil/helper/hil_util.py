@@ -170,6 +170,50 @@ def _close_pipes(p: subprocess.Popen) -> None:
             pass
 
 
+class _InterruptHold:
+    """Defer SIGINT/SIGTERM's Python handlers across Popen and into the caller's cleanup
+    `try`, where release() delivers whatever arrived. Popen forks before that `try` is
+    entered, and a handler that raised in between unwound with the child alive (#4022).
+
+    Handlers are swapped rather than masked with pthread_sigmask: CPython runs a Python
+    handler in the main thread whichever thread the kernel delivered to, so masking only
+    the caller's thread leaves the window open in a threaded process. Off the main thread
+    no handler can run in the caller, so there is nothing to hold. Only a Python callable
+    can unwind the caller; SIG_DFL, SIG_IGN and C-level handlers are left alone.
+    """
+
+    def __init__(self):
+        self._held = {}
+        self._pending = []
+        self._released = False
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                old = signal.getsignal(sig)
+                if not callable(old):
+                    continue
+                try:
+                    signal.signal(sig, self._defer)
+                except ValueError:
+                    break           # not the main thread
+                self._held[sig] = old
+        except BaseException:
+            # SIGTERM's own handler raised after SIGINT's was swapped: never strand a deferral
+            self.release()
+            raise
+
+    def _defer(self, sig, frame):
+        if self._released:      # left installed by a signal that cut release() short
+            return self._held[sig](sig, frame)
+        self._pending.append(sig)
+
+    def release(self) -> None:
+        self._released = True
+        for sig, old in self._held.items():
+            signal.signal(sig, old)
+        for sig in dict.fromkeys(self._pending):
+            signal.raise_signal(sig)
+
+
 def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:
     """Run `argv` alongside `work()`, which runs in THIS thread, then reap it -- bounded.
 
@@ -187,8 +231,13 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
     its own pipe; communicate() drains both, so the split cannot deadlock.
     `work` runs even if the child dies immediately -- the caller's own asserts decide.
     """
-    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         start_new_session=True)
+    hold = _InterruptHold()
+    try:
+        p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             start_new_session=True)
+    except BaseException:
+        hold.release()
+        raise
 
     def _reap() -> subprocess.CompletedProcess:
         try:
@@ -207,8 +256,17 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
                 out, err = b'', b''
                 _close_pipes(p)     # our own fds must not leak either
             return subprocess.CompletedProcess(argv, 124, out, err)
+        except BaseException:
+            # interrupted while waiting: as run_cmd's interrupt path, kill and close, never wait
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            _close_pipes(p)
+            raise
 
     try:
+        hold.release()      # a signal deferred across the fork raises here, cleanup armed
         work()
     except BaseException:
         # Reap first so the child never outlives us, then let the caller's error through.
@@ -258,8 +316,14 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     # called from threads
     popen_kwargs['start_new_session'] = True
 
-    p = subprocess.Popen(cmd, **popen_kwargs)
+    hold = _InterruptHold()
     try:
+        p = subprocess.Popen(cmd, **popen_kwargs)
+    except BaseException:
+        hold.release()
+        raise
+    try:
+        hold.release()      # a signal deferred across the fork raises here, cleanup armed
         out, err = p.communicate(timeout=timeout)
         r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out, stderr=err)
     except subprocess.TimeoutExpired as ex:

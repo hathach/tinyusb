@@ -7,11 +7,18 @@
 #   python3 test/hil/test/test_hil_util.py
 import io
 import os
+import shlex
+import shutil
+import signal
+import subprocess
 import sys
+import tempfile
+import threading
 import time
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 # the module under test lives in the parent dir's helper/ package
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -234,6 +241,205 @@ class RunCmdCleanupShape(unittest.TestCase):
         for h in base:
             self.assertTrue(any(isinstance(x, ast.Raise) for x in ast.walk(h)),
                             'the interrupt path must re-raise, or Ctrl-C is swallowed')
+
+
+def _live_in_group(pgid: int) -> list:
+    """Pids in process group `pgid` that are neither zombie nor dead."""
+    live = []
+    for d in os.listdir('/proc'):
+        if not d.isdigit():
+            continue
+        try:
+            stat = Path(f'/proc/{d}/stat').read_text()
+        except OSError:
+            continue
+        state, _ppid, pgrp = stat.rsplit(')', 1)[1].split()[:3]
+        if int(pgrp) == pgid and state not in 'ZX':
+            live.append(int(d))
+    return live
+
+
+@unittest.skipUnless(os.path.isdir('/proc'), 'reads process groups from /proc')
+class InterruptAcrossTheFork(unittest.TestCase):
+    """#4022: Popen forks before the cleanup `try` is entered, so a SIGINT/SIGTERM handled
+    inside Popen, or between its return and the `try`, unwound with the child alive -- a
+    flasher kept the probe after the caller released the board's lock. Each case spawns a
+    shell holding a grandchild and checks that no member of its process group survives."""
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.pidfile = os.path.join(tmp, 'grandchild')
+        self.shell_cmd = f'sleep 30 & echo $! > {shlex.quote(self.pidfile)}; wait'
+        self.shell_argv = ['sh', '-c', 'sleep 30 & echo $! > "$1"; wait', 'sh', self.pidfile]
+        self.procs = []
+        self.addCleanup(self._kill_leftovers)
+        prev = signal.signal(signal.SIGINT, signal.default_int_handler)
+        self.addCleanup(signal.signal, signal.SIGINT, prev)
+
+    def _kill_leftovers(self):
+        # the unfixed code leaves the group alive; never leak it past the failing test
+        for p in self.procs:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            p.wait()
+            hil_util._close_pipes(p)
+
+    def _wait_for_grandchild(self):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                if Path(self.pidfile).read_text().endswith('\n'):
+                    return
+            except OSError:
+                pass
+            time.sleep(0.005)
+        self.fail('the shell never started its grandchild')
+
+    def _assert_group_gone(self, pgid):
+        deadline = time.monotonic() + 5
+        while _live_in_group(pgid) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(_live_in_group(pgid), [],
+                         'a child outlived the interrupt that unwound its runner')
+
+    @contextmanager
+    def _popen_hook(self, before_return=None):
+        """Popen that forks the real child, waits until its grandchild exists, then runs
+        `before_return(p)` -- still INSIDE Popen as far as the caller can tell."""
+        real_popen = subprocess.Popen
+
+        def popen(*args, **kwargs):
+            p = real_popen(*args, **kwargs)
+            self.procs.append(p)
+            self._wait_for_grandchild()
+            if before_return:
+                before_return(p)
+            return p
+
+        with mock.patch.object(hil_util.subprocess, 'Popen', popen):
+            yield
+
+    @contextmanager
+    def _signal_after_popen_returns(self, fn, sig):
+        """Deliver `sig` at the first instruction `fn` runs after Popen returns: the
+        bytecode between the call and the `try`, unreachable from any patched callable."""
+        armed = []
+
+        def local(frame, event, arg):
+            if event == 'opcode' and armed:
+                armed.clear()
+                signal.raise_signal(sig)
+            return local
+
+        def tracer(frame, event, arg):
+            if frame.f_code is fn.__code__:
+                frame.f_trace = local   # 3.13 enables opcode events only on a traced frame
+                frame.f_trace_opcodes = True
+                return local
+            return None
+
+        prev = sys.gettrace()
+        sys.settrace(tracer)
+        try:
+            with self._popen_hook(lambda p: armed.append(True)):
+                yield
+        finally:
+            sys.settrace(prev)
+
+    def _sigterm_raises(self):
+        def handler(sig, frame):
+            raise SystemExit(128 + sig)
+        prev = signal.signal(signal.SIGTERM, handler)
+        self.addCleanup(signal.signal, signal.SIGTERM, prev)
+
+    def test_run_cmd_sigint_inside_popen(self):
+        with self._popen_hook(lambda p: signal.raise_signal(signal.SIGINT)):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_cmd(self.shell_cmd)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_cmd_sigterm_inside_popen(self):
+        self._sigterm_raises()
+        with self._popen_hook(lambda p: signal.raise_signal(signal.SIGTERM)):
+            with self.assertRaises(SystemExit):
+                hil_util.run_cmd(self.shell_cmd)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_cmd_sigint_right_after_popen_returns(self):
+        with self._signal_after_popen_returns(hil_util.run_cmd, signal.SIGINT):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_cmd(self.shell_cmd)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_cmd_sigterm_right_after_popen_returns(self):
+        self._sigterm_raises()
+        with self._signal_after_popen_returns(hil_util.run_cmd, signal.SIGTERM):
+            with self.assertRaises(SystemExit):
+                hil_util.run_cmd(self.shell_cmd)
+        self._assert_group_gone(self.procs[0].pid)
+
+    # timeout=2 in these two: the deferred interrupt lands in work()'s handler, whose reap
+    # waits out the full timeout before it kills
+    def test_run_alongside_sigint_inside_popen(self):
+        with self._popen_hook(lambda p: signal.raise_signal(signal.SIGINT)):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=2)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_alongside_sigint_right_after_popen_returns(self):
+        with self._signal_after_popen_returns(hil_util.run_alongside, signal.SIGINT):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=2)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_run_alongside_sigint_while_reaping(self):
+        # the reap after work() is a blocking wait of up to `timeout`, outside any try
+        def interrupt_first_wait(p):
+            real = p.communicate
+
+            def communicate(*args, **kwargs):
+                signal.raise_signal(signal.SIGINT)
+                return real(*args, **kwargs)
+            p.communicate = communicate
+
+        with self._popen_hook(interrupt_first_wait):
+            with self.assertRaises(KeyboardInterrupt):
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_timeout_kills_the_grandchild(self):
+        with self._popen_hook():
+            with redirect_stdout(io.StringIO()):
+                r = hil_util.run_cmd(self.shell_cmd, timeout=1)
+        self.assertEqual(r.returncode, 124)
+        self._assert_group_gone(self.procs[0].pid)
+
+    def test_handlers_are_restored(self):
+        before = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+        self.assertEqual(hil_util.run_cmd('true').returncode, 0)
+        with self.assertRaises(FileNotFoundError):
+            hil_util.run_cmd(['/nonexistent/hil-run-cmd'])
+        r = hil_util.run_alongside(['true'], lambda: None, timeout=20)
+        self.assertEqual(r.returncode, 0)
+        after = signal.getsignal(signal.SIGINT), signal.getsignal(signal.SIGTERM)
+        self.assertIs(after[0], before[0])
+        self.assertIs(after[1], before[1])
+
+    def test_runs_off_the_main_thread(self):
+        # signal.signal raises ValueError off the main thread; handlers never run there
+        results = []
+        t = threading.Thread(target=lambda: results.append(
+            (hil_util.run_cmd('printf ok'),
+             hil_util.run_alongside(['printf', 'ok'], lambda: None, timeout=20))))
+        t.start()
+        t.join(30)
+        self.assertEqual(len(results), 1, 'run_cmd raised off the main thread')
+        r, ra = results[0]
+        self.assertEqual((r.returncode, r.stdout), (0, 'ok'))
+        self.assertEqual((ra.returncode, ra.stdout), (0, b'ok'))
 
 
 class UsbObserveIsThePinnedModule(unittest.TestCase):
