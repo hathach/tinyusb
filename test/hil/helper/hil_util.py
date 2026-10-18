@@ -265,8 +265,8 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
             return subprocess.CompletedProcess(argv, 124, out, err)
 
     try:
+        hold.release()  # a signal deferred across the fork raises here: killed, not reaped
         try:
-            hold.release()  # a signal deferred across the fork raises here, cleanup armed
             work()
         except BaseException:
             # Reap first so the child never outlives us, then let the caller's error through.

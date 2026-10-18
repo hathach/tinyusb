@@ -198,9 +198,8 @@ class RunCmdCleanupShape(unittest.TestCase):
     a flasher run through a shell keeps children a p.kill() cannot reach, and on the
     BaseException path the child never receives the terminal's SIGINT either.
 
-    Structural rather than behavioural on purpose. Driving a real SIGINT into a blocked
-    communicate() from a unit test is timing-dependent, and a flaky guard on this block is
-    worse than none -- while what actually breaks it is an edit that rebinds a branch. Both
+    Structural on purpose: InterruptAcrossTheFork drives real signals into the spawn window,
+    but what has actually broken this block is an edit that rebinds a branch. Both
     times this block has been mis-edited, an `else:` ended up attached to the `try` instead
     of the `if` it belonged to, so `p.kill()` ran when killpg had SUCCEEDED and its
     ProcessLookupError masked the caller's exception. That is a shape, and shapes are
@@ -246,16 +245,11 @@ class RunCmdCleanupShape(unittest.TestCase):
 
 def _live_in_group(pgid: int) -> list:
     """Pids in process group `pgid` that are neither zombie nor dead."""
+    from helper.usb_observe import _proc_stat
     live = []
     for d in os.listdir('/proc'):
-        if not d.isdigit():
-            continue
-        try:
-            stat = Path(f'/proc/{d}/stat').read_text()
-        except OSError:
-            continue
-        state, _ppid, pgrp = stat.rsplit(')', 1)[1].split()[:3]
-        if int(pgrp) == pgid and state not in 'ZX':
+        st = d.isdigit() and _proc_stat(d)
+        if st and st[1] not in 'ZX' and st[4] == str(pgid):
             live.append(int(d))
     return live
 
@@ -390,22 +384,30 @@ class InterruptAcrossTheFork(unittest.TestCase):
                 hil_util.run_cmd(self.shell_cmd)
         self._assert_group_gone(self.procs[0].pid)
 
-    # timeout=2 in these two: the deferred interrupt lands in work()'s handler, whose reap
-    # waits out the full timeout before it kills
+    @contextmanager
+    def _never_reaped(self):
+        """A deferred interrupt is killed at once: no reap waits out the timeout first. Enter
+        it before _popen_hook, which replaces subprocess.Popen."""
+        with mock.patch.object(subprocess.Popen, 'communicate', autospec=True,
+                               side_effect=subprocess.Popen.communicate) as comm:
+            yield
+        self.assertEqual(comm.call_count, 0, 'the deferred interrupt waited in a reap')
+
     def test_run_alongside_sigint_inside_popen(self):
-        with self._popen_hook(lambda p: signal.raise_signal(signal.SIGINT)):
+        with self._never_reaped(), self._popen_hook(lambda p: signal.raise_signal(signal.SIGINT)):
             with self.assertRaises(KeyboardInterrupt):
-                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=2)
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
         self._assert_group_gone(self.procs[0].pid)
 
     def test_run_alongside_sigint_right_after_popen_returns(self):
-        with self._signal_after_popen_returns(hil_util.run_alongside, signal.SIGINT):
+        with self._never_reaped(), \
+                self._signal_after_popen_returns(hil_util.run_alongside, signal.SIGINT):
             with self.assertRaises(KeyboardInterrupt):
-                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=2)
+                hil_util.run_alongside(self.shell_argv, lambda: None, timeout=20)
         self._assert_group_gone(self.procs[0].pid)
 
     def test_run_alongside_sigint_while_reaping(self):
-        # the reap after work() is a blocking wait of up to `timeout`, outside any try
+        # the reap after work() is a blocking wait of up to `timeout`; it once ran outside any try
         def interrupt_first_wait(p):
             real = p.communicate
 
