@@ -607,7 +607,15 @@ def publish_locked(path, data):
     """Publish a record under an exclusive flock taken before it appears, refusing an existing
     one; returns the fd that holds the lock, which the kernel drops when this process dies."""
     tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
-    tmp.write_text(json.dumps(data) + '\n')
+    try:
+        f = open(tmp, 'x')
+    except FileExistsError:
+        if tmp.stat().st_nlink > 1:   # a killed run's hidden name under a reused pid: writing it rewrites that record
+            raise
+        tmp.unlink()
+        f = open(tmp, 'x')
+    with f:
+        f.write(json.dumps(data) + '\n')
     fd = os.open(tmp, os.O_RDONLY)
     try:
         if fcntl:
@@ -718,10 +726,8 @@ def run_recorded(run_id, argv, receipt):
         finally:
             os.close(lock)
         if not fcntl:
-            try:   # a waiter's probe holding the file open makes Windows refuse; the next sweep takes it
+            with contextlib.suppress(OSError):   # a waiter's probe holding the file open makes Windows refuse; the next sweep takes it
                 started.with_name(f'.{started.name}.{os.getpid()}.tmp').unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def sweep_stale_tmps(runs):

@@ -132,8 +132,8 @@ class RunRecords(unittest.TestCase):
         other = threading.Timer(0.05, hil_remote.win_unlock, (fd,))
         other.start()
         self.addCleanup(other.join)   # before the close: it seeks and unlocks fd
-        # a retry budget of 5 s, so a late Timer on a loaded host still lands inside it
-        with mock.patch.object(hil_remote, 'PROBE_SECS', 0.5), \
+        # a 5 s retry budget at the usual step, so a late Timer on a loaded host still lands inside it
+        with mock.patch.object(hil_remote, 'PROBE_TRIES', int(5 / hil_remote.PROBE_SECS)), \
                 mock.patch.object(hil_remote, 'win_unlock', wraps=hil_remote.win_unlock) as unlock:
             self.assertFalse(hil_remote.run_alive(started))
         unlock.assert_called_once()   # the probe released its hold, not left it to the close
@@ -185,6 +185,22 @@ class RunRecords(unittest.TestCase):
             hil_remote.main(['wait', 'never', '--timeout', '0.1'])
         self.assertIn('no run never was started', e.exception.code)
         self.assertLess(time.monotonic() - begun, 1, 'neither the grace nor its poll outlasts --timeout')
+
+    def test_a_killed_runs_hidden_name_under_a_reused_pid_keeps_its_record(self):
+        self.started('r13')
+        started = hil_remote.run_paths('r13')[0]
+        os.link(started, started.with_name(f'.{started.name}.{os.getpid()}.tmp'))   # left by a kill on Windows
+        before = started.read_bytes()
+        with self.assertRaises(FileExistsError):
+            hil_remote.publish_locked(started, {'runId': 'r13', 'pid': os.getpid(), 'startedAt': 1})
+        self.assertEqual(started.read_bytes(), before)
+
+    def test_an_unlinked_leftover_hidden_name_is_replaced(self):
+        started = hil_remote.run_paths('r14')[0]
+        started.parent.mkdir(exist_ok=True)
+        started.with_name(f'.{started.name}.{os.getpid()}.tmp').write_text('stale')
+        os.close(hil_remote.publish_locked(started, {'runId': 'r14', 'pid': os.getpid(), 'startedAt': 1}))
+        self.assertEqual(json.loads(started.read_text())['runId'], 'r14')
 
     def test_a_timeout_past_the_tool_cap_is_refused(self):
         for bad in ('571', '-1', 'nan', 'inf'):
