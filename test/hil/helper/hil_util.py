@@ -170,6 +170,52 @@ def _close_pipes(p: subprocess.Popen) -> None:
             pass
 
 
+class _InterruptHold:
+    """Defer SIGINT/SIGTERM's Python handlers across Popen and into the caller's cleanup
+    `try`, where release() delivers whatever arrived. Popen forks before that `try` is
+    entered, and a handler that raised in between unwound with the child alive (#4022).
+
+    Handlers are swapped rather than masked with pthread_sigmask: CPython runs a Python
+    handler in the main thread whichever thread the kernel delivered to, so masking only
+    the caller's thread leaves the window open in a threaded process. Off the main thread
+    no handler can run in the caller, so there is nothing to hold. Only a Python callable
+    can unwind the caller; SIG_DFL, SIG_IGN and C-level handlers are left alone.
+    """
+
+    def __init__(self):
+        self._held = {}
+        self._pending = []
+        self._released = False
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                old = signal.getsignal(sig)
+                if not callable(old):
+                    continue
+                # recorded BEFORE the swap, so a signal landing right after it is restorable
+                self._held[sig] = old
+                try:
+                    signal.signal(sig, self._defer)
+                except ValueError:
+                    del self._held[sig]
+                    break           # not the main thread
+        except BaseException:
+            # SIGTERM's own handler raised after SIGINT's was swapped: never strand a deferral
+            self.release()
+            raise
+
+    def _defer(self, sig, frame):
+        if self._released:      # left installed by a signal that cut release() short
+            return self._held[sig](sig, frame)
+        self._pending.append(sig)
+
+    def release(self) -> None:
+        self._released = True
+        for sig, old in self._held.items():
+            signal.signal(sig, old)
+        for sig in dict.fromkeys(self._pending):
+            signal.raise_signal(sig)
+
+
 def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:
     """Run `argv` alongside `work()`, which runs in THIS thread, then reap it -- bounded.
 
@@ -187,12 +233,21 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
     its own pipe; communicate() drains both, so the split cannot deadlock.
     `work` runs even if the child dies immediately -- the caller's own asserts decide.
     """
-    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         start_new_session=True)
+    hold = _InterruptHold()
+    try:
+        p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             start_new_session=True)
+    except BaseException:
+        hold.release()
+        raise
+
+    reaped = False
 
     def _reap() -> subprocess.CompletedProcess:
+        nonlocal reaped
         try:
             out, err = p.communicate(timeout=timeout)
+            reaped = True
             return subprocess.CompletedProcess(argv, p.returncode, out, err)
         except subprocess.TimeoutExpired:
             try:
@@ -206,17 +261,31 @@ def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess
                 # Abandoned.
                 out, err = b'', b''
                 _close_pipes(p)     # our own fds must not leak either
+            reaped = True
             return subprocess.CompletedProcess(argv, 124, out, err)
 
     try:
-        work()
+        hold.release()  # a signal deferred across the fork raises here: killed, not reaped
+        try:
+            work()
+        except BaseException:
+            # Reap first so the child never outlives us, then let the caller's error through.
+            # A `return` inside a `finally` would SWALLOW it -- an assert in `work` would
+            # vanish and the caller would compare data it never finished sending.
+            _reap()
+            raise
+        return _reap()
     except BaseException:
-        # Reap first so the child never outlives us, then let the caller's error through.
-        # A `return` inside a `finally` would SWALLOW it -- an assert in `work` would
-        # vanish and the caller would compare data it never finished sending.
-        _reap()
+        # Interrupted before a reap completed: as run_cmd's interrupt path, kill and close,
+        # never wait. Not keyed on returncode: communicate() reaps the leader on
+        # KeyboardInterrupt, its group living on. The pgid stays ours while any member lives.
+        if not reaped:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            _close_pipes(p)
         raise
-    return _reap()
 
 
 def _cmd_label(cmd) -> str:
@@ -258,8 +327,14 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     # called from threads
     popen_kwargs['start_new_session'] = True
 
-    p = subprocess.Popen(cmd, **popen_kwargs)
+    hold = _InterruptHold()
     try:
+        p = subprocess.Popen(cmd, **popen_kwargs)
+    except BaseException:
+        hold.release()
+        raise
+    try:
+        hold.release()      # a signal deferred across the fork raises here, cleanup armed
         out, err = p.communicate(timeout=timeout)
         r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out, stderr=err)
     except subprocess.TimeoutExpired as ex:

@@ -123,9 +123,8 @@ def children(spare=()):
 
 
 def kill_children(spare=()):
-    """SIGKILL every child and its session, `spare` aside: run_cmd's cleanup misses a child
-    forked before its try, e.g. when the signal lands inside Popen, which does not kill a child
-    it has started."""
+    """SIGKILL every child and its session, `spare` aside: usbtest.run's helpers run in this
+    process group with no kill on interrupt, so they outlive a cancelled case."""
     for pid, _ in children(spare):   # unreaped, so neither this pid nor its group can be reused
         for kill in (os.killpg, os.kill):   # kill: a child not yet in its own session
             try:
