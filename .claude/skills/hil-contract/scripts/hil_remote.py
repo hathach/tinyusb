@@ -53,9 +53,10 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 # the harness's import closure and requires each file here, so keep this a plain literal.
 # test/hil/pyocd/ runs as pyocd's launcher and its user script: no import walk can see it.
 # helper/agentrc.py exec_module's agentrc's shared scripts (the board-lock primitive, the USB
-# observation, the RTT console) after checking lib/agentrc/.git/HEAD against the commit
-# tools/get_deps.py pins: the lib/agentrc and tools/ entries let the rig's tree pass the same
-# check, and RemoteStaging requires one per agentrc.load target.
+# observation, the RTT console, the flash provider) after checking lib/agentrc/.git/HEAD against
+# the commit tools/get_deps.py pins: the lib/agentrc and tools/ entries let the rig's tree pass
+# the same check, and RemoteStaging requires one per agentrc.load target and per file a target
+# loads or launches by path (the provider's runner, pyocd launcher and user script).
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -75,6 +76,10 @@ HARNESS_FILES = (
     'test/hil/pyocd/user_script.py',
     'tools/get_deps.py',
     'lib/agentrc/.git/HEAD',
+    'lib/agentrc/skills/hil/scripts/hil_flash.py',
+    'lib/agentrc/skills/hil/scripts/hil_process.py',
+    'lib/agentrc/skills/hil/scripts/pyocd/run_pyocd.py',
+    'lib/agentrc/skills/hil/scripts/pyocd/user_script.py',
     'lib/agentrc/skills/hil/scripts/hil_lock.py',
     'lib/agentrc/skills/hil/scripts/usb_observe.py',
     'lib/agentrc/skills/rtt/scripts/rtt.py',
