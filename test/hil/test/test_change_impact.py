@@ -1629,13 +1629,14 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
         return any(r['effect'] in ('select', 'full') for r in change_impact.classify_build([path], REPO)['paths'])
 
     def _unselected(self, entry, root=REPO):
-        seen = self._literal_refs(entry, root)
-        todo = list(entry) + [m for m in seen if m.endswith('.py')]
+        literal = self._literal_refs(entry, root)
+        imported, todo = set(), list(entry) + [m for m in literal if m.endswith('.py')]
         while todo:
-            for m in self._tools_imports(todo.pop(), root) - seen:
-                seen.add(m)
+            for m in self._tools_imports(todo.pop(), root) - imported:
+                imported.add(m)
                 todo.append(m)
-        return sorted(m for m in seen - self.UNBUILT_OK if not self._selects(m))
+        # the exemption covers how mksunxi is reached today; an import of it must still select
+        return sorted(m for m in (literal - self.UNBUILT_OK) | imported if not self._selects(m))
 
     def test_tree(self):
         self.assertIn('tools/get_deps.py', self._tools_imports('tools/build_utils.py', REPO))
@@ -1661,6 +1662,9 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
                     f.write(body)
             self.assertEqual(self._unselected(['tools/entry.py'], root),
                              ['tools/cm_helper.py', 'tools/deep2.py', 'tools/lit_helper.py', 'tools/mk_helper.sh'])
+            with open(os.path.join(root, 'tools/entry.py'), 'a') as f:
+                f.write('import mksunxi\n')
+            self.assertIn('tools/mksunxi.py', self._unselected(['tools/entry.py'], root))
 
     def test_flags_new_direct_transitive_and_unselected_imports(self):
         import tempfile
