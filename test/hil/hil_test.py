@@ -2094,7 +2094,8 @@ def test_board(board: Board) -> tuple:
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
             cells = {}
-            if run_list and run_list[0] == prev_last and not skip_flash:
+            # beside a pending cleanup no park may flash; the loop below skips every test instead
+            if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
                 # Same example (same PID) still repeats across the boundary (a one-test
                 # -bt run has nothing to swap with). Park on board_test first: it disables
                 # the board's USB, so the next flash must re-enumerate to be seen.

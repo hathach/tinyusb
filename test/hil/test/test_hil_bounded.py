@@ -1351,6 +1351,39 @@ class WedgedBoardCosts(unittest.TestCase):
         self.assertFalse(hil_test._should_park(True), '--skip-flash must still suppress it')
 
 
+class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
+    """A one-test, two-variant board repeats its PID across the boundary, whose park
+    _should_park refuses beside a pending openocd_esp cleanup: that is no missing binary."""
+
+    def test_the_next_variant_reports_cleanup_pending_not_a_boundary_failure(self):
+        from unittest import mock
+        flashed, log = [], []
+
+        def test_example(board, variant, example):
+            flashed.append((variant, example))
+            hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
+            return 0, 'pass', None
+
+        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd_esp'}, 'tests': [],
+                 'variant': [{'name': 'v1'}, {'name': 'v2'}]}
+        with mock.patch.object(hil_test, 'skip_flash', False), \
+             mock.patch.object(hil_test, 'shuffle_seed', None), \
+             mock.patch.object(hil_flash, 'cleanup_pending', {}), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
+             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
+             mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
+             mock.patch.object(hil_test, 'test_example', test_example), \
+             mock.patch.object(hil_test, 'log_line', log.append):
+            _name, err, failed, rows, _pci = hil_test.test_board(board)
+        self.assertEqual(flashed, [('v1', 'device/cdc_msc')], 'flashed beside the outstanding session')
+        cells = {vname: c for vname, c, _ in rows}
+        self.assertNotIn(hil_test.hil_report.BOUNDARY_CELL, cells['v2'], log)
+        self.assertEqual(cells['v2']['device/cdc_msc'], f'{hil_test.hil_report.REPORT_CELL["skip"]} cleanup pending')
+        self.assertIn(hil_test.hil_report.CLEANUP_PENDING_CELL, cells['b'])
+        self.assertEqual((err, failed), (1, []), 'the pending cleanup is one incident, charged once')
+
+
 class WedgeVerdictReachesTheLatch(unittest.TestCase):
     """usbtest computes `unrecovered_hang` but never reported it, so hil_test inferred the
     latch from `not recovery and 'HUNG' in out` and missed two cases: recovery ran and

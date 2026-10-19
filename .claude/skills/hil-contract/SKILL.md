@@ -292,8 +292,9 @@ failure for diagnosis instead.
 The caller maps each requested board onto the `hil` verdicts from the copied output:
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
-  `wedged`; an `HIL run aborted` notice, the boards it never reported included; a launched run
-  that left no report.
+  `wedged`; a `cleanup-pending` cell, which the report folds as a FAIL and never as `wedged` (an
+  `openocd_esp` session left running, recovered under Recovery, never retried); an `HIL run aborted`
+  notice, the boards it never reported included; a launched run that left no report.
 - fail: a FAIL cell, or a usbtest FAIL case. A HUNG case the in-run recovery cleared is not a
   blocker by itself; the row's `wedged` decides.
 - not-run: `locked`, `build refused`, a `lock-unavailable` cell (the host's lock dir is unusable: rig-side, not
