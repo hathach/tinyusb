@@ -13,7 +13,7 @@
  *     osal_freertos.h / osal_threadx.h / osal_rtx4.h ports. No companion .cpp file is needed and
  *     this header stays includable from TinyUSB's plain-C translation units directly.
  *
- *   CFG_TUH_OSAL_STK_USE_CPP=1 - STK's native C++ API (stk::sync::Mutex/Semaphore/MessageQueue,
+ *   CFG_TUH_OSAL_STK_USE_CPP=1 - STK's native C++ API (stk::sync::FastMutex/Semaphore/MessageQueue,
  *     stk::hw::CriticalSection). STK's C++ API is not includable from plain C, so in this mode
  *     every STK-touching function is only *declared* here (as extern "C") and *defined* in the
  *     companion osal_stk.cpp, which must be added to the build and is compiled as C++. Pick this 
@@ -28,7 +28,7 @@
  * object into that storage the first time it's created, and a static_assert there guards every
  * size guess - raise the matching *_STORAGE_WORDS macro below if one of those ever fires (e.g.
  * after an STK upgrade changes a class's layout). The C backend has no such concern: stk_c.h's
- * own stk_sem_mem_t / stk_mutex_mem_t / stk_msgq_mem_t types are already correctly-sized POD
+ * own stk_sem_mem_t / stk_fastmutex_mem_t / stk_msgq_mem_t types are already correctly-sized POD
  * structs, so they're embedded directly - no size macros, no static_assert, no placement-new.
  * ---------------------------------------------------------------------------
  */
@@ -40,9 +40,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "tusb_config.h"
-
-#define CFG_TUH_OSAL_STK_VERSION (0x20260801)
+#define CFG_TUH_OSAL_STK_VERSION (0x20261019)
 
 #ifndef CFG_TUH_OSAL_STK_USE_CPP
 #define CFG_TUH_OSAL_STK_USE_CPP (0)
@@ -63,7 +61,7 @@ extern "C" {
 /* Underlying task-id type isn't part of this header's C-visible surface in either backend (it's
  * a plain STK type, not necessarily a pointer) - uintptr_t is wide enough to hold it regardless
  * of size; a static_assert (osal_stk.cpp, or stk_c.h's own stk_tid_t definition) guards the fit. */
-typedef uintptr_t osal_task_handle_t;
+typedef void *osal_task_handle_t;
 
 //----------------------------------------------------------------------------+
 // Spinlock API
@@ -111,9 +109,10 @@ typedef osal_semaphore_def_t *osal_semaphore_t;
 // MUTEX API
 //----------------------------------------------------------------------------+
 
-/* Sized to fit a placement-constructed stk::sync::Mutex - see the file-level note above. */
+/* Sized to fit a placement-constructed stk::sync::FastMutex (non-recursive) - see the file-level
+ * note above. Matches STK_FASTMUTEX_IMPL_SIZE of stk_c.h. */
 #ifndef OSAL_STK_MUTEX_STORAGE_WORDS
-#define OSAL_STK_MUTEX_STORAGE_WORDS (10U + (CFG_TUH_OSAL_STK_SYNC_DEBUG_NAMES ? 1U : 0U))
+#define OSAL_STK_MUTEX_STORAGE_WORDS (9U + (CFG_TUH_OSAL_STK_SYNC_DEBUG_NAMES ? 1U : 0U))
 #endif
 
 typedef struct {
@@ -199,8 +198,8 @@ typedef osal_semaphore_def_t *osal_semaphore_t;
 //----------------------------------------------------------------------------+
 
 typedef struct {
-  stk_mutex_mem_t mem;
-  stk_mutex_t    *hdl;
+  stk_fastmutex_mem_t mem;
+  stk_fastmutex_t    *hdl;
 } osal_mutex_def_t;
 typedef osal_mutex_def_t *osal_mutex_t;
 
@@ -224,7 +223,41 @@ typedef osal_queue_def_t *osal_queue_t;
   osal_queue_def_t _name = { .buf = (void *) _name##_buf, .depth = (_depth), .item_sz = sizeof(_type) }
 
 //----------------------------------------------------------------------------+
-// TASK API
+// Helper API
+//----------------------------------------------------------------------------+
+
+/* OSAL_TIMEOUT_WAIT_FOREVER (UINT32_MAX) -> STK_WAIT_INFINITE; anything else -> STK ticks,
+ * via stk_ticks_from_ms_clamped_to_timeout() for overflow-safe conversion across tick rates
+ * (see stk_c.h).
+ *
+ * A non-zero msec always yields at least 1 tick: with a coarse tick (e.g. 10 ms) the ms->ticks
+ * conversion truncates sub-tick values to 0, and STK treats 0 as NO_WAIT / sleep(0) - which neither
+ * blocks nor yields. For osal_task_delay() that lets a higher-priority task starve the caller
+ * (e.g. the polling loop in tuh_control_xfer(), which only ever calls osal_task_delay(1)); for
+ * timed waits it would turn a short blocking timeout into a non-blocking poll. Only msec == 0
+ * maps to 0 ticks. */
+static inline stk_timeout_t osal_stk_timeout_from_ms(uint32_t msec)
+{
+  stk_timeout_t ticks;
+
+  if (msec == OSAL_TIMEOUT_WAIT_FOREVER) {
+    ticks = STK_WAIT_INFINITE;
+  } else {
+    const stk_timeout_t ms_clamped =
+      (msec > (uint32_t)INT32_MAX) ? (stk_timeout_t)INT32_MAX : (stk_timeout_t) msec;
+
+    ticks = stk_ticks_from_ms_clamped_to_timeout(ms_clamped);
+
+    if ((msec != 0U) && (ticks == 0)) {
+      ticks = 1; /* round sub-tick durations up to one full tick */
+    }
+  }
+
+  return ticks;
+}
+
+//----------------------------------------------------------------------------+
+// Task API
 //----------------------------------------------------------------------------+
 
 static inline osal_task_handle_t osal_task_get_current_handle(void)
@@ -239,26 +272,14 @@ static inline uint32_t osal_time_millis(void)
 
 static inline void osal_task_delay(uint32_t msec)
 {
-  const stk_timeout_t ms_clamped =
-      (msec > (uint32_t)INT32_MAX) ? (stk_timeout_t)INT32_MAX : (stk_timeout_t)msec;
-  stk_sleep_ms(ms_clamped);
-}
-
-//----------------------------------------------------------------------------+
-// Small helper
-//----------------------------------------------------------------------------+
-
-/* OSAL_TIMEOUT_WAIT_FOREVER (UINT32_MAX) -> STK_WAIT_INFINITE; anything else -> STK ticks,
- * via stk_ticks_from_ms_clamped_to_timeout() for overflow-safe conversion across tick rates
- * (see stk_c.h). */
-static inline stk_timeout_t osal_stk_timeout_from_ms(uint32_t msec)
-{
-  if (msec == OSAL_TIMEOUT_WAIT_FOREVER) {
-    return STK_WAIT_INFINITE;
+  if (msec == 0U) {
+    /* sleep(0) is a no-op in STK; yield instead. Note: in KERNEL_HRT mode stk_yield() signals
+     * job completion, so don't call this with 0 there. */
+    stk_yield();
+  } else {
+    /* Sleep in ticks (not stk_sleep_ms()): the ms variant truncates sub-tick delays to sleep(0). */
+    stk_sleep(osal_stk_timeout_from_ms(msec));
   }
-  const stk_timeout_t ms_clamped =
-      (msec > (uint32_t)INT32_MAX) ? (stk_timeout_t)INT32_MAX : (stk_timeout_t) msec;
-  return stk_ticks_from_ms_clamped_to_timeout(ms_clamped);
 }
 
 //----------------------------------------------------------------------------+
@@ -295,7 +316,7 @@ static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr)
   (void)in_isr; /* stk_critical_section_exit_ex() is safe from ISR context */
 
   const stk_cs_session_t ses =
-      ((ctx != NULL) ? (stk_cs_session_t)(*ctx) : (stk_cs_session_t)STK_DEFAULT_CS_SESSION);
+    ((ctx != NULL) ? (stk_cs_session_t)(*ctx) : (stk_cs_session_t)STK_DEFAULT_CS_SESSION);
   stk_critical_section_exit_ex(ses);
 }
 
@@ -307,7 +328,7 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semde
 {
   /* Always constructed at count 0 (not-yet-signaled), matching every other OSAL backend here.
    * max_count 0 means "use STK's default maximum" (65534) - see stk_sem_create() in stk_c.h. */
-  semdef->hdl = stk_sem_create(&semdef->mem, (uint32_t)sizeof(semdef->mem), 0U, 0U);
+  semdef->hdl = stk_sem_create(&semdef->mem, 0U, 0U);
   return ((semdef->hdl != NULL) ? semdef : NULL);
 }
 
@@ -339,29 +360,31 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 }
 
 //----------------------------------------------------------------------------+
-// MUTEX API (STK's Mutex is already recursive; TinyUSB never relies on that, but it's harmless)
+// Mutex API (backed by STK's FastMutex: non-recursive, TinyUSB does not need recursion.
+// Locking a FastMutex the caller already owns is a contract violation that panics with
+// KERNEL_PANIC_SYNC_DEADLOCK - including a NO_WAIT try-lock)
 //----------------------------------------------------------------------------+
 
 static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t *mdef)
 {
-  mdef->hdl = stk_mutex_create(&mdef->mem, (uint32_t)sizeof(mdef->mem));
+  mdef->hdl = stk_fastmutex_create(&mdef->mem);
   return ((mdef->hdl != NULL) ? mdef : NULL);
 }
 
 static inline bool osal_mutex_delete(osal_mutex_t mutex_hdl)
 {
-  stk_mutex_destroy(mutex_hdl->hdl);
+  stk_fastmutex_destroy(mutex_hdl->hdl);
   return true;
 }
 
 static inline bool osal_mutex_lock(osal_mutex_t mutex_hdl, uint32_t msec)
 {
-  return stk_mutex_timed_lock(mutex_hdl->hdl, osal_stk_timeout_from_ms(msec));
+  return stk_fastmutex_timed_lock(mutex_hdl->hdl, osal_stk_timeout_from_ms(msec));
 }
 
 static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 {
-  stk_mutex_unlock(mutex_hdl->hdl);
+  stk_fastmutex_unlock(mutex_hdl->hdl);
   return true;
 }
 
@@ -371,7 +394,7 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t *qdef)
 {
-  qdef->hdl = stk_msgq_create(&qdef->mem, (uint32_t)sizeof(qdef->mem),
+  qdef->hdl = stk_msgq_create(&qdef->mem,
                               (uint8_t *)qdef->buf, (uint32_t)(qdef->depth * qdef->item_sz),
                               (size_t)qdef->depth, (size_t)qdef->item_sz);
 
