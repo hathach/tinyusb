@@ -14,6 +14,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import types
 import unittest
 from contextlib import redirect_stdout
 from unittest import mock
@@ -216,7 +218,12 @@ class RetainedLock(LockDir):
         return rec
 
     def run_board(self):
-        with mock.patch.object(hil_test.time, 'sleep') as sleep:
+        # only hil_test's and hil_flash's own sleeps: subprocess.run(timeout=) polls the hold
+        # CLI's exit with the global time.sleep when it closes its pipes before exiting
+        sleep = mock.Mock()
+        fake_time = types.ModuleType('time')
+        fake_time.__dict__.update(vars(time), sleep=sleep)
+        with mock.patch.object(hil_test, 'time', fake_time), mock.patch.object(hil_flash, 'time', fake_time):
             name, err, failed, rows, _ = hil_test.test_board(self.board)
         # the one flash's boot settle (0 here), never the 0.5 s retry wait
         self.assertEqual(sleep.call_args_list, [mock.call(0)], 'waited for a retry that cannot come')
