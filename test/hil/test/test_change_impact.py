@@ -1581,11 +1581,17 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
 
 
 class TestBuildScriptImportsAreClassified(unittest.TestCase):
-    """Rule 17b drops an unclassified tools/ path, so a tools/ module that a build or
-    selection script imports needs a rule that selects: an edit to that helper alone would
-    otherwise build nothing. Follows static imports transitively (aliases and
-    function-level ones included); runpy, spec_from_file_location, subprocess, CMake/shell
-    invocations and data files are not covered."""
+    """Rule 17b drops an unclassified tools/ path, so a tools/ script that a build or
+    selection script reaches needs a rule that selects: an edit to that helper alone would
+    otherwise build nothing. Reached means a static import (transitive, aliases and
+    function-level ones included), a literal `tools/<name>` in a build file, or a literal
+    '<name>.py' in an entry script - tools/membrowse_report.py was run both ways. Computed
+    paths, runpy/spec_from_file_location and data files are not covered."""
+    BUILD_FILES = ('hw/bsp/**/*.cmake', 'hw/bsp/**/*.mk', 'examples/build_system/**/*',
+                   'src/CMakeLists.txt', 'src/tinyusb.mk', '.github/workflows/build*.yml',
+                   '.github/actions/**/*')
+    # family_rules.mk runs it only for $(PROJECT)-sunxi.bin, flash-xfel's image, which no CI build makes
+    UNBUILT_OK = {'tools/mksunxi.py'}
     ENTRY = ('tools/build.py', 'tools/build_utils.py', 'tools/family_json.py', 'tools/get_deps.py',
              'tools/code_size.py', 'tools/membrowse_cli.py', 'tools/change_impact.py',
              '.github/scripts/ci_set_matrix.py', '.github/scripts/hil_ci_set_matrix.py',
@@ -1607,20 +1613,54 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
                 names.add(top(n.module))
         return {f'tools/{m}.py' for m in names if os.path.isfile(os.path.join(root, 'tools', f'{m}.py'))}
 
+    def _literal_refs(self, entry, root):
+        import re as _re
+        refs = set()
+        for pat in self.BUILD_FILES:
+            for f in glob.glob(os.path.join(glob.escape(root), pat), recursive=True):
+                if os.path.isfile(f):
+                    refs |= set(_re.findall(r'tools/[\w.-]+\.(?:py|sh)\b', _read(f)))
+        for e in entry:
+            refs |= {f'tools/{m}' for m in _re.findall(r"""['"]([\w-]+\.py)['"]""", _read(os.path.join(root, e)))}
+        return {r for r in refs if os.path.isfile(os.path.join(root, r))}
+
+    @staticmethod
+    def _selects(path):
+        return any(r['effect'] in ('select', 'full') for r in change_impact.classify_build([path], REPO)['paths'])
+
     def _unselected(self, entry, root=REPO):
-        seen, todo = set(), list(entry)
+        seen = self._literal_refs(entry, root)
+        todo = list(entry) + [m for m in seen if m.endswith('.py')]
         while todo:
             for m in self._tools_imports(todo.pop(), root) - seen:
                 seen.add(m)
                 todo.append(m)
-        return sorted(m for m in seen if not any(
-            r['effect'] in ('select', 'full') for r in change_impact.classify_build([m], REPO)['paths']))
+        return sorted(m for m in seen - self.UNBUILT_OK if not self._selects(m))
 
     def test_tree(self):
         self.assertIn('tools/get_deps.py', self._tools_imports('tools/build_utils.py', REPO))
+        self.assertIn('tools/membrowse_cli.py', self._literal_refs(self.ENTRY, REPO))
         left = self._unselected(self.ENTRY)
-        self.assertEqual(left, [], f'tools/ modules imported by build scripts with no selecting rule: '
+        self.assertEqual(left, [], f'tools/ scripts reached by builds with no selecting rule: '
                                    f'{left} - name them in _FULL_RE or give them a rule')
+        for m in self.UNBUILT_OK:           # an exemption must still be needed
+            self.assertIn(m, self._literal_refs(self.ENTRY, REPO))
+            self.assertFalse(self._selects(m), m)
+
+    def test_flags_literal_build_references_and_honours_the_exemption(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            for rel, body in (('hw/bsp/fam/family.cmake', 'COMMAND python ${TOP}/tools/cm_helper.py\n'),
+                              ('hw/bsp/family_rules.mk', '\t$(TOP)/tools/mk_helper.sh $<\n'
+                                                         '\t$(PYTHON) $(TOP)/tools/mksunxi.py $< $@\n'),
+                              ('tools/entry.py', "os.path.join(d, 'lit_helper.py')\n"),
+                              ('tools/cm_helper.py', 'import deep2\n'), ('tools/deep2.py', ''),
+                              ('tools/mk_helper.sh', ''), ('tools/lit_helper.py', ''), ('tools/mksunxi.py', '')):
+                os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+                with open(os.path.join(root, rel), 'w') as f:
+                    f.write(body)
+            self.assertEqual(self._unselected(['tools/entry.py'], root),
+                             ['tools/cm_helper.py', 'tools/deep2.py', 'tools/lit_helper.py', 'tools/mk_helper.sh'])
 
     def test_flags_new_direct_transitive_and_unselected_imports(self):
         import tempfile
