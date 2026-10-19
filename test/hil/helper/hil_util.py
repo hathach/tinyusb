@@ -135,6 +135,23 @@ def provider():
     return _provider
 
 
+_openocd_esp = None
+
+
+def openocd_esp():
+    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded once like provider(): its own
+    hil_flash and usb_observe instances, and target-debug's esp_session for the managed session."""
+    global _openocd_esp
+    if _openocd_esp is None:
+        from . import agentrc
+        _openocd_esp = agentrc.load('skills/hil/scripts/hil_openocd_esp.py', 'tinyusb_hil_openocd_esp',
+                                    requires=('skills/hil/scripts/hil_flash.py',
+                                              'skills/hil/scripts/hil_process.py',
+                                              'skills/hil/scripts/usb_observe.py',
+                                              'skills/target-debug/scripts/esp_session.py'))
+    return _openocd_esp
+
+
 def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
             quiet: bool = False) -> subprocess.CompletedProcess:

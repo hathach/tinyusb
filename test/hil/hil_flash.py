@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Firmware flashing for the TinyUSB HIL rig: board-shaped flash_*/reset_* over agentrc's
-# flash provider (hil_util.provider(), the `hil` skill's Flashers), one per flasher type
-# (dispatched by config name through flash_primitive), a reset_* taking timeout= where the
-# tool can reset without flashing (looked up through reset_primitive), plus find_firmware.
-# Every tool runs through hil_util.run_cmd, read per call so a patched runner reaches it
-# (never import hil_test here). Callers set the module global `build_dir`. The provider
-# loads on first use: change_impact's suites import this on a bare checkout. `from
-# __future__ import annotations` keeps the Board hints below unevaluated: the type is not
-# defined in this module.
+# Firmware flashing for the TinyUSB HIL rig: board-shaped flash_*/reset_* over agentrc's flash
+# provider (hil_util.provider(), the `hil` skill's Flashers), dispatched by roster name through
+# flash_primitive/reset_primitive, plus find_firmware. tinyusb supplies the bounds, the runner
+# (hil_util.run_cmd, read per call), retries and per-board settings; openocd_esp's server is the
+# provider's own managed session (hil_util.openocd_esp()). The provider loads on first use, so
+# change_impact imports this on a bare checkout; never import hil_test here. Callers set
+# `build_dir`. `from __future__ import annotations` keeps the Board hints unevaluated.
 
 from __future__ import annotations
 
 import json
+import shlex
+import shutil
 import subprocess
+import tempfile
+import time
 from pathlib import Path
 
 import os
@@ -86,6 +88,12 @@ def valid_vid_pid(value) -> bool:
     return hil_util.provider().valid_vid_pid(value)
 
 
+def flashers(board: dict, name: str) -> list:
+    """The board's primary and recovery entries (recover_flasher, the primary's uid) named
+    `name`, case-folded; the primary twice when it has no `flasher_recover`."""
+    return [f for f in (board['flasher'], recover_flasher(board)) if (f.get('name') or '').lower() == name]
+
+
 def recover_flasher(board: dict) -> dict:
     """The flasher that delivers RECOVERY for this board.
 
@@ -105,12 +113,16 @@ def convoy_safe(flasher: dict) -> bool:
     return hil_util.provider().convoy_safe(flasher)
 
 
+def _idf_target(fw_dir: Path) -> str:
+    with (fw_dir / 'config.env').open() as f:
+        return json.load(f)['IDF_TARGET']
+
+
 def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
     fw_dir = Path(firmware).parent
-    with (fw_dir / 'config.env').open() as f:
-        idf_target = json.load(f)['IDF_TARGET']
+    idf_target = _idf_target(fw_dir)
     with (fw_dir / 'flash_args').open() as f:
         flash_args = f.read().strip().replace('\n', ' ')
     return hil_util.provider().flash_esptool(flasher, chip=idf_target, port=port, flash_args=flash_args,
@@ -118,6 +130,150 @@ def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.Compl
 
 
 # no reset_esptool: esptool's reset would be `--after hard_reset`, which is not wired here
+
+
+# -------------------------------------------------------------
+# openocd_esp: the chip's built-in USB-Serial/JTAG through openocd-esp32 (the provider's
+# hil_openocd_esp, the `hil` skill's Flashers). Not convoy-safe, so usbtest never recovers
+# through it.
+# -------------------------------------------------------------
+# board name -> receipts of an openocd_esp session the provider left running (cleanup
+# 'pending'). No later session starts on that board, and hil_test hands its lock to a cleanup
+# holder instead of releasing it.
+cleanup_pending = {}
+OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
+# flash_args options esptool applies to the bootloader header; anything else (--encrypt...) is refused
+ESP_HEADER_OPTIONS = {f'--flash{s}{k}' for s in '-_' for k in ('mode', 'freq', 'size')}
+# s from the security read's hard reset to the provider's start; within ms every P4 v1.0 reset init failed (agentrc#160)
+OPENOCD_ESP_BOOT_SETTLE = 1
+
+
+def retained_lock_only(board: dict) -> str:
+    """Why an entry point without hil_test's retained-lock path refuses this board, or ''."""
+    if flashers(board, 'openocd_esp'):
+        return ('openocd_esp: only hil_test.py keeps the board locked through a session the provider '
+                'leaves running; refused here before any board access')
+    return ''
+
+
+def openocd_esp_refusal(flasher: dict) -> str:
+    """Why the provider refuses this roster entry ('' when it admits it)."""
+    try:
+        hil_util.openocd_esp().admit(flasher)
+    except ValueError as e:
+        return str(e)
+    return ''
+
+
+def _esp_segments(fw_dir: Path, chip: str, timeout) -> list:
+    """The build's flash_args as esptool's write_flash reads it, as explicit ordered
+    {offset, file, size}. openocd programs each file as-is, so esptool's own merge-bin with the
+    same options must leave every file's bytes unchanged (no bootloader header rewrite)."""
+    target = _idf_target(fw_dir)
+    if target != chip:
+        raise ValueError(f'{fw_dir} is built for {target}, the openocd_esp args name {chip}')
+    tokens = shlex.split((fw_dir / 'flash_args').read_text())
+    options = []
+    while tokens and tokens[0].startswith('-'):
+        opt = tokens.pop(0)
+        if opt.split('=', 1)[0] not in ESP_HEADER_OPTIONS:
+            raise ValueError(f'flash_args option {opt} is not applied by openocd_esp')
+        options += [opt] if '=' in opt else [opt, tokens.pop(0)]
+    if not tokens or len(tokens) % 2:
+        raise ValueError(f'{fw_dir}/flash_args: want "<offset> <file>" pairs after the options')
+    pairs = list(zip(tokens[::2], tokens[1::2]))
+    segments = [{'offset': int(o, 0), 'file': str(fw_dir / f), 'size': (fw_dir / f).stat().st_size}
+                for o, f in pairs]
+    with tempfile.TemporaryDirectory() as td:
+        merged = Path(td) / 'merged.bin'
+        cmd = (f'NO_COLOR=1 esptool --chip {chip} merge-bin -o {shlex.quote(str(merged))} '
+               f'{shlex.join(options)} {shlex.join(x for p in pairs for x in p)}')
+        ret = hil_util.run_cmd(cmd, cwd=str(fw_dir), timeout=_bound(timeout))
+        if ret.returncode != 0:
+            raise RuntimeError(f'esptool merge-bin exited {ret.returncode}: cannot tell what write_flash would write')
+        data = merged.read_bytes()   # raw, from offset 0
+    for seg in segments:
+        o, n = seg['offset'], seg['size']
+        if data[o:o + n] != Path(seg['file']).read_bytes():
+            raise ValueError(f'esptool would rewrite {seg["file"]} at 0x{o:x} (its header lacks the flash_args '
+                             f'settings); openocd_esp programs files as-is')
+    return segments
+
+
+def _tty_busport(port: str) -> str:
+    # /sys/class/tty/<tty>/device is the USB interface (<busport>:<config>.<ifnum>)
+    iface = os.path.realpath(f'/sys/class/tty/{os.path.basename(os.path.realpath(port))}/device')
+    return os.path.basename(os.path.dirname(iface))
+
+
+def _esp_security(flasher: dict, chip: str, timeout) -> dict:
+    """The chip's flash encryption and secure boot state, read before programming with the
+    esptool tinyusb already runs, over the same USJ's serial port: get-security-info from the ROM
+    (--no-stub), which reports SPI_BOOT_CRYPT_CNT's parity and SECURE_BOOT_EN (ESP32-P4 TRM
+    Rev 0.7 pp. 944-945). Refuses anything but both reported Disabled."""
+    port = hil_util.get_serial_dev(flasher['uid'], None, None, 0)
+    busport = hil_util.openocd_esp().usj_location(flasher['uid'])
+    if _tty_busport(port) != busport:
+        raise RuntimeError(f'{port} is not on the USJ at {busport}: no security evidence from this chip')
+    cmd = (f'NO_COLOR=1 esptool --chip {chip} -p {shlex.quote(port)} --no-stub --before=default-reset '
+           f'--after=hard-reset get-security-info')
+    ret = hil_util.run_cmd(cmd, timeout=_bound(timeout))
+    lines = [ln.strip() for ln in hil_util.cmd_stdout_text(ret.stdout).splitlines()]
+    want = ('Secure Boot: Disabled', 'Flash Encryption: Disabled')
+    if ret.returncode != 0 or not all(w in lines for w in want):
+        raise RuntimeError(f'esptool get-security-info on {port} (rc {ret.returncode}) did not report '
+                           f'{" and ".join(want)}: openocd_esp refuses to program')
+    return {'flashEncryption': 'off', 'secureBoot': 'off',
+            'source': f'`{cmd}` on USJ {busport}: {"; ".join(want)}'}
+
+
+def _openocd_esp_session(board, operation):
+    """Run operation(provider) unless the board has an outstanding session, latching a new one
+    (cleanup 'pending', returned or on an exception's `.operation`) into cleanup_pending."""
+    name, provider = board['name'], hil_util.openocd_esp()
+    if why := provider.ci_refusal():    # before this adapter's own esptool sessions too
+        raise RuntimeError(why)
+    if name in cleanup_pending:
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({", ".join(map(str, cleanup_pending[name]))}); '
+                           f'no session starts until its cleanup holder is recovered')
+    op = None
+    try:
+        op = operation(provider)
+    except BaseException as e:
+        op = getattr(e, 'operation', None)
+        raise
+    finally:
+        if op is not None and op.cleanup == 'pending':
+            cleanup_pending[name] = op.receipts
+    if op.returncode != 0:
+        print(f'openocd_esp: {op.session["failure"]} (cleanup {op.cleanup}, log {op.session["log"]})', flush=True)
+    elif op.cleanup == 'done':
+        shutil.rmtree(op.session['dir'], ignore_errors=True)   # read-back copies, a few hundred KB per flash
+    return op
+
+
+def _openocd_esp_dir() -> str:
+    path = OPENOCD_ESP_DIR or Path(tempfile.gettempdir()) / f'tinyusb-hil-openocd-esp-{os.getuid()}'
+    path.mkdir(mode=0o700, exist_ok=True)
+    return str(path)
+
+
+def flash_openocd_esp(board, firmware, timeout=None):
+    flasher = board['flasher']
+
+    def operation(p):
+        chip, _ = p.admit(flasher)
+        segments = _esp_segments(Path(firmware).parent, chip, timeout)
+        security = _esp_security(flasher, chip, timeout)
+        time.sleep(OPENOCD_ESP_BOOT_SETTLE)
+        return p.flash_openocd_esp(flasher, segments, security=security, workdir=_openocd_esp_dir(),
+                                   timeout=_bound(timeout))
+    return _openocd_esp_session(board, operation)
+
+
+def reset_openocd_esp(board, timeout=None):
+    return _openocd_esp_session(board, lambda p: p.reset_openocd_esp(board['flasher'], workdir=_openocd_esp_dir(),
+                                                                     timeout=_bound(timeout)))
 
 
 def flash_lm4flash(board, firmware, timeout=None):
@@ -135,8 +291,7 @@ def pyocd_vid_pid(flasher: dict) -> list | None:
 
 def unfiltered_pyocd(board: dict) -> bool:
     """Is the board's primary or recovery flasher a pyocd entry without its VID/PID filter?"""
-    return any((f.get('name') or '').lower() == 'pyocd' and pyocd_vid_pid(f) is None
-               for f in (board['flasher'], recover_flasher(board)))
+    return any(pyocd_vid_pid(f) is None for f in flashers(board, 'pyocd'))
 
 
 def flash_pyocd(board, firmware, timeout=None):
@@ -177,6 +332,7 @@ FLASHER_SUFFIX = {
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'openocd_esp': '.bin',
     'pyocd': '.elf',
     'stlink': '.elf',
 }

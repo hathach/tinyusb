@@ -421,6 +421,10 @@ def check_board(board: dict, args) -> dict:
     if not probe:
         row['status'] = 'flash-failed'
         return row
+    if why := hil_flash.retained_lock_only(board):
+        row['status'] = 'flash-failed'
+        note.append(why)
+        return row
     if kind == 'host' and board.get('logger') == 'rtt':
         note.append('RTT host boards unsupported')
         return row

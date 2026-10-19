@@ -183,6 +183,8 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. The harness's shared scripts (the lock mechanics, the bounded sysfs reads and bus scan of `test/hil/helper/usb_observe.py`, the RTT console, and the `hil` skill's Flashers: the bounded command runner behind `test/hil/helper/hil_util.py` and the per-flasher commands and pyOCD launcher behind `test/hil/hil_flash.py`) are loaded by `test/hil/helper/agentrc.py` from `lib/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py lib/agentrc`; missing, off that commit or lacking a file the flash provider loads or launches, every HIL entry point refuses before any board access.
 
+The provider's `openocd_esp` flasher is supported by `hil_test.py` only (the pool check and `run_case.py` refuse it) and is unrostered on ci.lan; it is refused under a CI job (`RUNNER_TRACKING_ID` or `GITHUB_ACTIONS` set), whose end kills the job's processes, until the openocd server and the cleanup holder are shown to survive it. A session it leaves running keeps the board's lock with a cleanup holder, reported in a `cleanup-pending` cell naming the receipt and its `release --token`.
+
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup:
@@ -318,6 +320,8 @@ is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield
 busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
 Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
+
+A `cleanup-pending` board (an `openocd_esp` session left running) is recovered under a dispatch naming it: `python3 lib/agentrc/skills/hil/scripts/hil_openocd_esp.py end --receipt <receipt>`, and only on its exit 0 `python3 test/hil/helper/hil_lock.py release --token <token>`; on exit 1 the board stays held, and one whose init failed or is unproven needs a separately reviewed recovery.
 
 ## Limits
 

@@ -163,6 +163,15 @@ class CheckBoard(unittest.TestCase):
         self.assertEqual((row['status'], self.flashed), ('failed', []))
         self.assertIn('RTT host boards unsupported', row['note'])
 
+    def test_an_openocd_esp_board_is_refused_before_its_lock(self):
+        # only hil_test keeps a board locked when the provider leaves a session running
+        self.images('device/cdc_msc', 'device/board_test')
+        patch(self, hil_pool_check, 'lock_board', lambda name: self.fail('locked'))
+        esp = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
+        row = hil_pool_check.check_board(dict(BOARD, tests={'device': True}, flasher=esp), self.args)
+        self.assertEqual((row['status'], self.flashed), ('flash-failed', []))
+        self.assertTrue(any('only hil_test.py' in n for n in row['note']), row['note'])
+
     def test_an_only_list_device_board_still_flashes_dfu_runtime(self):
         self.images('device/dfu_runtime', 'device/cdc_dual_ports', 'device/board_test')
         patch(self, hil_pool_check, 'park_board', lambda *a: None)

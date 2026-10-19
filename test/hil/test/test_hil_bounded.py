@@ -406,7 +406,7 @@ class RemoteStaging(unittest.TestCase):
                 if fn == '_load':
                     yield (here / f'{args[0].value}.py').as_posix()
                 elif fn == 'os.path.join' and ast.unparse(args[0]) == 'HERE':
-                    yield here.joinpath(*(a.value for a in args[1:])).as_posix()
+                    yield os.path.normpath(here.joinpath(*(a.value for a in args[1:])))
                 elif fn.endswith('.with_name'):
                     yield (here / args[0].value).as_posix()
 
@@ -432,6 +432,8 @@ class RemoteStaging(unittest.TestCase):
                     launched.add(f)
                     todo.append(f)
         self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', launched, 'the by-path walk went vacuous')
+        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', launched,
+                      'the by-path walk missed the openocd_esp session helper')
         for f in sorted(launched):
             # in `requires` too, so a tree lacking it is refused before any tool runs
             self.assertIn(f, loaded, f'{f} is loaded or launched by path but no agentrc.load requires it')
@@ -449,8 +451,9 @@ class RemoteStaging(unittest.TestCase):
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
         code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
-                'p = hil_util.provider()\n'
-                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, sep="\\n")\n')
+                'p, e = hil_util.provider(), hil_util.openocd_esp()\n'
+                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.ESP_SESSION,'
+                ' sep="\\n")\n')
         with TemporaryDirectory() as td:
             root = Path(td).resolve()
             for rel in staged:
@@ -461,8 +464,18 @@ class RemoteStaging(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
             self.assertEqual(r.returncode, 0, r.stderr)
             scripts = root / 'lib/agentrc/skills/hil/scripts'
-            self.assertEqual(r.stdout.splitlines(), [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
-                                                     str(scripts / 'pyocd/run_pyocd.py')])
+            self.assertEqual(r.stdout.splitlines()[:4], [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
+                                                         str(scripts / 'pyocd/run_pyocd.py'),
+                                                         str(scripts / 'hil_openocd_esp.py')])
+            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
+                             str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('has no skills/target-debug/scripts/esp_session.py', r.stderr)
+            shutil.copy(repo / 'lib/agentrc/skills/target-debug/scripts/esp_session.py',
+                        root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py')
             (scripts / 'pyocd/user_script.py').unlink()
             r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
                                capture_output=True, text=True, timeout=60)
