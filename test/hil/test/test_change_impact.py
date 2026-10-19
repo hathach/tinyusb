@@ -1540,13 +1540,8 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
     74 cmake legs and the whole rig, while examples/<role>/CMakeLists.txt got the RIGHT
     answer from the wrong rule - row 15 names it, the regex never matched it."""
 
-    def _unclassified(self, axis):
-        import subprocess as sp
-        r = sp.run(['git', 'ls-files'], cwd=REPO, capture_output=True, text=True)
-        if r.returncode != 0:
-            self.skipTest('not a git checkout')
-        files = r.stdout.split()
-        self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
+    @staticmethod
+    def _unclassified_of(files, axis):
         out = []
         for f in files:
             s = (change_impact.classify_build([f], REPO) if axis == 'build'
@@ -1554,6 +1549,23 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
             if any('unclassified' in why for why in s['reasons']):
                 out.append(f)
         return out
+
+    def _unclassified(self, axis):
+        import subprocess as sp
+        r = sp.run(['git', 'ls-files'], cwd=REPO, capture_output=True, text=True)
+        if r.returncode != 0:
+            self.skipTest('not a git checkout')
+        files = r.stdout.split()
+        self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
+        return self._unclassified_of(files, axis)
+
+    def test_guard_flags_only_unknown_build_inputs(self):
+        for axis in ('build', 'hil'):
+            self.assertEqual(self._unclassified_of(['.newbot/config.json', 'tools/newscript.py'], axis),
+                             [], axis)
+            self.assertEqual(self._unclassified_of(['src/newdir/x.c', 'toolchain.cmake'], axis),
+                             ['src/newdir/x.c', 'toolchain.cmake'], axis)
+            self.assertEqual(self._unclassified_of(['src/device/usbd.c'], axis), [], axis)
 
     def test_build_axis(self):
         left = self._unclassified('build')
@@ -1565,6 +1577,57 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
         left = self._unclassified('hil')
         self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
                                    f'the HIL axis, e.g. {left[:5]}')
+
+
+class TestBuildScriptImportsAreClassified(unittest.TestCase):
+    """Rule 17b drops an unclassified tools/ path, so a tools/ module that a build or
+    selection script imports needs a rule that selects: an edit to that helper alone would
+    otherwise build nothing. Follows static imports transitively (aliases and
+    function-level ones included); runpy, spec_from_file_location, subprocess, CMake/shell
+    invocations and data files are not covered."""
+    ENTRY = ('tools/build.py', 'tools/build_utils.py', 'tools/family_json.py', 'tools/get_deps.py',
+             'tools/code_size.py', 'tools/membrowse_cli.py', 'tools/change_impact.py',
+             '.github/scripts/ci_set_matrix.py', '.github/scripts/hil_ci_set_matrix.py',
+             '.claude/skills/build/scripts/check_build.py')
+
+    @staticmethod
+    def _tools_imports(path, root):
+        import ast
+        names = set()
+        for n in ast.walk(ast.parse(_read(os.path.join(root, path)))):
+            if isinstance(n, ast.Import):
+                names |= {a.name.split('.')[0] for a in n.names}
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
+                names.add(n.module.split('.')[0])
+        return {f'tools/{m}.py' for m in names if os.path.isfile(os.path.join(root, 'tools', f'{m}.py'))}
+
+    def _unselected(self, entry, root=REPO):
+        seen, todo = set(), list(entry)
+        while todo:
+            for m in self._tools_imports(todo.pop(), root) - seen:
+                seen.add(m)
+                todo.append(m)
+        return sorted(m for m in seen if not any(
+            r['effect'] in ('select', 'full') for r in change_impact.classify_build([m], REPO)['paths']))
+
+    def test_tree(self):
+        self.assertIn('tools/get_deps.py', self._tools_imports('tools/build_utils.py', REPO))
+        left = self._unselected(self.ENTRY)
+        self.assertEqual(left, [], f'tools/ modules imported by build scripts with no selecting rule: '
+                                   f'{left} - name them in _FULL_RE or give them a rule')
+
+    def test_flags_new_direct_transitive_and_unselected_imports(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            os.mkdir(os.path.join(root, 'tools'))
+            for name, body in (('entry', 'import newhelper as nh\ndef f():\n    import mid\n'
+                                         'from file2carray import main\n'),
+                               ('newhelper', ''), ('mid', 'from deep import x\n'), ('deep', ''),
+                               ('file2carray', '')):
+                with open(os.path.join(root, 'tools', f'{name}.py'), 'w') as f:
+                    f.write(body)
+            self.assertEqual(self._unselected(['tools/entry.py'], root),
+                             ['tools/deep.py', 'tools/file2carray.py', 'tools/mid.py', 'tools/newhelper.py'])
 
 
 class TestLibRule(unittest.TestCase):
