@@ -1528,12 +1528,13 @@ class TestRuleTableMatchesTheCode(unittest.TestCase):
 
 
 class TestNoBuildInputIsUnclassified(unittest.TestCase):
-    """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
-    anticipated. It must stay that way - a wrong `full` costs runner minutes and is
-    visible in the run, a wrong `empty` costs a merged regression and is invisible - but
-    nothing in the tree should REACH it. Every tracked file is classified by a rule, so
-    17 fires only for genuinely new shapes, and this test is what tells the author to
-    write the row instead of letting the fall-through pick an answer for them.
+    """Rule 17a (unclassified in a build-input location -> full on both axes) is the
+    fail-open net for build inputs nobody anticipated. It must stay that way - a wrong
+    `full` costs runner minutes and is visible in the run, a wrong `empty` costs a merged
+    regression and is invisible - but nothing in the tree should REACH it, so 17a fires
+    only for genuinely new shapes, and this test is what tells the author to write the row
+    instead of letting the fall-through pick an answer for them. Outside those locations
+    17b's empty answer is intended and needs no row.
 
     Before this guard, 254 tracked files reached 17: .gitignore took a docs-only PR to
     74 cmake legs and the whole rig, while examples/<role>/CMakeLists.txt got the RIGHT
