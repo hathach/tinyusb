@@ -326,9 +326,10 @@ static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr)
 
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semdef)
 {
-  /* Always constructed at count 0 (not-yet-signaled), matching every other OSAL backend here.
-   * max_count 0 means "use STK's default maximum" (65534) - see stk_sem_create() in stk_c.h. */
-  semdef->hdl = stk_sem_create(&semdef->mem, 0U, 0U);
+  /* Binary semaphore, as in every other OSAL backend here: constructed at count 0 (not-yet-signaled)
+   * with max_count 1, so a second post before a wait cannot leave a stale extra token. (max_count 0
+   * would select STK's default maximum of 65534 - a counting semaphore, see stk_sem_create().) */
+  semdef->hdl = stk_sem_create(&semdef->mem, 0U, 1U);
   return ((semdef->hdl != NULL) ? semdef : NULL);
 }
 
