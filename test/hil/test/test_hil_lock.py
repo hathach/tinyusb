@@ -281,6 +281,21 @@ class RetainedLock(LockDir):
         self.assert_retained()
         self.assertIn('lock held by cleanup holder', self.log[-1])
 
+    def test_an_interrupt_before_the_receipt_is_stored_keeps_the_board_blocked(self):
+        # the provider returned its pending operation, then the interrupt lands before the store
+        class Interrupted(dict):
+            def __setitem__(self, key, value):
+                raise KeyboardInterrupt
+        patch(self, hil_flash, 'cleanup_pending', Interrupted())
+        self.provider(self.op('pending', rc=124))
+        with self.assertRaises(KeyboardInterrupt):
+            hil_test.test_board(self.board)
+        self.assertEqual(len(self.flashes), 1)
+        rec = hil_lock.read_record(BOARD)
+        self.assertTrue(hil_lock.is_recovery_blocker(rec), rec)
+        with self.assertRaises(hil_lock.RecoveryBlocked):
+            hil_lock.take_board_lock(BOARD, 'peer')
+
     def test_no_later_session_starts_on_the_board(self):
         self.provider(self.op('pending'))
         with redirect_stdout(io.StringIO()):

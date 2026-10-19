@@ -2043,7 +2043,8 @@ def test_board(board: Board) -> tuple:
     board_pci = None
     try:
         # protected: a run killed with an openocd_esp session outstanding leaves a recovery blocker
-        _lock_fh = hil_lock.acquire_board_lock(name, protected=flasher['name'].lower() == 'openocd_esp')
+        protected = flasher['name'].lower() == 'openocd_esp'
+        _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
     except hil_lock.LockUnavailable as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # icon-prefixed like every failing metric cell, so the table tallies it as a failure
@@ -2177,9 +2178,14 @@ def test_board(board: Board) -> tuple:
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
     finally:
+        unwinding = sys.exc_info()[1]
         if _lock_fh and (pending := cleanup_pending(name)):
             # raised past the hand-over above: the lock still never frees on its own
             log_line(f'{name:25} {retain_board_lock(name, _lock_fh, pending)}')
+        elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
+            # an interrupt may land after the provider returned a pending session but before
+            # hil_flash stored its receipt: keep the protected record as the recovery blocker
+            _lock_fh.close()
         elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's
