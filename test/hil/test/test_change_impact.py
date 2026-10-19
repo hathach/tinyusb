@@ -211,9 +211,14 @@ class TestClassIncludeEdges(unittest.TestCase):
 
 
 class TestFallbackRules(unittest.TestCase):
-    def test_unknown_tool_is_full(self):
-        s = sel(['tools/random_new_script.py'])
+    def test_unknown_build_input_is_full(self):                     # rule 17a
+        s = sel(['src/newdir/x.c'])
         self.assertTrue(s['full'])
+
+    def test_unknown_tool_contributes_nothing(self):                # rule 17b
+        s = sel(['tools/random_new_script.py'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
 
     def test_noncode_only_is_empty_not_full(self):
         s = sel(['docs/info/contributing.rst', 'README.rst', 'src/portable/synopsys/dwc2/dwc2_info.py'])
@@ -310,7 +315,8 @@ class TestArgsEmission(unittest.TestCase):
         self.assertIn('-bt raspberry_pi_pico:', a)   # device-only subset of a device+host board
 
     def test_args_full_is_empty(self):
-        s = sel(['tools/random_new_script.py'])
+        s = sel(['src/newdir/x.c'])
+        self.assertTrue(s['full'])
         self.assertEqual(change_impact.selection_args(s, ROSTERS), {'tinyusb.json': ''})
 
     def test_args_all_board_gets_bare_b(self):
@@ -333,7 +339,8 @@ class TestArgsEmission(unittest.TestCase):
         self.assertEqual(per, {'openocd': '-b raspberry_pi_pico'})
 
     def test_args_by_flasher_full_is_empty(self):
-        s = sel(['tools/random_new_script.py'])
+        s = sel(['src/newdir/x.c'])
+        self.assertTrue(s['full'])
         self.assertEqual(change_impact.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
 
     def test_cli_diff_file(self):
@@ -1520,7 +1527,7 @@ class TestRuleTableMatchesTheCode(unittest.TestCase):
         self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
 
 
-class TestNoTrackedFileIsUnclassified(unittest.TestCase):
+class TestNoBuildInputIsUnclassified(unittest.TestCase):
     """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
     anticipated. It must stay that way - a wrong `full` costs runner minutes and is
     visible in the run, a wrong `empty` costs a merged regression and is invisible - but
@@ -1986,7 +1993,7 @@ class TestBuildClassifier(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
 
-    def test_full_paths(self):                                     # rules 15-17
+    def test_full_paths(self):                                     # rules 15-17a
         for p in ('src/common/tusb_fifo.c', 'src/osal/osal.h', 'src/tusb.c',
                   'src/tusb_option.h',
                   'tools/build.py', 'tools/family_json.py',
@@ -1995,8 +2002,14 @@ class TestBuildClassifier(unittest.TestCase):
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
                   '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
                   'hw/bsp/family_support.mk', 'tools/build_utils.py',
-                  'some/unknown/path.c'):
+                  'src/newdir/x.c'):
             self.assertTrue(self.b([p])['full'], p)
+
+    def test_unknown_path_outside_build_inputs_is_empty(self):     # rule 17b
+        s = self.b(['some/unknown/path.c'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], [])
+        self.assertEqual([r['effect'] for r in s['paths']], ['none'])
 
     def test_repo_metadata_is_not_a_build_input(self):
         # these used to reach `full` through rule 17: a PR touching only .gitignore and a
