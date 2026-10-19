@@ -91,6 +91,8 @@ class InputModeTest(unittest.TestCase):
         self.write('a.c', 'a\n')
         self.write('tools/get_deps.py', 'deps_optional = {}\n')
         self.write('hw/bsp/fam1/boards/b1/board.h', '\n')
+        self.write('src/newdir/x.c', 'x\n')
+        self.write('tools/old_helper.py', 'h\n')
         git(self.repo, 'add', '.')
         git(self.repo, 'commit', '-qm', 'base')
         self.base = git(self.repo, 'rev-parse', 'HEAD')
@@ -121,6 +123,23 @@ class InputModeTest(unittest.TestCase):
         files, _, inp = change_impact.select_input(self.repo, base='main', worktree=True)
         self.assertEqual(sorted(files), ['a.c', 'b.c', 'new.c'])
         self.assertEqual(inp['mode'], 'worktree')
+
+    def test_deletions_and_moves_classify_both_sides_of_rule_17(self):
+        # --no-renames: a move is its source deleted plus its destination added
+        cases = ((['rm', '-q', 'src/newdir/x.c'], True),
+                 (['rm', '-q', 'tools/old_helper.py'], False),
+                 (['mv', 'src/newdir/x.c', 'tools/x.c'], True),
+                 (['mv', 'tools/old_helper.py', 'src/newdir/y.c'], True),
+                 (['mv', 'tools/old_helper.py', 'test/old_helper.py'], False))
+        for op, full in cases:
+            git(self.repo, 'checkout', '-q', self.head)
+            Path(self.repo, op[-1]).parent.mkdir(parents=True, exist_ok=True)
+            git(self.repo, *op)
+            git(self.repo, 'commit', '-qm', ' '.join(op))
+            files, _, _ = change_impact.select_input(self.repo, base='main')
+            self.assertEqual(sorted(files), sorted({'b.c', *op[-2 if op[0] == 'mv' else -1:]}), op)
+            self.assertIs(change_impact.classify_build(files, str(ROOT))['full'], full, op)
+            self.assertIs(change_impact.classify(files, str(ROOT), [])['full'], full, op)
 
     def test_endpoints_diff_a_to_b_without_a_merge_base(self):
         files, _, inp = change_impact.select_input(self.repo, endpoints=f'{self.base}..HEAD')
@@ -200,6 +219,22 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual((m['build']['full'], m['build']['families'], m['build']['required_targets']),
                          (True, {}, ['examples-membrowse-upload']))
         self.assertIs(m['hil']['needed'], False)
+
+    def test_rule_17_is_scoped_to_build_input_locations(self):
+        rosters = [(c, json.loads((ROOT / 'test/hil' / c).read_text())['boards'])
+                   for c in ('tinyusb.json', 'hfp.json')]
+        for files, full, needed in ((['.newbot/config.json'], False, False),
+                                    (['src/newdir/x.c'], True, True),
+                                    (['src/class/cdc/cdc_device.c', '.newbot/config.json'], False, True)):
+            m, _, _ = change_impact.manifest(files, str(ROOT), rosters, None, {})
+            self.assertEqual((m['build']['full'], m['hil']['full']), (full, full), files)
+            self.assertEqual((m['build']['needed'], m['hil']['needed']), (needed, needed), files)
+            self.assertIs(change_impact.build_gate(m), needed, files)
+            rules = {p['path']: (p['rule'], p['effect']) for p in m['build']['paths']}
+            if '.newbot/config.json' in files:
+                self.assertEqual(rules['.newbot/config.json'], ('outside-build', 'none'))
+            if 'src/newdir/x.c' in files:
+                self.assertEqual(rules['src/newdir/x.c'], ('unclassified', 'full'))
 
 
 if __name__ == '__main__':
