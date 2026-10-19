@@ -1543,10 +1543,10 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
     @staticmethod
     def _unclassified_of(files, axis):
         out = []
-        for f in files:
+        for f in filter(change_impact._BUILD_SCOPE_RE.match, files):
             s = (change_impact.classify_build([f], REPO) if axis == 'build'
                  else change_impact.classify([f], REPO, real_rosters()))
-            if any('unclassified' in why for why in s['reasons']):
+            if any(why.startswith(f'{f}: unclassified') for why in s['reasons']):
                 out.append(f)
         return out
 
@@ -1561,7 +1561,8 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
 
     def test_guard_flags_only_unknown_build_inputs(self):
         for axis in ('build', 'hil'):
-            self.assertEqual(self._unclassified_of(['.newbot/config.json', 'tools/newscript.py'], axis),
+            self.assertEqual(self._unclassified_of(['.newbot/config.json', 'tools/newscript.py',
+                                                    'tools/unclassified.py', 'src/device/unclassified.c'], axis),
                              [], axis)
             self.assertEqual(self._unclassified_of(['src/newdir/x.c', 'toolchain.cmake'], axis),
                              ['src/newdir/x.c', 'toolchain.cmake'], axis)
@@ -1593,12 +1594,17 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
     @staticmethod
     def _tools_imports(path, root):
         import ast
+        def top(dotted):                     # `tools.x` is tools/x.py, not tools/tools.py
+            parts = dotted.split('.')
+            return parts[1] if parts[0] == 'tools' and len(parts) > 1 else parts[0]
         names = set()
         for n in ast.walk(ast.parse(_read(os.path.join(root, path)))):
             if isinstance(n, ast.Import):
-                names |= {a.name.split('.')[0] for a in n.names}
+                names |= {top(a.name) for a in n.names}
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module == 'tools':
+                names |= {a.name for a in n.names}
             elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
-                names.add(n.module.split('.')[0])
+                names.add(top(n.module))
         return {f'tools/{m}.py' for m in names if os.path.isfile(os.path.join(root, 'tools', f'{m}.py'))}
 
     def _unselected(self, entry, root=REPO):
@@ -1621,13 +1627,15 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             os.mkdir(os.path.join(root, 'tools'))
             for name, body in (('entry', 'import newhelper as nh\ndef f():\n    import mid\n'
-                                         'from file2carray import main\n'),
+                                         'from file2carray import main\nimport tools.qual_a\n'
+                                         'from tools.qual_b import y\nfrom tools import qual_c\n'),
                                ('newhelper', ''), ('mid', 'from deep import x\n'), ('deep', ''),
-                               ('file2carray', '')):
+                               ('file2carray', ''), ('qual_a', ''), ('qual_b', ''), ('qual_c', '')):
                 with open(os.path.join(root, 'tools', f'{name}.py'), 'w') as f:
                     f.write(body)
             self.assertEqual(self._unselected(['tools/entry.py'], root),
-                             ['tools/deep.py', 'tools/file2carray.py', 'tools/mid.py', 'tools/newhelper.py'])
+                             ['tools/deep.py', 'tools/file2carray.py', 'tools/mid.py', 'tools/newhelper.py',
+                              'tools/qual_a.py', 'tools/qual_b.py', 'tools/qual_c.py'])
 
 
 class TestLibRule(unittest.TestCase):
