@@ -15,6 +15,7 @@ is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or ot
 process is alive on this host, checked before and again after taking the lock. That check is
 host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
 another battery's load on this board's host controller does not matter for what you are measuring.
+A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -24,7 +25,8 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
 them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken, 2 refused before any hardware action. A SIGTERM (`hil_lock.py release` sends one
+lock was taken, 2 refused before any hardware action; a command line argparse rejects exits 2
+with its usage on stderr and no JSON line. A SIGTERM (`hil_lock.py release` sends one
 to the lock holder) kills the running flasher or usbtest.py, reports boardState unknown with a
 verdict line, then releases the lock.
 """
@@ -36,6 +38,33 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+
+def build_parser():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
+    p.add_argument('--board', required=True)
+    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
+    p.add_argument('--after', required=True, choices=('park', 'leave'),
+                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
+    p.add_argument('--variant', help='roster variant, required when the board has several')
+    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
+    p.add_argument('--allow-concurrent', action='store_true',
+                   help='skip the live-battery check; see the description first')
+    return p
+
+
+def new_report(args):
+    return {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
+            'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+
+
+if __name__ == '__main__' and sys.platform != 'linux':   # after argparse, so --help works; before the harness imports
+    _report = new_report(build_parser().parse_args())
+    _report['error'] = 'run_case.py needs a Linux host (usbfs, /proc, the usbtest kernel module)'
+    print(f'error: {_report["error"]}', file=sys.stderr)
+    print(json.dumps(_report))
+    sys.exit(2)
 
 ROOT = Path(__file__).resolve().parents[4]
 HIL_DIR = ROOT / 'test' / 'hil'
@@ -268,20 +297,8 @@ def battery(board, fw, tests, timeout):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
-    p.add_argument('--board', required=True)
-    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
-    p.add_argument('--after', required=True, choices=('park', 'leave'),
-                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
-    p.add_argument('--variant', help='roster variant, required when the board has several')
-    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
-    p.add_argument('--allow-concurrent', action='store_true',
-                   help='skip the live-battery check; see the description first')
-    args = p.parse_args()
-
-    report = {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
-              'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+    args = build_parser().parse_args()
+    report = new_report(args)
 
     def finish(code, error=''):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)   # one verdict line; the release still follows

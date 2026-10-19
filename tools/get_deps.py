@@ -436,7 +436,7 @@ def main():
     # argparse error here reds the Get Dependencies step of every scoped PR
     parser.add_argument('-e', '--example', action='append', default=[], help='Have no effect')
     parser.add_argument('--gen-doc', nargs='?', const=DEPS_RST, metavar='RST',
-                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP)}) and exit, fetching nothing')
+                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP).as_posix()}) and exit, fetching nothing')
     args = parser.parse_args()
 
     if args.gen_doc:

@@ -795,6 +795,12 @@ class RunTest(unittest.TestCase):
         self.assertEqual((rc, err.getvalue()), (3, ''))
         self.assertEqual(sorted(out.split()), ['x', 'y'])
 
+    def test_the_child_writes_utf8_whatever_its_inherited_encoding(self):
+        # a Windows child writes a pipe in the ANSI code page; latin-1 stands in for it on any host
+        with mock.patch.dict(os.environ, {'PYTHONIOENCODING': 'latin-1'}):
+            rc, out = build.run([sys.executable, '-c', 'print("\u2192 \u00f8")'], False)
+        self.assertEqual((rc, out), (0, '\u2192 \u00f8\n'))
+
 
 UTILS = Path(__file__).resolve().parents[2] / 'tools' / 'build_utils.py'
 _uspec = importlib.util.spec_from_file_location('build_utils_under_test', UTILS)

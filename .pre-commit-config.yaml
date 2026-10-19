@@ -115,7 +115,7 @@ repos:
   # relying on it being installed system-wide.
   - id: claude-scripts
     name: claude-scripts
-    files: ^(\.claude/(skills/.*/(scripts/|SKILL\.md)|test/)|tools/get_deps\.py$)
+    files: ^(\.claude/(skills/.*/(scripts/|SKILL\.md|[^/]*\.py$)|test/)|tools/(build_utils|family_json|get_deps)\.py$)
     entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python

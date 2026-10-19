@@ -15,6 +15,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+if os.name == 'nt':
+    raise unittest.SkipTest('run_case.py imports test/hil/usbtest.py, which needs fcntl')
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts' / 'run_case.py'
 spec = importlib.util.spec_from_file_location('run_case', SCRIPT)

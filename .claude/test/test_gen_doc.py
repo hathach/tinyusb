@@ -39,7 +39,8 @@ def fixture(root):
     bsp = root / 'hw' / 'bsp'
     (bsp / 'acme' / 'boards' / 'acme_one').mkdir(parents=True)
     (bsp / 'acme' / 'boards' / 'acme_bare').mkdir()
-    (bsp / 'acme' / 'family.c').write_text(METADATA_FAMILY)
+    # UTF-8 beyond the metadata block, as several real family.c have: read as UTF-8 on every host
+    (bsp / 'acme' / 'family.c').write_text('// Acme \u2192 \u2714\n' + METADATA_FAMILY, encoding='utf-8')
     (bsp / 'acme' / 'boards' / 'acme_one' / 'board.h').write_text(METADATA_BOARD)
     (bsp / 'acme' / 'boards' / 'acme_bare' / 'board.h').write_text('#define BOARD_H_\n')
     (bsp / 'nometa' / 'boards' / 'nometa_x').mkdir(parents=True)
@@ -50,9 +51,9 @@ def fixture(root):
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
         {'name': 'acme_one', 'tests': {'device': True, 'host': True, 'dual': False},
          'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
-         'note': 'needs  a | jumper'},
+         'note': 'needs  a | jumper \u00f8'},
         {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
-    ]}))
+    ]}, ensure_ascii=False), encoding='utf-8')
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
 
 
@@ -67,6 +68,24 @@ class MetadataTest(unittest.TestCase):
             f.write_text('no block here\n')
             self.assertEqual(gen_doc.metadata(f), {})
             self.assertEqual(gen_doc.metadata(Path(d) / 'absent.h'), {})
+
+
+class BoardsTest(unittest.TestCase):
+    def test_families_and_boards_sort_by_name_case_sensitively_on_every_host(self):
+        # the committed boards.rst is Linux's order; paths here compare case-insensitively, as on Windows
+        with tempfile.TemporaryDirectory() as d:
+            bsp = Path(d)
+            for family in ('acme', 'Zeta'):
+                (bsp / family / 'family.c').parent.mkdir()
+                (bsp / family / 'family.c').write_text(METADATA_FAMILY)
+                for board, has_header in (('board_x', True), ('Board_Y', True), ('bare', False), ('Bare_', False)):
+                    (bsp / family / 'boards' / f'{family}_{board}').mkdir(parents=True)
+                    if has_header:
+                        (bsp / family / 'boards' / f'{family}_{board}' / 'board.h').write_text(METADATA_BOARD)
+            with mock.patch.object(type(bsp), '__lt__', lambda a, b: str(a).casefold() < str(b).casefold()):
+                vendors, skipped = gen_doc.boards(bsp)
+        self.assertEqual(list(vendors['Acme']), ['Zeta_Board_Y', 'Zeta_board_x', 'acme_Board_Y', 'acme_board_x'])
+        self.assertEqual([p.name for p in skipped], ['Zeta_Bare_', 'Zeta_bare', 'acme_Bare_', 'acme_bare'])
 
 
 class MdTableTest(unittest.TestCase):
@@ -86,8 +105,8 @@ class GenDocScriptTest(unittest.TestCase):
             fixture(root)
             r = subprocess.run([sys.executable, str(GEN_DOC), '--root', str(root)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
-            boards = (root / 'docs/reference/boards.rst').read_text()
-            hil = (root / 'docs/reference/hil_boards.md').read_text()
+            boards = (root / 'docs/reference/boards.rst').read_text(encoding='utf-8')
+            hil = (root / 'docs/reference/hil_boards.md').read_text(encoding='utf-8')
             deps = (root / 'docs/reference/dependencies.rst').read_text()
         self.assertIn('Acme\n----\n\n', boards)
         self.assertIn('acme_one  Acme One  acme      https://acme.example/one', boards)
@@ -101,8 +120,8 @@ class GenDocScriptTest(unittest.TestCase):
             '',
         ])
         self.assertTrue(hil.startswith(gen_doc.HEADER + '\n\n### ci rig\n\n2 boards, from `test/hil/tinyusb.json`.'))
-        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper |', hil)
-        self.assertIn('| acme_two | device, host |           |             |                   |', hil)
+        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper \u00f8 |', hil)
+        self.assertIn('| acme_two | device, host |           |             |                     |', hil)
         self.assertNotIn('hfp rig', hil)
         self.assertIn('lib/fatfs', deps)
 
