@@ -1542,13 +1542,12 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
 
     @staticmethod
     def _unclassified_of(files, axis):
-        out = []
-        for f in filter(change_impact._BUILD_SCOPE_RE.match, files):
-            s = (change_impact.classify_build([f], REPO) if axis == 'build'
-                 else change_impact.classify([f], REPO, real_rosters()))
-            if any(why.startswith(f'{f}: unclassified') for why in s['reasons']):
-                out.append(f)
-        return out
+        # one walk per axis: both record every path, even after one forces full
+        if axis == 'build':
+            return [p['path'] for p in change_impact.classify_build(files, REPO)['paths']
+                    if p['rule'] == 'unclassified']
+        reasons = set(change_impact.classify(files, REPO, real_rosters())['reasons'])
+        return [f for f in files if f'{f}: unclassified -> full matrix' in reasons]
 
     def _unclassified(self, axis):
         import subprocess as sp
@@ -1560,13 +1559,10 @@ class TestNoBuildInputIsUnclassified(unittest.TestCase):
         return self._unclassified_of(files, axis)
 
     def test_guard_flags_only_unknown_build_inputs(self):
+        files = ['.newbot/config.json', 'tools/newscript.py', 'tools/unclassified.py',
+                 'src/device/unclassified.c', 'src/newdir/x.c', 'toolchain.cmake', 'src/device/usbd.c']
         for axis in ('build', 'hil'):
-            self.assertEqual(self._unclassified_of(['.newbot/config.json', 'tools/newscript.py',
-                                                    'tools/unclassified.py', 'src/device/unclassified.c'], axis),
-                             [], axis)
-            self.assertEqual(self._unclassified_of(['src/newdir/x.c', 'toolchain.cmake'], axis),
-                             ['src/newdir/x.c', 'toolchain.cmake'], axis)
-            self.assertEqual(self._unclassified_of(['src/device/usbd.c'], axis), [], axis)
+            self.assertEqual(self._unclassified_of(files, axis), ['src/newdir/x.c', 'toolchain.cmake'], axis)
 
     def test_build_axis(self):
         left = self._unclassified('build')
@@ -1613,11 +1609,18 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
                 names.add(top(n.module))
         return {f'tools/{m}.py' for m in names if os.path.isfile(os.path.join(root, 'tools', f'{m}.py'))}
 
+    @staticmethod
+    def _tree(root, files):
+        for rel, body in files.items():
+            os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+            with open(os.path.join(root, rel), 'w') as f:
+                f.write(body)
+
     def _literal_refs(self, entry, root):
         import re as _re
         refs = set()
         for pat in self.BUILD_FILES:
-            for f in glob.glob(os.path.join(glob.escape(root), pat), recursive=True):
+            for f in glob.glob(change_impact._rg(root, pat), recursive=True):
                 if os.path.isfile(f):
                     refs |= set(_re.findall(r'tools/[\w.-]+\.(?:py|sh)\b', _read(f)))
         for e in entry:
@@ -1628,38 +1631,41 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
     def _selects(path):
         return any(r['effect'] in ('select', 'full') for r in change_impact.classify_build([path], REPO)['paths'])
 
-    def _unselected(self, entry, root=REPO):
-        literal = self._literal_refs(entry, root)
-        imported, todo = set(), list(entry) + [m for m in literal if m.endswith('.py')]
+    def _unselected(self, entry, root=REPO, literal=None):
+        literal = self._literal_refs(entry, root) if literal is None else literal
+        imported, parsed = set(), set()
+        todo = list(entry) + [m for m in literal if m.endswith('.py')]
         while todo:
-            for m in self._tools_imports(todo.pop(), root) - imported:
-                imported.add(m)
-                todo.append(m)
+            p = todo.pop()
+            if p in parsed:
+                continue
+            parsed.add(p)
+            new = self._tools_imports(p, root) - imported
+            imported |= new
+            todo += new
         # the exemption covers how mksunxi is reached today; an import of it must still select
         return sorted(m for m in (literal - self.UNBUILT_OK) | imported if not self._selects(m))
 
     def test_tree(self):
         self.assertIn('tools/get_deps.py', self._tools_imports('tools/build_utils.py', REPO))
-        self.assertIn('tools/membrowse_cli.py', self._literal_refs(self.ENTRY, REPO))
-        left = self._unselected(self.ENTRY)
+        refs = self._literal_refs(self.ENTRY, REPO)
+        self.assertIn('tools/membrowse_cli.py', refs)
+        left = self._unselected(self.ENTRY, literal=refs)
         self.assertEqual(left, [], f'tools/ scripts reached by builds with no selecting rule: '
                                    f'{left} - name them in _FULL_RE or give them a rule')
-        for m in self.UNBUILT_OK:           # an exemption must still be needed
-            self.assertIn(m, self._literal_refs(self.ENTRY, REPO))
+        self.assertLessEqual(self.UNBUILT_OK, refs)     # an exemption must still be needed
+        for m in self.UNBUILT_OK:
             self.assertFalse(self._selects(m), m)
 
     def test_flags_literal_build_references_and_honours_the_exemption(self):
         import tempfile
         with tempfile.TemporaryDirectory() as root:
-            for rel, body in (('hw/bsp/fam/family.cmake', 'COMMAND python ${TOP}/tools/cm_helper.py\n'),
-                              ('hw/bsp/family_rules.mk', '\t$(TOP)/tools/mk_helper.sh $<\n'
-                                                         '\t$(PYTHON) $(TOP)/tools/mksunxi.py $< $@\n'),
-                              ('tools/entry.py', "os.path.join(d, 'lit_helper.py')\n"),
-                              ('tools/cm_helper.py', 'import deep2\n'), ('tools/deep2.py', ''),
-                              ('tools/mk_helper.sh', ''), ('tools/lit_helper.py', ''), ('tools/mksunxi.py', '')):
-                os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
-                with open(os.path.join(root, rel), 'w') as f:
-                    f.write(body)
+            self._tree(root, {'hw/bsp/fam/family.cmake': 'COMMAND python ${TOP}/tools/cm_helper.py\n',
+                              'hw/bsp/family_rules.mk': '\t$(TOP)/tools/mk_helper.sh $<\n'
+                                                        '\t$(PYTHON) $(TOP)/tools/mksunxi.py $< $@\n',
+                              'tools/entry.py': "os.path.join(d, 'lit_helper.py')\n",
+                              'tools/cm_helper.py': 'import deep2\n', 'tools/deep2.py': '',
+                              'tools/mk_helper.sh': '', 'tools/lit_helper.py': '', 'tools/mksunxi.py': ''})
             self.assertEqual(self._unselected(['tools/entry.py'], root),
                              ['tools/cm_helper.py', 'tools/deep2.py', 'tools/lit_helper.py', 'tools/mk_helper.sh'])
             with open(os.path.join(root, 'tools/entry.py'), 'a') as f:
@@ -1669,14 +1675,12 @@ class TestBuildScriptImportsAreClassified(unittest.TestCase):
     def test_flags_new_direct_transitive_and_unselected_imports(self):
         import tempfile
         with tempfile.TemporaryDirectory() as root:
-            os.mkdir(os.path.join(root, 'tools'))
-            for name, body in (('entry', 'import newhelper as nh\ndef f():\n    import mid\n'
-                                         'from file2carray import main\nimport tools.qual_a\n'
-                                         'from tools.qual_b import y\nfrom tools import qual_c\n'),
-                               ('newhelper', ''), ('mid', 'from deep import x\n'), ('deep', ''),
-                               ('file2carray', ''), ('qual_a', ''), ('qual_b', ''), ('qual_c', '')):
-                with open(os.path.join(root, 'tools', f'{name}.py'), 'w') as f:
-                    f.write(body)
+            self._tree(root, {f'tools/{name}.py': body for name, body in (
+                ('entry', 'import newhelper as nh\ndef f():\n    import mid\n'
+                          'from file2carray import main\nimport tools.qual_a\n'
+                          'from tools.qual_b import y\nfrom tools import qual_c\n'),
+                ('newhelper', ''), ('mid', 'from deep import x\n'), ('deep', ''),
+                ('file2carray', ''), ('qual_a', ''), ('qual_b', ''), ('qual_c', ''))})
             self.assertEqual(self._unselected(['tools/entry.py'], root),
                              ['tools/deep.py', 'tools/file2carray.py', 'tools/mid.py', 'tools/newhelper.py',
                               'tools/qual_a.py', 'tools/qual_b.py', 'tools/qual_c.py'])
