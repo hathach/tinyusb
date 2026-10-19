@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# The rosters checked by the rules of agentrc's flash provider (lib/agentrc at the pin,
-# hil_util.provider()), which test_change_impact.py cannot call: build.yml runs it without
-# lib/agentrc. The provider's own rules are agentrc's tests (tests/test_hil_flash.py). Run directly:
+# hil_flash's board-shaped adapters over agentrc's flash provider (lib/agentrc at the pin,
+# hil_util.provider()), and the rosters checked by the provider's rules. The provider's own
+# commands, scripts, retries and refusals are agentrc's tests (tests/test_hil_flash.py); these
+# pin what tinyusb hands it (routing, bounds, runner and its own settings) and that a missing,
+# off-pin or incomplete provider is refused before any tool runs. Run directly:
 #   python3 test/hil/test/test_hil_flash.py
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HIL_DIR = Path(__file__).resolve().parents[1]
 REPO = str(HIL_DIR.parents[1])
@@ -17,11 +23,217 @@ sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
-from test_change_impact import roster_flashers  # noqa: E402
+from helper import agentrc, hil_util  # noqa: E402
+from test_change_impact import flasher_names, roster_flashers  # noqa: E402
+
+PROVIDER_DIR = 'skills/hil/scripts'
+PROVIDER_FILES = ('hil_flash.py', 'hil_process.py', 'pyocd/run_pyocd.py', 'pyocd/user_script.py')
+BOARDS = {
+    'jlink': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'},
+    'stlink': {'name': 'stlink', 'uid': 'S1'},
+    'openocd': {'name': 'openocd', 'uid': 'S1', 'vid_pid': '0x2e8a 0x000c',
+                'args': '-f interface/cmsis-dap.cfg -f target/rp2040.cfg'},
+    'lm4flash': {'name': 'lm4flash', 'uid': 'S1', 'args': ''},
+    'pyocd': {'name': 'pyocd', 'uid': 'S1', 'vid_pid': '0x1fc9 0x0090', 'args': '-t lpc55s28'},
+    'esptool': {'name': 'esptool', 'uid': 'S1', 'args': '--baud 921600'},
+}
+
+
+class Provider:
+    """hil_util.provider() stand-in recording each flash/reset call as (name, args, kwargs) and
+    answering rc 0: what tinyusb hands the provider, not what the provider does with it."""
+
+    def __init__(self, case):
+        self.calls, self.real = [], hil_util.provider()
+        case.addCleanup(setattr, hil_util, 'provider', hil_util.provider)
+        hil_util.provider = lambda: self
+
+    def __getattr__(self, name):
+        if not name.startswith(('flash_', 'reset_', 'rescue_')):
+            return getattr(self.real, name)
+
+        def call(*args, **kwargs):
+            self.calls.append((name, args, kwargs))
+            return subprocess.CompletedProcess(name, 0, '', '')
+        return call
+
+
+class Adapters(unittest.TestCase):
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        fw_dir = Path(td.name) / 'esp'
+        fw_dir.mkdir()
+        (fw_dir / 'config.env').write_text(json.dumps({'IDF_TARGET': 'esp32s3'}))
+        (fw_dir / 'flash_args').write_text('--flash_mode dio\n0x0 bootloader.bin\n0x10000 fw.bin\n')
+        self.esp_fw = str(fw_dir / 'fw.bin')
+        patcher = mock.patch.object(hil_util, 'get_serial_dev', lambda *a: '/dev/ttyESP')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.provider = Provider(self)
+
+    def board(self, name):
+        return {'name': 'b', 'flasher': dict(BOARDS[name])}
+
+    def fw(self, name):
+        return self.esp_fw if name == 'esptool' else '/tmp/fw.elf'
+
+    def test_each_flasher_routes_to_its_provider_operation_with_the_callers_bound_and_runner(self):
+        names = flasher_names()
+        self.assertEqual(set(names), set(BOARDS))
+        for name in names:
+            for verb, fn, args in (('flash', hil_flash.flash_primitive(name), (self.fw(name),)),
+                                   ('reset', hil_flash.reset_primitive(name), ())):
+                if fn is None:
+                    continue
+                with self.subTest(fn=fn.__name__):
+                    self.provider.calls.clear()
+                    fn(self.board(name), *args, timeout=7)
+                    (called, pargs, kw), = self.provider.calls
+                    self.assertEqual((called, pargs[0]), (f'{verb}_{name}', BOARDS[name]))
+                    self.assertEqual((kw['timeout'], kw['run']), (7, hil_util.run_cmd))
+
+    def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
+        self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
+        hil_util.CMD_TIMEOUT = 33
+        hil_flash.reset_stlink(self.board('stlink'))
+        hil_flash.flash_jlink(self.board('jlink'), '/tmp/fw.elf')
+        self.assertEqual([kw['timeout'] for _, _, kw in self.provider.calls], [33, 33])
+
+    def test_jlink_reruns_a_crash_twice(self):
+        hil_flash.flash_jlink(self.board('jlink'), '/tmp/fw.elf')
+        hil_flash.reset_jlink(self.board('jlink'))
+        self.assertEqual([kw['crash_retries'] for _, _, kw in self.provider.calls], [2, 2])
+
+    def test_esptool_reads_the_builds_target_and_flash_args_and_runs_there(self):
+        hil_flash.flash_esptool(self.board('esptool'), self.esp_fw, timeout=7)
+        (_, _, kw), = self.provider.calls
+        self.assertEqual({k: kw[k] for k in ('chip', 'port', 'flash_args', 'cwd')},
+                         {'chip': 'esp32s3', 'port': '/dev/ttyESP', 'cwd': str(Path(self.esp_fw).parent),
+                          'flash_args': '--flash_mode dio 0x0 bootloader.bin 0x10000 fw.bin'})
+
+    def test_pyocd_runs_with_this_project_dir(self):
+        hil_flash.flash_pyocd(self.board('pyocd'), 'rel/fw.elf')
+        hil_flash.reset_pyocd(self.board('pyocd'))
+        self.assertEqual([kw['project_dir'] for _, _, kw in self.provider.calls],
+                         [str(hil_flash.PYOCD_PROJECT_DIR)] * 2)
+
+    def test_rescue_hands_the_flash_output_over_with_the_bound_and_runner(self):
+        hil_flash.rescue_openocd(self.board('openocd'), 'flash output')
+        (name, args, kw), = self.provider.calls
+        self.assertEqual((name, args), ('rescue_openocd', (BOARDS['openocd'], 'flash output')))
+        self.assertEqual(kw, {'timeout': hil_util.CMD_TIMEOUT, 'run': hil_util.run_cmd})
+
+
+def hil_test_stdout(case, board: dict, **env) -> str:
+    """hil_test.py's stdout for a one-board config it must refuse (exit 1) before any board access."""
+    with tempfile.TemporaryDirectory() as td:
+        cfg = Path(td) / 'c.json'
+        cfg.write_text(json.dumps({'boards': [{'name': 'b', 'uid': 'X', 'tests': {'device': True}, **board}]}))
+        r = subprocess.run([sys.executable, str(HIL_DIR / 'hil_test.py'), str(cfg)],
+                           env={**os.environ, 'HIL_REPORT_DIR': td, **env}, capture_output=True, text=True, timeout=60)
+    case.assertEqual(r.returncode, 1, r.stderr)
+    return r.stdout
+
+
+class HilTestRefusesAMalformedPin(unittest.TestCase):
+    def test_before_touching_a_board(self):
+        jlink = {'name': 'jlink', 'uid': 'S', 'args': '-device x'}
+        bad = {'name': 'openocd', 'vid_pid': '0x1a86 0x8010 0x1a86', 'args': '-f interface/jlink.cfg'}
+        for board in ({'flasher': {**bad, 'uid': 'S'}}, {'flasher': jlink, 'flasher_recover': bad}):
+            with self.subTest(board=board):
+                self.assertIn('ERROR: an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: b',
+                              hil_test_stdout(self, board))
+
+
+class ProviderLoading(unittest.TestCase):
+    """hil_util.provider() loads agentrc's hil_flash once per process, with its runner as
+    `.hil_process`, and only on first use."""
+
+    def test_one_pinned_instance_whose_runner_hil_util_wraps(self):
+        p = hil_util.provider()
+        self.assertIs(hil_util.provider(), p)
+        scripts = Path(REPO) / agentrc.DEP / PROVIDER_DIR
+        self.assertEqual(Path(p.__file__).resolve(), (scripts / 'hil_flash.py').resolve())
+        self.assertEqual(Path(p.hil_process.__file__).resolve(), (scripts / 'hil_process.py').resolve())
+        seen = []
+        with mock.patch.object(p.hil_process, 'run_cmd', lambda cmd, cwd, **kw: seen.append(cmd)):
+            hil_util.run_cmd('true')
+        self.assertEqual(seen, ['true'])
+
+    def scratch(self, provider_files):
+        """A tree holding the selector, the harness's bottom layer and hil_flash, and lib/agentrc
+        at the pin with `provider_files` (None: no lib/agentrc at all)."""
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        for rel in [*(f'tools/{p.name}' for p in Path(REPO, 'tools').glob('*.py')),
+                    *(f'test/hil/helper/{p.name}' for p in (HIL_DIR / 'helper').glob('*.py')),
+                    'test/hil/hil_flash.py']:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(Path(REPO, rel), root / rel)
+        if provider_files is not None:
+            for f in provider_files:
+                rel = Path(agentrc.DEP, PROVIDER_DIR, f)
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(Path(REPO, rel), root / rel)
+            (root / agentrc.DEP / '.git').mkdir(parents=True)
+            (root / agentrc.DEP / '.git/HEAD').write_text(agentrc.PIN + '\n')
+        return root
+
+    def python(self, root, code):
+        return subprocess.run([sys.executable, '-c', 'import sys; sys.path[:0] = ["test/hil", "tools"]\n' + code],
+                              cwd=root, capture_output=True, text=True, timeout=60)
+
+    def test_selection_runs_without_lib_agentrc(self):
+        r = self.python(self.scratch(None), (
+            'import change_impact, hil_flash\n'
+            'assert hil_flash.flash_primitive("JLink") is hil_flash.flash_jlink\n'
+            'assert hil_flash.find_firmware("b", "device/cdc_msc", flasher="jlink") is None\n'
+            'assert change_impact.ALL_TESTS["device"]\n'
+            'print(sorted(m for m in sys.modules if "provider" in m or m.startswith("agentrc")))\n'))
+        self.assertEqual((r.returncode, r.stdout), (0, '[]\n'), r.stderr)
+
+    def test_a_missing_off_pin_or_incomplete_provider_refuses_before_any_tool_runs(self):
+        code = ('import hil_flash\n'
+                'from helper import hil_util\n'
+                'for call in (hil_util.provider, lambda: hil_util.run_cmd("touch ran"),\n'
+                '             lambda: hil_flash.reset_stlink({"flasher": {"name": "stlink", "uid": "S"}})):\n'
+                '    try:\n'
+                '        call()\n'
+                '    except ImportError as e:\n'
+                '        print(e)\n')
+        cases = [(None, f'must be at {agentrc.PIN} (found nothing)')]
+        for missing in PROVIDER_FILES:
+            cases.append(([f for f in PROVIDER_FILES if f != missing], f'has no {PROVIDER_DIR}/{missing}'))
+        off_pin = self.scratch(PROVIDER_FILES)
+        (off_pin / agentrc.DEP / '.git/HEAD').write_text('0' * 40 + '\n')
+        for root, why in [(self.scratch(files), why) for files, why in cases] + [
+                (off_pin, f'must be at {agentrc.PIN} (found {"0" * 40})')]:
+            with self.subTest(why=why):
+                r = self.python(root, code)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                lines = r.stdout.splitlines()
+                self.assertEqual(len(lines), 3, r.stdout)
+                for line in lines:
+                    self.assertIn(why, line)
+                    self.assertIn(agentrc.FETCH, line)
+                self.assertFalse((root / 'ran').exists())
+
+    def test_a_complete_provider_at_the_pin_loads(self):
+        r = self.python(self.scratch(PROVIDER_FILES), 'from helper import hil_util\nprint(hil_util.run_cmd("printf ok").stdout)\n')
+        self.assertEqual((r.returncode, r.stdout), (0, 'ok\n'), r.stderr)
 
 
 class Rosters(unittest.TestCase):
     """The committed rosters, checked by the provider's rules."""
+
+    def test_roster_vid_pid_pins_are_complete_pairs(self):
+        # the provider refuses every openocd command over a malformed explicit pin
+        for path, board in roster_flashers():
+            for f in (board['flasher'], hil_flash.recover_flasher(board)):
+                if 'vid_pid' in f:
+                    self.assertTrue(hil_flash.valid_vid_pid(f['vid_pid']), f"{path}: {board['name']}")
 
     def test_roster_pyocd_entries_filter_vid_pid(self):
         # unfiltered, pyocd opens every CMSIS-DAP-class device on the rig (the provider's pyocd launcher)

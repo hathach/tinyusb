@@ -20,6 +20,7 @@
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -361,7 +362,8 @@ class RemoteStaging(unittest.TestCase):
         # suite needs nothing the wrapper imports.
         import ast
         hil_dir = Path(TEST_DIR).parents[0]
-        wrapper = hil_dir.parents[1] / '.claude/skills/hil-contract/scripts/hil_remote.py'
+        repo = hil_dir.parents[1]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
 
@@ -391,6 +393,23 @@ class RemoteStaging(unittest.TestCase):
                         if kw.arg == 'requires':
                             yield from (f'lib/agentrc/{e.value}' for e in kw.value.elts)
 
+        def by_path(rel):
+            # what an agentrc script itself loads or launches by path: _load('<name>') and
+            # os.path.join(HERE, ...) beside it, Path(__file__)...with_name('<file>')
+            here = Path(rel).parent
+            for node in ast.walk(ast.parse((repo / rel).read_text())):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn, args = ast.unparse(node.func), node.args
+                if not args or not all(isinstance(a, ast.Constant) for a in args[fn == 'os.path.join':]):
+                    continue
+                if fn == '_load':
+                    yield (here / f'{args[0].value}.py').as_posix()
+                elif fn == 'os.path.join' and ast.unparse(args[0]) == 'HERE':
+                    yield here.joinpath(*(a.value for a in args[1:])).as_posix()
+                elif fn.endswith('.with_name'):
+                    yield (here / args[0].value).as_posix()
+
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
@@ -406,10 +425,50 @@ class RemoteStaging(unittest.TestCase):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
         self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
+        launched, todo = set(), sorted(loaded)
+        while todo:
+            for f in by_path(todo.pop()):
+                if f not in launched:
+                    launched.add(f)
+                    todo.append(f)
+        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', launched, 'the by-path walk went vacuous')
+        for f in sorted(launched):
+            # in `requires` too, so a tree lacking it is refused before any tool runs
+            self.assertIn(f, loaded, f'{f} is loaded or launched by path but no agentrc.load requires it')
         for f in sorted(loaded):
             self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
         # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
         self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
+
+    def test_the_staged_tree_runs_without_the_checkout(self):
+        # HARNESS_FILES alone, where the rig gets them: hil_test loads the flash provider from
+        # the staged lib/agentrc at import, and refuses there when a provider file is missing
+        import ast
+        repo = Path(TEST_DIR).parents[2]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
+        staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
+                      if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
+        code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
+                'p = hil_util.provider()\n'
+                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, sep="\\n")\n')
+        with TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            for rel in staged:
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(repo / rel, root / rel)
+            env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            scripts = root / 'lib/agentrc/skills/hil/scripts'
+            self.assertEqual(r.stdout.splitlines(), [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
+                                                     str(scripts / 'pyocd/run_pyocd.py')])
+            (scripts / 'pyocd/user_script.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('ImportError: lib/agentrc at', r.stderr.strip().splitlines()[-1])
+            self.assertIn('has no skills/hil/scripts/pyocd/user_script.py', r.stderr)
 
 
 class _MtpFakeRig:
