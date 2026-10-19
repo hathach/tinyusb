@@ -781,7 +781,39 @@ class DepsTest(unittest.TestCase):
                                     capture_output=True, text=True, check=True, env=clean)
             self.assertEqual(status.stdout, ' M sentinel.txt\n')
             printed = ''.join(call[0][0] for call in out.write.call_args_list)
-            self.assertIn('without its own .git', printed)
+            self.assertIn('not an independent Git checkout', printed)
+
+    def test_get_deps_refuses_a_symlink_to_the_enclosing_repository(self):
+        import subprocess
+        import tempfile
+        clean = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ, clean, clear=True):
+            outer = Path(td)
+            (outer / 'dep').symlink_to(outer, target_is_directory=True)
+            sentinel = outer / 'sentinel.txt'
+            sentinel.write_text('preserved\n')
+            git = ['git', '-C', str(outer), '-c', 'user.name=t', '-c', 'user.email=t@t',
+                   '-c', 'commit.gpgsign=false']
+            subprocess.run(git + ['init', '-q'], check=True, env=clean)
+            subprocess.run(git + ['add', 'sentinel.txt'], check=True, env=clean)
+            subprocess.run(git + ['commit', '-q', '-m', 'fixture'], check=True, env=clean)
+            sentinel.write_text('changed\n')
+
+            get_deps = build.tools_build.build_utils.get_deps
+            entry = ['https://example.invalid/unused.git', '0' * 40, 'all']
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                 mock.patch.object(get_deps, 'deps_all', {'dep': entry}), \
+                 mock.patch.object(get_deps, 'deps_remove_files', {}), \
+                 mock.patch('sys.stdout') as out:
+                self.assertEqual(get_deps.get_a_dep('dep'), 1)
+
+            self.assertEqual(sentinel.read_text(), 'changed\n')
+            status = subprocess.run(['git', '-C', str(outer), 'status', '--short'],
+                                    capture_output=True, text=True, check=True, env=clean)
+            self.assertEqual(status.stdout, ' M sentinel.txt\n?? dep\n')
+            printed = ''.join(call[0][0] for call in out.write.call_args_list)
+            self.assertIn('enclosing repository', printed)
 
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])

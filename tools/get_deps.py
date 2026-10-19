@@ -389,8 +389,8 @@ def get_a_dep(d):
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
         head = None
-    elif not (p / '.git').exists():
-        print(f'Error: {d} exists without its own .git; refusing to update it because '
+    elif p.resolve() == Path(TOP).resolve() or not (p / '.git').exists():
+        print(f'Error: {d} is not an independent Git checkout; refusing to update it because '
               'Git would operate on the enclosing repository. Remove the dependency '
               'directory and retry.')
         return 1
