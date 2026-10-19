@@ -16,17 +16,18 @@ _spec.loader.exec_module(_get_deps)
 PIN = _get_deps.deps_optional[DEP][1]
 
 
-def load(rel_path, module_name):
+def load(rel_path, module_name, requires=()):
     """DEP/`rel_path` registered as `module_name`; ImportError unless DEP is at PIN and holds
-    the file."""
+    the file and every `requires` file (ones it loads or launches by path)."""
     # Proves the checked-out commit, not the file contents: a locally edited file at the pin
     # still loads, and the rig's staged tree has no git objects to check it against.
     head = _get_deps.dep_head(DEP)
     if head != PIN:
         raise ImportError(f"{DEP} must be at {PIN} (found {head or 'nothing'}): {FETCH}")
+    for rel in (rel_path, *requires):
+        if not (TINYUSB_ROOT / DEP / rel).is_file():
+            raise ImportError(f'{DEP} at {PIN} has no {rel}: {FETCH}')
     path = TINYUSB_ROOT / DEP / rel_path
-    if not path.is_file():
-        raise ImportError(f'{DEP} at {PIN} has no {rel_path}: {FETCH}')
     spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     # Registered so pickle finds its classes by module name (RttError across the fork Pool).

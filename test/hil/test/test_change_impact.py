@@ -8,7 +8,9 @@
 # locally, and that runner has no pyserial/pymtp. hil_flash is admissible because it
 # is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
 # both) and the roster-dispatch tests need its flash_* table; never import hil_test,
-# which pulls pyserial.
+# which pulls pyserial. Nothing here may call into agentrc's flash provider either:
+# build.yml's selector gate runs this suite without lib/agentrc, so tests that do live
+# in test_hil_flash.py.
 import contextlib
 import glob
 import inspect
@@ -655,44 +657,8 @@ class TestPortWithoutFamilyContributesNothing(unittest.TestCase):
 class TestOpenocdVidPid(unittest.TestCase):
     """The roster's optional flasher `vid_pid` field (openocd-verbatim, e.g.
     "0x1a86 0x8010", more pairs appended) pins openocd's probe discovery so it
-    never opens foreign usbfs nodes. It must be emitted BEFORE the args: the
-    rescue cfgs run `init` internally (rp2350-rescue.cfg errors on any
-    config-stage command after its init; rp2040.cfg under RESCUE scans before a
-    trailing flag is even parsed), and no rig cfg sets a competing list
-    (the 2026-08-10 convoy mechanism)."""
-
-    def test_vid_pid_flag_precedes_args(self):
-        cmd = hil_flash._openocd_cmd_base(
-            {'uid': 'S1', 'args': '-f target/wch-riscv.cfg', 'vid_pid': '0x1a86 0x8010'})
-        self.assertIn('-c "adapter usb vid_pid 0x1a86 0x8010" -f target/wch-riscv.cfg', cmd)
-        self.assertTrue(cmd.endswith('-f target/wch-riscv.cfg'), cmd)
-
-    def test_rescue_cfg_command_keeps_vid_pid_before_init(self):
-        """rescue_openocd swaps the target cfg for one that runs `init` internally;
-        a vid_pid flag after the args would error there (rp2350) or be skipped
-        (rp2040) -- in exactly the wedged-rig scenario the pin exists for."""
-        flasher = {'name': 'openocd', 'uid': 'S1', 'vid_pid': '0x2e8a 0x000c',
-                   'args': '-c "set RESCUE 1" -f target/rp2040.cfg'}
-        cmd = hil_flash._openocd_cmd_base(flasher)
-        self.assertLess(cmd.index('adapter usb vid_pid'), cmd.index('-f target/'), cmd)
-
-    def test_vid_pid_multiple_pairs(self):
-        cmd = hil_flash._openocd_cmd_base(
-            {'uid': 'S1', 'args': '-f i.cfg', 'vid_pid': '0x2e8a 0x000c 0x2e8a 0x000d'})
-        self.assertIn('-c "adapter usb vid_pid 0x2e8a 0x000c 0x2e8a 0x000d"', cmd)
-
-    def test_no_field_no_flag_but_warns(self):
-        # the roster lint only covers the committed rosters; a dev PC's local.json entry
-        # without the field must at least say what it is giving up -- on STDERR, since
-        # hil_test captures stdout per test and would swallow it on a passing run
-        import io
-        from contextlib import redirect_stderr
-        hil_flash._VID_PID_WARNED.discard('S-warn')
-        cap = io.StringIO()
-        with redirect_stderr(cap):
-            cmd = hil_flash._openocd_cmd_base({'uid': 'S-warn', 'args': '-f i.cfg'})
-        self.assertNotIn('vid_pid', cmd)
-        self.assertIn('vid_pid', cap.getvalue())
+    never opens foreign usbfs nodes (the 2026-08-10 convoy mechanism); the provider
+    builds the command (test_hil_flash.py)."""
 
     def test_roster_openocd_entries_all_pin_vid_pid(self):
         # every openocd probe on the rig has a known VID/PID; a new entry without the
@@ -707,11 +673,6 @@ class TestOpenocdVidPid(unittest.TestCase):
                               f"{path}: {board['name']} openocd flasher lacks vid_pid")
                 self.assertNotIn('vid_pid', f.get('args', ''),
                                  f"{path}: {board['name']} packs vid_pid into args; use the field")
-
-    def test_roster_pyocd_entries_filter_vid_pid(self):
-        # unfiltered, pyocd opens every CMSIS-DAP-class device on the rig (test/hil/pyocd/run_pyocd.py)
-        for path, board in roster_flashers():
-            self.assertFalse(hil_flash.unfiltered_pyocd(board), f"{path}: {board['name']}")
 
 
 class TestRosterFlashersDispatch(unittest.TestCase):
@@ -817,267 +778,6 @@ class FlasherRecoverEntry(unittest.TestCase):
         self.assertEqual(hil_flash.recover_flasher(
             {'flasher': prim, 'flasher_recover': {**rec, 'uid': 'Y'}})['uid'], 'X')
         self.assertEqual(hil_flash.recover_flasher({'flasher': prim}), prim)
-
-    def test_openocd_over_jlink_is_convoy_safe_without_a_pin(self):
-        """libjaylink discovery returns early unless idVendor == 0x1366 (SEGGER) and the PID
-        is in its table, and only THEN calls libusb_open (discovery_usb.c) -- it never opens
-        a foreign node. `adapter usb vid_pid` is a no-op for this driver: jlink.c reads
-        adapter_serial / usb address / usb location, never the vid/pid."""
-        self.assertTrue(hil_flash.convoy_safe(
-            {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}))
-
-    def test_openocd_over_a_vid_filtered_cfg_is_convoy_safe_without_a_pin(self):
-        """stlink.cfg and ti-icdi.cfg set `adapter usb vid_pid` themselves, and their drivers
-        match it against the cached descriptor before libusb_open (jtag_libusb_open)."""
-        for cfg in ('interface/stlink.cfg', 'interface/ti-icdi.cfg'):
-            self.assertTrue(hil_flash.convoy_safe(
-                {'name': 'openocd', 'args': f'-f {cfg} -f target/stm32h7x.cfg'}), cfg)
-
-    def test_openocd_with_neither_a_pin_nor_a_filtered_cfg_is_not_safe(self):
-        self.assertFalse(hil_flash.convoy_safe(
-            {'name': 'openocd', 'args': '-f interface/cmsis-dap.cfg -f target/rp2040.cfg'}))
-
-    def test_the_existing_rules_are_unchanged(self):
-        self.assertTrue(hil_flash.convoy_safe(
-            {'name': 'openocd', 'vid_pid': '0x2e8a 0x000c', 'args': '-f interface/cmsis-dap.cfg'}))
-        self.assertFalse(hil_flash.convoy_safe({'name': 'jlink', 'uid': 'X'}))
-        self.assertTrue(hil_flash.convoy_safe({'name': 'esptool'}))
-
-    @staticmethod
-    def _capture(fn, *args, **kw):
-        """Run a flasher primitive against a stubbed run_cmd; (command, kwargs)."""
-        seen = {}
-        real = hil_flash.hil_util.run_cmd
-
-        def fake(cmd, **k):
-            seen['cmd'], seen['kw'] = cmd, k
-            return subprocess.CompletedProcess(cmd, 0, b'', b'')
-        hil_flash.hil_util.run_cmd = fake
-        try:
-            fn(*args, **kw)
-        finally:
-            hil_flash.hil_util.run_cmd = real
-        return seen['cmd'], seen['kw']
-
-    def test_openocd_flash_uses_program(self):
-        """`program` runs the target cfg's reset-init event, which some targets need: kx.cfg's
-        `kinetis disable_wdog` keeps frdm_k64f's verify at 1.3 s instead of a 21 s fallback."""
-        board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
-                                          'args': '-f interface/jlink.cfg -f target/k60.cfg'}}
-        cmd, kw = self._capture(hil_flash.flash_openocd, board, '/tmp/fw.elf', timeout=7)
-        self.assertIn('-c "program /tmp/fw.elf verify reset exit"', cmd)
-        for old in ('reset halt', 'write_image', 'verify_image'):
-            self.assertNotIn(old, cmd)
-        self.assertIn('-c "adapter serial S1"', cmd)
-        self.assertEqual(kw.get('timeout'), 7)
-        cmd, _ = self._capture(hil_flash.flash_openocd,
-                               {'name': 'b', 'flasher': {**board['flasher'], 'verify': False}}, '/tmp/fw.elf')
-        self.assertIn('-c "program /tmp/fw.elf reset exit"', cmd)
-        self.assertNotIn('verify', cmd)
-
-    def test_openocd_reset_is_bounded(self):
-        board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1',
-                                          'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}}
-        cmd, kw = self._capture(hil_flash.reset_openocd, board, timeout=9)
-        self.assertIn('init; reset run; exit', cmd)
-        self.assertEqual(kw.get('timeout'), 9)
-
-    def test_openocd_over_jlink_does_not_warn_about_a_missing_pin(self):
-        """The pin is a no-op for the jlink driver, and the once-per-probe warning would
-        tell the operator to add something that changes nothing."""
-        hil_flash._VID_PID_WARNED.discard('S-jl')
-        cap = io.StringIO()
-        with contextlib.redirect_stderr(cap):
-            cmd = hil_flash._openocd_cmd_base({'name': 'openocd', 'uid': 'S-jl', 'args': '-f interface/jlink.cfg'})
-        self.assertNotIn('vid_pid', cmd)
-        self.assertEqual(cap.getvalue(), '')
-
-    def test_reset_jlink_forwards_the_callers_bound(self):
-        """reset_jlink forwards timeout= to run_cmd (#3945)."""
-        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
-        cwd = os.getcwd()
-        with tempfile.TemporaryDirectory() as d:
-            os.chdir(d)
-            try:
-                cmd, kw = self._capture(hil_flash.reset_jlink, board, timeout=11)
-            finally:
-                os.chdir(cwd)
-        self.assertIn('JLinkExe -USB S1', cmd)
-        self.assertEqual(kw.get('timeout'), 11)
-
-    @staticmethod
-    def _jlink_runs(fn, rcs, *args, took=0, **kw):
-        """Run fn with run_cmd answering rcs in turn, each call taking `took` s on a fake clock;
-        return the rc and each call's timeout."""
-        from unittest import mock
-        timeouts, rc_iter = [], iter(rcs)
-        now = [0.0]
-
-        def fake(cmd, **k):
-            timeouts.append(k.get('timeout'))
-            now[0] += took
-            return subprocess.CompletedProcess(cmd, next(rc_iter), '', '')
-        cwd = os.getcwd()
-        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()), \
-                mock.patch.object(hil_flash.hil_util, 'run_cmd', fake), \
-                mock.patch.object(hil_flash, 'time', types.SimpleNamespace(monotonic=lambda: now[0])):
-            os.chdir(d)
-            try:
-                ret = fn(*args, **kw)
-            finally:
-                os.chdir(cwd)
-        return ret.returncode, timeouts
-
-    def test_jlink_reruns_a_crash_within_the_callers_bound(self):
-        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
-        self.assertEqual(self._jlink_runs(hil_flash.flash_jlink, [139, -6, 0], board, '/tmp/fw.hex',
-                                          timeout=30, took=10), (0, [30, 20, 10]))
-        # no caller bound: the three runs share run_cmd's default one
-        cap = hil_flash.hil_util.CMD_TIMEOUT
-        self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [134, -11, 139], board, took=1),
-                         (139, [cap, cap - 1, cap - 2]))
-        # the bound is spent: no rerun
-        self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [139], board, timeout=5, took=5), (139, [5]))
-
-    def test_jlink_does_not_rerun_other_failures(self):
-        board = {'name': 'b', 'flasher': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'}}
-        for rc in (1, 124):
-            self.assertEqual(self._jlink_runs(hil_flash.reset_jlink, [rc], board, timeout=5), (rc, [5]))
-
-    def test_reset_stlink_forwards_the_callers_bound(self):
-        """reset_stlink forwards timeout= to run_cmd; the default stays run_cmd's."""
-        board = {'name': 'b', 'flasher': {'name': 'stlink', 'uid': 'S1'}}
-        cmd, kw = self._capture(hil_flash.reset_stlink, board, timeout=11)
-        self.assertEqual(cmd, 'STM32_Programmer_CLI --connect port=swd sn=S1 --rst --go')
-        self.assertEqual(kw.get('timeout'), 11)
-        _, kw = self._capture(hil_flash.reset_stlink, board)
-        self.assertIsNone(kw.get('timeout'))                  # run_cmd's CMD_TIMEOUT, as before
-
-    def test_roster_recover_entries_are_demonstrated_openocd_ones(self):
-        """Every `flasher_recover` in a HIL config is openocd over the SAME probe as its jlink,
-        stlink or lm4flash primary and dispatches. The stlink ones (stm32h743nucleo,
-        stm32g0b1nucleo, stm32u083nucleo) reset 3/3 and reflashed on ci.lan 2026-10-06.
-        ek_tm4c123gxl's too (2026-10-06), only with its reset-assert-post sleep: without it hla's
-        DEMCR write ~3 ms after SYSRESETREQ fails (0x7) and openocd returns rc 1 though the DUT
-        reset. The 100 ms is empirical; the datasheet's software reset is ~2 us nominal and the
-        debug registers stay reachable in reset, so the ICDI/hla path is the likely party
-        (unverified). The
-        jlink set is the boards whose reset over
-        openocd+jlink was demonstrated on their roster's rig, and flash too wherever openocd can
-        flash the part (ci.lan 2026-08-17, 2026-09-21, 2026-09-22 and 2026-10-02, tusb 2026-09-21 for
-        lpcxpresso43s67). A new one is added only
-        after the same demonstration. frdm_k64f is host-only, so usbtest never marks
-        it; its entry serves a manual reset through the recovery flasher. Left out, and why: stm32f769disco (probe not on the rig to demonstrate).
-        ra4m1_ek is reset-only (openocd 0ce743125 has no RA target cfg or flash driver): 20/20
-        resets re-enumerated it and its wedge drill passed (2026-10-06); the ~80% seen 2026-09-22
-        did not reproduce in 70 resets. ra6m5_ek is reset-only the same way (SYSRESETREQ is an
-        internal MCU reset, RA6M5 UM 5.3.7): 20/20 resets re-enumerated it at 480 Mbps and 3/3
-        wedge drills passed (ci.lan 2026-10-09).
-        mimxrt1064_evk is reset-only: openocd 0ce743125 has no target cfg and no flash driver for
-        it (FlexSPI), so its entry declares a bare SWD DAP and Cortex-M target with SYSRESETREQ;
-        3/3 resets each re-enumerated the DUT (2026-09-22). Same trade as
-        nrf54lm20dk below. nrf54lm20dk's reset works (libjaylink 0.5.0 finds its PID 0x1069; 0.4.0 did
-        not) but its reflash cannot: nrf54l.cfg declares no RRAM flash bank. Accepted trade:
-        the entry arms in-run recovery (a reset) where JLinkExe allowed none; a wedge the reset
-        does not clear stays wedged for the run. lpcxpresso55s69 is reset-only like mimxrt1064_evk
-        (no LPC55 target cfg or flash driver in 0ce743125), its DAP pinned to DPIDR 0x6ba02477 and
-        AP 0; SYSRESETREQ is a chip reset (UM11126 4.6.1) and libjaylink finds its LPCXpresso V2
-        probe (PID 0x1024) from 0.4.0; 3/3 resets each re-enumerated the DUT (ci.lan 2026-10-17).
-        The STM32 entries empty
-        their target's reset-init event: stm32f0x/f4x/f7x/l4x.cfg set `adapter speed 8000` there,
-        these on-board J-Link probes cap at 4000 and fail even at 4000 (auto_probe failed, SWD
-        parity mismatch; stm32f407disco and stm32f072disco, 2026-09-22), and `program` runs
-        reset-init after anything the args set -- so no `adapter speed` can fix it, and one
-        before the cfg is overridden anyway. `adapter speed` goes AFTER a target cfg that pins its
-        own: lpc1xxx.cfg sets 10 kHz, which made lpcxpresso11u37's flash take 118 s. The LPC
-        entries (lpc11xx, lpc40xx, lpc4357) keep verify off: openocd rewrites the vector checksum word
-        the ELF lacks, so read-back never equals the image."""
-        demonstrated = {'nrf52840dk', 'metro_m4_express', 'stm32f072disco',
-                        'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
-                        'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
-                        'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
-                        'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
-                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69'}
-        reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
-                                         '-c "swd newdap rt1064 cpu -expected-id 0" '
-                                         '-c "dap create rt1064.dap -chain-position rt1064.cpu" '
-                                         '-c "target create rt1064.cpu cortex_m -dap rt1064.dap" '
-                                         '-c "cortex_m reset_config sysresetreq"'),
-                      'ra4m1_ek': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
-                                   '-c "swd newdap ra4m1 cpu -expected-id 0" '
-                                   '-c "dap create ra4m1.dap -chain-position ra4m1.cpu" '
-                                   '-c "target create ra4m1.cpu cortex_m -dap ra4m1.dap" '
-                                   '-c "cortex_m reset_config sysresetreq"'),
-                      'ra6m5_ek': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
-                                   '-c "swd newdap ra6m5 cpu -expected-id 0" '
-                                   '-c "dap create ra6m5.dap -chain-position ra6m5.cpu" '
-                                   '-c "target create ra6m5.cpu cortex_m -dap ra6m5.dap" '
-                                   '-c "cortex_m reset_config sysresetreq"'),
-                      'lpcxpresso55s69': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
-                                          '-c "swd newdap lpc55s69 cpu -expected-id 0x6ba02477" '
-                                          '-c "dap create lpc55s69.dap -chain-position lpc55s69.cpu" '
-                                          '-c "target create lpc55s69.cpu cortex_m -dap lpc55s69.dap -ap-num 0" '
-                                          '-c "cortex_m reset_config sysresetreq"')}
-        stlink_targets = {'stm32h743nucleo': 'stm32h7x', 'stm32g0b1nucleo': 'stm32g0x',
-                          'stm32u083nucleo': 'stm32u0x'}
-        tm4c_args = ('-f interface/ti-icdi.cfg -c "transport select jtag" -c "set WORKAREASIZE 0x8000" '
-                     '-c "set CHIPNAME tm4c123gh6pm" -f target/ti/stellaris.cfg -c "reset_config none" '
-                     '-c "tm4c123gh6pm.cpu configure -event reset-assert-post {sleep 100}"')
-        seen = set()
-        for path, board in roster_flashers():
-            if 'flasher_recover' not in board:
-                continue
-            prim, name = board['flasher'], board['name']
-            seen.add(name)
-            self.assertNotIn('uid', board['flasher_recover'], f'{name}: the probe is the primary\'s')
-            rec = hil_flash.recover_flasher(board)
-            self.assertEqual(rec['name'], 'openocd', name)
-            self.assertEqual(rec['uid'], prim['uid'], name)
-            self.assertTrue(hil_flash.convoy_safe(rec), name)
-            if prim['name'] == 'stlink':
-                self.assertEqual(rec['args'], f'-f interface/stlink.cfg -f target/{stlink_targets[name]}.cfg')
-            elif prim['name'] == 'lm4flash':
-                self.assertEqual(rec['args'], tm4c_args)
-            else:
-                self.assertEqual(prim['name'], 'jlink', name)
-                self.assertIn('interface/jlink.cfg', rec['args'], name)
-                self.assertIn('transport select swd', rec['args'], name)
-                stm32 = re.search(r'-f target/(stm32(?:f0|f4|f7|l4)x)\.cfg', rec['args'])
-                if name in reset_only:
-                    self.assertEqual(rec['args'], reset_only[name])
-                elif stm32:
-                    override = f'-c "{stm32.group(1)}.cpu configure -event reset-init {{}}"'
-                    self.assertIn(override, rec['args'], name)
-                    self.assertGreater(rec['args'].index(override), stm32.start(), name)
-                    self.assertNotIn('adapter speed', rec['args'], name)
-                else:
-                    self.assertIn('adapter speed', rec['args'], name)
-                if name not in reset_only:
-                    self.assertIn('-f target/', rec['args'], name)
-            for fn in (f'flash_{rec["name"]}', f'reset_{rec["name"]}'):
-                self.assertTrue(callable(getattr(hil_flash, fn, None)), f'{name}: {fn}')
-            if hil_flash.reset_primitive(rec['name']) is None:   # recover_hang reflashes only then
-                self.assertEqual(hil_flash.FLASHER_SUFFIX[rec['name']], hil_flash.FLASHER_SUFFIX[prim['name']],
-                                 f'{name}: the recovery reflashes the artifact the primary flashed')
-        self.assertEqual(seen, demonstrated)
-
-
-class TestUsbtestRecoveryCoverage(unittest.TestCase):
-    """A usbtest battery that hangs is recovered only through a convoy-safe recovery
-    flasher (usbtest.recover_hang); every other board stays wedged for the rest of the run.
-    So every board the roster runs usbtest on must have one."""
-
-    # not yet demonstrated on hardware; drop a board once its recovery flasher is proven
-    PENDING = {'tinyusb.json': set(), 'hfp.json': set()}
-
-    def test_every_usbtest_board_can_be_recovered(self):
-        uncovered = {}
-        for name in self.PENDING:
-            with open(os.path.join(REPO, 'test/hil', name)) as f:
-                boards = json.load(f)['boards']
-            uncovered[name] = {b['name'] for b in boards if 'device/usbtest' in change_impact.board_tests(b)
-                               and not hil_flash.convoy_safe(hil_flash.recover_flasher(b))}
-        self.assertEqual(uncovered, self.PENDING)
 
 
 class TestModuleMove(unittest.TestCase):
@@ -1356,6 +1056,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_agentrc.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
             'test/hil/test/test_hil_pool_check.py',

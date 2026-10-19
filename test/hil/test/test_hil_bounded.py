@@ -381,11 +381,15 @@ class RemoteStaging(unittest.TestCase):
                         yield node.module.replace('.', '/') + '.py'
 
         def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ...) brings in a lib/agentrc file no import walk can see
+            # agentrc.load('<rel>', ..., requires=(...)) brings in lib/agentrc files no import
+            # walk can see: the one it executes and the ones that one loads or launches
             for node in ast.walk(ast.parse(pyfile.read_text())):
                 if (isinstance(node, ast.Call) and ast.unparse(node.func) == 'agentrc.load'
                         and node.args and isinstance(node.args[0], ast.Constant)):
                     yield f'lib/agentrc/{node.args[0].value}'
+                    for kw in node.keywords:
+                        if kw.arg == 'requires':
+                            yield from (f'lib/agentrc/{e.value}' for e in kw.value.elts)
 
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
@@ -404,11 +408,8 @@ class RemoteStaging(unittest.TestCase):
         self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
         for f in sorted(loaded):
             self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
-        # test/hil/pyocd/ runs as pyocd's launcher and its user script, which no import walk sees
-        scripts = sorted(p.relative_to(hil_dir).as_posix() for p in hil_dir.glob('pyocd/*.py'))
-        self.assertTrue(scripts, 'test/hil/pyocd/ holds no user script')
-        for f in scripts:
-            self.assertIn(f'test/hil/{f}', staged, f'{f} runs under pyocd but hil_remote.py does not stage it')
+        # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
+        self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
 
 
 class _MtpFakeRig:
@@ -524,45 +525,6 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         finished, exc = run_bounded(lambda: hil_test.test_device_mtp(self.board), 25)
         self.assertTrue(finished, 'test_device_mtp hung on a wedged MTP stack')
         self.assertIsInstance(exc, AssertionError)
-
-
-class ConvoySafeFlasher(unittest.TestCase):
-    """hil_flash.convoy_safe decides whether a board gets post-HUNG recovery at all.
-
-    It must be true ONLY for flashers that can reach their probe without opening the
-    poisoned usbfs node: openocd pinned with a roster vid_pid (filters on kernel-cached
-    sysfs descriptors) and esptool (delivers to a named tty, never enumerates usbfs).
-    Anything else enumerates by opening nodes, would block in D state on the wedged one
-    and become a second stray -- JLinkExe included, whose selection is serial-only and
-    so cannot be pinned at all."""
-
-    def setUp(self):
-        import hil_flash
-        self.f = hil_flash.convoy_safe
-
-    def test_pinned_openocd_is_safe(self):
-        self.assertTrue(self.f({'name': 'openocd', 'vid_pid': '0x2e8a 0x000c'}))
-
-    def test_unpinned_openocd_is_not(self):
-        self.assertFalse(self.f({'name': 'openocd'}))
-        self.assertFalse(self.f({'name': 'openocd', 'vid_pid': ''}))
-
-    def test_esptool_is_safe_without_a_pin(self):
-        """Delivery is `-p <ttyACM>`; there is no usbfs walk to poison."""
-        self.assertTrue(self.f({'name': 'esptool'}))
-
-    def test_stlink_is_safe_without_a_pin(self):
-        """STM32_Programmer_CLI opens only ST-Link nodes, matched on cached descriptors."""
-        self.assertTrue(self.f({'name': 'stlink', 'uid': 'X'}))
-
-    def test_enumerating_flashers_are_not(self):
-        for name in ('jlink', 'lm4flash', 'dfu-util'):
-            self.assertFalse(self.f({'name': name, 'vid_pid': '0x1366 0x1024'}),
-                             f'{name} must not be treated as convoy-safe')
-
-    def test_missing_or_odd_name_is_not_safe(self):
-        for flasher in ({}, {'name': None}, {'name': ''}):
-            self.assertFalse(self.f(flasher))
 
 
 class ThroughputPayloadBound(unittest.TestCase):

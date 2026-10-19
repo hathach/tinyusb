@@ -67,6 +67,9 @@ from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, us
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
 rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
+# The flash provider and its runner, likewise once before the Pool so every worker shares them;
+# refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
+hil_util.provider()
 
 # Raw Lock objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
@@ -2385,6 +2388,12 @@ def main() -> None:
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')
+    # the provider refuses each openocd command over a malformed pin; say so once, before a flash
+    bad_pin = dict.fromkeys(e['name'] for e in config_boards for f in (e['flasher'], hil_flash.recover_flasher(e))
+                            if (f.get('name') or '').lower() == 'openocd' and 'vid_pid' in f
+                            and not hil_flash.valid_vid_pid(f['vid_pid']))
+    if bad_pin:
+        _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]

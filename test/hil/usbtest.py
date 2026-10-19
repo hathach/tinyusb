@@ -692,6 +692,7 @@ def main():
     args = p.parse_args()
     t_start = time.monotonic()
     sys.stdout.reconfigure(line_buffering=True)  # per-case results visible when piped/logged
+    _hu().provider()   # an incomplete flash provider is refused before the device is touched
 
     testusb = args.testusb or shutil.which('testusb') or os.path.expanduser('~/testusb')
     if not os.access(testusb, os.X_OK):

@@ -74,6 +74,7 @@ import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
 from helper import hil_lock, hil_report, hil_util, usb_observe  # noqa: E402
+hil_util.provider()   # an incomplete flash provider is refused here, before any board is locked
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
