@@ -56,7 +56,7 @@ import time
 
 import build_utils
 from membrowse_cli import (IDF_LD_SCRIPTS, NINJA_UTF8_REMEDY, extract_ld_scripts, extract_defsyms,
-                           link_command, report_inputs)
+                           extract_ld_include_dirs, link_command, report_inputs)
 
 # resolved like tinyusb_src_filter(), so a symlinked checkout still matches its filter
 TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -86,7 +86,8 @@ def _find_ninja_build_dir(elf_path):
 
 
 def _link_settings(elf_path):
-    """Return the ELF's build dir, and the linker scripts and defsyms of its link."""
+    """Return the ELF's build dir, and the linker scripts, defsyms and linker
+    search directories (-L, where INCLUDE files are looked up) of its link."""
     build_dir = _find_ninja_build_dir(elf_path)
     if build_dir is None:
         raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
@@ -97,18 +98,18 @@ def _link_settings(elf_path):
     if any(map(os.path.isfile, idf_ld)):
         if not all(map(os.path.isfile, idf_ld)):
             raise RuntimeError(f'ESP-IDF build {build_dir} lacks one of {", ".join(idf_ld)}')
-        return build_dir, idf_ld, extract_defsyms(commands)
+        return build_dir, idf_ld, extract_defsyms(commands), extract_ld_include_dirs(commands)
     ld_scripts = extract_ld_scripts(commands)
     if not ld_scripts:
         raise RuntimeError(f'no linker script found in the ninja build graph '
                             f'for {elf_path}')
-    return build_dir, ld_scripts, extract_defsyms(commands)
+    return build_dir, ld_scripts, extract_defsyms(commands), extract_ld_include_dirs(commands)
 
 
 def report_for_elf(elf_path):
     """Run membrowse local report on one elf, return parsed JSON dict."""
-    build_dir, ld_scripts, defsyms = _link_settings(elf_path)
-    cmd = (['membrowse', 'report'] + report_inputs(elf_path, ld_scripts, defsyms)
+    build_dir, ld_scripts, defsyms, include_dirs = _link_settings(elf_path)
+    cmd = (['membrowse', 'report'] + report_inputs(elf_path, ld_scripts, defsyms, include_dirs)
            + ['--json', '--all-symbols'])
     # from the link's working dir, as membrowse_cli.report() does
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=build_dir)
