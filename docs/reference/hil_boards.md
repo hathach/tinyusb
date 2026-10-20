@@ -2,7 +2,7 @@
 
 ### ci rig
 
-28 boards, from `test/hil/tinyusb.json`.
+30 boards, from `test/hil/tinyusb.json`.
 
 | Board                    | Roles              | Flasher   | Variants                                               | Note                                                                                                                                                                   |
 |--------------------------|--------------------|-----------|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -10,13 +10,14 @@
 | ek_tm4c123gxl            | device             | lm4flash  |                                                        |                                                                                                                                                                        |
 | espressif_p4_function_ev | device, host       | esptool   | espressif_p4_function_ev, espressif_p4_function_ev-DMA | Use TS3USB30 mux to test both device and host                                                                                                                          |
 | espressif_s3_devkitm     | device, host       | esptool   | espressif_s3_devkitm, espressif_s3_devkitm-DMA         | Use TS3USB30 mux to test both device and host                                                                                                                          |
-| feather_nrf52840_express | device             | jlink     |                                                        |                                                                                                                                                                        |
+| nrf52840dk               | device             | jlink     |                                                        |                                                                                                                                                                        |
 | max32666fthr             | device             | openocd   |                                                        |                                                                                                                                                                        |
 | metro_m4_express         | device, dual       | jlink     | metro_m4_express                                       | pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)                                                                                          |
 | lpcxpresso11u37          | device             | jlink     |                                                        |                                                                                                                                                                        |
 | ea4088_quickstart        | device, host, dual | jlink     | ea4088_quickstart                                      | console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)                                                                                             |
-| lpcxpresso55s28          | device             | jlink     |                                                        |                                                                                                                                                                        |
+| lpcxpresso55s69          | device             | jlink     |                                                        |                                                                                                                                                                        |
 | ra4m1_ek                 | device             | jlink     |                                                        |                                                                                                                                                                        |
+| ra6m5_ek                 | device             | jlink     |                                                        |                                                                                                                                                                        |
 | raspberry_pi_pico        | device, host, dual | openocd   | raspberry_pi_pico                                      |                                                                                                                                                                        |
 | raspberry_pi_pico_w      | host               | openocd   |                                                        | Test native host                                                                                                                                                       |
 | raspberry_pi_pico2       | host               | openocd   |                                                        |                                                                                                                                                                        |
@@ -34,6 +35,7 @@
 | ch582m_evt               | device             | openocd   |                                                        |                                                                                                                                                                        |
 | mimxrt1064_evk           | device, host, dual | jlink     |                                                        |                                                                                                                                                                        |
 | nrf54lm20dk              | device             | jlink     |                                                        | board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately |
+| nrf5340dk                | device             | jlink     |                                                        |                                                                                                                                                                        |
 
 ### hfp rig
 

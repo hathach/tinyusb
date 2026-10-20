@@ -59,10 +59,13 @@ def run_cmd(cmd):
 
 
 CI_PINNED_BOARDS = '.github/ci-pinned-boards.json'
+DEFAULT_TOOLCHAIN = 'gcc'
 
 
 def find_family(board):
     bsp_dir = Path("hw/bsp")
+    if not bsp_dir.is_dir():
+        return None
     for family_dir in bsp_dir.iterdir():
         if family_dir.is_dir():
             board_dir = family_dir / 'boards' / board
@@ -77,18 +80,61 @@ def get_examples(family):
         if d.is_dir() and 'cmake' not in d.name and 'build_system' not in d.name:
             for entry in os.scandir(d.path):
                 if entry.is_dir() and 'cmake' not in entry.name:
-                    if family != 'espressif' or 'freertos' in entry.name:
+                    # espressif builds only examples with an ESP-IDF component (src/CMakeLists.txt)
+                    if family != 'espressif' or os.path.isfile(os.path.join(entry.path, 'src', 'CMakeLists.txt')):
                         all_examples.append(d.name + '/' + entry.name)
 
-    if family == 'espressif':
-        all_examples.append('device/board_test')
-        all_examples.append('device/cdc_msc_throughput')
-        all_examples.append('device/mtp')
-        all_examples.append('device/usbtest')
-        all_examples.append('device/video_capture')
-        all_examples.append('host/device_info')
     all_examples.sort()
     return all_examples
+
+
+# select_examples' reasons for dropping an example
+NO_SUCH_EXAMPLE = 'no such example'
+NOT_FOR_FAMILY = 'not built for this family'
+BOARD_SKIPS = 'skipped for this board'
+
+
+def select_examples(board, examples=None, defines=(), root='.'):
+    """The examples cmake_board builds for `board` in the `root` tree, and why it drops
+    the others: (kept, {example: reason}). None means every example of the family, in
+    get_examples order; a list keeps its order and repeats, except on espressif, which
+    builds only (and in the order) what get_examples lists."""
+    old = os.getcwd()
+    os.chdir(root)  # build_utils and get_examples read examples/ and hw/bsp from the cwd
+    try:
+        family = find_family(board)
+        dropped = {}
+        if examples is None:
+            candidates = get_examples(family)
+        else:
+            candidates = []
+            for e in examples:
+                if not os.path.isdir(os.path.join('examples', e)):
+                    dropped[e] = NO_SUCH_EXAMPLE
+                else:
+                    candidates.append(e)
+            if family == 'espressif' and candidates:
+                listed = get_examples(family)
+                dropped.update((e, NOT_FOR_FAMILY) for e in candidates if e not in listed)
+                candidates = [e for e in listed if e in candidates]
+        kept = []
+        for e in candidates:
+            if build_utils.skip_example(e, board, tuple(defines)):
+                dropped[e] = BOARD_SKIPS
+            else:
+                kept.append(e)
+        return kept, dropped
+    finally:
+        os.chdir(old)
+
+
+def registered_examples(build_dir, examples):
+    """`examples` (order and repeats kept) whose target the configure of build_dir
+    created, or None when that cannot be read."""
+    registered = cmake_registered_targets(build_dir)
+    if registered is None:
+        return None
+    return [e for e in examples if e.split('/', 1)[1] in registered]
 
 
 def resolve_example_target_groups(build_targets, examples, board, extra_defines=()):
@@ -146,6 +192,34 @@ def print_build_result(board, build_target, status, duration):
 # -----------------------------
 # CMake
 # -----------------------------
+def membrowse_examples(board, examples=None, defines=()):
+    """The examples family_add_membrowse registers for `board`, optionally narrowed to
+    `examples`: test_membrowse_targets.py checks this against a real configure."""
+    return [e for e in get_examples(find_family(board))
+            if (examples is None or e in examples) and not build_utils.skip_example(e, board, defines)]
+
+
+def identical_uploads(board, build_name, examples):
+    """examples-membrowse-upload with nothing built or configured: report each example
+    unchanged (`membrowse_cli.py report --identical-only`), no toolchain needed. The list
+    mirrors the targets family_add_membrowse registers (get_examples + skip_example)."""
+    ret = [0, 0, 0]
+    for example in examples:
+        name = example.split('/', 1)[1]
+        rcmd = run_cmd([sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_cli.py'), 'report',
+                        '--identical-only', '--target-name', f'{build_name or board}/{name}', '--upload'])
+        ret[0 if rcmd.returncode == 0 else 1] += 1
+    print_build_result(board, 'examples-membrowse-upload (identical)', 0 if ret[1] == 0 else 1, '-')
+    return ret
+
+
+def cmake_configure_cmd(board, build_dir, build_args, src='examples'):
+    """The argv configuring `board`'s examples in `src` into `build_dir`; code_size.py
+    configures through it too, so its local sizes are of the build CI makes."""
+    return ['cmake', src, '-B', build_dir, '-GNinja', f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
+            *build_args]
+
+
 def cmake_board(board, build_args, build_name, build_cflags, build_targets, examples=None, defines=()):
     ret = [0, 0, 0]
     start_time = time.monotonic()
@@ -154,43 +228,33 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
     build_flags = []
     if build_cflags:
         build_flags.append('-DCFLAGS_CLI=' + ' '.join(build_cflags))
+    if build_name:  # a variant is a membrowse board of its own (family_add_membrowse)
+        build_flags.append(f'-DMEMBROWSE_BOARD={build_name}')
 
     family = find_family(board)
     if family == 'espressif':
         # for espressif, we have to build example individually
-        all_examples = get_examples(family)
+        kept, dropped = select_examples(board, examples, defines)
+        skipped = [e for e, reason in dropped.items() if reason == BOARD_SKIPS]
         configured, existed = [], []
-        if examples is not None:
-            all_examples = [e for e in all_examples if e in examples]
-            if not all_examples:
-                print_build_result(board, 'examples (PR filter)', 2, '-')
-                return [0, 0, 1]
-        for example in all_examples:
+        if examples is not None and not kept and not skipped:
+            print_build_result(board, 'examples (PR filter)', 2, '-')
+            return [0, 0, 1]
+        ret[2] += len(skipped)
+        for example in kept:
             example_build_dir = f'{build_dir}/{example}'
-            if build_utils.skip_example(example, board, defines):
-                ret[2] += 1
-            elif 'all' in build_targets:
+            if 'all' in build_targets:
                 if os.path.isdir(example_build_dir):
                     existed.append(example_build_dir)
                 rcmd = run_cmd([
                     'idf.py', '-C', f'examples/{example}', '-B', example_build_dir, '-GNinja',
-                    f'-DBOARD={board}', *build_flags, 'reconfigure' if configure_only else 'build'
+                    f'-DBOARD={board}', *build_args, *build_flags, 'reconfigure' if configure_only else 'build'
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
                 configured.append(example_build_dir)
             elif not os.path.isdir(example_build_dir) and build_targets == ['examples-membrowse-upload']:
-                # 'all' never ran here (e.g. no code change). Other families get their
-                # --identical upload from a cheap cmake configure; espressif's only
-                # equivalent is a full idf.py build, so call `membrowse_cli.py report`'s
-                # --identical path directly, which needs no elf or build dir.
-                name = example.split('/', 1)[1]
-                rcmd = run_cmd([
-                    sys.executable, os.path.join(os.path.dirname(__file__), 'membrowse_cli.py'), 'report',
-                    '--build-dir', example_build_dir, '--ninja', 'ninja',
-                    '--elf', f'{example_build_dir}/{name}.elf',
-                    '--target-name', f'{board}/{name}', '--upload',
-                ])
-                ret[0 if rcmd.returncode == 0 else 1] += 1
+                # 'all' never ran here: one idf tree per example, so it alone is identical
+                ret = [a + b for a, b in zip(ret, identical_uploads(board, build_name, [example]))]
             elif not os.path.isdir(example_build_dir):
                 # a non-'all' target (e.g. examples-membrowse-upload) runs against an
                 # already-configured IDF build dir; without one - PR filter, family
@@ -209,18 +273,18 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
         if canonical and examples is None and configured and ret[1] == 0:
             print(canonical_row(family, configured, existed), file=sys.stderr)
     else:
+        if build_targets == ['examples-membrowse-upload'] and not os.path.isdir(build_dir):
+            # nothing built here: no configure, so no toolchain either
+            return identical_uploads(board, build_name, membrowse_examples(board, examples, defines))
         # the skip.txt/only.txt prefilter reads no configure output: answer it first,
         # so a selection this board builds nothing of costs no cmake run at all
         if examples is not None:
-            examples = [e for e in examples
-                        if not build_utils.skip_example(e, board, defines)]
+            examples = select_examples(board, examples, defines)[0]
             if not examples:
                 print_build_result(board, 'examples (PR filter)', 2, '-')
                 return [0, 0, 1]
         existed = [build_dir] if os.path.isdir(build_dir) else []
-        rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
-                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
-                        *build_args, *build_flags])
+        rcmd = run_cmd(cmake_configure_cmd(board, build_dir, [*build_args, *build_flags]))
         if rcmd.returncode == 0 and canonical:
             print(canonical_row(family, [build_dir], existed), file=sys.stderr)
         if rcmd.returncode == 0 and configure_only:
@@ -228,9 +292,8 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
         elif rcmd.returncode == 0:
             target_groups = [[t] for t in build_targets]
             if examples is not None:
-                registered = cmake_registered_targets(build_dir)
-                if registered is not None:
-                    kept = [e for e in examples if e.split('/', 1)[1] in registered]
+                kept = registered_examples(build_dir, examples)
+                if kept is not None:
                     for e in examples:
                         if e not in kept:
                             print_build_result(board, f'{e} (no such target)', 2, '-')
@@ -239,7 +302,7 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     print_build_result(board, 'examples (no such target)', 2, '-')
                     return [0, 0, 1]
                 target_groups = resolve_example_target_groups(build_targets, examples, board, defines)
-                if registered is None:
+                if kept is None:
                     # ground truth unavailable, so nothing checked these names against
                     # what CMake created. ninja validates a whole invocation up front:
                     # one unknown name in the batch builds NOTHING, where a target each
@@ -247,7 +310,9 @@ def cmake_board(board, build_args, build_name, build_cflags, build_targets, exam
                     target_groups = [[t] for g in target_groups for t in g]
             cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
             for group in target_groups:
-                rcmd = run_cmd(cmd + ['--target'] + group)
+                # one example's failed upload must not cost the others theirs
+                keep_going = ['--', '-k', '0'] if group == ['examples-membrowse-upload'] else []
+                rcmd = run_cmd(cmd + ['--target'] + group + keep_going)
                 if rcmd.returncode != 0:
                     break
         ret[0 if rcmd.returncode == 0 else 1] += 1
@@ -372,7 +437,7 @@ def get_family_boards(family, one_random, one_first, examples=None, build_system
         one_first: If True, return only the first board (alphabetical)
         examples: PR example filter (-e). The one-board pick then prefers a board that
             can build at least one of them: the family is in the matrix BECAUSE some
-            board of it builds these examples (ci_select._prune_buildable asks about
+            board of it builds these examples (change_impact._prune_buildable asks about
             every board, since CircleCI builds every board), but GHA builds one. Without
             this, lpc54 selected for host/msc_file_explorer picks lpcxpresso54114 -
             which every one of those examples skips - and the leg runs to green having
@@ -419,7 +484,7 @@ def resolve_ci_boards(boards_path, family, boards_only, examples=None,
     with open(boards_path) as f:
         data = json.load(f)
     # membership in this family's board dir, not find_family() per entry: that walks
-    # every hw/bsp family for each of the 23 pinned boards to answer one family's question
+    # every hw/bsp family for each pinned board to answer one family's question
     family_boards = {e.name for e in os.scandir(f'hw/bsp/{family}/boards') if e.is_dir()}
     ci_boards = [t['board'] for t in data['boards']
                  if t['board'] in family_boards
@@ -443,7 +508,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to build')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
-    parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
+    parser.add_argument('-t', '--toolchain', default=DEFAULT_TOOLCHAIN, help=f'Toolchain to use, default is {DEFAULT_TOOLCHAIN}')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
     parser.add_argument('--build-name', default=None,
@@ -466,6 +531,9 @@ def main():
     parser.add_argument('-e', '--example', action='append', default=[],
                         help='Only build these examples (role/name, repeatable). Default: all examples')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('--expect-built', action='store_true',
+                        help='with --target examples-membrowse-upload: the -e examples (all without -e) '
+                             'were built, so a missing elf fails instead of uploading --identical')
     parser.add_argument('--configure-only', action='store_true',
                         help='Configure without building (cmake only): enough to write the board\'s hw/bsp/family.json row')
     args = parser.parse_args()
@@ -498,14 +566,15 @@ def main():
     # that existed before the configure); -e only selects targets, the cmake tree configures whole.
     # The command line is only half of it - canonical_row() refuses the flags CFLAGS and
     # its siblings add to a configure this test cannot see
-    canonical = build_system == 'cmake' and not build_defines and not build_cflags and toolchain == 'gcc'
+    variant = bool(build_defines or build_cflags)
+    canonical = build_system == 'cmake' and not variant and toolchain == 'gcc'
 
     for e in args.example:
         if not EXAMPLE_RE.fullmatch(e):
             parser.error(f"-e/--example takes 'role/name' (e.g. device/cdc_msc), got '{e}'")
         # a name no example dir answers to would silently build nothing on every board
         # and still exit 0 (every row is a Skipped, and main() returns the FAILED count).
-        # The -e lists are generated - from ci_select's example map and from HIL roster
+        # The -e lists are generated - from change_impact's example map and from HIL roster
         # test names - so a stale one must be loud, not green
         if not os.path.isdir(os.path.join('examples', e)):
             parser.error(f"-e/--example '{e}': no such example directory examples/{e}")
@@ -526,6 +595,12 @@ def main():
         print("--build-name requires exactly one board (-b) and no families")
         return 1
 
+    # membrowse names an upload <board>/<example>: an unnamed variant would overwrite
+    # the plain build's history (family_add_membrowse)
+    if variant and not build_name and 'examples-membrowse-upload' in build_targets:
+        print("examples-membrowse-upload of a -D/--cflag variant requires --build-name")
+        return 1
+
     print(build_separator)
     print(build_format.format('Board', 'Target', '\033[39mResult\033[0m', 'Time'))
     total_time = time.monotonic()
@@ -544,11 +619,21 @@ def main():
     all_boards = list(boards)
     for f in all_families:
         if ci_boards_path:
-            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only, examples,
+            # the upload takes every pinned board: one the Build step skipped for the -e
+            # filter still uploads, all of it --identical (ci_set_matrix.py --membrowse)
+            all_boards.extend(resolve_ci_boards(ci_boards_path, f, ci_boards_only,
+                                                None if ci_boards_only else examples,
                                                 build_system, tuple(build_defines)))
         else:
             all_boards.extend(get_family_boards(f, one_random, one_first, examples,
                                                 build_system, tuple(build_defines)))
+
+    if args.expect_built:
+        if build_targets != ['examples-membrowse-upload']:
+            parser.error('--expect-built applies to --target examples-membrowse-upload only')
+        # read by membrowse_cli.py in every upload this run starts, cmake custom targets included
+        os.environ['TUSB_MEMBROWSE_EXPECT_BUILT'] = \
+            ' '.join(e.split('/', 1)[1] for e in examples) if examples else 'all'
 
     # --ci-pinned-boards-only (the upload step): -e only picks the board, the same
     # fallback the Build step made; every example of that board is then uploaded

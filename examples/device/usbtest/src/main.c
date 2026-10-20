@@ -30,6 +30,7 @@
  *   - bulk/interrupt/isochronous IN  = infinite source (pattern 0: all zeros)
  *   - bulk/interrupt/isochronous OUT = infinite sink (data discarded)
  *   - EP0 0x5b/0x5c = control write then read-back (ctrl_out tests)
+ *   - EP0 0x5d/0x5e = delayed control answer and its stats (test/hil/stale_setup.py)
  * See examples/device/usbtest/README.md and test/hil/usbtest.py for usage.
  */
 
@@ -37,6 +38,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "device/dcd.h" // DCD_EVENT_SETUP_RECEIVED for tud_event_hook_cb(), before tusb.h
 #include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
@@ -204,6 +206,49 @@ void tud_vendor_iso_tx_cb(uint8_t idx, uint32_t sent_bytes) {
 // Gadget Zero: 0x5b stores the host's wLength bytes, 0x5c returns them.
 static uint8_t ctrl_buf[1024];
 
+// 0x5d answers wValue ms late, so the host's timeout lets its next SETUP arrive first; 0x5e then
+// reports how many arrived during the delay and which stages the following 0x5b went through.
+// Its data stage has its own buffer, so a stale arm cannot pass for the next request's.
+static uint8_t delay_buf[32];
+static volatile uint16_t setup_count;
+static struct TU_ATTR_PACKED {
+  uint16_t newer_setups; // SETUPs received during the last 0x5d delay
+  uint16_t delays;       // 0x5d requests answered
+  uint16_t ctrl_stages;  // last 0x5b's control stages, one nibble each, oldest first: 0x123 = SETUP, DATA, ACK
+} delay_stats;
+
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
+  (void) rhport;
+  (void) in_isr;
+  if (eventid == DCD_EVENT_SETUP_RECEIVED) {
+    setup_count++;
+  }
+}
+
+enum {
+  DELAY_ACTION_STATUS = 0,
+  DELAY_ACTION_DATA   = 1, // wLength bytes in the request's direction, through delay_buf
+  DELAY_ACTION_STALL  = 2,
+};
+
+static bool delayed_answer(uint8_t rhport, tusb_control_request_t const* request) {
+  uint16_t const seen = setup_count;
+  uint32_t const start_ms = tusb_time_millis_api();
+  while (tusb_time_millis_api() - start_ms < request->wValue) {}
+  delay_stats.newer_setups = (uint16_t) (setup_count - seen);
+  delay_stats.delays++;
+
+  switch (request->wIndex) {
+    case DELAY_ACTION_STATUS:
+      return tud_control_status(rhport, request);
+    case DELAY_ACTION_DATA:
+      return tud_control_xfer(rhport, request, delay_buf, request->wLength);
+    case DELAY_ACTION_STALL:
+    default:
+      return false;
+  }
+}
+
 // Invoked on vendor control transfers, and by usbd for forwarded standard
 // endpoint requests (halt set/clear) whose return value it ignores — return
 // false for anything that is not a supported vendor request.
@@ -217,6 +262,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
       TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_OUT);
       TU_VERIFY(request->wValue == 0 && request->wIndex == 0);
       TU_VERIFY(request->wLength <= sizeof(ctrl_buf));
+      delay_stats.ctrl_stages = (uint16_t) ((stage == CONTROL_STAGE_SETUP ? 0 : delay_stats.ctrl_stages << 4) | stage);
       if (stage == CONTROL_STAGE_SETUP) {
         return tud_control_xfer(rhport, request, ctrl_buf, request->wLength);
       }
@@ -228,6 +274,18 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
       TU_VERIFY(request->wLength <= sizeof(ctrl_buf));
       if (stage == CONTROL_STAGE_SETUP) {
         return tud_control_xfer(rhport, request, ctrl_buf, request->wLength);
+      }
+      return true;
+
+    case 0x5d: // answer per wIndex after wValue ms
+      TU_VERIFY(request->wValue <= 1000 && request->wLength <= sizeof(delay_buf));
+      TU_VERIFY(request->wIndex != DELAY_ACTION_STATUS || request->wLength == 0);
+      return stage == CONTROL_STAGE_SETUP ? delayed_answer(rhport, request) : true;
+
+    case 0x5e: // read delay_stats
+      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+      if (stage == CONTROL_STAGE_SETUP) {
+        return tud_control_xfer(rhport, request, &delay_stats, tu_min16(request->wLength, sizeof(delay_stats)));
       }
       return true;
 

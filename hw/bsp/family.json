@@ -309,7 +309,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }
@@ -718,6 +719,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -743,6 +745,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -762,6 +765,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -787,6 +791,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -806,6 +811,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -875,6 +881,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -894,6 +901,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -913,6 +921,27 @@
         ],
         "roles": [
           "device",
+          "dual",
+          "host"
+        ]
+      }
+    },
+    "espressif_s31_function_core": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S31"
+        ],
+        "mcu": "OPT_MCU_ESP32S31",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
           "host"
         ]
       }
@@ -932,6 +961,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -951,6 +981,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -970,6 +1001,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -1044,7 +1076,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }
@@ -4602,7 +4635,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     },
@@ -4620,7 +4654,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }

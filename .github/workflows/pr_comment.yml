@@ -106,8 +106,106 @@ jobs:
 
       - name: Post HIL report as sticky PR comment
         if: steps.combine.outputs.found == 'true'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
         with:
           header: hil-report
           path: hil_combined.md
+          number: ${{ needs.pr_number.outputs.number }}
+
+  # ---------------------------------------
+  # Code size of the PR's CI-pinned boards against the master push run of the commit it was
+  # built against (code_size_ci.py baseline): no base build, only the snapshots both Build
+  # runs uploaded. Artifacts are PR-built data, parsed only by the default branch's scripts
+  # and rendered escaped. Report only: this job never fails the PR.
+  # ---------------------------------------
+  code-size-comment:
+    needs: pr_number
+    if: >
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      needs.pr_number.outputs.number != ''
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout default branch scripts
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # every step up to the freshness check must succeed, even with nothing to compare:
+      # a failed one would skip the post and leave an earlier push's table looking current
+      - name: Download code size snapshots
+        continue-on-error: true
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: code-size-*
+          path: ${{ runner.temp }}/code-size/current
+
+      - name: Find the baseline
+        id: baseline
+        run: |
+          CS="$RUNNER_TEMP/code-size"
+          mkdir -p "$CS/current" "$CS/out"
+          # it reports its own failures in the info; a crash still must not skip the post
+          python3 .github/scripts/code_size_ci.py baseline --repo "$REPO" --current "$CS/current" \
+            --info "$CS/baseline.json" || echo "::warning::code_size_ci.py baseline crashed"
+          echo "run_id=$(jq -r '.run_id // empty' "$CS/baseline.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Download baseline snapshots
+        if: steps.baseline.outputs.run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ steps.baseline.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: code-size-*
+          path: ${{ runner.temp }}/code-size/base
+
+      - name: Compare against the baseline
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          CS="$RUNNER_TEMP/code-size"
+          if ! python3 tools/code_size.py compare "$CS/current" "$CS/base" -o "$CS/out" --symbols \
+                 --baseline-info "$CS/baseline.json"; then
+            printf '## Code size\n\n_The comparison failed._\n' > "$CS/out/comment.md"
+          fi
+          echo "_[Full report]($RUN_URL)_" >> "$CS/out/comment.md"
+          # the job summary caps at 1 MiB
+          if [ -f "$CS/out/code-size.md" ]; then head -c 1000000 "$CS/out/code-size.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload full report
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-size-report
+          path: ${{ runner.temp }}/code-size/out/code-size.*
+
+      - name: Skip a superseded run
+        id: current
+        env:
+          PR: ${{ needs.pr_number.outputs.number }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
+               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
+            echo "post=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post code size as sticky PR comment
+        if: steps.current.outputs.post == 'true'
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          header: code-size
+          path: ${{ runner.temp }}/code-size/out/comment.md
           number: ${{ needs.pr_number.outputs.number }}

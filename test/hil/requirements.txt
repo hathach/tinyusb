@@ -8,3 +8,4 @@
 hidapi
 pyserial
 esptool
+pyusb

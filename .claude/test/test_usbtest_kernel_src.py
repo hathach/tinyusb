@@ -177,10 +177,10 @@ class Cli(unittest.TestCase):
         self.server = Server(src)
         self.addCleanup(self.server.close)
 
-    def run_script(self, *args):
-        env = dict(os.environ, KERNEL_SRC_BASE_URL=self.server.url, PYTHONDONTWRITEBYTECODE='1')
+    def run_script(self, *args, **env):
+        env = dict(os.environ, KERNEL_SRC_BASE_URL=self.server.url, PYTHONDONTWRITEBYTECODE='1', **env)
         return subprocess.run([sys.executable, str(SCRIPT), '--cache', str(self.tmp / 'cache'), *args],
-                              capture_output=True, text=True, env=env, timeout=60)
+                              capture_output=True, encoding='utf-8', env=env, timeout=60)
 
     def test_fetch_prints_case_and_waits(self):
         r = self.run_script('--release', '6.12.107+deb13-amd64', '--case', '16')
@@ -197,6 +197,25 @@ class Cli(unittest.TestCase):
         self.assertEqual((self.tmp / 'cache' / 'v6.12.107' / 'usbtest.c').read_text(), USBTEST_C)
         self.assertEqual(sorted(self.server.hits),
                          ['/drivers/usb/misc/usbtest.c?h=v6.12.107', '/tools/usb/testusb.c?h=v6.12.107'])
+
+    def test_utf8_source_prints_as_utf8_whatever_the_locale(self):
+        # a comment in the case block that no legacy code page decodes or encodes
+        text = USBTEST_C.replace('\tcase 16:\n', '\tcase 16:\t/* \u2192 \u2714 \u00f8 */\n')
+        (self.src / 'drivers/usb/misc/usbtest.c').write_text(text, encoding='utf-8')
+        env = {'PYTHONUTF8': '0', 'LC_ALL': 'C', 'PYTHONCOERCECLOCALE': '0'}   # an ASCII locale on POSIX
+        if os.name != 'nt':   # stdout stays as given there, so pin it; Windows reconfigures its own
+            env['PYTHONIOENCODING'] = 'utf-8'
+        r = self.run_script('--tag', 'v6.12.107', '--case', '16', **env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('\tcase 16:\t/* \u2192 \u2714 \u00f8 */', r.stdout)
+
+    @unittest.skipIf(os.name == 'nt', 'Windows prints UTF-8 whatever the console; elsewhere stdout stays as given')
+    def test_posix_stdout_keeps_the_encoding_and_errors_it_was_given(self):
+        text = USBTEST_C.replace('\tcase 16:\n', '\tcase 16:\t/* \u2714 */\n')
+        (self.src / 'drivers/usb/misc/usbtest.c').write_text(text, encoding='utf-8')
+        r = self.run_script('--tag', 'v6.12.107', '--case', '16', PYTHONIOENCODING='ascii:backslashreplace')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('\tcase 16:\t/* \\u2714 */', r.stdout)
 
     def test_cache_is_reused(self):
         self.assertEqual(self.run_script('--tag', 'v6.12.107').returncode, 0)

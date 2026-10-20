@@ -61,25 +61,26 @@ mm900evxb  MM900EVxB  ft9xx     https://brtchip.com/product/mm900ev1b
 Espressif
 ---------
 
-=========================  ==============================  =========  ========================================================================================================  ======
-Board                      Name                            Family     URL                                                                                                       Note
-=========================  ==============================  =========  ========================================================================================================  ======
-adafruit_feather_esp32_v2  Adafruit Feather ESP32 v2       espressif  https://www.adafruit.com/product/5400
-adafruit_feather_esp32c6   Adafruit Feather EPS32-C6       espressif  https://www.adafruit.com/product/5933
-adafruit_feather_esp32s2   Adafruit Feather ESP32S2        espressif  https://www.adafruit.com/product/5000
-adafruit_feather_esp32s3   Adafruit Feather ESP32S3        espressif  https://www.adafruit.com/product/5323
-adafruit_magtag_29gray     Adafruit MagTag 2.9" Grayscale  espressif  https://www.adafruit.com/product/4800
-adafruit_metro_esp32s2     Adafruit Metro ESP32-S2         espressif  https://www.adafruit.com/product/4775
-espressif_addax_1          Espresif Addax-1                espressif  n/a
-espressif_c3_devkitc       Espresif C3 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitc-02/index.html
-espressif_c6_devkitc       Espresif C6 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/index.html
-espressif_kaluga_1         Espresif Kaluga 1               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-kaluga-1/index.html
-espressif_p4_function_ev   Espresif P4 Function EV         espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
-espressif_s2_devkitc       Espresif S2 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-devkitc-1/index.html
-espressif_s3_devkitc       Espresif S3 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/index.html
-espressif_s3_devkitm       Espresif S3 DevKitM             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html
-espressif_saola_1          Espresif S2 Saola 1             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-saola-1/index.html
-=========================  ==============================  =========  ========================================================================================================  ======
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
+Board                        Name                              Family     URL                                                                                                            Note
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
+adafruit_feather_esp32_v2    Adafruit Feather ESP32 v2         espressif  https://www.adafruit.com/product/5400
+adafruit_feather_esp32c6     Adafruit Feather EPS32-C6         espressif  https://www.adafruit.com/product/5933
+adafruit_feather_esp32s2     Adafruit Feather ESP32S2          espressif  https://www.adafruit.com/product/5000
+adafruit_feather_esp32s3     Adafruit Feather ESP32S3          espressif  https://www.adafruit.com/product/5323
+adafruit_magtag_29gray       Adafruit MagTag 2.9" Grayscale    espressif  https://www.adafruit.com/product/4800
+adafruit_metro_esp32s2       Adafruit Metro ESP32-S2           espressif  https://www.adafruit.com/product/4775
+espressif_addax_1            Espresif Addax-1                  espressif  n/a
+espressif_c3_devkitc         Espresif C3 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitc-02/index.html
+espressif_c6_devkitc         Espresif C6 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/index.html
+espressif_kaluga_1           Espresif Kaluga 1                 espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-kaluga-1/index.html
+espressif_p4_function_ev     Espresif P4 Function EV           espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
+espressif_s2_devkitc         Espresif S2 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-devkitc-1/index.html
+espressif_s31_function_core  Espressif S31 Function CoreBoard  espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s31/esp32-s31-function-coreboard-1/index.html  J4 is a host-wired Type-A port that always supplies VBUS; device role needs an A-to-A cable with VBUS cut
+espressif_s3_devkitc         Espresif S3 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/index.html
+espressif_s3_devkitm         Espresif S3 DevKitM               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html
+espressif_saola_1            Espresif S2 Saola 1               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-saola-1/index.html
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
 
 Geehy
 -----

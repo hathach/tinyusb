@@ -218,6 +218,7 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   uint32_t sample_rate_tx;
   uint16_t packet_sz_tx[3];
+  int8_t ctrl_blackout_tx; // frames before flow control may reverse; sign = last correction (-smaller, +larger)
   uint8_t bclock_id_tx;
   uint8_t interval_tx;
   uint8_t format_type_tx;
@@ -392,7 +393,8 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
-static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
+static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count);
+static void audiod_tx_trim_to_threshold(audiod_function_t *audio);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -519,7 +521,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
 
   #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   // packet_sz_tx is based on total packet size, here we want size for each support buffer.
-  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_fifo_threshold, audio->ep_in_sz);
+  n_bytes_tx = audiod_tx_packet_size(audio, tu_fifo_count(&audio->ep_in_ff));
   #else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);// Limit up to max packet size, more can not be done for ISO
   #endif
@@ -1176,6 +1178,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             // If flow control is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
   #if  CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
             audiod_parse_flow_control_params(audio, p_desc_parse_for_params);
+            audiod_tx_trim_to_threshold(audio);
   #endif
             // Schedule first transmit if alternate interface is not zero, as sample data is available a ZLP is loaded
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
@@ -1839,38 +1842,60 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   return true;
 }
 
-static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
+// Drop what was queued while the stream was closed down to the threshold: starting full, flow
+// control needs ~100 frames to drain it and the overwritable FIFO overflows meanwhile.
+static void audiod_tx_trim_to_threshold(audiod_function_t *audio) {
+  tu_fifo_t *ff = &audio->ep_in_ff;
+  const uint16_t frame_sz = (uint16_t) (audio->n_channels_tx * audio->n_bytes_per_sample_tx);
+  const uint16_t count = tu_fifo_count(ff);
+  // channel/width fields are stale for a non-PCM alt, whose frames they cannot align
+  if (audio->format_type_tx != AUDIO20_FORMAT_TYPE_I || frame_sz == 0 || count <= audio->ep_in_fifo_threshold) {
+    return;
+  }
+  if (count >= ff->depth) {
+    tu_fifo_correct_read_pointer(ff); // an overflowed FIFO keeps a stale read index
+  }
+  tu_fifo_discard_n(ff, (uint16_t) ((count - audio->ep_in_fifo_threshold) / frame_sz * frame_sz));
+}
+
+static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_count) {
+  const uint16_t *nominal_size = audio->packet_sz_tx;
+  const uint16_t fifo_threshold = audio->ep_in_fifo_threshold;
   // Flow control need a FIFO size of at least 4*Navg
-  if (nominal_size[1] && nominal_size[1] * 4 <= fifo_depth) {
-    // Use blackout to prioritize normal size packet
-    static int ctrl_blackout = 0;
+  if (nominal_size[1] && nominal_size[1] * 4 <= audio->ep_in_ff.depth) {
+    // Use blackout to prioritize normal size packet. It only holds off a reversal: repeating the
+    // last correction must stay possible, or a source more than ~0.2% off nominal overflows.
+    int8_t blackout = audio->ctrl_blackout_tx;
     uint16_t packet_size;
     uint16_t slot_size = nominal_size[2] - nominal_size[1];
     if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < (fifo_threshold - slot_size) && !ctrl_blackout) {
+    } else if (data_count < (fifo_threshold - slot_size) && blackout <= 0) {
       packet_size = nominal_size[0];
-      ctrl_blackout = 10;
-    } else if (data_count > (fifo_threshold + slot_size) && !ctrl_blackout) {
+      blackout = -10;
+    } else if (data_count > (fifo_threshold + slot_size) && blackout >= 0) {
       packet_size = nominal_size[2];
       if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
-        ctrl_blackout = 0;
+        blackout = 0;
       } else {
         // nav = INT(nav), eg. 48k, 96k
-        ctrl_blackout = 10;
+        blackout = 10;
       }
     } else {
       packet_size = nominal_size[1];
-      if (ctrl_blackout) {
-        ctrl_blackout--;
+      if (blackout > 0) {
+        blackout--;
+      } else if (blackout < 0) {
+        blackout++;
       }
     }
+    audio->ctrl_blackout_tx = blackout;
     // Normally this cap is not necessary
-    return tu_min16(packet_size, max_depth);
+    return tu_min16(packet_size, audio->ep_in_sz);
   } else {
-    return tu_min16(data_count, max_depth);
+    return tu_min16(data_count, audio->ep_in_sz);
   }
 }
 

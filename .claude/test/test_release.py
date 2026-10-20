@@ -3,13 +3,16 @@ unchanged version and any file its pattern no longer matches; the PR range
 refuses a previous tag that is not an ancestor and any first-parent commit
 that is not a merged PR; gh failures surface instead of thinning the list."""
 import importlib.util
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'make-release' / 'scripts' / 'release.py'
 spec = importlib.util.spec_from_file_location('release', SCRIPT)
@@ -86,6 +89,20 @@ class BumpTest(unittest.TestCase):
             self.assertEqual(text.count('"0.22.0": "0.22.0"'), 1)
             self.assertIn('"0-latest": "0.22.0"', text)
 
+    def test_files_are_read_and_written_as_utf8_with_lf_whatever_the_locale(self):
+        # bump runs no git or gh, so the script can run as a process here, outside UTF-8 mode and,
+        # on POSIX, in an ASCII locale
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fixture(root)
+            lib = LIBRARY_JSON.replace('"name": "TinyUSB",', '"name": "TinyUSB",\n    "authors": "ø ✔",')
+            (root / 'library.json').write_bytes(lib.encode('utf-8'))
+            env = {**{k: v for k, v in os.environ.items() if k != 'PYTHONUTF8'}, 'LC_ALL': 'C', 'PYTHONCOERCECLOCALE': '0'}
+            r = subprocess.run([sys.executable, '-X', 'utf8=0', str(SCRIPT), '--root', d, 'bump', '0.22.1'],
+                               capture_output=True, env=env, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual((root / 'library.json').read_bytes(), lib.replace('0.21.0', '0.22.1').encode('utf-8'))
+
 
 class PrNumbersTest(unittest.TestCase):
     def test_merge_button_and_squash_subjects_dedupe_and_sort(self):
@@ -99,34 +116,49 @@ class PrNumbersTest(unittest.TestCase):
 
 
 class CliTest(unittest.TestCase):
-    """git and gh are stubs on PATH: git answers the ancestor check and the log, gh answers per PR."""
+    """main() in-process with git and gh answered by a stand-in for subprocess.run, so no real
+    git or gh can run: git answers the ancestor check and the log, gh answers per PR. Their output
+    is UTF-8 bytes, decoded the way subprocess.run would with the caller's arguments under a
+    legacy code page's locale, and stdout and stderr are a console in a legacy code page."""
 
     def run_cli(self, args, ancestor=True, gh_fail=()):
-        with tempfile.TemporaryDirectory() as d:
-            bin_dir = Path(d) / 'bin'
-            bin_dir.mkdir()
-            (bin_dir / 'git').write_text(f'''#!/bin/sh
-case "$*" in
-  *merge-base*) exit {0 if ancestor else 1} ;;
-  *log*) printf 'Merge pull request #10 from a/b\\nSquashed (#11)\\n' ;;
-esac
-''')
-            (bin_dir / 'gh').write_text(f'''#!/bin/sh
-n=$3
-case " {' '.join(map(str, gh_fail))} " in *" $n "*) echo "boom $n" >&2; exit 1 ;; esac
-author=hathach; [ "$n" = 11 ] && author='dependabot[bot]'
-printf '{{"number": %s, "title": "PR %s", "labels": [{{"name": "Port"}}], "author": {{"login": "%s"}}}}' "$n" "$n" "$author"
-''')
-            for f in (bin_dir / 'git', bin_dir / 'gh'):
-                f.chmod(0o755)
-            env = dict(os.environ, PATH=f'{bin_dir}:{os.environ["PATH"]}')
-            return subprocess.run([sys.executable, str(SCRIPT), '--root', d, *args],
-                                  capture_output=True, text=True, env=env)
+        def run(argv, capture_output=False, text=False, encoding=None, cwd=None):
+            out, err, rc = '', '', 0
+            if argv[0] == 'git':
+                rc = 0 if 'merge-base' not in argv or ancestor else 1
+                out = 'Merge pull request #10 from a/b\nSquashed (#11)\n' if 'log' in argv else ''
+            elif argv[0] == 'gh':
+                n = int(argv[3])
+                if n in gh_fail:
+                    err, rc = f'boom {n}\n', 1
+                else:
+                    out = json.dumps({'number': n, 'title': f'PR {n} \u2714', 'labels': [{'name': 'Port \U0001f6a8'}],
+                                      'author': {'login': 'dependabot[bot]' if n == 11 else 'hathach'}}, ensure_ascii=False)
+            else:
+                raise AssertionError(f'unexpected command {argv}')
+            out, err = out.encode('utf-8'), err.encode('utf-8')
+            if encoding or text:
+                out, err = (s.decode(encoding or 'cp1252') for s in (out, err))
+            return subprocess.CompletedProcess(argv, rc, out, err)
+
+        # Windows prints UTF-8 whatever the console; elsewhere stdout keeps the encoding and errors it was given
+        console = [io.TextIOWrapper(io.BytesIO(), encoding='cp1252' if os.name == 'nt' else 'ascii',
+                                    errors='strict' if os.name == 'nt' else 'backslashreplace', newline='\n')
+                   for _ in range(2)]
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(release.subprocess, 'run', run), \
+                mock.patch.object(sys, 'argv', [str(SCRIPT), '--root', d, *args]), \
+                mock.patch.object(sys, 'stdout', console[0]), mock.patch.object(sys, 'stderr', console[1]):
+            code = release.main()
+        for c in console:
+            c.flush()
+        return types.SimpleNamespace(returncode=code, stdout=console[0].buffer.getvalue().decode('utf-8'),
+                                     stderr=console[1].buffer.getvalue().decode('utf-8'))
 
     def test_prs_lists_number_title_and_labels(self):
         r = self.run_cli(['prs', '--prev', '0.20.0'])
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout, '#10\tPR 10\t[Port]\n#11\tPR 11\t[Port]\n')
+        title, label = ('PR {} \u2714', 'Port \U0001f6a8') if os.name == 'nt' else ('PR {} \\u2714', 'Port \\U0001f6a8')
+        self.assertEqual(r.stdout, f'#10\t{title.format(10)}\t[{label}]\n#11\t{title.format(11)}\t[{label}]\n')
 
     def test_contributors_drops_bots(self):
         r = self.run_cli(['contributors', '--prev', '0.20.0'])
@@ -143,6 +175,37 @@ printf '{{"number": %s, "title": "PR %s", "labels": [{{"name": "Port"}}], "autho
         self.assertEqual(r.returncode, 1)
         self.assertIn('gh pr view 11 failed 3 times: boom 11', r.stderr)
         self.assertEqual(r.stdout, '')
+
+
+@unittest.skipIf(os.name == 'nt', 'the stubs are #! scripts Windows cannot exec: a miss would run the real git or gh')
+class ProcessTest(unittest.TestCase):
+    """The script as a process, git and gh stubs on PATH: main()'s status is the exit status."""
+
+    def run_script(self, args, ancestor=True):
+        with tempfile.TemporaryDirectory() as d:
+            bin_dir = Path(d) / 'bin'
+            bin_dir.mkdir()
+            (bin_dir / 'git').write_text(f'''#!/bin/sh
+case "$*" in
+  *merge-base*) exit {0 if ancestor else 1} ;;
+  *log*) printf 'Merge pull request #10 from a/b\\n' ;;
+esac
+''')
+            (bin_dir / 'gh').write_text('''#!/bin/sh
+printf '{"number": %s, "title": "PR %s", "labels": [], "author": {"login": "hathach"}}' "$3" "$3"
+''')
+            for f in (bin_dir / 'git', bin_dir / 'gh'):
+                f.chmod(0o755)
+            env = dict(os.environ, PATH=f'{bin_dir}{os.pathsep}{os.environ["PATH"]}')
+            return subprocess.run([sys.executable, str(SCRIPT), '--root', d, *args],
+                                  capture_output=True, text=True, env=env, timeout=60)
+
+    def test_the_exit_status_is_mains(self):
+        ok = self.run_script(['prs', '--prev', '0.20.0'])
+        self.assertEqual((ok.returncode, ok.stdout), (0, '#10\tPR 10\t[]\n'), ok.stderr)
+        refused = self.run_script(['prs', '--prev', '0.20.0'], ancestor=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn('not an ancestor of HEAD', refused.stderr)
 
 
 if __name__ == '__main__':

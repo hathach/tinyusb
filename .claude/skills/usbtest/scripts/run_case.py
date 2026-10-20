@@ -10,12 +10,12 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
-roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
-is held or unusable, or a testusb, usbtest.py, hil_test.py or other run_case.py process is alive
-on this host, checked before and again after taking the lock. That check is host-wide and does
-not see a hil_test.py started after it, nor join hil_test.py's per-controller battery permits:
---allow-concurrent skips it only once you have established that no battery shares this board's
-host controller.
+roster, it flashes through openocd_esp (only hil_test.py retains a lock its session needs), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
+is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
+process is alive on this host, checked before and again after taking the lock. That check is
+host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
+another battery's load on this board's host controller does not matter for what you are measuring.
+A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
@@ -25,7 +25,8 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
 them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken, 2 refused before any hardware action. A SIGTERM (`hil_lock.py release` sends one
+lock was taken, 2 refused before any hardware action; a command line argparse rejects exits 2
+with its usage on stderr and no JSON line. A SIGTERM (`hil_lock.py release` sends one
 to the lock holder) kills the running flasher or usbtest.py, reports boardState unknown with a
 verdict line, then releases the lock.
 """
@@ -38,18 +39,46 @@ import tempfile
 import time
 from pathlib import Path
 
+
+def build_parser():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
+    p.add_argument('--board', required=True)
+    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
+    p.add_argument('--after', required=True, choices=('park', 'leave'),
+                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
+    p.add_argument('--variant', help='roster variant, required when the board has several')
+    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
+    p.add_argument('--allow-concurrent', action='store_true',
+                   help='skip the live-battery check; see the description first')
+    return p
+
+
+def new_report(args):
+    return {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
+            'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+
+
+if __name__ == '__main__' and sys.platform != 'linux':   # after argparse, so --help works; before the harness imports
+    _report = new_report(build_parser().parse_args())
+    _report['error'] = 'run_case.py needs a Linux host (usbfs, /proc, the usbtest kernel module)'
+    print(f'error: {_report["error"]}', file=sys.stderr)
+    print(json.dumps(_report))
+    sys.exit(2)
+
 ROOT = Path(__file__).resolve().parents[4]
 HIL_DIR = ROOT / 'test' / 'hil'
 sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, str(ROOT / 'tools'))
-import ci_select  # noqa: E402
+import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
-from helper import hil_lock, hil_report, hil_util  # noqa: E402
+from helper import hil_lock, hil_report, hil_util, usb_observe  # noqa: E402
+hil_util.provider()   # an incomplete flash provider is refused here, before any board is locked
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
-PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py')
+PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
 HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
 # host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
@@ -76,17 +105,28 @@ def on_sigterm(signum, frame):
     raise Terminated()
 
 
-def kill_children():
-    """SIGKILL every child and its session: run_cmd's cleanup misses a child forked before its
-    try, e.g. when the signal lands inside Popen, which does not kill a child it has started."""
-    me = os.getpid()
+def stat_fields(proc_dir):
+    """<proc_dir>/stat's fields after the command name (state first), or None."""
+    try:
+        return (proc_dir / 'stat').read_text().rsplit(')', 1)[1].split()
+    except (OSError, IndexError):
+        return None
+
+
+def children(spare=()):
+    """[(pid, state)] of this process's children, zombies included, `spare` aside."""
+    me, found = str(os.getpid()), []
     for d in PROC.glob('[0-9]*'):
-        try:
-            if int((d / 'stat').read_text().rsplit(')', 1)[1].split()[1]) != me:
-                continue
-        except (OSError, ValueError, IndexError):
-            continue
-        pid = int(d.name)   # unreaped, so neither this pid nor its group can be reused
+        fields = stat_fields(d)
+        if fields and len(fields) > 1 and fields[1] == me and int(d.name) not in spare:
+            found.append((int(d.name), fields[0]))
+    return found
+
+
+def kill_children(spare=()):
+    """SIGKILL every child and its session, `spare` aside: usbtest.run's helpers run in this
+    process group with no kill on interrupt, so they outlive a cancelled case."""
+    for pid, _ in children(spare):   # unreaped, so neither this pid nor its group can be reused
         for kill in (os.killpg, os.kill):   # kill: a child not yet in its own session
             try:
                 kill(pid, signal.SIGKILL)
@@ -109,13 +149,15 @@ def resolve(config, board_name, variant):
             raise Refused(f'{board_name} is in boards-skip of {config}')
         raise Refused(f'{board_name} is not a board in {config}')
     board = boards[board_name]
-    if 'device/usbtest' not in ci_select.board_tests(board):
+    if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
     flasher = board.get('flasher')
     if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
             and isinstance(flasher.get('name'), str) and flasher['name']):
         raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
+    if why := hil_flash.retained_lock_only(board):
+        raise Refused(f'{board_name}: {why}')
     try:
         names = [v['name'] for v in hil_report.board_variants(board)]
     except ValueError as e:
@@ -136,9 +178,10 @@ def lineage():
     pids, pid = set(), os.getpid()
     while pid > 1 and pid not in pids:
         pids.add(pid)
+        fields = stat_fields(PROC / str(pid))
         try:
-            pid = int((PROC / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()[1])
-        except (OSError, ValueError, IndexError):
+            pid = int(fields[1])
+        except (TypeError, ValueError, IndexError):
             break
     return pids
 
@@ -220,7 +263,7 @@ def flash(board, fw):
 def enumerated(uid):
     deadline = time.monotonic() + ENUM_TIMEOUT
     while time.monotonic() < deadline:
-        if hil_util.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid):
+        if usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid):
             time.sleep(SETTLE)
             return True
         time.sleep(0.2)
@@ -256,20 +299,8 @@ def battery(board, fw, tests, timeout):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (hil skill)")
-    p.add_argument('--board', required=True)
-    p.add_argument('--tests', required=True, help='comma-separated usbtest case numbers')
-    p.add_argument('--after', required=True, choices=('park', 'leave'),
-                   help='park: flash device/board_test afterwards; leave: keep usbtest running')
-    p.add_argument('--variant', help='roster variant, required when the board has several')
-    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
-    p.add_argument('--allow-concurrent', action='store_true',
-                   help='skip the live-battery check; see the description first')
-    args = p.parse_args()
-
-    report = {'pass': False, 'board': args.board, 'variant': args.variant, 'tests': args.tests,
-              'cases': [], 'wedged': False, 'boardState': 'untouched', 'error': ''}
+    args = build_parser().parse_args()
+    report = new_report(args)
 
     def finish(code, error=''):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)   # one verdict line; the release still follows
