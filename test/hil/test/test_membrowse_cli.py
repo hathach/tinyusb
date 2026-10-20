@@ -53,11 +53,21 @@ class Regexes(unittest.TestCase):
         # pico-sdk hands its script_include dirs to the linker as -Wl,-L<dir>
         text = ('cc -Wl,-L/sdk/rp2350/script_include -Wl,-L/sdk/common/script_include '
                 '-L /lib/a -L/lib/b -Wl,-L,/lib/c -Wl,--library-path=/lib/d -L/lib/a '
+                '-Wl,--library-path,/lib/e '
                 '-Wl,--script=/sdk/default_locations.ld -T/sdk/memmap_default.ld -o out.elf\n')
         self.assertEqual(cli.extract_ld_include_dirs(text),
                          ['/sdk/rp2350/script_include', '/sdk/common/script_include',
-                          '/lib/a', '/lib/b', '/lib/c', '/lib/d'])
+                          '/lib/a', '/lib/b', '/lib/c', '/lib/d', '/lib/e'])
         self.assertEqual(cli.extract_ld_include_dirs('cc -o out.elf\n'), [])
+
+    def test_grouped_wl_options_are_split_before_extraction(self):
+        # -Wl,a,b,c hands the linker three arguments: -L and -T inside such a group,
+        # in either position, are the linker's own and must not swallow their neighbours
+        text = ('cc -Wl,-L,/sdk/script_include,--gc-sections '
+                '-Wl,--gc-sections,-L,/sdk/other,--script=/sdk/locations.ld '
+                '-Wl,--no-warn-rwx-segments,-T,/sdk/memmap.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_include_dirs(text), ['/sdk/script_include', '/sdk/other'])
+        self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/locations.ld', '/sdk/memmap.ld'])
 
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
@@ -198,6 +208,45 @@ class Redaction(unittest.TestCase):
         for secret in (None, ''):
             self.assertEqual(cli.redacted(['membrowse', 'report', 'x'], secret),
                              ['membrowse', 'report', 'x'])
+
+
+class PrCommentTemplate(unittest.TestCase):
+    """The comment template renders names from the PR's own build into a comment
+    posted with the base repo's token: they must not break the table, open
+    HTML, links or code, or @mention anyone."""
+    TEMPLATE = os.path.join(REPO, '.github', 'membrowse_pr_message.j2')
+
+    @staticmethod
+    def _span(delta, build):
+        s = f'{delta:+}'
+        return {'min': delta, 'max': delta, 'min_str': s, 'max_str': s,
+                'min_build': build, 'max_build': build, 'builds': 1 if delta else 0}
+
+    def _render(self, name, build):
+        import jinja2  # the comment action installs it with membrowse
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.dirname(self.TEMPLATE)),
+                                 autoescape=False, trim_blocks=True, lstrip_blocks=True)
+        row = {'name': name, 'flash': self._span(12, build), 'ram': self._span(0, None),
+               'other': self._span(0, None), 'builds': 1}
+        return env.get_template(os.path.basename(self.TEMPLATE)).render(
+            file_changes=[row], targets=[{'has_changes': True}], targets_with_file_changes=1)
+
+    def test_names_are_escaped_and_mentions_neutralized(self):
+        crafted = 'a|b<img src=x>`c`[d](e)\\f @hathach\nline2'
+        out = self._render(crafted, 'board@hathach/[x]')
+        rows = [line for line in out.splitlines() if line.startswith('| ') and 'File' not in line]
+        self.assertEqual(len(rows), 1, out)
+        self.assertEqual(rows[0].count('|'), 7, rows[0])  # the row's own 7 pipes, none from the names
+        for raw in ('<img', '`c`', '[d](e)', '@hathach', 'line2\n', '\\f'):
+            self.assertNotIn(raw, out)
+        for escaped in ('a&#124;b', '&#60;img', '&#96;c&#96;', '&#91;d&#93;(e)', '&#92;f',
+                        '@\u200bhathach', 'board@\u200bhathach/&#91;x&#93;'):
+            self.assertIn(escaped, out)
+
+    def test_overlong_names_are_cut(self):
+        out = self._render('x' * 500, 'b')
+        self.assertIn('x' * 160 + '…', out)
+        self.assertNotIn('x' * 161, out)
 
 
 @posix_only

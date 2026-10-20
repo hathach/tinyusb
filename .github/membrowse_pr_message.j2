@@ -4,7 +4,14 @@
 {% if s.builds == 0 %}—{% elif s.min == s.max %}{{ s.min_str }}{% else %}{{ s.min_str }} → {{ s.max_str }}{% endif %}
 {%- endmacro %}
 {% macro largest(s) -%}
-{% if s.builds %}{{ s.min_build if (s.min | abs) > (s.max | abs) else s.max_build }}{% endif %}
+{% if s.builds %}{{ cell(s.min_build if (s.min | abs) > (s.max | abs) else s.max_build) }}{% endif %}
+{%- endmacro %}
+{#- File and build names come from the PR's own build (DWARF paths, the board roster)
+    and this comment is posted with the base repo's token: a table cell safe from
+    names that would open HTML, a link or code span, end or split the row, or
+    @mention someone (the zero-width space breaks the mention), cut at 160 chars. -#}
+{% macro cell(text) -%}
+{{ (text | string)[:160] | replace('&', '&#38;') | replace('<', '&#60;') | replace('>', '&#62;') | replace('|', '&#124;') | replace('`', '&#96;') | replace('\\', '&#92;') | replace('[', '&#91;') | replace(']', '&#93;') | replace('\r', '') | replace('\n', '') | replace('@', '@​') }}{% if (text | string | length) > 160 %}…{% endif %}
 {%- endmacro %}
 {% set file_rows = file_changes[:20] %}
 {% set changed = targets | selectattr('has_changes') | list %}
@@ -16,7 +23,7 @@ Min → max change over the builds the file changed in, and the build with the l
 | File | Flash Δ | Largest Flash Δ build | RAM Δ | Largest RAM Δ build | Builds changed |
 |------|--------:|-----------------------|------:|---------------------|---------------:|
 {% for row in file_rows -%}
-| {{ row.name }} | {{ span(row.flash) }} | {{ largest(row.flash) }} | {{ span(row.ram) }} | {{ largest(row.ram) }} | {{ row.builds }} |
+| {{ cell(row.name) }} | {{ span(row.flash) }} | {{ largest(row.flash) }} | {{ span(row.ram) }} | {{ largest(row.ram) }} | {{ row.builds }} |
 {% endfor %}
 {% if file_changes | length > file_rows | length %}
 … and {{ file_changes | length - file_rows | length }} more files.
