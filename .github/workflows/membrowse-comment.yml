@@ -36,16 +36,56 @@ jobs:
       - name: Checkout the comment template
         uses: actions/checkout@v6
         with:
-          sparse-checkout: .github/membrowse_pr_message.j2
+          sparse-checkout: |
+            .github/membrowse_pr_message.j2
+            .github/scripts/code_size_ci.py
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
+      # The PR from trusted workflow_run metadata (never from build artifacts, which a fork
+      # controls), then the same freshness gate as pr_comment.yml: a Build that a newer push,
+      # run or attempt has superseded must not overwrite the comment with an older report.
+      - name: Resolve the PR and skip a superseded run
+        id: current
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          PRS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "number=$INPUT_PR" >> "$GITHUB_OUTPUT"
+            echo "post=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # same-repo PRs populate pull_requests; for forks, find the open PR by its head ref
+          # and confirm its head SHA is the built commit
+          num=$(printf '%s' "$PRS_JSON" | jq -r '.[0].number // empty')
+          if [ -z "$num" ] && [ -n "$HEAD_BRANCH" ] && [ -n "$HEAD_REPO" ]; then
+            num=$(gh api --method GET "repos/$REPO/pulls" \
+              -f state=open -f head="${HEAD_REPO%%/*}:$HEAD_BRANCH" \
+              --jq '[.[] | select(.head.sha == env.HEAD_SHA)][0].number // empty' 2>/dev/null || true)
+          fi
+          [ -n "$num" ] || { echo "no open PR for $HEAD_SHA, not commenting"; exit 0; }
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$num" \
+               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
+            echo "post=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Post Membrowse PR comment
+        if: steps.current.outputs.post == 'true'
         uses: membrowse/membrowse-action/comment-action@v1.2.17
         with:
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           commit: ${{ inputs.commit || github.event.workflow_run.head_sha }}
-          pr_number: ${{ inputs.pr_number }}
+          pr_number: ${{ steps.current.outputs.number }}
           comment_template: .github/membrowse_pr_message.j2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

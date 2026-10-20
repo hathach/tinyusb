@@ -216,6 +216,23 @@ class Redaction(unittest.TestCase):
                              ['membrowse', 'report', 'x'])
 
 
+class PrCommentWorkflow(unittest.TestCase):
+    """membrowse-comment.yml posts only for the PR head's newest Build run."""
+    WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'membrowse-comment.yml')
+
+    def test_a_superseded_run_does_not_post(self):
+        import yaml
+        with open(self.WORKFLOW) as f:
+            steps = yaml.safe_load(f)['jobs']['post-comment']['steps']
+        gate = next(s for s in steps if s.get('id') == 'current')
+        self.assertIn('code_size_ci.py is-current', gate['run'])
+        post = next(s for s in steps if 'comment-action' in s.get('uses', ''))
+        self.assertEqual(post['if'], "steps.current.outputs.post == 'true'")
+        self.assertEqual(post['with']['pr_number'], '${{ steps.current.outputs.number }}')
+        checkout = next(s for s in steps if s.get('uses', '').startswith('actions/checkout'))
+        self.assertIn('.github/scripts/code_size_ci.py', checkout['with']['sparse-checkout'])
+
+
 class PrCommentTemplate(unittest.TestCase):
     """The comment template renders names from the PR's own build into a comment
     posted with the base repo's token: they must not break the table, open
