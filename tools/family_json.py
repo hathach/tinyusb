@@ -25,6 +25,8 @@ and for `roles` an example's own CMakeLists.txt, skip.txt or only.txt, or for Es
 tools/build.py get_examples) is not detected.
 """
 import argparse
+import contextlib
+import errno
 import json
 import os
 import re
@@ -32,6 +34,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,9 +69,9 @@ def load(path=CATALOG):
     try:
         data = json.loads(text)
     except ValueError as e:
-        raise Failure(f'{path.relative_to(ROOT)} is not valid JSON ({e}); fix it by hand')
+        raise Failure(f'{path.relative_to(ROOT).as_posix()} is not valid JSON ({e}); fix it by hand')
     if not isinstance(data, dict):
-        raise Failure(f'{path.relative_to(ROOT)} is not a JSON object')
+        raise Failure(f'{path.relative_to(ROOT).as_posix()} is not a JSON object')
     for family, rows in data.items():
         if not isinstance(rows, dict):
             kind = 'null' if rows is None else f'a {type(rows).__name__}'
@@ -93,9 +96,54 @@ def tested_identifiers(text):
     return names
 
 
+def split_command(cmd):
+    """A compile database `command` as its compiler's argv: shell words, or on Windows, where
+    the command line reaches CreateProcess as it is, the argv rules of the Microsoft C runtime
+    (msvcr90 and later, the UCRT): backslashes are literal except before a quote, 2k of them
+    before a quote are k and the quote delimits, 2k+1 are k and a literal quote, and `""`
+    inside quotes is a literal quote. CMake writes an embedded quote as `\\"`. The program name
+    is split by these rules too, though the CRT reads it with quotes only toggling; the two
+    differ only on a backslash before a quote or a `""`, which no compiler path holds.
+    The dialect follows the Python reading the file (os.name), which suits native and MinGW
+    Pythons on Windows; a Cygwin or MSYS-runtime Python (os.name 'posix') reading a Windows
+    build's file is not supported."""
+    if os.name != 'nt':
+        return shlex.split(cmd)
+    out, cur, quoted, i, n = [], None, False, 0, len(cmd)
+    while i < n:
+        c = cmd[i]
+        if c == '\\':
+            j = i
+            while j < n and cmd[j] == '\\':
+                j += 1
+            if j < n and cmd[j] == '"':
+                # 2k backslashes before a quote are k and the quote delimits; 2k+1 escape it
+                cur = (cur or '') + '\\' * ((j - i) // 2) + ('"' if (j - i) % 2 else '')
+                i = j + (j - i) % 2
+            else:
+                cur, i = (cur or '') + cmd[i:j], j
+        elif c == '"':
+            if quoted and cmd[i + 1:i + 2] == '"':   # "" inside quotes is a literal quote
+                cur, i = cur + '"', i + 2
+            else:
+                quoted, cur, i = not quoted, cur or '', i + 1
+        elif c in ' \t' and not quoted:
+            if cur is not None:
+                out.append(cur)
+                cur = None
+            i += 1
+        else:
+            cur, i = (cur or '') + c, i + 1
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
 def compile_tokens(entry):
-    """One compile command's tokens, response files expanded."""
-    tokens = list(entry['arguments']) if 'arguments' in entry else shlex.split(entry['command'])
+    """One compile command's tokens, response files expanded. gcc reads a response file with
+    libiberty's buildargv on every host; shlex is an approximation of that, close enough for
+    the files CMake writes, which name paths with forward slashes on Windows too."""
+    tokens = list(entry['arguments']) if 'arguments' in entry else split_command(entry['command'])
     out = []
     for t in tokens:
         if t.startswith('@') and len(t) > 1:
@@ -277,8 +325,8 @@ def rewrite(edit, path=CATALOG):
     each other's change. Returns 'updated' or 'unchanged'."""
     lock = ROOT / 'cmake-build' / '.family.json.lock'
     lock.parent.mkdir(exist_ok=True)
-    with open(lock, 'w') as lf:
-        _lock(lf)
+    # not 'w': a second opener must not truncate the holder's file
+    with open(lock, 'a') as lf, _locked(lf):
         data = load(path)
         edit(data)
         text = canonical_text(data)
@@ -294,13 +342,33 @@ def rewrite(edit, path=CATALOG):
         return 'updated'
 
 
-def _lock(f):
+@contextlib.contextmanager
+def _locked(f):
+    """Hold the empty lock file f exclusively."""
     try:
         import fcntl
-        fcntl.flock(f, fcntl.LOCK_EX)
-    except ImportError:
+    except ImportError:   # Windows
+        fcntl = None
         import msvcrt
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield   # the close releases it
+        return
+    fd = f.fileno()
+    os.lseek(fd, 0, os.SEEK_SET)   # every holder locks the first byte
+    while True:
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            break
+        except OSError as e:
+            if e.errno not in (errno.EACCES, errno.EDEADLOCK):
+                raise
+            time.sleep(0.05)   # LK_LOCK gives up after about 10 s
+    try:
+        yield
+    finally:   # Windows drops a closed handle's lock only "after a delay"
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
 
 
 def join(build_dirs):
@@ -360,9 +428,9 @@ def check(path=CATALOG, root=ROOT):
         data = load(path)
         text = path.read_text(encoding='utf-8')
     except (Failure, OSError) as e:
-        return [f'{path.relative_to(root)}: {e}']
+        return [f'{path.relative_to(root).as_posix()}: {e}']
     if text != canonical_text(data):
-        out.append(f'{path.relative_to(root)} is not in canonical form')
+        out.append(f'{path.relative_to(root).as_posix()} is not in canonical form')
     tree = inventory(root)
     option_h = (root / 'src' / 'tusb_option.h').read_text(encoding='utf-8')
     mcus = set(re.findall(r'^#define (OPT_MCU_\w+)', option_h, re.M))
@@ -545,6 +613,7 @@ def row_violations(row, mcus, root):
         for p in row['portable']:
             # a plain relative path: joining an absolute one would discard the base
             if not isinstance(p, str) or p.startswith('/') or '..' in p.split('/') \
+                    or (os.name == 'nt' and ('\\' in p or Path(p).anchor)) \
                     or not (root / 'src' / 'portable' / p).is_file():
                 out.append(f'portable entry {p!r} is not a relative path to a file under src/portable/')
     if isinstance(row['roles'], list) and all(isinstance(x, str) for x in row['roles']):
@@ -579,7 +648,7 @@ def main(argv=None):
         for line in problems:
             print(line)
         if changed:
-            print(f'{CATALOG.relative_to(ROOT)} updated: stage it and commit again')
+            print(f'{CATALOG.relative_to(ROOT).as_posix()} updated: stage it and commit again')
         return 1 if changed or problems else 0
     if a.cmd == 'refresh':
         asked, failed, problems = refresh(CATALOG, ROOT, subprocess.run)

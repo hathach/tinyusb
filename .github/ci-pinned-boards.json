@@ -11,7 +11,7 @@
     { "board": "fomu", "note": "eptri FS" },
     { "board": "frdm_k64f", "note": "ci_fs FS, host" },
     { "board": "lpcxpresso11u68", "note": "ip3511 FS" },
-    { "board": "lpcxpresso55s28", "note": "ip3511 HS, ohci host" },
+    { "board": "lpcxpresso55s69", "note": "ip3511 HS, ohci host" },
     { "board": "max32666fthr", "note": "musb HS" },
     { "board": "metro_m0_express", "note": "samd21 FS, host" },
     { "board": "metro_m4_express", "note": "samd51 FS, host" },

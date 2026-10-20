@@ -18,7 +18,7 @@ import usbtest_harness   # noqa: E402 - stubs pyserial before hil_test imports i
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
 import usbtest           # noqa: E402
-from helper import hil_lock, hil_util   # noqa: E402
+from helper import hil_lock, usb_observe   # noqa: E402
 
 NODE = '/dev/bus/usb/003/007'
 TESTUSB_ARGV = ['testusb', '-A', NODE, '-D', NODE, '-t', '11', '-c', '256']
@@ -35,7 +35,7 @@ class FakeRig:
         self.root = Path(tmp.name)
         for name, attr in (('proc', 'PROC_ROOT'), ('sys', 'SYS_DEV_CHAR'), ('udev', 'UDEV_DATA')):
             (self.root / name).mkdir()
-            usbtest_harness.patch(test, hil_util, attr, str(self.root / name))
+            usbtest_harness.patch(test, usb_observe, attr, str(self.root / name))
 
     def process(self, pid, comm='testusb', state='D', argv=TESTUSB_ARGV, start='4242'):
         d = self.root / 'proc' / str(pid)
@@ -59,49 +59,6 @@ class FakeRig:
         if udev_serial is not None:
             (self.root / 'udev' / f'c{devt}').write_text(
                 f'I:1\nE:ID_SERIAL=X_{udev_serial}\nE:ID_SERIAL_SHORT={udev_serial}\n')
-
-
-class HolderLookup(unittest.TestCase):
-    def setUp(self):
-        self.rig = FakeRig(self)
-
-    def test_only_a_dstate_testusb_with_a_node_is_a_holder(self):
-        self.rig.process(10)
-        self.rig.process(11, state='S')                    # a case in flight between ioctls
-        self.rig.process(12, comm='sudo', argv=['sudo', '-n'] + TESTUSB_ARGV)
-        self.rig.process(13, argv=['testusb', '-a'])       # no -D node
-        self.rig.process(14, comm='a) b', argv=TESTUSB_ARGV)
-        self.assertEqual(hil_util.dstate_holders('testusb'),
-                         [{'pid': 10, 'start': '4242', 'node': NODE}])
-        self.assertEqual([h['pid'] for h in hil_util.dstate_holders('a) b')], [14],
-                         'comm may contain ") "')
-
-    def test_reaped_zombie_and_recycled_pids_no_longer_hold(self):
-        self.rig.process(30)
-        h = hil_util.dstate_holders('testusb')[0]
-        self.assertTrue(hil_util.proc_holds(h))
-        self.rig.process(30, state='Z')
-        self.assertFalse(hil_util.proc_holds(h), 'a zombie has closed the node')
-        self.rig.process(30, start='9999')
-        self.assertFalse(hil_util.proc_holds(h), 'a recycled pid is another process')
-        self.rig.reap(30)
-        self.assertFalse(hil_util.proc_holds(h))
-
-    def test_the_udev_record_spares_the_locked_serial_read(self):
-        self.rig.device(serial=None, udev_serial='ABC123')
-        reads = []
-        usbtest_harness.patch(self, hil_util, 'read_sysfs',
-                              lambda path, timeout=0: reads.append(path))
-        self.assertEqual(hil_util.usb_node_serial(NODE), 'ABC123')
-        self.assertEqual(reads, [], 'a held device would strand this read for its grace')
-
-    def test_without_a_udev_record_the_bounded_read_decides(self):
-        self.rig.device(serial='ABC123')
-        self.assertEqual(hil_util.usb_node_serial(NODE), 'ABC123')
-        self.rig.device(dev=8, serial=None)
-        self.assertIsNone(hil_util.usb_node_serial('/dev/bus/usb/003/008'), 'unidentified, not a guess')
-        self.assertIsNone(hil_util.usb_node_serial('/dev/bus/usb/003/099'))
-        self.assertIsNone(hil_util.usb_node_serial('/dev/null'))
 
 
 class StraysOnBoard(unittest.TestCase):
@@ -128,7 +85,7 @@ class RecoverStrays(unittest.TestCase):
         usbtest_harness.patch(self, usbtest, 'RECOVER_SETTLE', 0)
         usbtest_harness.patch(self, usbtest, 'RECOVER_REAP', 0.2)
         self.rig.process(50)
-        self.strays = hil_util.dstate_holders('testusb')
+        self.strays = usb_observe.dstate_holders('testusb')
         self.resets = []
 
     def recover(self, board):
@@ -185,7 +142,7 @@ class TestBoardSweep(unittest.TestCase):
         p(hil_test, 'test_only', [])
         p(hil_test, 'board_test', {})
         p(hil_test, 'log_line', lambda msg: None)
-        p(hil_lock, 'acquire_board_lock', lambda name: open(os.devnull))
+        p(hil_lock, 'acquire_board_lock', lambda name, **kw: open(os.devnull))
         p(hil_lock, 'clear_record', lambda fh: None)
         self.ran = []
         p(hil_test, 'test_example', lambda board, v, ex: self.ran.append(ex) or (0, 'pass', None))

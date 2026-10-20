@@ -63,8 +63,14 @@ from multiprocessing import TimeoutError as MpTimeoutError
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
 import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
-from helper import hil_args, hil_lock, hil_report, hil_tt, hil_util
+from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
+# Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
+rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
+# The flash provider and its runner, likewise once before the Pool so every worker shares them;
+# refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
+hil_util.provider()
+hil_util.openocd_esp()
 
 # Raw Lock objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
@@ -308,11 +314,11 @@ def open_board_console(board: Board):
         # JlinkRtt speaks JLinkExe only; an openocd/stlink flasher would yield
         # `-device ''` and fail 15 s later with a misleading port error. The OpenOCD
         # RTT route is validated manually on native probes but has no harness backend
-        # yet (rtt skill; followup doc) — and never point it at ea4088's LPC-Link2
+        # yet (rtt skill) — and never point it at ea4088's LPC-Link2
         # (measured: knocks that probe off USB; other J-Link-OB probes untested)
         assert board['flasher']['name'].lower() == 'jlink', \
             f'{board["name"]}: "logger": "rtt" needs a jlink flasher, not {board["flasher"]["name"]}'
-        return hil_util.JlinkRtt(board)
+        return rtt.JlinkRtt(board)
     ser = open_serial_dev(hil_util.get_serial_dev(board.get('uart_uid') or board['flasher']["uid"], None, None, 0))
     ser.timeout = 0.1
     return ser
@@ -349,7 +355,7 @@ def serial_write_all(ser: serial.Serial, data: bytes):
         ser.write(data)
     except serial.SerialTimeoutException:
         raise AssertionError(f'Serial write timeout after {SERIAL_WRITE_TIMEOUT:.1f}s')
-    except hil_util.RttError as e:
+    except rtt.RttError as e:
         # the RTT console's failure contract (stall/closed/peer death): same
         # drain-stopped meaning as the serial timeout -- a test failure, not a harness
         # crash. Deliberately NOT bare RuntimeError: NotImplementedError and CPython's
@@ -359,8 +365,8 @@ def serial_write_all(ser: serial.Serial, data: bytes):
 
 
 # J-Link Commander's telnet greeting: never target output (defined with the console
-# in tools/rtt.py)
-RTT_BANNER_RE = hil_util.RTT_BANNER_RE
+# in agentrc's rtt.py)
+RTT_BANNER_RE = rtt.RTT_BANNER_RE
 
 LP_OPEN_TIMEOUT = 5   # bound on opening the printer lp node; see test_device_printer_to_cdc
 # Runs under hil_util.run_alongside as `python3 -c`. Inline rather than a file so hil_remote.py's
@@ -514,7 +520,7 @@ def get_printer_dev(id: str, vendor_str, product_str, ifnum: int):
     product_str = product_str.replace(' ', '_') if product_str else ''
     for lp in glob.glob('/sys/class/usbmisc/lp*'):
         try:
-            sn = hil_util.read_sysfs(f'{lp}/device/../serial')
+            sn = usb_observe.read_sysfs(f'{lp}/device/../serial')
             if sn is None:
                 continue
             if sn == id:
@@ -615,7 +621,7 @@ def test_host_device_info(board):
         # JLinkExe's telnet banner is delivered at connect, whether or not it ever
         # finds the control block, so len(data) alone cannot tell "board said nothing"
         # from "console never attached to the ring" -- drop the banner first
-        target_lines = hil_util.strip_banner(data).splitlines()
+        target_lines = rtt.strip_banner(data).splitlines()
         assert target_lines, ('No data from device: the RTT console attached but the target '
                               'produced nothing -- firmware built without LOGGER=rtt, or SWD lost')
     elif len(data) == 0:
@@ -973,9 +979,9 @@ def test_device_cdc_msc_throughput(board):
     # descriptor pair before touching `serial`.
     is_fs = True
     speed_known = False
-    devs = hil_util.usb_scan(vid='cafe', serial=uid)
+    devs = usb_observe.usb_scan(vid='cafe', serial=uid)
     if devs:
-        speed = hil_util.read_sysfs(os.path.join(devs[0]['dir'], 'speed'))
+        speed = usb_observe.read_sysfs(os.path.join(devs[0]['dir'], 'speed'))
         is_fs = link_is_fs(speed)
         speed_known = speed is not None
 
@@ -1539,7 +1545,7 @@ def test_device_usbtest(board):
         # serial, different PID) can linger and would fail usbtest.py's lookup -- and
         # filtering on the two lock-free descriptor fields rules out every other device
         # on the bus before the one read that can block.
-        return hil_util.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
+        return usb_observe.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
 
     end = time.monotonic() + enum_timeout()
     seen = usbtest_enumerated()
@@ -1671,11 +1677,12 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
                        metric=f'{hil_report.REPORT_CELL["fail"]} {passed}/{total}', parsed=True)
     if failed == 0 and notrun == 0 and total > 0:
         return f'{hil_report.REPORT_CELL["pass"]} {passed}/{total}'
-    bad = [c.get('num') for c in data.get('cases', [])
-           if c.get('status') not in ('PASS', 'BUDGET')]
+    # per status, so a gated-off NOTRUN (a wrong binding profile) is not read as a FAIL
+    groups = [(st, [c.get('num') for c in data.get('cases', []) if c.get('status') == st])
+              for st in ('FAIL', 'HUNG', 'NOTRUN', 'BUDGET')]
     why = f'usbtest {passed}/{total}'
-    if bad:
-        why += f' (cases failed: {bad})'
+    if any(nums for _, nums in groups):
+        why += ' (' + '; '.join(f'{st}: {nums}' for st, nums in groups if nums) + ')'
     if notrun:
         # the reason is per BUDGET entry: a hang or a device drop also aborts the battery,
         # and blaming the budget points the maintainer at the wrong thing
@@ -1702,19 +1709,21 @@ def reset_dut_tt(board: Board) -> bool:
     """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
     buffer from the previous test would otherwise fail this one's enumeration. False when
     hil_tt.reset_tt could not confirm the reset."""
-    found = hil_util.usb_scan(vid='cafe', serial=board['uid'])
+    found = usb_observe.usb_scan(vid='cafe', serial=board['uid'])
     if len(found) > 1:
         return True  # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
         busport = found[0]['busport']
-        speed = hil_util.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
+        speed = usb_observe.read_sysfs(os.path.join('/sys/bus/usb/devices', busport, 'speed'))
         last = _dut_port.get(board['uid'])
         if speed is None and last and last[0] == busport:
             speed = last[1]  # unreadable mid-re-enumeration: keep the speed last seen there
         _dut_port[board['uid']] = (busport, speed)
     if board['uid'] in _dut_port:
         # a gone device keeps the speed it was seen at: a high-speed one has no TT to reset
-        return hil_tt.reset_tt(*_dut_port[board['uid']])
+        # this harness's runner (its REAP_GRACE and verbose), looked up per call
+        return hil_tt.reset_tt(*_dut_port[board['uid']],
+                               run=lambda cmd, **kw: hil_util.run_cmd(cmd, **kw))
     return True
 
 
@@ -1845,6 +1854,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                             msg += f'  {last_detail}'
                         msg += f'  in {time.time() - start_s:.1f}s'
                         log_line(msg)
+                    elif pending := cleanup_pending(board['name']):
+                        log_line(f'{test_name}  not retrying: {pending}')
+                        wedge_break = True
+                        break
                     else:
                         msg = f'{test_name}  retry {i+2}/{max_retry}: test failed: {e}'
                         if last_detail:
@@ -1854,6 +1867,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             else:
                 last_err = 'Flash failed'
                 last_detail = compact_output(attempt_out.getvalue())
+                if pending := cleanup_pending(board['name']):
+                    log_line(f'{test_name}  not retrying: {pending}')
+                    wedge_break = True
+                    break
                 if i < max_retry - 1:
                     msg = f'{test_name}  retry {i+2}/{max_retry}: flash failed'
                     if last_detail:
@@ -1966,8 +1983,56 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
     except SystemExit as e:
         msg = f'usbtest id registration failed: {e}'
         print(f'ERROR: {msg}', flush=True)
-        hil_report.mark_report_no_boards(report_dir, msg, fresh=fresh)
+        hil_report.mark_report_aborted(report_dir, msg, fresh=fresh)
         sys.exit(1)
+
+
+def cleanup_pending(name: str) -> str:
+    """Why nothing more may run on the board, or '': an openocd_esp session the provider left
+    running (hil_flash.cleanup_pending), whose board lock passes to a cleanup holder."""
+    receipts = hil_flash.cleanup_pending.get(name)
+    return '' if receipts is None else f'openocd_esp cleanup pending, receipt {", ".join(map(str, receipts))}'
+
+
+# hil_lock.py's own CLI (argv: its path, the lock dir, then the CLI's arguments), exec'd fresh so
+# the holder it forks inherits none of a Pool worker's descriptors; the lock dir is the caller's
+# hil_lock.BOARD_LOCK_DIR, the CLI's own default unless a test points it elsewhere
+_HOLD_CLI = ('import importlib.util, sys\n'
+             'spec = importlib.util.spec_from_file_location("hil_lock", sys.argv[1])\n'
+             'm = importlib.util.module_from_spec(spec)\n'
+             'spec.loader.exec_module(m)\n'
+             'm.BOARD_LOCK_DIR = sys.argv[2]\n'
+             'sys.argv[:] = [sys.argv[1], *sys.argv[3:]]\n'
+             'm.main()\n')
+
+
+def retain_board_lock(name: str, fh, pending: str) -> str:
+    """Pass the board's lock to a cleanup holder instead of releasing it, and say where it went.
+
+    The record is first rewritten protected and naming the receipt, then the handle closed: the
+    record left on the free flock is a recovery blocker no taker passes. hil_lock.py's own
+    `hold --take-over`, a separate exec, then takes the flock as a cleanup holder, journalling
+    that record, and exits 0 only once its holder acknowledged the hold; its record confirms the
+    token that `hil_lock.py release --token` ends it with after the contract's recovery. Without
+    that, the protected record stays the blocker."""
+    try:
+        hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, cleanupPending=pending)
+    except OSError as e:
+        pending += f' (record not rewritten: {e})'
+    fh.close()
+    try:
+        r = subprocess.run([sys.executable, '-c', _HOLD_CLI, hil_lock.__file__, hil_lock.BOARD_LOCK_DIR, 'hold',
+                            '--take-over', name, '--reason', f'{hil_lock.CI_REASON}: {pending}'],
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+        rc, out = r.returncode, r.stdout + r.stderr
+    except (OSError, subprocess.TimeoutExpired) as e:
+        rc, out = None, str(e)
+    rec = hil_lock.read_record(name)
+    if rc == 0 and hil_lock.is_cleanup_holder(rec) and rec.get('token'):
+        return (f'{pending}; lock held by cleanup holder pid {rec["pid"]} until '
+                f'`hil_lock.py release --token {rec["token"]}` after recovery')
+    return (f'{pending}; no cleanup holder acknowledged ({compact_output(out)}), '
+            f'the protected record is the recovery blocker')
 
 
 def test_board(board: Board) -> tuple:
@@ -1979,7 +2044,14 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        _lock_fh = hil_lock.acquire_board_lock(name)
+        # protected: a run killed with an openocd_esp session outstanding leaves a recovery blocker
+        protected = flasher['name'].lower() == 'openocd_esp'
+        _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
+    except hil_lock.LockUnavailable as e:
+        log_line(f'{name:25} {STATUS_FAILED}: {e}')
+        # icon-prefixed like every failing metric cell, so the table tallies it as a failure
+        cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
+        return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
@@ -2025,7 +2097,8 @@ def test_board(board: Board) -> tuple:
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
             cells = {}
-            if run_list and run_list[0] == prev_last and not skip_flash:
+            # beside a pending cleanup no park may flash; the loop below skips every test instead
+            if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
                 # Same example (same PID) still repeats across the boundary (a one-test
                 # -bt run has nothing to swap with). Park on board_test first: it disables
                 # the board's USB, so the next flash must re-enumerate to be seen.
@@ -2061,6 +2134,10 @@ def test_board(board: Board) -> tuple:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
             for test in run_list:
+                if cleanup_pending(name):
+                    cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
+                    board_wide_fail = True
+                    continue
                 if board_wedged:
                     # Do NOT flash through a poisoned node: each attempt enumerates into
                     # it, blocks uninterruptibly and leaves another stray behind. Report
@@ -2090,10 +2167,28 @@ def test_board(board: Board) -> tuple:
         if _should_park(skip_flash):
             test_example(board, variants[0]['name'], 'device/board_test')
 
+        pending = cleanup_pending(name)
+        if pending:
+            log_line(f'{name:25} BLOCKER: {pending}')
+            fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
+            detail = retain_board_lock(name, fh, pending) if fh else f'{pending}; no board lock held'
+            log_line(f'{name:25} {detail}')
+            rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
+            err_count += 1
+            board_wide_fail = True
+
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
     finally:
-        if _lock_fh:
+        unwinding = sys.exc_info()[1]
+        if _lock_fh and (pending := cleanup_pending(name)):
+            # raised past the hand-over above: the lock still never frees on its own
+            log_line(f'{name:25} {retain_board_lock(name, _lock_fh, pending)}')
+        elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
+            # an interrupt may land after the provider returned a pending session but before
+            # hil_flash stored its receipt: keep the protected record as the recovery blocker
+            _lock_fh.close()
+        elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's
             # pid-liveness checks report a freed board as locked for the rest of the run
@@ -2195,9 +2290,10 @@ def _should_park(skip_flash: bool) -> bool:
     Not on a wedged board. The latch has just skipped every remaining test precisely
     because flashing through a D-state-held node blocks, survives SIGKILL and leaves a
     stray -- and the park is a flash like any other. test_example's own guard does not stop
-    it either: that one only suppresses RETRIES, and the park is always attempt 0.
+    it either: that one only suppresses RETRIES, and the park is always attempt 0. Nor beside
+    an openocd_esp session the provider left running (cleanup_pending).
     """
-    return not skip_flash and not board_wedged
+    return not skip_flash and not board_wedged and not hil_flash.cleanup_pending
 
 
 def _read_controller_cache() -> dict:
@@ -2271,8 +2367,9 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               f"{', '.join(stuck)}. The re-run spec covers those"
               + (f", and the {len(refused)} whose build check_build.py refused: "
                  f"{', '.join(refused)}" if refused else '') + ".\n")
+    termination = 'timeout' if cell == hil_report.POOL_TIMEOUT_CELL else 'aborted'
     try:
-        hil_report.accumulate_report(mret, report_dir, fresh, '', caveat=banner)
+        hil_report.accumulate_report(mret, report_dir, fresh, '', caveat=banner, termination=termination)
         return
     except Exception as rerr:  # noqa: BLE001 - the caller's raise must still happen
         print(f'warning: partial report failed: {type(rerr).__name__}: {rerr}'
@@ -2347,14 +2444,24 @@ def main() -> None:
     config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
                      and (not args.flasher or e['flasher']['name'] in args.flasher)]
 
+    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
+    # id: persistent across attempts, private to one run)
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    # this run's report attempt, before anything below replaces the report there: the one it
+    # replaces is archived first, and an unknown schema or version is never overwritten
+    try:
+        hil_report.start_attempt(report_dir, args.accumulate, config_file, [b['name'] for b in config_boards])
+    except Exception as e:  # noqa: BLE001 - hil_report_core.ReportError: refused, nothing changed
+        print(f'ERROR: cannot begin the report in {report_dir}: {e}', flush=True)
+        sys.exit(1)
+
     # fail roster misconfigurations before the first flash cycle -- but only for boards
     # this run actually touches: one bad roster entry must not abort other runs' subsets
     def _config_abort(msg: str):
         # loud AND leaving evidence, like the no-boards branch below: exiting with no
         # report at all lets the PR comment keep the previous push's stale table
         print(f'ERROR: {msg}', flush=True)
-        rd = Path(os.environ.get('HIL_REPORT_DIR', '.'))
-        hil_report.mark_report_no_boards(rd, f'config error: {msg}', fresh=not args.accumulate)
+        hil_report.mark_report_aborted(report_dir, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
     for e in config_boards:
@@ -2377,6 +2484,19 @@ def main() -> None:
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')
+    # the provider refuses each openocd command over a malformed pin; say so once, before a flash
+    bad_pin = dict.fromkeys(e['name'] for e in config_boards for f in hil_flash.flashers(e, 'openocd')
+                            if 'vid_pid' in f and not hil_flash.valid_vid_pid(f['vid_pid']))
+    if bad_pin:
+        _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
+    # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
+    bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
+                            if (why := hil_flash.openocd_esp_refusal(f)))
+    if bad_esp:
+        _config_abort(f'openocd_esp flasher refused: {"; ".join(bad_esp)}')
+    esp_boards = [e['name'] for e in config_boards if hil_flash.flashers(e, 'openocd_esp')]
+    if esp_boards and (why := hil_util.openocd_esp().ci_refusal()):
+        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_boards)}: {why}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]
@@ -2394,9 +2514,6 @@ def main() -> None:
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
-    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
-    # id: persistent across attempts, private to one run)
-    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently
@@ -2448,10 +2565,14 @@ def main() -> None:
                 _write_failed_spec(report_dir / (config_file.name + '.failed'), report_dir,
                                    refused_rows)
                 scoped = sorted(set(args.board) | set(board_test))
-                hil_report.accumulate_report(
-                    refused_rows, report_dir, not args.accumulate,
-                    f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
-                    caveat=f'**HIL run selected no boards.** {msg}\n')
+                try:
+                    hil_report.accumulate_report(
+                        refused_rows, report_dir, not args.accumulate,
+                        f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
+                        caveat=f'**HIL run aborted: {msg}.**\n', termination='aborted')
+                except Exception as e:
+                    hil_report.withdraw(report_dir, e)
+                    raise
                 sys.exit(min(len(refused_rows), 125))
             print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
@@ -2472,6 +2593,8 @@ def main() -> None:
     log_line('dispatch order: ' + ', '.join(b['name'] for b in config_boards))
 
     if fresh:
+        # archived by start_attempt; a run that dies before its first write must not leave
+        # the previous attempt's pair published as its own
         report_dir.mkdir(parents=True, exist_ok=True)
         for f in (hil_report.REPORT_JSON, hil_report.REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
@@ -2528,7 +2651,11 @@ def main() -> None:
     # looks exactly like a full run that happened to be small
     scoped = sorted(set(args.board) | set(board_test))
     scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
-    report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+    try:
+        report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+    except Exception as e:
+        hil_report.withdraw(report_dir, e)
+        raise
     print()
     print(report)
     print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')

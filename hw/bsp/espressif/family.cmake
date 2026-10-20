@@ -1,3 +1,8 @@
+include($ENV{IDF_PATH}/tools/cmake/version.cmake)
+if ("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_LESS "5.3")
+  message(FATAL_ERROR "ESP-IDF >= 5.3 is required, found ${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}")
+endif ()
+
 # Apply board specific content i.e IDF_TARGET must be set before project.cmake is included
 include("${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake")
 string(TOUPPER ${IDF_TARGET} FAMILY_MCUS)

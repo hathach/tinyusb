@@ -35,6 +35,7 @@
 
 enum {
   USBH_CONTROL_RETRY_MAX = 3,
+  USBH_ENUM_ROOT_RETRY_MAX = 3, // re-reset and re-enumerate the root port after a failed attach
 };
 
 //--------------------------------------------------------------------+
@@ -120,7 +121,8 @@ typedef struct {
   struct TU_ATTR_PACKED {
     volatile uint8_t connected  : 1; // After 1st transfer
     volatile uint8_t addressed  : 1; // After SET_ADDR
-    volatile uint8_t configured : 1; // After SET_CONFIG and all drivers are configured
+    volatile uint8_t configured : 1; // After SET_CONFIG, while class drivers are still being configured
+    volatile uint8_t mounted    : 1; // All drivers configured and tuh_mount_cb() invoked
     volatile uint8_t suspended  : 1; // Bus suspended
     // volatile uint8_t removing : 1; // Physically disconnected, waiting to be processed by usbh
   };
@@ -216,6 +218,9 @@ typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
   uint8_t enum_attempt;       // enumeration attempts used for the current attach
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
+  uint8_t attach_teardown;    // an attach event is tearing down what was on its port
+  uint8_t root_retry_count;   // root port re-enumerations used for the current attachment
+  uint8_t root_retry_rhport;  // the port root_retry_count belongs to
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
@@ -431,6 +436,11 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+    // Torn down from outside the enumeration (an unplug, or an attach on its port), which ends its attachment. Waiting
+    // in a delay or between transfers, it never reaches enum_full_complete(), so give the root retry budget back here:
+    // the next device must not inherit a spent one. enum_teardown() clears enumerating_daddr first, so its own closes
+    // keep the budget.
+    _usbh_data.root_retry_count = 0;
     // clear enum delay function of the device being removed
     if (_usbh_data.call_after.func == enum_delay_async) {
       _usbh_data.call_after.func = NULL;
@@ -813,7 +823,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         // Should we miss the hub detach event due to high traffic, Or due to physical debouncing, some devices can
         // cause multiple attaches (actually reset) without a detached event.
         // Force remove currently mounted with the same bus info (rhport, hub addr, hub port) if exists
+        // Flagged because this teardown fails any in-flight enumeration, and its completion would
+        // otherwise ask for a roothub retry of the very attach being handled here.
+        _usbh_data.attach_teardown = 1;
         process_remove_event(&event);
+        _usbh_data.attach_teardown = 0;
 
         // due to the shared control buffer, we must fully complete enumerating one device first.
         if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
@@ -1650,15 +1664,24 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
 
 // process detach event from rhport:hub_addr:hub_port
 static void process_remove_event(hcd_event_t *event) {
-  if (_usbh_data.enumerating_daddr == 0 &&
-      event->rhport == _usbh_data.dev0_bus.rhport &&
-      event->connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
-      event->connection.hub_port == _usbh_data.dev0_bus.hub_port) {
+  const tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
+  const bool dev0_enumerating = (_usbh_data.enumerating_daddr == 0) && (event->rhport == dev0_bus->rhport);
+
+  if (dev0_enumerating &&
+      event->connection.hub_addr == dev0_bus->hub_addr &&
+      event->connection.hub_port == dev0_bus->hub_port) {
     // dev0 is unplugged while enumerating (not yet assigned an address)
-    usbh_device_close(_usbh_data.dev0_bus.rhport, 0);
-  } else {
-    remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
+    usbh_device_close(dev0_bus->rhport, 0);
+    return;
   }
+
+  // hub_addr = 0 is the whole roothub port: dev0 goes with it even if it sits behind a downstream
+  // hub. Without this, enumerating_daddr stays 0 forever and every later attach is deferred.
+  if (dev0_enumerating && event->connection.hub_addr == 0 && event->connection.hub_port == 0) {
+    usbh_device_close(dev0_bus->rhport, 0);
+  }
+
+  remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
 }
 
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
@@ -1686,8 +1709,12 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
         } else
         #endif
         {
-          // Invoke callback before closing driver (maybe call it later ?)
-          tuh_umount_cb(daddr);
+          // Invoke callback before closing driver (maybe call it later ?). Only for a device the application got
+          // tuh_mount_cb() for: enumeration marks a device connected once it has an address and configured at
+          // SET_CONFIG, ahead of its class drivers, so it can still fail after either.
+          if (dev->mounted) {
+            tuh_umount_cb(daddr);
+          }
         }
 
         // Close class driver
@@ -1913,6 +1940,10 @@ static void process_enumeration(tuh_xfer_t *xfer) {
   switch (state) {
   #if CFG_TUH_HUB
     case ENUM_HUB_RERSET: {
+      if (xfer->result != XFER_RESULT_SUCCESS) {
+        is_enum_failed = true; // ctrl_buf does not hold this port's status
+        break;
+      }
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
@@ -1933,6 +1964,10 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
     case ENUM_HUB_CLEAR_RESET:
     case ENUM_HUB_CLEAR_RESET_RETRY: {
+      if (xfer->result != XFER_RESULT_SUCCESS) {
+        is_enum_failed = true;
+        break;
+      }
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
@@ -2278,6 +2313,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
+      dev->mounted = 1;
       tuh_mount_cb(dev_addr);
     }
   }
@@ -2329,6 +2365,33 @@ static void enum_full_complete(bool success) {
     hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
   }
   #endif
+
+  const uint8_t rhport = _usbh_data.dev0_bus.rhport;
+  if (rhport != _usbh_data.root_retry_rhport) {
+    _usbh_data.root_retry_rhport = rhport; // the budget is per port, and only one port enumerates at a time
+    _usbh_data.root_retry_count = 0;
+  }
+
+  if (success || _usbh_data.attach_teardown || _usbh_data.dev0_bus.hub_addr != 0 ||
+      !hcd_port_connect_status(rhport)) {
+    // The budget covers one attachment, so it has to be given back when that attachment ends,
+    // whether it succeeded or the device was unplugged part-way through. Carrying a spent count
+    // into the next device would deny it the retries it has not used. An attach event that tore
+    // down this enumeration is such a fresh start, and needs no retry of its own: the handler that
+    // set the flag goes on to enumerate the device that has just arrived.
+    _usbh_data.root_retry_count = 0;
+  } else {
+    // A device behind a hub gets another chance from the next port status change, but nothing ever
+    // retries the root port: the host stays dead until reboot. Re-post the attach so the port is
+    // reset and enumerated again, e.g. after the controller dropped it on a bus error.
+    if (_usbh_data.root_retry_count < USBH_ENUM_ROOT_RETRY_MAX) {
+      _usbh_data.root_retry_count++;
+      TU_LOG_USBH("Retry root port enumeration %u/%u\r\n", _usbh_data.root_retry_count, USBH_ENUM_ROOT_RETRY_MAX);
+      hcd_event_device_attach(rhport, false);
+    } else {
+      _usbh_data.root_retry_count = 0; // give up on this attach, but allow a later one to retry again
+    }
+  }
 }
 
 // Device failed an enumeration transfer: restart as dev0 with a fresh port reset.

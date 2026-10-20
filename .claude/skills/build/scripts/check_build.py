@@ -432,7 +432,7 @@ def source_lines(entry):
     configuration does not satisfy is an empty translation unit, whatever built."""
     argv = family_json.preprocess_argv(entry) + ['-E', entry['file']]
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, cwd=entry['directory'])
+        r = subprocess.run(argv, capture_output=True, encoding='utf-8', errors='replace', cwd=entry['directory'])
     except OSError:
         return None
     if r.returncode != 0:
@@ -659,7 +659,7 @@ def stale_options(build_dir, supplied):
 def roster_variants(boards, config):
     """(board, build name, defines, cflags) for each variant hil_test.py runs of each board."""
     try:
-        roster = {b['name']: b for b in json.loads(Path(config).read_text())['boards']}
+        roster = {b['name']: b for b in json.loads(Path(config).read_text(encoding='utf-8'))['boards']}
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'could not read the HIL roster {config}: {e}')
     unknown = [b for b in boards if b not in roster]
@@ -741,10 +741,11 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
 
 def run(cmd, verbose):
     # streamed as it arrives: a variant build runs for minutes, and a silent buffer reads as a
-    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits
+    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits;
+    # PYTHONIOENCODING, or on Windows it writes the pipe in the ANSI code page, not as decoded here
     out = []
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT,
-                          env={**os.environ, 'PYTHONUNBUFFERED': '1'}) as p:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', cwd=ROOT,
+                          env={**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}) as p:
         for line in p.stdout:
             out.append(line)
             if verbose:
@@ -785,7 +786,7 @@ def git_head():
 def write_receipt(out, head, boards, config):
     """hil_remote.py's receipt of what this build of head left for a HIL run: its JSON line, or {"error"}
     (a build that rewrote a tracked file, hw/bsp/family.json included, leaves the tree unclean)."""
-    run = subprocess.run([sys.executable, str(ROOT / '.claude/skills/hil/scripts/hil_remote.py'), 'receipt', '--out', out,
+    run = subprocess.run([sys.executable, str(ROOT / '.claude/skills/hil-contract/scripts/hil_remote.py'), 'receipt', '--out', out,
                           '--head', head,
                           *(x for b in boards for x in ('-b', b))],
                          cwd=ROOT, env={**os.environ, 'CONFIG': str(Path(config).resolve())}, capture_output=True, text=True)

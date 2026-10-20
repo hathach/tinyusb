@@ -147,6 +147,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport_, uint8_t stage, tusb_control_req
 void setUp(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_IgnoreAndReturn(true);
 
   if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
@@ -306,6 +307,43 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// dcd_edpt0_setup_begin
+//--------------------------------------------------------------------+
+
+// called once per SETUP usbd processes, with the DCD's tag; a SETUP skipped for a newer one is not
+void test_usbd_setup_begin_once_per_processed_setup(void) {
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = NULL;
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 7, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 8, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 8, true);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+// a SETUP the DCD reports superseded is dropped unprocessed: no data, status or stall for it, and the
+// next one is served as usual
+void test_usbd_setup_begin_rejected_is_not_processed(void) {
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 9, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 9, false);
+  tud_task();
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 10, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 10, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
   tud_task();
 }
 

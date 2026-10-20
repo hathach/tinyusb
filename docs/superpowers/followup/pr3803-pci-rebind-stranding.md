@@ -11,9 +11,12 @@ detectable — a guard in `usb_recover.sh`.
 
 ## Global Constraints
 
-- ci.lan is a live CI rig. Take every affected board's lock first
-  (`hil_lock.py hold --all --reason ...`) and confirm no `hil_test.py` is running, with an
-  `if`, not an `&&` chain.
+- **Blocked:** the HIL contract (`.claude/skills/hil-contract/SKILL.md`, Reservation) refuses
+  controller operations (`pci-rebind`, `pci-bind`) until it defines a reservation procedure
+  that covers them. Do not run Task 1 or Task 2 before that procedure exists.
+- ci.lan is a live CI rig. Take the controller-operation reservation that procedure defines,
+  across every roster on the host, and confirm no `hil_test.py` is running, with an `if`,
+  not an `&&` chain.
 - A stranded controller takes every fixture on it offline; recovery is
   `usb_recover.sh pci-bind <addr>` or, failing that, a PVE **host** power cycle — an
   operator action. Do not start this without being able to reach the host.
@@ -52,9 +55,9 @@ code change.
 
 ## File Structure
 
-- `.claude/skills/usb-kernel-recover/SKILL.md` — replace the hypothesis in section 3b and
+- `lib/agentrc/skills/usb-kernel-recover/SKILL.md` — replace the hypothesis in section 3b and
   the Common-mistakes entry with whatever the experiment establishes.
-- `.claude/skills/usb-kernel-recover/scripts/usb_recover.sh` — only if the boundary is
+- `lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh` — only if the boundary is
   detectable from userspace.
 
 ---
@@ -67,7 +70,8 @@ code change.
 
 ```bash
 ssh hathach@ci.lan 'if pgrep -f "[h]il_test.py" >/dev/null; then echo BUSY; exit 1; fi'
-# hold ALL boards on the target controller
+# take the HIL contract's controller-operation reservation (Reservation); none exists yet,
+# so stop here until it does
 ```
 
 Confirm host access to pve.lan before continuing.
@@ -93,10 +97,13 @@ Record whether the holder is on the SAME controller you will rebind.
 
 **Files:** none.
 
+Runs only under the controller-operation reservation from Task 1 Step 1; the HIL contract
+refuses these commands until that procedure exists.
+
 - [ ] **Step 1: Rebind, with a bounded observer**
 
 ```bash
-timeout 120 sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <addr>; echo "rc=$?"
+timeout 120 sudo lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh pci-rebind <addr>; echo "rc=$?"
 ```
 
 - [ ] **Step 2: Record which of the three outcomes occurred**
@@ -110,7 +117,7 @@ Capture `sudo journalctl -k --since ...` around the attempt either way.
 - [ ] **Step 3: If stranded, recover**
 
 ```bash
-sudo .claude/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind <addr>
+sudo lib/agentrc/skills/usb-kernel-recover/scripts/usb_recover.sh pci-bind <addr>
 ```
 
 If that hangs too, the only remaining step is a PVE host power cycle — an operator action.
@@ -125,7 +132,7 @@ holder is live on that controller at rebind time; that is the hypothesis under t
 ### Task 3: Write down what was learned
 
 **Files:**
-- Modify: `.claude/skills/usb-kernel-recover/SKILL.md`
+- Modify: `lib/agentrc/skills/usb-kernel-recover/SKILL.md`
 
 - [ ] **Step 1: Replace section 3b's scoping with the measured rule**
 
@@ -139,11 +146,16 @@ For example, refuse `pci-rebind` when a D-state holder exists on that controller
 holder is enumerable from `/proc` and the controller from `readlink`. Only add this if the
 experiment shows it predicts the outcome.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Commit in agentrc, then re-pin**
+
+The skill lives in agentrc now; `lib/agentrc` here is a pinned, ignored fetch. Commit the
+change in an agentrc checkout and open its PR there, then bump the agentrc pin in
+`tools/get_deps.py` from this repository once it lands.
 
 ```bash
-git add .claude/skills/usb-kernel-recover/
-git commit -m "skills: replace the pci-rebind stranding hypothesis with measurement"
+# in the agentrc checkout
+git add -- skills/usb-kernel-recover/
+git commit -m "usb-kernel-recover: replace the pci-rebind stranding hypothesis with measurement"
 ```
 
 ---

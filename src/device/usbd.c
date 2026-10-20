@@ -749,6 +749,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
           TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
           break;
         }
+        if (!dcd_edpt0_setup_begin(event.rhport, event.setup_tagid)) {
+          TU_LOG_USBD("  Skipped since DCD saw a newer SETUP or bus reset\r\n");
+          break;
+        }
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -851,6 +855,13 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 //--------------------------------------------------------------------+
 // Control Endpoint
 //--------------------------------------------------------------------+
+
+// Weak hook: invoked when the stack starts processing a SETUP
+TU_ATTR_WEAK bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+  (void) rhport;
+  (void) setup_tagid;
+  return true;
+}
 
 // Weak hook: invoked when the control transfer's status stage completes
 TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t* request) {
