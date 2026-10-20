@@ -8,6 +8,11 @@ static uint8_t queued_ep;
 static uint8_t *queued_buffer;
 static uint16_t queued_length;
 
+// Minimal per-endpoint stall state (index: 0 = EP 0x01 OUT, 1 = EP 0x81 IN),
+// so the driver's stall / clear-stall recovery branches are exercised.
+// Reset at the start of every input.
+static bool ep_stalled[2];
+
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t length, bool is_isr) {
   (void) rhport;
   (void) is_isr;
@@ -30,13 +35,12 @@ bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const *desc, uint8_t count, uin
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  (void) ep_addr;
+  ep_stalled[ep_addr >> 7] = true;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  (void) ep_addr;
-  return false;
+  return ep_stalled[ep_addr >> 7];
 }
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
@@ -47,7 +51,7 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  (void) ep_addr;
+  ep_stalled[ep_addr >> 7] = false;
 }
 
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
@@ -114,6 +118,8 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const command[16], void *buffer, ui
 int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   if (size < sizeof(msc_cbw_t)) return 0;
 
+  ep_stalled[0] = ep_stalled[1] = false;
+
   mscd_init();
   _mscd_itf.rhport = 0;
   _mscd_itf.ep_out = 0x01;
@@ -124,10 +130,19 @@ int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   memcpy(&cbw, data, sizeof(cbw));
   cbw.signature = MSC_CBW_SIGNATURE;
   memcpy(queued_buffer, &cbw, sizeof(cbw));
+  queued_length = 0;  // don't re-complete the CBW if nothing new was queued
   mscd_xfer_cb(0, 0x01, XFER_RESULT_SUCCESS, sizeof(cbw));
 
   size_t offset = sizeof(cbw);
-  for (unsigned step = 0; step < 8 && _mscd_itf.stage != MSC_STAGE_CMD &&
+
+  // Allow enough steps for multi-block READ10/WRITE10 commands to reach their
+  // CSW (one CFG_TUD_MSC_EP_BUFSIZE chunk per step), with a hard cap to bound
+  // run time for fuzz-controlled total_bytes. The driver ends the loop by
+  // itself once the stage is back to MSC_STAGE_CMD or MSC_STAGE_NEED_RESET.
+  unsigned max_steps = cbw.total_bytes / CFG_TUD_MSC_EP_BUFSIZE + 4;
+  if (max_steps > 1024) max_steps = 1024;
+
+  for (unsigned step = 0; step < max_steps && _mscd_itf.stage != MSC_STAGE_CMD &&
                           _mscd_itf.stage != MSC_STAGE_NEED_RESET; ++step) {
     uint8_t ep = queued_ep;
     uint16_t length = queued_length;
