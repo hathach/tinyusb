@@ -1578,6 +1578,29 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
                          hil_report.render_report(doc) + '\n')
 
+    def test_a_one_shot_write_whose_markdown_failed_is_repaired_as_its_own_attempt(self):
+        real = self.c.publish
+        failed = []
+
+        def markdown_fails(report_dir, schema, body, meta):
+            jpath, mpath = real(report_dir, schema, body, meta)
+            mpath.write_text('a stale table')
+            failed.append(self.c.ReportError('markdown', 'not replaced', published=(str(jpath),)))
+            raise failed[-1]
+        hil_report._runs.clear()
+        with mock.patch.object(self.c, 'publish', markdown_fails), redirect_stdout(io.StringIO()) as out:
+            hil_report.mark_report_no_boards(self.rd, 'none left')
+        self.assertEqual(out.getvalue().count('warning:'), 1, 'only the failed write itself: ' + out.getvalue())
+        one_shot = self.meta()['attempt_id']
+        self.assertNotIn(one_shot, (self.first, self.second))
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
+                         hil_report.render_report(doc) + '\n')
+        self.assertEqual(hil_report._runs, {}, 'a one-shot attempt is not this dir\'s run')
+        self.assertEqual(self.c.recover_publish(self.rd, hil_report.schema(), None, failed[0]).outcome, 'refused')
+        hil_report.write_report(self.rd, {'rows': [], 'scope': '', 'caveat': ''})
+        self.assertNotEqual(self.meta()['attempt_id'], one_shot, 'each one-shot write is an attempt of its own')
+
     def test_two_withdrawals_then_a_subset_retry_keep_every_row(self):
         hil_report.start_attempt(self.rd, True, self.cfg, ['b'])
         hil_report.accumulate_report([('b', 0, 0, [('b', {'t': '✅'}, '1s')], 0)], self.rd, False)   # a and b

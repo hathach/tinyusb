@@ -284,9 +284,15 @@ def _publish(report_dir: Path, doc: dict, termination: str, accumulate: bool, le
         run = _Run(c.start_attempt(report_dir, schema(), False),
                    {'invocation': [str(a) for a in sys.argv], 'selection': [], 'host': socket.gethostname(),
                     'roster': {}})
-    meta = c.make_meta(schema(), run.attempt, termination=termination,
-                       legacy_text=run.attempt.legacy_text if legacy else None, **run.meta)
-    c.publish(report_dir, schema(), doc, meta)
+    try:
+        meta = c.make_meta(schema(), run.attempt, termination=termination,
+                           legacy_text=run.attempt.legacy_text if legacy else None, **run.meta)
+        c.publish(report_dir, schema(), doc, meta)
+    except Exception as e:
+        # withdraw() recovers as this attempt: a one-shot one is in no _runs entry, and
+        # without it the core refuses to touch the JSON it just published
+        e.hil_attempt = run.attempt
+        raise
 
 
 def withdraw(report_dir: Path, err: Exception) -> None:
@@ -295,8 +301,9 @@ def withdraw(report_dir: Path, err: Exception) -> None:
     markdown regenerated, the report withdrawn, or the archived predecessor's files removed).
     Never raises; the run's own exit is its blocker."""
     run = _runs.get(Path(report_dir).resolve())
+    attempt = getattr(err, 'hil_attempt', None) or (run.attempt if run else None)
     try:
-        got = core().recover_publish(report_dir, schema(), run.attempt if run else None, err)
+        got = core().recover_publish(report_dir, schema(), attempt, err)
     except Exception as e:  # noqa: BLE001 - the caller's own error must still surface
         print(f'warning: cannot recover the report in {report_dir}: {e}', flush=True)
         return
@@ -306,7 +313,7 @@ def withdraw(report_dir: Path, err: Exception) -> None:
         print(f'warning: {REPORT_JSON} in {report_dir} withdrawn: this run published no report', flush=True)
     elif got.removed:
         print(f'warning: removed {", ".join(got.removed)} from {report_dir}: archived as attempt '
-              f'{run.attempt.archived}, not this run\'s report', flush=True)
+              f'{attempt.archived}, not this run\'s report', flush=True)
 
 
 def write_report(report_dir: Path, doc: dict, termination: str = 'completed') -> None:
