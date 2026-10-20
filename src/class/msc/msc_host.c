@@ -53,6 +53,10 @@ typedef struct {
   } capacity[CFG_TUH_MSC_MAXLUN];
 } msch_interface_t;
 
+// max_lun (and tuh_msc_get_maxlun()) are uint8_t, so the clamped LUN count must stay representable:
+// a value of 256 would cast back to 0 and report no LUNs at all.
+TU_VERIFY_STATIC(CFG_TUH_MSC_MAXLUN <= 255, "CFG_TUH_MSC_MAXLUN must fit in a uint8_t LUN count");
+
 typedef struct {
   TUH_EPBUF_TYPE_DEF(msc_cbw_t, cbw);
   TUH_EPBUF_TYPE_DEF(msc_csw_t, csw);

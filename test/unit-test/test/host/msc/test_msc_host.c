@@ -31,8 +31,10 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   return true;
 }
 
+static tuh_xfer_t ctrl_xfer;
+
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
-  (void) xfer;
+  ctrl_xfer = *xfer;
   return true;
 }
 
@@ -137,4 +139,33 @@ void test_msc_host_data_stage_short_ends_early(void) {
 
   TEST_ASSERT_EQUAL(3, xfer_count);
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+}
+
+// msch_set_config() (run in setUp) queues GET_MAX_LUN with config_get_maxlun_complete as its
+// completion; drive that callback with a chosen GET_MAX_LUN response byte / result.
+static void complete_get_maxlun(uint8_t resp_byte, xfer_result_t result) {
+  enum_buf[0] = resp_byte;
+  ctrl_xfer.result = result;
+  TEST_ASSERT_NOT_NULL(ctrl_xfer.complete_cb);
+  ctrl_xfer.complete_cb(&ctrl_xfer);
+}
+
+// GET_MAX_LUN count is device-controlled: it is one more than the response byte, clamped to the
+// capacity[CFG_TUH_MSC_MAXLUN] storage, and a STALL (failure) reports a single LUN.
+void test_msc_host_maxlun_clamped_to_capacity(void) {
+  // single LUN: response 0 -> count 1
+  complete_get_maxlun(0x00, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
+
+  // a count above the limit is capped to CFG_TUH_MSC_MAXLUN
+  complete_get_maxlun(0x0A, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(CFG_TUH_MSC_MAXLUN, tuh_msc_get_maxlun(DADDR));
+
+  // 0xFF would wrap the uint8_t count to 0 without the clamp
+  complete_get_maxlun(0xFF, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(CFG_TUH_MSC_MAXLUN, tuh_msc_get_maxlun(DADDR));
+
+  // STALL / failed request -> 1 LUN per the BOT spec
+  complete_get_maxlun(0x00, XFER_RESULT_STALLED);
+  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
 }
