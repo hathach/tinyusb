@@ -3,8 +3,12 @@
 {% macro span(s) -%}
 {% if s.builds == 0 %}—{% elif s.min == s.max %}{{ s.min_str }}{% else %}{{ s.min_str }} → {{ s.max_str }}{% endif %}
 {%- endmacro %}
+{#- A build's name linked to its comparison page when the platform gave one. -#}
+{% macro build(name) -%}
+{% if urls.get(name) %}[{{ cell(name) }}](<{{ urls[name] }}>){% else %}{{ cell(name) }}{% endif %}
+{%- endmacro %}
 {% macro largest(s) -%}
-{% if s.builds %}{{ cell(s.min_build if (s.min | abs) > (s.max | abs) else s.max_build) }}{% endif %}
+{% if s.builds %}{{ build(s.min_build if (s.min | abs) > (s.max | abs) else s.max_build) }}{% endif %}
 {%- endmacro %}
 {#- File and build names come from the PR's own build (DWARF paths, the board roster)
     and this comment is posted with the base repo's token: a table cell safe from
@@ -15,6 +19,20 @@
 {%- endmacro %}
 {% set file_rows = file_changes[:20] %}
 {% set changed = targets | selectattr('has_changes') | list %}
+{% set urls = {} %}
+{% for t in targets %}{% set _ = urls.update({t.name: t.comparison_url}) %}{% endfor %}
+{% set alerting = targets | selectattr('has_alerts') | list %}
+{% if alerting %}
+> :warning: **Budget alerts** in {{ alerting | length }} build{{ 's' if alerting | length != 1 else '' }}
+{% for t in alerting[:20] %}
+> - {{ build(t.name) }}: {% for a in t.alerts %}{{ cell(a.budget_name) }} {{ cell(a.region) }} {{ "{:,}".format(a.usage) }} B, over by {{ "{:,}".format(a.exceeded) }} B{% if not loop.last %}; {% endif %}{% endfor %}
+
+{% endfor %}
+{% if alerting | length > 20 %}
+> … and {{ alerting | length - 20 }} more builds.
+{% endif %}
+
+{% endif %}
 {% if file_changes %}
 ### Changes by file ({{ targets_with_file_changes }} of {{ targets | length }} builds changed a file)
 

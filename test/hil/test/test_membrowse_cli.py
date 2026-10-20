@@ -222,14 +222,32 @@ class PrCommentTemplate(unittest.TestCase):
         return {'min': delta, 'max': delta, 'min_str': s, 'max_str': s,
                 'min_build': build, 'max_build': build, 'builds': 1 if delta else 0}
 
-    def _render(self, name, build):
+    def _render(self, name, build, targets=None):
         import jinja2  # the comment action installs it with membrowse
         env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.dirname(self.TEMPLATE)),
                                  autoescape=False, trim_blocks=True, lstrip_blocks=True)
         row = {'name': name, 'flash': self._span(12, build), 'ram': self._span(0, None),
                'other': self._span(0, None), 'builds': 1}
+        targets = targets or [{'name': build, 'comparison_url': None, 'has_changes': True,
+                               'has_alerts': False, 'alerts': []}]
         return env.get_template(os.path.basename(self.TEMPLATE)).render(
-            file_changes=[row], targets=[{'has_changes': True}], targets_with_file_changes=1)
+            file_changes=[row], targets=targets, targets_with_file_changes=1)
+
+    def test_builds_link_to_their_comparison_and_alerts_are_kept(self):
+        targets = [
+            {'name': 'pico/cdc_msc', 'comparison_url': 'https://m/compare?a=1&b=2',
+             'has_changes': True, 'has_alerts': True,
+             'alerts': [{'budget_name': 'release', 'region': 'RAM', 'usage': 270000,
+                         'limit': 262144, 'exceeded': 7856}]},
+            {'name': 'other/hid', 'comparison_url': None, 'has_changes': False,
+             'has_alerts': False, 'alerts': []},
+        ]
+        out = self._render('src/a.c', 'pico/cdc_msc', targets)
+        self.assertIn('[pico/cdc_msc](<https://m/compare?a=1&b=2>)', out)
+        self.assertIn('**Budget alerts** in 1 build\n', out)
+        self.assertIn('release RAM 270,000 B, over by 7,856 B', out)
+        out = self._render('src/a.c', 'other/hid', targets)
+        self.assertIn('| other/hid |', out)  # no url, plain name
 
     def test_names_are_escaped_and_mentions_neutralized(self):
         crafted = 'a|b<img src=x>`c`[d](e)\\f @hathach\nline2'
