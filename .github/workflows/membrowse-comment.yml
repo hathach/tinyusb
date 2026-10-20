@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       - name: Post Membrowse PR comment
-        uses: membrowse/membrowse-action/comment-action@v1.2.16
+        uses: membrowse/membrowse-action/comment-action@v1.2.17
         with:
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           commit: ${{ inputs.commit || github.event.workflow_run.head_sha }}

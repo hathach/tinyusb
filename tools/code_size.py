@@ -462,7 +462,7 @@ def bloaty_sizes(elf, filters):
 # all_label: what the engine's 'all' total sums (totals of different engines are
 # not comparable); install: how to get its tool when `sizes` raises FileNotFoundError
 Engine = collections.namedtuple('Engine', 'sizes all_label install')
-MEMBROWSE_CI_VERSION = '1.2.16'  # every CI install pins this; attribution can differ across versions
+MEMBROWSE_CI_VERSION = '1.2.17'  # every CI install pins this; attribution can differ across versions
 ENGINES = {
     'membrowse': Engine(membrowse_sizes, 'all symbols', f'`pip install membrowse=={MEMBROWSE_CI_VERSION}`'),
     'linkermap': Engine(linkermap_sizes, 'all input sections',
