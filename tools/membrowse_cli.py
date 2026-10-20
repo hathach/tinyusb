@@ -3,6 +3,9 @@
 
 MEMBROWSE_API_KEY is read from the environment at run time (only with --upload),
 never at CMake configure time, and redacted from the logged command line.
+Symbols are attributed to source files relative to the repository (REPO_ROOT, the
+parent of this script's directory), so src/device/usbd.c stays distinct from a
+vendor file of the same name; files outside the checkout keep their basename.
 """
 import argparse
 import os
@@ -10,6 +13,8 @@ import re
 import shlex
 import subprocess
 import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # `--defsym=SYM=VAL` or `--defsym,SYM=VAL` from a link line
 DEFSYM_RE = re.compile(r'--defsym[=,](\S+)')
@@ -43,17 +48,23 @@ def link_command(ninja, build_dir, elf):
     return stdout
 
 
-def extract_ld_scripts(commands_text):
-    """Deduped linker scripts referenced by a link command."""
-    scripts = []
+def _link_argv(commands_text):
+    """The argv of each line of a link command, Windows ninja's
+    `cmd.exe /C "cd . && <link command>"` wrapper unwrapped."""
     for line in commands_text.splitlines():
         try:
             args = shlex.split(line)
-            # Windows ninja links through `cmd.exe /C "cd . && <link command>"`
             if len(args) >= 3 and args[0].lower().endswith('cmd.exe') and args[1].lower() == '/c':
                 args = shlex.split(args[2])
         except ValueError:
             continue
+        yield args
+
+
+def extract_ld_scripts(commands_text):
+    """Deduped linker scripts referenced by a link command."""
+    scripts = []
+    for args in _link_argv(commands_text):
         for i, arg in enumerate(args):
             if arg == '-T' and i + 1 < len(args):
                 scripts.append(args[i + 1])
@@ -64,16 +75,37 @@ def extract_ld_scripts(commands_text):
     return list(dict.fromkeys(scripts))
 
 
+def extract_ld_include_dirs(commands_text):
+    """Deduped linker search directories (-L) of a link command, in order. GNU LD
+    looks for a script's INCLUDE files there: pico-sdk 2.3 keeps its MEMORY block
+    in script_include/memmap_default.incl, found only through them."""
+    dirs = []
+    for args in _link_argv(commands_text):
+        for i, arg in enumerate(args):
+            if arg == '-L' and i + 1 < len(args):
+                dirs.append(args[i + 1])
+            elif arg.startswith('-L') and len(arg) > 2:
+                dirs.append(arg[2:])
+            elif arg.startswith('-Wl,-L,') or arg.startswith('-Wl,-L'):
+                dirs.append(arg[len('-Wl,-L,'):] if arg.startswith('-Wl,-L,') else arg[len('-Wl,-L'):])
+            elif arg.startswith('-Wl,--library-path='):
+                dirs.append(arg.split('=', 1)[1])
+    return [d for d in dict.fromkeys(dirs) if d]
+
+
 def extract_defsyms(commands_text):
     """`VAR=VALUE` --defsym values referenced in a link command, deduped, in the
     order first encountered."""
     return list(dict.fromkeys(DEFSYM_RE.findall(commands_text)))
 
 
-def report_inputs(elf, ld_scripts, defsyms):
+def report_inputs(elf, ld_scripts, defsyms, ld_include_dirs=()):
     """The membrowse report argv naming one elf's inputs: elf, linker scripts,
-    --def per defsym, and its .map when present."""
+    --def per defsym, --ld-include-dir per linker search directory, and its
+    .map when present."""
     inputs = [elf, ' '.join(ld_scripts)]
+    for directory in ld_include_dirs:
+        inputs += ['--ld-include-dir', directory]
     for sym in defsyms:
         inputs += ['--def', sym]
     map_path = elf + '.map'
@@ -95,7 +127,9 @@ def build_membrowse_cmd(args, commands_text):
             # same silent default-regions report as a failed ninja query
             sys.exit(f'error: no linker script found in the ninja build graph for '
                       f'{args.elf!r}; pass --ld to supply linker scripts explicitly')
-        cmd += report_inputs(args.elf, ld_scripts, extract_defsyms(commands_text))
+        cmd += report_inputs(args.elf, ld_scripts, extract_defsyms(commands_text),
+                             extract_ld_include_dirs(commands_text))
+        cmd += ['--source-root', REPO_ROOT]
     else:
         cmd += ['--identical']
 

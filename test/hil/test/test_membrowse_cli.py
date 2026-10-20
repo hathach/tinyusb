@@ -49,6 +49,16 @@ class Regexes(unittest.TestCase):
                 r'D:/a/out/cdc_msc.bin""' '\n')
         self.assertEqual(cli.extract_ld_scripts(text), ['D:/a/bsp/STM32F407VGTx_FLASH.ld'])
 
+    def test_ld_include_dir_extraction_all_forms_deduped(self):
+        # pico-sdk hands its script_include dirs to the linker as -Wl,-L<dir>
+        text = ('cc -Wl,-L/sdk/rp2350/script_include -Wl,-L/sdk/common/script_include '
+                '-L /lib/a -L/lib/b -Wl,-L,/lib/c -Wl,--library-path=/lib/d -L/lib/a '
+                '-Wl,--script=/sdk/default_locations.ld -T/sdk/memmap_default.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_include_dirs(text),
+                         ['/sdk/rp2350/script_include', '/sdk/common/script_include',
+                          '/lib/a', '/lib/b', '/lib/c', '/lib/d'])
+        self.assertEqual(cli.extract_ld_include_dirs('cc -o out.elf\n'), [])
+
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
         self.assertEqual(cli.DEFSYM_RE.findall(text), ['FOO=0x10', 'BAR=1'])
@@ -110,7 +120,24 @@ class BuildMembrowseCmd(unittest.TestCase):
             open(elf, 'w').close()
             commands = 'cc -Wl,--script=/a/b.ld -o x.elf\n'
             cmd = cli.build_membrowse_cmd(self._args(elf), commands)
-            self.assertEqual(cmd, ['membrowse', 'report', elf, '/a/b.ld'])
+            self.assertEqual(cmd, ['membrowse', 'report', elf, '/a/b.ld',
+                                   '--source-root', cli.REPO_ROOT])
+            # the checkout, not the build dir: ESP-IDF's docker legs mount it at /project
+            self.assertTrue(os.path.isfile(os.path.join(cli.REPO_ROOT, 'tools', 'membrowse_cli.py')))
+
+    def test_identical_report_names_no_source_root(self):
+        cmd = cli.build_membrowse_cmd(self._args('/no/such.elf', ld=['/fake.ld']), '')
+        self.assertEqual(cmd, ['membrowse', 'report', '--identical'])
+
+    def test_linker_search_dirs_become_ld_include_dir_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            open(elf, 'w').close()
+            commands = 'cc -Wl,-L/sdk/script_include -L/lib -T/sdk/memmap_default.ld -o x.elf\n'
+            cmd = cli.build_membrowse_cmd(self._args(elf), commands)
+            self.assertEqual(cmd[:8], ['membrowse', 'report', elf, '/sdk/memmap_default.ld',
+                                       '--ld-include-dir', '/sdk/script_include',
+                                       '--ld-include-dir', '/lib'])
 
     def test_map_file_appended_when_present(self):
         with tempfile.TemporaryDirectory() as tmp:

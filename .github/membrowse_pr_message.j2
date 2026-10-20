@@ -1,0 +1,33 @@
+{#- Changes by file across builds, like the code-size comment. The header the
+    comment action adds already links the project dashboard at this commit. -#}
+{% macro span(s) -%}
+{% if s.builds == 0 %}—{% elif s.min == s.max %}{{ s.min_str }}{% else %}{{ s.min_str }} → {{ s.max_str }}{% endif %}
+{%- endmacro %}
+{% macro largest(s) -%}
+{% if s.builds %}{{ s.min_build if (s.min | abs) > (s.max | abs) else s.max_build }}{% endif %}
+{%- endmacro %}
+{% set file_rows = file_changes[:20] %}
+{% set changed = targets | selectattr('has_changes') | list %}
+{% if file_changes %}
+### Changes by file ({{ targets_with_file_changes }} of {{ targets | length }} builds changed a file)
+
+Min → max change over the builds the file changed in, and the build with the largest change. Sizes follow the region a symbol lives in at run time, so initialized data counts as RAM only; — marks no change in that memory.
+
+| File | Flash Δ | Largest Flash Δ build | RAM Δ | Largest RAM Δ build | Builds changed |
+|------|--------:|-----------------------|------:|---------------------|---------------:|
+{% for row in file_rows -%}
+| {{ row.name }} | {{ span(row.flash) }} | {{ largest(row.flash) }} | {{ span(row.ram) }} | {{ largest(row.ram) }} | {{ row.builds }} |
+{% endfor %}
+{% if file_changes | length > file_rows | length %}
+… and {{ file_changes | length - file_rows | length }} more files.
+{% endif %}
+{% set ns = namespace(other=0) %}
+{% for row in file_changes %}{% if row.other.builds %}{% set ns.other = ns.other + 1 %}{% endif %}{% endfor %}
+{% if ns.other %}
+{{ ns.other }} of these files also changed in regions that are neither flash nor RAM.
+{% endif %}
+{% elif changed %}
+{{ changed | length }} of {{ targets | length }} targets changed size without a per-file change to show.
+{% else %}
+No memory changes detected across {{ targets | length }} target{{ 's' if targets | length != 1 else '' }}.
+{% endif %}

@@ -21,7 +21,7 @@ By default the base comes from the master snapshots CI stored for `--base-branch
 Flags and syntax: `python3 tools/code_size.py <command> --help`. The choices:
 
 - No board named for an iterative check: `-b raspberry_pi_pico`. `-f` only if asked.
-- `--engine` membrowse unless asked (`pip install membrowse`; `membrowse==1.2.12` matches CI's attribution); linkermap needs `python3 tools/get_deps.py tools/linkermap`, bloaty needs `bloaty` on PATH. Flash/RAM come from the elf's headers for every engine. Membrowse's all-symbol total can overlap aliases and omit padding, so compare whole-elf totals only within one engine.
+- `--engine` membrowse unless asked (`pip install membrowse`; `membrowse==1.2.16` matches CI's attribution); linkermap needs `python3 tools/get_deps.py tools/linkermap`, bloaty needs `bloaty` on PATH. Flash/RAM come from the elf's headers for every engine. Membrowse's all-symbol total can overlap aliases and omit padding, so compare whole-elf totals only within one engine.
 - `--symbols` when Flash/RAM cancel: a pair counts as changed when its sections or symbols moved.
 - `--ci` for "all boards" / "CI"; it needs the arm, riscv, msp430 and ft9xx toolchains, and ESP-IDF or docker.
 - An espressif board builds each example `tools/build.py` picks as its own ESP-IDF project: with the exported ESP-IDF (`. "$IDF_PATH/export.sh"`), else in CI's image through docker, as your user (once: `IMG=$(jq -er '."esp-idf".image' .github/actions/setup_toolchain/toolchain.json) && docker pull "$IMG" && docker tag "$IMG" espressif/idf:tinyusb`).
