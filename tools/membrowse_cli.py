@@ -72,6 +72,10 @@ def _linker_argv(args):
             yield arg
 
 
+# ld's section-address options share -T's prefix but take an address, not a script
+LD_ADDRESS_OPTION_RE = re.compile(r'-T(text|data|bss|ldata|text-segment|rodata-segment|ldata-segment)(=|$)')
+
+
 def _option_values(commands_text, short, long):
     """Values of an option across a link command, deduped in order, in its
     `-X value`, `-Xvalue`, `--long value` and `--long=value` spellings."""
@@ -79,6 +83,8 @@ def _option_values(commands_text, short, long):
     for args in _link_argv(commands_text):
         args = list(_linker_argv(args))
         for i, arg in enumerate(args):
+            if LD_ADDRESS_OPTION_RE.match(arg):
+                continue
             if arg in (short, long) and i + 1 < len(args):
                 values.append(args[i + 1])
             elif arg.startswith(short) and len(arg) > len(short):

@@ -60,6 +60,12 @@ class Regexes(unittest.TestCase):
                           '/lib/a', '/lib/b', '/lib/c', '/lib/d', '/lib/e'])
         self.assertEqual(cli.extract_ld_include_dirs('cc -o out.elf\n'), [])
 
+    def test_section_address_options_are_not_scripts(self):
+        # -Ttext ADDRESS and friends share -T's prefix but name an address
+        text = ('cc -Wl,-Ttext=0x1000 -Wl,-Tdata,0x2000 -Tbss=0x3000 -Wl,-Ttext-segment=0x4000 '
+                '-T /sdk/memmap.ld -Tboard.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/memmap.ld', 'board.ld'])
+
     def test_grouped_wl_options_are_split_before_extraction(self):
         # -Wl,a,b,c hands the linker three arguments: -L and -T inside such a group,
         # in either position, are the linker's own and must not swallow their neighbours
