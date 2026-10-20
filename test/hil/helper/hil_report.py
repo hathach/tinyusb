@@ -732,22 +732,24 @@ def _normalised(r: dict, cells: dict) -> dict:
 
 def _attempt(cfg: dict, roster: dict, reading) -> tuple:
     """(apply_run_rules over every board this attempt selected, its locked boards, the boards
-    whose fail is final) for one attempt of a chain; (None, ...) for a report without this
-    roster's run context (legacy, unreadable, another roster), whose metadata is never
-    inferred from its rows. Every selected board, not only the queried ones: a locked or
+    whose fail is final, the cells it is graded from per board ({board: {row: cells}}), whether
+    it carries an ATTEMPT_CELLS record) for one attempt of a chain; (None, ...) for a report
+    without this roster's run context (legacy, unreadable, another roster), whose metadata is
+    never inferred from its rows. Every selected board, not only the queried ones: a locked or
     blocker peer is what makes the next attempt no eligible retry."""
     meta = reading.meta
     if reading.outcome not in core().READABLE or meta is None or meta['roster'].get('sha256') != roster['sha256']:
-        return None, set(), frozenset()
+        return None, set(), frozenset(), {}, False
     boards = list(dict.fromkeys(meta['selection']))
     body = _coerce(reading.body)
     own = body.get(ATTEMPT_CELLS)
     if own is not None:
         # graded from its own cells: a row this attempt wrote nothing to is not-run, never the
         # pass or fail an earlier attempt left in it. A record of another attempt credits none.
+        # _coerce built these rows, so filtering them in place leaves reading.body intact.
         own = own['rows'] if own['attempt_id'] == meta['attempt_id'] else {}
-        body = {**body, 'rows': [dict(r, cells={k: v for k, v in r['cells'].items() if k in own.get(r['board'], ())})
-                                 for r in body['rows']]}
+        for row in body['rows']:
+            row['cells'] = {k: v for k, v in row['cells'].items() if k in own.get(row['board'], ())}
     results = _results(cfg, boards, body)
     run = core().apply_run_rules(schema(), boards, [_normalised(r, c) for r, c, missing in results if not missing],
                                  meta['termination'], body['caveat'].strip())
@@ -755,7 +757,24 @@ def _attempt(cfg: dict, roster: dict, reading) -> tuple:
     # a usbtest battery's per-case verdicts stand (Results): its fail is never retried
     final = frozenset(r['board'] for r in run['rows'] if r['verdict'] == 'fail' and any(
         cell_state(c.get('device/usbtest', '')) == 'fail' for c in cells[r['board']].values()))
-    return run, {r['board'] for r, _, _ in results if r['locked']}, final
+    return run, {r['board'] for r, _, _ in results if r['locked']}, final, cells, own is not None
+
+
+def _unretried(before: dict, after: dict) -> set:
+    """The boards with a failed cell in `before` ({board: {row: cells}}) that `after`, the next
+    attempt's own cells, did not re-exercise: the same test on the same row, or for a same-PID
+    boundary, which a re-run clears rather than rewrites, any test on that row."""
+    out = set()
+    for board, rows in before.items():
+        for row, cells in rows.items():
+            again = after.get(board, {}).get(row, {})
+            for test, val in cells.items():
+                if test in _MARKER_CELLS or cell_state(val) != 'fail':
+                    continue
+                if (not any(t not in _MARKER_CELLS for t in again) if test == BOUNDARY_CELL
+                        else test not in again):
+                    out.add(board)
+    return out
 
 
 def sequence(config_path, requested: list, report_dir: Path) -> dict:
@@ -763,20 +782,25 @@ def sequence(config_path, requested: list, report_dir: Path) -> dict:
     the attempts it links (hil_report_core.read_chain, sequence_verdict): each attempt of the
     roster at config_path folded by apply_run_rules over every board it selected, and an
     attempt an eligible retry of its predecessor when it accumulated onto it and that run had
-    no locked board. `current` is the last attempt's own run, its rows the requested boards'.
+    no locked board, of a board's fail only when its own cells re-ran that board's failed
+    tests on the same rows. `current` is the last attempt's own run, its rows the requested boards'.
     summarize() stays the snapshot verdict."""
     c, s = core(), schema()
     cfg = json.loads(Path(config_path).read_text())
     roster = c.roster_identity(config_path)
-    chain, locked_before = [], None
+    chain, locked_before, cells_before = [], None, {}
     for ctx in c.read_chain(report_dir, s):
-        run, locked, final = _attempt(cfg, roster, ctx.reading) if ctx.outcome in c.READABLE \
-            else (None, set(), frozenset())
+        run, locked, final, cells, recorded = _attempt(cfg, roster, ctx.reading) if ctx.outcome in c.READABLE \
+            else (None, set(), frozenset(), {}, False)
         before = chain[-1] if chain else None
         retry = (before is not None and before.run is not None and not locked_before
                  and ctx.previous_attempt == before.attempt_id)
+        if retry and recorded:
+            # a retry clears only the fails it re-exercised: any other stays final for it. A
+            # predecessor's `final` is read only against the attempt after it (sequence_verdict).
+            chain[-1] = before._replace(final=before.final | _unretried(cells_before, cells))
         chain.append(ctx._replace(run=run, retry=retry, final=final))
-        locked_before = locked
+        locked_before, cells_before = locked, cells
     return c.sequence_verdict(s, requested, chain)
 
 

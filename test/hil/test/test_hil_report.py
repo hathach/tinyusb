@@ -1757,6 +1757,29 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         current = hil_report.sequence(self.cfg, ['a'], self.rd)['current']
         self.assertEqual(current['rows'][0]['verdict'], 'not-run')
 
+    def test_a_retry_of_an_unrelated_test_never_clears_the_fail(self):
+        self.attempt(False, {'b': {'b': {'device/cdc_msc': '❌ boom', 'device/dfu_runtime': '✅'}}})
+        self.attempt(True, {'b': {'b': {'device/dfu_runtime': '✅'}}})
+        self.assertEqual(self.verdicts(['b'])['b'], ('fail', False), 'cdc_msc was never retried')
+        current = hil_report.sequence(self.cfg, ['b'], self.rd)['current']
+        self.assertEqual(current['rows'][0]['verdict'], 'pass', 'current stays graded from its own cells')
+
+    def test_a_retry_of_only_the_passing_variant_never_clears_the_fail(self):
+        self.attempt(False, {'a': {'a-fs': {'device/cdc_msc': '✅'}, 'a-hs': {'device/cdc_msc': '❌ boom'}}})
+        self.attempt(True, {'a': {'a-fs': {'device/cdc_msc': '✅'}}})
+        self.assertEqual(self.verdicts(['a'])['a'], ('fail', False), 'a-hs was never retried')
+
+    def test_a_retry_of_only_the_failed_cells_clears_the_fail(self):
+        for name, first, retry in (
+                ('test', self.FAIL_A, {'a-fs': {'device/cdc_msc': '✅'}}),
+                ('boundary', {'a-fs': {'device/cdc_msc': '✅'}, 'a-hs': {hil_report.BOUNDARY_CELL: 'fail'}},
+                 {'a-hs': {'device/cdc_msc': '✅'}})):
+            with self.subTest(name):
+                self.setUp()
+                self.attempt(False, {'a': first})
+                self.attempt(True, {'a': retry})
+                self.assertEqual(self.verdicts(['a'])['a'], ('pass', True))
+
     def test_a_row_without_a_test_cell_never_passes_the_sequence(self):
         self.attempt(False, {'b': {'b': {}}})
         self.assertEqual(self.verdicts(['b'])['b'], ('not-run', False))
