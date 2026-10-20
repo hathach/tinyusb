@@ -471,7 +471,9 @@ void hidh_close(uint8_t daddr) {
     hidh_interface_t* p_hid = &_hidh_itf[i];
     if (p_hid->daddr == daddr) {
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
-      tuh_hid_umount_cb(daddr, i);
+      if (p_hid->mounted) {
+        tuh_hid_umount_cb(daddr, i); // only an interface the application got tuh_hid_mount_cb() for
+      }
       tu_memclr(p_hid, sizeof(hidh_interface_t));
     }
   }
