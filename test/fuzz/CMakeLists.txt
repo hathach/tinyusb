@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(tinyusb_fuzz C CXX)
 
 cmake_path(SET TOP NORMALIZE ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, net or net_ncm; empty for all")
+set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, msc_bot, net or net_ncm; empty for all")
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "fuzz harnesses need clang: configure with CC=clang CXX=clang++")
@@ -104,6 +104,14 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "msc")
     ${CMAKE_CURRENT_LIST_DIR}/msc_fuzz.cc
     )
   fuzz_add_seed_test(msc SEED ${CMAKE_CURRENT_LIST_DIR}/device/msc/msc_seed_corpus.zip)
+endif ()
+
+if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "msc_bot")
+  set(DIR ${CMAKE_CURRENT_LIST_DIR}/device/msc_bot)
+  add_executable(msc_bot ${DIR}/fuzz.c)
+  target_include_directories(msc_bot PRIVATE ${DIR} ${TOP}/src)
+  fuzz_target_common(msc_bot)
+  fuzz_add_seed_test(msc_bot)
 endif ()
 
 if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net")
