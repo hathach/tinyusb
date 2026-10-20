@@ -21,10 +21,17 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import socket
 import sys
 from pathlib import Path
 from typing import NamedTuple
+try:
+    import fcntl
+    msvcrt = None
+except ImportError:   # Windows
+    import msvcrt
+    fcntl = None
 
 
 REPORT_MD = 'hil_report.md'
@@ -493,10 +500,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     return render_report(doc)
 
 
-def write_timeout_report(report_dir: Path, boards, caveat: str,
-                         cell: str = POOL_TIMEOUT_CELL, termination: str = 'timeout') -> None:
-    """Leave a report behind when the pool guard expires ('timeout') or a worker raises
-    ('aborted').
+def write_timeout_report(report_dir: Path, boards, caveat: str, cell: str = POOL_TIMEOUT_CELL) -> None:
+    """Leave a report behind when the pool guard expires (POOL_TIMEOUT_CELL, termination
+    'timeout') or a worker raises (RUN_ABORTED_CELL, 'aborted').
 
     Any prior attempt's rows are kept and each stuck board is marked with `cell` beside
     them. `caveat` is the notice, which an --accumulate retry does not carry."""
@@ -527,7 +533,8 @@ def write_timeout_report(report_dir: Path, boards, caveat: str,
         # `readable` covers ABSENT as well as torn: re-rendering from the stuck rows alone
         # destroyed the real results an intact markdown beside them still held, so that
         # markdown goes below the table as labelled legacy text
-        _publish(report_dir, out, termination, accumulate=True, legacy=not readable)
+        _publish(report_dir, out, 'timeout' if cell == POOL_TIMEOUT_CELL else 'aborted', accumulate=True,
+                 legacy=not readable)
     except Exception as e:  # noqa: BLE001
         # Deliberately broad: the caller raises the abort right after, and an escape here
         # would replace that error with this one.
@@ -563,6 +570,10 @@ def variants_of(cfg: dict, board: str) -> list:
         if b['name'] == board:
             return [v['name'] for v in board_variants(b)]
     return [board]
+
+
+# cells that say why a board did not run, never a test's result
+_MARKER_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL)
 
 
 def _board_rows(report: dict) -> dict:
@@ -603,7 +614,9 @@ def _cells_of(cfg: dict, board: str, rows: dict, owner: dict) -> dict:
     return mine
 
 
-def summarize(cfg: dict, boards: list, report: dict) -> dict:
+def _results(cfg: dict, boards: list, report: dict) -> list:
+    """summarize()'s fold, per board: (its result, the report cells that belong to it, whether
+    the report has no row for it at all)."""
     rows = _board_rows(report)
     history = {r['board']: r['history'] for r in (report.get('rows') or [])
                if isinstance(r, dict) and 'board' in r and isinstance(r.get('history'), list)
@@ -616,19 +629,19 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         # without this guard variants_of() falls back to the name itself and a declared
         # variant of another board, or a stale row keyed by that name, reports it as ran.
         if board not in configured:
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': 'not a board in the config'})
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                             'wedged': False, 'detail': 'not a board in the config'}, {}, False))
             continue
         try:
             mine = _cells_of(cfg, board, rows, owner)
         except ValueError as err:
             # hil_test.py refuses the whole run on this; say why rather than die with a traceback
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': f'config error: {err}'})
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                             'wedged': False, 'detail': f'config error: {err}'}, {}, False))
             continue
         if not mine:
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'detail': 'no report row for this board'})
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                             'wedged': False, 'detail': 'no report row for this board'}, {}, True))
             continue
         # a wedge outranks lock contention: `locked` short-circuits `detail` below, so a
         # stale board-locked cell from an earlier attempt used to mask the pool-timeout
@@ -653,15 +666,15 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
         unusable = next((cells[LOCK_UNAVAILABLE_CELL] for cells in mine.values()
                          if LOCK_UNAVAILABLE_CELL in cells), None)
         if unusable is not None and not aborted and not board_wedged:
-            results.append({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                            'wedged': False, 'skipped': [], **kept, 'detail': unusable})
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
+                             'wedged': False, 'skipped': [], **kept, 'detail': unusable}, mine, False))
             continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         skipped = []
         for vname, cells in sorted(mine.items()):
             for test, val in sorted(cells.items()):
-                if test in (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL):
+                if test in _MARKER_CELLS:
                     continue
                 state = cell_state(val)
                 if state == 'fail':
@@ -683,9 +696,14 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
-        results.append({'board': board, 'ran': not unbuilt, 'pass': ok,
-                        'locked': locked, 'wedged': board_wedged, 'skipped': skipped,
-                        **kept, 'detail': detail})
+        results.append(({'board': board, 'ran': not unbuilt, 'pass': ok,
+                         'locked': locked, 'wedged': board_wedged, 'skipped': skipped,
+                         **kept, 'detail': detail}, mine, False))
+    return results
+
+
+def summarize(cfg: dict, boards: list, report: dict) -> dict:
+    results = [r for r, _, _ in _results(cfg, boards, report)]
     # `caveat` too: an aborted or no-boards run says so THERE, and this JSON is all
     # an agent gets -- leaving it in the sidecar puts it back where only a human looks.
     caveat = report.get('caveat', '')
@@ -698,32 +716,24 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
 
 def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
     """`boards`' rows of `report` in the shared rules' shape ({board, verdict, detail, evidence},
-    the `hil` skill's Verdicts), folded from summarize(): wedged, never heard back from
+    the `hil` skill's Verdicts), folded from summarize()'s: wedged, never heard back from
     (pool-timeout, run-aborted) or left to a cleanup holder is a blocker; locked, build
     refused, unbuilt or skipped is not-run. A configured board without a report row gets no
-    row, which apply_run_rules makes a blocker. A board passes only with a passing test cell."""
-    rows, owner = _board_rows(report), _owners(cfg)
-    configured = {b['name'] for b in cfg.get('boards', [])}
-    out = []
-    for r in summarize(cfg, boards, report)['results']:
-        try:
-            cells = _cells_of(cfg, r['board'], rows, owner) if r['board'] in configured else {}
-        except ValueError:
-            cells = {}
-        if not cells and r['detail'] == 'no report row for this board':
-            continue
-        unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c
-                         or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
-        failed = any(cell_state(v) == 'fail' for c in cells.values() for t, v in c.items()
-                     if t not in (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL))
-        # summarize() passes a row without a cell; a sequence verdict needs a test that ran
-        exercised = any(cell_state(v) == 'pass' for c in cells.values() for t, v in c.items()
-                        if t not in (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL))
-        verdict = ('blocker' if r['wedged'] or unreported else 'pass' if r['pass'] and exercised
-                   else 'not-run' if r['locked'] or not r['ran'] or not failed else 'fail')
-        out.append({'board': r['board'], 'verdict': verdict, 'detail': r['detail'],
-                    'evidence': [f'{n} {t}: {v}' for n, c in sorted(cells.items()) for t, v in sorted(c.items())]})
-    return out
+    row, which apply_run_rules makes a blocker. Unlike the snapshot, a board passes only with
+    a passing test cell."""
+    return [_normalised(r, cells) for r, cells, missing in _results(cfg, boards, report) if not missing]
+
+
+def _normalised(r: dict, cells: dict) -> dict:
+    tests = [v for c in cells.values() for t, v in c.items() if t not in _MARKER_CELLS]
+    unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c
+                     or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
+    failed = any(cell_state(v) == 'fail' for v in tests)
+    exercised = any(cell_state(v) == 'pass' for v in tests)
+    verdict = ('blocker' if r['wedged'] or unreported else 'pass' if r['pass'] and exercised
+               else 'not-run' if r['locked'] or not r['ran'] or not failed else 'fail')
+    return {'board': r['board'], 'verdict': verdict, 'detail': r['detail'],
+            'evidence': [f'{n} {t}: {v}' for n, c in sorted(cells.items()) for t, v in sorted(c.items())]}
 
 
 def _attempt(cfg: dict, roster: dict, reading) -> tuple:
@@ -737,14 +747,14 @@ def _attempt(cfg: dict, roster: dict, reading) -> tuple:
         return None, set(), frozenset()
     boards = list(dict.fromkeys(meta['selection']))
     body = _coerce(reading.body)
-    results = {r['board']: r for r in summarize(cfg, boards, body)['results']}
-    run = core().apply_run_rules(schema(), boards, normalised_rows(cfg, boards, body), meta['termination'],
-                                 body['caveat'].strip())
-    rows, owner = _board_rows(body), _owners(cfg)
+    results = _results(cfg, boards, body)
+    run = core().apply_run_rules(schema(), boards, [_normalised(r, c) for r, c, missing in results if not missing],
+                                 meta['termination'], body['caveat'].strip())
+    cells = {r['board']: c for r, c, _ in results}
     # a usbtest battery's per-case verdicts stand (Results): its fail is never retried
     final = frozenset(r['board'] for r in run['rows'] if r['verdict'] == 'fail' and any(
-        cell_state(c.get('device/usbtest', '')) == 'fail' for c in _cells_of(cfg, r['board'], rows, owner).values()))
-    return run, {b for b, r in results.items() if r['locked']}, final
+        cell_state(c.get('device/usbtest', '')) == 'fail' for c in cells[r['board']].values()))
+    return run, {r['board'] for r, _, _ in results if r['locked']}, final
 
 
 def sequence(config_path, requested: list, report_dir: Path) -> dict:
@@ -779,12 +789,46 @@ def _prepare(argv: list) -> int:
         prog='hil_report.py prepare',
         description=f'Make {REPORT_MD} a rendering of {REPORT_JSON} before the pair is exposed (a copy-back, a CI '
                     f'upload): regenerated from a readable sidecar, else an explicit unavailable notice, never the '
-                    f'stale table. Exit 0 once it is one or the other.')
+                    f'stale table. Exit 0 once it is one or the other; 1 when it could not prepare the pair, '
+                    f'{REPORT_MD} then an unavailable notice unless another writer holds the report.')
     ap.add_argument('--report-dir', default='.', help=f'where {REPORT_JSON} lives (default: cwd)')
     a = ap.parse_args(argv)
-    reading = core().prepare_pair(Path(a.report_dir), schema())
+    report_dir = Path(a.report_dir)
+    try:
+        reading = core().prepare_pair(report_dir, schema())
+    except Exception as e:  # noqa: BLE001 - the core failed to load or to prepare: the notice is ours
+        if _core is not None and isinstance(e, _core.ReportError) and e.stage == 'writer':
+            print(f'error: {e}; {REPORT_MD} left to that writer', file=sys.stderr)
+            return 1
+        print(f'error: cannot prepare {REPORT_MD}: {e}', file=sys.stderr)
+        try:
+            _write_notice(report_dir, f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
+        except OSError as e2:
+            print(f'error: nor write its unavailable notice: {e2}', file=sys.stderr)
+        return 1
     print(f'{REPORT_JSON}: {reading.outcome}' + (f' -- {reading.detail}' if reading.detail else ''))
     return 0
+
+
+def _write_notice(report_dir: Path, why: str) -> None:
+    """The unavailable notice, without the core (it may be what failed): replaced atomically,
+    under the core's writer lock (`.<stem>.lock`, never waited for). Raises OSError, also
+    when another writer holds the lock."""
+    report_dir.mkdir(parents=True, exist_ok=True)
+    fd = os.open(report_dir / f'.{Path(REPORT_JSON).stem}.lock', os.O_RDWR | os.O_CREAT, 0o666)
+    try:
+        if fcntl:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        else:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        md, tmp = report_dir / REPORT_MD, report_dir / f'.{REPORT_MD}.{os.getpid()}.tmp'
+        try:
+            tmp.write_text(f'**HIL report unavailable: {" ".join(why.split())}.**\n', encoding='utf-8')
+            os.replace(tmp, md)
+        finally:
+            tmp.unlink(missing_ok=True)
+    finally:
+        os.close(fd)
 
 
 def _no_selection(argv: list) -> int:
@@ -826,41 +870,41 @@ def main(argv: list | None = None) -> int:
     return 1
 
 
-def _sequence(argv: list) -> int:
-    ap = argparse.ArgumentParser(
-        prog='hil_report.py sequence',
-        description=f'Print the retry-sequence verdict over {REPORT_JSON} and the attempts it links under '
-                    f'{REPORT_ATTEMPTS}/ (agentrc hil_report_core.sequence_verdict): {{current, sequence}}. '
-                    f'Exit 0 once printed, a failing verdict included.')
+def _report_args(argv: list, **parser) -> tuple | None:
+    """A reading command's arguments: (args, config, requested boards, the sidecar path), or
+    None, with the error printed, when the sidecar is missing."""
+    ap = argparse.ArgumentParser(**parser)
     ap.add_argument('config_file')
     ap.add_argument('-b', '--board', action='append', default=[],
                     help='boards to report on; default: every board in the config')
     ap.add_argument('--report-dir', default='.', help=f'where {REPORT_JSON} lives (default: cwd)')
     a = ap.parse_args(argv)
-    if not (Path(a.report_dir) / REPORT_JSON).is_file():
-        print(f'error: {Path(a.report_dir) / REPORT_JSON} not found', file=sys.stderr)
+    cfg = json.loads(Path(a.config_file).read_text())
+    jpath = Path(a.report_dir) / REPORT_JSON
+    if not jpath.is_file():
+        print(f'error: {jpath} not found -- did hil_test.py run in this directory?', file=sys.stderr)
+        return None
+    return a, cfg, a.board or [b['name'] for b in cfg.get('boards', [])], jpath
+
+
+def _sequence(argv: list) -> int:
+    got = _report_args(argv, prog='hil_report.py sequence',
+                       description=f'Print the retry-sequence verdict over {REPORT_JSON} and the attempts it links '
+                                   f'under {REPORT_ATTEMPTS}/ (agentrc hil_report_core.sequence_verdict): '
+                                   f'{{current, sequence}}. Exit 0 once printed, a failing verdict included.')
+    if got is None:
         return 1
-    boards = a.board or [b['name'] for b in json.loads(Path(a.config_file).read_text()).get('boards', [])]
-    json.dump(sequence(a.config_file, boards, Path(a.report_dir)), sys.stdout, indent=2)
+    a, _, boards, _ = got
+    json.dump(sequence(a.config_file, list(dict.fromkeys(boards)), Path(a.report_dir)), sys.stdout, indent=2)
     print()
     return 0
 
 
 def _summarize(argv: list) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument('config_file')
-    ap.add_argument('-b', '--board', action='append', default=[],
-                    help='boards to report on; default: every board in the config')
-    ap.add_argument('--report-dir', default='.', help=f'where {REPORT_JSON} lives (default: cwd)')
-    a = ap.parse_args(argv)
-
-    cfg = json.loads(Path(a.config_file).read_text())
-    boards = a.board or [b['name'] for b in cfg.get('boards', [])]
-    jpath = Path(a.report_dir) / REPORT_JSON
-    if not jpath.is_file():
-        print(f'error: {jpath} not found -- did hil_test.py run in this directory?',
-              file=sys.stderr)
+    got = _report_args(argv, description=__doc__.splitlines()[0])
+    if got is None:
         return 1
+    _, cfg, boards, jpath = got
     reading = core().read_document(jpath, schema())
     if reading.outcome == 'unsupported':
         # an unknown schema or version is never read as this one, nor as a legacy report

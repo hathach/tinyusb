@@ -359,8 +359,8 @@ def prepare(boards: list, args, log) -> dict:
 
 # --- inside the engine's reservation ----------------------------------------------------------
 def _runner(ctx):
-    """ctx.run as hil_flash's `run=`, with this harness's verbosity; None outside the engine."""
-    return None if ctx is None else functools.partial(ctx.run, verbose=hil_util.verbose)
+    """ctx.run as hil_flash's `run=`, with this harness's verbosity."""
+    return functools.partial(ctx.run, verbose=hil_util.verbose)
 
 
 def _flash(ctx, board: dict, image: dict):
@@ -377,23 +377,21 @@ def observe_before(ctx, board: dict, plan: dict):
     return find_device(board['uid'])
 
 
-def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = False, ctx=None) -> bytes | None:
+def check_host_serial(ctx, board: dict, do_reset: bool = True, want_hello: bool = False) -> bytes | None:
     """Host-only boards never enumerate their uid (their USB port is the host side);
     aliveness = output on the flasher's UART bridge after a reset. A probe byte is
     written each poll so an echo-only firmware (board_test) also answers. Returns
     the first output chunk (b'' when silent, None when the port is absent/drops) so
     the caller can also judge WHAT answered — see boardtest_output().
 
-    With the engine's `ctx` the reset runs through ctx.run and is recorded as it completes,
-    and no UART access starts until every run is proven ended (ctx.settle raises
-    Outstanding otherwise).
+    The reset runs through the engine's ctx.run and is recorded as it completes, and no UART
+    access starts until every run is proven ended (ctx.settle raises Outstanding otherwise).
 
     do_reset=False listens to the firmware as-is: used right after a flash whose
     own reset already started it — a second openocd/JLink session back-to-back on
     the same probe can fail transiently and leave the target halted."""
     import serial
-    if ctx is not None:
-        ctx.settle()
+    ctx.settle()
     try:
         port = hil_util.get_serial_dev(board['flasher']['uid'], None, None, 0)
         ser = serial.Serial(port, baudrate=115200, timeout=0.3, write_timeout=1)
@@ -409,9 +407,8 @@ def check_host_serial(board: dict, do_reset: bool = True, want_hello: bool = Fal
             reset_fn = hil_flash.reset_primitive(board['flasher']['name'])
             if reset_fn:
                 op = reset_fn(board, run=_runner(ctx))
-                if ctx is not None:
-                    ctx.record(op)
-                    ctx.settle()
+                ctx.record(op)
+                ctx.settle()
         # judge the WHOLE window, not the first chunk: the probe's CDC bridge has its own
         # FIFO, so stale pre-flash output (e.g. board_test hellos) can arrive after our
         # host-side flush and must not decide the verdict alone.
@@ -466,7 +463,7 @@ def observe(ctx, board: dict, plan: dict, before) -> dict:
     cafe device re-enumerated (a new sysfs inode)."""
     notes, unverified = [], []
     if plan['kind'] == 'host':
-        data = check_host_serial(board, ctx=ctx)
+        data = check_host_serial(ctx, board)
         status = host_status(data, notes)
         device = '✅ serial out' if status == 'ok' else '❌ no serial out'
         evidence = ['no flasher serial port' if data is None else
@@ -507,7 +504,7 @@ def final_state(ctx, board: dict, plan: dict, observation) -> dict:
         # no second reset (the park flash's own reset started board_test); POSITIVE
         # marker: its hello must appear, and stale bridge-FIFO output alongside it is not
         # disqualifying
-        data = check_host_serial(board, do_reset=False, want_hello=True, ctx=ctx)
+        data = check_host_serial(ctx, board, do_reset=False, want_hello=True)
         if not (data and HELLO in data):
             return unverified('park unverified: no board_test output')
         out['evidence'].append('board_test hello on the flasher UART after the park flash')

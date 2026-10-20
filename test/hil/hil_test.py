@@ -2378,7 +2378,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
         # the CELL names the cause: a board the pool guard never reached did not
         # "pool-timeout", and marking it so sends the reader after a guard that did not fire
         hil_report.write_timeout_report(
-            report_dir, [b for b in config_boards if b['name'] in stuck], banner, cell, termination)
+            report_dir, [b for b in config_boards if b['name'] in stuck], banner, cell)
     except Exception as re2:  # noqa: BLE001
         print(f'warning: fallback report failed too: {type(re2).__name__}: {re2}',
               flush=True)

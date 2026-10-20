@@ -562,14 +562,8 @@ jobs:
       - name: Prepare HIL report
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice, never a table the JSON does not hold
-        run: |
-          python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR" || {
-            echo "::error::could not check the HIL report's Markdown against its JSON"
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "**HIL report unavailable: its Markdown could not be checked against hil_report.json (see the job log).**" > "$HIL_REPORT_DIR/hil_report.md"
-            exit 1
-          }
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -668,14 +662,8 @@ jobs:
       - name: Prepare HIL report
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice, never a table the JSON does not hold
-        run: |
-          python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR" || {
-            echo "::error::could not check the HIL report's Markdown against its JSON"
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "**HIL report unavailable: its Markdown could not be checked against hil_report.json (see the job log).**" > "$HIL_REPORT_DIR/hil_report.md"
-            exit 1
-          }
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -851,14 +839,8 @@ jobs:
       - name: Prepare HIL report
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice, never a table the JSON does not hold
-        run: |
-          python3 test/hil/helper/hil_report.py prepare --report-dir "." || {
-            echo "::error::could not check the HIL report's Markdown against its JSON"
-            mkdir -p "."
-            echo "**HIL report unavailable: its Markdown could not be checked against hil_report.json (see the job log).**" > "./hil_report.md"
-            exit 1
-          }
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "."
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'

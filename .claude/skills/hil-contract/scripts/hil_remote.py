@@ -390,6 +390,7 @@ def run(argv, receipt=None):
 
 
 def stage_and_run(tree, argv, args, config, config_path, firmware, receipt=None, pinned=None):
+    upload = []
     if args.accumulate:
         report = helper('hil_report')
         # the wipe cleared the rig's copy; without the local sidecar as merge base the retry's
@@ -403,13 +404,10 @@ def stage_and_run(tree, argv, args, config, config_path, firmware, receipt=None,
                   "uploading it; this run's table will REPLACE the previous one", file=sys.stderr)
         else:
             print('==> Uploading hil_report.json as the --accumulate merge base')
-            core.stage_files(tree, [report.REPORT_JSON])
-            # its earlier attempts too, so the rig's report links a predecessor whose record it holds
-            if (ROOT / report.REPORT_ATTEMPTS).is_dir():
-                core.stage_tree(tree, ROOT / report.REPORT_ATTEMPTS, report.REPORT_ATTEMPTS)
+            upload = [report.REPORT_JSON, *chain_records(report)]
 
     print('==> Copying the harness and config')
-    core.stage_files(tree, HARNESS_FILES)
+    core.stage_files(tree, [*HARNESS_FILES, *upload])
     if core.rsync(tree, '-q', config_path, f'{tree.spec("test/hil")}/', staging=True) != 0:
         fail('could not stage the config')
     print(f'==> Copying firmware from {len(firmware)} build dir(s) under {args.build_dir}/')
@@ -487,8 +485,7 @@ def copy_back(tree, config_name):
               f'{ROOT / report.REPORT_ATTEMPTS}; the local ones are kept', file=sys.stderr)
     # the whole chain, through the checkout's records as well as the rig's: a record only the
     # checkout holds can lead to a conflicting ancestor the rig's bundle alone never reaches
-    named = chain_ids((incoming.meta or {}).get('previous_attempt') if incoming else None,
-                      (ROOT, scratch), report)
+    named = chain_ids(links(incoming) if incoming else [], (ROOT, scratch), report)
     if incoming is None:
         pass
     elif incoming.outcome == 'unsupported':
@@ -545,20 +542,38 @@ def copy_back(tree, config_name):
     return copied, not problems
 
 
-def chain_ids(previous, dirs, report):
-    """Every attempt id reachable from `previous` through the predecessor links of the records
-    under any of `dirs`' attempt roots, each version of a record followed."""
+def chain_records(report):
+    """The checkout-relative files of the attempt records the sidecar names, transitively: its
+    predecessors, so the rig's report links one whose record it holds, and the reports a
+    withdrawal archived, which the rig's merge reads its rows from. The rig's start_attempt
+    archives the sidecar itself."""
     rcore, schema = report.core(), report.schema()
-    seen, todo = set(), [previous]
+    sidecar = rcore.read_document(ROOT / report.REPORT_JSON, schema)
+    root = ROOT / report.REPORT_ATTEMPTS
+    return [f.relative_to(ROOT).as_posix() for aid in sorted(chain_ids(links(sidecar), (ROOT,), report))
+            if (root / aid).is_dir() and not (root / aid).is_symlink()
+            for f in sorted((root / aid).iterdir()) if f.is_file() and not f.is_symlink()]
+
+
+def links(reading):
+    """The archived attempts a report names: its predecessor, or the report a withdrawal archived."""
+    if reading.meta:
+        return [reading.meta['previous_attempt']]
+    return [reading.body['archived']] if reading.outcome == 'withdrawn' else []
+
+
+def chain_ids(refs, dirs, report):
+    """Every attempt id reachable from `refs` through the links (links()) of the records under
+    any of `dirs`' attempt roots, each version of a record followed."""
+    rcore, schema = report.core(), report.schema()
+    seen, todo = set(), list(refs)
     while todo:
         aid = todo.pop()
         if not aid or aid in seen or len(seen) >= 256:
             continue
         seen.add(aid)
         for d in dirs:
-            meta = rcore.read_document(Path(d) / report.REPORT_ATTEMPTS / aid / report.REPORT_JSON, schema).meta
-            if meta:
-                todo.append(meta['previous_attempt'])
+            todo += links(rcore.read_document(Path(d) / report.REPORT_ATTEMPTS / aid / report.REPORT_JSON, schema))
     return seen
 
 

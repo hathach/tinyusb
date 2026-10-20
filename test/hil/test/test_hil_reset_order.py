@@ -88,8 +88,11 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
     def test_farm_check_flushes_a_vcom_before_resetting(self):
         self.fake_consoles()
         self.fake_reset()
-        self.assertTrue(farm_profile.check_host_serial(VCOM_BOARD, want_hello=True))
-        self.assertEqual(self.calls, ['open', 'flush', ('reset', 'openocd')])
+        ctx = types.SimpleNamespace(run=lambda *a, **kw: None, record=lambda op: self.calls.append('record'),
+                                    settle=lambda: self.calls.append('settle'))
+        self.assertTrue(farm_profile.check_host_serial(ctx, VCOM_BOARD, want_hello=True))
+        # every run proven ended before the console opens and before it is polled
+        self.assertEqual(self.calls, ['settle', 'open', 'flush', ('reset', 'openocd'), 'record', 'settle'])
 
 
 if __name__ == '__main__':

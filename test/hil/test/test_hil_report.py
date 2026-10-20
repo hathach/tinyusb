@@ -1428,6 +1428,17 @@ class ConsumerCommands(unittest.TestCase):
         self.assertIn('hil_report.json: valid', r.stdout)
         self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'), hil_report.render_report(doc) + '\n')
 
+    @unittest.skipIf(os.name == 'nt', 'flock')
+    def test_prepare_leaves_the_markdown_to_an_active_writer(self):
+        import fcntl
+        (self.rd / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
+        with open(self.rd / '.hil_report.lock', 'a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            r = _cli('prepare', '--report-dir', str(self.rd))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('left to that writer', r.stderr)
+        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n')
+
     def test_prepare_never_leaves_a_table_without_its_sidecar(self):
         (self.rd / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
         r = _cli('prepare', '--report-dir', str(self.rd))
@@ -1462,13 +1473,29 @@ class ConsumerCommands(unittest.TestCase):
         (clean / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
         script = str(clean / 'test/hil/helper/hil_report.py')
         env = {**os.environ, 'PYTHONSAFEPATH': '1'}
-        for argv in (['no-selection', str(clean / 'cfg.json'), 'skipped', '--report-dir', str(clean)],
-                     ['prepare', '--report-dir', str(clean)]):
-            with self.subTest(argv[0]):
-                r = subprocess.run([sys.executable, script, *argv], capture_output=True, text=True, timeout=60, env=env)
+        (clean / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
+
+        def run(*argv):
+            return subprocess.run([sys.executable, script, *argv, '--report-dir', str(clean)], capture_output=True,
+                                  text=True, timeout=60, env=env)
+        r = run('no-selection', str(clean / 'cfg.json'), 'skipped')
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertFalse((clean / hil_report.REPORT_JSON).exists())
+        if os.name != 'nt':
+            import fcntl
+            with open(clean / '.hil_report.lock', 'a') as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                r = run('prepare')
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-                self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
-        self.assertFalse(any(p.name.startswith('hil_report') for p in clean.iterdir()), 'nothing was written')
+                self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
+                                 'never written under another writer\'s lock')
+        r = run('prepare')
+        self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        md = (clean / hil_report.REPORT_MD).read_text(encoding='utf-8')
+        self.assertTrue(md.startswith('**HIL report unavailable: hil_report.md could not be prepared'), md)
+        self.assertNotIn('✅', md, 'the table the JSON does not back is gone')
         r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil/helper"); import hil_report; '
                             'print(hil_report.board_variants({"name": "b"})[0]["name"])'],
                            capture_output=True, text=True, timeout=60, cwd=clean)

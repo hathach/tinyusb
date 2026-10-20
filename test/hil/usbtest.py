@@ -249,7 +249,6 @@ def bind_usbtest(dev):
 
 
 set_pattern = hil_usbtest.set_pattern
-dmesg_tail = hil_usbtest.dmesg_tail
 needs_sudo = hil_usbtest.needs_sudo
 
 sudo_forbidden = False   # set by main when a post-hang recovery was requested

@@ -88,7 +88,8 @@ def capture(fn):
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())
-        self.assertEqual(Path(got['path']), hil_util.TINYUSB_ROOT / 'test/hil/tinyusb.json')
+        # from test/hil the bare name resolves against the cwd first: the same file either way
+        self.assertEqual(Path(got['path']).resolve(), hil_util.TINYUSB_ROOT / 'test/hil/tinyusb.json')
         self.assertTrue(got['boards'])
         self.assertIsInstance(got['named_only'], list)
 
@@ -596,6 +597,7 @@ class UartWaitsForCompletion(unittest.TestCase):
         patch(self, sys.modules['serial'], 'Serial', Console)
         patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
         patch(self, farm_profile, 'say', lambda msg: None)
+        patch(self, farm_profile, 'SERIAL_WAIT', 0.05)   # long enough to poll, not the real 6 s
         reset = lambda board, run=None: run('reset', timeout=1)
         patch(self, hil_flash, 'reset_primitive', lambda name: reset)
         patch(self, hil_flash, 'flash_primitive', lambda name: lambda board, fw, run=None: run(f'flash {fw}', timeout=1))
@@ -650,7 +652,7 @@ class Observe(unittest.TestCase):
         self.assertEqual((got['status'], got['device']), ('failed', '❌ not enumerated'))
 
     def test_board_test_output_after_a_host_flash_is_flash_failed(self):
-        patch(self, farm_profile, 'check_host_serial', lambda board, ctx=None: b'Hello from TinyUSB\r\n')
+        patch(self, farm_profile, 'check_host_serial', lambda ctx, board, **kw: b'Hello from TinyUSB\r\n')
         got = farm_profile.observe(context(self), HOST, {'kind': 'host'}, None)
         self.assertEqual((got['status'], got['device']), ('flash-failed', '❌ no serial out'))
 
@@ -699,7 +701,7 @@ class Park(unittest.TestCase):
 
     def park_host(self, hello):
         self.flasher()
-        patch(self, farm_profile, 'check_host_serial', lambda board, **kw: hello)
+        patch(self, farm_profile, 'check_host_serial', lambda ctx, board, **kw: hello)
         return farm_profile.final_state(context(self), HOST, dict(self.PLAN, kind='host'), None)
 
     def test_a_host_park_must_say_hello(self):
@@ -711,7 +713,7 @@ class Park(unittest.TestCase):
     def test_a_park_operation_survives_a_later_exception(self):
         self.flasher()
 
-        def broken(board, **kw):
+        def broken(ctx, board, **kw):
             raise OSError('bridge gone')
         patch(self, farm_profile, 'check_host_serial', broken)
         ctx = context(self)

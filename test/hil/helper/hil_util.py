@@ -10,7 +10,6 @@ from __future__ import annotations
 import glob
 import os
 import subprocess
-import unicodedata
 import sys
 from pathlib import Path
 from typing import Any
@@ -93,25 +92,6 @@ CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 REAP_GRACE = 10
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
-
-
-def display_width(s: str) -> int:
-    """Terminal COLUMNS, not characters.
-
-    The status marks the reports use -- ✅ ❌ ⚪ ⚠ 🔒 -- are one Python character and TWO
-    columns wide. Measuring with len() pads every cell containing one a column short, so
-    the pipes drift out of line against the header rule for the whole table.
-    """
-    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
-
-
-def pad(s: str, width: int, center: bool = False) -> str:
-    """str.ljust/center, measured in display columns. See display_width."""
-    room = max(0, width - display_width(s))
-    if not center:
-        return s + ' ' * room
-    left = room // 2
-    return ' ' * left + s + ' ' * (room - left)
 
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is

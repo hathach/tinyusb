@@ -474,18 +474,40 @@ class Reports(Rig):
         self.assertIn('move it away first', r.stderr)
         self.assertEqual(self.calls(), [])
 
-    def test_accumulate_uploads_a_matching_sidecar_and_its_attempt_records(self):
-        record = self.root / report.REPORT_ATTEMPTS / 'earlier' / 'hil_report.json'
-        record.parent.mkdir(parents=True)
-        record.write_text('an earlier attempt')
+    def publish_local(self, aid, accumulate):
+        attempt = RCORE.start_attempt(self.root, report.schema(), accumulate, aid)
+        meta = RCORE.make_meta(report.schema(), attempt, termination='completed', invocation=['hil_test.py'],
+                               selection=['alpha'], host='pc', roster={})
+        RCORE.publish(self.root, report.schema(), {'rows': self.ROWS, 'scope': '', 'caveat': ''}, meta)
+
+    def staged_records(self):
+        return sorted(p.name for p in (self.remote / report.REPORT_ATTEMPTS).iterdir()) \
+            if (self.remote / report.REPORT_ATTEMPTS).is_dir() else []
+
+    def test_accumulate_uploads_a_matching_sidecar_and_the_records_it_names(self):
+        self.publish_local('old', False)
+        self.publish_local('a1', False)          # archives old, which a1 does not name
+        self.publish_local('a2', True)           # names a1
         for spelling in ('--accumulate', '-a', '-av', '-va', '--accum', '--acc'):
-            self.local('hil_report.json').write_text(json.dumps({'rows': [{'board': 'beta_two'}]}))
             r = self.hil_remote('-b', 'alpha', spelling)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn('Uploading hil_report.json', r.stdout, spelling)
             self.assertIn('hil_report.json', self.ran()['files'], spelling)
-            self.assertEqual((self.remote / report.REPORT_ATTEMPTS / 'earlier' / 'hil_report.json').read_text(),
-                             'an earlier attempt', spelling)
+            self.assertEqual(self.staged_records(), ['a1'], spelling)
+            for f in (report.REPORT_JSON, report.REPORT_MD):   # the run's report came home: put a2 back
+                (self.root / f).write_bytes((self.root / report.REPORT_ATTEMPTS / 'a2' / f).read_bytes())
+
+    def test_a_withdrawal_sidecar_uploads_the_reports_it_archived(self):
+        """It names no predecessor, but the rig's merge reads its rows from the report it withdrew."""
+        self.publish_local('old', False)
+        self.publish_local('a1', False)
+        self.publish_local('a2', True)
+        RCORE.withdraw_current(self.root, report.schema(), 'a3', 'publish failed')
+        RCORE.withdraw_current(self.root, report.schema(), 'a4', 'publish failed')   # archives a3's record
+        self.hil_remote('-b', 'alpha', '-a', FAKE_WRITE='')   # the fake run leaves the uploaded sidecar in place
+        self.assertEqual(self.staged_records(), ['a1', 'a2', 'withdrawn-a3'])
+        self.assertEqual([r['board'] for r in report._load(self.remote)[0]['rows']], ['alpha'],
+                         'the rig\'s merge base keeps the rows the withdrawals archived')
 
     def test_accumulate_without_a_usable_sidecar_warns(self):
         r = self.hil_remote('-b', 'alpha', '-a')
