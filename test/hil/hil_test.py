@@ -67,6 +67,10 @@ from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, us
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
 rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
+# The flash provider and its runner, likewise once before the Pool so every worker shares them;
+# refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
+hil_util.provider()
+hil_util.openocd_esp()
 
 # Raw Lock objects in Pool initargs are inheritable only under fork
 # (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
@@ -1848,6 +1852,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                             msg += f'  {last_detail}'
                         msg += f'  in {time.time() - start_s:.1f}s'
                         log_line(msg)
+                    elif pending := cleanup_pending(board['name']):
+                        log_line(f'{test_name}  not retrying: {pending}')
+                        wedge_break = True
+                        break
                     else:
                         msg = f'{test_name}  retry {i+2}/{max_retry}: test failed: {e}'
                         if last_detail:
@@ -1857,6 +1865,10 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             else:
                 last_err = 'Flash failed'
                 last_detail = compact_output(attempt_out.getvalue())
+                if pending := cleanup_pending(board['name']):
+                    log_line(f'{test_name}  not retrying: {pending}')
+                    wedge_break = True
+                    break
                 if i < max_retry - 1:
                     msg = f'{test_name}  retry {i+2}/{max_retry}: flash failed'
                     if last_detail:
@@ -1973,6 +1985,54 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
         sys.exit(1)
 
 
+def cleanup_pending(name: str) -> str:
+    """Why nothing more may run on the board, or '': an openocd_esp session the provider left
+    running (hil_flash.cleanup_pending), whose board lock passes to a cleanup holder."""
+    receipts = hil_flash.cleanup_pending.get(name)
+    return '' if receipts is None else f'openocd_esp cleanup pending, receipt {", ".join(map(str, receipts))}'
+
+
+# hil_lock.py's own CLI (argv: its path, the lock dir, then the CLI's arguments), exec'd fresh so
+# the holder it forks inherits none of a Pool worker's descriptors; the lock dir is the caller's
+# hil_lock.BOARD_LOCK_DIR, the CLI's own default unless a test points it elsewhere
+_HOLD_CLI = ('import importlib.util, sys\n'
+             'spec = importlib.util.spec_from_file_location("hil_lock", sys.argv[1])\n'
+             'm = importlib.util.module_from_spec(spec)\n'
+             'spec.loader.exec_module(m)\n'
+             'm.BOARD_LOCK_DIR = sys.argv[2]\n'
+             'sys.argv[:] = [sys.argv[1], *sys.argv[3:]]\n'
+             'm.main()\n')
+
+
+def retain_board_lock(name: str, fh, pending: str) -> str:
+    """Pass the board's lock to a cleanup holder instead of releasing it, and say where it went.
+
+    The record is first rewritten protected and naming the receipt, then the handle closed: the
+    record left on the free flock is a recovery blocker no taker passes. hil_lock.py's own
+    `hold --take-over`, a separate exec, then takes the flock as a cleanup holder, journalling
+    that record, and exits 0 only once its holder acknowledged the hold; its record confirms the
+    token that `hil_lock.py release --token` ends it with after the contract's recovery. Without
+    that, the protected record stays the blocker."""
+    try:
+        hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, cleanupPending=pending)
+    except OSError as e:
+        pending += f' (record not rewritten: {e})'
+    fh.close()
+    try:
+        r = subprocess.run([sys.executable, '-c', _HOLD_CLI, hil_lock.__file__, hil_lock.BOARD_LOCK_DIR, 'hold',
+                            '--take-over', name, '--reason', f'{hil_lock.CI_REASON}: {pending}'],
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+        rc, out = r.returncode, r.stdout + r.stderr
+    except (OSError, subprocess.TimeoutExpired) as e:
+        rc, out = None, str(e)
+    rec = hil_lock.read_record(name)
+    if rc == 0 and hil_lock.is_cleanup_holder(rec) and rec.get('token'):
+        return (f'{pending}; lock held by cleanup holder pid {rec["pid"]} until '
+                f'`hil_lock.py release --token {rec["token"]}` after recovery')
+    return (f'{pending}; no cleanup holder acknowledged ({compact_output(out)}), '
+            f'the protected record is the recovery blocker')
+
+
 def test_board(board: Board) -> tuple:
     # (name, err_count, failed_tests, rows, pci)
     name = board['name']
@@ -1982,7 +2042,9 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        _lock_fh = hil_lock.acquire_board_lock(name)
+        # protected: a run killed with an openocd_esp session outstanding leaves a recovery blocker
+        protected = flasher['name'].lower() == 'openocd_esp'
+        _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
     except hil_lock.LockUnavailable as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # icon-prefixed like every failing metric cell, so the table tallies it as a failure
@@ -2033,7 +2095,8 @@ def test_board(board: Board) -> tuple:
                 if run_list[0] == prev_last:
                     run_list[0], run_list[-1] = run_list[-1], run_list[0]
             cells = {}
-            if run_list and run_list[0] == prev_last and not skip_flash:
+            # beside a pending cleanup no park may flash; the loop below skips every test instead
+            if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
                 # Same example (same PID) still repeats across the boundary (a one-test
                 # -bt run has nothing to swap with). Park on board_test first: it disables
                 # the board's USB, so the next flash must re-enumerate to be seen.
@@ -2069,6 +2132,10 @@ def test_board(board: Board) -> tuple:
                 prev_last = run_list[-1]
             t_variant = time.monotonic()
             for test in run_list:
+                if cleanup_pending(name):
+                    cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
+                    board_wide_fail = True
+                    continue
                 if board_wedged:
                     # Do NOT flash through a poisoned node: each attempt enumerates into
                     # it, blocks uninterruptibly and leaves another stray behind. Report
@@ -2098,10 +2165,28 @@ def test_board(board: Board) -> tuple:
         if _should_park(skip_flash):
             test_example(board, variants[0]['name'], 'device/board_test')
 
+        pending = cleanup_pending(name)
+        if pending:
+            log_line(f'{name:25} BLOCKER: {pending}')
+            fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
+            detail = retain_board_lock(name, fh, pending) if fh else f'{pending}; no board lock held'
+            log_line(f'{name:25} {detail}')
+            rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
+            err_count += 1
+            board_wide_fail = True
+
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
     finally:
-        if _lock_fh:
+        unwinding = sys.exc_info()[1]
+        if _lock_fh and (pending := cleanup_pending(name)):
+            # raised past the hand-over above: the lock still never frees on its own
+            log_line(f'{name:25} {retain_board_lock(name, _lock_fh, pending)}')
+        elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
+            # an interrupt may land after the provider returned a pending session but before
+            # hil_flash stored its receipt: keep the protected record as the recovery blocker
+            _lock_fh.close()
+        elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's
             # pid-liveness checks report a freed board as locked for the rest of the run
@@ -2203,9 +2288,10 @@ def _should_park(skip_flash: bool) -> bool:
     Not on a wedged board. The latch has just skipped every remaining test precisely
     because flashing through a D-state-held node blocks, survives SIGKILL and leaves a
     stray -- and the park is a flash like any other. test_example's own guard does not stop
-    it either: that one only suppresses RETRIES, and the park is always attempt 0.
+    it either: that one only suppresses RETRIES, and the park is always attempt 0. Nor beside
+    an openocd_esp session the provider left running (cleanup_pending).
     """
-    return not skip_flash and not board_wedged
+    return not skip_flash and not board_wedged and not hil_flash.cleanup_pending
 
 
 def _read_controller_cache() -> dict:
@@ -2385,6 +2471,19 @@ def main() -> None:
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')
+    # the provider refuses each openocd command over a malformed pin; say so once, before a flash
+    bad_pin = dict.fromkeys(e['name'] for e in config_boards for f in hil_flash.flashers(e, 'openocd')
+                            if 'vid_pid' in f and not hil_flash.valid_vid_pid(f['vid_pid']))
+    if bad_pin:
+        _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
+    # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
+    bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
+                            if (why := hil_flash.openocd_esp_refusal(f)))
+    if bad_esp:
+        _config_abort(f'openocd_esp flasher refused: {"; ".join(bad_esp)}')
+    esp_boards = [e['name'] for e in config_boards if hil_flash.flashers(e, 'openocd_esp')]
+    if esp_boards and (why := hil_util.openocd_esp().ci_refusal()):
+        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_boards)}: {why}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]

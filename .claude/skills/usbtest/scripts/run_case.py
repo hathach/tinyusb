@@ -10,7 +10,7 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
-roster, the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
+roster, it flashes through openocd_esp (only hil_test.py retains a lock its session needs), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
 is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
 process is alive on this host, checked before and again after taking the lock. That check is
 host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
@@ -74,6 +74,7 @@ import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 import usbtest  # noqa: E402
 from helper import hil_lock, hil_report, hil_util, usb_observe  # noqa: E402
+hil_util.provider()   # an incomplete flash provider is refused here, before any board is locked
 
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
@@ -155,6 +156,8 @@ def resolve(config, board_name, variant):
     if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
             and isinstance(flasher.get('name'), str) and flasher['name']):
         raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
+    if why := hil_flash.retained_lock_only(board):
+        raise Refused(f'{board_name}: {why}')
     try:
         names = [v['name'] for v in hil_report.board_variants(board)]
     except ValueError as e:

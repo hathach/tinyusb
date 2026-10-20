@@ -65,6 +65,9 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # shape, different cause, and naming the cause is the whole point of the column -- a board
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
+# a board whose openocd_esp session the provider left running: its lock went to a cleanup holder
+# (hil_test.retain_board_lock), and its value is '❌ <receipt, holder and token>'
+CLEANUP_PENDING_CELL = 'cleanup-pending'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
 BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
@@ -317,6 +320,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                 stale[0].pop(LOCKED_CELL, None)
                 stale[0].pop(LOCK_UNAVAILABLE_CELL, None)
                 stale[0].pop(WEDGED_CELL, None)
+                stale[0].pop(CLEANUP_PENDING_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.

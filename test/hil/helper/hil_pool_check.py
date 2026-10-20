@@ -421,6 +421,10 @@ def check_board(board: dict, args) -> dict:
     if not probe:
         row['status'] = 'flash-failed'
         return row
+    if why := hil_flash.retained_lock_only(board):
+        row['status'] = 'flash-failed'
+        note.append(why)
+        return row
     if kind == 'host' and board.get('logger') == 'rtt':
         note.append('RTT host boards unsupported')
         return row
@@ -632,6 +636,8 @@ def main() -> None:
 
     hil_flash.build_dir = str(args.build_dir or CACHE_DIR)
     hil_util.verbose = args.verbose
+    if not args.scan_only:
+        hil_util.provider()   # an incomplete flash provider is refused before any board is locked
     header = (f'pool check: host {host}, config {cfg_path.name}, {len(boards)} boards, '
               f'{"scan-only" if args.scan_only else f"flash via {hil_flash.build_dir}/cmake-build-<variant>"}')
 

@@ -39,6 +39,8 @@ ROSTER = {
          'variant': [{'name': ''}]},
         {'name': 'noflasher', 'uid': 'UID9', 'tests': {'only': ['device/usbtest']}},
         {'name': 'nouid', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/usbtest']}},
+        {'name': 'esp', 'uid': 'UID10', 'tests': {'only': ['device/usbtest']},
+         'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -147,6 +149,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'noflasher'], 'noflasher in'),
                 (['--board', 'nouid'], 'nouid in'),
+                (['--board', 'esp'], 'esp: openocd_esp: only hil_test.py'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):

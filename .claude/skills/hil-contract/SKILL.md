@@ -181,7 +181,9 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 ## Reservation
 
-The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. The harness's shared scripts (the lock mechanics, the bounded sysfs reads and bus scan of `test/hil/helper/usb_observe.py`, the RTT console) are loaded by `test/hil/helper/agentrc.py` from `lib/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py lib/agentrc`; missing or off that commit, every HIL entry point refuses at import, before any board access.
+The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. The harness's shared scripts (the lock mechanics, the bounded sysfs reads and bus scan of `test/hil/helper/usb_observe.py`, the RTT console, and the `hil` skill's Flashers: the bounded command runner behind `test/hil/helper/hil_util.py` and the per-flasher commands and pyOCD launcher behind `test/hil/hil_flash.py`) are loaded by `test/hil/helper/agentrc.py` from `lib/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py lib/agentrc`; missing, off that commit or lacking a file the flash provider loads or launches, every HIL entry point refuses before any board access.
+
+The provider's `openocd_esp` flasher is supported by `hil_test.py` only (the pool check and `run_case.py` refuse it) and is unrostered on ci.lan; it is refused under a CI job (`RUNNER_TRACKING_ID` or `GITHUB_ACTIONS` set), whose end kills the job's processes, until the openocd server and the cleanup holder are shown to survive it. A session it leaves running keeps the board's lock with a cleanup holder, reported in a `cleanup-pending` cell naming the receipt and its `release --token`.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
@@ -290,8 +292,9 @@ failure for diagnosis instead.
 The caller maps each requested board onto the `hil` verdicts from the copied output:
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
-  `wedged`; an `HIL run aborted` notice, the boards it never reported included; a launched run
-  that left no report.
+  `wedged`; a `cleanup-pending` cell, which the report folds as a FAIL and never as `wedged` (an
+  `openocd_esp` session left running, recovered under Recovery, never retried); an `HIL run aborted`
+  notice, the boards it never reported included; a launched run that left no report.
 - fail: a FAIL cell, or a usbtest FAIL case. A HUNG case the in-run recovery cleared is not a
   blocker by itself; the row's `wedged` decides.
 - not-run: `locked`, `build refused`, a `lock-unavailable` cell (the host's lock dir is unusable: rig-side, not
@@ -319,6 +322,8 @@ busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
 Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
 
+A `cleanup-pending` board (an `openocd_esp` session left running) is recovered under a dispatch naming it: `python3 lib/agentrc/skills/hil/scripts/hil_openocd_esp.py end --receipt <receipt>`, and only on its exit 0 `python3 test/hil/helper/hil_lock.py release --token <token>`; on exit 1 the board stays held, and one whose init failed or is unproven needs a separately reviewed recovery.
+
 ## Limits
 
 `hil_lock.py` fails closed: a lock dir, lock file or holder record it cannot use refuses the board before any
@@ -339,8 +344,8 @@ Unit suites (no hardware) live in `test/hil/test/test_*.py`; the `hil-test` pre-
 runs every `test_hil*.py`, `change-impact-test` `test_change_impact.py`, `test_ci_metrics.py` and
 `test_hil_util.BottomLayer`. `test_change_impact.py` covers only selection, `test_ci_metrics.py`
 only the code-size plumbing; the build and pool guards live in `test_hil_bounded.py` and
-`test_hil_util.py` (the bounded sysfs reads' own tests are agentrc's, with the module); `test_hil_report.py`
-covers the report document, `test_hil_rtt.py` and `test_hil_agentrc.py` how the harness loads agentrc's scripts and `test_hil_pool_check.py` the pool check's verdicts and
+`test_hil_util.py` (the bounded sysfs reads' and the runner's own tests are agentrc's, with the modules); `test_hil_flash.py`
+covers the flash adapters, the provider's loading and the rosters by its rules, `test_hil_report.py` the report document, `test_hil_rtt.py` and `test_hil_agentrc.py` how the harness loads agentrc's scripts and `test_hil_pool_check.py` the pool check's verdicts and
 output. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).

@@ -51,11 +51,13 @@ ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).r
 
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
-# test/hil/pyocd/ runs as pyocd's launcher and its user script: no import walk can see it.
+# test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist: its README keeps it staged.
 # helper/agentrc.py exec_module's agentrc's shared scripts (the board-lock primitive, the USB
-# observation, the RTT console) after checking lib/agentrc/.git/HEAD against the commit
-# tools/get_deps.py pins: the lib/agentrc and tools/ entries let the rig's tree pass the same
-# check, and RemoteStaging requires one per agentrc.load target.
+# observation, the RTT console, the flash provider) after checking lib/agentrc/.git/HEAD against
+# the commit tools/get_deps.py pins: the lib/agentrc and tools/ entries let the rig's tree pass
+# the same check, and RemoteStaging requires one per agentrc.load target and per file a target
+# loads or launches by path (the provider's runner, pyocd launcher and user script, and the
+# openocd_esp backend's esp_session).
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -71,13 +73,18 @@ HARNESS_FILES = (
     'test/hil/helper/hil_tt.py',
     'test/hil/helper/hil_util.py',
     'test/hil/helper/usb_observe.py',
-    'test/hil/pyocd/run_pyocd.py',
-    'test/hil/pyocd/user_script.py',
+    'test/hil/pyocd/README.md',
     'tools/get_deps.py',
     'lib/agentrc/.git/HEAD',
+    'lib/agentrc/skills/hil/scripts/hil_flash.py',
+    'lib/agentrc/skills/hil/scripts/hil_openocd_esp.py',
+    'lib/agentrc/skills/hil/scripts/hil_process.py',
+    'lib/agentrc/skills/hil/scripts/pyocd/run_pyocd.py',
+    'lib/agentrc/skills/hil/scripts/pyocd/user_script.py',
     'lib/agentrc/skills/hil/scripts/hil_lock.py',
     'lib/agentrc/skills/hil/scripts/usb_observe.py',
     'lib/agentrc/skills/rtt/scripts/rtt.py',
+    'lib/agentrc/skills/target-debug/scripts/esp_session.py',
 )
 
 # A stalled link must end the run, not hang it: no subprocess timeout fits a HIL run of

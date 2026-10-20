@@ -20,6 +20,7 @@
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -361,7 +362,8 @@ class RemoteStaging(unittest.TestCase):
         # suite needs nothing the wrapper imports.
         import ast
         hil_dir = Path(TEST_DIR).parents[0]
-        wrapper = hil_dir.parents[1] / '.claude/skills/hil-contract/scripts/hil_remote.py'
+        repo = hil_dir.parents[1]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
 
@@ -381,11 +383,32 @@ class RemoteStaging(unittest.TestCase):
                         yield node.module.replace('.', '/') + '.py'
 
         def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ...) brings in a lib/agentrc file no import walk can see
+            # agentrc.load('<rel>', ..., requires=(...)) brings in lib/agentrc files no import
+            # walk can see: the one it executes and the ones that one loads or launches
             for node in ast.walk(ast.parse(pyfile.read_text())):
                 if (isinstance(node, ast.Call) and ast.unparse(node.func) == 'agentrc.load'
                         and node.args and isinstance(node.args[0], ast.Constant)):
                     yield f'lib/agentrc/{node.args[0].value}'
+                    for kw in node.keywords:
+                        if kw.arg == 'requires':
+                            yield from (f'lib/agentrc/{e.value}' for e in kw.value.elts)
+
+        def by_path(rel):
+            # what an agentrc script itself loads or launches by path: _load('<name>') and
+            # os.path.join(HERE, ...) beside it, Path(__file__)...with_name('<file>')
+            here = Path(rel).parent
+            for node in ast.walk(ast.parse((repo / rel).read_text())):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn, args = ast.unparse(node.func), node.args
+                if not args or not all(isinstance(a, ast.Constant) for a in args[fn == 'os.path.join':]):
+                    continue
+                if fn == '_load':
+                    yield (here / f'{args[0].value}.py').as_posix()
+                elif fn == 'os.path.join' and ast.unparse(args[0]) == 'HERE':
+                    yield os.path.normpath(here.joinpath(*(a.value for a in args[1:])))
+                elif fn.endswith('.with_name'):
+                    yield (here / args[0].value).as_posix()
 
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
@@ -402,13 +425,63 @@ class RemoteStaging(unittest.TestCase):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
         self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
+        launched, todo = set(), sorted(loaded)
+        while todo:
+            for f in by_path(todo.pop()):
+                if f not in launched:
+                    launched.add(f)
+                    todo.append(f)
+        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', launched, 'the by-path walk went vacuous')
+        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', launched,
+                      'the by-path walk missed the openocd_esp session helper')
+        for f in sorted(launched):
+            # in `requires` too, so a tree lacking it is refused before any tool runs
+            self.assertIn(f, loaded, f'{f} is loaded or launched by path but no agentrc.load requires it')
         for f in sorted(loaded):
             self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
-        # test/hil/pyocd/ runs as pyocd's launcher and its user script, which no import walk sees
-        scripts = sorted(p.relative_to(hil_dir).as_posix() for p in hil_dir.glob('pyocd/*.py'))
-        self.assertTrue(scripts, 'test/hil/pyocd/ holds no user script')
-        for f in scripts:
-            self.assertIn(f'test/hil/{f}', staged, f'{f} runs under pyocd but hil_remote.py does not stage it')
+        # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
+        self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
+
+    def test_the_staged_tree_runs_without_the_checkout(self):
+        # HARNESS_FILES alone, where the rig gets them: hil_test loads the flash provider from
+        # the staged lib/agentrc at import, and refuses there when a provider file is missing
+        import ast
+        repo = Path(TEST_DIR).parents[2]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
+        staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
+                      if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
+        code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
+                'p, e = hil_util.provider(), hil_util.openocd_esp()\n'
+                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.ESP_SESSION,'
+                ' sep="\\n")\n')
+        with TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            for rel in staged:
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(repo / rel, root / rel)
+            env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            scripts = root / 'lib/agentrc/skills/hil/scripts'
+            self.assertEqual(r.stdout.splitlines()[:4], [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
+                                                         str(scripts / 'pyocd/run_pyocd.py'),
+                                                         str(scripts / 'hil_openocd_esp.py')])
+            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
+                             str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('has no skills/target-debug/scripts/esp_session.py', r.stderr)
+            shutil.copy(repo / 'lib/agentrc/skills/target-debug/scripts/esp_session.py',
+                        root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py')
+            (scripts / 'pyocd/user_script.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('ImportError: lib/agentrc at', r.stderr.strip().splitlines()[-1])
+            self.assertIn('has no skills/hil/scripts/pyocd/user_script.py', r.stderr)
 
 
 class _MtpFakeRig:
@@ -524,45 +597,6 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         finished, exc = run_bounded(lambda: hil_test.test_device_mtp(self.board), 25)
         self.assertTrue(finished, 'test_device_mtp hung on a wedged MTP stack')
         self.assertIsInstance(exc, AssertionError)
-
-
-class ConvoySafeFlasher(unittest.TestCase):
-    """hil_flash.convoy_safe decides whether a board gets post-HUNG recovery at all.
-
-    It must be true ONLY for flashers that can reach their probe without opening the
-    poisoned usbfs node: openocd pinned with a roster vid_pid (filters on kernel-cached
-    sysfs descriptors) and esptool (delivers to a named tty, never enumerates usbfs).
-    Anything else enumerates by opening nodes, would block in D state on the wedged one
-    and become a second stray -- JLinkExe included, whose selection is serial-only and
-    so cannot be pinned at all."""
-
-    def setUp(self):
-        import hil_flash
-        self.f = hil_flash.convoy_safe
-
-    def test_pinned_openocd_is_safe(self):
-        self.assertTrue(self.f({'name': 'openocd', 'vid_pid': '0x2e8a 0x000c'}))
-
-    def test_unpinned_openocd_is_not(self):
-        self.assertFalse(self.f({'name': 'openocd'}))
-        self.assertFalse(self.f({'name': 'openocd', 'vid_pid': ''}))
-
-    def test_esptool_is_safe_without_a_pin(self):
-        """Delivery is `-p <ttyACM>`; there is no usbfs walk to poison."""
-        self.assertTrue(self.f({'name': 'esptool'}))
-
-    def test_stlink_is_safe_without_a_pin(self):
-        """STM32_Programmer_CLI opens only ST-Link nodes, matched on cached descriptors."""
-        self.assertTrue(self.f({'name': 'stlink', 'uid': 'X'}))
-
-    def test_enumerating_flashers_are_not(self):
-        for name in ('jlink', 'lm4flash', 'dfu-util'):
-            self.assertFalse(self.f({'name': name, 'vid_pid': '0x1366 0x1024'}),
-                             f'{name} must not be treated as convoy-safe')
-
-    def test_missing_or_odd_name_is_not_safe(self):
-        for flasher in ({}, {'name': None}, {'name': ''}):
-            self.assertFalse(self.f(flasher))
 
 
 class ThroughputPayloadBound(unittest.TestCase):
@@ -1315,6 +1349,39 @@ class WedgedBoardCosts(unittest.TestCase):
         self.assertFalse(hil_test._should_park(False),
                          'the teardown park would flash through the poisoned node')
         self.assertFalse(hil_test._should_park(True), '--skip-flash must still suppress it')
+
+
+class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
+    """A one-test, two-variant board repeats its PID across the boundary, whose park
+    _should_park refuses beside a pending openocd_esp cleanup: that is no missing binary."""
+
+    def test_the_next_variant_reports_cleanup_pending_not_a_boundary_failure(self):
+        from unittest import mock
+        flashed, log = [], []
+
+        def test_example(board, variant, example):
+            flashed.append((variant, example))
+            hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
+            return 0, 'pass', None
+
+        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd_esp'}, 'tests': [],
+                 'variant': [{'name': 'v1'}, {'name': 'v2'}]}
+        with mock.patch.object(hil_test, 'skip_flash', False), \
+             mock.patch.object(hil_test, 'shuffle_seed', None), \
+             mock.patch.object(hil_flash, 'cleanup_pending', {}), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
+             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
+             mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
+             mock.patch.object(hil_test, 'test_example', test_example), \
+             mock.patch.object(hil_test, 'log_line', log.append):
+            _name, err, failed, rows, _pci = hil_test.test_board(board)
+        self.assertEqual(flashed, [('v1', 'device/cdc_msc')], 'flashed beside the outstanding session')
+        cells = {vname: c for vname, c, _ in rows}
+        self.assertNotIn(hil_test.hil_report.BOUNDARY_CELL, cells['v2'], log)
+        self.assertEqual(cells['v2']['device/cdc_msc'], f'{hil_test.hil_report.REPORT_CELL["skip"]} cleanup pending')
+        self.assertIn(hil_test.hil_report.CLEANUP_PENDING_CELL, cells['b'])
+        self.assertEqual((err, failed), (1, []), 'the pending cleanup is one incident, charged once')
 
 
 class WedgeVerdictReachesTheLatch(unittest.TestCase):
