@@ -86,7 +86,12 @@ enum {
  *   complete-split is an error by section 11.18.8 case 4, but is not counted here, as in Linux dwc2: late interrupt
  *   service or a crowded TT give the same NYET.
  * The TT is resolved to the nearest high-speed hub; a multi-TT hub has one TT per downstream port. */
-#define HCD_SPLIT (TUH_OPT_HIGH_SPEED && CFG_TUH_HUB)
+// a plain 0/1, so that clang takes the code it disables in conditions as configured out (-Wunreachable-code)
+#if TUH_OPT_HIGH_SPEED && CFG_TUH_HUB
+  #define HCD_SPLIT 1
+#else
+  #define HCD_SPLIT 0
+#endif
 enum {
   HCD_SPLIT_SLOT_COUNT   = 4, // slots 0..3 for interrupt endpoints
   HCD_SPLIT_CSPLIT_FIRST = 2, // first complete-split, in microframes after the start-split
@@ -815,8 +820,10 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
   }
   // Pending receive status can produce ChHltd only when popped. Let that work
   // admit current retries before a future request can block the periodic queue.
+  const uint32_t gintsts = dwc2->gintsts;
+  const uint32_t gintmsk = dwc2->gintmsk;
   const bool defer = target != now &&
-                     (_hcd_csplit_pass || ((dwc2->gintsts & dwc2->gintmsk & (GINTSTS_RXFLVL | GINTSTS_HCINT)) &&
+                     (_hcd_csplit_pass || ((gintsts & gintmsk & (GINTSTS_RXFLVL | GINTSTS_HCINT)) &&
                                           split_csplit_current(dwc2, ch_id, hfnum.value)));
   if (defer || split_csplit_older(dwc2, ch_id, hfnum.value, (uint16_t) (target - now))) {
     _hcd_csplit_behind    = true;
