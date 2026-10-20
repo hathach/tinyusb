@@ -16,8 +16,8 @@
  *   CFG_TUH_OSAL_STK_USE_CPP=1 - STK's native C++ API (stk::sync::FastMutex/Semaphore/MessageQueue,
  *     stk::hw::CriticalSection). STK's C++ API is not includable from plain C, so in this mode
  *     every STK-touching function is only *declared* here (as extern "C") and *defined* in the
- *     companion osal_stk.cpp, which must be added to the build and is compiled as C++. Pick this 
- *     mode only if something else in your build already requires STK's C++ API; the C backend 
+ *     companion osal_stk.cpp, which must be added to the build and is compiled as C++. Pick this
+ *     mode only if something else in your build already requires STK's C++ API; the C backend
  *     above covers everything this OSAL port needs.
  *
  * The other consequence of the C++ backend being C++-only: TinyUSB's OSAL_*_DEF macros are meant
