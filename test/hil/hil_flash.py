@@ -123,42 +123,31 @@ def _idf_target(fw_dir: Path) -> str:
         return json.load(f)['IDF_TARGET']
 
 
+def _esptool_inputs(fw_dir: Path) -> tuple:
+    """The build's (IDF_TARGET, flash_args on one line), as flash_esptool takes them."""
+    return _idf_target(fw_dir), (fw_dir / 'flash_args').read_text().strip().replace('\n', ' ')
+
+
 def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
     fw_dir = Path(firmware).parent
-    idf_target = _idf_target(fw_dir)
-    with (fw_dir / 'flash_args').open() as f:
-        flash_args = f.read().strip().replace('\n', ' ')
-    return hil_util.provider().flash_esptool(flasher, chip=idf_target, port=port, flash_args=flash_args,
+    chip, flash_args = _esptool_inputs(fw_dir)
+    return hil_util.provider().flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args,
                                              cwd=str(fw_dir), timeout=_bound(timeout), run=_runner(run))
 
 
 def esptool_input_problem(firmware) -> str:
     """Why flash_esptool could not flash this build ('' when it could): its dir's config.env
-    with an IDF_TARGET, and a flash_args of options then "<offset> <file>" pairs, every file
-    present beside it. Checked before a board is locked, so a flash cannot fail on its inputs."""
+    and flash_args, judged by the provider's esptool_input_problem. Checked before a board is
+    locked, so a flash cannot fail on its inputs."""
     fw_dir = Path(firmware).parent
     try:
-        target = _idf_target(fw_dir)
-        tokens = shlex.split((fw_dir / 'flash_args').read_text())
+        chip, flash_args = _esptool_inputs(fw_dir)
     except (OSError, ValueError, KeyError, TypeError) as e:
         return f'{fw_dir}: {e!r}'[:200]
-    if not isinstance(target, str) or not target:
-        return f'{fw_dir}/config.env: IDF_TARGET {target!r}'
-    while tokens and tokens[0].startswith('-'):
-        if '=' not in tokens.pop(0) and tokens:
-            tokens.pop(0)
-    if not tokens or len(tokens) % 2:
-        return f'{fw_dir}/flash_args: want "<offset> <file>" pairs after the options'
-    for offset, f in zip(tokens[::2], tokens[1::2]):
-        try:
-            int(offset, 0)
-        except ValueError:
-            return f'{fw_dir}/flash_args: offset {offset!r}'
-        if not (fw_dir / f).is_file():
-            return f'{fw_dir}/flash_args names {f}, which is missing'
-    return ''
+    why = hil_util.provider().esptool_input_problem(chip, flash_args, str(fw_dir))
+    return f'{fw_dir}: {why}' if why else ''
 
 
 # no reset_esptool: esptool's reset would be `--after hard_reset`, which is not wired here

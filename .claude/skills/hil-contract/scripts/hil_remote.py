@@ -433,15 +433,10 @@ def copy_back(tree, config_name):
     """Bring the run's report home in one fetch into a scratch dir under RUNS_DIR: the pair
     all or nothing (the markdown is a rendering of the sidecar, and half a pair publishes
     last run's table beside this run's data), the rig's attempt records and <config>.failed.
-    The records merge into the checkout's create-only; the pair, its markdown rendered again
-    from the JSON (or an unavailable notice), replaces the local one once that is archived.
-
-    A pair that did not all arrive, of an unknown schema, not this run's own (an attempt id
-    the checkout already holds) or whose chain names a record the checkout holds differently
-    is not promoted: the local report is withdrawn instead (archived, then replaced by a
-    withdrawal record and notice), and the scratch dir is kept with the rig's evidence.
-    Returns (the checkout-relative paths it wrote, whether this run's report came home
-    readable)."""
+    The core's adopt() then makes the pair the checkout's report or withdraws the local one
+    (hil_report_core.adopt says when); the scratch dir is kept whenever something did not
+    come home. Returns (the checkout-relative paths it wrote, whether this run's report came
+    home readable)."""
     report = helper('hil_report')
     rcore, schema = report.core(), report.schema()
     pair = [report.REPORT_MD, report.REPORT_JSON]
@@ -461,81 +456,22 @@ def copy_back(tree, config_name):
         print(f'==> {spec} copied to {ROOT / spec}')
     else:
         (ROOT / spec).unlink(missing_ok=True)
-
-    why = refused = incoming = incoming_id = None
-    if incomplete:
-        why = 'the rig report did not all arrive: ' + ', '.join(f'{m} {fetched.outcomes.get(m)}' for m in pair)
-    else:
-        try:
-            incoming = rcore.prepare_pair(scratch, schema)
-        except rcore.ReportError as e:
-            why = f'the rig report could not be prepared: {e}'
-    if incoming is not None:
-        incoming_id = (incoming.meta or {}).get('attempt_id') or \
-            (incoming.body['attempt_id'] if incoming.outcome == 'withdrawn' else None)
+    unusable = 'the rig report did not all arrive: ' + ', '.join(f'{m} {fetched.outcomes.get(m)}' for m in pair) \
+        if incomplete else None
     try:
-        local_id = rcore.archive_current(ROOT, schema)
-    except rcore.ReportError as e:
-        refused = f'the local {report.REPORT_JSON} cannot be archived ({e}), so it is not replaced'
-        local_id = None
-    held = {local_id, *(a['attempt_id'] for a in rcore.inventory(ROOT, schema)['attempts'])}
-    conflicts = merge_attempts(scratch, report)
-    if conflicts:
-        print(f'==> warning: attempt record(s) {", ".join(conflicts)} on the rig differ from those in '
+        adopted = rcore.adopt(ROOT, scratch, schema, unusable=unusable, reason='report copy-back failed')
+    except rcore.ReportError as e:   # another writer holds the checkout's report
+        adopted = rcore.Adoption([], [], [str(e)], [], None)
+    if adopted.conflicts:
+        print(f'==> warning: attempt record(s) {", ".join(adopted.conflicts)} on the rig differ from those in '
               f'{ROOT / report.REPORT_ATTEMPTS}; the local ones are kept', file=sys.stderr)
-    # the whole chain, through the checkout's records as well as the rig's: a record only the
-    # checkout holds can lead to a conflicting ancestor the rig's bundle alone never reaches
-    named = chain_ids(links(incoming) if incoming else [], (ROOT, scratch), report)
-    if incoming is None:
-        pass
-    elif incoming.outcome == 'unsupported':
-        why = f'the rig report is unsupported: {incoming.detail}'
-    elif incoming_id is not None and incoming_id in held:
-        why = f'the rig report is attempt {incoming_id}, which the checkout holds already: the run published none'
-        incoming_id = None
-    elif named & set(conflicts):
-        why = (f'the rig report\'s chain names attempt record(s) {", ".join(sorted(named & set(conflicts)))}, '
-               f'which the checkout holds differently')
-    problems += filter(None, (refused, why))
-
-    def withdraw(attempt_id, reason):
-        try:
-            rcore.withdraw_current(ROOT, schema, attempt_id or rcore.new_attempt_id(), f'report copy-back failed: {reason}')
-        except rcore.ReportError as e:
-            problems.append(f'the local report could not be withdrawn ({e}); it is not this run\'s')
-    if why and not refused:
-        withdraw(incoming_id, why)
-    elif not refused:
-        try:
-            os.replace(scratch / report.REPORT_JSON, ROOT / report.REPORT_JSON)
-        except OSError as e:
-            problems.append(f'the rig report could not be promoted ({e})')
-            withdraw(incoming_id, problems[-1])
-        else:
-            copied.append(report.REPORT_JSON)
-            try:
-                os.replace(scratch / report.REPORT_MD, ROOT / report.REPORT_MD)
-            except OSError as e:
-                # the JSON in place is this run's: its markdown is rendered from it, never left the old one
-                problems.append(f'{report.REPORT_MD} could not be promoted ({e})')
-                try:
-                    rcore.prepare_pair(ROOT, schema)
-                except rcore.ReportError as e2:
-                    (ROOT / report.REPORT_MD).unlink(missing_ok=True)
-                    problems.append(f'{report.REPORT_MD} could not be rendered from the copied JSON ({e2}); removed')
-            if (ROOT / report.REPORT_MD).is_file():
-                copied.append(report.REPORT_MD)
-            print(f'==> Report copied to {ROOT / report.REPORT_MD} (+ sidecar)')
-            if incoming.outcome not in rcore.READABLE:
-                problems.append(f'{report.REPORT_MD} is an unavailable notice: {report.REPORT_JSON} is {incoming.outcome}'
-                                f'{" -- " + incoming.detail if incoming.detail else ""}')
-            gaps = [ctx.attempt_id for ctx in rcore.read_chain(ROOT, schema) if ctx.outcome == 'missing']
-            if gaps:
-                problems.append(f'the report\'s chain names attempt record(s) {", ".join(gaps)}, which neither the rig '
-                                f'nor the checkout holds')
+    if report.REPORT_JSON in adopted.copied:
+        print(f'==> Report copied to {ROOT / report.REPORT_MD} (+ sidecar)')
+    copied += adopted.copied
+    problems += adopted.problems
     for p in problems:
         print(f'==> error: report copy-back: {p}', file=sys.stderr)
-    if problems or conflicts:
+    if problems or adopted.conflicts:
         print(f'==> the rig\'s report and attempt records as fetched are kept in {scratch}', file=sys.stderr)
     else:
         shutil.rmtree(scratch, ignore_errors=True)
@@ -548,9 +484,15 @@ def chain_records(report):
     withdrawal archived, which the rig's merge reads its rows from. The rig's start_attempt
     archives the sidecar itself."""
     rcore, schema = report.core(), report.schema()
-    sidecar = rcore.read_document(ROOT / report.REPORT_JSON, schema)
     root = ROOT / report.REPORT_ATTEMPTS
-    return [f.relative_to(ROOT).as_posix() for aid in sorted(chain_ids(links(sidecar), (ROOT,), report))
+    seen, todo = set(), links(rcore.read_document(ROOT / report.REPORT_JSON, schema))
+    while todo:
+        aid = todo.pop()
+        if not aid or aid in seen or len(seen) >= rcore.CHAIN_LIMIT:
+            continue
+        seen.add(aid)
+        todo += links(rcore.read_document(root / aid / report.REPORT_JSON, schema))
+    return [f.relative_to(ROOT).as_posix() for aid in sorted(seen)
             if (root / aid).is_dir() and not (root / aid).is_symlink()
             for f in sorted((root / aid).iterdir()) if f.is_file() and not f.is_symlink()]
 
@@ -560,46 +502,6 @@ def links(reading):
     if reading.meta:
         return [reading.meta['previous_attempt']]
     return [reading.body['archived']] if reading.outcome == 'withdrawn' else []
-
-
-def chain_ids(refs, dirs, report):
-    """Every attempt id reachable from `refs` through the links (links()) of the records under
-    any of `dirs`' attempt roots, each version of a record followed."""
-    rcore, schema = report.core(), report.schema()
-    seen, todo = set(), list(refs)
-    while todo:
-        aid = todo.pop()
-        if not aid or aid in seen or len(seen) >= 256:
-            continue
-        seen.add(aid)
-        for d in dirs:
-            todo += links(rcore.read_document(Path(d) / report.REPORT_ATTEMPTS / aid / report.REPORT_JSON, schema))
-    return seen
-
-
-def merge_attempts(scratch, report):
-    """Move the rig's attempt records the checkout lacks into it, create-only; returns the ids
-    the checkout holds with a different authoritative file, which stay in scratch."""
-    rcore, schema = report.core(), report.schema()
-    local = ROOT / report.REPORT_ATTEMPTS
-    incoming = rcore.inventory(scratch, schema)['attempts']
-    if local.is_symlink() or (local.exists() and not local.is_dir()):
-        return [a['attempt_id'] for a in incoming]
-    held = {a['attempt_id']: a['files'] for a in rcore.inventory(ROOT, schema)['attempts']}
-    conflicts = []
-    for a in incoming:
-        aid, files = a['attempt_id'], a['files']
-        if aid not in held:
-            local.mkdir(exist_ok=True)
-            os.replace(scratch / report.REPORT_ATTEMPTS / aid, local / aid)
-        elif _authoritative(held[aid], report) != _authoritative(files, report):
-            conflicts.append(aid)
-    return conflicts
-
-
-def _authoritative(files, report):
-    """An attempt record's authoritative file entry: its JSON, else its only file."""
-    return files.get(report.REPORT_JSON) or next(iter(files.values()), None)
 
 
 def wait(argv):

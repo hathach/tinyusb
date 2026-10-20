@@ -18,7 +18,6 @@ it the home of board_variants(), the roster reading the builders (check_build.py
 matrix) import by path without lib/agentrc.
 """
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
@@ -38,8 +37,6 @@ REPORT_MD = 'hil_report.md'
 REPORT_JSON = 'hil_report.json'
 # the archived attempts the core keeps beside the pair (hil_report_core.paths)
 REPORT_ATTEMPTS = 'hil_report.attempts'
-# a withdrawal record's one field (hil_report_core.WITHDRAWN): the run that wrote it published nothing
-WITHDRAWN = '_hil_withdrawn'
 SCHEMA_NAME, SCHEMA_VERSION = 'tinyusb-hil-report', 1
 # The status vocabulary, shared by the code that WRITES a cell (hil_test's test runners) and
 # the code that reads one back (cell_state). One dict, so the human's table and the agent's
@@ -152,27 +149,18 @@ def _load(report_dir: Path) -> tuple:
     that may still hold them. A report of an unknown schema or version never gets here: the
     attempt that would merge it refuses to start (hil_report_core.start_attempt)."""
     empty = {'rows': [], 'scope': '', 'caveat': ''}
-    jpath, seen = report_dir / REPORT_JSON, set()
-    while True:
-        if not jpath.is_file():
-            return empty, False
-        try:
-            raw = json.loads(jpath.read_text())
-            if not isinstance(raw, dict):
-                raise ValueError('sidecar is not an object')
-        except (OSError, ValueError, TypeError):
-            return empty, False
-        if WITHDRAWN not in raw:
-            return _coerce(raw), True
-        # a run that published nothing: merge onto the report it withdrew, kept as its record.
-        # Every archive is a sibling under the report dir's own REPORT_ATTEMPTS, whichever
-        # record names it.
-        reading = core().parse(jpath.read_bytes(), schema())
-        archived = reading.body['archived'] if reading.outcome == 'withdrawn' else None
-        if archived is None or archived in seen:
-            return empty, reading.outcome == 'withdrawn' and archived is None
-        seen.add(archived)
-        jpath = report_dir / REPORT_ATTEMPTS / archived / REPORT_JSON
+    # a withdrawal (a run that published nothing) resolves to the report it archived
+    reading = core().read_current(report_dir, schema())
+    if reading.outcome == 'withdrawn':   # it archived none: nothing to build on
+        return empty, True
+    try:
+        raw = json.loads(reading.raw)
+        # a withdrawal read_current could not resolve (malformed) is never a report's rows
+        if not isinstance(raw, dict) or core().WITHDRAWN in raw:
+            raise ValueError('sidecar is not a report object')
+    except (TypeError, ValueError):   # absent, unparsable, a malformed withdrawal or a cycle
+        return empty, False
+    return _coerce(raw), True
 
 
 def cell_state(v) -> str:
@@ -262,12 +250,6 @@ class _Run(NamedTuple):
 _runs = {}   # resolved report dir -> the _Run begun there
 
 
-def roster_identity(config_path) -> dict:
-    """The roster a run read, as its report's `_hil.roster`: the file's name and SHA-256."""
-    path = Path(config_path)
-    return {'name': path.name, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
-
-
 def start_attempt(report_dir: Path, accumulate: bool, config_path, selection: list, invocation=None):
     """Begin this run's attempt on the report in report_dir, before anything replaces it
     (hil_test's fresh wipe, a no-boards notice): the core archives that report under
@@ -278,7 +260,7 @@ def start_attempt(report_dir: Path, accumulate: bool, config_path, selection: li
     attempt = core().start_attempt(report_dir, schema(), accumulate)
     _runs[Path(report_dir).resolve()] = _Run(attempt, {
         'invocation': [str(a) for a in (sys.argv if invocation is None else invocation)],
-        'selection': list(selection), 'host': socket.gethostname(), 'roster': roster_identity(config_path)})
+        'selection': list(selection), 'host': socket.gethostname(), 'roster': core().roster_identity(config_path)})
     return attempt
 
 
@@ -309,39 +291,22 @@ def _publish(report_dir: Path, doc: dict, termination: str, accumulate: bool, le
 
 def withdraw(report_dir: Path, err: Exception) -> None:
     """After this run's attempt failed to publish its report with `err`: make sure the report
-    left in report_dir is never read as this run's. Never raises; the run's own exit is its
-    blocker.
-
-    A JSON already published, only its markdown not, is this run's and stays (the markdown is
-    regenerated). Otherwise the core withdraws the report: the one in place is archived and
-    replaced by a withdrawal record naming this attempt, which no preparation renders and the
-    next accumulated attempt links. When even that cannot be written, a pair the attempt
-    archived before it began is removed rather than left standing as this run's."""
-    c = core()
+    left in report_dir is never read as this run's (hil_report_core.recover_publish: the
+    markdown regenerated, the report withdrawn, or the archived predecessor's files removed).
+    Never raises; the run's own exit is its blocker."""
     run = _runs.get(Path(report_dir).resolve())
     try:
-        if isinstance(err, c.ReportError) and err.stage == 'markdown':
-            c.prepare_pair(report_dir, schema())
-            return
-        if run is None:
-            raise c.ReportError('attempt', 'no attempt was begun here, so none can be withdrawn')
-        c.withdraw_current(report_dir, schema(), run.attempt.attempt_id, f'{type(err).__name__}: {err}')
-        print(f'warning: {REPORT_JSON} in {report_dir} withdrawn: this run published no report', flush=True)
-        return
+        got = core().recover_publish(report_dir, schema(), run.attempt if run else None, err)
     except Exception as e:  # noqa: BLE001 - the caller's own error must still surface
-        print(f'warning: cannot withdraw the report in {report_dir}: {e}', flush=True)
-    if run is None or run.attempt.archived is None:
+        print(f'warning: cannot recover the report in {report_dir}: {e}', flush=True)
         return
-    record = Path(report_dir) / REPORT_ATTEMPTS / run.attempt.archived
-    for name in (REPORT_JSON, REPORT_MD):
-        live = Path(report_dir) / name
-        try:
-            if live.read_bytes() == (record / name).read_bytes():
-                live.unlink()
-                print(f'warning: removed {live}: it is archived as attempt {run.attempt.archived}, '
-                      f'not this run\'s report', flush=True)
-        except OSError:
-            pass
+    for problem in got.problems:
+        print(f'warning: {problem}', flush=True)
+    if got.outcome == 'withdrawn':
+        print(f'warning: {REPORT_JSON} in {report_dir} withdrawn: this run published no report', flush=True)
+    elif got.removed:
+        print(f'warning: removed {", ".join(got.removed)} from {report_dir}: archived as attempt '
+              f'{run.attempt.archived}, not this run\'s report', flush=True)
 
 
 def write_report(report_dir: Path, doc: dict, termination: str = 'completed') -> None:
@@ -766,7 +731,7 @@ def sequence(config_path, requested: list, report_dir: Path) -> dict:
     summarize() stays the snapshot verdict."""
     c, s = core(), schema()
     cfg = json.loads(Path(config_path).read_text())
-    roster = roster_identity(config_path)
+    roster = c.roster_identity(config_path)
     chain, locked_before = [], None
     for ctx in c.read_chain(report_dir, s):
         run, locked, final = _attempt(cfg, roster, ctx.reading) if ctx.outcome in c.READABLE \
@@ -776,12 +741,7 @@ def sequence(config_path, requested: list, report_dir: Path) -> dict:
                  and ctx.previous_attempt == before.attempt_id)
         chain.append(ctx._replace(run=run, retry=retry, final=final))
         locked_before = locked
-    out = c.sequence_verdict(s, requested, chain)
-    if out['current'] is not None:
-        rows = [r for r in out['current']['rows'] if r['board'] in requested]
-        verdict = min((r['verdict'] for r in rows), key=c.VERDICTS.index) if rows else 'not-run'
-        out['current'] = {**out['current'], 'verdict': verdict, 'rows': rows}
-    return out
+    return c.sequence_verdict(s, requested, chain)
 
 
 def _prepare(argv: list) -> int:

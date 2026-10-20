@@ -496,45 +496,6 @@ class CopyBack(unittest.TestCase):
         kept, = self.kept()
         self.assertEqual(self.reading(kept).meta['attempt_id'], 'a2', 'the rig\'s report is kept apart')
 
-    def test_a_chain_naming_a_record_the_checkout_holds_differently_is_not_promoted(self):
-        self.publish(self.local, 'rig-1', 'pass')
-        self.publish(self.local, 'loc-2', 'pass')            # rig-1 (a pass) is archived locally
-        self.publish(self.rig, 'rig-1', 'fail', termination='aborted')
-        self.publish(self.rig, 'rig-2', 'pass', previous=True)   # names the aborted rig-1
-        copied, ok, err = self.collect()
-        self.assertEqual((copied, ok), ([], False))
-        self.assertIn("chain names attempt record(s) rig-1", err)
-        r = self.reading()
-        self.assertEqual((r.outcome, r.body['attempt_id']), ('withdrawn', 'rig-2'))
-        local = report.core().read_document(self.local / report.REPORT_ATTEMPTS / 'rig-1' / report.REPORT_JSON,
-                                            report.schema())
-        self.assertEqual(local.meta['termination'], 'completed', 'an archive is never rewritten')
-        kept, = self.kept()
-        rig = report.core().read_document(kept / report.REPORT_ATTEMPTS / 'rig-1' / report.REPORT_JSON, report.schema())
-        self.assertEqual(rig.meta['termination'], 'aborted', 'the rig\'s record is kept apart, not dropped')
-        chain = report.core().read_chain(self.local, report.schema())
-        self.assertEqual([c.outcome for c in chain], ['withdrawn'], 'no chain of this run reads as complete')
-
-    def test_a_conflict_reached_through_a_record_only_the_checkout_holds_is_not_promoted(self):
-        self.publish(self.local, 'first', 'pass')
-        self.publish(self.local, 'middle', 'pass', previous=True)
-        self.publish(self.local, 'other', 'pass')            # first and middle -> first archived locally
-        self.publish(self.rig, 'first', 'fail', termination='aborted')
-        self.publish(self.rig, 'middle', 'pass', previous=True)
-        self.publish(self.rig, 'latest', 'pass', previous=True)
-        shutil.rmtree(self.rig / report.REPORT_ATTEMPTS / 'middle')   # the bundle omits the intermediate
-        copied, ok, err = self.collect()
-        self.assertEqual((copied, ok), ([], False))
-        self.assertIn('chain names attempt record(s) first', err)
-        r = self.reading()
-        self.assertEqual((r.outcome, r.body['attempt_id']), ('withdrawn', 'latest'))
-        local = report.core().read_document(self.local / report.REPORT_ATTEMPTS / 'first' / report.REPORT_JSON,
-                                            report.schema())
-        self.assertEqual(local.meta['termination'], 'completed')
-        kept, = self.kept()
-        rig = report.core().read_document(kept / report.REPORT_ATTEMPTS / 'first' / report.REPORT_JSON, report.schema())
-        self.assertEqual(rig.meta['termination'], 'aborted', 'both versions are kept')
-
     def test_an_unrelated_conflicting_record_is_named_but_does_not_stop_the_report(self):
         self.retry_on_the_rig()
         self.publish(self.local, 'old', 'pass')   # archives a1 locally; local current is old
@@ -546,66 +507,6 @@ class CopyBack(unittest.TestCase):
         self.assertIn('old on the rig differ', err)
         self.assertEqual(self.reading().meta['attempt_id'], 'a2')
         self.assertEqual(len(self.kept()), 1, 'the rig\'s differing record is kept apart')
-
-    def test_a_rig_report_the_checkout_already_holds_is_not_this_runs(self):
-        """The rig run published nothing: the report there is the uploaded merge base."""
-        self.publish(self.local, 'a1', 'pass')
-        for f in (report.REPORT_JSON, report.REPORT_MD):
-            shutil.copyfile(self.local / f, self.rig / f)
-        copied, ok, err = self.collect()
-        self.assertEqual((copied, ok), ([], False))
-        self.assertIn('which the checkout holds already', err)
-        self.assertEqual(self.reading().outcome, 'withdrawn')
-
-    def test_a_report_the_rig_withdrew_comes_home_as_unavailable(self):
-        self.retry_on_the_rig()
-        report.core().withdraw_current(self.rig, report.schema(), 'a3', 'publish failed')
-        copied, ok, err = self.collect()
-        self.assertEqual((copied[1:], ok), (['hil_report.json', 'hil_report.md'], False))
-        self.assertIn('unavailable notice', err)
-        self.assertEqual(self.reading().outcome, 'withdrawn')
-
-    def promote_with_a_failing_markdown_replace(self, failures):
-        real, md = os.replace, self.local / report.REPORT_MD
-        left = [failures]
-
-        def replace(src, dst):
-            if Path(dst) == md and left[0]:
-                left[0] -= 1
-                raise OSError('disk full')
-            return real(src, dst)
-        self.retry_on_the_rig()
-        (self.local / report.REPORT_MD).write_text('the previous run\'s table')
-        with mock.patch.object(hil_remote.os, 'replace', replace):
-            return self.collect()
-
-    def test_a_markdown_that_cannot_be_promoted_is_rendered_from_the_new_json(self):
-        copied, ok, err = self.promote_with_a_failing_markdown_replace(1)
-        self.assertFalse(ok)
-        self.assertIn('hil_report.md could not be promoted (disk full)', err)
-        self.assertEqual(self.reading().meta['attempt_id'], 'a2', 'the copied JSON is this run\'s and stays')
-        doc = json.loads((self.local / report.REPORT_JSON).read_text())
-        self.assertEqual((self.local / report.REPORT_MD).read_text(encoding='utf-8'), report.render_report(doc) + '\n')
-        self.assertIn('hil_report.md', copied)
-        self.assertEqual(len(self.kept()), 1)
-
-    def test_a_markdown_that_cannot_be_written_at_all_is_removed(self):
-        copied, ok, err = self.promote_with_a_failing_markdown_replace(99)
-        self.assertFalse(ok)
-        self.assertIn('could not be rendered from the copied JSON', err)
-        self.assertFalse((self.local / report.REPORT_MD).exists(), 'never the previous run\'s table beside this JSON')
-        self.assertNotIn('hil_report.md', copied)
-        self.assertEqual(self.reading().meta['attempt_id'], 'a2')
-
-    def test_a_chain_record_neither_side_holds_makes_the_collection_incomplete(self):
-        self.retry_on_the_rig()
-        for f in (report.REPORT_JSON, report.REPORT_MD):
-            (self.local / f).unlink()
-        shutil.rmtree(self.rig / report.REPORT_ATTEMPTS)
-        copied, ok, err = self.collect()
-        self.assertFalse(ok)
-        self.assertIn("chain names attempt record(s) a1, which neither the rig nor the checkout holds", err)
-        self.assertEqual(self.reading().meta['attempt_id'], 'a2', 'the report itself is this run\'s and lands')
 
     def test_a_collection_withdrawal_names_the_copy_back(self):
         self.retry_on_the_rig()

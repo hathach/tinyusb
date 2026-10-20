@@ -1564,18 +1564,6 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         seq = hil_report.sequence(self.cfg, ['a'], self.rd)['sequence']
         self.assertEqual(seq['rows'][0]['verdict'], 'blocker', 'an attempt without a report blocks the sequence')
 
-    def test_when_the_withdrawal_fails_too_the_archived_predecessor_is_removed(self):
-        def no_withdrawal(*a, **k):
-            raise self.c.ReportError('writer', 'held')
-        out = self.abort(publish=self.refuse, withdraw_current=no_withdrawal)
-        self.assertIn('cannot withdraw', out)
-        self.assertFalse((self.rd / hil_report.REPORT_JSON).exists(), 'no pair left to read as this run\'s')
-        self.assertTrue((self.rd / hil_report.REPORT_ATTEMPTS / self.first / hil_report.REPORT_JSON).is_file(),
-                        'it is archived, so nothing is lost')
-        self.assertEqual(_cli(str(self.cfg), '--report-dir', str(self.rd)).returncode, 1)
-        self.c.prepare_pair(self.rd, hil_report.schema())
-        self.assertIn('hil_report.json is missing', (self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
-
     def test_a_json_published_before_its_markdown_failed_is_kept(self):
         real = self.c.publish
 
@@ -1605,11 +1593,25 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         root = self.rd / hil_report.REPORT_ATTEMPTS
         for aid, other in (('withdrawn-x', 'withdrawn-y'), ('withdrawn-y', 'withdrawn-x')):
             (root / aid).mkdir(parents=True)
-            (root / aid / hil_report.REPORT_JSON).write_text(json.dumps({hil_report.WITHDRAWN: {
+            (root / aid / hil_report.REPORT_JSON).write_text(json.dumps({hil_report.core().WITHDRAWN: {
                 'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'attempt_id': aid[len('withdrawn-'):],
                 'archived': other, 'reason': 'r'}}))
         (self.rd / hil_report.REPORT_JSON).write_bytes((root / 'withdrawn-x' / hil_report.REPORT_JSON).read_bytes())
         self.assertEqual(hil_report._load(self.rd)[0]['rows'], [])
+
+    def test_a_malformed_withdrawal_is_never_read_as_rows(self):
+        malformed = json.dumps({hil_report.core().WITHDRAWN: {'malformed': True},
+                                'rows': [{'board': 'a', 'cells': {'t': 'pass'}}], 'scope': '', 'caveat': ''})
+        archived = self.rd / hil_report.REPORT_ATTEMPTS / 'withdrawn-x'
+        archived.mkdir(parents=True)
+        (archived / hil_report.REPORT_JSON).write_text(malformed)
+        through = json.dumps({hil_report.core().WITHDRAWN: {
+            'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'attempt_id': 'y', 'archived': 'withdrawn-x',
+            'reason': 'r'}})
+        for name, current in (('current', malformed), ('through an archive', through)):
+            with self.subTest(name):
+                (self.rd / hil_report.REPORT_JSON).write_text(current)
+                self.assertEqual(hil_report._load(self.rd), ({'rows': [], 'scope': '', 'caveat': ''}, False))
 
     def test_a_failed_no_selection_write_withdraws_before_the_upload_prepares(self):
         def refuse(*a, **k):
