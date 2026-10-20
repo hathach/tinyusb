@@ -65,6 +65,10 @@ CLEANUP_PENDING_CELL = 'cleanup-pending'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
 BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
+# body field of an accumulating attempt's report, {'attempt_id', 'rows': {row: [cell keys]}}: the
+# cells it wrote, which it is graded from -- its merged rows also hold earlier attempts'. A fresh
+# attempt's cells are all its own, so its report has none.
+ATTEMPT_CELLS = 'attempt_cells'
 
 
 _core = None
@@ -131,7 +135,13 @@ def _coerce(raw: dict) -> dict:
             row['retired'] = True
         rows.append(row)
     text = lambda k: raw[k] if isinstance(raw.get(k), str) else ''
-    return {'rows': rows, 'scope': text('scope'), 'caveat': text('caveat')}
+    out = {'rows': rows, 'scope': text('scope'), 'caveat': text('caveat')}
+    own = raw.get(ATTEMPT_CELLS)
+    if isinstance(own, dict) and isinstance(own.get('attempt_id'), str) and isinstance(own.get('rows'), dict):
+        out[ATTEMPT_CELLS] = {'attempt_id': own['attempt_id'],
+                              'rows': {str(k): [c for c in v if isinstance(c, str)]
+                                       for k, v in own['rows'].items() if isinstance(v, list)}}
+    return out
 
 
 def _load(report_dir: Path) -> tuple:
@@ -264,13 +274,15 @@ def start_attempt(report_dir: Path, accumulate: bool, config_path, selection: li
     return attempt
 
 
-def _publish(report_dir: Path, doc: dict, termination: str, accumulate: bool, legacy: bool = False) -> None:
+def _publish(report_dir: Path, doc: dict, termination: str, accumulate: bool, legacy: bool = False,
+             ran: dict | None = None) -> None:
     """Publish doc as the attempt begun on report_dir. A writer called outside one is an
     attempt of its own only when it starts a fresh report: an accumulating write must join
     this run's attempt (start_attempt), whose roster and host link it to its predecessor,
     and none is inferred. `legacy` publishes the earlier markdown the attempt archived without
     a readable sidecar below the table, labelled: those rows are in no JSON, and no later run
-    merges them.
+    merges them. `ran` ({row: cell keys}) is what this write adds to an accumulating attempt's
+    ATTEMPT_CELLS, which keeps doc's only when an earlier write of this attempt made it.
 
     The core validates the document and renders the markdown from it before replacing
     either file, then replaces the JSON and the markdown each atomically: a render failure
@@ -284,6 +296,14 @@ def _publish(report_dir: Path, doc: dict, termination: str, accumulate: bool, le
         run = _Run(c.start_attempt(report_dir, schema(), False),
                    {'invocation': [str(a) for a in sys.argv], 'selection': [], 'host': socket.gethostname(),
                     'roster': {}})
+    earlier = doc.get(ATTEMPT_CELLS)
+    doc = {k: v for k, v in doc.items() if k != ATTEMPT_CELLS}
+    if run.attempt.prior is not None:   # accumulating
+        aid = run.attempt.attempt_id
+        own = dict(earlier['rows']) if earlier and earlier['attempt_id'] == aid else {}
+        for row, keys in (ran or {}).items():
+            own[row] = sorted(set(own.get(row, ())) | set(keys))
+        doc[ATTEMPT_CELLS] = {'attempt_id': aid, 'rows': own}
     try:
         meta = c.make_meta(schema(), run.attempt, termination=termination,
                            legacy_text=run.attempt.legacy_text if legacy else None, **run.meta)
@@ -363,8 +383,7 @@ def _mark_report(report_dir: Path, caveat: str, termination: str, fresh: bool) -
         # Resetting only rows republished a stale scope line under this run's notice,
         # from a leftover or uploaded sidecar.
         prior = {'rows': [], 'scope': ''} if fresh else doc
-        _publish(report_dir, {'rows': prior['rows'], 'scope': prior['scope'], 'caveat': caveat},
-                 termination, accumulate=not fresh)
+        _publish(report_dir, {**prior, 'caveat': caveat}, termination, accumulate=not fresh)
     except Exception as e:  # noqa: BLE001 - the exit code is what the job reads
         print(f'warning: cannot write {REPORT_MD} to {report_dir}: {e}', flush=True)
         withdraw(report_dir, e)
@@ -405,6 +424,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                         r.get('retired', False)]
            for r in prior['rows']}
     before = {k: dict(row[0]) for k, row in acc.items()}
+    ran = {}
 
     # current cells override prior for boards/tests that ran; a filtered run reports
     # duration None, keeping the previous full-run value
@@ -436,6 +456,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                     else:
                         del acc[name]
         for row_label, cells, dur in rows:
+            ran.setdefault(row_label, set()).update(cells)
             row = acc.setdefault(row_label, [{}, None, [], False])
             row[3] = False
             if unbuilt:
@@ -464,11 +485,12 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     doc = {'rows': [{'board': k, 'cells': c, 'duration': d, **({'history': h} if h else {}),
                      **({'retired': True} if retired else {})}
                     for k, (c, d, h, retired) in acc.items()],
-           'scope': scope, 'caveat': caveat}
+           'scope': scope, 'caveat': caveat,
+           **({ATTEMPT_CELLS: prior[ATTEMPT_CELLS]} if ATTEMPT_CELLS in prior else {})}
     # through _publish, not hand-rolled: writing the JSON and only then rendering is the
     # ordering it exists to forbid -- a render failure left the sidecar ahead of the
     # markdown, which is the one invariant this module holds.
-    _publish(report_dir, doc, termination, accumulate=not fresh)
+    _publish(report_dir, doc, termination, accumulate=not fresh, ran=ran)
     return render_report(doc)
 
 
@@ -501,12 +523,12 @@ def write_timeout_report(report_dir: Path, boards, caveat: str, cell: str = POOL
                 _keep_earlier(hist, prior_cells, row['cells'])
                 if hist:
                     row['history'] = hist
-        out = {'rows': rows, 'scope': doc['scope'], 'caveat': caveat}
+        out = {**doc, 'rows': rows, 'caveat': caveat}
         # `readable` covers ABSENT as well as torn: re-rendering from the stuck rows alone
         # destroyed the real results an intact markdown beside them still held, so that
         # markdown goes below the table as labelled legacy text
         _publish(report_dir, out, 'timeout' if cell == POOL_TIMEOUT_CELL else 'aborted', accumulate=True,
-                 legacy=not readable)
+                 legacy=not readable, ran={name: [cell] for name in names})
     except Exception as e:  # noqa: BLE001
         # Deliberately broad: the caller raises the abort right after, and an escape here
         # would replace that error with this one.
@@ -719,6 +741,13 @@ def _attempt(cfg: dict, roster: dict, reading) -> tuple:
         return None, set(), frozenset()
     boards = list(dict.fromkeys(meta['selection']))
     body = _coerce(reading.body)
+    own = body.get(ATTEMPT_CELLS)
+    if own is not None:
+        # graded from its own cells: a row this attempt wrote nothing to is not-run, never the
+        # pass or fail an earlier attempt left in it. A record of another attempt credits none.
+        own = own['rows'] if own['attempt_id'] == meta['attempt_id'] else {}
+        body = {**body, 'rows': [dict(r, cells={k: v for k, v in r['cells'].items() if k in own.get(r['board'], ())})
+                                 for r in body['rows']]}
     results = _results(cfg, boards, body)
     run = core().apply_run_rules(schema(), boards, [_normalised(r, c) for r, c, missing in results if not missing],
                                  meta['termination'], body['caveat'].strip())

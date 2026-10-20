@@ -1250,9 +1250,10 @@ def _cli(*argv, cwd=None, env=None):
 class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
     """The report is published through agentrc's hil_report_core. What tinyusb's readers see is
     unchanged for a compatible input, with the intended exceptions enumerated here: the sidecar
-    gains the reserved `_hil` object after its own fields, at the same indent; an unreadable
-    sidecar's earlier markdown goes below the table as labelled legacy text (not above it as
-    the body); hil_report.py refuses a report of an unknown schema or version."""
+    gains the reserved `_hil` object after its own fields, at the same indent, and an
+    accumulating attempt's the cells it wrote (ATTEMPT_CELLS); an unreadable sidecar's earlier
+    markdown goes below the table as labelled legacy text (not above it as the body);
+    hil_report.py refuses a report of an unknown schema or version."""
 
     def setUp(self):
         td = TemporaryDirectory()
@@ -1746,6 +1747,15 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
                 current = hil_report.sequence(self.cfg, ['b'], self.rd)['current']
                 self.assertEqual((current['rows'], current['verdict']), ([], 'not-run'),
                                  'only the queried boards are returned')
+
+    def test_a_retry_that_ran_nothing_is_graded_from_its_own_cells(self):
+        # a -t host/device_info retry on a device-only board: its empty rows clear the boundary
+        # cell from the merged table, but the earlier pass beside it is not this attempt's
+        self.attempt(False, {'a': {'a-fs': {'device/cdc_msc': '✅'}, 'a-hs': {hil_report.BOUNDARY_CELL: 'fail'}}})
+        self.attempt(True, {'a': {'a-fs': {}, 'a-hs': {}}})
+        self.assertEqual(self.verdicts(['a'])['a'], ('fail', False), 'never a flaky pass')
+        current = hil_report.sequence(self.cfg, ['a'], self.rd)['current']
+        self.assertEqual(current['rows'][0]['verdict'], 'not-run')
 
     def test_a_row_without_a_test_cell_never_passes_the_sequence(self):
         self.attempt(False, {'b': {'b': {}}})
