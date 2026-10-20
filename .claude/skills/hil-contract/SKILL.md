@@ -118,7 +118,7 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ### Remote (dev PC → ci.lan only)
 
-`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
+`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair, the rig report's attempt records (`hil_report.attempts/`, merged create-only) and `<config>.failed` back to the checkout root in one fetch. The local pair it replaces is archived under `hil_report.attempts/` first, and the copied Markdown is rendered again from the JSON, or replaced by an `HIL report unavailable` notice, before anything reads it. A rig pair that did not all arrive, of an unknown schema, already held by the checkout (the run published none) or whose chain names an attempt record the checkout holds differently never replaces the local one: the local report is withdrawn instead (archived, then an `HIL report unavailable` notice), the rig's report and records are kept under `.hil-remote/collect-*/`, and the run exits nonzero even when `hil_test.py` exited 0. It exits nonzero too when the copied report is unavailable, its Markdown could not be put in place (it is rendered from the copied JSON or removed), or its chain names an attempt record neither the rig nor the checkout holds. The transport is agentrc's `hil_remote_core`, loaded from `lib/agentrc` at the pin:
 
 ```bash
 # All boards built under cmake-build/:
@@ -129,7 +129,7 @@ python3 .claude/skills/hil-contract/scripts/hil_remote.py -b raspberry_pi_pico2 
 
 An agent launches it with `--run-id` and waits on it as Timing says.
 
-It refuses, before touching the rig, when no `rsync` is on PATH. On a Windows dev PC that must be
+It refuses, before touching the rig, when no `rsync` is on PATH, or when the local `hil_report.json` is of an unknown schema or version (it would be replaced unarchived). On a Windows dev PC that must be
 an MSYS2 or Cygwin `rsync.exe` in an absolute PATH dir, and it must find its own distribution's
 `ssh` first on PATH, since with Windows OpenSSH (`System32\OpenSSH`) the argument conversion and
 the pipes rsync relies on break. There it also refuses a config or firmware dir on another drive
@@ -232,12 +232,18 @@ and, until #4226, the operator copies the first attempt's report directory aside
 saying where in that transcript. `testedHead` for a
 review row is the build receipt's head (Build), or HEAD of the tree a local run built.
 `hil_test.py` exits with its failure count (capped at 125); `hil_report.py` exits 0 whenever it
-wrote its JSON, a failing one included: read `pass`, never its exit. `results` has exactly one
+wrote its JSON, a failing one included: read `pass`, never its exit. It exits 1 without JSON when
+the report is missing or of an unknown schema or version: the sidecar carries agentrc's
+`hil_report_core` metadata (`_hil`: attempt id, predecessor, how the run ended) beside its own
+fields, and every attempt a later one replaced is kept under `hil_report.attempts/`. `results` has exactly one
 entry per requested board. `pass` is the verdict of
 this report snapshot: every row can pass on an aborted or no-boards run, so the run-level
 `caveat` (aborted, no boards; empty on every other run) gates it. `--accumulate`
 clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's,
-and a re-run's own caveat fails the sequence. Each row's `wedged`
+and a re-run's own caveat fails the sequence. `python3 test/hil/helper/hil_report.py sequence <config> [-b BOARD]...
+[--report-dir DIR]` prints that sequence verdict from every linked attempt (agentrc's `sequence_verdict`:
+`{current, sequence}`; every board an attempt selected decides whether the next is an eligible retry, and a board passes only with a passing test cell), with the same exits; a run that could not publish its report leaves a withdrawal
+record (`HIL report unavailable` notice) that blocks the sequence. Each row's `wedged`
 is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
 not rule out) and is copied with the row; the
 top-level `wedged` names requested boards, never a variant row name.
@@ -256,7 +262,7 @@ locked board is admitted again, once its holder releases and within the budget, 
 retry. A board still wedged after usbtest's
 in-run recovery (Recovery) is reported for a separately dispatched recovery action.
 
-**First check what sits above the table.** Three notices can appear there; match on a
+**First check what sits above the table.** These notices can appear there; match on a
 PREFIX, since each carries trailing detail:
 
 - `**HIL run aborted: worker pool timed out after …s.**` and
@@ -271,15 +277,20 @@ PREFIX, since each carries trailing detail:
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
   `"pass": true`.
-- `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
-  `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
-  table; an `--accumulate` run keeps the previous attempt's rows under the notice, and they
-  are not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run
-  alike instead write every board's `build refused` row as this run's — report them
-  ran=false/pass=false; `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that
-  board, and the `<config>.failed` re-run spec is written or refreshed to name the boards.
-  Either way the exit code is nonzero. Report what the message shows (the filter, or the
-  refused boards), never `"pass": true`.
+- `**HIL run aborted: config error: …**`, `**HIL run aborted: usbtest id registration failed: …**`
+  and `**HIL run aborted: No boards left: check_build.py refused every build (…)**` — boards
+  were selected but none was tested: a roster error, a failed usbtest registration, or, under
+  `--build`, `check_build.py` refusing every board. A fresh run shows no table on the first
+  two; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
+  not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run alike
+  write every board's `build refused` row as this run's — report them ran=false/pass=false;
+  `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that board, and the
+  `<config>.failed` re-run spec is written or refreshed to name the boards. The exit code is
+  nonzero; never `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing. A fresh run shows
+  no table; an `--accumulate` run keeps the previous attempt's rows under the notice, and
+  they are not this run's. The exit code is nonzero. Report the filter the message shows,
+  never `"pass": true`.
 
 The operator's retry (above) runs with `-v`; `hil`'s gate on it matters here because the `.failed` spec
 lists locked and wedged boards too, and an accumulated retry would clear a caveat the caller
@@ -343,6 +354,8 @@ hardware access, as `<board>  Failed: board lock unavailable: <OS error>` with a
 line lists those cases per status (`FAIL: [...]; HUNG: [...]; NOTRUN: [...]; BUDGET: [...]`). A skipped cell
 (`Skip (no binary)`) is listed in the row's `skipped` and the row folds `pass: false`. `--accumulate` keeps each
 changed row's earlier cells in the sidecar's `history`, oldest first, which `summarize()` exposes per board.
+A pool-guard or abort report written over an unreadable sidecar keeps the earlier Markdown below its
+table as labelled legacy text: those rows are in no JSON, and no verdict is read from them.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 

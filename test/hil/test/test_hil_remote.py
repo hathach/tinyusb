@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Unit tests for hil_remote.py's run records: --run-id's started and completion receipts and
-# the `wait` that reads them. No rig: run() is stubbed, the processes are local.
+# Unit tests for hil_remote.py, the adapter over agentrc's hil_remote_core: --run-id and
+# `wait` wired to the core's run records, the build receipts, check_build.py --receipt and the
+# report copy-back's wiring. No rig: run() or the core's transport is stubbed. The run records
+# themselves are the core's, tested with it (lib/agentrc/tests/test_hil_remote_core.py).
 # Run directly:
 #   python3 test/hil/test/test_hil_remote.py
 import contextlib
@@ -12,9 +14,6 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
-import threading
-import time
 import types
 import unittest
 from unittest import mock
@@ -28,6 +27,8 @@ hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)
 for name in ('hil_report', 'hil_args'):
     hil_remote.helper(name)  # imported from the real checkout before a test moves ROOT
+report = hil_remote.helper('hil_report')
+TREE = hil_remote.core.Tree('rig', '/tmp/t', '/tmp/t.lock', 'tok', Path('/nonexistent'))
 
 
 class RunRecords(unittest.TestCase):
@@ -35,10 +36,9 @@ class RunRecords(unittest.TestCase):
         tmp = TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
-        for name, value in (('ROOT', self.root), ('POLL_SECS', 0.05), ('START_SECS', 20)):
-            old = getattr(hil_remote, name)
-            setattr(hil_remote, name, value)
-            self.addCleanup(setattr, hil_remote, name, old)
+        old = hil_remote.ROOT
+        hil_remote.ROOT = self.root
+        self.addCleanup(setattr, hil_remote, 'ROOT', old)
 
     def stub_run(self, fn):
         old = hil_remote.run
@@ -51,33 +51,12 @@ class RunRecords(unittest.TestCase):
             rc = hil_remote.main(['wait', *argv])
         return rc, json.loads(out.getvalue())
 
-    def started(self, run_id):
-        """A started record nobody holds: its run is gone."""
-        started, _ = hil_remote.run_paths(run_id)
-        started.parent.mkdir(exist_ok=True)
-        hil_remote.write_json(started, {'runId': run_id, 'pid': 1, 'startedAt': 0})
-
-    def launch(self, run_body, run_id):
-        """A real background launch in its own process, whose run() is run_body."""
-        script = textwrap.dedent(f'''
-            import importlib.util, os, signal, sys, time
-            from pathlib import Path
-            spec = importlib.util.spec_from_file_location('hil_remote', {str(SCRIPT)!r})
-            m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-            m.ROOT = Path({str(self.root)!r})
-            m.run = lambda argv, receipt=None: {run_body}
-            sys.exit(m.main(sys.argv[1:]))
-        ''')
-        p = subprocess.Popen([sys.executable, '-c', script, '--run-id', run_id])
-        self.addCleanup(p.wait)
-        self.addCleanup(p.kill)
-        return p
-
     def test_a_finished_run_leaves_its_exit_and_reports(self):
         seen = []
         self.stub_run(lambda argv, receipt=None: seen.append(argv) or (2, ['hil_report.md', 'hil_report.json']))
         self.assertEqual(hil_remote.main(['-b', 'pico', '--run-id', 'r1', '-v']), 2)
         self.assertEqual(seen, [['-b', 'pico', '-v']], '--run-id is not passed on to hil_test.py')
+        self.assertTrue((self.root / hil_remote.RUNS_DIR / 'r1.started.json').is_file(), 'the records live in the checkout')
         self.assertEqual(self.wait('r1'), (0, {'state': 'done', 'runId': 'r1', 'exit': 2,
                                                'reports': ['hil_report.md', 'hil_report.json']}))
 
@@ -93,129 +72,18 @@ class RunRecords(unittest.TestCase):
         hil_remote.main(['--run-id', 'r3'])
         with self.assertRaises(SystemExit) as e:
             hil_remote.main(['--run-id', 'r3'])
-        self.assertIn('was used before', e.exception.code)
+        self.assertIn('was used before (.hil-remote/r3.started.json)', e.exception.code)
 
-    def test_a_live_run_is_still_running_at_the_timeout(self):
-        p = self.launch('(time.sleep(30), (0, []))[1]', 'r4')
-        rc, status = self.wait('r4', '--timeout', '2')  # the start grace covers the launch
-        self.assertEqual((rc, status['state'], status['runId'], status['pid']), (hil_remote.RUNNING, 'running', 'r4', p.pid))
-
-    def test_an_earlier_runs_done_record_does_not_answer_for_this_one(self):
-        self.stub_run(lambda argv, receipt=None: (0, ['hil_report.md']))
-        hil_remote.main(['--run-id', 'old'])
-        self.launch('(time.sleep(30), (0, []))[1]', 'new')
-        self.assertEqual(self.wait('new', '--timeout', '1')[1]['state'], 'running')
-
-    def test_a_started_record_nobody_holds_is_dead(self):
-        self.started('r5')
-        self.assertEqual(self.wait('r5', '--timeout', '5')[0], hil_remote.DEAD)
-
-    def test_a_run_that_ends_while_waited_on_is_done(self):
-        """wait blocks across the start and the end: the records land after wait began polling."""
-        self.launch("(time.sleep(0.5), (0, ['hil_report.md']))[1]", 'r6')
-        self.assertEqual(self.wait('r6', '--timeout', '20'), (0, {'state': 'done', 'runId': 'r6', 'exit': 0, 'reports': ['hil_report.md']}))
-
-    def test_a_wrapper_killed_before_its_done_record_is_dead(self):
-        # Windows has no SIGKILL; its SIGTERM is TerminateProcess, as abrupt
-        self.launch('os.kill(os.getpid(), getattr(signal, "SIGKILL", signal.SIGTERM))', 'r7').wait()
-        rc, status = self.wait('r7', '--timeout', '5')
-        self.assertEqual((rc, status['state']), (hil_remote.DEAD, 'dead'))
-        self.assertFalse(hil_remote.run_paths('r7')[1].exists())
-
-    @unittest.skipUnless(os.name == 'nt', 'msvcrt has no shared lock: two waiters probes contend there')
-    def test_another_waiters_probe_does_not_read_as_a_live_run(self):
-        self.started('r12')
-        started = hil_remote.run_paths('r12')[0]
-        fd = os.open(started, os.O_RDONLY)
-        self.addCleanup(os.close, fd)
-        hil_remote.win_lock(fd, block=False)   # the other waiter, mid-probe
-        other = threading.Timer(0.05, hil_remote.win_unlock, (fd,))
-        other.start()
-        self.addCleanup(other.join)   # before the close: it seeks and unlocks fd
-        # a 5 s retry budget at the usual step, so a late Timer on a loaded host still lands inside it
-        with mock.patch.object(hil_remote, 'PROBE_TRIES', int(5 / hil_remote.PROBE_SECS)), \
-                mock.patch.object(hil_remote, 'win_unlock', wraps=hil_remote.win_unlock) as unlock:
-            self.assertFalse(hil_remote.run_alive(started))
-        unlock.assert_called_once()   # the probe released its hold, not left it to the close
-
-    def test_a_refused_unlink_of_the_hidden_name_keeps_the_runs_exit(self):
-        # Windows refuses it while a waiter's probe holds the record open; the next sweep takes it
-        self.stub_run(lambda argv, receipt=None: (3, []))
-        real_unlink = Path.unlink
-
-        def unlink(path, missing_ok=False):
-            if path.name.startswith('.r14.started.json.'):
-                raise PermissionError(13, 'The process cannot access the file')
-            return real_unlink(path, missing_ok=missing_ok)
-        with mock.patch.object(hil_remote, 'fcntl', None), mock.patch.object(hil_remote, 'win_lock'), \
-                mock.patch.object(hil_remote, 'win_unlock'), mock.patch.object(Path, 'unlink', unlink):
-            self.assertEqual(hil_remote.main(['--run-id', 'r14']), 3)
-        self.assertEqual(self.wait('r14')[1], {'state': 'done', 'runId': 'r14', 'exit': 3, 'reports': []})
-
-    @unittest.skipUnless(os.name == 'nt', 'only Windows defers the unlink of the hidden name')
-    def test_a_killed_runs_hidden_record_name_is_swept_at_the_next_run(self):
-        runs = self.root / hil_remote.RUNS_DIR
-        runs.mkdir()
-        hidden = {}
-        for run_id, pid in (('killed', 4242), ('live', 4343)):
-            started = runs / f'{run_id}.started.json'
-            started.write_text('{}')
-            hidden[run_id] = runs / f'.{started.name}.{pid}.tmp'
-            os.link(started, hidden[run_id])
-        fd = os.open(hidden['live'], os.O_RDONLY)   # its run still holds it
-        self.addCleanup(os.close, fd)
-        writing = runs / '.new.started.json.4444.tmp'   # a launch that has not linked its record yet
-        writing.write_text('{}')
-        self.stub_run(lambda argv, receipt=None: (0, []))
-        self.assertEqual(hil_remote.main(['--run-id', 'r13']), 0)
-        self.assertEqual(sorted(p.name for p in runs.glob('.*.tmp')), sorted([hidden['live'].name, writing.name]))
-        self.assertTrue((runs / 'killed.started.json').is_file(), 'the record itself stays')
-
-    def test_a_wait_begun_before_the_launch_wrote_its_record_waits_for_it(self):
-        self.stub_run(lambda argv, receipt=None: (0, []))
-        timer = threading.Timer(0.1, hil_remote.main, [['--run-id', 'r8']])
-        timer.start()
-        self.addCleanup(timer.join)
-        self.assertEqual(self.wait('r8', '--timeout', '20')[1]['state'], 'done')
-
-    def test_the_start_grace_ends_with_the_timeout(self):
-        hil_remote.START_SECS, hil_remote.POLL_SECS = 30, 5
-        begun = time.monotonic()
-        with self.assertRaises(SystemExit) as e:
-            hil_remote.main(['wait', 'never', '--timeout', '0.1'])
-        self.assertIn('no run never was started', e.exception.code)
-        self.assertLess(time.monotonic() - begun, 1, 'neither the grace nor its poll outlasts --timeout')
-
-    def test_a_killed_runs_hidden_name_under_a_reused_pid_keeps_its_record(self):
-        self.started('r13')
-        started = hil_remote.run_paths('r13')[0]
-        os.link(started, started.with_name(f'.{started.name}.{os.getpid()}.tmp'))   # left by a kill on Windows
-        before = started.read_bytes()
-        with self.assertRaises(FileExistsError):
-            hil_remote.publish_locked(started, {'runId': 'r13', 'pid': os.getpid(), 'startedAt': 1})
-        self.assertEqual(started.read_bytes(), before)
-
-    def test_an_unlinked_leftover_hidden_name_is_replaced(self):
-        started = hil_remote.run_paths('r14')[0]
-        started.parent.mkdir(exist_ok=True)
-        started.with_name(f'.{started.name}.{os.getpid()}.tmp').write_text('stale')
-        os.close(hil_remote.publish_locked(started, {'runId': 'r14', 'pid': os.getpid(), 'startedAt': 1}))
-        self.assertEqual(json.loads(started.read_text())['runId'], 'r14')
-
-    def test_a_timeout_past_the_tool_cap_is_refused(self):
-        for bad in ('571', '-1', 'nan', 'inf'):
-            with self.subTest(timeout=bad), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
-                hil_remote.main(['wait', 'x', '--timeout', bad])
-            self.assertEqual(e.exception.code, 2)
-
-    def test_unusable_run_ids_are_refused(self):
-        hil_remote.START_SECS = 0.2
-        for argv, why in ((['wait', 'nope'], 'no run nope was started'), (['wait', '../x'], 'a run id is'),
-                          (['--run-id', '.hidden'], 'a run id is'), (['-v', '--run-id'], '--run-id needs a value'),
-                          (['--receipt='], '--receipt needs a value'), (['--run-id', ''], '--run-id needs a value')):
+    def test_options_and_run_ids_are_checked(self):
+        for argv, why in ((['wait', '../x'], 'a run id is'), (['--run-id', '.hidden'], 'a run id is'),
+                          (['-v', '--run-id'], '--run-id needs a value'), (['--receipt='], '--receipt needs a value'),
+                          (['--run-id', ''], '--run-id needs a value')):
             with self.subTest(argv=argv), self.assertRaises(SystemExit) as e:
                 hil_remote.main(argv)
             self.assertIn(why, e.exception.code)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
+            hil_remote.main(['wait', 'x', '--timeout', '571'])
+        self.assertEqual(e.exception.code, 2, 'one wait ends inside the Bash tool\'s cap')
 
 
 class BuildReceipts(unittest.TestCase):
@@ -397,18 +265,18 @@ class BuildReceipts(unittest.TestCase):
         sent = {}
 
         @contextlib.contextmanager
-        def lease(remote, remote_dir, build_dir):
+        def lease(remote, remote_dir, root, mkdirs=()):
             self.example('b', 'device/cdc').write_text('rebuilt while the rig was set up')
-            yield '/tmp/t', 'tok'
+            yield TREE
 
-        def rsync(guard, *args, optional=False):
+        def rsync(tree, *args, optional=False, staging=False):
             if '--prune-empty-dirs' not in args:
                 return 0
             for src in (a for a in args if isinstance(a, Path)):   # local files are Paths
-                sent.update({f.relative_to(src.parent.parent).as_posix(): hil_remote.digest(f) for f in src.rglob('*')
+                sent.update({f.relative_to(src.parent.parent).as_posix(): hil_remote.core.digest(f) for f in src.rglob('*')
                              if f.suffix in hil_remote.STAGED_SUFFIXES or f.name in hil_remote.STAGED_NAMES})
             return 1  # stop the run once the firmware transfer is seen
-        with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
+        with mock.patch.object(hil_remote.core, 'remote_lease', lease), mock.patch.object(hil_remote.core, 'rsync', rsync), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertIn('could not stage the firmware', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
         self.assertEqual(sent, pinned)
@@ -419,25 +287,25 @@ class BuildReceipts(unittest.TestCase):
         state = {'leased': False, 'sources': []}
 
         @contextlib.contextmanager
-        def lease(remote, remote_dir, build_dir):
+        def lease(remote, remote_dir, root, mkdirs=()):
             change()
             state['leased'] = True
             try:
-                yield '/tmp/t', 'tok'
+                yield TREE
             finally:
                 state['leased'] = False
 
-        def rsync(guard, *args, optional=False):
+        def rsync(tree, *args, optional=False, staging=False):
             if '--prune-empty-dirs' in args:
                 state['sources'] += [a for a in args if isinstance(a, Path)]
             return 0
 
-        def run_command(*a, **k):
+        def run_remote(*a, **k):
             state['started'] = True
-            return 'true'
-        with mock.patch.object(hil_remote, 'remote_lease', lease), mock.patch.object(hil_remote, 'rsync', rsync), \
-                mock.patch.object(hil_remote, 'run_command', run_command), \
-                mock.patch.object(hil_remote, 'copy_back', lambda *a: []), \
+            return 0
+        with mock.patch.object(hil_remote.core, 'remote_lease', lease), mock.patch.object(hil_remote.core, 'rsync', rsync), \
+                mock.patch.object(hil_remote.core, 'run_remote', run_remote), \
+                mock.patch.object(hil_remote, 'copy_back', lambda *a: ([], True)), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             try:
                 hil_remote.main([*argv, '-b', 'b'])
@@ -465,7 +333,7 @@ class BuildReceipts(unittest.TestCase):
                 self.assertIn('what was staged is not what it checked', code)
                 self.assertFalse(leased, 'the refusal ends the lease')
                 self.assertTrue(sources and not any(s.exists() for s in sources), 'the refusal removes the snapshot')
-                done = json.loads(hil_remote.run_paths(run_id)[1].read_text())
+                done = json.loads(hil_remote.core.run_paths(self.root / hil_remote.RUNS_DIR, run_id)[1].read_text())
                 self.assertEqual((done['exit'], done['reports']), (1, []))
                 self.git('reset', '-q', '--hard', 'HEAD@{1}' if what == 'head' else 'HEAD')
 
@@ -526,20 +394,244 @@ class CheckBuildReceipt(unittest.TestCase):
 
 
 class CopyBack(unittest.TestCase):
-    def test_it_names_what_it_copied(self):
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            old = hil_remote.ROOT, hil_remote.rsync
-            self.addCleanup(lambda: (setattr(hil_remote, 'ROOT', old[0]), setattr(hil_remote, 'rsync', old[1])))
-            hil_remote.ROOT = root
+    """The copy-back's decisions over what one fetch brought: the core's transport is stubbed
+    by a rig dir whose members it copies, with the outcome a test names per member."""
 
-            def rsync(guard, *args, optional=False):
-                Path(args[-1]).write_text('x')
-                return 0
-            hil_remote.rsync = rsync
-            with contextlib.redirect_stdout(io.StringIO()):
-                copied = hil_remote.copy_back('rig', '/tmp/t', 'tok', 'tinyusb.json')
-            self.assertEqual(copied, ['hil_report.md', 'hil_report.json', 'tinyusb.json.failed'])
+    def setUp(self):
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.local, self.rig = Path(tmp.name) / 'checkout', Path(tmp.name) / 'rig'
+        self.local.mkdir()
+        self.rig.mkdir()
+        self.calls, self.broken = [], {}
+
+    def publish(self, d, aid, cell='pass', previous=False, termination='completed'):
+        """One attempt's report in d, as hil_test.py publishes it through the core."""
+        c, s = report.core(), report.schema()
+        attempt = c.start_attempt(d, s, previous, aid)
+        meta = c.make_meta(s, attempt, termination=termination, invocation=['hil_test.py'], selection=['b'],
+                           host='rig', roster={'name': 'tinyusb.json', 'sha256': '0' * 64})
+        c.publish(d, s, {'rows': [{'board': 'b', 'cells': {'t': cell}, 'duration': '1s'}], 'scope': '',
+                         'caveat': ''}, meta)
+
+    def copy_back(self, tree, dest, groups=(), optional=()):
+        self.calls.append(([list(g) for g in groups], list(optional)))
+        members = [*(m for g in groups for m in g), *optional]
+        outcomes = {m: self.broken.get(m) or ('ok' if (self.rig / m).exists() else 'absent') for m in members}
+
+        def put(m):
+            src, dst = self.rig / m.rstrip('/'), Path(dest) / m.rstrip('/')
+            shutil.copytree(src, dst) if m.endswith('/') else shutil.copyfile(src, dst)
+        copied, incomplete = [], []
+        for g in groups:
+            if all(outcomes[m] == 'ok' for m in g):
+                for m in g:
+                    put(m)
+                copied += g
+            else:
+                incomplete.append(list(g))
+        for m in optional:
+            if outcomes[m] == 'ok':
+                put(m)
+                copied.append(m)
+        return hil_remote.core.CopyBack(copied, incomplete, outcomes)
+
+    def collect(self):
+        err = io.StringIO()
+        with mock.patch.object(hil_remote, 'ROOT', self.local), mock.patch.object(hil_remote.core, 'copy_back', self.copy_back), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            copied, ok = hil_remote.copy_back(TREE, 'tinyusb.json')
+        return copied, ok, err.getvalue()
+
+    def reading(self, d=None):
+        return report.core().read_document((d or self.local) / report.REPORT_JSON, report.schema())
+
+    def kept(self):
+        return sorted((self.local / hil_remote.RUNS_DIR).glob('collect-*'))
+
+    def retry_on_the_rig(self):
+        """The rig accumulates onto the uploaded local report, as an --accumulate run does."""
+        self.publish(self.local, 'a1', 'fail')
+        shutil.copyfile(self.local / report.REPORT_JSON, self.rig / report.REPORT_JSON)
+        self.publish(self.rig, 'a2', 'pass', previous=True)
+        (self.rig / 'tinyusb.json.failed').write_text('--accumulate -b b')
+
+    def test_one_fetch_brings_the_pair_the_records_and_the_spec(self):
+        self.retry_on_the_rig()
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok, err), (['tinyusb.json.failed', 'hil_report.json', 'hil_report.md'], True, ''))
+        self.assertEqual(self.calls, [([['hil_report.md', 'hil_report.json']],
+                                       ['tinyusb.json.failed', f'{report.REPORT_ATTEMPTS}/'])])
+        self.assertEqual([c.attempt_id for c in report.core().read_chain(self.local, report.schema())], ['a1', 'a2'])
+        self.assertEqual(self.kept(), [], 'nothing to keep when everything came home')
+
+    def test_a_report_that_did_not_all_arrive_withdraws_the_local_one(self):
+        self.retry_on_the_rig()
+        self.broken = {'hil_report.json': 'transport'}
+        (self.rig / 'tinyusb.json.failed').unlink()
+        (self.local / 'tinyusb.json.failed').write_text('stale')
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok), ([], False))
+        self.assertIn('error: report copy-back: hil_report.json transport', err)
+        r = self.reading()
+        self.assertEqual(r.outcome, 'withdrawn', 'the previous run\'s report is never left as this run\'s')
+        self.assertEqual(r.body['archived'], 'a1')
+        self.assertTrue((self.local / report.REPORT_MD).read_text().startswith(report.core().NOTICE))
+        self.assertTrue((self.local / report.REPORT_ATTEMPTS / 'a1' / report.REPORT_JSON).is_file(), 'the old one is kept')
+        self.assertFalse((self.local / 'tinyusb.json.failed').exists(), 'no stale re-run spec')
+        self.assertEqual(len(self.kept()), 1, 'what did arrive is kept')
+
+    def test_a_local_report_that_cannot_be_archived_is_left_alone_and_never_prepared(self):
+        self.retry_on_the_rig()
+        held = self.local / report.REPORT_ATTEMPTS / 'a1'
+        held.mkdir(parents=True)
+        (held / report.REPORT_JSON).write_text('{"a different": "record"}')
+        (self.local / report.REPORT_MD).write_text('the local table')
+        before = (self.local / report.REPORT_JSON).read_bytes()
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok), (['tinyusb.json.failed'], False))
+        self.assertIn('cannot be archived', err)
+        self.assertEqual((self.local / report.REPORT_JSON).read_bytes(), before)
+        self.assertEqual((self.local / report.REPORT_MD).read_text(), 'the local table', 'never prepared as this run\'s')
+        kept, = self.kept()
+        self.assertEqual(self.reading(kept).meta['attempt_id'], 'a2', 'the rig\'s report is kept apart')
+
+    def test_a_chain_naming_a_record_the_checkout_holds_differently_is_not_promoted(self):
+        self.publish(self.local, 'rig-1', 'pass')
+        self.publish(self.local, 'loc-2', 'pass')            # rig-1 (a pass) is archived locally
+        self.publish(self.rig, 'rig-1', 'fail', termination='aborted')
+        self.publish(self.rig, 'rig-2', 'pass', previous=True)   # names the aborted rig-1
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok), ([], False))
+        self.assertIn("chain names attempt record(s) rig-1", err)
+        r = self.reading()
+        self.assertEqual((r.outcome, r.body['attempt_id']), ('withdrawn', 'rig-2'))
+        local = report.core().read_document(self.local / report.REPORT_ATTEMPTS / 'rig-1' / report.REPORT_JSON,
+                                            report.schema())
+        self.assertEqual(local.meta['termination'], 'completed', 'an archive is never rewritten')
+        kept, = self.kept()
+        rig = report.core().read_document(kept / report.REPORT_ATTEMPTS / 'rig-1' / report.REPORT_JSON, report.schema())
+        self.assertEqual(rig.meta['termination'], 'aborted', 'the rig\'s record is kept apart, not dropped')
+        chain = report.core().read_chain(self.local, report.schema())
+        self.assertEqual([c.outcome for c in chain], ['withdrawn'], 'no chain of this run reads as complete')
+
+    def test_a_conflict_reached_through_a_record_only_the_checkout_holds_is_not_promoted(self):
+        self.publish(self.local, 'first', 'pass')
+        self.publish(self.local, 'middle', 'pass', previous=True)
+        self.publish(self.local, 'other', 'pass')            # first and middle -> first archived locally
+        self.publish(self.rig, 'first', 'fail', termination='aborted')
+        self.publish(self.rig, 'middle', 'pass', previous=True)
+        self.publish(self.rig, 'latest', 'pass', previous=True)
+        shutil.rmtree(self.rig / report.REPORT_ATTEMPTS / 'middle')   # the bundle omits the intermediate
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok), ([], False))
+        self.assertIn('chain names attempt record(s) first', err)
+        r = self.reading()
+        self.assertEqual((r.outcome, r.body['attempt_id']), ('withdrawn', 'latest'))
+        local = report.core().read_document(self.local / report.REPORT_ATTEMPTS / 'first' / report.REPORT_JSON,
+                                            report.schema())
+        self.assertEqual(local.meta['termination'], 'completed')
+        kept, = self.kept()
+        rig = report.core().read_document(kept / report.REPORT_ATTEMPTS / 'first' / report.REPORT_JSON, report.schema())
+        self.assertEqual(rig.meta['termination'], 'aborted', 'both versions are kept')
+
+    def test_an_unrelated_conflicting_record_is_named_but_does_not_stop_the_report(self):
+        self.retry_on_the_rig()
+        self.publish(self.local, 'old', 'pass')   # archives a1 locally; local current is old
+        other = self.rig / report.REPORT_ATTEMPTS / 'old'
+        other.mkdir()
+        (other / report.REPORT_JSON).write_text('{"rows": [], "scope": "", "caveat": "other"}')
+        copied, ok, err = self.collect()
+        self.assertTrue(ok)
+        self.assertIn('old on the rig differ', err)
+        self.assertEqual(self.reading().meta['attempt_id'], 'a2')
+        self.assertEqual(len(self.kept()), 1, 'the rig\'s differing record is kept apart')
+
+    def test_a_rig_report_the_checkout_already_holds_is_not_this_runs(self):
+        """The rig run published nothing: the report there is the uploaded merge base."""
+        self.publish(self.local, 'a1', 'pass')
+        for f in (report.REPORT_JSON, report.REPORT_MD):
+            shutil.copyfile(self.local / f, self.rig / f)
+        copied, ok, err = self.collect()
+        self.assertEqual((copied, ok), ([], False))
+        self.assertIn('which the checkout holds already', err)
+        self.assertEqual(self.reading().outcome, 'withdrawn')
+
+    def test_a_report_the_rig_withdrew_comes_home_as_unavailable(self):
+        self.retry_on_the_rig()
+        report.core().withdraw_current(self.rig, report.schema(), 'a3', 'publish failed')
+        copied, ok, err = self.collect()
+        self.assertEqual((copied[1:], ok), (['hil_report.json', 'hil_report.md'], False))
+        self.assertIn('unavailable notice', err)
+        self.assertEqual(self.reading().outcome, 'withdrawn')
+
+    def promote_with_a_failing_markdown_replace(self, failures):
+        real, md = os.replace, self.local / report.REPORT_MD
+        left = [failures]
+
+        def replace(src, dst):
+            if Path(dst) == md and left[0]:
+                left[0] -= 1
+                raise OSError('disk full')
+            return real(src, dst)
+        self.retry_on_the_rig()
+        (self.local / report.REPORT_MD).write_text('the previous run\'s table')
+        with mock.patch.object(hil_remote.os, 'replace', replace):
+            return self.collect()
+
+    def test_a_markdown_that_cannot_be_promoted_is_rendered_from_the_new_json(self):
+        copied, ok, err = self.promote_with_a_failing_markdown_replace(1)
+        self.assertFalse(ok)
+        self.assertIn('hil_report.md could not be promoted (disk full)', err)
+        self.assertEqual(self.reading().meta['attempt_id'], 'a2', 'the copied JSON is this run\'s and stays')
+        doc = json.loads((self.local / report.REPORT_JSON).read_text())
+        self.assertEqual((self.local / report.REPORT_MD).read_text(encoding='utf-8'), report.render_report(doc) + '\n')
+        self.assertIn('hil_report.md', copied)
+        self.assertEqual(len(self.kept()), 1)
+
+    def test_a_markdown_that_cannot_be_written_at_all_is_removed(self):
+        copied, ok, err = self.promote_with_a_failing_markdown_replace(99)
+        self.assertFalse(ok)
+        self.assertIn('could not be rendered from the copied JSON', err)
+        self.assertFalse((self.local / report.REPORT_MD).exists(), 'never the previous run\'s table beside this JSON')
+        self.assertNotIn('hil_report.md', copied)
+        self.assertEqual(self.reading().meta['attempt_id'], 'a2')
+
+    def test_a_chain_record_neither_side_holds_makes_the_collection_incomplete(self):
+        self.retry_on_the_rig()
+        for f in (report.REPORT_JSON, report.REPORT_MD):
+            (self.local / f).unlink()
+        shutil.rmtree(self.rig / report.REPORT_ATTEMPTS)
+        copied, ok, err = self.collect()
+        self.assertFalse(ok)
+        self.assertIn("chain names attempt record(s) a1, which neither the rig nor the checkout holds", err)
+        self.assertEqual(self.reading().meta['attempt_id'], 'a2', 'the report itself is this run\'s and lands')
+
+    def test_a_collection_withdrawal_names_the_copy_back(self):
+        self.retry_on_the_rig()
+        self.broken = {'hil_report.json': 'transport'}
+        self.collect()
+        self.assertTrue(self.reading().body['reason'].startswith('report copy-back failed: the rig report did not all arrive'))
+
+    def test_a_failed_spec_fetch_is_reported(self):
+        self.retry_on_the_rig()
+        self.broken = {'tinyusb.json.failed': 'truncated'}
+        copied, ok, err = self.collect()
+        self.assertFalse(ok)
+        self.assertIn('tinyusb.json.failed truncated', err)
+        self.assertNotIn('tinyusb.json.failed', copied)
+
+    def test_a_run_whose_report_did_not_come_home_never_exits_0(self):
+        for rc, came_home, want in ((0, False, 1), (0, True, 0), (3, False, 3)):
+            with self.subTest(rc=rc, came_home=came_home), \
+                    mock.patch.object(hil_remote.core, 'stage_files'), \
+                    mock.patch.object(hil_remote.core, 'rsync', return_value=0), \
+                    mock.patch.object(hil_remote.core, 'run_remote', return_value=rc), \
+                    mock.patch.object(hil_remote, 'copy_back', return_value=(['x'], came_home)), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                args = types.SimpleNamespace(accumulate=False, build_dir='cmake-build')
+                got = hil_remote.stage_and_run(TREE, [], args, {}, Path('tinyusb.json'), [])
+                self.assertEqual(got, (want, ['x']))
 
 
 if __name__ == '__main__':

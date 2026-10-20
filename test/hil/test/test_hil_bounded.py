@@ -276,7 +276,9 @@ class BuildBoardContract(unittest.TestCase):
         cells = {r['board']: r['cells'] for r in doc['rows']}
         for n in ('bad-a', 'bad-b', 'worse'):
             self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
-        self.assertIn('**HIL run selected no boards.**', doc['caveat'])
+        self.assertTrue(doc['caveat'].startswith('**HIL run aborted: No boards left: check_build.py refused every '
+                                                 'build (bad, worse).**'), doc['caveat'])
+        self.assertEqual(doc['_hil']['termination'], 'aborted', 'boards were selected: never no-boards')
         verdict = hil_report.summarize(cfg, ['bad', 'worse'], doc)
         self.assertFalse(verdict['pass'])
         self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False)] * 2)
@@ -1646,6 +1648,7 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
             try:
                 with TemporaryDirectory() as td:
                     rd = Path(td)
+                    hil_report.start_attempt(rd, False, Path(TEST_DIR).parents[0] / 'tinyusb.json', ['boardA'])
                     hil_test._abort_report(reason, [], [{'name': 'boardA'}],
                                            rd / 'c.failed', rd, True, cell=cell)
                     return (rd / hil_report.REPORT_MD).read_text()
@@ -1663,6 +1666,26 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
         # and the fallback must still fire on BOTH paths -- that is what it is for
         for md in (guard, raised):
             self.assertIn('boardA', md)
+
+    def test_the_report_records_how_the_run_ended(self):
+        """`_hil.termination`: timeout for the pool guard, aborted for a worker's raise, the
+        fallback writer included."""
+        from helper import hil_report
+        real = hil_report.accumulate_report
+        for cell, termination in ((hil_report.POOL_TIMEOUT_CELL, 'timeout'), (hil_report.RUN_ABORTED_CELL, 'aborted')):
+            for fallback in (False, True):
+                with self.subTest(termination=termination, fallback=fallback), TemporaryDirectory() as td:
+                    rd = Path(td)
+                    hil_report.start_attempt(rd, False, Path(TEST_DIR).parents[0] / 'tinyusb.json', ['b'])
+                    if fallback:
+                        hil_report.accumulate_report = lambda *a, **k: (_ for _ in ()).throw(OSError('x'))
+                    try:
+                        with redirect_stdout(io.StringIO()):
+                            hil_test._abort_report('aborted: x', [], [{'name': 'b'}], rd / 'c.failed', rd, True, cell=cell)
+                    finally:
+                        hil_report.accumulate_report = real
+                    meta = json.loads((rd / hil_report.REPORT_JSON).read_text())['_hil']
+                    self.assertEqual(meta['termination'], termination)
 
     def test_only_the_rerun_spec_sees_the_synthetic_rows(self):
         """accumulate_report gets `mret` alone -- worker rows, always 4th field a real

@@ -7,6 +7,7 @@ binding are agentrc's hil_usbtest, tested there; these cover what usbtest.py han
 when. Stubbed sysfs; the kernel side is proved by a rig run."""
 import ast
 import io
+import json
 import os
 import sys
 import time
@@ -264,6 +265,8 @@ class HilTestRegistersBeforeThePool(unittest.TestCase):
         self.assertIn('cannot load usbtest module', out.getvalue())
         self.assertIn('cannot load usbtest module', report)
         self.assertNotIn('stale', report)   # the previous run's table does not survive
+        # a selected board was never tested: aborted, so the shared rules read it as a blocker
+        self.assertEqual(json.loads(report)['_hil']['termination'], 'aborted')
 
     def test_called_before_the_build_and_the_pool(self):
         src = (HIL_DIR / 'hil_test.py').read_text()
