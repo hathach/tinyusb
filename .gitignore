@@ -2,6 +2,8 @@ html
 latex
 hil_report.md
 hil_report.json
+hil_report.attempts/
+.hil_report.lock
 .hil-remote/
 *.json.failed
 *.a

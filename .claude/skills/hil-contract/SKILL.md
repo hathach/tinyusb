@@ -1,6 +1,6 @@
 ---
 name: hil-contract
-description: The TinyUSB HIL contract, under agentrc's `hil` rules. Use when running TinyUSB HIL tests on physical boards, when a HIL run fails, hangs, reports a board locked, or produces a report you need to interpret, or when copying firmware to a test rig (ci.lan, hifiphile/tusb, or a dev PC). For board/probe health scans ("pool check") use the hil-pool-check skill instead.
+description: The TinyUSB HIL contract, under agentrc's `hil` rules. Use when running TinyUSB HIL tests on physical boards, when a HIL run fails, hangs, reports a board locked, or produces a report you need to interpret, or when copying firmware to a test rig (ci.lan, hifiphile/tusb, or a dev PC). For a farm check (board/probe health scan, "pool check") use the `farm-check` skill, which runs the launcher this contract's Farm check names.
 ---
 
 # HIL contract
@@ -26,9 +26,17 @@ GitHub CI `hil-tinyusb (hfp.json)` matrix job — **never run HIL against it unl
 
 A roster lists `boards` and parked `boards-skip`. Common entry fields: `name` (also the board's lock name), `uid`, `tests`, `flasher {name, uid, args, vid_pid, verify}` (only `name` and `uid` required), and optional `flasher_recover`, `variant`, `logger`, `toolchain`, `uart_uid`, `note`; `test/hil/hil_test.py`'s `Board` type is the full shape. A review may add or enable a `local.json` entry on a dev PC: name, board uid, flasher and tests, and a flashable example to run on it.
 
-If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` or `hil_pool_check.py` run. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns the no-run rows Results defines, `detail` naming the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Reservation says.
+If `local.json` is missing on a dev PC, ask the user to supply one before a `hil_test.py` run or a farm check. An agent that cannot ask (`hil-operator`) does not run `hil_test.py`: it returns the no-run rows Results defines, `detail` naming the missing `test/hil/local.json`. Fall back to `tinyusb.json` only when the request or task scope says so; a manual session locks by board name as Reservation says.
 
-Board/probe health scanning (`test/hil/helper/hil_pool_check.py`) has its own skill, **hil-pool-check**: use it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash.
+## Farm check
+
+The `farm-check` skill's launcher here is `test/hil/helper/hil_farm_check.py` (`[CONFIG] [-b BOARD]... [-B DIR] [--scan-only] [--json] [--report-dir DIR] [-v]`): agentrc's engine from `lib/agentrc` at the pin, with this repo's profile `test/hil/helper/farm_profile.py`. Run it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash; from a dev PC, on the rig's own checkout: `ssh ci.lan 'cd ~/code/tinyusb && python3 test/hil/helper/hil_farm_check.py'`. Without CONFIG it takes `ci`'s or `tusb`'s roster above and refuses on any other host, so a dev PC names `test/hil/local.json`; `-b` may name `boards-skip` entries. `--no-park` is refused.
+
+- Probe: the board's flasher `uid` among the bus serials, never a `cafe` device (an ESP USJ shares its DUT's serial); a J-Link's zero-padded serial matches when no exact one does.
+- Light image: `dfu_runtime` for a device board, judged by its `cafe` device re-enumerating (the VID:PID it had before the flash leaves the new image unverified). A host-only board takes the first built of `host/device_info`, `host/cdc_msc_hid`, `host/msc_file_explorer_freertos` (its `only` list's host examples when it has one), judged by output on the flasher's UART after a reset; output that is only `board_test`'s is a silent flash no-op (`flash-failed`). A host-only board logging over RTT is unsupported (`failed`, untouched); `openocd_esp` boards are refused.
+- Final state: `board_test` from the light image's variant, verified by the `cafe` device leaving the bus (only when it was on the bus before the park) or, on a host-only board, by `board_test`'s hello on the UART. Anything less leaves the board blocked for Recovery.
+- Firmware is never built. By default it comes from the per-host CI artifact cache `~/.cache/tinyusb-hil/firmware/cmake-build-<variant>/`, shared by the host's worktrees. A board with no variant cached gets one downloaded before any board is locked (needs `gh` logged in): from up to 10 completed master push runs of `hathach/tinyusb`'s `build.yml` with firmware artifacts, within the 90-day retention, newest first; never a PR run; the first of the board's variants, in roster order, whose artifact holds a light image and `board_test` (and an ESP image's `config.env` and `flash_args`). `.source` in each variant dir names its run, commit, artifact and conclusion, the row's image provenance. A cached tree is never revalidated or replaced: delete its dir while no farm check runs to refetch it. `-B DIR` flashes from another firmware root (`-B cmake-build` after a build contract run), never fetches, and reports its provenance missing.
+- CI built a silent `board_test` while it defined `CI_BUILD`: a cached variant whose `.source` commit still has that branch (`git grep -q CI_BUILD <sha> -- examples/device/board_test` exits 0) cannot prove a host-only board's park (`park unverified: no board_test output`, the board blocked). Delete those variant dirs once a master run provides updated artifacts, or use `-B` with a fresh local build.
 
 ## Selection
 
@@ -58,7 +66,7 @@ it (`_tests_for` in `hil_test.py`). In a checkout without `tools/change_impact.p
 
 ## Build
 
-Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A local `hil_test.py --build` runs that same build for the selected boards first. A **remote** run stages the same folders; see Execution. (This applies to `hil_test.py`; `hil_pool_check.py` never builds: it flashes CI artifacts from its own cache, see **hil-pool-check**.)
+Examples must be built for the target board(s) — see [Build and Validate](../../../CLAUDE.md#build-and-validate). Build them with the `build` skill's `--shared --variants <config>`, naming the HIL config the run uses: it writes the `cmake-build/cmake-build-<variant>/` folders `hil_test.py` flashes from by default, each with its variant's `flags` and `defines`, and refuses a folder still configured with options neither the variant nor the command line supplies. A local `hil_test.py --build` runs that same build for the selected boards first. A **remote** run stages the same folders; see Execution. (This applies to `hil_test.py`; the farm check never builds: see Farm check.)
 
 A bare `--shared` takes nothing from the roster and builds only `cmake-build-<board>/`, so a self-named variant is built without its flags (`raspberry_pi_pico`'s `CFG_TUH_RPI_PIO_USB=1`) and any other variant stays unbuilt. An unbuilt variant's tests report `Skip (no binary)` without failing the run (`stm32f723disco-DMA` goes untested). On a run of one test per variant (a single-test `-bt`, or `-t` tests the board's `only` or capabilities leave at one) without `--skip-flash`, a later unbuilt variant instead fails `same-PID boundary ... not cleared (no board_test binary)`, naming `board_test`, not the missing build.
 
@@ -110,7 +118,7 @@ python3 test/hil/hil_test.py -b stm32f723disco "$CONFIG"
 
 ### Remote (dev PC → ci.lan only)
 
-`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair and `<config>.failed` back to the checkout root:
+`scripts/hil_remote.py` takes `hil_test.py`'s own arguments, minus the config. It stages the harness, the config and the firmware the run will read under `-B` (default `cmake-build`, the `build` skill's `--shared` layout), runs `hil_test.py` on `ci.lan` with `tinyusb.json`, and copies the report pair, the rig report's attempt records (`hil_report.attempts/`) and `<config>.failed` back to the checkout root in one fetch. agentrc's `hil_report_core.adopt` makes the rig's pair the checkout's report, the local one archived first, or withdraws the local one (an `HIL report unavailable` notice) when the rig's is not usable as this run's; its docstring lists when. Whenever the report did not come home readable, the run exits nonzero even if `hil_test.py` exited 0, and the rig's report and records are kept under `.hil-remote/collect-*/`. The transport is agentrc's `hil_remote_core`, loaded from `lib/agentrc` at the pin:
 
 ```bash
 # All boards built under cmake-build/:
@@ -121,7 +129,7 @@ python3 .claude/skills/hil-contract/scripts/hil_remote.py -b raspberry_pi_pico2 
 
 An agent launches it with `--run-id` and waits on it as Timing says.
 
-It refuses, before touching the rig, when no `rsync` is on PATH. On a Windows dev PC that must be
+It refuses, before touching the rig, when no `rsync` is on PATH, or when the local `hil_report.json` is of an unknown schema or version (it would be replaced unarchived). On a Windows dev PC that must be
 an MSYS2 or Cygwin `rsync.exe` in an absolute PATH dir, and it must find its own distribution's
 `ssh` first on PATH, since with Windows OpenSSH (`System32\OpenSSH`) the argument conversion and
 the pipes rsync relies on break. There it also refuses a config or firmware dir on another drive
@@ -183,7 +191,7 @@ A local `hil_test.py` run has no done record; wait for its completion notificati
 
 The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL as part of CI, never stopped (`hil` Board locks). Each board's lock is taken through `test/hil/helper/hil_lock.py`, under the board's roster `name`. The harness's shared scripts (the lock mechanics, the bounded sysfs reads and bus scan of `test/hil/helper/usb_observe.py`, the RTT console, and the `hil` skill's Flashers: the bounded command runner behind `test/hil/helper/hil_util.py` and the per-flasher commands and pyOCD launcher behind `test/hil/hil_flash.py`) are loaded by `test/hil/helper/agentrc.py` from `lib/agentrc` at the commit `tools/get_deps.py` pins, fetched by `python3 tools/get_deps.py lib/agentrc`; missing, off that commit or lacking a file the flash provider loads or launches, every HIL entry point refuses before any board access.
 
-The provider's `openocd_esp` flasher is supported by `hil_test.py` only (the pool check and `run_case.py` refuse it) and is unrostered on ci.lan; it is refused under a CI job (`RUNNER_TRACKING_ID` or `GITHUB_ACTIONS` set), whose end kills the job's processes, until the openocd server and the cleanup holder are shown to survive it. A session it leaves running keeps the board's lock with a cleanup holder, reported in a `cleanup-pending` cell naming the receipt and its `release --token`.
+The provider's `openocd_esp` flasher is supported by `hil_test.py` only (the farm check and `run_case.py` refuse it) and is unrostered on ci.lan; it is refused under a CI job (`RUNNER_TRACKING_ID` or `GITHUB_ACTIONS` set), whose end kills the job's processes, until the openocd server and the cleanup holder are shown to survive it. A session it leaves running keeps the board's lock with a cleanup holder, reported in a `cleanup-pending` cell naming the receipt and its `release --token`.
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
@@ -197,7 +205,7 @@ python3 test/hil/helper/hil_lock.py release BOARD [BOARD...]
 
 - A hold refused by another holder: `hil_lock.py status` gives the holder and reason to report. A holder reason of `hil_test.py` is a battery run, on `ci` usually a CI job mid-test; waiting and the budget follow `hil` Board locks; a `role: cleanup-holder` holder is reported as a recovery blocker, released only through the owning project's recovery procedure, and `hil_lock.py release` refuses to kill it.
 
-- A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_pool_check.py` without an explicit config, `hil_lock.py hold --all`) still need this host's config.
+- A manual session on a dev-bench board with no entry in this host's HIL config locks it by an agreed board name, with no config: `hil_lock.py hold BOARD --reason "..."` only reserves that name, so verify the probe serial and board identity yourself. A named-board lock needs no config; config-driven tools (`hil_test.py`, `hil_lock.py hold --all`) still need this host's config, and a farm check off `ci` and `tusb` refuses without one.
 - Rig-wide operations affect every board, so they hold every board on the host first (`hil` Board locks). A root-port cycle (`usb_recover.sh root-cycle`, rung 2 of `usb-kernel-recover`) runs only through agentrc's `hil_reserve.py`, with every roster on this host: on `ci`, `python3 lib/agentrc/skills/hil/scripts/hil_reserve.py run root-cycle <busport> --roster test/hil/tinyusb.json --roster <tinyuf2 checkout>/test/hil/ci.json tinyuf2.lock --reason "..."`; on htpc, `test/hil/local.json` and TinyUF2's `test/hil/local.json` with the same selector. It refuses when a device under that root port is not explained by those rosters, holds every board of every roster in one process around the cycle, and keeps the locks as a cleanup holder (printing a token) unless the cycle ended clean with every device back; the recovery dispatch that establishes restoration releases them with `hil_reserve.py release --token <token>`. Other rig-wide operations (a leaf hub's `uhubctl` power cycle) take `hil_lock.py hold --all --config <this host's config> --reason "..."` (`--all` defaults to `tinyusb.json`, so on `tusb` it would reserve the wrong boards) plus a separate `hil_lock.py hold <names> --reason "..."` for the other project's lock names on a shared host (its contract's Reservation names them), and proceed only when every hold succeeded; on a refusal, `hil_lock.py release` a name of each hold you took, never `release --all`, then wait within the budget or return the holder (`hil` Board locks). A controller operation (`pci-rebind`, `pci-bind`) has no reservation procedure that covers it yet and is refused under this contract until one exists.
 - `hil_lock.py status` lists holders. Locks auto-release when the holder process dies (kernel flock); `/tmp` clears on reboot.
 - Forcing past a lock: `HIL_NO_BOARD_LOCK=1 python3 test/hil/hil_test.py ...` bypasses the guard without killing the holder. It risks colliding with whatever holds it.
@@ -224,12 +232,18 @@ and, until #4226, the operator copies the first attempt's report directory aside
 saying where in that transcript. `testedHead` for a
 review row is the build receipt's head (Build), or HEAD of the tree a local run built.
 `hil_test.py` exits with its failure count (capped at 125); `hil_report.py` exits 0 whenever it
-wrote its JSON, a failing one included: read `pass`, never its exit. `results` has exactly one
+wrote its JSON, a failing one included: read `pass`, never its exit. It exits 1 without JSON when
+the report is missing or of an unknown schema or version: the sidecar carries agentrc's
+`hil_report_core` metadata (`_hil`: attempt id, predecessor, how the run ended) beside its own
+fields, and every attempt a later one replaced is kept under `hil_report.attempts/`. `results` has exactly one
 entry per requested board. `pass` is the verdict of
 this report snapshot: every row can pass on an aborted or no-boards run, so the run-level
 `caveat` (aborted, no boards; empty on every other run) gates it. `--accumulate`
 clears an earlier attempt's caveat by design, so the verdict of a retry sequence is the caller's,
-and a re-run's own caveat fails the sequence. Each row's `wedged`
+and a re-run's own caveat fails the sequence. `python3 test/hil/helper/hil_report.py sequence <config> [-b BOARD]...
+[--report-dir DIR]` prints that sequence verdict from every linked attempt (agentrc's `sequence_verdict`:
+`{current, sequence}`; every board an attempt selected decides whether the next is an eligible retry, and a board passes only with a passing test cell), with the same exits; a run that could not publish its report leaves a withdrawal
+record (`HIL report unavailable` notice) that blocks the sequence. Each row's `wedged`
 is the report's own verdict (a `board-wedged` cell: a confirmed hang, or one the battery could
 not rule out) and is copied with the row; the
 top-level `wedged` names requested boards, never a variant row name.
@@ -248,7 +262,7 @@ locked board is admitted again, once its holder releases and within the budget, 
 retry. A board still wedged after usbtest's
 in-run recovery (Recovery) is reported for a separately dispatched recovery action.
 
-**First check what sits above the table.** Three notices can appear there; match on a
+**First check what sits above the table.** These notices can appear there; match on a
 PREFIX, since each carries trailing detail:
 
 - `**HIL run aborted: worker pool timed out after …s.**` and
@@ -263,15 +277,20 @@ PREFIX, since each carries trailing detail:
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
   `"pass": true`.
-- `**HIL run selected no boards.**` — the filters intersected to nothing, or, under
-  `--build`, `check_build.py` refused every board. On the filter case, a fresh run shows no
-  table; an `--accumulate` run keeps the previous attempt's rows under the notice, and they
-  are not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run
-  alike instead write every board's `build refused` row as this run's — report them
-  ran=false/pass=false; `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that
-  board, and the `<config>.failed` re-run spec is written or refreshed to name the boards.
-  Either way the exit code is nonzero. Report what the message shows (the filter, or the
-  refused boards), never `"pass": true`.
+- `**HIL run aborted: config error: …**`, `**HIL run aborted: usbtest id registration failed: …**`
+  and `**HIL run aborted: No boards left: check_build.py refused every build (…)**` — boards
+  were selected but none was tested: a roster error, a failed usbtest registration, or, under
+  `--build`, `check_build.py` refusing every board. A fresh run shows no table on the first
+  two; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
+  not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run alike
+  write every board's `build refused` row as this run's — report them ran=false/pass=false;
+  `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that board, and the
+  `<config>.failed` re-run spec is written or refreshed to name the boards. The exit code is
+  nonzero; never `"pass": true`.
+- `**HIL run selected no boards.**` — the filters intersected to nothing. A fresh run shows
+  no table; an `--accumulate` run keeps the previous attempt's rows under the notice, and
+  they are not this run's. The exit code is nonzero. Report the filter the message shows,
+  never `"pass": true`.
 
 The operator's retry (above) runs with `-v`; `hil`'s gate on it matters here because the `.failed` spec
 lists locked and wedged boards too, and an accumulated retry would clear a caveat the caller
@@ -335,6 +354,8 @@ hardware access, as `<board>  Failed: board lock unavailable: <OS error>` with a
 line lists those cases per status (`FAIL: [...]; HUNG: [...]; NOTRUN: [...]; BUDGET: [...]`). A skipped cell
 (`Skip (no binary)`) is listed in the row's `skipped` and the row folds `pass: false`. `--accumulate` keeps each
 changed row's earlier cells in the sidecar's `history`, oldest first, which `summarize()` exposes per board.
+A pool-guard or abort report written over an unreadable sidecar keeps the earlier Markdown below its
+table as labelled legacy text: those rows are in no JSON, and no verdict is read from them.
 
 A board whose flasher probe has no VCOM (or whose BSP has no UART) uses RTT as its console — "No serial device found for /dev/serial/by-id/…" on every host test is the symptom. Config: `"logger": "rtt"` (jlink flashers only) plus a self-named variant carrying the define — `"variant": [{"name": "<board>", "defines": ["LOGGER=rtt"]}]` — and prebuilt example sets must carry the same `-DLOGGER=rtt`. Caveat: the cdc/msc-fixture host tests don't speak RTT yet, so such a board cannot carry `is_cdc`/`is_msc` fixtures (the config loader rejects it). Details: the `rtt` skill.
 
@@ -345,7 +366,7 @@ runs every `test_hil*.py`, `change-impact-test` `test_change_impact.py`, `test_c
 `test_hil_util.BottomLayer`. `test_change_impact.py` covers only selection, `test_ci_metrics.py`
 only the code-size plumbing; the build and pool guards live in `test_hil_bounded.py` and
 `test_hil_util.py` (the bounded sysfs reads' and the runner's own tests are agentrc's, with the modules); `test_hil_flash.py`
-covers the flash adapters, the provider's loading and the rosters by its rules, `test_hil_report.py` the report document, `test_hil_rtt.py` and `test_hil_agentrc.py` how the harness loads agentrc's scripts and `test_hil_pool_check.py` the pool check's verdicts and
-output. Run them all when changing `test/hil`:
+covers the flash adapters, the provider's loading and the rosters by its rules, `test_hil_report.py` the report document, `test_hil_rtt.py` and `test_hil_agentrc.py` how the harness loads agentrc's scripts and `test_hil_farm_check.py` the farm check's profile and its launcher's wiring to the
+engine. Run them all when changing `test/hil`:
 `for f in test/hil/test/test_*.py; do python3 "$f"; done` (about a minute, half of it
 `test_hil_bounded.py`'s deliberate hang/timeout simulation).

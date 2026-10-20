@@ -8,7 +8,9 @@ description: Use when bringing up examples/device/usbtest (cafe:4010) on a new M
 `examples/device/usbtest` is the device-side peer of the kernel's `usbtest.ko`/`testusb`
 (Gadget Zero source/sink): 30 cases over EP0, bulk, interrupt and isochronous, including halt,
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
-is `test/hil/usbtest.py`.
+is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the id registration,
+binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
+agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
 
 **The battery tests the DCD, not the firmware.** A failed case points at the DCD path it
 exercises (map below). Reproduce that one case, root-cause it on hardware before changing
@@ -81,7 +83,7 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
 - **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
   takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
-  confines the scan to the DUT (`usbtest.py` does this; `-A` must come first, it clears `-D`).
+  confines the scan to the DUT (`hil_usbtest.py` does this; `-A` must come first, it clears `-D`).
   When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
   watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
   that outlasts the watch becomes HUNG.

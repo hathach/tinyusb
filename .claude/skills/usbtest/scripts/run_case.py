@@ -79,7 +79,7 @@ hil_util.provider()   # an incomplete flash provider is refused here, before any
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
 PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
-HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus usbtest.run()'s reap
+HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus hil_usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
 # host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
 # (sysfs_write: 15 s tee + 5 s reap) and the 3 s bind. An estimate, not a bound: the battery
@@ -124,7 +124,7 @@ def children(spare=()):
 
 
 def kill_children(spare=()):
-    """SIGKILL every child and its session, `spare` aside: usbtest.run's helpers run in this
+    """SIGKILL every child and its session, `spare` aside: hil_usbtest.run's helpers run in this
     process group with no kill on interrupt, so they outlive a cancelled case."""
     for pid, _ in children(spare):   # unreaped, so neither this pid nor its group can be reused
         for kill in (os.killpg, os.kill):   # kill: a child not yet in its own session

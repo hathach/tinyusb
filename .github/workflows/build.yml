@@ -540,21 +540,30 @@ jobs:
             *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
             *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
           esac
+          # the board locks and the report document come from agentrc at the commit get_deps.py
+          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
+          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
+          python3 tools/get_deps.py lib/agentrc
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
-            # leave a marker so the combined PR comment says so instead of dropping the
-            # section (and leaving a stale table from an earlier push in its place)
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "_Skipped by PR selection: no affected boards on this rig._" > "$HIL_REPORT_DIR/hil_report.md"
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push in its place)
+            python3 test/hil/helper/hil_report.py no-selection "$HIL_JSON" \
+              '_Skipped by PR selection: no affected boards on this rig._' --report-dir "$HIL_REPORT_DIR" ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # a re-run spec is already a subset of the selection (only the boards/tests
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
-          # the board locks come from agentrc at the commit get_deps.py pins; hil_test.py refuses without it
-          python3 tools/get_deps.py lib/agentrc
           python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+
+      - name: Prepare HIL report
+        if: always() && github.event_name == 'pull_request'
+        # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -563,6 +572,8 @@ jobs:
           name: hil-report-${{ matrix.display }}
           path: |
             ${{ env.HIL_REPORT_DIR }}/hil_report.md
+            ${{ env.HIL_REPORT_DIR }}/hil_report.json
+            ${{ env.HIL_REPORT_DIR }}/hil_report.attempts/
             ${{ env.HIL_REPORT_DIR }}/audio/
           if-no-files-found: ignore
           overwrite: true
@@ -629,21 +640,30 @@ jobs:
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
         run: |
+          # the board locks and the report document come from agentrc at the commit get_deps.py
+          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
+          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
+          python3 tools/get_deps.py lib/agentrc
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected esptool boards)"
-            # leave a marker so the combined PR comment says so instead of dropping the
-            # section (and leaving a stale table from an earlier push in its place)
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "_Skipped by PR selection: no affected esptool boards._" > "$HIL_REPORT_DIR/hil_report.md"
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push in its place)
+            python3 test/hil/helper/hil_report.py no-selection "$HIL_JSON" \
+              '_Skipped by PR selection: no affected esptool boards._' --report-dir "$HIL_REPORT_DIR" ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # a re-run spec is already a subset of the selection (only the boards/tests
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
-          # the board locks come from agentrc at the commit get_deps.py pins; hil_test.py refuses without it
-          python3 tools/get_deps.py lib/agentrc
           python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+
+      - name: Prepare HIL report
+        if: always() && github.event_name == 'pull_request'
+        # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -652,6 +672,8 @@ jobs:
           name: hil-report-tinyusb-esp.json
           path: |
             ${{ env.HIL_REPORT_DIR }}/hil_report.md
+            ${{ env.HIL_REPORT_DIR }}/hil_report.json
+            ${{ env.HIL_REPORT_DIR }}/hil_report.attempts/
             ${{ env.HIL_REPORT_DIR }}/audio/
           if-no-files-found: ignore
           overwrite: true
@@ -779,8 +801,8 @@ jobs:
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
-        if: env.SEL_RUN != 'false'
-        # lib/agentrc: hil_test.py's board locks, at the commit get_deps.py pins
+        # lib/agentrc: hil_test.py's board locks and the report document, at the commit
+        # get_deps.py pins; a run the selection skipped writes its report with it too
         run: python3 tools/get_deps.py lib/agentrc $BUILD_ARGS
 
       - name: Build
@@ -802,15 +824,23 @@ jobs:
         run: |
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
-            # leave a marker so the combined PR comment says so instead of dropping
-            # the section (and leaving a stale table from an earlier push)
-            echo "_Skipped by PR selection: no affected boards on this rig._" > hil_report.md
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push)
+            python3 test/hil/helper/hil_report.py no-selection test/hil/hfp.json \
+              '_Skipped by PR selection: no affected boards on this rig._' ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
           SEL_ARGS=$(cat hil_sel_args.txt 2>/dev/null || true)
           # one attempt per test, matching the other HIL legs
           python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
+
+      - name: Prepare HIL report
+        if: always() && github.event_name == 'pull_request'
+        # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
+        # notice (written by prepare even when it fails), never a table the JSON does not hold
+        run: python3 test/hil/helper/hil_report.py prepare --report-dir "."
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -819,6 +849,8 @@ jobs:
           name: hil-report-hfp-iar
           path: |
             hil_report.md
+            hil_report.json
+            hil_report.attempts/
             audio/
           if-no-files-found: ignore
           overwrite: true

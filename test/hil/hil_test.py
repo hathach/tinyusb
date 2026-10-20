@@ -1721,7 +1721,9 @@ def reset_dut_tt(board: Board) -> bool:
         _dut_port[board['uid']] = (busport, speed)
     if board['uid'] in _dut_port:
         # a gone device keeps the speed it was seen at: a high-speed one has no TT to reset
-        return hil_tt.reset_tt(*_dut_port[board['uid']])
+        # this harness's runner (its REAP_GRACE and verbose), looked up per call
+        return hil_tt.reset_tt(*_dut_port[board['uid']],
+                               run=lambda cmd, **kw: hil_util.run_cmd(cmd, **kw))
     return True
 
 
@@ -1981,7 +1983,7 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
     except SystemExit as e:
         msg = f'usbtest id registration failed: {e}'
         print(f'ERROR: {msg}', flush=True)
-        hil_report.mark_report_no_boards(report_dir, msg, fresh=fresh)
+        hil_report.mark_report_aborted(report_dir, msg, fresh=fresh)
         sys.exit(1)
 
 
@@ -2365,8 +2367,9 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
               f"{', '.join(stuck)}. The re-run spec covers those"
               + (f", and the {len(refused)} whose build check_build.py refused: "
                  f"{', '.join(refused)}" if refused else '') + ".\n")
+    termination = 'timeout' if cell == hil_report.POOL_TIMEOUT_CELL else 'aborted'
     try:
-        hil_report.accumulate_report(mret, report_dir, fresh, '', caveat=banner)
+        hil_report.accumulate_report(mret, report_dir, fresh, '', caveat=banner, termination=termination)
         return
     except Exception as rerr:  # noqa: BLE001 - the caller's raise must still happen
         print(f'warning: partial report failed: {type(rerr).__name__}: {rerr}'
@@ -2441,14 +2444,24 @@ def main() -> None:
     config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
                      and (not args.flasher or e['flasher']['name'] in args.flasher)]
 
+    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
+    # id: persistent across attempts, private to one run)
+    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
+    # this run's report attempt, before anything below replaces the report there: the one it
+    # replaces is archived first, and an unknown schema or version is never overwritten
+    try:
+        hil_report.start_attempt(report_dir, args.accumulate, config_file, [b['name'] for b in config_boards])
+    except Exception as e:  # noqa: BLE001 - hil_report_core.ReportError: refused, nothing changed
+        print(f'ERROR: cannot begin the report in {report_dir}: {e}', flush=True)
+        sys.exit(1)
+
     # fail roster misconfigurations before the first flash cycle -- but only for boards
     # this run actually touches: one bad roster entry must not abort other runs' subsets
     def _config_abort(msg: str):
         # loud AND leaving evidence, like the no-boards branch below: exiting with no
         # report at all lets the PR comment keep the previous push's stale table
         print(f'ERROR: {msg}', flush=True)
-        rd = Path(os.environ.get('HIL_REPORT_DIR', '.'))
-        hil_report.mark_report_no_boards(rd, f'config error: {msg}', fresh=not args.accumulate)
+        hil_report.mark_report_aborted(report_dir, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
     for e in config_boards:
@@ -2501,9 +2514,6 @@ def main() -> None:
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
               f'builds', flush=True)
-    # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
-    # id: persistent across attempts, private to one run)
-    report_dir = Path(os.environ.get('HIL_REPORT_DIR', '.'))
     if not config_boards:
         # same reason the unknown -b board exits 1: 'No tests were run.' with rc 0 reads as
         # a green HIL leg, so a roster edit emptying a leg's filter stops testing silently
@@ -2555,10 +2565,14 @@ def main() -> None:
                 _write_failed_spec(report_dir / (config_file.name + '.failed'), report_dir,
                                    refused_rows)
                 scoped = sorted(set(args.board) | set(board_test))
-                hil_report.accumulate_report(
-                    refused_rows, report_dir, not args.accumulate,
-                    f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
-                    caveat=f'**HIL run selected no boards.** {msg}\n')
+                try:
+                    hil_report.accumulate_report(
+                        refused_rows, report_dir, not args.accumulate,
+                        f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else '',
+                        caveat=f'**HIL run aborted: {msg}.**\n', termination='aborted')
+                except Exception as e:
+                    hil_report.withdraw(report_dir, e)
+                    raise
                 sys.exit(min(len(refused_rows), 125))
             print(f'not testing {", ".join(refused)}: check_build.py refused the build', flush=True)
 
@@ -2579,6 +2593,8 @@ def main() -> None:
     log_line('dispatch order: ' + ', '.join(b['name'] for b in config_boards))
 
     if fresh:
+        # archived by start_attempt; a run that dies before its first write must not leave
+        # the previous attempt's pair published as its own
         report_dir.mkdir(parents=True, exist_ok=True)
         for f in (hil_report.REPORT_JSON, hil_report.REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
@@ -2635,7 +2651,11 @@ def main() -> None:
     # looks exactly like a full run that happened to be small
     scoped = sorted(set(args.board) | set(board_test))
     scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
-    report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+    try:
+        report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+    except Exception as e:
+        hil_report.withdraw(report_dir, e)
+        raise
     print()
     print(report)
     print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')

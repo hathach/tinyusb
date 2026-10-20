@@ -82,10 +82,10 @@ class BottomLayer(unittest.TestCase):
         # `import hil_util` from inside helper/ creates a SECOND module object, and
         # state like `verbose` set on one copy never reaches the other
         import hil_flash
-        from helper import hil_pool_check
+        from helper import farm_profile
         self.assertIs(hil_flash.hil_util, hil_util)
-        self.assertIs(hil_pool_check.hil_util, hil_util)
-        self.assertIs(hil_pool_check.hil_flash, hil_flash)
+        self.assertIs(farm_profile.hil_util, hil_util)
+        self.assertIs(farm_profile.hil_flash, hil_flash)
 
     def test_bare_runner_modules_stay_stdlib_only(self):
         # hil_examples.py used to make this structural (a list of strings cannot grow a
@@ -100,21 +100,21 @@ class BottomLayer(unittest.TestCase):
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
         # is no libmtp, taking change_impact down with it.
         local = {'helper', 'hil_util', 'change_impact', 'hil_flash', 'agentrc',
-                 'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json',
+                 'hil_lock', 'farm_profile', 'hil_farm_check', 'build', 'build_utils', 'get_deps', 'family_json',
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
-        # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
+        # farm_profile included: test_hil_util_is_a_single_module_instance imports it
         # on the bare runner, and its `import serial` is function-local for exactly
         # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
-                    'helper/hil_lock', 'helper/agentrc', 'helper/hil_pool_check',
+                    'helper/hil_lock', 'helper/agentrc', 'helper/farm_profile', 'helper/hil_farm_check',
                     '../../tools/build', '../../tools/build_utils',
                     '../../tools/get_deps', '../../tools/family_json',
                     # the selection contract CI calls: check_build.py --select-only
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
             tree = ast.parse((hil_dir / f'{mod}.py').read_text())
             # module level only: a deferred import inside a function cannot break
-            # importability (hil_pool_check keeps `import serial` function-local
+            # importability (farm_profile keeps `import serial` function-local
             # for exactly that reason)
             for node in tree.body:
                 roots = []

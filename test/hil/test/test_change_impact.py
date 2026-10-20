@@ -683,7 +683,7 @@ class TestOpenocdVidPid(unittest.TestCase):
 
 
 class TestRosterFlashersDispatch(unittest.TestCase):
-    """hil_test and hil_pool_check resolve a board's flasher through
+    """hil_test and the farm check's profile resolve a board's flasher through
     hil_flash.flash_primitive, and hil_test does it inside a redirect_stdout — so a renamed
     or typo'd roster name raises an AttributeError whose output is swallowed, with nothing
     pointing at the roster as the thing to edit. Renaming a flash_* without updating every
@@ -717,7 +717,7 @@ def flasher_names():
 
 class FlashPrimitive(unittest.TestCase):
     """hil_flash.flash_primitive is the one flash dispatch: hil_test, usbtest,
-    hil_pool_check all resolve a flasher's flash_* through it."""
+    the farm check's profile all resolve a flasher's flash_* through it."""
 
     def test_every_flasher_resolves_to_its_flash(self):
         names = flasher_names()
@@ -737,7 +737,7 @@ class FlashPrimitive(unittest.TestCase):
 
 class ResetPrimitive(unittest.TestCase):
     """hil_flash.reset_primitive is the one reset dispatch: usbtest,
-    hil_pool_check and hil_test all resolve a flasher's reset through it."""
+    the farm check's profile and hil_test all resolve a flasher's reset through it."""
 
     def test_a_flasher_without_a_reset_only_mode_has_none(self):
         """Exhaustive over every flash_*, so every roster flasher: one that loses or never
@@ -1063,10 +1063,10 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_agentrc.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_farm_check.py',
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
-            'test/hil/test/test_hil_pool_check.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
