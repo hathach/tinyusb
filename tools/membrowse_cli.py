@@ -61,36 +61,43 @@ def _link_argv(commands_text):
         yield args
 
 
-def extract_ld_scripts(commands_text):
-    """Deduped linker scripts referenced by a link command."""
-    scripts = []
+def _linker_argv(args):
+    """A link command's options as the linker sees them: the compiler driver's
+    `-Wl,a,b,c` hands the linker a, b and c as separate arguments (pico-sdk
+    groups `-L` with other options that way); everything else passes through."""
+    for arg in args:
+        if arg.startswith('-Wl,'):
+            yield from arg[len('-Wl,'):].split(',')
+        else:
+            yield arg
+
+
+def _option_values(commands_text, short, long):
+    """Values of an option across a link command, deduped in order, in its
+    `-X value`, `-Xvalue`, `--long value` and `--long=value` spellings."""
+    values = []
     for args in _link_argv(commands_text):
+        args = list(_linker_argv(args))
         for i, arg in enumerate(args):
-            if arg == '-T' and i + 1 < len(args):
-                scripts.append(args[i + 1])
-            elif arg.startswith('-T') and len(arg) > 2:
-                scripts.append(arg[2:])
-            elif arg.startswith('-Wl,--script='):
-                scripts.append(arg.split('=', 1)[1])
-    return list(dict.fromkeys(scripts))
+            if arg in (short, long) and i + 1 < len(args):
+                values.append(args[i + 1])
+            elif arg.startswith(short) and len(arg) > len(short):
+                values.append(arg[len(short):])
+            elif arg.startswith(long + '='):
+                values.append(arg.split('=', 1)[1])
+    return [value for value in dict.fromkeys(values) if value]
+
+
+def extract_ld_scripts(commands_text):
+    """Deduped linker scripts referenced by a link command (-T, --script)."""
+    return _option_values(commands_text, '-T', '--script')
 
 
 def extract_ld_include_dirs(commands_text):
-    """Deduped linker search directories (-L) of a link command, in order. GNU LD
-    looks for a script's INCLUDE files there: pico-sdk 2.3 keeps its MEMORY block
-    in script_include/memmap_default.incl, found only through them."""
-    dirs = []
-    for args in _link_argv(commands_text):
-        for i, arg in enumerate(args):
-            if arg == '-L' and i + 1 < len(args):
-                dirs.append(args[i + 1])
-            elif arg.startswith('-L') and len(arg) > 2:
-                dirs.append(arg[2:])
-            elif arg.startswith('-Wl,-L,') or arg.startswith('-Wl,-L'):
-                dirs.append(arg[len('-Wl,-L,'):] if arg.startswith('-Wl,-L,') else arg[len('-Wl,-L'):])
-            elif arg.startswith('-Wl,--library-path='):
-                dirs.append(arg.split('=', 1)[1])
-    return [d for d in dict.fromkeys(dirs) if d]
+    """Deduped linker search directories of a link command (-L, --library-path),
+    in order. GNU LD looks for a script's INCLUDE files there: pico-sdk 2.3 keeps
+    its MEMORY block in script_include/memmap_default.incl, found only through them."""
+    return _option_values(commands_text, '-L', '--library-path')
 
 
 def extract_defsyms(commands_text):
