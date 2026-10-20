@@ -164,6 +164,8 @@ def main():
                    default=Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'tinyusb-usbtest',
                    help='where fetched files are kept (default: %(default)s)')
     args = p.parse_args()
+    if os.name == 'nt':   # the kernel's source is UTF-8 whatever the console's code page
+        sys.stdout.reconfigure(encoding='utf-8')
 
     if args.tag:
         if not RE_TAG.fullmatch(args.tag):
@@ -186,7 +188,7 @@ def main():
     if args.case is None:
         return 0
 
-    lines = usbtest_c.read_text(errors='replace').splitlines()
+    lines = usbtest_c.read_text(encoding='utf-8', errors='replace').splitlines()
     print(f'\n== case {args.case} in usbtest_do_ioctl()')
     for n, text in case_block(lines, args.case):
         print(f'{n:5d}  {text}')

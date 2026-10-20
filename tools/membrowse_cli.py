@@ -13,6 +13,11 @@ import sys
 
 # `--defsym=SYM=VAL` or `--defsym,SYM=VAL` from a link line
 DEFSYM_RE = re.compile(r'--defsym[=,](\S+)')
+# ESP-IDF's generated scripts, relative to the build dir (family_support.cmake's MEMBROWSE_LD_OVERRIDE)
+IDF_LD_SCRIPTS = ('esp-idf/esp_system/ld/memory.ld', 'esp-idf/esp_system/ld/sections.ld')
+NINJA_UTF8_REMEDY = ('CMake writes build.ninja in the ANSI code page when ninja is older than 1.11 or '
+                     '`ninja -t wincodepage` is not UTF-8; use ninja >= 1.11 whose `ninja -t wincodepage` '
+                     'reports UTF-8, or keep the checkout, CMake and toolchain paths ASCII-only')
 
 
 def link_command(ninja, build_dir, elf):
@@ -23,15 +28,19 @@ def link_command(ninja, build_dir, elf):
     Raises RuntimeError on failure or no command: an empty result would silently
     report against membrowse's default regions instead of the real linker scripts."""
     rel = os.path.relpath(elf, build_dir)
-    r = subprocess.run([ninja, '-C', build_dir, '-t', 'commands', '-s', rel],
-                        capture_output=True, text=True)
+    cmd = [ninja, '-C', build_dir, '-t', 'commands', '-s', rel]
+    r = subprocess.run(cmd, capture_output=True)
+    # decoded here: text=True decodes in a reader thread on Windows, which drops a bad stdout to None
+    try:
+        stdout, stderr = r.stdout.decode('utf-8'), r.stderr.decode('utf-8')
+    except UnicodeDecodeError as e:
+        raise RuntimeError(f"'{' '.join(cmd)}' output is not UTF-8: {NINJA_UTF8_REMEDY}") from e
     if r.returncode != 0:
-        raise RuntimeError(f"'{ninja} -C {build_dir} -t commands -s {rel}' failed "
-                           f'(exit {r.returncode}):\n{r.stderr}')
-    if not r.stdout.strip():
+        raise RuntimeError(f"'{' '.join(cmd)}' failed (exit {r.returncode}):\n{stderr}")
+    if not stdout.strip():
         raise RuntimeError(f'no command builds {rel!r} in the ninja build graph of '
                            f'{build_dir} - cannot determine its linker scripts')
-    return r.stdout
+    return stdout
 
 
 def extract_ld_scripts(commands_text):
@@ -40,6 +49,9 @@ def extract_ld_scripts(commands_text):
     for line in commands_text.splitlines():
         try:
             args = shlex.split(line)
+            # Windows ninja links through `cmd.exe /C "cd . && <link command>"`
+            if len(args) >= 3 and args[0].lower().endswith('cmd.exe') and args[1].lower() == '/c':
+                args = shlex.split(args[2])
         except ValueError:
             continue
         for i, arg in enumerate(args):
@@ -78,7 +90,7 @@ def build_membrowse_cmd(args, commands_text):
         ld_scripts = extract_ld_scripts(commands_text)
 
     cmd = ['membrowse', 'report'] + shlex.split(args.option)
-    if os.path.isfile(args.elf):
+    if args.elf and os.path.isfile(args.elf):
         if not ld_scripts:
             # same silent default-regions report as a failed ninja query
             sys.exit(f'error: no linker script found in the ninja build graph for '
@@ -103,9 +115,21 @@ def redacted(cmd, secret):
     return [('***' if secret and part == secret else part) for part in cmd]
 
 
+def expected_built(target_name):
+    """Whether the leg's Build step was meant to produce this target: TUSB_MEMBROWSE_EXPECT_BUILT
+    (build.py --expect-built) holds 'all' or the example names it built."""
+    expect = os.environ.get('TUSB_MEMBROWSE_EXPECT_BUILT', '').split()
+    return 'all' in expect or target_name.rsplit('/', 1)[-1] in expect
+
+
 def report(args):
+    built = not args.identical_only and os.path.isfile(args.elf)
+    if not built and expected_built(args.target_name):
+        # a failed build is a failure, never an --identical upload that hides it
+        raise RuntimeError(f'{args.target_name} was expected built, but there is no elf'
+                           f'{" at " + args.elf if args.elf else ""}')
     # an --identical report (no elf) must work against a never-configured build dir
-    link = link_command(args.ninja, args.build_dir, args.elf) if os.path.isfile(args.elf) else ''
+    link = link_command(args.ninja, args.build_dir, args.elf) if built else ''
     cmd = build_membrowse_cmd(args, link)
 
     # flush: piped stdout is block-buffered and the child's output would land first
@@ -129,8 +153,7 @@ def compose(board, example, num_commits, upload, api_key, extra, family=None):
         build = (f'idf.py -C {shlex.quote(f"examples/{example}")} -B {quoted_build_dir} '
                  f'-GNinja {shlex.quote(f"-DBOARD={board}")} build')
         elf_path = f'{build_dir}/{basename}.elf'
-        shim_scripts = ('esp-idf/esp_system/ld/memory.ld',
-                        'esp-idf/esp_system/ld/sections.ld')
+        shim_scripts = IDF_LD_SCRIPTS
     else:
         configure = (f'cmake -S examples -B {quoted_build_dir} '
                      f'{shlex.quote(f"-DBOARD={board}")} -G Ninja '
@@ -245,10 +268,13 @@ def main(argv=None):
     sub = parser.add_subparsers(dest='command', required=True, metavar='{report,onboard}')
 
     rep = sub.add_parser('report', help='size report for one build target')
-    rep.add_argument('--build-dir', required=True, help='CMake binary dir (ninja -C)')
-    rep.add_argument('--ninja', required=True, help='ninja executable')
+    rep.add_argument('--build-dir', help='CMake binary dir (ninja -C)')
+    rep.add_argument('--ninja', help='ninja executable')
     # absolute: membrowse runs from the build dir
-    rep.add_argument('--elf', required=True, type=os.path.abspath, help='path to the built ELF')
+    rep.add_argument('--elf', type=os.path.abspath, help='path to the built ELF')
+    rep.add_argument('--identical-only', action='store_true',
+                     help='report the target unchanged (--identical), with no build to read; '
+                          'takes none of --build-dir/--ninja/--elf')
     rep.add_argument('--option', default='',
                      help='extra membrowse report options, space-separated '
                           '(cmake -DMEMBROWSE_OPTION=...)')
@@ -281,6 +307,12 @@ def main(argv=None):
     args, extra = parser.parse_known_args(argv)
     if extra and args.command != 'onboard':
         sub.choices[args.command].error(f'unrecognized arguments: {" ".join(extra)}')
+    if args.command == 'report':
+        given = [f for f in ('build_dir', 'ninja', 'elf') if getattr(args, f) is not None]
+        if args.identical_only and given:
+            rep.error('--identical-only takes none of --build-dir/--ninja/--elf')
+        if not args.identical_only and len(given) < 3:
+            rep.error('--build-dir, --ninja and --elf are required unless --identical-only')
     try:
         if args.command == 'onboard':
             return onboard(args, extra)

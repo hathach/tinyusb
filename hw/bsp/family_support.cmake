@@ -285,6 +285,10 @@ function(family_add_membrowse TARGET)
   else ()
     set(ELF_TARGET ${TARGET})
   endif ()
+  # a variant build (build.py --build-name) reports as a board of its own
+  if (NOT DEFINED MEMBROWSE_BOARD)
+    set(MEMBROWSE_BOARD ${BOARD})
+  endif ()
 
   # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
   # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
@@ -299,7 +303,7 @@ function(family_add_membrowse TARGET)
       --ninja ${CMAKE_MAKE_PROGRAM}
       --elf ${TARGET_ELF_PATH}
       # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
-      --target-name ${BOARD}/${TARGET}
+      --target-name ${MEMBROWSE_BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)
       list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")
@@ -419,12 +423,6 @@ function(family_configure_common TARGET RTOS)
   target_compile_definitions(${TARGET} PUBLIC
     BOARD_${BOARD_UPPER}
   )
-
-  # CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Examples can use
-  # it to alter behavior under test, e.g. board_test idles to park HIL boards.
-  if(DEFINED ENV{CI})
-    target_compile_definitions(${TARGET} PUBLIC CI_BUILD=1)
-  endif()
 
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
@@ -839,9 +837,8 @@ function(family_flash_rfp TARGET)
     DEPENDS ${TARGET}
     COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
-      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
       -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+      -a $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     VERBATIM
     )
 

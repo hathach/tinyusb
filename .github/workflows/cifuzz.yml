@@ -10,6 +10,9 @@ on:
       - '**.cpp'
       - '**.cxx'
       - '**.h'
+      - 'test/fuzz/**'
+      - '!test/fuzz/**.md'
+      - '.github/workflows/cifuzz.yml'
 jobs:
  Fuzzing:
    runs-on: ubuntu-latest

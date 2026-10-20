@@ -1,10 +1,12 @@
 """hil_remote.py against a local "rig": a fake ssh runs each remote command under sh with a
 clean environment and a temp HOME, a fake rsync strips the host prefix, and a fake python3
 in that HOME's ~/.local/bin stands in for hil_test.py. So the quoting, the tilde expansion,
-the PATH shim and every refusal-before-wipe execute for real. Plumbing only: the real
-transport is proved by a run on ci.lan."""
-import fcntl
+the PATH shim and every refusal-before-wipe execute for real. Windows cannot exec the #!
+fakes, so there only the Refusals and Units run. Plumbing only: the real transport is proved
+by a run on ci.lan."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import shlex
@@ -12,11 +14,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPT = REPO / '.claude' / 'skills' / 'hil' / 'scripts' / 'hil_remote.py'
+SCRIPT = REPO / '.claude' / 'skills' / 'hil-contract' / 'scripts' / 'hil_remote.py'
 spec = importlib.util.spec_from_file_location('hil_remote', SCRIPT)
 hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)
@@ -24,6 +28,8 @@ spec.loader.exec_module(hil_remote)
 REAL_RSYNC = shutil.which('rsync')
 needs_rsync = unittest.skipUnless(REAL_RSYNC, 'rsync not installed; the fake rsync execs the real one')
 needs_flock = unittest.skipUnless(shutil.which('flock', path='/usr/bin:/bin'), 'flock not on the fake rig PATH (/usr/bin:/bin)')
+# the fake ssh, rsync and python3 are #! scripts Windows cannot exec: a run there would reach the real ones
+needs_fake_rig = unittest.skipIf(os.name == 'nt', 'the fake rig is #! scripts and a POSIX shell')
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
@@ -116,6 +122,9 @@ class Rig(unittest.TestCase):
                  PATH=f'{self.bin}:{os.environ["PATH"]}', FAKE_LOG=str(self.log),
                  FAKE_HOME=str(self.home), FAKE_RUN=str(self.run_file))
         e.pop('CONFIG', None)
+        if os.name == 'nt':
+            # only the refusals run here: a REMOTE_DIR they accept, and no real ssh or rsync on PATH
+            e.update(REMOTE_DIR='/tmp/hil-remote-test', PATH=str(self.bin))
         return e
 
     def hil_remote(self, *argv, **env):
@@ -210,6 +219,7 @@ class Refusals(Rig):
             self.refused(self.hil_remote('-b', 'alpha', '-B', bad), '-B must be')
 
 
+@needs_fake_rig
 @needs_rsync
 @needs_flock
 class Staging(Rig):
@@ -238,6 +248,42 @@ class Staging(Rig):
              [f'cmake-build/cmake-build-beta_{v}/device/cdc_msc/flash_args' for v in ('one', 'two')]
         self.assertEqual(self.remote_files(),
                          sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw]))
+
+    def lock_dependency(self, provided=True):
+        """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
+        rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
+        rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/usb_observe.py',
+                 'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
+        for rel in rels:
+            shutil.copy(REPO / rel, self.root / rel)
+        if not provided:
+            shutil.rmtree(self.root / 'lib/agentrc')
+
+    def test_the_staged_tree_passes_the_pin_check(self):
+        self.build('alpha')
+        self.lock_dependency()
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        probe = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil"); '
+                                'from helper import agentrc, hil_lock; print(hil_lock.__file__); '
+                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__)'],
+                               cwd=self.remote, capture_output=True, text=True, timeout=30)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(probe.stdout.split(), [str(self.remote / 'lib/agentrc/skills/hil/scripts/hil_lock.py'),
+                                                str(self.remote / 'lib/agentrc/skills/rtt/scripts/rtt.py')])
+
+    def test_a_missing_lock_dependency_refuses_before_the_rig(self):
+        self.build('alpha')
+        self.lock_dependency(provided=False)
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 1)
+        spec = importlib.util.spec_from_file_location('get_deps_under_test', REPO / 'tools/get_deps.py')
+        get_deps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(get_deps)
+        self.assertIn(get_deps.deps_optional['lib/agentrc'][1], r.stderr)
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_a_missing_variant_warns(self):
         self.build('beta_one')
@@ -285,6 +331,7 @@ class Staging(Rig):
         self.assertFalse((self.remote / 'stale').exists())
 
 
+@needs_fake_rig
 @needs_rsync
 @needs_flock
 class TheRun(Rig):
@@ -337,11 +384,13 @@ class TheRun(Rig):
                             for a in rsync), rsync)
 
 
+@needs_fake_rig
 @needs_flock
 class RemoteLock(Rig):
     """A second run sharing REMOTE_DIR must not rm -rf the tree the first one is running from."""
 
     def lock(self):
+        import fcntl
         lk = open(f'{self.remote}.lock', 'a')
         self.addCleanup(lk.close)
         fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -440,6 +489,7 @@ args = [''', 1))
         self.assertEqual([c['tool'] for c in self.calls()][-1], 'ssh', 'copy_back ran after the refusal')
 
 
+@needs_fake_rig
 @needs_rsync
 @needs_flock
 class Reports(Rig):
@@ -510,6 +560,115 @@ class Units(unittest.TestCase):
                 self.assertEqual(hil_remote.sidecar_matches(p, CONFIG), ok, body)
             p.write_text('{')
             self.assertFalse(hil_remote.sidecar_matches(p, CONFIG))
+            p.write_text(json.dumps({'rows': [{'board': 'alpha', 'note': '\u2714'}]}, ensure_ascii=False), encoding='utf-8')
+            self.assertTrue(hil_remote.sidecar_matches(p, CONFIG), 'the rig writes it as UTF-8')
+
+    def test_staged_files_are_named_as_rsync_and_the_rig_name_them(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(hil_remote, 'ROOT', Path(td)):
+            d = Path(td) / 'cmake-build' / 'cmake-build-alpha'
+            (d / 'device' / 'cdc_msc').mkdir(parents=True)
+            for f in ('cdc_msc.elf', 'cdc_msc.map'):
+                (d / 'device' / 'cdc_msc' / f).write_text(f)
+            files = hil_remote.staged_files([d])
+            self.assertEqual(list(files), ['cmake-build/cmake-build-alpha/device/cdc_msc/cdc_msc.elf'])
+            self.assertEqual(hil_remote.example_firmware(d, files), {'device/cdc_msc'})
+
+    def test_no_rsync_is_refused_before_the_lease(self):
+        def popen(*a, **k):
+            raise AssertionError('ssh started')
+        cases = [('none', None, None)]
+        if os.name == 'nt':   # subprocess cannot start a .cmd by bare name, and the cwd is not PATH
+            cases += [('a .cmd on PATH', 'path', 'rsync.cmd'), ('an .exe in the cwd', 'cwd', 'rsync.exe')]
+        for case, where, name in cases:
+            with self.subTest(case), tempfile.TemporaryDirectory() as path, tempfile.TemporaryDirectory() as cwd:
+                if name:
+                    (Path(path if where == 'path' else cwd) / name).write_bytes(b'')
+                old = os.getcwd()
+                os.chdir(cwd)
+                try:
+                    with mock.patch.dict(os.environ, {'PATH': os.pathsep.join(['', path])}), \
+                            mock.patch.object(hil_remote.subprocess, 'Popen', popen), \
+                            contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
+                        with hil_remote.remote_lease('rig', '/tmp/x', 'cmake-build'):
+                            pass
+                finally:
+                    os.chdir(old)
+                self.assertIn('rsync is not on PATH', str(e.exception.code))
+
+    def test_windows_takes_rsync_exe_only_from_an_absolute_path_dir(self):
+        # the os module as Windows' rsync_program sees it, on any host
+        with tempfile.TemporaryDirectory() as path, tempfile.TemporaryDirectory() as cwd:
+            for d in (path, cwd):
+                (Path(d) / 'rsync.exe').write_bytes(b'')
+            old = os.getcwd()
+            os.chdir(cwd)
+            try:
+                for entries, found in ((['.', 'bin', ''], None), (['.', path], os.path.join(path, 'rsync.exe'))):
+                    nt = types.SimpleNamespace(name='nt', path=os.path, pathsep=os.pathsep,
+                                               environ={'PATH': os.pathsep.join(entries)})
+                    with self.subTest(entries), mock.patch.object(hil_remote, 'os', nt):
+                        self.assertEqual(hil_remote.rsync_program(), found)
+            finally:
+                os.chdir(old)
+
+    @unittest.skipUnless(os.name == 'nt', 'rsync.exe is the Windows name')
+    def test_windows_runs_the_rsync_exe_found_on_path(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as path:
+            (Path(path) / 'rsync.exe').write_bytes(b'')
+            with mock.patch.dict(os.environ, {'PATH': path}), \
+                    mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append(argv) or mock.Mock(returncode=0)):
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', 'rig:/tmp/t/x', hil_remote.ROOT / 'x')
+        self.assertEqual(calls[0][0], os.path.join(path, 'rsync.exe'))
+
+    def test_rsync_names_local_files_from_the_checkout_and_passes_remote_specs_as_they_are(self):
+        # a one-letter ssh host must not be read as a drive letter, the checkout's own or another
+        calls = []
+        local = hil_remote.ROOT / 'hil_report.json'
+        hosts = ('rig', hil_remote.ROOT.drive[:1].lower() or 'e', 'r')
+        with mock.patch.object(hil_remote, 'rsync_program', return_value='rsync'), \
+                mock.patch.object(hil_remote.subprocess, 'run', lambda argv, **kw: calls.append((argv, kw)) or mock.Mock(returncode=0)):
+            for host in hosts:
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', local, f'{host}:/tmp/t/')
+                hil_remote.rsync(('/tmp/t', 'tok'), '-q', f'{host}:/tmp/t/hil_report.json', local)
+        name = 'hil_report.json' if os.name == 'nt' else str(local)   # Windows rsync reads C: as a host
+        self.assertEqual([argv[-2:] for argv, _ in calls],
+                         [x for h in hosts for x in ([name, f'{h}:/tmp/t/'], [f'{h}:/tmp/t/hil_report.json', name])])
+        self.assertEqual({kw['cwd'] for _, kw in calls}, {hil_remote.ROOT})
+
+    @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
+    def test_a_config_rsync_cannot_name_is_refused_before_the_lease(self):
+        leased = []
+
+        @contextlib.contextmanager
+        def lease(*a):
+            leased.append(a)
+            yield '/tmp/t', 'tok'
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            other = 'Q:' if root.drive.upper() != 'Q:' else 'R:'
+            args = types.SimpleNamespace(build=False, build_dir='cmake-build', accumulate=False)
+            with mock.patch.object(hil_remote, 'ROOT', root), mock.patch.object(hil_remote, 'helper'), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, Path(f'{other}/rig/tinyusb.json'))), \
+                    mock.patch.object(hil_remote, 'resolve_firmware', return_value=[root / 'cmake-build' / 'cmake-build-alpha']), \
+                    mock.patch.object(hil_remote, 'remote_lease', lease), \
+                    mock.patch.object(hil_remote.subprocess, 'run', side_effect=AssertionError('rsync or ssh ran')), \
+                    contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+        self.assertIn('is not on the drive of the checkout', str(e.exception.code))
+        self.assertEqual(leased, [], 'refused after the lease wiped the rig tree')
+
+    def test_the_pin_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
+        # agentrc.load() checks the pin before running agentrc's hil_lock, whose fcntl Windows lacks
+        args = types.SimpleNamespace(build=True, board=['alpha'], flasher=None, exclude_flasher=None,
+                                     build_dir='cmake-build')
+        for error, refusal in ((ModuleNotFoundError("No module named 'fcntl'", name='fcntl'), '--build would build'),
+                               (ImportError('lib/agentrc must be at the pin'), 'lib/agentrc must be at the pin')):
+            with self.subTest(error), mock.patch.object(hil_remote, 'helper', side_effect=error), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, hil_remote.ROOT / 'x.json')), \
+                    self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+            self.assertIn(refusal, str(e.exception.code))
 
 
 if __name__ == '__main__':

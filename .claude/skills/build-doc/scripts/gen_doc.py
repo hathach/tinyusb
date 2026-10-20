@@ -21,7 +21,7 @@ def metadata(path):
     """key: value pairs of the /* metadata: ... */ block, {} when the file or block is missing."""
     if not path.exists():
         return {}
-    m = re.search(r'/\*\s*metadata:(.*?)\*/', path.read_text(), re.DOTALL)
+    m = re.search(r'/\*\s*metadata:(.*?)\*/', path.read_text(encoding='utf-8'), re.DOTALL)
     if not m:
         return {}
     return {k: v.strip() for k, v in re.findall(r'^[ \t]*(\w+):[ \t]*(.+)$', m.group(1), re.MULTILINE)}
@@ -30,7 +30,8 @@ def metadata(path):
 def boards(bsp):
     """{manufacturer: {board: [name, family, url, note]}} plus the paths skipped for lack of metadata."""
     vendors, skipped = {}, []
-    for family_dir in sorted(p for p in bsp.iterdir() if p.is_dir()):
+    # by name: Windows paths compare case-insensitively, which would reorder boards.rst
+    for family_dir in sorted((p for p in bsp.iterdir() if p.is_dir()), key=lambda p: p.name):
         family_c = family_dir / 'family.c'
         if not family_c.exists():
             family_c = family_dir / 'boards' / 'family.c'
@@ -39,7 +40,7 @@ def boards(bsp):
             skipped.append(family_dir)
             continue
         manufacturer = f_meta.get('manufacturer', '')
-        for board_dir in sorted(p for p in (family_dir / 'boards').iterdir() if p.is_dir()):
+        for board_dir in sorted((p for p in (family_dir / 'boards').iterdir() if p.is_dir()), key=lambda p: p.name):
             b_meta = metadata(board_dir / 'board.h')
             if not b_meta:
                 skipped.append(board_dir)
@@ -107,7 +108,7 @@ def hil_rows(entries):
 def hil_md(root):
     out = [HEADER, '']
     for title, src in (('ci rig', 'test/hil/tinyusb.json'), ('hfp rig', 'test/hil/hfp.json')):
-        entries = json.loads((root / src).read_text()).get('boards', [])
+        entries = json.loads((root / src).read_text(encoding='utf-8')).get('boards', [])
         if not entries:
             continue
         out += [f'### {title}', '', f'{len(entries)} boards, from `{src}`.', '',
@@ -124,14 +125,14 @@ def main():
     gen_deps_doc(root / 'docs/reference/dependencies.rst')
     print(f'wrote {root / "docs/reference/dependencies.rst"}')
     vendors, skipped = boards(root / 'hw' / 'bsp')
-    (root / 'docs/reference/boards.rst').write_text(boards_rst(vendors))
+    (root / 'docs/reference/boards.rst').write_text(boards_rst(vendors), encoding='utf-8')
     print(f'wrote {root / "docs/reference/boards.rst"}')
-    (root / 'docs/reference/hil_boards.md').write_text(hil_md(root))
+    (root / 'docs/reference/hil_boards.md').write_text(hil_md(root), encoding='utf-8')
     print(f'wrote {root / "docs/reference/hil_boards.md"}')
     if skipped:
         print('no metadata block, left out of boards.rst:', file=sys.stderr)
         for path in skipped:
-            print(f'  {path.relative_to(root)}', file=sys.stderr)
+            print(f'  {path.relative_to(root).as_posix()}', file=sys.stderr)
     return 0
 
 

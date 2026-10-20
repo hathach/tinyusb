@@ -17,13 +17,14 @@ and the full battery still passes across reflash cycles.
 
 ## Choose the path
 
-| Situation                                        | Do                                                                                  |
-|--------------------------------------------------|-------------------------------------------------------------------------------------|
-| Routine full battery on rig boards               | The HIL contract (`hil` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
-| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
-| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
-| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
-| New MCU or DCD                                   | Bring-up ladder                                                                     |
+| Situation                                        | Do                                                                                           |
+|--------------------------------------------------|----------------------------------------------------------------------------------------------|
+| Routine full battery on rig boards               | The HIL contract (`hil-contract` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
+| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                                |
+| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                            |
+| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls                      |
+| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                             |
+| New MCU or DCD                                   | Bring-up ladder                                                                              |
 
 Build first, through the build contract; `--variants` gives each roster variant its own
 `cmake-build-<variant>` dir, the one HIL and `run_case.py` flash from. A board not yet in the
@@ -39,27 +40,51 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 ```
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
-has several. It refuses with exit 2 and the reason before touching hardware, including while any
-battery or another `run_case.py` runs on the host; pass `--allow-concurrent` only after checking
-no battery shares the board's host controller. A wedged device is never parked. The last stdout
+has several. It refuses with exit 2 and the reason before touching hardware, including on a host
+that is not Linux and while any battery or another `run_case.py` runs on the host; pass
+`--allow-concurrent` only when another battery's load on the board's host controller does not
+matter for what you are measuring. A wedged device is never parked. The last stdout
 line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
 `dmesg` when it captured them.
 
+```bash
+# wedge the board on purpose (halt its core mid case 27) and require usbtest.py's recovery to clear it
+python3 .claude/skills/usbtest/scripts/wedge_drill.py --config <this host's config> --board <board>
+```
+
+Only `pass` is evidence that the board's recovery works: HUNG, probe reset rc 0, the original
+testusb reaped, a fresh enumeration and case 1 passing. `inconclusive` means no wedge was produced
+(the case ended first, the halt failed or nothing hung); try another `--delay`, do not count it.
+Case 27 often ends within 1 s: `--delay 0` suits HS boards (max32666fthr, mimxrt1064_evk,
+ch32v307v_r1_1v0-usbhs). On a WCH-Link (`target/wch-riscv.cfg`) openocd's shutdown resumes the
+core, so the drill SIGKILLs a halted openocd instead. On nanoch32v203-fsdev the WCH-LinkE attach
+(openocd 0ce743125) itself rewrote RCC, taking the USB clock off 48 MHz, so case 27 failed -EPIPE
+instead of hanging and the drill stayed inconclusive (2026-10-06).
+The halt runs through openocd. A board whose recovery flasher is not openocd (the hfp stlink
+boards) names the openocd halt with `--halt-openocd`, whose interface and target cfgs must match
+its probe and MCU, e.g. `--halt-openocd "-f interface/stlink.cfg -f target/stm32l4x.cfg"` for
+stm32l412nucleo; it injects the wedge only, and the recovery under test stays the board's own.
+`STM32_Programmer_CLI -halt` cannot stand in: the core ran again after the CLI exited (DHCSR,
+stm32g0b1nucleo, CubeProgrammer v2.23.0).
+Its `cleanup` is the drill's own reset and never stands in for the harness's recovery. Boards
+whose recovery flasher is not convoy-safe or has no probe reset are refused.
+
 ## Rig hazards
 
-- **Batteries are budgeted per host controller.** `hil_test.py` runs at most 2 per controller
-  (`HIL_USBTEST_PARALLEL`); those permits live inside its process, so a battery started outside it
-  is not counted. Unbudgeted batteries on one controller have frozen the rig, and a marginal DUT
-  port bouncing under concurrent batteries has killed a uPD720201 (the note above
-  `FLASH_PARALLEL` in `hil_lock.py`). Never start a battery outside `hil_test.py` on a controller
-  another battery is using.
-- **A wedged peer stalls every testusb on the host.** `testusb` opens every usbfs node while
-  scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node takes its
-  device lock. Once any device holds its lock for good, each new case blocks there in D state,
-  and `usbtest.py` blames the device under test. When testusb runs without `sudo -n`, a hold that
-  ends within the 30 s watch is a FAIL `timeout after Ns (the kill landed Ns late; a peer held the
-  node)` that stops the battery; one that outlasts the watch becomes HUNG. Check for other D-state
-  `testusb` processes on the host before trusting a HUNG verdict on a healthy board.
+- **Batteries share host controllers.** `hil_test.py` does not limit batteries per controller:
+  each carries as many as it has boards in flight, and a second `hil_test.py` or a battery started
+  outside it adds to them. Know what else runs on the controller before reading a timeout or a
+  slow 27/28 as a DCD bug. Case 9 has slowed under concurrent batteries behind one hub; consider
+  contention when it nears its bound (`PARAMS` in `test/hil/usbtest.py` sets its iterations). A
+  marginal DUT port bouncing under concurrent batteries has killed a uPD720201 (2026-07-16): fix
+  the port or pull the board.
+- **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
+  node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
+  takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
+  confines the scan to the DUT (`usbtest.py` does this; `-A` must come first, it clears `-D`).
+  When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
+  watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
+  that outlasts the watch becomes HUNG.
 - **The id and binding stay.** `usbtest.py` registers `cafe 4010` once and never unbinds or
   removes it: those writes take the uninterruptible device lock. Recovery of a HUNG case is one
   step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
@@ -166,7 +191,7 @@ bound interface keeps the profile it was probed with. The right one probes as `L
 in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
 22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
 
-1. Reserve the whole fleet as the `hil` skill's rig-wide rule says, and confirm no `testusb` or
+1. Reserve the whole fleet as the HIL contract's Reservation says for rig-wide operations, and confirm no `testusb` or
    `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
    behind any case still in flight. It is never refused for an interface in use.
 2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.
@@ -192,6 +217,6 @@ Carried over from earlier ports, not re-verified:
 - "usbmon shows no toggle problem": usbmon cannot see toggles.
 - "Fixed isochronous IN": apply the same exemption to OUT.
 - "It works on gcc": clang, IAR, LTO and make builds are still pending.
-- "A clean single-board run": fleet runs put two batteries per controller plus concurrent flashes
-  on shared hub uplinks.
+- "A clean single-board run": fleet runs put several batteries per controller plus concurrent
+  flashes on shared hub uplinks.
 - Reasoning about a case from its name or a table row: run step 0.

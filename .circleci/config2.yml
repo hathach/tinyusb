@@ -12,12 +12,6 @@ commands:
             type: string
 
     steps:
-      - run:
-          name: Set toolchain url
-          command: |
-            toolchain_url=$(jq -r '."<< parameters.toolchain >>"' .github/actions/setup_toolchain/toolchain.json)
-            echo "export toolchain_url=$toolchain_url" >> $BASH_ENV
-
       - restore_cache:
           name: Restore Toolchain Cache
           key: deps-<< parameters.toolchain >>-{{ checksum ".github/actions/setup_toolchain/toolchain.json" }}
@@ -30,17 +24,18 @@ commands:
             # download if folder does not exist (not cached)
             if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
               mkdir -p ~/cache/<< parameters.toolchain >>
+              fetch=.github/actions/setup_toolchain/download/fetch.sh
               if [[ << parameters.toolchain >> == rx-gcc ]]; then
-                wget --progress=dot:giga $toolchain_url -O toolchain.run
+                $fetch << parameters.toolchain >> toolchain.run
                 chmod +x toolchain.run
                 ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
               elif [[ << parameters.toolchain >> == ft9xx-gcc ]]; then
-                wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
+                $fetch << parameters.toolchain >> ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
               elif [[ << parameters.toolchain >> == arm-iar ]]; then
-                wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
-                wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/toolchain.deb
+                $fetch iar-lmsc-tools ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
+                $fetch << parameters.toolchain >> ~/cache/<< parameters.toolchain >>/toolchain.deb
               else
-                wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
+                $fetch << parameters.toolchain >> toolchain.tar.gz
                 tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
               fi
             fi
@@ -99,7 +94,7 @@ commands:
 
             # Install Pico SDK
             if [ << parameters.family >> == "rp2040" ]; then
-              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
+              git clone --depth 1 --branch 2.3.1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk  # keep in step with .github/actions/get_deps/action.yml
               echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
             fi
 
@@ -133,7 +128,8 @@ commands:
             esac
 
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.5.3 python tools/build.py << parameters.build-args >> --target all $EX_ARGS << parameters.family >>
+              ESP_IDF_IMAGE=$(jq -er '."esp-idf".image' .github/actions/setup_toolchain/toolchain.json)
+              docker run --rm -v $PWD:/project -w /project "$ESP_IDF_IMAGE" python tools/build.py << parameters.build-args >> --target all $EX_ARGS << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then

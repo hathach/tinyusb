@@ -27,6 +27,7 @@
 #include "class/audio/audio.h"
 #include "class/midi/midi.h"
 #include "device/usbd.h"
+#include "class/midi/midi2_device.h"
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -263,4 +264,47 @@ void test_midi2_descriptor_valid_types(void) {
 void test_ump_word_count_with_values_beyond_0xf(void) {
   TEST_ASSERT_EQUAL(4, midi2_ump_word_count(0x10));
   TEST_ASSERT_EQUAL(4, midi2_ump_word_count(0xFF));
+}
+
+//--------------------------------------------------------------------+
+// Group Terminal Block: default MIDI protocol (bMIDIProtocol)
+//--------------------------------------------------------------------+
+
+// USB-MIDI 2.0, Appendix A.7
+void test_gtb_protocol_values(void) {
+  TEST_ASSERT_EQUAL_HEX8(0x00, MIDI2_GTB_PROTOCOL_UNKNOWN);
+  TEST_ASSERT_EQUAL_HEX8(0x01, MIDI2_GTB_PROTOCOL_MIDI1_64);
+  TEST_ASSERT_EQUAL_HEX8(0x02, MIDI2_GTB_PROTOCOL_MIDI1_64_JR);
+  TEST_ASSERT_EQUAL_HEX8(0x03, MIDI2_GTB_PROTOCOL_MIDI1_128);
+  TEST_ASSERT_EQUAL_HEX8(0x04, MIDI2_GTB_PROTOCOL_MIDI1_128_JR);
+  TEST_ASSERT_EQUAL_HEX8(0x11, MIDI2_GTB_PROTOCOL_MIDI2);
+  TEST_ASSERT_EQUAL_HEX8(0x12, MIDI2_GTB_PROTOCOL_MIDI2_JR);
+}
+
+// USB-MIDI 2.0, Table 5-6: bMIDIProtocol is byte 8 of the block entry
+void test_gtb_block_protocol_byte(void) {
+  const uint8_t block[] = {
+    TUD_MIDI2_GTB_BLOCK_PROTOCOL(2, MIDI2_GTB_INPUT_ONLY, 3, 4, 5, MIDI2_GTB_PROTOCOL_MIDI1_64)
+  };
+  TEST_ASSERT_EQUAL(MIDI2_GTB_ENTRY_LEN, sizeof(block));
+  TEST_ASSERT_EQUAL(MIDI2_GTB_ENTRY_LEN, block[0]);
+  TEST_ASSERT_EQUAL(MIDI2_CS_GRP_TRM_BLOCK, block[1]);
+  TEST_ASSERT_EQUAL(MIDI2_GRP_TRM_BLOCK_ENTRY, block[2]);
+  TEST_ASSERT_EQUAL(2, block[3]);
+  TEST_ASSERT_EQUAL(MIDI2_GTB_INPUT_ONLY, block[4]);
+  TEST_ASSERT_EQUAL(3, block[5]);
+  TEST_ASSERT_EQUAL(4, block[6]);
+  TEST_ASSERT_EQUAL(5, block[7]);
+  TEST_ASSERT_EQUAL_HEX8(MIDI2_GTB_PROTOCOL_MIDI1_64, block[8]);
+}
+
+// A block that leaves the protocol unknown (0x00) is opened as MIDI 1.0 by
+// macOS, which then drops UMP Stream messages; the default is MIDI 2.0.
+void test_gtb_block_default_protocol_is_midi2(void) {
+  const uint8_t block[] = {
+    TUD_MIDI2_GTB_BLOCK(1, MIDI2_GTB_BIDIRECTIONAL, 0, 1, 0)
+  };
+  TEST_ASSERT_EQUAL(MIDI2_GTB_ENTRY_LEN, sizeof(block));
+  TEST_ASSERT_EQUAL_HEX8(CFG_TUD_MIDI2_GTB_PROTOCOL, block[8]);
+  TEST_ASSERT_EQUAL_HEX8(MIDI2_GTB_PROTOCOL_MIDI2, CFG_TUD_MIDI2_GTB_PROTOCOL);
 }

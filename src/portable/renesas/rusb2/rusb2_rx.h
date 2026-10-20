@@ -42,7 +42,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 {
   (void) rhport;
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IEN(PERIB, INTB185) = 1;
 #else
   IEN(USB0, USBI0) = 1;
@@ -52,7 +52,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport)
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
 {
   (void) rhport;
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IEN(PERIB, INTB185) = 0;
 #else
   IEN(USB0, USBI0) = 0;
@@ -62,11 +62,18 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport)
 // MCU specific PHY init
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void)
 {
-#if (CFG_TUSB_MCU == OPT_MCU_RX72N)
+#if (CFG_TUSB_MCU == OPT_MCU_RX72N) || (CFG_TUSB_MCU == OPT_MCU_RX65X)
   IR(PERIB, INTB185) = 0;
 #else
   IR(USB0, USBI0) = 0;
 #endif
+}
+
+// PIPEnCTR.ACLRM needs >= 100 ns between its 1 and 0 writes (RX65N UM p1584, RX63N UM p1299).
+// No calibrated delay here: each iteration takes at least one ICLK cycle, so 32 of them last
+// >= 133 ns at the fastest RX ICLK (RX72N, 240 MHz).
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
+  for (volatile uint8_t i = 0; i < 32; i++) {}
 }
 
 #ifdef __cplusplus

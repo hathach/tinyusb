@@ -15,6 +15,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+if os.name == 'nt':
+    raise unittest.SkipTest('run_case.py imports test/hil/usbtest.py, which needs fcntl')
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts' / 'run_case.py'
 spec = importlib.util.spec_from_file_location('run_case', SCRIPT)
@@ -37,6 +39,8 @@ ROSTER = {
          'variant': [{'name': ''}]},
         {'name': 'noflasher', 'uid': 'UID9', 'tests': {'only': ['device/usbtest']}},
         {'name': 'nouid', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/usbtest']}},
+        {'name': 'esp', 'uid': 'UID10', 'tests': {'only': ['device/usbtest']},
+         'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -145,6 +149,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'noflasher'], 'noflasher in'),
                 (['--board', 'nouid'], 'nouid in'),
+                (['--board', 'esp'], 'esp: openocd_esp: only hil_test.py'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):
@@ -506,6 +511,13 @@ class KillChildren(unittest.TestCase):
         self.assertEqual((leader.wait(timeout=5), plain.wait(timeout=5)), (-9, -9))
         self.assertTrue(self.wait_gone(grandchild))
         self.assertFalse(gone(stranger))
+
+    def test_a_spared_child_lives(self):
+        spared, plain = self.spawn('exec sleep 30'), self.spawn('exec sleep 30')
+        with mock.patch.object(run_case, 'PROC', OnlyThese(spared.pid, plain.pid)):
+            run_case.kill_children(spare={spared.pid})
+        self.assertEqual(plain.wait(timeout=5), -9)
+        self.assertIsNone(spared.poll())
 
     def test_a_permission_error_is_swallowed(self):
         with tempfile.TemporaryDirectory() as d:

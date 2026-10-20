@@ -6,9 +6,12 @@ and main tests, so no build and no real membrowse CLI invocation is needed.
 """
 import concurrent.futures
 import contextlib
+import errno
 import functools
+import hashlib
 import io
 import json
+import ntpath
 import os
 import re
 import shutil
@@ -18,12 +21,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import code_size as sd  # noqa: E402
+
+posix_only = unittest.skipIf(os.name == 'nt', 'needs a POSIX shell and signals')
+no_esp_on_windows = unittest.skipIf(os.name == 'nt', 'code_size.py refuses ESP-IDF on Windows')
 
 
 def fake_report(symbols):
@@ -64,6 +71,22 @@ class ReportForElf(unittest.TestCase):
             self.assertEqual(cmd[cmd.index('--def') + 1], 'X=1')
             self.assertEqual(run.call_args.kwargs['cwd'], build)
 
+    @no_esp_on_windows
+    def test_an_esp_idf_build_uses_its_generated_scripts(self):
+        with tempfile.TemporaryDirectory() as build:
+            open(os.path.join(build, 'build.ninja'), 'w').close()
+            ld = os.path.join(build, 'esp-idf', 'esp_system', 'ld')
+            os.makedirs(ld)
+            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -o x.elf\n'
+            open(os.path.join(ld, 'memory.ld'), 'w').close()
+            with mock.patch.object(sd, 'link_command', return_value=commands), \
+                 self.assertRaisesRegex(RuntimeError, 'lacks one of'):
+                sd._link_settings(os.path.join(build, 'x.elf'))
+            open(os.path.join(ld, 'sections.ld'), 'w').close()
+            with mock.patch.object(sd, 'link_command', return_value=commands):
+                self.assertEqual(sd._link_settings(os.path.join(build, 'x.elf')),
+                                 (build, [os.path.join(ld, 'memory.ld'), os.path.join(ld, 'sections.ld')], ['X=1']))
+
     def test_malformed_output_is_a_runtime_error(self):
         done = subprocess.CompletedProcess([], 0, 'not json', '')
         with mock.patch.object(sd, '_link_settings', return_value=('/b', ['m.ld'], [])), \
@@ -84,6 +107,14 @@ class MdTable(unittest.TestCase):
                              '|---------------|-------:|\n'
                              '| a/long/path.c |     +1 |\n'
                              '| └ f           |   -120 |')
+
+    def test_left_names_the_left_aligned_columns(self):
+        md = sd.md_table(['File', 'n', 'build'], [['a.c', '+1', 'b1/x']], total=['TOTAL', '+1', 'all'], left=(0, 2))
+        self.assertEqual(md, '| File  |  n | build |\n'
+                             '|-------|---:|-------|\n'
+                             '| a.c   | +1 | b1/x  |\n'
+                             '|-------|----|-------|\n'
+                             '| TOTAL | +1 | all   |')
 
 
 class CompareReports(unittest.TestCase):
@@ -167,7 +198,7 @@ class RenderReport(unittest.TestCase):
         a, = pair_ids(1)
         md = self.report({a: elf({'x.c': (60, 20), 'y.c': (20, 0)}, all_syms=(500, 40))}, 'membrowse')
         self.assertIn('**Coverage (complete, membrowse):** 1 of 1 elfs sized', md)
-        self.assertIn('filtered Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
+        self.assertIn('TinyUSB Flash 80, RAM 20; all symbols Flash 500, RAM 40', md)
         self.assertIn('| File | .text | .bss | size | % |', md)
         self.assertLess(md.index('| x.c | 60 | 20 | 80 | 80.0% |'), md.index('| y.c | 20 | 0 | 20 | 20.0% |'))
         self.assertIn('| TOTAL | 80 | 20 | 100 | 100.0% |', md)
@@ -461,6 +492,44 @@ class SectionBuckets(unittest.TestCase):
         b = self.buckets([('.init_array', INIT_ARRAY, WA, 0x54a4, 4)], [(0x200, 0x200, 0x6000)])
         self.assertEqual(b['.init_array'], {'flash'})
 
+    def test_an_esp_idf_app_is_split_by_its_flash_mapped_sections(self):
+        # every section runs where it loads; .flash* is flash-mapped, the rest the bootloader
+        # copies from the image into RAM (real S3 names, incl. writable .flash.rodata)
+        sections = [('.flash.appdesc', PROGBITS, A, 0x3c020020, 0x100),
+                    ('.flash.rodata', PROGBITS, WA, 0x3c020120, 0x10),
+                    ('.flash.text', PROGBITS, AX, 0x42000020, 0x10),
+                    ('.flash_rodata_dummy', NOBITS, WA, 0x3c000020, 0x20000),
+                    ('.iram0.text', PROGBITS, AX, 0x40374404, 0x10),
+                    ('.dram0.data', PROGBITS, WA, 0x3fc88000, 0x10),
+                    ('.rtc.force_slow', PROGBITS, WA, 0x50000000, 0x10),
+                    ('.dram0.bss', NOBITS, WA, 0x3fc96d20, 0x10)]
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            write_elf(elf, sections, [(0, 0, 0xffffffff)])
+            b = sd.section_buckets(elf, os.path.join(tmp, 'no.map'))  # an IDF app never reads the map
+        self.assertEqual({n: set(v) for n, v in b.items() if n != '.shstrtab'},
+                         {'.flash.appdesc': {'flash'}, '.flash.rodata': {'flash'}, '.flash.text': {'flash'},
+                          '.flash_rodata_dummy': set(), '.iram0.text': {'flash', 'ram'},
+                          '.dram0.data': {'flash', 'ram'}, '.rtc.force_slow': {'flash', 'ram'},
+                          '.dram0.bss': {'ram'}})
+
+    def test_overlapping_flash_and_ram_regions_still_fail_outside_esp_idf(self):
+        regions = MAP_REGIONS.replace('m_text           0x00000000         0x00010000         xr',
+                                      'drom0_0_seg      0x3c000020         0x01ffffe0         r\n'
+                                      'extern_ram_seg   0x3c000020         0x01ffffe0         xrw')
+        with self.assertRaisesRegex(RuntimeError, 'no map region recognized'):
+            self.buckets([('.ext_ram.data', PROGBITS, WA, 0x3c040020, 0x10)],
+                         [(0x3c040020, 0x3c040020, 0x200)], regions)
+
+    def test_an_esp_idf_map_is_named_after_the_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            self.assertEqual(sd._map_path(elf), elf + '.map')  # neither: the usual name, reported missing
+            open(os.path.join(tmp, 'x.map'), 'w').close()
+            self.assertEqual(sd._map_path(elf), os.path.join(tmp, 'x.map'))
+            open(elf + '.map', 'w').close()
+            self.assertEqual(sd._map_path(elf), elf + '.map')
+
     def test_writable_data_in_place_takes_its_map_region(self):
         # RAM-only image (raspberrypi_zero): .data runs where it loads, in RAM
         b = self.buckets([('.data', PROGBITS, WA, 0x20000000, 0x10)], [(0x20000000, 0x20000000, 0x10)])
@@ -580,6 +649,42 @@ THREE_SECTIONS = ([('.text', PROGBITS, AX, 0x10000000, 0x400),
                   [(0x10000000, 0x10000000, 0x400), (0x20000000, 0x10000400, 0x30)])
 
 
+class DwarfSources(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('gcc') and os.name != 'nt', 'needs a gcc that builds an elf with DWARF')
+    def test_compile_units_are_found_by_basename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for rel, code in (('src/device/usbd.c', 'int usbd(void) { return 1; }\n'),
+                              ('main.c', 'int usbd(void);\nint main(void) { return usbd(); }\n')):
+                os.makedirs(os.path.dirname(os.path.join(tmp, rel)), exist_ok=True)
+                with open(os.path.join(tmp, rel), 'w') as f:
+                    f.write(code)
+            subprocess.run(['gcc', '-g', '-o', 'x.elf', 'main.c', 'src/device/usbd.c'], cwd=tmp, check=True)
+            sources = sd._dwarf_sources(os.path.join(tmp, 'x.elf'))
+            self.assertEqual(sources['usbd.c'], {os.path.join(os.path.realpath(tmp), 'src', 'device', 'usbd.c')})
+
+
+class SourcePath(unittest.TestCase):
+    def path(self, sym, sources):
+        with mock.patch.object(sd, '_dwarf_sources', return_value=sources):
+            return sd._source_path(sym, 'x.elf', ['/c/src/'])
+
+    def test_an_object_path_or_full_source_is_kept(self):
+        self.assertEqual(self.path({'object_file': '/c/src/tusb.c.obj', 'source_file': 'tusb.c'}, {}),
+                         '/c/src/tusb.c.obj')
+        self.assertEqual(self.path({'source_file': '/c/src/tusb.c'}, {}), '/c/src/tusb.c')
+
+    def test_a_bare_source_name_takes_its_one_compile_unit(self):
+        # ESP-IDF archive member: membrowse keeps only the basename
+        self.assertEqual(self.path({'source_file': 'usbd.c'}, {'usbd.c': {'/c/src/device/usbd.c'}}),
+                         '/c/src/device/usbd.c')
+
+    def test_an_ambiguous_name_fails_only_when_one_candidate_is_filtered(self):
+        self.assertEqual(self.path({'source_file': 'port.c'}, {'port.c': {'/idf/a/port.c', '/idf/b/port.c'}}),
+                         'port.c')
+        with self.assertRaisesRegex(RuntimeError, 'several compile units'):
+            self.path({'source_file': 'x.c', 'name': 'f'}, {'x.c': {'/c/src/x.c', '/idf/x.c'}})
+
+
 class MembrowseSizes(unittest.TestCase):
     def sizes(self, symbols, filters=('/co/src/',)):
         with tempfile.TemporaryDirectory() as tmp:
@@ -621,6 +726,27 @@ class MembrowseSizes(unittest.TestCase):
     def test_a_section_missing_from_the_elf_fails(self):
         with self.assertRaisesRegex(RuntimeError, r'section \.gone, not in'):
             self.sizes([{'name': 'g', 'size': 4, 'section': '.gone', 'object_file': 'o/co/src/g.c.obj'}])
+
+    @staticmethod
+    def pins(text):
+        return re.findall(r'pip3? install [^\n]*?\bmembrowse\b(==[^\s\'"]+)?', text.replace('\\\n', ' '))
+
+    def test_pins_reports_unpinned_installs_in_every_shell_form(self):
+        self.assertEqual(self.pins('pip3 install membrowse\n'
+                                   'pip install \\\n  --only-binary :all: \\\n  membrowse\n'
+                                   'python -m pip install membrowse\n'), ['', '', ''])
+
+    def test_every_ci_install_pins_the_version_the_install_hint_names(self):
+        self.assertEqual(self.pins("pip install membrowse==1.2.12rc1 'x'; pip install membrowse >/dev/null"),
+                         ['==1.2.12rc1', ''])
+        installs = []
+        for root, _, files in os.walk(os.path.join(REPO, '.github')):
+            for name in files:
+                with open(os.path.join(root, name), errors='replace') as f:
+                    installs += self.pins(f.read())
+        self.assertGreaterEqual(len(installs), 4)
+        self.assertEqual(set(installs), {f'=={sd.MEMBROWSE_CI_VERSION}'})
+        self.assertIn(f'membrowse=={sd.MEMBROWSE_CI_VERSION}', sd.ENGINES['membrowse'].install)
 
 
 class BloatySizes(unittest.TestCase):
@@ -705,6 +831,15 @@ class GenerateSizes(unittest.TestCase):
         self.assertIn('pip install membrowse', errors[0][1])
         self.assertIn('another --engine', errors[0][1])
         self.assertEqual(out, '')
+
+    def test_fetched_tools_under_deps_are_not_examples(self):
+        # picotool's enc_bootloader.elf has no linker map, so sizing it fails every rp2 board
+        sizer = mock.Mock(return_value=_elf(7))
+        with tempfile.TemporaryDirectory() as build:
+            _touch(build, 'device/ex/ex.elf', '_deps/picotool/enc_bootloader.elf')
+            with _engine('bloaty', sizer):
+                sizes, errors = sd.generate_sizes(build, ['src/'], engine='bloaty')
+        self.assertEqual((list(sizes), errors), (['device/ex/ex.elf'], []))
 
     def test_the_selected_engine_sizes_each_elf(self):
         bloaty = mock.Mock(return_value=_elf(7))
@@ -856,10 +991,21 @@ class BuildOutput(unittest.TestCase):
     def test_trailing_blank_lines_are_not_shown(self):
         self.assertEqual(self.excerpt('', 'CMake Error: x\n\n\n'), ['CMake Error: x'])
 
+    @staticmethod
+    @contextlib.contextmanager
+    def _cmake_tree(tmp, skip=False, registered=('ex',)):
+        """`tmp` a tree with examples/device/ex, which skip.txt/only.txt `skip` and whose
+        configure creates the `registered` targets."""
+        import build
+        os.makedirs(os.path.join(tmp, 'examples', 'device', 'ex'), exist_ok=True)
+        with mock.patch.object(sd.build_utils, 'skip_example', return_value=skip), \
+             mock.patch.object(build, 'cmake_registered_targets', return_value=registered and set(registered)):
+            yield
+
     def test_a_failed_build_prints_its_phase_and_output_and_returns_the_error(self):
         failed = subprocess.CompletedProcess([], 1, 'FAILED: bad.c.obj\nbad.c:1: error: x undeclared\n', '')
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp), \
              mock.patch.object(sd, 'run', side_effect=[ok, failed]), \
              contextlib.redirect_stdout(io.StringIO()) as out:
             error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build master')
@@ -875,11 +1021,161 @@ class BuildOutput(unittest.TestCase):
 
     def test_the_build_step_runs_ninja_for_the_example_with_a_timeout(self):
         ok = subprocess.CompletedProcess([], 0, '', '')
-        with tempfile.TemporaryDirectory() as tmp, \
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp), \
              mock.patch.object(sd, 'run', return_value=ok) as run, \
              contextlib.redirect_stdout(io.StringIO()):
             sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
         self.assertEqual(run.call_args, mock.call(['ninja', '-C', os.path.join(tmp, 'b'), 'ex'], timeout=600))
+
+    def test_an_example_the_board_skips_is_skipped_before_any_configure(self):
+        with tempfile.TemporaryDirectory() as tmp, self._cmake_tree(tmp, skip=True), \
+             mock.patch.object(sd, 'run') as run, contextlib.redirect_stdout(io.StringIO()) as out:
+            error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+        self.assertIsInstance(error, sd.Skipped)
+        self.assertEqual(error, 'b does not build device/ex')
+        self.assertEqual(out.getvalue(), '  build… skipped: b does not build device/ex\n')
+        run.assert_not_called()
+
+    def test_an_example_absent_from_the_tree_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'run') as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+        self.assertEqual((type(error), error), (sd.Absent, 'device/ex is not in this tree'))
+        run.assert_not_called()
+
+    def test_an_example_the_configure_does_not_register_is_skipped_without_ninja(self):
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        for registered, skipped in ((('other',), True), (None, False)):
+            with self.subTest(registered=registered), tempfile.TemporaryDirectory() as tmp, \
+                 self._cmake_tree(tmp, registered=registered), \
+                 mock.patch.object(sd, 'run', return_value=ok) as run, contextlib.redirect_stdout(io.StringIO()):
+                error = sd.build_board(tmp, os.path.join(tmp, 'b'), 'b', 'device/ex', 'build')
+            # None: the target list is unreadable, so ninja decides
+            self.assertEqual(error, 'b has no ex target' if skipped else None)
+            self.assertEqual(run.call_count, 1 if skipped else 2)
+
+    def test_the_configure_is_build_pys_with_its_default_toolchain(self):
+        import build
+        ok = subprocess.CompletedProcess([], 0, '', '')
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(sd, 'run', return_value=ok) as run, \
+             contextlib.redirect_stdout(io.StringIO()):
+            build_dir = os.path.join(tmp, 'b')
+            sd.build_board(tmp, build_dir, 'b', None, 'build')
+        self.assertEqual(run.call_args_list[0],
+                         mock.call(build.cmake_configure_cmd('b', build_dir, ['-DTOOLCHAIN=gcc'],
+                                                             os.path.join(tmp, 'examples'))))
+
+    def _esp_src(self, tmp):
+        """A checkout with one espressif board, one example and a dependency linked in two
+        hops, as a base worktree's: src -> checkout -> main checkout."""
+        src = os.path.join(tmp, 'src')
+        os.makedirs(os.path.join(src, 'hw', 'bsp', 'espressif', 'boards', 'esp'))
+        # an ESP-IDF component, which get_examples('espressif') requires
+        _touch(src, 'examples/device/a_freertos/src/CMakeLists.txt')
+        _touch(src, 'examples/device/no_idf/CMakeLists.txt')
+        os.makedirs(os.path.join(src, 'tools'))
+        os.makedirs(os.path.join(src, 'lib'))
+        os.makedirs(os.path.join(tmp, 'main', 'lib', 'dep'))
+        os.makedirs(os.path.join(tmp, 'checkout', 'lib'))
+        os.symlink(os.path.join(tmp, 'main', 'lib', 'dep'), os.path.join(tmp, 'checkout', 'lib', 'dep'))
+        os.symlink(os.path.join(tmp, 'checkout', 'lib', 'dep'), os.path.join(src, 'lib', 'dep'))
+        with open(os.path.join(src, 'tools', 'get_deps.py'), 'w') as f:
+            f.write("deps_all = {'lib/dep': None, 'lib/absent': None}\n")
+        return src
+
+    def _build_esp(self, tmp, example='device/a_freertos', which=('idf.py',), inspect=0, rc=0, runs=None):
+        """(build_board's error, its run() calls but the image check, also into `runs`); `rc`
+        an exception class raises it from the build."""
+        runs = [] if runs is None else runs
+        def run(cmd, timeout=None):
+            if cmd[:3] == ['docker', 'image', 'inspect']:
+                return subprocess.CompletedProcess([], inspect, '', '')
+            runs.append((cmd, timeout))
+            if isinstance(rc, type) and 'app' in cmd:
+                raise rc
+            return subprocess.CompletedProcess([], rc, '', 'x')
+        with mock.patch.object(sd, 'run', run), mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
+             mock.patch.object(sd.shutil, 'which', lambda name: f'/bin/{name}' if name in which else None), \
+             mock.patch.object(sd.build_utils, 'skip_example', return_value=False), \
+             contextlib.redirect_stdout(io.StringIO()):
+            error = sd.build_board(self._esp_src(tmp), os.path.join(tmp, 'b'), 'esp', example, 'build')
+        return error, runs
+
+    @no_esp_on_windows
+    def test_an_espressif_board_builds_each_examples_app_as_an_idf_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error, runs = self._build_esp(tmp)
+        self.assertIsNone(error)
+        self.assertEqual(runs, [(['idf.py', '-C', os.path.join(tmp, 'src', 'examples', 'device', 'a_freertos'),
+                                  '-B', os.path.join(tmp, 'b', 'device', 'a_freertos'), '-GNinja', '-DBOARD=esp',
+                                  'app'], 600)])
+
+    @no_esp_on_windows
+    def test_without_an_exported_idf_it_builds_in_cis_image_as_this_user(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            error, runs = self._build_esp(tmp, which=('docker',))
+            dep, cache = os.path.realpath(os.path.join(tmp, 'main', 'lib', 'dep')), os.path.join(tmp, '_ccache')
+            mounts = [f'{os.path.realpath(tmp)}/_ccache:{cache}', f'{os.path.realpath(tmp)}/b:{tmp}/b',
+                      f'{dep}:{tmp}/checkout/lib/dep', f'{dep}:{tmp}/main/lib/dep',
+                      f'{os.path.realpath(tmp)}/src:{tmp}/src']
+            self.assertTrue(os.path.isdir(cache))
+        self.assertIsNone(error)
+        cmd = runs[0][0]
+        self.assertEqual(cmd[:11], ['docker', 'run', '--rm', '--name', f'tinyusb-code-size-{os.getpid()}',
+                                    '--user', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
+                                    '-e', f'CCACHE_DIR={cache}'])
+        self.assertEqual([cmd[i + 1] for i, a in enumerate(cmd) if a == '-v'], mounts)
+        self.assertEqual(cmd[cmd.index(sd.ESP_IDF_IMAGE):][:3], [sd.ESP_IDF_IMAGE, 'idf.py', '-C'])
+
+    def test_without_idf_or_its_image_the_espressif_build_fails_saying_how_to_get_one(self):
+        for which, inspect in (((), 0), (('docker',), 1)):
+            with tempfile.TemporaryDirectory() as tmp:
+                error, runs = self._build_esp(tmp, which=which, inspect=inspect)
+            self.assertEqual(runs, [])
+            self.assertIn('esp needs ESP-IDF: source $IDF_PATH/export.sh', error)
+
+    @mock.patch.object(sd, 'WINDOWS', new=False)
+    def test_without_idf_report_and_diff_refuse_an_espressif_board_before_building(self):
+        pinned = ['stm32f407disco', 'espressif_s3_devkitm']
+        for argv in (['report', '-b', pinned[0], '-b', pinned[1]], ['diff', '-b', pinned[0], '-b', pinned[1]],
+                     ['diff', '--ci']):
+            err = io.StringIO()
+            with mock.patch.object(sys, 'argv', ['code_size.py'] + argv), \
+                 mock.patch.object(sd, 'ci_pinned_boards', return_value=pinned), \
+                 mock.patch.object(sd, 'engine_missing', return_value=False), \
+                 mock.patch.object(sd.shutil, 'which', return_value=None), \
+                 mock.patch.object(sd, 'run') as run, contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit):
+                    sd.main()
+            run.assert_not_called()
+            self.assertIn('espressif_s3_devkitm need ESP-IDF: source $IDF_PATH/export.sh', err.getvalue())
+
+    def test_an_example_the_tree_does_not_build_for_espressif_is_skipped(self):
+        # device/no_idf has no ESP-IDF component; device/board_test is absent from this tree
+        for example, kind, why in (('device/no_idf', sd.Skipped, 'esp does not build device/no_idf'),
+                                   ('device/board_test', sd.Absent, 'device/board_test is not in this tree')):
+            with tempfile.TemporaryDirectory() as tmp:
+                error, runs = self._build_esp(tmp, example=example)
+            self.assertEqual((type(error), error, runs), (kind, why, []))
+
+    def test_an_espressif_board_building_no_example_at_all_fails(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch('build.select_examples', return_value=([], {})):
+            error, runs = self._build_esp(tmp, example=None)
+        self.assertEqual((type(error), error, runs), (str, 'esp builds no example', []))
+
+    @no_esp_on_windows
+    def test_a_timed_out_or_interrupted_docker_build_removes_its_container(self):
+        rm = ['docker', 'rm', '-f', f'tinyusb-code-size-{os.getpid()}']
+        for which, rc, removed in ((('docker',), 124, True), (('docker',), 2, False), (('idf.py',), 124, False)):
+            with tempfile.TemporaryDirectory() as tmp:
+                _error, runs = self._build_esp(tmp, which=which, rc=rc)
+            self.assertEqual(runs[-1][0] == rm, removed, (which, rc))
+        runs = []
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(KeyboardInterrupt):
+            self._build_esp(tmp, which=('docker',), rc=KeyboardInterrupt, runs=runs)
+        self.assertEqual(runs[-1][0], rm)
 
     def test_a_timeout_returns_124_and_keeps_the_output_as_text(self):
         ret = sd.run(['sh', '-c', 'printf err >&2; echo out; exec sleep 30'], timeout=1)
@@ -894,6 +1190,7 @@ class BuildOutput(unittest.TestCase):
                 self.assertEqual((ret.returncode, ret.stdout), (rc, 'w: \ufffd\n'))
                 self.assertTrue(ret.stderr.startswith('\ufffd'))
 
+    @posix_only
     def test_sigterm_to_the_script_alone_stops_its_command_and_runs_cleanup(self):
         """Popen's exit waits for the command, so the handler passes the signal on, and
         kills a command ignoring it after the grace."""
@@ -937,6 +1234,7 @@ class BuildOutput(unittest.TestCase):
             ret = sd.run(['sh', '-c', "trap '' TERM; while :; do sleep 0.1; done"], timeout=1)
         self.assertEqual(ret.returncode, 124)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_the_kill_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5):
@@ -947,6 +1245,7 @@ class BuildOutput(unittest.TestCase):
         self.assertEqual(ret.returncode, 124)
         self.assertIn('Command timed out after 1s', ret.stderr)
 
+    @posix_only
     def test_a_child_holding_the_pipes_after_sigterm_does_not_hang_it(self):
         start = time.monotonic()
         with mock.patch.object(sd, 'TERMINATE_GRACE', 0.5), mock.patch.object(sd, 'KILL_DRAIN', 0.2):
@@ -1016,6 +1315,7 @@ class ShortHash(unittest.TestCase):
         self.assertRegex(sd.short_hash(sd.TINYUSB_ROOT), r'^[0-9a-f]{7,}(-dirty)?$')
 
 
+@unittest.skipIf(os.name == 'nt', 'the Windows filter drops the drive')
 class SymlinkedCheckout(unittest.TestCase):
     def test_the_root_matches_its_own_filter_through_a_symlink(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1028,14 +1328,185 @@ class SymlinkedCheckout(unittest.TestCase):
         self.assertEqual(out, 'True\n')
 
 
-# main() tests stub the builds and sizing, so need no engine tool
+def cmake_shortened(obj_dir, obj_name):
+    """CMake v4.1.2 cmLocalGeneratorCheckObjectName and cmLocalGeneratorShortenObjectName
+    (Source/cmLocalGenerator.cxx) at Windows' CMAKE_OBJECT_PATH_MAX of 250."""
+    max_len = 250 - len(obj_dir)
+    if len(obj_name) <= max_len:
+        return obj_name
+    pos = obj_name.find('/', len(obj_name) - max_len + 32)
+    return hashlib.md5(obj_name[:pos].encode()).hexdigest() + obj_name[pos:]
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class CMakeShortenedObject(unittest.TestCase):
+    CHECKOUT = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/_worktree'
+    BUILD = 'C:/Users/username/code/tinyusb/.worktrees/claude/code-size-windows/cmake-code-size/base/'
+    TARGET = 'device/audio_4_channel_mic_freertos/CMakeFiles/audio_4_channel_mic_freertos.dir/'
+    FILTER = CHECKOUT[2:] + '/src/'
+    USBD = CHECKOUT + '/src/device/usbd.c'
+    CDC = CHECKOUT + '/src/class/cdc/cdc_device.c'
+    STARTUP = CHECKOUT + '/hw/mcu/st/cmsis_device_f4/Source/Templates/gcc/startup_stm32f407xx.s'
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.build_dir = tmp.name
+        self.elf = os.path.join(tmp.name, 'device', 'audio_4_channel_mic_freertos', 'audio_4_channel_mic_freertos.elf')
+
+    def obj(self, source):
+        """The map path of source's object, and its build.ninja compile edge."""
+        obj = self.TARGET + cmake_shortened(self.BUILD + self.TARGET, source.replace(':', '_') + '.obj')
+        self.assertRegex(obj, r'\.dir/[0-9a-f]{32}/')
+        self.assertNotIn(self.FILTER, obj)
+        edge = f'build {obj}: C_COMPILER__audio_4_channel_mic_freertos_unscanned_MinSizeRel {source.replace(":", "$:")}' \
+               ' || cmake_object_order_depends_target_audio_4_channel_mic_freertos\n'
+        return obj.replace('/', '\\'), edge
+
+    def sizes(self, edges, filters=(FILTER,)):
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'w') as f:
+            f.writelines(edges)
+        return sd._Sizes(list(filters), self.elf)
+
+    def test_a_shortened_vendor_object_counts_in_all_only(self):
+        obj, edge = self.obj(self.STARTUP)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.isr_vector', {'flash'}, 4, 'g_pfnVectors')
+        self.assertEqual(sizes.result()['files'], {})
+        self.assertEqual(sizes.result()['all'], {'flash': 4, 'ram': 0})
+
+    def test_a_shortened_tinyusb_object_keeps_its_source_key(self):
+        obj, edge = self.obj(self.USBD)
+        sizes = self.sizes([edge])
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {'device/usbd.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_later_filter_matching_the_kept_tail_keys_as_for_the_full_source(self):
+        obj, edge = self.obj(self.CDC)
+        self.assertIn('/class/cdc/', obj.replace('\\', '/'))
+        sizes = self.sizes([edge], (self.FILTER, 'class/'))
+        sizes.add(obj, '.text', {'flash'}, 4, 'tud_cdc_n_write')
+        self.assertEqual(sizes.result()['files'], {'class/cdc/cdc_device.c': {'flash': 4, 'ram': 0}})
+
+    def test_a_shortened_object_without_build_ninja_fails(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, '_find_ninja_build_dir', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no build\\.ninja was found above'):
+                sd._Sizes([self.FILTER], self.elf).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
+    def test_a_shortened_object_build_ninja_does_not_build_fails(self):
+        obj, _ = self.obj(self.USBD)
+        _, edge = self.obj(self.STARTUP)
+        with self.assertRaisesRegex(RuntimeError, 'CMAKE_OBJECT_PATH_MAX .* no compile edge'):
+            self.sizes([edge]).add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+
+    def test_a_build_ninja_not_in_utf_8_fails(self):
+        obj, edge = self.obj(self.USBD)
+        with open(os.path.join(self.build_dir, 'build.ninja'), 'wb') as f:
+            f.write(b'# Calf\xe9\n' + edge.encode())
+        sizes = sd._Sizes([self.FILTER], self.elf)
+        with self.assertRaisesRegex(RuntimeError, r'build\.ninja is not UTF-8: .* use ninja >= 1\.11 whose '
+                                    r'`ninja -t wincodepage` reports UTF-8') as cm:
+            sizes.add(obj, '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertNotIn('position', str(cm.exception))  # relative to the decoder's chunk, not the file
+
+    def test_linux_does_not_resolve_a_shortened_object(self):
+        obj, _ = self.obj(self.USBD)
+        with mock.patch.object(sd, 'WINDOWS', new=False):
+            sizes = self.sizes([])
+            sizes.add(obj.replace('\\', '/'), '.text', {'flash'}, 4, 'tud_task_ext')
+        self.assertEqual(sizes.result()['files'], {})
+
+
+@mock.patch.object(sd, 'WINDOWS', new=True)
+class WindowsHost(unittest.TestCase):
+    def test_a_backslash_object_path_matches_the_forward_slash_filter(self):
+        for f in ('/a/tinyusb/src/', '\\a\\tinyusb\\src\\'):
+            self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\a\tinyusb\src\device\usbd.c.obj', [sd.filter_arg(f)]),
+                             'device/usbd.c')
+
+    def test_a_drive_is_stripped_from_a_filter(self):
+        with mock.patch.object(sd.os, 'path', ntpath):
+            self.assertEqual(sd.filter_arg('D:\\a\\tinyusb\\src\\'), '/a/tinyusb/src/')
+
+    def test_a_backslash_example_names_the_forward_slash_elf_id(self):
+        self.assertEqual(sd.example_arg('device\\cdc_msc\\'), 'device/cdc_msc')
+
+    def test_a_filter_matches_regardless_of_case_and_the_key_keeps_the_recorded_case(self):
+        self.assertEqual(sd._relative_key(r'cdc_msc.dir\D_\A\TinyUSB\src\Device\usbd.c.obj',
+                                          ['/nomatch/', '/a/tinyusb/src/']), 'Device/usbd.c')
+
+    def test_espressif_boards_are_refused(self):
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitc', 'stm32f407disco']),
+                         r'^espressif_s3_devkitc need ESP-IDF, .* not support on Windows')
+        self.assertIsNone(sd.esp_without_idf(['stm32f407disco']))
+        # an espressif board that skips every example asked for builds nothing
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/cdc_msc', 'device/cdc_msc_freertos']),
+                         'espressif_s3_devkitm need ESP-IDF')
+        # an example absent here needs ESP-IDF only for a base built locally, which may have it
+        self.assertIsNone(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone']))
+        self.assertRegex(sd.esp_without_idf(['espressif_s3_devkitm'], ['device/gone'], base_built=True),
+                         'espressif_s3_devkitm need ESP-IDF')
+
+    def test_a_timeout_kills_the_command_tree(self):
+        with mock.patch('subprocess.run') as taskkill:
+            ret = sd.run([sys.executable, '-c', 'import time; time.sleep(30)'], timeout=0.5)
+        self.assertEqual(ret.returncode, 124)
+        argv = taskkill.call_args.args[0]
+        self.assertEqual(argv[:2] + argv[3:], ['taskkill', '/PID', '/T', '/F'])
+
+    @unittest.skipUnless(os.name == 'nt', 'a real Windows process tree')
+    def test_a_timeout_stops_a_grandchild_holding_the_pipes(self):
+        # as ninja's compilers do: terminate() alone stops only the direct child
+        parent = ('import subprocess, sys, time; '
+                  'p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], '
+                  'stdout=sys.stdout, stderr=sys.stderr); '
+                  'print(p.pid, flush=True); time.sleep(60)')
+        start = time.monotonic()
+        ret = sd.run([sys.executable, '-c', parent], timeout=5)
+        elapsed = time.monotonic() - start
+        pid = ret.stdout.strip()
+        try:
+            self.assertEqual(ret.returncode, 124)
+            self.assertTrue(pid.isdigit(), ret.stdout)
+            tasks = subprocess.run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH'],
+                                   capture_output=True, text=True, check=True, timeout=10).stdout
+            self.assertNotIn(f'"{pid}"', tasks)
+            self.assertLess(elapsed, 30)  # well before the grandchild's own exit
+        finally:
+            if pid.isdigit():
+                subprocess.run(['taskkill', '/PID', pid, '/F'], capture_output=True)
+
+    def test_a_symlink_without_the_privilege_names_developer_mode(self):
+        denied = OSError(22, 'A required privilege is not held by the client')
+        denied.winerror = 1314
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            os.makedirs(os.path.join(main, 'lib/lwip'))
+            os.makedirs(os.path.join(wt, 'tools'))
+            with open(os.path.join(wt, 'tools', 'get_deps.py'), 'w') as f:
+                f.write("deps_all = {'lib/lwip': []}\n")
+            with mock.patch('os.symlink', side_effect=denied), \
+                    self.assertRaisesRegex(SystemExit, 'Developer Mode, or use --base-source ci'):
+                sd.symlink_deps(main, wt)
+
+    def test_a_path_on_another_drive_is_shown_absolute(self):
+        with mock.patch('os.path.relpath', side_effect=ValueError('path is on mount C:, start on mount D:')):
+            self.assertEqual(sd._shown('C:/x/report.md'), 'C:/x/report.md')
+
+
+# main() tests stub the builds and sizing, so need no engine tool, and use made-up boards and examples
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class MainFailure(unittest.TestCase):
     def _run_main(self, tmp, argv, build_board, generate=None, run=None):
         """main() with the build, sizing and command steps stubbed. `build_board`
         is its side_effect (it must create the board dir, as the real one does);
         `generate` the generate_sizes() side_effect. Returns (rc, stdout)."""
         ok = subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
+        if '--base-source' not in argv:  # the default would look up a CI base
+            argv = argv + ['--base-source', 'local']
         with mock.patch.object(sys, 'argv', ['code_size.py', 'diff'] + argv), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run or (lambda *_a, **_k: ok)), \
@@ -1095,7 +1566,7 @@ class MainFailure(unittest.TestCase):
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 1 → 3 | +2 | 0 → 0 | 0 |', unpad(f.read()))
             # no -e: the console gets the summary line, the tables stay in the .md
-            self.assertIn('  1 pair, 1 changed; filtered Flash Δ +2, RAM Δ 0\n', out)
+            self.assertIn('  1 pair, 1 changed; TinyUSB Flash Δ +2, RAM Δ 0\n', out)
             self.assertNotIn('| x.c |', out)
 
     def test_a_filter_mismatch_fails_the_size_and_compare_phase(self):
@@ -1128,6 +1599,8 @@ class MainFailure(unittest.TestCase):
         cmds = []
 
         def run(cmd, **_kwargs):
+            if 'rev-parse' in cmd:
+                return subprocess.CompletedProcess([], 0, 'c0ffee\n', '')
             cmds.append(cmd)
             return failed
         with tempfile.TemporaryDirectory() as tmp:
@@ -1192,7 +1665,7 @@ class MainFailure(unittest.TestCase):
             rc, out = self._run_main(tmp, ['-b', 'b', '-e', 'ex'], build, lambda *_a, **_k: next(side_sizes))
             self.assertEqual(rc, 0)
             self.assertRegex(out, r'^diff master \(c0ffee\) vs working tree \(c0ffee\) · membrowse\n\[1/1\] b / ex\n'
-                                  r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; filtered Flash Δ \+2')
+                                  r'  size and compare… \d+\.\ds\n  1 pair, 1 changed; TinyUSB Flash Δ \+2')
             # indented tables; unpad() folds their indent to one space
             self.assertIn('\n | x.c | 1 → 3 | +2 | 0 → 0 | 0 |', out)
             self.assertIn('\n | x.c | +2 | +2 |', out)
@@ -1223,9 +1696,18 @@ class MainFailure(unittest.TestCase):
             rc, out = self._main(tmp, sizes=({'ex/ex.elf': _elf(8)}, []),
                                  cur_sizes=({'ex/ex.elf': empty}, []))
             self.assertEqual(rc, 0)
-            self.assertIn('1 pair, 1 changed; filtered Flash Δ -8', out)
+            self.assertIn('1 pair, 1 changed; TinyUSB Flash Δ -8', out)
             with open(os.path.join(tmp, 'b', 'diff.md')) as f:
                 self.assertIn('| x.c | 8 → 0 | -8 | 0 → 0 | 0 |', unpad(f.read()))
+
+    def test_a_custom_filter_is_not_called_tinyusb(self):
+        def build(_src, _build_dir, board, *_args, **_kwargs):
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+        side_sizes = iter([({'ex/ex.elf': _elf(1)}, []), ({'ex/ex.elf': _elf(3)}, [])])
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out = self._run_main(tmp, ['-b', 'b', '-f', 'lib/'], build, lambda *_a, **_k: next(side_sizes))
+        self.assertEqual(rc, 0)
+        self.assertIn('1 pair, 1 changed; filtered Flash Δ +2', out)
 
     def _main_combined(self, tmp, sizes, build_ok=('b1', 'b2'), example=None):
         """main() with -b b1 -b b2 --combined. `sizes` maps
@@ -1333,6 +1815,60 @@ class MainFailure(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(tmp, 'b1', 'diff_device_cdc_msc.md')))
         self.assertEqual(rc, 0)
         self.assertIn('2 of 2 matched elf pairs compared, 0 changed', md)
+
+    def _main_skip(self, tmp, argv, skip, absent=()):
+        """main() for board `b` with `argv` added; `skip` {(side, example)} build as
+        Skipped, `absent` ones as Absent, the rest size one elf of their example.
+        Returns (rc, out, sized sides)."""
+        sized = []
+        def build(src, _build_dir, board, example, _label):
+            # as the real one: a skip returns before making the board's build dir
+            side = 'current' if src == sd.TINYUSB_ROOT else 'base'
+            if (side, example) in absent:
+                return sd.Absent(f'{example} is not in this tree')
+            if (side, example) in skip:
+                return sd.Skipped(f'{board} does not build {example}')
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return None
+        def generate(build_dir, _filters, example, _engine):
+            sized.append((os.path.basename(build_dir), example))
+            return {f'{example}/x.elf': _elf(1)}, []
+        rc, out = self._run_main(tmp, ['-b', 'b'] + argv, build, generate)
+        return rc, out, sized
+
+    def test_an_example_skipped_on_both_sides_writes_no_report_and_fails_nothing(self):
+        skip = {('base', 'device/skip'), ('current', 'device/skip')}
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/skip', '-e', 'device/a'], skip)
+            self.assertEqual(rc, 0)
+            self.assertEqual(sized, [('base', 'device/a'), ('build', 'device/a')])
+            self.assertEqual(sorted(os.listdir(os.path.join(tmp, 'b'))), ['diff_device_a.md'])
+            self.assertEqual(out.count('size and compare'), 1)
+
+    def test_an_example_skipped_on_one_side_is_one_sided(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/new'], {('base', 'device/new')})
+            self.assertEqual(rc, 1)
+            self.assertEqual(sized, [('build', 'device/new')])
+            self.assertIn('current-only: b: device/new/x.elf', out)
+
+    def test_an_example_absent_from_one_side_is_never_a_skip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, out, sized = self._main_skip(tmp, ['-e', 'device/gone', '--combined'], {('base', 'device/gone')},
+                                             absent={('current', 'device/gone')})
+            self.assertEqual((rc, sized), (1, []))
+            self.assertIn('INCOMPLETE: 0 pairs', out)
+            self.assertTrue(os.path.exists(os.path.join(tmp, 'b', 'diff_device_gone.md')))
+            self.assertNotIn('all scopes skipped', out)
+
+    def test_combined_of_only_skipped_scopes_is_not_written(self):
+        skip = {('base', 'device/skip'), ('current', 'device/skip')}
+        with tempfile.TemporaryDirectory() as tmp:
+            self._seed_combined_report(tmp)
+            rc, out, _sized = self._main_skip(tmp, ['-e', 'device/skip', '--combined'], skip)
+            self.assertEqual(rc, 0)
+            self.assertIn('combined: all scopes skipped\n', out)
+            self.assertFalse(os.path.exists(os.path.join(tmp, '_combined')))
 
     def test_combined_replaces_the_previous_report_when_no_board_builds(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1451,14 +1987,14 @@ class MainFailure(unittest.TestCase):
                 os.makedirs(cmd[-2])
             return ok
         with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b', '--base-source', 'local']), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run), \
              mock.patch.object(sd, 'symlink_deps', side_effect=FileNotFoundError('tools/get_deps.py')), \
              contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(FileNotFoundError):
                 sd.main()
-        self.assertEqual(cmds, [['worktree', 'add'], ['worktree', 'remove']])
+        self.assertEqual(cmds, [['rev-parse', '--verify'], ['worktree', 'add'], ['worktree', 'remove']])
 
     def test_a_worktree_add_stopped_by_a_signal_is_removed(self):
         cmds = []
@@ -1470,7 +2006,7 @@ class MainFailure(unittest.TestCase):
                 raise SystemExit(143)  # exit_on_termination(), through run()
             return subprocess.CompletedProcess([], 0, '', '')
         with tempfile.TemporaryDirectory() as tmp, \
-             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b']), \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b', '--base-source', 'local']), \
              mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), \
              mock.patch.object(sd, 'run', side_effect=run), \
              contextlib.redirect_stdout(io.StringIO()):
@@ -1485,9 +2021,17 @@ class MainFailure(unittest.TestCase):
             for path in stale:
                 with open(path, 'w') as f:
                     f.write('stale')
-            failed = subprocess.CompletedProcess([], 128, '', 'fatal: invalid reference')
-            with self.assertRaises(SystemExit):
-                self._run_main(tmp, ['-b', 'b'], mock.Mock(), run=lambda *_a, **_k: failed)
+            cmds = []
+
+            def run(cmd, **_kwargs):
+                cmds.append(cmd[3:5])
+                if cmd[3:5] == ['worktree', 'add']:
+                    return subprocess.CompletedProcess(cmd, 128, '', 'fatal: invalid reference')
+                return subprocess.CompletedProcess(cmd, 0, 'c0ffee\n', '')
+            with self.assertRaises(SystemExit) as stop:
+                self._run_main(tmp, ['-b', 'b'], mock.Mock(), run=run)
+            self.assertEqual(stop.exception.code, 1)  # 'Error creating worktree', not a usage error
+            self.assertIn(['worktree', 'add'], cmds)
             self.assertFalse(any(os.path.exists(path) for path in stale))
 
     def test_a_run_without_json_drops_a_previous_json(self):
@@ -1511,12 +2055,16 @@ class MainFailure(unittest.TestCase):
 
 
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
 class MainReport(unittest.TestCase):
-    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True):
+    def _run(self, tmp, argv, sizes, build_ok=lambda _example: True, skip=()):
         """`code_size.py report -b b` plus `argv`, building and sizing stubbed;
-        `build_ok(example)` is each build's result, `sizes` what generate_sizes()
-        returns. Returns (rc, build mock, generate mock)."""
+        `build_ok(example)` is each build's result, the `skip` examples skipped, `sizes`
+        what generate_sizes() returns. Returns (rc, build mock, generate mock)."""
         def build_board(_src, _build_dir, board, example, _label):
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
             os.makedirs(os.path.join(tmp, board), exist_ok=True)
             return None if build_ok(example) else 'boom'
         build = mock.Mock(side_effect=build_board)
@@ -1558,8 +2106,21 @@ class MainReport(unittest.TestCase):
             self.assertIn('Coverage (complete, bloaty)', md)
             self.assertIn('| x.c | 4 | 4 | 100.0% |', md)
             self.assertRegex(self.out, r'^report working tree · bloaty\n\[1/1\] b / device/cdc_msc\n'
-                                       r'  size… \d+\.\ds\n  1 of 1 elfs sized; filtered Flash 4, RAM 0\n')
+                                       r'  size… \d+\.\ds\n  1 of 1 elfs sized; TinyUSB Flash 4, RAM 0\n')
             self.assertIn('\n | x.c | 4 | 4 | 100.0% |', self.out)
+
+    def test_a_skipped_example_writes_no_report_and_fails_nothing(self):
+        skip = ('device/skip',)
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _build, generate = self._run(tmp, ['-e', 'device/skip', '-e', 'device/cdc_msc'],
+                                             ({'device/cdc_msc/cdc_msc.elf': _elf(4)}, []), skip=skip)
+            self.assertEqual(rc, 0)
+            self.assertEqual(generate.call_args.args[2], 'device/cdc_msc')
+            self.assertEqual(generate.call_count, 1)
+            self.assertEqual(sorted(os.listdir(os.path.join(tmp, 'b'))), ['report_device_cdc_msc.md'])
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _build, generate = self._run(tmp, ['-e', 'device/skip'], ({}, []), skip=skip)
+            self.assertEqual((rc, generate.call_count, os.path.exists(os.path.join(tmp, 'b'))), (0, 0, False))
 
     def test_an_examples_trailing_slash_is_dropped(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1679,6 +2240,7 @@ class GlobMetacharsInBuildDir(unittest.TestCase):
 
 
 @mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
 class CiBoardSet(unittest.TestCase):
     def _boards_built(self, tmp, pinned_json):
         """Boards main() builds for `--ci -b extra -b b1 -b extra`, with `pinned_json` as the pinned file."""
@@ -1708,6 +2270,572 @@ class CiBoardSet(unittest.TestCase):
                                             '"uncovered": []}')
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
+    @mock.patch.object(sd, 'WINDOWS', new=False)
+    def test_ci_builds_pinned_espressif_boards_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '
+                                            '{"board": "espressif_s3_devkitm"}], "uncovered": []}')
+        self.assertEqual(built, ['extra', 'b1', 'espressif_s3_devkitm'])
+
+
+def _touch(root, *rels):
+    for rel in rels:
+        os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+        open(os.path.join(root, rel), 'w').close()
+
+
+class Snapshot(unittest.TestCase):
+    SHA = [c * 40 for c in 'abc']
+
+    def test_a_missing_build_dir_is_a_build_failure(self):
+        elfs, failures = sd.board_snapshot('b1', '/nonexistent/cmake-build-b1', None, ['src/'])
+        self.assertEqual(elfs, {})
+        self.assertEqual([(f['elf'], f['stage']) for f in failures], [(None, 'build')])
+
+    def test_sizes_every_elf_and_records_failed_ones(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _touch(tmp, 'device/a/a.elf', 'device/a/loader.elf', 'host/bad/bad.elf')
+
+            def sizes(path, _filters):
+                if 'bad' in path:
+                    raise RuntimeError('membrowse report failed')
+                return _elf(5)
+            with _engine('membrowse', sizes):
+                elfs, failures = sd.board_snapshot('b1', tmp, None, ['src/'])
+        self.assertEqual(sorted(elfs), ['device/a/a.elf', 'device/a/loader.elf'])
+        self.assertEqual([(f['elf'], f['stage']) for f in failures], [('host/bad/bad.elf', 'report')])
+
+    def test_scoped_examples_skip_what_the_board_skips_and_fail_a_missing_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _touch(tmp, 'device/a/a.elf')
+            with _engine('membrowse', lambda _p, _f: _elf(5)), \
+                 mock.patch.object(sd.build_utils, 'skip_example', side_effect=lambda e, b, _d: e == 'device/skipped'):
+                elfs, failures = sd.board_snapshot('b1', tmp, ['device/a', 'device/skipped', 'device/gone'],
+                                                   ['src/'])
+        self.assertEqual(list(elfs), ['device/a/a.elf'])
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0]['stage'], 'build')
+        self.assertIn('device/gone', failures[0]['message'])
+
+    def test_no_tinyusb_file_in_any_elf_fails_the_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _touch(tmp, 'device/a/a.elf')
+            with _engine('membrowse', lambda _p, _f: elf({})):
+                elfs, failures = sd.board_snapshot('b1', tmp, None, ['src/'])
+        self.assertEqual(list(elfs), ['device/a/a.elf'])
+        self.assertEqual([f['stage'] for f in failures], ['filter'])
+
+    def test_compiler_comes_from_cmake_not_the_host(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'CMakeFiles', '4.1.2'))
+            with open(os.path.join(tmp, 'CMakeFiles', '4.1.2', 'CMakeCCompiler.cmake'), 'w') as f:
+                f.write('set(CMAKE_C_COMPILER "/opt/arm/bin/arm-none-eabi-gcc")\n'
+                        'set(CMAKE_C_COMPILER_ID "GNU")\nset(CMAKE_C_COMPILER_VERSION "13.3.1")\n')
+            with open(os.path.join(tmp, 'CMakeCache.txt'), 'w') as f:
+                f.write('CMAKE_BUILD_TYPE:STRING=MinSizeRel\n')
+            self.assertEqual(sd._cmake_compiler(tmp), {'id': 'GNU', 'version': '13.3.1',
+                                                       'name': 'arm-none-eabi-gcc', 'build_type': 'MinSizeRel'})
+        self.assertEqual(sd._cmake_compiler('/nonexistent'), {'id': '', 'version': '', 'name': '', 'build_type': ''})
+
+    def test_a_windows_compiler_is_named_without_exe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'CMakeFiles', '4.1.2'))
+            with open(os.path.join(tmp, 'CMakeFiles', '4.1.2', 'CMakeCCompiler.cmake'), 'w') as f:
+                f.write('set(CMAKE_C_COMPILER "C:/arm/bin/arm-none-eabi-gcc.EXE")\n')
+            self.assertEqual(sd._cmake_compiler(tmp)['name'], 'arm-none-eabi-gcc')
+
+    def test_an_esp_idf_board_reads_its_first_example_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for ex, ver in (('device/b', '14.2.0'), ('device/a', '14.2.0'), ('device/a/bootloader', '1.0')):
+                os.makedirs(os.path.join(tmp, ex, 'CMakeFiles', '3.30'))
+                with open(os.path.join(tmp, ex, 'CMakeFiles', '3.30', 'CMakeCCompiler.cmake'), 'w') as f:
+                    f.write(f'set(CMAKE_C_COMPILER "/idf/xtensa-esp32s3-elf-gcc")\nset(CMAKE_C_COMPILER_VERSION "{ver}")\n')
+            with open(os.path.join(tmp, 'device', 'a', 'CMakeCache.txt'), 'w') as f:
+                f.write('CMAKE_BUILD_TYPE:STRING=\n')
+            self.assertEqual(sd._cmake_compiler(tmp), {'id': '', 'version': '14.2.0',
+                                                       'name': 'xtensa-esp32s3-elf-gcc', 'build_type': ''})
+
+    def test_a_pull_request_reads_base_and_head_from_the_merge_commit(self):
+        ret = subprocess.CompletedProcess([], 0, '\n'.join(self.SHA) + '\n', '')
+        with mock.patch.object(sd, 'run', return_value=ret) as run:
+            self.assertEqual(sd._git_shas('pull_request'), tuple(self.SHA))
+        self.assertEqual(run.call_args[0][0][-3:], ['HEAD', 'HEAD^1', 'HEAD^2'])
+        with mock.patch.object(sd, 'run', return_value=subprocess.CompletedProcess([], 0, self.SHA[0], '')):
+            self.assertEqual(sd._git_shas('push'), (self.SHA[0],) * 3)
+
+    def test_unresolvable_commits_raise(self):
+        # a shallow pull_request checkout has no HEAD^2: never a snapshot with a guessed base
+        for ret in (subprocess.CompletedProcess([], 128, '', 'unknown revision HEAD^2'),
+                    subprocess.CompletedProcess([], 0, 'HEAD^2\n', '')):
+            with mock.patch.object(sd, 'run', return_value=ret), self.assertRaises(RuntimeError):
+                sd._git_shas('pull_request')
+
+    def test_boards_are_the_pinned_ones_of_the_leg(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pinned = os.path.join(tmp, 'pinned.json')
+            with open(pinned, 'w') as f:
+                f.write('{"boards": [{"board": "p1"}, {"board": "p2"}]}')
+            import build
+            with mock.patch.object(sd, 'CI_PINNED_BOARDS', pinned), \
+                 mock.patch.object(build, 'builds_any', return_value=True), \
+                 mock.patch.object(build, 'resolve_ci_boards', return_value=['p2']) as resolve:
+                boards = sd.snapshot_boards(['fam'], ['p1', 'notpinned', 'p2'], ['device/a'])
+        self.assertEqual(boards, ['p1', 'p2'])
+        resolve.assert_called_once_with(pinned, 'fam', True, ['device/a'], extra_defines=())
+
+    def test_a_pinned_board_that_builds_none_of_the_examples_is_not_expected(self):
+        # build.py skips it before configuring: no build dir, and no failure either
+        with tempfile.TemporaryDirectory() as tmp:
+            pinned = os.path.join(tmp, 'pinned.json')
+            with open(pinned, 'w') as f:
+                f.write('{"boards": [{"board": "p1"}, {"board": "p2"}]}')
+            import build
+            with mock.patch.object(sd, 'CI_PINNED_BOARDS', pinned), \
+                 mock.patch.object(build, 'builds_any', side_effect=lambda b, _e, _d: b == 'p2'):
+                self.assertEqual(sd.snapshot_boards([], ['p1', 'p2'], ['host/device_info']), ['p2'])
+
+    def test_non_integer_sizes_fail_the_elf(self):
+        for bad in (1.5, True):
+            sizes = _elf(5)
+            sizes['files']['x.c']['flash'] = bad
+            with tempfile.TemporaryDirectory() as tmp:
+                _touch(tmp, 'device/a/a.elf')
+                with _engine('membrowse', lambda _p, _f, s=sizes: s):
+                    elfs, failures = sd.board_snapshot('b1', tmp, None, ['src/'])
+            self.assertEqual(elfs, {})
+            self.assertEqual([(f['elf'], f['stage']) for f in failures], [('device/a/a.elf', 'report')])
+
+    def test_a_repeated_example_is_sized_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _touch(tmp, 'device/a/a.elf')
+            sizer = mock.Mock(return_value=_elf(5))
+            with _engine('membrowse', sizer), mock.patch.object(sd.build_utils, 'skip_example', return_value=False):
+                elfs, failures = sd.board_snapshot('b1', tmp, ['device/a', 'device/a'], ['src/'])
+        self.assertEqual((list(elfs), failures, sizer.call_count), (['device/a/a.elf'], [], 1))
+
+    def test_writes_one_json_per_board_symbols_only_on_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root, out = os.path.join(tmp, 'cmake-build'), os.path.join(tmp, 'out')
+            _touch(build_root, 'cmake-build-b1/device/a/a.elf')
+            for symbols in (False, True):
+                args = mock.Mock(event='push', families=[], board=['b1'], example=None, output=out,
+                                 build_root=build_root, build_outcome='failure', symbols=symbols, filter=None,
+                                 build_name=None, define_symbol=[])
+                with _engine('membrowse', lambda _p, _f: _elf(5)), \
+                     mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
+                     mock.patch.object(sd, 'snapshot_boards', return_value=['b1']), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(sd.run_snapshot(args), 0)
+                with open(os.path.join(out, 'code-size-b1.json')) as f:
+                    data = json.load(f)
+                self.assertEqual((data['schema'], data['board']), (sd.SNAPSHOT_SCHEMA, 'b1'))
+                self.assertEqual(data['elfs']['device/a/a.elf']['files'], {'x.c': {'flash': 5, 'ram': 0}})
+                self.assertEqual('symbols' in data['elfs']['device/a/a.elf'], symbols)
+                with open(os.path.join(out, 'leg.json')) as f:
+                    leg = json.load(f)
+                self.assertEqual((leg['boards'], leg['sha'], leg['build_outcome']), (['b1'], self.SHA[0], 'failure'))
+
+    def test_a_leg_without_pinned_boards_still_leaves_its_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = mock.Mock(event='push', families=['fam'], board=[], example=['device/a'], output=tmp,
+                             build_root=tmp, build_outcome='success', symbols=False, filter=None, build_name=None,
+                             define_symbol=[])
+            with mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
+                 mock.patch.object(sd, 'snapshot_boards', return_value=[]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sd.run_snapshot(args), 0)
+            self.assertEqual(os.listdir(tmp), ['leg.json'])
+            with open(os.path.join(tmp, 'leg.json')) as f:
+                leg = json.load(f)
+        self.assertEqual((leg['boards'], leg['examples']), ([], ['device/a']))
+
+    def test_a_variant_reports_its_board_under_the_build_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            build_root, out = os.path.join(tmp, 'cmake-build'), os.path.join(tmp, 'out')
+            _touch(build_root, 'cmake-build-b1/device/a/a.elf', 'cmake-build-b1-DMA/device/a/a.elf')
+            args = mock.Mock(event='push', families=[], board=['b1'], example=['device/a'], output=out,
+                             build_root=build_root, build_outcome='success', symbols=False, filter=None,
+                             build_name='b1-DMA', define_symbol=['MAX3421_HOST=1'])
+            sized = []
+            with _engine('membrowse', lambda p, _f: sized.append(p) or _elf(5)), \
+                 mock.patch.object(sd, '_git_shas', return_value=(self.SHA[0],) * 3), \
+                 mock.patch.object(sd, 'snapshot_boards', return_value=['b1']) as boards, \
+                 mock.patch.object(sd.build_utils, 'skip_example', return_value=False) as skip, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sd.run_snapshot(args), 0)
+            self.assertEqual(sorted(os.listdir(out)), ['code-size-b1-DMA.json', 'leg.json'])
+            with open(os.path.join(out, 'leg.json')) as f:
+                self.assertEqual(json.load(f)['boards'], ['b1-DMA'])
+            with open(os.path.join(out, 'code-size-b1-DMA.json')) as f:
+                self.assertEqual(json.load(f)['board'], 'b1-DMA')
+        self.assertEqual([os.path.relpath(p, build_root) for p in sized], [os.path.join('cmake-build-b1-DMA', 'device', 'a', 'a.elf')])
+        # the board's own skip rules, with the leg's defines as build.py applied them
+        boards.assert_called_once_with([], ['b1'], ['device/a'], ('MAX3421_HOST=1',))
+        skip.assert_called_with('device/a', 'b1', ('MAX3421_HOST=1',))
+
+    def test_a_variant_needs_one_board_and_a_build_name(self):
+        for argv in (['-b', 'b1', '-b', 'b2', '--build-name', 'x'], ['fam', '--build-name', 'x'],
+                     ['-b', 'b1', '--cflag=-DX=1'], ['-b', 'b1', '-DX=1'], ['-b', 'b1', '--build-name', '../x']):
+            with mock.patch.object(sd, 'engine_missing', return_value=False), \
+                 mock.patch.object(sd, 'run_snapshot') as run, \
+                 mock.patch.object(sys, 'argv', ['code_size.py', 'snapshot', '-o', 'out'] + argv), \
+                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                sd.main()
+            run.assert_not_called()
+
+    def test_a_variant_takes_build_py_defines(self):
+        argv = ['-b', 'b1', '--build-name', 'b1-X', '-DX=1', '--define-symbol', 'Y=2', '--cflag=-DZ=3']
+        with mock.patch.object(sd, 'engine_missing', return_value=False), \
+             mock.patch.object(sd, 'run_snapshot', return_value=0) as run, \
+             mock.patch.object(sys, 'argv', ['code_size.py', 'snapshot', '-o', 'out'] + argv):
+            self.assertEqual(sd.main(), 0)
+        self.assertEqual((run.call_args[0][0].define_symbol, run.call_args[0][0].cflag), (['X=1', 'Y=2'], ['-DZ=3']))
+
+
+def _shard(board, elfs, sha='a', base='b', head='c', failures=(), examples=None, compiler='gcc 14'):
+    return {'schema': 1, 'board': board, 'engine': 'membrowse', 'membrowse_version': '1.2.9',
+            'compiler': compiler, 'sha': sha * 40, 'base_sha': base * 40, 'head_sha': head * 40,
+            'build_outcome': 'success', 'examples': examples, 'elfs': elfs, 'failures': list(failures)}
+
+
+def _write(root, rel, data):
+    os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+    with open(os.path.join(root, rel), 'w') as f:
+        json.dump(data, f)
+
+
+LEG_KEYS = ('sha', 'base_sha', 'head_sha', 'examples', 'build_outcome')
+
+
+def _run_dir(root, shards, legs=None, scope=None):
+    """A downloaded run: one artifact dir per leg ({artifact: [boards]}), each leg taking its
+    commits, examples and build outcome from its first board's _shard(), and the shards,
+    without those, spread over them."""
+    legs = legs if legs is not None else {'code-size-arm-gcc-fam': [s['board'] for s in shards]}
+    by_board = {s['board']: s for s in shards}
+    for artifact, boards in legs.items():
+        first = by_board.get(boards[0], _shard('x', {})) if boards else _shard('x', {})
+        _write(root, f'{artifact}/leg.json', {'schema': 1, 'boards': boards, **{k: first[k] for k in LEG_KEYS}})
+        for b in boards:
+            if b in by_board:
+                _write(root, f'{artifact}/code-size-{b}.json',
+                       {k: v for k, v in by_board[b].items() if k not in LEG_KEYS})
+    if scope is not None:
+        _write(root, 'code-size-scope/scope.json', {'schema': 1, **scope})
+    return sd.load_snapshots(root)
+
+
+def _cells(row):
+    """A table row's cells, runs of padding (figure and no-break spaces included) as one space."""
+    return [' '.join(c.split()) for c in row.strip('|').split('|')]
+
+
+class Compare(unittest.TestCase):
+    SCOPE = {'code_changed': True, 'legs': [{'toolchain': 'arm-gcc', 'arg': 'fam'}]}
+
+    def compare(self, base_shards, cur_shards, cur_legs=None, scope=SCOPE, baseline=None, symbols=False):
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            return sd.compare_runs(_run_dir(b, base_shards, scope=self.SCOPE),
+                                   _run_dir(c, cur_shards, cur_legs, scope), baseline, symbols)
+
+    def failed(self, data):
+        return {(f['board'], f['side'], f['stage']) for f in data['failures']}
+
+    def test_pairs_boards_and_reports_the_change(self):
+        md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)}, sha='b', head='b')],
+                                         [_shard('b1', {'device/a/a.elf': _elf(14)})])
+        self.assertEqual(data['status'], 'complete')
+        self.assertIn('+4', md)
+        self.assertTrue(comment.startswith('## Code size'))
+        self.assertIn('bbbbbbbbbb', md)  # sides labelled by the merge commit's parents
+
+    def test_base_elfs_of_examples_the_pr_did_not_build_are_outside_coverage(self):
+        base = _shard('b1', {'device/a/a.elf': _elf(10), 'device/z/z.elf': _elf(3)})
+        cur = _shard('b1', {'device/a/a.elf': _elf(10)}, examples=['device/a'])
+        scope = {**self.SCOPE, 'family_examples': {'fam': ['device/a']}}
+        _md, _c, data = self.compare([base], [cur], scope=scope)
+        self.assertEqual(data['status'], 'complete')
+        self.assertEqual(data['outside'], 1)
+        self.assertEqual(data['base_only'], [])
+
+    def test_a_leg_measuring_other_examples_than_the_scope_fails(self):
+        cur = _shard('b1', {'device/z/z.elf': _elf(1)}, examples=['device/z'])
+        scope = {**self.SCOPE, 'family_examples': {'fam': ['device/a']}}
+        _md, _c, data = self.compare([_shard('b1', {'device/z/z.elf': _elf(1)})], [cur], scope=scope)
+        self.assertIn(('code-size-arm-gcc-fam', 'current', 'scope'), self.failed(data))
+
+    def test_an_esp_leg_matches_its_artifact_and_its_own_examples(self):
+        arg = '-b espressif_s3_devkitm -e device/cdc_msc_freertos'
+        scope = {'code_changed': True, 'legs': [{'toolchain': 'esp-idf', 'arg': arg}]}
+        legs = {'code-size-esp-idf--b espressif_s3_devkitm': ['espressif_s3_devkitm']}
+        elfs = {'device/cdc_msc_freertos/cdc_msc_freertos.elf': _elf(1)}
+        _md, _c, data = self.compare([_shard('espressif_s3_devkitm', elfs)],
+                                     [_shard('espressif_s3_devkitm', elfs, examples=['device/cdc_msc_freertos'])],
+                                     cur_legs=legs, scope=scope)
+        self.assertEqual(data['status'], 'complete')
+        _md, _c, data = self.compare([], [_shard('espressif_s3_devkitm', elfs, examples=['device/other'])],
+                                     cur_legs=legs, scope=scope)
+        self.assertIn(('code-size-esp-idf--b espressif_s3_devkitm', 'current', 'scope'), self.failed(data))
+
+    def test_a_leg_outside_the_scope_and_a_shard_outside_its_leg_fail(self):
+        shards = [_shard('b1', {'device/a/a.elf': _elf(1)}), _shard('b2', {'device/a/a.elf': _elf(1)})]
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            cur = _run_dir(c, shards, {'code-size-arm-gcc-fam': ['b1'], 'code-size-arm-gcc-extra': ['b2']},
+                           self.SCOPE)
+            _write(c, 'code-size-arm-gcc-fam/code-size-b3.json', _shard('b3', {'device/a/a.elf': _elf(1)}))
+            _md, _c, data = sd.compare_runs(_run_dir(b, shards + [_shard('b3', {})]), sd.load_snapshots(c))
+        self.assertIn(('code-size-arm-gcc-extra', 'current', 'scope'), self.failed(data))
+        self.assertIn(('b3', 'current', 'snapshot'), self.failed(data))
+        self.assertEqual(data['boards'], ['b1', 'b2'])
+
+    def test_a_new_elf_is_current_only(self):
+        md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10), 'device/o/o.elf': _elf(1)})],
+                                         [_shard('b1', {'device/a/a.elf': _elf(10), 'device/n/n.elf': _elf(1)})])
+        self.assertEqual(data['current_only'], [{'board': 'b1', 'elf': 'device/n/n.elf'}])
+        self.assertEqual(data['status'], 'INCOMPLETE')
+        self.assertIn('- missing in this PR: `b1: device/o/o.elf`\n'
+                      '- new in this PR (no master size yet): `b1: device/n/n.elf`\n', comment)
+        self.assertIn('current-only: `b1: device/n/n.elf`', md)  # the full report keeps its terms
+
+    def test_a_board_without_baseline_leaves_coverage_incomplete(self):
+        md, comment, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(10)})],
+                                         [_shard('b1', {'device/a/a.elf': _elf(10)}), _shard('b2', {'device/a/a.elf': _elf(1)})])
+        self.assertEqual(data['no_baseline'], ['b2'])
+        self.assertEqual(data['status'], 'INCOMPLETE')
+        self.assertIn('FAILED `b2` base snapshot: no baseline snapshot', md)
+        self.assertEqual(len(data['pairs']), 1)
+        self.assertIn('1 builds on 1 boards compared, 0 changed\n\nNot compared:\n\n'
+                      '- FAILED `b2` master snapshot: no baseline snapshot\n', comment)
+        self.assertNotIn('INCOMPLETE', comment)
+
+    def test_a_missing_scope_or_a_failed_build_leaves_coverage_incomplete(self):
+        broken = {**_shard('b1', {'device/a/a.elf': _elf(1)}), 'build_outcome': 'failure'}
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)})], [broken], scope=None)
+        self.assertEqual(self.failed(data), {('scope', 'current', 'snapshot'), ('b1', 'current', 'build')})
+
+    def test_a_leg_or_board_that_left_no_snapshot_fails(self):
+        scope = {'code_changed': True, 'legs': [{'toolchain': 'arm-gcc', 'arg': 'fam -e device/a'},
+                                               {'toolchain': 'riscv-gcc', 'arg': 'other'}]}
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)})],
+                                     [_shard('b1', {'device/a/a.elf': _elf(1)}, examples=['device/a'])],
+                                     cur_legs={'code-size-arm-gcc-fam': ['b1', 'b2']}, scope=scope)
+        self.assertEqual(self.failed(data), {('code-size-riscv-gcc-other', 'current', 'snapshot'),
+                                             ('b2', 'current', 'snapshot')})
+
+    def test_a_failed_baseline_elf_is_a_base_failure_not_a_new_elf(self):
+        base = _shard('b1', {'device/a/a.elf': _elf(1)},
+                      failures=[{'elf': 'device/n/n.elf', 'stage': 'report', 'message': 'boom'}])
+        _md, _c, data = self.compare([base], [_shard('b1', {'device/a/a.elf': _elf(1), 'device/n/n.elf': _elf(2)})])
+        self.assertEqual(data['current_only'], [])
+        self.assertEqual([(f['elf'], f['side']) for f in data['failures']], [('device/n/n.elf', 'base')])
+
+    def test_a_compiler_mismatch_is_a_warning(self):
+        md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)}, compiler='gcc 13')],
+                                    [_shard('b1', {'device/a/a.elf': _elf(1)})])
+        self.assertEqual(data['status'], 'complete')
+        self.assertIn('compiler differs', md)
+
+    def test_current_snapshots_of_different_commits_are_not_compared(self):
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)}), _shard('b2', {'device/a/a.elf': _elf(1)})],
+                                     [_shard('b1', {'device/a/a.elf': _elf(1)}),
+                                      _shard('b2', {'device/a/a.elf': _elf(1)}, head='d')],
+                                     cur_legs={'code-size-arm-gcc-fam': ['b1'], 'code-size-arm-gcc-x': ['b2']},
+                                     scope={'code_changed': True, 'legs': [{'toolchain': 'arm-gcc', 'arg': 'fam'},
+                                                                           {'toolchain': 'arm-gcc', 'arg': 'x'}]})
+        self.assertIn(('commits', 'current', 'snapshot'), self.failed(data))
+        self.assertEqual(data['pairs'], [])
+
+    def test_baseline_snapshots_of_another_commit_than_the_selected_run_are_dropped(self):
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='d')],
+                                     [_shard('b1', {'device/a/a.elf': _elf(1)})],
+                                     baseline={'sha': 'b' * 40, 'url': 'u', 'exact': True})
+        self.assertIn(('commits', 'base', 'snapshot'), self.failed(data))
+        self.assertEqual(data['pairs'], [])
+
+    def test_a_run_with_no_leg_to_measure_says_so(self):
+        for changed in (False, True):  # e.g. a HIL-harness-only PR selects no pinned leg
+            md, comment, data = self.compare([], [], cur_legs={}, scope={'code_changed': changed, 'legs': []})
+            self.assertEqual(data, {'status': 'nothing measured'})
+            self.assertTrue(comment.startswith('## Code size\n\nNothing to measure'))
+
+    def test_snapshots_a_scope_without_legs_did_not_expect_are_reported(self):
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)})],
+                                     [_shard('b1', {'device/a/a.elf': _elf(41)})],
+                                     scope={'code_changed': True, 'legs': []})
+        self.assertEqual(data['status'], 'INCOMPLETE')
+        self.assertIn(('code-size-arm-gcc-fam', 'current', 'scope'), self.failed(data))
+
+    def test_the_comment_has_a_row_per_changed_file_however_small(self):
+        def msc(n, ram=0):
+            return elf({'class/msc/msc_device.c': (n, 0), 'device/usbd.c': (500, ram)})
+        base = [_shard('b1', {'device/msc/msc.elf': msc(4000), 'device/hid/hid.elf': elf({'class/hid/hid_device.c': (1200, 128)}),
+                              'device/n/n.elf': elf({'device/usbd.c': (500, 0)}, all_syms=(900, 9))}),
+                _shard('b2', {'device/msc/msc.elf': msc(3800)})]
+        cur = [_shard('b1', {'device/msc/msc.elf': msc(4200, 4), 'device/hid/hid.elf': elf({'class/hid/hid_device.c': (1224, 136)}),
+                             'device/n/n.elf': elf({'device/usbd.c': (500, 0)}, all_syms=(904, 9))}),
+               _shard('b2', {'device/msc/msc.elf': msc(3980)})]
+        md, comment, _data = self.compare(base, cur)
+        self.assertIn('4 builds on 2 boards compared, 4 changed. Whole firmware¹ Flash Δ +4 → +200, '
+                      'RAM Δ 0 → +8', comment)
+        rows = [line for line in comment.splitlines() if line.startswith('| ') and 'File' not in line]
+        self.assertEqual([_cells(r) for r in rows],
+                         [['class/msc/msc_device.c', '+180 → +200', '0 → 0', 'b2/msc', 'b1/msc', '', ''],
+                          ['class/hid/hid_device.c', '+24 → +24', '+8 → +8', 'b1/hid', 'b1/hid', 'b1/hid', 'b1/hid'],
+                          ['device/usbd.c', '0 → 0', '0 → +4', '', '', '—', 'b1/msc']])
+        self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
+        self.assertNotIn('boards: ', comment)
+        self.assertNotIn('Not compared', comment)
+        self.assertNotIn('| b1: ', comment)
+        self.assertNotIn('<details>', comment)
+        self.assertIn('<details>', md)
+        self.assertIn('| b1: device/hid/hid.elf ', md)  # the full report keeps every pair
+
+    def test_the_comment_names_the_build_of_each_extreme(self):
+        def files(a, b, c, d):
+            return elf({'a.c': (a, 0), 'b.c': (b, 0), 'c.c': (c, 0), 'd.c': (d, 0)})
+        base = [_shard('b2', {'device/example_dir/firmware.elf': files(100, 100, 100, 100)}),
+                _shard('b1', {'device/x/x.elf': files(100, 100, 100, 100)})]
+        cur = [_shard('b2', {'device/example_dir/firmware.elf': files(100, 108, 96, 132)}),
+               _shard('b1', {'device/x/x.elf': files(68, 100, 96, 84)})]
+        _md, comment, _data = self.compare(base, cur)
+        lines = comment.splitlines()
+        head = lines.index(next(line for line in lines if line.startswith('| File')))
+        self.assertEqual(_cells(lines[head]), ['File', 'Flash Δ', 'RAM Δ', 'Flash Δ min build', 'Flash Δ max build',
+                                               'RAM Δ min build', 'RAM Δ max build'])
+        self.assertEqual([c[-1] == ':' for c in lines[head + 1].strip('|').split('|')],
+                         [False, True, True, False, False, False, False])
+        rows = [r for r in lines[head + 2:] if r.startswith('| ')]
+        self.assertEqual([_cells(r) for r in rows], [['a.c', '−32 → 0', '0 → 0', 'b1/x', '—', '', ''],
+                                                     ['d.c', '−16 → +32', '0 → 0', 'b1/x', 'b2/firmware', '', ''],
+                                                     ['b.c', '0 → +8', '0 → 0', '—', 'b2/firmware', '', ''],
+                                                     ['c.c', '−4 → −4', '0 → 0', 'b1/x', 'b1/x', '', '']])
+        # leading figure spaces, U+2212 minus and no-break spaces line the arrows up as rendered
+        flash = [r.split('|')[2] for r in rows]
+        self.assertEqual(len({c.index('→') for c in flash}), 1)
+        self.assertEqual(len({len(c) for c in flash}), 1)
+        self.assertNotIn(' →', ''.join(flash))
+        self.assertNotIn('→ ', ''.join(flash))
+
+    def test_a_comment_over_the_limit_is_cut_at_a_line(self):
+        base = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (10, 0) for j in range(50)})})
+        cur = _shard('b1', {'device/a/a.elf': elf({f'f{j}.c': (11, 0) for j in range(50)})})
+        with mock.patch.object(sd, 'COMMENT_LIMIT', 800):
+            _md, comment, _data = self.compare([base], [cur])
+        self.assertLessEqual(len(comment), 800)
+        self.assertIn('Whole firmware¹', comment)
+        rows = [r for r in comment.splitlines() if r.startswith('| f')]
+        self.assertTrue(rows)
+        self.assertTrue(all(len(r.strip('|').split('|')) == 7 for r in rows))
+        self.assertTrue(comment.endswith('_Truncated: see the full report._\n\n'
+                                         '¹ Sum of all symbols measured by membrowse, not the exact image size.\n'))
+
+    def test_a_symbol_only_change_counts_under_symbols(self):
+        sizes = lambda a, b: elf({'x.c': (10, 0)}, symbols={'x.c': {'.text': {'f': a, 'g': b}}})  # noqa: E731
+        for symbols, head in ((False, '1 builds on 1 boards compared, 0 changed'),
+                              (True, '1 builds on 1 boards compared, 1 changed')):
+            _md, comment, _data = self.compare([_shard('b1', {'device/a/a.elf': sizes(4, 6)})],
+                                               [_shard('b1', {'device/a/a.elf': sizes(6, 4)})], symbols=symbols)
+            self.assertIn(head, comment)
+        self.assertIn('1 other build changed without a TinyUSB file-size change.', comment)
+
+    def test_pr_controlled_names_cannot_inject_markdown(self):
+        evil = 'x`|<img src=x>@team\n\n# FORGED\r\n'
+        sizes = lambda n: elf({f'{evil}.c': (n, 0)}, symbols={f'{evil}.c': {evil: {evil: n}}})  # noqa: E731
+        fail = [{'elf': None, 'stage': 'build', 'message': '<script>@maintainers `x`'}]
+        base = _shard('b1', {'device/a/a.elf': sizes(1)})
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            md, comment, _data = sd.compare_runs(
+                _run_dir(b, [base]), _run_dir(c, [_shard('b1', {'device/a/a.elf': sizes(2)}, failures=fail)],
+                                              scope=self.SCOPE), symbols=True)
+        for text in (md, comment):
+            self.assertNotIn('<img', text)
+            self.assertNotIn('<script', text)
+            self.assertIsNone(re.search(r'@\w', text))
+            self.assertNotIn('`|', text)
+            self.assertIsNone(re.search(r'^# FORGED', text, re.M))  # stays inside its cell
+        self.assertIn('&#60;img', md)  # escaped, still shown
+
+    def test_names_that_escape_alike_stay_distinct(self):
+        files = lambda a, b: elf({'x@.c': (a, 0), 'x#.c': (b, 0)})  # noqa: E731
+        _md, _c, data = self.compare([_shard('b1', {'device/a/a.elf': files(1, 2)})],
+                                     [_shard('b1', {'device/a/a.elf': files(1, 5)})])
+        self.assertEqual(sorted(data['pairs'][0]['current']['files']), ['x#.c', 'x@.c'])
+
+    def test_invalid_shards_are_errors_not_data(self):
+        good = _shard('b0', {})
+        bad = [_shard('b1', {'../x.elf': _elf(1)}), _shard('b2', {'device/a/a.elf': {'files': {}}}),
+               {**_shard('b3', {}), 'engine': 'bloaty'}, {**_shard('b4', {}), 'schema': 2},
+               _shard('b5', {}, failures=[1]),
+               _shard('b7', {'device/a/a.elf': {**_elf(1), 'files': 1}}),
+               _shard('b8', {'device/a/a.elf': {**_elf(1), 'sections': {'x.c': {'.text': True}}}}),
+               _shard('b10', {}, failures=[{'stage': 'build', 'message': 'no elf key'}])]
+        with tempfile.TemporaryDirectory() as c:
+            run = _run_dir(c, [good] + bad)
+            _write(c, 'code-size-scope/scope.json', {'schema': 1, 'code_changed': True, 'legs': None})
+            run = sd.load_snapshots(c)
+            sd.compare_runs(run, run)  # malformed input never crashes
+        self.assertEqual(list(run['shards']), ['b0'])
+        self.assertIsNone(run['scope'])
+        self.assertEqual(len(run['errors']), len(bad) + 1)
+
+    def test_invalid_legs_are_errors_not_data(self):
+        good = {'schema': 1, 'boards': [], 'examples': None, 'build_outcome': 'success',
+                'sha': 'a' * 40, 'base_sha': 'a' * 40, 'head_sha': 'a' * 40}
+        bad = [{k: v for k, v in good.items() if k != 'examples'}, {**good, 'examples': 1},
+               {**good, 'sha': 'nothex'}, {**good, 'boards': None}, {**good, 'build_outcome': None}]
+        with tempfile.TemporaryDirectory() as c:
+            for i, leg in enumerate([good] + bad):
+                _write(c, f'code-size-arm-gcc-f{i}/leg.json', leg)
+            run = sd.load_snapshots(c)
+        self.assertEqual(list(run['legs']), ['code-size-arm-gcc-f0'])
+        self.assertEqual(len(run['errors']), len(bad))
+
+    def test_an_invalid_baseline_shard_of_a_board_the_pr_did_not_build_is_ignored(self):
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            base = _run_dir(b, [_shard('b1', {'device/a/a.elf': _elf(1)})])
+            _write(b, 'code-size-arm-gcc-fam/code-size-other.json', {'schema': 1})
+            _md, _c, data = sd.compare_runs(sd.load_snapshots(b), _run_dir(
+                c, [_shard('b1', {'device/a/a.elf': _elf(1)})], scope=self.SCOPE))
+        self.assertEqual(data['status'], 'complete')
+
+    def test_symbols_are_omitted_when_a_snapshot_lacks_them(self):
+        bare = {k: v for k, v in _elf(1).items() if k != 'symbols'}
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            md, _c, _d = sd.compare_runs(_run_dir(b, [_shard('b1', {'device/a/a.elf': bare})]),
+                                         _run_dir(c, [_shard('b1', {'device/a/a.elf': _elf(2)})], scope=self.SCOPE),
+                                         symbols=True)
+        self.assertIn('symbols omitted', md)
+
+    def test_a_board_in_two_artifacts_is_rejected(self):
+        with tempfile.TemporaryDirectory() as c:
+            run = _run_dir(c, [_shard('b1', {})], legs={'code-size-arm-gcc-x': ['b1'], 'code-size-riscv-gcc-y': ['b1']})
+        self.assertEqual(list(run['shards']), ['b1'])
+        self.assertEqual(len(run['errors']), 1)
+
+    def test_an_approximate_baseline_is_labelled_with_its_note(self):
+        md, _c, _d = self.compare([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='d')],
+                                  [_shard('b1', {'device/a/a.elf': _elf(1)})],
+                                  baseline={'sha': 'd' * 40, 'url': 'https://github.com/x/y/actions/runs/1',
+                                            'exact': False, 'note': '2 master commits before this build'})
+        self.assertIn('Baseline: dddddddddd (approximate) https://github.com/x/y/actions/runs/1 - 2 master '
+                      'commits before this build', md)
+
+    def test_an_unavailable_baseline_is_said_so(self):
+        md, _c, data = self.compare([], [_shard('b1', {'device/a/a.elf': _elf(1)})],
+                                    baseline={'sha': None, 'url': None, 'exact': False, 'note': 'base x is not on master'})
+        self.assertIn('Baseline: unavailable - base x is not on master', md)
+        self.assertEqual(data['no_baseline'], ['b1'])
+
+    def test_cli_writes_the_three_reports(self):
+        with tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c, \
+             tempfile.TemporaryDirectory() as out:
+            _run_dir(b, [_shard('b1', {'device/a/a.elf': _elf(1)})])
+            _run_dir(c, [_shard('b1', {'device/a/a.elf': _elf(2)})], scope=self.SCOPE)
+            with mock.patch.object(sys, 'argv', ['code_size.py', 'compare', c, b, '-o', out]), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sd.main(), 0)
+            self.assertEqual(sorted(os.listdir(out)), ['code-size.json', 'code-size.md', 'comment.md'])
+
 
 class SymlinkDeps(unittest.TestCase):
     def test_links_each_dep_path_of_the_worktrees_own_manifest(self):
@@ -1734,6 +2862,414 @@ class SymlinkDeps(unittest.TestCase):
             self.assertFalse(os.path.islink(os.path.join(wt, 'lib/lwip')))
             self.assertFalse(os.path.lexists(os.path.join(wt, 'lib/not_fetched')))
             self.assertFalse(os.path.lexists(os.path.join(wt, 'hw/mcu/raspberry_pi/tracked')))
+
+
+def _fake_ci(info=None, attempts=(1, 1), error=None):
+    """A code_size_ci stand-in: lookup_sha() answers `info` (a found run 7 of 'b'*40 by
+    default) or raises `error`; each run lookup returns the next of `attempts`."""
+    attempts = iter(attempts)
+
+    def lookup_sha(_repo, _sha, _whose):
+        if error:
+            raise error
+        return info or {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': True, 'run_id': 7}
+    return types.SimpleNamespace(
+        lookup_sha=lookup_sha, gh=lambda _path: {'run_attempt': next(attempts)})
+
+
+class CiBaseline(unittest.TestCase):
+    def baseline(self, fake, downloads=None, rc=0):
+        """ci_baseline() of 'b'*40 with `fake` as code_size_ci and gh run download stubbed
+        (exit `rc`): `downloads` collects each -D dir, which gets a scope artifact."""
+        def run(cmd, **_kwargs):
+            if downloads is not None:
+                downloads.append(cmd[-1])
+            _write(cmd[-1], 'code-size-scope/scope.json', {'schema': 1, 'code_changed': True, 'legs': []})
+            return subprocess.CompletedProcess(cmd, rc, '', 'HTTP 410: artifact expired' if rc else '')
+        with mock.patch.object(sd, '_load_module', return_value=fake), \
+             mock.patch.object(sd.shutil, 'which', return_value='/usr/bin/gh'), \
+             mock.patch.object(sd, 'run', side_effect=run):
+            return sd.ci_baseline('o/r', 'b' * 40)
+
+    def test_a_found_run_is_downloaded_once_and_its_manifest_kept_apart(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+            downloads = []
+            path, info = self.baseline(_fake_ci(), downloads)
+            self.assertEqual(info['run_id'], 7)
+            cache = os.path.join(tmp, 'o_r', '7-1')
+            self.assertEqual(path, os.path.join(cache, 'snapshots'))
+            with open(os.path.join(cache, 'manifest.json')) as f:
+                self.assertEqual(json.load(f), {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
+            self.assertEqual(sd.load_snapshots(path)['errors'], [])  # the manifest is no snapshot file
+            self.assertEqual(self.baseline(_fake_ci(attempts=(1,)), downloads)[0], path)
+            self.assertEqual(len(downloads), 1)  # the second lookup reused the published copy
+
+    def test_a_rerun_during_the_download_is_retried_under_its_attempt(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+            downloads = []
+            path, _info = self.baseline(_fake_ci(attempts=(1, 2, 2)), downloads)
+            self.assertEqual(os.path.basename(os.path.dirname(path)), '7-2')
+            self.assertEqual(len(downloads), 2)
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), ['7-2'])  # the first copy discarded
+
+    def test_what_makes_the_ci_base_unavailable(self):
+        cases = {'no master Build run with snapshots': _fake_ci(info={'sha': None, 'note': 'no master Build run with '
+                                                                                          'snapshots'}),
+                 'the baseline lookup failed: gh api x: HTTP 401': _fake_ci(error=RuntimeError('gh api x: HTTP 401')),
+                 'running gh failed: Too many open files':
+                     _fake_ci(error=OSError(errno.EMFILE, 'Too many open files'))}
+        for why, fake in cases.items():
+            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+                with self.assertRaisesRegex(sd.BaselineUnavailable, re.escape(why)):
+                    self.baseline(fake)
+        with mock.patch.object(sd.shutil, 'which', return_value=None), \
+             self.assertRaisesRegex(sd.BaselineUnavailable, 'gh not found'):
+            sd.ci_baseline('o/r', 'b' * 40)
+
+    def test_a_failed_download_publishes_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+            with self.assertRaisesRegex(sd.BaselineUnavailable, 'artifact expired'):
+                self.baseline(_fake_ci(), rc=1)
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_failed_publish_is_unavailable_and_leaves_no_temp_copy(self):
+        cases = {'rename': mock.patch.object(sd.os, 'rename', side_effect=OSError(errno.EXDEV, 'Cross-device link')),
+                 'manifest': mock.patch.object(sd, 'open', create=True,
+                                               side_effect=OSError(errno.ENOSPC, 'No space left on device'))}
+        for why, patch in cases.items():
+            with self.subTest(why), tempfile.TemporaryDirectory() as tmp, \
+                 mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp), patch:
+                with self.assertRaisesRegex(sd.BaselineUnavailable, 'caching run 7'):
+                    self.baseline(_fake_ci())
+                self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_failed_rerun_check_leaves_no_temp_copy(self):
+        fake = _fake_ci()
+        fake.gh = mock.Mock(side_effect=[{'run_attempt': 1}, RuntimeError('gh api x: HTTP 502')])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp):
+            with self.assertRaisesRegex(sd.BaselineUnavailable, 'HTTP 502'):
+                self.baseline(fake)
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), [])
+
+    def test_a_copy_published_first_by_another_run_is_used(self):
+        def publish_first(_src, dst):
+            _write(dst, 'snapshots/theirs.json', {})
+            _write(dst, 'manifest.json', {'repo': 'o/r', 'run_id': 7, 'run_attempt': 1})
+            raise OSError(errno.ENOTEMPTY, 'Directory not empty')
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sd, 'BASELINE_CACHE_DIR', tmp), \
+             mock.patch.object(sd.os, 'rename', side_effect=publish_first):
+            path, _info = self.baseline(_fake_ci())
+            self.assertEqual(path, os.path.join(tmp, 'o_r', '7-1', 'snapshots'))
+            self.assertTrue(os.path.isfile(os.path.join(path, 'theirs.json')))
+            self.assertEqual(os.listdir(os.path.join(tmp, 'o_r')), ['7-1'])
+
+
+class BaselineShards(unittest.TestCase):
+    BASELINE = {'sha': 'b' * 40}
+
+    def shards(self, shards, boards=('b1',), legs=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            return sd.baseline_shards(_run_dir(tmp, shards, legs), self.BASELINE, list(boards))
+
+    def test_only_built_boards_count(self):
+        shards, failures = self.shards([_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
+                                        _shard('b1-DMA', {'device/a/a.elf': _elf(2)}, sha='b')])
+        self.assertEqual((list(shards), failures), (['b1'], []))
+
+    def test_unusable_baselines_are_base_failures_never_zero(self):
+        cases = {
+            'no baseline snapshot': [_shard('b2', {}, sha='b')],
+            'the build step ended failure': [{**_shard('b1', {'device/a/a.elf': _elf(1)}, sha='b'),
+                                              'build_outcome': 'failure'}],
+            'the snapshots are not of the selected baseline commit': [_shard('b1', {'device/a/a.elf': _elf(1)}, sha='d')],
+        }
+        for why, shards in cases.items():
+            with self.subTest(why):
+                usable, failures = self.shards(shards)
+                self.assertEqual(usable, {})
+                self.assertIn(why, [f[3] for f in failures])
+                self.assertTrue(all(f[1] == 'base' for f in failures))
+
+    def test_a_shard_outside_its_legs_boards_is_a_base_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _run_dir(tmp, [_shard('b9', {}, sha='b')])
+            _write(tmp, 'code-size-arm-gcc-fam/code-size-b1.json',
+                   {k: v for k, v in _shard('b1', {'device/a/a.elf': _elf(1)}).items() if k not in LEG_KEYS})
+            usable, failures = sd.baseline_shards(sd.load_snapshots(tmp), self.BASELINE, ['b1'])
+        self.assertEqual(usable, {})
+        self.assertEqual(failures, [(('b1', None), 'base', 'snapshot', 'not a board of its leg\'s build')])
+
+
+class PairBaseShard(unittest.TestCase):
+    def test_examples_scope_the_base_and_a_failed_base_elf_is_not_new(self):
+        base = _shard('b1', {'device/a/a.elf': _elf(1), 'device/z/z.elf': _elf(2)},
+                      failures=[{'elf': 'device/a/n.elf', 'stage': 'report', 'message': 'boom'},
+                                {'elf': 'device/z/y.elf', 'stage': 'report', 'message': 'other scope'}])
+        cur = {'device/a/a.elf': _elf(3), 'device/a/n.elf': _elf(1)}
+        sizes, failures, current, outside = sd._pair_base_shard('b1', base, cur, ['device/a'])
+        self.assertEqual(sizes, {('b1', 'device/a/a.elf'): _elf(1)})
+        self.assertEqual(failures, [(('b1', 'device/a/n.elf'), 'base', 'report', 'boom')])
+        self.assertEqual(current, {('b1', 'device/a/a.elf'): _elf(3)})
+        self.assertEqual(outside, 1)
+
+
+class MetadataWarnings(unittest.TestCase):
+    GCC = {'id': 'GNU', 'name': 'arm-none-eabi-gcc', 'version': '14.2.1', 'build_type': 'MinSizeRel'}
+
+    def warnings(self, base, cur, base_m='1.2.12', cur_m='1.2.12'):
+        return sd.metadata_warnings('b1', {'compiler': base, 'membrowse_version': base_m}, cur, cur_m)
+
+    def test_matching_metadata_warns_nothing(self):
+        self.assertEqual(self.warnings(self.GCC, dict(self.GCC)), [])
+        esp = {**self.GCC, 'build_type': ''}  # ESP-IDF records no build type on either side
+        self.assertEqual(self.warnings(esp, dict(esp)), [])
+
+    def test_each_kind_of_difference_shows_both_sides(self):
+        self.assertEqual(self.warnings(self.GCC, {**self.GCC, 'version': '13.3.1'}),
+                         ['b1: base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with GNU '
+                          'arm-none-eabi-gcc 13.3.1 MinSizeRel: deltas may include the toolchain change'])
+        self.assertIn('base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with Clang arm-none-eabi-gcc',
+                      self.warnings(self.GCC, {**self.GCC, 'id': 'Clang'})[0])
+        self.assertEqual(self.warnings(self.GCC, self.GCC, cur_m='1.2.9'),
+                         ['b1: base measured with membrowse 1.2.12, current with 1.2.9: per-file attribution may differ'])
+
+    def test_unknown_metadata_names_every_unknown_side(self):
+        self.assertEqual(self.warnings({}, {}, base_m='', cur_m=''),
+                         ['b1: compiler unknown on the base and current side: comparability cannot be established',
+                          'b1: membrowse version unknown on the base and current side: comparability cannot be '
+                          'established'])
+        self.assertIn('compiler unknown on the current side', self.warnings(self.GCC, {**self.GCC, 'version': ''})[0])
+        self.assertIn('compiler unknown on the base side', self.warnings('gcc 14', self.GCC)[0])
+        self.assertEqual(self.warnings(self.GCC, self.GCC, cur_m=''),
+                         ['b1: membrowse version unknown on the current side: comparability cannot be established'])
+
+
+@mock.patch.object(sd, 'engine_missing', new=lambda _engine: False)
+class BoardAndExampleNames(unittest.TestCase):
+    def _refused(self, argv):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(sys, 'argv', ['code_size.py'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), mock.patch.object(sd, 'build_board') as build, \
+             contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit) as exit_:
+            sd.main()
+        build.assert_not_called()
+        self.assertEqual(exit_.exception.code, 2)
+        return err.getvalue()
+
+    def test_an_unknown_board_is_refused_not_skipped(self):
+        for command in ('report', 'diff'):
+            self.assertIn('error: unknown board: nosuch', self._refused([command, '-b', 'nosuch']))
+
+    def test_an_example_in_neither_tree_is_refused_not_skipped(self):
+        self.assertIn('error: no such example: device/typo',
+                      self._refused(['report', '-b', 'stm32f407disco', '-e', 'device/typo']))
+        self.assertIn('error: no such example here or in HEAD: device/typo',
+                      self._refused(['diff', '-b', 'stm32f407disco', '-e', 'device/typo', '--base-branch', 'HEAD']))
+
+    def test_an_example_only_in_the_base_commit_is_accepted(self):
+        def run(cmd):
+            return subprocess.CompletedProcess(cmd, 0 if cmd[-1] == 'b' * 40 + ':examples/device/gone' else 128, '', '')
+        with mock.patch.object(sd, 'run', side_effect=run):
+            self.assertEqual(sd.missing_examples(['device/gone', 'device/typo'], 'b' * 40), ['device/typo'])
+        self.assertEqual(sd.missing_examples(['device/cdc_msc']), [])
+        # a role dir exists but names no example: build.py's -e check refuses it too
+        self.assertEqual(sd.missing_examples(['device', 'device/cdc_msc/src']), ['device', 'device/cdc_msc/src'])
+
+
+@mock.patch.object(sd, 'unknown_boards', new=lambda _boards: [])
+@mock.patch.object(sd, 'missing_examples', new=lambda _examples, _sha=None: [])
+class DiffBaseSource(unittest.TestCase):
+    """main()'s diff with the base from CI snapshots, from a local build, or the fallback."""
+    GCC = MetadataWarnings.GCC
+
+    def base(self, elfs=None, **kwargs):
+        """A baseline shard of b1 measured like the current build."""
+        return {**_shard('b1', elfs or {'device/a/a.elf': _elf(1)}, sha='b', **kwargs),
+                'compiler': self.GCC, 'membrowse_version': '1.2.9'}
+
+    def diff(self, tmp, argv, unavailable=None, cur=None, base_shards=None, compiler=None, extra=None,
+             note=None, subject="ci: base's commit (#1)", skip=()):
+        """main()'s diff of `-b b1 --json` + `argv`: ci_baseline() returns `base_shards` (plus
+        `extra` files) as run 7 of 'b'*40, approximate with `note`, or raises `unavailable`; git
+        knows the base commit as `subject`, not at all when None; the current side sizes as
+        `cur`. Returns rc, out, builds as (src, board), git commands, md, data, looked_up."""
+        builds, cmds = [], []
+        cur = cur if cur is not None else {'device/a/a.elf': _elf(3)}
+
+        def ci_baseline(_repo, _sha):
+            if unavailable:
+                raise sd.BaselineUnavailable(unavailable)
+            root = os.path.join(tmp, '_dl')
+            _run_dir(root, base_shards or [self.base()])
+            for rel, text in (extra or {}).items():
+                os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+                with open(os.path.join(root, rel), 'w') as f:
+                    f.write(text)
+            info = {'sha': 'b' * 40, 'url': 'https://example/runs/7', 'exact': note is None, 'run_id': 7}
+            return root, {**info, 'note': note} if note else info
+
+        def build(src, _build_dir, board, example, _label):
+            builds.append((src, board))
+            if example in skip:  # as the real one: no build dir
+                return sd.Skipped(f'{board} does not build {example}')
+            os.makedirs(os.path.join(tmp, board), exist_ok=True)
+            return None
+
+        def run(cmd, **_kwargs):
+            cmds.append(cmd[3:5])
+            if cmd[3:5] == ['worktree', 'add']:
+                os.makedirs(cmd[-2])
+            if cmd[3] == 'log':
+                return subprocess.CompletedProcess(cmd, 128 if subject is None else 0, f'{subject}\n', '')
+            return subprocess.CompletedProcess(cmd, 0, 'c0ffee\n', '')
+
+        def generate(build_dir, *_a):
+            return (cur if build_dir.endswith('build') else {'device/a/a.elf': _elf(1)}), []
+
+        with mock.patch.object(sys, 'argv', ['code_size.py', 'diff', '-b', 'b1', '--json'] + argv), \
+             mock.patch.object(sd, 'CODE_SIZE_DIR', tmp), mock.patch.object(sd, 'run', side_effect=run), \
+             mock.patch.object(sd, 'symlink_deps'), mock.patch.object(sd, 'build_board', side_effect=build), \
+             mock.patch.object(sd, 'generate_sizes', side_effect=generate), \
+             mock.patch.object(sd, 'ci_baseline', side_effect=ci_baseline) as lookup, \
+             mock.patch.object(sd, '_cmake_compiler', return_value=compiler or self.GCC), \
+             mock.patch.object(sd, '_membrowse_version', return_value='1.2.9'), \
+             mock.patch.object(sd, 'engine_missing', return_value=False):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                rc = sd.main()
+        md = data = None
+        reports = sorted(f for f in os.listdir(os.path.join(tmp, 'b1')) if f.startswith('diff')) \
+            if os.path.isdir(os.path.join(tmp, 'b1')) else []
+        if reports:
+            with open(os.path.join(tmp, 'b1', reports[0].rsplit('.', 1)[0] + '.md')) as f:
+                md = unpad(f.read())
+            with open(os.path.join(tmp, 'b1', reports[0].rsplit('.', 1)[0] + '.json')) as f:
+                data = json.load(f)
+        return types.SimpleNamespace(rc=rc, out=unpad(buf.getvalue()), builds=builds, cmds=cmds, md=md, data=data,
+                                     looked_up=lookup.called)
+
+    def test_the_default_compares_against_the_ci_snapshots_without_a_base_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[self.base(), _shard('b1-DMA', {'device/a/a.elf': _elf(9)}, sha='b')])
+        self.assertEqual(r.rc, 0)
+        self.assertEqual(r.builds, [(sd.TINYUSB_ROOT, 'b1')])
+        self.assertNotIn(['worktree', 'add'], r.cmds)
+        self.assertIn(f'Base: CI snapshots of {"b" * 10} "ci: base\'s commit (#1)" https://example/runs/7\n', r.out)
+        self.assertNotIn('b1-DMA', r.out)  # snapshots of boards not diffed go unmentioned
+        self.assertIn('1 pair, 1 changed; TinyUSB Flash Δ +2', r.out)
+        self.assertTrue(r.md.startswith(f'Base: CI snapshots of {"b" * 10} "ci: base\'s commit (#1)" https://'))
+        self.assertEqual(r.data['base_source'], {'requested': 'default', 'effective': 'ci', 'reason': None,
+                                                 'requested_sha': 'c0ffee', 'base_sha': 'b' * 40,
+                                                 'baseline': {'sha': 'b' * 40, 'url': 'https://example/runs/7',
+                                                              'exact': True, 'run_id': 7}})
+        self.assertIsNone(r.data['filters']['base'])
+        self.assertEqual(r.data['warnings'], [])
+
+    def test_an_example_skipped_here_that_the_baseline_built_nothing_of_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['-e', 'device/skip'], skip=('device/skip',),
+                          compiler={'id': '', 'version': '', 'name': '', 'build_type': ''})
+        self.assertEqual((r.rc, r.md), (0, None))
+        self.assertNotIn('size and compare', r.out)
+        self.assertNotIn('WARNING', r.out)  # no build, no compiler to compare
+
+    def test_a_skip_the_baseline_cannot_confirm_stays_incomplete(self):
+        skip_elf = {'device/skip/skip.elf': _elf(1)}
+        failure = [{'elf': 'device/skip/skip.elf', 'stage': 'report', 'message': 'membrowse failed'}]
+        for name, shards in (('the leg selected other examples', [self.base(examples=['device/a'])]),
+                             ('its measurement failed', [self.base(failures=failure)]),
+                             ('it built the example', [self.base(elfs=skip_elf)]),
+                             ('no baseline of the board', [_shard('b2', {}, sha='b')])):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                r = self.diff(tmp, ['-e', 'device/skip'], base_shards=shards, skip=('device/skip',))
+                self.assertEqual(r.rc, 1)
+                self.assertEqual(r.data['status'], 'INCOMPLETE')
+
+    def test_an_ancestor_base_says_how_far_back_it_is(self):
+        note = '2 master commits before this build\'s base c0ffee: their changes count as yours'
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], note=note, subject=None)  # not fetched: no subject
+        self.assertIn(f'Base: CI snapshots of {"b" * 10}, {note} https://example/runs/7\n', r.out)
+
+    def test_a_metadata_difference_warns_and_still_compares(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], compiler={**self.GCC, 'version': '13.3.1'})
+        warning = ('b1: base built with GNU arm-none-eabi-gcc 14.2.1 MinSizeRel, current with GNU arm-none-eabi-gcc '
+                   '13.3.1 MinSizeRel: deltas may include the toolchain change')
+        self.assertEqual(r.rc, 0)
+        self.assertIn(f'  WARNING {warning}', r.out)
+        self.assertIn(f'- {warning}', r.md)
+        self.assertEqual(r.data['warnings'], [warning])
+        self.assertEqual(len(r.data['pairs']), 1)
+
+    def test_an_unavailable_ci_base_falls_back_by_default_and_fails_when_required(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], unavailable='gh not found')
+            self.assertEqual(r.rc, 0)
+            self.assertEqual(r.builds, [(os.path.join(tmp, '_worktree'), 'b1'), (sd.TINYUSB_ROOT, 'b1')])
+            self.assertIn(['worktree', 'add'], r.cmds)
+            self.assertIn('Base: local build of c0ffee (CI base unavailable: gh not found)', r.out)
+            self.assertTrue(r.md.startswith('Base: local build of c0ffee (CI base unavailable: gh not found)'))
+            self.assertEqual({k: r.data['base_source'][k] for k in ('requested', 'effective', 'reason', 'base_sha')},
+                             {'requested': 'default', 'effective': 'local', 'reason': 'gh not found', 'base_sha': 'c0ffee'})
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--base-source', 'ci'], unavailable='gh not found')
+        self.assertEqual((r.rc, r.builds, r.md), (1, [], None))
+        self.assertNotIn(['worktree', 'add'], r.cmds)
+        self.assertIn('Error: CI base unavailable: gh not found (--base-source local builds it)', r.out)
+
+    def test_options_a_ci_base_cannot_serve_use_a_local_base_or_are_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['-f', 'src/'])
+        self.assertEqual((r.rc, r.looked_up, len(r.builds)), (0, False, 2))
+        self.assertEqual(r.data['base_source']['reason'], '-f needs a local base')
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()), \
+             self.assertRaises(SystemExit):
+            self.diff(tmp, ['--base-source', 'ci', '--engine', 'linkermap'])
+
+    def test_an_explicit_local_base_makes_no_github_lookup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--base-source', 'local'])
+        self.assertEqual((r.rc, r.looked_up, len(r.builds)), (0, False, 2))
+        self.assertNotIn('Base:', r.out)
+        self.assertEqual(r.data['base_source']['effective'], 'local')
+
+    def test_a_failed_baseline_elf_stays_a_failure(self):
+        base = self.base(failures=[{'elf': 'device/n/n.elf', 'stage': 'report', 'message': 'boom'}])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[base], cur={'device/a/a.elf': _elf(3), 'device/n/n.elf': _elf(1)})
+        self.assertEqual(r.rc, 1)
+        self.assertEqual(r.data['current_only'], [])
+        self.assertIn('FAILED `b1: device/n/n.elf` base report: boom', r.md)
+
+    def test_a_board_without_a_baseline_is_a_failure_not_new_elfs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, [], base_shards=[_shard('b9', {}, sha='b')])
+        self.assertEqual(r.rc, 1)
+        self.assertEqual((r.data['pairs'], r.data['current_only']), ([], []))
+        self.assertIn('FAILED `b1` base snapshot: no baseline snapshot', r.md)
+
+    def test_a_snapshot_without_symbols_omits_them_with_a_warning_never_zero(self):
+        base = self.base()
+        base['elfs']['device/a/a.elf'].pop('symbols')
+        for argv in ([], ['-e', 'device/a', '--combined']):  # -e prints the changed tables too
+            with self.subTest(argv), tempfile.TemporaryDirectory() as tmp:
+                r = self.diff(tmp, ['--symbols'] + argv, base_shards=[base])
+                self.assertEqual(r.rc, 0)
+                self.assertIn('  WARNING b1: symbols omitted: the CI snapshot has none', r.out)
+                self.assertIn('b1: symbols omitted: the CI snapshot has none', r.data['warnings'])
+                if argv:
+                    with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
+                        self.assertIn('- b1: symbols omitted: the CI snapshot has none', f.read())
+
+    def test_a_failure_of_the_downloaded_run_itself_is_in_every_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.diff(tmp, ['--combined'], extra={'code-size-arm-gcc-x/code-size-b1.json': '{broken'})
+            with open(os.path.join(tmp, '_combined', 'diff.md')) as f:
+                combined = f.read()
+        self.assertEqual(r.rc, 1)
+        self.assertEqual(r.data['status'], 'INCOMPLETE')
+        self.assertIn('unreadable JSON', r.md)
+        self.assertIn('unreadable JSON', combined)
 
 
 if __name__ == '__main__':

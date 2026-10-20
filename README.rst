@@ -1,7 +1,7 @@
 TinyUSB
 =======
 
-|Sponsor| |Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
+|Sponsor| |License| |Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |CodeRabbit| |Greptile|
 
 Overview
 --------
@@ -357,6 +357,12 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |Membrowse| image:: https://membrowse.com/badge.svg
    :target: https://membrowse.com/public/hathach/tinyusb
+.. |CodeRabbit| image:: https://img.shields.io/coderabbit/prs/github/hathach/tinyusb?utm_source=oss&utm_medium=github&utm_campaign=hathach%2Ftinyusb&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews
+   :alt: CodeRabbit Pull Request Reviews
+   :target: https://coderabbit.ai
+.. |Greptile| image:: https://www.greptile.com/badge.svg
+   :alt: Greptile: The War on Bugs
+   :target: https://www.greptile.com/?utm_source=oss_badge&utm_medium=readme&utm_campaign=greptile_for_open_source
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 .. |Sponsor| image:: https://img.shields.io/badge/sponsor-%E2%9D%A4-ec6cb9.svg

@@ -399,6 +399,12 @@ static OSAL_SPINLOCK_DEF(_usbd_spin, usbd_int_set);
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
+// held by usbd_defer_func_after_queue(), set and run by the usbd task only
+static struct {
+  osal_task_func_t func;
+  void* param;
+} _usbd_after_queue;
+
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
   static osal_mutex_def_t _ubsd_mutexdef;
@@ -611,6 +617,7 @@ bool tud_deinit(uint8_t rhport) {
   // Deinit device queue & task
   osal_queue_delete(_usbd_q);
   _usbd_q = NULL;
+  tu_varclr(&_usbd_after_queue);
 
 #if OSAL_MUTEX_REQUIRED
   // TODO make sure there is no task waiting on this mutex
@@ -649,7 +656,18 @@ static void usbd_reset(uint8_t rhport) {
 
 bool tud_task_event_ready(void) {
   TU_VERIFY(tud_inited()); // Skip if stack is not initialized
-  return !osal_queue_empty(_usbd_q);
+  return !osal_queue_empty(_usbd_q) || _usbd_after_queue.func != NULL;
+}
+
+// the call usbd_defer_func_after_queue() holds; false if none
+static bool run_after_queue_call(void) {
+  osal_task_func_t const func = _usbd_after_queue.func;
+  if (func == NULL) {
+    return false;
+  }
+  _usbd_after_queue.func = NULL;
+  func(_usbd_after_queue.param);
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -686,8 +704,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
 #endif
     dcd_event_t event;
-    if (!osal_queue_receive(_usbd_q, &event, timeout_ms)) {
-      return;
+    if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
+      if (!run_after_queue_call()) {
+        return;
+      }
+      timeout_ms = 0;
+      continue;
     }
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
@@ -725,6 +747,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
         if (_usbd_queued_setup != 0) {
           TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
+          break;
+        }
+        if (!dcd_edpt0_setup_begin(event.rhport, event.setup_tagid)) {
+          TU_LOG_USBD("  Skipped since DCD saw a newer SETUP or bus reset\r\n");
           break;
         }
 
@@ -829,6 +855,13 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 //--------------------------------------------------------------------+
 // Control Endpoint
 //--------------------------------------------------------------------+
+
+// Weak hook: invoked when the stack starts processing a SETUP
+TU_ATTR_WEAK bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+  (void) rhport;
+  (void) setup_tagid;
+  return true;
+}
 
 // Weak hook: invoked when the control transfer's status stage completes
 TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t* request) {
@@ -1563,6 +1596,15 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   queue_event(&event, in_isr);
 }
 
+bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {
+  if (_usbd_after_queue.func != NULL) {
+    return _usbd_after_queue.func == func && _usbd_after_queue.param == param;
+  }
+  _usbd_after_queue.func = func;
+  _usbd_after_queue.param = param;
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 //--------------------------------------------------------------------+
@@ -1730,6 +1772,14 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     clear_mask |= TU_EDPT_STATE_CLAIMED;
   }
   _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear_mask;
+}
+
+// Not valid for EP0, where dcd_edpt_stall() means "stall the control transfer" rather than "cancel".
+// TODO replace this stall/clear-stall stand-in with a dcd_edpt_abort_xfer() returning bool, like
+// hcd_edpt_abort_xfer(): the stall is wire-visible and the clear resets the toggle.
+void usbd_edpt_abort(uint8_t rhport, uint8_t ep_addr) {
+  usbd_edpt_stall(rhport, ep_addr);
+  usbd_edpt_clear_stall(rhport, ep_addr);
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
