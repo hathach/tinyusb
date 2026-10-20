@@ -124,11 +124,15 @@ shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 
 This is much lower than the max ISO ep size of 1024 for high EP numbers.
 Place large isochronous endpoints on EP1 and size descriptors accordingly.
 
-Espressif ESP32-S2/S3
----------------------
+Espressif ESP32-S2/S3/P4
+------------------------
 **Severity: High** for a full-speed host with a low-speed device behind a full-speed hub
 
 Reference: espressif/esp-idf#15683, where ESP-IDF delays each low-speed control stage by 1 ms.
+
+Affects the full-speed USB OTG core: the only one on ESP32-S2/S3, and USB OTG 1.1 (port 0) on
+ESP32-P4. The high-speed core of ESP32-P4 (port 1) reaches low-speed devices through a high-speed
+hub's transaction translator and sends no preamble.
 
 To reach a low-speed device through a full-speed hub the host sends a preamble (PRE) packet before
 each low-speed packet. The transmitter can hang right after a PRE: the low-speed packet never
@@ -138,6 +142,10 @@ On ESP32-S3 with a logic analyzer on D+/D-, the hang only hit the PRE of a trans
 started while the last packet on the bus was a low-speed one (about 2% of those, independent of the
 idle gap). A PRE after an SOF or another full-speed packet, inside a transaction, or of the core's
 own NAK retries and multi-packet sequence never hung.
+
+On the ESP32-P4 port 0 with two low-speed HID devices and a flash drive behind a full-speed hub, the
+root port dropped and re-enumerated every 1.5-2 s in 4 of 5 boots without the mitigation, and never
+with it, in either slave or DMA mode.
 
 Mitigation in TinyUSB: ``hcd_dwc2`` lets one preamble channel own the bus at a time and starts the
 next one only in a frame after the previous one halted, which puts an SOF between them. A port

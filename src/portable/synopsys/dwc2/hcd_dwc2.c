@@ -34,15 +34,16 @@
 
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-// On ESP32-S2/S3 a low-speed device behind a full-speed hub can hang the host's transmitter: it sends the preamble
-// packet but never the low-speed packet after it, and drops the port on the timeout. ESP-IDF delays each low-speed
-// control stage by 1 ms (espressif/esp-idf#15683). On ESP32-S3 the hang only hit the preamble of a transaction the
-// driver started while the last packet on the bus was a low-speed one, about one in fifty of those whatever the gap.
-// A preamble after an SOF or another full-speed packet, within a transaction, or of the core's own NAK retries and
-// packet sequence never hung. So one preamble channel owns the bus at a time, and the next may start only in a frame
-// after the one its predecessor halted in, which puts an SOF in between. The port-disable recovery remains the
-// backstop. Directly attached low-speed devices use no preamble and are not affected.
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
+// On the full-speed core of ESP32-S2/S3 and ESP32-P4 (OTG 1.1) a low-speed device behind a full-speed hub can hang the
+// host's transmitter: it sends the preamble packet but never the low-speed packet after it, and drops the port on the
+// timeout. ESP-IDF delays each low-speed control stage by 1 ms (espressif/esp-idf#15683). On ESP32-S3 the hang only
+// hit the preamble of a transaction the driver started while the last packet on the bus was a low-speed one, about one
+// in fifty of those whatever the gap. A preamble after an SOF or another full-speed packet, within a transaction, or of
+// the core's own NAK retries and packet sequence never hung. So one preamble channel owns the bus at a time, and the
+// next may start only in a frame after the one its predecessor halted in, which puts an SOF in between. The
+// port-disable recovery remains the backstop. Directly attached low-speed devices use no preamble and are not
+// affected, and neither is the high-speed core of ESP32-P4 (see ls_needs_preamble()).
 #define DWC2_LS_ONE_XACT_PER_FRAME 1
 #else
 #define DWC2_LS_ONE_XACT_PER_FRAME 0
@@ -247,7 +248,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool ls_needs_preamble(const dwc2_regs_t* dw
   const dwc2_channel_split_t splt_bm = {.value = hcsplt};
   const dwc2_hprt_t hprt = {.value = dwc2->hprt};
   // high/full speed device, split transaction or low-speed root port: no preamble, nothing to space out
-  return char_bm.low_speed_dev && !splt_bm.split_en && hprt.speed == HPRT_SPEED_FULL;
+  if (!(char_bm.low_speed_dev && !splt_bm.split_en && hprt.speed == HPRT_SPEED_FULL)) {
+    return false;
+  }
+  // only the full-speed core hangs: a high-speed one (ESP32-P4 OTG 2.0) is left alone even when running at full speed
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return ghwcfg2.hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED;
 }
 
 // Take the bus for this channel until it halts. Returns false while another preamble channel is in flight or the
