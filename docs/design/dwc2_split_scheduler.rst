@@ -398,8 +398,10 @@ after cancellation or report a transfer twice.
 **R05 -- ISO OUT ownership.** Model one contiguous ISO OUT packet's reserved
 SS sequence on its TT. The current implementation holds interrupt SS between
 BEGIN and END and releases them after END is admitted. Preserve that observed
-compatibility behavior unless an alternative is justified and tested. CS may
-occur between pieces. The blanket exclusion rule is retained as a hardware
+compatibility behavior unless an alternative is justified and tested. The ISO
+OUT packet itself has no CS (U13); complete-splits of other transactions on the
+TT, interrupt or isochronous IN, may occur between its pieces and were
+harmless on the tested hub. The blanket exclusion rule is retained as a hardware
 observation/policy, not asserted here as a directly quoted USB MUST.
 [EVIDENCE]_
 
@@ -621,8 +623,11 @@ new IRQ-jitter qualification. The 26-case matrix ran on the previous broad
 guard, not this narrower guard; it must not be relabeled. Raw Windows scope
 and full pre-commit submission gates remain open. Original firmware was restored.
 
-Local review artifacts (outside Git) are under
-``.review-artifacts/pr-4195-original-issues/`` in the primary checkout:
+The raw review artifacts are not part of this repository and cannot be
+reproduced from a fresh checkout; the observations above are their summary,
+and the hardware results are reported on the pull request (#4265). For the
+record, they were kept outside Git under
+``.review-artifacts/pr-4195-original-issues/`` on the author's machine:
 ``startup-investigation/investigation-result.json``,
 ``startup-investigation/independent-investigation-summary.json``, and
 ``spec-review/independent-commit-association.json``. [EVIDENCE]_
@@ -733,6 +738,7 @@ vendor document is embedded in this repository.
 
 The Linux DWC2 implementation is useful as a comparison, not a normative
 substitute for these sources: `hcd_intr.c
-<https://github.com/torvalds/linux/blob/master/drivers/usb/dwc2/hcd_intr.c>`_.
+<https://github.com/torvalds/linux/blob/v6.12/drivers/usb/dwc2/hcd_intr.c>`_
+(pinned to Linux v6.12 for reference).
 This study does not copy its scheduler or claim that all of its workarounds
 are necessary for TinyUSB.

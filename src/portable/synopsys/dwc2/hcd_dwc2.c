@@ -164,6 +164,9 @@ typedef struct {
   uint8_t* buffer;
   uint16_t buflen;
   uint16_t periodic_frame; // frame/microframe number of the last scheduled periodic transaction
+#if HCD_SPLIT
+  uint16_t periodic_xferred; // bytes a periodic split OUT transfer sent before its retry in a later service interval
+#endif
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -1652,6 +1655,9 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
     xfer->ep_id = ep_id;
     xfer->result = XFER_RESULT_INVALID;
     xfer->err_count = edpt->periodic_err; // a periodic retry keeps the errors of its transfer
+#if HCD_SPLIT
+    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes a split OUT one already sent
+#endif
     if (is_period) {
       edpt->periodic_phase = 1;
       edpt->xfer_pending = 0;
@@ -1716,6 +1722,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   edpt->buffer = buffer;
   edpt->buflen = buflen;
   edpt->periodic_err = 0; // idle endpoint: the ISR does not write this word
+#if HCD_SPLIT
+  edpt->periodic_xferred = 0;
+#endif
 
   if (ep_num == 0) {
     // update ep_dir since control endpoint can switch direction
@@ -1909,6 +1918,9 @@ static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
   if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
     edpt->periodic_err = xfer->err_count;
+  #if HCD_SPLIT
+    edpt->periodic_xferred = xfer->xferred_bytes; // the channel is released: keep what the packets sent so far count
+  #endif
     periodic_xfer_defer(dwc2, edpt, true);
   #if HCD_SPLIT
     split_iso_out_close(dwc2, ch_id);
@@ -2052,6 +2064,22 @@ static bool channel_iso_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
   split_iso_out_close(dwc2, ch_id);
   return true;
 }
+
+// Slave mode: an interrupt split OUT whose start-split packet is not yet written when its microframe has passed would
+// go out late, its complete-splits timed from that microframe. Disable it instead (nothing of it is queued); its halt
+// restarts the transfer in the next service interval, see channel_xfer_out_restart().
+static bool channel_split_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  const hcd_xfer_t*         xfer    = &_hcd_data.xfer[ch_id];
+  dwc2_channel_t*           channel = &dwc2->channel[ch_id];
+  const dwc2_channel_char_t hcchar  = {.value = channel->hcchar};
+  if ((channel->hcsplt & (HCSPLT_SPLITEN | HCSPLT_COMPLSPLT)) != HCSPLT_SPLITEN ||
+      hcchar.ep_type != HCCHAR_EPTYPE_INTERRUPT || xfer->split_issued ||
+      uframe_ahead(xfer->split_uframe, dwc2->hfnum) >= 0) {
+    return false;
+  }
+  channel_disable(dwc2, channel);
+  return true;
+}
   #endif
 
 // A complete-split of an isochronous split IN packet returned data. Its MDATA PID continues the packet: arm the next
@@ -2062,8 +2090,12 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   const hcd_endpoint_t*      edpt    = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_t*            channel = &dwc2->channel[ch_id];
   const dwc2_channel_tsize_t done    = {.value = channel->hctsiz};
-  if (done.pid != HCTSIZ_PID_MDATA || xfer->xferred_bytes >= edpt->buflen) {
+  if (done.pid != HCTSIZ_PID_MDATA) {
     xfer->result = XFER_RESULT_SUCCESS;
+    return false;
+  }
+  if (xfer->xferred_bytes >= edpt->buflen) {
+    xfer->result = XFER_RESULT_FAILED; // more data than the buffer takes, babble for a non-split packet
     return false;
   }
 
@@ -2217,7 +2249,7 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
         0 == (channel->hcintmsk & HCINT_HALTED) && hcchar.ep_dir == TUSB_DIR_OUT &&
         (passes == 1u || (hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) == (i >= max_channel))) {
 #if HCD_SPLIT
-      if (is_periodic && channel_iso_out_late(dwc2, ch_id)) {
+      if (is_periodic && (channel_iso_out_late(dwc2, ch_id) || channel_split_out_late(dwc2, ch_id))) {
         continue;
       }
 #endif
