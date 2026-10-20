@@ -1721,7 +1721,9 @@ def reset_dut_tt(board: Board) -> bool:
         _dut_port[board['uid']] = (busport, speed)
     if board['uid'] in _dut_port:
         # a gone device keeps the speed it was seen at: a high-speed one has no TT to reset
-        return hil_tt.reset_tt(*_dut_port[board['uid']])
+        # this harness's runner (its REAP_GRACE and verbose), looked up per call
+        return hil_tt.reset_tt(*_dut_port[board['uid']],
+                               run=lambda cmd, **kw: hil_util.run_cmd(cmd, **kw))
     return True
 
 

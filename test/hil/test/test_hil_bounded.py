@@ -184,31 +184,6 @@ class UsbtestRecovery(unittest.TestCase):
         self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
 
 
-class UsbtestRunHelper(unittest.TestCase):
-    """usbtest.run() is the bounded replacement for subprocess.run: sysfs_write feeds it
-    input=, and every battery calls that before case 1."""
-
-    def setUp(self):
-        import usbtest
-        self.usbtest = usbtest
-
-    def test_input_kwarg_is_honoured(self):
-        r = self.usbtest.run(['cat'], input='payload', timeout=10)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, 'payload')
-
-    def test_capture_output_kwarg_is_accepted(self):
-        r = self.usbtest.run(['printf', 'x'], capture_output=True, timeout=10)
-        self.assertEqual(r.stdout, 'x')
-
-    def test_timeout_is_bounded_and_raises(self):
-        import subprocess
-        t0 = time.monotonic()
-        with self.assertRaises(subprocess.TimeoutExpired):
-            self.usbtest.run(['sleep', '30'], timeout=1)
-        self.assertLess(time.monotonic() - t0, 15)
-
-
 class BuildBoardContract(unittest.TestCase):
     def build(self, rc, out):
         from unittest import mock
@@ -434,6 +409,8 @@ class RemoteStaging(unittest.TestCase):
         self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', launched, 'the by-path walk went vacuous')
         self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', launched,
                       'the by-path walk missed the openocd_esp session helper')
+        for f in ('hil_tt.py', 'hil_usbtest.py'):
+            self.assertIn(f'lib/agentrc/skills/hil/scripts/{f}', loaded, f'the load walk missed {f}')
         for f in sorted(launched):
             # in `requires` too, so a tree lacking it is refused before any tool runs
             self.assertIn(f, loaded, f'{f} is loaded or launched by path but no agentrc.load requires it')
@@ -453,7 +430,7 @@ class RemoteStaging(unittest.TestCase):
         code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
                 'p, e = hil_util.provider(), hil_util.openocd_esp()\n'
                 'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.ESP_SESSION,'
-                ' sep="\\n")\n')
+                ' hil_test.hil_tt.__file__, hil_test.usbtest.hil_usbtest.__file__, sep="\\n")\n')
         with TemporaryDirectory() as td:
             root = Path(td).resolve()
             for rel in staged:
@@ -469,6 +446,7 @@ class RemoteStaging(unittest.TestCase):
                                                          str(scripts / 'hil_openocd_esp.py')])
             self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
                              str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            self.assertEqual(r.stdout.splitlines()[5:], [str(scripts / 'hil_tt.py'), str(scripts / 'hil_usbtest.py')])
             (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
             r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
                                capture_output=True, text=True, timeout=60)
@@ -703,20 +681,18 @@ class _FakeProc:
 
 class RunCaseConfirmsByReap(unittest.TestCase):
     """HUNG is 'SIGKILL not reaped in 5 s', which a finite hold on the DUT's device lock also
-    produces. Watching our child for WEDGE_CONFIRM_S tells the two apart: reaped late is a
-    timeout, not a wedge (#3944).
-    Under sudo the child is the wrapper, so its reaping proves nothing."""
+    produces. The provider watches our child for WEDGE_CONFIRM_S to tell the two apart (#3944,
+    tested in agentrc); through usbtest's run_case the watch is this harness's window and a
+    HUNG case keeps the child handle main() watches after the recovery step."""
 
-    def _run_case(self, sudo: bool, reaps_late: bool):
+    def test_a_child_still_stuck_after_the_window_is_hung_with_its_handle(self):
         import usbtest
 
         class Popen:
             def __init__(self, cmd, **kw):
                 self.cmd = cmd
-                self.communicates = 0
 
             def communicate(self, timeout=None):
-                self.communicates += 1
                 raise subprocess.TimeoutExpired(self.cmd, timeout)
 
             def kill(self):
@@ -724,32 +700,14 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 
             def wait(self, timeout=None):
                 self.waited = timeout
-                if not reaps_late:
-                    raise subprocess.TimeoutExpired(self.cmd, timeout)
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
 
-        usbtest_harness.patch(self, usbtest.subprocess, 'Popen', Popen)
-        usbtest_harness.patch(self, usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.os, 'access', lambda p, m: not sudo)
-        usbtest_harness.patch(self, usbtest.os, 'geteuid', lambda: 1000)
-        return usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
-
-    def test_a_child_reaped_within_the_window_is_a_late_timeout(self):
-        r = self._run_case(sudo=False, reaps_late=True)
-        self.assertEqual(r['status'], 'FAIL')
-        self.assertTrue(r['late_cleared'])
-        self.assertIn('landed', r['detail'])
-        self.assertNotIn('_proc', r)
-
-    def test_a_child_still_stuck_after_the_window_is_hung_with_its_handle(self):
-        import usbtest
-        r = self._run_case(sudo=False, reaps_late=False)
-        self.assertEqual(r['status'], 'HUNG')
+        usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen', Popen)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
+        r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
+        self.assertEqual((r['status'], r['num']), ('HUNG', 1))
         self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
-
-    def test_under_sudo_the_wrapper_reaping_proves_nothing(self):
-        r = self._run_case(sudo=True, reaps_late=True)
-        self.assertEqual(r['status'], 'HUNG')
-        self.assertIsNone(r['_proc'], 'the wrapper is not the child to watch')
 
 
 class HangRecoveryOnTheMainPath(unittest.TestCase):
@@ -777,10 +735,10 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
-        patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest.hil_usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
@@ -1845,34 +1803,6 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         self.assertIn('no cafe:4010 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
-class SudoSoftNeverRaises(unittest.TestCase):
-    """Two of its four call sites are inside run_case's timeout handler, where ANY raise
-    costs the HUNG verdict, the recovery and the JSON report -- and sudo() sys.exit()s on
-    'a password is required', which is a raise like any other."""
-
-    def setUp(self):
-        import usbtest
-        self.u = usbtest
-        self.addCleanup(setattr, usbtest, 'sudo', usbtest.sudo)
-
-    def _check(self, exc):
-        def boom(*a, **k):
-            raise exc
-        self.u.sudo = boom
-        r = self.u._sudo_soft(['dmesg'])            # must not propagate
-        self.assertEqual(r.returncode, 1)
-        self.assertIn(f'dmesg: {type(exc).__name__}: {exc}', r.stderr)   # callers quote it
-
-    def test_systemexit_from_a_password_prompt_is_contained(self):
-        self._check(SystemExit('sudo needs a password'))
-
-    def test_oserror_is_contained(self):
-        self._check(OSError('no such binary'))
-
-    def test_subprocess_error_is_contained(self):
-        self._check(subprocess.SubprocessError('timed out'))
-
-
 class UsbtestNeverCleansUp(unittest.TestCase):
     """main's finally writes nothing: remove_id makes the next registration wait on peers'
     in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
@@ -1890,23 +1820,6 @@ class UsbtestNeverCleansUp(unittest.TestCase):
             # every registry/bind write goes through sysfs_write
             self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
-
-class SysfsWriteTimeoutNamesTheUncertainty(unittest.TestCase):
-    def test_a_blocked_write_is_contention_or_a_wedge_and_stays_bounded(self):
-        import usbtest
-        seen = {}
-
-        def blocked(cmd, **kw):
-            seen.update(kw)
-            raise subprocess.TimeoutExpired(cmd, kw.get('timeout'))
-        self.addCleanup(setattr, usbtest, 'sudo', usbtest.sudo)
-        usbtest.sudo = blocked
-        with self.assertRaises(SystemExit) as cm:
-            usbtest.sysfs_write('/sys/bus/usb/drivers/usbtest/new_id', 'cafe 4010 0 0525 a4a0')
-        self.assertEqual(seen.get('timeout'), 15)
-        msg = str(cm.exception)
-        self.assertIn('possible device-lock contention or a wedged device', msg)
-        self.assertNotIn('USB subsystem is wedged', msg)
 
 if __name__ == '__main__':
     unittest.main()
