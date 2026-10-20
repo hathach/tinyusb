@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import usbtest_harness   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
-from helper import hil_pool_check   # noqa: E402
+from helper import farm_profile   # noqa: E402
 
 RTT_BOARD = {'name': 'b', 'uid': 'U', 'logger': 'rtt', 'flasher': {'name': 'jlink', 'uid': 'P'}}
 VCOM_BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
@@ -23,18 +23,18 @@ VCOM_BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'
 class ResetCallersKeepTheirOrder(unittest.TestCase):
     """An RTT console owns the probe, so the reset precedes it and the ring keeps the boot
     burst; a VCOM survives the reset, so it opens first to catch the banner, and
-    hil_pool_check also flushes the pre-reset backlog before resetting."""
+    farm_profile also flushes the pre-reset backlog before resetting."""
 
     def setUp(self):
         self.calls = []
-        self.patch(hil_pool_check, 'say', lambda msg: None)
+        self.patch(farm_profile, 'say', lambda msg: None)
 
     def patch(self, obj, name, value):
         usbtest_harness.patch(self, obj, name, value)
 
     def fake_reset(self, rc=0):
         self.patch(hil_flash, 'reset_primitive', lambda name: (
-            lambda board: self.calls.append(('reset', name)) or types.SimpleNamespace(returncode=rc, stdout=b'')))
+            lambda board, **kw: self.calls.append(('reset', name)) or types.SimpleNamespace(returncode=rc, stdout=b'')))
 
     def no_reset(self):
         self.patch(hil_flash, 'reset_primitive', lambda name: None)
@@ -59,7 +59,7 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
             def close(self):
                 pass
         self.patch(sys.modules['serial'], 'Serial', Console)
-        self.patch(hil_pool_check.hil_util, 'get_serial_dev', lambda *a: '/dev/null')
+        self.patch(farm_profile.hil_util, 'get_serial_dev', lambda *a: '/dev/null')
 
     def console(self, board):
         self.patch(hil_test, 'open_board_console', lambda b: self.calls.append('open') or 'console')
@@ -85,10 +85,10 @@ class ResetCallersKeepTheirOrder(unittest.TestCase):
         self.console(dict(VCOM_BOARD, flasher={'name': 'esptool'}))
         self.assertEqual(self.calls, ['open'])
 
-    def test_pool_check_flushes_a_vcom_before_resetting(self):
+    def test_farm_check_flushes_a_vcom_before_resetting(self):
         self.fake_consoles()
         self.fake_reset()
-        self.assertTrue(hil_pool_check.check_host_serial(VCOM_BOARD, want_hello=True))
+        self.assertTrue(farm_profile.check_host_serial(VCOM_BOARD, want_hello=True))
         self.assertEqual(self.calls, ['open', 'flush', ('reset', 'openocd')])
 
 

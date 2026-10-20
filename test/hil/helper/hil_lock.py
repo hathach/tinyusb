@@ -28,7 +28,7 @@ _lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ ==
 
 def boards_from_config(config: str) -> list:
     """All board names, INCLUDING boards-skip: `hold --all` guards rig-wide
-    operations, and parked boards can still be touched (pool_check -b names them
+    operations, and parked boards can still be touched (a farm check -b names them
     explicitly), so a rig-wide hold that skipped them would leave a gap."""
     try:
         with open(config) as f:

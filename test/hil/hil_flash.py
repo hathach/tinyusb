@@ -3,8 +3,9 @@
 # Firmware flashing for the TinyUSB HIL rig: board-shaped flash_*/reset_* over agentrc's flash
 # provider (hil_util.provider(), the `hil` skill's Flashers), dispatched by roster name through
 # flash_primitive/reset_primitive, plus find_firmware. tinyusb supplies the bounds, the runner
-# (hil_util.run_cmd, read per call), retries and per-board settings; openocd_esp's server is the
-# provider's own managed session (hil_util.openocd_esp()). The provider loads on first use, so
+# (a caller's keyword-only `run=`, else hil_util.run_cmd read per call; openocd_esp takes none),
+# retries and per-board settings; openocd_esp's server is the provider's own managed session
+# (hil_util.openocd_esp()). The provider loads on first use, so
 # change_impact imports this on a bare checkout; never import hil_test here. Callers set
 # `build_dir`. `from __future__ import annotations` keeps the Board hints unevaluated.
 
@@ -38,27 +39,31 @@ def _bound(timeout):
     return hil_util.CMD_TIMEOUT if timeout is None else timeout
 
 
+def _runner(run):
+    return hil_util.run_cmd if run is None else run
+
+
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
-def flash_jlink(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
+def flash_jlink(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
     return hil_util.provider().flash_jlink(board['flasher'], firmware, timeout=_bound(timeout),
-                                           crash_retries=JLINK_CRASH_RETRIES, run=hil_util.run_cmd)
+                                           crash_retries=JLINK_CRASH_RETRIES, run=_runner(run))
 
 
-def reset_jlink(board: Board, timeout=None) -> subprocess.CompletedProcess:
+def reset_jlink(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
     return hil_util.provider().reset_jlink(board['flasher'], timeout=_bound(timeout),
-                                           crash_retries=JLINK_CRASH_RETRIES, run=hil_util.run_cmd)
+                                           crash_retries=JLINK_CRASH_RETRIES, run=_runner(run))
 
 
-def flash_stlink(board, firmware, timeout=None):
+def flash_stlink(board, firmware, timeout=None, *, run=None):
     # --verify is opt-in per roster entry ("verify": true): the provider's flash_stlink
     return hil_util.provider().flash_stlink(board['flasher'], firmware, timeout=_bound(timeout),
-                                            run=hil_util.run_cmd)
+                                            run=_runner(run))
 
 
-def reset_stlink(board, timeout=None):
-    return hil_util.provider().reset_stlink(board['flasher'], timeout=_bound(timeout), run=hil_util.run_cmd)
+def reset_stlink(board, timeout=None, *, run=None):
+    return hil_util.provider().reset_stlink(board['flasher'], timeout=_bound(timeout), run=_runner(run))
 
 
 def _openocd_cmd_base(flasher):
@@ -68,14 +73,14 @@ def _openocd_cmd_base(flasher):
 
 # `verify` is on by default, opted out per board with "verify": false (the provider's
 # flash_openocd holds which boards and why)
-def flash_openocd(board, firmware, timeout=None):
+def flash_openocd(board, firmware, timeout=None, *, run=None):
     return hil_util.provider().flash_openocd(board['flasher'], firmware, timeout=_bound(timeout),
-                                             run=hil_util.run_cmd)
+                                             run=_runner(run))
 
 
-def reset_openocd(board, timeout=None):
+def reset_openocd(board, timeout=None, *, run=None):
     # timeout: usbtest's post-hang recovery bounds this (RECOVER_RESET_TIMEOUT)
-    return hil_util.provider().reset_openocd(board['flasher'], timeout=_bound(timeout), run=hil_util.run_cmd)
+    return hil_util.provider().reset_openocd(board['flasher'], timeout=_bound(timeout), run=_runner(run))
 
 
 def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
@@ -118,7 +123,7 @@ def _idf_target(fw_dir: Path) -> str:
         return json.load(f)['IDF_TARGET']
 
 
-def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
+def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
     flasher = board['flasher']
     port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
     fw_dir = Path(firmware).parent
@@ -126,7 +131,34 @@ def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.Compl
     with (fw_dir / 'flash_args').open() as f:
         flash_args = f.read().strip().replace('\n', ' ')
     return hil_util.provider().flash_esptool(flasher, chip=idf_target, port=port, flash_args=flash_args,
-                                             cwd=str(fw_dir), timeout=_bound(timeout), run=hil_util.run_cmd)
+                                             cwd=str(fw_dir), timeout=_bound(timeout), run=_runner(run))
+
+
+def esptool_input_problem(firmware) -> str:
+    """Why flash_esptool could not flash this build ('' when it could): its dir's config.env
+    with an IDF_TARGET, and a flash_args of options then "<offset> <file>" pairs, every file
+    present beside it. Checked before a board is locked, so a flash cannot fail on its inputs."""
+    fw_dir = Path(firmware).parent
+    try:
+        target = _idf_target(fw_dir)
+        tokens = shlex.split((fw_dir / 'flash_args').read_text())
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return f'{fw_dir}: {e!r}'[:200]
+    if not isinstance(target, str) or not target:
+        return f'{fw_dir}/config.env: IDF_TARGET {target!r}'
+    while tokens and tokens[0].startswith('-'):
+        if '=' not in tokens.pop(0) and tokens:
+            tokens.pop(0)
+    if not tokens or len(tokens) % 2:
+        return f'{fw_dir}/flash_args: want "<offset> <file>" pairs after the options'
+    for offset, f in zip(tokens[::2], tokens[1::2]):
+        try:
+            int(offset, 0)
+        except ValueError:
+            return f'{fw_dir}/flash_args: offset {offset!r}'
+        if not (fw_dir / f).is_file():
+            return f'{fw_dir}/flash_args names {f}, which is missing'
+    return ''
 
 
 # no reset_esptool: esptool's reset would be `--after hard_reset`, which is not wired here
@@ -276,9 +308,9 @@ def reset_openocd_esp(board, timeout=None):
                                                                      timeout=_bound(timeout)))
 
 
-def flash_lm4flash(board, firmware, timeout=None):
+def flash_lm4flash(board, firmware, timeout=None, *, run=None):
     return hil_util.provider().flash_lm4flash(board['flasher'], firmware, timeout=_bound(timeout),
-                                              run=hil_util.run_cmd)
+                                              run=_runner(run))
 
 
 # no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
@@ -294,14 +326,14 @@ def unfiltered_pyocd(board: dict) -> bool:
     return any(pyocd_vid_pid(f) is None for f in flashers(board, 'pyocd'))
 
 
-def flash_pyocd(board, firmware, timeout=None):
+def flash_pyocd(board, firmware, timeout=None, *, run=None):
     return hil_util.provider().flash_pyocd(board['flasher'], firmware, project_dir=str(PYOCD_PROJECT_DIR),
-                                           timeout=_bound(timeout), run=hil_util.run_cmd)
+                                           timeout=_bound(timeout), run=_runner(run))
 
 
-def reset_pyocd(board, timeout=None):
+def reset_pyocd(board, timeout=None, *, run=None):
     return hil_util.provider().reset_pyocd(board['flasher'], project_dir=str(PYOCD_PROJECT_DIR),
-                                           timeout=_bound(timeout), run=hil_util.run_cmd)
+                                           timeout=_bound(timeout), run=_runner(run))
 
 
 def flash_primitive(flasher_name: str):
