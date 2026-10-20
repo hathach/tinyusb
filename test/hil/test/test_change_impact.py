@@ -213,9 +213,14 @@ class TestClassIncludeEdges(unittest.TestCase):
 
 
 class TestFallbackRules(unittest.TestCase):
-    def test_unknown_tool_is_full(self):
-        s = sel(['tools/random_new_script.py'])
+    def test_unknown_build_input_is_full(self):                     # rule 17a
+        s = sel(['src/newdir/x.c'])
         self.assertTrue(s['full'])
+
+    def test_unknown_tool_contributes_nothing(self):                # rule 17b
+        s = sel(['tools/random_new_script.py'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
 
     def test_noncode_only_is_empty_not_full(self):
         s = sel(['docs/info/contributing.rst', 'README.rst', 'src/portable/synopsys/dwc2/dwc2_info.py'])
@@ -312,7 +317,8 @@ class TestArgsEmission(unittest.TestCase):
         self.assertIn('-bt raspberry_pi_pico:', a)   # device-only subset of a device+host board
 
     def test_args_full_is_empty(self):
-        s = sel(['tools/random_new_script.py'])
+        s = sel(['src/newdir/x.c'])
+        self.assertTrue(s['full'])
         self.assertEqual(change_impact.selection_args(s, ROSTERS), {'tinyusb.json': ''})
 
     def test_args_all_board_gets_bare_b(self):
@@ -335,7 +341,8 @@ class TestArgsEmission(unittest.TestCase):
         self.assertEqual(per, {'openocd': '-b raspberry_pi_pico'})
 
     def test_args_by_flasher_full_is_empty(self):
-        s = sel(['tools/random_new_script.py'])
+        s = sel(['src/newdir/x.c'])
+        self.assertTrue(s['full'])
         self.assertEqual(change_impact.selection_args_by_flasher(s, ROSTERS), {'tinyusb.json': {}})
 
     def test_cli_diff_file(self):
@@ -1221,17 +1228,27 @@ class TestRuleTableMatchesTheCode(unittest.TestCase):
         self.assertEqual(missing, [], f'documented rules with no `# rule N` branch marker: {missing}')
 
 
-class TestNoTrackedFileIsUnclassified(unittest.TestCase):
-    """Rule 17 (unclassified -> full on both axes) is the fail-open net for paths nobody
-    anticipated. It must stay that way - a wrong `full` costs runner minutes and is
-    visible in the run, a wrong `empty` costs a merged regression and is invisible - but
-    nothing in the tree should REACH it. Every tracked file is classified by a rule, so
-    17 fires only for genuinely new shapes, and this test is what tells the author to
-    write the row instead of letting the fall-through pick an answer for them.
+class TestNoBuildInputIsUnclassified(unittest.TestCase):
+    """Rule 17a (unclassified in a build-input location -> full on both axes) is the
+    fail-open net for build inputs nobody anticipated. It must stay that way - a wrong
+    `full` costs runner minutes and is visible in the run, a wrong `empty` costs a merged
+    regression and is invisible - but nothing in the tree should REACH it, so 17a fires
+    only for genuinely new shapes, and this test is what tells the author to write the row
+    instead of letting the fall-through pick an answer for them. Outside those locations
+    17b's empty answer is intended and needs no row.
 
     Before this guard, 254 tracked files reached 17: .gitignore took a docs-only PR to
     74 cmake legs and the whole rig, while examples/<role>/CMakeLists.txt got the RIGHT
     answer from the wrong rule - row 15 names it, the regex never matched it."""
+
+    @staticmethod
+    def _unclassified_of(files, axis):
+        # one walk per axis: both record every path, even after one forces full
+        if axis == 'build':
+            return [p['path'] for p in change_impact.classify_build(files, REPO)['paths']
+                    if p['rule'] == 'unclassified']
+        reasons = set(change_impact.classify(files, REPO, real_rosters())['reasons'])
+        return [f for f in files if f'{f}: unclassified -> full matrix' in reasons]
 
     def _unclassified(self, axis):
         import subprocess as sp
@@ -1240,13 +1257,13 @@ class TestNoTrackedFileIsUnclassified(unittest.TestCase):
             self.skipTest('not a git checkout')
         files = r.stdout.split()
         self.assertGreater(len(files), 1000, 'suspiciously few tracked files')
-        out = []
-        for f in files:
-            s = (change_impact.classify_build([f], REPO) if axis == 'build'
-                 else change_impact.classify([f], REPO, real_rosters()))
-            if any('unclassified' in why for why in s['reasons']):
-                out.append(f)
-        return out
+        return self._unclassified_of(files, axis)
+
+    def test_guard_flags_only_unknown_build_inputs(self):
+        files = ['.newbot/config.json', 'tools/newscript.py', 'tools/unclassified.py',
+                 'src/device/unclassified.c', 'src/newdir/x.c', 'toolchain.cmake', 'src/device/usbd.c']
+        for axis in ('build', 'hil'):
+            self.assertEqual(self._unclassified_of(files, axis), ['src/newdir/x.c', 'toolchain.cmake'], axis)
 
     def test_build_axis(self):
         left = self._unclassified('build')
@@ -1258,6 +1275,116 @@ class TestNoTrackedFileIsUnclassified(unittest.TestCase):
         left = self._unclassified('hil')
         self.assertEqual(left, [], f'{len(left)} tracked files fall through to rule 17 on '
                                    f'the HIL axis, e.g. {left[:5]}')
+
+
+class TestBuildScriptImportsAreClassified(unittest.TestCase):
+    """Rule 17b drops an unclassified tools/ path, so a tools/ script that a build or
+    selection script reaches needs a rule that selects: an edit to that helper alone would
+    otherwise build nothing. Reached means a static import (transitive, aliases and
+    function-level ones included), a literal `tools/<name>` in a build file, or a literal
+    '<name>.py' in an entry script - tools/membrowse_report.py was run both ways. Computed
+    paths, runpy/spec_from_file_location and data files are not covered."""
+    BUILD_FILES = ('hw/bsp/**/*.cmake', 'hw/bsp/**/*.mk', 'examples/build_system/**/*',
+                   'src/CMakeLists.txt', 'src/tinyusb.mk', '.github/workflows/build*.yml',
+                   '.github/actions/**/*')
+    # family_rules.mk runs it only for $(PROJECT)-sunxi.bin, flash-xfel's image, which no CI build makes
+    UNBUILT_OK = {'tools/mksunxi.py'}
+    ENTRY = ('tools/build.py', 'tools/build_utils.py', 'tools/family_json.py', 'tools/get_deps.py',
+             'tools/code_size.py', 'tools/membrowse_cli.py', 'tools/change_impact.py',
+             '.github/scripts/ci_set_matrix.py', '.github/scripts/hil_ci_set_matrix.py',
+             '.claude/skills/build/scripts/check_build.py')
+
+    @staticmethod
+    def _tools_imports(path, root):
+        import ast
+        def top(dotted):                     # `tools.x` is tools/x.py, not tools/tools.py
+            parts = dotted.split('.')
+            return parts[1] if parts[0] == 'tools' and len(parts) > 1 else parts[0]
+        names = set()
+        for n in ast.walk(ast.parse(_read(os.path.join(root, path)))):
+            if isinstance(n, ast.Import):
+                names |= {top(a.name) for a in n.names}
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module == 'tools':
+                names |= {a.name for a in n.names}
+            elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
+                names.add(top(n.module))
+        return {f'tools/{m}.py' for m in names if os.path.isfile(os.path.join(root, 'tools', f'{m}.py'))}
+
+    @staticmethod
+    def _tree(root, files):
+        for rel, body in files.items():
+            os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+            with open(os.path.join(root, rel), 'w') as f:
+                f.write(body)
+
+    def _literal_refs(self, entry, root):
+        import re as _re
+        refs = set()
+        for pat in self.BUILD_FILES:
+            for f in glob.glob(change_impact._rg(root, pat), recursive=True):
+                if os.path.isfile(f):
+                    refs |= set(_re.findall(r'tools/[\w.-]+\.(?:py|sh)\b', _read(f)))
+        for e in entry:
+            refs |= {f'tools/{m}' for m in _re.findall(r"""['"]([\w-]+\.py)['"]""", _read(os.path.join(root, e)))}
+        return {r for r in refs if os.path.isfile(os.path.join(root, r))}
+
+    @staticmethod
+    def _selects(path):
+        return any(r['effect'] in ('select', 'full') for r in change_impact.classify_build([path], REPO)['paths'])
+
+    def _unselected(self, entry, root=REPO, literal=None):
+        literal = self._literal_refs(entry, root) if literal is None else literal
+        imported, parsed = set(), set()
+        todo = list(entry) + [m for m in literal if m.endswith('.py')]
+        while todo:
+            p = todo.pop()
+            if p in parsed:
+                continue
+            parsed.add(p)
+            new = self._tools_imports(p, root) - imported
+            imported |= new
+            todo += new
+        # the exemption covers how mksunxi is reached today; an import of it must still select
+        return sorted(m for m in (literal - self.UNBUILT_OK) | imported if not self._selects(m))
+
+    def test_tree(self):
+        self.assertIn('tools/get_deps.py', self._tools_imports('tools/build_utils.py', REPO))
+        refs = self._literal_refs(self.ENTRY, REPO)
+        self.assertIn('tools/membrowse_cli.py', refs)
+        left = self._unselected(self.ENTRY, literal=refs)
+        self.assertEqual(left, [], f'tools/ scripts reached by builds with no selecting rule: '
+                                   f'{left} - name them in _FULL_RE or give them a rule')
+        self.assertLessEqual(self.UNBUILT_OK, refs)     # an exemption must still be needed
+        for m in self.UNBUILT_OK:
+            self.assertFalse(self._selects(m), m)
+
+    def test_flags_literal_build_references_and_honours_the_exemption(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {'hw/bsp/fam/family.cmake': 'COMMAND python ${TOP}/tools/cm_helper.py\n',
+                              'hw/bsp/family_rules.mk': '\t$(TOP)/tools/mk_helper.sh $<\n'
+                                                        '\t$(PYTHON) $(TOP)/tools/mksunxi.py $< $@\n',
+                              'tools/entry.py': "os.path.join(d, 'lit_helper.py')\n",
+                              'tools/cm_helper.py': 'import deep2\n', 'tools/deep2.py': '',
+                              'tools/mk_helper.sh': '', 'tools/lit_helper.py': '', 'tools/mksunxi.py': ''})
+            self.assertEqual(self._unselected(['tools/entry.py'], root),
+                             ['tools/cm_helper.py', 'tools/deep2.py', 'tools/lit_helper.py', 'tools/mk_helper.sh'])
+            with open(os.path.join(root, 'tools/entry.py'), 'a') as f:
+                f.write('import mksunxi\n')
+            self.assertIn('tools/mksunxi.py', self._unselected(['tools/entry.py'], root))
+
+    def test_flags_new_direct_transitive_and_unselected_imports(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {f'tools/{name}.py': body for name, body in (
+                ('entry', 'import newhelper as nh\ndef f():\n    import mid\n'
+                          'from file2carray import main\nimport tools.qual_a\n'
+                          'from tools.qual_b import y\nfrom tools import qual_c\n'),
+                ('newhelper', ''), ('mid', 'from deep import x\n'), ('deep', ''),
+                ('file2carray', ''), ('qual_a', ''), ('qual_b', ''), ('qual_c', ''))})
+            self.assertEqual(self._unselected(['tools/entry.py'], root),
+                             ['tools/deep.py', 'tools/file2carray.py', 'tools/mid.py', 'tools/newhelper.py',
+                              'tools/qual_a.py', 'tools/qual_b.py', 'tools/qual_c.py'])
 
 
 class TestLibRule(unittest.TestCase):
@@ -1687,7 +1814,7 @@ class TestBuildClassifier(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
 
-    def test_full_paths(self):                                     # rules 15-17
+    def test_full_paths(self):                                     # rules 15-17a
         for p in ('src/common/tusb_fifo.c', 'src/osal/osal.h', 'src/tusb.c',
                   'src/tusb_option.h',
                   'tools/build.py', 'tools/family_json.py',
@@ -1696,8 +1823,14 @@ class TestBuildClassifier(unittest.TestCase):
                   'examples/build_system/cmake/cpu.cmake', '.github/workflows/build.yml',
                   '.circleci/config.yml', 'src/CMakeLists.txt', 'src/tinyusb.mk',
                   'hw/bsp/family_support.mk', 'tools/build_utils.py',
-                  'some/unknown/path.c'):
+                  'src/newdir/x.c'):
             self.assertTrue(self.b([p])['full'], p)
+
+    def test_unknown_path_outside_build_inputs_is_empty(self):     # rule 17b
+        s = self.b(['some/unknown/path.c'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], [])
+        self.assertEqual([r['effect'] for r in s['paths']], ['none'])
 
     def test_repo_metadata_is_not_a_build_input(self):
         # these used to reach `full` through rule 17: a PR touching only .gitignore and a

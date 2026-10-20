@@ -5,7 +5,8 @@
 
 Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
 hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
-any file no rule classifies forces the full matrix.
+a path no rule classifies forces the full matrix when it sits in a build-input location
+(_BUILD_SCOPE_RE) and contributes nothing anywhere else.
 
 JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers
@@ -44,10 +45,11 @@ can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
-| 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
+| 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
+| 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
 import argparse
 import ast
@@ -93,10 +95,10 @@ _NONCODE_RE = re.compile(
     # which is the silent-under-selection direction. src/ builds from C sources only; its
     # Python is hand-run helpers (dwc2_info.py)
     r'^(docs/|\.claude/|.*\.(md|rst)$|src/.*\.py$|LICENSE$|LICENSES/)')
-# Repo metadata and tooling that no CI build reads. Enumerated rather than left to
-# rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
-# creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
-# skipping the build) and booking the whole 30-board rig.
+# Repo metadata and tooling that no CI build reads. Inside a build-input location these
+# entries are what keep it off rule 17a, which widens BOTH axes; elsewhere 17b gives the
+# same answer and the entry records the decision. Before 17 was scoped, a PR touching only
+# .gitignore and a README was creating 74 cmake legs and booking the whole 30-board rig.
 #
 # Deliberately NOT here, and still full: .circleci/**, .github/workflows/build*.yml,
 # .github/actions/**, .github/scripts/** - those decide what gets built. The line is
@@ -170,6 +172,15 @@ _FULL_RE = re.compile(
     # board_test is HIL infrastructure, not a test: hil_test.py flashes it to park
     # every board (variant boundary + end-of-board teardown), so every board depends on it
     r'examples/device/board_test/)')
+
+# Rule 17's scope: where a path no rule anticipated can still feed a build. Unclassified
+# here -> full (17a); elsewhere -> nothing (17b). The root, cmake/ and zephyr/ entries
+# reserve build entry points the tree does not have yet (family_support.cmake searches
+# ${TOP}/zephyr); tools/, .github/ and .circleci/ build machinery is named by _FULL_RE.
+_BUILD_SCOPE_RE = re.compile(
+    r'^((src|hw|examples|lib|cmake|zephyr)/|'
+    r'(CMakeLists\.txt|[Mm]akefile|GNUmakefile|[^/]+\.(cmake|mk)|Kconfig(\.[^/]+)?|'
+    r'sdkconfig(\.[^/]+)?|idf_component\.yml)$)')
 
 # --no-renames: with rename detection git reports only a rename's destination, so code
 # moved out of an HIL-relevant path would be classified by its new path alone
@@ -873,7 +884,10 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
             s.reasons.append(f'{path}: example not in HIL lists, no contribution')
         return
 
-    s.force_full(f'{path}: unclassified -> full matrix')
+    if _BUILD_SCOPE_RE.match(path):
+        s.force_full(f'{path}: unclassified -> full matrix')
+    else:
+        s.reasons.append(f'{path}: outside build-input locations, no contribution')
 
 
 def classify(changed_files, repo_root, rosters, get_deps_families=None):
@@ -1424,13 +1438,16 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.force_full(path, 'size-script', f'{path}: CI size script -> full build matrix')
         return
     if _FULL_RE.match(path):                                      # rules 15-16
-        # attribution, not behaviour: these already reached `full` through the
-        # fall-through below. Naming them means a future narrowing of rule 17 cannot
-        # silently change what they do. Deliberately last, so every earlier rule keeps
-        # priority - examples/device/board_test is rule 14 (just board_test), not ALL.
+        # behaviour for the paths outside rule 17a's scope (.github/, .circleci/, tools/),
+        # which 17b would otherwise drop; attribution for the rest. Deliberately last, so
+        # every earlier rule keeps priority - examples/device/board_test is rule 14, not ALL.
         s.force_full(path, 'core-infra', f'{path}: core/infra -> full build matrix')
         return
-    s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17
+    if _BUILD_SCOPE_RE.match(path):
+        s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17a
+        return
+    s.note(path, 'outside-build', 'none',
+           f'{path}: outside build-input locations, no build contribution')                # rule 17b
 
 
 @contextlib.contextmanager
