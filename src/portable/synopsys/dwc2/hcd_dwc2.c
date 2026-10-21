@@ -966,6 +966,16 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t cal_packet_count(uint16_t len, uint
   }
 }
 
+// Packets a channel is programmed with for the endpoint's remaining data. A split transaction carries one packet: a
+// split OUT sends one at a time, see channel_split_out_more() (isochronous OUT goes in 188-byte pieces).
+TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_packet_count(const hcd_endpoint_t* edpt, uint16_t ep_size) {
+  if (HCD_SPLIT && edpt->hcsplt_bm.split_en && edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS &&
+      edpt->hcchar_bm.ep_dir == TUSB_DIR_OUT) {
+    return 1;
+  }
+  return cal_packet_count(edpt->buflen, ep_size);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t packet_count) {
   if (packet_count & 0x01u) {
     return pid ^ 0x02u; // toggle DATA0 and DATA1
@@ -1435,7 +1445,7 @@ static void channel_xfer_out_wrapup(dwc2_regs_t* dwc2, uint8_t ch_id) {
    * transfer was halted before its normal completion.
    */
   const uint16_t remain_packets = hctsiz.packet_count;
-  const uint16_t total_packets = cal_packet_count(edpt->buflen, hcchar.ep_size);
+  const uint16_t total_packets = channel_packet_count(edpt, hcchar.ep_size);
   const uint16_t actual_bytes = (total_packets - remain_packets) * hcchar.ep_size;
 
   xfer->fifo_bytes = 0;
@@ -1476,7 +1486,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
 
   // hctsiz: zero length packet still count as 1
-  const uint16_t packet_count = cal_packet_count(edpt->buflen, hcchar_bm->ep_size);
+  const uint16_t packet_count = channel_packet_count(edpt, hcchar_bm->ep_size);
   dwc2_channel_tsize_t hctsiz = {.value = 0};
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
@@ -1508,6 +1518,8 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   #endif
     }
     hcsplt = hcsplt_bm.value;
+  } else if (packet_count == 1) {
+    hctsiz.xfer_size = tu_min16(edpt->buflen, hcchar_bm->ep_size); // a split OUT sends one packet here
   }
 #endif
   channel->hctsiz = hctsiz.value;
@@ -1930,6 +1942,29 @@ static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
     channel_xfer_start(dwc2, ch_id, false);
   }
 }
+
+#if HCD_SPLIT
+// A packet of a split control, bulk or interrupt OUT transfer completed, channel halted. With more data to send, the
+// next packet follows (one packet per split transaction, see channel_packet_count()): an interrupt one in the
+// endpoint's slot of the next service interval, a control or bulk one now. Return true if the transfer continues.
+static bool channel_split_out_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  hcd_xfer_t*     xfer = &_hcd_data.xfer[ch_id];
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+  const uint16_t  mps  = edpt->hcchar_bm.ep_size;
+  if (!edpt->hcsplt_bm.split_en || edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS || edpt->buflen <= mps) {
+    return false;
+  }
+  const dwc2_channel_tsize_t hctsiz = {.value = dwc2->channel[ch_id].hctsiz};
+  edpt->next_pid = hctsiz.pid; // toggled by the core; the rest of a control data stage does not restart at DATA1
+  xfer->xferred_bytes += mps;
+  xfer->fifo_bytes = 0;
+  xfer->err_count  = 0;
+  edpt->buffer += mps;
+  edpt->buflen -= mps;
+  channel_xfer_out_restart(dwc2, ch_id);
+  return true;
+}
+#endif
 
 // A periodic split transaction missed its complete-split window. An isochronous IN packet fails; another transaction
 // is retried in the next service interval with the data toggle it had. A channel still enabled (slave mode) is
@@ -2416,6 +2451,9 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       xfer->fifo_bytes = 0; // channel_iso_out_next() counted the bytes
       return true;
     }
+    if (channel_split_out_more(dwc2, ch_id)) {
+      return false;
+    }
 #endif
     is_done = true;
     xfer->result = XFER_RESULT_SUCCESS;
@@ -2660,6 +2698,9 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 #if HCD_SPLIT
       if ((hcint & HCINT_XFER_COMPLETE) && hcsplt.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
         return !channel_iso_out_next(dwc2, ch_id);
+      }
+      if ((hcint & HCINT_XFER_COMPLETE) && channel_split_out_more(dwc2, ch_id)) {
+        return false;
       }
 #endif
       is_done = true;
