@@ -364,10 +364,11 @@ def _retain(ctx, board: dict) -> None:
     """An openocd_esp session the provider left running (hil_flash.cleanup_pending) joins the
     engine's ledger as a run not proven ended, which only the contract's recovery ends: the
     engine starts nothing more on the board and hands its lock to a cleanup holder, whose
-    detail names the receipt. The session is the provider's own, so ctx.run never saw it; an
-    esptool child's receipt (a dict) is ctx.run's, already on the ledger with its recheck."""
-    receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not isinstance(r, dict)]
-    cmd = f'openocd_esp session, receipt {", ".join(map(str, receipts))}'
+    detail names the receipt (its path, or its native record when that file was not written).
+    The session is the provider's own, so ctx.run never saw it; an esptool child's tracked
+    receipt is ctx.run's, already on the ledger with its recheck."""
+    receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not hil_flash.tracked_receipt(r)]
+    cmd = f'openocd_esp session, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
     if receipts and all(e['cmd'] != cmd for e in ctx.ledger):
         ctx.ledger.append({'cmd': cmd, 'cleanup': 'pending', 'receipt': None})
 

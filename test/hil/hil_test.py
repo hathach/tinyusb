@@ -1989,7 +1989,8 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
 
 def cleanup_pending(name: str) -> str:
     """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running (hil_flash.cleanup_pending), whose board lock passes to a cleanup holder."""
+    running, or an esptool child not proven ended (hil_flash.cleanup_pending), whose board lock
+    passes to a cleanup holder."""
     receipts = hil_flash.cleanup_pending.get(name)
     return '' if receipts is None else \
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
@@ -2004,7 +2005,7 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     one that fails leaves its protected record. Either way the handle is closed uncleared: the
     record on the free flock is the recovery blocker, and the board is never released."""
     # a tracked esptool child's receipt makes the holder's release wait for its recheck to answer `done`
-    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if isinstance(r, dict)]
+    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if hil_flash.tracked_receipt(r)]
     try:
         token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked)
     except ValueError as e:

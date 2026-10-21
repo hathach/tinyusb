@@ -157,17 +157,34 @@ def esptool_input_problem(firmware) -> str:
 # hil_openocd_esp, the `hil` skill's Flashers). Not convoy-safe, so usbtest never recovers
 # through it.
 # -------------------------------------------------------------
-# board name -> receipts of an openocd_esp session the provider left running (cleanup
-# 'pending'). No later session starts on that board, and hil_test hands its lock to a cleanup
-# holder instead of releasing it.
+# board name -> receipts of what an openocd_esp operation left not proven ended: a session the
+# provider left running (cleanup 'pending'), or a tracked esptool child 'pending' or 'unknown'
+# with its receipt. No later session starts on that board, and hil_test hands its lock to a
+# cleanup holder instead of releasing it.
 cleanup_pending = {}
 OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
 
 
+# hil_process.run_tracked's receipt keys that a native openocd_esp session record (its
+# _RECEIPT_KEYS, kept when the session's receipt file could not be written) never has
+_TRACKED_KEYS = {'supervisor', 'lock', 'record'}
+
+
+def tracked_receipt(receipt) -> bool:
+    """Whether a cleanup_pending receipt is hil_process.run_tracked's (an esptool child, ended once
+    its recheck answers `done`) rather than an openocd_esp session's (its receipt path, or the
+    native record when that file could not be written), which only the reviewed `end` ends."""
+    return isinstance(receipt, dict) and _TRACKED_KEYS <= receipt.keys()
+
+
 def receipt_text(receipt) -> str:
-    """A cleanup_pending receipt as a cell names it: an openocd_esp session's receipt path, or the
-    record of a tracked esptool child (hil_util.run_tracked's receipt, rechecked by its holder)."""
-    return f'esptool child, record {receipt.get("record")}' if isinstance(receipt, dict) else str(receipt)
+    """A cleanup_pending receipt as a cell names it."""
+    if tracked_receipt(receipt):
+        return f'esptool child, record {receipt["record"]}'
+    if isinstance(receipt, dict):
+        return (f'openocd_esp session pid {receipt.get("pid")} start {receipt.get("startTime")}, receipt file '
+                f'unwritten, log {receipt.get("log")}')
+    return str(receipt)
 
 
 def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
@@ -196,8 +213,9 @@ def _openocd_esp_session(board, operation):
     if why := provider.refusal(retains_lock=True):    # before this adapter's own esptool sessions too
         raise RuntimeError(why)
     if name in cleanup_pending:
-        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({", ".join(map(receipt_text, cleanup_pending[name]))}); '
-                           f'no session starts until its cleanup holder is recovered')
+        held = ', '.join(map(receipt_text, cleanup_pending[name]))
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until its cleanup '
+                           f'holder is recovered')
     op = None
     try:
         op = operation(provider)
@@ -205,7 +223,8 @@ def _openocd_esp_session(board, operation):
         op = getattr(e, 'operation', None)
         raise
     finally:
-        if op is not None and op.cleanup == 'pending':
+        # 'unknown' with a receipt (a tracked child whose supervisor did not report) is no proof either
+        if op is not None and (op.cleanup == 'pending' or op.cleanup == 'unknown' and op.receipts):
             cleanup_pending[name] = op.receipts
     if op.returncode != 0:
         print(f'openocd_esp: {op.session["failure"]} (cleanup {op.cleanup}, log {op.session["log"]})', flush=True)
@@ -230,7 +249,7 @@ def _tracked(cmd, cwd=None, *, timeout, env=None):
 def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:
     """read_security's evidence, once its esptool child is proven ended (cleanup `done`): an
     openocd session started beside a survivor would share the USJ with it. Otherwise raises
-    carrying the read's Operation, whose receipt _openocd_esp_session latches when pending."""
+    carrying the read's Operation, whose receipt _openocd_esp_session latches."""
     op = p.read_security(flasher['uid'], chip=chip, workdir=_openocd_esp_dir(), timeout=_bound(timeout),
                          retains_lock=True, run=run)
     if op.cleanup != 'done':

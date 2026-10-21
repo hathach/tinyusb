@@ -890,7 +890,9 @@ class Retain(unittest.TestCase):
         ctx = context(self)
         patch(self, hil_flash, 'cleanup_pending', {})
         farm_profile._retain(ctx, BOARD)
-        hil_flash.cleanup_pending['b'] = ({'token': 't', 'record': '/s/r.json'},)   # ctx.run's own, ledgered there
+        tracked = {'token': 't', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/r.lock',
+                   'record': '/s/r.json', 'log': '/s/r.log', 'survivors': None}
+        hil_flash.cleanup_pending['b'] = (tracked,)       # run_tracked's: ctx.run's own, ledgered there
         farm_profile._retain(ctx, BOARD)
         self.assertEqual(ctx.ledger, [])
         hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
@@ -903,6 +905,17 @@ class Retain(unittest.TestCase):
         with self.assertRaises(eng.Outstanding):
             ctx.settle()
         self.assertEqual(ctx.calls, [])
+
+    def test_a_sessions_native_record_is_retained_as_openocd_evidence(self):
+        # the provider's Session.operation keeps its record when the receipt file could not be written
+        ctx = context(self)
+        native = {'pid': 4242, 'startTime': '99', 'argv': ['openocd'], 'ports': [None, None, 6666], 'token': 'x',
+                  'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
+        patch(self, hil_flash, 'cleanup_pending', {'b': (native,)})
+        farm_profile._retain(ctx, BOARD)
+        self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt openocd_esp session pid 4242 start 99, '
+                                              'receipt file unwritten, log /w/openocd.log',
+                                       'cleanup': 'pending', 'receipt': None}])
 
 
 class EngineOpenocdEsp(EngineFixture):

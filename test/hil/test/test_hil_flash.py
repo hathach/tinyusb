@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 from pathlib import Path
@@ -239,8 +240,9 @@ class OpenocdEsp(unittest.TestCase):
         off = {'flashEncryption': 'off', 'secureBoot': 'off'}
         line = json.dumps({'ok': True, 'esptool': '5.3.1', 'results': [
             {'op': 'security', 'flags': 0, 'flashCryptCnt': 0, 'rom': off, 'efuse': off}]})
-        self.receipt = None if cleanup == 'done' else {'token': 't0k', 'lock': '/s/hil_op_t0k.lock',
-                                                       'record': '/s/hil_op_t0k.json', 'log': '/s/hil_op_t0k.log'}
+        self.receipt = None if cleanup == 'done' else {   # run_tracked's receipt schema
+            'token': 't0k', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/hil_op_t0k.lock',
+            'record': '/s/hil_op_t0k.json', 'log': '/s/hil_op_t0k.log', 'survivors': None}
         tracked = []
 
         def run_tracked(argv, cwd=None, *, timeout, state_dir, env=None):
@@ -265,7 +267,8 @@ class OpenocdEsp(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'cleanup pending') as cm:
             self.flash()
         self.assertEqual(self.flashed, [])
-        self.assertEqual((cm.exception.operation.cleanup, cm.exception.operation.receipts), ('pending', (self.receipt,)))
+        op = cm.exception.operation
+        self.assertEqual((op.cleanup, op.receipts), ('pending', (self.receipt,)))
         self.assertEqual(hil_flash.cleanup_pending, {'esp': (self.receipt,)})
         self.assertEqual(hil_flash.receipt_text(self.receipt), 'esptool child, record /s/hil_op_t0k.json')
         with self.assertRaisesRegex(RuntimeError, 'esptool child, record /s/hil_op_t0k.json'):
@@ -331,6 +334,55 @@ class OpenocdEsp(unittest.TestCase):
 
     def test_never_convoy_safe(self):
         self.assertFalse(hil_flash.convoy_safe(self.board['flasher']))
+
+
+class ReceiptOrigins(unittest.TestCase):
+    """cleanup_pending holds receipts of two origins, told apart by the provider's own schemas: a
+    run_tracked receipt (an esptool child, ended once its recheck answers done) and an openocd_esp
+    session's, its receipt path or, when that file could not be written, the native record."""
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
+        self.addCleanup(td.cleanup)
+        self.dir = Path(td.name)
+
+    def test_a_real_run_tracked_receipt_is_an_esptool_childs(self):
+        state = self.dir / 'tracked'
+        state.mkdir(mode=0o700)
+        with mock.patch.object(hil_util, 'TRACKED_SETTLE', 0.2):
+            # a descendant outliving the settle, its output detached so the child's own exit is seen
+            r = hil_util.run_tracked(['sh', '-c', 'sleep 2 >/dev/null 2>&1 &'], timeout=10, state_dir=str(state))
+        self.assertEqual(r.cleanup, 'pending')
+        self.assertTrue(hil_flash.tracked_receipt(r.receipt))
+        self.assertEqual(hil_flash.receipt_text(r.receipt), f'esptool child, record {r.receipt["record"]}')
+        p = hil_util.provider().hil_process
+        deadline = time.monotonic() + 10
+        while p.recheck(r.receipt) != 'done' and time.monotonic() < deadline:
+            time.sleep(0.1)
+        p.tidy(r.receipt)
+
+    def test_a_sessions_native_record_and_receipt_path_are_openocds(self):
+        real = hil_util.openocd_esp()
+        s = real.Session(['sleep', '30'], str(self.dir), 1, 'tok')
+
+        def unwritable(*a, **kw):
+            raise OSError('no space left on device')
+        with mock.patch.object(real.esp_session, 'write_receipt', unwritable), self.assertRaises(OSError):
+            s.start(time.monotonic() + 5)
+        try:
+            op = s.operation()
+        finally:
+            s.proc.kill()
+            s.proc.wait()
+            s.release()
+        (native,) = op.receipts
+        self.assertEqual((op.cleanup, native['pid']), ('pending', s.proc.pid))
+        self.assertFalse(hil_flash.tracked_receipt(native))
+        self.assertEqual(hil_flash.receipt_text(native),
+                         f'openocd_esp session pid {s.proc.pid} start {native["startTime"]}, receipt file unwritten, '
+                         f'log {self.dir / "openocd.log"}')
+        self.assertFalse(hil_flash.tracked_receipt(s.receipt))
+        self.assertEqual(hil_flash.receipt_text(s.receipt), str(self.dir / 'receipt.json'))
 
 
 class OpenocdEspRoster(unittest.TestCase):

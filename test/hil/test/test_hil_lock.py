@@ -267,9 +267,11 @@ class RetainedLock(LockDir):
             return outcome
         security = self.ns(security={'flashEncryption': 'off', 'secureBoot': 'off', 'source': 'test'},
                            returncode=0, cleanup=security_cleanup, receipts=security_receipts)
+        self.reads = []
         fake = self.ns(admit=lambda f: ('esp32p4', ['board/esp32p4-builtin.cfg']), flash_openocd_esp=flash,
                        segments_from_flash_args=lambda *a, **kw: [{'offset': 0, 'file': '/fw/cdc_msc.bin', 'size': 4}],
-                       read_security=lambda *a, **kw: security, refusal=hil_util.openocd_esp().refusal)
+                       read_security=lambda *a, **kw: self.reads.append(a) or security,
+                       refusal=hil_util.openocd_esp().refusal)
         patch(self, hil_util, 'openocd_esp', lambda: fake)
 
     def op(self, cleanup, rc=1):
@@ -328,15 +330,24 @@ class RetainedLock(LockDir):
         self.provider(self.op('pending', rc=124))
         self.run_board()
 
-    def test_a_security_read_left_running_stops_before_the_flash_and_holds_its_receipt(self):
-        tracked = {'token': 't0k', 'lock': '/s/hil_op_t0k.lock', 'record': '/s/hil_op_t0k.json', 'log': '/s/l'}
-        self.provider(self.op('done', rc=0), security_cleanup='pending', security_receipts=(tracked,))
+    TRACKED = {'token': 't0k', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/hil_op_t0k.lock',
+               'record': '/s/hil_op_t0k.json', 'log': '/s/hil_op_t0k.log', 'survivors': None}
+
+    def handed(self):
+        """hand_to_cleanup_holder's calls, each refused as the real one refuses nothing here: a
+        fake tracked receipt would never recheck done, so a real holder could never be ended."""
         handed = []
 
-        def hand(handles, reason, **kw):     # refused, as the real one refuses: a fake receipt never rechecks done
+        def hand(handles, reason, **kw):
             handed.append(kw)
             raise ValueError('cleanup holder handoff refused in this test')
         patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
+        return handed
+
+    def test_a_security_read_left_running_stops_before_the_flash_and_holds_its_receipt(self):
+        tracked = self.TRACKED
+        self.provider(self.op('done', rc=0), security_cleanup='pending', security_receipts=(tracked,))
+        handed = self.handed()
         name, err, failed, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(self.flashes, [], 'an openocd session started beside the esptool child')
         self.assertEqual(hil_flash.cleanup_pending, {BOARD: (tracked,)})
@@ -348,6 +359,33 @@ class RetainedLock(LockDir):
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertIn('esptool child, record /s/hil_op_t0k.json', cell)
         self.assertIn('the protected record is the recovery blocker', cell)
+
+    def test_a_security_read_of_unknown_cleanup_is_read_once_latched_and_handed_over(self):
+        # its supervisor did not report: no proof the child ended, so no retry, park or release
+        self.provider(self.op('done', rc=0), security_cleanup='unknown', security_receipts=(self.TRACKED,))
+        handed = self.handed()
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((len(self.reads), self.flashes), (1, []))
+        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.TRACKED,)})
+        (kw,) = handed
+        self.assertEqual(kw['receipts'], [self.TRACKED])
+        rec = hil_lock.read_record(BOARD)
+        self.assertEqual((rec['protected'], rec['receipts']), (True, [self.TRACKED]))
+
+    def test_only_tracked_receipts_reach_the_holders_recheck(self):
+        # a session whose receipt file could not be written leaves its native record: `end`'s, never a recheck's
+        native = {'pid': 4242, 'startTime': '99', 'argv': ['openocd'], 'ports': [None, None, 6666], 'token': 'x',
+                  'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
+        hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
+        handed = self.handed()
+        fh = hil_lock.take_board_lock(BOARD, 'hil_test.py', protected=True)
+        cell = hil_test.retain_board_lock(BOARD, fh, hil_test.cleanup_pending(BOARD))
+        (kw,) = handed
+        self.assertEqual(kw['receipts'], [self.TRACKED])
+        for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
+                     'esptool child, record /s/hil_op_t0k.json', self.RECEIPT):
+            self.assertIn(text, kw['detail'])
+            self.assertIn(text, cell)
 
     def run_failing_test(self):
         """run_board over a test whose own reset left an openocd_esp session running, then failed."""
