@@ -156,7 +156,7 @@ def resolve(config, board_name, variant):
     if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
             and isinstance(flasher.get('name'), str) and flasher['name']):
         raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
-    if why := hil_flash.retained_lock_only(board):
+    if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         raise Refused(f'{board_name}: {why}')
     try:
         names = [v['name'] for v in hil_report.board_variants(board)]

@@ -36,11 +36,17 @@ class Wrappers(unittest.TestCase):
     def test_run_cmd_forwards_every_mode_and_the_knobs(self):
         seen = self.capture('run_cmd')
         hil_util.run_cmd('c', 'd', binary=True, split_stderr=True, quiet=True)
-        hil_util.run_cmd(['c'], timeout=5)
+        hil_util.run_cmd(['c'], timeout=5, env={'NO_COLOR': '1'})
         self.assertEqual(seen, [
-            (('c', 'd'), dict(timeout=33, binary=True, split_stderr=True, quiet=True, reap_grace=4, verbose=True)),
+            (('c', 'd'), dict(timeout=33, binary=True, split_stderr=True, quiet=True, reap_grace=4, verbose=True,
+                              env=None)),
             ((['c'], None), dict(timeout=5, binary=False, split_stderr=False, quiet=False, reap_grace=4,
-                                 verbose=True))])
+                                 verbose=True, env={'NO_COLOR': '1'}))])
+
+    def test_a_real_argv_run_adds_env_to_the_inherited_environment(self):
+        r = hil_util.run_cmd(['sh', '-c', 'printf "%s %s" "$HIL_UTIL_ENV" "${HOME:+home}"'],
+                             env={'HIL_UTIL_ENV': 'a b'})
+        self.assertEqual((r.returncode, r.stdout), (0, 'a b home'))
 
     def test_run_alongside_reaps_for_reap_grace(self):
         seen = self.capture('run_alongside')

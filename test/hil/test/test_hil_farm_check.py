@@ -245,7 +245,7 @@ class Plan(unittest.TestCase):
         esp = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
         p = self.plan(dict(DEVICE, flasher=esp))
         self.assertEqual(p['refused']['status'], 'flash-failed')
-        self.assertTrue(any('only hil_test.py' in n for n in p['refused']['notes']), p)
+        self.assertTrue(any('retains_lock=True' in n for n in p['refused']['notes']), p)
 
     def test_a_cached_image_carries_its_ci_run(self):
         self.images('device/dfu_runtime', 'device/board_test')
@@ -548,8 +548,8 @@ class RunPlumbing(unittest.TestCase):
         board = dict(DEVICE, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''})
         got = farm_profile.flash(ctx, board, {'image': {'path': '/fw/dfu_runtime.bin'}})
         (cmd, cwd, timeout, kw), = ctx.calls
-        self.assertEqual((cmd, timeout, kw['verbose']), ('lm4flash -s P  /fw/dfu_runtime.bin', hil_util.CMD_TIMEOUT,
-                                                         hil_util.verbose))
+        self.assertEqual((cmd, timeout, kw['verbose']), (['lm4flash', '-s', 'P', '/fw/dfu_runtime.bin'],
+                                                         hil_util.CMD_TIMEOUT, hil_util.verbose))
         self.assertEqual((got.returncode, got.cleanup, len(got.attempts)), (0, 'done', 1))   # a provider Operation
         self.assertEqual([o['step'] for o in ctx.row['operations']], ['test'])
 
@@ -606,7 +606,7 @@ class UartWaitsForCompletion(unittest.TestCase):
         patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
         patch(self, farm_profile, 'say', lambda msg: None)
         patch(self, farm_profile, 'SERIAL_WAIT', 0.05)   # long enough to poll, not the real 6 s
-        reset = lambda board, run=None: run('reset', timeout=1)
+        reset = lambda board, run=None: run(['reset'], timeout=1)
         patch(self, hil_flash, 'reset_primitive', lambda name: reset)
         patch(self, hil_flash, 'flash_primitive', lambda name: lambda board, fw, run=None: run(f'flash {fw}', timeout=1))
 
@@ -801,7 +801,7 @@ class EngineWithProfile(EngineFixture):
 
     def tracked(self, cmd, cwd=None, *, timeout, settle, state_dir, **kw):
         self.assertEqual(state_dir, str(self.state))
-        self.ran.append(cmd.rsplit('/', 1)[-1])
+        self.ran.append(cmd[-1].rsplit('/', 1)[-1])
         self.device = ('1-1', 'cafe:4001', len(self.ran)) if self.ran[-1] == 'dfu_runtime.bin' else self.park_leaves
         r = subprocess.CompletedProcess(cmd, 0, '', None)
         r.cleanup, r.receipt = 'done', None
@@ -831,7 +831,7 @@ class EngineWithProfile(EngineFixture):
         """A host board whose UART raises after the reset, then after the park flash: the reset
         and the park flash stay on the row."""
         self.roster(dict(self.board, tests={'host': True}))
-        reset = lambda board, run=None: run('reset', timeout=1)
+        reset = lambda board, run=None: run(['reset'], timeout=1)
         patch(self, hil_flash, 'reset_primitive', lambda name: reset)
         patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
 

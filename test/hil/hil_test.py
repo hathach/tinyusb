@@ -1991,7 +1991,8 @@ def cleanup_pending(name: str) -> str:
     """Why nothing more may run on the board, or '': an openocd_esp session the provider left
     running (hil_flash.cleanup_pending), whose board lock passes to a cleanup holder."""
     receipts = hil_flash.cleanup_pending.get(name)
-    return '' if receipts is None else f'openocd_esp cleanup pending, receipt {", ".join(map(str, receipts))}'
+    return '' if receipts is None else \
+        f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
 def retain_board_lock(name: str, fh, pending: str) -> str:
@@ -2002,12 +2003,15 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
     one that fails leaves its protected record. Either way the handle is closed uncleared: the
     record on the free flock is the recovery blocker, and the board is never released."""
+    # a tracked esptool child's receipt makes the holder's release wait for its recheck to answer `done`
+    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if isinstance(r, dict)]
     try:
-        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending)
+        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked)
     except ValueError as e:
         why = str(e)
         try:
-            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, locks=[name])
+            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
+                                  locks=[name])
         except OSError as e2:
             why += f' (record not rewritten: {e2})'
     except hil_lock.LockUnavailable as e:
@@ -2504,7 +2508,7 @@ def main() -> None:
     if bad_esp:
         _config_abort(f'openocd_esp flasher refused: {"; ".join(bad_esp)}')
     esp_boards = [e['name'] for e in config_boards if hil_flash.flashers(e, 'openocd_esp')]
-    if esp_boards and (why := hil_util.openocd_esp().ci_refusal()):
+    if esp_boards and (why := hil_util.openocd_esp().refusal(retains_lock=True)):
         _config_abort(f'openocd_esp flasher refused: {", ".join(esp_boards)}: {why}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'

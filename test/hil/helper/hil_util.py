@@ -126,13 +126,26 @@ def openocd_esp():
 
 def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
-            quiet: bool = False) -> subprocess.CompletedProcess:
+            quiet: bool = False, env: dict | None = None) -> subprocess.CompletedProcess:
     """The provider's bounded runner (hil_process.run_cmd: own session, killpg on expiry, rc 124
-    when it had to be killed) with this harness's CMD_TIMEOUT default, REAP_GRACE and
-    `verbose`, read on every call."""
+    when it had to be killed; `cmd` a shell string or an argv list, `env` added to the inherited
+    environment) with this harness's CMD_TIMEOUT default, REAP_GRACE and `verbose`, read on every
+    call."""
     return provider().hil_process.run_cmd(
         cmd, cwd, timeout=CMD_TIMEOUT if timeout is None else timeout, binary=binary,
-        split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose)
+        split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose, env=env)
+
+
+# s run_tracked waits for an operation's descendants once it ended, as agentrc's farm check engine does
+TRACKED_SETTLE = 2.0
+
+
+def run_tracked(cmd: list, cwd: str | None = None, *, timeout: int, state_dir: str,
+                env: dict | None = None) -> subprocess.CompletedProcess:
+    """The provider's hil_process.run_tracked (run_cmd plus `cleanup` and `receipt`: whether every
+    descendant is proven ended) with TRACKED_SETTLE and this harness's REAP_GRACE and `verbose`."""
+    return provider().hil_process.run_tracked(cmd, cwd, timeout=timeout, settle=TRACKED_SETTLE, state_dir=state_dir,
+                                              reap_grace=REAP_GRACE, verbose=verbose, env=env)
 
 
 def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:

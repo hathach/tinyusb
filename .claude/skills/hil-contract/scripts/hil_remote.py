@@ -89,6 +89,7 @@ HARNESS_FILES = (
     'lib/agentrc/skills/hil/scripts/hil_flash.py',
     'lib/agentrc/skills/hil/scripts/hil_load.py',
     'lib/agentrc/skills/hil/scripts/hil_openocd_esp.py',
+    'lib/agentrc/skills/hil/scripts/esptool_session.py',
     'lib/agentrc/skills/hil/scripts/hil_process.py',
     'lib/agentrc/skills/hil/scripts/pyocd/run_pyocd.py',
     'lib/agentrc/skills/hil/scripts/pyocd/user_script.py',

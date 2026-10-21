@@ -251,26 +251,25 @@ class RetainedLock(LockDir):
         patch(self, hil_flash, 'find_firmware', lambda *a, **kw: hil_test.Path('/fw/cdc_msc.bin'))
         patch(self, hil_flash, 'cleanup_pending', {})
         patch(self, hil_flash, 'OPENOCD_ESP_DIR', hil_test.Path(self.dir) / 'openocd_esp')
-        patch(self, hil_flash, 'OPENOCD_ESP_BOOT_SETTLE', 0)
-        patch(self, hil_flash, '_esp_segments', lambda *a: [{'offset': 0, 'file': '/fw/cdc_msc.bin', 'size': 4}])
-        patch(self, hil_flash, '_esp_security', lambda *a: {'flashEncryption': 'off', 'secureBoot': 'off',
-                                                            'source': 'test'})
         patch(self, hil_test, 'test_device_cdc_msc', lambda board: None)
         self.board = {'name': BOARD, 'uid': 'ABC123', 'tests': {'only': ['device/cdc_msc']},
                       'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                   'args': '-f board/esp32p4-builtin.cfg'}}
         self.addCleanup(self.end_holder)
 
-    def provider(self, outcome):
+    def provider(self, outcome, security_cleanup='done', security_receipts=()):
         """hil_util.openocd_esp() whose flash records the lock record it ran under, then
-        returns or raises `outcome`."""
+        returns or raises `outcome`; its security read ends with `security_cleanup`."""
         def flash(flasher, segments, **kw):
             self.flashes.append(hil_lock.read_record(BOARD))
             if isinstance(outcome, BaseException):
                 raise outcome
             return outcome
+        security = self.ns(security={'flashEncryption': 'off', 'secureBoot': 'off', 'source': 'test'},
+                           returncode=0, cleanup=security_cleanup, receipts=security_receipts)
         fake = self.ns(admit=lambda f: ('esp32p4', ['board/esp32p4-builtin.cfg']), flash_openocd_esp=flash,
-                       ci_refusal=hil_util.openocd_esp().ci_refusal)
+                       segments_from_flash_args=lambda *a, **kw: [{'offset': 0, 'file': '/fw/cdc_msc.bin', 'size': 4}],
+                       read_security=lambda *a, **kw: security, refusal=hil_util.openocd_esp().refusal)
         patch(self, hil_util, 'openocd_esp', lambda: fake)
 
     def op(self, cleanup, rc=1):
@@ -293,14 +292,13 @@ class RetainedLock(LockDir):
         return rec
 
     def run_board(self):
-        # only hil_test's and hil_flash's own sleeps, not the provider's in the lock hand-over
+        # only hil_test's own sleeps, not the provider's in the lock hand-over
         sleep = mock.Mock()
         fake_time = types.ModuleType('time')
         fake_time.__dict__.update(vars(time), sleep=sleep)
-        with mock.patch.object(hil_test, 'time', fake_time), mock.patch.object(hil_flash, 'time', fake_time):
+        with mock.patch.object(hil_test, 'time', fake_time):
             name, err, failed, rows, _ = hil_test.test_board(self.board)
-        # the one flash's boot settle (0 here), never the 0.5 s retry wait
-        self.assertEqual(sleep.call_args_list, [mock.call(0)], 'waited for a retry that cannot come')
+        sleep.assert_not_called()   # never the 0.5 s retry wait
         self.assertEqual((name, err, failed), (BOARD, 2, []))   # the test's flash and the blocker
         self.assertEqual(len(self.flashes), 1, 'retried or parked beside an outstanding session')
         self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [BOARD]), self.flashes[0])
@@ -329,6 +327,27 @@ class RetainedLock(LockDir):
         patch(self, hil_test, 'max_retry', 1)
         self.provider(self.op('pending', rc=124))
         self.run_board()
+
+    def test_a_security_read_left_running_stops_before_the_flash_and_holds_its_receipt(self):
+        tracked = {'token': 't0k', 'lock': '/s/hil_op_t0k.lock', 'record': '/s/hil_op_t0k.json', 'log': '/s/l'}
+        self.provider(self.op('done', rc=0), security_cleanup='pending', security_receipts=(tracked,))
+        handed = []
+
+        def hand(handles, reason, **kw):     # refused, as the real one refuses: a fake receipt never rechecks done
+            handed.append(kw)
+            raise ValueError('cleanup holder handoff refused in this test')
+        patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(self.flashes, [], 'an openocd session started beside the esptool child')
+        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (tracked,)})
+        (kw,) = handed
+        self.assertEqual(kw['receipts'], [tracked])
+        self.assertIn('esptool child, record /s/hil_op_t0k.json', kw['detail'])
+        rec = hil_lock.read_record(BOARD)                      # the refused hand-over's blocker carries it too
+        self.assertEqual((rec['protected'], rec['receipts'], rec['locks']), (True, [tracked], [BOARD]))
+        cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn('esptool child, record /s/hil_op_t0k.json', cell)
+        self.assertIn('the protected record is the recovery blocker', cell)
 
     def run_failing_test(self):
         """run_board over a test whose own reset left an openocd_esp session running, then failed."""

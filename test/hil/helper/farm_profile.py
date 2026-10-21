@@ -184,7 +184,7 @@ def plan(board: dict, args, prepared, leave_running) -> dict:
 
     def refused(status, why):
         return {'refused': {'status': status, 'notes': notes + why}}
-    if why := hil_flash.retained_lock_only(board):
+    if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         return refused('flash-failed', [why])
     if kind == 'host' and board.get('logger') == 'rtt':
         return refused('failed', ['RTT host boards unsupported'])
