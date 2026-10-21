@@ -783,10 +783,21 @@ static bool split_csplit_current(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hfnu
   return false;
 }
 
+// A control or bulk transfer ended in the microframe of hfnum. One from an earlier microframe is forgotten, since its
+// microframe number recurs.
+static bool split_nonperiodic_ended(uint32_t hfnum) {
+  const uint16_t now = (uint16_t) (0x8000u | (hfnum & HCD_FRAME_NUMBER_MASK));
+  if (_hcd_nonperiodic_uframe != now) {
+    _hcd_nonperiodic_uframe = 0;
+    return false;
+  }
+  return true;
+}
+
 // The core may have started non-periodic transactions in the microframe of hfnum: a control or bulk transfer is in
 // progress, or one ended in it
 static bool split_nonperiodic_active(dwc2_regs_t* dwc2, uint32_t hfnum) {
-  if (_hcd_nonperiodic_uframe == (uint16_t) (0x8000u | (hfnum & HCD_FRAME_NUMBER_MASK))) {
+  if (split_nonperiodic_ended(hfnum)) {
     return true;
   }
   const uint8_t max_channel = dwc2_channel_count(dwc2);
@@ -1982,8 +1993,9 @@ static bool channel_split_out_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*     xfer = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
   const uint16_t  mps  = edpt->hcchar_bm.ep_size;
-  if (!edpt->hcsplt_bm.split_en || edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS || edpt->buflen <= mps) {
-    return false;
+  if (!edpt->hcsplt_bm.split_en || edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS || edpt->buflen <= mps ||
+      xfer->closing || xfer->aborting) {
+    return false; // complete, or torn down: the transfer ends here
   }
   const dwc2_channel_tsize_t hctsiz = {.value = dwc2->channel[ch_id].hctsiz};
   edpt->next_pid = hctsiz.pid; // toggled by the core; the rest of a control data stage does not restart at DATA1
@@ -2264,6 +2276,8 @@ static bool channel_txfifo_write(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_perio
 #if HCD_SPLIT
   if ((channel->hcsplt & HCSPLT_SPLITEN) && hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
     buflen = tu_min16(buflen, xfer->xferred_bytes + HCD_SPLIT_ISO_PAYLOAD); // only the piece of this start-split
+  } else if (channel->hcsplt & HCSPLT_SPLITEN) {
+    buflen = tu_min16(buflen, hcchar.ep_size); // only the packet of this start-split, see channel_packet_count()
   }
 #endif
 
@@ -3006,6 +3020,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
 
 #if HCD_SPLIT
+  (void) split_nonperiodic_ended(dwc2->hfnum); // expires a past one, its 14-bit microframe number recurs
   // periodic complete-splits waiting for their microframe
   _hcd_csplit_pass = false; // in case channel interrupt handling ended early
   bool more_isr = split_csplit_service(dwc2, in_isr);
