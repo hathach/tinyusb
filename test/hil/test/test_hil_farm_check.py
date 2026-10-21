@@ -753,27 +753,6 @@ class Launcher(unittest.TestCase):
         self.assertEqual((code, out), (2, ''))
         self.assertIn('lib/agentrc must be at X', err)
 
-    def test_the_load_requires_the_engines_closure(self):
-        seen = []
-        patch(self, hil_farm_check.agentrc, 'load', lambda rel, name, requires=(): seen.append((rel, requires)))
-        hil_farm_check.load_engine()
-        (rel, requires), = seen
-        self.assertEqual(rel, 'skills/hil/scripts/hil_farm_check.py')
-        # every module the engine _load()s beside it, transitively; the processes it launches
-        # (itself as the cleanup holder, hil_process as run_tracked's supervisor) are among them
-        import ast
-        dep = hil_util.TINYUSB_ROOT / 'lib/agentrc'
-        closure, todo = set(), [rel]
-        while todo:
-            for node in ast.walk(ast.parse((dep / todo.pop()).read_text())):
-                if isinstance(node, ast.Call) and ast.unparse(node.func) == '_load':
-                    f = f'{Path(rel).parent}/{node.args[0].value}.py'
-                    if f not in closure:
-                        closure.add(f)
-                        todo.append(f)
-        self.assertIn('skills/hil/scripts/hil_process.py', closure, 'the walk went vacuous')
-        self.assertEqual(set(requires), closure)
-
 
 class EngineFixture(unittest.TestCase):
     """The real engine with this profile and tinyusb's own hil_lock, its lock dir and the state

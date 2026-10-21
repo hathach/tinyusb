@@ -33,8 +33,7 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 from helper import agentrc  # noqa: E402
 
-hil_usbtest = agentrc.load('skills/hil/scripts/hil_usbtest.py', 'tinyusb_hil_usbtest',
-                           requires=('skills/hil/scripts/usb_observe.py',))
+hil_usbtest = agentrc.load('skills/hil/scripts/hil_usbtest.py', 'tinyusb_hil_usbtest')
 
 VID = 'cafe'
 PID = '4010'

@@ -33,6 +33,7 @@ from helper import agentrc, hil_lock, hil_util   # noqa: E402
 BOARD = 'hil-lock-selftest-board'
 PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
 PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
+LOADER = 'lib/agentrc/skills/hil/scripts/hil_load.py'
 
 
 class LockDir(unittest.TestCase):
@@ -175,6 +176,7 @@ class PinnedDependency(unittest.TestCase):
 
     def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks', process=True):
         os.makedirs(os.path.join(self.root, os.path.dirname(PROVIDER)), exist_ok=True)
+        shutil.copy(os.path.join(REPO, LOADER), os.path.join(self.root, LOADER))
         if process:   # the release predicate and the cleanup hand-over load it beside hil_lock
             shutil.copy(os.path.join(REPO, PROCESS), os.path.join(self.root, PROCESS))
         with open(os.path.join(REPO, PROVIDER)) as f:

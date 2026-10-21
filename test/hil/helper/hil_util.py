@@ -96,8 +96,7 @@ TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo r
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
 # `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
-# a bare checkout before CI fetches lib/agentrc. Kept for the process because
-# helper/agentrc.load makes a new module per call, and a second load is a second runner.
+# a bare checkout before CI fetches lib/agentrc.
 _provider = None
 
 
@@ -107,11 +106,8 @@ def provider():
     global _provider
     if _provider is None:
         from . import agentrc
-        # literal paths: RemoteStaging reads them to check the rig gets each one
-        _provider = agentrc.load('skills/hil/scripts/hil_flash.py', 'tinyusb_hil_flash_provider',
-                                 requires=('skills/hil/scripts/hil_process.py',
-                                           'skills/hil/scripts/pyocd/run_pyocd.py',
-                                           'skills/hil/scripts/pyocd/user_script.py'))
+        # a literal path: RemoteStaging reads it and its FILES to check the rig gets each one
+        _provider = agentrc.load('skills/hil/scripts/hil_flash.py', 'tinyusb_hil_flash_provider')
     return _provider
 
 
@@ -119,16 +115,12 @@ _openocd_esp = None
 
 
 def openocd_esp():
-    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded once like provider(): its own
-    hil_flash and usb_observe instances, and target-debug's esp_session for the managed session."""
+    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded on first use like provider(): the
+    process's one hil_flash and usb_observe, and target-debug's esp_session for the managed session."""
     global _openocd_esp
     if _openocd_esp is None:
         from . import agentrc
-        _openocd_esp = agentrc.load('skills/hil/scripts/hil_openocd_esp.py', 'tinyusb_hil_openocd_esp',
-                                    requires=('skills/hil/scripts/hil_flash.py',
-                                              'skills/hil/scripts/hil_process.py',
-                                              'skills/hil/scripts/usb_observe.py',
-                                              'skills/target-debug/scripts/esp_session.py'))
+        _openocd_esp = agentrc.load('skills/hil/scripts/hil_openocd_esp.py', 'tinyusb_hil_openocd_esp')
     return _openocd_esp
 
 

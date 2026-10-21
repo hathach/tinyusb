@@ -30,7 +30,7 @@ from helper import agentrc, hil_util  # noqa: E402
 from test_change_impact import flasher_names, roster_flashers  # noqa: E402
 
 PROVIDER_DIR = 'skills/hil/scripts'
-PROVIDER_FILES = ('hil_flash.py', 'hil_process.py', 'pyocd/run_pyocd.py', 'pyocd/user_script.py')
+PROVIDER_FILES = ('hil_flash.py', 'hil_load.py', 'hil_process.py', 'pyocd/run_pyocd.py', 'pyocd/user_script.py')
 BOARDS = {
     'jlink': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'},
     'stlink': {'name': 'stlink', 'uid': 'S1'},

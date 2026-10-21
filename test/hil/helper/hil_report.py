@@ -92,8 +92,7 @@ def core():
     global _core
     if _core is None:
         agentrc = _agentrc()   # bound by this name: RemoteStaging reads agentrc.load's literal paths
-        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core',
-                             requires=('skills/hil/scripts/hil_report_notice.py',))
+        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core')
     return _core
 
 
