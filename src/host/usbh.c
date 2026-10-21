@@ -2168,7 +2168,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, ENUM_CONFIG_DRIVER);
       } else {
         config_idx++;
-        TU_ASSERT(config_idx < dev->desc_device.bNumConfigurations,);
+        if (config_idx >= dev->desc_device.bNumConfigurations) {
+          TU_LOG_USBH("No acceptable configuration\r\n");
+          is_enum_failed = true;
+          break;
+        }
         TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
         is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
                                                            process_enumeration, ENUM_GET_FULL_CONFIG_DESC);
