@@ -259,12 +259,12 @@ static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_channel_count(const dwc2_regs_t* dwc2) {
+static uint8_t dwc2_channel_count(const dwc2_regs_t* dwc2) {
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
   return tu_min8(ghwcfg2.num_host_ch + 1, DWC2_CHANNEL_COUNT_MAX);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t hprt_speed_get(dwc2_regs_t* dwc2) {
+static tusb_speed_t hprt_speed_get(dwc2_regs_t* dwc2) {
   tusb_speed_t speed;
   const dwc2_hprt_t hprt = {.value = dwc2->hprt};
   switch(hprt.speed) {
@@ -421,7 +421,7 @@ TU_ATTR_ALWAYS_INLINE static inline void ls_defer_channel(dwc2_regs_t* dwc2, dwc
 }
 #endif
 
-TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
+static void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   xfer->allocated = false;
 #if DWC2_LS_ONE_XACT_PER_FRAME
@@ -454,7 +454,7 @@ static bool ls_park_retire(dwc2_regs_t* dwc2, uint8_t ch_id) {
 }
 #endif
 
-TU_ATTR_ALWAYS_INLINE static inline bool channel_disable(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+static bool channel_disable(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
 #if DWC2_LS_ONE_XACT_PER_FRAME
   // A channel parked waiting for a free low-speed frame is never in the request queue, so CHDIS|CHENA
   // below halts it without putting anything on the bus. Drop the park so SOF does not arm it afterwards.
@@ -622,8 +622,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool split_ss_start_ok(dwc2_regs_t* dwc2, ui
 // split_ss_start_ok() takes that frame, otherwise HCD_PERIODIC_FRAME_NOT_STARTED is returned. It is recorded before
 // CHENA, ahead of its ACK.
 // Clear CHDIS explicitly: a halted channel may retain it in HCCHAR.
-TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_enable(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
-                                                            bool next_periodic_frame, uint8_t split_ss) {
+static uint16_t channel_enable(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
+                               bool next_periodic_frame, uint8_t split_ss) {
   uint32_t hcchar = channel->hcchar & ~HCCHAR_CHDIS;
   uint16_t periodic_frame = 0;
   if (next_periodic_frame) {
@@ -653,8 +653,8 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_enable(dwc2_regs_t* dwc2, d
 // Attempt to send an IN token to receive data. For a new periodic transfer,
 // select its frame only after request-queue space is available.
 // With DWC2_LS_ONE_XACT_PER_FRAME, returns DWC2_LS_PARKED when the channel was parked instead.
-TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
-                                                                   bool next_periodic_frame, uint8_t split_ss) {
+static uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
+                                      bool next_periodic_frame, uint8_t split_ss) {
 #if DWC2_LS_ONE_XACT_PER_FRAME
   // ls_frame_claim() books a periodic channel for the next frame, so pick ODDFRM at the enable. A retry that set it
   // beforehand may be a frame late by then, and so would the SOF replay of a parked call.
@@ -697,7 +697,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t split_csplit_last(const hcd_endpoint
 }
 
 // Endpoints behind the same transaction translator
-TU_ATTR_ALWAYS_INLINE static inline bool split_tt_same(const hcd_endpoint_t* a, const hcd_endpoint_t* b) {
+static bool split_tt_same(const hcd_endpoint_t* a, const hcd_endpoint_t* b) {
   return a->hcsplt_bm.hub_addr == b->hcsplt_bm.hub_addr &&
          (!a->tt_multi || a->hcsplt_bm.hub_port == b->hcsplt_bm.hub_port);
 }
@@ -1075,8 +1075,8 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
 // Note: EP0 is bidirectional
-TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_find_opened(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir,
-                                                              bool include_closing) {
+static uint8_t edpt_find_opened(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir,
+                                bool include_closing) {
   for (uint8_t i = 0; i < (uint8_t)CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     const hcd_endpoint_t     *edpt      = &_hcd_data.edpt[i];
     const dwc2_channel_char_t hcchar_bm = edpt->hcchar_bm;
@@ -1099,7 +1099,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t cal_packet_count(uint16_t len, uint
 
 // Packets a channel is programmed with for the endpoint's remaining data. A split transaction carries one packet: a
 // split OUT sends one at a time, see channel_split_out_more() (isochronous OUT goes in 188-byte pieces).
-TU_ATTR_ALWAYS_INLINE static inline uint16_t channel_packet_count(const hcd_endpoint_t* edpt, uint16_t ep_size) {
+static uint16_t channel_packet_count(const hcd_endpoint_t* edpt, uint16_t ep_size) {
   if (HCD_SPLIT && edpt->hcsplt_bm.split_en && edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS &&
       edpt->hcchar_bm.ep_dir == TUSB_DIR_OUT) {
     return 1;
