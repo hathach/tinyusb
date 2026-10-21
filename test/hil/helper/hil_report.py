@@ -93,7 +93,8 @@ def core():
             spec = importlib.util.spec_from_file_location('tinyusb_hil_agentrc', Path(__file__).with_name('agentrc.py'))
             agentrc = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(agentrc)
-        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core')
+        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core',
+                             requires=('skills/hil/scripts/hil_report_notice.py',))
     return _core
 
 

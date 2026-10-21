@@ -1847,6 +1847,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         root = Path(td.name)
         for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
                     'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
                     'test/hil/tinyusb.json', 'test/hil/hfp.json'):
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_bytes((REPO / rel).read_bytes())

@@ -32,6 +32,7 @@ from helper import agentrc, hil_lock, hil_util   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
 PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
+PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
 
 
 class LockDir(unittest.TestCase):
@@ -172,8 +173,10 @@ class PinnedDependency(unittest.TestCase):
             shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
         self.pin = agentrc.PIN
 
-    def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks'):
+    def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks', process=True):
         os.makedirs(os.path.join(self.root, os.path.dirname(PROVIDER)), exist_ok=True)
+        if process:   # the release predicate and the cleanup hand-over load it beside hil_lock
+            shutil.copy(os.path.join(REPO, PROCESS), os.path.join(self.root, PROCESS))
         with open(os.path.join(REPO, PROVIDER)) as f:
             text = f.read()
         moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
@@ -208,6 +211,12 @@ class PinnedDependency(unittest.TestCase):
         rc, _ = self.cli('release', '--all')
         self.assertEqual(rc, 0)
         self.assertEqual(self.cli('status'), (0, 'no locks\n'))
+
+    def test_a_provider_without_hil_process_beside_it_is_refused(self):
+        self.provide(self.pin, os.path.join(self.root, 'locks'), process=False)
+        rc, out = self.cli('status')
+        self.assertNotEqual(rc, 0)
+        self.assertIn('has no skills/hil/scripts/hil_process.py', out)
 
 
 def _board_in_worker(board):

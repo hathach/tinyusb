@@ -11,13 +11,14 @@ from helper import agentrc
 
 
 def load_engine():
-    # literal paths: the engine loads hil_lock, hil_process, hil_report_core and hil_remote_core
-    # (its PATH shim) beside it, and launches itself (cleanup holder) and hil_process
-    # (run_tracked's supervisor)
+    # literal paths: the engine loads hil_lock, hil_process, hil_report_core (with its
+    # hil_report_notice) and hil_remote_core (its PATH shim) beside it, and launches itself
+    # (cleanup holder) and hil_process (run_tracked's supervisor)
     return agentrc.load('skills/hil/scripts/hil_farm_check.py', 'tinyusb_hil_farm_check',
                         requires=('skills/hil/scripts/hil_lock.py',
                                   'skills/hil/scripts/hil_process.py',
                                   'skills/hil/scripts/hil_report_core.py',
+                                  'skills/hil/scripts/hil_report_notice.py',
                                   'skills/hil/scripts/hil_remote_core.py'))
 
 

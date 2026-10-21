@@ -79,9 +79,10 @@ sys.exit(int(os.environ.get('FAKE_RC', '0')))
 '''
 
 # what a fake checkout needs real: the harness's argument parser, and the report adapter with
-# the loader, the pin and the core it loads
+# the loader, the pin, the core it loads and the notice the core loads
 REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py',
-        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_core.py')
+        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+        'lib/agentrc/skills/hil/scripts/hil_report_notice.py')
 
 CONFIG = {'boards': [
     {'name': 'alpha', 'flasher': {'name': 'jlink'}},
@@ -278,6 +279,7 @@ class Staging(Rig):
         """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
         rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
         rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/hil_process.py',
                  'lib/agentrc/skills/hil/scripts/usb_observe.py',
                  'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
         for rel in rels:

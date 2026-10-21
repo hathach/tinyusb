@@ -22,8 +22,10 @@ else:  # run as a script: helper/ is sys.path[0], unless -P or PYTHONSAFEPATH dr
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import agentrc
 
-# A __main__ run must not load the provider as __main__ too, or its own CLI would run.
-_lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ == '__main__' else __name__)
+# A __main__ run must not load the provider as __main__ too, or its own CLI would run. Its
+# release predicate and cleanup hand-over load hil_process beside it.
+_lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ == '__main__' else __name__,
+                     requires=('skills/hil/scripts/hil_process.py',))
 
 
 def boards_from_config(config: str) -> list:
