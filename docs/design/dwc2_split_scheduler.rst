@@ -268,6 +268,17 @@ must not consume a periodic request's prequeue opportunity: the broad guard
 caused a captured startup regression. No universal current-microframe
 preemption guarantee was established. [EVIDENCE]_
 
+**D06a -- No periodic start after nonperiodic work (observation, P4).** In
+about 200k captured microframes with continuous split bulk and control
+traffic, slave and DMA, the core never started a periodic transaction after a
+nonperiodic one in the same microframe, and none in its last eighth. A late CS
+enabled for the current microframe after that point waits two microframes for
+its parity and holds the requests for the next one behind it. Under injected
+interrupt latency this let a younger CS overtake an older one on the same TT.
+Enable a late CS for the current microframe only while no control or bulk
+transfer is in progress or ended in it, and not in its tail; otherwise treat it
+as late for the next microframe. [EVIDENCE]_
+
 **D07 -- RX can create channel interrupts (DWC2).** In slave mode, popping
 receive-status entries can make XferCompl or ChHltd visible. Drain each
 reported data payload correctly and reread live channel-interrupt state after

@@ -79,9 +79,11 @@ enum {
  *   its TT may still send a complete-split in the same microframe or before that is not yet in the request queue.
  * - The periodic request queue does not pass a request of the other frame parity, so a late complete-split queued
  *   behind one for the next microframe goes out two microframes late. Complete-splits are enabled a microframe ahead,
- *   those for the next microframe only after the late ones of channel interrupt handling. Late service still leaves
- *   one case: a late complete-split behind an isochronous OUT piece or a high-speed retry enabled for the next
- *   microframe earlier in the same pass.
+ *   those for the next microframe only after the late ones of channel interrupt handling. The core starts periodic
+ *   transactions in a microframe only ahead of its non-periodic ones and not in its last eighth, so a late one is
+ *   enabled for the current microframe only while no control or bulk transfer is in progress, else for the next.
+ *   Late service still leaves one case: a late complete-split behind an isochronous OUT piece or a high-speed retry
+ *   enabled for the next microframe earlier in the same pass.
  * - A transaction that misses its complete-split window is retried in the next service interval. A NYET on its last
  *   complete-split is an error by section 11.18.8 case 4, but is not counted here, as in Linux dwc2: late interrupt
  *   service or a crowded TT give the same NYET.
@@ -96,6 +98,7 @@ enum {
   HCD_SPLIT_SLOT_COUNT   = 4, // slots 0..3 for interrupt endpoints
   HCD_SPLIT_CSPLIT_FIRST = 2, // first complete-split, in microframes after the start-split
   HCD_SPLIT_CSPLIT_LAST  = 4, // last interrupt complete-split
+  HCD_SPLIT_TAIL_SHIFT   = 3, // microframe tail, 1/8 of it, where a complete-split is not enabled for the current one
   HCD_SPLIT_SLOT_LATE    = 0xfe, // start-split held behind an isochronous OUT packet: any start-split microframe
   HCD_SPLIT_SLOT_NONE    = 0xff
 };
@@ -229,6 +232,9 @@ static bool _hcd_csplit_pass;
 
 // A late complete-split waits behind an older one on its TT: enable it as soon as that one is handled
 static bool _hcd_csplit_late_held;
+
+// Microframe (HFNUM) in which a control or bulk transfer last completed, bit 15 set once one did
+static uint16_t _hcd_nonperiodic_uframe;
 
 // A held start-split was started during the FIFO-empty interrupt, which then stays enabled for its FIFO write
 static bool _hcd_split_kicked;
@@ -777,6 +783,22 @@ static bool split_csplit_current(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hfnu
   return false;
 }
 
+// The core may have started non-periodic transactions in the microframe of hfnum: a control or bulk transfer is in
+// progress, or one ended in it
+static bool split_nonperiodic_active(dwc2_regs_t* dwc2, uint32_t hfnum) {
+  if (_hcd_nonperiodic_uframe == (uint16_t) (0x8000u | (hfnum & HCD_FRAME_NUMBER_MASK))) {
+    return true;
+  }
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
+  for (uint8_t i = 0; i < max_channel; i++) {
+    const hcd_xfer_t* xfer = &_hcd_data.xfer[i];
+    if (xfer->allocated && !channel_is_periodic(_hcd_data.edpt[xfer->ep_id].hcchar)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Let the SOF interrupt enable the next complete-split
 static void channel_csplit_wait(dwc2_regs_t* dwc2, hcd_xfer_t* xfer) {
   xfer->csplit_wait = 1;
@@ -789,10 +811,11 @@ static void channel_csplit_wait(dwc2_regs_t* dwc2, hcd_xfer_t* xfer) {
 // Enable the next complete-split of a periodic split transaction, xfer->csplit_next microframes after its start-split
 // at the earliest. The channel keeps the start-split's frame parity, so enabled one microframe ahead it waits for its
 // microframe; still earlier, or behind an older complete-split on its TT, it waits for the SOF interrupt or the end of
-// channel interrupt handling. A late complete-split goes out at once, unless a request for the next microframe is
-// queued ahead of it: the periodic request queue does not pass a request of the other frame parity, so it then goes
-// out two microframes later. Return false when the complete-split window has passed, or for isochronous IN when a
-// microframe was skipped: the TT has freed what it held for it (11.18.7).
+// channel interrupt handling. A late complete-split goes out at once while the core still starts periodic transactions
+// in the microframe, else it is enabled for the next one; one for the current microframe the core no longer serves
+// would wait two microframes for its parity, as one queued behind a request for the next microframe does: the periodic
+// request queue does not pass a request of the other frame parity. Return false when the complete-split window has
+// passed, or for isochronous IN when a microframe was skipped: the TT has freed what it held for it (11.18.7).
 static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*     xfer    = &_hcd_data.xfer[ch_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
@@ -815,8 +838,16 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
   }
 
   const hcd_endpoint_t* edpt   = &_hcd_data.edpt[xfer->ep_id];
-  const uint16_t        target = tu_max16(xfer->csplit_next, now);
+  uint16_t              target = tu_max16(xfer->csplit_next, now);
   const bool            iso_in = is_in && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS;
+  // The core starts periodic transactions in a microframe only ahead of its non-periodic ones, and none in its tail,
+  // where an enable may also land in the next microframe. A complete-split enabled for the current microframe after
+  // that would wait two microframes for its parity, ahead of the requests for the next one, among them an older
+  // complete-split of its TT (11.18.8): take it as late for the next microframe instead.
+  if (target == now && (hfnum.remainning < (((dwc2->hfir & HFIR_FRIVL_Msk) + 1u) >> HCD_SPLIT_TAIL_SHIFT) ||
+                        split_nonperiodic_active(dwc2, hfnum.value))) {
+    target++;
+  }
   if (target > split_csplit_last(edpt) || (iso_in && target > xfer->csplit_next)) {
     xfer->csplit_wait = 0;
     return false;
@@ -2800,6 +2831,9 @@ static void channel_xfer_done(dwc2_regs_t* dwc2, uint8_t ch_id, bool in_isr) {
   }
 #if HCD_SPLIT
   split_iso_out_close(dwc2, ch_id); // an isochronous OUT packet that failed
+  if (!channel_is_periodic(_hcd_data.edpt[xfer->ep_id].hcchar)) {
+    _hcd_nonperiodic_uframe = (uint16_t) (0x8000u | (dwc2->hfnum & HCD_FRAME_NUMBER_MASK)); // split_nonperiodic_active()
+  }
 #endif
   channel_dealloc(dwc2, ch_id);
 }
