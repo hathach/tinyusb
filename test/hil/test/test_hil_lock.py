@@ -133,6 +133,14 @@ class RecoveryBlockerIsNotContention(LockDir):
             json.dump({'pid': 1, 'predecessor': '{}'}, f)
         self.assert_blocker('takeover journal', '"pid": 1')
 
+    def test_a_takeover_journal_on_a_held_flock(self):
+        # take_over holds the flock and journals before it rewrites the protected predecessor record
+        self.hold(hil_lock.CI_REASON, protected=True)
+        with open(os.path.join(self.dir, BOARD + hil_lock.JOURNAL), 'w') as f:
+            json.dump({'token': 't0k', 'pid': 1, 'locks': [BOARD], 'predecessor': '{}'}, f)
+        self.assert_blocker('board locked: ', '"protected": true', 'takeover journal', '"token": "t0k"',
+                            hil_lock.RECOVERY_BLOCKER)
+
     def test_another_sessions_hold_stays_contention(self):
         for extra in ({}, {'protected': True}):   # a live protected record is a run, not a blocker
             with self.subTest(**extra):

@@ -2035,6 +2035,23 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
             f'the protected record is the recovery blocker')
 
 
+def recovery_blocker(name: str, refusal: RuntimeError) -> str:
+    """The board's lock refusal naming its recovery blocker (`hil` Board locks), or '' for contention:
+    a free flock the helper refused, a live cleanup holder, or a takeover journal on a held flock
+    (take_over journals before it rewrites the records). A live protected record alone is a run."""
+    if isinstance(refusal, hil_lock.RecoveryBlocked):
+        return str(refusal)
+    if not isinstance(refusal, hil_lock.BoardLocked):
+        return ''
+    if hil_lock.is_cleanup_holder(hil_lock.read_record(name)):
+        return str(refusal)
+    journal = hil_lock.journal_state(name)
+    if journal is None:
+        return ''
+    holder = {k: journal[k] for k in ('token', 'pid', 'locks') if k in journal}
+    return f'{refusal}; takeover journal {json.dumps(holder)} ({hil_lock.RECOVERY_BLOCKER})'
+
+
 def test_board(board: Board) -> tuple:
     # (name, err_count, failed_tests, rows, pci)
     name = board['name']
@@ -2054,11 +2071,8 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        # a recovery blocker never frees on its own: a free flock the helper refuses, or a live
-        # cleanup holder (a live protected record on a held flock is a run, plain contention)
-        if isinstance(e, hil_lock.RecoveryBlocked) or (
-                isinstance(e, hil_lock.BoardLocked) and hil_lock.is_cleanup_holder(hil_lock.read_record(name))):
-            cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
+        if blocker := recovery_blocker(name, e):
+            cell = f'{hil_report.REPORT_CELL["fail"]} {blocker}'
             return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
