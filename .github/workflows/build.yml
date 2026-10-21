@@ -560,10 +560,24 @@ jobs:
           python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Prepare HIL report
+        id: prepare
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice (written by prepare even when it fails), never a table the JSON does not hold
-        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
+        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
+        # holding only that failure: the report dir can still hold an earlier attempt's report.
+        run: |
+          if python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"; then
+            echo "dir=$HIL_REPORT_DIR" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UNPREPARED="$RUNNER_TEMP/hil-report-unprepared-$GITHUB_RUN_ATTEMPT"
+          rm -rf "$UNPREPARED"
+          mkdir -p "$UNPREPARED"
+          echo '**HIL report unavailable: this attempt could not prepare it (see the job log).**' > "$UNPREPARED/hil_report.md"
+          touch "$UNPREPARED/hil_report.unprepared"
+          echo "dir=$UNPREPARED" >> "$GITHUB_OUTPUT"
+          exit 1
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -571,10 +585,11 @@ jobs:
         with:
           name: hil-report-${{ matrix.display }}
           path: |
-            ${{ env.HIL_REPORT_DIR }}/hil_report.md
-            ${{ env.HIL_REPORT_DIR }}/hil_report.json
-            ${{ env.HIL_REPORT_DIR }}/hil_report.attempts/
-            ${{ env.HIL_REPORT_DIR }}/audio/
+            ${{ steps.prepare.outputs.dir }}/hil_report.md
+            ${{ steps.prepare.outputs.dir }}/hil_report.json
+            ${{ steps.prepare.outputs.dir }}/hil_report.attempts/
+            ${{ steps.prepare.outputs.dir }}/hil_report.unprepared
+            ${{ steps.prepare.outputs.dir }}/audio/
           if-no-files-found: ignore
           overwrite: true
 
@@ -660,10 +675,24 @@ jobs:
           python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
       - name: Prepare HIL report
+        id: prepare
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice (written by prepare even when it fails), never a table the JSON does not hold
-        run: python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"
+        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
+        # holding only that failure: the report dir can still hold an earlier attempt's report.
+        run: |
+          if python3 test/hil/helper/hil_report.py prepare --report-dir "$HIL_REPORT_DIR"; then
+            echo "dir=$HIL_REPORT_DIR" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UNPREPARED="$RUNNER_TEMP/hil-report-unprepared-$GITHUB_RUN_ATTEMPT"
+          rm -rf "$UNPREPARED"
+          mkdir -p "$UNPREPARED"
+          echo '**HIL report unavailable: this attempt could not prepare it (see the job log).**' > "$UNPREPARED/hil_report.md"
+          touch "$UNPREPARED/hil_report.unprepared"
+          echo "dir=$UNPREPARED" >> "$GITHUB_OUTPUT"
+          exit 1
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -671,10 +700,11 @@ jobs:
         with:
           name: hil-report-tinyusb-esp.json
           path: |
-            ${{ env.HIL_REPORT_DIR }}/hil_report.md
-            ${{ env.HIL_REPORT_DIR }}/hil_report.json
-            ${{ env.HIL_REPORT_DIR }}/hil_report.attempts/
-            ${{ env.HIL_REPORT_DIR }}/audio/
+            ${{ steps.prepare.outputs.dir }}/hil_report.md
+            ${{ steps.prepare.outputs.dir }}/hil_report.json
+            ${{ steps.prepare.outputs.dir }}/hil_report.attempts/
+            ${{ steps.prepare.outputs.dir }}/hil_report.unprepared
+            ${{ steps.prepare.outputs.dir }}/audio/
           if-no-files-found: ignore
           overwrite: true
 
@@ -837,10 +867,24 @@ jobs:
           python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
 
       - name: Prepare HIL report
+        id: prepare
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice (written by prepare even when it fails), never a table the JSON does not hold
-        run: python3 test/hil/helper/hil_report.py prepare --report-dir "."
+        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
+        # holding only that failure: the report dir can still hold an earlier attempt's report.
+        run: |
+          if python3 test/hil/helper/hil_report.py prepare --report-dir "."; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UNPREPARED="$RUNNER_TEMP/hil-report-unprepared-$GITHUB_RUN_ATTEMPT"
+          rm -rf "$UNPREPARED"
+          mkdir -p "$UNPREPARED"
+          echo '**HIL report unavailable: this attempt could not prepare it (see the job log).**' > "$UNPREPARED/hil_report.md"
+          touch "$UNPREPARED/hil_report.unprepared"
+          echo "dir=$UNPREPARED" >> "$GITHUB_OUTPUT"
+          exit 1
 
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
@@ -848,9 +892,10 @@ jobs:
         with:
           name: hil-report-hfp-iar
           path: |
-            hil_report.md
-            hil_report.json
-            hil_report.attempts/
-            audio/
+            ${{ steps.prepare.outputs.dir }}/hil_report.md
+            ${{ steps.prepare.outputs.dir }}/hil_report.json
+            ${{ steps.prepare.outputs.dir }}/hil_report.attempts/
+            ${{ steps.prepare.outputs.dir }}/hil_report.unprepared
+            ${{ steps.prepare.outputs.dir }}/audio/
           if-no-files-found: ignore
           overwrite: true

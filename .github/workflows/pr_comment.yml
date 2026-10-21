@@ -93,7 +93,12 @@ jobs:
               [ -d "$d" ] || continue
               echo "### ${d#hil-reports/hil-report-}"
               echo
-              cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
+              if [ -e "$d/hil_report.unprepared" ]; then
+                # the leg could not prepare its report: never show Markdown it did not vouch for
+                echo "_HIL report unavailable: the latest attempt could not prepare it (see the job log)._"
+              else
+                cat "$d/hil_report.md" 2>/dev/null || echo "_no report produced_"
+              fi
               echo
             done
           } > hil_combined.md

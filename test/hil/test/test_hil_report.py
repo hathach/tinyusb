@@ -6,6 +6,7 @@
 #   python3 test/hil/test/test_hil_report.py
 import json
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -1885,11 +1886,29 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         shim.chmod(0o755)
         return root
 
-    def run_step(self, root, script, env):
+    def run_step(self, root, script, env, rc=0):
         r = subprocess.run(['bash', '-e', '-c', script], cwd=root, capture_output=True, text=True, timeout=120,
                            env={**os.environ, 'PATH': f'{root / "bin"}:{os.environ["PATH"]}',
-                                'GITHUB_ENV': str(root / 'github_env'), **env})
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                                'GITHUB_ENV': str(root / 'github_env'), 'GITHUB_OUTPUT': str(root / 'github_output'),
+                                'RUNNER_TEMP': str(root / 'runner_temp'), 'GITHUB_RUN_ATTEMPT': '2', **env})
+        self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+        return r
+
+    @staticmethod
+    def output_dir(root):
+        outputs = dict(line.split('=', 1) for line in (root / 'github_output').read_text().splitlines())
+        return Path(root, outputs['dir'])
+
+    def upload(self, step, src, artifact):
+        """upload-artifact's copy of what the step's paths name under the prepare step's dir `src`."""
+        for line in step['with']['path'].splitlines():
+            self.assertTrue(line.startswith('${{ steps.prepare.outputs.dir }}/'), line)
+            rel = line.split('/', 1)[1].rstrip('/')
+            if (src / rel).is_dir():
+                shutil.copytree(src / rel, artifact / rel)
+            elif (src / rel).exists():
+                artifact.mkdir(parents=True, exist_ok=True)
+                shutil.copy(src / rel, artifact / rel)
 
     def test_each_leg_prepares_the_pair_before_its_upload(self):
         for name, job in self.legs().items():
@@ -1897,11 +1916,54 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 names = [st.get('name') for st in job['steps']]
                 upload = job['steps'][names.index('Upload HIL report')]
                 prepare = job['steps'][names.index('Upload HIL report') - 1]
-                self.assertEqual((prepare['name'], prepare['if']), ('Prepare HIL report', upload['if']))
+                self.assertEqual((prepare['name'], prepare['id'], prepare['if']),
+                                 ('Prepare HIL report', 'prepare', upload['if']))
                 self.assertIn('hil_report.py prepare', prepare['run'])
+                self.assertTrue(upload['with']['overwrite'], 'a later attempt replaces the earlier artifact')
                 paths = upload['with']['path']
-                for f in ('hil_report.md', 'hil_report.json', 'hil_report.attempts/'):
-                    self.assertIn(f, paths)
+                for f in ('hil_report.md', 'hil_report.json', 'hil_report.attempts/', 'hil_report.unprepared'):
+                    self.assertIn(f'${{{{ steps.prepare.outputs.dir }}}}/{f}', paths)
+
+    @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
+    def test_an_unprepared_report_uploads_only_its_failure_and_the_comment_says_so(self):
+        """With lib/agentrc missing or off its pin, prepare loads neither the core nor the notice
+        writer. The report dir persists across a run's attempts, so it can hold an earlier attempt's
+        green report: the upload takes a fresh dir holding only the failure, and the PR comment
+        shows that, never the earlier table."""
+        legs = self.legs()   # skips without PyYAML
+        import yaml
+        comment = yaml.safe_load((REPO / '.github/workflows/pr_comment.yml').read_text(encoding='utf-8'))
+        combine = next(st for st in comment['jobs']['hil-comment']['steps'] if st.get('id') == 'combine')
+        for name, job in legs.items():
+            for provider in ('missing', 'off-pin'):
+                with self.subTest(name, provider=provider):
+                    root = self.sandbox()
+                    report_dir = root / 'report' if name != 'hil-hfp-iar' else root
+                    report_dir.mkdir(exist_ok=True)
+                    stale = {hil_report.REPORT_MD: '| b | ✅ |\n', hil_report.REPORT_JSON: '{"rows": []}\n'}
+                    for f, text in stale.items():
+                        (report_dir / f).write_text(text, encoding='utf-8')
+                    if provider == 'missing':
+                        shutil.rmtree(root / 'lib/agentrc')
+                    else:
+                        (root / 'lib/agentrc/.git/HEAD').write_text('0' * 40 + '\n')
+                    steps = job['steps']
+                    prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
+                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir)}, rc=1)
+                    self.assertIn('nor write its unavailable notice', r.stderr)
+                    for f, text in stale.items():
+                        self.assertEqual((report_dir / f).read_text(encoding='utf-8'), text, 'the report dir is left')
+                    out = self.output_dir(root)
+                    self.assertNotEqual(out.resolve(), report_dir.resolve())
+                    artifact = root / 'hil-reports' / f'hil-report-{name}'
+                    self.upload(next(st for st in steps if st.get('name') == 'Upload HIL report'), out, artifact)
+                    self.assertEqual(sorted(p.name for p in artifact.iterdir()),
+                                     [hil_report.REPORT_MD, 'hil_report.unprepared'])
+                    self.assertNotIn('✅', (artifact / hil_report.REPORT_MD).read_text(encoding='utf-8'))
+                    self.run_step(root, self.script(combine), {})
+                    posted = (root / 'hil_combined.md').read_text(encoding='utf-8')
+                    self.assertIn('the latest attempt could not prepare it', posted)
+                    self.assertNotIn('✅', posted)
 
     @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
     def test_a_skipped_leg_uploads_a_no_selection_report(self):
@@ -1924,6 +1986,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 self.run_step(root, self.script(test), env)
                 prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
                 self.run_step(root, self.script(prepare), env)
+                self.assertEqual(self.output_dir(root).resolve(), report_dir.resolve())
                 reading = hil_report.core().read_document(report_dir / hil_report.REPORT_JSON, hil_report.schema())
                 self.assertEqual((reading.outcome, reading.meta['termination']), ('empty', 'no-boards'))
                 md = (report_dir / hil_report.REPORT_MD).read_text(encoding='utf-8')
