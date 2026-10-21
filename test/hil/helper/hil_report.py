@@ -542,6 +542,11 @@ def write_timeout_report(report_dir: Path, boards, caveat: str, cell: str = POOL
         withdraw(report_dir, e)
 
 
+# flashers of the boards built under esp-idf: the CI matrix's esp-idf bucket and CI's esp leg
+# (change_impact.rig_legs)
+ESP_IDF_FLASHERS = ('esptool', 'openocd_esp')
+
+
 def board_variants(board: dict) -> list:
     """The builds a roster board runs as, each {'name' (its cmake-build-<name> dir and report
     row), 'defines' (cmake -D list), 'flags' (compiler flag tokens)}: its "variant" list, else

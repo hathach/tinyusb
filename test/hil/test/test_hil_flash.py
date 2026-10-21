@@ -276,6 +276,26 @@ class OpenocdEsp(unittest.TestCase):
         self.real_security_read('unknown')
         self.refused(RuntimeError)
 
+    def test_a_callers_runner_runs_both_esptool_children(self):
+        mine = []
+
+        def run(argv, **kw):
+            mine.append(argv[3])
+            return self.esptool(argv, **kw)
+        hil_flash.flash_openocd_esp(self.board, str(self.fw_dir / 'cdc_msc.bin'), timeout=9, run=run)
+        self.assertEqual((mine, self.reads[0][1]['run']), (['merge-bin'], run))
+
+    def test_the_input_check_is_the_flashs_own_segments_for_the_chip_the_flasher_names(self):
+        fw, flasher = str(self.fw_dir / 'cdc_msc.bin'), self.board['flasher']
+        self.assertEqual(hil_flash.openocd_esp_input_problem(flasher, fw, timeout=9), '')
+        self.rewrite = True
+        self.assertIn('esptool would rewrite', hil_flash.openocd_esp_input_problem(flasher, fw))
+        self.rewrite = False
+        (self.fw_dir / 'config.env').write_text(json.dumps({'IDF_TARGET': 'esp32s3'}))
+        self.assertIn("built for 'esp32s3', not 'esp32p4'", hil_flash.openocd_esp_input_problem(flasher, fw))
+        self.assertIn('vid_pid', hil_flash.openocd_esp_input_problem({**flasher, 'vid_pid': '0x303a 0x1001'}, fw))
+        self.assertEqual((self.reads, self.flashed), ([], []))
+
     def refused(self, exc=(ValueError, RuntimeError)):
         with self.assertRaises(exc):
             self.flash()

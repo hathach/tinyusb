@@ -69,6 +69,7 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'test', 'hil'))  # for `from helper...`
 from helper.hil_util import device_tests, dual_tests, host_test
+from helper.hil_report import ESP_IDF_FLASHERS
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/, for build helpers
 import build_utils
@@ -979,8 +980,8 @@ def selection_args(sel, rosters):
 
 def selection_args_by_flasher(sel, rosters):
     """{config: {flasher name: args}}. CI runs one rig as several jobs split by
-    flasher (esptool vs the rest); each must gate on its own subset, otherwise the
-    other leg runs a filter matching zero boards and reports a vacuous green."""
+    flasher (rig_legs); each must gate on its own subset, otherwise the other leg
+    runs a filter matching zero boards and reports a vacuous green."""
     out = {}
     for cfg_path, boards in rosters:
         per = {}
@@ -993,6 +994,16 @@ def selection_args_by_flasher(sel, rosters):
                     _board_args(b['name'], chosen))
         out[os.path.basename(cfg_path)] = {f: ' '.join(p) for f, p in per.items()}
     return out
+
+
+def rig_legs(args_flasher: dict) -> dict:
+    """One rig's {flasher name: args} (selection_args_by_flasher's) as its CI legs' args:
+    'tinyusb_esp' the boards built under esp-idf (ESP_IDF_FLASHERS), 'tinyusb' the rest."""
+    legs = {'tinyusb': [], 'tinyusb_esp': []}
+    for f, a in sorted(args_flasher.items()):
+        if a:
+            legs['tinyusb_esp' if f in ESP_IDF_FLASHERS else 'tinyusb'].append(a)
+    return {leg: ' '.join(parts) for leg, parts in legs.items()}
 
 
 class SelectError(Exception):

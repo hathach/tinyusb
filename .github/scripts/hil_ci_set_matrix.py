@@ -81,10 +81,10 @@ def main():
                 continue
             name = board['name']
             flasher = board['flasher']
-            # esptool boards must build under esp-idf; others default to arm-gcc
-            # but may opt into another bucket via an explicit "toolchain" field
-            # (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
-            if flasher['name'] == 'esptool':
+            # esptool and openocd_esp boards must build under esp-idf; others default
+            # to arm-gcc but may opt into another bucket via an explicit "toolchain"
+            # field (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
+            if flasher['name'] in hil_report.ESP_IDF_FLASHERS:
                 toolchain = 'esp-idf'
             else:
                 toolchain = board.get('toolchain', 'arm-gcc')

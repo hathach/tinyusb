@@ -3,11 +3,12 @@
 # Firmware flashing for the TinyUSB HIL rig: board-shaped flash_*/reset_* over agentrc's flash
 # provider (hil_util.provider(), the `hil` skill's Flashers), dispatched by roster name through
 # flash_primitive/reset_primitive, plus find_firmware. tinyusb supplies the bounds, the runner
-# (a caller's keyword-only `run=`, else hil_util.run_cmd read per call; openocd_esp takes none),
-# retries and per-board settings; openocd_esp's server is the provider's own managed session
-# (hil_util.openocd_esp()). The provider loads on first use, so
-# change_impact imports this on a bare checkout; never import hil_test here. Callers set
-# `build_dir`. `from __future__ import annotations` keeps the Board hints unevaluated.
+# (a caller's keyword-only `run=`, else hil_util.run_cmd read per call; for openocd_esp it runs
+# only the esptool children), retries and per-board settings; openocd_esp's server is the
+# provider's own managed session (hil_util.openocd_esp()), never a runner's. The provider
+# loads on first use, so change_impact imports this on a bare checkout; never import hil_test
+# here. Callers set `build_dir`. `from __future__ import annotations` keeps the Board hints
+# unevaluated.
 
 from __future__ import annotations
 
@@ -240,23 +241,40 @@ def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:
     return op.security
 
 
-def flash_openocd_esp(board, firmware, timeout=None):
+def openocd_esp_input_problem(flasher: dict, firmware, timeout=None) -> str:
+    """Why flash_openocd_esp could not flash this build ('' when it could): the provider's
+    admission of the flasher and its segments_from_flash_args for the chip that names (an
+    `esptool merge-bin`, no board access). Checked before a board is locked."""
+    fw_dir = Path(firmware).parent
+    try:
+        p = hil_util.openocd_esp()
+        chip, _ = p.admit(flasher)
+        p.segments_from_flash_args(fw_dir, chip, timeout=_bound(timeout), run=hil_util.run_cmd)
+    except (ValueError, RuntimeError) as e:
+        return f'{fw_dir}: {e}'[:200]
+    return ''
+
+
+def flash_openocd_esp(board, firmware, timeout=None, *, run=None):
     """The build's flash_args as the provider's ordered segments, the chip's security state read
     over its USJ tty (esptool 5.3.1 under the `esptool` on PATH, the contract's runtime), then
-    the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset."""
+    the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset.
+    `run` runs the two esptool children; the security read's runner must report its cleanup
+    (run_tracked's, as the farm check's ctx.run does), by default _tracked."""
     flasher = board['flasher']
 
     def operation(p):
         chip, _ = p.admit(flasher)
         segments = p.segments_from_flash_args(Path(firmware).parent, chip, timeout=_bound(timeout),
-                                              run=hil_util.run_cmd)
-        security = _read_security(p, flasher, chip, timeout, _tracked)
+                                              run=_runner(run))
+        security = _read_security(p, flasher, chip, timeout, _tracked if run is None else run)
         return p.flash_openocd_esp(flasher, segments, security=security, workdir=_openocd_esp_dir(),
                                    timeout=_bound(timeout), retains_lock=True)
     return _openocd_esp_session(board, operation)
 
 
-def reset_openocd_esp(board, timeout=None):
+def reset_openocd_esp(board, timeout=None, *, run=None):
+    """`run` is accepted as every adapter's is; the reset starts no process of its own."""
     return _openocd_esp_session(board, lambda p: p.reset_openocd_esp(board['flasher'], workdir=_openocd_esp_dir(),
                                                                      timeout=_bound(timeout), retains_lock=True))
 

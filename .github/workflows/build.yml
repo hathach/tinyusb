@@ -71,8 +71,8 @@ jobs:
       required_json: ${{ steps.set-matrix-json.outputs.required_json }}
       membrowse_all: ${{ steps.set-matrix-json.outputs.membrowse_all }}
       membrowse_identical: ${{ steps.set-matrix-json.outputs.membrowse_identical }}
-      # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
-      # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
+      # one pair per rig job: hil-tinyusb (tinyusb.json minus esp-idf boards),
+      # hil-tinyusb-esp (esptool and openocd_esp boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
       hil_run_tinyusb: ${{ steps.hil-select.outputs.run_tinyusb }}
       hil_args_tinyusb_esp: ${{ steps.hil-select.outputs.args_tinyusb_esp }}
@@ -139,9 +139,8 @@ jobs:
           hfp = s["args"].get("hfp.json")
           if not isinstance(tin, dict) or not isinstance(hfp, str):
               sys.exit("selection has no args for a rig")
-          legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
-                  ("tinyusb_esp", tin.get("esptool", "")),
-                  ("hfp", hfp))
+          rig = change_impact.rig_legs(tin)
+          legs = (("tinyusb", rig["tinyusb"]), ("tinyusb_esp", rig["tinyusb_esp"]), ("hfp", hfp))
           for key, a in legs:
               # roster board names reach $GITHUB_OUTPUT as bare NAME=VALUE lines; a
               # newline in one would inject extra run_* lines and flip which rig jobs run.
@@ -383,15 +382,15 @@ jobs:
       fail-fast: false
       matrix:
         # These names are the bucket keys of .github/scripts/hil_ci_set_matrix.py: every
-        # non-esptool roster board must land in one of them (esptool boards go to
-        # 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
+        # roster board not built under esp-idf must land in one of them (esptool and
+        # openocd_esp boards go to 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
         # board whose "toolchain" is not a bucket, so a new bucket must be added in
         # both places.
         #
         # INVARIANT the PR-scoped skip cascade rests on: hil_run_tinyusb / hil_run_hfp
         # true => hil-build has at least one non-empty leg. It holds because those
-        # flags count only non-esptool boards and every such board builds here. It
-        # would break if an esptool board were added to hfp.json, because
+        # flags count only non-esp-idf boards and every such board builds here. It
+        # would break if an esp-idf board were added to hfp.json, because
         # hil_args_hfp is NOT flasher-split: the hfp leg of hil-tinyusb would want to
         # run while hil-build (and therefore that leg) skipped.
         toolchain:
@@ -475,9 +474,9 @@ jobs:
           - display: tinyusb.json
             runner: [ self-hosted, X64, hathach, hardware-in-the-loop ]
             hil_json: test/hil/tinyusb.json
-            # esptool-flashed (espressif) boards run in hil-tinyusb-esp,
+            # esp-idf (espressif) boards run in hil-tinyusb-esp,
             # gated on the slow esp-idf build
-            test_args: '--exclude-flasher esptool'
+            test_args: '--exclude-flasher esptool --exclude-flasher openocd_esp'
           - display: hfp.json
             runner: [ self-hosted, Linux, X64, hifiphile ]
             hil_json: test/hil/hfp.json
@@ -529,7 +528,7 @@ jobs:
         # Single attempt per test (--retry 1), no in-run second pass: a broken fixture
         # fails fast instead of holding the runner (and other PRs' HIL jobs) for hours.
         env:
-          # tinyusb.json minus the esptool boards (they run in hil-tinyusb-esp): each
+          # tinyusb.json minus the esp-idf boards (they run in hil-tinyusb-esp): each
           # job gates on its own flasher subset, never on a rig-wide flag
           SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
           SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
@@ -610,7 +609,8 @@ jobs:
     timeout-minutes: 75
     env:
       HIL_JSON: test/hil/tinyusb.json
-      TEST_ARGS: '--flasher esptool'
+      # hil_test.py refuses an openocd_esp board under a CI job (hathach/tinyusb#4256)
+      TEST_ARGS: '--flasher esptool --flasher openocd_esp'
     steps:
       - name: Set HIL report dir (per run+job; persists across run attempts)
         run: |
@@ -650,7 +650,7 @@ jobs:
 
       - name: Test on actual hardware
         env:
-          # esptool subset of tinyusb.json: this job must gate on its own boards, not
+          # esp-idf subset of tinyusb.json: this job must gate on its own boards, not
           # on the rig-wide flag (which would run a filter matching zero boards)
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
@@ -660,11 +660,11 @@ jobs:
           # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
           python3 tools/get_deps.py lib/agentrc
           if [ "$SEL_RUN" = "false" ]; then
-            echo "HIL skipped by PR selection (no affected esptool boards)"
+            echo "HIL skipped by PR selection (no affected esp-idf boards)"
             # a report saying so, or the combined PR comment drops the section (and leaves a
             # stale table from an earlier push in its place)
             python3 test/hil/helper/hil_report.py no-selection "$HIL_JSON" \
-              '_Skipped by PR selection: no affected esptool boards._' --report-dir "$HIL_REPORT_DIR" ||
+              '_Skipped by PR selection: no affected esp-idf boards._' --report-dir "$HIL_REPORT_DIR" ||
               { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi

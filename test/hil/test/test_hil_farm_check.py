@@ -239,13 +239,18 @@ class Plan(unittest.TestCase):
         p = self.plan(dict(HOST, logger='rtt'))
         self.assertEqual(p['refused'], {'status': 'failed', 'notes': ['host-only board', 'RTT host boards unsupported']})
 
-    def test_an_openocd_esp_board_is_refused(self):
-        # only hil_test keeps a board locked when the provider leaves a session running
+    def test_an_openocd_esp_board_is_planned_but_refused_under_a_ci_job(self):
+        # the engine keeps its lock through a session left running (EngineOpenocdEsp)
         self.images('device/dfu_runtime', 'device/board_test')
         esp = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
-        p = self.plan(dict(DEVICE, flasher=esp))
+        with mock.patch.dict(os.environ):
+            for var in hil_util.openocd_esp().CI_JOB_ENV:
+                os.environ.pop(var, None)
+            self.assertNotIn('refused', self.plan(dict(DEVICE, flasher=esp)))
+            os.environ['GITHUB_ACTIONS'] = 'x'
+            p = self.plan(dict(DEVICE, flasher=esp))
         self.assertEqual(p['refused']['status'], 'flash-failed')
-        self.assertTrue(any('retains_lock=True' in n for n in p['refused']['notes']), p)
+        self.assertTrue(any('refused under a CI job' in n for n in p['refused']['notes']), p)
 
     def test_a_cached_image_carries_its_ci_run(self):
         self.images('device/dfu_runtime', 'device/board_test')
@@ -319,6 +324,15 @@ class PlanInputs(unittest.TestCase):
                     got = self.plan(self.ESP, root, build_dir=None if where == 'cache' else str(root))
                     self.assertEqual(got['refused']['status'], 'flash-failed')
                     self.assertTrue(got['refused']['notes'][-1].startswith(want), got)
+
+    def test_an_openocd_esp_boards_images_are_checked_as_its_flash_takes_them(self):
+        board = dict(DEVICE, flasher={'name': 'openocd_esp', 'uid': 'P', 'args': '-f board/esp32s3-builtin.cfg'})
+        checked = []
+        patch(self, hil_flash, 'openocd_esp_input_problem',
+              lambda flasher, fw: checked.append(Path(fw).name) or ('header' if 'board_test' in str(fw) else ''))
+        got = self.plan(board, self.tree(self.root / 'cache'))
+        self.assertEqual(checked, ['dfu_runtime.bin', 'board_test.bin'])
+        self.assertEqual(got['refused']['notes'][-1], 'park image: header')
 
     def test_a_config_env_without_a_target_and_a_bad_flash_args_refuse(self):
         for name, text in (('config.env', '{}'), ('config.env', '{"IDF_TARGET": ""}'),
@@ -575,8 +589,7 @@ class RunPlumbing(unittest.TestCase):
                     fn(board, *a, run=mine)
                     fn(board, *a)
                     self.assertEqual(calls, [(fn.__name__, mine), (fn.__name__, hil_util.run_cmd)], fn.__name__)
-        with self.assertRaises(TypeError):     # its sessions are the provider's own: no runner to take
-            hil_flash.flash_openocd_esp(board, 'fw.bin', run=mine)
+        # openocd_esp's server is the provider's session: run= reaches only its esptool children (test_hil_flash)
 
 
 class UartWaitsForCompletion(unittest.TestCase):
@@ -867,6 +880,164 @@ class EngineWithProfile(EngineFixture):
         r, = doc['rows']
         self.assertEqual((code, r['status'], r['probe'], r['coverage'], self.ran),
                          (1, 'flash-failed', '❌ missing', 'probe-only', []))
+
+
+class Retain(unittest.TestCase):
+    """_retain: an openocd_esp session the provider left running joins the engine's ledger once,
+    as a pending run the engine never rechecks, so nothing more starts on the board."""
+
+    def test_a_pending_session_stops_the_reservation(self):
+        ctx = context(self)
+        patch(self, hil_flash, 'cleanup_pending', {})
+        farm_profile._retain(ctx, BOARD)
+        hil_flash.cleanup_pending['b'] = ({'token': 't', 'record': '/s/r.json'},)   # ctx.run's own, ledgered there
+        farm_profile._retain(ctx, BOARD)
+        self.assertEqual(ctx.ledger, [])
+        hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
+        farm_profile._retain(ctx, BOARD)
+        farm_profile._retain(ctx, BOARD)
+        self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt /x/receipt.json', 'cleanup': 'pending',
+                                       'receipt': None}])
+        with self.assertRaises(eng.Outstanding):
+            ctx.run(['reset'], timeout=1)
+        with self.assertRaises(eng.Outstanding):
+            ctx.settle()
+        self.assertEqual(ctx.calls, [])
+
+
+class EngineOpenocdEsp(EngineFixture):
+    """An openocd_esp board through the engine: its esptool children run through ctx.run, a
+    session ended `done` leaves the board verified and released, and one the provider left
+    running stops the board, whose lock the engine hands to a cleanup holder naming the receipt."""
+    RECEIPT = '/tmp/hil_openocd_esp_x/receipt.json'
+    OFF = {'flashEncryption': 'off', 'secureBoot': 'off'}
+    SECURITY = json.dumps({'ok': True, 'esptool': '5.3.1', 'results': [
+        {'op': 'security', 'flags': 0, 'flashCryptCnt': 0, 'rom': OFF, 'efuse': OFF}]}) + '\n'
+
+    def tracked(self, cmd, cwd=None, **kw):
+        """EngineWithProfile's run_tracked, and the security read's child printing off/off evidence,
+        left `pending` with self.security_left as its receipt when that is set."""
+        r = EngineWithProfile.tracked(self, cmd, cwd, **kw)
+        if cmd[-1].endswith('ops.json'):
+            r.stdout = self.SECURITY
+            if self.security_left:
+                r.cleanup, r.receipt = 'pending', self.security_left
+        return r
+
+    def setUp(self):
+        super().setUp()
+        patch(self, eng.hil_process, 'run_tracked', self.tracked)
+        patch(self, farm_profile, 'find_device', lambda uid: self.device)
+        self.device, self.ran, self.park_leaves, self.security_left = None, [], None, None
+        self.board = dict(DEVICE, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
+                                           'args': '-f board/esp32p4-builtin.cfg'})
+        self.roster(self.board)
+        patch(self, farm_profile, 'scan_usb', lambda: {'1-4': {'serial': '30:ed:a0:e0:c9:02', 'vidpid': '303a:1001'}})
+        env = mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        real = hil_util.openocd_esp()
+        for var in real.CI_JOB_ENV:
+            os.environ.pop(var, None)
+        patch(self, hil_flash, 'cleanup_pending', {})
+        patch(self, hil_flash, 'OPENOCD_ESP_DIR', self.d / 'openocd_esp')
+        patch(self, farm_profile, 'input_problem', lambda board, fw: '')   # PlanInputs checks the images
+        self.sessions, self.outcomes = [], []
+        self.addCleanup(self.end_holder)
+
+        def segments(fw_dir, chip, *, timeout, run):
+            run(['esptool', '--chip', chip, 'merge-bin', 'merged'], cwd=str(fw_dir), env={'NO_COLOR': '1'},
+                timeout=timeout)
+            return [{'offset': 0x10000, 'file': str(fw_dir / f'{fw_dir.name}.bin'), 'size': 4}]
+
+        # the provider's own security read, on a tty and interpreter faked here
+        patch(self, real, 'usj_tty', lambda serial: '/dev/ttyACM9')
+        patch(self, real.hil_flash, 'tool_python', lambda tool: sys.executable)
+
+        def flash(flasher, segs, *, retains_lock, **kw):
+            self.assertIs(retains_lock, True)
+            self.sessions.append(Path(segs[0]['file']).name)
+            light = self.sessions[-1] == 'dfu_runtime.bin'
+            self.device = ('1-1', 'cafe:4001', len(self.sessions)) if light else self.park_leaves
+            cleanup = self.outcomes.pop(0) if self.outcomes else 'done'
+            if isinstance(cleanup, BaseException):
+                cleanup.operation = types.SimpleNamespace(cleanup='pending', receipts=(self.RECEIPT,))
+                raise cleanup
+            return types.SimpleNamespace(
+                returncode=0 if cleanup == 'done' else 1, stdout='', stderr=None, cleanup=cleanup,
+                receipts=(self.RECEIPT,) if cleanup == 'pending' else (),
+                session={'failure': 'reset run failed', 'log': '/x/openocd.log', 'dir': str(self.d / 'none')})
+        fake = types.SimpleNamespace(admit=real.admit, refusal=real.refusal, segments_from_flash_args=segments,
+                                     read_security=real.read_security, flash_openocd_esp=flash)
+        patch(self, hil_util, 'openocd_esp', lambda: fake)
+
+    def end_holder(self):
+        rec = hil_lock.read_record('b')
+        if hil_lock.is_cleanup_holder(rec):
+            hil_lock.release_token(rec['token'])
+
+    def test_a_done_session_is_verified_and_released(self):
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['status'], r['cleanup']['result'], r['cleanup']['released']),
+                         (0, 'ok', 'verified', True))
+        self.assertEqual(self.sessions, ['dfu_runtime.bin', 'board_test.bin'])
+        self.assertEqual(self.ran, ['merged', 'ops.json', 'merged', 'ops.json'])   # through ctx.run
+        self.assertIsNone(hil_lock.read_record('b'))
+
+    def assert_held_by_a_cleanup_holder(self, r):
+        self.assertEqual(self.sessions, ['dfu_runtime.bin'])                     # no park beside it
+        self.assertEqual((r['status'], r['coverage'], r['cleanup']['blocker']), ('blocked', 'blocked-after',
+                                                                                 'cleanup-holder'))
+        self.assertTrue(any(self.RECEIPT in e for e in r['cleanup']['evidence']), r['cleanup'])
+        rec = hil_lock.read_record('b')
+        self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
+        self.assertEqual((rec['token'], rec['protected']), (r['cleanup']['token'], True))
+        self.assertIn(self.RECEIPT, rec['detail'])
+
+    def test_a_session_left_running_hands_the_lock_to_a_cleanup_holder(self):
+        self.outcomes = ['pending']
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['check_status']), (4, 'flash-failed'))
+        self.assert_held_by_a_cleanup_holder(r)
+
+    def test_one_left_running_by_a_raising_flash_is_held_the_same_way(self):
+        self.outcomes = [RuntimeError('interrupted mid-session')]
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual(code, 4)
+        self.assert_held_by_a_cleanup_holder(r)
+
+    def test_a_security_read_left_running_stops_before_the_session_with_its_receipt_held(self):
+        # valid evidence and rc 0, but a descendant of the child left: run_tracked's `pending`
+        tracked_receipt = {'token': 's3c', 'lock': '/nonexistent/hil_op_s3c.lock', 'record': '/nonexistent/r.json'}
+        self.security_left = tracked_receipt
+        patch(self, eng.hil_process, 'recheck', lambda receipt: 'pending')    # the descendant lives on
+        handed = []
+
+        def hand(handles, reason, **kw):    # the real holder would wait forever on this fake receipt's recheck
+            handed.append(kw)
+            raise hil_lock.LockUnavailable('no holder in this test')
+        patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual(self.sessions, [], 'an openocd session started beside the esptool child')
+        self.assertEqual(self.ran, ['merged', 'ops.json'])
+        self.assertEqual((code, r['status'], r['cleanup']['receipts']), (4, 'blocked', [tracked_receipt]))
+        (kw,) = handed
+        self.assertEqual(kw['receipts'], [tracked_receipt])
+        self.assertEqual(hil_flash.cleanup_pending, {'b': (tracked_receipt,)})
+        self.assertEqual([o['cleanup'] for o in r['operations']], ['pending'])
+
+    def test_a_park_left_running_is_held_too(self):
+        self.outcomes = ['done', 'pending']
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual(self.sessions, ['dfu_runtime.bin', 'board_test.bin'])
+        self.assertEqual((code, r['status'], r['check_status'], r['cleanup']['blocker']),
+                         (4, 'blocked', 'ok', 'cleanup-holder'))
+        self.assertTrue(hil_lock.is_cleanup_holder(hil_lock.read_record('b')))
 
 
 class RealProcessChain(EngineFixture):

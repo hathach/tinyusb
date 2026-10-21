@@ -9,7 +9,8 @@ for a host-only board, judged by its UART output), then a park with `board_test`
 variant, verified. Firmware is never built here: by default it comes from a per-host cache
 (CACHE_DIR) of CI artifacts, and a board the cache has no variant of gets one downloaded from
 master push runs and kept; -B names another firmware root, never fetched into. Every flash and
-reset goes through tinyusb's hil_flash with the engine's tracked runner.
+reset goes through tinyusb's hil_flash with the engine's tracked runner; an openocd_esp
+session is the provider's own, and one it leaves running joins the engine's ledger (_retain).
 
 Rosters by hostname: ci -> tinyusb.json, tusb (hifiphile rig) -> hfp.json; any other host
 names its roster (a dev PC: test/hil/local.json) or is refused.
@@ -184,7 +185,8 @@ def plan(board: dict, args, prepared, leave_running) -> dict:
 
     def refused(status, why):
         return {'refused': {'status': status, 'notes': notes + why}}
-    if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
+    # the engine keeps a board whose openocd_esp session is left running with a cleanup holder (_retain)
+    if why := hil_flash.openocd_esp_refused(board, retains_lock=True):
         return refused('flash-failed', [why])
     if kind == 'host' and board.get('logger') == 'rtt':
         return refused('failed', ['RTT host boards unsupported'])
@@ -261,7 +263,12 @@ def input_problem(board: dict, fw) -> str:
     """Why the board's flasher could not flash `fw` from its files ('' when it could)."""
     if not Path(fw).is_file():
         return f'{fw} is missing'
-    return hil_flash.esptool_input_problem(fw) if board['flasher']['name'].lower() == 'esptool' else ''
+    name = board['flasher']['name'].lower()
+    if name == 'esptool':
+        return hil_flash.esptool_input_problem(fw)
+    if name == 'openocd_esp':
+        return hil_flash.openocd_esp_input_problem(board['flasher'], fw)
+    return ''
 
 
 def usable(board: dict, variant: str, root: Path) -> bool:
@@ -353,8 +360,23 @@ def _runner(ctx):
     return functools.partial(ctx.run, verbose=hil_util.verbose)
 
 
+def _retain(ctx, board: dict) -> None:
+    """An openocd_esp session the provider left running (hil_flash.cleanup_pending) joins the
+    engine's ledger as a run not proven ended, which only the contract's recovery ends: the
+    engine starts nothing more on the board and hands its lock to a cleanup holder, whose
+    detail names the receipt. The session is the provider's own, so ctx.run never saw it; an
+    esptool child's receipt (a dict) is ctx.run's, already on the ledger with its recheck."""
+    receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not isinstance(r, dict)]
+    cmd = f'openocd_esp session, receipt {", ".join(map(str, receipts))}'
+    if receipts and all(e['cmd'] != cmd for e in ctx.ledger):
+        ctx.ledger.append({'cmd': cmd, 'cleanup': 'pending', 'receipt': None})
+
+
 def _flash(ctx, board: dict, image: dict):
-    op = hil_flash.flash_primitive(board['flasher']['name'])(board, image['path'], run=_runner(ctx))
+    try:
+        op = hil_flash.flash_primitive(board['flasher']['name'])(board, image['path'], run=_runner(ctx))
+    finally:
+        _retain(ctx, board)
     ctx.record(op)
     return op
 
@@ -396,7 +418,10 @@ def check_host_serial(ctx, board: dict, do_reset: bool = True, want_hello: bool 
         if do_reset:
             reset_fn = hil_flash.reset_primitive(board['flasher']['name'])
             if reset_fn:
-                op = reset_fn(board, run=_runner(ctx))
+                try:
+                    op = reset_fn(board, run=_runner(ctx))
+                finally:
+                    _retain(ctx, board)
                 ctx.record(op)
                 ctx.settle()
         # judge the WHOLE window, not the first chunk: the probe's CDC bridge has its own
