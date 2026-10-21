@@ -149,7 +149,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'noflasher'], 'noflasher in'),
                 (['--board', 'nouid'], 'nouid in'),
-                (['--board', 'esp'], 'esp: openocd_esp: openocd_esp is refused to a caller that does not declare'),
+                (['--board', 'esp'], 'esp: openocd_esp is refused to a caller that does not declare'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):

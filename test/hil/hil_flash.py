@@ -193,11 +193,10 @@ def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
     through a session left running (`retains_lock`). Checked before any board access."""
     if not flashers(board, 'openocd_esp'):
         return ''
-    why = hil_util.openocd_esp().refusal(retains_lock=retains_lock)
-    return f'openocd_esp: {why}' if why else ''
+    return hil_util.openocd_esp().refusal(retains_lock=retains_lock)
 
 
-def openocd_esp_refusal(flasher: dict) -> str:
+def openocd_esp_entry_problem(flasher: dict) -> str:
     """Why the provider refuses this roster entry ('' when it admits it)."""
     try:
         hil_util.openocd_esp().admit(flasher)
@@ -210,7 +209,7 @@ def _openocd_esp_session(board, operation):
     """Run operation(provider) unless the board has an outstanding session, latching a new one
     (cleanup 'pending', returned or on an exception's `.operation`) into cleanup_pending."""
     name, provider = board['name'], hil_util.openocd_esp()
-    if why := provider.refusal(retains_lock=True):    # before this adapter's own esptool sessions too
+    if why := provider.refusal(retains_lock=True):    # refuse before preparatory esptool commands
         raise RuntimeError(why)
     if name in cleanup_pending:
         held = ', '.join(map(receipt_text, cleanup_pending[name]))
@@ -240,10 +239,15 @@ def _openocd_esp_dir() -> str:
 
 
 def _tracked(cmd, cwd=None, *, timeout, env=None):
-    """The security read's runner: its receipt says whether the esptool child is proven ended."""
+    """The security read's runner: the provider's hil_process.run_tracked, whose receipt says
+    whether the esptool child is proven ended, with this harness's REAP_GRACE and verbosity and
+    its state in the sessions' private dir."""
     state_dir = Path(_openocd_esp_dir()) / 'tracked'
     state_dir.mkdir(mode=0o700, exist_ok=True)
-    return hil_util.run_tracked(cmd, cwd, timeout=timeout, state_dir=str(state_dir), env=env)
+    # settle: s waited for the child's descendants once it ended, as agentrc's farm check engine does
+    return hil_util.provider().hil_process.run_tracked(cmd, cwd, timeout=timeout, settle=2.0,
+                                                       state_dir=str(state_dir), reap_grace=hil_util.REAP_GRACE,
+                                                       verbose=hil_util.verbose, env=env)
 
 
 def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:

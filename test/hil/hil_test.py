@@ -66,7 +66,7 @@ import usbtest    # the recovery bounds and the id registration; batteries run i
 from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
-rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
+rtt = agentrc.load_file('skills/rtt/scripts/rtt.py')
 # The flash provider and its runner, likewise once before the Pool so every worker shares them;
 # refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
 hil_util.provider()
@@ -2505,12 +2505,14 @@ def main() -> None:
         _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
     # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
     bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
-                            if (why := hil_flash.openocd_esp_refusal(f)))
+                            if (why := hil_flash.openocd_esp_entry_problem(f)))
     if bad_esp:
         _config_abort(f'openocd_esp flasher refused: {"; ".join(bad_esp)}')
-    esp_boards = [e['name'] for e in config_boards if hil_flash.flashers(e, 'openocd_esp')]
-    if esp_boards and (why := hil_util.openocd_esp().refusal(retains_lock=True)):
-        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_boards)}: {why}')
+    # the refusal is the process's (a CI job), the same for every board it names
+    esp_refused = {e['name']: why for e in config_boards
+                   if (why := hil_flash.openocd_esp_refused(e, retains_lock=True))}
+    if esp_refused:
+        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_refused)}: {next(iter(esp_refused.values()))}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]

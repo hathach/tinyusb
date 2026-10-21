@@ -11,7 +11,7 @@ from helper import agentrc
 
 
 def load_engine():
-    return agentrc.load('skills/hil/scripts/hil_farm_check.py', 'tinyusb_hil_farm_check')
+    return agentrc.load_file('skills/hil/scripts/hil_farm_check.py')
 
 
 def main(argv=None) -> int:

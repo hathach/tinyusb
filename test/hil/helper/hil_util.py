@@ -51,6 +51,10 @@ host_test = [
     'host/device_info',
 ]
 
+# flashers of the boards built under esp-idf: the CI matrix's esp-idf bucket and CI's esp leg
+# (change_impact.rig_legs)
+ESP_IDF_FLASHERS = ('esptool', 'openocd_esp')
+
 verbose = False
 
 def pos_int_env(name: str, default: int) -> int:
@@ -107,7 +111,7 @@ def provider():
     if _provider is None:
         from . import agentrc
         # a literal path: RemoteStaging reads it and its FILES to check the rig gets each one
-        _provider = agentrc.load('skills/hil/scripts/hil_flash.py', 'tinyusb_hil_flash_provider')
+        _provider = agentrc.load_file('skills/hil/scripts/hil_flash.py')
     return _provider
 
 
@@ -120,7 +124,7 @@ def openocd_esp():
     global _openocd_esp
     if _openocd_esp is None:
         from . import agentrc
-        _openocd_esp = agentrc.load('skills/hil/scripts/hil_openocd_esp.py', 'tinyusb_hil_openocd_esp')
+        _openocd_esp = agentrc.load_file('skills/hil/scripts/hil_openocd_esp.py')
     return _openocd_esp
 
 
@@ -134,18 +138,6 @@ def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
     return provider().hil_process.run_cmd(
         cmd, cwd, timeout=CMD_TIMEOUT if timeout is None else timeout, binary=binary,
         split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose, env=env)
-
-
-# s run_tracked waits for an operation's descendants once it ended, as agentrc's farm check engine does
-TRACKED_SETTLE = 2.0
-
-
-def run_tracked(cmd: list, cwd: str | None = None, *, timeout: int, state_dir: str,
-                env: dict | None = None) -> subprocess.CompletedProcess:
-    """The provider's hil_process.run_tracked (run_cmd plus `cleanup` and `receipt`: whether every
-    descendant is proven ended) with TRACKED_SETTLE and this harness's REAP_GRACE and `verbose`."""
-    return provider().hil_process.run_tracked(cmd, cwd, timeout=timeout, settle=TRACKED_SETTLE, state_dir=state_dir,
-                                              reap_grace=REAP_GRACE, verbose=verbose, env=env)
 
 
 def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:

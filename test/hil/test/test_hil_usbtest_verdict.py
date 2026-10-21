@@ -99,7 +99,7 @@ class ExitStatus(unittest.TestCase):
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)
         if stranded:
-            uo = types.SimpleNamespace(path_stranded=lambda p: True)
+            uo = types.SimpleNamespace(path_stranded=lambda p: True, SYS_USB_DEVICES='/sys/bus/usb/devices')
             usbtest_harness.patch(self, usbtest, '_uo', lambda: uo)
         usbtest_harness.argv(self, *extra)
         out, err = usbtest_harness.Out(), io.StringIO()

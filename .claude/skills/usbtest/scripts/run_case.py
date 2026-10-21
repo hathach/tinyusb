@@ -10,11 +10,8 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
-roster, it flashes through openocd_esp (refused on purpose: a session the provider leaves running needs the
-board lock kept, protected, until its recovery, as hil_test.py and the farm check do through a cleanup holder,
-while this script holds an ordinary lock it always releases, which `hil_lock.py release` may also SIGTERM away,
-and its verdict has no cleanup-pending board state; run usbtest on such a board with hil_test.py), the usbtest
-(or, for --after park, the board_test) firmware is not built, the board lock
+roster, it flashes through openocd_esp (its ordinary, always-released lock cannot be kept through a session left
+running; use hil_test.py), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
 is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
 process is alive on this host, checked before and again after taking the lock. That check is
 host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when

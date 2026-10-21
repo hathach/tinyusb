@@ -93,7 +93,7 @@ def core():
     global _core
     if _core is None:
         agentrc = _agentrc()   # bound by this name: RemoteStaging reads agentrc.load's literal paths
-        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core')
+        _core = agentrc.load_file('skills/hil/scripts/hil_report_core.py')
     return _core
 
 
@@ -542,11 +542,6 @@ def write_timeout_report(report_dir: Path, boards, caveat: str, cell: str = POOL
         withdraw(report_dir, e)
 
 
-# flashers of the boards built under esp-idf: the CI matrix's esp-idf bucket and CI's esp leg
-# (change_impact.rig_legs)
-ESP_IDF_FLASHERS = ('esptool', 'openocd_esp')
-
-
 def board_variants(board: dict) -> list:
     """The builds a roster board runs as, each {'name' (its cmake-build-<name> dir and report
     row), 'defines' (cmake -D list), 'flags' (compiler flag tokens)}: its "variant" list, else
@@ -842,7 +837,7 @@ def _prepare(argv: list) -> int:
         try:
             # loaded apart from the core, which may be what failed to load
             agentrc = _agentrc()
-            notice = agentrc.load('skills/hil/scripts/hil_report_notice.py', 'tinyusb_hil_report_notice')
+            notice = agentrc.load_file('skills/hil/scripts/hil_report_notice.py')
             notice.write_unavailable(report_dir, Path(REPORT_JSON).stem,
                                      f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
         except Exception as e2:  # noqa: BLE001 - ImportError, OSError or WriterHeld: the first error stands

@@ -245,19 +245,20 @@ class OpenocdEsp(unittest.TestCase):
             'record': '/s/hil_op_t0k.json', 'log': '/s/hil_op_t0k.log', 'survivors': None}
         tracked = []
 
-        def run_tracked(argv, cwd=None, *, timeout, state_dir, env=None):
-            tracked.append((argv, state_dir, env))
+        def run_tracked(argv, cwd=None, *, timeout, settle, state_dir, reap_grace, verbose, env=None):
+            tracked.append((argv, state_dir, env, settle, reap_grace, verbose))
             r = subprocess.CompletedProcess(argv, 0, line + '\n', None)
             r.cleanup, r.receipt = cleanup, self.receipt
             return r
-        self.patch(hil_util, 'run_tracked', run_tracked)
+        self.patch(hil_util.provider().hil_process, 'run_tracked', run_tracked)
         return tracked
 
     def test_a_proven_ended_security_read_is_the_flashs_evidence(self):
         tracked = self.real_security_read('done')
         self.assertEqual(self.flash().returncode, 0)
-        (argv, state_dir, env), = tracked
+        (argv, state_dir, env, settle, reap_grace, verbose), = tracked
         self.assertEqual((argv[0], argv[-1].endswith('ops.json'), env), (sys.executable, True, {'NO_COLOR': '1'}))
+        self.assertEqual((settle, reap_grace, verbose), (2.0, hil_util.REAP_GRACE, hil_util.verbose))
         self.assertEqual(state_dir, str(hil_flash.OPENOCD_ESP_DIR / 'tracked'))
         self.assertEqual(self.flashed[0][2]['security']['flashEncryption'], 'off')
 
@@ -289,14 +290,13 @@ class OpenocdEsp(unittest.TestCase):
         self.assertEqual((mine, self.reads[0][1]['run']), (['merge-bin'], run))
 
     def test_the_input_check_is_the_flashs_own_segments_for_the_chip_the_flasher_names(self):
+        # which builds the provider refuses is its own suite's; this pins what reaches it and back
         fw, flasher = str(self.fw_dir / 'cdc_msc.bin'), self.board['flasher']
         self.assertEqual(hil_flash.openocd_esp_input_problem(flasher, fw, timeout=9), '')
+        (argv, cwd, timeout, env), = self.calls
+        self.assertEqual((argv[:4], cwd, timeout), (['esptool', '--chip', 'esp32p4', 'merge-bin'], str(self.fw_dir), 9))
         self.rewrite = True
-        self.assertIn('esptool would rewrite', hil_flash.openocd_esp_input_problem(flasher, fw))
-        self.rewrite = False
-        (self.fw_dir / 'config.env').write_text(json.dumps({'IDF_TARGET': 'esp32s3'}))
-        self.assertIn("built for 'esp32s3', not 'esp32p4'", hil_flash.openocd_esp_input_problem(flasher, fw))
-        self.assertIn('vid_pid', hil_flash.openocd_esp_input_problem({**flasher, 'vid_pid': '0x303a 0x1001'}, fw))
+        self.assertTrue(hil_flash.openocd_esp_input_problem(flasher, fw).startswith(f'{self.fw_dir}: '))
         self.assertEqual((self.reads, self.flashed), ([], []))
 
     def refused(self, exc=(ValueError, RuntimeError)):
@@ -320,14 +320,6 @@ class OpenocdEsp(unittest.TestCase):
         self.refused(ValueError)
         self.assertEqual(self.reads, [])
 
-    def test_an_option_openocd_does_not_apply_is_refused(self):
-        self.write_flash_args('--flash-mode dio --encrypt')
-        self.refused(ValueError)
-
-    def test_a_build_for_another_chip_is_refused(self):
-        (self.fw_dir / 'config.env').write_text(json.dumps({'IDF_TARGET': 'esp32s3'}))
-        self.refused(ValueError)
-
     def test_a_done_session_leaves_no_files(self):
         self.flash()
         self.assertFalse(self.session.exists())
@@ -349,13 +341,12 @@ class ReceiptOrigins(unittest.TestCase):
     def test_a_real_run_tracked_receipt_is_an_esptool_childs(self):
         state = self.dir / 'tracked'
         state.mkdir(mode=0o700)
-        with mock.patch.object(hil_util, 'TRACKED_SETTLE', 0.2):
-            # a descendant outliving the settle, its output detached so the child's own exit is seen
-            r = hil_util.run_tracked(['sh', '-c', 'sleep 2 >/dev/null 2>&1 &'], timeout=10, state_dir=str(state))
+        p = hil_util.provider().hil_process
+        # a descendant outliving the settle, its output detached so the child's own exit is seen
+        r = p.run_tracked(['sh', '-c', 'sleep 2 >/dev/null 2>&1 &'], timeout=10, settle=0.2, state_dir=str(state))
         self.assertEqual(r.cleanup, 'pending')
         self.assertTrue(hil_flash.tracked_receipt(r.receipt))
         self.assertEqual(hil_flash.receipt_text(r.receipt), f'esptool child, record {r.receipt["record"]}')
-        p = hil_util.provider().hil_process
         deadline = time.monotonic() + 10
         while p.recheck(r.receipt) != 'done' and time.monotonic() < deadline:
             time.sleep(0.1)
@@ -391,21 +382,21 @@ class OpenocdEspRoster(unittest.TestCase):
     SHAPE = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
 
     def test_the_documented_shape_is_admitted(self):
-        self.assertEqual(hil_flash.openocd_esp_refusal(self.SHAPE), '')
-        self.assertEqual(hil_flash.openocd_esp_refusal(
+        self.assertEqual(hil_flash.openocd_esp_entry_problem(self.SHAPE), '')
+        self.assertEqual(hil_flash.openocd_esp_entry_problem(
             {**self.SHAPE, 'args': '-f interface/esp_usb_jtag.cfg -f target/esp32p4.cfg'}), '')
 
     def test_a_vid_pid_or_other_args_are_refused(self):
         for bad in ({'vid_pid': '0x303a 0x1001'}, {'args': '-f board/esp32p4-builtin.cfg -c init'},
                     {'args': '-f interface/ftdi/esp32_devkitj_v1.cfg -f target/esp32p4.cfg'}, {'uid': ''}):
             with self.subTest(bad=bad):
-                self.assertNotEqual(hil_flash.openocd_esp_refusal({**self.SHAPE, **bad}), '')
-        self.assertIn('vid_pid', hil_flash.openocd_esp_refusal({**self.SHAPE, 'vid_pid': '0x303a 0x1001'}))
+                self.assertNotEqual(hil_flash.openocd_esp_entry_problem({**self.SHAPE, **bad}), '')
+        self.assertIn('vid_pid', hil_flash.openocd_esp_entry_problem({**self.SHAPE, 'vid_pid': '0x303a 0x1001'}))
 
     def test_roster_openocd_esp_entries_are_admitted(self):
         for path, board in roster_flashers():
             for f in hil_flash.flashers(board, 'openocd_esp'):
-                self.assertEqual(hil_flash.openocd_esp_refusal(f), '', f"{path}: {board['name']}")
+                self.assertEqual(hil_flash.openocd_esp_entry_problem(f), '', f"{path}: {board['name']}")
 
     def test_hil_test_refuses_a_vid_pid_before_touching_a_board(self):
         self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp takes no vid_pid',

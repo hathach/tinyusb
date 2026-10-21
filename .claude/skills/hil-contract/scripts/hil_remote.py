@@ -54,7 +54,7 @@ def helper(name):
 
 # through ROOT's loader, as its harness helpers load theirs: hil_load refuses a second lib/agentrc
 try:
-    core = helper('agentrc').load('skills/hil/scripts/hil_remote_core.py', 'tinyusb_hil_remote_core')
+    core = helper('agentrc').load_file('skills/hil/scripts/hil_remote_core.py')
 except ImportError as e:   # lib/agentrc off its pin: the message names the fetch
     sys.exit(f'error: {e}')
 fail = core.fail

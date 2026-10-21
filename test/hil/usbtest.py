@@ -33,12 +33,11 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 from helper import agentrc  # noqa: E402
 
-hil_usbtest = agentrc.load('skills/hil/scripts/hil_usbtest.py', 'tinyusb_hil_usbtest')
+hil_usbtest = agentrc.load_file('skills/hil/scripts/hil_usbtest.py')
 
 VID = 'cafe'
 PID = '4010'
 GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
-SYS_USB = Path('/sys/bus/usb/devices')
 REGISTER_LOCK_TIMEOUT = hil_usbtest.REGISTER_LOCK_TIMEOUT
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
@@ -134,9 +133,7 @@ def _uo():
 def find_device(serial):
     """The usbtest device answering `serial` (any, when None): hil_usbtest.find_device's
     {sysname, serial, node, speed, tier}, {'ambiguous': [sysnames]} while a dual-port part
-    answers one serial on two nodes, or None. It reads through the harness's usb_observe, so
-    the strand memo path_stranded checks after a case is the one its scan fed."""
-    hil_usbtest.usb_observe = _uo()
+    answers one serial on two nodes, or None."""
     return hil_usbtest.find_device(VID, PID, serial)
 
 
@@ -433,7 +430,7 @@ def main():
             if not live:
                 # a serial read that gave up looks like a disconnect but is probably a
                 # wedge: fail closed and latch board_wedged
-                if _uo().path_stranded(str(SYS_USB / dev['sysname'] / 'serial')):
+                if _uo().path_stranded(str(Path(_uo().SYS_USB_DEVICES) / dev['sysname'] / 'serial')):
                     abort_reason = (f'cannot tell whether the device is still present '
                                     f'after case {num}: its serial read gave up')
                     unrecovered_hang = True

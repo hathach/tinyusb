@@ -68,8 +68,7 @@ import sys
 # at the helper/ move).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'test', 'hil'))  # for `from helper...`
-from helper.hil_util import device_tests, dual_tests, host_test
-from helper.hil_report import ESP_IDF_FLASHERS
+from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, host_test
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/, for build helpers
 import build_utils
