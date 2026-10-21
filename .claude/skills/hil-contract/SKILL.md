@@ -343,7 +343,7 @@ busport, unshielded afterwards;
 sysrq and the hypervisor rungs need the user and are returned as the blocker in a headless run.
 Report the cleanup explicitly: the board's state, plus any shield record or hold still standing.
 
-A `cleanup-pending` board (an `openocd_esp` session left running) is recovered under a dispatch naming it: where the cell names the protected record as the blocker rather than a token, first `python3 test/hil/helper/hil_lock.py hold --take-over <board>`, whose token is the one below (`hil` Board locks); then `python3 lib/agentrc/skills/hil/scripts/hil_openocd_esp.py end --receipt <receipt>`, and only on its exit 0 `python3 test/hil/helper/hil_lock.py release --token <token>`; on exit 1 the board stays held, and one whose init failed or is unproven needs a separately reviewed recovery.
+A `cleanup-pending` board (an `openocd_esp` session left running) is recovered under a dispatch naming it: where the cell names the protected record as the blocker rather than a token, first `python3 test/hil/helper/hil_lock.py hold --take-over <board> --reason "<recovery dispatch>"`, whose token is the one below (`hil` Board locks); then `python3 lib/agentrc/skills/hil/scripts/hil_openocd_esp.py end --receipt <receipt>`, and only on its exit 0 `python3 test/hil/helper/hil_lock.py release --token <token>`; on exit 1 the board stays held, and one whose init failed or is unproven needs a separately reviewed recovery.
 
 ## Limits
 
