@@ -1489,24 +1489,51 @@ class ConsumerCommands(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
         self.assertFalse((clean / hil_report.REPORT_JSON).exists())
-        if os.name != 'nt':
-            import fcntl
-            with open(clean / '.hil_report.lock', 'a') as held:
-                fcntl.flock(held, fcntl.LOCK_EX)
-                r = run('prepare')
-                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-                self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
-                                 'never written under another writer\'s lock')
         r = run('prepare')
         self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
-        md = (clean / hil_report.REPORT_MD).read_text(encoding='utf-8')
-        self.assertTrue(md.startswith('**HIL report unavailable: hil_report.md could not be prepared'), md)
-        self.assertNotIn('✅', md, 'the table the JSON does not back is gone')
+        self.assertIn('nor write its unavailable notice', r.stderr)
+        self.assertEqual(r.stderr.count('python3 tools/get_deps.py lib/agentrc'), 2, r.stderr)
+        self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
+                         'without lib/agentrc there is no notice writer either')
         r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil/helper"); import hil_report; '
                             'print(hil_report.board_variants({"name": "b"})[0]["name"])'],
                            capture_output=True, text=True, timeout=60, cwd=clean)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, 'b'), r.stderr)
+
+    def test_a_core_that_fails_to_load_still_gets_the_notice_written(self):
+        """agentrc's hil_report_notice is loaded apart from the core: prepare's fallback when
+        the core is what failed."""
+        clean = self.rd / 'checkout'
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
+                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_notice.py'):
+            (clean / rel).parent.mkdir(parents=True, exist_ok=True)
+            (clean / rel).write_bytes((REPO / rel).read_bytes())
+        md = clean / hil_report.REPORT_MD
+        md.write_text('| b | ✅ |\n', encoding='utf-8')
+
+        def prepare():
+            return subprocess.run([sys.executable, str(clean / 'test/hil/helper/hil_report.py'), 'prepare',
+                                   '--report-dir', str(clean)], capture_output=True, text=True, timeout=60,
+                                  env={**os.environ, 'PYTHONSAFEPATH': '1'})
+        if os.name != 'nt':
+            import fcntl
+            with open(clean / '.hil_report.lock', 'a') as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                r = prepare()
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn('another writer holds', r.stderr)
+                self.assertEqual(md.read_text(encoding='utf-8'), '| b | ✅ |\n',
+                                 'never written under another writer\'s lock')
+        for _ in range(2):
+            r = prepare()
+            self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
+            self.assertIn('has no skills/hil/scripts/hil_report_core.py', r.stderr)
+            text = md.read_text(encoding='utf-8')
+            self.assertTrue(text.startswith('**HIL report unavailable: hil_report.md could not be prepared'), text)
+            self.assertEqual(text.count('**HIL report unavailable'), 1, 'an earlier notice is never nested')
+            head, legacy = text.split('_Legacy text', 1)
+            self.assertNotIn('✅', head, 'the table the JSON does not back is not the report')
+            self.assertIn('| b | ✅ |', legacy)
 
     def test_the_cli_runs_as_a_script_under_pythonsafepath(self):
         cfg = self.rd / 'cfg.json'

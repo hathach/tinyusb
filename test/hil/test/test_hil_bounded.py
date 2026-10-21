@@ -597,48 +597,68 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device's cache is keyed by sysname, a bus-topology path: after a
-    renumber it can name a different cafe:4010 board, and idVendor/idProduct are identical
-    on every one of them. Only `serial` tells them apart."""
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for cafe:4010. Its cache must
+    never outlive a renumber (a busport can name a different identical board, and only
+    `serial` tells them apart) or a re-enumeration (a new node), and a dual-port part
+    answering one serial on two nodes is reported, never resolved to either."""
 
     def setUp(self):
         import usbtest
+        from helper import usb_observe
         self.usbtest = usbtest
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.saved_sys_usb = usbtest.SYS_USB
-        usbtest.SYS_USB = Path(self.tmp.name)
-        usbtest._DEV_CACHE.clear()
+        usbtest_harness.patch(self, usb_observe, 'SYS_USB_DEVICES', self.tmp.name)
+        cache = usbtest.hil_usbtest._DEV_CACHE
+        cache.clear()
+        self.addCleanup(cache.clear)
         self._dev('1-2', 'AAAA', devnum=2)
         self._dev('1-3', 'BBBB', devnum=3)
 
-    def tearDown(self):
-        self.usbtest.SYS_USB = self.saved_sys_usb
-        self.usbtest._DEV_CACHE.clear()
-
     def _dev(self, sysname, serial, devnum):
         d = Path(self.tmp.name) / sysname
+        shutil.rmtree(d, ignore_errors=True)   # a re-enumeration: a new sysfs node
         d.mkdir()
         for name, val in (('idVendor', self.usbtest.VID), ('idProduct', self.usbtest.PID),
                           ('serial', serial), ('busnum', '1'), ('devnum', str(devnum)),
                           ('speed', '480'), ('bcdDevice', '0104')):
             (d / name).write_text(val + '\n')
 
-    def test_cached_sysname_with_another_boards_serial_is_rejected(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-2'   # renumbered: 1-2 is board AAAA now
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual(dev['sysname'], '1-3')
-        self.assertEqual(dev['serial'], 'BBBB')
-        self.assertEqual(self.usbtest._DEV_CACHE['bbbb'], '1-3')
+    def found(self, serial='BBBB'):
+        dev = self.usbtest.find_device(serial)
+        return dev and dev.get('ambiguous') or dev and (dev['sysname'], dev['serial'], dev['node'])
 
-    def test_cached_sysname_with_the_right_serial_is_kept(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-3'
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual((dev['sysname'], dev['serial']), ('1-3', 'BBBB'))
+    def test_the_cached_device_is_returned_again(self):
+        self.assertEqual(self.found(), ('1-3', 'BBBB', '/dev/bus/usb/001/003'))
+        self.assertEqual(self.found('bbbb'), ('1-3', 'BBBB', '/dev/bus/usb/001/003'))
+        self.assertEqual(self.usbtest.find_device('BBBB')['tier'], 4)
 
-    def test_a_cached_device_that_vanished_falls_back_to_the_scan(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-9'   # gone from sysfs
-        self.assertEqual(self.usbtest.find_device('BBBB')['sysname'], '1-3')
+    def test_a_renumbered_busport_naming_another_board_is_never_returned(self):
+        self.found()
+        self._dev('1-3', 'AAAA', devnum=5)
+        self._dev('1-2', 'BBBB', devnum=4)
+        self.assertEqual(self.found(), ('1-2', 'BBBB', '/dev/bus/usb/001/004'))
+
+    def test_a_re_enumeration_at_the_same_busport_gives_the_new_node(self):
+        self.found()
+        self._dev('1-3', 'BBBB', devnum=9)
+        self.assertEqual(self.found(), ('1-3', 'BBBB', '/dev/bus/usb/001/009'))
+
+    def test_a_cached_device_that_vanished_is_not_found(self):
+        self.found()
+        shutil.rmtree(Path(self.tmp.name) / '1-3')
+        self.assertIsNone(self.usbtest.find_device('BBBB'))
+
+    def test_a_second_node_answering_the_serial_is_ambiguous_until_it_drops(self):
+        self.found()
+        self._dev('1-4', 'bbbb', devnum=6)   # a dual-port part's stale port
+        self.assertEqual(self.found(), ['1-3', '1-4'])
+        shutil.rmtree(Path(self.tmp.name) / '1-4')
+        self.assertEqual(self.found(), ('1-3', 'BBBB', '/dev/bus/usb/001/003'))
+
+    def test_several_devices_without_a_serial_to_choose_exit(self):
+        with self.assertRaises(SystemExit):
+            self.usbtest.find_device(None)
 
 
 class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):

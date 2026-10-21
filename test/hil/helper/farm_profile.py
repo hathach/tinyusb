@@ -93,23 +93,13 @@ def scan_usb() -> dict:
 
 
 def probe_candidates(board: dict) -> list:
-    """Busports of every flasher probe matching the board's flasher uid, best tier only,
-    excluding VID cafe (TinyUSB DUT firmware): a probe's uid can coincidentally equal its
-    DUT's (Espressif USB-Serial-JTAG bridges derive both from the same MAC), and the DUT is
-    never the probe. Used by --scan-only too.
-
-    J-Link zero-pads numeric serials (681295394 -> 000681295394): an all-digit uid with no
-    exact match matches an all-digit serial only when that serial equals the uid zero-padded
-    to the serial's own length (leading zeros only) — never when the zero-stripped uid is
-    empty, so a placeholder serial (metro_m4_express's probe legitimately reports '123456')
-    can't be mistaken for an unrelated device."""
-    u = board['flasher']['uid'].lower()
-    probes = sorted((bp, dev['serial']) for bp, dev in scan_usb().items() if not dev['vidpid'].startswith('cafe:'))
-    exact = [bp for bp, s in probes if s == u]
-    stripped = u.lstrip('0')
-    if exact or not (u.isdigit() and stripped):
-        return exact
-    return [bp for bp, s in probes if s.isdigit() and s == stripped.zfill(len(s))]
+    """Busports of every flasher probe matching the board's flasher uid, best tier only
+    (usb_observe.jlink_serial_candidates: J-Link's zero padding of an all-digit serial, never
+    for an all-zero uid), excluding VID cafe (TinyUSB DUT firmware): a probe's uid can
+    coincidentally equal its DUT's (Espressif USB-Serial-JTAG bridges derive both from the
+    same MAC), and the DUT is never the probe. Used by --scan-only too."""
+    probes = {bp: dev['serial'] for bp, dev in scan_usb().items() if not dev['vidpid'].startswith('cafe:')}
+    return usb_observe.jlink_serial_candidates(board['flasher']['uid'], probes)
 
 
 def find_device(uid: str):

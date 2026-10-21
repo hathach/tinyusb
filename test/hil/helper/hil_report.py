@@ -20,17 +20,10 @@ matrix) import by path without lib/agentrc.
 import argparse
 import importlib.util
 import json
-import os
 import socket
 import sys
 from pathlib import Path
 from typing import NamedTuple
-try:
-    import fcntl
-    msvcrt = None
-except ImportError:   # Windows
-    import msvcrt
-    fcntl = None
 
 
 REPORT_MD = 'hil_report.md'
@@ -82,17 +75,23 @@ _core = None
 _schema = None
 
 
+def _agentrc():
+    if __package__:
+        from . import agentrc
+        return agentrc
+    # a script run: helper/ is on sys.path, not test/hil, so the package is not
+    spec = importlib.util.spec_from_file_location('tinyusb_hil_agentrc', Path(__file__).with_name('agentrc.py'))
+    agentrc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(agentrc)
+    return agentrc
+
+
 def core():
     """agentrc's hil_report_core at the pin, loaded on first use: importing this module for
     board_variants() loads no provider."""
     global _core
     if _core is None:
-        if __package__:
-            from . import agentrc
-        else:   # a script run: helper/ is on sys.path, not test/hil, so the package is not
-            spec = importlib.util.spec_from_file_location('tinyusb_hil_agentrc', Path(__file__).with_name('agentrc.py'))
-            agentrc = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(agentrc)
+        agentrc = _agentrc()   # bound by this name: RemoteStaging reads agentrc.load's literal paths
         _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core',
                              requires=('skills/hil/scripts/hil_report_notice.py',))
     return _core
@@ -836,33 +835,16 @@ def _prepare(argv: list) -> int:
             return 1
         print(f'error: cannot prepare {REPORT_MD}: {e}', file=sys.stderr)
         try:
-            _write_notice(report_dir, f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
-        except OSError as e2:
+            # loaded apart from the core, which may be what failed to load
+            agentrc = _agentrc()
+            notice = agentrc.load('skills/hil/scripts/hil_report_notice.py', 'tinyusb_hil_report_notice')
+            notice.write_unavailable(report_dir, Path(REPORT_JSON).stem,
+                                     f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
+        except Exception as e2:  # noqa: BLE001 - ImportError, OSError or WriterHeld: the first error stands
             print(f'error: nor write its unavailable notice: {e2}', file=sys.stderr)
         return 1
     print(f'{REPORT_JSON}: {reading.outcome}' + (f' -- {reading.detail}' if reading.detail else ''))
     return 0
-
-
-def _write_notice(report_dir: Path, why: str) -> None:
-    """The unavailable notice, without the core (it may be what failed): replaced atomically,
-    under the core's writer lock (`.<stem>.lock`, never waited for). Raises OSError, also
-    when another writer holds the lock."""
-    report_dir.mkdir(parents=True, exist_ok=True)
-    fd = os.open(report_dir / f'.{Path(REPORT_JSON).stem}.lock', os.O_RDWR | os.O_CREAT, 0o666)
-    try:
-        if fcntl:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        else:
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-        md, tmp = report_dir / REPORT_MD, report_dir / f'.{REPORT_MD}.{os.getpid()}.tmp'
-        try:
-            tmp.write_text(f'**HIL report unavailable: {" ".join(why.split())}.**\n', encoding='utf-8')
-            os.replace(tmp, md)
-        finally:
-            tmp.unlink(missing_ok=True)
-    finally:
-        os.close(fd)
 
 
 def _no_selection(argv: list) -> int:

@@ -132,100 +132,13 @@ def _uo():
     return usb_observe
 
 
-SERIAL_GRACE = 1.0   # tighter than usb_observe's shared default on purpose: find_device
-                     # re-scans every cafe:4010 peer after each of ~30 cases and inside
-                     # the 8s startup poll, so N unreadable peers cost N x this per scan
-
-
-def _read_sysfs(path):
-    """The attribute's value, or None. See usb_observe.read_sysfs for why `serial` can block."""
-    return _uo().read_sysfs(str(path), SERIAL_GRACE)
-
-
-_DEV_CACHE: dict = {}   # serial -> sysname, see find_device
-
-
-def _describe(d, serial):
-    """The device at sysfs dir `d`, whose `serial` the caller has read and matched."""
-    return {
-        'sysname': d.name,
-        'serial': serial,
-        'node': '/dev/bus/usb/%03d/%03d' % (int((d / 'busnum').read_text()),
-                                            int((d / 'devnum').read_text())),
-        'speed': (d / 'speed').read_text().strip(),
-        'tier': int((d / 'bcdDevice').read_text().strip()[-2:], 16),
-    }
-
-
-def _reread(sysname, serial):
-    """Re-describe an already-resolved device, CONFIRMING its serial.
-
-    idVendor/idProduct/busnum/devnum/speed are lock-free (sysfs.c:688-705), so they cannot
-    block on a wedged peer -- but every identical board answers them the same, so they
-    prove nothing about identity. `serial` does, at one bounded read: a sysname is a
-    topology path, and after a renumber (controller reset, reboot) it can name a DIFFERENT
-    cafe:4010 board whose verdicts would be filed under this one. Returns None when the
-    serial is gone, mismatched or unconfirmed -- caller falls back to a full scan.
-    """
-    d = SYS_USB / sysname
-    try:
-        if ((d / 'idVendor').read_text().strip() != VID
-                or (d / 'idProduct').read_text().strip() != PID):
-            return None
-        dev_serial = _read_sysfs(d / 'serial')
-        if not isinstance(dev_serial, str) or dev_serial.lower() != serial.lower():
-            return None      # gone, mismatched, or unconfirmable -> full scan decides
-        return _describe(d, dev_serial)
-    except (OSError, ValueError):
-        return None
-
-
 def find_device(serial):
-    """Locate the usbtest device in sysfs, return info dict or None.
-
-    Cached by serial: this is called after EVERY case, and a full scan pays a bounded
-    but real `serial` read for every cafe:4010 peer on the rig. With another board
-    wedged that cost lands on a HEALTHY battery ~30 times over, truncating it into
-    BUDGET entries. The fast path pays ONE bounded read -- our own device's serial, the
-    only attribute that tells identical boards apart (see _reread).
-    """
-    if serial:
-        sysname = _DEV_CACHE.get(serial.lower())
-        if sysname:
-            hit = _reread(sysname, serial)
-            if hit:
-                return hit
-            _DEV_CACHE.pop(serial.lower(), None)
-    matches = []
-    for dev in SYS_USB.iterdir():
-        try:
-            if (dev / 'idVendor').read_text().strip() != VID or \
-               (dev / 'idProduct').read_text().strip() != PID:
-                continue
-            # idVendor/idProduct are cached descriptors; `serial` is served under
-            # device_lock(), so on a wedged DUT this read blocks until the wedge clears.
-            # Contained by the caller's bound, not prevented here -- see usb_observe.read_sysfs.
-            dev_serial = _read_sysfs(dev / 'serial')
-            if dev_serial is None:
-                continue
-            if serial and dev_serial.lower() != serial.lower():
-                continue
-            matches.append(_describe(dev, dev_serial))
-        except (OSError, ValueError):
-            continue
-    if not matches:
-        return None
-    if serial and len(matches) == 1:
-        _DEV_CACHE[serial.lower()] = matches[0]['sysname']
-    if len(matches) > 1:
-        if serial:
-            # Dual-port parts (nanoch32v203, ch32v307) briefly enumerate BOTH ports with
-            # one serial around a variant reflash, and picking one could bind the stale
-            # port -- report ambiguity so the caller retries until it drops.
-            return {'ambiguous': sorted(m['sysname'] for m in matches)}
-        sys.exit(f'multiple {VID}:{PID} devices found, use --serial: '
-                 + ', '.join(m["serial"] for m in matches))
-    return matches[0]
+    """The usbtest device answering `serial` (any, when None): hil_usbtest.find_device's
+    {sysname, serial, node, speed, tier}, {'ambiguous': [sysnames]} while a dual-port part
+    answers one serial on two nodes, or None. It reads through the harness's usb_observe, so
+    the strand memo path_stranded checks after a case is the one its scan fed."""
+    hil_usbtest.usb_observe = _uo()
+    return hil_usbtest.find_device(VID, PID, serial)
 
 
 def check_host_compat(dev):

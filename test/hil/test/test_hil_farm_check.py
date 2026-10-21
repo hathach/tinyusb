@@ -134,6 +134,14 @@ class Probe(unittest.TestCase):
         self.bus([('1-1', '000000', '1366:0101'), ('1-2', '123456', '1366:0101')])
         self.assertEqual(self.candidates('0'), [])
 
+    def test_a_placeholder_serial_is_matched_exactly_before_by_padding(self):
+        # metro_m4_express's probe legitimately reports the placeholder '123456'
+        self.bus([('1-1', '123456', '1366:0101'), ('1-2', '000123456', '1366:0101'), ('1-3', '000000', '1366:0101')])
+        self.assertEqual(self.candidates('123456'), ['1-1'])
+        self.assertEqual(self.candidates('000123456'), ['1-2'])
+        self.assertEqual(self.candidates('0123456'), ['1-1', '1-2'])
+        self.assertEqual(self.candidates('000'), [])
+
     def test_scan_only_reads_the_boards_own_usb_state(self):
         patch(self, farm_profile, 'find_device', lambda uid: None)
         self.assertEqual(farm_profile.scan_device(DEVICE), {'device': '⚫ off bus (parked?)', 'notes': []})
