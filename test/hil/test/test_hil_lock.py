@@ -285,17 +285,15 @@ class RetainedLock(LockDir):
     def assert_retained(self):
         rec = hil_lock.read_record(BOARD)
         self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
-        self.assertIn(self.RECEIPT, rec['reason'])
+        self.assertIn(self.RECEIPT, rec['detail'])
+        self.assertEqual((rec['protected'], rec['locks']), (True, [BOARD]))
         with self.assertRaises(hil_lock.BoardLocked):         # the holder keeps the flock itself
             hil_lock.take_board_lock(BOARD, 'peer')
-        journal = hil_lock.journal_state(BOARD)
-        self.assertIn(self.RECEIPT, journal['predecessor'])   # the run's own record, handed over
-        self.assertTrue(json.loads(journal['predecessor'])['protected'])
+        self.assertIsNone(hil_lock.journal_state(BOARD))      # handed over, not taken over
         return rec
 
     def run_board(self):
-        # only hil_test's and hil_flash's own sleeps: subprocess.run(timeout=) polls the hold
-        # CLI's exit with the global time.sleep when it closes its pipes before exiting
+        # only hil_test's and hil_flash's own sleeps, not the provider's in the lock hand-over
         sleep = mock.Mock()
         fake_time = types.ModuleType('time')
         fake_time.__dict__.update(vars(time), sleep=sleep)
@@ -305,7 +303,7 @@ class RetainedLock(LockDir):
         self.assertEqual(sleep.call_args_list, [mock.call(0)], 'waited for a retry that cannot come')
         self.assertEqual((name, err, failed), (BOARD, 2, []))   # the test's flash and the blocker
         self.assertEqual(len(self.flashes), 1, 'retried or parked beside an outstanding session')
-        self.assertTrue(self.flashes[0]['protected'], self.flashes[0])
+        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [BOARD]), self.flashes[0])
         rec = self.assert_retained()
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
@@ -408,17 +406,32 @@ class RetainedLock(LockDir):
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def test_an_unacknowledged_hand_over_leaves_the_protected_record_as_the_blocker(self):
-        self.provider(self.op('pending'))
-        patch(self, hil_test, '_HOLD_CLI', 'import sys; sys.exit("takeover refused")')
-        _, err, _, rows, _ = hil_test.test_board(self.board)
-        self.assertEqual(err, 2)
-        cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+    def assert_blocker(self, cell, why):
+        self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
+        self.assertIn(why, cell)
         self.assertIn('the protected record is the recovery blocker', cell)
         rec = hil_lock.read_record(BOARD)
-        self.assertEqual((rec['protected'], rec['cleanupPending']), (True, f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
+        self.assertFalse(hil_lock.is_cleanup_holder(rec), rec)
+        self.assertEqual((rec['protected'], rec['locks'], rec['detail']),
+                         (True, [BOARD], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
         with self.assertRaises(hil_lock.RecoveryBlocked):
             hil_lock.take_board_lock(BOARD, 'peer')
+
+    def test_an_unacknowledged_hand_over_leaves_the_protected_record_as_the_blocker(self):
+        self.provider(self.op('pending'))
+        # a holder that exits before reporting readiness
+        patch(self, hil_lock, '_holder_argv', lambda job: [sys.executable, '-c', 'pass'])
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 2)
+        self.assert_blocker(rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL], 'cleanup holder handoff failed')
+
+    def test_a_refused_hand_over_protects_the_record_as_the_blocker(self):
+        # an unprotected handle: hand_to_cleanup_holder refuses, changing nothing, and the board
+        # is protected here instead of released
+        fh = hil_lock.take_board_lock(BOARD, hil_lock.CI_REASON)
+        cell = '❌ ' + hil_test.retain_board_lock(BOARD, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
+        self.assertTrue(fh.closed)
+        self.assert_blocker(cell, 'cleanup holder handoff refused')
 
 
 if __name__ == '__main__':

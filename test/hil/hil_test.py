@@ -1994,45 +1994,32 @@ def cleanup_pending(name: str) -> str:
     return '' if receipts is None else f'openocd_esp cleanup pending, receipt {", ".join(map(str, receipts))}'
 
 
-# hil_lock.py's own CLI (argv: its path, the lock dir, then the CLI's arguments), exec'd fresh so
-# the holder it forks inherits none of a Pool worker's descriptors; the lock dir is the caller's
-# hil_lock.BOARD_LOCK_DIR, the CLI's own default unless a test points it elsewhere
-_HOLD_CLI = ('import importlib.util, sys\n'
-             'spec = importlib.util.spec_from_file_location("hil_lock", sys.argv[1])\n'
-             'm = importlib.util.module_from_spec(spec)\n'
-             'spec.loader.exec_module(m)\n'
-             'm.BOARD_LOCK_DIR = sys.argv[2]\n'
-             'sys.argv[:] = [sys.argv[1], *sys.argv[3:]]\n'
-             'm.main()\n')
-
-
 def retain_board_lock(name: str, fh, pending: str) -> str:
-    """Pass the board's lock to a cleanup holder instead of releasing it, and say where it went.
+    """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
 
-    The record is first rewritten protected and naming the receipt, then the handle closed: the
-    record left on the free flock is a recovery blocker no taker passes. hil_lock.py's own
-    `hold --take-over`, a separate exec, then takes the flock as a cleanup holder, journalling
-    that record, and exits 0 only once its holder acknowledged the hold; its record confirms the
-    token that `hil_lock.py release --token` ends it with after the contract's recovery. Without
-    that, the protected record stays the blocker."""
+    hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
+    group, to a fresh holder and returns the token `hil_lock.py release --token` ends it with
+    after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
+    one that fails leaves its protected record. Either way the handle is closed uncleared: the
+    record on the free flock is the recovery blocker, and the board is never released."""
     try:
-        hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, cleanupPending=pending)
-    except OSError as e:
-        pending += f' (record not rewritten: {e})'
-    fh.close()
-    try:
-        r = subprocess.run([sys.executable, '-c', _HOLD_CLI, hil_lock.__file__, hil_lock.BOARD_LOCK_DIR, 'hold',
-                            '--take-over', name, '--reason', f'{hil_lock.CI_REASON}: {pending}'],
-                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
-        rc, out = r.returncode, r.stdout + r.stderr
-    except (OSError, subprocess.TimeoutExpired) as e:
-        rc, out = None, str(e)
-    rec = hil_lock.read_record(name)
-    if rc == 0 and hil_lock.is_cleanup_holder(rec) and rec.get('token'):
-        return (f'{pending}; lock held by cleanup holder pid {rec["pid"]} until '
-                f'`hil_lock.py release --token {rec["token"]}` after recovery')
-    return (f'{pending}; no cleanup holder acknowledged ({compact_output(out)}), '
-            f'the protected record is the recovery blocker')
+        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending)
+    except ValueError as e:
+        why = str(e)
+        try:
+            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, locks=[name])
+        except OSError as e2:
+            why += f' (record not rewritten: {e2})'
+    except hil_lock.LockUnavailable as e:
+        why = str(e)
+    else:
+        rec = hil_lock.read_record(name)
+        pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
+        return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
+                f'`hil_lock.py release --token {token}` after recovery')
+    finally:
+        fh.close()
+    return f'{pending}; {why}; the protected record is the recovery blocker'
 
 
 def recovery_blocker(name: str, refusal: RuntimeError) -> str:
@@ -2061,7 +2048,9 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        # protected: a run killed with an openocd_esp session outstanding leaves a recovery blocker
+        # protected, its group (this board alone) declared at acquisition: a run killed with an
+        # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
+        # pending hands the lock to a cleanup holder (retain_board_lock)
         protected = flasher['name'].lower() == 'openocd_esp'
         _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
     except hil_lock.LockUnavailable as e:

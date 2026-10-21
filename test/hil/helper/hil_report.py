@@ -60,7 +60,8 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
 # a board whose openocd_esp session the provider left running: its lock went to a cleanup holder
-# (hil_test.retain_board_lock), and its value is '❌ <receipt, holder and token>'
+# (hil_test.retain_board_lock), and its value is '❌ <receipt, then holder and token, or the
+# protected record left as the recovery blocker>'
 CLEANUP_PENDING_CELL = 'cleanup-pending'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
