@@ -1929,7 +1929,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
     def test_an_unprepared_report_uploads_only_its_failure_and_the_comment_says_so(self):
         """With lib/agentrc missing or off its pin, prepare loads neither the core nor the notice
-        writer. The report dir persists across a run's attempts, so it can hold an earlier attempt's
+        writer; with no checkout at all it does not even start. The report dir persists across a run's attempts, so it can hold an earlier attempt's
         green report: the upload takes a fresh dir holding only the failure, and the PR comment
         shows that, never the earlier table."""
         legs = self.legs()   # skips without PyYAML
@@ -1937,7 +1937,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         comment = yaml.safe_load((REPO / '.github/workflows/pr_comment.yml').read_text(encoding='utf-8'))
         combine = next(st for st in comment['jobs']['hil-comment']['steps'] if st.get('id') == 'combine')
         for name, job in legs.items():
-            for provider in ('missing', 'off-pin'):
+            for provider in ('missing', 'off-pin', 'no-checkout'):
                 with self.subTest(name, provider=provider):
                     root = self.sandbox()
                     report_dir = root / 'report' if name != 'hil-hfp-iar' else root
@@ -1947,21 +1947,24 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                         (report_dir / f).write_text(text, encoding='utf-8')
                     if provider == 'missing':
                         shutil.rmtree(root / 'lib/agentrc')
+                    elif provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
+                        shutil.rmtree(root / 'test')
+                        shutil.rmtree(root / 'lib')
                     else:
                         (root / 'lib/agentrc/.git/HEAD').write_text('0' * 40 + '\n')
                     steps = job['steps']
                     prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
                     r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir)}, rc=1)
-                    self.assertIn('nor write its unavailable notice', r.stderr)
+                    if provider != 'no-checkout':
+                        self.assertIn('nor write its unavailable notice', r.stderr)
                     for f, text in stale.items():
                         self.assertEqual((report_dir / f).read_text(encoding='utf-8'), text, 'the report dir is left')
                     out = self.output_dir(root)
                     self.assertNotEqual(out.resolve(), report_dir.resolve())
                     artifact = root / 'hil-reports' / f'hil-report-{name}'
                     self.upload(next(st for st in steps if st.get('name') == 'Upload HIL report'), out, artifact)
-                    self.assertEqual(sorted(p.name for p in artifact.iterdir()),
-                                     [hil_report.REPORT_MD, 'hil_report.unprepared'])
-                    self.assertNotIn('✅', (artifact / hil_report.REPORT_MD).read_text(encoding='utf-8'))
+                    # the marker alone: pr_comment.yml says the report is unavailable from it
+                    self.assertEqual(sorted(p.name for p in artifact.iterdir()), ['hil_report.unprepared'])
                     self.run_step(root, self.script(combine), {})
                     posted = (root / 'hil_combined.md').read_text(encoding='utf-8')
                     self.assertIn('the latest attempt could not prepare it', posted)
