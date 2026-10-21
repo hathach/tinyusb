@@ -2054,6 +2054,12 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
+        # a recovery blocker never frees on its own: a free flock the helper refuses, or a live
+        # cleanup holder (a live protected record on a held flock is a run, plain contention)
+        if isinstance(e, hil_lock.RecoveryBlocked) or (
+                isinstance(e, hil_lock.BoardLocked) and hil_lock.is_cleanup_holder(hil_lock.read_record(name))):
+            cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
+            return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None

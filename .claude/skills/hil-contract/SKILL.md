@@ -193,7 +193,7 @@ The `ci` rig also hosts a GitHub Actions runner that flashes boards and runs HIL
 
 The provider's `openocd_esp` flasher is supported by `hil_test.py` only (the farm check and `run_case.py` refuse it) and is unrostered on ci.lan; it is refused under a CI job (`RUNNER_TRACKING_ID` or `GITHUB_ACTIONS` set), whose end kills the job's processes, until the openocd server and the cleanup holder are shown to survive it. A session it leaves running keeps the board's lock with a cleanup holder, reported in a `cleanup-pending` cell naming the receipt and its `release --token`.
 
-- `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later.
+- `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later. A board refused by a recovery blocker (`hil` Board locks) fails the same way but gets a `recovery-blocker` cell naming the holder instead of `board-locked`, and is returned as a blocker, never re-run.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
 - For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup:
 
@@ -312,7 +312,9 @@ The caller maps each requested board onto the `hil` verdicts from the copied out
 
 - blocker: a `board-wedged` cell (a row's `wedged`) or the board in the operator's top-level
   `wedged`; a `cleanup-pending` cell, which the report folds as a FAIL and never as `wedged` (an
-  `openocd_esp` session left running, recovered under Recovery, never retried); an `HIL run aborted`
+  `openocd_esp` session left running, recovered under Recovery, never retried); a `recovery-blocker` cell
+  (refused by a recovery blocker, its holder in `detail`: never waited on or retried, and `sequence`
+  keeps it a blocker after a later attempt's pass); an `HIL run aborted`
   notice, the boards it never reported included; a launched run that left no report.
 - fail: a FAIL cell, or a usbtest FAIL case. A HUNG case the in-run recovery cleared is not a
   blocker by itself; the row's `wedged` decides.

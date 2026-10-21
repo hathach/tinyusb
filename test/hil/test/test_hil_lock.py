@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
 # pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
-# whose lock is unavailable before flashing, an openocd_esp session left running passes the
+# whose lock is unavailable before flashing, a recovery blocker refuses the board as a blocker
+# rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running passes the
 # board's lock to a cleanup holder (RetainedLock), `hold --all` takes the roster, and a missing
 # lib/agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
@@ -82,6 +83,62 @@ class RunnerRefusesBeforeFlash(LockDir):
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 1)
         self.assertEqual(rows[0][1], {hil_test.hil_report.LOCKED_CELL: 'fail'})
+
+
+class RecoveryBlockerIsNotContention(LockDir):
+    """A board refused by a recovery blocker (`hil` Board locks) gets a recovery-blocker cell naming
+    its holder, never board-locked, and nothing flashes; another session's hold stays board-locked."""
+
+    def setUp(self):
+        super().setUp()
+        patch(self, hil_test, 'log_line', lambda line: None)
+        patch(self, hil_flash, 'flash_primitive', lambda *a: self.fail('flashed'))
+        self.board = {'name': BOARD, 'uid': 'ABC123', 'flasher': {'name': 'jlink', 'uid': 'P'},
+                      'tests': {'only': ['device/cdc_msc']}}
+
+    def hold(self, reason, **extra):
+        """Another session's hold: its flock and record, until the returned handle closes."""
+        fh = hil_lock.flock_nb(BOARD)
+        self.addCleanup(fh.close)
+        hil_lock.write_record(fh, reason, **extra)
+        return fh
+
+    def refusal(self):
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((name, err, failed, len(rows)), (BOARD, 1, [], 1))
+        return rows[0][1]
+
+    def assert_blocker(self, *named):
+        cells = self.refusal()
+        self.assertEqual(list(cells), [hil_test.hil_report.RECOVERY_BLOCKER_CELL])
+        cell = cells[hil_test.hil_report.RECOVERY_BLOCKER_CELL]
+        self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
+        for text in named:
+            self.assertIn(text, cell)
+
+    def test_a_live_cleanup_holder(self):
+        self.hold('hil_test.py: openocd_esp cleanup pending', role=hil_lock.CLEANUP_ROLE, token='t0k')
+        self.assert_blocker('board locked: ', '"role": "cleanup-holder"', '"token": "t0k"', hil_lock.RECOVERY_BLOCKER)
+
+    def test_a_dead_cleanup_holder(self):
+        self.hold('hil_test.py: openocd_esp cleanup pending', role=hil_lock.CLEANUP_ROLE, token='t0k').close()
+        self.assert_blocker('stale record', '"role": "cleanup-holder"', '"token": "t0k"')
+
+    def test_a_protected_record_left_on_a_free_flock(self):
+        self.hold(hil_lock.CI_REASON, protected=True).close()
+        self.assert_blocker('stale record', '"protected": true', f'"reason": "{hil_lock.CI_REASON}"')
+
+    def test_a_takeover_journal(self):
+        with open(os.path.join(self.dir, BOARD + hil_lock.JOURNAL), 'w') as f:
+            json.dump({'pid': 1, 'predecessor': '{}'}, f)
+        self.assert_blocker('takeover journal', '"pid": 1')
+
+    def test_another_sessions_hold_stays_contention(self):
+        for extra in ({}, {'protected': True}):   # a live protected record is a run, not a blocker
+            with self.subTest(**extra):
+                fh = self.hold(hil_lock.CI_REASON, **extra)
+                self.assertEqual(self.refusal(), {hil_test.hil_report.LOCKED_CELL: 'fail'})
+                hil_lock.release_board_lock(fh)
 
 
 class Adapter(LockDir):

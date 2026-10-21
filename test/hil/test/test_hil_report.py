@@ -386,6 +386,12 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
                                   'wedged': False, 'skipped': [], 'detail': cell})
 
+    def test_a_recovery_blocker_is_neither_contention_nor_a_fail(self):
+        cell = '❌ board locked: {"pid": 7, "role": "cleanup-holder"} (recovery blocker: ...)'
+        got = self._sum(['alpha'], [('alpha', {hil_report.RECOVERY_BLOCKER_CELL: cell})])
+        self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
+                                  'wedged': False, 'skipped': [], 'detail': f'recovery blocker; not flashed: {cell}'})
+
     def test_a_board_with_no_row_is_marked_not_run(self):
         got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
         self.assertTrue(got[0]['ran'])
@@ -893,7 +899,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         self.assertNotIn(hil_report.BOUNDARY_CELL, cells)
 
     def test_a_board_that_really_ran_drops_its_stale_lock_cell(self):
-        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL):
+        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL, hil_report.RECOVERY_BLOCKER_CELL):
             with self.subTest(key=key):
                 td = TemporaryDirectory()
                 self.addCleanup(td.cleanup)
@@ -1699,6 +1705,20 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         self.attempt(True, {'a': self.PASS_A})
         got = self.verdicts(['a', 'c'])
         self.assertEqual(got, {'a': ('fail', False), 'c': ('not-run', False)})
+
+    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board b: stale record {"protected": true} (recovery blocker: ...)'}
+
+    def test_a_recovery_blocker_stands_and_bars_the_retry(self):
+        self.attempt(False, {'a': self.FAIL_A, 'b': {'b': self.BLOCKED}})
+        cfg = json.loads(self.cfg.read_text())
+        doc = hil_report._load(self.rd)[0]
+        self.assertEqual([r['verdict'] for r in hil_report.normalised_rows(cfg, ['b'], doc)], ['blocker'])
+        self.attempt(True, {'a': self.PASS_A})
+        snapshot = hil_report.summarize(cfg, ['b'], hil_report._load(self.rd)[0])['results'][0]
+        self.assertIn('recovery blocker; not flashed', snapshot['detail'], 'a retry of a peer keeps it')
+        self.attempt(True, {'b': {'b': {'t': '✅'}}})
+        self.assertEqual(self.verdicts(['a', 'b']), {'a': ('fail', False), 'b': ('blocker', False)},
+                         'a later pass never clears it, and its run was no eligible retry of a\'s fail')
 
     def test_a_usbtest_batterys_fail_is_final(self):
         self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 28/29'}}})

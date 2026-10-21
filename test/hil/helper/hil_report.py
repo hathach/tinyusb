@@ -48,6 +48,13 @@ LOCKED_CELL = 'board-locked'
 # flash like LOCKED_CELL, but rig-side, not contention a re-admission waits out. Its value is
 # '❌ <the error>'.
 LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
+# refused by a recovery blocker (`hil` Board locks: a cleanup holder, live or dead, a protected
+# record left on a free flock, a takeover journal): refused before any flash like LOCKED_CELL,
+# but it never frees on its own, so a blocker, never waited out. Its value is '❌ <the refusal,
+# naming the holder>'.
+RECOVERY_BLOCKER_CELL = 'recovery-blocker'
+# the cells of a board refused its lock, one per row
+_REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL)
 # 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
 # recovery could not clear, or a device it could no longer identify), so the rest of the
 # board was skipped
@@ -430,16 +437,15 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
-        if rows and not unbuilt and not any(LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells
-                                            for _, cells, _ in rows):
+        if rows and not unbuilt and not any(k in cells for _, cells, _ in rows for k in _REFUSAL_CELLS):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
             # row of the board -- a green re-run must not stay red for ever under last
             # time's wedge
             stale = acc.get(name)
             if stale is not None:
-                stale[0].pop(LOCKED_CELL, None)
-                stale[0].pop(LOCK_UNAVAILABLE_CELL, None)
+                for k in _REFUSAL_CELLS:
+                    stale[0].pop(k, None)
                 stale[0].pop(WEDGED_CELL, None)
                 stale[0].pop(CLEANUP_PENDING_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
@@ -473,9 +479,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             if BOUNDARY_CELL not in cells:
                 row[0].pop(BOUNDARY_CELL, None)
             # one lock refusal per row: this attempt's replaces an earlier one of the other kind
-            if LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells:
-                row[0].pop(LOCKED_CELL, None)
-                row[0].pop(LOCK_UNAVAILABLE_CELL, None)
+            if any(k in cells for k in _REFUSAL_CELLS):
+                for k in _REFUSAL_CELLS:
+                    row[0].pop(k, None)
             row[0].update(cells)
             if dur is not None:
                 row[1] = dur
@@ -567,7 +573,7 @@ def variants_of(cfg: dict, board: str) -> list:
 
 
 # cells that say why a board did not run, never a test's result
-_MARKER_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL)
+_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL)
 
 
 def _board_rows(report: dict) -> dict:
@@ -663,6 +669,13 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
             results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
                              'wedged': False, 'skipped': [], **kept, 'detail': unusable}, mine, False))
             continue
+        blocked = next((cells[RECOVERY_BLOCKER_CELL] for cells in mine.values()
+                        if RECOVERY_BLOCKER_CELL in cells), None)
+        if blocked is not None and not aborted and not board_wedged:
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}'},
+                            mine, False))
+            continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         skipped = []
@@ -711,16 +724,16 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
 def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
     """`boards`' rows of `report` in the shared rules' shape ({board, verdict, detail, evidence},
     the `hil` skill's Verdicts), folded from summarize()'s: wedged, never heard back from
-    (pool-timeout, run-aborted) or left to a cleanup holder is a blocker; locked, build
-    refused, unbuilt or skipped is not-run. A configured board without a report row gets no
-    row, which apply_run_rules makes a blocker. Unlike the snapshot, a board passes only with
-    a passing test cell."""
+    (pool-timeout, run-aborted), left to a cleanup holder or refused by a recovery blocker is a
+    blocker; locked, build refused, unbuilt or skipped is not-run. A configured board without
+    a report row gets no row, which apply_run_rules makes a blocker. Unlike the snapshot, a
+    board passes only with a passing test cell."""
     return [_normalised(r, cells) for r, cells, missing in _results(cfg, boards, report) if not missing]
 
 
 def _normalised(r: dict, cells: dict) -> dict:
     tests = [v for c in cells.values() for t, v in c.items() if t not in _MARKER_CELLS]
-    unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c
+    unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c or RECOVERY_BLOCKER_CELL in c
                      or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
     failed = any(cell_state(v) == 'fail' for v in tests)
     exercised = any(cell_state(v) == 'pass' for v in tests)
