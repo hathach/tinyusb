@@ -886,7 +886,37 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
                     HCCHAR_CHENA;
   return true;
 }
+
+// Slave mode: a split OUT channel about to be disabled expects no data unless its start-split packet is in the TX FIFO.
+// A disabled OUT channel drops the data it still expects from the TX FIFO it shares with the other channels, see the
+// complete-split programming in handle_channel_out_slave().
+static void channel_out_expect_posted(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  const hcd_xfer_t*         xfer    = &_hcd_data.xfer[ch_id];
+  dwc2_channel_t*           channel = &dwc2->channel[ch_id];
+  const dwc2_channel_char_t hcchar  = {.value = channel->hcchar};
+  if (dma_host_enabled(dwc2) || hcchar.ep_dir != TUSB_DIR_OUT || 0 == (channel->hcsplt & HCSPLT_SPLITEN)) {
+    return;
+  }
+  bool posted = false;
+  if (0 == (channel->hcsplt & HCSPLT_COMPLSPLT)) {
+    if (hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+      posted = xfer->fifo_bytes > xfer->xferred_bytes; // its piece is written
+    } else {
+      posted = channel_is_periodic(hcchar.value) ? (xfer->split_issued != 0) : (xfer->fifo_bytes > 0);
+    }
+  }
+  if (!posted) {
+    dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+    hctsiz.xfer_size            = 0;
+    channel->hctsiz             = hctsiz.value;
+  }
+}
 #else
+TU_ATTR_ALWAYS_INLINE static inline void channel_out_expect_posted(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  (void) dwc2;
+  (void) ch_id;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
   (void) dwc2;
   (void) ch_id;
@@ -956,7 +986,7 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
       dwc2_channel_t *channel = &dwc2->channel[ch_id];
       // The ISR writes other fields of this byte. A complete-split waiting on a halted channel has nothing posted:
       // retire its channel now, which also covers DMA mode where a periodic channel cannot be disabled. A slave-mode
-      // channel still enabled after its start-split goes through the disable below.
+      // channel still enabled after its start-split is disabled here, with no FIFO write in between.
       const uint32_t gahbcfg_ch = dwc2->gahbcfg;
       dwc2->gahbcfg             = gahbcfg_ch & ~GAHBCFG_GINT;
       const bool idle           = HCD_SPLIT && xfer->csplit_wait && 0 == (channel->hcchar & HCCHAR_CHENA);
@@ -965,12 +995,13 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
         channel_dealloc(dwc2, ch_id);
       } else {
         xfer->closing = 1;
+        channel_out_expect_posted(dwc2, ch_id);
+        channel_disable(dwc2, channel);
       }
       dwc2->gahbcfg = gahbcfg_ch;
       if (idle) {
         break;
       }
-      channel_disable(dwc2, channel);
       channel_active = true;
       break; // only 1 active channel per endpoint
     }
@@ -1884,7 +1915,16 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
   // Channel disable may wait for request-queue space in slave mode.
   if (disable) {
+#if HCD_SPLIT
+    // no FIFO write between the two
+    const uint32_t gahbcfg = dwc2->gahbcfg;
+    dwc2->gahbcfg          = gahbcfg & ~GAHBCFG_GINT;
+    channel_out_expect_posted(dwc2, ch_id);
     channel_disable(dwc2, &dwc2->channel[ch_id]);
+    dwc2->gahbcfg = gahbcfg;
+#else
+    channel_disable(dwc2, &dwc2->channel[ch_id]);
+#endif
   }
 
   return true;
@@ -1973,7 +2013,9 @@ static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
   if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
     edpt->periodic_err = xfer->err_count;
   #if HCD_SPLIT
-    edpt->periodic_xferred = xfer->xferred_bytes; // the channel is released: keep what the packets sent so far count
+    // the channel is released: keep what the packets sent so far count. An isochronous packet starts over at BEGIN.
+    edpt->periodic_xferred =
+        (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) ? 0 : xfer->xferred_bytes;
   #endif
     periodic_xfer_defer(dwc2, edpt, true);
   #if HCD_SPLIT
@@ -2137,6 +2179,7 @@ static bool channel_iso_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
     return false; // its microframe has not passed
   }
   xfer->result     = XFER_RESULT_FAILED;
+  channel_out_expect_posted(dwc2, ch_id); // its piece is not in the FIFO
   xfer->fifo_bytes = 0;
   channel_disable(dwc2, channel);
   split_iso_out_close(dwc2, ch_id);
@@ -2155,6 +2198,9 @@ static bool channel_split_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
       uframe_ahead(xfer->split_uframe, dwc2->hfnum) >= 0) {
     return false;
   }
+  const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+  _hcd_data.edpt[xfer->ep_id].next_pid = hctsiz.pid; // the packet did not go out: it keeps its data toggle
+  channel_out_expect_posted(dwc2, ch_id); // nothing of it is in the FIFO
   channel_disable(dwc2, channel);
   return true;
 }
@@ -2565,6 +2611,15 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
         // ACK for start split --> do complete split
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
+#if HCD_SPLIT
+        // The complete-split carries no data: program it with none, as Linux dwc2 does. A slave-mode OUT channel
+        // disabled with data still expected drops that much from the TX FIFO it shares with other channels; a
+        // complete-split's 64 bytes would be another channel's posted packet, whose start-split then underruns
+        // the FIFO into a 1025-byte babble that disables the root port.
+        dwc2_channel_tsize_t hctsiz_cs = {.value = channel->hctsiz};
+        hctsiz_cs.xfer_size = 0;
+        channel->hctsiz = hctsiz_cs.value;
+#endif
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
           channel->hcchar |= HCCHAR_CHENA;
         } else {

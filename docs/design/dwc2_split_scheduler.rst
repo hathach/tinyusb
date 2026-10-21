@@ -279,6 +279,18 @@ Enable a late CS for the current microframe only while no control or bulk
 transfer is in progress or ended in it, and not in its tail; otherwise treat it
 as late for the next microframe. [EVIDENCE]_
 
+**D06b -- A disabled slave OUT channel drops what it still expects (observation,
+P4).** Disabling a slave-mode OUT channel flushes its posted requests
+(Programming Guide 3.5) and, as observed, drops from the shared TX FIFO the data
+its HCTSIZ still expects, whether or not that data was written for it. A split
+OUT left at its start-split size through the complete-split took another
+channel's posted start-split packet when the device was unplugged. That
+start-split then underran the FIFO into a 1025-byte babble, and the core
+disabled the root port. Program a complete-split OUT with no data, as Linux
+dwc2 does, and set a split OUT whose start-split packet is not in the FIFO to
+expect none before disabling it. The core's per-word packet delimiter (databook
+2.2.4.1) does not bound the packet once the FIFO underruns. [EVIDENCE]_
+
 **D07 -- RX can create channel interrupts (DWC2).** In slave mode, popping
 receive-status entries can make XferCompl or ChHltd visible. Drain each
 reported data payload correctly and reread live channel-interrupt state after
