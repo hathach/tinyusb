@@ -186,6 +186,12 @@ static void start_data_in(void) {
   start_data_in_cb(record_complete);
 }
 
+static void start_no_data_cb(tuh_msc_complete_cb_t complete_cb) {
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, complete_cb, 0));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+}
+
 // usbh_edpt_xfer() takes a 16-bit length, so a data stage of 64 KiB or more must be split into
 // packet-aligned transfers rather than narrowed (98304 would otherwise become 32768).
 void test_msc_host_data_stage_over_64k(void) {
@@ -219,6 +225,17 @@ void test_msc_host_data_stage_short_ends_early(void) {
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
 }
 
+// refused from the completion callback and afterwards, with nothing submitted
+static void assert_fenced(uint8_t submitted, uint8_t completed) {
+  TEST_ASSERT_FALSE(retry_submitted);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+  TEST_ASSERT_FALSE(tuh_msc_read10(DADDR, 0, data, 0, 1, record_complete, 0));
+  TEST_ASSERT_EQUAL(submitted, xfer_count);
+  TEST_ASSERT_EQUAL(completed, complete_count);
+}
+
 // A stage that fails to submit leaves no transfer pending: the command must still complete, and only once.
 // The device is then left mid-command, so no further CBW may reach it until it is re-enumerated.
 static void assert_submit_fail_completed(uint8_t submitted, uint32_t residue) {
@@ -228,15 +245,7 @@ static void assert_submit_fail_completed(uint8_t submitted, uint32_t residue) {
   TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
   TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
   TEST_ASSERT_EQUAL(residue, complete_csw.data_residue);
-
-  // refused from the completion callback and afterwards, with nothing submitted
-  TEST_ASSERT_FALSE(retry_submitted);
-  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
-  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
-  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
-  TEST_ASSERT_FALSE(tuh_msc_read10(DADDR, 0, data, 0, 1, record_complete, 0));
-  TEST_ASSERT_EQUAL(submitted, xfer_count);
-  TEST_ASSERT_EQUAL(1, complete_count);
+  assert_fenced(submitted, 1);
 }
 
 void test_msc_host_data_stage_first_chunk_submit_fail_completes(void) {
@@ -254,11 +263,19 @@ void test_msc_host_no_data_status_submit_fail_completes(void) {
   TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
 
   xfer_fail_index = 1; // CBW, then the CSW fails
-  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234};
-  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, retry_complete, 0));
-  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  start_no_data_cb(retry_complete);
 
   assert_submit_fail_completed(2, 0);
+}
+
+// without a completion callback the failed command still fences the interface
+void test_msc_host_submit_fail_without_callback(void) {
+  enumerate();
+
+  xfer_fail_index = 1; // CBW, then the CSW fails
+  start_no_data_cb(NULL);
+
+  assert_fenced(2, 0);
 }
 
 void test_msc_host_data_stage_status_submit_fail_completes(void) {
@@ -279,7 +296,7 @@ void test_msc_host_data_stage_chunk_submit_fail_completes(void) {
 
   xfer_fail_index = 2; // CBW, first chunk, then the second chunk fails
   start_data_in_cb(retry_complete);
-  (void) msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[1]);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[1]));
 
   assert_submit_fail_completed(3, sizeof(data) - xfer_len[1]);
   const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x5678};
@@ -358,7 +375,7 @@ void test_msc_host_enum_get_max_lun_submit_fail(void) {
   set_config_count = 0;
   ctrl_xfer_fail   = true;
   open_bot_interface();
-  (void) msch_set_config(DADDR, ITF_NUM);
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
 
   assert_enum_ended_unmounted(0);
 }
