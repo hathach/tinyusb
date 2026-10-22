@@ -340,6 +340,24 @@ class TestArgsEmission(unittest.TestCase):
         per = change_impact.selection_args_by_flasher(s, ROSTERS)['tinyusb.json']
         self.assertEqual(per, {'openocd': '-b raspberry_pi_pico'})
 
+    def test_rig_legs_put_every_esp_idf_flasher_in_the_esp_leg(self):
+        legs = change_impact.rig_legs({'openocd': '-b pico', 'esptool': '-b s3', 'openocd_esp': '-b p4',
+                                       'jlink': '-bt f407:device/cdc_msc', 'lm4flash': ''})
+        self.assertEqual(legs, {'tinyusb': '-bt f407:device/cdc_msc -b pico', 'tinyusb_esp': '-b s3 -b p4'})
+        # a leg with no selected board gets no args, never a filter matching zero boards
+        self.assertEqual(change_impact.rig_legs({'openocd': '-b pico'}), {'tinyusb': '-b pico', 'tinyusb_esp': ''})
+        self.assertEqual(change_impact.rig_legs({}), {'tinyusb': '', 'tinyusb_esp': ''})
+
+    def test_an_openocd_esp_board_is_selected_into_the_esp_leg(self):
+        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u5', 'flasher': {'name': 'openocd_esp'},
+              'tests': {'only': ['device/cdc_msc_freertos']}}
+        rosters = [('test/hil/tinyusb.json', ROSTER + [p4])]
+        s = change_impact.classify(['src/device/usbd.c'], REPO, rosters)
+        legs = change_impact.rig_legs(change_impact.selection_args_by_flasher(s, rosters)['tinyusb.json'])
+        self.assertIn('espressif_p4_function_ev', legs['tinyusb_esp'])
+        self.assertIn('espressif_s3_devkitm', legs['tinyusb_esp'])
+        self.assertNotIn('espressif', legs['tinyusb'])
+
     def test_args_by_flasher_full_is_empty(self):
         s = sel(['src/newdir/x.c'])
         self.assertTrue(s['full'])
@@ -2498,6 +2516,17 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
                 self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['-b metro_m4_express -DMAX3421_HOST=1'])
             else:
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
+
+    def test_an_openocd_esp_board_builds_under_esp_idf(self):
+        import tempfile
+        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
+        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+            json.dump({'boards': [p4]}, f)
+            f.flush()
+            r = subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        m = json.loads(r.stdout)
+        self.assertEqual((m['esp-idf'], m['arm-gcc']), (['-b espressif_p4_function_ev'], []))
 
     def test_no_hil_examples_is_byte_identical(self):
         plain = self.run_matrix()

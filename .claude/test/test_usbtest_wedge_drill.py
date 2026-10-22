@@ -483,7 +483,7 @@ class WchHeldHalt(unittest.TestCase):
         t = time.monotonic()
         try:
             with mock.patch.object(run_case.hil_flash, '_openocd_cmd_base',
-                                   lambda flasher: f'{sys.executable} {script} --'), \
+                                   lambda flasher: [sys.executable, str(script), '--']), \
                     mock.patch.object(wedge_drill.subprocess, 'Popen', popen):
                 ret = wedge_drill.halt_held(board, timeout)
         finally:
@@ -496,7 +496,7 @@ class WchHeldHalt(unittest.TestCase):
             HALTS, 10)
         self.assertEqual(ret.returncode, 0)
         self.assertLess(took, 5)
-        self.assertIn('-c "init; halt; echo WEDGE_DRILL_HALTED; sleep 10000; shutdown"', ret.args)
+        self.assertEqual(ret.args[-2:], ['-c', 'init; halt; echo WEDGE_DRILL_HALTED; sleep 10000; shutdown'])
 
     def test_an_openocd_that_exits_unhalted_fails_at_once(self):
         ret, took = self.fake_openocd('print("Error: no device found", flush=True)\nsys.exit(1)\n', 10)

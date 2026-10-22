@@ -66,7 +66,7 @@ import usbtest    # the recovery bounds and the id registration; batteries run i
 from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
-rtt = agentrc.load('skills/rtt/scripts/rtt.py', 'tinyusb_tools_rtt')
+rtt = agentrc.load_file('skills/rtt/scripts/rtt.py')
 # The flash provider and its runner, likewise once before the Pool so every worker shares them;
 # refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
 hil_util.provider()
@@ -1989,50 +1989,59 @@ def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) ->
 
 def cleanup_pending(name: str) -> str:
     """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running (hil_flash.cleanup_pending), whose board lock passes to a cleanup holder."""
+    running, or an esptool child not proven ended (hil_flash.cleanup_pending), whose board lock
+    passes to a cleanup holder."""
     receipts = hil_flash.cleanup_pending.get(name)
-    return '' if receipts is None else f'openocd_esp cleanup pending, receipt {", ".join(map(str, receipts))}'
-
-
-# hil_lock.py's own CLI (argv: its path, the lock dir, then the CLI's arguments), exec'd fresh so
-# the holder it forks inherits none of a Pool worker's descriptors; the lock dir is the caller's
-# hil_lock.BOARD_LOCK_DIR, the CLI's own default unless a test points it elsewhere
-_HOLD_CLI = ('import importlib.util, sys\n'
-             'spec = importlib.util.spec_from_file_location("hil_lock", sys.argv[1])\n'
-             'm = importlib.util.module_from_spec(spec)\n'
-             'spec.loader.exec_module(m)\n'
-             'm.BOARD_LOCK_DIR = sys.argv[2]\n'
-             'sys.argv[:] = [sys.argv[1], *sys.argv[3:]]\n'
-             'm.main()\n')
+    return '' if receipts is None else \
+        f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
 def retain_board_lock(name: str, fh, pending: str) -> str:
-    """Pass the board's lock to a cleanup holder instead of releasing it, and say where it went.
+    """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
 
-    The record is first rewritten protected and naming the receipt, then the handle closed: the
-    record left on the free flock is a recovery blocker no taker passes. hil_lock.py's own
-    `hold --take-over`, a separate exec, then takes the flock as a cleanup holder, journalling
-    that record, and exits 0 only once its holder acknowledged the hold; its record confirms the
-    token that `hil_lock.py release --token` ends it with after the contract's recovery. Without
-    that, the protected record stays the blocker."""
+    hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
+    group, to a fresh holder and returns the token `hil_lock.py release --token` ends it with
+    after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
+    one that fails leaves its protected record. Either way the handle is closed uncleared: the
+    record on the free flock is the recovery blocker, and the board is never released."""
+    # a tracked esptool child's receipt makes the holder's release wait for its recheck to answer `done`
+    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if hil_flash.tracked_receipt(r)]
     try:
-        hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, cleanupPending=pending)
-    except OSError as e:
-        pending += f' (record not rewritten: {e})'
-    fh.close()
-    try:
-        r = subprocess.run([sys.executable, '-c', _HOLD_CLI, hil_lock.__file__, hil_lock.BOARD_LOCK_DIR, 'hold',
-                            '--take-over', name, '--reason', f'{hil_lock.CI_REASON}: {pending}'],
-                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
-        rc, out = r.returncode, r.stdout + r.stderr
-    except (OSError, subprocess.TimeoutExpired) as e:
-        rc, out = None, str(e)
-    rec = hil_lock.read_record(name)
-    if rc == 0 and hil_lock.is_cleanup_holder(rec) and rec.get('token'):
-        return (f'{pending}; lock held by cleanup holder pid {rec["pid"]} until '
-                f'`hil_lock.py release --token {rec["token"]}` after recovery')
-    return (f'{pending}; no cleanup holder acknowledged ({compact_output(out)}), '
-            f'the protected record is the recovery blocker')
+        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked)
+    except ValueError as e:
+        why = str(e)
+        try:
+            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
+                                  locks=[name])
+        except OSError as e2:
+            why += f' (record not rewritten: {e2})'
+    except hil_lock.LockUnavailable as e:
+        why = str(e)
+    else:
+        rec = hil_lock.read_record(name)
+        pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
+        return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
+                f'`hil_lock.py release --token {token}` after recovery')
+    finally:
+        fh.close()
+    return f'{pending}; {why}; the protected record is the recovery blocker'
+
+
+def recovery_blocker(name: str, refusal: RuntimeError) -> str:
+    """The board's lock refusal naming its recovery blocker (`hil` Board locks), or '' for contention:
+    a free flock the helper refused, a live cleanup holder, or a takeover journal on a held flock
+    (take_over journals before it rewrites the records). A live protected record alone is a run."""
+    if isinstance(refusal, hil_lock.RecoveryBlocked):
+        return str(refusal)
+    if not isinstance(refusal, hil_lock.BoardLocked):
+        return ''
+    if hil_lock.is_cleanup_holder(hil_lock.read_record(name)):
+        return str(refusal)
+    journal = hil_lock.journal_state(name)
+    if journal is None:
+        return ''
+    holder = {k: journal[k] for k in ('token', 'pid', 'locks') if k in journal}
+    return f'{refusal}; takeover journal {json.dumps(holder)} ({hil_lock.RECOVERY_BLOCKER})'
 
 
 def test_board(board: Board) -> tuple:
@@ -2044,7 +2053,9 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        # protected: a run killed with an openocd_esp session outstanding leaves a recovery blocker
+        # protected, its group (this board alone) declared at acquisition: a run killed with an
+        # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
+        # pending hands the lock to a cleanup holder (retain_board_lock)
         protected = flasher['name'].lower() == 'openocd_esp'
         _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
     except hil_lock.LockUnavailable as e:
@@ -2054,6 +2065,9 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
+        if blocker := recovery_blocker(name, e):
+            cell = f'{hil_report.REPORT_CELL["fail"]} {blocker}'
+            return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
@@ -2491,12 +2505,14 @@ def main() -> None:
         _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
     # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
     bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
-                            if (why := hil_flash.openocd_esp_refusal(f)))
+                            if (why := hil_flash.openocd_esp_entry_problem(f)))
     if bad_esp:
         _config_abort(f'openocd_esp flasher refused: {"; ".join(bad_esp)}')
-    esp_boards = [e['name'] for e in config_boards if hil_flash.flashers(e, 'openocd_esp')]
-    if esp_boards and (why := hil_util.openocd_esp().ci_refusal()):
-        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_boards)}: {why}')
+    # the refusal is the process's (a CI job), the same for every board it names
+    esp_refused = {e['name']: why for e in config_boards
+                   if (why := hil_flash.openocd_esp_refused(e, retains_lock=True))}
+    if esp_refused:
+        _config_abort(f'openocd_esp flasher refused: {", ".join(esp_refused)}: {next(iter(esp_refused.values()))}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]

@@ -6,6 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
 import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
+import hil_util  # noqa: E402  ESP_IDF_FLASHERS; agentrc loads only on first use
 
 
 def _resolve_config_path(config_file):
@@ -81,10 +82,10 @@ def main():
                 continue
             name = board['name']
             flasher = board['flasher']
-            # esptool boards must build under esp-idf; others default to arm-gcc
-            # but may opt into another bucket via an explicit "toolchain" field
-            # (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
-            if flasher['name'] == 'esptool':
+            # esptool and openocd_esp boards must build under esp-idf; others default
+            # to arm-gcc but may opt into another bucket via an explicit "toolchain"
+            # field (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
+            if flasher['name'] in hil_util.ESP_IDF_FLASHERS:
                 toolchain = 'esp-idf'
             else:
                 toolchain = board.get('toolchain', 'arm-gcc')

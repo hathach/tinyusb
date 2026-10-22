@@ -338,6 +338,7 @@ class RemoteStaging(unittest.TestCase):
         # the rig executes and require each file in HARNESS_FILES, read by ast so this
         # suite needs nothing the wrapper imports.
         import ast
+        from helper import agentrc
         hil_dir = Path(TEST_DIR).parents[0]
         repo = hil_dir.parents[1]
         wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
@@ -360,32 +361,14 @@ class RemoteStaging(unittest.TestCase):
                         yield node.module.replace('.', '/') + '.py'
 
         def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ..., requires=(...)) brings in lib/agentrc files no import
-            # walk can see: the one it executes and the ones that one loads or launches
+            # agentrc.load('<rel>', ...) and agentrc.load_file('<rel>') bring in lib/agentrc files
+            # no import walk can see: hil_load, the one it executes and that one's FILES, the
+            # files it loads or launches by path
             for node in ast.walk(ast.parse(pyfile.read_text())):
-                if (isinstance(node, ast.Call) and ast.unparse(node.func) == 'agentrc.load'
+                if (isinstance(node, ast.Call) and ast.unparse(node.func) in ('agentrc.load', 'agentrc.load_file')
                         and node.args and isinstance(node.args[0], ast.Constant)):
-                    yield f'lib/agentrc/{node.args[0].value}'
-                    for kw in node.keywords:
-                        if kw.arg == 'requires':
-                            yield from (f'lib/agentrc/{e.value}' for e in kw.value.elts)
-
-        def by_path(rel):
-            # what an agentrc script itself loads or launches by path: _load('<name>') and
-            # os.path.join(HERE, ...) beside it, Path(__file__)...with_name('<file>')
-            here = Path(rel).parent
-            for node in ast.walk(ast.parse((repo / rel).read_text())):
-                if not isinstance(node, ast.Call):
-                    continue
-                fn, args = ast.unparse(node.func), node.args
-                if not args or not all(isinstance(a, ast.Constant) for a in args[fn == 'os.path.join':]):
-                    continue
-                if fn == '_load':
-                    yield (here / f'{args[0].value}.py').as_posix()
-                elif fn == 'os.path.join' and ast.unparse(args[0]) == 'HERE':
-                    yield os.path.normpath(here.joinpath(*(a.value for a in args[1:])))
-                elif fn.endswith('.with_name'):
-                    yield (here / args[0].value).as_posix()
+                    rel = node.args[0].value
+                    yield from (f'lib/agentrc/{f}' for f in (agentrc.HIL_LOAD, rel, *agentrc.files_of(rel)))
 
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
@@ -402,20 +385,12 @@ class RemoteStaging(unittest.TestCase):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
         self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
-        launched, todo = set(), sorted(loaded)
-        while todo:
-            for f in by_path(todo.pop()):
-                if f not in launched:
-                    launched.add(f)
-                    todo.append(f)
-        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', launched, 'the by-path walk went vacuous')
-        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', launched,
-                      'the by-path walk missed the openocd_esp session helper')
-        for f in ('hil_tt.py', 'hil_usbtest.py'):
+        # FILES is the provider's by-path closure (agentrc's tests/test_hil_load.py checks it)
+        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', loaded, 'the FILES walk went vacuous')
+        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', loaded,
+                      'the FILES walk missed the openocd_esp session helper')
+        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py'):
             self.assertIn(f'lib/agentrc/skills/hil/scripts/{f}', loaded, f'the load walk missed {f}')
-        for f in sorted(launched):
-            # in `requires` too, so a tree lacking it is refused before any tool runs
-            self.assertIn(f, loaded, f'{f} is loaded or launched by path but no agentrc.load requires it')
         for f in sorted(loaded):
             self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
         # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
@@ -431,7 +406,7 @@ class RemoteStaging(unittest.TestCase):
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
         code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
                 'p, e = hil_util.provider(), hil_util.openocd_esp()\n'
-                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.ESP_SESSION,'
+                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.esp_session.__file__,'
                 ' hil_test.hil_tt.__file__, hil_test.usbtest.hil_usbtest.__file__, sep="\\n")\n')
         with TemporaryDirectory() as td:
             root = Path(td).resolve()
@@ -597,48 +572,41 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device's cache is keyed by sysname, a bus-topology path: after a
-    renumber it can name a different cafe:4010 board, and idVendor/idProduct are identical
-    on every one of them. Only `serial` tells them apart."""
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for cafe:4010, reading the sysfs
+    root the harness's usb_observe names: one module, so a patched root reaches it."""
 
     def setUp(self):
         import usbtest
+        from helper import usb_observe
         self.usbtest = usbtest
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.saved_sys_usb = usbtest.SYS_USB
-        usbtest.SYS_USB = Path(self.tmp.name)
-        usbtest._DEV_CACHE.clear()
+        usbtest_harness.patch(self, usb_observe, 'SYS_USB_DEVICES', self.tmp.name)
+        cache = usbtest.hil_usbtest._DEV_CACHE
+        cache.clear()
+        self.addCleanup(cache.clear)
         self._dev('1-2', 'AAAA', devnum=2)
         self._dev('1-3', 'BBBB', devnum=3)
 
-    def tearDown(self):
-        self.usbtest.SYS_USB = self.saved_sys_usb
-        self.usbtest._DEV_CACHE.clear()
-
     def _dev(self, sysname, serial, devnum):
         d = Path(self.tmp.name) / sysname
+        shutil.rmtree(d, ignore_errors=True)   # a re-enumeration: a new sysfs node
         d.mkdir()
         for name, val in (('idVendor', self.usbtest.VID), ('idProduct', self.usbtest.PID),
                           ('serial', serial), ('busnum', '1'), ('devnum', str(devnum)),
                           ('speed', '480'), ('bcdDevice', '0104')):
             (d / name).write_text(val + '\n')
 
-    def test_cached_sysname_with_another_boards_serial_is_rejected(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-2'   # renumbered: 1-2 is board AAAA now
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual(dev['sysname'], '1-3')
-        self.assertEqual(dev['serial'], 'BBBB')
-        self.assertEqual(self.usbtest._DEV_CACHE['bbbb'], '1-3')
+    def found(self, serial='BBBB'):
+        dev = self.usbtest.find_device(serial)
+        return dev and dev.get('ambiguous') or dev and (dev['sysname'], dev['serial'], dev['node'])
 
-    def test_cached_sysname_with_the_right_serial_is_kept(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-3'
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual((dev['sysname'], dev['serial']), ('1-3', 'BBBB'))
-
-    def test_a_cached_device_that_vanished_falls_back_to_the_scan(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-9'   # gone from sysfs
-        self.assertEqual(self.usbtest.find_device('BBBB')['sysname'], '1-3')
+    def test_it_is_the_providers_lookup_over_the_harness_usb_observe(self):
+        # the provider's own suite owns the cache (renumber, re-enumeration, vanished device)
+        self.assertEqual(self.found(), ('1-3', 'BBBB', '/dev/bus/usb/001/003'))
+        self.assertEqual(self.usbtest.find_device('BBBB')['tier'], 4)
+        self._dev('1-4', 'bbbb', devnum=6)   # a dual-port part's stale port: reported, never resolved
+        self.assertEqual(self.found(), ['1-3', '1-4'])
 
 
 class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):
@@ -863,7 +831,8 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
             'num': num, 'name': 'x', 'params': '', 'status': 'PASS'})
         found = iter([dict(usbtest_harness.DEV), live])
         patch(usbtest, 'find_device', lambda serial: next(found))
-        patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded))
+        patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded,
+                                                           SYS_USB_DEVICES='/sys/bus/usb/devices'))
         patch(usbtest, 'bind_usbtest', lambda d: None)
         patch(usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.argv(self)

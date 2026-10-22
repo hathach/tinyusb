@@ -25,7 +25,7 @@ def _raise_rtt_error(msg):
 
 class RttHarnessContracts(unittest.TestCase):
     def test_hil_test_loads_the_pinned_console_once(self):
-        self.assertIs(sys.modules['tinyusb_tools_rtt'], hil_test.rtt)
+        self.assertIs(sys.modules['agentrc_rtt'], hil_test.rtt)
         self.assertEqual(os.path.realpath(hil_test.rtt.__file__), os.path.realpath(os.path.join(REPO, RTT_PY)))
         self.assertIs(hil_test.RTT_BANNER_RE, hil_test.rtt.RTT_BANNER_RE)
 
