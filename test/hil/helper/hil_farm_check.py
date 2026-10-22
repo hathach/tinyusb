@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""HIL farm check (the `farm-check` skill): agentrc's engine, from lib/agentrc at the pin,
+"""HIL farm check (the `hil` skill's Farm check): agentrc's engine, from lib/agentrc at the pin,
 run with tinyusb's profile (helper/farm_profile.py). `--help` for the flags; the engine's
 module docstring defines the rows, the document and the exit status."""
 import sys

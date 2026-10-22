@@ -110,8 +110,8 @@ class BottomLayer(unittest.TestCase):
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
         # farm_profile included: test_hil_util_is_a_single_module_instance imports it
-        # on the bare runner, and its `import serial` is function-local for exactly
-        # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
+        # on the bare runner, so a module-level non-stdlib import there must fail HERE,
+        # not on every PR's pre-commit CI
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
                     'helper/hil_lock', 'helper/agentrc', 'helper/farm_profile', 'helper/hil_farm_check',
                     '../../tools/build', '../../tools/build_utils',
@@ -120,8 +120,7 @@ class BottomLayer(unittest.TestCase):
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
             tree = ast.parse((hil_dir / f'{mod}.py').read_text())
             # module level only: a deferred import inside a function cannot break
-            # importability (farm_profile keeps `import serial` function-local
-            # for exactly that reason)
+            # importability
             for node in tree.body:
                 roots = []
                 if isinstance(node, ast.Import):

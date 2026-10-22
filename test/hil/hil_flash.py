@@ -136,20 +136,12 @@ def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> sub
                                              cwd=str(fw_dir), timeout=_bound(timeout), run=_runner(run))
 
 
-def esptool_input_problem(firmware) -> str:
-    """Why flash_esptool could not flash this build ('' when it could): its dir's config.env
-    and flash_args, judged by the provider's esptool_input_problem. Checked before a board is
-    locked, so a flash cannot fail on its inputs."""
-    fw_dir = Path(firmware).parent
-    try:
-        chip, flash_args = _esptool_inputs(fw_dir)
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        return f'{fw_dir}: {e!r}'[:200]
-    why = hil_util.provider().esptool_input_problem(chip, flash_args, str(fw_dir))
-    return f'{fw_dir}: {why}' if why else ''
-
-
-# no reset_esptool: esptool's reset would be `--after hard_reset`, which is not wired here
+# no reset_esptool: hil_test resets with the board's console open on the same serial port.
+def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
+    """The provider's ROM-loader reset, for a caller that holds no console on the port."""
+    flasher = board['flasher']
+    port = hil_util.get_serial_dev(flasher['uid'], None, None, 0)
+    return hil_util.provider().reset_esptool(flasher, port=port, timeout=_bound(timeout), run=_runner(run))
 
 
 # -------------------------------------------------------------
@@ -264,26 +256,12 @@ def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:
     return op.security
 
 
-def openocd_esp_input_problem(flasher: dict, firmware, timeout=None) -> str:
-    """Why flash_openocd_esp could not flash this build ('' when it could): the provider's
-    admission of the flasher and its segments_from_flash_args for the chip that names (an
-    `esptool merge-bin`, no board access). Checked before a board is locked."""
-    fw_dir = Path(firmware).parent
-    try:
-        p = hil_util.openocd_esp()
-        chip, _ = p.admit(flasher)
-        p.segments_from_flash_args(fw_dir, chip, timeout=_bound(timeout), run=hil_util.run_cmd)
-    except (ValueError, RuntimeError) as e:
-        return f'{fw_dir}: {e}'[:200]
-    return ''
-
-
 def flash_openocd_esp(board, firmware, timeout=None, *, run=None):
     """The build's flash_args as the provider's ordered segments, the chip's security state read
     over its USJ tty (the esptool package of the `esptool` on PATH, the contract's runtime), then
     the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset.
     `run` runs the two esptool children; the security read's runner must report its cleanup
-    (run_tracked's, as the farm check's ctx.run does), by default _tracked."""
+    (run_tracked's), by default _tracked."""
     flasher = board['flasher']
 
     def operation(p):
@@ -364,14 +342,12 @@ FLASHER_SUFFIX = {
 }
 
 
-def find_firmware(variant: str, example: str, roots: list | None = None, flasher: str | None = None):
+def find_firmware(variant: str, example: str, flasher: str | None = None):
     """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/.
-    `roots` replaces build_dir with that search list for one call
-    (e.g. a build just produced by tools/build.py in its fixed cmake-build/ layout)
-    without widening the global policy. `flasher` is the roster flasher name and selects
-    which extension counts (FLASHER_SUFFIX), so a build that produced only the other one
-    is reported missing — a clean "Skip (no binary)" — instead of being handed to the
-    flasher, which would fail opaquely and burn every retry plus the board lock.
+    `flasher` is the roster flasher name and selects which extension counts (FLASHER_SUFFIX),
+    so a build that produced only the other one is reported missing — a clean "Skip (no
+    binary)" — instead of being handed to the flasher, which would fail opaquely and burn
+    every retry plus the board lock.
     Accepts the single-config layout (firmware directly in the example dir) or Ninja
     Multi-Config (a per-config subdir like RelWithDebInfo/).
     Returns the full Path INCLUDING extension, or None if not built."""
@@ -379,13 +355,10 @@ def find_firmware(variant: str, example: str, roots: list | None = None, flasher
     suffixes = [FLASHER_SUFFIX.get(flasher.lower())] if flasher else []
     if not suffixes or suffixes == [None]:
         suffixes = ['.elf', '.bin']
-    for bd in dict.fromkeys(roots if roots is not None else [build_dir]):
-        fw_dir = hil_util.TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
-        if not fw_dir.is_dir():
-            continue
-        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
-                     *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
-            for s in suffixes:
-                if cand.with_suffix(s).exists():
-                    return cand.with_suffix(s)
+    fw_dir = hil_util.TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
+    for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                 *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
+        for s in suffixes:
+            if cand.with_suffix(s).exists():
+                return cand.with_suffix(s)
     return None
