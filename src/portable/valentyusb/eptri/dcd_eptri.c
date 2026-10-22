@@ -486,8 +486,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     // Continue until the buffer is empty, the system is idle, and the fifo is empty.
     while (tx_buffer[ep_num] != NULL)
       ;
-    // only this task path sets tx_buffer[ep_num]; the ISR only clears it
-    TU_ASSERT(tx_buffer[ep_num] == NULL);
 
     dcd_int_disable(0);
 #if LOG_USB
