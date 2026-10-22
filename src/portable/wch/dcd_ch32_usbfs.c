@@ -552,7 +552,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
-  (void)rhport;
   uint8_t ep  = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
   TU_ASSERT(ep < EP_MAX);
@@ -650,19 +649,20 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void)rhport;
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
   if (ep == 0) {
-    // A stalled control transfer has no status stage to release the IN hold: release it before the
-    // host can see the STALL and start the next transfer, IRQ masked so no SETUP lands mid-release.
-    if (ep_in_held()) {
-      dcd_int_disable(rhport);
-      ep_in_hold(false);
-      dcd_int_enable(rhport);
-    }
     if (dir == TUSB_DIR_OUT) {
       ep_rx_ctrl_set(0, USBFS_EP_R_RES_STALL);
+    } else if (ep_in_held()) {
+      // A stalled control transfer has no status stage to release the IN hold. usbd stalls EP0 OUT
+      // first: release only once EP0 IN is set to STALL, or a parked IN completing in between would be
+      // taken as the status stage. IRQ masked so no SETUP lands mid-release.
+      dcd_int_disable(rhport);
+      EP_TX_LEN(0)  = 0;
+      ep_tx_ctrl_set(0, USBFS_EP_T_RES_STALL);
+      ep_in_hold(false);
+      dcd_int_enable(rhport);
     } else {
       EP_TX_LEN(0)  = 0;
       ep_tx_ctrl_set(0, USBFS_EP_T_RES_STALL);
@@ -679,7 +679,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void)rhport;
   uint8_t ep  = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
   if (ep == 0) {
