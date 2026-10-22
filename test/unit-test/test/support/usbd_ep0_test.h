@@ -81,10 +81,21 @@ static inline void host_setup(const tusb_control_request_t* req) {
   tud_task();
 }
 
-// no-data request the device must accept: SETUP, then the IN status stage
-static inline void host_no_data(const tusb_control_request_t* req) {
+static inline void host_setup_ok(const tusb_control_request_t* req) {
   host_setup(req);
   TEST_ASSERT_FALSE_MESSAGE(ep0_stalled, "request stalled");
+}
+
+// the device must stall `req`; clears the stall for the next request
+static inline void host_setup_stalled(const tusb_control_request_t* req) {
+  host_setup(req);
+  TEST_ASSERT_TRUE_MESSAGE(ep0_stalled, "request not stalled");
+  ep0_stalled = false;
+}
+
+// no-data request the device must accept: SETUP, then the IN status stage
+static inline void host_no_data(const tusb_control_request_t* req) {
+  host_setup_ok(req);
   host_complete_ep0(EP_CTRL_IN, 0);
 }
 
