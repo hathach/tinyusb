@@ -29,6 +29,7 @@ void setUp(void) {
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
   _hcd_nonperiodic_uframe = 0;
   on_int_enable = NULL;
+  _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
   dwc2_ghwcfg2_t hw = {.value = 0};
   hw.num_host_ch = 15;
@@ -538,4 +539,102 @@ void test_abort_does_not_halt_a_channel_reallocated_while_it_waited(void) {
   TEST_ASSERT_FALSE(_hcd_data.xfer[0].aborting);
   TEST_ASSERT_EQUAL(2, _hcd_data.xfer[0].ep_id);
   TEST_ASSERT_FALSE(_hcd_data.edpt[0].aborting);
+}
+
+// A bulk transfer on channel 0 whose NAKs the CPU retries: a split one, or with split false a native one in slave mode
+static void bulk_nak_endpoint(bool in, bool split) {
+  endpoint(0, in, 64, false);
+  hcd_endpoint_t* ep        = &_hcd_data.edpt[0];
+  ep->hcchar_bm.ep_type     = HCCHAR_EPTYPE_BULK;
+  ep->hcchar_bm.enable      = 1;
+  ep->hcsplt_bm.split_en    = split ? 1u : 0u;
+  test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+  test_regs.channel[0].hcsplt = ep->hcsplt;
+  _hcd_data.xfer[0].result  = XFER_RESULT_INVALID;
+  dwc2_hnptxsts_t nptx      = {.value = 0};
+  nptx.req_queue_available  = 8;
+  test_regs.hnptxsts        = nptx.value;
+}
+
+// One NAKed transaction of the bulk channel 0: the NAK, then the halt its disable brings (slave), or the halt carrying
+// the NAK (DMA). Return whether the retry was armed at once.
+static bool bulk_nak(bool dma, bool in) {
+  if (dma) {
+    test_regs.channel[0].hcchar &= ~HCCHAR_CHENA;
+    TEST_ASSERT_FALSE(in ? handle_channel_in_dma(&test_regs, 0, HCINT_HALTED | HCINT_NAK) :
+                           handle_channel_out_dma(&test_regs, 0, HCINT_HALTED | HCINT_NAK));
+    if (in) { // the NAK disabled the channel again, re-arming on that halt
+      test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+      TEST_ASSERT_FALSE(handle_channel_in_dma(&test_regs, 0, HCINT_HALTED));
+    }
+  } else {
+    TEST_ASSERT_FALSE(in ? handle_channel_in_slave(&test_regs, 0, HCINT_NAK) :
+                           handle_channel_out_slave(&test_regs, 0, HCINT_NAK));
+    test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+    TEST_ASSERT_FALSE(in ? handle_channel_in_slave(&test_regs, 0, HCINT_HALTED) :
+                           handle_channel_out_slave(&test_regs, 0, HCINT_HALTED));
+  }
+  return (test_regs.channel[0].hcchar & HCCHAR_CHENA) != 0;
+}
+
+void test_max_nak_holds_cpu_retries_until_the_next_frame(void) {
+  // slave split IN, slave native IN, slave split OUT, slave native OUT, DMA split IN, DMA split OUT
+  const struct {
+    bool dma, in, split;
+  } cases[] = {{false, true, true}, {false, true, false}, {false, false, true},
+               {false, false, false}, {true, true, true}, {true, false, true}};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    hcd_dcache_clean_IgnoreAndReturn(true);
+    if (cases[i].dma) {
+      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
+      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
+      test_regs.ghwcfg2 = hw.value;
+    }
+    bulk_nak_endpoint(cases[i].in, cases[i].split);
+    test_regs.hfnum = (3500u << 16) | (8u * 20u + 1u); // microframe 1 of frame 20
+    TEST_ASSERT_EQUAL(HCD_XFER_NAK_DEFAULT, _tuh_cfg.max_nak);
+
+    // max_nak NAKs in a frame: the first ones retry at once, the last one parks for SOF
+    for (unsigned n = 1; n < HCD_XFER_NAK_DEFAULT; n++) {
+      TEST_ASSERT_TRUE(bulk_nak(cases[i].dma, cases[i].in));
+      TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
+    }
+    TEST_ASSERT_FALSE(bulk_nak(cases[i].dma, cases[i].in));
+    TEST_ASSERT_EQUAL(cases[i].in ? PARK_IN_TOKEN : PARK_XFER_START, _hcd_data.xfer[0].park);
+    TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);
+
+    // SOF of a later microframe in the same frame: still parked
+    test_regs.hfnum = (3500u << 16) | (8u * 20u + 7u);
+    TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+
+    // SOF of the next frame: retried, and the count starts over
+    test_regs.hfnum = (3500u << 16) | (8u * 21u);
+    (void) handle_sof_irq(0, true);
+    TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
+    TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_TRUE(bulk_nak(cases[i].dma, cases[i].in));
+  }
+}
+
+void test_max_nak_zero_never_holds_and_abort_retires_a_held_channel(void) {
+  dwc2_int_set_Ignore();
+  bulk_nak_endpoint(true, true);
+  test_regs.hfnum = (3500u << 16) | (8u * 20u + 1u);
+
+  _tuh_cfg.max_nak = 0;
+  for (unsigned n = 0; n < 2u * HCD_XFER_NAK_MAX; n++) {
+    TEST_ASSERT_TRUE(bulk_nak(false, true));
+  }
+
+  // Held: the abort takes the channel back at once, it is not enabled and would never halt
+  _tuh_cfg.max_nak = 1;
+  test_regs.hfnum = (3500u << 16) | (8u * 22u);
+  TEST_ASSERT_FALSE(bulk_nak(false, true));
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, 0x81));
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
 }

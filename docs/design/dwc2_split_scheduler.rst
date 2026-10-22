@@ -296,6 +296,19 @@ slave mode only the ISR frees a full queue. The core's per-word packet delimiter
 (databook 2.2.4.1) does not bound the packet once the FIFO underruns.
 [EVIDENCE]_
 
+**D06c -- Pace the NAK retries the CPU makes (measurement, P4).** The core
+repeats a NAKed control/bulk token by itself only for a non-split channel in
+DMA mode. In slave mode, and for every split, software restarts the transaction,
+and a split retry is a start-split plus complete-splits answered NYET (about
+ten, 4.7 us apart, for a 64-byte full-speed packet), an interrupt each. Retried
+at once, an idle bulk IN behind a hub took 155k-398k interrupts per second and
+starved the P4's main loop, in slave and DMA mode alike. Allow ``max_nak`` NAKs
+per endpoint per frame (``tuh_configure_dwc2_t``, default 3, 0 for no limit,
+as fsdev) and park the retry for the SOF interrupt to start in the next frame:
+17-18k interrupts per second, 11-12% load. The complete-split NYETs of a
+transaction that is still moving data are not paced; spacing them would cost
+the endpoint's full-speed throughput. [EVIDENCE]_
+
 **D07 -- RX can create channel interrupts (DWC2).** In slave mode, popping
 receive-status entries can make XferCompl or ChHltd visible. Drain each
 reported data payload correctly and reread live channel-interrupt state after
