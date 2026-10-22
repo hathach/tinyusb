@@ -639,6 +639,96 @@ void test_max_nak_zero_never_holds_and_abort_retires_a_held_channel(void) {
   TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
 }
 
+// The SETUP stage of a split control transfer on EP0 of the device at address 1, channel 0 enabled
+static void setup_split_endpoint(bool complete_split) {
+  bulk_nak_endpoint(false, true);
+  hcd_endpoint_t* ep        = &_hcd_data.edpt[0];
+  ep->hcchar_bm.ep_type     = HCCHAR_EPTYPE_CONTROL;
+  ep->hcchar_bm.ep_num      = 0;
+  ep->buflen                = 8;
+  test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+  dwc2_channel_tsize_t ts   = {.value = 0};
+  ts.pid                    = HCTSIZ_PID_SETUP;
+  ts.packet_count           = 1;
+  ts.xfer_size              = complete_split ? 0 : 8;
+  test_regs.channel[0].hctsiz = ts.value;
+  if (complete_split) {
+    test_regs.channel[0].hcsplt |= HCSPLT_COMPLSPLT;
+  }
+}
+
+// One XactErr of the slave OUT channel 0 and the halt its disable brings; return whether the transfer ended
+static bool slave_out_xact_err(void) {
+  TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_XACT_ERR));
+  test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+  return handle_channel_out_slave(&test_regs, 0, HCINT_HALTED);
+}
+
+void test_slave_setup_start_split_xact_error_is_the_tt_nak(void) {
+  // the core reports a TT's NAK of a SETUP start-split as XactErr alone: retried as a NAK, HCD_SPLIT_SETUP_BUSY_MAX
+  // times per transfer, then counted. XactErr with NAK on a SETUP start-split, an XactErr of its complete-split, or of
+  // a bulk start-split, counts at once.
+  for (unsigned variant = 0; variant < 4; variant++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    _tuh_cfg.max_nak = 0; // every retry re-arms at once, none parked
+    if (variant == 0 || variant == 3) {
+      setup_split_endpoint(false);
+    } else if (variant == 1) {
+      setup_split_endpoint(true);
+    } else {
+      bulk_nak_endpoint(false, true);
+    }
+    const unsigned busy = (variant == 0) ? HCD_SPLIT_SETUP_BUSY_MAX : 0u;
+    for (unsigned n = 0; n < busy + HCD_XFER_ERROR_MAX; n++) {
+      if (variant == 1) {
+        test_regs.channel[0].hcsplt |= HCSPLT_COMPLSPLT; // each retry here stays a complete-split
+      }
+      bool done;
+      if (variant == 3) {
+        TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_XACT_ERR | HCINT_NAK));
+        test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+        done = handle_channel_out_slave(&test_regs, 0, HCINT_HALTED);
+      } else {
+        done = slave_out_xact_err();
+      }
+      if (n < busy) {
+        TEST_ASSERT_FALSE(done);
+        TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].err_count);
+        TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
+        TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar); // the start-split retried at once
+      } else {
+        TEST_ASSERT_EQUAL(n + 1u - busy, _hcd_data.xfer[0].err_count);
+        TEST_ASSERT_EQUAL(n + 1u - busy == HCD_XFER_ERROR_MAX, done);
+      }
+    }
+  }
+}
+
+void test_sof_teardown_of_an_enabled_parked_channel_never_waits_for_the_queue(void) {
+  // slave mode: a closing channel parked while still enabled is disabled from SOF, but only with a queue entry free
+  dwc2_int_set_Ignore();
+  bulk_nak_endpoint(true, true);
+  test_regs.hfnum = (3500u << 16) | (8u * 20u + 1u);
+  channel_park(&test_regs, &test_regs.channel[0], PARK_IN_TOKEN);
+  test_regs.channel[0].hcchar |= HCCHAR_CHENA;
+  _hcd_data.edpt[0].closing = 1;
+
+  dwc2_hnptxsts_t nptx = {.value = test_regs.hnptxsts};
+  nptx.req_queue_available = 0;
+  test_regs.hnptxsts = nptx.value;
+  TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+  TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+  TEST_ASSERT_EQUAL(PARK_IN_TOKEN, _hcd_data.xfer[0].park);
+
+  nptx.req_queue_available = 8;
+  test_regs.hnptxsts = nptx.value;
+  (void) handle_sof_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHDIS | HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].closing);
+  TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park); // channel_disable() drops the park, its halt finishes it
+}
+
 // Hand the start-split ACK or a complete-split NYET of the bulk split channel 0 to its handler, the channel halted by
 // the core (or, slave IN NYET, by the disable that follows it)
 static void bulk_split_event(bool dma, bool in, uint32_t hcint) {
@@ -686,8 +776,16 @@ void test_bulk_complete_split_waits_for_the_next_microframe(void) {
       TEST_ASSERT_TRUE(handle_sof_irq(0, true));
       TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
 
-      // the next microframe sends it
+      // the next microframe sends it, once the request queue has room: SOF never waits for it
       test_regs.hfnum = (3500u << 16) | (uframe + 1u);
+      dwc2_hnptxsts_t nptx = {.value = test_regs.hnptxsts};
+      nptx.req_queue_available = 0;
+      test_regs.hnptxsts = nptx.value;
+      TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+      TEST_ASSERT_EQUAL(kind, _hcd_data.xfer[0].park);
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+      nptx.req_queue_available = 8;
+      test_regs.hnptxsts = nptx.value;
       (void) handle_sof_irq(0, true);
       TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
       TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);

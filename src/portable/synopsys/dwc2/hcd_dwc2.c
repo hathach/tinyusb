@@ -112,6 +112,7 @@ enum {
   HCD_SPLIT_CSPLIT_FIRST = 2, // first complete-split, in microframes after the start-split
   HCD_SPLIT_CSPLIT_LAST  = 4, // last interrupt complete-split
   HCD_SPLIT_TAIL_SHIFT   = 3, // microframe tail, 1/8 of it, where a complete-split is not enabled for the current one
+  HCD_SPLIT_SETUP_BUSY_MAX = 255, // SETUP start-split XactErrs per transfer taken as a busy TT's NAK
   HCD_SPLIT_SLOT_LATE    = 0xfe, // start-split held behind an isochronous OUT packet: any start-split microframe
   HCD_SPLIT_SLOT_NONE    = 0xff
 };
@@ -210,6 +211,7 @@ typedef struct {
   volatile bool aborting;  // periodic abort waiting for the channel's halt
 #if HCD_SPLIT
   uint16_t split_uframe;   // periodic split: microframe number of the start-split
+  uint8_t  setup_busy;     // SETUP start-split errors retried as a TT's NAK, see handle_channel_out_slave()
 #endif
 #if HCD_CHANNEL_PARK
   uint8_t  park;           // channel is programmed but waiting for the SOF interrupt to start it, see channel_park_t
@@ -1948,6 +1950,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     edpt->hcchar_bm.ep_dir = ep_dir;
   }
 
+
   if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
     // Started in its start-split microframe: from here when that is the next one, otherwise by the SOF interrupt, or
     // after the END of an isochronous OUT packet that holds it
@@ -2690,10 +2693,23 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       channel_disable(dwc2, channel);
     }
   } else if (hcint & (HCINT_NAK | HCINT_XACT_ERR)) {
+    bool nak = !(hcint & HCINT_XACT_ERR);
+#if HCD_SPLIT
+    // A TT with no free non-periodic buffer NAKs a start-split, a SETUP one too, and the core reported a NAKed SETUP
+    // start-split as XactErr alone (ESP32-P4, slave mode: a NAK on the bus for each). That ambiguous error is retried
+    // like a NAK, up to HCD_SPLIT_SETUP_BUSY_MAX times per transfer, else a TT kept busy by other control/bulk splits
+    // fails the control transfer after three of them. Past that, and any other XactErr, counts.
+    const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+    if ((hcint & (HCINT_XACT_ERR | HCINT_NAK)) == HCINT_XACT_ERR && hcsplt.split_en && !hcsplt.split_compl &&
+        hctsiz.pid == HCTSIZ_PID_SETUP && xfer->setup_busy < HCD_SPLIT_SETUP_BUSY_MAX) {
+      xfer->setup_busy++;
+      nak = true;
+    }
+#endif
     // clean up transfer so far, disable and start again later
     channel_xfer_out_wrapup(dwc2, ch_id);
     channel_disable(dwc2, channel);
-    if (hcint & HCINT_XACT_ERR) {
+    if (!nak) {
       xfer->err_count++;
       channel->hcintmsk |= HCINT_ACK;
     } else {
@@ -3280,9 +3296,11 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
         } else {
           edpt->aborting = 0;
         }
-      } else {
+      } else if (channel_disable_ready(dwc2, &dwc2->channel[ch_id])) {
         xfer->closing = closing ? 1u : 0u;
         channel_disable(dwc2, &dwc2->channel[ch_id]);
+      } else {
+        more_isr = true; // no request-queue entry for the disable: never wait for one ahead of the RxFIFO service
       }
       continue;
     }
@@ -3302,6 +3320,12 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       xfer->uframe_hold = 0;
     }
   #endif
+    // The replay takes a request-queue entry. Waiting here for one would hold off the RxFIFO service that follows
+    // SOF in this interrupt, which a full queue may need to drain: leave the channel parked for the next SOF instead.
+    if (0 == req_queue_avail(dwc2, channel_is_periodic(dwc2->channel[ch_id].hcchar))) {
+      more_isr = true;
+      continue;
+    }
 
     const channel_park_t kind = (channel_park_t) xfer->park;
     xfer->park = PARK_NONE;
