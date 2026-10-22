@@ -46,7 +46,7 @@ jobs:
         cmake --build test/fuzz/_build --parallel
         ctest --test-dir test/fuzz/_build --output-on-failure
         pids=""
-        for d in test/fuzz/device/*/; do
+        for d in test/fuzz/device/*/ test/fuzz/host/*/; do
           h=$(basename $d)
           test/fuzz/_build/$h -max_total_time=10 test/fuzz/_build/corpus/$h > fuzz-$h.log 2>&1 &
           pids="$pids $!"
