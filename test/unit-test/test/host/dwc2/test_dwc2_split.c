@@ -672,18 +672,12 @@ void test_bulk_complete_split_waits_for_the_next_microframe(void) {
     bulk_nak_endpoint(in, true);
     const channel_park_t kind = in ? PARK_CSPLIT_IN : PARK_CSPLIT_OUT;
 
-    // slave mode: the start-split ACK, and later a NYET, park the complete-split for the next microframe. Buffer DMA
-    // mode sends it at once.
+    // the start-split ACK, and later a NYET, park the complete-split for the next microframe
     for (unsigned step = 0; step < 2; step++) {
       const uint16_t uframe = (uint16_t) (8u * 20u + 3u + 2u * step);
       test_regs.hfnum = (3500u << 16) | uframe;
       bulk_split_event(dma, in, step == 0 ? HCINT_ACK : HCINT_NYET);
       TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
-      if (dma) {
-        TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
-        TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
-        continue;
-      }
       TEST_ASSERT_EQUAL(kind, _hcd_data.xfer[0].park);
       TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
       TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);

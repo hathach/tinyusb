@@ -509,11 +509,10 @@ static bool channel_nak_hold(dwc2_regs_t* dwc2, uint8_t ch_id) {
 #endif
 
 #if HCD_SPLIT
-// Slave mode: send the complete-split of a split control or bulk transaction in the next microframe, from the SOF
-// interrupt, after its start-split ACK and after a NYET. The hub forwards the full-speed transaction meanwhile, about
-// 50 us for a 64-byte packet, and a complete-split sent sooner gets NYET, an interrupt each, as fast as the CPU can
-// re-arm them. Waiting leaves the CPU to the application, for one transaction per pipe per microframe. Buffer DMA mode
-// keeps re-arming at once, as Programming Guide 5.1.3 does, until the deferral is verified there on hardware.
+// Send the complete-split of a split control or bulk transaction in the next microframe, from the SOF interrupt: after
+// its start-split ACK, and after a NYET. The hub forwards the full-speed transaction meanwhile, about 50 us for a
+// 64-byte packet, and a complete-split sent sooner gets NYET, an interrupt each, as fast as the CPU can re-arm them.
+// Waiting leaves the CPU to the application, for one transaction per pipe per microframe.
 static void split_csplit_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[channel - dwc2->channel];
   xfer->park_uframe = (uint8_t) (dwc2->hfnum & HCD_FRAME_NUMBER_MASK);
@@ -2088,8 +2087,7 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   } else {
 #if HCD_SPLIT
     const dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
-    if (hcsplt.split_en && hcsplt.split_compl && ((hcint & HCINT_NYET) || xfer->halted_nyet) &&
-        !dma_host_enabled(dwc2)) {
+    if (hcsplt.split_en && hcsplt.split_compl && ((hcint & HCINT_NYET) || xfer->halted_nyet)) {
       xfer->halted_nyet = 0;
       split_csplit_park(dwc2, channel); // the hub is still on it
       return false;
@@ -2870,11 +2868,13 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       xfer->err_count = 0;
       channel->hcintmsk &= ~HCINT_ACK;
       if (hcsplt.split_en) {
-        // start split is ACK --> do complete split, at once in buffer DMA mode: see split_csplit_park()
+        // start split is ACK --> do complete split
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
-          channel_send_in_token(dwc2, channel, false, HCD_SPLIT_SLOT_NONE);
+#if HCD_SPLIT
+          split_csplit_park(dwc2, channel);
+#endif
         } else {
           xfer->csplit_next = HCD_SPLIT_CSPLIT_FIRST;
           if (!channel_csplit_arm(dwc2, ch_id)) {
@@ -2982,11 +2982,13 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       }
     } else if (hcint & HCINT_NYET) {
       if (hcsplt.split_en && hcsplt.split_compl) {
-        // split not yet mean hub has no data, retry complete split, at once: see split_csplit_park()
+        // split not yet mean hub has no data, retry complete split
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
-          channel->hcchar |= HCCHAR_CHENA;
+#if HCD_SPLIT
+          split_csplit_park(dwc2, channel);
+#endif
         } else if (!channel_csplit_arm(dwc2, ch_id)) {
           is_done = channel_split_missed(dwc2, ch_id);
         }
@@ -2994,11 +2996,13 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
       if (hcsplt.split_en && !hcsplt.split_compl) {
-        // start split is ACK --> do complete split, at once in buffer DMA mode: see split_csplit_park()
+        // start split is ACK --> do complete split
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
-          channel->hcchar |= HCCHAR_CHENA;
+#if HCD_SPLIT
+          split_csplit_park(dwc2, channel);
+#endif
         } else {
           xfer->csplit_next = HCD_SPLIT_CSPLIT_FIRST;
           if (!channel_csplit_arm(dwc2, ch_id)) {
