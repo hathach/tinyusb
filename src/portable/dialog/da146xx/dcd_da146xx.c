@@ -672,8 +672,8 @@ static uint32_t check_reset_end(uint32_t alt_ev)
       USB->USB_ALTMSK_REG = USB_USB_ALTMSK_REG_USB_M_RESET_Msk |
                             USB_USB_ALTEV_REG_USB_SD3_Msk;
       set_nfsr(NFSR_NODE_OPERATIONAL);
-      dcd_edpt_open(0, &ep0OUT_desc);
-      dcd_edpt_open(0, &ep0IN_desc);
+      dcd_edpt_open(0, &ep0OUT_desc, NULL);
+      dcd_edpt_open(0, &ep0IN_desc, NULL);
     }
   }
   return alt_ev;
@@ -907,7 +907,7 @@ void tusb_vbus_changed(bool present)
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt, uint8_t const * desc_end TU_ATTR_UNUSED)
 {
   (void)rhport;
 
