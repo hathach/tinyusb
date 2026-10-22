@@ -280,7 +280,7 @@ def openocd_esp_input_problem(flasher: dict, firmware, timeout=None) -> str:
 
 def flash_openocd_esp(board, firmware, timeout=None, *, run=None):
     """The build's flash_args as the provider's ordered segments, the chip's security state read
-    over its USJ tty (esptool 5.3.1 under the `esptool` on PATH, the contract's runtime), then
+    over its USJ tty (the esptool package of the `esptool` on PATH, the contract's runtime), then
     the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset.
     `run` runs the two esptool children; the security read's runner must report its cleanup
     (run_tracked's, as the farm check's ctx.run does), by default _tracked."""
