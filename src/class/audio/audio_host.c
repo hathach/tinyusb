@@ -318,10 +318,10 @@ TU_ATTR_WEAK void tuh_audio_umount_cb(uint8_t idx) {
   (void)idx;
 }
 
-TU_ATTR_WEAK void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t queued_bytes) {
+TU_ATTR_WEAK void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
   (void)idx;
   (void)stream_idx;
-  (void)queued_bytes;
+  (void)xferred_bytes;
 }
 
 TU_ATTR_WEAK void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
@@ -885,15 +885,12 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 
   if (s->dir == TUSB_DIR_IN) {
     // Queue whole capture frames, notify the application, then re-arm.
-    uint16_t queued = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
+    const uint16_t bytes = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
     // On overrun drop the newest packet: overwriting unread frames could tear one a reader is copying
-    if (tu_fifo_remaining(&s->edpt.ff) < queued) {
-      queued = 0;
+    if (bytes > 0 && tu_fifo_remaining(&s->edpt.ff) >= bytes) {
+      tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
-    if (queued > 0) {
-      tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, queued);
-    }
-    tuh_audio_capture_cb(s->idx, s->stream_idx, queued);
+    tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     if (s->running && !audioh_stream_capture_xfer(s)) {
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }

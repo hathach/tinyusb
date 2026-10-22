@@ -327,11 +327,11 @@ void tuh_audio_mount_cb(uint8_t idx);
 // Invoked when device with Audio interface is un-mounted
 void tuh_audio_umount_cb(uint8_t idx);
 
-// Invoked when an isochronous IN transfer completes successfully, after its
-// whole frames are queued into the stream's capture FIFO. queued_bytes counts
-// those frames; it is 0 when the FIFO had no room for them and the packet was
-// dropped.
-void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t queued_bytes);
+// Invoked when an isochronous IN transfer completes successfully. The packet's
+// whole frames are queued into the stream's capture FIFO only when it has room
+// for all of them; otherwise the packet is dropped whole. xferred_bytes is the
+// received length, so it does not mean the data reached the FIFO.
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
 // Invoked after a successful isochronous OUT transfer, before the next packet
 // is prepared. After this callback returns, the driver submits queued audio
