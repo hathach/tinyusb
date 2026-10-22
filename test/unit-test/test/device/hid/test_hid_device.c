@@ -73,16 +73,14 @@ void tearDown(void) {}
 void test_get_report_zero_length_stalls(void) {
   get_report_ret = 0;
   const unsigned queued = ep0_count;
-  host_setup(&req_get_report);
+  host_setup_stalled(&req_get_report);
   TEST_ASSERT_EQUAL(REPORT_ID, get_report_id);
-  TEST_ASSERT_TRUE(ep0_stalled);
   TEST_ASSERT_EQUAL(queued, ep0_count); // no data stage
 }
 
 void test_get_report_prefixes_report_id(void) {
   get_report_ret = sizeof(report_payload);
-  host_setup(&req_get_report);
-  TEST_ASSERT_FALSE(ep0_stalled);
+  host_setup_ok(&req_get_report);
   TEST_ASSERT_EQUAL(REPORT_ID, get_report_id);
   TEST_ASSERT_EQUAL(req_get_report.wLength - 1, get_report_reqlen);
 

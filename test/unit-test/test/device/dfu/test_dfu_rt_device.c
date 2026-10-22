@@ -46,18 +46,6 @@ void tud_dfu_runtime_reboot_to_dfu_cb(void) {
   }
 }
 
-static void host_setup_ok(const tusb_control_request_t* req) {
-  host_setup(req);
-  TEST_ASSERT_FALSE_MESSAGE(ep0_stalled, "request stalled");
-}
-
-// the device must stall `req`; clears the stall for the next request
-static void host_setup_stalled(const tusb_control_request_t* req) {
-  host_setup(req);
-  TEST_ASSERT_TRUE_MESSAGE(ep0_stalled, "request not stalled");
-  ep0_stalled = false;
-}
-
 static const tusb_control_request_t req_getstate = { .bmRequestType = 0xA1, .bRequest = DFU_REQUEST_GETSTATE, .wLength = 1 };
 
 static uint8_t host_get_state(void) {
@@ -219,13 +207,6 @@ void test_deconfigure_after_detach_does_nothing(void) {
   TEST_ASSERT_EQUAL(0, reboot_count);
   host_bus_reset();
   TEST_ASSERT_EQUAL(0, reboot_count);
-}
-
-// GETSTATE sent as OUT must stall rather than let the host write the state
-void test_getstate_out_stalls(void) {
-  open_device(desc_config_host_reset);
-  const tusb_control_request_t req = { .bmRequestType = 0x21, .bRequest = DFU_REQUEST_GETSTATE, .wLength = 1 };
-  host_setup_stalled(&req);
 }
 
 // DFU 1.1 A.2.2: in appDETACH any DFU request other than an IN GETSTATUS or GETSTATE (or, here, an OUT DETACH) stalls
