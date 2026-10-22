@@ -473,7 +473,6 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
   // usbh ignores set_config's result: report completion here or the enumeration never ends
   if (!tuh_control_xfer(&xfer)) {
     config_abort(daddr);
-    return false;
   }
 
   return true;

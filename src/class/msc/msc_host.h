@@ -53,7 +53,9 @@ uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
-// return true if success, false if there is already pending operation.
+// return true if success, false if there is already pending operation or the interface is fenced.
+// If the data or status stage fails to submit, the callback gets a locally built CSW with MSC_CSW_STATUS_PHASE_ERROR
+// and the interface is fenced: every further command is refused until the device is re-enumerated.
 // NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, const msc_cbw_t *cbw, void *data, tuh_msc_complete_cb_t complete_cb,
                           uintptr_t arg);
