@@ -28,6 +28,10 @@
 #include <string.h>
 #include "bsp/board_api.h"
 
+#ifdef SWO_FIXTURE
+  #include "swo_fixture.h"
+#endif
+
 /* Blink pattern
  * - 250 ms  : button is not pressed
  * - 1000 ms : button is pressed (and hold)
@@ -110,6 +114,14 @@ static void board_test_loop(RTOS_PARAM param) {
 int main(void) {
   board_init();
   board_led_write(true);
+
+#ifdef SWO_FIXTURE
+  // the fixture owns the loop: stock echo, logging and blinking would shift its phases
+  swo_fixture_init();
+  while (1) {
+    swo_fixture_task();
+  }
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   freertos_init();
