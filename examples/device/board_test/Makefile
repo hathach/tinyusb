@@ -15,6 +15,8 @@ ifeq ($(SWO_FIXTURE),1)
   INC += src/swo_fixture
   EXAMPLE_SOURCE += src/swo_fixture/swo_fixture.c
   CFLAGS += -DSWO_FIXTURE
+  # own dir: make does not rebuild objects on a CFLAGS change
+  BUILD := _build/$(BOARD)-swo_fixture
 endif
 
 SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(EXAMPLE_SOURCE))
