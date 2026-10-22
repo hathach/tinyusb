@@ -114,6 +114,7 @@ void setUp(void) {
   dcd_edpt_close_all_Ignore();
   dcd_set_address_Ignore();
   dcd_edpt0_status_complete_Ignore();
+  dcd_edpt0_setup_begin_IgnoreAndReturn(true);
   dcd_sof_enable_Ignore();
   dcd_edpt_open_IgnoreAndReturn(true);
   dcd_edpt_xfer_Stub(stub_edpt_xfer);
