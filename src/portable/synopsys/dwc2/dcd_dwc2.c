@@ -64,6 +64,11 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 typedef struct {
+  #if CFG_TUD_DWC2_DMA_ENABLE
+  tusb_rhport_init_t rh_init;
+  bool setup_dma_recovery_pending;
+  #endif
+
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t ep0_xact_bytes[2]; // Bytes scheduled for the current EP0 packet (DMA cache ops)
@@ -78,16 +83,42 @@ typedef struct {
 
 static dcd_data_t _dcd_data;
 
-// DMA receives up to 3 back-to-back SETUP packets (3 x 8 bytes), Slave mode only needs 1 packet (8 bytes)
+/*
+ * Work around the Synopsys DWC2 Buffer-DMA silicon erratum "Device Controller
+ * does not drop short SETUP packets".
+ *
+ * EP0 normally uses a 24-byte circular DMA area for three 8-byte SETUP packets.
+ * On affected cores, more than three back-to-back SETUP packets, with at least
+ * one malformed packet shorter than 5 bytes, can rewind DOEPDMA0 below the
+ * address programmed by software. The next SETUP is then written before the
+ * DMA area, potentially corrupting unrelated memory.
+ *
+ * In DMA builds, allocate 72 bytes and reserve a 48-byte guard immediately
+ * before the normal three-packet area. Program DOEPDMA0 at setup_buffer_data
+ * (buffer + 48):
+ *
+ *   setup_buffer:      [ 48-byte guard ][ 3 x 8-byte SETUP packets ]
+ *                                          ^
+ *                                          setup_buffer_data / DOEPDMA0
+ *
+ * The guard absorbs a limited rewind while the Back2BackSETup interrupt is
+ * serviced. Software must handle that interrupt promptly: a finite guard
+ * cannot contain an unbounded stream of malicious SETUP packets.
+ *
+ * Slave mode is not affected by the DMA-write issue and needs one SETUP packet.
+ */
 #if CFG_TUD_DWC2_DMA_ENABLE
-  #define DWC2_SETUP_BUFFER_SIZE 24
+  #define DWC2_SETUP_BUFFER_SIZE 72
+  #define DWC2_SETUP_BUFFER_OFFSET 48
 #else
   #define DWC2_SETUP_BUFFER_SIZE 8
+  #define DWC2_SETUP_BUFFER_OFFSET 0
 #endif
 
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(setup_buffer, DWC2_SETUP_BUFFER_SIZE);
 } _dcd_usbbuf;
+static uint8_t * const setup_buffer_data = _dcd_usbbuf.setup_buffer + DWC2_SETUP_BUFFER_OFFSET;
 
 static tud_configure_dwc2_t _tud_cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
 
@@ -176,7 +207,7 @@ static void dma_setup_prepare(uint8_t rhport) {
 
   // Receive back-to-back setup packets
   dwc2->epout[0].doeptsiz = (3 << DOEPTSIZ_STUPCNT_Pos);
-  dwc2->epout[0].doepdma = (uintptr_t) _dcd_usbbuf.setup_buffer;
+  dwc2->epout[0].doepdma = (uintptr_t) setup_buffer_data;
   dwc2->epout[0].doepctl |= DOEPCTL_EPENA | DOEPCTL_USBAEP;
 }
 
@@ -480,6 +511,9 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_clock_init(rhport, rh_init->role);
 
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
+  #if CFG_TUD_DWC2_DMA_ENABLE
+  _dcd_data.rh_init = *rh_init; // Implicit struct copy
+  #endif
 
   // Core Initialization
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -533,6 +567,44 @@ bool dcd_deinit(uint8_t rhport) {
   dwc2_core_deinit(rhport);
   return true;
 }
+
+#if CFG_TUD_DWC2_DMA_ENABLE
+TU_ATTR_WEAK void tud_dwc2_setup_dma_error_cb(uint8_t rhport) {
+  (void) rhport;
+}
+
+static void dma_setup_recover(void* param) {
+  const uint8_t rhport = (uint8_t) (uintptr_t) param;
+  const tusb_rhport_init_t rh_init = _dcd_data.rh_init;
+
+  tud_dwc2_setup_dma_error_cb(rhport); // Call user's callback. Weak noop function by default
+
+  // Complete the erratum recovery outside the ISR: let the host observe the
+  // disconnect, reset and reinitialize the core, then reconnect for enumeration.
+  tusb_time_delay_ms_api(10);
+  if (!dcd_deinit(rhport) || !dcd_init(rhport, &rh_init)) {
+    TU_LOG1("DWC2: SETUP DMA recovery failed\r\n");
+    return;
+  }
+  dcd_int_enable(rhport);
+}
+
+static void dma_setup_error(uint8_t rhport) {
+  if (_dcd_data.setup_dma_recovery_pending) {
+    return;
+  }
+
+  _dcd_data.setup_dma_recovery_pending = true;
+  TU_LOG1("DWC2: SETUP DMA address underflow\r\n");
+
+  // Fail closed in the ISR so no further host traffic can extend the memory
+  // corruption. Reset the device-stack state and defer the blocking recovery.
+  dcd_int_disable(rhport);
+  dcd_disconnect(rhport);
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+  usbd_defer_func(dma_setup_recover, (void*) (uintptr_t) rhport, true);
+}
+#endif
 
 void dcd_int_enable(uint8_t rhport) {
   dwc2_dcd_int_enable(rhport);
@@ -831,6 +903,9 @@ static void handle_bus_reset(uint8_t rhport) {
     gintmsk |= GINTMSK_IISOIXFRM;
   }
   if(dma_device_enabled(dwc2)) {
+    // Do not rely on the normal SETUP interrupt to expose Back2BackSETup.
+    // The same short-packet erratum can suppress the Setup Phase Done interrupt.
+    dwc2->doepmsk |= DOEPMSK_B2BSTUP;
     gintmsk |= GINTMSK_OEPINT;
     dma_setup_prepare(rhport);
   } else {
@@ -945,7 +1020,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
     case GRXSTS_PKTSTS_SETUP_RX: {
       // Setup packet received
-      uint32_t * setup = (uint32_t*)(uintptr_t) _dcd_usbbuf.setup_buffer;
+      uint32_t * setup = (uint32_t*)(uintptr_t) setup_buffer_data;
       // We can receive up to three setup packets in succession, but only the last one is valid.
       setup[0] = (*rx_fifo);
       setup[1] = (*rx_fifo);
@@ -959,7 +1034,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       if (edpt_is_enabled(&dwc2->epin[0])) {
         edpt_disable(rhport, 0x80, false);
       }
-      dcd_event_setup_received(rhport, _dcd_usbbuf.setup_buffer, true);
+      dcd_event_setup_received(rhport, setup_buffer_data, true);
       break;
     }
 
@@ -1050,10 +1125,21 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
 static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
+  // Erratum detection: setup_buffer_data is the address originally programmed
+  // into DOEPDMA0. A lower current address proves that the controller rewound
+  // into the guard area. Check on Back2BackSETup itself because a malformed
+  // SETUP can also prevent the later Setup Phase Done interrupt. Keep the
+  // Setup Phase Done check as a fallback for already-latched underflow.
+  dwc2_dep_t* epout0 = &dwc2->epout[0];
+  if (epnum == 0 && (doepint_bm.setup_b2b || doepint_bm.setup_phase_done) &&
+      epout0->doepdma < (uint32_t) (uintptr_t) setup_buffer_data) {
+    dma_setup_error(rhport);
+    return;
+  }
+
   if (doepint_bm.setup_phase_done) {
     // Cleanup previous pending EP0 IN transfer if any
     dwc2_dep_t* epin0 = &dwc2->epin[0];
-    dwc2_dep_t* epout0 = &dwc2->epout[0];
     if (edpt_is_enabled(epin0)) {
       edpt_disable(rhport, 0x80, false);
     }
