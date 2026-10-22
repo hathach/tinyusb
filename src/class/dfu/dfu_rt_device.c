@@ -62,7 +62,6 @@ void dfu_rtd_bus_reset(void) {
 uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void) rhport;
-  (void) max_len;
 
   // Ensure this is DFU Runtime
   TU_VERIFY((itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
@@ -72,7 +71,7 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
 
   _dfu_rt.attrs = 0; // not inherited from a previous configuration's functional descriptor
-  if ( TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
+  if ( max_len >= drv_len + sizeof(tusb_desc_dfu_functional_t) && TUSB_DESC_FUNCTIONAL == tu_desc_type(p_desc) )
   {
     _dfu_rt.attrs = ((tusb_desc_dfu_functional_t const *) p_desc)->bAttributes;
     drv_len += tu_desc_len(p_desc);
@@ -80,19 +79,6 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   }
 
   return drv_len;
-}
-
-// DFU 1.1 Table 3.1 direction of the requests runtime mode supports (A.2.1, A.2.2)
-static bool is_runtime_request(tusb_control_request_t const * request) {
-  switch (request->bRequest) {
-    case DFU_REQUEST_DETACH:
-      return request->bmRequestType_bit.direction == TUSB_DIR_OUT;
-    case DFU_REQUEST_GETSTATUS:
-    case DFU_REQUEST_GETSTATE:
-      return request->bmRequestType_bit.direction == TUSB_DIR_IN;
-    default:
-      return false;
-  }
 }
 
 // Invoked when a control transfer occurred on an interface of this class
@@ -125,43 +111,39 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Handle class request only from here
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  if (!is_runtime_request(request)) {
-    TU_LOG_DRV("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
-    _dfu_rt.state = APP_IDLE; // DFU 1.1 A.2.2: any other request stalls and cancels a pending detach
-    return false;
-  }
-
+  // DFU 1.1 Table 3.1 gives each request's direction; a wrong one is "any other request" (A.2.1, A.2.2)
+  const bool dir_in = (request->bmRequestType_bit.direction == TUSB_DIR_IN);
   switch (request->bRequest)
   {
     case DFU_REQUEST_DETACH:
-    {
+      if (dir_in) break;
       TU_LOG_DRV("  DFU RT Request: DETACH\r\n");
       tud_control_status(rhport, request);
-    }
-    break;
+      return true;
 
-    case DFU_REQUEST_GETSTATUS:
-    {
+    case DFU_REQUEST_GETSTATUS: {
+      if (!dir_in) break;
       TU_LOG_DRV("  DFU RT Request: GETSTATUS\r\n");
       dfu_status_response_t resp;
       // Status = OK, Poll timeout is ignored during RT, IString = 0
       TU_VERIFY(tu_memset_s(&resp, sizeof(resp), 0x00, sizeof(resp))==0);
       resp.bState = _dfu_rt.state;
       tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_response_t));
+      return true;
     }
-    break;
 
     case DFU_REQUEST_GETSTATE:
-    {
+      if (!dir_in) break;
       TU_LOG_DRV("  DFU RT Request: GETSTATE\r\n");
       tud_control_xfer(rhport, request, &_dfu_rt.state, 1);
-    }
-    break;
+      return true;
 
-    default: return false; // filtered out by is_runtime_request()
+    default: break;
   }
 
-  return true;
+  TU_LOG_DRV("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
+  _dfu_rt.state = APP_IDLE; // DFU 1.1 A.2.2: any other request stalls and cancels a pending detach
+  return false;
 }
 
 #endif
