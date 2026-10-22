@@ -248,8 +248,9 @@ entity IDs or descriptor fields needed for later raw controls, but do not
 submit control transfers from this callback.
 
 ``tuh_audio_capture_cb()`` and ``tuh_audio_playback_cb()`` report successful
-isochronous transfers.  The capture callback reports the bytes queued into the
-FIFO, 0 for a dropped packet.  ``tuh_audio_event_cb()`` reports asynchronous start and
+isochronous transfers.  The capture callback's byte count is the received
+length, including a packet dropped because it did not fit in the FIFO; use
+``tuh_audio_read_available()`` for what was queued.  ``tuh_audio_event_cb()`` reports asynchronous start and
 stop completion and ``TUH_AUDIO_EVENT_XFER_FAILED``.  A failed stream has been
 stopped; the application may reconfigure or restart it.  Clear all saved
 indices and associated state in ``tuh_audio_umount_cb()`` because an index may
