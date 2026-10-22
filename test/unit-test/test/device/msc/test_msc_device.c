@@ -245,6 +245,29 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   return NULL;
 }
 
+// the dcd mock copies a CBW when its transfer is queued, so they must outlive the expectation
+static msc_cbw_t cbw_io;
+static msc_cbw_t cbw_sense;
+
+static void init_sense_cbw(void)
+{
+  cbw_sense = (msc_cbw_t)
+  {
+    .signature   = MSC_CBW_SIGNATURE,
+    .tag         = 0xBEEFBEEF,
+    .total_bytes = sizeof(scsi_sense_fixed_resp_t),
+    .lun         = 0,
+    .dir         = TUSB_DIR_IN_MASK,
+    .cmd_len     = sizeof(scsi_request_sense_t)
+  };
+  scsi_request_sense_t const cmd =
+  {
+    .cmd_code     = SCSI_CMD_REQUEST_SENSE,
+    .alloc_length = sizeof(scsi_sense_fixed_resp_t)
+  };
+  memcpy(cbw_sense.command, &cmd, cbw_sense.cmd_len);
+}
+
 void setUp(void)
 {
   dcd_int_disable_Ignore();
@@ -263,6 +286,7 @@ void setUp(void)
 
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
+  init_sense_cbw();
 
   memset(sv_calls, 0, sizeof(sv_calls));
 }
@@ -408,10 +432,6 @@ void test_msc_read10_block_size_over_16bit(void)
 //--------------------------------------------------------------------+
 // read10/write10 error sense
 //--------------------------------------------------------------------+
-// the dcd mock copies a CBW when its transfer is queued, so they must outlive the expectation
-static msc_cbw_t cbw_io;
-static msc_cbw_t cbw_sense;
-
 static void expect_cbw_xfer(msc_cbw_t const* cbw)
 {
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
@@ -522,36 +542,15 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc)
   tud_task();
 }
 
-static void init_sense_cbw(void)
-{
-  cbw_sense = (msc_cbw_t)
-  {
-    .signature   = MSC_CBW_SIGNATURE,
-    .tag         = 0xBEEFBEEF,
-    .total_bytes = sizeof(scsi_sense_fixed_resp_t),
-    .lun         = 0,
-    .dir         = TUSB_DIR_IN_MASK,
-    .cmd_len     = sizeof(scsi_request_sense_t)
-  };
-  scsi_request_sense_t const cmd =
-  {
-    .cmd_code     = SCSI_CMD_REQUEST_SENSE,
-    .alloc_length = sizeof(scsi_sense_fixed_resp_t)
-  };
-  memcpy(cbw_sense.command, &cmd, cbw_sense.cmd_len);
-}
-
 // A read10/write10 error keeps the sense the callback set instead of reporting MEDIUM NOT PRESENT
 void test_msc_read10_error_keeps_callback_sense(void)
 {
-  init_sense_cbw();
   io_mode = IO_ERROR_WITH_SENSE;
   check_read10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
 }
 
 void test_msc_write10_error_keeps_callback_sense(void)
 {
-  init_sense_cbw();
   io_mode = IO_ERROR_WITH_SENSE;
   check_write10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
 }
@@ -559,14 +558,12 @@ void test_msc_write10_error_keeps_callback_sense(void)
 // Without a sense from the callback, a read10/write10 error defaults to NOT READY / MEDIUM NOT PRESENT
 void test_msc_read10_error_default_sense(void)
 {
-  init_sense_cbw();
   io_mode = IO_ERROR_NO_SENSE;
   check_read10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
 }
 
 void test_msc_write10_error_default_sense(void)
 {
-  init_sense_cbw();
   io_mode = IO_ERROR_NO_SENSE;
   check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
 }
