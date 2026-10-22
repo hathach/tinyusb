@@ -19,9 +19,10 @@
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 // Invoked after DFU_DETACH: once the device completes the request's status stage when bitWillDetach is set (not proof
-// the host received it), otherwise on the next USB bus reset. An unplug, SET_CONFIGURATION or another DFU request
-// cancels a pending detach. Deviation from DFU 1.1 5.1/A.2.2: there is no detach timer, so wDetachTimeOut and wTimeout
-// are ignored and a pending detach never expires; a repeated DFU_DETACH re-arms it instead of stalling.
+// the host received it), otherwise on the next USB bus reset. An unplug, SET_CONFIGURATION or an unsupported or
+// wrong-direction DFU request cancels a pending detach. Deviation from DFU 1.1 5.1/A.2.2: there is no detach timer, so
+// wDetachTimeOut and wTimeout are ignored and a pending detach never expires; a repeated DFU_DETACH re-arms it instead
+// of stalling.
 void tud_dfu_runtime_reboot_to_dfu_cb(void);
 
 //--------------------------------------------------------------------+
