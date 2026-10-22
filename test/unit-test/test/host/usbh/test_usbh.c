@@ -59,7 +59,12 @@ void test_usbh_task_runs_due_callback_without_queued_event(void) {
   tuh_task();
   TEST_ASSERT_EQUAL(0, callback_count);
 
-  now_ms = 11; // The scheduler adds one tick to guarantee the requested delay.
+  now_ms = 10; // The scheduler adds one tick to guarantee the requested delay.
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
+  tuh_task();
+  TEST_ASSERT_EQUAL(0, callback_count);
+
+  now_ms = 11;
   TEST_ASSERT_TRUE(tuh_task_event_ready());
   tuh_task();
   TEST_ASSERT_EQUAL(1, callback_count);
