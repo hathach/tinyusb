@@ -207,12 +207,6 @@ void     hub_close(uint8_t dev_addr);
 //--------------------------------------------------------------------+
 #if CFG_TUH_HUB
 bool hub_tt_multi(uint8_t hub_addr);
-#endif
-
-//--------------------------------------------------------------------+
-// Split ISO Slot Allocation
-//--------------------------------------------------------------------+
-#if CFG_TUH_HUB
 bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot);
 #endif
 

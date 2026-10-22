@@ -1,4 +1,7 @@
-/* SPDX-License-Identifier: MIT */
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 TinyUSB contributors
+ * SPDX-License-Identifier: MIT
+ */
 #ifndef DWC2_TEST_H_
 #define DWC2_TEST_H_
 

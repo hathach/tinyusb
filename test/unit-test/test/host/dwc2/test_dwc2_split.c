@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: MIT */
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 TinyUSB contributors
+ * SPDX-License-Identifier: MIT
+ */
+
 #include "unity.h"
 #include "mock_dwc2_test.h"
 
@@ -6,6 +10,7 @@
 #include "../../../../../src/portable/synopsys/dwc2/hcd_dwc2.c"
 
 static uint8_t payload[512];
+static void (*on_int_enable)(void);
 static unsigned fifo_writes;
 
 void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
@@ -22,6 +27,8 @@ void setUp(void) {
   memset(&test_regs, 0, sizeof(test_regs));
   memset(&_hcd_data, 0, sizeof(_hcd_data));
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
+  _hcd_nonperiodic_uframe = 0;
+  on_int_enable = NULL;
   fifo_writes = 0;
   dwc2_ghwcfg2_t hw = {.value = 0};
   hw.num_host_ch = 15;
@@ -30,10 +37,17 @@ void setUp(void) {
   tx.req_queue_available = 8;
   tx.fifo_available = 236;
   test_regs.hptxsts = tx.value;
+  test_regs.hfir = 7499; // high-speed microframe: the tail is FrRem below 937
   test_regs.hfnum = (3500u << 16) | 6u;
 }
 
 void tearDown(void) {
+}
+
+static void set_ptx_queue(uint8_t available) {
+  dwc2_hptxsts_t tx = {.value = test_regs.hptxsts};
+  tx.req_queue_available = available;
+  test_regs.hptxsts = tx.value;
 }
 
 static void endpoint(uint8_t ch, bool in, uint16_t bytes, bool iso) {
@@ -107,14 +121,14 @@ void test_deferred_out_complete_split_follows_the_in_that_entered_first(void) {
     }
     dwc2_hptxsts_t tx = {.value = test_regs.hptxsts};
     tx.fifo_available = (variant & 2u) ? 236 : 12;
-    tx.req_queue_available = (variant & 2u) ? 0 : 3;
     test_regs.hptxsts = tx.value;
+    set_ptx_queue((variant & 2u) ? 0 : 3);
     enable(out);
     TEST_ASSERT_TRUE(channel_txfifo_write(&test_regs, out, true));
     TEST_ASSERT_EQUAL(0, fifo_writes);
-    tx.req_queue_available = 3;
-    test_regs.hptxsts = tx.value;
+    set_ptx_queue(3);
     enable(in);
+    tx.value = test_regs.hptxsts;
     tx.fifo_available = 236;
     test_regs.hptxsts = tx.value;
     TEST_ASSERT_FALSE(channel_txfifo_write(&test_regs, out, true));
@@ -176,9 +190,31 @@ void test_iso_out_reserves_tt_while_its_first_fifo_write_waits(void) {
   test_regs.hptxsts = tx.value;
   TEST_ASSERT_FALSE(channel_txfifo_write(&test_regs, 0, true));
   TEST_ASSERT_TRUE(_hcd_data.xfer[0].iso_open);
-  channel_dealloc(&test_regs, 0);
-  TEST_ASSERT_EQUAL(0, channel_alloc(&test_regs));
+}
+
+void test_iso_out_end_starts_the_interrupt_split_held_behind_it(void) {
+  endpoint(0, false, 400, true);
+  endpoint(1, true, 64, false);
+  _hcd_data.xfer[1].allocated = false; // its transfer has no channel yet
+  enable(0);
+  TEST_ASSERT_FALSE(channel_txfifo_write(&test_regs, 0, true));
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].iso_open);
+
+  // Due in the microframe of the BEGIN, after it: held for the END
+  TEST_ASSERT_TRUE(edpt_xfer_kickoff(&test_regs, 1));
+  TEST_ASSERT_TRUE(_hcd_data.edpt[1].split_held);
+  TEST_ASSERT_TRUE(_hcd_data.edpt[1].xfer_pending);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[1].allocated);
+
+  // Queueing the END closes the packet and starts the held transfer at once
+  split_iso_out_close(&test_regs, 0);
   TEST_ASSERT_FALSE(_hcd_data.xfer[0].iso_open);
+  TEST_ASSERT_TRUE(_hcd_split_kicked);
+  TEST_ASSERT_FALSE(_hcd_data.edpt[1].xfer_pending);
+  TEST_ASSERT_FALSE(_hcd_data.edpt[1].split_held);
+  TEST_ASSERT_TRUE(_hcd_data.xfer[1].allocated);
+  TEST_ASSERT_EQUAL(1, _hcd_data.xfer[1].ep_id);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[1].hcchar);
 }
 
 static void pending_csplit(uint8_t ch, bool in, uint16_t ss_frame, uint8_t next) {
@@ -187,6 +223,7 @@ static void pending_csplit(uint8_t ch, bool in, uint16_t ss_frame, uint8_t next)
   _hcd_data.xfer[ch].split_uframe = ss_frame & HCD_FRAME_NUMBER_MASK;
   _hcd_data.xfer[ch].csplit_next = next;
   _hcd_data.xfer[ch].csplit_wait = 1;
+  _hcd_data.xfer[ch].split_issued = 1;
   _hcd_data.xfer[ch].result = XFER_RESULT_INVALID;
 }
 
@@ -213,14 +250,25 @@ void test_pending_receive_or_channel_work_precedes_future_complete_split(void) {
     TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, a));
     TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[a].hcchar);
 
-    // Model RX having exposed ChHltd; exercise the real slave halt/retry handler.
-    test_regs.gintsts = GINTSTS_HCINT;
+    if (causes[variant / 4] & GINTSTS_HCINT) {
+      // B's halt goes through the channel interrupt pass, which admits the deferred A at its end.
+      test_regs.channel[b].hcint = HCINT_HALTED;
+      test_regs.haint = 1u << b;
+      test_regs.gintsts = GINTSTS_HCINT;
+      hcd_int_handler(0, true);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[b].hcchar);
+      TEST_ASSERT_FALSE(_hcd_data.xfer[b].halted_nyet);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[a].hcchar);
+      continue;
+    }
+
+    // RX exposed ChHltd: exercise the real slave halt/retry handler.
     TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, b, HCINT_HALTED));
     TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[b].hcchar);
     TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[a].hcchar);
     TEST_ASSERT_FALSE(_hcd_data.xfer[b].halted_nyet);
 
-    // With pending work drained, the real IRQ tail admits the deferred A.
+    // With the receive status drained, the IRQ tail admits the deferred A.
     test_regs.gintsts = 0;
     hcd_int_handler(0, true);
     TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[a].hcchar);
@@ -250,7 +298,7 @@ void test_rx_without_channel_interrupt_releases_future_split_in_irq_tail(void) {
 void test_unrelated_pending_work_does_not_delay_iso_in_continuation(void) {
   const uint32_t causes[] = {GINTSTS_RXFLVL, GINTSTS_HCINT, GINTSTS_RXFLVL | GINTSTS_HCINT};
   for (unsigned cause = 0; cause < TU_ARRAY_SIZE(causes); cause++) {
-    for (unsigned other = 0; other < 9; other++) {
+    for (unsigned other = 0; other < 10; other++) {
       setUp();
       pending_csplit(0, true, 8, 3);
       _hcd_data.edpt[0].hcchar_bm.ep_type = HCCHAR_EPTYPE_ISOCHRONOUS;
@@ -260,7 +308,10 @@ void test_unrelated_pending_work_does_not_delay_iso_in_continuation(void) {
       switch (other) {
         case 0: _hcd_data.edpt[1].hcchar_bm.ep_type = HCCHAR_EPTYPE_CONTROL; break;
         case 1: _hcd_data.edpt[1].hcchar_bm.ep_type = HCCHAR_EPTYPE_BULK; break;
-        case 2: _hcd_data.edpt[1].hcsplt_bm.split_en = 0; break;
+        case 2:
+          _hcd_data.edpt[1].hcsplt_bm.split_en = 0;
+          test_regs.channel[1].hcsplt = 0;
+          break;
         case 3:
           _hcd_data.edpt[1].hcchar_bm.ep_type = HCCHAR_EPTYPE_ISOCHRONOUS;
           _hcd_data.edpt[1].hcchar_bm.ep_dir = TUSB_DIR_OUT;
@@ -273,6 +324,11 @@ void test_unrelated_pending_work_does_not_delay_iso_in_continuation(void) {
           test_regs.channel[1].hcsplt &= ~HCSPLT_COMPLSPLT; // First CS still in the future.
           break;
         case 8: _hcd_data.xfer[1].csplit_next = 4; break; // Continuation still in the future.
+        case 9: // Allocated, its start-split not yet enabled.
+          _hcd_data.xfer[1].split_issued = 0;
+          _hcd_data.xfer[1].split_uframe = 0;
+          test_regs.channel[1].hcsplt &= ~HCSPLT_COMPLSPLT;
+          break;
       }
       test_regs.channel[1].hcchar = _hcd_data.edpt[1].hcchar;
       test_regs.hfnum = (3500u << 16) | 10u;
@@ -304,6 +360,22 @@ void test_pending_start_ack_or_iso_payload_preserves_current_split_priority(void
     TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
     TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
 
+    if (variant & 4u) {
+      // B's ACK or payload goes through the channel interrupt pass, which admits the deferred A at its end.
+      dwc2_channel_tsize_t ts = {.value = test_regs.channel[1].hctsiz};
+      ts.pid = HCTSIZ_PID_MDATA;
+      test_regs.channel[1].hctsiz = ts.value;
+      _hcd_data.xfer[1].csplit_next = 3;
+      test_regs.channel[1].hcint = start_ack ? HCINT_ACK : HCINT_XFER_COMPLETE;
+      test_regs.haint = 2u;
+      test_regs.gintsts = GINTSTS_HCINT;
+      hcd_int_handler(0, true);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[1].hcchar);
+      TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[1].hcsplt);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+      continue;
+    }
+
     // The pending ACK/payload handler makes B's current CS eligible.
     test_regs.channel[1].hcsplt |= HCSPLT_COMPLSPLT;
     _hcd_data.xfer[1].csplit_next = start_ack ? 2 : 3;
@@ -325,14 +397,21 @@ void test_pending_work_keeps_current_iso_and_masked_status_behavior(void) {
       hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
       test_regs.ghwcfg2 = hw.value;
     }
-    pending_csplit(0, true, 9, 2);
     const bool iso = (variant & 2u) != 0;
     const bool current = (variant & 4u) != 0;
+    const uint16_t now = current ? 11u : 10u;
+    pending_csplit(0, true, 9, 2);
+    // Another periodic split, on another TT, has a complete-split due in the current microframe.
+    pending_csplit(1, true, (uint16_t) (now - 3u), 3);
+    _hcd_data.xfer[1].csplit_wait = 0;
+    _hcd_data.edpt[1].hcsplt_bm.hub_port = 4;
+    _hcd_data.edpt[0].tt_multi = _hcd_data.edpt[1].tt_multi = 1;
+    test_regs.channel[1].hcsplt = _hcd_data.edpt[1].hcsplt | HCSPLT_COMPLSPLT;
     if (iso) {
       _hcd_data.edpt[0].hcchar_bm.ep_type = HCCHAR_EPTYPE_ISOCHRONOUS;
       test_regs.channel[0].hcchar = _hcd_data.edpt[0].hcchar;
     }
-    test_regs.hfnum = (3500u << 16) | (current ? 11u : 10u);
+    test_regs.hfnum = (3500u << 16) | now;
     test_regs.gintsts = GINTSTS_RXFLVL | GINTSTS_HCINT;
     test_regs.gintmsk = GINTSTS_SOF | (current ? test_regs.gintsts : 0);
     TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
@@ -345,4 +424,118 @@ void test_pending_work_keeps_current_iso_and_masked_status_behavior(void) {
       TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
     }
   }
+}
+
+void test_late_complete_split_in_the_microframe_tail_goes_in_the_next(void) {
+  for (unsigned tail = 0; tail < 2; tail++) {
+    setUp();
+    pending_csplit(0, true, 8, 2);
+    test_regs.hfnum = ((tail ? 900u : 1000u) << 16) | 10u; // its first complete-split is due now
+    TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
+    TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_EQUAL(tail ? 4 : 3, _hcd_data.xfer[0].csplit_next);
+    TEST_ASSERT_EQUAL(tail ? HCCHAR_ODDFRM : 0, test_regs.channel[0].hcchar & HCCHAR_ODDFRM);
+  }
+}
+
+void test_iso_out_piece_for_a_microframe_the_core_no_longer_serves_fails_the_packet(void) {
+  // the MID of a packet started in microframe 9 is for 10
+  const struct {
+    uint16_t frrem;
+    uint16_t uframe;
+    bool     bulk;
+    bool     late;
+  } cases[] = {
+    {3500, 10, false, false}, // in time
+    {900,  10, false, true},  // in the tail of its microframe
+    {3500, 10, true,  true},  // behind a bulk transfer
+    {3500, 9,  true,  false}, // a microframe ahead
+    {3500, 11, false, true},  // its microframe passed
+  };
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    setUp();
+    endpoint(0, false, 400, true);
+    _hcd_data.xfer[0].split_uframe = 9;
+    _hcd_data.xfer[0].iso_open = 1;
+    if (cases[i].bulk) {
+      endpoint(1, true, 64, false);
+      _hcd_data.edpt[1].hcchar_bm.ep_type = HCCHAR_EPTYPE_BULK;
+    }
+    test_regs.hfnum = ((uint32_t) cases[i].frrem << 16) | cases[i].uframe;
+    TEST_ASSERT_EQUAL(!cases[i].late, channel_iso_out_next(&test_regs, 0));
+    if (cases[i].late) {
+      TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, _hcd_data.xfer[0].result);
+      TEST_ASSERT_FALSE(_hcd_data.xfer[0].iso_open);
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    } else {
+      const dwc2_channel_split_t hcsplt = {.value = test_regs.channel[0].hcsplt};
+      TEST_ASSERT_EQUAL(HCD_SPLIT_XACTPOS_MID, hcsplt.xact_pos);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    }
+  }
+}
+
+// hcd_int_enable() lets the ISR run: on_int_enable models it, the first time only.
+static unsigned isr_runs;
+static bool     int_enabled;
+
+static void int_set_stub(uint8_t rhport, tusb_role_t role, bool enabled, int cmock_num_calls) {
+  (void) rhport;
+  (void) role;
+  (void) cmock_num_calls;
+  int_enabled = enabled;
+  if (enabled && on_int_enable) {
+    void (*isr)(void) = on_int_enable;
+    on_int_enable = NULL;
+    isr_runs++;
+    isr();
+  }
+}
+
+static void isr_frees_request_queue(void) {
+  set_ptx_queue(1);
+}
+
+// channel 0 halts and is retired, then taken by another endpoint's transfer
+static void isr_retires_and_reallocates_channel(void) {
+  isr_frees_request_queue();
+  channel_dealloc(&test_regs, 0);
+  TEST_ASSERT_EQUAL(0, channel_alloc(&test_regs));
+  _hcd_data.xfer[0].ep_id = 2;
+  test_regs.channel[0].hcchar = _hcd_data.edpt[2].hcchar;
+}
+
+static void abort_setup(void (*isr)(void)) {
+  endpoint(0, true, 64, false);
+  _hcd_data.edpt[0].hcchar_bm.enable = 1; // opened, its channel enabled
+  test_regs.channel[0].hcchar = _hcd_data.edpt[0].hcchar;
+  endpoint(2, true, 64, false);
+  _hcd_data.xfer[2].allocated = false;
+  set_ptx_queue(0); // a disable must wait for an entry
+  isr_runs = 0;
+  on_int_enable = isr;
+  dwc2_int_set_Stub(int_set_stub);
+}
+
+void test_abort_waits_for_request_queue_space_with_the_interrupt_enabled(void) {
+  abort_setup(isr_frees_request_queue);
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, 0x81));
+  TEST_ASSERT_EQUAL(1, isr_runs);
+  TEST_ASSERT_TRUE(int_enabled);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHDIS | HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  // its halt retires the channel; until then the endpoint takes no replacement transfer
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
+  TEST_ASSERT_TRUE(_hcd_data.edpt[0].aborting);
+  TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, 0x81, payload, 64));
+}
+
+void test_abort_does_not_halt_a_channel_reallocated_while_it_waited(void) {
+  abort_setup(isr_retires_and_reallocates_channel);
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, 0x81));
+  TEST_ASSERT_EQUAL(1, isr_runs);
+  TEST_ASSERT_TRUE(int_enabled);
+  TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].aborting);
+  TEST_ASSERT_EQUAL(2, _hcd_data.xfer[0].ep_id);
+  TEST_ASSERT_FALSE(_hcd_data.edpt[0].aborting);
 }
