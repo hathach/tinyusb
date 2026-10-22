@@ -31,5 +31,5 @@ add_compile_definitions(
 # overflow, +1 ns data sampling (idle eye -1000..+2000 ps; committed in the
 # ozone reference). Nothing may switch clk_sys at runtime - that truncates a
 # capture at the switch. Other validated rates (156000, 180000, and 240000 =
-# the J-Trace PRO V2 ceiling) need PLL_SYS_* from the SDK's vcocalc.py; see
-# the etm-trace skill's boards.md.
+# the J-Trace PRO V2 ceiling) need PLL_SYS_* from the SDK's vcocalc.py; see agentrc's
+# skills/target-debug/etm-boards.md.
