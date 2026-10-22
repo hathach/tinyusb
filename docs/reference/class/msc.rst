@@ -84,9 +84,10 @@ used at once.  ``CFG_TUH_MSC_MAXLUN`` is the LUN limit per device.  After
 
 ``tuh_msc_get_maxlun()`` returns the LUN count the device reports, clamped to
 ``CFG_TUH_MSC_MAXLUN``; for a LUN at or past it the geometry getters return 0
-and commands are refused.  ``CFG_TUH_MSC_MAXLUN`` defaults to 4 and allocates cached state per possible LUN for each of the
-``CFG_TUH_DEVICE_MAX`` addresses.  Enumeration only reads the geometry of
-LUN 0, so other LUNs read back as 0.
+and commands are refused.  ``CFG_TUH_MSC_MAXLUN`` defaults to 4 and allocates
+cached state per possible LUN for each of the ``CFG_TUH_DEVICE_MAX``
+addresses.  Enumeration only reads the geometry of LUN 0, so other LUNs read
+back as 0.
 
 ``tuh_msc_read10()`` and ``tuh_msc_write10()`` are asynchronous.  Keep the
 buffer valid, correctly aligned, cache coherent, and accessible to the USB
