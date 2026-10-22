@@ -617,7 +617,10 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   unsigned const ie = NVIC_GetEnableIRQ(USB0_IRQn);
   NVIC_DisableIRQ(USB0_IRQn);
   _hcd.ctl_mps[dev_addr] = 0;
-  if (!dev_addr) return;
+  if (!dev_addr) {
+    if (ie) NVIC_EnableIRQ(USB0_IRQn);
+    return;
+  }
 
   pipe_addr_t *p = &_hcd.addr[0][0];
   for (unsigned i = 0; i < sizeof(_hcd.addr)/sizeof(_hcd.addr[0]); ++i) {
