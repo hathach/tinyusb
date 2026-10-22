@@ -330,7 +330,10 @@ class PlanInputs(unittest.TestCase):
         checked = []
         patch(self, hil_flash, 'openocd_esp_input_problem',
               lambda flasher, fw: checked.append(Path(fw).name) or ('header' if 'board_test' in str(fw) else ''))
-        got = self.plan(board, self.tree(self.root / 'cache'))
+        with mock.patch.dict(os.environ):
+            for var in hil_util.openocd_esp().CI_JOB_ENV:   # a CI job refuses openocd_esp before any input check
+                os.environ.pop(var, None)
+            got = self.plan(board, self.tree(self.root / 'cache'))
         self.assertEqual(checked, ['dfu_runtime.bin', 'board_test.bin'])
         self.assertEqual(got['refused']['notes'][-1], 'park image: header')
 

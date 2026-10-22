@@ -117,6 +117,11 @@ class Rig:
             patcher = mock.patch.object(obj, name, value)
             patcher.start()
             test.addCleanup(patcher.stop)
+        # the suite runs under CI too, whose job variables would preempt run_case's own openocd_esp refusal
+        ci_free = {k: v for k, v in os.environ.items() if k not in run_case.hil_util.openocd_esp().CI_JOB_ENV}
+        patcher = mock.patch.dict(os.environ, ci_free, clear=True)
+        patcher.start()
+        test.addCleanup(patcher.stop)
 
     def run(self, *argv):
         out, err = io.StringIO(), io.StringIO()
