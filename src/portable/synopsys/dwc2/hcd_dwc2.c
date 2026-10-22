@@ -214,9 +214,11 @@ typedef struct {
 #if HCD_CHANNEL_PARK
   uint8_t  park;           // channel is programmed but waiting for the SOF interrupt to start it, see channel_park_t
   uint8_t  nak_frame;      // control/bulk: frame of the NAKs counted in nak_count, see channel_nak_hold()
+  uint8_t  park_uframe;    // split control/bulk: microframe a complete-split was parked in, see split_csplit_park()
   struct TU_ATTR_PACKED {
-    uint8_t nak_count : 4; // control/bulk: NAKs in nak_frame, up to HCD_XFER_NAK_MAX
-    uint8_t nak_hold  : 1; // control/bulk: max_nak reached, the retry waits for the frame after nak_frame
+    uint8_t nak_count   : 4; // control/bulk: NAKs in nak_frame, up to HCD_XFER_NAK_MAX
+    uint8_t nak_hold    : 1; // control/bulk: max_nak reached, the retry waits for the frame after nak_frame
+    uint8_t uframe_hold : 1; // split control/bulk: the complete-split waits for the microframe after park_uframe
   };
 #endif
 } hcd_xfer_t;
@@ -228,8 +230,10 @@ typedef enum {
   PARK_NONE = 0,
   PARK_IN_TOKEN,           // channel_send_in_token(.., next_periodic_frame = false)
   PARK_IN_TOKEN_PERIODIC,  // channel_send_in_token(.., next_periodic_frame = true)
-  PARK_XFER_START,         // channel_xfer_start(.., defer_periodic_out = false)
-  PARK_XFER_START_PERIODIC // channel_xfer_start(.., defer_periodic_out = true)
+  PARK_XFER_START,          // channel_xfer_start(.., defer_periodic_out = false)
+  PARK_XFER_START_PERIODIC, // channel_xfer_start(.., defer_periodic_out = true)
+  PARK_CSPLIT_OUT,          // enable a split control/bulk OUT complete-split, which carries no data
+  PARK_CSPLIT_IN            // send a split control/bulk IN complete-split
 } channel_park_t;
 #endif
 
@@ -501,6 +505,21 @@ static bool channel_nak_hold(dwc2_regs_t* dwc2, uint8_t ch_id) {
   }
   xfer->nak_hold = (_tuh_cfg.max_nak != 0 && xfer->nak_count >= _tuh_cfg.max_nak) ? 1u : 0u;
   return xfer->nak_hold == 1u;
+}
+#endif
+
+#if HCD_SPLIT
+// Slave mode: send the complete-split of a split control or bulk transaction in the next microframe, from the SOF
+// interrupt, after its start-split ACK and after a NYET. The hub forwards the full-speed transaction meanwhile, about
+// 50 us for a 64-byte packet, and a complete-split sent sooner gets NYET, an interrupt each, as fast as the CPU can
+// re-arm them. Waiting leaves the CPU to the application, for one transaction per pipe per microframe. Buffer DMA mode
+// keeps re-arming at once, as Programming Guide 5.1.3 does, until the deferral is verified there on hardware.
+static void split_csplit_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+  hcd_xfer_t* xfer = &_hcd_data.xfer[channel - dwc2->channel];
+  xfer->park_uframe = (uint8_t) (dwc2->hfnum & HCD_FRAME_NUMBER_MASK);
+  xfer->uframe_hold = 1;
+  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
+  channel_park(dwc2, channel, hcchar.ep_dir == TUSB_DIR_IN ? PARK_CSPLIT_IN : PARK_CSPLIT_OUT);
 }
 #endif
 
@@ -2067,6 +2086,15 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel_dealloc(dwc2, ch_id);
     }
   } else {
+#if HCD_SPLIT
+    const dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
+    if (hcsplt.split_en && hcsplt.split_compl && ((hcint & HCINT_NYET) || xfer->halted_nyet) &&
+        !dma_host_enabled(dwc2)) {
+      xfer->halted_nyet = 0;
+      split_csplit_park(dwc2, channel); // the hub is still on it
+      return false;
+    }
+#endif
     // for control/bulk: retry immediately
     channel_send_in_token(dwc2, channel, false, HCD_SPLIT_SLOT_NONE);
   }
@@ -2558,7 +2586,9 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
             is_done = channel_split_missed(dwc2, ch_id);
           }
         } else {
-          channel_send_in_token(dwc2, channel, false, HCD_SPLIT_SLOT_NONE);
+#if HCD_SPLIT
+          split_csplit_park(dwc2, channel);
+#endif
         }
       } else {
         // do nothing for complete split with DATA, this will trigger XferComplete and handled there
@@ -2646,11 +2676,13 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       // retry complete split
       hcsplt.split_compl = 1;
       channel->hcsplt = hcsplt.value;
-      if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
-        channel->hcchar |= HCCHAR_CHENA;
+#if HCD_SPLIT
+      if (!channel_is_periodic(channel->hcchar)) {
+        split_csplit_park(dwc2, channel);
       } else if (!channel_csplit_arm(dwc2, ch_id)) {
         is_done = channel_split_missed(dwc2, ch_id);
       }
+#endif
     } else {
       edpt->next_do_ping = 1;
       channel_xfer_out_wrapup(dwc2, ch_id);
@@ -2710,14 +2742,16 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
         hctsiz_cs.xfer_size = 0;
         channel->hctsiz = hctsiz_cs.value;
 #endif
-        if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
-          channel->hcchar |= HCCHAR_CHENA;
+#if HCD_SPLIT
+        if (!channel_is_periodic(channel->hcchar)) {
+          split_csplit_park(dwc2, channel);
         } else {
           xfer->csplit_next = HCD_SPLIT_CSPLIT_FIRST;
           if (!channel_csplit_arm(dwc2, ch_id)) {
             is_done = channel_split_missed(dwc2, ch_id);
           }
         }
+#endif
       }
     } else {
       // ACK interrupt is only enabled for Split and PING
@@ -2836,7 +2870,7 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       xfer->err_count = 0;
       channel->hcintmsk &= ~HCINT_ACK;
       if (hcsplt.split_en) {
-        // start split is ACK --> do complete split
+        // start split is ACK --> do complete split, at once in buffer DMA mode: see split_csplit_park()
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
@@ -2948,7 +2982,7 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       }
     } else if (hcint & HCINT_NYET) {
       if (hcsplt.split_en && hcsplt.split_compl) {
-        // split not yet mean hub has no data, retry complete split
+        // split not yet mean hub has no data, retry complete split, at once: see split_csplit_park()
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
@@ -2960,7 +2994,7 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
       if (hcsplt.split_en && !hcsplt.split_compl) {
-        // start split is ACK --> do complete split
+        // start split is ACK --> do complete split, at once in buffer DMA mode: see split_csplit_park()
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         if (!HCD_SPLIT || !channel_is_periodic(channel->hcchar)) {
@@ -3252,11 +3286,24 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       }
       xfer->nak_hold = 0;
     }
+  #if HCD_SPLIT
+    if (xfer->uframe_hold) {
+      if ((uint8_t) (dwc2->hfnum & HCD_FRAME_NUMBER_MASK) == xfer->park_uframe) {
+        more_isr = true; // an SOF of the microframe it was parked in, still pending
+        continue;
+      }
+      xfer->uframe_hold = 0;
+    }
+  #endif
 
     const channel_park_t kind = (channel_park_t) xfer->park;
     xfer->park = PARK_NONE;
 
-    if (kind == PARK_IN_TOKEN || kind == PARK_IN_TOKEN_PERIODIC) {
+    if (kind == PARK_CSPLIT_OUT) {
+      dwc2->channel[ch_id].hcchar |= HCCHAR_CHENA;
+    } else if (kind == PARK_CSPLIT_IN) {
+      (void) channel_send_in_token(dwc2, &dwc2->channel[ch_id], false, HCD_SPLIT_SLOT_NONE);
+    } else if (kind == PARK_IN_TOKEN || kind == PARK_IN_TOKEN_PERIODIC) {
       const uint16_t periodic_frame = channel_send_in_token(dwc2, &dwc2->channel[ch_id],
                                                             kind == PARK_IN_TOKEN_PERIODIC, HCD_SPLIT_SLOT_NONE);
       if (periodic_frame != DWC2_LS_PARKED && kind == PARK_IN_TOKEN_PERIODIC) {

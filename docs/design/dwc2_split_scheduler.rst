@@ -305,9 +305,14 @@ at once, an idle bulk IN behind a hub took 155k-398k interrupts per second and
 starved the P4's main loop, in slave and DMA mode alike. Allow ``max_nak`` NAKs
 per endpoint per frame (``tuh_configure_dwc2_t``, default 3, 0 for no limit,
 as fsdev) and park the retry for the SOF interrupt to start in the next frame:
-17-18k interrupts per second, 11-12% load. The complete-split NYETs of a
-transaction that is still moving data are not paced; spacing them would cost
-the endpoint's full-speed throughput. [EVIDENCE]_
+17-18k interrupts per second, 11-12% load. A transaction that is moving data
+costs the same NYETs while the hub forwards it. In slave mode its
+complete-split waits for the next microframe, after the start-split ACK and
+after each NYET, from the SOF interrupt: one transaction per pipe per
+microframe, and with the OUT streams of the bench 27k interrupts per second
+(28% load) instead of 134k (70%), bulk throughput unchanged. Buffer DMA mode
+keeps the immediate complete-split of Programming Guide 5.1.3 until the
+deferral is verified there on hardware. [EVIDENCE]_
 
 **D07 -- RX can create channel interrupts (DWC2).** In slave mode, popping
 receive-status entries can make XferCompl or ChHltd visible. Drain each

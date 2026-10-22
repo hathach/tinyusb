@@ -638,3 +638,66 @@ void test_max_nak_zero_never_holds_and_abort_retires_a_held_channel(void) {
   TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
   TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
 }
+
+// Hand the start-split ACK or a complete-split NYET of the bulk split channel 0 to its handler, the channel halted by
+// the core (or, slave IN NYET, by the disable that follows it)
+static void bulk_split_event(bool dma, bool in, uint32_t hcint) {
+  test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+  if (dma) {
+    TEST_ASSERT_FALSE(in ? handle_channel_in_dma(&test_regs, 0, HCINT_HALTED | hcint) :
+                           handle_channel_out_dma(&test_regs, 0, HCINT_HALTED | hcint));
+  } else if (in) {
+    TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, 0, hcint));
+    if (hcint & HCINT_NYET) {
+      test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+      TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, 0, HCINT_HALTED));
+    }
+  } else {
+    TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, hcint));
+  }
+}
+
+void test_bulk_complete_split_waits_for_the_next_microframe(void) {
+  // slave IN, slave OUT, DMA IN, DMA OUT
+  for (unsigned i = 0; i < 4; i++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    const bool dma = i >= 2;
+    const bool in  = (i & 1u) == 0;
+    if (dma) {
+      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
+      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
+      test_regs.ghwcfg2 = hw.value;
+    }
+    bulk_nak_endpoint(in, true);
+    const channel_park_t kind = in ? PARK_CSPLIT_IN : PARK_CSPLIT_OUT;
+
+    // slave mode: the start-split ACK, and later a NYET, park the complete-split for the next microframe. Buffer DMA
+    // mode sends it at once.
+    for (unsigned step = 0; step < 2; step++) {
+      const uint16_t uframe = (uint16_t) (8u * 20u + 3u + 2u * step);
+      test_regs.hfnum = (3500u << 16) | uframe;
+      bulk_split_event(dma, in, step == 0 ? HCINT_ACK : HCINT_NYET);
+      TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
+      if (dma) {
+        TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
+        TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+        continue;
+      }
+      TEST_ASSERT_EQUAL(kind, _hcd_data.xfer[0].park);
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+      TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);
+
+      // an SOF of the same microframe, still pending, leaves it parked
+      TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+
+      // the next microframe sends it
+      test_regs.hfnum = (3500u << 16) | (uframe + 1u);
+      (void) handle_sof_irq(0, true);
+      TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
+      TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+      TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
+    }
+  }
+}
