@@ -98,6 +98,13 @@ controller until the ``tuh_msc_complete_cb_t`` callback runs.  Check
 separate USB transfer result, so it does not report transfer failures on its
 own.
 
+If a command's data or status stage cannot be queued on the host controller
+after its CBW was sent, the driver completes the command at once with a
+locally built CSW whose status is ``MSC_CSW_STATUS_PHASE_ERROR``.  The device
+is then mid-command, so the driver refuses further commands:
+``tuh_msc_ready()`` stays ``false`` and every command API returns ``false``
+until the device is re-enumerated.
+
 .. list-table::
    :header-rows: 1
    :widths: 40 60
