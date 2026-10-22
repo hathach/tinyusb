@@ -214,9 +214,10 @@ uint8_t  tud_midi2_n_protocol(uint8_t itf);
 // NOTE: a message is never split: reading stops before the first message that
 // is incomplete or does not fit. With a complete message buffered, max_words
 // >= 4 (the largest UMP message) ensures progress. Applications should invoke
-// it in a loop until it returns 0 to drain the RX FIFO per tud_midi2_rx_cb
-// callback. Leaving words in the FIFO across callbacks can prevent subsequent
-// bulk OUT transfers from landing.
+// it in a loop until it returns 0 to read every complete message per
+// tud_midi2_rx_cb callback; the words of an incomplete message stay queued
+// until the rest arrives. Leaving complete messages in the FIFO across
+// callbacks can prevent subsequent bulk OUT transfers from landing.
 uint32_t tud_midi2_n_ump_read(uint8_t itf, uint32_t* words, uint32_t max_words);
 uint32_t tud_midi2_n_ump_write(uint8_t itf, const uint32_t* words, uint32_t count);
 
