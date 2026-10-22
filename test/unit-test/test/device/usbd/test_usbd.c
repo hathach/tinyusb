@@ -165,6 +165,9 @@ void setUp(void) {
 void tearDown(void) {
 }
 
+//--------------------------------------------------------------------+
+// Task
+//--------------------------------------------------------------------+
 void test_usbd_task_idle_does_not_mask_interrupts(void) {
   TEST_ASSERT_FALSE(tud_task_event_ready());
   dcd_int_disable_StopIgnore();
