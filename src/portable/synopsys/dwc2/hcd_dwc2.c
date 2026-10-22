@@ -486,7 +486,10 @@ static uint8_t channel_nak_frame(dwc2_regs_t* dwc2) {
   const uint32_t frnum = dwc2->hfnum & HCD_FRAME_NUMBER_MASK;
   return (uint8_t) (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? (frnum >> 3) : frnum);
 }
+#endif
 
+// Only slave mode and splits retry a NAK in software; a DMA build without them parks for low-speed pacing only
+#if HCD_CHANNEL_PARK && (CFG_TUH_DWC2_SLAVE_ENABLE || HCD_SPLIT)
 // A NAK ended a transaction of a control or bulk transfer whose retry is up to the CPU: in slave mode, or a split one
 // (the core repeats a non-split NAKed token itself only in DMA mode). Count it in the current frame and return true
 // when the endpoint has had max_nak of them there (tuh_configure_dwc2_t): its retry then waits for the next frame.

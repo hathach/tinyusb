@@ -298,7 +298,7 @@ slave mode only the ISR frees a full queue. The core's per-word packet delimiter
 
 **D06c -- Pace the NAK retries the CPU makes (measurement, P4).** The core
 repeats a NAKed control/bulk token by itself only for a non-split channel in
-DMA mode. In slave mode, and for every split, software restarts the transaction,
+DMA mode. In slave mode, and for every control/bulk split, software restarts it,
 and a split retry is a start-split plus complete-splits answered NYET (about
 ten, 4.7 us apart, for a 64-byte full-speed packet), an interrupt each. Retried
 at once, an idle bulk IN behind a hub took 155k-398k interrupts per second and
