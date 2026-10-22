@@ -42,18 +42,19 @@ bool tuh_msc_mounted(uint8_t dev_addr);
 // Check if the interface is currently ready or busy transferring data
 bool tuh_msc_ready(uint8_t dev_addr);
 
-// Get Max Lun
+// Get the LUN count the device reported, clamped to CFG_TUH_MSC_MAXLUN
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 
-// Get number of block
+// Get number of block, as cached during enumeration (LUN 0 only). 0 for a LUN not below tuh_msc_get_maxlun()
 uint32_t tuh_msc_get_block_count(uint8_t dev_addr, uint8_t lun);
 
-// Get block size in bytes
+// Get block size in bytes, as cached during enumeration (LUN 0 only). 0 for a LUN not below tuh_msc_get_maxlun()
 uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
-// return true if success, false if there is already pending operation.
+// return true if success, false if the interface is not configured, cbw->lun is not below tuh_msc_get_maxlun(),
+// or there is already pending operation. The commands below also return false in these cases.
 // NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, const msc_cbw_t *cbw, void *data, tuh_msc_complete_cb_t complete_cb,
                           uintptr_t arg);

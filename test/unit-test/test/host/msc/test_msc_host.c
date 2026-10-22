@@ -190,3 +190,40 @@ void test_msc_host_lun_past_reported_count_refused(void) {
   TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, NULL, 0));
   TEST_ASSERT_EQUAL(0, xfer_count);
 }
+
+// Drives the enumeration's TEST UNIT READY and READ CAPACITY. The READ CAPACITY CBW is patched to `lun` so its
+// geometry lands in that capacity[] slot, which enumeration (LUN 0 only) cannot otherwise reach.
+static void complete_enumeration_capacity_as_lun(uint8_t lun, uint32_t block_count, uint32_t block_size) {
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t))); // TUR CBW
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));  // TUR CSW: passed
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[1]);
+  ((msc_cbw_t*) xfer_buf[1])->lun = lun;
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
+  resp->last_lba   = tu_htonl(block_count - 1);
+  resp->block_size = tu_htonl(block_size);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(scsi_read_capacity10_resp_t)));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));
+  TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
+}
+
+void test_msc_host_geometry_of_lun_0(void) {
+  complete_enumeration_capacity_as_lun(0, 1000, 512);
+  TEST_ASSERT_EQUAL(1000, tuh_msc_get_block_count(DADDR, 0));
+  TEST_ASSERT_EQUAL(512, tuh_msc_get_block_size(DADDR, 0));
+}
+
+// capacity[1] holds geometry, but LUN 1 is past the one LUN the device reported
+void test_msc_host_geometry_past_reported_count_is_zero(void) {
+  complete_enumeration_capacity_as_lun(1, 1000, 512);
+  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_count(DADDR, 1));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_size(DADDR, 1));
+
+  xfer_count = 0;
+  TEST_ASSERT_FALSE(tuh_msc_read10(DADDR, 1, data, 0, 1, NULL, 0));
+  TEST_ASSERT_FALSE(tuh_msc_write10(DADDR, 1, data, 0, 1, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+}
