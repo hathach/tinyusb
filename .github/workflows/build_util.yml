@@ -124,6 +124,8 @@ jobs:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
+          # the engine is agentrc's at the pin; the ESP-IDF container sees it through the mount
+          python tools/get_deps.py lib/agentrc
           if [ "$TOOLCHAIN" != esp-idf ]; then
             python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS
             exit

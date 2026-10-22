@@ -123,7 +123,7 @@ repos:
 
   - id: drivers-coverage
     name: drivers-coverage
-    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/change_impact\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/code_size\.py$|test/hil/test/test_code_size\.py$|\.github/scripts/code_size_ci\.py$|test/hil/test/test_code_size_ci\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
+    files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/change_impact\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/code_size\.py$|tools/code_size_profile\.py$|tools/get_deps\.py$|test/hil/test/test_code_size\.py$|\.github/scripts/code_size_ci\.py$|test/hil/test/test_code_size_ci\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
     entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli"
     pass_filenames: false
     language: python

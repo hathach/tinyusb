@@ -30,7 +30,7 @@
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - For DCD bring-up or a behavior change (`src/portable/<vendor>/<driver>`), use the usbtest battery for hardware sign-off: run every case of the justified tier. If no suitable rig board is available, report hardware validation pending.
 - After board/dependency changes, regenerate docs with `build-doc`.
-- Before committing code changes, verify size impact with `code-size`.
+- Before committing code changes, verify size impact with agentrc's `code-size` (the build contract's Code size section).
 
 ## PRs and Follow-ups
 
