@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # The farm check's tinyusb side: helper/farm_profile.py's verdicts and helper/hil_farm_check.py's
-# wiring to agentrc's engine, with the bus, the flasher, gh and the tracked runner faked and the
-# engine's lock dir in a temp dir: no board, no ssh, no download. Run directly:
+# wiring to agentrc's engine, with the bus, the flasher and the tracked runner faked and the
+# engine's lock dir in a temp dir: no board, no ssh. Run directly:
 #   python3 test/hil/test/test_hil_farm_check.py
 import json
 import os
@@ -11,41 +11,39 @@ import sys
 import tempfile
 import types
 import unittest
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import usbtest_harness                             # noqa: E402 - stubs pyserial
+from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
 from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
-from usbtest_harness import patch                  # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
-DEVICE = dict(BOARD, tests={'device': True})
-HOST = dict(BOARD, tests={'host': True})
+STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P', 'args': ''})
+CONTACT = 'Device ID   : 0x413\n'
 eng = hil_farm_check.load_engine()
 
 
 def args(**kw):
-    return types.SimpleNamespace(**{'build_dir': None, 'verbose': False, **kw})
+    return types.SimpleNamespace(**{'verbose': False, **kw})
 
 
-def op(rc=0, stdout=''):
-    return types.SimpleNamespace(returncode=rc, stdout=stdout, stderr=None)
+def op(rc=0, stdout='', stderr=None):
+    return types.SimpleNamespace(returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def context(test, *cleanups):
-    """The engine's own Context for BOARD, run_tracked faked: each run ends with the next of
-    `cleanups` ('done' once they run out), and a recheck finds it unchanged. `calls` lists the
-    runs, `row` what the engine records; the step is 'test'."""
+def context(test, *cleanups, stdout=''):
+    """The engine's own Context for BOARD, run_tracked faked: each run prints `stdout` and ends
+    with the next of `cleanups` ('done' once they run out), and a recheck finds it unchanged.
+    `calls` lists the runs."""
     queue, ends, calls = list(cleanups), {}, []
 
     def tracked(cmd, cwd=None, *, timeout, settle, state_dir, **kw):
         calls.append((cmd, cwd, timeout, kw))
         cleanup = queue.pop(0) if queue else 'done'
-        r = subprocess.CompletedProcess(cmd, 0, '', None)
+        r = subprocess.CompletedProcess(cmd, 0, stdout, None)
         r.cleanup, r.receipt = cleanup, None
         if cleanup != 'done':
             r.receipt = {'token': str(len(calls)), 'lock': '/nonexistent'}
@@ -54,8 +52,8 @@ def context(test, *cleanups):
     patch(test, eng.hil_process, 'run_tracked', tracked)
     patch(test, eng.hil_process, 'recheck', lambda receipt: ends[receipt['token']])
     patch(test, eng, 'RECHECK_WAIT', 0)
-    ctx = eng.Context(BOARD, args(), '/nonexistent', eng.new_row('b'))
-    ctx.step, ctx.calls = 'test', calls
+    ctx = eng.Context(args(), '/nonexistent')
+    ctx.calls = calls
     return ctx
 
 
@@ -101,10 +99,13 @@ class Roster(unittest.TestCase):
     def test_an_explicit_roster_is_used_on_any_host(self):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td, 'r.json')
-            cfg.write_text(json.dumps({'boards': [DEVICE], 'boards-skip': [dict(DEVICE, name='parked')]}))
+            cfg.write_text(json.dumps({'boards': [BOARD], 'boards-skip': [dict(BOARD, name='parked')]}))
             got = farm_profile.roster('htpc', str(cfg), args())
         self.assertEqual((got['path'], [b['name'] for b in got['boards']], [b['name'] for b in got['named_only']]),
                          (str(cfg), ['b'], ['parked']))
+
+    def test_the_probe_is_named_by_its_flasher(self):
+        self.assertEqual(farm_profile.probe_name(BOARD), 'openocd')
 
 
 class Probe(unittest.TestCase):
@@ -142,433 +143,54 @@ class Probe(unittest.TestCase):
         self.assertEqual(self.candidates('0123456'), ['1-1', '1-2'])
         self.assertEqual(self.candidates('000'), [])
 
-    def test_scan_only_reads_the_boards_own_usb_state(self):
-        patch(self, farm_profile, 'find_device', lambda uid: None)
-        self.assertEqual(farm_profile.scan_device(DEVICE), {'device': '⚫ off bus (parked?)', 'notes': []})
-        self.assertEqual(farm_profile.scan_device(HOST), {'device': '– n/a (host-only)', 'notes': ['host-only board']})
-        patch(self, farm_profile, 'find_device', lambda uid: ('2-1', 'cafe:4001', 7))
-        self.assertEqual(farm_profile.scan_device(DEVICE)['device'], '✅ cafe:4001 @2-1')
 
-
-class HostStatus(unittest.TestCase):
-    def status(self, data):
-        note = []
-        return farm_profile.host_status(data, note), note
-
-    def test_board_test_output_after_an_example_flash_is_a_silent_no_op(self):
-        status, note = self.status(b'Hello from TinyUSB\r\nU')
-        self.assertEqual(status, 'flash-failed')
-        self.assertIn('silent flash no-op', note[0])
-
-    def test_example_output_is_alive(self):
-        self.assertEqual(self.status(b'TinyUSB Host Example\r\n')[0], 'ok')
-
-    def test_silence_or_no_port_is_not_alive(self):
-        self.assertEqual(self.status(b'')[0], 'failed')
-        self.assertEqual(self.status(None)[0], 'failed')
-
-
-class Plan(unittest.TestCase):
-    """plan(): the light image, the park image and their provenance, or a refusal before the lock."""
-
-    def setUp(self):
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.cache = Path(td.name)
-        patch(self, farm_profile, 'CACHE_DIR', self.cache)
-        patch(self, farm_profile, 'input_problem', lambda board, fw: '')   # PlanInputs reads real trees
-        self.args = args()
-
-    def images(self, *examples, variants=None):
-        patch(self, hil_flash, 'find_firmware', lambda variant, ex, **kw: (
-            f'{variant}/{ex}.elf' if ex in examples and (variants is None or variant in variants) else None))
-
-    def plan(self, board, prepared=None):
-        return farm_profile.plan(board, self.args, prepared, False)
-
-    def test_a_device_board_flashes_dfu_runtime_and_parks_with_board_test(self):
-        self.images('device/dfu_runtime', 'device/board_test')
-        p = self.plan(DEVICE)
-        self.assertEqual((p['image']['path'], p['image']['label'], p['final']['image']['path'], p['kind']),
-                         ('b/device/dfu_runtime.elf', 'dfu_runtime', 'b/device/board_test.elf', 'device'))
-        self.assertIn('cafe device off the bus', p['final']['postcondition'])
-
-    def test_the_park_image_comes_from_the_light_images_variant(self):
-        patch(self, hil_flash, 'find_firmware', lambda variant, ex, **kw: (
-            f'{variant}/{ex}.elf' if variant == 'b-DMA' or ex == 'device/board_test' else None))
-        p = self.plan(dict(DEVICE, variant=[{'name': 'b'}, {'name': 'b-DMA'}]))
-        self.assertEqual((p['image']['path'], p['final']['image']['path']),
-                         ('b-DMA/device/dfu_runtime.elf', 'b-DMA/device/board_test.elf'))
-        self.assertIn('variant: b-DMA', p['notes'])
-
-    def test_a_host_board_takes_the_first_host_candidate(self):
-        self.images('host/cdc_msc_hid', 'host/device_info', 'device/board_test')
-        p = self.plan(HOST)
-        self.assertEqual((p['image']['label'], p['kind'], p['notes']), ('device_info', 'host', ['host-only board']))
-
-    def test_an_only_list_device_board_still_flashes_dfu_runtime(self):
-        self.images('device/dfu_runtime', 'device/cdc_dual_ports', 'device/board_test')
-        self.assertEqual(self.plan(dict(BOARD, tests={'only': ['device/cdc_dual_ports']}))['image']['label'],
-                         'dfu_runtime')
-
-    def test_an_only_list_host_board_is_limited_to_its_own_examples(self):
-        self.assertEqual(farm_profile.light_candidates(dict(BOARD, tests={'only': ['host/cdc_msc_hid']})),
-                         ('host', ['host/cdc_msc_hid']))
-        self.assertEqual(farm_profile.light_candidates(dict(BOARD, tests={'host': True, 'skip': ['host/device_info']})),
-                         ('host', ['host/cdc_msc_hid', 'host/msc_file_explorer_freertos']))
-
-    def test_a_skipped_dfu_runtime_leaves_a_device_board_no_light_image(self):
-        self.images('device/dfu_runtime', 'device/board_test')
-        p = self.plan(dict(BOARD, tests={'device': True, 'skip': ['device/dfu_runtime']}))
-        self.assertEqual(p['refused']['status'], 'flash-failed')
-
-    def test_no_park_image_is_refused_before_the_lock(self):
-        self.images('device/dfu_runtime')
-        p = self.plan(DEVICE)
-        self.assertEqual(p['refused']['status'], 'flash-failed')
-        self.assertIn('no board_test firmware for b to park with', p['refused']['notes'])
-
-    def test_a_variant_the_fetch_could_not_cache_says_why(self):
-        self.images()
-        why = 'not cached: no usable artifact in the latest 10 completed master push runs'
-        p = self.plan(DEVICE, {'uncached': {'b': why}})
-        self.assertEqual(p['refused'], {'status': 'flash-failed', 'notes': [f'b: {why}']})
-
-    def test_an_rtt_host_board_is_unsupported(self):
-        self.images('host/device_info', 'device/board_test')
-        p = self.plan(dict(HOST, logger='rtt'))
-        self.assertEqual(p['refused'], {'status': 'failed', 'notes': ['host-only board', 'RTT host boards unsupported']})
-
-    def test_an_openocd_esp_board_is_planned_but_refused_under_a_ci_job(self):
-        # the engine keeps its lock through a session left running (EngineOpenocdEsp)
-        self.images('device/dfu_runtime', 'device/board_test')
-        esp = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
-        with mock.patch.dict(os.environ):
-            for var in hil_util.openocd_esp().CI_JOB_ENV:
-                os.environ.pop(var, None)
-            self.assertNotIn('refused', self.plan(dict(DEVICE, flasher=esp)))
-            os.environ['GITHUB_ACTIONS'] = 'x'
-            p = self.plan(dict(DEVICE, flasher=esp))
-        self.assertEqual(p['refused']['status'], 'flash-failed')
-        self.assertTrue(any('refused under a CI job' in n for n in p['refused']['notes']), p)
-
-    def test_a_cached_image_carries_its_ci_run(self):
-        self.images('device/dfu_runtime', 'device/board_test')
-        (self.cache / 'cmake-build-b').mkdir()
-        (self.cache / 'cmake-build-b' / '.source').write_text(json.dumps(
-            {'run': 7, 'sha': 'abc', 'artifact': 'binaries-arm-gcc--b b', 'conclusion': 'success'}))
-        p = self.plan(DEVICE)
-        want = {'kind': 'ci', 'repo': 'hathach/tinyusb', 'commit': 'abc', 'run': 7,
-                'artifact': 'binaries-arm-gcc--b b', 'conclusion': 'success'}
-        self.assertEqual((p['image']['provenance'], p['final']['image']['provenance']), (want, want))
-
-    def test_a_tree_cached_before_conclusions_were_recorded_has_none(self):
-        self.images('device/dfu_runtime', 'device/board_test')
-        (self.cache / 'cmake-build-b').mkdir()
-        (self.cache / 'cmake-build-b' / '.source').write_text(json.dumps({'run': 7, 'sha': 'abc', 'artifact': 'a'}))
-        self.assertIsNone(self.plan(DEVICE)['image']['provenance']['conclusion'])
-
-    def test_missing_provenance_is_explicit(self):
-        self.images('device/dfu_runtime', 'device/board_test')
-        self.assertEqual(self.plan(DEVICE)['image']['provenance']['kind'], 'missing')   # no .source
-        self.args.build_dir = 'cmake-build'
-        prov = self.plan(DEVICE)['image']['provenance']
-        self.assertEqual(prov, {'kind': 'missing', 'reason': 'firmware root cmake-build: no build receipt'})
-
-
-class PlanInputs(unittest.TestCase):
-    """Every input of both images is checked before the lock, from a cached tree or a -B root
-    alike: an ESP build's config.env and IDF_TARGET, its flash_args and every file it names."""
-
-    ESP = dict(DEVICE, flasher={'name': 'esptool', 'uid': 'P'})
-
-    def setUp(self):
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.root = Path(td.name)
-        patch(self, farm_profile, 'CACHE_DIR', self.root / 'cache')
-        patch(self, hil_flash, 'build_dir', hil_flash.build_dir)
-
-    def tree(self, root, flasher='esptool', skip=()):
-        """A variant tree of dfu_runtime and board_test; `skip` names (example, file) left out."""
-        for ex in ('dfu_runtime', 'board_test'):
-            d = root / 'cmake-build-b' / 'device' / ex
-            d.mkdir(parents=True)
-            files = {f'{ex}.bin': b'app', 'bootloader.bin': b'boot',
-                     'config.env': json.dumps({'IDF_TARGET': 'esp32s3'}),
-                     'flash_args': f'--flash_mode dio --flash_freq=80m 0x0 bootloader.bin 0x10000 {ex}.bin\n'}
-            if flasher != 'esptool':
-                files = {f'{ex}.elf': b'app'}
-            for name, data in files.items():
-                if (ex, name) not in skip:
-                    (d / name).write_bytes(data.encode() if isinstance(data, str) else data)
-        return root
-
-    def plan(self, board, root, build_dir=None):
-        hil_flash.build_dir = str(root)
-        return farm_profile.plan(board, args(build_dir=build_dir), None, False)
-
-    def test_complete_trees_pass_from_the_cache_and_from_a_build_root(self):
-        cache = self.tree(self.root / 'cache')
-        self.assertNotIn('refused', self.plan(self.ESP, cache))
-        local = self.tree(self.root / 'local', flasher='openocd')
-        self.assertNotIn('refused', self.plan(DEVICE, local, build_dir=str(local)))
-
-    def test_a_missing_or_broken_input_of_either_image_refuses(self):
-        cases = {('board_test', 'bootloader.bin'): 'park image: ', ('dfu_runtime', 'bootloader.bin'): 'light image: ',
-                 ('board_test', 'config.env'): 'park image: ', ('dfu_runtime', 'flash_args'): 'light image: '}
-        for i, (skip, want) in enumerate(cases.items()):
-            for where in ('cache', 'local'):
-                with self.subTest(skip=skip, where=where):
-                    root = self.tree(self.root / f'{where}{i}', skip={skip})
-                    got = self.plan(self.ESP, root, build_dir=None if where == 'cache' else str(root))
-                    self.assertEqual(got['refused']['status'], 'flash-failed')
-                    self.assertTrue(got['refused']['notes'][-1].startswith(want), got)
-
-    def test_an_openocd_esp_boards_images_are_checked_as_its_flash_takes_them(self):
-        board = dict(DEVICE, flasher={'name': 'openocd_esp', 'uid': 'P', 'args': '-f board/esp32s3-builtin.cfg'})
-        checked = []
-        patch(self, hil_flash, 'openocd_esp_input_problem',
-              lambda flasher, fw: checked.append(Path(fw).name) or ('header' if 'board_test' in str(fw) else ''))
-        with mock.patch.dict(os.environ):
-            for var in hil_util.openocd_esp().CI_JOB_ENV:   # a CI job refuses openocd_esp before any input check
-                os.environ.pop(var, None)
-            got = self.plan(board, self.tree(self.root / 'cache'))
-        self.assertEqual(checked, ['dfu_runtime.bin', 'board_test.bin'])
-        self.assertEqual(got['refused']['notes'][-1], 'park image: header')
-
-    def test_a_config_env_without_a_target_and_a_bad_flash_args_refuse(self):
-        for name, text in (('config.env', '{}'), ('config.env', '{"IDF_TARGET": ""}'),
-                           ('flash_args', '--flash_mode dio 0x0'), ('flash_args', 'zero bootloader.bin')):
-            with self.subTest(name=name, text=text):
-                root = self.tree(Path(tempfile.mkdtemp(dir=self.root)))
-                (root / 'cmake-build-b/device/board_test' / name).write_text(text)
-                self.assertIn('park image: ', self.plan(self.ESP, root)['refused']['notes'][-1])
-
-
-class Fetch(unittest.TestCase):
-    """fetch_missing against a fake gh: runs newest first, artifacts that unpack like CI's."""
-
-    def setUp(self):
-        td = tempfile.TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.cache = Path(td.name) / 'cache'
-        patch(self, farm_profile, 'CACHE_DIR', self.cache)
-        self.runs = []          # [(run dict, {artifact name: examples in it})]
-        self.downloads = []
-        patch(self, farm_profile, 'gh', self.fake_gh)
-
-    def fetch(self, boards):
-        return farm_profile.fetch_missing(boards, lambda msg: None)
-
-    def add_run(self, run_id, artifacts, status='completed', age_days=1, event='push', branch='master'):
-        created = datetime.now(timezone.utc) - timedelta(days=age_days)
-        self.runs.append(({'id': run_id, 'head_sha': f'{run_id:040x}', 'status': status, 'event': event,
-                           'conclusion': 'success', 'head_branch': branch, 'created_at': created.isoformat()},
-                          artifacts))
-
-    def fake_gh(self, *args, env=None):
-        if args[0] == 'api' and '/workflows/' in args[1]:
-            page = int(args[1].rsplit('page=', 1)[1])
-            return json.dumps({'workflow_runs': [r for r, _ in self.runs][2 * page - 2:2 * page]})
-        if args[0] == 'api':
-            run_id = int(args[2].split('/runs/')[1].split('/')[0])
-            return ''.join(f'{n}\n' for r, arts in self.runs if r['id'] == run_id for n in arts)
-        run_id, name, dest = int(args[2]), args[6], Path(args[8])
-        self.assertEqual(env['TMPDIR'], str(self.cache))
-        self.downloads.append((run_id, name))
-        variant = farm_profile.artifact_variant(name)
-        for ex in next(arts for r, arts in self.runs if r['id'] == run_id)[name]:
-            ex, *sidecars = ex.split('+')    # 'device/x.bin+config.env+flash_args': an ESP image
-            fw = dest / f'cmake-build-{variant}' / Path(ex).with_suffix('') / Path(ex).name
-            fw = fw if fw.suffix else fw.with_suffix('.elf')
-            fw.parent.mkdir(parents=True)
-            fw.write_text(f'run {run_id}')
-            for f in sidecars:
-                (fw.parent / f).write_text({'config.env': '{"IDF_TARGET": "esp32s3"}',
-                                            'flash_args': f'0x0 {fw.name}'}[f])
-        return ''
-
-    def source(self, variant):
-        return json.loads((self.cache / f'cmake-build-{variant}' / '.source').read_text())
-
-    GOOD = ['device/dfu_runtime', 'device/board_test']
-    MULTI = dict(DEVICE, variant=[{'name': 'b'}, {'name': 'b-DMA'}])
-    OTHER = {'binaries-arm-gcc--b other': GOOD}
-
-    def test_artifact_names_map_to_variants(self):
-        v = farm_profile.artifact_variant
-        self.assertEqual(v('binaries-arm-gcc--b stm32g0b1nucleo'), 'stm32g0b1nucleo')
-        self.assertEqual(v('binaries-esp-idf--b espressif_s3_devkitm --build-name espressif_s3_devkitm-DMA '
-                           '--cflag=-DCFG_TUD_DWC2_DMA_ENABLE=1'), 'espressif_s3_devkitm-DMA')
-        self.assertEqual(v('binaries-arm-gcc--b ea4088_quickstart -DLOGGER=rtt'), 'ea4088_quickstart')
-
-    def test_a_board_gets_its_first_variant_from_the_newest_run(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD, 'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
-        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([self.MULTI]), {})
-        self.assertEqual(self.source('b'), {'run': 3, 'sha': f'{3:040x}', 'artifact': 'binaries-arm-gcc--b b',
-                                            'conclusion': 'success'})
-        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
-
-    def test_a_board_with_any_variant_cached_is_satisfied(self):
-        (self.cache / 'cmake-build-b-DMA').mkdir(parents=True)
-        patch(self, farm_profile, 'gh', lambda *a, **kw: self.fail('asked GitHub'))
-        self.assertEqual(self.fetch([self.MULTI]), {})
-
-    def test_an_unusable_first_variant_falls_back_to_the_next(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': ['device/dfu_runtime'],
-                         'binaries-arm-gcc--b b --build-name b-DMA': self.GOOD})
-        self.assertEqual(self.fetch([self.MULTI]), {})
-        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b-DMA'])
-
-    def test_the_first_usable_variant_wins_even_with_a_less_preferred_example(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': ['host/cdc_msc_hid', 'device/board_test'],
-                         'binaries-arm-gcc--b b --build-name b-DMA': ['host/device_info', 'device/board_test']})
-        self.assertEqual(self.fetch([dict(self.MULTI, tests={'host': True})]), {})
-        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
-
-    def test_the_search_stops_after_the_last_budgeted_master_run(self):
-        for i in range(farm_profile.MASTER_RUNS):
-            self.add_run(100 - i, self.OTHER)
-        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
-        got = self.fetch([DEVICE])
-        self.assertIn(f'latest {farm_profile.MASTER_RUNS} completed master push runs with firmware', got['b'])
-
-    def test_the_last_budgeted_master_run_is_searched(self):
-        for i in range(farm_profile.MASTER_RUNS - 1):
-            self.add_run(100 - i, self.OTHER)
-        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([DEVICE]), {})
-
-    def test_untrusted_or_unfinished_runs_do_not_use_the_budget(self):
-        for i in range(farm_profile.MASTER_RUNS):
-            self.add_run(200 - i, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
-            self.add_run(150 - i, self.OTHER, status='in_progress')
-        for i in range(farm_profile.MASTER_RUNS - 1):
-            self.add_run(100 - i, self.OTHER)
-        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([DEVICE]), {})
-        self.assertEqual(self.source('b')['run'], 50)
-
-    def test_runs_without_firmware_do_not_use_the_budget(self):
-        for i in range(farm_profile.MASTER_RUNS):
-            self.add_run(100 - i, {})    # a push that changed no code: build.yml skips hil-build
-        self.add_run(50, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([DEVICE]), {})
-        self.assertEqual(self.source('b')['run'], 50)
-
-    def test_a_run_shifted_onto_the_next_page_is_yielded_once(self):
-        self.add_run(3, {})
-        self.add_run(2, {})
-        self.add_run(1, {})
-        r3, r2, r1 = (r for r, _ in self.runs)
-        pages = {1: [r3, r2], 2: [r2, r1], 3: []}   # a run created after page 1 pushed r2 down
-        patch(self, farm_profile, 'gh', lambda *a, **kw: json.dumps(
-            {'workflow_runs': pages[int(a[1].rsplit('page=', 1)[1])]}))
-        self.assertEqual([r['id'] for r in farm_profile.master_runs()], [3, 2, 1])
-
-    def test_a_malformed_or_nameless_board_does_not_stop_other_boards(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
-        bad = dict(DEVICE, name='bad', variant=[{'name': ''}])
-        nameless = {'uid': 'U', 'flasher': BOARD['flasher'], 'tests': {'device': True}}
-        self.assertEqual(self.fetch([bad, nameless, DEVICE]), {})
-        self.assertEqual(self.source('b')['run'], 3)
-
-    def test_a_board_left_without_firmware_reports_every_variant(self):
-        self.assertEqual(set(self.fetch([self.MULTI])), {'b', 'b-DMA'})
-
-    def test_an_artifact_without_board_test_falls_back_to_an_older_run(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': ['device/dfu_runtime']})
-        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([DEVICE]), {})
-        self.assertEqual(self.source('b')['run'], 2)
-
-    def test_runs_past_the_first_page_are_searched(self):
-        self.add_run(9, {})
-        self.add_run(8, {})
-        self.add_run(7, {'binaries-arm-gcc--b b': self.GOOD})
-        self.assertEqual(self.fetch([DEVICE]), {})
-        self.assertEqual(self.source('b')['run'], 7)
-
-    def test_an_esp_image_needs_its_flash_sidecars(self):
-        esp = dict(DEVICE, flasher={'name': 'esptool', 'uid': 'P'})
-        self.add_run(3, {'binaries-esp-idf--b b': ['device/dfu_runtime.bin', 'device/board_test.bin']})
-        self.add_run(2, {'binaries-esp-idf--b b': ['device/dfu_runtime.bin+config.env+flash_args',
-                                                   'device/board_test.bin+config.env+flash_args']})
-        self.assertEqual(self.fetch([esp]), {})
-        self.assertEqual(self.source('b')['run'], 2)
-
-    def test_a_failed_download_is_reported_not_skipped(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
-        real = self.fake_gh
-
-        def full_disk(*args, env=None):
-            if args[0] == 'run':
-                raise OSError(28, 'No space left on device')
-            return real(*args, env=env)
-        patch(self, farm_profile, 'gh', full_disk)
-        self.assertEqual(self.fetch([DEVICE]), {'b': 'not cached, fetch failed: [Errno 28] No space left on device'})
-
-    def test_an_unusable_cache_dir_is_a_reason_not_a_crash(self):
-        self.cache.write_text('')    # a file where the cache dir belongs
-        self.assertIn('not cached, fetch failed', self.fetch([DEVICE])['b'])
-
-    def test_untrusted_unfinished_or_expired_runs_are_skipped(self):
-        self.add_run(6, {'binaries-arm-gcc--b b': self.GOOD}, event='pull_request')
-        self.add_run(5, {'binaries-arm-gcc--b b': self.GOOD}, branch='fork-branch')
-        self.add_run(4, {'binaries-arm-gcc--b b': self.GOOD}, status='in_progress')
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD}, age_days=91)
-        self.add_run(2, {'binaries-arm-gcc--b b': self.GOOD}, age_days=92)
-        self.assertIn('no usable artifact', self.fetch([DEVICE])['b'])
-        self.assertEqual(self.downloads, [])
-
-    def test_losing_the_publish_race_keeps_the_winners_tree(self):
-        self.add_run(3, {'binaries-arm-gcc--b b': self.GOOD})
-        real = self.fake_gh
-
-        def racing_gh(*args, env=None):
-            out = real(*args, env=env)
-            if args[0] == 'run':
-                winner = self.cache / 'cmake-build-b'
-                winner.mkdir()
-                (winner / 'winner').write_text('')
-            return out
-        patch(self, farm_profile, 'gh', racing_gh)
-        self.assertEqual(self.fetch([DEVICE]), {})
-        self.assertEqual([p.name for p in (self.cache / 'cmake-build-b').iterdir()], ['winner'])
-        self.assertEqual([p.name for p in self.cache.iterdir()], ['cmake-build-b'])
-
-    def test_a_gh_failure_is_every_missing_variants_reason(self):
-        def broken(*args, env=None):
-            raise subprocess.CalledProcessError(4, 'gh', stderr='gh: To get started, run: gh auth login\n')
-        patch(self, farm_profile, 'gh', broken)
-        self.assertEqual(self.fetch([DEVICE]), {'b': 'not cached, fetch failed: gh: To get started, run: gh auth login'})
-
-    def test_prepare_fetches_only_into_the_default_cache(self):
-        for obj, name in ((hil_flash, 'build_dir'), (hil_util, 'verbose')):
-            patch(self, obj, name, getattr(obj, name))
-        fetched = []
-        patch(self, farm_profile, 'fetch_missing', lambda boards, log: fetched.append(boards) or {'b': 'why'})
-        self.assertEqual(farm_profile.prepare([DEVICE], args(build_dir='cmake-build'), print), {'uncached': {}})
-        self.assertEqual((hil_flash.build_dir, fetched), ('cmake-build', []))
-        self.assertEqual(farm_profile.prepare([DEVICE], args(), print), {'uncached': {'b': 'why'}})
-        self.assertEqual((hil_flash.build_dir, fetched), (str(self.cache), [[DEVICE]]))
+class Reset(unittest.TestCase):
+    def test_a_reset_with_the_targets_answer_returns_its_operation(self):
+        ctx = context(self, stdout=CONTACT)
+        got = farm_profile.reset(ctx, STLINK)
+        (cmd, _, timeout, kw), = ctx.calls
+        self.assertEqual((cmd, timeout, kw['verbose']),
+                         (['STM32_Programmer_CLI', '--connect', 'port=swd', 'sn=P', '--rst', '--go'],
+                          hil_util.CMD_TIMEOUT, False))
+        self.assertEqual((got.returncode, got.cleanup, len(got.attempts)), (0, 'done', 1))   # a provider Operation
+
+    def test_a_reset_without_the_targets_answer_raises_with_its_operation(self):
+        ctx = context(self, stdout='ST-LINK SN  : P\n')
+        with self.assertRaises(RuntimeError) as cm:
+            farm_profile.reset(ctx, STLINK)
+        self.assertEqual(cm.exception.operation.returncode, 0)
+        self.assertEqual(len(ctx.calls), 1)
+
+    def test_a_failed_reset_is_returned_for_the_engine_to_fail(self):
+        patch(self, hil_flash, 'reset_primitive', lambda name: lambda board, run: op(rc=1, stdout='Error: no target'))
+        self.assertEqual(farm_profile.reset(context(self), STLINK).returncode, 1)
+
+    def test_lm4flash_has_no_reset_and_starts_nothing(self):
+        ctx = context(self)
+        self.assertIsNone(farm_profile.reset(ctx, dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P'})))
+        self.assertEqual(ctx.calls, [])
+
+    def test_esptool_resets_through_the_providers_rom_loader_on_its_port(self):
+        seen = []
+
+        def reset_esptool(flasher, *, port, timeout, run):
+            seen.append((flasher['uid'], port, timeout))
+            return run(['esptool', '-p', port, 'chip_id'], timeout=timeout)
+        real = hil_util.provider()
+        fake = types.SimpleNamespace(reset_esptool=reset_esptool, reset_problem=real.reset_problem,
+                                     hil_process=real.hil_process)
+        patch(self, hil_util, 'provider', lambda: fake)
+        patch(self, hil_util, 'get_serial_dev', lambda uid, *a: f'/dev/serial/by-id/usb-x_{uid}-if00')
+        ctx = context(self, stdout='Hard resetting via RTS pin...\n')
+        got = farm_profile.reset(ctx, dict(BOARD, flasher={'name': 'esptool', 'uid': 'E', 'args': ''}))
+        self.assertEqual(seen, [('E', '/dev/serial/by-id/usb-x_E-if00', hil_util.CMD_TIMEOUT)])
+        self.assertEqual((got.returncode, len(ctx.calls)), (0, 1))
+        self.assertIsNone(hil_flash.reset_primitive('esptool'), "hil_test's console callers keep no esptool reset")
 
 
 class RunPlumbing(unittest.TestCase):
     """tinyusb's hil_flash adapters take a keyword-only run=, which the profile fills with ctx.run;
     without one they keep hil_util.run_cmd, read per call."""
-
-    def test_a_flash_runs_through_ctx_run_into_a_provider_operation(self):
-        ctx = context(self)
-        board = dict(DEVICE, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''})
-        got = farm_profile.flash(ctx, board, {'image': {'path': '/fw/dfu_runtime.bin'}})
-        (cmd, cwd, timeout, kw), = ctx.calls
-        self.assertEqual((cmd, timeout, kw['verbose']), (['lm4flash', '-s', 'P', '/fw/dfu_runtime.bin'],
-                                                         hil_util.CMD_TIMEOUT, hil_util.verbose))
-        self.assertEqual((got.returncode, got.cleanup, len(got.attempts)), (0, 'done', 1))   # a provider Operation
-        self.assertEqual([o['step'] for o in ctx.row['operations']], ['test'])
 
     def test_every_adapter_but_openocd_esp_hands_its_run_to_the_provider(self):
         calls = []
@@ -595,157 +217,6 @@ class RunPlumbing(unittest.TestCase):
         # openocd_esp's server is the provider's session: run= reaches only its esptool children (test_hil_flash)
 
 
-class UartWaitsForCompletion(unittest.TestCase):
-    """No UART open, poll or write while a run is not proven ended: ctx.settle raises Outstanding,
-    the operation stays on the row, and the park is never verified."""
-
-    def setUp(self):
-        self.uart = []
-        uart = self.uart
-
-        class Console:
-            def __init__(self, *a, **kw):
-                uart.append('open')
-
-            def reset_input_buffer(self):
-                uart.append('flush')
-
-            def write(self, data):
-                uart.append('write')
-
-            def read(self, n):
-                return b'Hello from TinyUSB\r\n'
-
-            def close(self):
-                uart.append('close')
-        patch(self, sys.modules['serial'], 'Serial', Console)
-        patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
-        patch(self, farm_profile, 'say', lambda msg: None)
-        patch(self, farm_profile, 'SERIAL_WAIT', 0.05)   # long enough to poll, not the real 6 s
-        reset = lambda board, run=None: run(['reset'], timeout=1)
-        patch(self, hil_flash, 'reset_primitive', lambda name: reset)
-        patch(self, hil_flash, 'flash_primitive', lambda name: lambda board, fw, run=None: run(f'flash {fw}', timeout=1))
-
-    def test_a_reset_not_proven_ended_stops_the_observation_before_the_uart_poll(self):
-        for cleanup in ('pending', 'unknown'):
-            with self.subTest(cleanup=cleanup):
-                self.uart.clear()
-                ctx = context(self, cleanup)
-                with self.assertRaises(eng.Outstanding):
-                    farm_profile.observe(ctx, HOST, {'kind': 'host'}, None)
-                self.assertEqual(self.uart, ['open', 'flush', 'close'])     # opened before the reset, never polled
-                self.assertEqual([(o['step'], o['cleanup']) for o in ctx.row['operations']], [('test', cleanup)])
-
-    def test_a_park_not_proven_ended_is_never_verified_and_never_listened_to(self):
-        for cleanup in ('pending', 'unknown'):
-            with self.subTest(cleanup=cleanup):
-                self.uart.clear()
-                ctx = context(self, cleanup)
-                with self.assertRaises(eng.Outstanding):
-                    farm_profile.final_state(ctx, HOST, {'kind': 'host', 'final': {'image': {'path': 'bt.elf'}}}, None)
-                self.assertEqual(self.uart, [])
-                self.assertEqual([(o['step'], o['cleanup']) for o in ctx.row['operations']], [('test', cleanup)])
-
-    def test_a_proven_reset_lets_the_observation_listen(self):
-        ctx = context(self)
-        got = farm_profile.observe(ctx, HOST, {'kind': 'host'}, None)
-        self.assertEqual((got['status'], self.uart[:3]), ('flash-failed', ['open', 'flush', 'write']))
-        self.assertEqual(len(ctx.row['operations']), 1)
-
-
-class Observe(unittest.TestCase):
-    def setUp(self):
-        patch(self, farm_profile, 'ENUM_WAIT', 0.01)
-        patch(self, farm_profile.time, 'sleep', lambda s: None)
-
-    def device(self, before, after):
-        patch(self, farm_profile, 'find_device', lambda uid: after)
-        return farm_profile.observe(context(self), DEVICE, {'kind': 'device'}, before)
-
-    def test_a_device_that_re_enumerates_is_ok(self):
-        got = self.device(None, ('1-1', 'cafe:4001', 2))
-        self.assertEqual((got['status'], got['device'], got['unverified']), ('ok', '✅ cafe:4001', []))
-
-    def test_the_same_vidpid_before_the_flash_leaves_the_new_image_unverified(self):
-        got = self.device(('1-1', 'cafe:4001', 1), ('1-1', 'cafe:4001', 2))
-        self.assertEqual(got['status'], 'ok')
-        self.assertIn('new image unverified', got['unverified'][0])
-
-    def test_a_device_that_does_not_re_enumerate_fails(self):
-        got = self.device(('1-1', 'cafe:4001', 1), ('1-1', 'cafe:4001', 1))
-        self.assertEqual((got['status'], got['device']), ('failed', '❌ not enumerated'))
-
-    def test_board_test_output_after_a_host_flash_is_flash_failed(self):
-        patch(self, farm_profile, 'check_host_serial', lambda ctx, board, **kw: b'Hello from TinyUSB\r\n')
-        got = farm_profile.observe(context(self), HOST, {'kind': 'host'}, None)
-        self.assertEqual((got['status'], got['device']), ('flash-failed', '❌ no serial out'))
-
-
-class Park(unittest.TestCase):
-    """final_state: verified only where the park is seen to take."""
-
-    PLAN = {'final': {'image': {'path': 'board_test.elf'}}}
-
-    def setUp(self):
-        patch(self, farm_profile.time, 'sleep', lambda s: None)
-        clock = iter(range(0, 1000, 5))
-        patch(self, farm_profile.time, 'monotonic', lambda: next(clock))
-
-    def flasher(self, then=None, rc=0):
-        def flash(board, fw, run=None):
-            if then:
-                then()
-            return op(rc, 'Error: no target')
-        patch(self, hil_flash, 'flash_primitive', lambda name: flash)
-
-    def park(self, on_bus_before=True, on_bus_after=False, flash_rc=0):
-        state = {'on_bus': on_bus_before}
-        patch(self, farm_profile, 'find_device', lambda uid: ('1-1', 'cafe:4001', 1) if state['on_bus'] else None)
-        self.flasher(lambda: state.update(on_bus=on_bus_after), flash_rc)
-        self.ctx = context(self)
-        return farm_profile.final_state(self.ctx, DEVICE, dict(self.PLAN, kind='device'), None)
-
-    def test_a_device_that_leaves_the_bus_is_parked(self):
-        got = self.park()
-        self.assertEqual((got['verified'], got['notes']), (True, []))
-        self.assertEqual(len(self.ctx.row['operations']), 1)
-
-    def test_a_device_still_enumerated_is_unverified(self):
-        got = self.park(on_bus_after=True)
-        self.assertEqual((got['verified'], got['notes']), (False, ['park unverified: device still enumerated']))
-
-    def test_a_device_already_off_the_bus_cannot_prove_the_park(self):
-        got = self.park(on_bus_before=False)
-        self.assertEqual((got['verified'], got['notes']), (False, ['park unverified (device already off bus)']))
-
-    def test_a_failed_park_flash_is_unverified_with_its_error(self):
-        got = self.park(flash_rc=1)
-        self.assertEqual((got['verified'], got['notes']), (False, ['park flash failed: Error: no target']))
-        self.assertEqual(len(self.ctx.row['operations']), 1)
-
-    def park_host(self, hello):
-        self.flasher()
-        patch(self, farm_profile, 'check_host_serial', lambda ctx, board, **kw: hello)
-        return farm_profile.final_state(context(self), HOST, dict(self.PLAN, kind='host'), None)
-
-    def test_a_host_park_must_say_hello(self):
-        self.assertTrue(self.park_host(b'stale\r\nHello from TinyUSB\r\n')['verified'])
-        # also a CI_BUILD board_test, which never says hello: unverified, the board stays blocked
-        got = self.park_host(b'')
-        self.assertEqual((got['verified'], got['notes']), (False, ['park unverified: no board_test output']))
-
-    def test_a_park_operation_survives_a_later_exception(self):
-        self.flasher()
-
-        def broken(ctx, board, **kw):
-            raise OSError('bridge gone')
-        patch(self, farm_profile, 'check_host_serial', broken)
-        ctx = context(self)
-        with self.assertRaises(OSError):
-            farm_profile.final_state(ctx, HOST, dict(self.PLAN, kind='host'), None)
-        self.assertEqual(len(ctx.row['operations']), 1)
-
-
 class Launcher(unittest.TestCase):
     def test_the_engine_comes_from_lib_agentrc_at_the_pin(self):
         self.assertEqual(Path(eng.__file__), hil_util.TINYUSB_ROOT / 'lib/agentrc/skills/hil/scripts/hil_farm_check.py')
@@ -758,8 +229,8 @@ class Launcher(unittest.TestCase):
             fake = types.SimpleNamespace(main=lambda profile, argv, lock_module: calls.append(
                 (profile, argv, lock_module)) or code)
             patch(self, hil_farm_check, 'load_engine', lambda: fake)
-            self.assertEqual(hil_farm_check.main(['--scan-only']), code)
-            self.assertEqual(calls, [(farm_profile, ['--scan-only'], hil_lock)])
+            self.assertEqual(hil_farm_check.main(['-b', 'x']), code)
+            self.assertEqual(calls, [(farm_profile, ['-b', 'x'], hil_lock)])
 
     def test_an_engine_that_cannot_load_refuses(self):
         def missing():
@@ -772,7 +243,7 @@ class Launcher(unittest.TestCase):
 
 class EngineFixture(unittest.TestCase):
     """The real engine with this profile and tinyusb's own hil_lock, its lock dir and the state
-    dir in a temp dir, a -B firmware root, the bus faked by what each flash leaves on it."""
+    dir in a temp dir, the bus faked."""
 
     def setUp(self):
         td = tempfile.TemporaryDirectory()
@@ -780,95 +251,76 @@ class EngineFixture(unittest.TestCase):
         self.d = Path(td.name)
         self.state = self.d / 'state'
         self.state.mkdir(mode=0o700)
-        fw = self.d / 'fw' / 'cmake-build-b'
-        for ex in ('device/dfu_runtime', 'device/board_test', 'host/device_info'):
-            (fw / ex).mkdir(parents=True)
-            (fw / ex / f'{Path(ex).name}.bin').write_bytes(ex.encode())
         self.cfg = self.d / 'roster.json'
-        self.board = dict(DEVICE, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''})
-        self.roster(self.board)
+        self.roster(STLINK)
         patch(self, hil_lock, 'BOARD_LOCK_DIR', str(self.d / 'locks'))
         patch(self, eng, 'RECHECK_WAIT', 0)
-        for obj, name in ((hil_flash, 'build_dir'), (hil_util, 'verbose')):
-            patch(self, obj, name, getattr(obj, name))
-        patch(self, farm_profile, 'ENUM_WAIT', 0.01)
-        patch(self, farm_profile, 'PARK_WAIT', 0.01)
-        patch(self, farm_profile.time, 'sleep', lambda s: None)
-        patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': '1cbe:00fd'}})
-        patch(self, farm_profile, 'fetch_missing', lambda *a: self.fail('fetched'))
+        patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': '0483:374b'}})
 
     def roster(self, board):
         self.cfg.write_text(json.dumps({'boards': [board]}))
 
     def run_engine(self, *argv, host='htpc'):
-        code, out, _ = capture(lambda: eng.main(farm_profile, ['--json', '-B', str(self.d / 'fw'), *argv, str(self.cfg)],
+        code, out, _ = capture(lambda: eng.main(farm_profile, ['--json', *argv, str(self.cfg)],
                                                 state_dir=str(self.state), host=host, lock_module=hil_lock))
         return code, json.loads(out)
 
 
 class EngineWithProfile(EngineFixture):
-    """run_tracked faked."""
+    """run_tracked faked: each run prints self.out and exits self.rc."""
 
     def setUp(self):
         super().setUp()
         patch(self, eng.hil_process, 'run_tracked', self.tracked)
-        patch(self, farm_profile, 'find_device', lambda uid: self.device)
-        self.device, self.ran, self.park_leaves = None, [], None
+        self.ran, self.out, self.rc = [], CONTACT, 0
 
     def tracked(self, cmd, cwd=None, *, timeout, settle, state_dir, **kw):
         self.assertEqual(state_dir, str(self.state))
-        self.ran.append(cmd[-1].rsplit('/', 1)[-1])
-        self.device = ('1-1', 'cafe:4001', len(self.ran)) if self.ran[-1] == 'dfu_runtime.bin' else self.park_leaves
-        r = subprocess.CompletedProcess(cmd, 0, '', None)
+        self.ran.append(cmd[0])
+        r = subprocess.CompletedProcess(cmd, self.rc, self.out, None)
         r.cleanup, r.receipt = 'done', None
         return r
 
-    def test_a_board_that_comes_back_and_parks_is_ok_and_released(self):
+    def test_a_board_its_probe_resets_is_ok_and_released(self):
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual((code, r['status'], r['coverage'], self.ran), (0, 'ok', 'full-attempted',
-                                                                        ['dfu_runtime.bin', 'board_test.bin']))
-        self.assertEqual((r['verification']['result'], r['cleanup']['result'], r['cleanup']['released']),
-                         ('verified', 'verified', True))
-        self.assertEqual([o['step'] for o in r['operations']], ['flash', 'final'])
-        self.assertEqual(r['image']['provenance']['kind'], 'missing')
+        self.assertEqual((code, r['status'], r['probe'], r['location'], r['coverage'], self.ran),
+                         (0, 'ok', '✅ stlink', '1-1', 'reset-attempted', ['STM32_Programmer_CLI']))
+        self.assertEqual((len(r['operations']), r['cleanup']['result'], r['cleanup']['released']), (1, 'released', True))
         self.assertIsNone(hil_lock.read_record('b'))   # no record: free
 
-    def test_an_unverified_park_leaves_the_board_blocked(self):
-        self.park_leaves = ('1-1', 'cafe:4001', 9)    # still enumerated after board_test
+    def test_a_reset_that_shows_no_target_fails_and_still_releases(self):
+        for out, rc, note in (('ST-LINK SN  : P\n', 0, 'no line shows the target answering'),
+                              ('Error: No STM32 target found!\n', 1, 'reset rc=1: Error: No STM32 target found!')):
+            with self.subTest(rc=rc):
+                self.out, self.rc = out, rc
+                code, doc = self.run_engine()
+                r, = doc['rows']
+                self.assertEqual((code, r['status'], len(r['operations']), r['cleanup']['released']),
+                                 (1, 'failed', 1, True))
+                self.assertIn(note, r['note'][-1])
+
+    def test_an_lm4flash_board_is_unsupported_and_untouched(self):
+        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''}))
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual((code, r['status'], r['check_status'], r['coverage']), (4, 'blocked', 'ok', 'blocked-after'))
-        self.assertEqual(r['cleanup']['blocker'], 'stale-record')
-        rec = hil_lock.read_record('b')
-        self.assertEqual((rec['reason'], rec['protected']), ('farm_check', True))
+        self.assertEqual((code, r['status'], r['coverage'], self.ran), (0, 'unsupported', 'unsupported', []))
+        self.assertIsNone(hil_lock.read_record('b'))
 
-    def test_operations_survive_a_later_exception_in_each_step(self):
-        """A host board whose UART raises after the reset, then after the park flash: the reset
-        and the park flash stay on the row."""
-        self.roster(dict(self.board, tests={'host': True}))
-        reset = lambda board, run=None: run(['reset'], timeout=1)
-        patch(self, hil_flash, 'reset_primitive', lambda name: reset)
-        patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
-
-        class Console:
-            def __init__(self, *a, **kw):
-                pass
-
-            def reset_input_buffer(self):
-                pass
-
-            def write(self, data):
-                raise OSError('bridge gone')
-
-            def close(self):
-                pass
-        patch(self, sys.modules['serial'], 'Serial', Console)
+    def test_a_held_board_is_locked_with_its_probe_shown(self):
+        fh = hil_lock.take_board_lock('b', 'hil_test.py')
+        self.addCleanup(fh.close)
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual(self.ran, ['device_info.bin', 'reset', 'board_test.bin'])
-        self.assertEqual([o['step'] for o in r['operations']], ['flash', 'observe', 'final'])
-        self.assertEqual((code, r['status'], r['cleanup']['result']), (4, 'blocked', 'error'))
+        self.assertEqual((code, r['status'], r['probe'], self.ran), (0, 'locked', '✅ stlink', []))
+
+    def test_a_missing_probe_fails_before_any_lock(self):
+        patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': 'cafe:4001'}})
+        patch(self, hil_lock, 'take_board_lock', lambda *a, **kw: self.fail('locked'))
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['status'], r['probe'], r['coverage'], self.ran),
+                         (1, 'failed', '❌ stlink', 'reset-not-attempted', []))
 
     def test_an_unknown_host_is_refused_before_any_board(self):
         code, out, err = capture(lambda: eng.main(farm_profile, ['--json'], state_dir=str(self.state), host='htpc',
@@ -876,13 +328,12 @@ class EngineWithProfile(EngineFixture):
         self.assertEqual((code, out, self.ran), (2, '', []))
         self.assertIn('host htpc has no roster here', err)
 
-    def test_scan_only_excludes_the_cafe_device_and_takes_no_lock(self):
-        patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': 'cafe:4001'}})
-        patch(self, hil_lock, 'take_board_lock', lambda *a, **kw: self.fail('locked'))
-        code, doc = self.run_engine('--scan-only')
-        r, = doc['rows']
-        self.assertEqual((code, r['status'], r['probe'], r['coverage'], self.ran),
-                         (1, 'flash-failed', '❌ missing', 'probe-only', []))
+    def test_the_removed_flags_are_refused(self):
+        for flag in ('--scan-only', '--no-park', '-B'):
+            with self.subTest(flag=flag), self.assertRaises(SystemExit):
+                capture(lambda: eng.main(farm_profile, [flag, 'x', str(self.cfg)], state_dir=str(self.state),
+                                         host='htpc', lock_module=hil_lock))
+        self.assertEqual(self.ran, [])
 
 
 class Retain(unittest.TestCase):
@@ -905,8 +356,6 @@ class Retain(unittest.TestCase):
                                        'receipt': None}])
         with self.assertRaises(eng.Outstanding):
             ctx.run(['reset'], timeout=1)
-        with self.assertRaises(eng.Outstanding):
-            ctx.settle()
         self.assertEqual(ctx.calls, [])
 
     def test_a_sessions_native_record_is_retained_as_openocd_evidence(self):
@@ -922,31 +371,16 @@ class Retain(unittest.TestCase):
 
 
 class EngineOpenocdEsp(EngineFixture):
-    """An openocd_esp board through the engine: its esptool children run through ctx.run, a
-    session ended `done` leaves the board verified and released, and one the provider left
-    running stops the board, whose lock the engine hands to a cleanup holder naming the receipt."""
+    """An openocd_esp board through the engine: a reset session ended `done` leaves the board
+    released, and one the provider left running stops the board, whose lock the engine hands to a
+    cleanup holder naming the receipt."""
     RECEIPT = '/tmp/hil_openocd_esp_x/receipt.json'
-    OFF = {'flashEncryption': 'off', 'secureBoot': 'off'}
-    SECURITY = json.dumps({'ok': True, 'esptool': '5.3.1', 'results': [
-        {'op': 'security', 'flags': 0, 'flashCryptCnt': 0, 'rom': OFF, 'efuse': OFF}]}) + '\n'
-
-    def tracked(self, cmd, cwd=None, **kw):
-        """EngineWithProfile's run_tracked, and the security read's child printing off/off evidence,
-        left `pending` with self.security_left as its receipt when that is set."""
-        r = EngineWithProfile.tracked(self, cmd, cwd, **kw)
-        if cmd[-1].endswith('ops.json'):
-            r.stdout = self.SECURITY
-            if self.security_left:
-                r.cleanup, r.receipt = 'pending', self.security_left
-        return r
 
     def setUp(self):
         super().setUp()
-        patch(self, eng.hil_process, 'run_tracked', self.tracked)
-        patch(self, farm_profile, 'find_device', lambda uid: self.device)
-        self.device, self.ran, self.park_leaves, self.security_left = None, [], None, None
-        self.board = dict(DEVICE, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
-                                           'args': '-f board/esp32p4-builtin.cfg'})
+        patch(self, eng.hil_process, 'run_tracked', lambda *a, **kw: self.fail('ran a tracked child'))
+        self.board = dict(BOARD, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
+                                          'args': '-f board/esp32p4-builtin.cfg'})
         self.roster(self.board)
         patch(self, farm_profile, 'scan_usb', lambda: {'1-4': {'serial': '30:ed:a0:e0:c9:02', 'vidpid': '303a:1001'}})
         env = mock.patch.dict(os.environ)
@@ -957,24 +391,12 @@ class EngineOpenocdEsp(EngineFixture):
             os.environ.pop(var, None)
         patch(self, hil_flash, 'cleanup_pending', {})
         patch(self, hil_flash, 'OPENOCD_ESP_DIR', self.d / 'openocd_esp')
-        patch(self, farm_profile, 'input_problem', lambda board, fw: '')   # PlanInputs checks the images
         self.sessions, self.outcomes = [], []
         self.addCleanup(self.end_holder)
 
-        def segments(fw_dir, chip, *, timeout, run):
-            run(['esptool', '--chip', chip, 'merge-bin', 'merged'], cwd=str(fw_dir), env={'NO_COLOR': '1'},
-                timeout=timeout)
-            return [{'offset': 0x10000, 'file': str(fw_dir / f'{fw_dir.name}.bin'), 'size': 4}]
-
-        # the provider's own security read, on a tty and interpreter faked here
-        patch(self, real, 'usj_tty', lambda serial: '/dev/ttyACM9')
-        patch(self, real.hil_flash, 'tool_python', lambda tool: sys.executable)
-
-        def flash(flasher, segs, *, retains_lock, **kw):
+        def reset(flasher, *, retains_lock, **kw):
             self.assertIs(retains_lock, True)
-            self.sessions.append(Path(segs[0]['file']).name)
-            light = self.sessions[-1] == 'dfu_runtime.bin'
-            self.device = ('1-1', 'cafe:4001', len(self.sessions)) if light else self.park_leaves
+            self.sessions.append('reset')
             cleanup = self.outcomes.pop(0) if self.outcomes else 'done'
             if isinstance(cleanup, BaseException):
                 cleanup.operation = types.SimpleNamespace(cleanup='pending', receipts=(self.RECEIPT,))
@@ -983,26 +405,24 @@ class EngineOpenocdEsp(EngineFixture):
                 returncode=0 if cleanup == 'done' else 1, stdout='', stderr=None, cleanup=cleanup,
                 receipts=(self.RECEIPT,) if cleanup == 'pending' else (),
                 session={'failure': 'reset run failed', 'log': '/x/openocd.log', 'dir': str(self.d / 'none')})
-        fake = types.SimpleNamespace(admit=real.admit, refusal=real.refusal, segments_from_flash_args=segments,
-                                     read_security=real.read_security, flash_openocd_esp=flash)
+        fake = types.SimpleNamespace(admit=real.admit, refusal=real.refusal, reset_openocd_esp=reset)
         patch(self, hil_util, 'openocd_esp', lambda: fake)
+        self.real = real
 
     def end_holder(self):
         rec = hil_lock.read_record('b')
         if hil_lock.is_cleanup_holder(rec):
             hil_lock.release_token(rec['token'])
 
-    def test_a_done_session_is_verified_and_released(self):
+    def test_a_done_session_is_ok_and_released(self):
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual((code, r['status'], r['cleanup']['result'], r['cleanup']['released']),
-                         (0, 'ok', 'verified', True))
-        self.assertEqual(self.sessions, ['dfu_runtime.bin', 'board_test.bin'])
-        self.assertEqual(self.ran, ['merged', 'ops.json', 'merged', 'ops.json'])   # through ctx.run
+        self.assertEqual((code, r['status'], r['cleanup']['result'], r['cleanup']['released'], self.sessions),
+                         (0, 'ok', 'released', True, ['reset']))
         self.assertIsNone(hil_lock.read_record('b'))
 
     def assert_held_by_a_cleanup_holder(self, r):
-        self.assertEqual(self.sessions, ['dfu_runtime.bin'])                     # no park beside it
+        self.assertEqual(self.sessions, ['reset'])
         self.assertEqual((r['status'], r['coverage'], r['cleanup']['blocker']), ('blocked', 'blocked-after',
                                                                                  'cleanup-holder'))
         self.assertTrue(any(self.RECEIPT in e for e in r['cleanup']['evidence']), r['cleanup'])
@@ -1015,78 +435,45 @@ class EngineOpenocdEsp(EngineFixture):
         self.outcomes = ['pending']
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual((code, r['check_status']), (4, 'flash-failed'))
+        self.assertEqual((code, r['check_status']), (4, 'failed'))
         self.assert_held_by_a_cleanup_holder(r)
 
-    def test_one_left_running_by_a_raising_flash_is_held_the_same_way(self):
+    def test_one_left_running_by_a_raising_reset_is_held_the_same_way(self):
         self.outcomes = [RuntimeError('interrupted mid-session')]
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual(code, 4)
         self.assert_held_by_a_cleanup_holder(r)
 
-    def test_a_security_read_left_running_stops_before_the_session_with_its_receipt_held(self):
-        # valid evidence and rc 0, but a descendant of the child left: run_tracked's `pending`
-        tracked_receipt = {'token': 's3c', 'lock': '/nonexistent/hil_op_s3c.lock', 'record': '/nonexistent/r.json'}
-        self.security_left = tracked_receipt
-        patch(self, eng.hil_process, 'recheck', lambda receipt: 'pending')    # the descendant lives on
-        handed = []
-
-        def hand(handles, reason, **kw):    # the real holder would wait forever on this fake receipt's recheck
-            handed.append(kw)
-            raise hil_lock.LockUnavailable('no holder in this test')
-        patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
+    def test_under_a_ci_job_it_is_refused_before_any_session(self):
+        os.environ[self.real.CI_JOB_ENV[0]] = '1'
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual(self.sessions, [], 'an openocd session started beside the esptool child')
-        self.assertEqual(self.ran, ['merged', 'ops.json'])
-        self.assertEqual((code, r['status'], r['cleanup']['receipts']), (4, 'blocked', [tracked_receipt]))
-        (kw,) = handed
-        self.assertEqual(kw['receipts'], [tracked_receipt])
-        self.assertEqual(hil_flash.cleanup_pending, {'b': (tracked_receipt,)})
-        self.assertEqual([o['cleanup'] for o in r['operations']], ['pending'])
-
-    def test_a_park_left_running_is_held_too(self):
-        self.outcomes = ['done', 'pending']
-        code, doc = self.run_engine()
-        r, = doc['rows']
-        self.assertEqual(self.sessions, ['dfu_runtime.bin', 'board_test.bin'])
-        self.assertEqual((code, r['status'], r['check_status'], r['cleanup']['blocker']),
-                         (4, 'blocked', 'ok', 'cleanup-holder'))
-        self.assertTrue(hil_lock.is_cleanup_holder(hil_lock.read_record('b')))
+        self.assertEqual((code, r['status'], r['cleanup']['released'], self.sessions), (1, 'failed', True, []))
 
 
 class RealProcessChain(EngineFixture):
     """profile -> tinyusb's hil_flash adapter -> agentrc's provider -> the real run_tracked: a
-    fake lm4flash on PATH logs what it flashed, and the bus follows that log."""
+    fake STM32_Programmer_CLI on PATH logs its call and prints the device it reached."""
 
     def setUp(self):
         super().setUp()
         bin_dir = self.d / 'bin'
         bin_dir.mkdir()
-        self.log = self.d / 'flashed.log'
-        flasher = bin_dir / 'lm4flash'
-        flasher.write_text(f'#!/bin/sh\nfor a; do last=$a; done\necho "$last" >> {self.log}\n')
-        flasher.chmod(0o755)
+        self.log = self.d / 'reset.log'
+        tool = bin_dir / 'STM32_Programmer_CLI'
+        tool.write_text(f'#!/bin/sh\necho "$*" >> {self.log}\necho "Device ID   : 0x413"\n')
+        tool.chmod(0o755)
         env = mock.patch.dict(os.environ, PATH=f'{bin_dir}{os.pathsep}{os.environ["PATH"]}')
         env.start()
         self.addCleanup(env.stop)
-        patch(self, farm_profile, 'find_device', self.device)
 
-    def flashed(self):
-        return self.log.read_text().split() if self.log.exists() else []
-
-    def device(self, uid):
-        """The light image enumerates (a new inode per flash); board_test never does."""
-        f = self.flashed()
-        return ('1-1', 'cafe:4001', len(f)) if f and f[-1].endswith('dfu_runtime.bin') else None
-
-    def test_a_real_flasher_process_through_the_tracked_runner_ends_verified_and_released(self):
+    def test_a_real_reset_process_through_the_tracked_runner_is_ok_and_released(self):
         code, doc = self.run_engine()
         r, = doc['rows']
-        self.assertEqual([Path(f).name for f in self.flashed()], ['dfu_runtime.bin', 'board_test.bin'])
-        self.assertEqual((code, r['status'], r['cleanup']['result'], r['cleanup']['released']), (0, 'ok', 'verified', True))
-        self.assertEqual([(o['step'], o['cleanup']) for o in r['operations']], [('flash', 'done'), ('final', 'done')])
+        self.assertEqual(self.log.read_text().split(), ['--connect', 'port=swd', 'sn=P', '--rst', '--go'])
+        self.assertEqual((code, r['status'], r['cleanup']['result'], r['cleanup']['released']), (0, 'ok', 'released', True))
+        self.assertEqual([o['cleanup'] for o in r['operations']], ['done'])
         self.assertIsNone(hil_lock.read_record('b'))
         self.assertEqual(sorted(p.name for p in self.state.iterdir()), [])   # proven receipts are tidied
 

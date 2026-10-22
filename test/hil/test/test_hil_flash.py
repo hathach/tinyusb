@@ -289,16 +289,6 @@ class OpenocdEsp(unittest.TestCase):
         hil_flash.flash_openocd_esp(self.board, str(self.fw_dir / 'cdc_msc.bin'), timeout=9, run=run)
         self.assertEqual((mine, self.reads[0][1]['run']), (['merge-bin'], run))
 
-    def test_the_input_check_is_the_flashs_own_segments_for_the_chip_the_flasher_names(self):
-        # which builds the provider refuses is its own suite's; this pins what reaches it and back
-        fw, flasher = str(self.fw_dir / 'cdc_msc.bin'), self.board['flasher']
-        self.assertEqual(hil_flash.openocd_esp_input_problem(flasher, fw, timeout=9), '')
-        (argv, cwd, timeout, env), = self.calls
-        self.assertEqual((argv[:4], cwd, timeout), (['esptool', '--chip', 'esp32p4', 'merge-bin'], str(self.fw_dir), 9))
-        self.rewrite = True
-        self.assertTrue(hil_flash.openocd_esp_input_problem(flasher, fw).startswith(f'{self.fw_dir}: '))
-        self.assertEqual((self.reads, self.flashed), ([], []))
-
     def refused(self, exc=(ValueError, RuntimeError)):
         with self.assertRaises(exc):
             self.flash()

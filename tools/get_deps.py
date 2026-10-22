@@ -305,7 +305,7 @@ deps_optional = {
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    'a0e7c5646076926f866b75696346d55c08efa3b3',
+                    'e11c6a381bd97af65f9cccac4e6e9d1ffa1ed448',
                     ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
