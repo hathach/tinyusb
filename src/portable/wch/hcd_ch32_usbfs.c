@@ -274,8 +274,11 @@ void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
   LOG_CH32_USBFSH("hcd_port_reset()\r\n");
   usbh_critical_enter(false);
-  // Mask the detect IRQ until hcd_port_reset_end(), which clears the event the reset raises
-  USBOTG_H_FS->INT_EN &= ~USBFS_UIE_DETECT;
+  // Mask the detect IRQ until hcd_port_reset_end(), which clears the event the reset raises.
+  // Retire any transfer in flight: the reset aborts it and DEV_ADDR no longer names its device.
+  USBOTG_H_FS->INT_EN &= ~(USBFS_UIE_DETECT | USBFS_UIE_TRANSFER);
+  usb_current_xfer_info.is_busy = false;
+  usb_current_xfer_info.nak_pending = false;
   hardware_update_device_address(0x00);
 
   // USBOTG_H_FS->HOST_SETUP = 0x00;
@@ -390,7 +393,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     return;
   }
 
-  if (USBOTG_H_FS->INT_FG & USBFS_UIF_TRANSFER) {
+  // UIF_TRANSFER stays latched after completion and across port reset; only an armed transfer owns it
+  if ((USBOTG_H_FS->INT_EN & USBFS_UIE_TRANSFER) && (USBOTG_H_FS->INT_FG & USBFS_UIF_TRANSFER)) {
     // Disable transfer interrupt
     USBOTG_H_FS->INT_EN &= ~USBFS_UIE_TRANSFER;
     // Clear the flag
