@@ -296,10 +296,10 @@ void audio_app_task(void) {
 // Transfer callbacks are intentionally not used to service the FIFOs. The
 // main-loop audio_app_task() reads and writes independently at half-FIFO
 // watermarks; these callbacks only collect diagnostic counts.
-void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t queued_bytes) {
   (void)idx;
   (void)stream_idx;
-  (void)xferred_bytes;
+  (void)queued_bytes;
   mic_cb_count++;
 }
 
