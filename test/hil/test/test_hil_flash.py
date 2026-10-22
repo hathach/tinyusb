@@ -6,6 +6,7 @@
 # pin what tinyusb hands it (routing, bounds, runner and its own settings) and that a missing,
 # off-pin or incomplete provider is refused before any tool runs. Run directly:
 #   python3 test/hil/test/test_hil_flash.py
+import io
 import json
 import os
 import re
@@ -28,8 +29,7 @@ import hil_flash  # noqa: E402
 from helper import agentrc, hil_util  # noqa: E402
 from test_change_impact import flasher_names, roster_flashers  # noqa: E402
 
-PROVIDER_DIR = 'skills/hil/scripts'
-PROVIDER_FILES = ('hil_flash.py', 'hil_load.py', 'hil_process.py', 'pyocd/run_pyocd.py', 'pyocd/user_script.py')
+PROVIDER_FILES = ('skills/hil/scripts/hil_flash.py', *hil_util.provider().FILES)   # hil_flash and its by-path closure
 BOARDS = {
     'jlink': {'name': 'jlink', 'uid': 'S1', 'args': '-device x'},
     'stlink': {'name': 'stlink', 'uid': 'S1'},
@@ -44,12 +44,31 @@ BOARDS = {
 
 class Provider:
     """hil_util.provider() stand-in recording each flash/reset call as (name, args, kwargs) and
-    answering rc 0: what tinyusb hands the provider, not what the provider does with it."""
+    answering rc 0, judged by `problem`: what tinyusb hands the provider, not what the provider
+    does with it."""
+    problem = ''
+    RUNTIME = {'exe': '/opt/esptool', 'python': '/usr/bin/python3', 'version': '9.9.9', 'package': '/p'}
 
     def __init__(self, case):
-        self.calls, self.real = [], hil_util.provider()
+        self.calls, self.judged, self.real = [], [], hil_util.provider()
         case.addCleanup(setattr, hil_util, 'provider', hil_util.provider)
         hil_util.provider = lambda: self
+        hil_flash.esptool_runtime.cache_clear()
+        case.addCleanup(hil_flash.esptool_runtime.cache_clear)
+
+    def jlink_problem(self, op):
+        self.judged.append((op,))
+        return self.problem
+
+    def esptool_problem(self, op):
+        self.judged.append((op,))
+        return self.problem
+
+    def esptool_port(self, uid):
+        return f'/dev/serial/by-id/usb-x_{uid}-if00-port0'
+
+    def esptool_runtime(self):
+        return self.RUNTIME
 
     def __getattr__(self, name):
         if not name.startswith(('flash_', 'reset_', 'rescue_')):
@@ -70,9 +89,6 @@ class Adapters(unittest.TestCase):
         (fw_dir / 'config.env').write_text(json.dumps({'IDF_TARGET': 'esp32s3'}))
         (fw_dir / 'flash_args').write_text('--flash_mode dio\n0x0 bootloader.bin\n0x10000 fw.bin\n')
         self.esp_fw = str(fw_dir / 'fw.bin')
-        patcher = mock.patch.object(hil_util, 'get_serial_dev', lambda *a: '/dev/ttyESP')
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.provider = Provider(self)
 
     def board(self, name):
@@ -110,12 +126,45 @@ class Adapters(unittest.TestCase):
         hil_flash.reset_jlink(self.board('jlink'))
         self.assertEqual([kw['crash_retries'] for _, _, kw in self.provider.calls], [2, 2])
 
+    def test_a_broken_esptool_refuses_the_run_once_unless_it_flashes_nothing(self):
+        # board c's RTT console is refused by the next check, which --skip-flash reaches
+        rtt = {'name': 'c', 'uid': 'Y', 'tests': {'device': True}, 'flasher': BOARDS['jlink'], 'logger': 'rtt'}
+        env = {'PATH': '/nonexistent', 'GITHUB_ACTIONS': 'x'}
+        self.assertIn('ERROR: esptool refused: esptool is not on PATH',
+                      hil_test_stdout(self, {'flasher': BOARDS['esptool']}, rtt, **env))
+        out = hil_test_stdout(self, {'flasher': BOARDS['esptool']}, rtt, argv=['--skip-flash'], **env)
+        self.assertNotIn('esptool', out)
+        self.assertIn('"logger": "rtt" board has a variant without LOGGER=rtt', out)
+
     def test_esptool_reads_the_builds_target_and_flash_args_and_runs_there(self):
         hil_flash.flash_esptool(self.board('esptool'), self.esp_fw, timeout=7)
         (_, _, kw), = self.provider.calls
-        self.assertEqual({k: kw[k] for k in ('chip', 'port', 'flash_args', 'cwd')},
-                         {'chip': 'esp32s3', 'port': '/dev/ttyESP', 'cwd': str(Path(self.esp_fw).parent),
+        self.assertEqual({k: kw[k] for k in ('chip', 'port', 'flash_args', 'cwd', 'esptool')},
+                         {'chip': 'esp32s3', 'port': '/dev/serial/by-id/usb-x_S1-if00-port0',
+                          'cwd': str(Path(self.esp_fw).parent), 'esptool': '/opt/esptool',
                           'flash_args': '--flash_mode dio 0x0 bootloader.bin 0x10000 fw.bin'})
+        self.assertEqual(len(self.provider.judged), 1)
+
+    def test_a_judged_problem_fails_a_flash_that_exited_0_and_keeps_the_operation(self):
+        real = self.provider.real
+        attempt = real.Attempt(['JLinkExe'], 'loadfile x\nexit', subprocess.CompletedProcess([], 0, 'out', ''), None,
+                               'done', 'r1')
+        raw = real.Operation([attempt])
+        self.provider.problem = "'loadfile' did not complete"
+        for fn, args in ((hil_flash.flash_jlink, ('/tmp/fw.elf',)), (hil_flash.reset_jlink, ()),
+                         (hil_flash.flash_esptool, (self.esp_fw,))):
+            with self.subTest(fn=fn.__name__), mock.patch.object(Provider, '__getattr__', lambda s, n: lambda *a, **k: raw), \
+                    mock.patch('sys.stdout', new_callable=io.StringIO) as out:
+                got = fn(self.board(fn.__name__.split('_')[1]), *args)
+                self.assertEqual((got.returncode, got.problem, got.operation), (1, self.provider.problem, raw))
+                self.assertEqual((got.attempts, got.cleanup, got.receipts, got.stdout), (raw.attempts, 'done', ('r1',), 'out'))
+                self.assertEqual(raw.returncode, 0)
+                self.assertIn(self.provider.problem, out.getvalue())
+
+    def test_a_non_zero_exit_or_no_problem_returns_the_providers_operation(self):
+        failed = subprocess.CompletedProcess([], 124, '', '')
+        for problem, op in (('JLinkExe exit 124', failed), ('', subprocess.CompletedProcess([], 0, '', ''))):
+            self.assertIs(hil_flash.judged(op, problem), op)
 
     def test_pyocd_runs_with_this_project_dir(self):
         hil_flash.flash_pyocd(self.board('pyocd'), 'rel/fw.elf')
@@ -130,12 +179,14 @@ class Adapters(unittest.TestCase):
         self.assertEqual(kw, {'timeout': hil_util.CMD_TIMEOUT, 'run': hil_util.run_cmd})
 
 
-def hil_test_stdout(case, board: dict, **env) -> str:
-    """hil_test.py's stdout for a one-board config it must refuse (exit 1) before any board access."""
+def hil_test_stdout(case, board: dict, *more: dict, argv=(), **env) -> str:
+    """hil_test.py's stdout for a config, board `b` then `more`, it must refuse (exit 1) before
+    any board access."""
     with tempfile.TemporaryDirectory() as td:
         cfg = Path(td) / 'c.json'
-        cfg.write_text(json.dumps({'boards': [{'name': 'b', 'uid': 'X', 'tests': {'device': True}, **board}]}))
-        r = subprocess.run([sys.executable, str(HIL_DIR / 'hil_test.py'), str(cfg)],
+        boards = [{'name': 'b', 'uid': 'X', 'tests': {'device': True}, **board}, *more]
+        cfg.write_text(json.dumps({'boards': boards}))
+        r = subprocess.run([sys.executable, str(HIL_DIR / 'hil_test.py'), *argv, str(cfg)],
                            env={**os.environ, 'HIL_REPORT_DIR': td, **env}, capture_output=True, text=True, timeout=60)
     case.assertEqual(r.returncode, 1, r.stderr)
     return r.stdout
@@ -441,7 +492,7 @@ class ProviderLoading(unittest.TestCase):
     def test_one_pinned_instance_whose_runner_hil_util_wraps(self):
         p = hil_util.provider()
         self.assertIs(hil_util.provider(), p)
-        scripts = Path(REPO) / agentrc.DEP / PROVIDER_DIR
+        scripts = Path(REPO) / agentrc.DEP / 'skills/hil/scripts'
         self.assertEqual(Path(p.__file__).resolve(), (scripts / 'hil_flash.py').resolve())
         self.assertEqual(Path(p.hil_process.__file__).resolve(), (scripts / 'hil_process.py').resolve())
         seen = []
@@ -462,7 +513,7 @@ class ProviderLoading(unittest.TestCase):
             shutil.copy(Path(REPO, rel), root / rel)
         if provider_files is not None:
             for f in provider_files:
-                rel = Path(agentrc.DEP, PROVIDER_DIR, f)
+                rel = Path(agentrc.DEP, f)
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(Path(REPO, rel), root / rel)
             (root / agentrc.DEP / '.git').mkdir(parents=True)
@@ -498,7 +549,7 @@ class ProviderLoading(unittest.TestCase):
                 '        print(e)\n')
         cases = [(None, f'must be at {agentrc.PIN} (found nothing)')]
         for missing in PROVIDER_FILES:
-            cases.append(([f for f in PROVIDER_FILES if f != missing], f'has no {PROVIDER_DIR}/{missing}'))
+            cases.append(([f for f in PROVIDER_FILES if f != missing], f'has no {missing}'))
         off_pin = self.scratch(PROVIDER_FILES)
         (off_pin / agentrc.DEP / '.git/HEAD').write_text('0' * 40 + '\n')
         for root, why in [(self.scratch(files), why) for files, why in cases] + [
