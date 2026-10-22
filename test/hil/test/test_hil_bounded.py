@@ -1438,6 +1438,18 @@ class UsbtestFailureLine(unittest.TestCase):
     def test_empty_groups_are_omitted(self):
         self.assertIn(' (NOTRUN: [1, 2])', self.line(['PASS', 'NOTRUN', 'NOTRUN']))
 
+    def test_skips_stay_in_the_denominator_and_out_of_the_groups(self):
+        data = {'passed': 1, 'failed': 1, 'notrun': 0, 'skipped': 3, 'wedged': False,
+                'cases': [{'num': n, 'status': st} for n, st in enumerate(['PASS', 'SKIP', 'SKIP', 'FAIL', 'SKIP'])]}
+        with self.assertRaises(hil_test.TestFail) as e:
+            hil_test._usbtest_verdict({'name': 'b'}, data, '', 1, 1, True, {'name': 'openocd'})
+        self.assertIn('usbtest 1/5 (FAIL: [3])', str(e.exception))
+
+    def test_a_skipping_pass_names_its_skips(self):
+        data = {'passed': 25, 'failed': 0, 'notrun': 0, 'skipped': 5, 'wedged': False, 'cases': []}
+        self.assertEqual(f'{hil_test.hil_report.REPORT_CELL["pass"]} 25/30 (5 skipped)',
+                         hil_test._usbtest_verdict({'name': 'b'}, data, '', 25, 0, True, {'name': 'openocd'}))
+
 
 class WedgeMessageNamesTheCause(unittest.TestCase):
     """The latch text sends the operator to a probe or a setting, so it must name what

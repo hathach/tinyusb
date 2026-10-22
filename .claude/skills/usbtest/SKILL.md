@@ -95,6 +95,10 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
   without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
   when the serial matches two devices or cannot be read after a case; stderr names which
   (`reported wedged: ...`).
+- **Never hand-write a bare `echo "vid pid" > usbtest/new_id`.** A dynamic id without the 4-field
+  ref form (`vid pid 0 0525 a4a0`, copying Gadget Zero's driver_info) probes with driver_info=NULL:
+  a kernel NULL-deref Oops, a D-state testusb and a forced reboot. Binding a foreign device (a
+  vendor demo for an A/B) uses the same 4-field form.
 
 ## Failed case
 
@@ -123,6 +127,7 @@ under a timer.
 | FAIL "did not run" | testusb never reached the ioctl (open or usage error): read the case's captured `stderr`   |
 | HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
 | BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
+| SKIP               | never dispatched: the device's bcdDevice quirk bits declare it unsupported at this speed   |
 
 | Failing case(s)    | Exercises                                  | First suspect                                                              |
 |--------------------|--------------------------------------------|----------------------------------------------------------------------------|
@@ -139,6 +144,14 @@ Case 29 (`test_toggle_sync`: clear halt, write, clear halt, write) is the most c
 reset the toggle to DATA0 **and** keep the pending transfer armed (fixed that way in rp2040
 ad7acc849, fsdev 046463687, ch32_usbhs d63a45509).
 
+WCH SuperSpeed silicon fails two rows for good, and quirk-skips them (`QUIRK_SKIPS`):
+- **13 at 5 Gbps:** a halted endpoint answers exactly one STALL TP (quirk 0x20, CH569 and
+  CH32H417 alike, although the CH32H417 has RB_EP_TX/RX_HALT).
+- **14, 21 at 5 Gbps:** the CH569 intermittently drops EP0 OUT data stages with `wLength % 4 == 1`
+  (quirk 0x10, wire evidence 2026-08-11: transaction error, full 489-byte residual). The strike
+  rate depends on the host: a Renesas uPD720201 fails most ctrl_out runs while an onboard AMD xHCI
+  ran 15/15 clean, which once retired the quirk by mistake.
+
 Escalate in order:
 1. The case's `detail` and captured `dmesg` in the JSON verdict (`TEST n` lines bracket each case).
 2. usbmon (`usb-kernel-debug`): URB-level truth. It cannot show data toggles or NAKs, so a toggle
@@ -147,6 +160,15 @@ Escalate in order:
 3. Target-side evidence: `target-debug` (`esp-target-debug` on Espressif) on the failing case.
 4. The reference manual and errata (`read-doc`) before changing any register-level code: DCD
    comments have been wrong about what the hardware can do.
+5. **Prove or refute "it's the silicon" with a vendor-stack A/B.** Build the vendor's reference
+   firmware, patch in the gadget-zero 0x5b/0x5c control store (mirror its existing control-OUT
+   request, ~10 lines), flash it to the same board and port, bind usbtest to the foreign VID:PID
+   (4-field form) and run the failing case. The same failure is an erratum (document and
+   quirk-skip it); a clean run puts the difference in our DCD. Nothing else closes the debate.
+6. **A flake may be value-gated, not random:** sweep one parameter at a time.
+   `testusb -D <node> -t 14 -c 4000 -s L -v $((L-1))` alternates lengths 1 and L; sweeping L
+   exposed a wLength-mod-4 gate that the stock `-s 512 -v 61` (one hot length in its 9-cycle)
+   diluted into "0.3% random".
 
 ## Isochronous rules
 
@@ -185,6 +207,11 @@ From USB 2.0 §8.5.5 (Calibre book 775, p. 229-230):
    to chase, not noise.
 5. Add the board to the HIL roster (`test/hil/*.json`) when roster edits are in the task's scope;
    otherwise hand it to the owner. Automated PR repair never touches the rosters.
+6. **A silicon-impossible case gets a quirk flag, not a dodge.** Once proven an erratum (vendor-stack
+   A/B above), advertise it in bcdDevice bits 4-7 (`USBTEST_QUIRKS` in `src/usb_descriptors.h`;
+   skip table `QUIRK_SKIPS` in `usbtest.py`, keyed by link speed) so the battery skips it visibly
+   ("27/30 passed, 3 skipped") instead of flaking. Never mask an erratum by tuning parameters or
+   dropping the board. Prove an erratum on more than one host before removing its quirk.
 
 ## Wrong profile
 

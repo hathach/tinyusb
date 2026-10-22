@@ -39,6 +39,21 @@ VID = 'cafe'
 PID = '4010'
 GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
 REGISTER_LOCK_TIMEOUT = hil_usbtest.REGISTER_LOCK_TIMEOUT
+
+# Quirk flags advertised in bcdDevice bits 4-7 (tier is bits 0-3), see usb_descriptors.h.
+# Each flag maps to the cases the silicon cannot pass at the link speed it names.
+QUIRK_SKIPS = {
+    0x10: ('5000', (14, 21), 'EP0 OUT data stages with wLength % 4 == 1 intermittently dropped at 5 Gbps (silicon erratum)'),
+    0x20: ('5000', (13,), 'halted EP answers a single STALL at 5 Gbps (silicon limitation)'),
+    0x40: ('480', (9, 10, 13, 14, 21),
+           'SETUP dropped while a transfer completion is unserviced: the CH32H417 USBHS control '
+           'register has no auto-busy bit (the CH569 USBHS RB_USB_INT_BUSY, "automatic responding '
+           'busy for device mode during interrupt flag UIF_TRANSFER valid"), so a token arriving '
+           'in that window gets no handshake at all. A SETUP may not be NAKed or STALLed, so the '
+           'host retries three times and fails with -EPROTO. Wire-measured ~34% of SETUPs dropped '
+           '(63% under back-to-back control traffic); ordinary class traffic survives on host '
+           'retries, only control-stress cases fail'),
+}
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 RECOVER_SETTLE = 5          # after the recovery step, to let a freed ioctl unwind
@@ -84,7 +99,8 @@ UNLINK_CASES = (11, 12, 24)   # URB unlink mid-transfer: can strand a hub TT buf
 # Per-case testusb parameters (full speed / high speed). All -s/-v values are multiples
 # of 512 so transfers stay packet-aligned at both speeds: the device streams whole max-size
 # packets and a non-aligned IN length would babble. 14/21 must never run with defaults
-# (vary >= length is -EINVAL in the kernel).
+# (vary >= length is -EINVAL in the kernel). SuperSpeed (5000): bulk mps is 1024, so IN sizes
+# and vary steps must be 1024-multiples or the device's whole-packet source overruns the request.
 PARAMS = {
     0: ('-c 1', '-c 1'),
     9: ('-c 256', '-c 500'),  # HS 1000 took 56 of 60 s with 5 batteries on a hub; 500 leaves ~2x
@@ -101,6 +117,19 @@ PARAMS = {
     25: ('-c 32 -s 512', '-c 256 -s 1024'),
     26: ('-c 32 -s 512', '-c 256 -s 1024'),
     **{n: ('-c 16 -s 512 -g 8', '-c 64 -s 1024 -g 8') for n in (15, 16, 22, 23)},
+}
+
+# SuperSpeed overrides (bulk mps 1024); cases not listed keep the high-speed params
+PARAMS_SS = {
+    **{n: '-c 512 -s 2048 -v 1024' for n in (1, 2, 3, 4, 17, 18, 19, 20)},
+    13: '-c 64 -s 1024',
+    29: '-c 64 -s 1024',
+    # ctrl_out: -s must exceed EP0's 512-byte max packet, otherwise every control data stage is a
+    # single packet and the EP0 packet-sequence handling is never exercised. Both WCH SuperSpeed
+    # drivers shipped with a >1-packet control-OUT that always failed, and the 512-byte default
+    # could not see it.
+    14: '-c 256 -s 1024 -v 61',
+    21: '-c 256 -s 1024 -v 61',
 }
 
 CASE_NAMES = {
@@ -166,6 +195,8 @@ sudo_forbidden = False   # set by main when a post-hang recovery was requested
 
 def run_case(num, dev, testusb, quick, timeout):
     fs_hs = PARAMS[num][0 if dev['speed'] == '12' else 1]
+    if dev['speed'] == '5000' and num in PARAMS_SS:
+        fs_hs = PARAMS_SS[num]
     if quick:
         fs_hs = re.sub(r'-c (\d+)', lambda m: f'-c {max(1, int(m.group(1)) // 8)}', fs_hs)
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
@@ -339,9 +370,11 @@ def main():
 
     # a stale/foreign device advertising an out-of-range tier must not silently run an
     # empty battery ('0/0 passed' would read as green in CI)
-    tier = args.tier or dev['tier']
+    bcd = dev['tier']   # bcdDevice low byte: tier in bits 0-3, quirk flags in bits 4-7
+    quirks = bcd & 0xf0
+    tier = args.tier or bcd & 0x0f
     if not 1 <= tier <= max(TIER_CASES):
-        sys.exit(f"device advertises tier {tier} (bcdDevice ...{tier:02x}); reflash a usbtest build "
+        sys.exit(f"device advertises tier {tier} (bcdDevice ...{bcd:02x}); reflash a usbtest build "
                  f"or pass --tier 1..{max(TIER_CASES)} — refusing to run an unknown/empty battery")
     if args.tests:
         cases = []
@@ -372,6 +405,20 @@ def main():
 
     register_usbtest_id()
     results = []
+    # quirk-gated skips apply to the tier battery only; explicit --tests still runs the cases.
+    # Each erratum names the link speed it applies to, since a quirk bit advertised by a part that
+    # supports both speeds is not necessarily a limitation at both.
+    if not args.tests:
+        for flag, (speed, skip_cases, why) in QUIRK_SKIPS.items():
+            if not quirks & flag or dev['speed'] != speed:
+                continue
+            for num in [n for n in cases if n in skip_cases]:
+                results.append({'num': num, 'name': CASE_NAMES[num], 'status': 'SKIP',
+                                'detail': f'{why} (bcdDevice quirk 0x{flag:02x})'})
+                if not args.json:
+                    r = results[-1]
+                    print(f"test {num:2d} {r['name']:22s} {r['status']:6s} {r['detail']}")
+            cases = [n for n in cases if n not in skip_cases]
     unrecovered_hang = False
     try:
         bind_usbtest(dev)
@@ -463,18 +510,23 @@ def main():
     # BUDGET, not NOTRUN: NOTRUN is a case the kernel gated off, a real result that stays in
     # `failed`; counting never-run cases as failures sends a maintainer bisecting them
     notrun = [r for r in results if r['status'] == 'BUDGET']
-    failed = [r for r in results if r['status'] not in ('PASS', 'BUDGET')]
+    # SKIP is the same idea from the other side: cases the DEVICE documents as unsupported via
+    # its bcdDevice quirk bits. Never executed either, so they stay out of `failed` and are
+    # reported separately rather than silently shrinking the denominator.
+    skipped = sum(1 for r in results if r['status'] == 'SKIP')
+    failed = [r for r in results if r['status'] not in ('PASS', 'BUDGET', 'SKIP')]
     ran = len(results)
     if args.json:
         # `wedged` also covers the aborts with no HUNG case, which the caller cannot infer
         print(json.dumps({'serial': dev['serial'], 'speed': dev['speed'], 'tier': tier,
-                          'passed': ran - len(failed) - len(notrun),
-                          'failed': len(failed), 'notrun': len(notrun),
+                          'passed': ran - len(failed) - len(notrun) - skipped,
+                          'failed': len(failed), 'notrun': len(notrun), 'skipped': skipped,
                           'wedged': bool(unrecovered_hang),
                           'cases': results}, indent=2))
     else:
-        print(f"{ran - len(failed) - len(notrun)}/{ran} passed"
-              + (f", {len(notrun)} not run" if notrun else ""))
+        print(f"{ran - len(failed) - len(notrun) - skipped}/{ran} passed"
+              + (f", {len(notrun)} not run" if notrun else "")
+              + (f", {skipped} skipped" if skipped else ""))
         for r in failed:
             print(f"  FAILED test {r['num']}: {r.get('detail', '')}")
             if r.get('dmesg'):
