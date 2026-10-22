@@ -86,10 +86,10 @@ static void complete_edpt(uint8_t ep_addr) {
 }
 
 static uint16_t capture_cb_bytes;
-void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t queued_bytes) {
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
   (void)idx;
   (void)stream_idx;
-  capture_cb_bytes = queued_bytes;
+  capture_cb_bytes = xferred_bytes;
 }
 
 void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result) {
@@ -1318,7 +1318,7 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
 }
 
 // Without application reads the capture FIFO keeps its oldest frames and drops a new packet that no longer fits whole;
-// the capture callback reports what was queued.
+// the capture callback still reports the received length.
 void test_audio_host_capture_overrun_drops_newest_packet(void) {
   enum { PACKET = 96, FRAME = 3 };
   uint8_t        captured[CFG_TUH_AUDIO_STREAM_BUFSIZE];
@@ -1327,9 +1327,7 @@ void test_audio_host_capture_overrun_drops_newest_packet(void) {
   const uint32_t kept       = (uint32_t)fitting * PACKET;
   TEST_ASSERT_LESS_THAN(AUDIO_TEST_MAX_XFERS - 2, fitting);
 
-  open_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
-  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
-  complete_mount();
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
   TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
@@ -1343,7 +1341,7 @@ void test_audio_host_capture_overrun_drops_newest_packet(void) {
     complete_edpt(0x81);
     TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, PACKET));
     TEST_ASSERT_EQUAL_UINT8(packet + 2, edpt_xfer_count);
-    TEST_ASSERT_EQUAL_UINT16(packet < fitting ? PACKET : 0, capture_cb_bytes);
+    TEST_ASSERT_EQUAL_UINT16(PACKET, capture_cb_bytes);
   }
 
   TEST_ASSERT_EQUAL_UINT32(kept / FRAME, tuh_audio_read_available(0, 0));
