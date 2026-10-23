@@ -372,11 +372,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
     // Activated after its first microframe began, a transfer would wait for
     // the five frame bits of uFrame to match again (HS), or a split window
     // would run from the middle (an OUT continuing with MID, no BEGIN).
-    // Recheck the 14-bit FRINDEX and move a late transfer on by one interval.
+    // Recheck the 14-bit FRINDEX and move a late transfer on, in phase, to its
+    // first slot after now; a preempted submission can be several intervals late.
     const uint32_t now = (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >>
                          USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
-    if (((now - iso_first) & 0x3fffu) < 0x2000u) {
-      const uint32_t target = iso_first + iso_interval;
+    const uint32_t late = (now - iso_first) & 0x3fffu;
+    if (late < 0x2000u) {
+      const uint32_t target = iso_first + (late / iso_interval + 1u) * iso_interval;
       ptd_ctrl1->uframe = target & 0xf8u;
       if (!ptd_ctrl2->split) {
         ((ip3516_ptl_t *)ptd_ptr)->status.uframe_active = (uint8_t)(1u << (target & 7u));
