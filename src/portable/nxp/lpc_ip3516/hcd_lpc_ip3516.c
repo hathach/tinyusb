@@ -623,10 +623,13 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
           break;
       }
       if (split) {
-        // Spread starts between slots 0/1, with three complete attempts.
-        const uint8_t slot = ep_num & 1u;
-        uframe_active = 1u << slot;
-        uframe_complete = 0x1c << slot;
+        // Start in slot 0, with three complete attempts. The controller serves
+        // INT PTDs before ISO PTDs in a microframe (seen on the bus, not stated
+        // in UM11126), so this start-split precedes an ISO OUT packet starting
+        // there. Between its start-splits it would make a Genesys 05e3:0610 TT
+        // lose the packet and fail this transaction.
+        uframe_active = 0x01;
+        uframe_complete = 0x1c;
       }
       break;
     }
