@@ -422,6 +422,14 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t ep_id  = FSDEV_REG->ISTR & U_ISTR_EP_ID;
     const uint32_t ep_reg = ep_read(ep_id);
 
+    // TX before RX: on EP0 an IN completion latched together with a SETUP or OUT is the older one (IN for a SETUP
+    // can only be armed after the stack has seen it). Reporting it after the SETUP would let the stack take it as a
+    // stage of the new control transfer.
+    if (ep_reg & U_EP_CTR_TX) {
+      ep_write_clear_ctr(ep_id, TUSB_DIR_IN);
+      handle_ctr_tx(ep_id);
+    }
+
     if (ep_reg & U_EP_CTR_RX) {
   #if defined(TUP_USBIP_FSDEV_STM32) && defined(CFG_TUSB_FSDEV_32BIT)
       fsdev_btable_workaround_delay(false);
@@ -433,11 +441,6 @@ void dcd_int_handler(uint8_t rhport) {
         ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
         handle_ctr_rx(ep_id);
       }
-    }
-
-    if (ep_reg & U_EP_CTR_TX) {
-      ep_write_clear_ctr(ep_id, TUSB_DIR_IN);
-      handle_ctr_tx(ep_id);
     }
   }
 
