@@ -194,7 +194,6 @@ typedef struct {
 #if EHCI_ISO_ENABLED
   uint32_t iso_uframe;
   uint16_t iso_last_frindex;
-  uint8_t iso_saved_itc;
   uint8_t iso_frame_offset;
 #endif
 
@@ -938,13 +937,13 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   if (first_iso) {
     ehci_data.iso_last_frindex = (uint16_t) (ehci_data.regs->frame_index & 0x3fff);
     ehci_data.iso_uframe = ehci_data.iso_last_frindex;
-    ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
     // Fixed for this root connection; refreshed when ISO is reopened.
     ehci_data.iso_frame_offset = ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_FULL ? 8 : 0;
   }
   ep->uframe = iso_now();
   ep->daddr = daddr;
   // Retire each packet promptly so task context can submit the next interval.
+  // The threshold stays 0 once ISO has been used.
   ehci_data.regs->command_bm.int_threshold = 0;
 
   iso_td_t* td = ep->td;
@@ -1212,9 +1211,6 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   if (done) {
     if (close) {
       iso_ep_free(ep);
-      if (iso_ep_next(0) == QTD_MAX) {
-        ehci_data.regs->command_bm.int_threshold = ehci_data.iso_saved_itc;
-      }
     } else {
       // Keep the cancelled slot: the next submission advances from it in phase.
       ep->busy = false;
