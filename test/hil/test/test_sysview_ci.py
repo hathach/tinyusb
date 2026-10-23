@@ -597,15 +597,12 @@ class TestBuildOneFirmwarePath(unittest.TestCase):
         self.assertIn("no .elf", err)
 
     def test_failed_build_reports_the_diagnostics_ninja_prints_on_stdout(self):
-        calls = []
-        def run(cmd, **kw):
-            calls.append(kw)
-            return subprocess.CompletedProcess(cmd, 1, "main.c:1:20: error: 'x' undeclared", None)
-        with unittest.mock.patch("subprocess.run", run):
+        failed = subprocess.CompletedProcess([], 1, "main.c:1:20: error: 'x' undeclared", None)
+        with unittest.mock.patch("subprocess.run", return_value=failed) as run:
             fw, err = sysview_ci.build_one(self._board(), self._repo([]))
         self.assertIsNone(fw)
         self.assertIn("error: 'x' undeclared", err)
-        self.assertEqual(calls[0]["stderr"], subprocess.STDOUT)
+        self.assertEqual(run.call_args_list[0].kwargs["stderr"], subprocess.STDOUT)
 
 
 if __name__ == '__main__':
