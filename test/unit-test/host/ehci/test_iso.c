@@ -1078,17 +1078,49 @@ static void test_close_stop_failure(void) {
   iso_ep_t* reopened = iso_ep_find(1, 0x01);
   assert(reopened != NULL && reopened != ep);
   assert(iso_stop(0, reopened, true));
+  assert(regs.command_bm.int_threshold == 8); // no open endpoint is left
 
   // A ring later FRINDEX is back on the same microframe, but the TD has not
   // been linked since: the interrupt releases the endpoint without an event.
   set_now(1001 + FRAMELIST_SIZE * 8);
   iso_process(true);
   assert(events == 0 && iso_ep_next(0) == QTD_MAX);
-  // The interrupt leaves the threshold; the next ISO close restores it.
-  assert(regs.command_bm.int_threshold == 0);
+  assert(regs.command_bm.int_threshold == 8);
   assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  assert(regs.command_bm.int_threshold == 0);
   assert(iso_stop(0, iso_ep_find(1, 0x01), true));
   assert(regs.command_bm.int_threshold == 8);
+}
+
+// Interrupt coalescing is off only while an ISO endpoint is open: endpoints
+// awaiting release raise no completions. The threshold is restored in task
+// context by the close that leaves no open endpoint, never by the interrupt
+// that releases a closing one, and saved again by the next open.
+static void test_close_deferred_threshold(void) {
+  reset(TUSB_SPEED_HIGH);
+  regs.command_bm.periodic_enable = 1;
+  regs.status_bm.periodic_status = 1; // never follows the enable bit
+  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  assert(regs.command_bm.int_threshold == 0);
+  iso_ep_t* ep = iso_ep_find(1, 0x01);
+  set_now(1000);
+  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
+  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
+  assert(iso_stop(0, ep, true) && ep->closing);
+  assert(regs.command_bm.int_threshold == 8); // deferred, but nothing open
+
+  // A new open while the old one awaits release saves the user's value again.
+  regs.command_bm.int_threshold = 16;
+  assert(open_ep(0x02, TUSB_SPEED_HIGH, 64, 1));
+  assert(regs.command_bm.int_threshold == 0);
+  assert(iso_stop(0, iso_ep_find(1, 0x02), true));
+  assert(regs.command_bm.int_threshold == 16 && iso_ep_next(0) < QTD_MAX);
+
+  // Releasing the last closing endpoint leaves USBCMD alone.
+  set_now(1001 + FRAMELIST_SIZE * 8);
+  iso_process(true);
+  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
+  assert(regs.command_bm.int_threshold == 16);
 }
 
 // The audio host reconfigures a stream by closing its endpoint with
@@ -1276,6 +1308,7 @@ int main(void) {
   test_missed_slot_at_ring_start();
   test_close_stop_failure();
   test_close_deferred_reconfigure();
+  test_close_deferred_threshold();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
