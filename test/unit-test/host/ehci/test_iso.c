@@ -1068,7 +1068,7 @@ static void test_close_stop_failure(void) {
   set_now(1000);
   assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
   regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
-  assert(!iso_stop(0, ep, true));
+  assert(iso_stop(0, ep, true)); // accepted; released by the interrupt
   assert(regs.command_bm.periodic_enable); // the schedule keeps running
   assert(iso_ep_find(1, 0x01) == NULL && iso_ep_next(0) < QTD_MAX); // closed, not freed
   assert(ep->td == td && !td_linked(ep) && td->itd.xact[1001 & 7].active);
@@ -1089,6 +1089,44 @@ static void test_close_stop_failure(void) {
   assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
   assert(iso_stop(0, iso_ep_find(1, 0x01), true));
   assert(regs.command_bm.int_threshold == 8);
+}
+
+// The audio host reconfigures a stream by closing its endpoint with
+// tuh_edpt_close() (abort, then close) and opening it again, and keeps the
+// stream open while a close fails. A close whose periodic stop fails hides the
+// endpoint from lookup at once, so it must be accepted: a refused one could
+// never be retried, wedging the stream until replug.
+static void test_close_deferred_reconfigure(void) {
+  reset(TUSB_SPEED_HIGH);
+  regs.command_bm.periodic_enable = 1;
+  regs.status_bm.periodic_status = 1; // never follows the enable bit
+  buses[1].speed = TUSB_SPEED_HIGH;
+  tusb_desc_endpoint_t const desc = {
+    .bLength = sizeof(desc), .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x01, .bmAttributes = {.xfer = TUSB_XFER_ISOCHRONOUS},
+    .wMaxPacketSize = 64, .bInterval = 1
+  };
+  assert(hcd_edpt_open(0, 1, &desc));
+  set_now(1000);
+  assert(hcd_edpt_xfer(0, 1, 0x01, buffer, 64));
+  iso_ep_t* closing = iso_ep_find(1, 0x01);
+  assert(closing->uframe == 1001);
+  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
+  assert(!hcd_edpt_abort_xfer(0, 1, 0x01)); // too late to cancel
+  assert(hcd_edpt_close(0, 1, 0x01)); // accepted; released by the interrupt
+  assert(regs.command_bm.periodic_enable);
+  assert(closing->closing && iso_ep_find(1, 0x01) == NULL && events == 0);
+
+  // Reconfigure while the old descriptors are still held.
+  assert(hcd_edpt_open(0, 1, &desc));
+  iso_ep_t* reopened = iso_ep_find(1, 0x01);
+  assert(reopened != NULL && reopened != closing && reopened->td != closing->td);
+  assert(hcd_edpt_close(0, 1, 0x01) && iso_ep_find(1, 0x01) == NULL);
+  assert(iso_ep_next(0) < QTD_MAX); // only the closing endpoint is left
+
+  set_now(1001 + FRAMELIST_SIZE * 8);
+  iso_process(true);
+  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
 }
 
 // Abort cancels only a request the controller cannot be about to execute.
@@ -1237,6 +1275,7 @@ int main(void) {
   test_missed_fs_slot_margin();
   test_missed_slot_at_ring_start();
   test_close_stop_failure();
+  test_close_deferred_reconfigure();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
