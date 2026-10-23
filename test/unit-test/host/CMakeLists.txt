@@ -27,6 +27,10 @@ endfunction()
 # low static addresses (in particular, Apple Silicon executables require PIE).
 if (APPLE)
   message(STATUS "Skipping EHCI fixtures on macOS: static DMA addresses must fit in 32 bits.")
+  # Register a skipped placeholder so CTest reports the skip instead of an
+  # empty, silently passing run.
+  add_test(NAME test_ehci_iso_skipped_on_macos COMMAND ${CMAKE_COMMAND} -E false)
+  set_tests_properties(test_ehci_iso_skipped_on_macos PROPERTIES SKIP_RETURN_CODE 1 LABELS host)
   return()
 endif ()
 
