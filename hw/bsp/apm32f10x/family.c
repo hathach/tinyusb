@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -77,7 +77,7 @@ void board_init(void) {
   RCM_EnableAPB1PeriphClock(RCM_APB1_PERIPH_USB);
 #elif CFG_TUSB_MCU == OPT_MCU_APM32F107
   RCM_EnableAHBPeriphClock(RCM_AHB_PERIPH_OTG_FS);
-  
+
   GPIO_Config_T otg_gpio_config;
   GPIO_ConfigStructInit(&otg_gpio_config);
   otg_gpio_config.pin = GPIO_PIN_11 | GPIO_PIN_12;

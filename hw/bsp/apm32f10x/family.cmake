@@ -1,4 +1,4 @@
-﻿include_guard()
+include_guard()
 
 set(APM32_FAMILY apm32f10x)
 set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F10x_SDK/Libraries)
@@ -93,11 +93,11 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--script=${LD_FILE_Clang}"
       )
   endif ()
-  
+
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
   endif ()
-  
+
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
     SKIP_LINTING ON
     COMPILE_OPTIONS -w)
