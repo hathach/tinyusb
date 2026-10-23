@@ -98,6 +98,9 @@
  *   Missed slots, cancellation and close retire a TD only once the controller
  *   cannot be on it (iso_td_idle), without stopping the periodic schedule;
  *   close falls back to a bounded schedule stop. Missed packets are not retried.
+ * - Rollover lands at the same point of the ring every time, which may be next
+ *   to a missed TD's slot. Such a TD is unlinked at once, so it does not recur,
+ *   and retired once its last possible visit is over (iso_td_defer).
  *
  * FS behind a HS hub uses best-effort windows per transaction translator (each
  * port of a multi-TT hub, or all ports of a single-TT hub), reserved by
@@ -142,7 +145,8 @@ typedef struct {
   uint8_t ep_addr;
   uint8_t speed;
   uint8_t split_slot;
-  bool busy; // a transfer is in progress and its TD is linked
+  bool busy; // a transfer is in progress and its TD is linked (or deferred)
+  bool deferred; // TD unlinked late; uframe is the last visit the controller may still make
 } iso_ep_t;
 
 TU_VERIFY_STATIC(sizeof(iso_ep_t) <= sizeof(ehci_qtd_t), "ISO state must fit in one qTD slot");
@@ -972,9 +976,10 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   return true;
 }
 
-// The caller has observed completion or stopped periodic DMA. A predecessor
-// may still be active, so its link must be in coherent/non-cacheable memory.
-static void iso_td_unlink(iso_ep_t const* ep) {
+// Remove ep's TD from its frame-list entry, if still linked. This is valid
+// even while the controller is on the TD, which continues through the TD's own
+// next link; a predecessor may be active, so links must be coherent memory.
+static void iso_td_detach(iso_ep_t const* ep) {
   iso_td_t* td = ep->td;
   ehci_link_t* link = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
   while (!link->terminate && tu_align32(link->address) != (uint32_t) td) {
@@ -983,6 +988,13 @@ static void iso_td_unlink(iso_ep_t const* ep) {
   if (!link->terminate) {
     *link = td->itd.next;
   }
+}
+
+// The caller has observed completion, stopped periodic DMA or established
+// that the controller cannot be on the TD.
+static void iso_td_unlink(iso_ep_t const* ep) {
+  iso_td_t* td = ep->td;
+  iso_td_detach(ep);
   // Retire the single transaction, including cancelled or timed-out work.
   TU_MEMORY_BARRIER();
   td->words[ep->speed == TUSB_SPEED_HIGH ? ITD_XACT_WORD(ep->uframe & 7) : SITD_STATE_WORD] = 0;
@@ -1009,6 +1021,33 @@ static bool iso_td_idle(iso_ep_t const* ep) {
   return df >= 3 && df <= FRAMELIST_SIZE - 2;
 }
 
+// Unlink a TD that iso_td_idle() refuses to retire, so it cannot recur a ring
+// later, and move ep->uframe to the one visit the controller may still make:
+// the latest visit of the TD's entry (FS) or microframe (HS) up to the next
+// frame or microframe. ep stays busy and keeps its buffer until that visit is
+// over (iso_td_passed). The rollover tick that retries can land at the same
+// point of the ring each time, so the TD may never become idle at a tick.
+static void iso_td_defer(iso_ep_t* ep, uint32_t now) {
+  if (ep->deferred) {
+    return;
+  }
+  iso_td_detach(ep);
+  TU_MEMORY_BARRIER();
+  uint32_t const shift = ep->speed == TUSB_SPEED_HIGH ? 0 : 3; // HS microframes, FS frames
+  uint32_t const ring = (FRAMELIST_SIZE * 8u) >> shift;
+  uint32_t const raw = now + ehci_data.iso_frame_offset; // extended FRINDEX
+  ep->uframe += (((raw >> shift) + 1 - (ep->uframe >> shift)) & ~(ring - 1)) << shift;
+  ep->deferred = true;
+}
+
+// True once a deferred TD's last possible visit is over, with the margin that
+// iso_td_idle() keeps after a visit. The TD is no longer linked, so time alone
+// decides; the tick's position in the ring does not matter.
+static bool iso_td_passed(iso_ep_t const* ep, uint32_t now) {
+  uint32_t const after = ep->speed == TUSB_SPEED_HIGH ? 1u : 3u * 8u;
+  return ep->deferred && (int32_t) (now + ehci_data.iso_frame_offset - ep->uframe - after) >= 0;
+}
+
 // Advance to the endpoint's first slot that can still be published, keeping
 // its phase: ISO intervals are powers of two.
 static void iso_schedule(iso_ep_t* ep, uint32_t now) {
@@ -1033,6 +1072,7 @@ static void iso_arm(iso_ep_t* ep) {
   uint32_t const buffer = (uint32_t) ep->buffer;
   uint32_t const page = buffer & ~0xfffu;
   uint8_t const dir = tu_edpt_dir(ep->ep_addr);
+  ep->deferred = false;
   for (;;) {
     iso_schedule(ep, iso_now());
     if (ep->speed == TUSB_SPEED_HIGH) {
@@ -1137,15 +1177,17 @@ static void iso_process(bool in_isr) {
     if (active) {
       // The service slot passed unvisited. Retire the TD once the controller
       // cannot be on it (it may be revisiting the entry a ring later); until
-      // then a later interrupt retries.
-      if (!iso_td_idle(ep)) {
+      // then unlink it so it cannot recur, and a later interrupt retries.
+      if (!iso_td_idle(ep) && !iso_td_passed(ep, now)) {
+        iso_td_defer(ep, now);
         continue;
       }
       error = true;
     }
     // Once a frame-list entry has recurred, a cleared Active bit cannot prove
-    // which visit delivered the packet. Do not claim an on-time success.
-    if ((int32_t) (now - ((ep->uframe & ~7u) + FRAMELIST_SIZE * 8u)) >= 0) {
+    // which visit delivered the packet; a deferred TD was late in any case.
+    // Do not claim an on-time success.
+    if (ep->deferred || (int32_t) (now - ((ep->uframe & ~7u) + FRAMELIST_SIZE * 8u)) >= 0) {
       error = true;
     }
     if (error) {
