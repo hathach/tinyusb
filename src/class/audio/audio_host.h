@@ -36,6 +36,11 @@ extern "C" {
   #error CFG_TUH_AUDIO_PROTOCOLS contains an unsupported protocol bit
 #endif
 
+// CFG_TUH_AUDIO is the number of Audio Control instances in the pool.
+#ifdef CFG_TUH_AUDIO_MAX
+  #error CFG_TUH_AUDIO_MAX was replaced by CFG_TUH_AUDIO (number of audio instances), set CFG_TUH_AUDIO instead
+#endif
+
 // Maximum discrete sampling frequencies retained per rate source. UAC1 uses
 // one rate source per alternate setting; UAC2 alternate settings may share a
 // Clock Source.
