@@ -37,9 +37,7 @@ manufacturer: WCH
   #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
   static void fsdev_dcd_int_handler(uint8_t rhport) {
-    TU_SYSVIEW_ISR_ENTER();
-    dcd_int_handler(rhport);
-    TU_SYSVIEW_ISR_EXIT();
+    tud_int_handler(rhport);
   }
     #define FSDEV_ISR_TARGET fsdev_dcd_int_handler
   #else
