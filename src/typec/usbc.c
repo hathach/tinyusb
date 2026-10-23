@@ -211,6 +211,20 @@ bool tuc_msg_request(uint8_t rhport, void const* rdo) {
   return usbc_msg_send(rhport, &header, rdo);
 }
 
+bool tuc_msg_soft_reset(uint8_t rhport) {
+  pd_header_t const header = {
+      .msg_type = PD_CTRL_SOFT_RESET,
+      .data_role = PD_DATA_ROLE_UFP,
+      .specs_rev = PD_REV_30,
+      .power_role = PD_POWER_ROLE_SINK,
+      .msg_id = 0,
+      .n_data_obj = 0,
+      .extended = 0,
+  };
+
+  return usbc_msg_send(rhport, &header, NULL);
+}
+
 void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
   (void) in_isr;
   switch(event->event_id) {
