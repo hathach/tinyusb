@@ -825,6 +825,7 @@
 #endif
 
 // Enable the ChipIdea HCD's single-transfer isochronous scheduler.
+// Supports service intervals up to 4 ms (HS bInterval <= 6, FS bInterval <= 3).
 #ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
   #define CFG_TUH_CHIPIDEA_ISO_ENABLE 0
 #endif
