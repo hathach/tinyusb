@@ -203,9 +203,10 @@ bool     hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32
 void     hub_close(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
-// Split ISO Slot Allocation
+// Transaction Translator
 //--------------------------------------------------------------------+
 #if CFG_TUH_HUB
+bool hub_tt_multi(uint8_t hub_addr);
 bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot);
 #endif
 

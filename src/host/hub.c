@@ -198,6 +198,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   // Check device descriptor for MTT hub (bDeviceProtocol == 2)
   // MTT hub has 2 alt settings: alt 0 is STT (protocol 1), alt 1 is MTT (protocol 2)
   // Consume both alt settings and use alt setting 1 for endpoint
+  bool               mtt = false;
   tusb_desc_device_t desc_dev;
   if (tuh_descriptor_get_device_local(dev_addr, &desc_dev) && desc_dev.bDeviceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT) {
     drv_len += itf_ep_len;
@@ -206,7 +207,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
     TU_ASSERT(desc_alt1->bDescriptorType == TUSB_DESC_INTERFACE && desc_alt1->bInterfaceClass == TUSB_CLASS_HUB &&
                 desc_alt1->bInterfaceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT,
               0);
-    p_hub->mtt   = true;
+    mtt          = true;
     desc_itf_use = desc_alt1;
   }
 
@@ -215,6 +216,8 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
+  // set only once opened: hub_close() clears an opened hub
+  p_hub->mtt     = mtt;
   p_hub->itf_num = itf_desc->bInterfaceNumber;
   p_hub->ep_in   = desc_ep->bEndpointAddress;
 
@@ -263,6 +266,7 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
     tuh_xfer_t xfer;
     xfer.daddr     = daddr;
     xfer.ep_addr   = 0;
+    xfer.result    = XFER_RESULT_SUCCESS;
     xfer.user_data = 0;
     config_get_hub_descriptor(&xfer);
   }
@@ -271,6 +275,10 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    get_hub_itf(xfer->daddr)->mtt = false; // SET_INTERFACE failed: the hub stays single-TT in alternate setting 0
+  }
+
   // Get Hub Descriptor
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -486,14 +494,26 @@ static void process_new_status(tuh_xfer_t* xfer) {
 }
 
 //--------------------------------------------------------------------+
+// Transaction Translator
+//--------------------------------------------------------------------+
+
+// A multi-TT hub runs in its multi-TT alternate setting, with one transaction translator per downstream port.
+bool hub_tt_multi(uint8_t hub_addr) {
+  TU_VERIFY(hub_addr > CFG_TUH_DEVICE_MAX && hub_addr <= CFG_TUH_DEVICE_MAX + CFG_TUH_HUB);
+  return get_hub_itf(hub_addr)->mtt;
+}
+
+//--------------------------------------------------------------------+
 // Split ISO Slot Allocation
 //--------------------------------------------------------------------+
 
-// Best-effort ISO split windows for one MTT hub port. Callers reserve the
-// maximum packet size of every open endpoint in used, including idle endpoints.
-// OUT grows from slot 0; IN grows from the end, leaving two complete retries.
-// Requires 1..564 bytes for IN or 1..1023 for OUT. No bus-time admission,
-// interrupt reservations, frame-spanning splits, or single-TT hub accounting.
+// Best-effort ISO split windows on one transaction translator: every port of a
+// single-TT hub, or one port of a multi-TT hub. Slot s is the microframe Y(s)
+// a 188-byte piece is budgeted in, its start-split going out in Y(s-1) as in an
+// EHCI H-frame. `used` holds the slots of every open endpoint on the TT, idle
+// ones included. OUT grows from slot 0; IN grows from the end, leaving two
+// complete retries. Requires 1..564 bytes for IN or 1..1023 for OUT. No
+// bus-time admission, interrupt reservations or frame-spanning splits.
 bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
   TU_VERIFY(packet_size >= 1 && packet_size <= (dir == TUSB_DIR_IN ? 564u : 1023u));
   uint8_t const count = (uint8_t) ((packet_size + 187u) / 188u);

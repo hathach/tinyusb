@@ -12,6 +12,12 @@
   enum { TU_XSTRCAT(_verify_static_, TU_COUNTER) = 1 / (!!((condition) || sizeof(void*) == 8)) }
 #include "portable/ehci/ehci.h"
 #include "portable/ehci/ehci.c"
+
+// Hub addresses as the stack assigns them. Fixture hubs are opened through the
+// real hub driver, linked only into ISO builds with hubs.
+#define HUB_A (CFG_TUH_DEVICE_MAX + 1)
+#define HUB_B (CFG_TUH_DEVICE_MAX + 2)
+#define EHCI_ISO_FIXTURE_HUBS (EHCI_ISO_ENABLED && CFG_TUH_HUB)
 #pragma pop_macro("TU_VERIFY_STATIC")
 
 TU_VERIFY_STATIC(sizeof(ehci_link_t) == 4, "link ABI");
@@ -57,6 +63,25 @@ void hcd_event_handler(hcd_event_t const* e, bool in_isr) {
   terminal_events[events++] = *e;
 }
 
+#if EHCI_ISO_FIXTURE_HUBS
+extern uint8_t test_hub_protocol;
+
+// Open a HS hub through the hub class driver, single-TT or multi-TT.
+static void open_hub(uint8_t addr, bool mtt) {
+  static uint8_t const desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_HUB, 0, HUB_PROTOCOL_HIGH_SPEED_STT, 0,
+    7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_INTERRUPT, 1, 0, 12,
+    9, TUSB_DESC_INTERFACE, 0, 1, 1, TUSB_CLASS_HUB, 0, HUB_PROTOCOL_HIGH_SPEED_MTT, 0,
+    7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_INTERRUPT, 1, 0, 12,
+  };
+  hub_close(addr);
+  test_hub_protocol = mtt ? HUB_PROTOCOL_HIGH_SPEED_MTT : HUB_PROTOCOL_HIGH_SPEED_STT;
+  buses[addr].speed = TUSB_SPEED_HIGH;
+  assert(hub_open(0, addr, (tusb_desc_interface_t const*) desc, sizeof(desc)) == (mtt ? sizeof(desc) : 16u));
+  assert(hub_tt_multi(addr) == mtt);
+}
+#endif
+
 static void reset(uint8_t root_speed) {
   memset(&ehci_data, 0, sizeof(ehci_data));
   memset((void*)&regs, 0, sizeof(regs));
@@ -69,6 +94,11 @@ static void reset(uint8_t root_speed) {
   regs.command_bm.int_threshold = 8;
   init_periodic_list(0);
   events = 0;
+#if EHCI_ISO_FIXTURE_HUBS
+  // Hubs are multi-TT unless a test reopens one as single-TT.
+  open_hub(HUB_A, true);
+  open_hub(HUB_B, true);
+#endif
 }
 
 static void test_attach_debounce(void) {
@@ -283,23 +313,23 @@ static void test_sparse_iso_pool(void) {
 #if CFG_TUH_HUB
 static void test_split(void) {
   reset(TUSB_SPEED_HIGH);
-  buses[1].hub_addr = 2;
+  buses[1].hub_addr = HUB_A;
   buses[1].hub_port = 3;
-  buses[2].speed = TUSB_SPEED_FULL;
-  buses[2].hub_addr = 3;
-  buses[2].hub_port = 4;
-  buses[3].speed = TUSB_SPEED_HIGH;
+  buses[HUB_A].speed = TUSB_SPEED_FULL;
+  buses[HUB_A].hub_addr = HUB_B;
+  buses[HUB_A].hub_port = 4;
+  buses[HUB_B].speed = TUSB_SPEED_HIGH;
   assert(!open_ep(0x81, TUSB_SPEED_FULL, 565, 1));
   assert(open_ep(0x81, TUSB_SPEED_FULL, 564, 1));
   iso_ep_t* ep = iso_ep_find(1, 0x81);
   assert(iso_xfer(0, ep, buffer, 564));
   ehci_sitd_t* td = &ep->td->sitd;
-  assert(td->hub_addr == 3 && td->port_number == 4);
+  assert(td->hub_addr == HUB_B && td->port_number == 4);
   assert(td->int_smask == 2 && td->fl_int_cmask == 0xf8);
   assert(!open_ep(1, TUSB_SPEED_FULL, 1023, 1));
   assert(iso_ep_find(1, 1) == NULL);
   // A different upstream MTT port has an independent budget.
-  buses[2].hub_port = 5;
+  buses[HUB_A].hub_port = 5;
   assert(open_ep(1, TUSB_SPEED_FULL, 1023, 1));
   ep = iso_ep_find(1, 1);
   assert(iso_xfer(0, ep, buffer, 1023));
@@ -310,9 +340,9 @@ static void test_split(void) {
 
 static void test_split_audio(void) {
   reset(TUSB_SPEED_HIGH);
-  buses[1].hub_addr = 2;
+  buses[1].hub_addr = HUB_A;
   buses[1].hub_port = 1;
-  buses[2].speed = TUSB_SPEED_HIGH;
+  buses[HUB_A].speed = TUSB_SPEED_HIGH;
   assert(open_ep(0x81, TUSB_SPEED_FULL, 98, 1));
   assert(open_ep(0x01, TUSB_SPEED_FULL, 196, 1));
   iso_ep_t* in = iso_ep_find(1, 0x81);
@@ -333,9 +363,9 @@ static void test_split_allocation(void) {
   // Both open orders support three OUT slots followed by one IN slot.
   for (unsigned in_first = 0; in_first < 2; in_first++) {
     reset(TUSB_SPEED_HIGH);
-    buses[1].hub_addr = 2;
+    buses[1].hub_addr = HUB_A;
     buses[1].hub_port = 1;
-    buses[2].speed = TUSB_SPEED_HIGH;
+    buses[HUB_A].speed = TUSB_SPEED_HIGH;
     if (in_first) { assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1)); }
     assert(open_ep(0x01, TUSB_SPEED_FULL, 384, 1));
     if (!in_first) { assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1)); }
@@ -352,9 +382,9 @@ static void test_split_allocation(void) {
   }
 
   reset(TUSB_SPEED_HIGH);
-  buses[1].hub_addr = 2;
+  buses[1].hub_addr = HUB_A;
   buses[1].hub_port = 1;
-  buses[2].speed = TUSB_SPEED_HIGH;
+  buses[HUB_A].speed = TUSB_SPEED_HIGH;
   assert(open_ep(0x01, TUSB_SPEED_FULL, 192, 1));
   assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1));
   assert(open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
@@ -375,11 +405,29 @@ static void test_split_allocation(void) {
   buses[1].hub_port = 2;
   assert(open_ep(0x03, TUSB_SPEED_FULL, 1023, 1));
   assert(iso_ep_find(1, 0x03)->split_slot == 0);
-  buses[1].hub_addr = 3;
+  buses[1].hub_addr = HUB_B;
   buses[1].hub_port = 1;
-  buses[3].speed = TUSB_SPEED_HIGH;
+  buses[HUB_B].speed = TUSB_SPEED_HIGH;
   assert(open_ep(0x04, TUSB_SPEED_FULL, 1023, 1));
   assert(iso_ep_find(1, 0x04)->split_slot == 0);
+}
+
+// A single-TT hub has one transaction translator for all its ports, so their
+// windows compete; each port of a multi-TT hub has its own.
+static void test_split_single_tt(void) {
+  for (unsigned mtt = 0; mtt < 2; mtt++) {
+    reset(TUSB_SPEED_HIGH);
+    open_hub(HUB_A, mtt != 0);
+    buses[1].hub_addr = HUB_A;
+    buses[1].hub_port = 1;
+    assert(open_ep(0x01, TUSB_SPEED_FULL, 1023, 1)); // start-splits in all six OUT slots
+    buses[1].hub_port = 2;
+    assert(open_ep(0x02, TUSB_SPEED_FULL, 188, 1) == (mtt != 0));
+    assert(open_ep(0x81, TUSB_SPEED_FULL, 188, 1) == (mtt != 0));
+    // Another hub always has its own translator.
+    buses[1].hub_addr = HUB_B;
+    assert(open_ep(0x03, TUSB_SPEED_FULL, 188, 1));
+  }
 }
 
 #endif
@@ -592,9 +640,9 @@ static void test_descriptor_reuse(void) {
       bool const hs = mode == 0;
       reset(mode == 1 ? TUSB_SPEED_FULL : TUSB_SPEED_HIGH);
       if (mode == 2) {
-        buses[1].hub_addr = 2;
+        buses[1].hub_addr = HUB_A;
         buses[1].hub_port = 3;
-        buses[2].speed = TUSB_SPEED_HIGH;
+        buses[HUB_A].speed = TUSB_SPEED_HIGH;
       }
       uint8_t const addr = tu_edpt_addr(1, dir);
       uint16_t const mps = hs ? 1024 : (dir ? 564 : 1023);
@@ -628,7 +676,7 @@ static void test_descriptor_reuse(void) {
         } else {
           ehci_sitd_t* s = &td->sitd;
           assert(s->dev_addr == 1 && s->ep_number == 1 && s->direction == dir);
-          assert(s->hub_addr == (mode == 2 ? 2 : 0));
+          assert(s->hub_addr == (mode == 2 ? HUB_A : 0));
           assert(s->port_number == (mode == 2 ? 3 : 0));
           assert(s->back.terminate && s->active && s->int_on_complete);
           assert(s->total_bytes == ep->buflen && !s->cmask_progress && !s->page_select);
@@ -744,9 +792,9 @@ static void test_pool_fs_interval(uint8_t interval) {
     reset(hub ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
     for (unsigned i = 0; i < TEST_ISO_STREAM_EP_COUNT; i++) {
       if (hub) {
-        buses[1].hub_addr = 2;
+        buses[1].hub_addr = HUB_A;
         buses[1].hub_port = 3;
-        buses[2].speed = TUSB_SPEED_HIGH;
+        buses[HUB_A].speed = TUSB_SPEED_HIGH;
       }
       assert(open_ep((uint8_t)(0x81 + i), TUSB_SPEED_FULL, 64, interval));
     }
@@ -818,9 +866,9 @@ static void test_pool_fs_stream(void) {
 static void test_completion_unlink(bool hs) {
   reset(TUSB_SPEED_HIGH);
   if (!hs) {
-    buses[1].hub_addr = 2;
+    buses[1].hub_addr = HUB_A;
     buses[1].hub_port = 1;
-    buses[2].speed = TUSB_SPEED_HIGH;
+    buses[HUB_A].speed = TUSB_SPEED_HIGH;
   }
   uint32_t const due = hs ? 801 : 808;
   size_t const frame = (due >> 3) % FRAMELIST_SIZE;
@@ -872,9 +920,9 @@ static void test_future_completion(void) {
     for (unsigned i = 0; i < TU_ARRAY_SIZE(starts); i++) {
       reset(mode == 1 ? TUSB_SPEED_FULL : TUSB_SPEED_HIGH);
       if (mode == 2) {
-        buses[1].hub_addr = 2;
+        buses[1].hub_addr = HUB_A;
         buses[1].hub_port = 1;
-        buses[2].speed = TUSB_SPEED_HIGH;
+        buses[HUB_A].speed = TUSB_SPEED_HIGH;
       }
       assert(open_ep(0x81, mode == 0 ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, 64, 1));
       iso_ep_t* ep = iso_ep_find(1, 0x81);
@@ -1086,6 +1134,7 @@ int main(void) {
   test_split();
   test_split_audio();
   test_split_allocation();
+  test_split_single_tt();
 #endif
   test_hs();
   test_iso_status_errors();
