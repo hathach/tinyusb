@@ -60,6 +60,12 @@ def load(rel_path, module_name):
     return _hil_load().load(module_name, TINYUSB_ROOT / DEP / rel_path)
 
 
+def path_of(rel_path) -> str:
+    """DEP/`rel_path` for a script run as a process; ImportError from _require."""
+    _require(rel_path)
+    return str(TINYUSB_ROOT / DEP / rel_path)
+
+
 def load_file(rel_path):
     """load() under agentrc's own name for it, `agentrc_<stem>`: the instance its scripts load."""
     _require(rel_path)

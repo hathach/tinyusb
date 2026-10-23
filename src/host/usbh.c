@@ -9,6 +9,7 @@
 
 #if CFG_TUH_ENABLED
 
+#include "common/tusb_sysview.h"
 #include "hcd.h"
 #include "tusb.h"
 #include "usbh_pvt.h"
@@ -537,6 +538,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (tuh_rhport_is_active(rhport)) {
     return true; // skip if already initialized
   }
+  tusb_sysview_init(); // no-op unless a SYSVIEW level is set; here so tuh_init() alone starts recording
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
@@ -582,6 +584,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   #if OSAL_MUTEX_REQUIRED
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
+  #if CFG_TUH_SYSVIEW
+    tusb_sysview_name_resource(_usbh_mutex, "usbh_mutex");
+  #endif
     TU_ASSERT(_usbh_mutex);
   #endif
 
@@ -715,6 +720,9 @@ bool tuh_task_event_ready(void) {
   return false;
 }
 
+// a failed assertion in tuh_task_ext() closes its SystemView CALL first
+#define TU_ASSERT_SV(_cond) TUH_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK, )
+
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
  * This should be called periodically within the mainloop or rtos thread.
@@ -818,6 +826,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       }
     }
 
+    TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
         // Should we miss the hub detach event due to high traffic, Or due to physical debouncing, some devices can
@@ -839,7 +848,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   #if CFG_TUH_HUB
         else {
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-          TU_ASSERT(osal_queue_send(_usbh_daq, &event, in_isr), );
+          TU_ASSERT_SV(osal_queue_send(_usbh_daq, &event, in_isr));
         }
   #endif
         break;
@@ -859,11 +868,14 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         if (event.dev_addr == 0) {
           // device 0 only has control endpoint
-          TU_ASSERT(epnum == 0,);
+          TU_ASSERT_SV(epnum == 0);
           usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
         } else {
           usbh_device_t* dev = get_device(event.dev_addr);
-          TU_VERIFY(dev && dev->connected,);
+          if (!(dev && dev->connected)) {
+            TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
+            return;
+          }
 
           // clear busy and claimed
           dev->ep_status[epnum][ep_dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
@@ -899,7 +911,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
                                 event.xfer_complete.len);
               } else {
                 // no driver/callback responsible for this transfer
-                TU_ASSERT(false,);
+                TU_ASSERT_SV(false);
               }
             }
           }
@@ -917,11 +929,20 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         // unknown event
         break;
     }
+    TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
+
+    // host-only builds: tud_task_ext()'s periodic report never runs. The reporter keeps static
+    // rotation state, so a dual-role build leaves it to the device task alone.
+#if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && !CFG_TUD_ENABLED && CFG_TUSB_OS == OPT_OS_FREERTOS
+    { static uint16_t sv_cnt = 0;
+      if (0 == (++sv_cnt & 0x3FFu)) { tusb_sysview_stack_report(); } }
+#endif
 
     // allow to exit tuh_task() if there is no event in the next run
     timeout_ms = 0;
   }
 }
+#undef TU_ASSERT_SV
 
 //--------------------------------------------------------------------+
 // Control transfer
@@ -1379,7 +1400,11 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
   dev->ep_callback[epnum][dir].user_data   = user_data;
 #endif
 
-  if (hcd_edpt_xfer(dev->bus_info.rhport, dev_addr, ep_addr, buffer, total_bytes)) {
+  TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+  bool const ok = hcd_edpt_xfer(dev->bus_info.rhport, dev_addr, ep_addr, buffer, total_bytes);
+  TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+
+  if (ok) {
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {

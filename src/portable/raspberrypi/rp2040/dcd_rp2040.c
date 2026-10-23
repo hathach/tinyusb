@@ -18,6 +18,7 @@
 #include "pico/fix/rp2040_usb_device_enumeration.h"
 #endif
 
+#include "common/tusb_sysview.h"
 #include "device/dcd.h"
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
@@ -197,6 +198,8 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
+  // the SDK registers this as the ISR itself, bypassing tud_int_handler()'s SystemView span
+  TU_SYSVIEW_ISR_ENTER();
   const uint32_t status  = usb_hw->ints;
 
   if (status & USB_INTF_DEV_SOF_BITS) {
@@ -326,6 +329,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 /*------------------------------------------------------------------*/
