@@ -582,7 +582,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   }
 
   const uint8_t ptd_index = ptd_find_free(xfer_type);
-  TU_VERIFY(ptd_index != TUSB_INDEX_INVALID_8);
+  TU_ASSERT(ptd_index != TUSB_INDEX_INVALID_8);
 
   uint16_t mps = ep_desc->wMaxPacketSize;
   uint8_t uframe = 0;
