@@ -28,7 +28,7 @@ can actually build.
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
 | 2b | `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
-| 2d | `tools/membrowse_cli.py`, `tools/code_size.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
+| 2d | `tools/membrowse_cli.py`, `tools/code_size.py`, `tools/code_size_profile.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
 | 2e | `.claude/skills/build/scripts/check_build.py` (ahead of rule 1) | `ALL` | `ALL` | all boards → all tests (the selection contract CI and agents call) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
@@ -47,7 +47,7 @@ can actually build.
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
-| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 | 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
@@ -143,7 +143,7 @@ _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
 _MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_cli\.py$')
-_SIZE_SCRIPT_RE = re.compile(r'^tools/code_size\.py$')
+_SIZE_SCRIPT_RE = re.compile(r'^tools/code_size(_profile)?\.py$')
 MEMBROWSE_TARGET = 'examples-membrowse-upload'
 # The selection contract's entry point: CI and agents select through
 # `check_build.py --select-only`, so a change to it can change any selection. Ahead
@@ -378,7 +378,8 @@ def mcu_families(path: str, repo_root: str) -> set:
 GET_DEPS_PATH = 'tools/get_deps.py'
 _DEPS_DICTS = ('deps_mandatory', 'deps_optional')
 # Dep paths the HIL harness itself loads (helper/hil_lock.py, hil_util's RTT console), not a family build:
-# a pin change is a harness change, rule 2's HIL answer and no build.
+# a pin change is a harness change, rule 2's HIL answer, and a size-script change, rule 2d's build answer
+# (lib/agentrc holds the code-size engine every build leg's snapshot step runs).
 _HIL_HARNESS_DEPS = frozenset({'lib/agentrc'})
 
 
@@ -1338,7 +1339,10 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         if get_deps_families is None:
             s.force_full(path, 'get-deps', f'{path}: dep changes not resolvable -> full build matrix')
             return
-        fams = sorted(get_deps_families - _HIL_HARNESS_DEPS)
+        if get_deps_families & _HIL_HARNESS_DEPS:
+            s.force_full(path, 'get-deps', f'{path}: lib/agentrc holds the CI size engine -> full build matrix')
+            return
+        fams = sorted(get_deps_families)
         if not fams:
             s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
             return

@@ -143,6 +143,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # the code-size engine is agentrc's, at the default branch's pin; without it the
+      # comparison below fails and the comment says so
+      - name: Get agentrc
+        continue-on-error: true
+        run: python3 tools/get_deps.py lib/agentrc
+
       # every step up to the freshness check must succeed, even with nothing to compare:
       # a failed one would skip the post and leave an earlier push's table looking current
       - name: Download code size snapshots

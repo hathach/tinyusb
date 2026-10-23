@@ -1608,14 +1608,13 @@ class TestGetDepsRule(unittest.TestCase):
     def test_hil_without_a_base_is_full(self):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
-    def test_a_hil_harness_dep_selects_full_hil_and_no_build(self):
+    def test_a_hil_harness_dep_selects_full_hil_and_the_full_build(self):
+        # lib/agentrc also holds the code-size engine each build leg's snapshot step runs (rule 2d)
         s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families={'lib/agentrc'})
         self.assertTrue(s['full'])
         b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'lib/agentrc'})
-        self.assertFalse(b['full'])
-        self.assertEqual(b['families'], [])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO,
-                                         get_deps_families={'lib/agentrc', 'stm32f4'})
+        self.assertTrue(b['full'])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'stm32f4'})
         self.assertEqual(b['families'], ['stm32f4'])
 
     def test_the_real_agentrc_pin_is_a_hil_harness_dep(self):
