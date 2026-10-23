@@ -1253,13 +1253,12 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
       // The buffer goes back unconditionally; stop periodic DMA only if the
       // controller stays on the TD.
       bool const idle = iso_td_wait_idle(ep);
-      bool const stopped = !idle && ehci_disable_schedule(ehci_data.regs, true);
-      if (idle || stopped) {
+      done = idle || ehci_disable_schedule(ehci_data.regs, true);
+      if (done) {
         iso_td_unlink(ep);
       } else {
         iso_td_defer(ep, iso_now());
         ep->closing = true;
-        done = false;
       }
       if (!idle) {
         // Also after a failed stop, which may have cleared the enable bit.
