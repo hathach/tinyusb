@@ -291,9 +291,9 @@ static void dma_start_out_isr(uint8_t epnum) {
     xact_len = NRF_USBD->SIZE.ISOOUT;
     // If ZERO bit is set, ignore ISOOUT length
     if (!(xact_len & USBD_SIZE_ISOOUT_ZERO_Msk) && xfer->started) {
-      // Trigger DMA move data from Endpoint -> SRAM
+      // ISO OUT size is not bounded by wMaxPacketSize, limit DMA to the remaining buffer
       NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
-      NRF_USBD->ISOOUT.MAXCNT = xact_len;
+      NRF_USBD->ISOOUT.MAXCNT = tu_min16((uint16_t) xact_len, xfer->total_len - xfer->actual_len);
 
       dma_trigger_isr(&NRF_USBD->TASKS_STARTISOOUT);
     }
