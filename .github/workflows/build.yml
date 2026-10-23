@@ -465,8 +465,9 @@ jobs:
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
     # before it; the report write and the upload after it. A ceiling below guard+tail cancels the job
-    # before hil_report.md exists. Both legs share the script and the guard.
-    timeout-minutes: 75
+    # before hil_report.md exists. Both legs share the script and the guard. The last 20 min are
+    # the SystemView capture step's own timeout, which runs after the report.
+    timeout-minutes: 95
     strategy:
       fail-fast: false
       matrix:
@@ -603,6 +604,9 @@ jobs:
         # board, wasting shared-rig time for no report benefit.
         if: ${{ !cancelled() && github.run_attempt == '1' }}
         continue-on-error: true
+        # the kill reaches the shell, not python, so no finally reflashes the park image:
+        # --budget-s (a minute under this) starts a board's flash only when its park fits before it
+        timeout-minutes: 20
         env:
           SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
           SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
@@ -624,7 +628,7 @@ jobs:
             esac
           done
           python3 test/hil/sysview_ci.py capture ${{ env.HIL_JSON }} \
-            $SYSVIEW_BOARD_ARGS --get-deps --out sysview-out
+            $SYSVIEW_BOARD_ARGS --get-deps --budget-s 1140 --out sysview-out
 
       - name: Upload SystemView captures
         if: ${{ !cancelled() && github.run_attempt == '1' }}

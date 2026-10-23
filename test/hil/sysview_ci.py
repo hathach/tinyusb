@@ -6,7 +6,7 @@ capture: flash a SYSVIEW build, drive the workload, RTT-capture, decode. Capture
 run agentrc's rtt.py and target-debug sysview scripts from lib/agentrc at the get_deps.py pin
 (agentrc's skills/target-debug/sysview.md is their manual).
 """
-import argparse, glob, json, os, re, sys
+import argparse, glob, html, json, os, re, sys
 
 SCRIPTS = "skills/target-debug/scripts/"
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
@@ -185,7 +185,9 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         heading += f" — base dropped, capture config changed ({', '.join(base_dropped)})"
     lines = [heading, ""]
     if pr_j.get("error"):
-        return "\n".join(lines + [f"capture failed: {pr_j['error']}", ""])
+        # one inert line: build and tool output must not add headings, fences or HTML
+        err = html.escape(re.sub(r"\s+", " ", pr_j["error"]).strip()).replace("`", "&#96;")
+        return "\n".join(lines + [f"capture failed: {err}", ""])
     pm_all = pr_j.get("metrics") or {}
     if not pm_all:
         # a malformed capture JSON must not abort the whole report
@@ -360,8 +362,8 @@ def board_result(board, commit, metrics=None, capture_info=None, error=None):
 
 def _workload_cdc_burst(node, duration_s):
     """Returns True if traffic ran for the full window, False if the serial link died early
-    (device dropped off the bus) or the device stayed enumerated but echoed nothing back --
-    never raises."""
+    (device dropped off the bus) or the device stayed enumerated but echoed nothing back, or
+    stopped echoing -- never raises."""
     import serial, time
     # write_timeout: without it, a device that stops draining its OUT endpoint blocks s.write()
     # forever, wedging PHASE 2 while the board flock is held -- the same failure mode hil_test.py
@@ -373,13 +375,19 @@ def _workload_cdc_burst(node, duration_s):
     end = time.monotonic() + duration_s
     echoed = 0
     while time.monotonic() < end:
-        t = time.monotonic()
+        t, burst = time.monotonic(), 0
         while time.monotonic() - t < 0.30 and time.monotonic() < end:
             try:
-                s.write(b"x" * 64); echoed += len(s.read(64))
+                s.write(b"x" * 64); burst += len(s.read(64))
             except Exception:
                 s.close()
                 return False
+        # a whole burst window without an echo after earlier ones: the device stopped echoing
+        # (a window the deadline cut short may end before its echo arrives)
+        if not burst and echoed and time.monotonic() - t >= 0.30:
+            s.close()
+            return False
+        echoed += burst
         time.sleep(min(1.0, max(0, end - time.monotonic())))
     s.close()
     # a device that stays enumerated but echoes nothing gives a capture of an idle bus
@@ -410,9 +418,11 @@ def build_one(board, repo_root):
         for cmd in ([ "cmake", "-B", bdir, f"-DBOARD={name}", "-G", "Ninja",
                       "-DCMAKE_BUILD_TYPE=MinSizeRel", "-DSYSVIEW=4", *buf, "." ],
                     [ "cmake", "--build", bdir ]):
-            r = subprocess.run(cmd, cwd=exdir, capture_output=True, text=True, timeout=1800)
+            # ninja prints the compiler's diagnostics on stdout, cmake its configure errors on stderr
+            r = subprocess.run(cmd, cwd=exdir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, timeout=1800)
             if r.returncode:
-                return None, f"build failed: {_err_excerpt(r.stderr)}"
+                return None, f"build failed: {_err_excerpt(r.stdout)}"
         # Both JLinkExe's `loadfile` and OpenOCD's `program` infer the image format from
         # the extension, so the flasher needs the real filename: an extension-less path
         # dies with "File is of unknown / unsupported format" after taking the board lock.
@@ -424,6 +434,17 @@ def build_one(board, repo_root):
         return fw, None
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
+
+# flash_and_capture_one's bounds besides its flasher calls: nm 30 s, the RTT connect 17 s, the
+# enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
+CAPTURE_FIXED_S = 90
+
+def capture_bound_s(board):
+    """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
+    CMD_TIMEOUT (the capture flash; its DAP rescue or the capture; the park reflash) plus the
+    capture's own bounds and its workload."""
+    from helper import hil_util
+    return 3 * hil_util.CMD_TIMEOUT + CAPTURE_FIXED_S + board["sysview"]["duration_s"]
 
 def flash_and_capture_one(board, fw, out_dir):
     """PHASE 2 (under the board lock): flash, RTT-capture raw SVDat bytes over agentrc's
@@ -614,6 +635,9 @@ def main():
     cp.add_argument("-b", "--board", action="append", default=[],
                      help="Boards to capture, all sysview-flagged boards if not specified")
     cp.add_argument("--out", default="sysview-out")
+    cp.add_argument("--budget-s", type=float, default=None,
+                    help="seconds before the caller kills this run: a board's flash and capture start "
+                         "only while the rest covers capture_bound_s(), so no kill lands before its park reflash")
     cp.add_argument("--get-deps", action="store_true",
                     help="fetch lib/SystemView and the selected boards' deps first (CI's clean checkout)")
     args = ap.parse_args()
@@ -623,7 +647,9 @@ def main():
             f.write(md)
         print(f"{'empty (no captures)' if not md else args.out}")
     elif args.cmd == "capture":
+        import time
         from helper import hil_lock
+        start = time.monotonic()
         try:
             with open(args.config) as f:
                 cfg = json.load(f)
@@ -659,6 +685,11 @@ def main():
             fw, err = builds[name]
             if err:
                 captures[name] = (None, err)
+                continue
+            if args.budget_s is not None and \
+                    time.monotonic() - start + capture_bound_s(board) > args.budget_s:
+                captures[name] = (None, f"skipped: less than the {capture_bound_s(board):.0f} s a flash, "
+                                        f"capture and park reflash may take is left of the {args.budget_s:.0f} s budget")
                 continue
             try:
                 lock_fh = hil_lock.acquire_board_lock(name, reason="sysview capture")
