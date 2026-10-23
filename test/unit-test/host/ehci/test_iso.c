@@ -1056,6 +1056,41 @@ static void test_missed_slot_at_ring_start(void) {
   }
 }
 
+// A close whose periodic stop fails restarts the schedule and keeps the
+// descriptors until the controller cannot be on them.
+static void test_close_stop_failure(void) {
+  reset(TUSB_SPEED_HIGH);
+  regs.command_bm.periodic_enable = 1;
+  regs.status_bm.periodic_status = 1; // never follows the enable bit
+  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  iso_ep_t* ep = iso_ep_find(1, 0x01);
+  iso_td_t* td = ep->td;
+  set_now(1000);
+  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
+  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
+  assert(!iso_stop(0, ep, true));
+  assert(regs.command_bm.periodic_enable); // the schedule keeps running
+  assert(iso_ep_find(1, 0x01) == NULL && iso_ep_next(0) < QTD_MAX); // closed, not freed
+  assert(ep->td == td && !td_linked(ep) && td->itd.xact[1001 & 7].active);
+  assert(events == 0);
+  // Another endpoint at the same address is independent of the closing one.
+  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  iso_ep_t* reopened = iso_ep_find(1, 0x01);
+  assert(reopened != NULL && reopened != ep);
+  assert(iso_stop(0, reopened, true));
+
+  // A ring later FRINDEX is back on the same microframe, but the TD has not
+  // been linked since: the interrupt releases the endpoint without an event.
+  set_now(1001 + FRAMELIST_SIZE * 8);
+  iso_process(true);
+  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
+  // The interrupt leaves the threshold; the next ISO close restores it.
+  assert(regs.command_bm.int_threshold == 0);
+  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  assert(iso_stop(0, iso_ep_find(1, 0x01), true));
+  assert(regs.command_bm.int_threshold == 8);
+}
+
 // Abort cancels only a request the controller cannot be about to execute.
 static void test_abort_idle_margin(void) {
   reset(TUSB_SPEED_HIGH);
@@ -1201,6 +1236,7 @@ int main(void) {
   test_missed_slot_without_stop();
   test_missed_fs_slot_margin();
   test_missed_slot_at_ring_start();
+  test_close_stop_failure();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
