@@ -160,10 +160,10 @@ void board_init(void) {
 // Board porting API
 //--------------------------------------------------------------------+
 void board_led_write(bool state) {
-  if (state) {
-    LED_PORT->BC = LED_PIN;  // LED On (active low)
+  if (state == LED_STATE_ON) {
+    LED_PORT->BSC = LED_PIN;
   } else {
-    LED_PORT->BSC = LED_PIN; // LED Off
+    LED_PORT->BC = LED_PIN;
   }
 }
 

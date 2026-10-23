@@ -51,6 +51,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }

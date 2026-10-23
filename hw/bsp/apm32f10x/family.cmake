@@ -10,8 +10,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU cortex-m3 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-# set(FAMILY_MCUS APM32F103 APM32F107 CACHE INTERNAL "")
-
 #------------------------------------
 # Startup & Linker script
 #------------------------------------

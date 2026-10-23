@@ -29,7 +29,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_APM32F0XX
   #include "apm32f0xx.h"
-#elif CFG_TUSB_MCU == OPT_MCU_APM32F103 || CFG_TUSB_MCU == OPT_MCU_APM32F107
+#elif CFG_TUSB_MCU == OPT_MCU_APM32F103
   #include "apm32f10x.h"
 #endif
 
