@@ -983,10 +983,11 @@ static void test_missed_slot_without_stop(void) {
   assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001 && td_linked(ep));
   uint32_t const slot = ep->uframe;
 
-  // A ring later the controller is back on this microframe: retry later.
+  // A ring later the controller is back on this microframe: unlink the TD so
+  // it cannot recur again, and retire it once this visit is over.
   set_now(slot + FRAMELIST_SIZE * 8);
   iso_process(true);
-  assert(events == 0 && ep->busy && td_linked(ep));
+  assert(events == 0 && ep->busy && !td_linked(ep) && ep->td->itd.xact[slot & 7].active);
   set_now(slot + FRAMELIST_SIZE * 8 + 1);
   iso_process(true);
   assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
@@ -995,7 +996,8 @@ static void test_missed_slot_without_stop(void) {
 }
 
 // Native FS: the embedded TT works on an siTD one frame after FRINDEX reaches
-// its entry, so a missed siTD is retired only from the third frame on.
+// its entry, so a missed siTD is retired only from the third frame on. It is
+// unlinked at once, before its entry comes round again.
 static void test_missed_fs_slot_margin(void) {
   reset(TUSB_SPEED_FULL);
   init_periodic_list(0);
@@ -1006,11 +1008,52 @@ static void test_missed_fs_slot_margin(void) {
   uint32_t const frame = ep->uframe;
   set_now(frame + 8); // slot over, but the controller may still be on the TD
   iso_process(true);
-  assert(events == 0 && ep->busy && td_linked(ep));
+  assert(events == 0 && ep->busy && !td_linked(ep) && ep->td->sitd.active);
   set_now(frame + 16);
   iso_process(true);
   assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
   assert(!td_linked(ep) && !ep->td->sitd.active);
+}
+
+// Frame-list rollover, the only periodic tick, can land right before a missed
+// slot comes round again: HS slot 1 of the 64-microframe ring, or an FS entry
+// one frame ahead. The TD must not stay linked for the controller to send it a
+// ring late; it is retired once its last possible visit is over.
+static void test_missed_slot_at_ring_start(void) {
+  for (unsigned hs = 0; hs < 2; hs++) {
+    reset(hs ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
+    regs.inten = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
+    assert(open_ep(0x01, hs ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, 64, 1));
+    iso_ep_t* ep = iso_ep_find(1, 0x01);
+    set_now(hs ? 1024 : 960);
+    assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
+    uint32_t const slot = ep->uframe;
+    // HS microframe 1025 (1 of the ring); FS frame 121 (entry 1), the native FS
+    // FRINDEX running one frame ahead.
+    assert(slot == (hs ? 1025u : 968u));
+    uint32_t const status_word = hs ? 1 + (slot & 7) : 3;
+    uint32_t const active = TU_BIT(hs ? 31 : 7);
+
+    // Rollover at FRINDEX 1088 (HS) or 1024 (FS, frame 128): the slot passed
+    // unvisited and comes round next.
+    set_now((hs ? 1088 : 1024) - ehci_data.iso_frame_offset);
+    regs.status = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
+    hcd_int_handler(0, true);
+    assert(events == 0 && ep->busy && !td_linked(ep));
+    assert(ep->td->words[status_word] & active); // the buffer stays owned
+
+    // The controller may still make that visit: keep the buffer until it is over.
+    uint32_t const passed = hs ? 1090 : 1056;
+    set_now(passed - 1 - ehci_data.iso_frame_offset);
+    iso_process(true);
+    assert(events == 0 && ep->busy);
+    set_now(passed - ehci_data.iso_frame_offset);
+    iso_process(true);
+    assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
+    assert(event.xfer_complete.len == 0 && !(ep->td->words[status_word] & active));
+    // The next request is scheduled and linked as usual.
+    assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
+  }
 }
 
 // Abort cancels only a request the controller cannot be about to execute.
@@ -1157,6 +1200,7 @@ int main(void) {
   test_sof_free();
   test_missed_slot_without_stop();
   test_missed_fs_slot_margin();
+  test_missed_slot_at_ring_start();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
