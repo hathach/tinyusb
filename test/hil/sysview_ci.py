@@ -566,6 +566,34 @@ def _reflash_pristine(board, park):
     except Exception as e:
         return f"park reflash raised {type(e).__name__}: {e}"
 
+def _get_pico_sdk(repo_root):
+    """pico-sdk is no get_deps.py dep: CI's get_deps action checks it out into <workspace>/pico-sdk
+    and exports PICO_SDK_PATH, which the HIL job never runs. Do the same at the action's ref.
+    None once PICO_SDK_PATH is set, else why not; never raises."""
+    import subprocess
+    if os.environ.get("PICO_SDK_PATH"):
+        return None
+    try:
+        with open(os.path.join(repo_root, ".github", "actions", "get_deps", "action.yml")) as f:
+            m = re.search(r"repository:\s*raspberrypi/pico-sdk\s+ref:\s*(\S+)", f.read())
+        if not m:
+            return "no pico-sdk ref in .github/actions/get_deps/action.yml"
+        ref, path = m.group(1), os.path.join(repo_root, "pico-sdk")
+        if not os.path.isdir(path):
+            cmds = [["git", "clone", "--depth", "1", "--branch", ref,
+                     "https://github.com/raspberrypi/pico-sdk.git", path]]
+        else:  # a self-hosted runner's workspace can keep an older checkout
+            cmds = [["git", "-C", path, "fetch", "--depth", "1", "origin", "tag", ref],
+                    ["git", "-C", path, "checkout", "-q", "--detach", ref]]
+        for cmd in cmds:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if r.returncode:
+                return f"pico-sdk {ref}: {' '.join(cmd[:4])} failed: {_err_excerpt(r.stderr)}"
+        os.environ["PICO_SDK_PATH"] = path
+        return None
+    except Exception as e:
+        return f"pico-sdk: {type(e).__name__}: {e}"
+
 def _git_commit(repo_root):
     import subprocess
     try:
@@ -609,15 +637,21 @@ def main():
             sys.exit(0)
         os.makedirs(args.out, exist_ok=True)
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        rp2_boards = {b["name"] for b in boards
+                      if os.path.isdir(os.path.join(repo_root, "hw", "bsp", "rp2040", "boards", b["name"]))}
+        sdk_error = None
         if args.get_deps:
             import subprocess
             subprocess.run([sys.executable, os.path.join(repo_root, "tools", "get_deps.py"), "lib/SystemView",
                             *(a for b in boards for a in ("-b", b["name"]))], cwd=repo_root, check=False)
+            if rp2_boards:
+                sdk_error = _get_pico_sdk(repo_root)
         commit = _git_commit(repo_root)
         # 3 phases so the board lock, which blocks concurrent CI on that board, is held only
         # for the part that touches hardware (PHASE 2).
         # PHASE 1: build every selected board, no lock held.
-        builds = {board["name"]: build_one(board, repo_root) for board in boards}
+        builds = {board["name"]: (None, sdk_error) if sdk_error and board["name"] in rp2_boards
+                  else build_one(board, repo_root) for board in boards}
         # PHASE 2: per board, flash + RTT-capture under that board's lock only.
         captures = {}
         for board in boards:
