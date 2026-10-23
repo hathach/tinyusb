@@ -562,6 +562,9 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
   regs->nxp_tt_control = 0;
 
   //------------- USB CMD Register -------------//
+  // Interrupt threshold 0: retire completions without waiting for the next
+  // 8-microframe boundary, so task context can resubmit in time (ISO).
+  regs->command_bm.int_threshold = 0;
   regs->command |= EHCI_USBCMD_RUN_STOP | EHCI_USBCMD_PERIOD_SCHEDULE_ENABLE | EHCI_USBCMD_ASYNC_SCHEDULE_ENABLE |
                    FRAMELIST_SIZE_USBCMD_VALUE;
 
@@ -942,9 +945,6 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   }
   ep->uframe = iso_now();
   ep->daddr = daddr;
-  // Retire each packet promptly so task context can submit the next interval.
-  // The threshold stays 0 once ISO has been used.
-  ehci_data.regs->command_bm.int_threshold = 0;
 
   iso_td_t* td = ep->td;
   td->itd.next.terminate = 1;
