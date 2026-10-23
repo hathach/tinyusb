@@ -848,6 +848,13 @@ static bool iso_split_slot(uint8_t hub_addr, uint8_t hub_port, uint16_t packet_s
       used |= ((1u << count) - 1u) << ep->split_slot;
     }
   }
+  // FS/LS interrupt QHs start their splits in microframe 0 (S-mask 0x01), after
+  // the siTDs, so one would land inside an OUT packet starting there. A Genesys
+  // 05e3:0610 TT takes that as a break: it loses the packet and fails the
+  // interrupt transaction. Keep OUT clear of slot 0 while it fits.
+  if (dir == TUSB_DIR_OUT && hub_iso_split_slot(used | 1u, packet_size, dir, slot)) {
+    return true;
+  }
   return hub_iso_split_slot(used, packet_size, dir, slot);
 }
 #endif
