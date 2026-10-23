@@ -352,15 +352,17 @@ static void test_split_audio(void) {
   ehci_sitd_t* in_td = &in->td->sitd;
   ehci_sitd_t* out_td = &out->td->sitd;
   // 48 kHz stereo needs two start-splits. Do not interleave an IN start
-  // with the OUT Begin/End sequence on the same transaction translator.
-  assert(out_td->int_smask == 3);
+  // with the OUT Begin/End sequence on the same transaction translator, and
+  // keep the sequence clear of microframe 0, where interrupt splits start.
+  assert(out_td->int_smask == 6);
   assert((out_td->buffer[1] & 0x1f) == (2 | 8));
   assert((in_td->int_smask & out_td->int_smask) == 0);
   assert(in_td->int_smask > out_td->int_smask);
 }
 
 static void test_split_allocation(void) {
-  // Both open orders support three OUT slots followed by one IN slot.
+  // Both open orders fit three OUT slots and one IN slot. OUT first keeps clear
+  // of slot 0; an IN opened first takes the last slot and OUT falls back to 0.
   for (unsigned in_first = 0; in_first < 2; in_first++) {
     reset(TUSB_SPEED_HIGH);
     buses[1].hub_addr = HUB_A;
@@ -371,14 +373,15 @@ static void test_split_allocation(void) {
     if (!in_first) { assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1)); }
     iso_ep_t* in = iso_ep_find(1, 0x81);
     iso_ep_t* out = iso_ep_find(1, 0x01);
-    assert(out->split_slot == 0 && in->split_slot == 3);
-    assert(in->td->sitd.int_smask == 8 && in->td->sitd.fl_int_cmask == 0xe0);
+    uint8_t const in_slot = in_first ? 3 : 0;
+    assert(out->split_slot == (in_first ? 0 : 1) && in->split_slot == in_slot);
+    assert(in->td->sitd.int_smask == (1u << in_slot) && in->td->sitd.fl_int_cmask == (0x7u << (in_slot + 2)));
     assert(!open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
     assert(iso_ep_find(1, 0x82) == NULL);
     // Closing an idle endpoint releases its reservation.
     iso_ep_free(out);
     assert(open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
-    assert(iso_ep_find(1, 0x82)->split_slot == 2);
+    assert(iso_ep_find(1, 0x82)->split_slot == (in_first ? 2 : 3));
   }
 
   reset(TUSB_SPEED_HIGH);
@@ -388,7 +391,7 @@ static void test_split_allocation(void) {
   assert(open_ep(0x01, TUSB_SPEED_FULL, 192, 1));
   assert(open_ep(0x81, TUSB_SPEED_FULL, 100, 1));
   assert(open_ep(0x82, TUSB_SPEED_FULL, 4, 1));
-  assert(iso_ep_find(1, 0x82)->split_slot == 2);
+  assert(iso_ep_find(1, 0x82)->split_slot == 0);
   assert(open_ep(0x02, TUSB_SPEED_FULL, 376, 1));
   iso_ep_t* out = iso_ep_find(1, 0x02);
   assert(out->split_slot == 4);
