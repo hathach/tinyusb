@@ -18,7 +18,7 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 set(STARTUP_FILE_GNU ${APM32_SDK}/Device/Geehy/APM32F10x/Source/gcc/startup_${MCU_VARIANT}.S)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 if (NOT DEFINED LD_FILE_GNU)
-set(LD_FILE_GNU ${APM32_SDK}/Device/Geehy/APM32F10x/Source/gcc/${MCU_LINKER_NAME}_flash.ld)
+  set(LD_FILE_GNU ${APM32_SDK}/Device/Geehy/APM32F10x/Source/gcc/${MCU_LINKER_NAME}_flash.ld)
 endif ()
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
