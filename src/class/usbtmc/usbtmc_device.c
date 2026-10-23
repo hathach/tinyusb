@@ -398,12 +398,15 @@ void usbtmcd_reset_cb(uint8_t rhport) {
 
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len) {
   (void) rhport;
+  // must be a header, should have been confirmed before calling here.
+  usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out *) data;
+  // "TransferSize must be > 0x00000000" (USBTMC 1.0 Tables 3 and 5): an illegal parameter, Table 7 index 3
+  TU_VERIFY(msg->TransferSize > 0u);
+
   // return true upon failure, as we can assume error is being handled elsewhere.
   TU_VERIFY(atomicChangeState(STATE_IDLE, STATE_RCV), true);
   usbtmc_state.transfer_size_sent = 0u;
 
-  // must be a header, should have been confirmed before calling here.
-  usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out *) data;
   usbtmc_state.transfer_size_remaining = msg->TransferSize;
   TU_VERIFY(tud_usbtmc_msgBulkOut_start_cb(msg));
 
@@ -442,8 +445,15 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
 }
 
 static bool handle_devMsgIn(void *data, size_t len) {
+  // Anything but the 12-byte header is an incomplete header or more data than expected (USBTMC 1.0
+  // Table 7 indexes 1 and 6). TransferSize must be > 0 (Tables 4 and 6), and TermCharEnabled may be set only if the
+  // interface supports TermChar (Table 4); either is an illegal parameter (Table 7 index 3).
   TU_VERIFY(len == sizeof(usbtmc_msg_request_dev_dep_in));
   usbtmc_msg_request_dev_dep_in *msg = (usbtmc_msg_request_dev_dep_in *) data;
+  TU_VERIFY(msg->TransferSize > 0u);
+  TU_VERIFY(!msg->bmTransferAttributes.TermCharEnabled ||
+            usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
+
   bool stateChanged = atomicChangeState(STATE_IDLE, STATE_TX_REQUESTED);
   TU_VERIFY(stateChanged);
   usbtmc_state.lastBulkInTag = msg->header.bTag;
@@ -455,9 +465,6 @@ static bool handle_devMsgIn(void *data, size_t len) {
 #ifndef NDEBUG
   termChar = msg->TermChar;
 #endif
-
-  if (termCharRequested)
-    TU_VERIFY(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
 
   TU_VERIFY(tud_usbtmc_msgBulkIn_request_cb(msg));
   return true;
@@ -475,11 +482,18 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
     switch (usbtmc_state.state) {
       case STATE_IDLE: {
-        TU_VERIFY(xferred_bytes >= sizeof(usbtmc_msg_generic_t));
+        // Bulk-OUT protocol errors (USBTMC 1.0 Table 7): "The device must Halt the USBTMC interface
+        // Bulk-OUT endpoint if it detects an error described in Table 7" (section 3.2.2.4). Returning
+        // without the Halt leaves bulk-OUT unarmed, and the host's next transfer NAKs for ever.
+        // Index 1: no complete header in the first transaction. Index 3: an illegal parameter, such
+        // as bTagInverse not the inverse of bTag, or a bTag outside 1..255 (Table 1).
         msg = (usbtmc_msg_generic_t *) (usbtmc_epbuf.epout);
-        uint8_t invInvTag = (uint8_t) ~(msg->header.bTagInverse);
-        TU_VERIFY(msg->header.bTag == invInvTag);
-        TU_VERIFY(msg->header.bTag != 0x00);
+        if ((xferred_bytes < sizeof(usbtmc_msg_generic_t)) ||
+            (msg->header.bTag != (uint8_t) ~(msg->header.bTagInverse)) ||
+            (msg->header.bTag == 0x00)) {
+          usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+          return false;
+        }
 
         switch (msg->header.MsgID) {
           case USBTMC_MSGID_DEV_DEP_MSG_OUT:
@@ -492,7 +506,10 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
           case USBTMC_MSGID_DEV_DEP_MSG_IN:
             usbtmcVendorSpecificRequested = false;
-            TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
+            if (!handle_devMsgIn(msg, xferred_bytes)) {
+              usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+              return false;
+            }
             break;
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
@@ -528,7 +545,10 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
           case USBTMC_MSGID_VENDOR_SPECIFIC_IN:
             usbtmcVendorSpecificRequested = true;
-            TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
+            if (!handle_devMsgIn(msg, xferred_bytes)) {
+              usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+              return false;
+            }
             break;
 
           default:
