@@ -100,7 +100,8 @@
  *   close falls back to a bounded schedule stop. Missed packets are not retried.
  * - Rollover lands at the same point of the ring every time, which may be next
  *   to a missed TD's slot. Such a TD is unlinked at once, so it does not recur,
- *   and retired once its last possible visit is over (iso_td_defer).
+ *   and retired once its last possible visit is over (iso_td_defer). A close
+ *   whose schedule stop fails does the same and releases the endpoint then.
  *
  * FS behind a HS hub uses best-effort windows per transaction translator (each
  * port of a multi-TT hub, or all ports of a single-TT hub), reserved by
@@ -147,6 +148,7 @@ typedef struct {
   uint8_t split_slot;
   bool busy; // a transfer is in progress and its TD is linked (or deferred)
   bool deferred; // TD unlinked late; uframe is the last visit the controller may still make
+  bool closing; // closed while the controller may be on its TD; released by iso_process()
 } iso_ep_t;
 
 TU_VERIFY_STATIC(sizeof(iso_ep_t) <= sizeof(ehci_qtd_t), "ISO state must fit in one qTD slot");
@@ -462,9 +464,11 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
   }
 
 #if EHCI_ISO_ENABLED
+  // Closing endpoints are left to iso_process(), which may release them meanwhile.
   for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
-    if (ehci_data.qtd_pool[i].iso.daddr == daddr) {
-      (void) iso_stop(rhport, &ehci_data.qtd_pool[i].iso, true);
+    iso_ep_t* iso = &ehci_data.qtd_pool[i].iso;
+    if (!iso->closing && iso->daddr == daddr) {
+      (void) iso_stop(rhport, iso, true);
     }
   }
 #endif
@@ -910,7 +914,11 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
     // Best effort, single H-frame only. Large FS IN packets require a
     // frame-spanning complete-split schedule (RT1064 RM 42.5.3.12.3.1).
     TU_VERIFY(dir == TUSB_DIR_OUT || mps <= 564);
-    TU_VERIFY(iso_split_slot(hub_addr, hub_port, mps, dir, &split_slot));
+    // The interrupt may release a closing endpoint while the windows are read.
+    hcd_int_disable(rhport);
+    bool const fits = iso_split_slot(hub_addr, hub_port, mps, dir, &split_slot);
+    hcd_int_enable(rhport);
+    TU_VERIFY(fits);
   }
 #else
   // Without hubs a FS endpoint is on a native FS port: no split transactions.
@@ -942,7 +950,11 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   if (first_iso) {
     ehci_data.iso_last_frindex = (uint16_t) (ehci_data.regs->frame_index & 0x3fff);
     ehci_data.iso_uframe = ehci_data.iso_last_frindex;
-    ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
+    // A close completed by iso_process() leaves the threshold at 0 rather than
+    // write USBCMD from the interrupt; keep the value saved before it.
+    if (ehci_data.regs->command_bm.int_threshold != 0) {
+      ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
+    }
     // Fixed for this root connection; refreshed when ISO is reopened.
     ehci_data.iso_frame_offset = ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_FULL ? 8 : 0;
   }
@@ -1184,6 +1196,12 @@ static void iso_process(bool in_isr) {
       }
       error = true;
     }
+    if (ep->closing) {
+      // Closed while the controller could be on the TD: release it now.
+      iso_td_unlink(ep);
+      iso_ep_free(ep);
+      continue;
+    }
     // Once a frame-list entry has recurred, a cleared Active bit cannot prove
     // which visit delivered the packet; a deferred TD was late in any case.
     // Do not claim an on-time success.
@@ -1222,8 +1240,10 @@ static bool iso_td_wait_idle(iso_ep_t const* ep) {
   return false;
 }
 
-// Close unconditionally, or cancel only work whose service slot is still ahead
-// and that the controller cannot be accessing.
+// Close, or cancel only work whose service slot is still ahead and that the
+// controller cannot be accessing. Close returns false if the controller may
+// still be on the TD: the endpoint is then gone for lookup, and iso_process()
+// releases its descriptors once the controller cannot be on them.
 static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   TU_VERIFY(close || ep->busy);
   hcd_int_disable(rhport);
@@ -1232,9 +1252,17 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
     if (close) {
       // The buffer goes back unconditionally; stop periodic DMA only if the
       // controller stays on the TD.
-      bool const stopped = !iso_td_wait_idle(ep) && ehci_disable_schedule(ehci_data.regs, true);
-      iso_td_unlink(ep);
-      if (stopped) {
+      bool const idle = iso_td_wait_idle(ep);
+      bool const stopped = !idle && ehci_disable_schedule(ehci_data.regs, true);
+      if (idle || stopped) {
+        iso_td_unlink(ep);
+      } else {
+        iso_td_defer(ep, iso_now());
+        ep->closing = true;
+        done = false;
+      }
+      if (!idle) {
+        // Also after a failed stop, which may have cleared the enable bit.
         ehci_enable_schedule(ehci_data.regs, true);
       }
     } else {
@@ -1571,10 +1599,11 @@ static ehci_edpt_t edpt_find(uint8_t dev_addr, uint8_t ep_addr) {
   }
 
 #if EHCI_ISO_ENABLED
-  // ISO lookup fields change only on task-context open/close; no IRQ lock needed.
+  // ISO lookup fields change only on task-context open/close; no IRQ lock
+  // needed. The interrupt releases only closing endpoints, which never match.
   for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
     iso_ep_t* iso = &ehci_data.qtd_pool[i].iso;
-    if (iso->daddr == dev_addr && iso->ep_addr == ep_addr) {
+    if (!iso->closing && iso->daddr == dev_addr && iso->ep_addr == ep_addr) {
       result.iso = iso;
       return result;
     }
