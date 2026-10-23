@@ -76,11 +76,13 @@
  * use the rest. Completion unlinks the TD before USBH gets the buffer back,
  * so its callback can submit the next interval.
  *
+ * Service intervals are limited to 4 ms, so every submission's slot lies
+ * within the 8-frame list and its TD is linked at submission.
+ *
  * Scheduling uses no SOF interrupt (ChipIdea raises one every 125 us, even on
  * a FS port). Completions (IOC) drive it; frame-list rollover, once per
- * 8-frame ring, arms TDs whose frame lies beyond the current ring, retires
- * slots that passed unvisited and keeps the extended microframe counter
- * current.
+ * 8-frame ring, retires slots that passed unvisited and keeps the extended
+ * microframe counter current.
  * - Endpoint phase is preserved and late slots are skipped. FRINDEX is
  *   rechecked just before linking, so a delayed submission moves to a later
  *   slot of its phase instead of publishing one the controller may have passed.
@@ -139,8 +141,7 @@ typedef struct {
   uint8_t ep_addr;
   uint8_t speed;
   uint8_t split_slot;
-  bool busy;
-  bool armed;
+  bool busy; // a transfer is in progress and its TD is linked
 } iso_ep_t;
 
 TU_VERIFY_STATIC(sizeof(iso_ep_t) <= sizeof(ehci_qtd_t), "ISO state must fit in one qTD slot");
@@ -853,7 +854,8 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   tuh_bus_info_t bus;
   TU_VERIFY(tuh_bus_info_get(daddr, &bus));
   TU_VERIFY(bus.speed == TUSB_SPEED_FULL || bus.speed == TUSB_SPEED_HIGH);
-  TU_VERIFY(desc->bInterval >= 1 && desc->bInterval <= 16);
+  // At most 4 ms, so a submission always fits in the 8-frame list.
+  TU_VERIFY(desc->bInterval >= 1 && desc->bInterval <= (bus.speed == TUSB_SPEED_HIGH ? 6 : 3));
   uint16_t const mps = tu_edpt_packet_size(desc);
   uint8_t const mult = (uint8_t) (((tu_le16toh(desc->wMaxPacketSize) >> 11) & 3) + 1);
   TU_VERIFY(mps != 0 && mult <= 3);
@@ -1013,20 +1015,16 @@ static void iso_schedule(iso_ep_t* ep, uint32_t now) {
   }
 }
 
-// Called with the controller interrupt excluded. A frame-list entry may hold a
-// new TD once its previous visit has ended, so the TD's frame must lie within
-// the ring starting at the current frame; frame-list rollover arms the rest.
+// Called with the controller interrupt excluded. The 4 ms interval limit keeps
+// the service slot within the ring starting at the current frame, after its
+// frame-list entry's previous visit.
 static void iso_arm(iso_ep_t* ep) {
   iso_td_t* td = ep->td;
   uint32_t const buffer = (uint32_t) ep->buffer;
   uint32_t const page = buffer & ~0xfffu;
   uint8_t const dir = tu_edpt_dir(ep->ep_addr);
   for (;;) {
-    uint32_t const now = iso_now();
-    iso_schedule(ep, now);
-    if ((ep->uframe & ~7u) - (now & ~7u) >= FRAMELIST_SIZE * 8u) {
-      return;
-    }
+    iso_schedule(ep, iso_now());
     if (ep->speed == TUSB_SPEED_HIGH) {
       ehci_itd_t* itd = &td->itd;
       // One service interval is at most 3072 bytes, spanning at most two pages.
@@ -1034,7 +1032,7 @@ static void iso_arm(iso_ep_t* ep) {
       itd->BufferPointer[0] = page | (itd->BufferPointer[0] & 0xfff);
       itd->BufferPointer[1] = (page + 4096) | (itd->BufferPointer[1] & 0xfff);
       uint8_t const slot = ep->uframe & 7;
-      td->words[ITD_XACT_WORD(slot)] = (buffer & 0xfff) | EHCI_ITD_XACT_IOC |
+      td->words[ITD_XACT_WORD(slot)] = (buffer & 0xfff) | EHCI_ITD_XACT_IOC | EHCI_ITD_XACT_ACTIVE |
                                        ((uint32_t) ep->buflen << EHCI_ITD_XACT_LENGTH_SHIFT);
     } else {
       ehci_sitd_t* sitd = &td->sitd;
@@ -1050,7 +1048,8 @@ static void iso_arm(iso_ep_t* ep) {
       (void) dir;
 #endif
       // Reset status, split progress and page selection; retain endpoint/masks.
-      td->words[SITD_STATE_WORD] = ((uint32_t) ep->buflen << EHCI_SITD_STATE_BYTES_SHIFT) | EHCI_SITD_STATE_IOC;
+      td->words[SITD_STATE_WORD] = ((uint32_t) ep->buflen << EHCI_SITD_STATE_BYTES_SHIFT) |
+                                   EHCI_SITD_STATE_IOC | EHCI_SITD_STATE_ACTIVE;
     }
     // An unvisited slot raises no interrupt. Recheck just before linking: a
     // delay since scheduling (preemption) moves the request to a later slot of
@@ -1058,21 +1057,14 @@ static void iso_arm(iso_ep_t* ep) {
     if ((int32_t) (ep->uframe - iso_earliest(iso_now())) >= 0) {
       break;
     }
+    if (ep->speed == TUSB_SPEED_HIGH) {
+      td->words[ITD_XACT_WORD(ep->uframe & 7)] = 0; // the next slot may be another microframe
+    }
   }
-  // Publish an inactive descriptor and its link before publishing Active.
-  // The previous request in this slot was unlinked before its completion event.
+  // The TD is unlinked, so Active was prepared with the rest of its state.
+  // list_insert() publishes the TD and its next link before the frame-list head.
   ehci_link_t* head = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
-  td->itd.next = *head;
-  TU_MEMORY_BARRIER();
-  head->address = (uint32_t) td | ((ep->speed == TUSB_SPEED_HIGH ? EHCI_QTYPE_ITD : EHCI_QTYPE_SITD) << 1);
-  TU_MEMORY_BARRIER();
-  if (ep->speed == TUSB_SPEED_HIGH) {
-    td->itd.xact[ep->uframe & 7].active = 1;
-  } else {
-    td->sitd.active = 1;
-  }
-  ep->armed = true;
-  TU_MEMORY_BARRIER();
+  list_insert(head, &td->itd.next, ep->speed == TUSB_SPEED_HIGH ? EHCI_QTYPE_ITD : EHCI_QTYPE_SITD);
 }
 
 static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buflen) {
@@ -1088,7 +1080,6 @@ static bool iso_xfer(uint8_t rhport, iso_ep_t* ep, uint8_t* buffer, uint16_t buf
   hcd_int_disable(rhport);
   ep->buffer = buffer;
   ep->buflen = buflen;
-  ep->armed = false;
   ep->busy = true;
   iso_arm(ep);
   hcd_int_enable(rhport);
@@ -1102,38 +1093,30 @@ static void iso_process(bool in_isr) {
     if (!ep->busy) {
       continue;
     }
-    // A deferred TD is armed once its frame enters the ring; one whose slot
-    // passed meanwhile moves to a later slot of its phase.
-    if (!ep->armed) {
-      iso_arm(ep);
-    }
     uint32_t const now = iso_now();
     // Future requests cannot complete yet.
     if ((int32_t) (now - ep->uframe) < 0) {
       continue;
     }
-    bool active = true;
+    bool active;
     bool error = false;
     uint32_t actual = 0;
-    iso_td_t* td = ep->armed ? ep->td : NULL;
-    if (ep->armed) {
-      if (ep->speed == TUSB_SPEED_HIGH) {
-        uint8_t const slot = ep->uframe & 7;
-        uint32_t const status = td->words[ITD_XACT_WORD(slot)];
-        active = (status & EHCI_ITD_XACT_ACTIVE) != 0;
-        if (!active) {
-          error = (status & EHCI_ITD_XACT_ERRORS) != 0;
-          actual = tu_edpt_dir(ep->ep_addr) ?
-            (status >> EHCI_ITD_XACT_LENGTH_SHIFT) & EHCI_ITD_XACT_LENGTH_MASK : ep->buflen;
-        }
-      } else {
-        uint32_t const status = td->words[SITD_STATE_WORD];
-        active = (status & EHCI_SITD_STATE_ACTIVE) != 0;
-        if (!active) {
-          error = (status & EHCI_SITD_STATE_ERRORS) != 0;
-          uint16_t const remaining = (status >> EHCI_SITD_STATE_BYTES_SHIFT) & EHCI_SITD_STATE_BYTES_MASK;
-          actual = ep->buflen - tu_min16(ep->buflen, remaining);
-        }
+    iso_td_t const* td = ep->td;
+    if (ep->speed == TUSB_SPEED_HIGH) {
+      uint32_t const status = td->words[ITD_XACT_WORD(ep->uframe & 7)];
+      active = (status & EHCI_ITD_XACT_ACTIVE) != 0;
+      if (!active) {
+        error = (status & EHCI_ITD_XACT_ERRORS) != 0;
+        actual = tu_edpt_dir(ep->ep_addr) ?
+          (status >> EHCI_ITD_XACT_LENGTH_SHIFT) & EHCI_ITD_XACT_LENGTH_MASK : ep->buflen;
+      }
+    } else {
+      uint32_t const status = td->words[SITD_STATE_WORD];
+      active = (status & EHCI_SITD_STATE_ACTIVE) != 0;
+      if (!active) {
+        error = (status & EHCI_SITD_STATE_ERRORS) != 0;
+        uint16_t const remaining = (status >> EHCI_SITD_STATE_BYTES_SHIFT) & EHCI_SITD_STATE_BYTES_MASK;
+        actual = ep->buflen - tu_min16(ep->buflen, remaining);
       }
     }
     uint32_t const end = ep->speed == TUSB_SPEED_HIGH ? ep->uframe + 1 :
@@ -1145,7 +1128,7 @@ static void iso_process(bool in_isr) {
       // The service slot passed unvisited. Retire the TD once the controller
       // cannot be on it (it may be revisiting the entry a ring later); until
       // then a later interrupt retries.
-      if (ep->armed && !iso_td_idle(ep)) {
+      if (!iso_td_idle(ep)) {
         continue;
       }
       error = true;
@@ -1165,10 +1148,7 @@ static void iso_process(bool in_isr) {
         actual = 0;
       }
     }
-    if (ep->armed) {
-      iso_td_unlink(ep);
-      ep->armed = false;
-    }
+    iso_td_unlink(ep);
     ep->uframe += ep->interval;
     ep->busy = false;
     hcd_event_xfer_complete(ep->daddr, ep->ep_addr, actual,
@@ -1196,7 +1176,7 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   TU_VERIFY(close || ep->busy);
   hcd_int_disable(rhport);
   bool done = true;
-  if (ep->armed) {
+  if (ep->busy) {
     if (close) {
       // The buffer goes back unconditionally; stop periodic DMA only if the
       // controller stays on the TD.
@@ -1223,7 +1203,6 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
       }
     } else {
       // Keep the cancelled slot: the next submission advances from it in phase.
-      ep->armed = false;
       ep->busy = false;
     }
   }
