@@ -234,10 +234,9 @@ class RetainedLock(LockDir):
     operation or an exception's `.operation`) stops the board: no retry, no further test, no
     park, and its lock passes to an acknowledged cleanup holder instead of being released."""
 
-    RECEIPT = '/tmp/hil_openocd_esp_x/receipt.json'
-
     def setUp(self):
         super().setUp()
+        self.RECEIPT = os.path.join(self.dir, 'receipt.json')
         from types import SimpleNamespace
         self.ns = SimpleNamespace
         self.log, self.flashes = [], []
@@ -278,15 +277,22 @@ class RetainedLock(LockDir):
         return self.ns(returncode=rc, stdout='', cleanup=cleanup, receipts=(self.RECEIPT,) if cleanup == 'pending' else (),
                        session={'failure': 'init failed', 'log': '/x/openocd.log', 'dir': '/nonexistent'})
 
+    def end_session(self):
+        """The receipt as `hil_openocd_esp.py end` leaves it on exit 0, which the holder's release waits for."""
+        with open(self.RECEIPT, 'w') as f:
+            json.dump({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}, f)
+
     def end_holder(self):
         rec = hil_lock.read_record(BOARD)
         if hil_lock.is_cleanup_holder(rec):
+            self.end_session()
             hil_lock.release_token(rec['token'])
 
     def assert_retained(self):
         rec = hil_lock.read_record(BOARD)
         self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
         self.assertIn(self.RECEIPT, rec['detail'])
+        self.assertEqual(rec['retained'], [self.RECEIPT])
         self.assertEqual((rec['protected'], rec['locks']), (True, [BOARD]))
         with self.assertRaises(hil_lock.BoardLocked):         # the holder keeps the flock itself
             hil_lock.take_board_lock(BOARD, 'peer')
@@ -315,8 +321,12 @@ class RetainedLock(LockDir):
         self.provider(self.op('pending', rc=124))
         self.run_board()
         self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.RECEIPT,)})
-        # the token ends the holder after recovery, and only then is the board free again
-        hil_lock.release_token(hil_lock.read_record(BOARD)['token'])
+        # the token ends the holder only once recovery ended the session, and only then is the board free again
+        token = hil_lock.read_record(BOARD)['token']
+        with self.assertRaisesRegex(hil_lock.ReleaseRefused, 'retained sessions are not proven ended'):
+            hil_lock.release_token(token)
+        self.end_session()
+        hil_lock.release_token(token)
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
     def test_pending_on_an_exception_hands_it_over_too(self):

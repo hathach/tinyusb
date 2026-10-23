@@ -2004,15 +2004,19 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
     one that fails leaves its protected record. Either way the handle is closed uncleared: the
     record on the free flock is the recovery blocker, and the board is never released."""
-    # a tracked esptool child's receipt makes the holder's release wait for its recheck to answer `done`
-    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if hil_flash.tracked_receipt(r)]
+    # the holder's release waits for a tracked esptool child's recheck to answer `done`, and for a
+    # retained openocd_esp session's receipt to read ended; a native record never does
+    receipts = hil_flash.cleanup_pending.get(name, ())
+    tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
+    retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
     try:
-        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked)
+        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+                                                retained=retained)
     except ValueError as e:
         why = str(e)
         try:
             hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  locks=[name])
+                                  retained=retained, locks=[name])
         except OSError as e2:
             why += f' (record not rewritten: {e2})'
     except hil_lock.LockUnavailable as e:
