@@ -136,6 +136,17 @@ static bool open_ep(uint8_t addr, uint8_t speed, uint16_t size, uint8_t interval
   return iso_ep_open(0, 1, &desc);
 }
 
+static bool td_linked(iso_ep_t const* ep) {
+  ehci_link_t const* link = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
+  while (!link->terminate) {
+    if (tu_align32(link->address) == (uint32_t) (uintptr_t) ep->td) {
+      return true;
+    }
+    link = list_next(link);
+  }
+  return false;
+}
+
 // Move the simulated controller clock so iso_now() returns now.
 static void set_now(uint32_t now) {
   ehci_data.iso_uframe = now + ehci_data.iso_frame_offset;
@@ -359,7 +370,6 @@ static void test_split_allocation(void) {
     // Short/ZLP requests do not release the maximum-packet reservation.
     assert(!open_ep(0x03, TUSB_SPEED_FULL, 1, 1));
     iso_td_unlink(out);
-    out->armed = false;
     out->busy = false;
   }
   buses[1].hub_port = 2;
@@ -413,35 +423,30 @@ static void test_hs(void) {
   assert(event.xfer_complete.len == 0);
 }
 
-static void test_long_interval_and_wrap(void) {
+// Service intervals are limited to 4 ms, so every TD is linked at submission.
+static void test_interval_limit_and_wrap(void) {
   reset(TUSB_SPEED_HIGH);
-  assert(open_ep(1, TUSB_SPEED_HIGH, 64, 10));
+  assert(!open_ep(1, TUSB_SPEED_HIGH, 64, 7));
+  assert(open_ep(1, TUSB_SPEED_HIGH, 64, 6)); // 32 microframes
   iso_ep_t* ep = iso_ep_find(1, 1);
   assert(iso_xfer(0, ep, buffer, 64));
-  assert(!ep->armed && ep->uframe == 1312);
-  regs.frame_index = 1264;
-  iso_process(true);
-  assert(ep->armed && events == 0);
+  assert(td_linked(ep) && ep->uframe == 832);
   ep->td->itd.xact[0].active = 0;
-  regs.frame_index = 1313;
+  regs.frame_index = 833;
   iso_process(true);
   assert(events == 1 && event.xfer_complete.len == 64);
-  assert(iso_xfer(0, ep, buffer, 64));
-  assert(!ep->armed && iso_stop(0, ep, false));
-  assert(!ep->busy && events == 1);
-  // Start a separate long interval request and let its slot pass unarmed: it
-  // moves to the next slot of its phase instead of failing.
-  ep->uframe = regs.frame_index + ep->interval;
-  assert(iso_xfer(0, ep, buffer, 64));
-  uint32_t const missed = ep->uframe;
-  regs.frame_index = ep->uframe + 1;
-  iso_process(true);
-  assert(ep->busy && !ep->armed && events == 1 && ep->uframe == missed + ep->interval);
+  // A slot that passed before the next submission moves on in phase, still
+  // inside the 8-frame list.
+  regs.frame_index = 900;
+  assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep) && ep->uframe == 928);
   assert(iso_stop(0, ep, false) && !ep->busy && events == 1);
   ehci_data.iso_last_frindex = 16380;
   ehci_data.iso_uframe = 0xfffffffcu;
   regs.frame_index = 4;
   assert(iso_now() == 4);
+  reset(TUSB_SPEED_FULL);
+  assert(!open_ep(1, TUSB_SPEED_FULL, 64, 4));
+  assert(open_ep(1, TUSB_SPEED_FULL, 64, 3)); // 4 frames
 }
 
 static void test_iso_status_errors(void) {
@@ -521,7 +526,7 @@ static void test_limits_and_late_completion(void) {
   assert(!open_ep(0x80, TUSB_SPEED_HIGH, 64, 1));
   assert(!open_ep(0x81, TUSB_SPEED_LOW, 64, 1));
   assert(!open_ep(0x81, TUSB_SPEED_HIGH, 64, 0));
-  assert(!open_ep(0x81, TUSB_SPEED_HIGH, 64, 17));
+  assert(!open_ep(0x81, TUSB_SPEED_HIGH, 64, 7)); // longer than 4 ms
   assert(!open_ep(0x81, TUSB_SPEED_HIGH, 0, 1));
   assert(!open_ep(0x81, TUSB_SPEED_HIGH, 1025, 1));
   assert(!open_ep(0x81, TUSB_SPEED_HIGH, 64 | (3 << 11), 1));
@@ -560,7 +565,7 @@ static void test_limits_and_late_completion(void) {
 
 static void test_schedule_sweep(void) {
   // Exercise every descriptor slot, all intervals and frame-counter wrap.
-  for (uint8_t interval = 1; interval <= 16; interval++) {
+  for (uint8_t interval = 1; interval <= 6; interval++) {
     for (uint32_t start = 16368; start < 16400; start++) {
       reset(TUSB_SPEED_HIGH);
       regs.frame_index = start & 0x3fff;
@@ -571,15 +576,11 @@ static void test_schedule_sweep(void) {
       uint32_t const now = iso_now();
       assert((int32_t)(due - now) >= 1);
       assert((due - now) % ep->interval == 0);
-      assert(ep->armed == (due - now < (FRAMELIST_SIZE - 1) * 8));
-      if (!ep->armed) {
-        assert(iso_stop(0, ep, false));
-      } else {
-        ep->td->itd.xact[due & 7].active = 0;
-        regs.frame_index = (due + 1) & 0x3fff;
-        iso_process(true);
-        assert(events == 1 && event.xfer_complete.result == XFER_RESULT_SUCCESS);
-      }
+      assert(td_linked(ep) && due - now < FRAMELIST_SIZE * 8);
+      ep->td->itd.xact[due & 7].active = 0;
+      regs.frame_index = (due + 1) & 0x3fff;
+      iso_process(true);
+      assert(events == 1 && event.xfer_complete.result == XFER_RESULT_SUCCESS);
     }
   }
 }
@@ -604,10 +605,9 @@ static void test_descriptor_reuse(void) {
         ep->uframe = round * FRAMELIST_SIZE * 8 + (hs ? round & 7 : 0);
         ep->buffer = buffer + ((round & 1) ? 0 : 4095);
         ep->buflen = round % 3 == 0 ? mps * (hs ? 3 : 1) : (round % 3 == 1 ? 192 : 0);
-        ep->armed = false;
         set_now(ep->uframe - 2);
         iso_arm(ep);
-        assert(ep->armed);
+        assert(td_linked(ep));
         iso_td_t* td = ep->td;
         uint32_t const ptr = (uint32_t)(uintptr_t)ep->buffer;
         uint32_t const page = ptr & ~0xfffu;
@@ -644,7 +644,6 @@ static void test_descriptor_reuse(void) {
           s->buffer[1] ^= 0x1f; // hardware advances OUT split count/position
         }
         iso_td_unlink(ep);
-        ep->armed = false;
       }
     }
   }
@@ -653,7 +652,7 @@ static void test_descriptor_reuse(void) {
 static void test_late_schedule_phase(void) {
   uint32_t const starts[] = {800, 16383, 0xfffffffe};
   uint32_t const delays[] = {0, 1, 19, 1031};
-  for (unsigned interval = 1; interval <= 16; interval++) {
+  for (unsigned interval = 1; interval <= 6; interval++) {
     for (unsigned s = 0; s < TU_ARRAY_SIZE(starts); s++) {
       for (unsigned d = 0; d < TU_ARRAY_SIZE(delays); d++) {
         reset(TUSB_SPEED_HIGH);
@@ -705,7 +704,7 @@ static void test_pool_hs_interval(uint8_t interval) {
         unsigned owners = 0;
         for (unsigned i = 0; i < TEST_ISO_STREAM_EP_COUNT; i++) {
           iso_ep_t* ep = &ehci_data.qtd_pool[i].iso;
-          if (ep->busy && ep->armed && ep->td == td) {
+          if (ep->busy && ep->td == td) {
             assert(ep->uframe == now);
             owners++;
           }
@@ -769,7 +768,7 @@ static void test_pool_fs_interval(uint8_t interval) {
             unsigned owners = 0;
             for (unsigned i = 0; i < TEST_ISO_STREAM_EP_COUNT; i++) {
               iso_ep_t* ep = &ehci_data.qtd_pool[i].iso;
-              if (ep->busy && ep->armed && ep->td == td) {
+              if (ep->busy && ep->td == td) {
                 assert(ep->uframe == (now & ~7u));
                 owners++;
               }
@@ -805,13 +804,13 @@ static void test_pool_fs_interval(uint8_t interval) {
 }
 
 static void test_pool_stream(void) {
-  for (uint8_t interval = 1; interval <= 16; interval++) {
+  for (uint8_t interval = 1; interval <= 6; interval++) {
     test_pool_hs_interval(interval);
   }
 }
 
 static void test_pool_fs_stream(void) {
-  for (uint8_t interval = 1; interval <= 16; interval++) {
+  for (uint8_t interval = 1; interval <= 3; interval++) {
     test_pool_fs_interval(interval);
   }
 }
@@ -840,7 +839,7 @@ static void test_completion_unlink(bool hs) {
   first_td->words[status_word] &= ~active;
   regs.frame_index = due;
   iso_process(true);
-  assert(events == 1 && !first->busy && !first->armed);
+  assert(events == 1 && !first->busy);
   // Completion removes a middle TD immediately, preserving the active sibling.
   assert(second_td->words[status_word] & active);
   assert(second_td->itd.next.address == original.address);
@@ -851,7 +850,7 @@ static void test_completion_unlink(bool hs) {
   ehci_link_t const next_original = hs ? original : ehci_data.period_framelist[next_frame];
   assert(iso_xfer(0, first, buffer, 24));
   iso_td_t* replacement = first->td;
-  assert(first->armed && first->uframe == next_due);
+  assert(td_linked(first) && first->uframe == next_due);
   second_td->words[status_word] &= ~active;
   iso_process(true);
   assert(events == 2 && !second->busy);
@@ -883,7 +882,7 @@ static void test_future_completion(void) {
       ehci_data.iso_uframe = starts[i] + ehci_data.iso_frame_offset;
       regs.frame_index = ehci_data.iso_last_frindex = ehci_data.iso_uframe & 0x3fff;
       assert(iso_xfer(0, ep, buffer, 64));
-      assert(ep->armed);
+      assert(td_linked(ep));
       uint32_t const due = ep->uframe;
       regs.frame_index = (due - 1 + ehci_data.iso_frame_offset) & 0x3fff;
       iso_process(true);
@@ -922,17 +921,6 @@ static void test_split_slot_range(void) {
 }
 #endif
 
-static bool td_linked(iso_ep_t const* ep) {
-  ehci_link_t const* link = &ehci_data.period_framelist[(ep->uframe >> 3) % FRAMELIST_SIZE];
-  while (!link->terminate) {
-    if (tu_align32(link->address) == (uint32_t) (uintptr_t) ep->td) {
-      return true;
-    }
-    link = list_next(link);
-  }
-  return false;
-}
-
 // A slot that passed unvisited is retired without stopping the periodic
 // schedule, but not while the controller may be revisiting its entry.
 static void test_missed_slot_without_stop(void) {
@@ -941,16 +929,16 @@ static void test_missed_slot_without_stop(void) {
   assert(open_ep(0x81, TUSB_SPEED_HIGH, 64, 1));
   iso_ep_t* ep = iso_ep_find(1, 0x81);
   set_now(1000);
-  assert(iso_xfer(0, ep, buffer, 64) && ep->armed && ep->uframe == 1001 && td_linked(ep));
+  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001 && td_linked(ep));
   uint32_t const slot = ep->uframe;
 
   // A ring later the controller is back on this microframe: retry later.
   set_now(slot + FRAMELIST_SIZE * 8);
   iso_process(true);
-  assert(events == 0 && ep->busy && ep->armed);
+  assert(events == 0 && ep->busy && td_linked(ep));
   set_now(slot + FRAMELIST_SIZE * 8 + 1);
   iso_process(true);
-  assert(events == 1 && !ep->busy && !ep->armed && event.xfer_complete.result == XFER_RESULT_FAILED);
+  assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
   assert(!td_linked(ep) && !ep->td->itd.xact[slot & 7].active);
   assert(!regs.command_bm.periodic_enable); // the schedule was never toggled
 }
@@ -963,14 +951,14 @@ static void test_missed_fs_slot_margin(void) {
   assert(open_ep(0x81, TUSB_SPEED_FULL, 192, 1));
   iso_ep_t* ep = iso_ep_find(1, 0x81);
   set_now(1000);
-  assert(iso_xfer(0, ep, buffer, 192) && ep->armed);
+  assert(iso_xfer(0, ep, buffer, 192) && td_linked(ep));
   uint32_t const frame = ep->uframe;
   set_now(frame + 8); // slot over, but the controller may still be on the TD
   iso_process(true);
-  assert(events == 0 && ep->armed);
+  assert(events == 0 && ep->busy && td_linked(ep));
   set_now(frame + 16);
   iso_process(true);
-  assert(events == 1 && !ep->armed && event.xfer_complete.result == XFER_RESULT_FAILED);
+  assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
   assert(!td_linked(ep) && !ep->td->sitd.active);
 }
 
@@ -981,9 +969,9 @@ static void test_abort_idle_margin(void) {
   assert(open_ep(0x81, TUSB_SPEED_HIGH, 64, 1));
   iso_ep_t* ep = iso_ep_find(1, 0x81);
   set_now(1000);
-  assert(iso_xfer(0, ep, buffer, 64) && ep->armed && ep->uframe == 1001);
+  assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep) && ep->uframe == 1001);
   assert(!iso_stop(0, ep, false)); // next microframe: leave it to complete
-  assert(ep->busy && ep->armed && td_linked(ep));
+  assert(ep->busy && td_linked(ep));
   ep->td->itd.xact[ep->uframe & 7].active = 0;
   set_now(1001);
   iso_process(true);
@@ -991,13 +979,13 @@ static void test_abort_idle_margin(void) {
 
   ep->uframe = 1004; // two microframes ahead once scheduled from 1002
   set_now(1002);
-  assert(iso_xfer(0, ep, buffer, 64) && ep->armed && ep->uframe == 1004);
-  assert(iso_stop(0, ep, false) && !ep->busy && !ep->armed && !td_linked(ep));
+  assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep) && ep->uframe == 1004);
+  assert(iso_stop(0, ep, false) && !ep->busy && !td_linked(ep));
   assert(events == 1 && !regs.command_bm.periodic_enable);
 
   // Close while idle frees without touching the schedule.
   ep->uframe = 1010;
-  assert(iso_xfer(0, ep, buffer, 64) && ep->armed);
+  assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
   uint32_t const entry = (ep->uframe >> 3) % FRAMELIST_SIZE;
   assert(iso_stop(0, ep, true) && iso_ep_find(1, 0x81) == NULL);
   assert(ehci_data.period_framelist[entry].terminate || ehci_data.period_framelist[entry].type == EHCI_QTYPE_QHD);
@@ -1026,8 +1014,8 @@ static void test_abort_keeps_phase(void) {
   assert(open_ep(0x81, TUSB_SPEED_HIGH, 64, 3)); // 4-microframe interval
   iso_ep_t* ep = iso_ep_find(1, 0x81);
   set_now(1000);
-  ep->uframe = 1202; // phase 2, beyond the ring so the request stays unarmed
-  assert(iso_xfer(0, ep, buffer, 64) && !ep->armed);
+  ep->uframe = 1002; // phase 2, still ahead and idle when cancelled
+  assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep) && ep->uframe == 1002);
   assert(iso_stop(0, ep, false) && !ep->busy);
   assert(iso_xfer(0, ep, buffer, 64));
   assert(ep->uframe % ep->interval == 2);
@@ -1053,7 +1041,7 @@ static void test_sof_free(void) {
   reset(TUSB_SPEED_HIGH);
   regs.inten |= EHCI_INT_MASK_FRAMELIST_ROLLOVER; // as ehci_init() enables it
   assert(open_ep(0x81, TUSB_SPEED_HIGH, 64, 1));
-  assert(open_ep(0x02, TUSB_SPEED_HIGH, 64, 8)); // 128-microframe interval
+  assert(open_ep(0x02, TUSB_SPEED_HIGH, 64, 6)); // 32 microframes, the longest
   iso_ep_t* in = iso_ep_find(1, 0x81);
   iso_ep_t* out = iso_ep_find(1, 0x02);
 
@@ -1061,31 +1049,22 @@ static void test_sof_free(void) {
   set_now(1000);
   in->uframe = 990;
   assert(iso_xfer(0, in, buffer, 64));
-  assert(in->armed && in->uframe == 1001);
+  assert(td_linked(in) && in->uframe == 1001);
+  // The longest interval still lands inside the ring and is linked at once.
+  out->uframe = 999;
+  assert(iso_xfer(0, out, buffer + 64, 64) && td_linked(out) && out->uframe == 1031);
 
-  // A TD beyond the current ring waits for rollover to arm it.
-  out->uframe = 1000 + 2 * FRAMELIST_SIZE * 8 + 5;
-  assert(iso_xfer(0, out, buffer + 64, 64) && !out->armed);
-  // Its frame is still beyond the ring at the next rollover...
-  set_now((1000 & ~(FRAMELIST_SIZE * 8 - 1)) + FRAMELIST_SIZE * 8);
+  // Frame-list rollover alone retires a visited TD.
   in->td->itd.xact[in->uframe & 7].active = 0;
+  set_now(1024);
   regs.status = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
   hcd_int_handler(0, true);
-  assert(events == 1 && !in->busy); // rollover also retired the visited TD
-  assert(event.xfer_complete.result == XFER_RESULT_SUCCESS);
-  assert(!out->armed);
-  // ...and inside it at the following one, armed in its original slot.
-  uint32_t const due = out->uframe;
-  set_now(iso_now() + FRAMELIST_SIZE * 8);
-  regs.status = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
-  hcd_int_handler(0, true);
-  assert(out->armed && out->uframe == due);
-  assert(ehci_data.period_framelist[(due >> 3) % FRAMELIST_SIZE].address ==
-         ((uint32_t) (uintptr_t) out->td | (EHCI_QTYPE_ITD << 1)));
+  assert(events == 1 && !in->busy && event.xfer_complete.result == XFER_RESULT_SUCCESS);
+  assert(out->busy && td_linked(out));
 
-  // A completion retires it; SOF was never enabled.
-  set_now(due);
-  out->td->itd.xact[due & 7].active = 0;
+  // A completion retires the other; SOF was never enabled.
+  set_now(1031);
+  out->td->itd.xact[1031 & 7].active = 0;
   iso_process(true); // as the completion interrupt does
   assert(events == 2 && !out->busy && event.xfer_complete.result == XFER_RESULT_SUCCESS);
   assert(!(regs.inten & EHCI_INT_MASK_NXP_SOF));
@@ -1111,7 +1090,7 @@ int main(void) {
   test_hs();
   test_iso_status_errors();
   test_iso_clock_config();
-  test_long_interval_and_wrap();
+  test_interval_limit_and_wrap();
   test_limits_and_late_completion();
   test_schedule_sweep();
   test_descriptor_reuse();
