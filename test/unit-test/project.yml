@@ -159,6 +159,10 @@
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    :test_usbh:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUD_ENABLED=0
+      - CFG_TUSB_DEBUG=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
