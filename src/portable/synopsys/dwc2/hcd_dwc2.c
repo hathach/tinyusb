@@ -15,6 +15,7 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
+#include "host/usbh_pvt.h"
 #include "dwc2_common.h"
 
   // Debug level for DWC2
@@ -1158,7 +1159,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
-  hcd_int_disable(rhport);
+  usbh_critical_enter(false);
 
   const bool xfer_pending = edpt->xfer_pending;
   if (xfer_pending) {
@@ -1167,7 +1168,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   if (xfer_pending) {
-    hcd_int_enable(rhport);
+    usbh_critical_exit(false);
     return true;
   }
 
@@ -1176,7 +1177,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   {
     const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
     if (ch_id < 16 && ls_park_retire(dwc2, ch_id)) {
-      hcd_int_enable(rhport);
+      usbh_critical_exit(false);
       return true;
     }
   }
@@ -1190,12 +1191,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
       edpt->aborting = 1;
       xfer->aborting = true;
-      hcd_int_enable(rhport);
+      usbh_critical_exit(false);
       return true;
     }
   }
 
-  hcd_int_enable(rhport);
+  usbh_critical_exit(false);
 
   // Channel disable may wait for request-queue space in slave mode.
   // Find enabled channeled and disable it, channel will be de-allocated in the interrupt handler
