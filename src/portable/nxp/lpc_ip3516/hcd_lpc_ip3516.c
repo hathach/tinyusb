@@ -320,7 +320,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
     ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
     const uint8_t index = (uint8_t)(ptd - _ptd.iso);
     // Each submission covers at most one endpoint packet, including splits.
-    TU_VERIFY(buflen <= _iso_ep[index].max_packet_size);
+    TU_ASSERT(buflen <= _iso_ep[index].max_packet_size);
     const uint32_t interval = _iso_ep[index].interval;
     const uint32_t now = (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >>
                          USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
@@ -575,14 +575,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
     // A full-speed hub may sit between this device and its high-speed TT.
     while (bus_info.hub_addr != 0) {
       tuh_bus_info_t hub;
-      TU_VERIFY(tuh_bus_info_get(bus_info.hub_addr, &hub));
+      TU_ASSERT(tuh_bus_info_get(bus_info.hub_addr, &hub));
       if (hub.speed == TUSB_SPEED_HIGH) {
         break;
       }
       bus_info.hub_addr = hub.hub_addr;
       bus_info.hub_port = hub.hub_port;
     }
-    TU_VERIFY(bus_info.hub_addr != 0);
+    TU_ASSERT(bus_info.hub_addr != 0);
   }
 
   const uint8_t ptd_index = ptd_find_free(xfer_type);
