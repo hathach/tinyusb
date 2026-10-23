@@ -94,18 +94,19 @@ static inline bool is_xfer_async(tusb_xfer_type_t xfer_type) {
   return (xfer_type == TUSB_XFER_CONTROL || xfer_type == TUSB_XFER_BULK);
 }
 
-// Reserve coarse ISO payload windows on the downstream bus. Assume MTT hubs:
-// each (hub address, downstream port) has an independent schedule.
+// Reserve coarse ISO payload windows on the downstream bus, per transaction
+// translator: each port of a multi-TT hub, or all ports of a single-TT hub.
 // OUT grows from slot 0, IN from the end, leaving two extra complete attempts
 // before the frame ends. Windows use maximum packet sizes, not current data.
 // This is best effort: no full bus-time admission or interrupt reservations.
 #if CFG_TUH_HUB
 static bool iso_split_slot(uint8_t hub_addr, uint8_t hub_port, uint16_t packet_size, uint8_t dir, uint8_t *slot) {
-  uint8_t used = 0;
+  const bool multi = hub_tt_multi(hub_addr);
+  uint8_t    used  = 0;
   for (uint8_t i = 0; i < IP3516_PTL_NUM; i++) {
     const ip3516_ptl_t *ptd = &_ptd.iso[i];
-    if (!is_ptd_free(ptd->ctrl1) && ptd->ctrl2.split &&
-        ptd->ctrl2.hub_addr == hub_addr && ptd->ctrl2.hub_port == hub_port) {
+    if (!is_ptd_free(ptd->ctrl1) && ptd->ctrl2.split && ptd->ctrl2.hub_addr == hub_addr &&
+        (!multi || ptd->ctrl2.hub_port == hub_port)) {
       const uint8_t count = (uint8_t)((_iso_ep[i].max_packet_size + 187u) / 188u);
       used |= ((1u << count) - 1u) << _iso_ep[i].split_slot;
     }
