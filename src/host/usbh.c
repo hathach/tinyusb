@@ -2148,7 +2148,8 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE,);
 
       // Get full configuration descriptor
-      uint8_t const config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
+      uint8_t const config_idx = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0xFF);
       TU_LOG_USBH("Get Configuration[%u] Descriptor\r\n", config_idx);
       is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, total_len,
                                                          process_enumeration, ENUM_SET_CONFIG);
@@ -2156,12 +2157,22 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     }
 
     case ENUM_SET_CONFIG: {
-      uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
+      uint8_t config_idx = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0xFF);
+
+      // Pointer to data from previous GET_DESCRIPTOR request. Allows us to get the bConfigurationValue used in SET_CONFIGURATION request.
+      tusb_desc_configuration_t const* desc_config =
+      (tusb_desc_configuration_t const*) _usbh_epbuf.ctrl;
+
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
-        is_enum_failed = !tuh_configuration_set(daddr, config_idx+1u, process_enumeration, ENUM_CONFIG_DRIVER);
+        is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, ENUM_CONFIG_DRIVER);
       } else {
         config_idx++;
-        TU_ASSERT(config_idx < dev->desc_device.bNumConfigurations,);
+        if (config_idx >= dev->desc_device.bNumConfigurations) {
+          TU_LOG_USBH("No acceptable configuration\r\n");
+          is_enum_failed = true;
+          break;
+        }
         TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
         is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
                                                            process_enumeration, ENUM_GET_FULL_CONFIG_DESC);
