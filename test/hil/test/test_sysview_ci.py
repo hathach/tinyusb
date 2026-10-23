@@ -607,6 +607,7 @@ class TestBuildOneFirmwarePath(unittest.TestCase):
             fw, err = sysview_ci.build_one(self._board(), self._repo([]))
         self.assertIsNone(fw)
         self.assertIn("error: 'x' undeclared", err)
+        self.assertEqual(run.call_args_list[0].kwargs["stdout"], subprocess.PIPE)
         self.assertEqual(run.call_args_list[0].kwargs["stderr"], subprocess.STDOUT)
 
 
