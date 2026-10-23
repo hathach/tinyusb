@@ -9,10 +9,10 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_MSC)
 
+#include "common/tusb_sysview.h"
 #include "device/dcd.h"         // for faking dcd_event_xfer_complete
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
-#include "common/tusb_sysview.h"
 
 #include "msc_device.h"
 

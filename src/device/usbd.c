@@ -9,10 +9,10 @@
 
 #if CFG_TUD_ENABLED
 
+#include "common/tusb_sysview.h"
 #include "tusb.h"
 #include "device/dcd.h"
 #include "common/tusb_private.h"
-#include "common/tusb_sysview.h"
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"

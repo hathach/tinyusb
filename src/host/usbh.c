@@ -9,11 +9,11 @@
 
 #if CFG_TUH_ENABLED
 
+#include "common/tusb_sysview.h"
 #include "hcd.h"
 #include "tusb.h"
 #include "usbh_pvt.h"
 #include "hub.h"
-#include "common/tusb_sysview.h"
 
 //--------------------------------------------------------------------+
 // Configuration
