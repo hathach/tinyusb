@@ -34,12 +34,23 @@ manufacturer: WCH
 // hardware context stack and corrupts the return on nesting. Emit naked handlers that rely on
 // HWSTK for context save/restore (equivalent to WCH's "WCH-Interrupt-fast"), which nests safely.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_FSDEV
-  // The `call dcd_int_handler` below lives inside naked asm where LTO cannot see it; without a
-  // compiler-visible reference, -flto builds (make) internalize/drop the symbol and the link fails.
-  TU_ATTR_USED static void (*const fsdev_isr_keep)(uint8_t) = dcd_int_handler;
+  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
+  static void fsdev_dcd_int_handler(uint8_t rhport) {
+    TU_SYSVIEW_ISR_ENTER();
+    dcd_int_handler(rhport);
+    TU_SYSVIEW_ISR_EXIT();
+  }
+    #define FSDEV_ISR_TARGET fsdev_dcd_int_handler
+  #else
+    #define FSDEV_ISR_TARGET dcd_int_handler
+  #endif
+  // The `call` below lives inside naked asm where LTO cannot see it; without a compiler-visible
+  // reference, -flto builds (make) internalize/drop the symbol and the link fails.
+  TU_ATTR_USED static void (*const fsdev_isr_keep)(uint8_t) = FSDEV_ISR_TARGET;
   #define FSDEV_NAKED_ISR(name) \
     __attribute__((naked)) __attribute__((used)) void name(void) { \
-      __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret"); }
+      __asm volatile("li a0, 0\n\t call " TU_XSTRING(FSDEV_ISR_TARGET) "\n\t mret"); }
 #else
   #define FSDEV_NAKED_ISR(name) \
     __attribute__((naked)) __attribute__((used)) void name(void) { __asm volatile("mret"); }
