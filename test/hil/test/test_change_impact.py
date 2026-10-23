@@ -1857,6 +1857,7 @@ class TestBuildClassifier(unittest.TestCase):
                   '.clang-format', '.idea/misc.xml', 'version.yml', 'library.json',
                   'examples/CMakePresets.json', 'test/fuzz/fuzz.cc',
                   'test/unit-test/project.yml', '.github/workflows/pr_comment.yml',
+                  '.github/workflows/membrowse-comment.yml', '.github/membrowse_pr_message.j2',
                   '.github/scripts/code_size_ci.py', '.claude/skills/build-doc/scripts/gen_doc.py', '.agents'):
             s = self.b([p])
             self.assertFalse(s['full'], p)

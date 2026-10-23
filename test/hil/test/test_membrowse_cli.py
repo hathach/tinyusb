@@ -49,6 +49,32 @@ class Regexes(unittest.TestCase):
                 r'D:/a/out/cdc_msc.bin""' '\n')
         self.assertEqual(cli.extract_ld_scripts(text), ['D:/a/bsp/STM32F407VGTx_FLASH.ld'])
 
+    def test_ld_include_dir_extraction_all_forms_deduped(self):
+        # pico-sdk hands its script_include dirs to the linker as -Wl,-L<dir>
+        text = ('cc -Wl,-L/sdk/rp2350/script_include -Wl,-L/sdk/common/script_include '
+                '-L /lib/a -L/lib/b -Wl,-L,/lib/c -Wl,--library-path=/lib/d -L/lib/a '
+                '-Wl,--library-path,/lib/e '
+                '-Wl,--script=/sdk/default_locations.ld -T/sdk/memmap_default.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_include_dirs(text),
+                         ['/sdk/rp2350/script_include', '/sdk/common/script_include',
+                          '/lib/a', '/lib/b', '/lib/c', '/lib/d', '/lib/e'])
+        self.assertEqual(cli.extract_ld_include_dirs('cc -o out.elf\n'), [])
+
+    def test_section_address_options_are_not_scripts(self):
+        # -Ttext ADDRESS and friends share -T's prefix but name an address
+        text = ('cc -Wl,-Ttext=0x1000 -Wl,-Tdata,0x2000 -Tbss=0x3000 -Wl,-Ttext-segment=0x4000 '
+                '-T /sdk/memmap.ld -Tboard.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/memmap.ld', 'board.ld'])
+
+    def test_grouped_wl_options_are_split_before_extraction(self):
+        # -Wl,a,b,c hands the linker three arguments: -L and -T inside such a group,
+        # in either position, are the linker's own and must not swallow their neighbours
+        text = ('cc -Wl,-L,/sdk/script_include,--gc-sections '
+                '-Wl,--gc-sections,-L,/sdk/other,--script=/sdk/locations.ld '
+                '-Wl,--no-warn-rwx-segments,-T,/sdk/memmap.ld -o out.elf\n')
+        self.assertEqual(cli.extract_ld_include_dirs(text), ['/sdk/script_include', '/sdk/other'])
+        self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/locations.ld', '/sdk/memmap.ld'])
+
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
         self.assertEqual(cli.DEFSYM_RE.findall(text), ['FOO=0x10', 'BAR=1'])
@@ -110,7 +136,24 @@ class BuildMembrowseCmd(unittest.TestCase):
             open(elf, 'w').close()
             commands = 'cc -Wl,--script=/a/b.ld -o x.elf\n'
             cmd = cli.build_membrowse_cmd(self._args(elf), commands)
-            self.assertEqual(cmd, ['membrowse', 'report', elf, '/a/b.ld'])
+            self.assertEqual(cmd, ['membrowse', 'report', elf, '/a/b.ld',
+                                   '--source-root', cli.REPO_ROOT])
+            # the checkout, not the build dir: ESP-IDF's docker legs mount it at /project
+            self.assertTrue(os.path.isfile(os.path.join(cli.REPO_ROOT, 'tools', 'membrowse_cli.py')))
+
+    def test_identical_report_names_no_source_root(self):
+        cmd = cli.build_membrowse_cmd(self._args('/no/such.elf', ld=['/fake.ld']), '')
+        self.assertEqual(cmd, ['membrowse', 'report', '--identical'])
+
+    def test_linker_search_dirs_become_ld_include_dir_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            elf = os.path.join(tmp, 'x.elf')
+            open(elf, 'w').close()
+            commands = 'cc -Wl,-L/sdk/script_include -L/lib -T/sdk/memmap_default.ld -o x.elf\n'
+            cmd = cli.build_membrowse_cmd(self._args(elf), commands)
+            self.assertEqual(cmd[:8], ['membrowse', 'report', elf, '/sdk/memmap_default.ld',
+                                       '--ld-include-dir', '/sdk/script_include',
+                                       '--ld-include-dir', '/lib'])
 
     def test_map_file_appended_when_present(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -171,6 +214,80 @@ class Redaction(unittest.TestCase):
         for secret in (None, ''):
             self.assertEqual(cli.redacted(['membrowse', 'report', 'x'], secret),
                              ['membrowse', 'report', 'x'])
+
+
+class PrCommentWorkflow(unittest.TestCase):
+    """membrowse-comment.yml posts only for the PR head's newest Build run."""
+    WORKFLOW = os.path.join(REPO, '.github', 'workflows', 'membrowse-comment.yml')
+
+    def test_a_superseded_run_does_not_post(self):
+        import yaml
+        with open(self.WORKFLOW) as f:
+            steps = yaml.safe_load(f)['jobs']['post-comment']['steps']
+        gate = next(s for s in steps if s.get('id') == 'current')
+        self.assertIn('code_size_ci.py is-current', gate['run'])
+        post = next(s for s in steps if 'comment-action' in s.get('uses', ''))
+        self.assertEqual(post['if'], "steps.current.outputs.post == 'true'")
+        self.assertEqual(post['with']['pr_number'], '${{ steps.current.outputs.number }}')
+        checkout = next(s for s in steps if s.get('uses', '').startswith('actions/checkout'))
+        self.assertIn('.github/scripts/code_size_ci.py', checkout['with']['sparse-checkout'])
+
+
+class PrCommentTemplate(unittest.TestCase):
+    """The comment template renders names from the PR's own build into a comment
+    posted with the base repo's token: they must not break the table, open
+    HTML, links or code, or @mention anyone."""
+    TEMPLATE = os.path.join(REPO, '.github', 'membrowse_pr_message.j2')
+
+    @staticmethod
+    def _span(delta, build):
+        s = f'{delta:+}'
+        return {'min': delta, 'max': delta, 'min_str': s, 'max_str': s,
+                'min_build': build, 'max_build': build, 'builds': 1 if delta else 0}
+
+    def _render(self, name, build, targets=None):
+        import jinja2  # the comment action installs it with membrowse
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.dirname(self.TEMPLATE)),
+                                 autoescape=False, trim_blocks=True, lstrip_blocks=True)
+        row = {'name': name, 'flash': self._span(12, build), 'ram': self._span(0, None),
+               'other': self._span(0, None), 'builds': 1}
+        targets = targets or [{'name': build, 'comparison_url': None, 'has_changes': True,
+                               'has_alerts': False, 'alerts': []}]
+        return env.get_template(os.path.basename(self.TEMPLATE)).render(
+            file_changes=[row], targets=targets, targets_with_file_changes=1)
+
+    def test_builds_link_to_their_comparison_and_alerts_are_kept(self):
+        targets = [
+            {'name': 'pico/cdc_msc', 'comparison_url': 'https://m/compare?a=1&b=2',
+             'has_changes': True, 'has_alerts': True,
+             'alerts': [{'budget_name': 'release', 'region': 'RAM', 'usage': 270000,
+                         'limit': 262144, 'exceeded': 7856}]},
+            {'name': 'other/hid', 'comparison_url': None, 'has_changes': False,
+             'has_alerts': False, 'alerts': []},
+        ]
+        out = self._render('src/a.c', 'pico/cdc_msc', targets)
+        self.assertIn('[pico/cdc_msc](<https://m/compare?a=1&b=2>)', out)
+        self.assertIn('**Budget alerts** in 1 build\n', out)
+        self.assertIn('release RAM 270,000 B, over by 7,856 B', out)
+        out = self._render('src/a.c', 'other/hid', targets)
+        self.assertIn('| other/hid |', out)  # no url, plain name
+
+    def test_names_are_escaped_and_mentions_neutralized(self):
+        crafted = 'a|b<img src=x>`c`[d](e)\\f @hathach\nline2'
+        out = self._render(crafted, 'board@hathach/[x]')
+        rows = [line for line in out.splitlines() if line.startswith('| ') and 'File' not in line]
+        self.assertEqual(len(rows), 1, out)
+        self.assertEqual(rows[0].count('|'), 7, rows[0])  # the row's own 7 pipes, none from the names
+        for raw in ('<img', '`c`', '[d](e)', '@hathach', 'line2\n', '\\f'):
+            self.assertNotIn(raw, out)
+        for escaped in ('a&#124;b', '&#60;img', '&#96;c&#96;', '&#91;d&#93;(e)', '&#92;f',
+                        '@\u200bhathach', 'board@\u200bhathach/&#91;x&#93;'):
+            self.assertIn(escaped, out)
+
+    def test_overlong_names_are_cut(self):
+        out = self._render('x' * 500, 'b')
+        self.assertIn('x' * 160 + '…', out)
+        self.assertNotIn('x' * 161, out)
 
 
 @posix_only

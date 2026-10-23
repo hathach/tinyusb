@@ -3,6 +3,9 @@
 
 MEMBROWSE_API_KEY is read from the environment at run time (only with --upload),
 never at CMake configure time, and redacted from the logged command line.
+Symbols are attributed to source files relative to the repository (REPO_ROOT, the
+parent of this script's directory), so src/device/usbd.c stays distinct from a
+vendor file of the same name; files outside the checkout keep their basename.
 """
 import argparse
 import os
@@ -10,6 +13,8 @@ import re
 import shlex
 import subprocess
 import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # `--defsym=SYM=VAL` or `--defsym,SYM=VAL` from a link line
 DEFSYM_RE = re.compile(r'--defsym[=,](\S+)')
@@ -43,25 +48,62 @@ def link_command(ninja, build_dir, elf):
     return stdout
 
 
-def extract_ld_scripts(commands_text):
-    """Deduped linker scripts referenced by a link command."""
-    scripts = []
+def _link_argv(commands_text):
+    """The argv of each line of a link command, Windows ninja's
+    `cmd.exe /C "cd . && <link command>"` wrapper unwrapped."""
     for line in commands_text.splitlines():
         try:
             args = shlex.split(line)
-            # Windows ninja links through `cmd.exe /C "cd . && <link command>"`
             if len(args) >= 3 and args[0].lower().endswith('cmd.exe') and args[1].lower() == '/c':
                 args = shlex.split(args[2])
         except ValueError:
             continue
+        yield args
+
+
+def _linker_argv(args):
+    """A link command's options as the linker sees them: the compiler driver's
+    `-Wl,a,b,c` hands the linker a, b and c as separate arguments (pico-sdk
+    groups `-L` with other options that way); everything else passes through."""
+    for arg in args:
+        if arg.startswith('-Wl,'):
+            yield from arg[len('-Wl,'):].split(',')
+        else:
+            yield arg
+
+
+# ld's section-address options share -T's prefix but take an address, not a script
+LD_ADDRESS_OPTION_RE = re.compile(r'-T(text|data|bss|ldata|text-segment|rodata-segment|ldata-segment)(=|$)')
+
+
+def _option_values(commands_text, short, long):
+    """Values of an option across a link command, deduped in order, in its
+    `-X value`, `-Xvalue`, `--long value` and `--long=value` spellings."""
+    values = []
+    for args in _link_argv(commands_text):
+        args = list(_linker_argv(args))
         for i, arg in enumerate(args):
-            if arg == '-T' and i + 1 < len(args):
-                scripts.append(args[i + 1])
-            elif arg.startswith('-T') and len(arg) > 2:
-                scripts.append(arg[2:])
-            elif arg.startswith('-Wl,--script='):
-                scripts.append(arg.split('=', 1)[1])
-    return list(dict.fromkeys(scripts))
+            if LD_ADDRESS_OPTION_RE.match(arg):
+                continue
+            if arg in (short, long) and i + 1 < len(args):
+                values.append(args[i + 1])
+            elif arg.startswith(short) and len(arg) > len(short):
+                values.append(arg[len(short):])
+            elif arg.startswith(long + '='):
+                values.append(arg.split('=', 1)[1])
+    return [value for value in dict.fromkeys(values) if value]
+
+
+def extract_ld_scripts(commands_text):
+    """Deduped linker scripts referenced by a link command (-T, --script)."""
+    return _option_values(commands_text, '-T', '--script')
+
+
+def extract_ld_include_dirs(commands_text):
+    """Deduped linker search directories of a link command (-L, --library-path),
+    in order. GNU LD looks for a script's INCLUDE files there: pico-sdk 2.3 keeps
+    its MEMORY block in script_include/memmap_default.incl, found only through them."""
+    return _option_values(commands_text, '-L', '--library-path')
 
 
 def extract_defsyms(commands_text):
@@ -70,10 +112,13 @@ def extract_defsyms(commands_text):
     return list(dict.fromkeys(DEFSYM_RE.findall(commands_text)))
 
 
-def report_inputs(elf, ld_scripts, defsyms):
+def report_inputs(elf, ld_scripts, defsyms, ld_include_dirs=()):
     """The membrowse report argv naming one elf's inputs: elf, linker scripts,
-    --def per defsym, and its .map when present."""
+    --def per defsym, --ld-include-dir per linker search directory, and its
+    .map when present."""
     inputs = [elf, ' '.join(ld_scripts)]
+    for directory in ld_include_dirs:
+        inputs += ['--ld-include-dir', directory]
     for sym in defsyms:
         inputs += ['--def', sym]
     map_path = elf + '.map'
@@ -95,7 +140,9 @@ def build_membrowse_cmd(args, commands_text):
             # same silent default-regions report as a failed ninja query
             sys.exit(f'error: no linker script found in the ninja build graph for '
                       f'{args.elf!r}; pass --ld to supply linker scripts explicitly')
-        cmd += report_inputs(args.elf, ld_scripts, extract_defsyms(commands_text))
+        cmd += report_inputs(args.elf, ld_scripts, extract_defsyms(commands_text),
+                             extract_ld_include_dirs(commands_text))
+        cmd += ['--source-root', REPO_ROOT]
     else:
         cmd += ['--identical']
 

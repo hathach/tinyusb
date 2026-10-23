@@ -77,7 +77,7 @@ class ReportForElf(unittest.TestCase):
             open(os.path.join(build, 'build.ninja'), 'w').close()
             ld = os.path.join(build, 'esp-idf', 'esp_system', 'ld')
             os.makedirs(ld)
-            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -o x.elf\n'
+            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -L /x -o x.elf\n'
             open(os.path.join(ld, 'memory.ld'), 'w').close()
             with mock.patch.object(sd, 'link_command', return_value=commands), \
                  self.assertRaisesRegex(RuntimeError, 'lacks one of'):
@@ -85,11 +85,12 @@ class ReportForElf(unittest.TestCase):
             open(os.path.join(ld, 'sections.ld'), 'w').close()
             with mock.patch.object(sd, 'link_command', return_value=commands):
                 self.assertEqual(sd._link_settings(os.path.join(build, 'x.elf')),
-                                 (build, [os.path.join(ld, 'memory.ld'), os.path.join(ld, 'sections.ld')], ['X=1']))
+                                 (build, [os.path.join(ld, 'memory.ld'), os.path.join(ld, 'sections.ld')],
+                                  ['X=1'], ['/x']))
 
     def test_malformed_output_is_a_runtime_error(self):
         done = subprocess.CompletedProcess([], 0, 'not json', '')
-        with mock.patch.object(sd, '_link_settings', return_value=('/b', ['m.ld'], [])), \
+        with mock.patch.object(sd, '_link_settings', return_value=('/b', ['m.ld'], [], [])), \
              mock.patch.object(sd.subprocess, 'run', return_value=done):
             with self.assertRaisesRegex(RuntimeError, 'malformed membrowse report'):
                 sd.report_for_elf('/b/x.elf')

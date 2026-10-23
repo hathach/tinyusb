@@ -103,7 +103,8 @@ _NONCODE_RE = re.compile(
 # Deliberately NOT here, and still full: .circleci/**, .github/workflows/build*.yml,
 # .github/actions/**, .github/scripts/** - those decide what gets built. The line is
 # "does any Build step read this file", not "is it source": code_size_ci.py is read by
-# pr_comment.yml only, so it is metadata.
+# pr_comment.yml only, and membrowse_pr_message.j2 by membrowse-comment.yml only, so
+# they are metadata.
 #
 # test/{fuzz,unit-test} have their own jobs (cifuzz.yml, the unit-test pre-commit hook
 # and workflow); the Build matrix never compiles them, and test/hil is rule 2.
@@ -125,8 +126,8 @@ _META_RE = re.compile(
     r'test/(fuzz|unit-test)/|test/hil/test/|'
     # .github, minus the build machinery named in _FULL_RE and _CI_BOARDS_RE
     r'\.github/(FUNDING\.yml$|labeler\.yml$|'
-    r'ISSUE_TEMPLATE/|scripts/code_size_ci\.py$|'
-    r'workflows/(cifuzz|claude|claude-code-review|labeler|'
+    r'ISSUE_TEMPLATE/|scripts/code_size_ci\.py$|membrowse_pr_message\.j2$|'
+    r'workflows/(cifuzz|claude|claude-code-review|labeler|membrowse-comment|'
     r'pr_comment|pre-commit|static_analysis|trigger)\.yml$)|'
     # tools/ scripts no build invokes (tools/build*.py and local tooling are handled separately)
     r'tools/(check_example_pids|file2carray|iar_gen|mksunxi|pcapng_to_corpus)\.py$|'
