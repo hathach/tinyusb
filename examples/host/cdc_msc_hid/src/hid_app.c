@@ -86,23 +86,26 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+  // report is NULL when the transfer failed. Nothing to process then, but keep polling.
+  if (report != NULL) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
-  switch (itf_protocol) {
-    case HID_ITF_PROTOCOL_KEYBOARD:
-      TU_LOG2("HID receive boot keyboard report\r\n");
-      process_kbd_report((hid_keyboard_report_t const *) report);
-      break;
+    switch (itf_protocol) {
+      case HID_ITF_PROTOCOL_KEYBOARD:
+        TU_LOG2("HID receive boot keyboard report\r\n");
+        process_kbd_report((hid_keyboard_report_t const *) report);
+        break;
 
-    case HID_ITF_PROTOCOL_MOUSE:
-      TU_LOG2("HID receive boot mouse report\r\n");
-      process_mouse_report((hid_mouse_report_t const *) report);
-      break;
+      case HID_ITF_PROTOCOL_MOUSE:
+        TU_LOG2("HID receive boot mouse report\r\n");
+        process_mouse_report((hid_mouse_report_t const *) report);
+        break;
 
-    default:
-      // Generic report requires matching ReportID and contents with previous parsed report info
-      process_generic_report(dev_addr, instance, report, len);
-      break;
+      default:
+        // Generic report requires matching ReportID and contents with previous parsed report info
+        process_generic_report(dev_addr, instance, report, len);
+        break;
+    }
   }
 
   // continue to request to receive report
