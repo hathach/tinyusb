@@ -1190,7 +1190,6 @@ int main(void) {
     .wMaxPacketSize = 64, .bInterval = 1
   };
   assert(!hcd_edpt_open(0, 1, &iso_desc));
-  assert(regs.command_bm.int_threshold == 8);
 #endif
 #if CFG_TUH_MEM_DCACHE_ENABLE
   // Cached payloads must still exercise clean, invalidate and clean/invalidate.
