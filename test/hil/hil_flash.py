@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+import copy
+import functools
 import json
 import shutil
 import subprocess
@@ -45,14 +47,31 @@ def _runner(run):
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
+def judged(op, problem: str):
+    """`op` when it exited non-zero or `problem` is '', else a shallow copy failing with exit 1,
+    `.problem` the judgment and `.operation` the provider's Operation; attempts, cleanup and
+    receipts kept, so every caller's returncode check and report see the failure. Printed for
+    the callers that read only the returncode; farm_profile reports `.problem`."""
+    if op.returncode or not problem:
+        return op
+    print(f'judged failed: {problem}', flush=True)
+    failed = copy.copy(op)
+    failed.returncode, failed.problem, failed.operation = 1, problem, op
+    return failed
+
+
 def flash_jlink(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
-    return hil_util.provider().flash_jlink(board['flasher'], firmware, timeout=_bound(timeout),
-                                           crash_retries=JLINK_CRASH_RETRIES, run=_runner(run))
+    p = hil_util.provider()
+    op = p.flash_jlink(board['flasher'], firmware, timeout=_bound(timeout), crash_retries=JLINK_CRASH_RETRIES,
+                       run=_runner(run))
+    return judged(op, p.jlink_problem(op))
 
 
 def reset_jlink(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
-    return hil_util.provider().reset_jlink(board['flasher'], timeout=_bound(timeout),
-                                           crash_retries=JLINK_CRASH_RETRIES, run=_runner(run))
+    p = hil_util.provider()
+    op = p.reset_jlink(board['flasher'], timeout=_bound(timeout), crash_retries=JLINK_CRASH_RETRIES,
+                       run=_runner(run))
+    return judged(op, p.jlink_problem(op))
 
 
 def flash_stlink(board, firmware, timeout=None, *, run=None):
@@ -127,20 +146,30 @@ def _esptool_inputs(fw_dir: Path) -> tuple:
     return _idf_target(fw_dir), (fw_dir / 'flash_args').read_text().strip().replace('\n', ' ')
 
 
+@functools.cache
+def esptool_runtime() -> dict:
+    """The provider's esptool_runtime of the esptool on PATH, checked once per process: hil_test
+    checks it before its forked workers start, which inherit the answer."""
+    return hil_util.provider().esptool_runtime()
+
+
 def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
+    flasher, p = board['flasher'], hil_util.provider()
+    rt = esptool_runtime()
+    port = p.esptool_port(flasher['uid'])
     fw_dir = Path(firmware).parent
     chip, flash_args = _esptool_inputs(fw_dir)
-    return hil_util.provider().flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args,
-                                             cwd=str(fw_dir), timeout=_bound(timeout), run=_runner(run))
+    print(f'esptool {rt["version"]} ({rt["exe"]}) on {port}', flush=True)
+    op = p.flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args, cwd=str(fw_dir),
+                         timeout=_bound(timeout), run=_runner(run), esptool=rt['exe'])
+    return judged(op, p.esptool_problem(op))
 
 
 # no reset_esptool: hil_test resets with the board's console open on the same serial port.
 def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
     """The provider's ROM-loader reset, for a caller that holds no console on the port."""
     flasher = board['flasher']
-    port = hil_util.get_serial_dev(flasher['uid'], None, None, 0)
+    port = hil_util.provider().esptool_port(flasher['uid'])
     return hil_util.provider().reset_esptool(flasher, port=port, timeout=_bound(timeout), run=_runner(run))
 
 

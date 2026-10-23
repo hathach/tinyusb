@@ -178,9 +178,9 @@ class Reset(unittest.TestCase):
             return run(['esptool', '-p', port, 'chip_id'], timeout=timeout)
         real = hil_util.provider()
         fake = types.SimpleNamespace(reset_esptool=reset_esptool, reset_problem=real.reset_problem,
-                                     hil_process=real.hil_process)
+                                     hil_process=real.hil_process,
+                                     esptool_port=lambda uid: f'/dev/serial/by-id/usb-x_{uid}-if00')
         patch(self, hil_util, 'provider', lambda: fake)
-        patch(self, hil_util, 'get_serial_dev', lambda uid, *a: f'/dev/serial/by-id/usb-x_{uid}-if00')
         ctx = context(self, stdout='Hard resetting via RTS pin...\n')
         got = farm_profile.reset(ctx, dict(BOARD, flasher={'name': 'esptool', 'uid': 'E', 'args': ''}))
         self.assertEqual(seen, [('E', '/dev/serial/by-id/usb-x_E-if00', hil_util.CMD_TIMEOUT)])
@@ -196,10 +196,15 @@ class RunPlumbing(unittest.TestCase):
         calls = []
 
         class Provider:
+            esptool_port = staticmethod(lambda uid: '/dev/ttyX')
+            esptool_runtime = staticmethod(lambda: {'exe': 'esptool', 'version': '9.9.9'})
+            jlink_problem = esptool_problem = staticmethod(lambda *a: '')
+
             def __getattr__(self, name):
-                return lambda *a, **kw: calls.append((name, kw['run']))
+                return lambda *a, **kw: calls.append((name, kw['run'])) or subprocess.CompletedProcess(name, 0)
         patch(self, hil_util, 'provider', Provider)
-        patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/ttyX')
+        hil_flash.esptool_runtime.cache_clear()
+        self.addCleanup(hil_flash.esptool_runtime.cache_clear)
         patch(self, hil_flash, '_idf_target', lambda fw_dir: 'esp32s3')
         mine = object()
         board = {'name': 'b', 'flasher': {'name': 'x', 'uid': 'P', 'args': ''}}
@@ -300,6 +305,17 @@ class EngineWithProfile(EngineFixture):
                                  (1, 'failed', 1, True))
                 self.assertIn(note, r['note'][-1])
 
+    def test_a_jlink_reset_judged_incomplete_fails_with_the_reason_and_the_raw_exit(self):
+        self.roster(dict(BOARD, flasher={'name': 'jlink', 'uid': 'P', 'args': '-device x'}))
+        self.out = ('J-Link>halt\nPC = 00000000, CycleCnt = 00000000\nJ-Link>r\nReset delay: 0 ms\nJ-Link>go\n'
+                    'J-Link>exit\nScript processing completed.\n')
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['status'], r['cleanup']['released'], self.ran), (1, 'failed', True, ['JLinkExe']))
+        self.assertIn("'r' did not complete", r['note'][-1])
+        (o,) = r['operations']
+        self.assertEqual((o['returncode'], [a['returncode'] for a in o['attempts']]), (1, [0]))
+
     def test_an_lm4flash_board_is_unsupported_and_untouched(self):
         self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''}))
         code, doc = self.run_engine()
@@ -353,7 +369,7 @@ class Retain(unittest.TestCase):
         farm_profile._retain(ctx, BOARD)
         farm_profile._retain(ctx, BOARD)
         self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt /x/receipt.json', 'cleanup': 'pending',
-                                       'receipt': None}])
+                                       'receipt': None, 'retained': ['/x/receipt.json']}])
         with self.assertRaises(eng.Outstanding):
             ctx.run(['reset'], timeout=1)
         self.assertEqual(ctx.calls, [])
@@ -367,17 +383,17 @@ class Retain(unittest.TestCase):
         farm_profile._retain(ctx, BOARD)
         self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt openocd_esp session pid 4242 start 99, '
                                               'receipt file unwritten, log /w/openocd.log',
-                                       'cleanup': 'pending', 'receipt': None}])
+                                       'cleanup': 'pending', 'receipt': None, 'retained': [native]}])
 
 
 class EngineOpenocdEsp(EngineFixture):
     """An openocd_esp board through the engine: a reset session ended `done` leaves the board
     released, and one the provider left running stops the board, whose lock the engine hands to a
     cleanup holder naming the receipt."""
-    RECEIPT = '/tmp/hil_openocd_esp_x/receipt.json'
 
     def setUp(self):
         super().setUp()
+        self.RECEIPT = str(self.d / 'receipt.json')
         patch(self, eng.hil_process, 'run_tracked', lambda *a, **kw: self.fail('ran a tracked child'))
         self.board = dict(BOARD, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                           'args': '-f board/esp32p4-builtin.cfg'})
@@ -412,6 +428,8 @@ class EngineOpenocdEsp(EngineFixture):
     def end_holder(self):
         rec = hil_lock.read_record('b')
         if hil_lock.is_cleanup_holder(rec):
+            # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
+            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}))
             hil_lock.release_token(rec['token'])
 
     def test_a_done_session_is_ok_and_released(self):
@@ -430,6 +448,7 @@ class EngineOpenocdEsp(EngineFixture):
         self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
         self.assertEqual((rec['token'], rec['protected']), (r['cleanup']['token'], True))
         self.assertIn(self.RECEIPT, rec['detail'])
+        self.assertEqual((r['cleanup']['retained'], rec['retained']), ([self.RECEIPT], [self.RECEIPT]))
 
     def test_a_session_left_running_hands_the_lock_to_a_cleanup_holder(self):
         self.outcomes = ['pending']

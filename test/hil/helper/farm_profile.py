@@ -69,16 +69,13 @@ def probe_candidates(board: dict) -> list:
 
 # --- inside the engine's reservation ----------------------------------------------------------
 def _retain(ctx, board: dict) -> None:
-    """An openocd_esp session the provider left running (hil_flash.cleanup_pending) joins the
-    engine's ledger as a run not proven ended, which only the contract's recovery ends: the
-    engine starts nothing more on the board and hands its lock to a cleanup holder, whose
-    detail names the receipt (its path, or its native record when that file was not written).
-    The session is the provider's own, so ctx.run never saw it; an esptool child's tracked
-    receipt is ctx.run's, already on the ledger with its recheck."""
+    """An openocd_esp session the provider left running (hil_flash.cleanup_pending) goes to the
+    engine's ctx.retain, its detail naming the receipts (its receipt path, or its native record
+    when that file was not written), which only the contract's recovery ends. The session is
+    the provider's own, so ctx.run never saw it; an esptool child's tracked receipt is ctx.run's,
+    already on the ledger with its recheck."""
     receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not hil_flash.tracked_receipt(r)]
-    cmd = f'openocd_esp session, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
-    if receipts and all(e['cmd'] != cmd for e in ctx.ledger):
-        ctx.ledger.append({'cmd': cmd, 'cleanup': 'pending', 'receipt': None})
+    ctx.retain(f'openocd_esp session, receipt {", ".join(map(hil_flash.receipt_text, receipts))}', receipts)
 
 
 def reset(ctx, board: dict):
@@ -90,7 +87,8 @@ def reset(ctx, board: dict):
         op = reset_fn(board, run=functools.partial(ctx.run, verbose=ctx.args.verbose))
     finally:
         _retain(ctx, board)
-    if op.returncode == 0 and (why := hil_util.provider().reset_problem(name, op)):
+    # hil_flash's judged failure (`.problem`), else a reset that exited 0 without the target's answer
+    if why := getattr(op, 'problem', '') or op.returncode == 0 and hil_util.provider().reset_problem(name, op):
         e = RuntimeError(why)
         e.operation = op
         raise e

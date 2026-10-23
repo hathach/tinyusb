@@ -1796,7 +1796,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                 try:
                     ret = hil_flash.flash_primitive(board['flasher']['name'])(board, str(fw_name))
                 except Exception as e:
-                    # A flasher that RAISES (esptool's get_serial_dev when the adapter
+                    # A flasher that RAISES (esptool's port lookup when the adapter
                     # drops off the bus, a missing config.env, an unwritable CWD) would
                     # propagate out of the worker and abort the whole drain, costing
                     # every board still in flight.
@@ -2004,15 +2004,19 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
     one that fails leaves its protected record. Either way the handle is closed uncleared: the
     record on the free flock is the recovery blocker, and the board is never released."""
-    # a tracked esptool child's receipt makes the holder's release wait for its recheck to answer `done`
-    tracked = [r for r in hil_flash.cleanup_pending.get(name, ()) if hil_flash.tracked_receipt(r)]
+    # the holder's release waits for a tracked esptool child's recheck to answer `done`, and for a
+    # retained openocd_esp session's receipt to read ended; a native record never does
+    receipts = hil_flash.cleanup_pending.get(name, ())
+    tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
+    retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
     try:
-        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked)
+        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+                                                retained=retained)
     except ValueError as e:
         why = str(e)
         try:
             hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  locks=[name])
+                                  retained=retained, locks=[name])
         except OSError as e2:
             why += f' (record not rewritten: {e2})'
     except hil_lock.LockUnavailable as e:
@@ -2025,23 +2029,6 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     finally:
         fh.close()
     return f'{pending}; {why}; the protected record is the recovery blocker'
-
-
-def recovery_blocker(name: str, refusal: RuntimeError) -> str:
-    """The board's lock refusal naming its recovery blocker (`hil` Board locks), or '' for contention:
-    a free flock the helper refused, a live cleanup holder, or a takeover journal on a held flock
-    (take_over journals before it rewrites the records). A live protected record alone is a run."""
-    if isinstance(refusal, hil_lock.RecoveryBlocked):
-        return str(refusal)
-    if not isinstance(refusal, hil_lock.BoardLocked):
-        return ''
-    if hil_lock.is_cleanup_holder(hil_lock.read_record(name)):
-        return str(refusal)
-    journal = hil_lock.journal_state(name)
-    if journal is None:
-        return ''
-    holder = {k: journal[k] for k in ('token', 'pid', 'locks') if k in journal}
-    return f'{refusal}; takeover journal {json.dumps(holder)} ({hil_lock.RECOVERY_BLOCKER})'
 
 
 def test_board(board: Board) -> tuple:
@@ -2065,8 +2052,8 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        if blocker := recovery_blocker(name, e):
-            cell = f'{hil_report.REPORT_CELL["fail"]} {blocker}'
+        if isinstance(e, hil_lock.RecoveryBlocked):   # the helper's: a cleanup holder or a takeover journal
+            cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
             return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
@@ -2283,9 +2270,8 @@ def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> li
     so deleting the real one outright kept the suite green.
     """
     # `out` is the CALLER's list: a worker that raises something other than a timeout
-    # (get_serial_dev on a dropped adapter) propagates bare, and a local accumulator would
-    # take every finished board with it -- the exact loss the drain replaced map_async to
-    # prevent.
+    # propagates bare, and a local accumulator would take every finished board with it --
+    # the exact loss the drain replaced map_async to prevent.
     mret: list = out if out is not None else []
     for _ in boards:
         left = deadline - time.monotonic()
@@ -2513,6 +2499,12 @@ def main() -> None:
                    if (why := hil_flash.openocd_esp_refused(e, retains_lock=True))}
     if esp_refused:
         _config_abort(f'openocd_esp flasher refused: {", ".join(esp_refused)}: {next(iter(esp_refused.values()))}')
+    # once, here: the forked workers inherit the answer, and a broken esptool fails no board's flash
+    if not skip_flash and any(e['flasher']['name'].lower() == 'esptool' for e in config_boards):
+        try:
+            hil_flash.esptool_runtime()
+        except RuntimeError as err:
+            _config_abort(f'esptool refused: {err}')
     rtt_no_logger_def = [e['name'] for e in config_boards
                          if e.get('logger') == 'rtt'
                          and any('LOGGER=rtt' not in v['defines'] for v in hil_report.board_variants(e))]
@@ -2636,10 +2628,9 @@ def main() -> None:
                           cell=hil_report.POOL_TIMEOUT_CELL)
             raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
         except Exception as e:
-            # A worker RAISED -- e.g. a flasher adapter dropping off the bus makes
-            # get_serial_dev raise in the worker's flash section, which no per-test
-            # handler guards. The drain means `mret` already holds every board that
-            # finished, so keep those rows and name only the ones still in flight.
+            # A worker RAISED something no per-test handler guards. The drain means `mret`
+            # already holds every board that finished, so keep those rows and name only the
+            # ones still in flight.
             _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
                           mret, config_boards, failed_fname, report_dir, fresh)
             raise
