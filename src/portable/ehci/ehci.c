@@ -842,6 +842,16 @@ static void iso_ep_free(iso_ep_t* ep) {
   ehci_data.qtd_is_iso[qtd_index / 32] &= ~TU_BIT(qtd_index % 32);
 }
 
+// True if an ISO endpoint is open; closing ones only await release.
+static bool iso_ep_any_open(void) {
+  for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
+    if (!ehci_data.qtd_pool[i].iso.closing) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Reserve on the upstream HS hub's transaction translator: one per port of a
 // multi-TT hub, one shared by all ports of a single-TT hub.
 #if CFG_TUH_HUB
@@ -935,6 +945,7 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   size_t const qhd_index = ((uintptr_t) qhd - (uintptr_t) ehci_data.qhd_pool) / sizeof(ehci_ep_t);
   size_t const qtd_index = (ehci_td_t*) qtd - ehci_data.qtd_pool;
   bool const first_iso = iso_ep_next(0) == QTD_MAX;
+  bool const first_open = !iso_ep_any_open();
   iso_ep_t* ep = &ehci_data.qtd_pool[qtd_index].iso;
   tu_memclr(ep, sizeof(*ep));
   ep->td = &ehci_data.qhd_pool[qhd_index].iso;
@@ -950,13 +961,12 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
   if (first_iso) {
     ehci_data.iso_last_frindex = (uint16_t) (ehci_data.regs->frame_index & 0x3fff);
     ehci_data.iso_uframe = ehci_data.iso_last_frindex;
-    // A close completed by iso_process() leaves the threshold at 0 rather than
-    // write USBCMD from the interrupt; keep the value saved before it.
-    if (ehci_data.regs->command_bm.int_threshold != 0) {
-      ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
-    }
     // Fixed for this root connection; refreshed when ISO is reopened.
     ehci_data.iso_frame_offset = ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_FULL ? 8 : 0;
+  }
+  // The close that leaves no endpoint open restores the threshold (iso_stop).
+  if (first_open) {
+    ehci_data.iso_saved_itc = ehci_data.regs->command_bm.int_threshold;
   }
   ep->uframe = iso_now();
   ep->daddr = daddr;
@@ -1275,16 +1285,18 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
       }
     }
   }
-  if (done) {
-    if (close) {
+  if (close) {
+    if (done) {
       iso_ep_free(ep);
-      if (iso_ep_next(0) == QTD_MAX) {
-        ehci_data.regs->command_bm.int_threshold = ehci_data.iso_saved_itc;
-      }
-    } else {
-      // Keep the cancelled slot: the next submission advances from it in phase.
-      ep->busy = false;
     }
+    // Closing endpoints raise no completions: restore the threshold once none
+    // is open, here rather than from the interrupt that releases them.
+    if (!iso_ep_any_open()) {
+      ehci_data.regs->command_bm.int_threshold = ehci_data.iso_saved_itc;
+    }
+  } else if (done) {
+    // Keep the cancelled slot: the next submission advances from it in phase.
+    ep->busy = false;
   }
   hcd_int_enable(rhport);
   return close || done;
