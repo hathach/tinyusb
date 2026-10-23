@@ -85,6 +85,11 @@ class Report(unittest.TestCase):
                                "&#96;&#96;&#96; &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
         self.assertNotIn("<details>", section)
 
+    def test_non_string_capture_error_renders_capture_failed(self):
+        # a malformed capture JSON must not abort the whole report
+        md = self.go([board_json()], [board_json(err=123)])
+        self.assertIn("capture failed: 123", md)
+
     def test_missing_metrics_key_renders_capture_failed(self):
         # a capture JSON with no "metrics" key and no "error" must not abort the whole report
         p = {"board": "stm32f407disco", "commit": "abc1234", "example": "device/cdc_msc",
@@ -603,6 +608,52 @@ class TestBuildOneFirmwarePath(unittest.TestCase):
         self.assertIsNone(fw)
         self.assertIn("error: 'x' undeclared", err)
         self.assertEqual(run.call_args_list[0].kwargs["stderr"], subprocess.STDOUT)
+
+
+class GetPicoSdk(unittest.TestCase):
+    def _repo(self, checkout):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, ".github", "actions", "get_deps"))
+        with open(os.path.join(root, ".github", "actions", "get_deps", "action.yml"), "w") as f:
+            f.write("        repository: raspberrypi/pico-sdk\n        ref: 2.3.1\n")
+        if checkout:
+            os.makedirs(os.path.join(root, "pico-sdk"))
+        return root
+
+    def _get(self, root, rc=0):
+        env = {k: v for k, v in os.environ.items() if k != "PICO_SDK_PATH"}
+        with unittest.mock.patch.dict(os.environ, env, clear=True), \
+             unittest.mock.patch("subprocess.run",
+                                 return_value=subprocess.CompletedProcess([], rc, "", "boom")) as run:
+            err = sysview_ci._get_pico_sdk(root)
+            sdk = os.environ.get("PICO_SDK_PATH")
+        return err, sdk, [c.args[0] for c in run.call_args_list]
+
+    def test_existing_checkout_refreshes_any_ref_kind(self):
+        root = self._repo(checkout=True)
+        path = os.path.join(root, "pico-sdk")
+        err, sdk, cmds = self._get(root)
+        self.assertIsNone(err)
+        self.assertEqual(sdk, path)
+        self.assertEqual(cmds, [["git", "-C", path, "fetch", "--depth", "1", "origin", "2.3.1"],
+                                ["git", "-C", path, "checkout", "-q", "--detach", "FETCH_HEAD"]])
+
+    def test_missing_checkout_is_cloned(self):
+        root = self._repo(checkout=False)
+        err, sdk, cmds = self._get(root)
+        self.assertIsNone(err)
+        self.assertEqual(sdk, os.path.join(root, "pico-sdk"))
+        self.assertEqual(cmds, [["git", "clone", "--depth", "1", "--branch", "2.3.1",
+                                 "https://github.com/raspberrypi/pico-sdk.git",
+                                 os.path.join(root, "pico-sdk")]])
+
+    def test_failed_refresh_is_an_error_and_leaves_the_path_unset(self):
+        err, sdk, cmds = self._get(self._repo(checkout=True), rc=1)
+        self.assertIsNone(sdk)
+        self.assertEqual(len(cmds), 1)
+        self.assertIn("pico-sdk 2.3.1: git -C", err)
+        self.assertIn("failed: boom", err)
 
 
 if __name__ == '__main__':
