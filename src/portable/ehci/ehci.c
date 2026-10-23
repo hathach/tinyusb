@@ -1136,7 +1136,9 @@ static void iso_process(bool in_isr) {
     if (active) {
       // The service slot passed unvisited. Retire the TD once the controller
       // cannot be on it (it may be revisiting the entry a ring later); until
-      // then a later interrupt retries.
+      // then a later interrupt retries. Next to the rollover tick that later
+      // interrupt can be the revisit itself: an OUT then sends its stale
+      // packet a ring late, reported as failed below. Misses are rare (#4301).
       if (!iso_td_idle(ep)) {
         continue;
       }
@@ -1396,9 +1398,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     regs->status = usb_int;
   }
 #if EHCI_ISO_ENABLED
-  // Completions drive ISO. Frame-list rollover arms TDs beyond the current
-  // ring, retires slots that passed unvisited and samples FRINDEX well within
-  // its 14-bit wrap.
+  // Completions drive ISO. Frame-list rollover retires slots that passed
+  // unvisited and samples FRINDEX well within its 14-bit wrap.
   uint32_t const iso_tick = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
   if ((usb_int || (int_status & regs->inten & iso_tick)) && iso_ep_next(0) != QTD_MAX) {
     iso_process(in_isr);
