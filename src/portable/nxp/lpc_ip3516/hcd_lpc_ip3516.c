@@ -314,8 +314,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
   ptd_data_t  *ptd_data  = (ptd_data_t *)(ptd_ptr + offsetof(ip3516_atl_t, data));
   ptd_state_t *ptd_state = (ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
 
-  uint32_t split_first    = 0; // first microframe of a split ISO window
-  uint32_t split_interval = 0;
+  uint32_t iso_first    = 0; // first microframe an ISO transfer is scheduled in
+  uint32_t iso_interval = 0;
   if (ptd_state->ep_type == TUSB_XFER_ISOCHRONOUS) {
     ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
     const uint8_t index = (uint8_t)(ptd - _ptd.iso);
@@ -338,10 +338,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
     ptd->iso_in_0.value = _iso_ep[index].uframe_complete;
     ptd->iso_in_1 = 0;
     ptd->iso_in_2 = 0;
-    if (ptd_ctrl2->split) {
-      split_first    = next + _iso_ep[index].split_slot;
-      split_interval = interval;
-    }
+    iso_first    = next + (ptd_ctrl2->split ? _iso_ep[index].split_slot : 0u);
+    iso_interval = interval;
   }
 
   // Setup data buffer and length
@@ -370,15 +368,19 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
 
   // Activate only after the ISO scheduling fields have been restored.
   hcd_int_disable(rhport);
-  if (split_interval) {
-    // Activated after its first microframe began, a split window would run
-    // from the middle (an OUT continuing with MID, no BEGIN). Recheck FRINDEX
-    // and move a late transfer on by one interval; uFrame compares eight
-    // FRINDEX bits and split intervals are at most 16 ms.
+  if (iso_interval) {
+    // Activated after its first microframe began, a transfer would wait for
+    // the five frame bits of uFrame to match again (HS), or a split window
+    // would run from the middle (an OUT continuing with MID, no BEGIN).
+    // Recheck the 14-bit FRINDEX and move a late transfer on by one interval.
     const uint32_t now = (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >>
                          USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
-    if ((uint8_t)(now - split_first) < 0x80u) {
-      ptd_ctrl1->uframe = (split_first + split_interval) & 0xf8u;
+    if (((now - iso_first) & 0x3fffu) < 0x2000u) {
+      const uint32_t target = iso_first + iso_interval;
+      ptd_ctrl1->uframe = target & 0xf8u;
+      if (!ptd_ctrl2->split) {
+        ((ip3516_ptl_t *)ptd_ptr)->status.uframe_active = (uint8_t)(1u << (target & 7u));
+      }
     }
   }
   ptd_ctrl1->valid  = 1;
