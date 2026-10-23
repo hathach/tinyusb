@@ -77,6 +77,14 @@ class Report(unittest.TestCase):
         md = self.go([board_json()],[board_json(err="flash failed: rc=1")])
         self.assertIn("capture failed: flash failed: rc=1", md)
 
+    def test_capture_error_cannot_add_markdown_structure(self):
+        err = "build failed: x.c:1: error\n# not a heading\n```\n<details><b>x</b>\n"
+        section = self.go([board_json()], [board_json(err=err)]).split("<sub>")[0]
+        line = next(l for l in section.splitlines() if l.startswith("capture failed:"))
+        self.assertEqual(line, "capture failed: build failed: x.c:1: error # not a heading "
+                               "&#96;&#96;&#96; &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
+        self.assertNotIn("<details>", section)
+
     def test_missing_metrics_key_renders_capture_failed(self):
         # a capture JSON with no "metrics" key and no "error" must not abort the whole report
         p = {"board": "stm32f407disco", "commit": "abc1234", "example": "device/cdc_msc",
@@ -485,6 +493,72 @@ class TestErrExcerpt(unittest.TestCase):
         self.assertEqual(sysview_ci._err_excerpt(None), "")
 
 
+class CdcBurstWorkload(unittest.TestCase):
+    """_workload_cdc_burst over a fake port and clock: each read waits out its 20 ms timeout."""
+
+    def run_workload(self, echo_until, duration_s=3.0):
+        clock = [0.0]
+        class Port:
+            def __init__(self, *a, **k): pass
+            def write(self, b): pass
+            def read(self, n):
+                clock[0] += 0.02
+                return b"x" * n if clock[0] < echo_until else b""
+            def close(self): pass
+        def sleep(t): clock[0] += t
+        with unittest.mock.patch("serial.Serial", Port), \
+                unittest.mock.patch("time.monotonic", lambda: clock[0]), \
+                unittest.mock.patch("time.sleep", sleep):
+            return sysview_ci._workload_cdc_burst("node", duration_s)
+
+    def test_steady_echo_passes(self):
+        self.assertTrue(self.run_workload(echo_until=float("inf")))
+
+    def test_echo_that_stops_after_the_first_burst_fails(self):
+        self.assertFalse(self.run_workload(echo_until=0.1))
+
+    def test_no_echo_at_all_fails(self):
+        self.assertFalse(self.run_workload(echo_until=0))
+
+
+class CaptureBudget(unittest.TestCase):
+    """--budget-s: a board whose flash, capture and park reflash may not fit in what is left is
+    not flashed, so the caller's kill never lands before the park image is back."""
+
+    def run_capture(self, budget_s):
+        from helper import hil_lock
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        cfg = os.path.join(tmp, "cfg.json")
+        with open(cfg, "w") as f:
+            json.dump({"boards": [{"name": "b", "uid": "U", "flasher": {"name": "openocd", "uid": "P", "args": ""},
+                                   "sysview": {"example": "device/cdc_msc", "workload": "idle",
+                                               "duration_s": 15}}]}, f)
+        out = os.path.join(tmp, "out")
+        captured = []
+        argv = ["sysview_ci.py", "capture", cfg, "--out", out, "--budget-s", str(budget_s)]
+        with unittest.mock.patch.object(sys, "argv", argv), \
+                unittest.mock.patch.object(sysview_ci, "build_one", lambda b, r: ("fw.elf", None)), \
+                unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
+                                           lambda b, fw, d: captured.append(b["name"]) or (None, "captured")), \
+                unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
+                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            sysview_ci.main()
+        with open(os.path.join(out, "sysview-b.json")) as f:
+            return captured, json.load(f)["error"]
+
+    def test_a_board_that_cannot_finish_in_the_budget_is_not_flashed(self):
+        captured, err = self.run_capture(budget_s=60)
+        self.assertEqual(captured, [])
+        self.assertIn("skipped", err)
+
+    def test_a_board_that_fits_is_captured(self):
+        board = {"sysview": {"duration_s": 15}}
+        captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60)
+        self.assertEqual(captured, ["b"])
+        self.assertEqual(err, "captured")
+
+
 class TestBuildOneFirmwarePath(unittest.TestCase):
     """build_one must return a path the flasher can actually open. JLinkExe's loadfile
     and OpenOCD's program both infer the image format from the extension, so an
@@ -521,6 +595,17 @@ class TestBuildOneFirmwarePath(unittest.TestCase):
             fw, err = sysview_ci.build_one(self._board(), root)
         self.assertIsNone(fw)
         self.assertIn("no .elf", err)
+
+    def test_failed_build_reports_the_diagnostics_ninja_prints_on_stdout(self):
+        calls = []
+        def run(cmd, **kw):
+            calls.append(kw)
+            return subprocess.CompletedProcess(cmd, 1, "main.c:1:20: error: 'x' undeclared", None)
+        with unittest.mock.patch("subprocess.run", run):
+            fw, err = sysview_ci.build_one(self._board(), self._repo([]))
+        self.assertIsNone(fw)
+        self.assertIn("error: 'x' undeclared", err)
+        self.assertEqual(calls[0]["stderr"], subprocess.STDOUT)
 
 
 if __name__ == '__main__':
