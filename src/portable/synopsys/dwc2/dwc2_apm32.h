@@ -26,38 +26,23 @@
 #ifndef DWC2_APM32_H_
 #define DWC2_APM32_H_
 
+#if CFG_TUSB_MCU == OPT_MCU_APM32F107
+  #include "apm32f10x.h"
+#else
+  #error "Unsupported APM32 MCU"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if CFG_TUSB_MCU == OPT_MCU_APM32F107
-  #include "apm32f10x.h"
+#define EP_MAX_FS       4
+#define DFIFO_DEPTH_FS  320
+#define DWC2_EP_MAX     EP_MAX_FS
 
-  #define EP_MAX_FS       4
-  #define DFIFO_DEPTH_FS  320
-
-  #ifndef USB_OTG_FS_PERIPH_BASE
-    #define USB_OTG_FS_PERIPH_BASE  0x50000000UL
-  #endif
-#endif
-
-// OTG HS always has higher number of endpoints than FS
-#ifdef USB_OTG_HS_PERIPH_BASE
-  #define DWC2_EP_MAX   EP_MAX_HS
-#else
-  #define DWC2_EP_MAX   EP_MAX_FS
-#endif
-
-// On APM32 for consistency we associate
-// - Port0 to OTG_FS
+// Port0 is OTG_FS
 static const dwc2_controller_t _dwc2_controller[] = {
-    #ifdef USB_OTG_FS_PERIPH_BASE
-    { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn, .ep_count = EP_MAX_FS, .ep_in_count = EP_MAX_FS, .otg_dfifo_depth = DFIFO_DEPTH_FS },
-    #endif
-
-    #ifdef USB_OTG_HS_PERIPH_BASE
-    { .reg_base = USB_OTG_HS_PERIPH_BASE, .irqnum = OTG_HS_IRQn, .ep_count = EP_MAX_HS, .otg_dfifo_depth = DFIFO_DEPTH_HS },
-    #endif
+  { .reg_base = USB_OTG_FS_BASE, .irqnum = OTG_FS_IRQn, .ep_count = EP_MAX_FS, .ep_in_count = EP_MAX_FS, .otg_dfifo_depth = DFIFO_DEPTH_FS },
 };
 
 //--------------------------------------------------------------------+
@@ -82,10 +67,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_
     NVIC_DisableIRQ(irqn);
   }
 }
-
-#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
-#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
-
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms

@@ -43,13 +43,14 @@
 
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PIN_1
-#define BUTTON_STATE_ACTIVE   1
+#define BUTTON_STATE_ACTIVE   0
 #define BUTTON_GPIO_CLK_EN()  RCM_EnableAPB2PeriphClock(RCM_APB2_PERIPH_GPIOA)
 
 //--------------------------------------------------------------------+
 // UART (USART1: PA9 = TX, PA10 = RX)
 //--------------------------------------------------------------------+
-#define UART_ID               1
+#define UART_DEV              USART1
+#define UART_CLK_EN()         RCM_EnableAPB2PeriphClock(RCM_APB2_PERIPH_USART1)
 #define UART_TX_PORT          GPIOA
 #define UART_TX_PIN           GPIO_PIN_9
 #define UART_RX_PORT          GPIOA
