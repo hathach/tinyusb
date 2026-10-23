@@ -186,7 +186,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     lines = [heading, ""]
     if pr_j.get("error"):
         # one inert line: build and tool output must not add headings, fences or HTML
-        err = html.escape(re.sub(r"\s+", " ", pr_j["error"]).strip()).replace("`", "&#96;")
+        err = html.escape(re.sub(r"\s+", " ", str(pr_j["error"])).strip()).replace("`", "&#96;")
         return "\n".join(lines + [f"capture failed: {err}", ""])
     pm_all = pr_j.get("metrics") or {}
     if not pm_all:
@@ -604,8 +604,8 @@ def _get_pico_sdk(repo_root):
             cmds = [["git", "clone", "--depth", "1", "--branch", ref,
                      "https://github.com/raspberrypi/pico-sdk.git", path]]
         else:  # a self-hosted runner's workspace can keep an older checkout
-            cmds = [["git", "-C", path, "fetch", "--depth", "1", "origin", "tag", ref],
-                    ["git", "-C", path, "checkout", "-q", "--detach", ref]]
+            cmds = [["git", "-C", path, "fetch", "--depth", "1", "origin", ref],
+                    ["git", "-C", path, "checkout", "-q", "--detach", "FETCH_HEAD"]]
         for cmd in cmds:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             if r.returncode:
