@@ -1189,10 +1189,14 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   if (ep->busy) {
     if (close) {
       // The buffer goes back unconditionally; stop periodic DMA only if the
-      // controller stays on the TD.
-      bool const stopped = !iso_td_wait_idle(ep) && ehci_disable_schedule(ehci_data.regs, true);
+      // controller stays on the TD. Restart the schedule even when the stop
+      // timed out, so other periodic endpoints keep running.
+      bool const on_td = !iso_td_wait_idle(ep);
+      if (on_td) {
+        (void) ehci_disable_schedule(ehci_data.regs, true);
+      }
       iso_td_unlink(ep);
-      if (stopped) {
+      if (on_td) {
         ehci_enable_schedule(ehci_data.regs, true);
       }
     } else {
