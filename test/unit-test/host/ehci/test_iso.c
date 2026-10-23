@@ -1013,6 +1013,23 @@ static void test_missed_fs_slot_margin(void) {
   assert(!td_linked(ep) && !ep->td->sitd.active);
 }
 
+// A close whose periodic stop times out still restarts the schedule, so
+// other periodic endpoints keep running.
+static void test_close_stop_failure(void) {
+  reset(TUSB_SPEED_HIGH);
+  regs.command_bm.periodic_enable = 1;
+  regs.status_bm.periodic_status = 1; // never follows the enable bit
+  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
+  iso_ep_t* ep = iso_ep_find(1, 0x01);
+  set_now(1000);
+  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
+  regs.frame_index = 1001; // FRINDEX stays on the TD's microframe
+  assert(iso_stop(0, ep, true));
+  assert(regs.command_bm.periodic_enable);
+  assert(iso_ep_find(1, 0x01) == NULL && events == 0);
+  regs.status_bm.periodic_status = 0;
+}
+
 // Abort cancels only a request the controller cannot be about to execute.
 static void test_abort_idle_margin(void) {
   reset(TUSB_SPEED_HIGH);
@@ -1157,6 +1174,7 @@ int main(void) {
   test_sof_free();
   test_missed_slot_without_stop();
   test_missed_fs_slot_margin();
+  test_close_stop_failure();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
