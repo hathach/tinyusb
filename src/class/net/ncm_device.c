@@ -44,6 +44,9 @@
 
 #define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_NCM_LOG_LEVEL, __VA_ARGS__)
 
+// NCM 1.0 Table 6-4: the host selects an IN NTB size of at least 2048
+TU_VERIFY_STATIC(CFG_TUD_NCM_IN_NTB_MAX_SIZE >= 2048, "CFG_TUD_NCM_IN_NTB_MAX_SIZE must be at least 2048");
+
 // Alignment must be 4
 #define TUD_NCM_ALIGNMENT   4
 // calculate alignment of xmit datagrams within an NTB

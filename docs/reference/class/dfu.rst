@@ -9,22 +9,35 @@ updater, and DFU mode, where firmware images are transferred.
 Runtime mode
 ============
 
-Enable ``CFG_TUD_DFU_RUNTIME`` and add ``TUD_DFU_RT_DESCRIPTOR``.  When the
-host sends DFU_DETACH, TinyUSB calls ``tud_dfu_runtime_reboot_to_dfu_cb()``
-right after queuing the request's status stage.  Record the request and any
-required boot flag there, but do not reset inside the callback: the host would
-see DFU_DETACH fail.  Stop the application and switch to the DFU image once the
-status stage has completed.  The runtime driver exposes no application callback
-for status-stage completion; returning from ``tud_task()`` does not guarantee it
-has completed.
+Enable ``CFG_TUD_DFU_RUNTIME`` and add ``TUD_DFU_RT_DESCRIPTOR``.  After a
+DFU_DETACH, TinyUSB calls ``tud_dfu_runtime_reboot_to_dfu_cb()``, where the
+application switches to its DFU image:
+
+* with ``bitWillDetach`` set, once the device has completed the request's
+  status stage.  That completion is reported by the device controller and is
+  not proof that the host received it;
+* otherwise on the next USB bus reset, the host's cue to enter DFU mode.
+
+Once DFU_DETACH completes the interface is in appDETACH.  There DFU_GETSTATUS
+and DFU_GETSTATE report appDETACH, and any other DFU request, including one
+sent in the wrong direction, stalls and returns to appIDLE, cancelling the
+detach.  An unplug (on ports that report one) or a SET_CONFIGURATION also
+cancels it, so a later bus reset does not call the callback.
+
+The runtime driver deviates from DFU 1.1 section 5.1 and Appendix A.2.2:
+
+* It runs no detach timer.  ``wDetachTimeOut`` and the request's ``wTimeout``
+  are ignored and a pending detach never expires: a bus reset arriving any
+  time later, before one of the cancelling events above, still calls the
+  callback.
+* A repeated DFU_DETACH in appDETACH is accepted and re-arms the detach
+  instead of stalling; with ``bitWillDetach`` set the callback runs again.
 
 The descriptor's detach attributes must describe the actual behavior.  Set
 ``bitWillDetach`` only when the firmware detaches and re-attaches by itself.
-Otherwise wait for the host's USB reset and enter DFU mode only if it arrives
-before the detach timeout expires (DFU 1.1 section 5.1).
 
 See :doc:`../../examples/device/dfu_runtime`; its callback only changes the LED
-blink rate and does not detach.
+blink rate and does not detach, so it clears ``bitWillDetach``.
 
 .. list-table::
    :header-rows: 1

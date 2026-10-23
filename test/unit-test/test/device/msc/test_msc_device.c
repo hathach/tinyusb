@@ -143,9 +143,22 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
+// how read10/write10 callbacks fail: not at all, after setting MEDIUM ERROR sense, or without setting a sense
+static enum { IO_OK, IO_ERROR_WITH_SENSE, IO_ERROR_NO_SENSE } io_mode;
+
+static int32_t io_failure(uint8_t lun)
+{
+  if (io_mode == IO_ERROR_WITH_SENSE) {
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+  }
+  return TUD_MSC_RET_ERROR;
+}
+
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  (void) lun;
+  if (io_mode != IO_OK) {
+    return io_failure(lun);
+  }
 
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
@@ -157,7 +170,9 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-  (void) lun;
+  if (io_mode != IO_OK) {
+    return io_failure(lun);
+  }
 
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
@@ -198,6 +213,29 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   return NULL;
 }
 
+// the dcd mock copies a CBW when its transfer is queued, so they must outlive the expectation
+static msc_cbw_t cbw_io;
+static msc_cbw_t cbw_sense;
+
+static void init_sense_cbw(void)
+{
+  cbw_sense = (msc_cbw_t)
+  {
+    .signature   = MSC_CBW_SIGNATURE,
+    .tag         = 0xBEEFBEEF,
+    .total_bytes = sizeof(scsi_sense_fixed_resp_t),
+    .lun         = 0,
+    .dir         = TUSB_DIR_IN_MASK,
+    .cmd_len     = sizeof(scsi_request_sense_t)
+  };
+  scsi_request_sense_t const cmd =
+  {
+    .cmd_code     = SCSI_CMD_REQUEST_SENSE,
+    .alloc_length = sizeof(scsi_sense_fixed_resp_t)
+  };
+  memcpy(cbw_sense.command, &cmd, cbw_sense.cmd_len);
+}
+
 void setUp(void)
 {
   dcd_int_disable_Ignore();
@@ -216,10 +254,12 @@ void setUp(void)
 
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
+  init_sense_cbw();
 }
 
 void tearDown(void)
 {
+  io_mode = IO_OK;
 }
 
 //--------------------------------------------------------------------+
@@ -352,4 +392,143 @@ void test_msc_read10_block_size_over_16bit(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
   tud_task();
+}
+
+//--------------------------------------------------------------------+
+// read10/write10 error sense
+//--------------------------------------------------------------------+
+static void expect_cbw_xfer(msc_cbw_t const* cbw)
+{
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
+}
+
+static void host_clear_halt(uint8_t ep_addr)
+{
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
+}
+
+// SET_CONFIGURATION, then the host sends a one-block READ10 or WRITE10 of LBA 0
+static void configure_and_send_io_cbw(uint8_t cmd_code)
+{
+  cbw_io = (msc_cbw_t)
+  {
+    .signature   = MSC_CBW_SIGNATURE,
+    .tag         = 0xCAFECAFE,
+    .total_bytes = 512,
+    .lun         = 0,
+    .dir         = (cmd_code == SCSI_CMD_READ_10) ? TUSB_DIR_IN_MASK : 0,
+    .cmd_len     = sizeof(scsi_read10_t)
+  };
+  scsi_read10_t const cmd =
+  {
+    .cmd_code    = cmd_code,
+    .lba         = tu_htonl(0),
+    .block_count = tu_htons(1)
+  };
+  memcpy(cbw_io.command, &cmd, cbw_io.cmd_len);
+
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  expect_cbw_xfer(&cbw_io);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+}
+
+// The REQUEST SENSE CBW transfer is already expected: the host sends it and must read `sense_key`/`asc`
+static void host_request_sense(uint8_t sense_key, uint8_t asc)
+{
+  static scsi_sense_fixed_resp_t sense;
+  sense = (scsi_sense_fixed_resp_t)
+  {
+    .response_code  = 0x70,
+    .valid          = 1,
+    .sense_key      = sense_key,
+    .add_sense_len  = sizeof(scsi_sense_fixed_resp_t) - 8,
+    .add_sense_code = asc,
+  };
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &sense, sizeof(sense), sizeof(sense), false, true);
+}
+
+static void check_read10_error_sense(uint8_t sense_key, uint8_t asc)
+{
+  configure_and_send_io_cbw(SCSI_CMD_READ_10);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  tud_task();
+
+  host_clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  expect_cbw_xfer(&cbw_sense);
+  host_request_sense(sense_key, asc);
+  tud_task();
+}
+
+static void check_write10_error_sense(uint8_t sense_key, uint8_t asc)
+{
+  configure_and_send_io_cbw(SCSI_CMD_WRITE_10);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, 512, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+
+  // the callback fails the data: Bulk-Out stalls and the failed CSW goes out at once
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, 512, 0, true);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+
+  // no CBW is queued while Bulk-Out is halted
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  tud_task();
+
+  host_clear_halt(EDPT_MSC_OUT);
+  expect_cbw_xfer(&cbw_sense);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  host_request_sense(sense_key, asc);
+  tud_task();
+}
+
+// A read10/write10 error keeps the sense the callback set instead of reporting MEDIUM NOT PRESENT
+void test_msc_read10_error_keeps_callback_sense(void)
+{
+  io_mode = IO_ERROR_WITH_SENSE;
+  check_read10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
+}
+
+void test_msc_write10_error_keeps_callback_sense(void)
+{
+  io_mode = IO_ERROR_WITH_SENSE;
+  check_write10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
+}
+
+// Without a sense from the callback, a read10/write10 error defaults to NOT READY / MEDIUM NOT PRESENT
+void test_msc_read10_error_default_sense(void)
+{
+  io_mode = IO_ERROR_NO_SENSE;
+  check_read10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
+}
+
+void test_msc_write10_error_default_sense(void)
+{
+  io_mode = IO_ERROR_NO_SENSE;
+  check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
 }

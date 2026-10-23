@@ -66,9 +66,7 @@ the report descriptor exactly.
        must remain valid.
    * - ``tud_hid_get_report_cb()``
      - Fills a control GET_REPORT response and returns its byte count.  Returning
-       zero stalls the request, except when the host asks for a nonzero report
-       ID with ``wLength`` above 1: TinyUSB has already placed the ID byte, so
-       a one-byte response is sent instead.
+       zero stalls the request.
    * - ``tud_hid_set_report_cb()``
      - Receives an output or feature report from either the control endpoint or
        interrupt OUT endpoint.
@@ -101,9 +99,9 @@ controller can expose several interfaces.
      - What it controls
    * - ``CFG_TUH_HID_EPIN_BUFSIZE``
      - ``64`` bytes
-     - Interrupt IN buffer per HID instance; must be at least the endpoint's
-       ``wMaxPacketSize`` (not checked).  Reports longer than one packet are not
-       assembled.
+     - Interrupt IN buffer per HID instance.  An interface whose IN
+       ``wMaxPacketSize`` exceeds it is not mounted.  Reports longer than one
+       packet are not assembled.
    * - ``CFG_TUH_HID_EPOUT_BUFSIZE``
      - ``64`` bytes
      - Largest interrupt OUT report that can be sent per HID instance.
