@@ -8,23 +8,6 @@ CPU_CORE ?= cortex-m3
 CFLAGS += \
   -flto
 
-ifeq ($(BOARD),apm32f103_dev_board)
-CFLAGS += \
-	-DCFG_TUSB_MCU=OPT_MCU_APM32F103
-
-SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
-	src/portable/st/stm32_fsdev/fsdev_common.c
-else ifeq ($(BOARD),apm32f107_dev_board)
-CFLAGS += \
-	-DCFG_TUSB_MCU=OPT_MCU_APM32F107
-
-SRC_C += \
-	src/portable/synopsys/dwc2/dcd_dwc2.c \
-	src/portable/synopsys/dwc2/hcd_dwc2.c \
-	src/portable/synopsys/dwc2/dwc2_common.c
-endif
-
 LDFLAGS += \
 	-flto --specs=nosys.specs -nostdlib -nostartfiles
 

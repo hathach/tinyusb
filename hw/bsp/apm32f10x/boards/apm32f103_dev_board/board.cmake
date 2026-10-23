@@ -7,7 +7,6 @@ set(FAMILY_MCUS APM32F103 CACHE INTERNAL "" FORCE)
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     APM32F103xB
-    SYSTEM_CLOCK_72MHz
     HSE_VALUE=8000000U
     CFG_EXAMPLE_VIDEO_READONLY
     )
