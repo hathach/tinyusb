@@ -45,7 +45,7 @@ can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h,sysview_*.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -160,9 +160,11 @@ _FULL_RE = re.compile(
     # change; family_json runs inside build.py after every default configure, so a
     # break in it fails the build the same way
     r'tools/(build|build_utils|change_impact|family_json)\.py$|'
-    # the make twins of family_support.cmake are the same authority for the make legs
+    # the make twins of family_support.cmake are the same authority for the make legs;
+    # the shared sysview_*.h are cross-family SystemView build files (compiled only
+    # under -DSYSVIEW, which only the HIL SystemView capture builds, but shared like board.c is)
     r'hw/bsp/(family_support\.(cmake|mk)|family_rules\.mk|zephyr_board_aliases\.cmake|'
-    r'board_api\.h|board\.c|ansi_escape\.h)$|'
+    r'board_api\.h|board\.c|ansi_escape\.h|sysview_[^/]+\.h)$|'
     # rule 15 lists examples/<role>/CMakeLists.txt - it registers every target in that
     # role, so it was only ever reaching `full` through rule 17's fall-through
     r'examples/build_system/|examples/CMakeLists\.txt$|'

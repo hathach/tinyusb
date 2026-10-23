@@ -41,6 +41,7 @@
 
 #include "bsp/board_api.h"
 #include "board.h"
+#include "common/tusb_sysview.h"
 
 extern void USB_IRQHandler(void);
 extern void SysTick_Handler(void);
@@ -90,11 +91,29 @@ void board_init(void) {
 
   // USB: Setup PLL clock, and power
   Chip_USB_Init();
+
+#if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+  // Free-running 1 MHz timestamp source for SystemView, see SEGGER_SYSVIEW_X_GetTimestamp() below.
+  // CT32B0 is unused elsewhere in this BSP; SysTick is left alone since it backs the 1 ms tick.
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_CT32B0);
+  LPC_TIMER32_0->TCR = TIMER_RESET;                      // hold TC/PC in reset while configuring
+  LPC_TIMER32_0->PR  = (SystemCoreClock / 1000000u) - 1; // PCLK is the system clock, TC ticks every PR+1
+  LPC_TIMER32_0->TCR = TIMER_ENABLE;                     // release reset and count, no match/capture configured
+#endif
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
+#if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+// Cortex-M0 has no DWT cycle counter, so SystemView takes its timestamp from a hardware timer
+// (contract in src/common/tusb_sysview.c: free-running microseconds). CT32B0 is a genuinely 32-bit
+// counter prescaled to 1 MHz in board_init(), so its TC is already the required value and wraps
+// only every ~71 minutes.
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  return LPC_TIMER32_0->TC;
+}
+#endif
 
 void board_led_write(bool state) {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));

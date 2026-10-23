@@ -307,6 +307,10 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # fetched by path only: just -DSYSVIEW builds need it (test/hil/sysview_ci.py capture --get-deps)
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                       '92ca7a810c5765ba64911919acd511c61b6b083f',
+                       ''],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
                     'a5a76923300db213b9128f9c765ba17a188735ca',

@@ -11,6 +11,7 @@
 
 #include "tusb.h"
 #include "common/tusb_private.h"
+#include "common/tusb_sysview.h"
 
 #if CFG_TUD_ENABLED
 #include "device/usbd_pvt.h"
@@ -129,6 +130,8 @@ bool tusb_inited(void) {
 
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
+  // ports may call this from task context (in_isr false): no ISR span then
+  if (in_isr) { TU_SYSVIEW_ISR_ENTER(); }
 
   #if CFG_TUD_ENABLED
   if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
@@ -142,6 +145,8 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
     hcd_int_handler(rhport, in_isr);
   }
   #endif
+
+  if (in_isr) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 bool tusb_deinit(uint8_t rhport) {
