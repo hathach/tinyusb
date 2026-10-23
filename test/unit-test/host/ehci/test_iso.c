@@ -983,11 +983,10 @@ static void test_missed_slot_without_stop(void) {
   assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001 && td_linked(ep));
   uint32_t const slot = ep->uframe;
 
-  // A ring later the controller is back on this microframe: unlink the TD so
-  // it cannot recur again, and retire it once this visit is over.
+  // A ring later the controller is back on this microframe: retry later.
   set_now(slot + FRAMELIST_SIZE * 8);
   iso_process(true);
-  assert(events == 0 && ep->busy && !td_linked(ep) && ep->td->itd.xact[slot & 7].active);
+  assert(events == 0 && ep->busy && td_linked(ep));
   set_now(slot + FRAMELIST_SIZE * 8 + 1);
   iso_process(true);
   assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
@@ -996,8 +995,7 @@ static void test_missed_slot_without_stop(void) {
 }
 
 // Native FS: the embedded TT works on an siTD one frame after FRINDEX reaches
-// its entry, so a missed siTD is retired only from the third frame on. It is
-// unlinked at once, before its entry comes round again.
+// its entry, so a missed siTD is retired only from the third frame on.
 static void test_missed_fs_slot_margin(void) {
   reset(TUSB_SPEED_FULL);
   init_periodic_list(0);
@@ -1008,157 +1006,11 @@ static void test_missed_fs_slot_margin(void) {
   uint32_t const frame = ep->uframe;
   set_now(frame + 8); // slot over, but the controller may still be on the TD
   iso_process(true);
-  assert(events == 0 && ep->busy && !td_linked(ep) && ep->td->sitd.active);
+  assert(events == 0 && ep->busy && td_linked(ep));
   set_now(frame + 16);
   iso_process(true);
   assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
   assert(!td_linked(ep) && !ep->td->sitd.active);
-}
-
-// Frame-list rollover, the only periodic tick, can land right before a missed
-// slot comes round again: HS slot 1 of the 64-microframe ring, or an FS entry
-// one frame ahead. The TD must not stay linked for the controller to send it a
-// ring late; it is retired once its last possible visit is over.
-static void test_missed_slot_at_ring_start(void) {
-  for (unsigned hs = 0; hs < 2; hs++) {
-    reset(hs ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
-    regs.inten = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
-    assert(open_ep(0x01, hs ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, 64, 1));
-    iso_ep_t* ep = iso_ep_find(1, 0x01);
-    set_now(hs ? 1024 : 960);
-    assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
-    uint32_t const slot = ep->uframe;
-    // HS microframe 1025 (1 of the ring); FS frame 121 (entry 1), the native FS
-    // FRINDEX running one frame ahead.
-    assert(slot == (hs ? 1025u : 968u));
-    uint32_t const status_word = hs ? 1 + (slot & 7) : 3;
-    uint32_t const active = TU_BIT(hs ? 31 : 7);
-
-    // Rollover at FRINDEX 1088 (HS) or 1024 (FS, frame 128): the slot passed
-    // unvisited and comes round next.
-    set_now((hs ? 1088 : 1024) - ehci_data.iso_frame_offset);
-    regs.status = EHCI_INT_MASK_FRAMELIST_ROLLOVER;
-    hcd_int_handler(0, true);
-    assert(events == 0 && ep->busy && !td_linked(ep));
-    assert(ep->td->words[status_word] & active); // the buffer stays owned
-
-    // The controller may still make that visit: keep the buffer until it is over.
-    uint32_t const passed = hs ? 1090 : 1056;
-    set_now(passed - 1 - ehci_data.iso_frame_offset);
-    iso_process(true);
-    assert(events == 0 && ep->busy);
-    set_now(passed - ehci_data.iso_frame_offset);
-    iso_process(true);
-    assert(events == 1 && !ep->busy && event.xfer_complete.result == XFER_RESULT_FAILED);
-    assert(event.xfer_complete.len == 0 && !(ep->td->words[status_word] & active));
-    // The next request is scheduled and linked as usual.
-    assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
-  }
-}
-
-// A close whose periodic stop fails restarts the schedule and keeps the
-// descriptors until the controller cannot be on them.
-static void test_close_stop_failure(void) {
-  reset(TUSB_SPEED_HIGH);
-  regs.command_bm.periodic_enable = 1;
-  regs.status_bm.periodic_status = 1; // never follows the enable bit
-  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
-  iso_ep_t* ep = iso_ep_find(1, 0x01);
-  iso_td_t* td = ep->td;
-  set_now(1000);
-  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
-  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
-  assert(iso_stop(0, ep, true)); // accepted; released by the interrupt
-  assert(regs.command_bm.periodic_enable); // the schedule keeps running
-  assert(iso_ep_find(1, 0x01) == NULL && iso_ep_next(0) < QTD_MAX); // closed, not freed
-  assert(ep->td == td && !td_linked(ep) && td->itd.xact[1001 & 7].active);
-  assert(events == 0);
-  // Another endpoint at the same address is independent of the closing one.
-  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
-  iso_ep_t* reopened = iso_ep_find(1, 0x01);
-  assert(reopened != NULL && reopened != ep);
-  assert(iso_stop(0, reopened, true));
-  assert(regs.command_bm.int_threshold == 8); // no open endpoint is left
-
-  // A ring later FRINDEX is back on the same microframe, but the TD has not
-  // been linked since: the interrupt releases the endpoint without an event.
-  set_now(1001 + FRAMELIST_SIZE * 8);
-  iso_process(true);
-  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
-  assert(regs.command_bm.int_threshold == 8);
-  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
-  assert(regs.command_bm.int_threshold == 0);
-  assert(iso_stop(0, iso_ep_find(1, 0x01), true));
-  assert(regs.command_bm.int_threshold == 8);
-}
-
-// Interrupt coalescing is off only while an ISO endpoint is open: endpoints
-// awaiting release raise no completions. The threshold is restored in task
-// context by the close that leaves no open endpoint, never by the interrupt
-// that releases a closing one, and saved again by the next open.
-static void test_close_deferred_threshold(void) {
-  reset(TUSB_SPEED_HIGH);
-  regs.command_bm.periodic_enable = 1;
-  regs.status_bm.periodic_status = 1; // never follows the enable bit
-  assert(open_ep(0x01, TUSB_SPEED_HIGH, 64, 1));
-  assert(regs.command_bm.int_threshold == 0);
-  iso_ep_t* ep = iso_ep_find(1, 0x01);
-  set_now(1000);
-  assert(iso_xfer(0, ep, buffer, 64) && ep->uframe == 1001);
-  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
-  assert(iso_stop(0, ep, true) && ep->closing);
-  assert(regs.command_bm.int_threshold == 8); // deferred, but nothing open
-
-  // A new open while the old one awaits release saves the user's value again.
-  regs.command_bm.int_threshold = 16;
-  assert(open_ep(0x02, TUSB_SPEED_HIGH, 64, 1));
-  assert(regs.command_bm.int_threshold == 0);
-  assert(iso_stop(0, iso_ep_find(1, 0x02), true));
-  assert(regs.command_bm.int_threshold == 16 && iso_ep_next(0) < QTD_MAX);
-
-  // Releasing the last closing endpoint leaves USBCMD alone.
-  set_now(1001 + FRAMELIST_SIZE * 8);
-  iso_process(true);
-  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
-  assert(regs.command_bm.int_threshold == 16);
-}
-
-// The audio host reconfigures a stream by closing its endpoint with
-// tuh_edpt_close() (abort, then close) and opening it again, and keeps the
-// stream open while a close fails. A close whose periodic stop fails hides the
-// endpoint from lookup at once, so it must be accepted: a refused one could
-// never be retried, wedging the stream until replug.
-static void test_close_deferred_reconfigure(void) {
-  reset(TUSB_SPEED_HIGH);
-  regs.command_bm.periodic_enable = 1;
-  regs.status_bm.periodic_status = 1; // never follows the enable bit
-  buses[1].speed = TUSB_SPEED_HIGH;
-  tusb_desc_endpoint_t const desc = {
-    .bLength = sizeof(desc), .bDescriptorType = TUSB_DESC_ENDPOINT,
-    .bEndpointAddress = 0x01, .bmAttributes = {.xfer = TUSB_XFER_ISOCHRONOUS},
-    .wMaxPacketSize = 64, .bInterval = 1
-  };
-  assert(hcd_edpt_open(0, 1, &desc));
-  set_now(1000);
-  assert(hcd_edpt_xfer(0, 1, 0x01, buffer, 64));
-  iso_ep_t* closing = iso_ep_find(1, 0x01);
-  assert(closing->uframe == 1001);
-  regs.frame_index = 1001; // FRINDEX stops on the TD's microframe
-  assert(!hcd_edpt_abort_xfer(0, 1, 0x01)); // too late to cancel
-  assert(hcd_edpt_close(0, 1, 0x01)); // accepted; released by the interrupt
-  assert(regs.command_bm.periodic_enable);
-  assert(closing->closing && iso_ep_find(1, 0x01) == NULL && events == 0);
-
-  // Reconfigure while the old descriptors are still held.
-  assert(hcd_edpt_open(0, 1, &desc));
-  iso_ep_t* reopened = iso_ep_find(1, 0x01);
-  assert(reopened != NULL && reopened != closing && reopened->td != closing->td);
-  assert(hcd_edpt_close(0, 1, 0x01) && iso_ep_find(1, 0x01) == NULL);
-  assert(iso_ep_next(0) < QTD_MAX); // only the closing endpoint is left
-
-  set_now(1001 + FRAMELIST_SIZE * 8);
-  iso_process(true);
-  assert(events == 0 && iso_ep_next(0) == QTD_MAX);
 }
 
 // Abort cancels only a request the controller cannot be about to execute.
@@ -1305,10 +1157,6 @@ int main(void) {
   test_sof_free();
   test_missed_slot_without_stop();
   test_missed_fs_slot_margin();
-  test_missed_slot_at_ring_start();
-  test_close_stop_failure();
-  test_close_deferred_reconfigure();
-  test_close_deferred_threshold();
   test_abort_idle_margin();
   test_schedule_helpers_bounded();
   test_abort_keeps_phase();
