@@ -301,7 +301,8 @@ static intptr_t find_opened_ptd(uint8_t dev_addr, uint8_t ep_addr) {
   return 0;
 }
 
-static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen, bool is_setup) {
+static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen,
+                      bool is_setup) {
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
 
@@ -313,6 +314,8 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
   ptd_data_t  *ptd_data  = (ptd_data_t *)(ptd_ptr + offsetof(ip3516_atl_t, data));
   ptd_state_t *ptd_state = (ptd_state_t *)(ptd_ptr + offsetof(ip3516_atl_t, state));
 
+  uint32_t split_first    = 0; // first microframe of a split ISO window
+  uint32_t split_interval = 0;
   if (ptd_state->ep_type == TUSB_XFER_ISOCHRONOUS) {
     ip3516_ptl_t *ptd = (ip3516_ptl_t *)ptd_ptr;
     const uint8_t index = (uint8_t)(ptd - _ptd.iso);
@@ -335,6 +338,10 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
     ptd->iso_in_0.value = _iso_ep[index].uframe_complete;
     ptd->iso_in_1 = 0;
     ptd->iso_in_2 = 0;
+    if (ptd_ctrl2->split) {
+      split_first    = next + _iso_ep[index].split_slot;
+      split_interval = interval;
+    }
   }
 
   // Setup data buffer and length
@@ -362,8 +369,21 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16
   }
 
   // Activate only after the ISO scheduling fields have been restored.
+  hcd_int_disable(rhport);
+  if (split_interval) {
+    // Activated after its first microframe began, a split window would run
+    // from the middle (an OUT continuing with MID, no BEGIN). Recheck FRINDEX
+    // and move a late transfer on by one interval; uFrame compares eight
+    // FRINDEX bits and split intervals are at most 16 ms.
+    const uint32_t now = (USBHSH->FLADJ_FRINDEX & USBHSH_FLADJ_FRINDEX_FRINDEX_MASK) >>
+                         USBHSH_FLADJ_FRINDEX_FRINDEX_SHIFT;
+    if ((uint8_t)(now - split_first) < 0x80u) {
+      ptd_ctrl1->uframe = (split_first + split_interval) & 0xf8u;
+    }
+  }
   ptd_ctrl1->valid  = 1;
   ptd_state->active = 1;
+  hcd_int_enable(rhport);
 
   return true;
 }
@@ -691,9 +711,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
 // Submit a transfer on an endpoint
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
-  (void)rhport;
-
-  return edpt_xfer(dev_addr, ep_addr, buffer, buflen, false);
+  return edpt_xfer(rhport, dev_addr, ep_addr, buffer, buflen, false);
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -726,9 +744,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]) {
-  (void)rhport;
-
-  return edpt_xfer(dev_addr, 0x00, (uint8_t *)(uintptr_t)setup_packet, 8, true);
+  return edpt_xfer(rhport, dev_addr, 0x00, (uint8_t *)(uintptr_t)setup_packet, 8, true);
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
