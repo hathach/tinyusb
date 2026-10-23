@@ -177,7 +177,7 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
      - UAC1
      - Bitmask of ``TUH_AUDIO_PROTOCOL_UAC1`` and
        ``TUH_AUDIO_PROTOCOL_UAC2``.  Combine them to accept both versions.
-   * -``CFG_TUH_AUDIO_MAX_AS``
+   * - ``CFG_TUH_AUDIO_MAX_AS``
      - ``4``
      - Maximum number of nonzero-bandwidth alternate settings retained per
        logical stream.
