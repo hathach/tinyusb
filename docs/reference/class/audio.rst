@@ -172,7 +172,6 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
      - ``0``
      - Number of Audio Control instances, i.e. the maximum number of
        mounted AudioControl functions.  A nonzero value includes the driver.
-       It replaces ``CFG_TUH_AUDIO_MAX``, which is now a build error.
    * - ``CFG_TUH_AUDIO_PROTOCOLS``
      - UAC1
      - Bitmask of ``TUH_AUDIO_PROTOCOL_UAC1`` and
