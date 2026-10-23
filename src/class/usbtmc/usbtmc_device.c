@@ -829,19 +829,30 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       rsp.bTag = (uint8_t) bTag;
       if (usbtmc_state.ep_int_in != 0) {
         rsp.statusByte = 0x00;// Use interrupt endpoint, instead. Must be 0x00 (USB488v1.0 4.3.1.2)
-        if (usbd_edpt_busy(rhport, usbtmc_state.ep_int_in)) {
+        // The endpoint is claimed BEFORE the application is asked for the Status Byte, so the byte it
+        // returns is the byte queued: "a device must clear the Status Byte RQS bit after a Status Byte
+        // (with RQS set) is queued to be sent on the Interrupt-IN pipe" (USB488 1.0 section 3.4.1), and
+        // an application can clear it in its callback only if the call means the byte goes. When the
+        // response cannot be queued the status is STATUS_INTERRUPT_IN_BUSY (section 4.3.1.2): a busy
+        // endpoint, one claimed for another notification, or a transfer the controller refused. A
+        // SUCCESS with nothing queued would leave the host waiting for a packet that is not coming.
+        if (!usbd_edpt_claim(rhport, usbtmc_state.ep_int_in)) {
           rsp.USBTMC_status = USB488_STATUS_INTERRUPT_IN_BUSY;
         } else {
+          TU_VERIFY_STATIC(CFG_TUD_USBTMC_INT_EP_SIZE >= sizeof(usbtmc_read_stb_interrupt_488_t), "notification buffer too small");
           rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-          usbtmc_read_stb_interrupt_488_t intMsg =
+          usbtmc_read_stb_interrupt_488_t const intMsg =
               {
                   .bNotify1 = {
                       .one = 1,
                       .bTag = bTag & 0x7Fu,
                   },
                   .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))};
+          memcpy(usbtmc_epbuf.epnotif, &intMsg, sizeof(intMsg));
           // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
-          (void) tud_usbtmc_transmit_notification_data(&intMsg, sizeof(intMsg));
+          if (!usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, usbtmc_epbuf.epnotif, (uint16_t) sizeof(intMsg), false)) {
+            rsp.USBTMC_status = USB488_STATUS_INTERRUPT_IN_BUSY;
+          }
         }
       } else {
         rsp.statusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status));
