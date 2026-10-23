@@ -186,7 +186,7 @@ boards use have to be installed. The mapping is not always guessable:
 | `openocd`  | [`hathach/openocd`][openocd-fork] branch `tinyusb` — one build merging the Raspberry Pi (RP2350), WCH and Analog Devices (MAX32) forks, none upstream |
 | `esptool`  | `esptool` (pip)                                                                                                                                       |
 | `lm4flash` | `lm4flash` (apt)                                                                                                                                      |
-| `pyocd`    | `pyocd` 0.45.1 (the launcher relies on its internals), run through `test/hil/pyocd/run_pyocd.py`, so the roster entry needs a `vid_pid` pair          |
+| `pyocd`    | `pyocd` 0.45.1 (agentrc's pyocd launcher relies on its internals; project dir `test/hil/pyocd`), so the roster entry needs a `vid_pid` pair           |
 
 [openocd-fork]: https://github.com/hathach/openocd/tree/tinyusb
 
@@ -266,6 +266,16 @@ addresses a board by bus path. Boards are identified by the MCU's unique ID and 
 their serial, both recorded in the rig config — which is why every HIL board must
 implement `board_get_unique_id()`.
 
+The eight uPD720201 controllers sit at `0000:01:00.0` to `0000:08:00.0`, four per card;
+`readlink -f /sys/bus/usb/devices/usb<N>` maps a bus to its controller and `sudo uhubctl` lists the
+root hubs it can drive against the same addresses. Both their USB 2 and USB 3 root hubs advertise
+per-port power switching (`ppps`) but the silicon never drops VBUS (measured on the `05`–`08` card on
+2026-09-22; `01`–`04` unmeasured, assumed the same; the uPD720201 datasheet is not in the library, so
+this is a measurement, not a documented property), so a root-port cycle is a forced re-enumeration and
+nothing more. Which tree holds which probes moves with recabling: derive it (`lsusb -s <bus>:`) rather
+than trusting a stored map. A successful `pci-rebind` renumbers every bus the controller owns (buses 17
+and 18 came back as 1 and 2 on 2026-08-17).
+
 ## Attached boards
 
 Roles come from each board's `tests` entry; `Flasher` is the tool that programs it.
@@ -294,7 +304,7 @@ From a development PC, the same run can be driven remotely. `REMOTE` and `CONFIG
 default to `ci`, so point them at your own:
 
 ```bash
-REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil/scripts/hil_remote.py -b <board>
+REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil-contract/scripts/hil_remote.py -b <board>
 ```
 
 ## Gotchas

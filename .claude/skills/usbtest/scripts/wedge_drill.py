@@ -28,13 +28,13 @@ rc 0, testusb reaped, the serial back as one device on a new devnum, smoke case 
 (the harness did not recover a wedge it was given), or "inconclusive" (no wedge was produced:
 the case ended before the halt landed, the halt failed, or no case hung). `cleanup` is the drill's
 own reset after a non-pass and never counts as harness recovery. Exit 0 only for a pass with the
-board parked; 1 otherwise; 2 refused.
+board parked; 1 otherwise; 2 refused (a command line argparse rejects: its usage on stderr, no JSON
+line).
 """
 import argparse
 import json
 import os
 import re
-import shlex
 import signal
 import subprocess
 import sys
@@ -43,9 +43,38 @@ import threading
 import time
 from pathlib import Path
 
+
+def build_parser():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--config', required=True, help="this host's HIL config json (the HIL contract)")
+    p.add_argument('--board', required=True)
+    p.add_argument('--variant', help='roster variant, required when the board has several')
+    p.add_argument('--delay', type=float, default=0.3, help='seconds into case 27 before the halt (default 0.3)')
+    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
+    p.add_argument('--halt-openocd', metavar='ARGS',
+                   help='openocd args that halt the core on the board\'s probe, required when its recovery '
+                        'flasher is not openocd, e.g. "-f interface/stlink.cfg -f target/stm32l4x.cfg"')
+    p.add_argument('--allow-concurrent', action='store_true',
+                   help="skip the live-battery check; see run_case.py's description first")
+    return p
+
+
+def new_report(args):
+    return {'drill': 'inconclusive', 'board': args.board, 'variant': args.variant, 'reason': '',
+            'halt': {}, 'cases': [], 'wedged': False, 'recovery': {}, 'device': {},
+            'smoke': None, 'cleanup': None, 'boardState': 'untouched', 'error': ''}
+
+
+if __name__ == '__main__' and sys.platform != 'linux':   # after argparse, so --help works; before run_case's harness imports
+    _report = new_report(build_parser().parse_args())
+    _report['error'] = 'wedge_drill.py needs a Linux host (usbfs, /proc, the usbtest kernel module)'
+    print(f'error: {_report["error"]}', file=sys.stderr)
+    print(json.dumps(_report))
+    sys.exit(2)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_case  # noqa: E402
-from run_case import PROC, Refused, Terminated, hil_flash, hil_lock, hil_util, usbtest  # noqa: E402
+from run_case import PROC, Refused, Terminated, hil_flash, hil_lock, hil_util, usb_observe, usbtest  # noqa: E402
 
 CASE = 27
 SMOKE = 1
@@ -59,8 +88,8 @@ HALT_BOUND = HALT_TIMEOUT + hil_util.REAP_GRACE   # run_cmd's bound plus its pos
 def halt_openocd(rec_board, timeout):
     # whether a halted core stalls the transfer in flight depends on the variant's USB engine
     # and debug freeze
-    return hil_util.run_cmd(f'{hil_flash._openocd_cmd_base(rec_board["flasher"])} '
-                            f'-c "init; halt; exit"', timeout=timeout)
+    return hil_util.run_cmd([*hil_flash._openocd_cmd_base(rec_board['flasher']), '-c', 'init; halt; exit'],
+                            timeout=timeout)
 
 
 HALTED_MARK = 'WEDGE_DRILL_HALTED'
@@ -105,10 +134,10 @@ def halt_held(rec_board, timeout):
     """halt_openocd for a WCH-Link: its openocd shutdown sends the probe's detach (wlinke.c
     wlink_quit), which resumes the core, so the halt holds only if openocd is SIGKILLed once
     halted. The probe opens once, so openocd is dead when this returns; ProbeHeld otherwise."""
-    cmd = (hil_flash._openocd_cmd_base(rec_board['flasher'])
-           + f' -c "init; halt; echo {HALTED_MARK}; sleep {int(timeout * 1000)}; shutdown"')
+    cmd = [*hil_flash._openocd_cmd_base(rec_board['flasher']),
+           '-c', f'init; halt; echo {HALTED_MARK}; sleep {int(timeout * 1000)}; shutdown']
     # no shell: the process reaped below must be openocd itself
-    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True, errors='replace', start_new_session=True)
     out, halted = [], threading.Event()
 
@@ -171,7 +200,7 @@ def halt_board(board, rec_board, halt_args):
 
 def identity(uid):
     """(node, devnum) of the one enumerated device with this serial, else None."""
-    found = hil_util.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid)
+    found = usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid)
     if len(found) != 1:
         return None
     d = Path(found[0]['dir'])
@@ -419,22 +448,8 @@ def finish_locked(board, rec_board, park_fw, report):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--config', required=True, help="this host's HIL config json (hil skill)")
-    p.add_argument('--board', required=True)
-    p.add_argument('--variant', help='roster variant, required when the board has several')
-    p.add_argument('--delay', type=float, default=0.3, help='seconds into case 27 before the halt (default 0.3)')
-    p.add_argument('--timeout', type=int, default=60, help='per-case timeout in seconds (default 60, as HIL)')
-    p.add_argument('--halt-openocd', metavar='ARGS',
-                   help='openocd args that halt the core on the board\'s probe, required when its recovery '
-                        'flasher is not openocd, e.g. "-f interface/stlink.cfg -f target/stm32l4x.cfg"')
-    p.add_argument('--allow-concurrent', action='store_true',
-                   help="skip the live-battery check; see run_case.py's description first")
-    args = p.parse_args()
-
-    report = {'drill': 'inconclusive', 'board': args.board, 'variant': args.variant, 'reason': '',
-              'halt': {}, 'cases': [], 'wedged': False, 'recovery': {}, 'device': {},
-              'smoke': None, 'cleanup': None, 'boardState': 'untouched', 'error': ''}
+    args = build_parser().parse_args()
+    report = new_report(args)
 
     def finish(code):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)

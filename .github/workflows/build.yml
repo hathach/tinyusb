@@ -71,8 +71,8 @@ jobs:
       required_json: ${{ steps.set-matrix-json.outputs.required_json }}
       membrowse_all: ${{ steps.set-matrix-json.outputs.membrowse_all }}
       membrowse_identical: ${{ steps.set-matrix-json.outputs.membrowse_identical }}
-      # one pair per rig job: hil-tinyusb (tinyusb.json minus esptool boards),
-      # hil-tinyusb-esp (esptool boards only), hil-tinyusb (hfp.json)
+      # one pair per rig job: hil-tinyusb (tinyusb.json minus esp-idf boards),
+      # hil-tinyusb-esp (esptool and openocd_esp boards only), hil-tinyusb (hfp.json)
       hil_args_tinyusb: ${{ steps.hil-select.outputs.args_tinyusb }}
       hil_run_tinyusb: ${{ steps.hil-select.outputs.run_tinyusb }}
       hil_args_tinyusb_esp: ${{ steps.hil-select.outputs.args_tinyusb_esp }}
@@ -139,9 +139,8 @@ jobs:
           hfp = s["args"].get("hfp.json")
           if not isinstance(tin, dict) or not isinstance(hfp, str):
               sys.exit("selection has no args for a rig")
-          legs = (("tinyusb", " ".join(a for f, a in sorted(tin.items()) if f != "esptool" and a)),
-                  ("tinyusb_esp", tin.get("esptool", "")),
-                  ("hfp", hfp))
+          rig = change_impact.rig_legs(tin)
+          legs = (("tinyusb", rig["tinyusb"]), ("tinyusb_esp", rig["tinyusb_esp"]), ("hfp", hfp))
           for key, a in legs:
               # roster board names reach $GITHUB_OUTPUT as bare NAME=VALUE lines; a
               # newline in one would inject extra run_* lines and flip which rig jobs run.
@@ -383,15 +382,15 @@ jobs:
       fail-fast: false
       matrix:
         # These names are the bucket keys of .github/scripts/hil_ci_set_matrix.py: every
-        # non-esptool roster board must land in one of them (esptool boards go to
-        # 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
+        # roster board not built under esp-idf must land in one of them (esptool and
+        # openocd_esp boards go to 'esp-idf', built by hil-build-esp below). hil_ci_set_matrix.py rejects a
         # board whose "toolchain" is not a bucket, so a new bucket must be added in
         # both places.
         #
         # INVARIANT the PR-scoped skip cascade rests on: hil_run_tinyusb / hil_run_hfp
         # true => hil-build has at least one non-empty leg. It holds because those
-        # flags count only non-esptool boards and every such board builds here. It
-        # would break if an esptool board were added to hfp.json, because
+        # flags count only non-esp-idf boards and every such board builds here. It
+        # would break if an esp-idf board were added to hfp.json, because
         # hil_args_hfp is NOT flasher-split: the hfp leg of hil-tinyusb would want to
         # run while hil-build (and therefore that leg) skipped.
         toolchain:
@@ -475,9 +474,9 @@ jobs:
           - display: tinyusb.json
             runner: [ self-hosted, X64, hathach, hardware-in-the-loop ]
             hil_json: test/hil/tinyusb.json
-            # esptool-flashed (espressif) boards run in hil-tinyusb-esp,
+            # esp-idf (espressif) boards run in hil-tinyusb-esp,
             # gated on the slow esp-idf build
-            test_args: '--exclude-flasher esptool'
+            test_args: '--exclude-flasher esptool --exclude-flasher openocd_esp'
           - display: hfp.json
             runner: [ self-hosted, Linux, X64, hifiphile ]
             hil_json: test/hil/hfp.json
@@ -529,7 +528,7 @@ jobs:
         # Single attempt per test (--retry 1), no in-run second pass: a broken fixture
         # fails fast instead of holding the runner (and other PRs' HIL jobs) for hours.
         env:
-          # tinyusb.json minus the esptool boards (they run in hil-tinyusb-esp): each
+          # tinyusb.json minus the esp-idf boards (they run in hil-tinyusb-esp): each
           # job gates on its own flasher subset, never on a rig-wide flag
           SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
           SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
@@ -540,12 +539,17 @@ jobs:
             *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
             *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
           esac
+          # the board locks and the report document come from agentrc at the commit get_deps.py
+          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
+          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
+          python3 tools/get_deps.py lib/agentrc
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
-            # leave a marker so the combined PR comment says so instead of dropping the
-            # section (and leaving a stale table from an earlier push in its place)
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "_Skipped by PR selection: no affected boards on this rig._" > "$HIL_REPORT_DIR/hil_report.md"
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push in its place)
+            python3 test/hil/helper/hil_report.py no-selection "$HIL_JSON" \
+              '_Skipped by PR selection: no affected boards on this rig._' --report-dir "$HIL_REPORT_DIR" ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # a re-run spec is already a subset of the selection (only the boards/tests
@@ -554,14 +558,41 @@ jobs:
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
           python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
+      - &hil_report_prepare
+        name: Prepare HIL report
+        id: prepare
+        if: always() && github.event_name == 'pull_request'
+        # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
+        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
+        # holding only its hil_report.unprepared marker, made here without the checkout's
+        # scripts: the report dir can still hold an earlier attempt's report. The hfp job sets
+        # no HIL_REPORT_DIR and reports in the workspace.
+        run: |
+          REPORT_DIR="${HIL_REPORT_DIR:-.}"
+          if python3 test/hil/helper/hil_report.py prepare --report-dir "$REPORT_DIR"; then
+            echo "dir=$REPORT_DIR" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UNPREPARED="$RUNNER_TEMP/hil-report-unprepared-$GITHUB_RUN_ATTEMPT"
+          rm -rf "$UNPREPARED"
+          mkdir -p "$UNPREPARED"
+          touch "$UNPREPARED/hil_report.unprepared"
+          echo "dir=$UNPREPARED" >> "$GITHUB_OUTPUT"
+          exit 1
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-${{ matrix.display }}
-          path: |
-            ${{ env.HIL_REPORT_DIR }}/hil_report.md
-            ${{ env.HIL_REPORT_DIR }}/audio/
+          # the allowlist of report files, never the whole report dir
+          path: &hil_report_files |
+            ${{ steps.prepare.outputs.dir }}/hil_report.md
+            ${{ steps.prepare.outputs.dir }}/hil_report.json
+            ${{ steps.prepare.outputs.dir }}/hil_report.attempts/
+            ${{ steps.prepare.outputs.dir }}/hil_report.unprepared
+            ${{ steps.prepare.outputs.dir }}/audio/
           if-no-files-found: ignore
           overwrite: true
 
@@ -582,7 +613,8 @@ jobs:
     timeout-minutes: 75
     env:
       HIL_JSON: test/hil/tinyusb.json
-      TEST_ARGS: '--flasher esptool'
+      # hil_test.py refuses an openocd_esp board under a CI job (hathach/tinyusb#4256)
+      TEST_ARGS: '--flasher esptool --flasher openocd_esp'
     steps:
       - name: Set HIL report dir (per run+job; persists across run attempts)
         run: |
@@ -622,17 +654,22 @@ jobs:
 
       - name: Test on actual hardware
         env:
-          # esptool subset of tinyusb.json: this job must gate on its own boards, not
+          # esp-idf subset of tinyusb.json: this job must gate on its own boards, not
           # on the rig-wide flag (which would run a filter matching zero boards)
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
         run: |
+          # the board locks and the report document come from agentrc at the commit get_deps.py
+          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
+          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
+          python3 tools/get_deps.py lib/agentrc
           if [ "$SEL_RUN" = "false" ]; then
-            echo "HIL skipped by PR selection (no affected esptool boards)"
-            # leave a marker so the combined PR comment says so instead of dropping the
-            # section (and leaving a stale table from an earlier push in its place)
-            mkdir -p "$HIL_REPORT_DIR"
-            echo "_Skipped by PR selection: no affected esptool boards._" > "$HIL_REPORT_DIR/hil_report.md"
+            echo "HIL skipped by PR selection (no affected esp-idf boards)"
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push in its place)
+            python3 test/hil/helper/hil_report.py no-selection "$HIL_JSON" \
+              '_Skipped by PR selection: no affected esp-idf boards._' --report-dir "$HIL_REPORT_DIR" ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # a re-run spec is already a subset of the selection (only the boards/tests
@@ -641,14 +678,14 @@ jobs:
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
           python3 test/hil/hil_test.py --retry 1 $TEST_ARGS $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
 
+      - *hil_report_prepare
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-tinyusb-esp.json
-          path: |
-            ${{ env.HIL_REPORT_DIR }}/hil_report.md
-            ${{ env.HIL_REPORT_DIR }}/audio/
+          path: *hil_report_files
           if-no-files-found: ignore
           overwrite: true
 
@@ -775,8 +812,9 @@ jobs:
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
-        if: env.SEL_RUN != 'false'
-        run: python3 tools/get_deps.py $BUILD_ARGS
+        # lib/agentrc: hil_test.py's board locks and the report document, at the commit
+        # get_deps.py pins; a run the selection skipped writes its report with it too
+        run: python3 tools/get_deps.py lib/agentrc $BUILD_ARGS
 
       - name: Build
         if: env.SEL_RUN != 'false'
@@ -797,9 +835,11 @@ jobs:
         run: |
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
-            # leave a marker so the combined PR comment says so instead of dropping
-            # the section (and leaving a stale table from an earlier push)
-            echo "_Skipped by PR selection: no affected boards on this rig._" > hil_report.md
+            # a report saying so, or the combined PR comment drops the section (and leaves a
+            # stale table from an earlier push)
+            python3 test/hil/helper/hil_report.py no-selection test/hil/hfp.json \
+              '_Skipped by PR selection: no affected boards on this rig._' ||
+              { echo "::error::could not write the no-selection HIL report"; exit 1; }
             exit 0
           fi
           # empty/absent on a non-PR event or a selector fallback -> full hfp matrix
@@ -807,13 +847,13 @@ jobs:
           # one attempt per test, matching the other HIL legs
           python3 test/hil/hil_test.py --retry 1 $SEL_ARGS hfp.json
 
+      - *hil_report_prepare
+
       - name: Upload HIL report
         if: always() && github.event_name == 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: hil-report-hfp-iar
-          path: |
-            hil_report.md
-            audio/
+          path: *hil_report_files
           if-no-files-found: ignore
           overwrite: true

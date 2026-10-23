@@ -27,6 +27,7 @@ the graph never saw are listed per commit; a commit that deletes a file needs it
 historical tree, since the current graph cannot know what built the deleted file.
 """
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -37,6 +38,11 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+# split_command, from this script's checkout under a private name: graph's `import build` must
+# still get the audited checkout's own family_json
+_spec = importlib.util.spec_from_file_location('_coverage_audit_family_json', ROOT / 'tools' / 'family_json.py')
+family_json = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(family_json)
 DEPS_HEADER = re.compile(r'^(\S.*): #deps \d+')
 ROLES = ('device', 'host', 'dual', 'typec')
 FORMAT = 3
@@ -46,11 +52,20 @@ class ExtractError(Exception):
     pass
 
 
+# Windows: the paths rel() found on another drive than the checkout, outside it as a '..' is on
+# POSIX; graph counts them per board on stderr, so a checkout split across drives shows up
+other_drive = set()
+
+
 def rel(path, root, base=None):
     """Repo-relative path of `path` (relative ones resolved against `base`, default `root`),
     or None for a file outside the checkout (toolchain headers) or a generated one."""
     p = os.path.normpath(path if os.path.isabs(path) else os.path.join(base or root, path))
-    r = os.path.relpath(p, root)
+    try:
+        r = Path(os.path.relpath(p, root)).as_posix()
+    except ValueError:      # Windows: another drive (a toolchain header) is outside
+        other_drive.add(p)
+        return None
     return None if r.startswith('..') or r.startswith('cmake-build') else r
 
 
@@ -112,7 +127,7 @@ def linker_includes(script, search_dirs, seen=None):
     and the -L dirs - plus the including script's own directory."""
     seen = set() if seen is None else seen
     try:
-        with open(script, errors='replace') as fh:
+        with open(script, encoding='utf-8', errors='replace') as fh:
             text = fh.read()
     except OSError:
         return seen
@@ -199,7 +214,7 @@ def scope_cmake_inputs(files, examples):
 
 
 def run(cmd, cwd, **kw):
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, **kw)
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, encoding='utf-8', errors='replace', **kw)
 
 
 def run_ok(cmd, cwd):
@@ -219,14 +234,15 @@ def is_live(obj_path, compiler, cwd):
     if '__gnu_lto_slim' not in r.stdout:
         return defines_symbols(r.stdout)
     try:
-        n = run([compiler + '-nm', obj_path], cwd)
+        nm = compiler[:-4] + '-nm.exe' if compiler.lower().endswith('.exe') else compiler + '-nm'
+        n = run([nm, obj_path], cwd)
     except OSError:
         return True
     return n.returncode != 0 or nm_defines_symbols(n.stdout)
 
 
 def compiler_of(entry):
-    return entry['arguments'][0] if 'arguments' in entry else entry['command'].split()[0]
+    return entry['arguments'][0] if 'arguments' in entry else family_json.split_command(entry['command'])[0]
 
 
 def extract(build_dir, root, example=None):
@@ -235,11 +251,11 @@ def extract(build_dir, root, example=None):
     its CMake inputs are its own too. `nodeps` lists live objects ninja recorded no deps
     for: only their source is known."""
     src_of = {}
-    with open(os.path.join(build_dir, 'compile_commands.json')) as fh:
+    with open(os.path.join(build_dir, 'compile_commands.json'), encoding='utf-8') as fh:
         cc = json.load(fh)
     for e in cc:
         out = e['output'] if os.path.isabs(e['output']) else os.path.join(e['directory'], e['output'])
-        src_of[os.path.relpath(out, build_dir)] = e
+        src_of[Path(os.path.relpath(out, build_dir)).as_posix()] = e   # as ninja names it
     targets = run_ok(['ninja', '-C', build_dir, '-t', 'targets', 'all'], root)
     known = {line.split(':', 1)[0] for line in targets.splitlines()}
     deps = parse_ninja_deps(run_ok(['ninja', '-C', build_dir, '-t', 'deps'], root))
@@ -272,7 +288,11 @@ def extract(build_dir, root, example=None):
                 s.add(f)
                 continue
             a = os.path.normpath(os.path.join(build_dir, d))
-            for t in (d, os.path.relpath(a, build_dir), a):
+            try:
+                r = Path(os.path.relpath(a, build_dir)).as_posix()
+            except ValueError:  # Windows: on another drive than the build, so no relative ninja name
+                r = d
+            for t in (d, r, a):
                 if t in known:
                     s |= generated_inputs(t)
                     break
@@ -365,6 +385,7 @@ def cmd_graph(a):
         name = f'audit-{os.getpid()}-{board}'
         build_dir = os.path.join(root, 'cmake-build', f'cmake-build-{name}')
         shutil.rmtree(build_dir, ignore_errors=True)
+        other_drive.clear()
         try:
             r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
             rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
@@ -378,6 +399,9 @@ def cmd_graph(a):
         finally:
             shutil.rmtree(build_dir, ignore_errors=True)
         rec['secs'] = round(time.monotonic() - t0, 1)
+        if other_drive:
+            print(f'{board}: {len(other_drive)} path(s) on another drive than the checkout counted as outside it, '
+                  f'e.g. {min(other_drive)}', file=sys.stderr)
         with open(path, 'w') as fh:
             json.dump(rec, fh)
         print(f'{board}: {rec["status"]} {rec["secs"]}s '

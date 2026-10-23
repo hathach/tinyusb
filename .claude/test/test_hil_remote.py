@@ -1,39 +1,53 @@
-"""hil_remote.py against a local "rig": a fake ssh runs each remote command under sh with a
-clean environment and a temp HOME, a fake rsync strips the host prefix, and a fake python3
-in that HOME's ~/.local/bin stands in for hil_test.py. So the quoting, the tilde expansion,
-the PATH shim and every refusal-before-wipe execute for real. Plumbing only: the real
-transport is proved by a run on ci.lan."""
-import fcntl
+"""hil_remote.py, the adapter over agentrc's hil_remote_core, against a local "rig": a fake
+ssh runs each remote command under sh with a clean environment and a temp HOME, rsync (behind a
+logging shim) reaches its server through that ssh and the tree guard, the core's fetch runs the
+real python3 there, and a fake python3 in that HOME's ~/.local/bin stands in for hil_test.py.
+The transport itself -- the lease and its lock, the guards, the wipe, the fetch, the run
+records, Windows rsync naming -- is agentrc's, tested with the core
+(lib/agentrc/tests/test_hil_remote_core.py); these are the adapter's board selection, staging
+list, run line, report copy-back and accumulate upload. Windows cannot exec the #! fakes, so
+there only the Refusals and Units run. Plumbing only: the real transport is proved by a run on
+ci.lan."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPT = REPO / '.claude' / 'skills' / 'hil' / 'scripts' / 'hil_remote.py'
+SCRIPT = REPO / '.claude' / 'skills' / 'hil-contract' / 'scripts' / 'hil_remote.py'
 spec = importlib.util.spec_from_file_location('hil_remote', SCRIPT)
 hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)
+report = hil_remote.helper('hil_report')   # this checkout's, as the fake checkouts' copy of it
+RCORE = report.core()
 
 REAL_RSYNC = shutil.which('rsync')
+RIG_PATH = '/usr/bin:/bin'
 needs_rsync = unittest.skipUnless(REAL_RSYNC, 'rsync not installed; the fake rsync execs the real one')
-needs_flock = unittest.skipUnless(shutil.which('flock', path='/usr/bin:/bin'), 'flock not on the fake rig PATH (/usr/bin:/bin)')
+needs_flock = unittest.skipUnless(shutil.which('flock', path=RIG_PATH), f'flock not on the fake rig PATH ({RIG_PATH})')
+needs_rig_python = unittest.skipUnless(shutil.which('python3', path=RIG_PATH), f'no python3 on the fake rig PATH ({RIG_PATH})')
+# the fake ssh, rsync and python3 are #! scripts Windows cannot exec: a run there would reach the real ones
+needs_fake_rig = unittest.skipIf(os.name == 'nt', 'the fake rig is #! scripts and a POSIX shell')
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
 args = sys.argv[1:]
 while args[:1] == ['-o']:
     args = args[2:]
-host, cmd = args[0], args[1]
+# like ssh, the words after the host are one remote command line: rsync passes its server's as several
+host, cmd = args[0], ' '.join(args[1:])
 with open(os.environ['FAKE_LOG'], 'a') as f:
     f.write(json.dumps({{'tool': 'ssh', 'argv': sys.argv[1:]}}) + '\\n')
-env = {{'HOME': os.environ['FAKE_HOME'], 'PATH': '/usr/bin:/bin'}}
+env = {{'HOME': os.environ['FAKE_HOME'], 'PATH': {RIG_PATH!r}}}
 env.update({{k: v for k, v in os.environ.items() if k.startswith('FAKE_')}})
 sys.exit(subprocess.run(['sh', '-c', cmd], env=env, stdin=sys.stdin).returncode)
 '''
@@ -42,38 +56,56 @@ FAKE_RSYNC = f'''#!{sys.executable}
 import json, os, sys
 with open(os.environ['FAKE_LOG'], 'a') as f:
     f.write(json.dumps({{'tool': 'rsync', 'argv': sys.argv[1:]}}) + '\\n')
-args = [a.split(':', 1)[1] if a.startswith('rig:') else a for a in sys.argv[1:]]
-os.execv({REAL_RSYNC!r}, [{REAL_RSYNC!r}, *args])
+os.execv({REAL_RSYNC!r}, [{REAL_RSYNC!r}, *sys.argv[1:]])
 '''
 
-# hil_test.py on the "rig": record argv, cwd, the HIL_* env it got and whether another run
-# could take the REMOTE_DIR lock; write the report pair and a .failed spec when asked; exit
-# with FAKE_RC.
+# hil_test.py on the "rig": record argv, cwd and the HIL_* env it got and what it found in its
+# tree; write FAKE_WRITE's names, and FAKE_FILES' {path: text}, where the harness writes its
+# report, else FAKE_DEFAULT's, a report pair, `rig-ATTEMPT` in it a new attempt id; exit with FAKE_RC.
 FAKE_PYTHON = f'''#!{sys.executable}
-import fcntl, json, os, sys
-with open(os.getcwd() + '.lock', 'a') as lk:
-    try:
-        fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        lock_held = False
-    except BlockingIOError:
-        lock_held = True
-    # the run session's own shared hold: fd 9 open on the lock file across the exec
-    try:
-        own_hold = os.fstat(9).st_ino == os.fstat(lk.fileno()).st_ino
-    except OSError:
-        own_hold = False
+import json, os, sys, time
 with open(os.environ['FAKE_RUN'], 'w') as f:
-    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(), 'lock_held': lock_held, 'own_hold': own_hold,
+    json.dump({{'argv': sys.argv[1:], 'cwd': os.getcwd(), 'files': sorted(os.listdir('.')),
                'env': {{k: v for k, v in os.environ.items() if k.startswith('HIL_')}}}}, f)
-for name in os.environ.get('FAKE_WRITE', '').split():
-    open(name, 'w').write('from the rig')
+files = {{n: 'from the rig' for n in os.environ.get('FAKE_WRITE', '').split()}}
+files.update(json.loads(os.environ.get('FAKE_FILES', '{{}}')))
+if not {{'FAKE_WRITE', 'FAKE_FILES'}} & set(os.environ):
+    files = {{n: t.replace('rig-ATTEMPT', f'rig-{{time.time_ns()}}') for n, t in json.loads(os.environ['FAKE_DEFAULT']).items()}}
+for name, text in files.items():
+    os.makedirs(os.path.dirname(name) or '.', exist_ok=True)
+    with open(name, 'w', encoding='utf-8') as f:
+        f.write(text)
 sys.exit(int(os.environ.get('FAKE_RC', '0')))
 '''
+
+# what a fake checkout needs real: the harness's argument parser, and the report adapter with
+# the loader, the pin, hil_load, the core it loads and the notice the core loads; and, though
+# the rig never runs it, the transport core hil_remote.py loads through that checkout's loader
+REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py',
+        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
+        'lib/agentrc/skills/hil/scripts/hil_report_core.py', 'lib/agentrc/skills/hil/scripts/hil_report_notice.py')
+REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
 
 CONFIG = {'boards': [
     {'name': 'alpha', 'flasher': {'name': 'jlink'}},
     {'name': 'beta', 'flasher': {'name': 'openocd'}, 'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
 ]}
+
+
+def published(rows, attempt_id, previous=None):
+    """The pair hil_test.py writes on the rig, published through the core: {path: text}."""
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        if previous:
+            (d / report.REPORT_ATTEMPTS / previous).mkdir(parents=True)
+        attempt = RCORE.Attempt(attempt_id, previous, None, None, None)
+        meta = RCORE.make_meta(report.schema(), attempt, termination='completed', invocation=['hil_test.py'],
+                               selection=['alpha'], host='rig', roster={})
+        RCORE.publish(d, report.schema(), {'rows': rows, 'scope': '', 'caveat': ''}, meta)
+        return {n: (d / n).read_text(encoding='utf-8') for n in (report.REPORT_JSON, report.REPORT_MD)}
+
+
+DEFAULT_REPORT = json.dumps(published([], 'rig-ATTEMPT'))
 
 
 def fake(path, body):
@@ -90,7 +122,8 @@ class Rig(unittest.TestCase):
         for rel in hil_remote.HARNESS_FILES:
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             src = REPO / rel
-            shutil.copy(src, self.root / rel) if rel.endswith(('hil_args.py', 'hil_report.py')) else (self.root / rel).write_text('#')
+            shutil.copy(src, self.root / rel) if rel in REAL else (self.root / rel).write_text('#')
+        shutil.copy(REPO / REMOTE_CORE, self.root / REMOTE_CORE)
         (self.root / 'test/hil/tinyusb.json').write_text(json.dumps(CONFIG))
         self.home = self.tmp / 'home'
         (self.home / '.local/bin').mkdir(parents=True)
@@ -114,8 +147,12 @@ class Rig(unittest.TestCase):
         e = {k: v for k, v in os.environ.items() if not k.startswith('HIL_')}
         e.update(ROOT_DIR=str(self.root), REMOTE='rig', REMOTE_DIR=str(self.remote),
                  PATH=f'{self.bin}:{os.environ["PATH"]}', FAKE_LOG=str(self.log),
-                 FAKE_HOME=str(self.home), FAKE_RUN=str(self.run_file))
+                 FAKE_HOME=str(self.home), FAKE_RUN=str(self.run_file),
+                 FAKE_DEFAULT=DEFAULT_REPORT)
         e.pop('CONFIG', None)
+        if os.name == 'nt':
+            # only the refusals run here: a REMOTE_DIR they accept, and no real ssh or rsync on PATH
+            e.update(REMOTE_DIR='/tmp/hil-remote-test', PATH=str(self.bin))
         return e
 
     def hil_remote(self, *argv, **env):
@@ -143,12 +180,6 @@ class Refusals(Rig):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn(text, r.stderr)
         self.assertEqual(self.calls(), [])
-
-    def test_unsafe_remote_dirs(self):
-        self.build('alpha')
-        for bad in ('/', '~/', '~', 'rel/dir', '/tmp/x/', '/tmp/../etc', '/tmp//x', '/tmp/$(id)',
-                    '/tmp/a b', '/tmp/x;rm'):
-            self.refused(self.hil_remote('-b', 'alpha', REMOTE_DIR=bad), 'REMOTE_DIR')
 
     def test_build_on_the_rig(self):
         self.build('alpha')
@@ -185,6 +216,12 @@ class Refusals(Rig):
         r = self.hil_remote('-b', 'alpha', '--build', CONFIG=str(self.root / 'test/hil/my rig.json'))
         self.refused(r, "--variants 'test/hil/my rig.json'")
 
+    def test_a_config_whose_re_run_spec_cannot_be_fetched(self):
+        self.build('alpha')
+        (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
+        self.refused(self.hil_remote('-b', 'alpha', CONFIG=str(self.root / 'test/hil/my rig.json')),
+                     'the re-run spec the copy-back fetches')
+
     def test_a_flasher_filter_that_leaves_no_board(self):
         self.build('alpha')
         self.refused(self.hil_remote('-b', 'alpha', '--flasher', 'openocd'), 'no board left after the flasher filter')
@@ -210,6 +247,7 @@ class Refusals(Rig):
             self.refused(self.hil_remote('-b', 'alpha', '-B', bad), '-B must be')
 
 
+@needs_fake_rig
 @needs_rsync
 @needs_flock
 class Staging(Rig):
@@ -237,7 +275,45 @@ class Staging(Rig):
               for v in ('one', 'two') for x in ('bin', 'elf')] + \
              [f'cmake-build/cmake-build-beta_{v}/device/cdc_msc/flash_args' for v in ('one', 'two')]
         self.assertEqual(self.remote_files(),
-                         sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw]))
+                         sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw,
+                                 report.REPORT_JSON, report.REPORT_MD]))   # the last two the fake run's report
+
+    def lock_dependency(self, provided=True):
+        """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
+        rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
+        rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/hil_process.py',
+                 'lib/agentrc/skills/hil/scripts/usb_observe.py',
+                 'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
+        for rel in rels:
+            shutil.copy(REPO / rel, self.root / rel)
+        if not provided:
+            shutil.rmtree(self.root / 'lib/agentrc')
+
+    def test_the_staged_tree_passes_the_pin_check(self):
+        self.build('alpha')
+        self.lock_dependency()
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        probe = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil"); '
+                                'from helper import agentrc, hil_lock; print(hil_lock.__file__); '
+                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__)'],
+                               cwd=self.remote, capture_output=True, text=True, timeout=30)
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertEqual(probe.stdout.split(), [str(self.remote / 'lib/agentrc/skills/hil/scripts/hil_lock.py'),
+                                                str(self.remote / 'lib/agentrc/skills/rtt/scripts/rtt.py')])
+
+    def test_a_missing_lock_dependency_refuses_before_the_rig(self):
+        self.build('alpha')
+        self.lock_dependency(provided=False)
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 1)
+        spec = importlib.util.spec_from_file_location('get_deps_under_test', REPO / 'tools/get_deps.py')
+        get_deps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(get_deps)
+        self.assertIn(get_deps.deps_optional['lib/agentrc'][1], r.stderr)
+        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_a_missing_variant_warns(self):
         self.build('beta_one')
@@ -277,14 +353,8 @@ class Staging(Rig):
         self.assertIn('out/hil/cmake-build-alpha/device/cdc_msc/cdc_msc.elf', self.remote_files())
         self.assertEqual(self.ran()['argv'][-3:], ['-B', 'out/hil', 'test/hil/tinyusb.json'])
 
-    def test_the_previous_tree_is_wiped(self):
-        self.build('alpha')
-        (self.remote / 'stale').mkdir(parents=True)
-        (self.remote / 'stale/x').write_text('old')
-        self.assertEqual(self.hil_remote('-b', 'alpha').returncode, 0)
-        self.assertFalse((self.remote / 'stale').exists())
 
-
+@needs_fake_rig
 @needs_rsync
 @needs_flock
 class TheRun(Rig):
@@ -303,146 +373,14 @@ class TheRun(Rig):
         self.build('alpha')
         self.assertEqual(self.hil_remote('-b', 'alpha', FAKE_RC='3').returncode, 3)
 
-    def test_a_tilde_remote_dir_lands_in_home(self):
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha', REMOTE_DIR='~/hil-run')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(Path(self.ran()['cwd']), self.home / 'hil-run')
-        self.assertTrue((self.home / 'hil-run/test/hil/hil_test.py').is_file())
-        self.assertFalse(any(p.name == '~' for p in self.tmp.rglob('~')))
-        rsync_dests = [c['argv'][-1] for c in self.calls() if c['tool'] == 'rsync']
-        self.assertTrue(all(d.startswith(f'rig:{self.home}/hil-run') or not d.startswith('rig:')
-                            for d in rsync_dests), rsync_dests)
 
-    def test_the_remote_gate_refuses_home(self):
-        r = subprocess.run(['bash', '-c', hil_remote.SETUP_SCRIPT, 'hil-setup', '~/', 'cmake-build'],
-                           stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                           env={'HOME': str(self.home), 'PATH': '/usr/bin:/bin'})
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('refusing', r.stderr)
-        self.assertTrue((self.home / '.local/bin/python3').exists())
-
-    def test_every_ssh_carries_the_keepalive_options(self):
-        self.build('alpha')
-        self.assertEqual(self.hil_remote('-b', 'alpha').returncode, 0)
-        opts = list(hil_remote.SSH_OPTS)
-        ssh = [c['argv'] for c in self.calls() if c['tool'] == 'ssh']
-        rsync = [c['argv'] for c in self.calls() if c['tool'] == 'rsync']
-        self.assertEqual([a[:len(opts) + 1] for a in ssh], [[*opts, 'rig']] * 2)
-        self.assertTrue(rsync)
-        self.assertTrue(all(a[:2] == ['-e', shlex.join(['ssh', *opts])] for a in rsync), rsync)
-        # every remote rsync server starts under the tree guard: shared lock plus this run's token
-        token = (self.remote / '.hil-remote-run').read_text().strip()
-        self.assertTrue(all(a[2].startswith('--rsync-path=sh -c ') and 'flock -s' in a[2] and token in a[2]
-                            for a in rsync), rsync)
-
-
-@needs_flock
-class RemoteLock(Rig):
-    """A second run sharing REMOTE_DIR must not rm -rf the tree the first one is running from."""
-
-    def lock(self):
-        lk = open(f'{self.remote}.lock', 'a')
-        self.addCleanup(lk.close)
-        fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def test_a_held_lock_refuses_before_the_wipe(self):
-        self.build('alpha')
-        (self.remote / 'running').mkdir(parents=True)
-        (self.remote / 'running/x').write_text('the other run')
-        self.lock()
-        r = self.hil_remote('-b', 'alpha')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn(f'another hil_remote run holds {self.remote}.lock', r.stderr)
-        self.assertTrue((self.remote / 'running/x').is_file())
-        self.assertEqual([c['tool'] for c in self.calls()], ['ssh'])
-
-    def test_a_failing_flock_is_not_reported_as_a_held_lock(self):
-        rig_bin = self.tmp / 'rig-bin'
-        rig_bin.mkdir()
-        fake(rig_bin / 'flock', '#!/bin/sh\necho "flock: 9: No locks available" >&2\nexit 71\n')
-        fake(self.bin / 'ssh', FAKE_SSH.replace("'PATH': '/usr/bin:/bin'", f"'PATH': '{rig_bin}:/usr/bin:/bin'"))
-        self.build('alpha')
-        (self.remote / 'running').mkdir(parents=True)
-        r = self.hil_remote('-b', 'alpha')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn(f'flock on {self.remote}.lock failed (exit 71)', r.stderr)
-        self.assertNotIn('another hil_remote run holds', r.stderr)
-        self.assertTrue((self.remote / 'running').is_dir())
-
-    @needs_rsync
-    def test_the_lock_is_held_for_the_run_and_released_after(self):
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertTrue(self.ran()['lock_held'])
-        self.assertTrue(self.ran()['own_hold'], 'hil_test.py must hold the lock itself, not only the lease')
-        self.lock()
-
-    @needs_rsync
-    def test_a_failed_staging_releases_the_lock(self):
-        fake(self.bin / 'rsync', FAKE_RSYNC.replace('args = [', "if 'test/hil/hil_test.py' in sys.argv:\n    sys.exit(1)\nargs = [", 1))
-        # a lease that outlives its stdin by a second: the wrapper must wait it out, not exit holding the lock
-        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]", "['sh', '-c', cmd.replace('cat >/dev/null', 'cat >/dev/null; sleep 1')]"))
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('could not stage the harness', r.stderr)
-        self.lock()
-
-    @needs_rsync
-    def test_the_lock_is_held_for_the_copy_back(self):
-        seen = self.tmp / 'copy_back_lock'
-        fake(self.bin / 'rsync', FAKE_RSYNC.replace('args = [', f'''if any(a.startswith('rig:') and a.endswith('/hil_report.md') for a in sys.argv):
-    import fcntl
-    with open({str(self.remote) + '.lock'!r}, 'a') as lk:
-        try:
-            fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            open({str(seen)!r}, 'w').write('free')
-        except BlockingIOError:
-            open({str(seen)!r}, 'w').write('held')
-args = [''', 1))
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md hil_report.json')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(seen.read_text(), 'held')
-
-    @needs_rsync
-    def test_a_noisy_rig_shell_does_not_hide_the_marker(self):
-        # a login shell greeting on stdout with no trailing newline
-        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]", "['sh', '-c', 'printf greeting; ' + cmd]"))
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha')
-        self.assertEqual(r.returncode, 0, r.stderr)
-
-    @needs_rsync
-    def test_a_chatty_setup_stderr_does_not_deadlock(self):
-        fake(self.bin / 'ssh', FAKE_SSH.replace("['sh', '-c', cmd]",
-                                                "['sh', '-c', 'head -c 300000 /dev/zero | tr \\\\0 x >&2; ' + cmd]"))
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha')
-        self.assertEqual(r.returncode, 0, r.stderr[-300:])
-
-    @needs_rsync
-    def test_a_tree_replaced_after_staging_is_refused(self):
-        # the lease died and another run wiped and rebuilt the tree before this run session
-        # took its hold: its token is gone, so it must not run in the replacement
-        fake(self.bin / 'ssh', FAKE_SSH.replace(
-            "['sh', '-c', cmd]",
-            "['sh', '-c', ('rm -rf \"$0\" && mkdir -p \"$0/test/hil\"; ' if 'hil_test.py' in cmd else '') + cmd, "
-            f"{str(self.remote)!r}]"))
-        self.build('alpha')
-        r = self.hil_remote('-b', 'alpha')
-        self.assertEqual(r.returncode, hil_remote.TREE_REPLACED, r.stderr)
-        self.assertIn("not this run's tree any more", r.stderr)
-        self.assertFalse(self.run_file.exists(), 'hil_test.py ran in a tree that is not this run\'s')
-        # and nothing was fetched from the replacement tree
-        self.assertEqual([c['tool'] for c in self.calls()][-1], 'ssh', 'copy_back ran after the refusal')
-
-
+@needs_fake_rig
 @needs_rsync
 @needs_flock
+@needs_rig_python
 class Reports(Rig):
+    ROWS = [{'board': 'alpha', 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}]
+
     def setUp(self):
         super().setUp()
         self.build('alpha')
@@ -450,16 +388,38 @@ class Reports(Rig):
     def local(self, name):
         return self.root / name
 
+    def rig_report(self, rows=ROWS, attempt_id='rig-1', previous=None):
+        return published(rows, attempt_id, previous)
+
     def test_the_pair_comes_home(self):
-        r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md hil_report.json tinyusb.json.failed')
+        files = {**self.rig_report(), 'tinyusb.json.failed': '--accumulate -b alpha'}
+        r = self.hil_remote('-b', 'alpha', FAKE_FILES=json.dumps(files))
         self.assertEqual(r.returncode, 0, r.stderr)
-        for n in ('hil_report.md', 'hil_report.json', 'tinyusb.json.failed'):
-            self.assertEqual(self.local(n).read_text(), 'from the rig', n)
+        for n, text in files.items():
+            self.assertEqual(self.local(n).read_text(encoding='utf-8'), text, n)
+
+    def test_a_stale_markdown_is_rendered_again_from_the_sidecar(self):
+        files = self.rig_report()
+        good = files[report.REPORT_MD]
+        files[report.REPORT_MD] = 'a table of an earlier run'
+        r = self.hil_remote('-b', 'alpha', FAKE_FILES=json.dumps(files))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.local(report.REPORT_MD).read_text(encoding='utf-8'), good)
+
+    def test_an_unreadable_sidecar_comes_home_as_a_notice(self):
+        r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md hil_report.json')
+        self.assertEqual(r.returncode, 1, 'a green rig exit without a readable report is not a pass')
+        self.assertEqual(self.local('hil_report.json').read_text(), 'from the rig')
+        md = self.local('hil_report.md').read_text(encoding='utf-8')
+        self.assertTrue(md.startswith(RCORE.NOTICE), md)
+        self.assertIn('from the rig', md, 'the rig\'s markdown is kept below the notice, labelled')
+        self.assertIn('unavailable notice', r.stderr)
 
     def test_a_green_run_without_a_spec_is_quiet(self):
-        r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md hil_report.json')
+        files = self.rig_report()
+        r = self.hil_remote('-b', 'alpha', FAKE_FILES=json.dumps(files))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertNotIn('rsync', r.stderr)
+        self.assertNotIn('warning', r.stderr)
         self.assertTrue(self.local('hil_report.json').is_file())
 
     def test_a_relative_root_dir(self):
@@ -469,22 +429,90 @@ class Reports(Rig):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('cmake-build/cmake-build-alpha/device/cdc_msc/cdc_msc.elf', self.remote_files())
 
-    def test_half_a_pair_leaves_none(self):
+    def test_half_a_pair_withdraws_the_local_one_and_archives_it(self):
         for n in ('hil_report.md', 'hil_report.json', 'tinyusb.json.failed'):
             self.local(n).write_text('stale')
         r = self.hil_remote('-b', 'alpha', FAKE_WRITE='hil_report.md')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn('copy-back incomplete', r.stderr)
-        for n in ('hil_report.md', 'hil_report.json', 'hil_report.md.tmp', 'tinyusb.json.failed'):
-            self.assertFalse(self.local(n).exists(), n)
+        self.assertEqual(r.returncode, 1, 'no report came home')
+        self.assertIn('the rig report did not all arrive: hil_report.md ok, hil_report.json absent', r.stderr)
+        self.assertFalse(self.local('tinyusb.json.failed').exists())
+        self.assertEqual(RCORE.read_document(self.local('hil_report.json'), report.schema()).outcome, 'withdrawn')
+        self.assertTrue(self.local('hil_report.md').read_text(encoding='utf-8').startswith(RCORE.NOTICE))
+        records = RCORE.inventory(self.root, report.schema())['attempts']
+        self.assertEqual([a['attempt_id'][:8] for a in records], ['corrupt-'])
+        self.assertEqual(set(records[0]['files']), {'hil_report.json', 'hil_report.md'})
 
-    def test_accumulate_uploads_a_matching_sidecar(self):
+    def test_the_local_report_is_archived_before_the_copy_back_replaces_it(self):
+        old = self.rig_report(attempt_id='local-1')
+        new = self.rig_report(rows=[], attempt_id='rig-2')
+        for n, text in old.items():
+            self.local(n).write_text(text, encoding='utf-8')
+        r = self.hil_remote('-b', 'alpha', FAKE_FILES=json.dumps(new))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.local('hil_report.json').read_text(encoding='utf-8'), new['hil_report.json'])
+        kept = self.root / report.REPORT_ATTEMPTS / 'local-1' / 'hil_report.json'
+        self.assertEqual(kept.read_text(encoding='utf-8'), old['hil_report.json'])
+
+    def test_the_rigs_attempt_records_come_home_create_only(self):
+        attempts = report.REPORT_ATTEMPTS
+        files = self.rig_report(attempt_id='rig-2', previous='rig-1')
+        (self.root / attempts / 'rig-0').mkdir(parents=True)
+        (self.root / attempts / 'rig-0' / 'hil_report.json').write_text('the local record')
+        files.update({f'{attempts}/rig-1/hil_report.json': 'the predecessor', f'{attempts}/rig-1/hil_report.md': 'md',
+                      f'{attempts}/rig-0/hil_report.json': 'a different record under a used id',
+                      f'{attempts}/.rig-9.0123.tmp/hil_report.json': 'an interrupted archive'})
+        r = self.hil_remote('-b', 'alpha', FAKE_FILES=json.dumps(files))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        local = self.root / attempts
+        self.assertEqual((local / 'rig-1' / 'hil_report.json').read_text(), 'the predecessor')
+        self.assertEqual((local / 'rig-0' / 'hil_report.json').read_text(), 'the local record')
+        self.assertIn('attempt record(s) rig-0 on the rig differ', r.stderr)
+        self.assertEqual(sorted(p.name for p in local.iterdir()), ['rig-0', 'rig-1'])
+        kept, = (self.root / hil_remote.RUNS_DIR).iterdir()
+        self.assertEqual((kept / attempts / 'rig-0' / 'hil_report.json').read_text(), 'a different record under a used id',
+                         'the rig\'s differing record is kept apart')
+
+    def test_an_unknown_local_report_is_refused_before_the_rig(self):
+        self.local('hil_report.json').write_text(json.dumps({'rows': [], '_hil': {'version': 99}}))
+        r = self.hil_remote('-b', 'alpha')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('move it away first', r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def publish_local(self, aid, accumulate):
+        attempt = RCORE.start_attempt(self.root, report.schema(), accumulate, aid)
+        meta = RCORE.make_meta(report.schema(), attempt, termination='completed', invocation=['hil_test.py'],
+                               selection=['alpha'], host='pc', roster={})
+        RCORE.publish(self.root, report.schema(), {'rows': self.ROWS, 'scope': '', 'caveat': ''}, meta)
+
+    def staged_records(self):
+        return sorted(p.name for p in (self.remote / report.REPORT_ATTEMPTS).iterdir()) \
+            if (self.remote / report.REPORT_ATTEMPTS).is_dir() else []
+
+    def test_accumulate_uploads_a_matching_sidecar_and_the_records_it_names(self):
+        self.publish_local('old', False)
+        self.publish_local('a1', False)          # archives old, which a1 does not name
+        self.publish_local('a2', True)           # names a1
         for spelling in ('--accumulate', '-a', '-av', '-va', '--accum', '--acc'):
-            self.local('hil_report.json').write_text(json.dumps({'rows': [{'board': 'beta_two'}]}))
             r = self.hil_remote('-b', 'alpha', spelling)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn('Uploading hil_report.json', r.stdout, spelling)
-            self.assertTrue((self.remote / 'hil_report.json').is_file(), spelling)
+            self.assertIn('hil_report.json', self.ran()['files'], spelling)
+            self.assertEqual(self.staged_records(), ['a1'], spelling)
+            for f in (report.REPORT_JSON, report.REPORT_MD):   # the run's report came home: put a2 back
+                (self.root / f).write_bytes((self.root / report.REPORT_ATTEMPTS / 'a2' / f).read_bytes())
+
+    def test_a_withdrawal_sidecar_uploads_the_reports_it_archived(self):
+        """It names no predecessor, but the rig's merge reads its rows from the report it withdrew."""
+        self.publish_local('old', False)
+        self.publish_local('a1', False)
+        self.publish_local('a2', True)
+        RCORE.withdraw_current(self.root, report.schema(), 'a3', 'publish failed')
+        RCORE.withdraw_current(self.root, report.schema(), 'a4', 'publish failed')   # archives a3's record
+        self.hil_remote('-b', 'alpha', '-a', FAKE_WRITE='')   # the fake run leaves the uploaded sidecar in place
+        self.assertEqual(self.staged_records(), ['a1', 'a2', 'withdrawn-a3'])
+        self.assertEqual([r['board'] for r in report._load(self.remote)[0]['rows']], ['alpha'],
+                         'the rig\'s merge base keeps the rows the withdrawals archived')
 
     def test_accumulate_without_a_usable_sidecar_warns(self):
         r = self.hil_remote('-b', 'alpha', '-a')
@@ -492,12 +520,12 @@ class Reports(Rig):
         self.local('hil_report.json').write_text(json.dumps({'rows': [{'board': 'elsewhere'}]}))
         r = self.hil_remote('-b', 'alpha', '-a')
         self.assertIn('not uploading it', r.stderr)
-        self.assertFalse((self.remote / 'hil_report.json').exists())
+        self.assertNotIn('hil_report.json', self.ran()['files'])
 
     def test_no_upload_without_accumulate(self):
         self.local('hil_report.json').write_text(json.dumps({'rows': [{'board': 'alpha'}]}))
         self.hil_remote('-b', 'alpha', '-v')
-        self.assertFalse((self.remote / 'hil_report.json').exists())
+        self.assertNotIn('hil_report.json', self.ran()['files'])
 
 
 class Units(unittest.TestCase):
@@ -510,6 +538,52 @@ class Units(unittest.TestCase):
                 self.assertEqual(hil_remote.sidecar_matches(p, CONFIG), ok, body)
             p.write_text('{')
             self.assertFalse(hil_remote.sidecar_matches(p, CONFIG))
+            p.write_text(json.dumps({'rows': [{'board': 'alpha', 'note': '\u2714'}]}, ensure_ascii=False), encoding='utf-8')
+            self.assertTrue(hil_remote.sidecar_matches(p, CONFIG), 'the rig writes it as UTF-8')
+
+    def test_staged_files_are_named_as_rsync_and_the_rig_name_them(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.object(hil_remote, 'ROOT', Path(td)):
+            d = Path(td) / 'cmake-build' / 'cmake-build-alpha'
+            (d / 'device' / 'cdc_msc').mkdir(parents=True)
+            for f in ('cdc_msc.elf', 'cdc_msc.map'):
+                (d / 'device' / 'cdc_msc' / f).write_text(f)
+            files = hil_remote.staged_files([d])
+            self.assertEqual(list(files), ['cmake-build/cmake-build-alpha/device/cdc_msc/cdc_msc.elf'])
+            self.assertEqual(hil_remote.example_firmware(d, files), {'device/cdc_msc'})
+
+    @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
+    def test_a_config_rsync_cannot_name_is_refused_before_the_lease(self):
+        leased = []
+
+        @contextlib.contextmanager
+        def lease(*a):
+            leased.append(a)
+            yield '/tmp/t', 'tok'
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            other = 'Q:' if root.drive.upper() != 'Q:' else 'R:'
+            args = types.SimpleNamespace(build=False, build_dir='cmake-build', accumulate=False)
+            with mock.patch.object(hil_remote, 'ROOT', root), mock.patch.object(hil_remote, 'helper'), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, Path(f'{other}/rig/tinyusb.json'))), \
+                    mock.patch.object(hil_remote, 'resolve_firmware', return_value=[root / 'cmake-build' / 'cmake-build-alpha']), \
+                    mock.patch.object(hil_remote.core, 'remote_lease', lease), \
+                    mock.patch.object(hil_remote.core.subprocess, 'run', side_effect=AssertionError('rsync or ssh ran')), \
+                    contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+        self.assertIn('is not on the drive of the checkout', str(e.exception.code))
+        self.assertEqual(leased, [], 'refused after the lease wiped the rig tree')
+
+    def test_the_pin_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
+        # agentrc.load() checks the pin before running agentrc's hil_lock, whose fcntl Windows lacks
+        args = types.SimpleNamespace(build=True, board=['alpha'], flasher=None, exclude_flasher=None,
+                                     build_dir='cmake-build')
+        for error, refusal in ((ModuleNotFoundError("No module named 'fcntl'", name='fcntl'), '--build would build'),
+                               (ImportError('lib/agentrc must be at the pin'), 'lib/agentrc must be at the pin')):
+            with self.subTest(error), mock.patch.object(hil_remote, 'helper', side_effect=error), \
+                    mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, hil_remote.ROOT / 'x.json')), \
+                    self.assertRaises(SystemExit) as e:
+                hil_remote.run([])
+            self.assertIn(refusal, str(e.exception.code))
 
 
 if __name__ == '__main__':

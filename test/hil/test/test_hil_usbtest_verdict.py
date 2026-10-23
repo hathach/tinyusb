@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""usbtest's per-case verdict and the battery's exit status. run_case runs a fake testusb
-that prints kernel tools/usb/testusb.c's own strings; main() runs with stubbed discovery.
-The strings are checked against the rig's testusb by a real battery run."""
+"""usbtest's per-case options and throughput, and the battery's exit status. The case run and
+its verdict are agentrc's hil_usbtest, tested there; run_case here runs a fake testusb that
+prints kernel tools/usb/testusb.c's own strings, main() runs with stubbed discovery. The
+strings are checked against the rig's testusb by a real battery run."""
 import io
 import json
 import os
@@ -39,8 +40,8 @@ class RunCase(unittest.TestCase):
         with open(self.testusb, 'w') as f:
             f.write(FAKE_TESTUSB)
         os.chmod(self.testusb, stat.S_IRWXU)
-        usbtest_harness.patch(self, usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.os, 'access', lambda path, mode: True)   # no sudo wrap
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
         self.addCleanup(os.environ.pop, 'FAKE_OUT', None)
         self.addCleanup(os.environ.pop, 'FAKE_RC', None)
 
@@ -48,68 +49,43 @@ class RunCase(unittest.TestCase):
         os.environ['FAKE_OUT'], os.environ['FAKE_RC'] = out, str(rc)
         return usbtest.run_case(num, {'node': NODE, 'speed': '480'}, self.testusb, False, 30)
 
-    def test_pass_line(self):
+    def test_pass_line_keeps_the_case_identity(self):
         r = self.case(SPEED + '%s test %d,    3.004567 secs\n')   # "%s test %d, %4d.%.06d secs"
-        self.assertEqual((r['status'], r['secs']), ('PASS', 3.004567))
+        self.assertEqual(r, {'num': 1, 'name': usbtest.CASE_NAMES[1], 'params': usbtest.PARAMS[1][1],
+                             'status': 'PASS', 'secs': 3.004567})
 
     def test_perf_case_reports_throughput(self):
         r = self.case(SPEED + '%s test %d,    2.000000 secs\n', num=27)
         self.assertEqual(r['status'], 'PASS')
         self.assertEqual(r['mbps'], round(128 * 1024 * 32 / 2 / 1e6, 2))   # HS -c 128 -s 1024 -g 32
 
-    def test_error_line(self):
-        r = self.case(SPEED + '%s test %d --> 110 (Connection timed out)\n')   # "%s test %d --> %d (%s)"
-        self.assertEqual((r['status'], r['detail']), ('FAIL', 'errno 110 (Connection timed out)'))
-
-    def test_another_cases_result_line_is_not_this_ones(self):
-        r = self.case(SPEED + '%s test 2,    1.000000 secs\n', num=1)
-        self.assertEqual(r['status'], 'NOTRUN')
-
-    def test_opened_but_no_result_is_a_kernel_skip(self):
-        r = self.case(SPEED)                           # -EOPNOTSUPP: testusb continues silently
-        self.assertEqual(r['status'], 'NOTRUN')
-
-    def test_never_opened_the_node_is_a_failure_not_a_skip(self):
-        for out, rc in (("can't open dev file r/w: Permission denied\n", 0),
-                        ("must specify '-a' or '-D dev', or DEVICE=/dev/bus/usb/BBB/DDD in env\n", 1),
-                        ('USB device files are missing\n', 255),
-                        ('', 0)):
-            r = self.case(out, rc=rc)
-            self.assertEqual(r['status'], 'FAIL', out)
-            self.assertEqual(r['detail'], f'testusb did not run the case (rc {rc})')
-            self.assertEqual(r['stderr'], out.strip())
-
-    def test_speed_line_for_another_node_does_not_count(self):
-        r = self.case('high speed\t/dev/bus/usb/001/006\t0\n')
+    def test_a_failed_perf_case_has_no_throughput(self):
+        r = self.case(SPEED + '%s test %d --> 110 (Connection timed out)\n', num=27)
         self.assertEqual(r['status'], 'FAIL')
+        self.assertNotIn('mbps', r)
 
 
-class ScanScope(unittest.TestCase):
-    """testusb -D alone still ftw()s and opens every usbfs node; -A <node> scans only the DUT
-    (#4047). -A falls through to -a and clears -D, so it must come first."""
+class Options(unittest.TestCase):
+    """The provider gets each case's options for the device's speed verbatim, --quick dividing
+    every count by 8, and main's WEDGE_CONFIRM_S and sudo decision."""
 
-    def argv(self, node, sudo):
-        cmds = []
+    def options(self, speed, quick, num=1):
+        seen = []
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'run_case', lambda *a, **kw: seen.append((a, kw))
+                              or {'status': 'NOTRUN'})
+        usbtest.run_case(num, {'node': NODE, 'speed': speed}, '/x/testusb', quick, 30)
+        (args, kw), = seen
+        self.assertEqual(args[:3] + args[4:], ('/x/testusb', NODE, num, 30))
+        self.assertEqual(kw, {'wedge_confirm': usbtest.WEDGE_CONFIRM_S, 'sudo_forbidden': usbtest.sudo_forbidden})
+        return args[3]
 
-        class Popen:
-            def __init__(self, cmd, **kw):
-                cmds.append(cmd)
-                self.returncode = 0
+    def test_full_and_high_speed(self):
+        self.assertEqual(self.options('12', False), ['-c', '128', '-s', '1024', '-v', '512'])
+        self.assertEqual(self.options('480', False), ['-c', '512', '-s', '1024', '-v', '512'])
 
-            def communicate(self, timeout=None):
-                return '', None
-
-        usbtest_harness.patch(self, usbtest.subprocess, 'Popen', Popen)
-        usbtest_harness.patch(self, usbtest.os, 'access', lambda p, m: not sudo)
-        usbtest_harness.patch(self, usbtest.os, 'geteuid', lambda: 1000)
-        usbtest.run_case(0, {'node': node, 'speed': '480'}, '/x/testusb', False, 30)
-        return cmds[0]
-
-    def test_scan_is_confined_to_the_node_before_it_is_selected(self):
-        for sudo, prefix in ((False, []), (True, ['sudo', '-n'])):
-            for node in ('/dev/bus/usb/001/005', '/dev/bus/usb/003/017'):
-                self.assertEqual(self.argv(node, sudo)[:len(prefix) + 7],
-                                 prefix + ['/x/testusb', '-A', node, '-D', node, '-t', '0'])
+    def test_quick_divides_the_count(self):
+        self.assertEqual(self.options('480', True), ['-c', '64', '-s', '1024', '-v', '512'])
+        self.assertEqual(self.options('12', True, num=0), ['-c', '1'])
 
 
 class ExitStatus(unittest.TestCase):
@@ -123,8 +99,8 @@ class ExitStatus(unittest.TestCase):
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)
         if stranded:
-            hu = types.SimpleNamespace(path_stranded=lambda p: True)
-            usbtest_harness.patch(self, usbtest, '_hu', lambda: hu)
+            uo = types.SimpleNamespace(path_stranded=lambda p: True, SYS_USB_DEVICES='/sys/bus/usb/devices')
+            usbtest_harness.patch(self, usbtest, '_uo', lambda: uo)
         usbtest_harness.argv(self, *extra)
         out, err = usbtest_harness.Out(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):

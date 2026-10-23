@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Reset_TT for the cases and transitions that can strand a hub TT buffer (helper/hil_tt):
-which TT a DUT sits behind (a fake sysfs tree), the request, the helper's outcomes, and when
-usbtest and hil_test send it. Whether the hub frees the buffer is proven on the rig."""
+"""Reset_TT for the cases and transitions that can strand a hub TT buffer (helper/hil_tt,
+agentrc's hil_tt, whose own tests cover the TT lookup, the request and the helper's outcomes):
+when usbtest and hil_test send it, and that its child runs through this harness's runner.
+Whether the hub frees the buffer is proven on the rig."""
 import io
 import json
 import os
-import struct
 import subprocess
 import sys
 import types
@@ -24,106 +24,11 @@ import usbtest  # noqa: E402
 from helper import hil_tt, hil_util  # noqa: E402
 
 
-class TtPort(unittest.TestCase):
-    def setUp(self):
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.sys = Path(td.name)
-        usbtest_harness.patch(self, hil_tt, 'SYS_USB', self.sys)
-
-    def hub(self, name, protocol='02', busnum=5, devnum=58, config=1):
-        intf = self.sys / name / f'{name}:{config}.0'
-        intf.mkdir(parents=True)
-        (intf / 'bInterfaceProtocol').write_text(protocol + '\n')
-        (self.sys / name / 'busnum').write_text(f'{busnum}\n')
-        (self.sys / name / 'devnum').write_text(f'{devnum}\n')
-
-    def test_full_speed_device_behind_a_multi_tt_hub(self):
-        self.hub('5-1')
-        self.assertEqual(hil_tt.tt_port('5-1.2', '12'), ('/dev/bus/usb/005/058', 2))
-
-    def test_nested_hub_and_any_configuration_value(self):
-        self.hub('3-1.4', busnum=3, devnum=7, config=2)
-        self.assertEqual(hil_tt.tt_port('3-1.4.7', '1.5'), ('/dev/bus/usb/003/007', 7))
-
-    def test_no_reset_where_it_cannot_help_or_would_disturb_others(self):
-        self.hub('5-1')
-        self.hub('6-1', protocol='01')    # single TT: shared by every port
-        self.hub('7-1', protocol='00')    # hub running at full speed: no TT
-        for busport, speed in (('5-1.2', '480'),   # high speed: no split
-                               ('5-1', '12'),      # root port
-                               ('6-1.1', '12'), ('7-1.1', '12'),
-                               ('8-1.1', '12')):   # hub gone
-            self.assertIsNone(hil_tt.tt_port(busport, speed), busport)
-
-
-class Request(unittest.TestCase):
-    def test_reset_tt_request_bytes(self):
-        sent = []
-        usbtest_harness.patch(self, hil_tt.fcntl, 'ioctl',
-                              lambda f, req, arg: sent.append((req, arg)))
-        with TemporaryDirectory() as td:
-            node = os.path.join(td, 'node')
-            open(node, 'w').close()
-            hil_tt.reset_tt_ioctl(node, 3)
-        (req, arg), = sent
-        # bmRequestType, bRequest, wValue, wIndex, wLength, timeout ms, data pointer
-        self.assertEqual(struct.unpack('@BBHHHIP', arg), (0x23, 9, 0, 3, 0, 1000, 0))
-        if struct.calcsize('P') == 8:   # the ioctl the rig's LP64 kernel answers
-            self.assertEqual((req, len(arg)), (0xC0185500, 24))
-
-
-class Helper(unittest.TestCase):
-    """reset_tt through its real subprocess path: a timeout is unconfirmed and stops later
-    helpers for that hub; any other failure only reports."""
-
-    def reset(self, *outcomes):
-        seq = iter(outcomes)
-        calls = []
-
-        def run_cmd(cmd, **kw):
-            calls.append(cmd)
-            o = next(seq)
-            if isinstance(o, BaseException):
-                raise o
-            return subprocess.CompletedProcess(cmd, o, 'why', None)
-
-        usbtest_harness.patch(self, hil_util, 'run_cmd', run_cmd)
-        usbtest_harness.patch(self, hil_tt, 'tt_port', lambda b, s: ('/dev/bus/usb/005/058', 2))
-        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
-        err = io.StringIO()
-        with redirect_stderr(err):
-            oks = [hil_tt.reset_tt('5-1.2', '12') for _ in outcomes]
-        return oks, len(calls), err.getvalue()
-
-    def test_timeout_is_unconfirmed_and_not_repeated_for_that_hub(self):
-        oks, spawned, err = self.reset(124, 0)
-        self.assertEqual((oks, spawned, 'timed out' in err), ([False, False], 1, True))
-
-    def test_a_real_timeout_keeps_its_banner_off_stdout(self):
-        usbtest_harness.patch(self, hil_tt, 'tt_port', lambda b, s: ('/dev/null', 2))
-        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
-        usbtest_harness.patch(self, hil_tt, 'HELPER_TIMEOUT', 1)
-        usbtest_harness.patch(self, hil_util, 'REAP_GRACE', 1)
-        real_run = hil_util.run_cmd     # the real runner, on a child that outlives the bound
-        usbtest_harness.patch(self, hil_util, 'run_cmd',
-                              lambda cmd, **kw: real_run(['sleep', '30'], **kw))
-        out, err = io.StringIO(), io.StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
-            ok = hil_tt.reset_tt('5-1.2', '12')
-        self.assertEqual((ok, out.getvalue()), (False, ''))
-        self.assertIn('COMMAND TIMEOUT', err.getvalue())
-
-    def test_other_failures_only_report(self):
-        oks, spawned, err = self.reset(1, FileNotFoundError('sudo'), 0)
-        self.assertEqual((oks, spawned, err.count('failed')), ([True] * 3, 3, 2))
-
-
 class Battery(unittest.TestCase):
     """usbtest resets after each unlink case and each failed case, and an unconfirmed reset
     ends the battery unsuccessfully without calling the device wedged."""
 
-    def main(self, tests, ok=True):
+    def main(self, tests, ok=True, tt=None):
         fails = {13: 'errno 110 (Connection timed out)', 29: 'errno 32 (Broken pipe)'}
         last, resets = [], []
 
@@ -136,7 +41,7 @@ class Battery(unittest.TestCase):
                 r.update(status='PASS', secs=0.1)
             return r
 
-        tt = types.SimpleNamespace(reset_tt=lambda busport, speed: resets.append(last[0]) or ok)
+        tt = tt or types.SimpleNamespace(reset_tt=lambda busport, speed, run: resets.append(last[0]) or ok)
         usbtest_harness.stub_device(self, usbtest, run_case)
         usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
@@ -162,6 +67,21 @@ class Battery(unittest.TestCase):
         _, data, rc = self.main('11', ok=False)
         self.assertEqual(([c['status'] for c in data['cases']], rc > 0), (['FAIL'], True))
 
+    def test_the_child_runs_through_the_harness_runner(self):
+        # agentrc's hil_tt itself, its child caught where hil_util.run_cmd is looked up per call
+        usbtest_harness.patch(self, hil_tt, 'tt_port', lambda b, s: ('/dev/bus/usb/005/058', 2))
+        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
+        usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
+        spawned = []
+        usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append((cmd, kw))
+                              or subprocess.CompletedProcess(cmd, 124, '', None))
+        _, data, _ = self.main('11', tt=hil_tt)
+        (cmd, kw), = spawned
+        self.assertEqual(cmd[cmd.index('-I'):], ['-I', hil_tt.__file__, '/dev/bus/usb/005/058', '2'])
+        self.assertIn(os.path.join('lib', 'agentrc', ''), hil_tt.__file__)
+        self.assertEqual(kw, {'timeout': hil_tt.HELPER_TIMEOUT, 'quiet': True})
+        self.assertEqual(data['cases'][0]['status'], 'FAIL')   # a timed-out helper is unconfirmed
+
 
 class BeforeFlash(unittest.TestCase):
     """hil_test resets the port's TT before each flash, from one unambiguous live port, else
@@ -169,11 +89,11 @@ class BeforeFlash(unittest.TestCase):
 
     def resets(self, *scans, ok=True):
         it = iter(scans)
-        usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-        usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: '12')
+        usbtest_harness.patch(self, hil_test.usb_observe, 'usb_scan', lambda **kw: next(it))
+        usbtest_harness.patch(self, hil_test.usb_observe, 'read_sysfs', lambda path, *a: '12')
         seen = []
         usbtest_harness.patch(self, hil_test.hil_tt, 'reset_tt',
-                              lambda busport, speed: seen.append((busport, speed)) or ok)
+                              lambda busport, speed, run: seen.append((busport, speed)) or ok)
         usbtest_harness.patch(self, hil_test, '_dut_port', {})
         self.results = [hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'}) for _ in scans]
         return seen
@@ -192,6 +112,7 @@ class BeforeFlash(unittest.TestCase):
         (intf.parent / 'devnum').write_text('58\n')
         usbtest_harness.patch(self, hil_tt, 'SYS_USB', Path(td.name))
         usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
+        usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
         spawned = []
         usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append(cmd)
                               or subprocess.CompletedProcess(cmd, 0, '', None))
@@ -199,8 +120,8 @@ class BeforeFlash(unittest.TestCase):
             spawned.clear()
             it = iter([[{'busport': '5-1.2', 'dir': '/x'}], []])
             sysfs = iter([speed])   # read only while the device is present
-            usbtest_harness.patch(self, hil_test.hil_util, 'usb_scan', lambda **kw: next(it))
-            usbtest_harness.patch(self, hil_test.hil_util, 'read_sysfs', lambda path, *a: next(sysfs))
+            usbtest_harness.patch(self, hil_test.usb_observe, 'usb_scan', lambda **kw: next(it))
+            usbtest_harness.patch(self, hil_test.usb_observe, 'read_sysfs', lambda path, *a: next(sysfs))
             usbtest_harness.patch(self, hil_test, '_dut_port', {})
             hil_test.reset_dut_tt({'uid': 'U', 'name': 'b'})
             spawned.clear()

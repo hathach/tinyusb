@@ -27,13 +27,13 @@ def patch(test, obj, name, value):
 
 
 def stub_device(test, usbtest, run_case):
-    """main() finds DEV, passes the host check, needs no pattern, dmesg or stranded sysfs,
+    """main() finds DEV, passes the host check, needs no pattern or stranded sysfs,
     and runs every case through `run_case(num, dev, testusb, quick, timeout)`."""
     patch(test, usbtest, 'find_device', lambda serial: dict(DEV))
     patch(test, usbtest, 'check_host_compat', lambda d: None)
     patch(test, usbtest, 'set_pattern', lambda v: None)
-    patch(test, usbtest, 'dmesg_tail', lambda: '')
-    patch(test, usbtest, '_hu', lambda: types.SimpleNamespace(path_stranded=lambda p: False))
+    patch(test, usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
+                                                              SYS_USB_DEVICES='/sys/bus/usb/devices'))
     patch(test, usbtest, 'run_case', run_case)
     patch(test, usbtest, 'needs_sudo', lambda node: False)
     patch(test, usbtest, 'sudo_forbidden', False)   # main() sets it; restored after the test

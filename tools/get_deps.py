@@ -303,6 +303,10 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
+    'lib/agentrc': ['https://github.com/hathach/agentrc.git',
+                    '992c40c24398bf07ee51b48abfe442b837b5d9b6',
+                    ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
@@ -347,6 +351,16 @@ MCU low-level peripheral drivers and external libraries for building TinyUSB exa
 """)
 
 
+def dep_head(path):
+    """The commit a dependency's checkout is detached at, read from its .git/HEAD without git;
+    None for a branch (`ref: ...`) or no readable HEAD."""
+    try:
+        head = (TOP / path / '.git' / 'HEAD').read_text().strip()
+    except OSError:
+        return None
+    return None if head.startswith('ref:') else head
+
+
 def run_cmd(cmd):
     r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     title = f'Command Error: {cmd}'
@@ -384,6 +398,9 @@ def get_a_dep(d):
     if commit != head:
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+    elif dep_head(d) is None:
+        # a branch at the pinned commit: detach it, as dep_head() readers expect
+        run_cmd(f"{git_cmd} checkout --detach")
 
     # Remove files that conflict with TinyUSB's custom versions
     if d in deps_remove_files:
@@ -419,7 +436,7 @@ def main():
     # argparse error here reds the Get Dependencies step of every scoped PR
     parser.add_argument('-e', '--example', action='append', default=[], help='Have no effect')
     parser.add_argument('--gen-doc', nargs='?', const=DEPS_RST, metavar='RST',
-                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP)}) and exit, fetching nothing')
+                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP).as_posix()}) and exit, fetching nothing')
     args = parser.parse_args()
 
     if args.gen_doc:
@@ -447,7 +464,7 @@ def main():
                 if f not in deps_all:
                     print(f'ERROR: {f} is not in the dependency list')
                     return 1
-                if f in deps_optional and f not in deps:
+                if f not in deps:
                     deps.append(f)
                 continue
             for d in deps_optional:
@@ -456,7 +473,9 @@ def main():
         if len(deps) == 0:
             print('WARN: no additional dependencies found for given boards or families')
 
-    deps.extend(deps_mandatory.keys())
+    # dependency paths alone (no family, no board) fetch just those: the mandatory deps are build inputs
+    if not (families and all('/' in f for f in families) and not boards):
+        deps.extend(d for d in deps_mandatory if d not in deps)
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
     return status

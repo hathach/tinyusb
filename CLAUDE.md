@@ -23,14 +23,14 @@
 ## Build and Validate
 
 - Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, or with `--variants <hil config>` one `cmake-build/cmake-build-<variant>` per roster variant, the dirs HIL flashes from, so preserve them. Flash with `ninja -C cmake-build/cmake-build-<board|variant> <example>-jlink` or `-openocd`, naming the variant for a `--variants` build; for routine rig tests use the HIL harness, whose roster pins the probe.
-- HIL contract: `.claude/skills/hil/SKILL.md`. It owns taking and releasing a rig board and names the HIL config json for the host you are on.
+- HIL contract: `.claude/skills/hil-contract/SKILL.md`. It owns taking and releasing a rig board, names the HIL config json for the host you are on, and names the launcher of the `hil` skill's farm (board/probe health) check.
 - Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
 - Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
 - For DCD bring-up or a behavior change (`src/portable/<vendor>/<driver>`), use the usbtest battery for hardware sign-off: run every case of the justified tier. If no suitable rig board is available, report hardware validation pending.
 - After board/dependency changes, regenerate docs with `build-doc`.
-- Before committing code changes, verify size impact with `code-size`.
+- Before committing code changes, verify size impact with agentrc's `code-size` (the build contract's Code size section).
 
 ## PRs and Follow-ups
 

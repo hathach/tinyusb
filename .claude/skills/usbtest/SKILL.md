@@ -8,7 +8,9 @@ description: Use when bringing up examples/device/usbtest (cafe:4010) on a new M
 `examples/device/usbtest` is the device-side peer of the kernel's `usbtest.ko`/`testusb`
 (Gadget Zero source/sink): 30 cases over EP0, bulk, interrupt and isochronous, including halt,
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
-is `test/hil/usbtest.py`.
+is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the id registration,
+binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
+agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
 
 **The battery tests the DCD, not the firmware.** A failed case points at the DCD path it
 exercises (map below). Reproduce that one case, root-cause it on hardware before changing
@@ -17,14 +19,14 @@ and the full battery still passes across reflash cycles.
 
 ## Choose the path
 
-| Situation                                        | Do                                                                                  |
-|--------------------------------------------------|-------------------------------------------------------------------------------------|
-| Routine full battery on rig boards               | The HIL contract (`hil` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
-| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                       |
-| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                   |
-| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls             |
-| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                    |
-| New MCU or DCD                                   | Bring-up ladder                                                                     |
+| Situation                                        | Do                                                                                           |
+|--------------------------------------------------|----------------------------------------------------------------------------------------------|
+| Routine full battery on rig boards               | The HIL contract (`hil-contract` skill): `hil_test.py -b <board> -t device/usbtest <config>` |
+| Chosen cases on a board you have not taken       | `scripts/run_case.py` (below)                                                                |
+| Chosen cases inside a lock you hold, firmware on | `python3 test/hil/usbtest.py --serial <uid> --tests 13,29 --json`                            |
+| What a case does, or whether its hang can clear  | `scripts/kernel_src.py` (below), then read the functions the case calls                      |
+| Prove a board's in-run hang recovery             | `scripts/wedge_drill.py` (below)                                                             |
+| New MCU or DCD                                   | Bring-up ladder                                                                              |
 
 Build first, through the build contract; `--variants` gives each roster variant its own
 `cmake-build-<variant>` dir, the one HIL and `run_case.py` flash from. A board not yet in the
@@ -40,9 +42,10 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 ```
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
-has several. It refuses with exit 2 and the reason before touching hardware, including while any
-battery or another `run_case.py` runs on the host; pass `--allow-concurrent` only when another
-battery's load on the board's host controller does not matter for what you are measuring. A wedged device is never parked. The last stdout
+has several. It refuses with exit 2 and the reason before touching hardware, including on a host
+that is not Linux and while any battery or another `run_case.py` runs on the host; pass
+`--allow-concurrent` only when another battery's load on the board's host controller does not
+matter for what you are measuring. A wedged device is never parked. The last stdout
 line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
 `dmesg` when it captured them.
 
@@ -80,7 +83,7 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
 - **Run testusb with `-A <node> -D <node>`, never `-D` alone.** Stock `testusb` opens every usbfs
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
   takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
-  confines the scan to the DUT (`usbtest.py` does this; `-A` must come first, it clears `-D`).
+  confines the scan to the DUT (`hil_usbtest.py` does this; `-A` must come first, it clears `-D`).
   When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
   watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
   that outlasts the watch becomes HUNG.
@@ -190,7 +193,7 @@ bound interface keeps the profile it was probed with. The right one probes as `L
 in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
 22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
 
-1. Reserve the whole fleet as the `hil` skill's rig-wide rule says, and confirm no `testusb` or
+1. Reserve the whole fleet as the HIL contract's Reservation says for rig-wide operations, and confirm no `testusb` or
    `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
    behind any case still in flight. It is never refused for an interface in use.
 2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.

@@ -15,6 +15,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+if os.name == 'nt':
+    raise unittest.SkipTest('run_case.py imports test/hil/usbtest.py, which needs fcntl')
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts' / 'run_case.py'
 spec = importlib.util.spec_from_file_location('run_case', SCRIPT)
@@ -37,6 +39,8 @@ ROSTER = {
          'variant': [{'name': ''}]},
         {'name': 'noflasher', 'uid': 'UID9', 'tests': {'only': ['device/usbtest']}},
         {'name': 'nouid', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/usbtest']}},
+        {'name': 'esp', 'uid': 'UID10', 'tests': {'only': ['device/usbtest']},
+         'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}},
     ],
     'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
 }
@@ -113,6 +117,12 @@ class Rig:
             patcher = mock.patch.object(obj, name, value)
             patcher.start()
             test.addCleanup(patcher.stop)
+        # the suite runs under CI too, whose job variables would preempt run_case's own openocd_esp refusal
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        test.addCleanup(patcher.stop)
+        for var in run_case.hil_util.openocd_esp().CI_JOB_ENV:
+            os.environ.pop(var, None)
 
     def run(self, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -145,6 +155,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'noflasher'], 'noflasher in'),
                 (['--board', 'nouid'], 'nouid in'),
+                (['--board', 'esp'], 'esp: openocd_esp is refused to a caller that does not declare'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):

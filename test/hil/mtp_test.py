@@ -50,7 +50,7 @@ def _bounded_read(path, grace: float = 2.0):
     is cafe:4017 -- so the vid/pid filter below cannot rule out a wedged NEIGHBOUR, and an
     unbounded read of its serial would burn this session's whole budget and report a
     healthy board as wedged. Stdlib only by design (this file never imports the harness),
-    so this is a small local twin of hil_util.read_sysfs.
+    so this is a small local twin of usb_observe.read_sysfs.
     """
     out = {}
 

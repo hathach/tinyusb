@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """hil_test.py's command line, stdlib-only so the remote wrapper
-(.claude/skills/hil/scripts/hil_remote.py) parses exactly what the rig will, without
+(.claude/skills/hil-contract/scripts/hil_remote.py) parses exactly what the rig will, without
 importing hil_test.py and its serial dependency."""
 import argparse
 
@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--build', action='store_true', help='Build firmware for selected boards with cmake before running tests')
     # default 1, not 3: the pool guard is a FLAT 3600s that does not scale with max_retry,
     # and one usbtest test at default 3 can burn 1530s of it (510s outer x3) for a single
-    # board. Every CI caller already pins --retry 1; the bare invocations in the hil skill
+    # board. Every CI caller already pins --retry 1; the bare invocations in the HIL contract
     # and its delegated runs go against the same one-slot rig and used to inherit 3.
     parser.add_argument('-r', '--retry', type=int, default=1, help='Retry count for failed tests (default: 1)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')

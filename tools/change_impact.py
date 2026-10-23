@@ -5,7 +5,8 @@
 
 Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
 hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
-any file no rule classifies forces the full matrix.
+a path no rule classifies forces the full matrix when it sits in a build-input location
+(_BUILD_SCOPE_RE) and contributes nothing anywhere else.
 
 JSON: full, boards (name -> 'all' | [tests]), families (bsp families the diff
 touches, including ones with no rig board - build-only consumers
@@ -22,12 +23,12 @@ families column is PRE-PRUNE: _prune_buildable then intersects each family with 
 can actually build.
 
 | # | Changed path | Build families | Build examples | HIL boards → tests |
-| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `LICENSE` | — | — | — |
+| 1 | `docs/`, `.claude/`, `*.md`, `*.rst`, `src/**/*.py`, `LICENSE` | — | — | — |
 | 1b | `.gitignore`, `.clang-format`, `.agents`, `.codex/**`, `.idea/**`, `test/{fuzz,unit-test}/**`, `test/hil/test/**`, non-build `.github/**`, packaging manifests | — | — | — |
 | 2 | `test/hil/**` (not `test/hil/test/**`) | — | — | all boards → all tests |
 | 2b | `tools/drivers_coverage_check.py` | — (local-only tooling, no CI build runs it) | — | — (nothing on the rig runs it) |
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
-| 2d | `tools/membrowse_cli.py`, `tools/code_size.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
+| 2d | `tools/membrowse_cli.py`, `tools/code_size.py`, `tools/code_size_profile.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
 | 2e | `.claude/skills/build/scripts/check_build.py` (ahead of rule 1) | `ALL` | `ALL` | all boards → all tests (the selection contract CI and agents call) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
@@ -44,10 +45,11 @@ can actually build.
 | 13 | `examples/<role>/<name>/**` | `ALL` | just `<name>` | if `<name>` is a HIL test: all boards → that test; else nothing |
 | 14 | `examples/device/board_test/**` | `ALL` | just `board_test` | all boards → all tests (HIL parking firmware) |
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
-| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/**`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
+| 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
-| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
-| 17 | anything unclassified (no tracked file reaches this — TestNoTrackedFileIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
+| 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
 import argparse
 import ast
@@ -66,7 +68,7 @@ import sys
 # at the helper/ move).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'test', 'hil'))  # for `from helper...`
-from helper.hil_util import device_tests, dual_tests, host_test
+from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, host_test
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/, for build helpers
 import build_utils
@@ -90,12 +92,13 @@ def _read(path: str) -> str:
 _NONCODE_RE = re.compile(
     # LICENSE is anchored and LICENSES/ named separately: a bare `LICENSE` alternative
     # also swallowed anything merely STARTING with it (a future LICENSE_extra.c),
-    # which is the silent-under-selection direction
-    r'^(docs/|\.claude/|.*\.(md|rst)$|LICENSE$|LICENSES/)')
-# Repo metadata and tooling that no CI build reads. Enumerated rather than left to
-# rule 17, which widens BOTH axes: a PR touching only .gitignore and a README was
-# creating 74 cmake legs (each a runner doing checkout + toolchain + get_deps before
-# skipping the build) and booking the whole 30-board rig.
+    # which is the silent-under-selection direction. src/ builds from C sources only; its
+    # Python is hand-run helpers (dwc2_info.py)
+    r'^(docs/|\.claude/|.*\.(md|rst)$|src/.*\.py$|LICENSE$|LICENSES/)')
+# Repo metadata and tooling that no CI build reads. Inside a build-input location these
+# entries are what keep it off rule 17a, which widens BOTH axes; elsewhere 17b gives the
+# same answer and the entry records the decision. Before 17 was scoped, a PR touching only
+# .gitignore and a README was creating 74 cmake legs and booking the whole 30-board rig.
 #
 # Deliberately NOT here, and still full: .circleci/**, .github/workflows/build*.yml,
 # .github/actions/**, .github/scripts/** - those decide what gets built. The line is
@@ -107,7 +110,7 @@ _NONCODE_RE = re.compile(
 _META_RE = re.compile(
     r'^('
     r'\.(gitignore|gitattributes|clang-format|codespellrc|readthedocs\.yaml)$|'
-    r'\.pre-commit-config\.yaml$|\.PVS-Studio/|\.oss-scanner/|\.agents$|\.codex/|\.idea/|\.vscode/|'
+    r'\.pre-commit-config\.yaml$|\.PVS-Studio/|\.oss-scanner/|\.greptile/|\.agents$|\.codex/|\.idea/|\.vscode/|'
     r'sonar-project\.properties$|library\.json$|pkg\.yml$|repository\.yml$|'
     r'version\.yml$|SConscript$|'
     r'.*CMakePresets\.json$|hw/bsp/BoardPresets\.json$|examples/west\.yml$|'
@@ -140,7 +143,7 @@ _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
 _MEMBROWSE_SCRIPT_RE = re.compile(r'^tools/membrowse_cli\.py$')
-_SIZE_SCRIPT_RE = re.compile(r'^tools/code_size\.py$')
+_SIZE_SCRIPT_RE = re.compile(r'^tools/code_size(_profile)?\.py$')
 MEMBROWSE_TARGET = 'examples-membrowse-upload'
 # The selection contract's entry point: CI and agents select through
 # `check_build.py --select-only`, so a change to it can change any selection. Ahead
@@ -148,10 +151,7 @@ MEMBROWSE_TARGET = 'examples-membrowse-upload'
 _SELECTOR_RE = re.compile(r'^\.claude/skills/build/scripts/check_build\.py$')
 _FULL_RE = re.compile(
     r'^(src/common/|src/osal/|src/tusb\.c$|src/tusb\.h$|src/tusb_option\.h$|'
-    # tools/rtt.py is part of the harness, not a standalone tool: hil_util imports it
-    # at module load, so a break in it breaks every rig run the same way a test/hil/
-    # edit can (the pre-commit hil-test hook runs its unit tests for the same reason)
-    r'test/hil/|tools/rtt\.py$|'
+    r'test/hil/|'
     r'\.github/workflows/build.*\.yml$|\.github/actions/|\.github/scripts/|'
     # generates the whole CircleCI matrix, same authority as .github/**
     r'\.circleci/|'
@@ -172,6 +172,15 @@ _FULL_RE = re.compile(
     # board_test is HIL infrastructure, not a test: hil_test.py flashes it to park
     # every board (variant boundary + end-of-board teardown), so every board depends on it
     r'examples/device/board_test/)')
+
+# Rule 17's scope: where a path no rule anticipated can still feed a build. Unclassified
+# here -> full (17a); elsewhere -> nothing (17b). The root, cmake/ and zephyr/ entries
+# reserve build entry points the tree does not have yet (family_support.cmake searches
+# ${TOP}/zephyr); tools/, .github/ and .circleci/ build machinery is named by _FULL_RE.
+_BUILD_SCOPE_RE = re.compile(
+    r'^((src|hw|examples|lib|cmake|zephyr)/|'
+    r'(CMakeLists\.txt|[Mm]akefile|GNUmakefile|[^/]+\.(cmake|mk)|Kconfig(\.[^/]+)?|'
+    r'sdkconfig(\.[^/]+)?|idf_component\.yml)$)')
 
 # --no-renames: with rename detection git reports only a rename's destination, so code
 # moved out of an HIL-relevant path would be classified by its new path alone
@@ -368,6 +377,10 @@ def mcu_families(path: str, repo_root: str) -> set:
 
 GET_DEPS_PATH = 'tools/get_deps.py'
 _DEPS_DICTS = ('deps_mandatory', 'deps_optional')
+# Dep paths the HIL harness itself loads (helper/hil_lock.py, hil_util's RTT console), not a family build:
+# a pin change is a harness change, rule 2's HIL answer, and a size-script change, rule 2d's build answer
+# (lib/agentrc holds the code-size engine every build leg's snapshot step runs).
+_HIL_HARNESS_DEPS = frozenset({'lib/agentrc'})
 
 
 def _deps_split(text: str):
@@ -403,7 +416,8 @@ _DEPS_ALIAS_TOKENS = frozenset({'sam3x', 'samd21', 'samd51', 'same5x',
 
 def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
     """Families whose tools/get_deps.py dep entries changed between two versions of
-    the file, or None meaning 'cannot tell - use the full matrix'.
+    the file, plus the path of each changed _HIL_HARNESS_DEPS entry, or None meaning
+    'cannot tell - use the full matrix'.
 
     None on: anything outside deps_mandatory/deps_optional differing (a logic change
     to get_deps affects every family), a mandatory `'all'` entry changing, a token
@@ -422,12 +436,14 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         return None
     if base_rest != head_rest:
         return None
-    toks = set()
+    toks, harness = set(), set()
     for name in _DEPS_DICTS:
         base_x, head_x = base_d.get(name, {}), head_d.get(name, {})
         for key in set(base_x) | set(head_x):
             if base_x.get(key) == head_x.get(key):
                 continue
+            if key in _HIL_HARNESS_DEPS:
+                harness.add(key)
             for entry in (base_x.get(key), head_x.get(key)):
                 if entry and len(entry) > 2:
                     toks.update(str(entry[2]).split())
@@ -439,7 +455,7 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         # "nothing changed": reading it as the latter empties the entire build matrix
         # for a dep bump, so fall open instead
         return None
-    return toks & fams
+    return (toks & fams) | harness
 
 
 _CLS_INC_RE = re.compile(r'#\s*include\s*[<"]class/([^/"<>]+)/([^"<>]+)[">]')
@@ -710,6 +726,9 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         if get_deps_families is None:
             s.force_full(f'{path}: dep changes not resolvable -> full matrix')
             return
+        if get_deps_families & _HIL_HARNESS_DEPS:
+            s.force_full(f'{path}: a HIL harness dep changed -> full matrix')
+            return
         if not get_deps_families:
             s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
             return
@@ -866,7 +885,10 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
             s.reasons.append(f'{path}: example not in HIL lists, no contribution')
         return
 
-    s.force_full(f'{path}: unclassified -> full matrix')
+    if _BUILD_SCOPE_RE.match(path):
+        s.force_full(f'{path}: unclassified -> full matrix')
+    else:
+        s.reasons.append(f'{path}: outside build-input locations, no contribution')
 
 
 def classify(changed_files, repo_root, rosters, get_deps_families=None):
@@ -958,8 +980,8 @@ def selection_args(sel, rosters):
 
 def selection_args_by_flasher(sel, rosters):
     """{config: {flasher name: args}}. CI runs one rig as several jobs split by
-    flasher (esptool vs the rest); each must gate on its own subset, otherwise the
-    other leg runs a filter matching zero boards and reports a vacuous green."""
+    flasher (rig_legs); each must gate on its own subset, otherwise the other leg
+    runs a filter matching zero boards and reports a vacuous green."""
     out = {}
     for cfg_path, boards in rosters:
         per = {}
@@ -972,6 +994,16 @@ def selection_args_by_flasher(sel, rosters):
                     _board_args(b['name'], chosen))
         out[os.path.basename(cfg_path)] = {f: ' '.join(p) for f, p in per.items()}
     return out
+
+
+def rig_legs(args_flasher: dict) -> dict:
+    """One rig's {flasher name: args} (selection_args_by_flasher's) as its CI legs' args:
+    'tinyusb_esp' the boards built under esp-idf (ESP_IDF_FLASHERS), 'tinyusb' the rest."""
+    legs = {'tinyusb': [], 'tinyusb_esp': []}
+    for f, a in sorted(args_flasher.items()):
+        if a:
+            legs['tinyusb_esp' if f in ESP_IDF_FLASHERS else 'tinyusb'].append(a)
+    return {leg: ' '.join(parts) for leg, parts in legs.items()}
 
 
 class SelectError(Exception):
@@ -1307,10 +1339,13 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         if get_deps_families is None:
             s.force_full(path, 'get-deps', f'{path}: dep changes not resolvable -> full build matrix')
             return
-        if not get_deps_families:
-            s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
+        if get_deps_families & _HIL_HARNESS_DEPS:
+            s.force_full(path, 'get-deps', f'{path}: lib/agentrc holds the CI size engine -> full build matrix')
             return
         fams = sorted(get_deps_families)
+        if not fams:
+            s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
+            return
         s.add(path, 'get-deps', fams, 'all', f'{path}: dep entries changed -> families {fams}', fams)
         return
     m = _PORT_PATH_RE.match(path)
@@ -1417,13 +1452,16 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.force_full(path, 'size-script', f'{path}: CI size script -> full build matrix')
         return
     if _FULL_RE.match(path):                                      # rules 15-16
-        # attribution, not behaviour: these already reached `full` through the
-        # fall-through below. Naming them means a future narrowing of rule 17 cannot
-        # silently change what they do. Deliberately last, so every earlier rule keeps
-        # priority - examples/device/board_test is rule 14 (just board_test), not ALL.
+        # behaviour for the paths outside rule 17a's scope (.github/, .circleci/, tools/),
+        # which 17b would otherwise drop; attribution for the rest. Deliberately last, so
+        # every earlier rule keeps priority - examples/device/board_test is rule 14, not ALL.
         s.force_full(path, 'core-infra', f'{path}: core/infra -> full build matrix')
         return
-    s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17
+    if _BUILD_SCOPE_RE.match(path):
+        s.force_full(path, 'unclassified', f'{path}: unclassified -> full build matrix')    # rule 17a
+        return
+    s.note(path, 'outside-build', 'none',
+           f'{path}: outside build-input locations, no build contribution')                # rule 17b
 
 
 @contextlib.contextmanager

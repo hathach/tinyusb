@@ -1,15 +1,16 @@
 # Fuzz harnesses
 
-libFuzzer harnesses for the device stack, built with CMake on the host:
+libFuzzer harnesses for the device and host stacks, built with CMake on the host:
 
-| Harness   | Exercises                                                          |
-|-----------|--------------------------------------------------------------------|
-| `cdc`     | device stack + CDC, through the synthetic controller `dcd_fuzz.cc` |
-| `msc`     | device stack + MSC                                                 |
-| `net`     | device stack + CDC and ECM/RNDIS                                   |
-| `net_ncm` | the NCM receive validator alone                                    |
+| Harness     | Exercises                                                          |
+|-------------|--------------------------------------------------------------------|
+| `cdc`       | device stack + CDC, through the synthetic controller `dcd_fuzz.cc` |
+| `msc`       | device stack + MSC                                                 |
+| `net`       | device stack + CDC and ECM/RNDIS                                   |
+| `net_ncm`   | the NCM receive validator alone                                    |
+| `usbh_enum` | host configuration enumeration with synthetic control completions  |
 
-The synthetic controller never completes a transfer, so only bus events and SETUP packets reach the stack; see
+The device synthetic controller never completes a transfer, so only bus events and SETUP packets reach the stack; see
 `.oss-scanner/threat_model.md` for the current limits.
 
 ## Build and run
@@ -38,3 +39,6 @@ OSS-Fuzz's `projects/tinyusb/build.sh` runs `make -C test/fuzz/device/<harness> 
 `_build/<harness>` and `<harness>_seed_corpus.zip`. Those Makefiles are thin wrappers around the CMake build
 (`fuzz.mk`); keep that interface. `make -C test/fuzz/device/net_ncm regression` replays the NCM seed
 archive (a crafted out-of-bounds NTB) once.
+
+For the host enumeration request oracle, input format, and regression cases, see
++[`host/usbh_enum/README.md`](host/usbh_enum/README.md).
