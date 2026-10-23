@@ -18,8 +18,8 @@
 #include "pico/fix/rp2040_usb_device_enumeration.h"
 #endif
 
-#include "device/dcd.h"
 #include "common/tusb_sysview.h"
+#include "device/dcd.h"
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
 // Therefore, it cannot detect disconnect event, mistaken it as suspend.
