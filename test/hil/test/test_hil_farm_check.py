@@ -390,10 +390,10 @@ class EngineOpenocdEsp(EngineFixture):
     """An openocd_esp board through the engine: a reset session ended `done` leaves the board
     released, and one the provider left running stops the board, whose lock the engine hands to a
     cleanup holder naming the receipt."""
-    RECEIPT = '/tmp/hil_openocd_esp_x/receipt.json'
 
     def setUp(self):
         super().setUp()
+        self.RECEIPT = str(self.d / 'receipt.json')
         patch(self, eng.hil_process, 'run_tracked', lambda *a, **kw: self.fail('ran a tracked child'))
         self.board = dict(BOARD, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                           'args': '-f board/esp32p4-builtin.cfg'})
@@ -428,6 +428,8 @@ class EngineOpenocdEsp(EngineFixture):
     def end_holder(self):
         rec = hil_lock.read_record('b')
         if hil_lock.is_cleanup_holder(rec):
+            # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
+            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}))
             hil_lock.release_token(rec['token'])
 
     def test_a_done_session_is_ok_and_released(self):
