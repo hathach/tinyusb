@@ -261,8 +261,10 @@ class Espressif(unittest.TestCase):
     @mock.patch.object(sd, 'WINDOWS', new=False)
     def test_without_idf_report_and_diff_refuse_an_espressif_board_before_building(self):
         pinned = ['stm32f407disco', 'espressif_s3_devkitm']
-        for argv in (['report', '-b', pinned[0], '-b', pinned[1]], ['diff', '-b', pinned[0], '-b', pinned[1]],
-                     ['diff', '--ci']):
+        # diff names its base: CI's checkout has no master, the default --base-branch
+        for argv in (['report', '-b', pinned[0], '-b', pinned[1]],
+                     ['diff', '-b', pinned[0], '-b', pinned[1], '--base-branch', 'HEAD'],
+                     ['diff', '--ci', '--base-branch', 'HEAD']):
             err = io.StringIO()
             with mock.patch.object(prof, 'ci_boards', return_value=pinned), \
                  mock.patch.object(sd, 'engine_missing', return_value=False), \
@@ -445,9 +447,10 @@ class BoardAndExampleNames(unittest.TestCase):
         return err.getvalue()
 
     def test_an_unknown_board_is_refused_not_skipped(self):
-        for command in ('report', 'diff'):
-            self.assertIn('error: unknown board: nosuch', self._refused([command, '-b', 'nosuch', '--engine',
-                                                                         'sections']))
+        # diff names its base: CI's checkout has no master, the default --base-branch
+        for argv in (['report'], ['diff', '--base-branch', 'HEAD']):
+            self.assertIn('error: unknown board: nosuch', self._refused(argv + ['-b', 'nosuch', '--engine',
+                                                                                'sections']))
 
     def test_an_example_in_neither_tree_is_refused_not_skipped(self):
         head = subprocess.run(['git', '-C', REPO, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout
