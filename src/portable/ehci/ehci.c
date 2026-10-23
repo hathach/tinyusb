@@ -1246,9 +1246,10 @@ static bool iso_td_wait_idle(iso_ep_t const* ep) {
 }
 
 // Close, or cancel only work whose service slot is still ahead and that the
-// controller cannot be accessing. Close returns false if the controller may
-// still be on the TD: the endpoint is then gone for lookup, and iso_process()
-// releases its descriptors once the controller cannot be on them.
+// controller cannot be accessing. Close always succeeds. If the controller may
+// still be on the TD, the endpoint is gone for lookup at once (it may be
+// reopened) and iso_process() releases its descriptors once the controller
+// cannot be on them; refusing the close would leave nothing to retry.
 static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
   TU_VERIFY(close || ep->busy);
   hcd_int_disable(rhport);
@@ -1291,7 +1292,7 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
     }
   }
   hcd_int_enable(rhport);
-  return done;
+  return close || done;
 }
 #endif
 
