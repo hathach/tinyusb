@@ -9,20 +9,20 @@ CFLAGS += \
   -flto
 
 LDFLAGS += \
-	-flto --specs=nosys.specs -nostdlib -nostartfiles
+  -flto --specs=nosys.specs -nostdlib -nostartfiles
 
 SRC_C += \
-	$(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_gpio.c \
-	$(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_misc.c \
-	$(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_rcm.c \
-	$(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_usart.c \
-	$(APM32_SDK)/Device/Geehy/APM32F10x/Source/system_apm32f10x.c
+  $(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_gpio.c \
+  $(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_misc.c \
+  $(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_rcm.c \
+  $(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_usart.c \
+  $(APM32_SDK)/Device/Geehy/APM32F10x/Source/system_apm32f10x.c
 
 INC += \
-	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(APM32_SDK)/APM32F10x_StdPeriphDriver/inc \
-	$(TOP)/$(APM32_SDK)/CMSIS/Include \
-	$(TOP)/$(APM32_SDK)/Device/Geehy/APM32F10x/Include
+  $(TOP)/$(BOARD_PATH) \
+  $(TOP)/$(APM32_SDK)/APM32F10x_StdPeriphDriver/inc \
+  $(TOP)/$(APM32_SDK)/CMSIS/Include \
+  $(TOP)/$(APM32_SDK)/Device/Geehy/APM32F10x/Include
 
 # F103: startup_apm32f103xb.S
 # F107: startup_apm32f107xc.S

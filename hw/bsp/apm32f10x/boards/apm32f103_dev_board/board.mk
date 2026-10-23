@@ -10,5 +10,5 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY
 
 SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
-	src/portable/st/stm32_fsdev/fsdev_common.c
+  src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+  src/portable/st/stm32_fsdev/fsdev_common.c
