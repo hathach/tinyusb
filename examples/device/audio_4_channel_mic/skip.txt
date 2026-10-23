@@ -4,3 +4,4 @@ family:broadcom_64bit
 family:espressif
 mcu:CH583
 mcu:CH32X035
+mcu:APM32F103

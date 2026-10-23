@@ -24,6 +24,7 @@ toolchain_list = [
 # container), so it belongs here - "not in family_list" means CI never builds it.
 family_list = {
     "apm32f0xx": ["arm-gcc"],
+    "apm32f10x": ["arm-gcc"],
     "at32f402_405": ["arm-gcc"],
     "at32f403a_407": ["arm-gcc"],
     "at32f413": ["arm-gcc"],
