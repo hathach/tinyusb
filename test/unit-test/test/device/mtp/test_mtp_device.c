@@ -761,6 +761,73 @@ void test_data_out_app_read_takes_zlp(void) {
   expect_response(tid, MTP_RESP_OK, 0);
 }
 
+// ContainerLength 0xFFFFFFFF (MTP 1.1 Appendix H): the data phase has no declared length
+static uint32_t start_data_out_unknown(uint8_t* pkt) {
+  const uint32_t tid = start_data_out(0, pkt);
+  ((mtp_container_header_t*) pkt)->len = UINT32_MAX;
+  return tid;
+}
+
+// the short packet ends the phase, and header->len then reads what arrived: the app stops re-arming
+static void check_data_out_unknown_short(uint32_t full_buffers, uint32_t last) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out_unknown(pkt);
+  for (uint32_t i = 0; i < full_buffers; i++) {
+    host_out(pkt, BUFSIZE);
+    TEST_ASSERT_EQUAL(0, app.complete_calls);
+    expect_call(DCD_XFER, EP_OUT, BUFSIZE);
+    expect_no_more_calls();
+  }
+  host_out(pkt, last);
+  const uint32_t total = full_buffers * BUFSIZE + last - HDR;
+  TEST_ASSERT_EQUAL(full_buffers + 1, app.xfer_calls);
+  TEST_ASSERT_EQUAL(total, app.received);
+  TEST_ASSERT_EQUAL(1, app.complete_calls);
+  TEST_ASSERT_EQUAL(MTP_PHASE_DATA_COMPLETE, app.complete_phase);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
+void test_data_out_unknown_len_single_short_packet(void) { check_data_out_unknown_short(0, 300); }
+void test_data_out_unknown_len_short_after_full_buffers(void) { check_data_out_unknown_short(2, 100); }
+void test_data_out_unknown_len_one_byte_after_full_buffer(void) { check_data_out_unknown_short(1, 1); }
+
+// a whole number of buffers: the app's own read takes the terminating ZLP
+void test_data_out_unknown_len_full_buffers_then_zlp(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out_unknown(pkt);
+  for (uint32_t i = 0; i < 2; i++) {
+    host_out(pkt, BUFSIZE);
+    expect_call(DCD_XFER, EP_OUT, BUFSIZE);
+    expect_no_more_calls();
+  }
+  TEST_ASSERT_EQUAL(0, app.complete_calls);
+  host_out(NULL, 0);
+  TEST_ASSERT_EQUAL(2 * BUFSIZE - HDR, app.received);
+  TEST_ASSERT_EQUAL(1, app.complete_calls);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
+// a header-only first packet is Appendix H's split header, not the end of the phase
+void test_data_out_unknown_len_split_header(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out_unknown(pkt);
+  host_out(pkt, HDR);
+  TEST_ASSERT_EQUAL(1, app.xfer_calls);
+  TEST_ASSERT_EQUAL(0, app.received);
+  TEST_ASSERT_EQUAL(0, app.complete_calls);
+  expect_call(DCD_XFER, EP_OUT, BUFSIZE);
+  expect_no_more_calls();
+  for (uint32_t i = 0; i < 100; i++) pkt[i] = pattern(i);
+  host_out(pkt, 100);
+  TEST_ASSERT_EQUAL(100, app.received);
+  for (uint32_t i = 0; i < 100; i++) TEST_ASSERT_EQUAL_HEX8(pattern(i), app.rx[i]);
+  TEST_ASSERT_EQUAL(1, app.complete_calls);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
+
 void test_data_out_runt_first_packet_stalls(void) {
   open_device(TUSB_SPEED_HIGH);
   uint8_t pkt[BUFSIZE];

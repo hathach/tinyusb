@@ -129,6 +129,10 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
 
 // Invoked when a data packet is transferred. If data spans over multiple packets, application can use
 // total_xferred_bytes and io_container's payload_bytes to determine the offset and remaining bytes to be transferred.
+// Data OUT: io_container's header->len is the host's ContainerLength. When that is 0xFFFFFFFF (a data phase too
+// long for 32 bits, MTP 1.1 Appendix H) a short packet ends the phase, and header->len then reads the bytes
+// actually received, so re-arming while total_xferred_bytes < header->len stops there. total_xferred_bytes is
+// 32-bit: past 4 GiB it wraps.
 // Return negative to stall the endpoints
 int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data);
 

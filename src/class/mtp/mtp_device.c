@@ -93,6 +93,10 @@ typedef struct {
 } mtpd_interface_t;
 
 TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE <= UINT16_MAX, "usbd_edpt_xfer() length is 16-bit");
+// A data OUT phase of unknown length ends on a short packet, seen as a read shorter than the
+// buffer: the buffer has to be a whole number of bulk packets.
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64) == 0,
+                 "CFG_TUD_MTP_EP_BUFSIZE must be a multiple of the bulk max packet size");
 
 typedef struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_MTP_EP_BUFSIZE);
@@ -631,6 +635,20 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (is_data_in) {
         // IN completion: short packet, ZLP, or reaching total_len
         is_complete = (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
+      } else if (p_mtp->total_len == UINT32_MAX) {
+        // ContainerLength 0xFFFFFFFF: the host did not fit the length in 32 bits (MTP 1.1 Appendix H),
+        // so the short packet or ZLP ends the phase. A header-only first packet is Appendix H's split
+        // header, not an empty phase (that declares a length of 12).
+        is_complete = (xferred_bytes < threshold) && !(is_first_out && xferred_bytes == sizeof(mtp_container_header_t));
+        if (is_complete) {
+          // the length is now known: the application stops re-arming once total_xferred_bytes reaches it
+          p_mtp->total_len = p_mtp->xferred_len;
+          if (is_first_out) {
+            p_container->header.len = p_mtp->xferred_len;
+          } else {
+            p_mtp->io_header.len = p_mtp->xferred_len;
+          }
+        }
       } else {
         // OUT completion: reaching total_len or ZLP only. A short packet does NOT end the phase
         // (an early short packet before total_len is the cancel case, not normal completion).
