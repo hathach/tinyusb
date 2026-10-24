@@ -67,17 +67,51 @@ packet size at 1023 bytes in the descriptor.
 
 WCH CH32F20x/CH32V20x/CH32V30x
 ---------------------------------
-**Severity: Medium**
-
-**Not recommended for USB audio applications**
+**Severity: High**
 
 Reference: `CH32V30X Reference Manual`_ USBFS/USBHS controller chapter
 
 .. _CH32V30X Reference Manual: https://www.wch-ic.com/downloads/CH32FV2x_V3xRM_PDF.html
 
-Data corruption may occur on isochronous endpoints. Due to the lacking of FIFO for interrupt status registers, later completed transfer will overwrite `INT_ST` and `RX_LEN` register if previous transfer processing is not completed.
+.. _wch-iso-status-overwrite:
 
-Other types of transfers are not affected.
+**1. Isochronous transfer status overwritten**
+
+**Not recommended for USB audio applications**
+
+The controllers have no FIFO for transfer completion status. A later isochronous transfer can
+overwrite ``INT_ST`` and ``RX_LEN`` before software finishes processing the previous transfer,
+causing data corruption.
+
+.. _wch-usbhs-interrupt-starvation:
+
+**2. USBHS interrupt endpoint starvation**
+
+The USBHS driver's ``INT_BUSY`` protection makes endpoints respond with NAK while a transfer
+interrupt is pending. This mainly affects interrupt IN endpoints: closely spaced transactions
+on different endpoints can reduce throughput or starve an interrupt endpoint, even when its buffer
+is ready. Disabling ``INT_BUSY`` is not a safe workaround: an OUT endpoint can accept another packet
+before software processes the previous packet and updates its buffer and response.
+
+For example, on NanoCH32V305 with Windows, three 20-byte interrupt IN endpoints polled every
+125 us at HS had NAK rates of approximately 80%, 20%, and 0%; the longest gap between successful
+EP1 reports was 4 ms. At FS with 1 ms polling, all three delivered approximately 1,000 reports/s
+without sequence gaps in an 8-second test.
+
+Workaround: force full speed on the USBHS controller when the application's bandwidth permits it:
+
+.. code-block:: c
+
+   tusb_rhport_init_t dev_init = {
+     .role = TUSB_ROLE_DEVICE,
+     .speed = TUSB_SPEED_FULL
+   };
+   tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+For CH32V30x examples, keep the build option ``SPEED=high`` to select the USBHS controller and
+its physical port; the initialization above selects its operating speed. Use descriptors suitable
+for full speed. This reduces the timing pressure but does not remove the shared-register
+limitation; validate the application's endpoint mix, especially when using isochronous transfers.
 
 Puya PY32F071/072
 ---------------------------------
@@ -89,3 +123,50 @@ The USB device controller (MUSB-like) has 5 application endpoints EP1-EP5 with f
 shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 B, EP5 = 64 B.
 This is much lower than the max ISO ep size of 1024 for high EP numbers.
 Place large isochronous endpoints on EP1 and size descriptors accordingly.
+
+Espressif ESP32-S2/S3/P4
+------------------------
+**Severity: High** for a full-speed host with a low-speed device behind a full-speed hub
+
+Reference: espressif/esp-idf#15683, where ESP-IDF delays each low-speed control stage by 1 ms.
+
+Affects the full-speed USB OTG core: the only one on ESP32-S2/S3, and USB OTG 1.1 (port 0) on
+ESP32-P4. The high-speed core of ESP32-P4 (port 1) reaches low-speed devices through a high-speed
+hub's transaction translator and sends no preamble.
+
+To reach a low-speed device through a full-speed hub the host sends a preamble (PRE) packet before
+each low-speed packet. The transmitter can hang right after a PRE: the low-speed packet never
+follows, the channel reports a transaction error and, after a timeout, the core drops the root port.
+
+On ESP32-S3 with a logic analyzer on D+/D-, the hang only hit the PRE of a transaction the driver
+started while the last packet on the bus was a low-speed one (about 2% of those, independent of the
+idle gap). A PRE after an SOF or another full-speed packet, inside a transaction, or of the core's
+own NAK retries and multi-packet sequence never hung.
+
+On the ESP32-P4 port 0 with two low-speed HID devices and a flash drive behind a full-speed hub, the
+root port dropped and re-enumerated every 1.5-2 s in 4 of 5 boots without the mitigation, and never
+with it, in either slave or DMA mode.
+
+Mitigation in TinyUSB: ``hcd_dwc2`` lets one preamble channel own the bus at a time and starts the
+next one only in a frame after the previous one halted, which puts an SOF between them. A port
+disable re-enumerates the root port.
+
+STMicroelectronics STM32 OTG_FS/OTG_HS
+--------------------------------------
+**Severity: High** for a full-speed host with a low-speed device behind a hub
+
+Reference: "Host packet transmission may hang when connecting through a hub to a low-speed device",
+listed in ST's errata sheets for STM32F20x (ES0005), F401 (ES0222), F405/407 (ES0182), F411 (ES0287),
+F412 (ES0305), F427/437 (ES0206), F76x/77x (ES0334), H742/743/750/753 (ES0392), H745/747/755/757
+(ES0445), H723/725/730/733/735 (ES0491), L47x/48x (ES0250), L496/4A6 (ES0335), L4P5/Q5 (ES0510) and
+U575/585 (ES0499). On parts with an OTG_HS core it applies to its full-speed interface.
+
+ST: the transmitter internal state machine may hang, which leads, after a timeout expiry, to a port
+disconnect interrupt. There is no workaround; more capacitance on the data lines may reduce the
+occurrence.
+
+On an STM32F407 the hang hit even a PRE sent right after an SOF, and starting one low-speed
+transaction per frame did not help (9 of 10 boots still lost the port), so the ESP32-S2/S3
+mitigation is not enabled for STM32. TinyUSB re-enumerates the root port after a port disable. A
+high-speed host with a high-speed hub avoids preambles altogether (the hub's transaction translator
+talks low speed).

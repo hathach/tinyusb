@@ -52,12 +52,8 @@
 #define configENABLE_FPU                        1
 #define configENABLE_TRUSTZONE                  0
 #define configMINIMAL_SECURE_STACK_SIZE         (1024)
-
-/* nRF54 runs entirely in Secure mode (SAU present but no SPE bootloader).
- * Tell FreeRTOS CM33 NTZ port to use Secure-compatible EXC_RETURN values. */
-#if defined(NRF54H20_XXAA) || defined(NRF54LM20A_ENGA_XXAA)
+/* These BSPs run Secure-only without a non-secure image: the CM33 NTZ port needs Secure EXC_RETURN values. */
 #define configRUN_FREERTOS_SECURE_ONLY          1
-#endif
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0

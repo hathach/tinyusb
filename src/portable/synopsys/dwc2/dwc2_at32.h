@@ -76,14 +76,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
-  NVIC_EnableIRQ(_dwc2_controller[rhport].irqnum);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
-  NVIC_DisableIRQ(_dwc2_controller[rhport].irqnum);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms
   uint32_t count = system_core_clock / 1000;

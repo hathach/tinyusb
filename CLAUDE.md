@@ -2,16 +2,7 @@
 
 ## Working Rules
 
-Bias toward caution over speed. For trivial tasks, use judgment.
-
-- Think first — state assumptions; ask if unclear; when a choice matters, name it and recommend one rather than picking silently or surveying every option.
-- Simplicity — Follow YAGNI. Reuse existing code, standard-library, and native-platform features before adding dependencies or abstractions. Prefer the smallest clear solution, but never sacrifice correctness, safety, or necessary tests.
-- Surgical changes — touch only what the task requires; match existing style; don't refactor working code; mention unrelated dead code rather than deleting it. Remove only orphans your changes created.
-- Goal-driven — turn tasks into verifiable goals ("write failing test, make it pass"). For multi-step work, state a brief `step → verify` plan.
-- Assume the dev machine is configured. Run commands directly; troubleshoot setup only when a command fails.
-- **Worktrees** — For branch or multi-step work: `git worktree add .worktrees/<branch> -b <branch>`; never switch the primary checkout. Symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
-- Hardware references — before register/bitfield/pinout/errata/timing claims or DCD/HCD changes, use `read-doc` to check Calibre first; report missing documents. Search its database, never the library tree.
-- Open-source behavior — when investigating an issue or understanding behavior (e.g. kernel, libusb, OpenOCD; usbfs, usbtest, sysfs attributes, device locks, D state), read the source for the version in use rather than infer from symptoms.
+- Worktrees — symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
 - Code references — boards: `hw/bsp/`, `docs/reference/boards.rst`; classes: `src/class/`; core/config: `src/tusb.h`, `src/tusb_option.h`, each example's `src/tusb_config.h`; build/deps: `tools/build.py`, `tools/get_deps.py`; unit tests: `test/unit-test/project.yml`.
 
 ## Code Rules
@@ -22,44 +13,29 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 
 ## Skills
 
-- When creating or editing skills, put deterministic, checkable mechanics in `.claude/skills/<name>/scripts/`; keep judgment and usage in `SKILL.md`, without duplicating script logic.
-- Scripts must fail explicitly rather than guess; report ambiguous alternatives for the caller to choose.
-- Test new or substantially changed scripts in `.claude/test/test_*.py`; add tests to untested older scripts when touched.
-
-## Claude and Codex Collaboration
-
-- Keep `CLAUDE.md` and `.claude/{agents,skills,workflows}` canonical; preserve `AGENTS.md -> CLAUDE.md` and `.agents -> .claude`.
-- For a standalone Codex session, use `.codex/agents/<role>.toml` to load `.claude/agents/<role>.md`; keep adapters thin and never duplicate role bodies.
-- Exception: `code-simplifier` wraps bundled `/simplify` in Claude; Codex keeps its standalone equivalent in TOML.
-- Use `/codex:review` for independent read-only review, `/codex:adversarial-review` to challenge a design, and `/codex:rescue` for bounded implementation or diagnosis.
-- Concurrent writers need separate worktrees; otherwise yield the worktree until delegated edits finish.
-- Use `peer-agent` for read-only consultation with another agent session in this worktree; it is a peer, not a subagent.
-- Keep orchestration in `.claude/workflows/`. Use `code-verify` with `provider: 'codex'` (default), `'claude'`, or `'all'`; `validate`/`full-check` use `reviewProvider`; `pr-babysit` has an independent model challenge every dismissal before it is posted. Keep workflow nesting to one level.
-- Delegate Codex workflow jobs through `.claude/agents/codex-agent.md`; `.claude/codex-agent.py` enforces the allowed roles. Its read-only sandbox has no network: jobs must use local evidence, since failed network reads can produce false empty results. Write-capable roles need worktree isolation first.
+- Agents, skills and workflows beyond this repo's `.claude/` come from [agentrc](https://github.com/hathach/agentrc); install it before agent work on TinyUSB.
+- Skill script tests live in `.claude/test/test_*.py`.
+- Hardware diagnosis and repair use agentrc's `hw-debugger`; independent hardware claims and committed-fix validation use `hw-validator`; routine HIL runs use `hil-operator`, which follows the HIL contract below — all orchestrated by `chief`.
+- Driver audit: the `code-audit` workflow with `dirs` (e.g. `src/portable/<vendor>/<driver>`) and `dimensions`: `correctness: transfer state machines, endpoint bookkeeping, completion and error paths`; `ISR safety: work deferred to task context, shared-state races, register access ordering`; `register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets via the read-doc skill; if the skill is unavailable treat the document as absent (low confidence, never a web/filesystem substitute); a missing erratum workaround is a finding`; `style: repo conventions (TU_ASSERT, no dynamic allocation, include order, naming)`.
+- usbtest battery: load `usbtest` before bringing up `examples/device/usbtest` on a new MCU or DCD, or before debugging a failed usbtest case (a red usbtest cell, a testusb errno, NOTRUN or HUNG); it maps the case to the DCD path and runs chosen cases on one board.
+- Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
 
 ## Build and Validate
 
-Build all examples for a board from the repo root; preserve `cmake-build-<board>` for HIL:
-
-```bash
-cmake -S examples -B examples/cmake-build-adafruit_metro_rp2350 -DBOARD=adafruit_metro_rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel
-cmake --build examples/cmake-build-adafruit_metro_rp2350
-ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-jlink    # Flash with J-Link
-ninja -C examples/cmake-build-adafruit_metro_rp2350 cdc_msc-openocd  # Or OpenOCD
-```
-
-- Single example after configuring above: `cmake --build examples/cmake-build-adafruit_metro_rp2350 --target cdc_msc`.
-- ESP-IDF: `. "$IDF_PATH/export.sh"` before build/flash/monitor; run `idf.py -DBOARD=<board> build` in the ESP-IDF example.
-- Debug/logging: `-DCMAKE_BUILD_TYPE=Debug -DLOG=2 -DLOGGER=rtt`.
-- Before submitting: `pre-commit run --all-files` (includes unit tests).
+- Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, or with `--variants <hil config>` one `cmake-build/cmake-build-<variant>` per roster variant, the dirs HIL flashes from, so preserve them. Flash with `ninja -C cmake-build/cmake-build-<board|variant> <example>-jlink` or `-openocd`, naming the variant for a `--variants` build; for routine rig tests use the HIL harness, whose roster pins the probe.
+- HIL contract: `.claude/skills/hil-contract/SKILL.md`. It owns taking and releasing a rig board, names the HIL config json for the host you are on, and names the launcher of the `hil` skill's farm (board/probe health) check.
+- Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
+- ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
+- Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
-- Validate device runtime on hardware; a successful build alone does not establish runtime correctness.
+- For DCD bring-up or a behavior change (`src/portable/<vendor>/<driver>`), use the usbtest battery for hardware sign-off: run every case of the justified tier. If no suitable rig board is available, report hardware validation pending.
 - After board/dependency changes, regenerate docs with `build-doc`.
-- Before committing code changes, verify size impact with `code-size`.
+- Before committing code changes, verify size impact with agentrc's `code-size` (the build contract's Code size section).
 
 ## PRs and Follow-ups
 
-- Before opening or updating a PR, follow Build and Validate; use `pre-pr` when workflows are available.
-- Use imperative commit/PR subjects; keep scope focused, link relevant issues, and include test/build evidence.
-- After opening a PR, use `pr-babysit` (`.claude/workflows/pr-babysit.js`) to drive reviews and CI to green. If workflows are unavailable, use `gh pr checks <num>` and `gh pr view <num> --comments`; fix failures, push, and resolve review threads.
-- **Deferred work** — Separate scope gets a separate PR/session. Create one GitHub issue per topic with `gh issue create --label followup`; link the originating PR and preserve the full handoff in the issue body, including evidence, remaining work, and why deferred. Add revalidation, new findings, and changes to remaining work as issue comments. Close the issue when its implementing PR lands.
+- Before opening or updating a PR, follow Build and Validate. HIL is not part of it.
+- After opening a PR, ask the human to authorize one headless `chief` invocation to drive reviews and CI to green under agentrc chief's Authorization exception. Name the PR URL, head repository and branch, and actions: push commits to that branch, post replies to the PR's review feedback, and resolve review threads through `pr-babysit` with `autoPush: true`. On an affirmative answer, launch it in the PR worktree through agentrc's `headless-chief` skill (`chief_run.py`), never a bare `claude -p`, and relay its exit as that skill directs. The task names the PR, head repository and branch, expected HEAD and scope, and includes the question and answer verbatim. Leave the checkout to chief until it exits; a new chief invocation requires a fresh exchange. TinyUSB `pr-babysit` args:
+  `{"pr": <num>, "protected": "^test/hil/[^/]+\\.json$"}`; reviewers are agentrc's default.
+  (`protected` excludes the HIL rig rosters from automated fixes).
+- The follow-up label is `followup`.

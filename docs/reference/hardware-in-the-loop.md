@@ -19,7 +19,7 @@ with a uPD720201 card, hosted by hifiphile.
 | Part            | Used on `ci`                                                                     | Notes                                                                                   |
 |-----------------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
 | Host PC         | Ryzen 9 3900X, MSI MAG B550M MORTAR WIFI, 32 GB                                  | Any x86 with a working IOMMU                                                            |
-| USB controllers | 4 × Renesas uPD720201 (`1912:0014` rev 03) on one PCIe card                      | [SSU SU-U3244-12U][aio-card]: four controllers behind an on-board PCIe switch, 12 ports |
+| USB controllers | 8 × Renesas uPD720201 (`1912:0014` rev 03) on two PCIe cards                     | [SSU SU-U3244-12U][aio-card]: four controllers behind an on-board PCIe switch, 12 ports |
 | Leaf hubs       | [MCS-92M 7-port USB 2.0 hub board][hub-board]                                    | XH2.54 headers instead of Type-A: sturdier under handling and far tidier to route       |
 | Cables          | XH2.54 → [Type-C][cable-c] / [micro-B][cable-micro] pigtails                     | Hub-end pin order: `+`, `D−`, `D+`, `−`                                                 |
 | Debug probes    | J-Link, ST-Link, RP2040 debug probe (CMSIS-DAP), WCH-Link, TI ICDI, ESP USB-JTAG | One per board — see Attached boards below                                               |
@@ -65,7 +65,7 @@ In `/etc/default/grub`, then `update-grub`:
 GRUB_CMDLINE_LINUX_DEFAULT="quiet iommu=pt pcie_acs_override=downstream,multifunction"
 ```
 
-`pcie_acs_override` is required because the card's four controllers sit behind its own
+`pcie_acs_override` is required because each card's four controllers sit behind its own
 PCIe switch, and that switch does not advertise ACS. Without the override all four land
 in one IOMMU group and none can be passed through individually. It relaxes DMA isolation
 between them — fine on a dedicated test rig, not on a shared host. Note it is a
@@ -108,10 +108,12 @@ One `hostpci` entry per controller, not per card — take the BDFs from
 ```bash
 qm set <vmid> --machine q35 --cpu host \
     --hostpci0 0000:07:00,pcie=1 --hostpci1 0000:08:00,pcie=1 \
-    --hostpci2 0000:09:00,pcie=1 --hostpci3 0000:0a:00,pcie=1
+    --hostpci2 0000:09:00,pcie=1 --hostpci3 0000:0a:00,pcie=1 \
+    --hostpci4 0000:2d:00,pcie=1 --hostpci5 0000:2e:00,pcie=1 \
+    --hostpci6 0000:2f:00,pcie=1 --hostpci7 0000:30:00,pcie=1
 ```
 
-`qm config <vmid>` should then list all four.
+`qm config <vmid>` should then list all eight.
 
 ## Guest
 
@@ -169,12 +171,12 @@ written is expected — it busy-waits over PCI config space for ~30 s.
 | Purpose                     | What `ci` uses                                                                                                                            |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | Build                       | `cmake`, `ninja-build`, and a toolchain per family: `gcc-arm-none-eabi`, a RISC-V GCC, ESP-IDF                                            |
-| Flashing                    | Five tools, one per `Flasher` value — see below                                                                                           |
-| Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool                                                                    |
+| Flashing                    | One tool per `Flasher` value — see below                                                                                                  |
+| Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool, pyusb (the raw MTP cases)                                         |
 | Host-side test tools        | `dfu-util`, `mtools`, `libmtp9`, `libmtp-runtime`, `alsa-utils` (apt) — the DFU, MSC, MTP and audio tests shell out to these              |
 | USB inspection and recovery | `pciutils` (the `usbtest` firmware gate), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
 
-The `Flasher` column in Attached boards names one of five values; only the ones your own
+The `Flasher` column in Attached boards names a tool from the table below; only the ones your own
 boards use have to be installed. The mapping is not always guessable:
 
 | `Flasher`  | Binary                                                                                                                                                |
@@ -184,6 +186,7 @@ boards use have to be installed. The mapping is not always guessable:
 | `openocd`  | [`hathach/openocd`][openocd-fork] branch `tinyusb` — one build merging the Raspberry Pi (RP2350), WCH and Analog Devices (MAX32) forks, none upstream |
 | `esptool`  | `esptool` (pip)                                                                                                                                       |
 | `lm4flash` | `lm4flash` (apt)                                                                                                                                      |
+| `pyocd`    | `pyocd` 0.45.1 (agentrc's pyocd launcher relies on its internals; project dir `test/hil/pyocd`), so the roster entry needs a `vid_pid` pair           |
 
 [openocd-fork]: https://github.com/hathach/openocd/tree/tinyusb
 
@@ -210,15 +213,12 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="045b", MODE="0664", GROUP="plugdev"
 ```
 
 Flasher CLIs and toolchains must be reachable from *non-interactive* shells — neither the
-Actions runner nor `hil_ci.sh` sources a login profile. Keep them in `~/.local/bin` and
+Actions runner nor `hil_remote.py` sources a login profile. Keep them in `~/.local/bin` and
 `~/bin` (symlinks are fine) and add both to the runner's `.path`.
 
 `pciutils` and passwordless sudo are hard requirements, not conveniences:
 `test/hil/usbtest.py` shells out as `sudo -n` for `setpci`, `modprobe`, `dmesg` and
 `testusb`, and exits outright if it cannot read the host controller's firmware version.
-`helper/hil_pool_check.py` gates recovery on the same `sudo -n` plus
-`.claude/skills/usb-kernel-recover/scripts/usb_recover.sh` being present; without both it
-cannot re-authorize a wedged probe's port and files the board `flash-failed` instead.
 
 The `usbtest` battery additionally needs `testusb` built from the kernel tools and
 `CONFIG_USB_TEST=m` available.
@@ -227,8 +227,8 @@ The `usbtest` battery additionally needs `testusb` built from the kernel tools a
 
 **One 7-port hub per uPD720201 root port. Never chain hubs.**
 
-Each controller presents four root ports (on both its USB 2 and USB 3 root hubs); the
-card brings 12 of those 16 out to connectors. Hang exactly one leaf hub on a root port.
+Each controller presents four root ports (on both its USB 2 and USB 3 root hubs); each
+card brings 12 of its 16 out to connectors. Hang exactly one leaf hub on a root port.
 
 Boards are grouped into storage boxes, each holding **two** leaf hubs: one carries only
 debug probes, the other only the boards under test. Keeping them apart is what makes
@@ -256,14 +256,25 @@ Why the rule matters:
   puts a second hub's whole subtree behind one of those uplinks, and the `usbtest`
   battery saturates whatever it is given.
 - **Blast radius.** A board that wedges its hub costs seven ports, not the rig.
-- **Scheduling.** `hil_test.py` budgets flashing and `usbtest` concurrency per host
-  controller (`test/hil/helper/hil_lock.py`: `FLASH_PARALLEL`, `USBTEST_PARALLEL`), which
-  only means anything when a controller's set of devices is fixed.
+- **Scheduling.** `hil_test.py` dispatches boards round-robin across host controllers
+  (`schedule_boards` in `test/hil/hil_test.py`), which
+  only means anything when a controller's set of devices is fixed. It orders starts only;
+  boards in flight are bounded by the worker pool (`cpu_count`), not per controller.
 
 Bus numbers are *not* stable across reboots or recabling, so nothing in the harness
 addresses a board by bus path. Boards are identified by the MCU's unique ID and probes by
 their serial, both recorded in the rig config — which is why every HIL board must
 implement `board_get_unique_id()`.
+
+The eight uPD720201 controllers sit at `0000:01:00.0` to `0000:08:00.0`, four per card;
+`readlink -f /sys/bus/usb/devices/usb<N>` maps a bus to its controller and `sudo uhubctl` lists the
+root hubs it can drive against the same addresses. Both their USB 2 and USB 3 root hubs advertise
+per-port power switching (`ppps`) but the silicon never drops VBUS (measured on the `05`–`08` card on
+2026-09-22; `01`–`04` unmeasured, assumed the same; the uPD720201 datasheet is not in the library, so
+this is a measurement, not a documented property), so a root-port cycle is a forced re-enumeration and
+nothing more. Which tree holds which probes moves with recabling: derive it (`lsusb -s <bus>:`) rather
+than trusting a stored map. A successful `pci-rebind` renumbers every bus the controller owns (buses 17
+and 18 came back as 1 and 2 on 2026-08-17).
 
 ## Attached boards
 
@@ -281,7 +292,7 @@ Both files are the source of truth — this table is generated from them.
    `test/hil/hil_test.py`, which flashes each board and runs its tests. Espressif boards
    run in `hil-tinyusb-esp`, gated on the slower ESP-IDF build, and `hil-hfp-iar` builds
    with IAR inside the job.
-3. On pull requests, `tools/ci_select.py` narrows the run to the boards a diff can
+3. On pull requests, `tools/change_impact.py` narrows the run to the boards a diff can
    affect — and each board's build to the examples its tests need — falling open to the
    full matrix when it cannot tell. The same pass scopes the build matrix.
 4. Each board is arbitrated by a kernel flock in `/tmp/tinyusb-hil-locks/`, so interactive
@@ -293,7 +304,7 @@ From a development PC, the same run can be driven remotely. `REMOTE` and `CONFIG
 default to `ci`, so point them at your own:
 
 ```bash
-REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json bash test/hil/hil_ci.sh -b <board>
+REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil-contract/scripts/hil_remote.py -b <board>
 ```
 
 ## Gotchas
@@ -331,7 +342,7 @@ Host-side prerequisites, beyond a cross toolchain:
 
 ```bash
 python3 tools/get_deps.py <family>            # MCU SDKs for your boards
-pip install -r test/hil/requirements.txt      # hidapi, pyserial, esptool
+pip install -r test/hil/requirements.txt      # hidapi, pyserial, esptool, pyusb
 sudo apt install cmake ninja-build uhubctl \
                  dfu-util mtools libmtp9 libmtp-runtime alsa-utils
 ```

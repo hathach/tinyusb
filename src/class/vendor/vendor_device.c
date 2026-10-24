@@ -224,6 +224,7 @@ TU_ATTR_UNUSED static inline uint32_t vendord_ep_write_available(vendord_interfa
 
 TU_ATTR_UNUSED static inline bool vendord_ep_read_xfer(vendord_interface_t *p_itf, uint8_t ep, uint8_t *epbuf, uint16_t xfer_len) {
   TU_VERIFY(ep > 0); // must be opened
+  usbd_edpt_rx_consume(p_itf->rhport, ep); // arming a new receive relinquishes the previous data
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, ep));
   return usbd_edpt_xfer(p_itf->rhport, ep, epbuf, xfer_len, false);
 }
@@ -252,7 +253,7 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   vendord_interface_t *p_itf = &_vendord_itf[idx];
 
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
-  return tu_edpt_stream_write(&p_itf->tx_stream, buffer, (uint16_t)bufsize);
+  return tu_edpt_stream_write(&p_itf->tx_stream, buffer, bufsize);
 
   #else
   // non-fifo mode: direct transfer (ep_in is 0 while an altsetting without a bulk IN ep is active)

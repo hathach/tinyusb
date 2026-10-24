@@ -4,6 +4,10 @@ import shlex
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
+import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
+import hil_util  # noqa: E402  ESP_IDF_FLASHERS; agentrc loads only on first use
+
 
 def _resolve_config_path(config_file):
     if os.path.exists(config_file):
@@ -22,7 +26,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
     g = parser.add_mutually_exclusive_group()
-    g.add_argument('--select', help='ci_select.py JSON; scopes boards when full=false')
+    g.add_argument('--select', help='selection manifest v1 (check_build.py --select-only); '
+                                    'scopes boards when hil.full is false')
     # a whole selection as one argv can exceed MAX_ARG_STRLEN on a big diff, which
     # would fail the step instead of falling open; callers that already have the
     # selection on disk pass the path instead
@@ -30,38 +35,27 @@ def main():
     args = parser.parse_args()
 
     raw = args.select
-    sel = None
+    hil = None
     try:
         if args.select_file:
             with open(args.select_file) as f:
                 raw = f.read()
         if raw:
-            sel = json.loads(raw)
-        if sel is not None and not isinstance(sel, dict):
-            raise ValueError(f'selection is {type(sel).__name__}, not an object')
+            # imported here, under the fall-open: a broken selector must still leave the
+            # full roster
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
+            import change_impact
+            hil = change_impact.check_manifest(json.loads(raw))['hil']
     except Exception as e:  # fail-open: an unusable selection must never red the job
+        # ALL of it is unusable, hil_examples included: keeping the -e lists would build
+        # a few examples per board while the rig, unfiltered, runs its whole test list
         print(f'hil_ci_set_matrix: selection unusable ({e}) - full roster',
               file=sys.stderr)
-        sel = None
+        hil = None
 
-    selected = None
-    if sel and not sel.get('full'):
-        # key ABSENT is an unusable selection, not "nothing selected" - same reading as
-        # ci_set_matrix.py. Filtering every board out would skip every hil-build leg and,
-        # through needs:, both rig jobs: an all-green PR with zero hardware coverage.
-        # An explicit boards: {} stays a legitimate nothing-selected.
-        if not isinstance(sel.get('boards'), dict):
-            print('hil_ci_set_matrix: selection has full false but no usable boards '
-                  'map - full roster', file=sys.stderr)
-            sel = None          # ALL of it is unusable, hil_examples included: keeping
-                                # the -e lists would build a few examples per board
-                                # while the rig, unfiltered, runs that board's whole
-                                # test list - flash failures on the fail-open path
-        else:
-            selected = set(sel['boards'])
-    ex_map = (sel or {}).get('hil_examples') or {}
-    if not isinstance(ex_map, dict):
-        ex_map = {}
+    # an explicit empty boards map stays a legitimate nothing-selected
+    selected = None if hil is None or hil['full'] else set(hil['boards'])
+    ex_map = hil['hil_examples'] if hil else {}
 
     # Toolchain buckets must match the toolchains instantiated by the hil-build
     # job in .github/workflows/build.yml. Keep all keys present (even if empty)
@@ -88,10 +82,10 @@ def main():
                 continue
             name = board['name']
             flasher = board['flasher']
-            # esptool boards must build under esp-idf; others default to arm-gcc
-            # but may opt into another bucket via an explicit "toolchain" field
-            # (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
-            if flasher['name'] == 'esptool':
+            # esptool and openocd_esp boards must build under esp-idf; others default
+            # to arm-gcc but may opt into another bucket via an explicit "toolchain"
+            # field (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
+            if flasher['name'] in hil_util.ESP_IDF_FLASHERS:
                 toolchain = 'esp-idf'
             else:
                 toolchain = board.get('toolchain', 'arm-gcc')
@@ -111,12 +105,15 @@ def main():
             for ex in ex_map.get(name, []):
                 build_board += f' -e {ex}'
 
-            # Each variant builds into cmake-build-<variant.name> with its own cmake
-            # -D defines and raw CFLAGS. No 'variant' -> a single build named after
-            # the board; an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single
-            # self-named variant carrying it.
-            variants = board.get('variant') or [{'name': name, 'flags': ''}]
+            # an always-on define (MAX3421_HOST=1, LOGGER=rtt) is a single self-named variant
+            try:
+                variants = hil_report.board_variants(board)
+            except ValueError as e:
+                raise SystemExit(f'{config_file}: {e}')
             for v in variants:
+                if toolchain == 'esp-idf' and v['name'] == name and (v['defines'] or v['flags']):
+                    # hil-build-esp sizes and uploads every leg as the board its --build-name names
+                    raise SystemExit(f'{config_file}: {name}: an esp-idf variant needs a name of its own')
                 arg = build_board
                 if v['name'] != name:
                     arg += f' --build-name {v["name"]}'
@@ -125,9 +122,9 @@ def main():
                 # build_board's argv path. The SAME string also reaches the get_deps
                 # env expansion and the artifact-name charset, where spaced/quoted
                 # values still fail (loudly) -- keep defines space-free
-                for d in v.get('defines', []):
+                for d in v['defines']:
                     arg += f' -D{shlex.quote(d)}'
-                for tok in v.get('flags', '').split():
+                for tok in v['flags']:
                     arg += f' --cflag={tok}'
                 append_build_arg(toolchain, arg)
 

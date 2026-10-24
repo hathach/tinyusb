@@ -1242,12 +1242,14 @@ static bool ftdi_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
 
     case CONFIG_FTDI_WRITE_LATENCY:
       #ifdef CFG_TUH_CDC_FTDI_LATENCY
-      int8_t result = ftdi_write_latency_timer(p_cdc, CFG_TUH_CDC_FTDI_LATENCY, ftdi_process_config,
-                                               CONFIG_FTDI_SIO_RESET);
-      TU_ASSERT(result != FTDI_FAIL);
-      if (result == FTDI_REQUESTED) {
-        break;
-      }// else FTDI_NOT_POSSIBLE => continue directly with next state
+      {
+        int8_t result = ftdi_write_latency_timer(p_cdc, CFG_TUH_CDC_FTDI_LATENCY, cdch_process_set_config,
+                                                 CONFIG_FTDI_SIO_RESET);
+        TU_ASSERT(result != FTDI_FAIL);
+        if (result == FTDI_REQUESTED) {
+          break;
+        }// else FTDI_NOT_POSSIBLE => continue directly with next state
+      }
       #endif
       TU_ATTR_FALLTHROUGH;
 

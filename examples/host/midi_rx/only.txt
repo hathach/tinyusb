@@ -1,6 +1,10 @@
+family:broadcom_32bit
+family:efm32
+family:gd32vf103
 family:hpmicro
 family:samd2x_l2x
 family:samd5x_e5x
+family:xmc4000
 mcu:CH32V20X
 mcu:ESP32P4
 mcu:ESP32S2
@@ -33,3 +37,4 @@ mcu:STM32H7RS
 mcu:STM32N6
 mcu:STM32U3
 mcu:STM32U5
+mcu:APM32F107

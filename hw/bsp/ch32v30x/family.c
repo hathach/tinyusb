@@ -56,10 +56,19 @@
 
 // TODO maybe having FS as port0, HS as port1
 
-__attribute__((interrupt)) void USBHS_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_USBHS
-  tud_int_handler(0);
-  #endif
+// The startup enables QingKe hardware context stacking. Avoid duplicating its
+// register saves in software: closely spaced ISO transactions need a short IRQ entry.
+#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+// Keep the assembly call visible to LTO, as in the CH32V20x USB interrupt wrappers.
+TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = dcd_int_handler;
+#endif
+
+__attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
+#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+  __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret");
+#else
+  __asm volatile("mret");
+#endif
 }
 
 __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {

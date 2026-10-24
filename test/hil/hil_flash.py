@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Firmware flashing for the TinyUSB HIL rig: one flash_*/reset_* pair per flasher type
-# (dispatched by config name via getattr) plus find_firmware. The bounded runner run_cmd
-# lives in hil_util (never import hil_test here). Callers set the module global
-# `build_dir`. `from __future__ import annotations` keeps the Board hints below
-# unevaluated: the type is not defined in this module.
+# Firmware flashing for the TinyUSB HIL rig: board-shaped flash_*/reset_* over agentrc's flash
+# provider (hil_util.provider(), the `hil` skill's Flashers), dispatched by roster name through
+# flash_primitive/reset_primitive, plus find_firmware. tinyusb supplies the bounds, the runner
+# (a caller's keyword-only `run=`, else hil_util.run_cmd read per call; for openocd_esp it runs
+# only the esptool children), retries and per-board settings; openocd_esp's server is the
+# provider's own managed session (hil_util.openocd_esp()), never a runner's. The provider
+# loads on first use, so change_impact imports this on a bare checkout; never import hil_test
+# here. Callers set `build_dir`. `from __future__ import annotations` keeps the Board hints
+# unevaluated.
 
 from __future__ import annotations
 
+import copy
+import functools
 import json
-import re
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import os
@@ -21,298 +28,355 @@ from helper import hil_util
 
 build_dir = 'cmake-build'
 
-# flasher names (dispatch key, board['flasher']['name'].lower()) whose reset_* is a no-op
-RESET_NOOP = {'esptool', 'lm4flash'}
+# libjlinkarm.so crashes on on-board J-Link probes before target access (the provider's
+# JLINK_CRASH_RCS); rerun the whole script this often within the caller's one bound
+JLINK_CRASH_RETRIES = 2
+# pyocd's project dir: relative roster args (--pack...) resolve from here, and it holds no
+# pyocd config, which discovery would load (the provider's pyocd launcher refuses one)
+PYOCD_PROJECT_DIR = hil_util.TINYUSB_ROOT / 'test/hil/pyocd'
 
-# extra parents find_firmware ALSO searches after build_dir. Empty by default so
-# hil_test's -B stays authoritative: a board missing there must report "Skip (no
-# binary)", never silently flash a stale binary from another tree.
-EXTRA_BUILD_DIRS: list = []
 
-_VID_PID_WARNED: set = set()   # one warning per probe, not per command
+def _bound(timeout):
+    return hil_util.CMD_TIMEOUT if timeout is None else timeout
+
+
+def _runner(run):
+    return hil_util.run_cmd if run is None else run
 
 
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
-def flash_jlink(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_{Path(firmware).name}.jlink')
-    with f_jlink.open('w') as f:
-        f.writelines(f'{s}\n' for s in script)
-    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}',
-                           timeout=timeout)
-    f_jlink.unlink(missing_ok=True)
-    return ret
+def judged(op, problem: str):
+    """`op` when it exited non-zero or `problem` is '', else a shallow copy failing with exit 1,
+    `.problem` the judgment and `.operation` the provider's Operation; attempts, cleanup and
+    receipts kept, so every caller's returncode check and report see the failure. Printed for
+    the callers that read only the returncode; farm_profile reports `.problem`."""
+    if op.returncode or not problem:
+        return op
+    print(f'judged failed: {problem}', flush=True)
+    failed = copy.copy(op)
+    failed.returncode, failed.problem, failed.operation = 1, problem, op
+    return failed
 
 
-def reset_jlink(board: Board) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    script = ['halt', 'r', 'go', 'exit']
-    f_jlink = Path(f'{board["name"]}_reset.jlink')
-    if not f_jlink.exists():
-        with f_jlink.open('w') as f:
-            f.writelines(f'{s}\n' for s in script)
-    ret = hil_util.run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
-    return ret
+def flash_jlink(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
+    p = hil_util.provider()
+    op = p.flash_jlink(board['flasher'], firmware, timeout=_bound(timeout), crash_retries=JLINK_CRASH_RETRIES,
+                       run=_runner(run))
+    return judged(op, p.jlink_problem(op))
 
 
-def flash_stlink(board, firmware, timeout=None):
-    # --verify catches the partial/corrupt write that exits 0 and sends the test phase
-    # off to exercise bad firmware. Opt-IN here ("verify": true), unlike flash_openocd's
-    # opt-out: a default-on read-back silently changes every roster entry that lacks the
-    # key, including boards on rigs this was never validated against.
-    flasher = board['flasher']
-    verify = ' --verify' if flasher.get('verify', False) else ''
-    return hil_util.run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --write {firmware}{verify} --go',
-                            timeout=timeout)
+def reset_jlink(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
+    p = hil_util.provider()
+    op = p.reset_jlink(board['flasher'], timeout=_bound(timeout), crash_retries=JLINK_CRASH_RETRIES,
+                       run=_runner(run))
+    return judged(op, p.jlink_problem(op))
 
 
-def reset_stlink(board):
-    flasher = board['flasher']
-    return hil_util.run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go')
+def flash_stlink(board, firmware, timeout=None, *, run=None):
+    # --verify is opt-in per roster entry ("verify": true): the provider's flash_stlink
+    return hil_util.provider().flash_stlink(board['flasher'], firmware, timeout=_bound(timeout),
+                                            run=_runner(run))
+
+
+def reset_stlink(board, timeout=None, *, run=None):
+    return hil_util.provider().reset_stlink(board['flasher'], timeout=_bound(timeout), run=_runner(run))
 
 
 def _openocd_cmd_base(flasher):
-    # Optional roster field vid_pid, openocd-verbatim (e.g. "0x1a86 0x8010"), pins probe
-    # discovery to the probe's IDs so openocd never opens foreign usbfs nodes to read
-    # strings -- a wedged node makes that open hang unkillably (the 2026-08-10 convoy).
-    # BEFORE args, because the rescue cfgs run `init` internally and reject (or never see)
-    # a config command that follows it.
-    vid_pid = ''
-    if 'vid_pid' in flasher:
-        # Validated HERE too, not just in convoy_safe: openocd only warns ("incomplete
-        # vid_pid configuration directive") and exits 0 on a malformed value, so the pin
-        # silently does not apply and discovery goes back to opening every usbfs node --
-        # the convoy this field exists to stop. The same key name carries a DIFFERENT
-        # syntax under tests.dev_attached ('1a86_55d4'), so the typo is one copy away.
-        if valid_vid_pid(flasher['vid_pid']):
-            vid_pid = f'-c "adapter usb vid_pid {flasher["vid_pid"]}" '
-        else:
-            # stderr + once-per-probe, like the missing-pin branch below: stdout here is
-            # captured by test_example's redirect_stdout (shown only when the test FAILS)
-            # and by hil_pool_check's StringIO spool, so on a PASSING run the operator
-            # would never learn the pin was silently dropped.
-            uid = flasher.get('uid', '?')
-            if uid not in _VID_PID_WARNED:
-                _VID_PID_WARNED.add(uid)
-                print(f'warning: {uid} has a malformed vid_pid {flasher["vid_pid"]!r} '
-                      f'(want "0xVVVV 0xPPPP"); probe pin DROPPED, so discovery will open '
-                      f'foreign usbfs nodes', file=sys.stderr, flush=True)
-    elif flasher.get('uid') not in _VID_PID_WARNED:
-        # stderr, once per probe: test_example captures stdout, so a passing run would
-        # swallow this and the operator would never learn discovery still opens every
-        # usbfs node
-        _VID_PID_WARNED.add(flasher.get('uid'))
-        print(f'warning: openocd flasher {flasher.get("uid", "?")} has no vid_pid pin; '
-              f'probe discovery will open every usbfs node (hangs on a wedged one)',
-              file=sys.stderr, flush=True)
-    return (f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "telnet_port disabled" '
-            f'-c "adapter serial {flasher["uid"]}" {vid_pid}{flasher["args"]}')
+    # the provider refuses a malformed explicit vid_pid with ValueError before openocd runs
+    return hil_util.provider().openocd_cmd_base(flasher)
 
 
-# `verify` is on by default, opted out per board with "verify": false. WCH targets must
-# opt out: read-back over the WCH-Link sdi transport returns a repeated word instead of
-# memory contents, so verification always mismatches (measured on ch32v103r and ch32v307v,
-# 2026-07-30). Do NOT drop verify fleet-wide for them — every other openocd board reads
-# back, and without it a partial or corrupt write exits 0 and the tests run bad firmware.
-def flash_openocd(board, firmware, timeout=None):
-    flasher = board['flasher']
-    verify = ' verify' if flasher.get('verify', True) else ''
-    ret = hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "program {firmware}{verify} reset exit"',
-                           timeout=timeout)
-    return ret
+# `verify` is on by default, opted out per board with "verify": false (the provider's
+# flash_openocd holds which boards and why)
+def flash_openocd(board, firmware, timeout=None, *, run=None):
+    return hil_util.provider().flash_openocd(board['flasher'], firmware, timeout=_bound(timeout),
+                                             run=_runner(run))
 
 
-def reset_openocd(board, timeout=None):
-    # timeout: usbtest's post-hang recovery bounds this (RECOVER_RESET_TIMEOUT); an
-    # unbounded reset there would outlive the caller's outer kill and orphan openocd on
-    # the probe, which is the stray the recovery exists to avoid.
-    flasher = board['flasher']
-    ret = hil_util.run_cmd(f'{_openocd_cmd_base(flasher)} -c "init; reset run; exit"',
-                           timeout=timeout)
-    return ret
-
-
-# OpenOCD's messages for "the target's debug port did not answer". The probe is fine when
-# these appear ("CMSIS-DAP: Interface ready" is still logged); the chip's debug clock is
-# gone, which no probe-driven reset fixes -- the CMSIS-DAP probe has no nRESET line. Which
-# message appears depends on DAP topology, not the board, so both are accepted for both
-# chips; RESCUE_CFG below picks the rescue.
-DAP_WEDGED = ('Failed to connect multidrop', 'Error connecting DP: cannot read IDR')
-
-# How each RP target reaches its Rescue DP, keyed by the target cfg named in flasher args:
-# (cfg substitution, pre args, post args). rp2040.cfg drives the Rescue DP behind a RESCUE
-# flag and init/shutdowns itself; rp2350-rescue.cfg never shuts down, so it needs an
-# explicit one or it sits in the server loop until CMD_TIMEOUT.
-RESCUE_CFG = {
-    'target/rp2040.cfg': ('target/rp2040.cfg', '-c "set RESCUE 1" ', ''),
-    'target/rp2350.cfg': ('target/rp2350-rescue.cfg', '', ' -c "shutdown"'),
-}
+def reset_openocd(board, timeout=None, *, run=None):
+    # timeout: usbtest's post-hang recovery bounds this (RECOVER_RESET_TIMEOUT)
+    return hil_util.provider().reset_openocd(board['flasher'], timeout=_bound(timeout), run=_runner(run))
 
 
 def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
-    """Power-on-reset a wedged RP2040/RP2350 through its Rescue DP, the one debug port not
-    gated by the system clock (RP2040 datasheet 2.3.4.2): CDBGPWRUPREQ hard-resets the
-    chip and the bootrom halts it ready to be flashed. Without it the board needs a
-    physical replug -- the probe carries no reset line.
-
-    No-op (False) unless this is an openocd RP board AND the flash output shows the wedge,
-    so a flash that failed for any other reason still just retries. True when a rescue was
-    attempted; the caller should retry the flash afterwards."""
-    flasher = board['flasher']
-    if flasher['name'].lower() != 'openocd' or not any(m in flash_out for m in DAP_WEDGED):
-        return False
-    for cfg, (rescue_cfg, pre, post) in RESCUE_CFG.items():
-        if cfg in flasher['args']:
-            args = flasher['args'].replace(cfg, rescue_cfg)
-            return hil_util.run_cmd(f'{_openocd_cmd_base({**flasher, "args": pre + args})}{post}',
-                                    timeout=timeout).returncode == 0
-    return False
-
-
-# openocd's own syntax: one or more "0xVVVV 0xPPPP" pairs. Validated rather than merely
-# tested for truthiness -- `vid_pid` is a hand-edited roster field whose NAME is also used,
-# with a different syntax, by tests.dev_attached, and convoy_safe reads a non-empty value
-# as PROOF the flasher can deliver a recovery past a poisoned node. A typo there silently
-# promised a recovery that openocd would reject at startup.
-_VID_PID_RE = re.compile(r'^0x[0-9a-fA-F]{4}(\s+0x[0-9a-fA-F]{4})+$')
+    """The provider's rescue_openocd; the caller retries the flash afterwards either way."""
+    return hil_util.provider().rescue_openocd(board['flasher'], flash_out, timeout=_bound(timeout),
+                                              run=hil_util.run_cmd)
 
 
 def valid_vid_pid(value) -> bool:
-    return isinstance(value, str) and bool(_VID_PID_RE.match(value.strip()))
+    return hil_util.provider().valid_vid_pid(value)
+
+
+def flashers(board: dict, name: str) -> list:
+    """The board's primary and recovery entries (recover_flasher, the primary's uid) named
+    `name`, case-folded; the primary twice when it has no `flasher_recover`."""
+    return [f for f in (board['flasher'], recover_flasher(board)) if (f.get('name') or '').lower() == name]
 
 
 def recover_flasher(board: dict) -> dict:
     """The flasher that delivers RECOVERY for this board.
 
     Optional roster key `flasher_recover`, else the primary. It exists because delivery and
-    normal flashing have different requirements: a board flashed by jlink/stlink/lm4flash
+    normal flashing have different requirements: a board flashed by jlink/lm4flash
     cannot reach its probe past a poisoned usbfs node, but the same probe driven by openocd
     often can (see convoy_safe). Keeping it a separate key rather than a list means the
     primary's shape never changes, so nothing that reads board['flasher'] has to care.
+    The entry drives the primary's probe, so its uid is the primary's.
     """
-    return board.get('flasher_recover') or board['flasher']
+    rec = board.get('flasher_recover')
+    return {**rec, 'uid': board['flasher'].get('uid')} if rec else board['flasher']
 
 
 def convoy_safe(flasher: dict) -> bool:
-    """Can this flasher DELIVER a recovery while a usbfs node on the rig is poisoned?
-
-    A post-HUNG reflash only helps if the flasher reaches its probe without opening the
-    wedged node. Two shapes qualify:
-
-    * openocd pinned with the roster's `vid_pid` -- the match is made from the cached
-      descriptor and the loop `continue`s BEFORE libusb_open, so a foreign node is never
-      opened. On 2026-08-12 it was the only flasher that still reached its probe.
-    * esptool -- delivery is `-p <ttyACM>`, a named port; it never enumerates usbfs.
-
-    Everything else enumerates by OPENING nodes, would block in D state on the poisoned
-    one, survive SIGKILL and become a second stray. JLinkExe cannot be pinned: selection
-    is serial-only (-USB/-SelectEmuBySN) and reading a serial requires the open (J-Link
-    Commander V9.66 exposes no VID/PID filter), so those boards can only become
-    convoy-safe by moving to openocd.
-
-    Verified against openocd 0ce743125 (the rig's build), because the INVERSE is what
-    bites: cmsis_dap_usb_bulk.c:107 skips on `id_filter && !id_match`, and `id_filter` is
-    only `vids[0] || pids[0]` -- so without the pin nothing is skipped and every device on
-    the bus is opened, which the code itself expects to mostly fail. Enumeration cannot
-    block: libusb reads the `descriptors` sysfs attribute, and descriptors_read (v6.12.101
-    drivers/usb/core/sysfs.c) is a memcpy from udev->rawdescriptors under no lock.
-
-    The pin gates the BULK backend, which is the one that runs: `auto` tries usb_bulk ->
-    hid -> tcp (cmsis_dap.c:62) and stops at the first that opens, so a CMSIS-DAP v2 probe
-    never reaches the rest. It does NOT cover the HID fallback that a v1 probe or a failed
-    bulk open takes -- cmsis_dap_usb_hid.c:91 calls hid_enumerate(0x0, 0x0), pin ignored,
-    and filters afterwards, while hidapi's hidraw backend reads `manufacturer` and
-    `product` for every HID device it lists (linux/hid.c:744), both usb_string_attr and so
-    served under the device lock. A wedged DUT running hid_generic_inout,
-    hid_boot_interface or hid_composite_freertos is a HID device and would stall that walk
-    -- interruptibly, so it hangs rather than joining the D-state convoy and run_cmd's
-    timeout ends it, but "never opens a foreign node" is true of the bulk path, not of
-    every path openocd can take.
-    """
-    name = (flasher.get('name') or '').lower()
-    if name == 'esptool':
-        return True
-    # EXACT, not startswith: rescue_openocd and usbtest's
-    # getattr(hil_flash, f'flash_{name}') both require the exact name, so an
-    # 'openocd_wch'-style entry would pass this gate, reserve the Rescue-DP legs,
-    # and then find no recovery path at all -- paying for a path that cannot fire, which
-    # is the precise cost this gate exists to avoid.
-    if name != 'openocd':
-        return False
-    if valid_vid_pid(flasher.get('vid_pid')):
-        return True
-    # openocd over the JLINK driver is safe WITHOUT a pin, and cannot use one: jlink.c
-    # never reads adapter_usb_get_vids/pids (selection is adapter serial / usb address /
-    # usb location), but libjaylink's discovery returns early unless idVendor == 0x1366 and
-    # the PID is in its table, and only THEN calls libusb_open (discovery_usb.c). So it
-    # never opens a foreign node -- which is exactly what JLinkExe, SEGGER's own tool,
-    # does do. Verified against openocd 0ce743125 and libjaylink master.
-    return 'interface/jlink.cfg' in (flasher.get('args') or '')
+    """The provider's convoy_safe: can it deliver a recovery past a poisoned usbfs node?"""
+    return hil_util.provider().convoy_safe(flasher)
 
 
-def flash_esptool(board: Board, firmware: str, timeout=None) -> subprocess.CompletedProcess:
-    flasher = board['flasher']
-    port = hil_util.get_serial_dev(flasher["uid"], None, None, 0)
-    fw_dir = Path(firmware).parent
+def _idf_target(fw_dir: Path) -> str:
     with (fw_dir / 'config.env').open() as f:
-        idf_target = json.load(f)['IDF_TARGET']
-    with (fw_dir / 'flash_args').open() as f:
-        flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool --chip {idf_target} -p {port} {flasher["args"]} '
-               f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    ret = hil_util.run_cmd(command, cwd=str(fw_dir), timeout=timeout)
-    return ret
+        return json.load(f)['IDF_TARGET']
 
 
-def reset_esptool(board):
-    # NO-OP, and marked as one: esptool's reset would be `--after hard_reset`, which is not
-    # wired here. Returning rc 0 without resetting is why callers must never read the exit
-    # code as proof -- usbtest's recovery skips a primitive carrying `no_op`.
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+def _esptool_inputs(fw_dir: Path) -> tuple:
+    """The build's (IDF_TARGET, flash_args on one line), as flash_esptool takes them."""
+    return _idf_target(fw_dir), (fw_dir / 'flash_args').read_text().strip().replace('\n', ' ')
 
 
-reset_esptool.no_op = True
+@functools.cache
+def esptool_runtime() -> dict:
+    """The provider's esptool_runtime of the esptool on PATH, checked once per process: hil_test
+    checks it before its forked workers start, which inherit the answer."""
+    return hil_util.provider().esptool_runtime()
 
 
-def flash_lm4flash(board, firmware, timeout=None):
-    # TI Tiva-C / Stellaris ICDI: lightweight lm4flash, resets and runs after write
+def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> subprocess.CompletedProcess:
+    flasher, p = board['flasher'], hil_util.provider()
+    rt = esptool_runtime()
+    port = p.esptool_port(flasher['uid'])
+    fw_dir = Path(firmware).parent
+    chip, flash_args = _esptool_inputs(fw_dir)
+    print(f'esptool {rt["version"]} ({rt["exe"]}) on {port}', flush=True)
+    op = p.flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args, cwd=str(fw_dir),
+                         timeout=_bound(timeout), run=_runner(run), esptool=rt['exe'])
+    return judged(op, p.esptool_problem(op))
+
+
+# no reset_esptool: hil_test resets with the board's console open on the same serial port.
+def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.CompletedProcess:
+    """The provider's ROM-loader reset, for a caller that holds no console on the port."""
     flasher = board['flasher']
-    ret = hil_util.run_cmd(f'lm4flash -s {flasher["uid"]} {flasher["args"]} {firmware}',
-                           timeout=timeout)
-    return ret
+    port = hil_util.provider().esptool_port(flasher['uid'])
+    return hil_util.provider().reset_esptool(flasher, port=port, timeout=_bound(timeout), run=_runner(run))
 
 
-def reset_lm4flash(board):
-    # lm4flash has no reset-only mode; it resets+runs on flash, so reset is a no-op
-    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
+# -------------------------------------------------------------
+# openocd_esp: the chip's built-in USB-Serial/JTAG through openocd-esp32 (the provider's
+# hil_openocd_esp, the `hil` skill's Flashers). Not convoy-safe, so usbtest never recovers
+# through it.
+# -------------------------------------------------------------
+# board name -> receipts of what an openocd_esp operation left not proven ended: a session the
+# provider left running (cleanup 'pending'), or a tracked esptool child 'pending' or 'unknown'
+# with its receipt. No later session starts on that board, and hil_test hands its lock to a
+# cleanup holder instead of releasing it.
+cleanup_pending = {}
+OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
 
 
-reset_lm4flash.no_op = True
+# hil_process.run_tracked's receipt keys that a native openocd_esp session record (its
+# _RECEIPT_KEYS, kept when the session's receipt file could not be written) never has
+_TRACKED_KEYS = {'supervisor', 'lock', 'record'}
+
+
+def tracked_receipt(receipt) -> bool:
+    """Whether a cleanup_pending receipt is hil_process.run_tracked's (an esptool child, ended once
+    its recheck answers `done`) rather than an openocd_esp session's (its receipt path, or the
+    native record when that file could not be written), which only the reviewed `end` ends."""
+    return isinstance(receipt, dict) and _TRACKED_KEYS <= receipt.keys()
+
+
+def receipt_text(receipt) -> str:
+    """A cleanup_pending receipt as a cell names it."""
+    if tracked_receipt(receipt):
+        return f'esptool child, record {receipt["record"]}'
+    if isinstance(receipt, dict):
+        return (f'openocd_esp session pid {receipt.get("pid")} start {receipt.get("startTime")}, receipt file '
+                f'unwritten, log {receipt.get("log")}')
+    return str(receipt)
+
+
+def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
+    """Why an entry point refuses this board's openocd_esp flasher, or '' (none, or admitted):
+    the provider's refusal, under a CI job or to a caller that does not keep the board lock
+    through a session left running (`retains_lock`). Checked before any board access."""
+    if not flashers(board, 'openocd_esp'):
+        return ''
+    return hil_util.openocd_esp().refusal(retains_lock=retains_lock)
+
+
+def openocd_esp_entry_problem(flasher: dict) -> str:
+    """Why the provider refuses this roster entry ('' when it admits it)."""
+    try:
+        hil_util.openocd_esp().admit(flasher)
+    except ValueError as e:
+        return str(e)
+    return ''
+
+
+def _openocd_esp_session(board, operation):
+    """Run operation(provider) unless the board has an outstanding session, latching a new one
+    (cleanup 'pending', returned or on an exception's `.operation`) into cleanup_pending."""
+    name, provider = board['name'], hil_util.openocd_esp()
+    if why := provider.refusal(retains_lock=True):    # refuse before preparatory esptool commands
+        raise RuntimeError(why)
+    if name in cleanup_pending:
+        held = ', '.join(map(receipt_text, cleanup_pending[name]))
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until its cleanup '
+                           f'holder is recovered')
+    op = None
+    try:
+        op = operation(provider)
+    except BaseException as e:
+        op = getattr(e, 'operation', None)
+        raise
+    finally:
+        # 'unknown' with a receipt (a tracked child whose supervisor did not report) is no proof either
+        if op is not None and (op.cleanup == 'pending' or op.cleanup == 'unknown' and op.receipts):
+            cleanup_pending[name] = op.receipts
+    if op.returncode != 0:
+        print(f'openocd_esp: {op.session["failure"]} (cleanup {op.cleanup}, log {op.session["log"]})', flush=True)
+    elif op.cleanup == 'done':
+        shutil.rmtree(op.session['dir'], ignore_errors=True)   # read-back copies, a few hundred KB per flash
+    return op
+
+
+def _openocd_esp_dir() -> str:
+    path = OPENOCD_ESP_DIR or Path(tempfile.gettempdir()) / f'tinyusb-hil-openocd-esp-{os.getuid()}'
+    path.mkdir(mode=0o700, exist_ok=True)
+    return str(path)
+
+
+def _tracked(cmd, cwd=None, *, timeout, env=None):
+    """The security read's runner: the provider's hil_process.run_tracked, whose receipt says
+    whether the esptool child is proven ended, with this harness's REAP_GRACE and verbosity and
+    its state in the sessions' private dir."""
+    state_dir = Path(_openocd_esp_dir()) / 'tracked'
+    state_dir.mkdir(mode=0o700, exist_ok=True)
+    # settle: s waited for the child's descendants once it ended, as agentrc's farm check engine does
+    return hil_util.provider().hil_process.run_tracked(cmd, cwd, timeout=timeout, settle=2.0,
+                                                       state_dir=str(state_dir), reap_grace=hil_util.REAP_GRACE,
+                                                       verbose=hil_util.verbose, env=env)
+
+
+def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:
+    """read_security's evidence, once its esptool child is proven ended (cleanup `done`): an
+    openocd session started beside a survivor would share the USJ with it. Otherwise raises
+    carrying the read's Operation, whose receipt _openocd_esp_session latches."""
+    op = p.read_security(flasher['uid'], chip=chip, workdir=_openocd_esp_dir(), timeout=_bound(timeout),
+                         retains_lock=True, run=run)
+    if op.cleanup != 'done':
+        e = RuntimeError(f'esptool security read cleanup {op.cleanup}: its child is not proven ended, so no '
+                         f'openocd session starts beside it')
+        e.operation = op
+        raise e
+    return op.security
+
+
+def flash_openocd_esp(board, firmware, timeout=None, *, run=None):
+    """The build's flash_args as the provider's ordered segments, the chip's security state read
+    over its USJ tty (the esptool package of the `esptool` on PATH, the contract's runtime), then
+    the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset.
+    `run` runs the two esptool children; the security read's runner must report its cleanup
+    (run_tracked's), by default _tracked."""
+    flasher = board['flasher']
+
+    def operation(p):
+        chip, _ = p.admit(flasher)
+        segments = p.segments_from_flash_args(Path(firmware).parent, chip, timeout=_bound(timeout),
+                                              run=_runner(run))
+        security = _read_security(p, flasher, chip, timeout, _tracked if run is None else run)
+        return p.flash_openocd_esp(flasher, segments, security=security, workdir=_openocd_esp_dir(),
+                                   timeout=_bound(timeout), retains_lock=True)
+    return _openocd_esp_session(board, operation)
+
+
+def reset_openocd_esp(board, timeout=None, *, run=None):
+    """`run` is accepted as every adapter's is; the reset starts no process of its own."""
+    return _openocd_esp_session(board, lambda p: p.reset_openocd_esp(board['flasher'], workdir=_openocd_esp_dir(),
+                                                                     timeout=_bound(timeout), retains_lock=True))
+
+
+def flash_lm4flash(board, firmware, timeout=None, *, run=None):
+    return hil_util.provider().flash_lm4flash(board['flasher'], firmware, timeout=_bound(timeout),
+                                              run=_runner(run))
+
+
+# no reset_lm4flash: lm4flash has no reset-only mode; it resets+runs on flash
+
+
+def pyocd_vid_pid(flasher: dict) -> list | None:
+    """The provider's pyocd_vid_pid."""
+    return hil_util.provider().pyocd_vid_pid(flasher)
+
+
+def unfiltered_pyocd(board: dict) -> bool:
+    """Is the board's primary or recovery flasher a pyocd entry without its VID/PID filter?"""
+    return any(pyocd_vid_pid(f) is None for f in flashers(board, 'pyocd'))
+
+
+def flash_pyocd(board, firmware, timeout=None, *, run=None):
+    return hil_util.provider().flash_pyocd(board['flasher'], firmware, project_dir=str(PYOCD_PROJECT_DIR),
+                                           timeout=_bound(timeout), run=_runner(run))
+
+
+def reset_pyocd(board, timeout=None, *, run=None):
+    return hil_util.provider().reset_pyocd(board['flasher'], project_dir=str(PYOCD_PROJECT_DIR),
+                                           timeout=_bound(timeout), run=_runner(run))
+
+
+def flash_primitive(flasher_name: str):
+    """The flasher's flash_* callable, case-folded from the roster name.
+
+    An unknown flasher raises AttributeError.
+    """
+    name = flasher_name.lower()
+    if name == 'primitive':   # this lookup shares the flash_* namespace but is no flasher
+        raise AttributeError(f'{flasher_name!r} is not a flasher')
+    return getattr(sys.modules[__name__], f'flash_{name}')
+
+
+def reset_primitive(flasher_name: str):
+    """The flasher's probe-reset callable, or None when it has no reset-only mode.
+
+    An unknown flasher raises AttributeError, as flash_primitive does.
+    """
+    flash_primitive(flasher_name)
+    return getattr(sys.modules[__name__], f'reset_{flasher_name.lower()}', None)
 
 
 # The one place a flasher's firmware extension is decided. A flasher with no entry falls
-# back to .elf-or-.bin and can be handed the wrong file — test_ci_select's
+# back to .elf-or-.bin and can be handed the wrong file — test_change_impact's
 # TestRosterFlashersDispatch fails if a roster names one.
 FLASHER_SUFFIX = {
     'esptool': '.bin',
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',
+    'openocd_esp': '.bin',
+    'pyocd': '.elf',
     'stlink': '.elf',
 }
 
 
-def find_firmware(variant: str, example: str, roots: list | None = None, flasher: str | None = None):
-    """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/,
-    then under EXTRA_BUILD_DIRS. `roots` overrides that search list entirely for one call
-    (e.g. a build just produced by tools/build.py in its fixed cmake-build/ layout)
-    without widening the global policy. `flasher` is the roster flasher name and selects
-    which extension counts (FLASHER_SUFFIX), so a build that produced only the other one
-    is reported missing — a clean "Skip (no binary)" — instead of being handed to the
-    flasher, which would fail opaquely and burn every retry plus the board lock.
+def find_firmware(variant: str, example: str, flasher: str | None = None):
+    """Locate a built example's firmware under <build_dir>/cmake-build-<variant>/<example>/.
+    `flasher` is the roster flasher name and selects which extension counts (FLASHER_SUFFIX),
+    so a build that produced only the other one is reported missing — a clean "Skip (no
+    binary)" — instead of being handed to the flasher, which would fail opaquely and burn
+    every retry plus the board lock.
     Accepts the single-config layout (firmware directly in the example dir) or Ninja
     Multi-Config (a per-config subdir like RelWithDebInfo/).
     Returns the full Path INCLUDING extension, or None if not built."""
@@ -320,13 +384,10 @@ def find_firmware(variant: str, example: str, roots: list | None = None, flasher
     suffixes = [FLASHER_SUFFIX.get(flasher.lower())] if flasher else []
     if not suffixes or suffixes == [None]:
         suffixes = ['.elf', '.bin']
-    for bd in dict.fromkeys(roots if roots is not None else [build_dir, *EXTRA_BUILD_DIRS]):
-        fw_dir = hil_util.TINYUSB_ROOT / bd / f'cmake-build-{variant}' / example
-        if not fw_dir.is_dir():
-            continue
-        for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
-                     *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
-            for s in suffixes:
-                if cand.with_suffix(s).exists():
-                    return cand.with_suffix(s)
+    fw_dir = hil_util.TINYUSB_ROOT / build_dir / f'cmake-build-{variant}' / example
+    for cand in [fw_dir / base, fw_dir / 'RelWithDebInfo' / base,
+                 *(p.with_suffix('') for s in suffixes for p in sorted(fw_dir.glob(f'*/{base}{s}')))]:
+        for s in suffixes:
+            if cand.with_suffix(s).exists():
+                return cand.with_suffix(s)
     return None

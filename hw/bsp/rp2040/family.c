@@ -251,8 +251,8 @@ void board_init(void)
   #endif
 #endif
 
-#if !CFG_TUD_ENABLED && !CFG_TUH_ENABLED
-  // board test exxample, reset usb controller
+#if !((CFG_TUD_ENABLED && !CFG_TUD_RPI_PIO_USB) || (CFG_TUH_ENABLED && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421))
+  // native USB unused (board_test, PIO-USB or MAX3421 only): reset it to drop a previous image's pull-up
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 #endif
@@ -360,7 +360,7 @@ void board_reset_to_bootloader(void) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void max3421_int_handler(uint gpio, uint32_t event_mask) {
+static void max3421_int_handler(uint gpio, uint32_t event_mask) {
   if (!(gpio == MAX3421_INTR_PIN && event_mask & GPIO_IRQ_EDGE_FALL)) {
     return;
   }

@@ -10,7 +10,6 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 set(LINKERMAP_PY ${TOP}/tools/linkermap/linkermap.py)
-set(METRICS_PY ${TOP}/tools/metrics.py)
 
 function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
   if ("${BOARD_NAME}" STREQUAL "")
@@ -224,6 +223,21 @@ function(family_initialize_project PROJECT DIR)
     get_filename_component(SHORT_NAME ${DIR} NAME)
     message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
   endif()
+
+  # espressif builds through ESP-IDF's own project.cmake, never through
+  # family_configure_common (family_add_membrowse's normal call site) - every
+  # espressif example's CMakeLists.txt returns right after this function, so hook
+  # it here instead, now that project() has created the ${PROJECT}.elf target.
+  if (FAMILY STREQUAL "espressif")
+    # IDF links its generated scripts by bare name via -L, which ninja extraction cannot resolve
+    set(MEMBROWSE_LD_OVERRIDE
+      $<TARGET_FILE_DIR:${PROJECT}.elf>/esp-idf/esp_system/ld/memory.ld
+      $<TARGET_FILE_DIR:${PROJECT}.elf>/esp-idf/esp_system/ld/sections.ld)
+    # TARGET=PROJECT (no .elf) keeps the custom target/upload name matching every
+    # other family's <board>/<example>; ELF_TARGET=PROJECT.elf is the real CMake
+    # target the .elf/.map/ninja lookups need to resolve.
+    family_add_membrowse(${PROJECT} ${PROJECT}.elf)
+  endif()
 endfunction()
 
 # Add bloaty (https://github.com/google/bloaty/) target, required compile with -g (debug)
@@ -243,114 +257,72 @@ function(family_add_bloaty TARGET)
     DEPENDS ${TARGET}
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
-
-  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
-  # post build
-  #  add_custom_command(TARGET ${TARGET} POST_BUILD
-  #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
-  #    VERBATIM
-  #    )
 endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
 function(family_add_linkermap TARGET)
-  set(OPTION "-j")
-  if (DEFINED LINKERMAP_OPTION)
-    string(APPEND OPTION " ${LINKERMAP_OPTION}")
+  # local-only tool: skip silently when get_deps.py has not fetched it
+  if (NOT EXISTS ${LINKERMAP_PY})
+    return()
   endif ()
-  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND "${LINKERMAP_OPTION}")
 
   add_custom_target(${TARGET}-linkermap
+    DEPENDS ${TARGET}
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
-
-  #set_property(TARGET ${TARGET}-linkermap PROPERTY FOLDER ${TARGET}-group)
-
-  # post build
-  add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
-    VERBATIM)
 endfunction()
 
-# Add membrowse target (installed with pip install membrowse)
+# Add membrowse target (installed with pip install membrowse). TARGET names the
+# custom target and the uploaded <board>/<example> report; an optional second
+# argument is the actual CMake executable target to read the ELF/linker info from,
+# for espressif where that differs from TARGET (see family_initialize_project).
 function(family_add_membrowse TARGET)
-  find_program(MEMBROWSE_EXE membrowse)
-  if (MEMBROWSE_EXE STREQUAL MEMBROWSE_EXE-NOTFOUND)
-    # force anyway, bash login shell will find it from pip install path
-    set(MEMBROWSE_EXE membrowse)
+  if (ARGC GREATER 1)
+    set(ELF_TARGET ${ARGV1})
+  else ()
+    set(ELF_TARGET ${TARGET})
+  endif ()
+  # a variant build (build.py --build-name) reports as a board of its own
+  if (NOT DEFINED MEMBROWSE_BOARD)
+    set(MEMBROWSE_BOARD ${BOARD})
   endif ()
 
-  set(OPTION "")
-  if (DEFINED MEMBROWSE_OPTION)
-    string(APPEND OPTION " ${MEMBROWSE_OPTION}")
-  endif ()
-
-  # For Ninja generator, extract all linker scripts from Ninja commands (with INCLUDE) and pass them to membrowse.
+  # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
+  # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
+  # `membrowse report` (looked up on PATH, see the script). It also handles
+  # MEMBROWSE_API_KEY at build time (not here at configure time) so the key is never
+  # baked into build.ninja or printed.
   if (CMAKE_GENERATOR MATCHES "Ninja")
-    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${TARGET}>/$<TARGET_FILE_NAME:${TARGET}>")
-    set(MEMBROWSE_LD_SCRIPTS_CMD
-      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?:-Wl,--script=|-T\\s*)\\K[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
-all_ld_scripts=\"\"; \
-pending_ld_scripts=\"$ld_scripts\"; \
-while [ -n \"$pending_ld_scripts\" ]; do \
-  next_pending=\"\"; \
-  for script in $pending_ld_scripts; do \
-    case \" $all_ld_scripts \" in *\" $script \"*) continue ;; esac; \
-    all_ld_scripts=\"$all_ld_scripts $script\"; \
-    script_dir=$(dirname \"$script\"); \
-    include_scripts=$(grep -hoP '^\\s*INCLUDE\\s+[<\"]?\\K[^\">[:space:]]+\\.ld' \"$script\" 2>/dev/null | xargs); \
-    for include_script in $include_scripts; do \
-      resolved_script=\"\"; \
-      if [ -f \"$include_script\" ]; then \
-        resolved_script=\"$include_script\"; \
-      elif [ -f \"$script_dir/$include_script\" ]; then \
-        resolved_script=\"$script_dir/$include_script\"; \
-      fi; \
-      if [ -n \"$resolved_script\" ]; then \
-        case \" $all_ld_scripts $next_pending \" in *\" $resolved_script \"*) ;; *) next_pending=\"$next_pending $resolved_script\" ;; esac; \
-      fi; \
-    done; \
-  done; \
-  pending_ld_scripts=\"$(echo \"$next_pending\" | xargs)\"; \
-done; \
-ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
-    set(MEMBROWSE_LD_DEFS_CMD
-      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=--defsym[=,])[^[:space:]]+' | xargs)\"; \
-ld_defs=\"\"; \
-for symbol in $ld_symbols; do \
-  ld_defs=\"$ld_defs --def $symbol\"; \
-done; \
-ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
-    set(MEMBROWSE_PREPARE_CMD
-      "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
-  ${MEMBROWSE_LD_SCRIPTS_CMD}; \
-  ${MEMBROWSE_LD_DEFS_CMD}; \
-  map_arg=\"\"; \
-  if [ -f \"${TARGET_ELF_PATH}.map\" ]; then map_arg=\"--map-file \\\"${TARGET_ELF_PATH}.map\\\"\"; fi; \
-  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
-  else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs $map_arg\"; \
-  fi; \
-else \
-  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
-  else \
-    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical\"; \
-  fi; \
-fi; \
-echo \"$MEMBROWSE_CMD\"")
+    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${ELF_TARGET}>/$<TARGET_FILE_NAME:${ELF_TARGET}>")
+
+    set(MEMBROWSE_ARGS
+      --build-dir ${CMAKE_BINARY_DIR}
+      --ninja ${CMAKE_MAKE_PROGRAM}
+      --elf ${TARGET_ELF_PATH}
+      # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
+      --target-name ${MEMBROWSE_BOARD}/${TARGET}
+      )
+    if (DEFINED MEMBROWSE_OPTION)
+      list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")
+    endif ()
+    if (DEFINED MEMBROWSE_LD_OVERRIDE)
+      list(APPEND MEMBROWSE_ARGS --ld ${MEMBROWSE_LD_OVERRIDE})
+    endif ()
 
     add_custom_target(${TARGET}-membrowse
-      DEPENDS ${TARGET}
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      DEPENDS ${ELF_TARGET}
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS}
       VERBATIM
       )
-    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
+    # No DEPENDS on ELF_TARGET here: CI's upload path must still run (as an
+    # --identical metadata-only upload) for a commit that never rebuilt this elf,
+    # so this target must never force a rebuild.
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS} --upload
       VERBATIM
       )
 
@@ -358,8 +330,6 @@ echo \"$MEMBROWSE_CMD\"")
       add_custom_target(examples-membrowse-upload)
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
-
-    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -454,12 +424,6 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
-  # CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Examples can use
-  # it to alter behavior under test, e.g. board_test idles to park HIL boards.
-  if(DEFINED ENV{CI})
-    target_compile_definitions(${TARGET} PUBLIC CI_BUILD=1)
-  endif()
-
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
     separate_arguments(CFLAGS_CLI)
@@ -518,19 +482,10 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (NOT RTOS STREQUAL zephyr)
-    # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
     family_add_membrowse(${TARGET})
   endif ()
-
-  # run size after build
-#  find_program(SIZE_EXE ${CMAKE_SIZE})
-#  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-#      )
-#  endif ()
 endfunction()
 
 # Add tinyusb to target
@@ -778,6 +733,24 @@ function(family_flash_pyocd TARGET)
 endfunction()
 
 
+# Add flash with https://probe.rs
+function(family_flash_probe_rs TARGET)
+  if (NOT DEFINED PROBE_RS)
+    set(PROBE_RS probe-rs)
+  endif ()
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${PROBE_RS_OPTION})
+
+  add_custom_target(${TARGET}-probe-rs
+    DEPENDS ${TARGET}
+    COMMAND ${PROBE_RS} download --chip ${PROBE_RS_CHIP} ${OPTION_LIST} --verify --reset $<TARGET_FILE:${TARGET}>
+    VERBATIM
+    )
+
+  #set_property(TARGET ${TARGET}-probe-rs PROPERTY FOLDER ${TARGET}-group)
+endfunction()
+
+
 # Flash with UF2
 function(family_flash_uf2 TARGET FAMILY_ID)
   add_custom_target(${TARGET}-uf2
@@ -864,9 +837,8 @@ function(family_flash_rfp TARGET)
     DEPENDS ${TARGET}
     COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
-      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
       -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+      -a $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     VERBATIM
     )
 
@@ -940,6 +912,25 @@ endif()
 if (MAX3421_HOST STREQUAL "1")
   set(FAMILY_MCUS ${FAMILY_MCUS} MAX3421)
 endif ()
+
+# What this configure selected, for tools/family_json.py to join with the compile
+# database into the board's hw/bsp/family.json row. Written on every configure;
+# tools/build.py decides whether the configure was the board's default one.
+set(_FJ_MCUS "")
+foreach(_FJ_M ${FAMILY_MCUS})
+  string(REPLACE "\\" "\\\\" _FJ_M "${_FJ_M}")
+  string(REPLACE "\"" "\\\"" _FJ_M "${_FJ_M}")
+  list(APPEND _FJ_MCUS "\"${_FJ_M}\"")
+endforeach()
+list(JOIN _FJ_MCUS ", " _FJ_MCUS)
+set(_FJ_OPTIONS "")
+if (DEFINED MAX3421_HOST)
+  string(REPLACE "\\" "\\\\" _FJ_V "${MAX3421_HOST}")
+  string(REPLACE "\"" "\\\"" _FJ_V "${_FJ_V}")
+  set(_FJ_OPTIONS "\"MAX3421_HOST\": \"${_FJ_V}\"")
+endif ()
+file(WRITE ${CMAKE_BINARY_DIR}/family.json.part
+  "{\"board\": \"${BOARD}\", \"family\": \"${FAMILY}\", \"family_mcus\": [${_FJ_MCUS}], \"options\": {${_FJ_OPTIONS}}}\n")
 
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")

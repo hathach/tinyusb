@@ -343,8 +343,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // TU_LOG(1, "Chip Version B%u\r\n", rp2040_chip_version());
 
+  // A warm restart (SWD flash, debugger reset) keeps the previous image's pull-up: sample it before
+  // rp2usb_init() resets USBCTRL
+  const bool was_attached = (resets_hw->reset_done & RESETS_RESET_USBCTRL_BITS) &&
+                            (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS);
+
   // Reset hardware to default state
   rp2usb_init();
+
+  // hold the pull-up off 2 ms so the host sees a detach even behind a max-size full-speed packet
+  // (USB 2.0 7.1.7.3 needs undriven SE0)
+  if (was_attached) {
+    busy_wait_us(2000);
+  }
 
   #if FORCE_VBUS_DETECT
   // Force VBUS detect so the device thinks it is plugged into a host

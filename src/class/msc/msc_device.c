@@ -167,7 +167,7 @@ static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
     } else if (SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir)) {
       TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else if (0 == block_count) {
+    } else if (0 == block_count || (cbw->total_bytes >> 16) >= block_count) { // or block size > 16-bit, without a divide
       TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status = MSC_CSW_STATUS_FAILED;
     } else if (cbw->total_bytes / block_count == 0) {

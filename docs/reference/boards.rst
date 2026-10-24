@@ -61,34 +61,37 @@ mm900evxb  MM900EVxB  ft9xx     https://brtchip.com/product/mm900ev1b
 Espressif
 ---------
 
-=========================  ==============================  =========  ========================================================================================================  ======
-Board                      Name                            Family     URL                                                                                                       Note
-=========================  ==============================  =========  ========================================================================================================  ======
-adafruit_feather_esp32_v2  Adafruit Feather ESP32 v2       espressif  https://www.adafruit.com/product/5400
-adafruit_feather_esp32c6   Adafruit Feather EPS32-C6       espressif  https://www.adafruit.com/product/5933
-adafruit_feather_esp32s2   Adafruit Feather ESP32S2        espressif  https://www.adafruit.com/product/5000
-adafruit_feather_esp32s3   Adafruit Feather ESP32S3        espressif  https://www.adafruit.com/product/5323
-adafruit_magtag_29gray     Adafruit MagTag 2.9" Grayscale  espressif  https://www.adafruit.com/product/4800
-adafruit_metro_esp32s2     Adafruit Metro ESP32-S2         espressif  https://www.adafruit.com/product/4775
-espressif_addax_1          Espresif Addax-1                espressif  n/a
-espressif_c3_devkitc       Espresif C3 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitc-02/index.html
-espressif_c6_devkitc       Espresif C6 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/index.html
-espressif_kaluga_1         Espresif Kaluga 1               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-kaluga-1/index.html
-espressif_p4_function_ev   Espresif P4 Function EV         espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
-espressif_s2_devkitc       Espresif S2 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-devkitc-1/index.html
-espressif_s3_devkitc       Espresif S3 DevKitC             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/index.html
-espressif_s3_devkitm       Espresif S3 DevKitM             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html
-espressif_saola_1          Espresif S2 Saola 1             espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-saola-1/index.html
-=========================  ==============================  =========  ========================================================================================================  ======
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
+Board                        Name                              Family     URL                                                                                                            Note
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
+adafruit_feather_esp32_v2    Adafruit Feather ESP32 v2         espressif  https://www.adafruit.com/product/5400
+adafruit_feather_esp32c6     Adafruit Feather EPS32-C6         espressif  https://www.adafruit.com/product/5933
+adafruit_feather_esp32s2     Adafruit Feather ESP32S2          espressif  https://www.adafruit.com/product/5000
+adafruit_feather_esp32s3     Adafruit Feather ESP32S3          espressif  https://www.adafruit.com/product/5323
+adafruit_magtag_29gray       Adafruit MagTag 2.9" Grayscale    espressif  https://www.adafruit.com/product/4800
+adafruit_metro_esp32s2       Adafruit Metro ESP32-S2           espressif  https://www.adafruit.com/product/4775
+espressif_addax_1            Espresif Addax-1                  espressif  n/a
+espressif_c3_devkitc         Espresif C3 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c3/esp32-c3-devkitc-02/index.html
+espressif_c6_devkitc         Espresif C6 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/index.html
+espressif_kaluga_1           Espresif Kaluga 1                 espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-kaluga-1/index.html
+espressif_p4_function_ev     Espresif P4 Function EV           espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
+espressif_s2_devkitc         Espresif S2 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-devkitc-1/index.html
+espressif_s31_function_core  Espressif S31 Function CoreBoard  espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s31/esp32-s31-function-coreboard-1/index.html  J4 is a host-wired Type-A port that always supplies VBUS; device role needs an A-to-A cable with VBUS cut
+espressif_s3_devkitc         Espresif S3 DevKitC               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/index.html
+espressif_s3_devkitm         Espresif S3 DevKitM               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html
+espressif_saola_1            Espresif S2 Saola 1               espressif  https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-saola-1/index.html
+===========================  ================================  =========  =============================================================================================================  =========================================================================================================
 
 Geehy
 -----
 
-====================  ====================  =========  ==============================================  ======
-Board                 Name                  Family     URL                                             Note
-====================  ====================  =========  ==============================================  ======
-apm32f072_dev_board   APM32F072 Dev Board   apm32f0xx
-====================  ====================  =========  ==============================================  ======
+===================  ===================  =========  =====================  ======
+Board                Name                 Family     URL                    Note
+===================  ===================  =========  =====================  ======
+apm32f072_dev_board  APM32F072 Dev Board  apm32f0xx  https://www.geehy.com
+apm32f103_dev_board  APM32F103 Dev Board  apm32f10x  https://www.geehy.com
+apm32f107_dev_board  APM32F107 Dev Board  apm32f10x  https://www.geehy.com
+===================  ===================  =========  =====================  ======
 
 GigaDevice
 ----------
@@ -373,17 +376,18 @@ fomu     fomu    fomu      https://tomu.im/fomu.html
 WCH
 ---
 
-==================  =============================  ========  =====================================================================  ======
-Board               Name                           Family    URL                                                                    Note
-==================  =============================  ========  =====================================================================  ======
-ch32f205r-r0        CH32F205r-r0                   ch32f20x  https://github.com/openwch/ch32f20x
-ch32v103c_bluepill  CH32V103C8T6-Bluepill          ch32v10x  https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
-ch32v103r_r1_1v0    CH32V103R-R1-1v1               ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
-ch32v203c_r0_1v0    CH32V203C-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-ch32v203g_r0_1v0    CH32V203G-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
-nanoch32v203        nanoCH32V203                   ch32v20x  https://github.com/wuxx/nanoCH32V203
-ch32v307v_r1_1v0    CH32V307V-R1-1v0               ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
-nanoch32v305        nanoCH32V305                   ch32v30x  https://github.com/wuxx/nanoCH32V305
-ch582m_evt          CH582M-EVT evaluation board    ch583     https://www.wch-ic.com/products/CH582.html
-yd-ch582m           yd-ch582m from vcc-gnd studio  ch583     http://vcc-gnd.com/
-==================  =============================  ========  =====================================================================  ======
+=========================  =============================  ========  =====================================================================  ======
+Board                      Name                           Family    URL                                                                    Note
+=========================  =============================  ========  =====================================================================  ======
+ch32f205r-r0               CH32F205r-r0                   ch32f20x  https://github.com/openwch/ch32f20x
+ch32v103c_bluepill         CH32V103C8T6-Bluepill          ch32v10x  https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
+ch32v103r_r1_1v0           CH32V103R-R1-1v1               ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
+ch32v203c_r0_1v0           CH32V203C-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+ch32v203g_r0_1v0           CH32V203G-R0-1v0               ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+nanoch32v203               nanoCH32V203                   ch32v20x  https://github.com/wuxx/nanoCH32V203
+ch32v307v_r1_1v0           CH32V307V-R1-1v0               ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
+nanoch32v305               nanoCH32V305                   ch32v30x  https://github.com/wuxx/nanoCH32V305
+weact_ch32x035_core_board  WeAct CH32X035 Core Board      ch32x035  https://github.com/WeActStudio/WeActStudio.CH32X035CoreBoard
+ch582m_evt                 CH582M-EVT evaluation board    ch583     https://www.wch-ic.com/products/CH582.html
+yd-ch582m                  yd-ch582m from vcc-gnd studio  ch583     http://vcc-gnd.com/
+=========================  =============================  ========  =====================================================================  ======

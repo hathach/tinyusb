@@ -147,16 +147,23 @@ TU_ATTR_WEAK bool tud_network_default_link_state_cb(void) {
  * \attention
  *     We are lucky, that byte order is correct
  */
+
+// wNdbInDivisor/wNdbOutDivisor: a Windows Update (KB5124008, Sept 2026)
+// enabled NTB-parameter validation in usbncm.sys requiring these to be
+// >=4 and a power of 2. 1 is spec-legal but now rejected with
+// STATUS_DEVICE_HARDWARE_ERROR (Code 10) during enumeration. 4 satisfies
+// the check and is spec-legal on the device side too.
+
 TU_ATTR_ALIGNED(4) static const ntb_parameters_t ntb_parameters = {
   .wLength                  = sizeof(ntb_parameters_t),
   .bmNtbFormatsSupported    = 0x01,// 16-bit NTB supported
   .dwNtbInMaxSize           = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
-  .wNdbInDivisor            = 1,
+  .wNdbInDivisor            = 4,
   .wNdbInPayloadRemainder   = 0,
   .wNdbInAlignment          = TUD_NCM_ALIGNMENT,
   .wReserved                = 0,
   .dwNtbOutMaxSize          = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
-  .wNdbOutDivisor           = 1,
+  .wNdbOutDivisor           = 4,
   .wNdbOutPayloadRemainder  = 0,
   .wNdbOutAlignment         = TUD_NCM_ALIGNMENT,
   .wNtbOutMaxDatagrams      = CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB,

@@ -2,3 +2,4 @@ mcu:SAMD11
 mcu:SAMG
 family:espressif
 mcu:CH583
+mcu:CH32X035

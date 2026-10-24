@@ -82,13 +82,13 @@ bool tud_mtp_mounted(void);
 // send data phase
 bool tud_mtp_data_send(mtp_container_info_t* p_container);
 
-// receive data phase. On the first call, header->len is the expected total length of the data block
-// (header + payload); set it to 0xFFFFFFFF when the host did not declare a size (e.g. SendObject after
-// an ObjectInfo with ObjectCompressedSize 0 or 0xFFFFFFFF), then a short packet ends the phase.
-// Byte accounting (total_xferred_bytes) is 32-bit: a data phase of 4 GiB or more is not supported.
+// receive data phase
 bool tud_mtp_data_receive(mtp_container_info_t* p_container);
 
-// send response
+// Send response. Normally called from tud_mtp_command_received_cb() (command without a data
+// phase) or tud_mtp_data_complete_cb(). May also be called from a data callback to end the
+// transaction early; the terminating ZLP the host still owes is then absorbed by the driver.
+// Returns false if the response could not be queued, leaving the phase unchanged.
 bool tud_mtp_response_send(mtp_container_info_t* p_container);
 
 // send event notification on event endpoint
