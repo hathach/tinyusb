@@ -70,6 +70,7 @@ typedef struct TU_ATTR_PACKED
   uint32_t TransferSize      ; ///< Transfer size; LSB first
   struct TU_ATTR_PACKED
   {
+    unsigned int _reserved        : 1 ; ///< D0 must be 0 (USBTMC 1.0 Table 4)
     unsigned int TermCharEnabled  : 1 ; ///< "The Bulk-IN transfer must terminate on the specified TermChar."; CAPABILITIES must list TermChar
   } bmTransferAttributes;
   uint8_t TermChar;
