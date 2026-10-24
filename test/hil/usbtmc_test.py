@@ -174,7 +174,7 @@ class Dut:
             self.dev.clear_halt(self.ep_in)
             self.idn()
             return
-        except (usb.core.USBError, AssertionError, IndexError) as e:
+        except (usb.core.USBError, AssertionError, IndexError, struct.error) as e:
             print(f'    recover: clear failed ({e}), resetting the port', flush=True)
         try:
             usb.util.dispose_resources(self.dev)
@@ -323,6 +323,20 @@ def t_abort_in_then_other_request(d):
     expect(rsp[0] == SUCCESS, f'GET_CAPABILITIES after the abort completed: {rsp[:2].hex()}')
     rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
     expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK after another request: {rsp.hex()}, want SPLIT_NOT_IN_PROGRESS')
+    d.idn()
+
+
+def t_abort_in_then_clear_out_halt(d):
+    """CLEAR_FEATURE(bulk-OUT) between a completed abort and its CHECK_STATUS: the abort is still reported
+    complete (Tables 17, 29), and the device takes commands again."""
+    tag = d.request()
+    rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag, d.ep_in, 2)
+    expect(rsp[0] == SUCCESS, f'INITIATE_ABORT_BULK_IN {rsp.hex()}')
+    expect(len(d.read_pkt()) == 0, 'abort did not end with a zero-length packet')
+    d.dev.clear_halt(d.ep_out)
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == SUCCESS and not rsp[1] & 1 and struct.unpack_from('<I', rsp, 4)[0] == 0,
+           f'CHECK after CLEAR_FEATURE(bulk-OUT): {rsp.hex()}, want SUCCESS D0=0 NBYTES_TXD 0')
     d.idn()
 
 
@@ -527,7 +541,8 @@ def t_clear_in_halt_mid_reply(d):
 
 CASES = [
     t_idn_tag_sweep, t_echo_sizes, t_indicator_pulse, t_read_stb, t_trigger,
-    t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_then_other_request, t_abort_in_mid_transfer, t_abort_out,
+    t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_then_other_request, t_abort_in_then_clear_out_halt,
+    t_abort_in_mid_transfer, t_abort_out,
     t_header_errors, t_excess_data, t_short_transfer,
     t_clear_with_pending_in, t_check_without_initiate,
     t_clear_out_halt_mid_reply, t_clear_in_halt_mid_reply,
@@ -556,12 +571,13 @@ def main():
             print(f'PASS  {name}', flush=True)
         except SkipCase as e:
             print(f'SKIP  {name}: {e}', flush=True)
-        except (AssertionError, usb.core.USBError) as e:
+        except (AssertionError, usb.core.USBError, IndexError, struct.error) as e:
+            # IndexError, struct.error: a response shorter than its header
             fails.append(name)
-            print(f'FAIL  {name}: {e}', flush=True)
+            print(f'FAIL  {name}: {type(e).__name__}: {e}', flush=True)
         try:
             d.recover()
-        except (usb.core.USBError, AssertionError, RuntimeError) as e:
+        except (usb.core.USBError, AssertionError, RuntimeError, IndexError, struct.error) as e:
             print(f'device lost after {name}: {e}', flush=True)
             return 1
     print(f'{len(fails)} failed: {fails}' if fails else 'all passed', flush=True)

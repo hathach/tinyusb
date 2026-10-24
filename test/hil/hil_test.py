@@ -1318,10 +1318,11 @@ def test_device_usbtmc(board):
     r = hil_util.run_cmd(
         f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t}',
         timeout=t + USBTMC_SESSION_MARGIN)
-    if r.returncode == 124:
-        raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
-                             f'the session process may linger unkillable in D state)')
     out = hil_util.cmd_stdout_text(r.stdout)
+    if r.returncode == 124:
+        # run_cmd keeps what the killed child flushed: the cases that failed before the wedge
+        raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
+                             f'the session process may linger unkillable in D state):\n{out[-600:]}')
     fails = [line for line in out.splitlines() if line.startswith(('FAIL', 'device lost'))]
     assert r.returncode == 0, f'USBTMC session failed (rc {r.returncode}):\n' + '\n'.join(fails or [out[-600:]])
 
