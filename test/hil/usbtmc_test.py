@@ -28,7 +28,8 @@ INITIATE_ABORT_BULK_IN, CHECK_ABORT_BULK_IN_STATUS = 3, 4
 INITIATE_CLEAR, CHECK_CLEAR_STATUS = 5, 6
 INDICATOR_PULSE, READ_STATUS_BYTE = 64, 128
 # USBTMC_status
-SUCCESS, PENDING, FAILED, NOT_IN_PROGRESS, INT_IN_BUSY = 0x01, 0x02, 0x80, 0x81, 0x20
+SUCCESS, PENDING, FAILED, NOT_IN_PROGRESS, SPLIT_NOT_IN_PROGRESS = 0x01, 0x02, 0x80, 0x81, 0x82
+INT_IN_BUSY = 0x20
 # MsgID
 DEV_DEP_MSG_OUT, REQUEST_DEV_DEP_MSG_IN, TRIGGER = 1, 2, 128
 
@@ -132,8 +133,18 @@ class Dut:
         expect(data.startswith(b'TinyUSB'), f'*IDN? answered {data!r}')
 
     def recover(self):
-        """INITIATE_CLEAR sequence, which also resets the example's query state; a port reset if that fails."""
+        """INITIATE_CLEAR sequence, which also resets the example's query state; a port reset if that fails.
+        A Status Byte a failed case left queued on Interrupt-IN is read first."""
         try:
+            for _ in range(4):
+                if self.ep_int is None:
+                    break
+                try:
+                    self.dev.read(self.ep_int, 8, 50)
+                except usb.core.USBError as e:
+                    if e.errno != errno.ETIMEDOUT:
+                        raise
+                    break
             self.itf_req(INITIATE_CLEAR, 0, 1)
             for _ in range(50):
                 rsp = self.itf_req(CHECK_CLEAR_STATUS, 0, 2)
@@ -236,7 +247,7 @@ def t_trigger(d):
 
 
 def _abort_in_before_reply(d, tag):
-    d.send_msg(b'*IDN?\n')
+    # A request with no command before it: the example never answers, so nothing is queued when the abort lands
     d.request(tag=tag)
     rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag ^ 1, d.ep_in, 2)
     expect(rsp[0] == NOT_IN_PROGRESS, f'abort with another bTag: {rsp.hex()}, want TRANSFER_NOT_IN_PROGRESS')
@@ -244,9 +255,13 @@ def _abort_in_before_reply(d, tag):
     expect(rsp[0] == SUCCESS and rsp[1] == tag, f'INITIATE_ABORT_BULK_IN bTag {tag}: {rsp.hex()}')
     rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
     expect(rsp[0] == PENDING and rsp[1] & 1, f'CHECK before the short packet is read: {rsp.hex()}, want PENDING D0=1')
-    expect(len(d.read_pkt()) < d.mps, 'abort did not end with a short packet')
+    p = d.read_pkt()
+    expect(len(p) == 0, f'abort before any data: got a {len(p)}-byte packet, want a zero-length one')
     rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
-    expect(rsp[0] == SUCCESS and not rsp[1] & 1, f'CHECK after the short packet: {rsp.hex()}, want SUCCESS D0=0')
+    expect(rsp[0] == SUCCESS and not rsp[1] & 1 and struct.unpack_from('<I', rsp, 4)[0] == 0,
+           f'CHECK after the short packet: {rsp.hex()}, want SUCCESS D0=0 NBYTES_TXD 0')
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'second CHECK: {rsp.hex()}, want STATUS_SPLIT_NOT_IN_PROGRESS')
     d.idn()
 
 
@@ -288,7 +303,7 @@ def t_abort_out(d):
     rsp = d.ep_req(INITIATE_ABORT_BULK_OUT, 0, d.ep_out, 2)
     expect(rsp[0] == FAILED and rsp[1] == req_tag, f'abort with no transfer: {rsp.hex()}, want FAILED bTag {req_tag}')
     rsp = d.ep_req(CHECK_ABORT_BULK_OUT_STATUS, 0, d.ep_out, 8)
-    expect(rsp[0] != SUCCESS, f'CHECK_ABORT_BULK_OUT_STATUS with no abort: {rsp.hex()}')
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_ABORT_BULK_OUT_STATUS with no abort: {rsp.hex()}')
     if d.mps != 64:
         return
     d.write(d.hdr(DEV_DEP_MSG_OUT, 150, 200, attr=1) + bytes(d.mps - 12))  # first packet of 200 bytes
@@ -331,6 +346,7 @@ def t_excess_data(d):
     d.write(d.hdr(DEV_DEP_MSG_OUT, d.next_tag(), 4, attr=1) + b'WXYZ' + bytes(8))
     r = next_write(d)
     expect(r == 'stall', f'excess data: next write {r}, want stall')
+    _no_abort_to_check(d)
     d.dev.clear_halt(d.ep_out)
 
 
@@ -339,7 +355,14 @@ def t_short_transfer(d):
     d.write(d.hdr(DEV_DEP_MSG_OUT, d.next_tag(), 100, attr=1) + bytes(20))
     r = next_write(d)
     expect(r == 'stall', f'short transfer: next write {r}, want stall')
+    _no_abort_to_check(d)
     d.dev.clear_halt(d.ep_out)
+
+
+def _no_abort_to_check(d):
+    # A Table 7 Halt is not an INITIATE_ABORT_BULK_OUT: its CHECK is unexpected (4.2.1.1 rule 6)
+    rsp = d.ep_req(CHECK_ABORT_BULK_OUT_STATUS, 0, d.ep_out, 8)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_ABORT_BULK_OUT_STATUS after a Halt: {rsp.hex()}')
 
 
 def t_clear_with_pending_in(d):
@@ -359,11 +382,51 @@ def t_clear_with_pending_in(d):
     d.idn()
 
 
-def t_check_clear_without_initiate(d):
-    """CHECK_CLEAR_STATUS with no clear in progress does not report one completed."""
+def t_check_without_initiate(d):
+    """Every CHECK_STATUS without its INITIATE answers STATUS_SPLIT_NOT_IN_PROGRESS (4.2.1.1 rule 6)."""
     rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
-    expect(rsp[0] != SUCCESS, f'CHECK_CLEAR_STATUS without INITIATE_CLEAR: {rsp.hex()}')
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_CLEAR_STATUS: {rsp.hex()}')
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_ABORT_BULK_IN_STATUS: {rsp.hex()}')
+    rsp = d.ep_req(CHECK_ABORT_BULK_OUT_STATUS, 0, d.ep_out, 8)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_ABORT_BULK_OUT_STATUS: {rsp.hex()}')
     d.idn()
+
+
+def t_clear_out_halt_during_clear(d):
+    """CLEAR_FEATURE(bulk-OUT) before the clear has finished: the clear still completes, short packet included
+    (Table 17: the INITIATE actions complete across a standard request)."""
+    need_full_speed(d)
+    d.send_msg(bytes(0x61 + i % 26 for i in range(200)))
+    d.request()
+    d.read_pkt()
+    expect(d.itf_req(INITIATE_CLEAR, 0, 1)[0] == SUCCESS, 'INITIATE_CLEAR')
+    d.dev.clear_halt(d.ep_out)
+    rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
+    expect(rsp[0] == PENDING and rsp[1] & 1, f'CHECK_CLEAR_STATUS with a packet queued: {rsp.hex()}')
+    pkts = d.read_transfer()
+    expect(len(pkts[-1]) < d.mps, 'no short packet')
+    rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
+    expect(rsp[0] == SUCCESS, f'CHECK_CLEAR_STATUS after the short packet: {rsp.hex()}')
+    d.dev.clear_halt(d.ep_out)
+    d.idn()
+
+
+def t_clear_in_halt_during_abort(d):
+    """CLEAR_FEATURE(bulk-IN) during an abort drops the queued packet; the abort still ends with a short packet
+    and NBYTES_TXD counts only what the host received (Tables 17, 26, 29)."""
+    need_full_speed(d)
+    d.send_msg(bytes(0x41 + i % 26 for i in range(200)))
+    tag = d.request()
+    first = d.read_pkt()
+    rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag, d.ep_in, 2)
+    expect(rsp[0] == SUCCESS, f'INITIATE_ABORT_BULK_IN {rsp.hex()}')
+    d.dev.clear_halt(d.ep_in)
+    rest = d.read_transfer()
+    sent = len(first) - 12 + sum(len(p) for p in rest)
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == SUCCESS and struct.unpack_from('<I', rsp, 4)[0] == sent,
+           f'CHECK_ABORT_BULK_IN_STATUS {rsp.hex()}, host received {sent}')
 
 
 def t_clear_out_halt_mid_reply(d):
@@ -394,8 +457,9 @@ CASES = [
     t_idn_tag_sweep, t_echo_sizes, t_indicator_pulse, t_read_stb, t_trigger,
     t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_mid_transfer, t_abort_out,
     t_header_errors, t_excess_data, t_short_transfer,
-    t_clear_with_pending_in, t_check_clear_without_initiate,
+    t_clear_with_pending_in, t_check_without_initiate,
     t_clear_out_halt_mid_reply, t_clear_in_halt_mid_reply,
+    t_clear_out_halt_during_clear, t_clear_in_halt_during_abort,
 ]
 
 
