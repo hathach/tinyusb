@@ -54,15 +54,26 @@ class Dut:
             except (usb.core.USBError, ValueError):
                 return None
 
+        def configuration(dev):
+            # The device node, and its strings, are there before the kernel's SET_CONFIGURATION: until then pyusb
+            # raises 'Configuration not set'. Not cached on failure, so the next poll asks again.
+            try:
+                return dev.get_active_configuration()
+            except usb.core.USBError:
+                usb.util.dispose_resources(dev)
+                return None
+
         while True:
             self.dev = next((d for d in usb.core.find(find_all=True, idVendor=VID, idProduct=PID)
                              if serial(d) == self.uid), None)
-            if self.dev is not None:
+            cfg = None if self.dev is None else configuration(self.dev)
+            if cfg is not None:
                 break
             if time.monotonic() > deadline:
-                raise RuntimeError(f'USBTMC device {VID:04x}:{PID:04x} serial {self.uid} not found')
+                state = 'not found' if self.dev is None else 'found, but its configuration is not set'
+                raise RuntimeError(f'USBTMC device {VID:04x}:{PID:04x} serial {self.uid} {state}')
             time.sleep(0.5)
-        itf = self.dev.get_active_configuration()[(0, 0)]
+        itf = cfg[(0, 0)]
         self.itf = itf.bInterfaceNumber
         if self.dev.is_kernel_driver_active(self.itf):
             self.dev.detach_kernel_driver(self.itf)  # the kernel usbtmc driver
