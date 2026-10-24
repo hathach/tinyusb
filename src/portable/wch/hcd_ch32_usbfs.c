@@ -21,7 +21,7 @@
  * order isochronous, interrupt, control, bulk, round-robin within each type. A longer
  * transfer yields to a higher type at every packet. A periodic endpoint runs once per
  * service interval: a NAK, or no response, waits for its next interval. A control or bulk
- * NAK is retried in the same frame, at most CFG_TUH_WCH_USBFS_NAK_PER_FRAME times; no
+ * NAK is retried in the same frame, at most max_nak times (tuh_configure()); no
  * response waits for the next frame.
  *
  * An isochronous endpoint runs without handshake, always DATA0, one packet per transfer.
@@ -53,11 +53,13 @@
   #define CFG_TUH_WCH_USBFS_ENDPOINT_MAX 16
 #endif
 
-// NAKs per control/bulk endpoint and frame before it waits for the next frame, 0 = no limit
-// (the bus never idles while a transfer is pending, at the cost of one interrupt per NAK)
-#ifndef CFG_TUH_WCH_USBFS_NAK_PER_FRAME
-  #define CFG_TUH_WCH_USBFS_NAK_PER_FRAME 0
-#endif
+enum {
+  // NAKs per control/bulk endpoint and frame before it waits for the next frame, to save CPU
+  // usage. 0 = no limit: the bus never idles while a transfer is pending, at the cost of one
+  // interrupt per NAK.
+  MAX_NAK_DEFAULT = 3,
+  MAX_NAK_LIMIT   = 31, // width of hcd_ep_t.nak_count
+};
 
 // Bound for every wait on the SIE
 #define SIE_WAIT_TIMEOUT 2000000u
@@ -101,6 +103,10 @@ typedef struct {
 } hcd_data_t;
 
 static hcd_data_t _hcd;
+
+static tuh_configure_wch_usbfs_t _tuh_cfg = {
+  .max_nak = MAX_NAK_DEFAULT,
+};
 
 // The DMA works on the transfer buffer directly where it can: the address must be 4-byte
 // aligned within the first 32 KB of SRAM (15-bit DMA address). An IN has no receive limit,
@@ -433,7 +439,7 @@ static void handle_xfer_done(bool in_isr) {
     case XACT_NAK:
       // control and bulk retry in this frame, after the other ready endpoints
       if (ep->xfer_type == TUSB_XFER_CONTROL || ep->xfer_type == TUSB_XFER_BULK) {
-        if (CFG_TUH_WCH_USBFS_NAK_PER_FRAME == 0 || ++ep->nak_count < CFG_TUH_WCH_USBFS_NAK_PER_FRAME) {
+        if (_tuh_cfg.max_nak == 0 || ++ep->nak_count < _tuh_cfg.max_nak) {
           engine_next(idx);
           break;
         }
@@ -603,11 +609,14 @@ bool hcd_deinit(uint8_t rhport) {
   return true;
 }
 
+// Optional HCD configuration, called by tuh_configure()
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
   (void)rhport;
-  (void)cfg_id;
-  (void)cfg_param;
-  return false;
+  TU_VERIFY(cfg_id == TUH_CFGID_WCH_USBFS && cfg_param != NULL);
+
+  const tuh_configure_param_t *cfg = (const tuh_configure_param_t *)cfg_param;
+  _tuh_cfg.max_nak = tu_min8(cfg->wch_usbfs.max_nak, MAX_NAK_LIMIT);
+  return true;
 }
 
 uint32_t hcd_frame_number(uint8_t rhport) {
@@ -637,11 +646,11 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (int_fg & USBFS_UIF_HST_SOF) {
     USBFSH->INT_FG = USBFS_UIF_HST_SOF;
     _hcd.frame_count++;
-    #if CFG_TUH_WCH_USBFS_NAK_PER_FRAME
-    for (uint8_t i = 0; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
-      _hcd.ep[i].nak_count = 0;
+    if (_tuh_cfg.max_nak != 0) {
+      for (uint8_t i = 0; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+        _hcd.ep[i].nak_count = 0;
+      }
     }
-    #endif
     root_port_check(rhport, in_isr);
     engine_kick(true);
   }
