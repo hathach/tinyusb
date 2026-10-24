@@ -8,31 +8,34 @@
  */
 
 /*
- * hcd_ch32_usbfs.c — async single-engine HCD for the CH32 USBFS host
- * controller (CH32V20x / CH32V307).
+ * Asynchronous HCD for the WCH USBFS host controller (CH32V20x, CH32V30x).
  *
- * Modeled on portable/analog/max3421/hcd_max3421.c: an ISR-driven round-robin
- * scheduler over a flat ep[] array, with at most ONE transaction outstanding on
- * the single CH32 USBFS host transfer engine (one DEV_ADDR latch, one
- * HOST_EP_PID token, one shared toggle pair, one RX/TX DMA pair). A per-(daddr,
- * ep) endpoint model lets hubs + multiple downstream devices + hotplug work.
+ * The controller has a single transfer engine: one DEV_ADDR latch, one HOST_EP_PID token
+ * register, one toggle pair and one RX/TX DMA buffer pair. The driver keeps a flat ep[]
+ * table keyed by (daddr, ep_num, dir) and schedules it round-robin from the interrupt
+ * handler, with at most one transaction on the wire, as hcd_max3421.c does. This lets a hub
+ * with several downstream devices share the engine.
  *
- * ALL transfer types — control, interrupt and bulk — run through the same async
- * ep[] engine. Control transfers are driven one stage per HCD call the way the
- * host stack expects (hcd_setup_send -> SETUP, then hcd_edpt_xfer for the DATA
- * and STATUS stages); each stage is a single async transaction completed from
- * the transfer-done IRQ. Nothing blocks the caller. The ISR avoids any SOF-PRES
- * busy-wait at IRQ entry, does no logging in interrupt context, and bounds every
- * retry/wait.
- *
- * Licensed MIT. Register layout from ch32_usbfs_reg.h; no vendor host code.
+ * Every transaction completes from the transfer-done interrupt and nothing blocks the
+ * caller. A NAK, or no response, reschedules the endpoint for its next service frame: the
+ * next frame for control and bulk, bInterval frames later for interrupt endpoints.
+ * Isochronous transfers are not supported.
  */
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(TUP_USBIP_WCH_USBFS) && CFG_TUH_WCH_USBIP_USBFS
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_WCH_USBFS) && defined(CFG_TUH_WCH_USBIP_USBFS) && CFG_TUH_WCH_USBIP_USBFS
 
 #include "ch32_usbfs_reg.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_CH32V20X
+  #include <ch32v20x_usb.h>
+#elif CFG_TUSB_MCU == OPT_MCU_CH32V307
+  #include <ch32v30x_usb.h>
+#else
+  #error "USBFS host is not supported on this MCU"
+#endif
+
 #include "host/hcd.h"
 #include "host/usbh.h"
 
@@ -40,793 +43,601 @@
 // Config
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUH_CH32_ENDPOINT_TOTAL
-// ep[0] = addr0 default control pipe + ~15 for {root|hub + downstream}.
-// A 4-port hub of HID controllers fits in 16. Do NOT oversize (64KB SRAM).
-#define CFG_TUH_CH32_ENDPOINT_TOTAL  16
+// ep[0] is the default control pipe of address 0, the rest are allocated on open.
+#ifndef CFG_TUH_WCH_USBFS_ENDPOINT_MAX
+  #define CFG_TUH_WCH_USBFS_ENDPOINT_MAX 16
 #endif
 
-#ifndef CFG_TUH_CH32_NAK_MAX
-// NAKs per EP per frame before yielding the engine to another EP; 0 = infinite.
-#define CFG_TUH_CH32_NAK_MAX  1
-#endif
-
-// Consecutive no-response transfers (engine armed, transfer-done IRQ never
-// arrived within the bounded ISR retry window) before reporting device removal.
-// A connected-idle device NAKs (a real response, IRQ fires); only a physically
-// removed device gives zero response.
-#define CH32_HOST_DISCON_POLLS  16
-
-// Bound EVERY busy-wait (single-core, RTOS-less: an unbounded wait hangs the
-// whole loop). 2e6 is a generous upper bound.
-#define CH32_WAIT_TIMEOUT  2000000u
-
-// In-ISR bounded retry count on a no-response/error before giving up on the
-// current transaction (a small staged retry, kept
-// small so a truly-dead device surfaces quickly to the discon counter).
-#ifndef CH32_ISR_MAX_RETRIES
-#define CH32_ISR_MAX_RETRIES  3
-#endif
-
-#define CH32_WAIT_SIE_IDLE() \
-  do { uint32_t _to = CH32_WAIT_TIMEOUT; while (!(USBFSH->MIS_ST & USBFS_UMS_SIE_FREE) && --_to) {} } while (0)
+// Bound for every wait on the SIE
+#define SIE_WAIT_TIMEOUT 2000000u
 
 //--------------------------------------------------------------------+
-// Data model (§B): one slot per (daddr, ep_num, dir)
+// Data
 //--------------------------------------------------------------------+
-
-typedef enum {
-  EP_STATE_IDLE       = 0,   // no transfer queued
-  EP_STATE_ABORTING   = 2,   // abort requested; next idle clears it
-  EP_STATE_ATTEMPT_1  = 3,   // active/pending; values above count NAKs this frame
-  EP_STATE_ATTEMPT_MAX = 15,
-} ep_state_t;
-
-typedef struct TU_ATTR_PACKED {
-  // identity / allocation
-  uint8_t  daddr;            // owning device addr; 0 == free slot (sentinel)
-  uint8_t  ep_num   : 4;     // endpoint number 0..15
-  uint8_t  is_out   : 1;     // 1 = OUT/SETUP direction (host->dev)
-  uint8_t  is_setup : 1;     // current token is SETUP
-  uint8_t  is_iso   : 1;     // reserved (iso not driven)
-  uint8_t  rsvd     : 1;
-
-  // pre-built CH32 token byte: (USB_PID_xxx<<4)|ep_num — write to HOST_EP_PID.
-  uint8_t  pid;
-
-  // state machine; >ATTEMPT_1 also counts NAKs this frame
-  uint8_t  state;
-
-  uint8_t  data_toggle : 1;  // DATA0/DATA1, persisted per-EP across xfers
-  uint16_t packet_size : 11; // wMaxPacketSize; ALSO the "allocated" flag (!=0)
-
-  // current transfer
-  uint16_t total_len;        // bytes requested this transfer
-  uint16_t xferred_len;      // bytes done so far
-  uint8_t* buf;              // caller buffer base (cursor = buf + xferred_len)
-
-  // interrupt-EP interval pacing: poll only when frame_count >= next_frame, then
-  // re-arm at +interval. interval=1 (control/bulk) polls every frame.
-  uint8_t  interval;         // bInterval in frames (interrupt); 1 otherwise
-  uint16_t next_frame;       // earliest frame this EP may be polled again
-
-  uint8_t  setup[8];         // staged 8-byte SETUP packet (ep0 only)
-} ch32_ep_t;
 
 typedef struct {
-  volatile uint16_t frame_count;        // SOF tick -> hcd_frame_number
-  ch32_ep_t ep[CFG_TUH_CH32_ENDPOINT_TOTAL];
+  uint8_t daddr;
+  uint8_t ep_num   : 4;
+  uint8_t is_out   : 1; // current direction, also SETUP
+  uint8_t is_setup : 1; // current token is SETUP
+  uint8_t pending  : 1; // transfer queued
+  uint8_t toggle   : 1; // DATA0/DATA1
 
-  volatile bool busy_lock;              // single-engine "in use" gate
-  int8_t   cur_idx;                     // ep[] index currently on the wire (-1 none)
-  uint8_t  cur_daddr;                   // shadow of DEV_ADDR (skip redundant writes)
+  uint8_t  xfer_type;
+  uint8_t  interval;    // service interval in frames
+  uint16_t packet_size; // 0 = free slot
+  uint16_t next_frame;  // earliest frame for the next attempt
 
-  // no-response disconnect tracking. Set when the engine is armed;
-  // the SOF tick declares no-response if it stays armed past a frame deadline.
-  uint8_t  discon_polls;
-  volatile bool armed;                  // a transaction is on the wire
-  volatile uint16_t armed_frame;        // frame_count when armed (deadline base)
+  uint16_t total_len;
+  uint16_t xferred_len;
+  uint8_t *buf;
 
-  bool     attached;                    // device present (set by the SOF/DETECT attach poll)
-  tusb_speed_t root_speed;              // survives hcd_device_close(0)
-} ch32_hcd_t;
+  uint8_t setup[8];
+} hcd_ep_t;
 
-static ch32_hcd_t _hcd;
+typedef struct {
+  volatile uint16_t frame_count;
+  int8_t   cur_idx;        // ep[] index on the wire, -1 = engine idle
+  int8_t   last_idx;       // last started ep[] index, for round-robin
+  bool     attached;       // root port connection reported to usbh
+  bool     in_reset;       // root port bus reset in progress
+  tusb_speed_t root_speed;
 
-// Host DMA buffers: IN (RX) and OUT (TX), one max packet each, 4-byte aligned
-// (the controller requires an even/aligned address). The single transfer engine
-// re-points HOST_RX_DMA/HOST_TX_DMA at these for every transaction — control,
-// interrupt and bulk all share them, since only one transaction is ever in
-// flight. SETUP packets are staged into the TX buffer before launch.
-TU_ATTR_ALIGNED(4) static uint8_t USBFS_RX_Buf[MAX_PACKET_SIZE];
-TU_ATTR_ALIGNED(4) static uint8_t USBFS_TX_Buf[MAX_PACKET_SIZE];
+  hcd_ep_t ep[CFG_TUH_WCH_USBFS_ENDPOINT_MAX];
+} hcd_data_t;
 
-// Root-port bus-reset hold time (ms); USB spec TDRST is 10-20ms.
-#define CH32_BUS_RESET_TIME_MS  11
+static hcd_data_t _hcd;
+
+// One max packet each, the engine re-points the DMA at them for every transaction
+TU_ATTR_ALIGNED(4) static uint8_t rx_buf[MAX_PACKET_SIZE];
+TU_ATTR_ALIGNED(4) static uint8_t tx_buf[MAX_PACKET_SIZE];
+
+enum {
+  XACT_OK = 0,
+  XACT_NAK,
+  XACT_STALL,
+  XACT_TIMEOUT,
+  XACT_ERROR
+};
 
 //--------------------------------------------------------------------+
 // ep[] helpers
 //--------------------------------------------------------------------+
 
-// ep0 of addr0 (the default enumeration pipe) is reserved at index 0.
-static ch32_ep_t* find_ep(uint8_t daddr, uint8_t ep_num, uint8_t dir) {
-  if (daddr == 0 && ep_num == 0) return &_hcd.ep[0];
-  for (uint8_t i = 1; i < CFG_TUH_CH32_ENDPOINT_TOTAL; i++) {
-    ch32_ep_t* ep = &_hcd.ep[i];
-    if (ep->packet_size == 0) continue;           // free
-    if (ep->daddr != daddr || ep->ep_num != ep_num) continue;
-    // control endpoint is bidirectional: match on (daddr,ep_num) only.
-    if (ep_num == 0 || ep->is_out == (dir == TUSB_DIR_OUT)) return ep;
+static hcd_ep_t *ep_find(uint8_t daddr, uint8_t ep_num, uint8_t dir) {
+  if (daddr == 0 && ep_num == 0) {
+    return &_hcd.ep[0];
   }
-  return NULL;
-}
-
-static ch32_ep_t* alloc_ep(void) {
-  for (uint8_t i = 1; i < CFG_TUH_CH32_ENDPOINT_TOTAL; i++) {
-    if (_hcd.ep[i].packet_size == 0) return &_hcd.ep[i];
-  }
-  return NULL;
-}
-
-static void free_ep_daddr(uint8_t daddr) {
-  for (uint8_t i = 1; i < CFG_TUH_CH32_ENDPOINT_TOTAL; i++) {
-    if (_hcd.ep[i].daddr == daddr && _hcd.ep[i].packet_size) {
-      tu_memclr(&_hcd.ep[i], sizeof(ch32_ep_t));
+  for (uint8_t i = 1; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+    hcd_ep_t *ep = &_hcd.ep[i];
+    // control endpoint is bidirectional
+    if (ep->packet_size != 0 && ep->daddr == daddr && ep->ep_num == ep_num &&
+        (ep_num == 0 || ep->is_out == (dir == TUSB_DIR_OUT))) {
+      return ep;
     }
   }
+  return NULL;
 }
 
-static inline bool is_ep_pending(const ch32_ep_t* ep) {
-  if (ep->packet_size == 0 || ep->state < EP_STATE_ATTEMPT_1) return false;
-  // Interval gate: an EP that NAKed/timed out is re-pollable only once its
-  // bInterval has elapsed (signed diff handles frame_count wrap).
-  return (int16_t)(_hcd.frame_count - ep->next_frame) >= 0;
+static hcd_ep_t *ep_alloc(void) {
+  for (uint8_t i = 1; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+    if (_hcd.ep[i].packet_size == 0) {
+      return &_hcd.ep[i];
+    }
+  }
+  return NULL;
 }
 
-// Round-robin scan starting AFTER cur so no endpoint monopolizes the engine.
-static int8_t find_next_pending(int8_t cur) {
-  for (uint8_t k = 1; k <= CFG_TUH_CH32_ENDPOINT_TOTAL; k++) {
-    int8_t i = (int8_t)(((int)cur + k) % CFG_TUH_CH32_ENDPOINT_TOTAL);
-    if (is_ep_pending(&_hcd.ep[i])) return i;
+static inline bool ep_is_ready(const hcd_ep_t *ep) {
+  return ep->packet_size != 0 && ep->pending && (int16_t)(_hcd.frame_count - ep->next_frame) >= 0;
+}
+
+// round-robin scan starting after cur so that no endpoint monopolizes the engine
+static int8_t ep_find_next_ready(int8_t cur) {
+  for (uint8_t k = 1; k <= CFG_TUH_WCH_USBFS_ENDPOINT_MAX; k++) {
+    int8_t i = (int8_t)(((int)cur + k) % CFG_TUH_WCH_USBFS_ENDPOINT_MAX);
+    if (ep_is_ready(&_hcd.ep[i])) {
+      return i;
+    }
   }
   return -1;
 }
 
 //--------------------------------------------------------------------+
-// Register leaves (arm-SETUP / arm-IN/OUT)
+// Transaction
 //--------------------------------------------------------------------+
 
-// §D row 1: latch DEV_ADDR, preserving the GP bit. Shadowed to skip redundant
-// writes — but always re-write on a real EP switch so a fresh device is selected.
-static inline void select_dev(uint8_t daddr) {
-  _hcd.cur_daddr = daddr;
-  USBFSH->DEV_ADDR = (uint8_t)((USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT) | (daddr & USBFS_USB_ADDR_MASK));
+static inline void sie_wait_idle(void) {
+  uint32_t timeout = SIE_WAIT_TIMEOUT;
+  while (!(USBFSH->MIS_ST & USBFS_UMS_SIE_FREE) && --timeout) {}
 }
 
-// Program device address, port timing and host-port enable state for the
-// selected device. Low-speed direct attach uses LOW_SPEED with no PRE;
-// low-speed behind a full-speed hub needs PRE while tokens still go out at
-// full-speed.
-static inline void select_dev_speed(uint8_t daddr) {
-  select_dev(daddr);
+// With INT_BUSY the SIE holds off while UIF_TRANSFER is set, and clearing the flag lets it
+// run the token in HOST_EP_PID. So a token is always written first and the flag cleared
+// after it, and the token is zeroed before the flag of a finished transaction is cleared.
+static inline void engine_stop(void) {
+  USBFSH->HOST_EP_PID = 0;
+  USBFSH->INT_FG = USBFS_UIF_TRANSFER;
+  _hcd.cur_idx = -1;
+}
+
+// Select device address and signalling: a low speed device on the root port uses low
+// speed signalling, one behind a full speed hub needs PRE with full speed tokens.
+static void select_device(uint8_t daddr) {
+  USBFSH->DEV_ADDR = (uint8_t)((USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT) | (daddr & USBFS_USB_ADDR_MASK));
 
   tuh_bus_info_t bus_info;
   tuh_bus_info_get(daddr, &bus_info);
 
-  tusb_speed_t const dev_speed = bus_info.speed;
+  bool const is_low = (bus_info.speed == TUSB_SPEED_LOW);
   bool const via_hub = (bus_info.hub_addr != 0);
-  bool const low_speed_direct = (!via_hub && dev_speed == TUSB_SPEED_LOW);
-  bool const low_speed_via_hub = (via_hub &&
-                                  _hcd.root_speed == TUSB_SPEED_FULL &&
-                                  dev_speed == TUSB_SPEED_LOW);
 
-  if (low_speed_direct || low_speed_via_hub) {
+  if (is_low) {
     USBFSH->BASE_CTRL |= USBFS_UC_LOW_SPEED;
   } else {
-    USBFSH->BASE_CTRL &= ~USBFS_UC_LOW_SPEED;
+    USBFSH->BASE_CTRL &= (uint8_t)~USBFS_UC_LOW_SPEED;
   }
 
-  if (low_speed_direct) {
-    USBFSH->HOST_CTRL  |= USBFS_UH_LOW_SPEED;
-    USBFSH->HOST_SETUP &= ~USBFS_UH_PRE_PID_EN;
-  } else if (low_speed_via_hub) {
-    USBFSH->HOST_CTRL  &= ~USBFS_UH_LOW_SPEED;
+  if (is_low && !via_hub) {
+    USBFSH->HOST_CTRL |= USBFS_UH_LOW_SPEED;
+  } else {
+    USBFSH->HOST_CTRL &= (uint8_t)~USBFS_UH_LOW_SPEED;
+  }
+
+  if (is_low && via_hub) {
     USBFSH->HOST_SETUP |= USBFS_UH_PRE_PID_EN;
   } else {
-    USBFSH->HOST_CTRL  &= ~USBFS_UH_LOW_SPEED;
-    USBFSH->HOST_SETUP &= ~USBFS_UH_PRE_PID_EN;
+    USBFSH->HOST_SETUP &= (uint16_t)~USBFS_UH_PRE_PID_EN;
+  }
+}
+
+static void xact_start(int8_t idx, bool new_ep) {
+  hcd_ep_t *ep = &_hcd.ep[idx];
+  _hcd.cur_idx  = idx;
+  _hcd.last_idx = idx;
+
+  if (new_ep) {
+    select_device(ep->daddr);
   }
 
-  // Re-assert the host port state before every launch. CH32 USBFS can miss the
-  // first EP0 transaction after reset/hub-port reset unless both bits are
-  // armed again immediately before the transfer.
-  USBFSH->HOST_CTRL  |= USBFS_UH_PORT_EN;
-  USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
-}
+  sie_wait_idle();
+  USBFSH->HOST_RX_DMA = (uint32_t)rx_buf;
+  USBFSH->HOST_TX_DMA = (uint32_t)tx_buf;
 
-//--------------------------------------------------------------------+
-// Root-port reset / enable (native register sequence)
-//--------------------------------------------------------------------+
+  uint8_t pid;
+  uint8_t tog = ep->toggle ? USBFS_UH_T_TOG : 0; // same bit position as USBFS_UH_R_TOG
 
-static inline void ch32_set_self_addr(uint8_t addr) {
-  USBFSH->DEV_ADDR = (uint8_t)((USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT) | (addr & USBFS_USB_ADDR_MASK));
-}
-
-// Set the root-port signalling speed. Low speed also turns on PRE PID so tokens
-// reach a low-speed device; full speed clears both.
-static inline void ch32_set_self_speed(bool low_speed) {
-  if (low_speed) {
-    USBFSH->BASE_CTRL  |= USBFS_UC_LOW_SPEED;
-    USBFSH->HOST_CTRL  |= USBFS_UH_LOW_SPEED;
-    USBFSH->HOST_SETUP |= USBFS_UH_PRE_PID_EN;
+  if (ep->is_setup) {
+    memcpy(tx_buf, ep->setup, 8);
+    USBFSH->HOST_TX_LEN = 8;
+    pid = USB_PID_SETUP;
+    tog = 0;
+  } else if (ep->is_out) {
+    uint16_t const len = tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+    if (len > 0) {
+      memcpy(tx_buf, ep->buf + ep->xferred_len, len);
+    }
+    USBFSH->HOST_TX_LEN = len;
+    pid = USB_PID_OUT;
   } else {
-    USBFSH->BASE_CTRL  &= (uint8_t) ~USBFS_UC_LOW_SPEED;
-    USBFSH->HOST_CTRL  &= (uint8_t) ~USBFS_UH_LOW_SPEED;
-    USBFSH->HOST_SETUP &= (uint16_t) ~USBFS_UH_PRE_PID_EN;
+    USBFSH->HOST_TX_LEN = 0;
+    pid = USB_PID_IN;
+  }
+
+  USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
+  USBFSH->INT_FG       = USBFS_UIF_TRANSFER;
+  USBFSH->HOST_EP_PID  = (uint8_t)((pid << 4) | ep->ep_num);
+}
+
+// Start the next ready endpoint if the engine is idle. Call with the interrupt masked or
+// from the interrupt handler.
+static void engine_kick(void) {
+  if (_hcd.cur_idx >= 0 || !_hcd.attached || _hcd.in_reset) {
+    return;
+  }
+  int8_t const idx = ep_find_next_ready(_hcd.last_idx);
+  if (idx >= 0) {
+    xact_start(idx, true);
   }
 }
 
-// Drive an 11ms bus-reset pulse on the root port, then release. Address goes
-// back to 0 and the port is forced full-speed for the reset itself.
-static void ch32_reset_root_hub_port(void) {
-  ch32_set_self_addr(0x00);
-  ch32_set_self_speed(false);
-
-  USBFSH->HOST_CTRL |= USBFS_UH_BUS_RESET;             // start reset
-  tusb_time_delay_ms_api(CH32_BUS_RESET_TIME_MS);
-  USBFSH->HOST_CTRL &= (uint8_t) ~USBFS_UH_BUS_RESET;  // end reset
-  tusb_time_delay_ms_api(2);
-
-  // Swallow the DETECT edge the reset toggles while the device stays attached.
-  if ((USBFSH->INT_FG & USBFS_UIF_DETECT) && (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH)) {
-    USBFSH->INT_FG = USBFS_UIF_DETECT;
-  }
-}
-
-// Enable the root port after reset and latch the attached device's speed into
-// *speed. Returns false if nothing is attached.
-static bool ch32_enable_root_hub_port(tusb_speed_t* speed) {
-  if (!(USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH)) return false;
-
-  if ((USBFSH->HOST_CTRL & USBFS_UH_PORT_EN) == 0) {
-    bool const low = (USBFSH->MIS_ST & USBFS_UMS_DM_LEVEL) != 0;  // DM high at idle = low speed
-    *speed = low ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
-    if (low) ch32_set_self_speed(true);
-  }
-  USBFSH->HOST_CTRL  |= USBFS_UH_PORT_EN;
-  USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
-  return true;
-}
-
-// Mark the engine as armed and (re)set the no-response deadline base. Called by
-// every register-level launch, including in-place control/continuation re-arms,
-// so a slow-but-responding device is never falsely declared disconnected.
-static inline void mark_armed(void) {
-  _hcd.armed       = true;
-  _hcd.armed_frame = _hcd.frame_count;
-}
-
-// Arm an 8-byte SETUP packet. SETUP is always DATA0.
-static void xact_setup(ch32_ep_t* ep) {
-  mark_armed();
-  select_dev_speed(ep->daddr);
-
-  memcpy(USBFS_TX_Buf, ep->setup, 8);
-
-  CH32_WAIT_SIE_IDLE();
-  USBFSH->HOST_EP_PID  = 0;
-  USBFSH->HOST_RX_DMA  = (uint32_t) USBFS_RX_Buf;
-  USBFSH->HOST_TX_DMA  = (uint32_t) USBFS_TX_Buf;
-  USBFSH->HOST_TX_LEN  = 8;
-  // SETUP forces DATA0 on both directions, AUTO_TOG so the HW flips after ACK.
-  USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG;
-  USBFSH->INT_FG       = 0xFF;
-  USBFSH->HOST_EP_PID  = (uint8_t)((USB_PID_SETUP << 4) | 0);  // launch
-}
-
-// Arm an IN or OUT data transaction. On an EP switch we reload
-// DEV_ADDR + speed + the per-EP data toggle into the shared HW toggle latch.
-static void xact_inout(ch32_ep_t* ep, bool switch_ep) {
-  mark_armed();
-  if (switch_ep) {
-    select_dev_speed(ep->daddr);
-  }
-
-  CH32_WAIT_SIE_IDLE();
-  USBFSH->HOST_EP_PID = 0;
-  USBFSH->HOST_RX_DMA = (uint32_t) USBFS_RX_Buf;
-  USBFSH->HOST_TX_DMA = (uint32_t) USBFS_TX_Buf;
-
-  uint8_t tog = (uint8_t)(ep->data_toggle ? USBFS_UH_T_TOG : 0);  // bit2 same pos in T/R
-
-  if (ep->is_out) {
-    uint16_t chunk = (uint16_t)(ep->total_len - ep->xferred_len);
-    if (chunk > ep->packet_size) chunk = ep->packet_size;
-    if (chunk > MAX_PACKET_SIZE) chunk = MAX_PACKET_SIZE;
-    // chunk==0 is a legitimate zero-length OUT (e.g. a control STATUS stage,
-    // where buf is NULL) — skip the copy so we never deref a NULL source.
-    if (chunk) memcpy(USBFS_TX_Buf, ep->buf + ep->xferred_len, chunk);
-    USBFSH->HOST_TX_LEN  = chunk;
-    USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
-    USBFSH->INT_FG       = 0xFF;
-    USBFSH->HOST_EP_PID  = ep->pid;                             // launch
+static void engine_next(int8_t cur) {
+  int8_t const idx = ep_find_next_ready(cur);
+  if (idx >= 0) {
+    xact_start(idx, true);
   } else {
-    USBFSH->HOST_TX_LEN  = USBFSH->RX_LEN = 0;
-    USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
-    USBFSH->INT_FG       = 0xFF;
-    USBFSH->HOST_EP_PID  = ep->pid;                             // launch
+    engine_stop();
   }
 }
 
-static void launch_ep(int8_t idx, bool switch_ep) {
-  _hcd.cur_idx = idx;
-  ch32_ep_t* ep = &_hcd.ep[idx];
-  if (ep->is_setup) xact_setup(ep);
-  else              xact_inout(ep, switch_ep);
-}
-
-// Start the engine if idle. Must run with the host IRQ masked OR in ISR ctx.
-static void try_kick(void) {
-  if (_hcd.busy_lock) return;
-  int8_t idx = find_next_pending(_hcd.cur_idx);
-  if (idx < 0) return;
-  _hcd.busy_lock = true;
-  launch_ep(idx, true);
-}
-
-//--------------------------------------------------------------------+
-// Completion handling
-//--------------------------------------------------------------------+
-
-enum { CH32_OK, CH32_NAK, CH32_STALL, CH32_ERR, CH32_TIMEOUT };
-
-static uint8_t read_result(void) {
-  uint8_t st = USBFSH->INT_ST;
-  if (st & USBFS_UIS_TOG_OK) return CH32_OK;          // toggle-matched ACK fast path
+static uint8_t xact_result(void) {
+  uint8_t const st = USBFSH->INT_ST;
+  if (st & USBFS_UIS_TOG_OK) {
+    return XACT_OK;
+  }
   switch (st & USBFS_UIS_H_RES_MASK) {
-    case USB_PID_NAK:   return CH32_NAK;
-    case USB_PID_STALL: return CH32_STALL;
-    case USB_PID_NULL:  return CH32_TIMEOUT;          // 0 = no response / device timed out
-    default:            return CH32_ERR;
+    case USB_PID_NAK:   return XACT_NAK;
+    case USB_PID_STALL: return XACT_STALL;
+    case USB_PID_NULL:  return XACT_TIMEOUT;
+    default:            return XACT_ERROR;
   }
 }
 
-// Finalize the current EP, hand off to usbh, then round-robin to the next.
 static void xfer_complete(int8_t idx, xfer_result_t result, bool in_isr) {
-  ch32_ep_t* ep = &_hcd.ep[idx];
-  uint8_t  ep_addr = (uint8_t)(ep->ep_num | (ep->is_out ? 0 : TUSB_DIR_IN_MASK));
-  uint8_t  daddr   = ep->daddr;
-  uint16_t xlen    = ep->xferred_len;
+  hcd_ep_t *ep = &_hcd.ep[idx];
+  uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->is_out ? TUSB_DIR_OUT : TUSB_DIR_IN);
 
-  ep->state    = EP_STATE_IDLE;
+  ep->pending  = 0;
   ep->is_setup = 0;
-  _hcd.armed   = false;
+  // the next transfer of an interrupt endpoint waits for its interval
+  ep->next_frame = (uint16_t)(_hcd.frame_count + (ep->xfer_type == TUSB_XFER_INTERRUPT ? ep->interval : 0));
 
-  hcd_event_xfer_complete(daddr, ep_addr, xlen, result, in_isr);
-
-  int8_t nxt = find_next_pending(idx);
-  if (nxt < 0) {
-    _hcd.busy_lock = false;
-    _hcd.cur_idx   = -1;
-  } else {
-    launch_ep(nxt, true);
-  }
+  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
+  engine_next(idx);
 }
 
-// Called from the transfer-done IRQ. Stop the engine, decode, advance/finalize.
 static void handle_xfer_done(bool in_isr) {
-  int8_t idx = _hcd.cur_idx;
-  if (idx < 0) return;                                // spurious
-
-  // USBFS host stops the transfer when HOST_EP_PID is zeroed.
-  USBFSH->HOST_EP_PID = 0x00;
-
-  ch32_ep_t* ep = &_hcd.ep[idx];
-
-  // Bounds guard: a stale/unexpected daddr would index out of range elsewhere.
-  if (ep->daddr >= 0x80 || ep->packet_size == 0) {
-    _hcd.armed = false;
-    _hcd.busy_lock = false;
-    _hcd.cur_idx = -1;
+  int8_t const idx = _hcd.cur_idx;
+  USBFSH->HOST_EP_PID = 0;
+  if (idx < 0) {
+    USBFSH->INT_FG = USBFS_UIF_TRANSFER;
     return;
   }
 
-  uint8_t r = read_result();
-  // Hot-unplug signal: a present device's INTERRUPT poll alternates NAK/data; a
-  // pulled device returns ONLY timeouts. Count consecutive interrupt-EP timeouts;
-  // the SOF tick declares the device gone past the threshold. NOTE: control (ep0)
-  // timeouts during enumeration must NOT gate disconnect — a slow-to-enumerate hub
-  // would be false-removed. Only steady-state interrupt/bulk polling counts.
-  if (ep->ep_num != 0) {
-    if (r == CH32_TIMEOUT) _hcd.discon_polls++;
-    else                   _hcd.discon_polls = 0;
-  }
+  hcd_ep_t *ep = &_hcd.ep[idx];
 
-  if (r == CH32_OK) {
-    if (!ep->is_out) {
-      // IN: drain RX_LEN bytes into the caller buffer cursor.
-      uint16_t n    = (uint16_t) USBFSH->RX_LEN;
-      uint16_t room = (uint16_t)(ep->total_len - ep->xferred_len);
-      if (n > room) n = room;
-      if (n) memcpy(ep->buf + ep->xferred_len, USBFS_RX_Buf, n);
-      ep->xferred_len = (uint16_t)(ep->xferred_len + n);
-      // AUTO_TOG already flipped the HW toggle; read it back for persistence.
-      ep->data_toggle = (USBFSH->HOST_RX_CTRL & USBFS_UH_R_TOG) ? 1 : 0;
-      bool done = (n < ep->packet_size) || (ep->xferred_len >= ep->total_len);
-      if (done) xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
-      else      xact_inout(ep, false);                // fetch next IN packet (no EP switch)
-    } else {
-      // OUT/SETUP advanced by the chunk we just sent.
-      uint16_t sent;
+  switch (xact_result()) {
+    case XACT_OK:
       if (ep->is_setup) {
-        sent = 8;
+        ep->xferred_len = 8;
+        xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
+      } else if (ep->is_out) {
+        ep->xferred_len += tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+        ep->toggle = (USBFSH->HOST_TX_CTRL & USBFS_UH_T_TOG) ? 1 : 0;
+        if (ep->xferred_len >= ep->total_len) {
+          xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
+        } else {
+          xact_start(idx, false);
+        }
       } else {
-        sent = (uint16_t)(ep->total_len - ep->xferred_len);
-        if (sent > ep->packet_size) sent = ep->packet_size;
+        uint16_t const len = tu_min16((uint16_t)USBFSH->RX_LEN, ep->total_len - ep->xferred_len);
+        if (len > 0) {
+          memcpy(ep->buf + ep->xferred_len, rx_buf, len);
+        }
+        ep->xferred_len += len;
+        ep->toggle = (USBFSH->HOST_RX_CTRL & USBFS_UH_R_TOG) ? 1 : 0;
+        if (len < ep->packet_size || ep->xferred_len >= ep->total_len) {
+          xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
+        } else {
+          xact_start(idx, false);
+        }
       }
-      ep->xferred_len = (uint16_t)(ep->xferred_len + sent);
-      ep->data_toggle = (USBFSH->HOST_TX_CTRL & USBFS_UH_T_TOG) ? 1 : 0;
-      bool was_setup = ep->is_setup;
-      ep->is_setup = 0;
-      // SETUP is a single packet -> always complete here. OUT continues until done.
-      bool done = was_setup || (ep->xferred_len >= ep->total_len);
-      if (done) xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
-      else      xact_inout(ep, false);
-    }
-  } else if (r == CH32_NAK || r == CH32_TIMEOUT) {
-    // NAK = device not ready; TIMEOUT (H_RES=0) = no response this poll (an idle
-    // interrupt EP that doesn't even NAK between reports). Both mean "no data yet"
-    // -> back off and retry, NEVER complete the transfer (completing would make
-    // usbh re-queue and busy-loop the engine at bus rate).
-    if (ep->ep_num == 0) {
-      // Control: retry in place, do NOT yield the pipe (control owns it across
-      // stages). Re-arm the same token at the current cursor.
-      if (ep->is_setup) xact_setup(ep);
-      else              xact_inout(ep, false);
-    } else {
-      // Interrupt/bulk: no data this poll. Re-schedule at the EP's bInterval (so
-      // we don't hammer the bus every frame) and let other EPs run meanwhile.
+      break;
+
+    case XACT_NAK:
+    case XACT_TIMEOUT:
+      // retry in the next service frame, usbh times out a control transfer that never ends
       ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
-      int8_t nxt = find_next_pending(idx);
-      if (nxt < 0) {
-        _hcd.busy_lock = false;
-        _hcd.cur_idx   = -1;
-        _hcd.armed     = false;
-      } else {
-        launch_ep(nxt, true);
-      }
-    }
-  } else if (r == CH32_STALL) {
-    xfer_complete(idx, XFER_RESULT_STALLED, in_isr);
-  } else {
-// Other handshake error. No logging in ISR.
-    xfer_complete(idx, XFER_RESULT_FAILED, in_isr);
+      engine_next(idx);
+      break;
+
+    case XACT_STALL:
+      xfer_complete(idx, XFER_RESULT_STALLED, in_isr);
+      break;
+
+    default:
+      xfer_complete(idx, XFER_RESULT_FAILED, in_isr);
+      break;
   }
 }
-
-//--------------------------------------------------------------------+
-// Interrupt handler (ISR structure + V307 fixes)
-//--------------------------------------------------------------------+
-
-void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) rhport;
-  // V307 FIX: do NOT busy-wait for SOF_PRES at IRQ entry — burns ~20ms/IRQ and
-  // starves the host stack. Process the pending flags directly.
-  uint8_t fg = USBFSH->INT_FG;
-
-  // DETECT edge: fast-path hot-plug attach. The edge toggles spuriously DURING
-  // transactions, but only when a device is already attached; while unattached
-  // (no transactions in flight) it is a real connect. Clear it either way.
-  if (fg & USBFS_UIF_DETECT) {
-    USBFSH->INT_FG = USBFS_UIF_DETECT;
-    if (!_hcd.attached && (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH)) {
-      _hcd.attached     = true;
-      _hcd.discon_polls = 0;
-      hcd_event_device_attach(rhport, true);
-    }
-  }
-
-  // 1ms frame tick (SOF). This is the driver's periodic hook: SOF is generated
-  // from hcd_init() on (USBFS_UH_SOF_EN), so the tick runs even with no device.
-  if (fg & USBFS_UIF_HST_SOF) {
-    USBFSH->INT_FG = USBFS_UIF_HST_SOF;
-    _hcd.frame_count++;
-
-    if (!_hcd.attached) {
-      // Attach poll — catches a device already present at power-up, which makes
-      // no DETECT edge. DEV_ATTACH reflects line state, valid with no SOF reply.
-      if (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH) {
-        _hcd.attached     = true;
-        _hcd.discon_polls = 0;
-        hcd_event_device_attach(rhport, true);
-      }
-    } else if (_hcd.discon_polls >= CH32_HOST_DISCON_POLLS) {
-      // No-response disconnect: handle_xfer_done() counts consecutive timeouts
-      // (H_RES=0). A present device alternates NAK/data (resets the counter);
-      // only a pulled device sustains timeouts. Tear down and report removal.
-      USBFSH->HOST_EP_PID = 0;            // stop the dead transaction
-      _hcd.discon_polls = 0;
-      _hcd.attached     = false;
-      _hcd.busy_lock    = false;
-      _hcd.armed        = false;
-      _hcd.cur_idx      = -1;
-      hcd_event_device_remove(rhport, true);
-    }
-
-    // Then (if idle) kick the next EP whose interval has elapsed. Per-EP pacing
-    // lives in is_ep_pending(next_frame), so each interrupt EP polls at bInterval.
-    if (!_hcd.busy_lock) {
-      int8_t first = find_next_pending(_hcd.cur_idx);
-      if (first >= 0) {
-        _hcd.busy_lock = true;
-        launch_ep(first, true);
-      }
-    }
-  }
-
-  if (fg & USBFS_UIF_TRANSFER) {
-    USBFSH->INT_FG = USBFS_UIF_TRANSFER;
-    handle_xfer_done(in_isr);
-  }
-}
-
-//--------------------------------------------------------------------+
-// Controller init / de-init
-//--------------------------------------------------------------------+
-
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
-  tu_memclr(&_hcd, sizeof(_hcd));
-  _hcd.cur_idx    = -1;
-  _hcd.cur_daddr  = 0xFF;
-  _hcd.root_speed = TUSB_SPEED_FULL;
-
-  hcd_int_disable(rhport);
-
-  // The BSP board_init already set a working 48MHz USBFS clock; do NOT touch the
-  // RCC USB clock config here — re-running it clobbers it and the SIE goes silent.
-
-  // Reset SIE, then bring up host mode. All waits bounded.
-  USBFSH->BASE_CTRL = USBFS_CTRL_RESET_SIE | USBFS_CTRL_CLR_ALL;
-  tusb_time_delay_ms_api(100);
-  CH32_WAIT_SIE_IDLE();
-
-  USBFSH->BASE_CTRL = USBFS_CTRL_HOST_MODE;
-  tusb_time_delay_ms_api(1);
-  CH32_WAIT_SIE_IDLE();
-
-  USBFSH->HOST_CTRL    = 0;
-  USBFSH->DEV_ADDR     = 0;
-  USBFSH->HOST_EP_MOD  = USBFS_UH_EP_TX_EN | USBFS_UH_EP_RX_EN;
-  USBFSH->HOST_RX_DMA  = (uint32_t) USBFS_RX_Buf;
-  USBFSH->HOST_TX_DMA  = (uint32_t) USBFS_TX_Buf;
-  USBFSH->HOST_RX_CTRL = 0;
-  USBFSH->HOST_TX_CTRL = 0;
-  USBFSH->INT_FG       = 0xFF;
-  USBFSH->BASE_CTRL    = USBFS_CTRL_HOST_MODE | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
-  // Source VBUS to the downstream device (OTG_CR CHARGE_VBUS, bit1). Without it,
-  // bus-powered devices brown out: a lone controller (PSC) and a self-powered hub
-  // survive on residual rail, but bus-powered hubs draw more and never answer the
-  // first SETUP. CHARGE_VBUS only — no OTG_EN session gating.
-  USBFSH->OTG_CR       = 0x02u;  // USBFS_CR_CHARGE_VBUS
-
-  // Generate SOF continuously so the SOF interrupt — the driver's periodic tick —
-  // runs even before any device attaches. That tick polls DEV_ATTACH, which is
-  // how a device already present at power-up (no DETECT edge) gets enumerated.
-  USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
-
-  hcd_int_enable(rhport);
-  USBFSH->INT_EN = USBFS_INT_EN_HST_SOF | USBFS_INT_EN_TRANSFER | USBFS_INT_EN_DETECT;
-  return true;
-}
-
-bool hcd_deinit(uint8_t rhport) {
-  (void) rhport;
-  USBFSH->BASE_CTRL = USBFS_CTRL_RESET_SIE | USBFS_CTRL_CLR_ALL;
-  return true;
-}
-
-bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
-  (void) rhport; (void) cfg_id; (void) cfg_param;
-  return false;
-}
-
-uint32_t hcd_frame_number(uint8_t rhport) {
-  (void) rhport;
-  return _hcd.frame_count;
-}
-
-void hcd_int_enable(uint8_t rhport)  { (void) rhport; NVIC_EnableIRQ(USBHD_IRQn); }
-void hcd_int_disable(uint8_t rhport) { (void) rhport; NVIC_DisableIRQ(USBHD_IRQn); }
 
 //--------------------------------------------------------------------+
 // Root port
 //--------------------------------------------------------------------+
 
+// Report root port connection changes from the line state: the DETECT edge, and the SOF
+// tick for a device that is already present at power-up.
+static void root_port_check(uint8_t rhport, bool in_isr) {
+  if (_hcd.in_reset) {
+    return;
+  }
+
+  bool const present = (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH) != 0;
+  if (present && !_hcd.attached) {
+    _hcd.attached = true;
+    hcd_event_device_attach(rhport, in_isr);
+  } else if (!present && _hcd.attached) {
+    _hcd.attached = false;
+    engine_stop();
+    for (uint8_t i = 0; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+      _hcd.ep[i].pending = 0;
+    }
+    hcd_event_device_remove(rhport, in_isr);
+  }
+}
+
+static void set_root_low_speed(bool low_speed) {
+  if (low_speed) {
+    USBFSH->BASE_CTRL |= USBFS_UC_LOW_SPEED;
+    USBFSH->HOST_CTRL |= USBFS_UH_LOW_SPEED;
+  } else {
+    USBFSH->BASE_CTRL &= (uint8_t)~USBFS_UC_LOW_SPEED;
+    USBFSH->HOST_CTRL &= (uint8_t)~USBFS_UH_LOW_SPEED;
+  }
+  USBFSH->HOST_SETUP &= (uint16_t)~USBFS_UH_PRE_PID_EN;
+}
+
 bool hcd_port_connect_status(uint8_t rhport) {
-  (void) rhport;
+  (void)rhport;
   return (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH) != 0;
 }
 
-// Begin bus reset. usbh calls hcd_port_reset_end() ~10-50ms later. Keep the
-// 100ms attach debounce before reset (complex controllers boot slower).
 void hcd_port_reset(uint8_t rhport) {
-  // USB spec debounce is ~100ms before reset. The reset PULSE itself is issued in
-  // hcd_port_reset_end() (ch32_reset_root_hub_port: an 11ms BUS_RESET hold), which
-  // is also where the port is enabled and the device speed is latched.
-  tusb_time_delay_ms_api(100);
   hcd_int_disable(rhport);
+  _hcd.in_reset = true;
+  engine_stop();
+
+  USBFSH->DEV_ADDR = (uint8_t)(USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT);
+  set_root_low_speed(false);
+  USBFSH->HOST_CTRL = (uint8_t)((USBFSH->HOST_CTRL & ~USBFS_UH_PORT_EN) | USBFS_UH_BUS_RESET);
+  hcd_int_enable(rhport);
 }
 
 void hcd_port_reset_end(uint8_t rhport) {
-  // Native reset + enable: force addr 0 + full-speed, pulse BUS_RESET for 11ms,
-  // swallow the DETECT edge, then enable PORT_EN + SOF and latch the device
-  // speed. This brings the port to the state the first SETUP needs.
-  ch32_reset_root_hub_port();
+  USBFSH->HOST_CTRL &= (uint8_t)~USBFS_UH_BUS_RESET;
+  tusb_time_delay_ms_api(1); // let the line settle before reading the speed
 
-  tusb_speed_t sp = TUSB_SPEED_FULL;
-  for (int i = 0; i < 20; i++) {
-    if (ch32_enable_root_hub_port(&sp)) break;
-    tusb_time_delay_ms_api(1);
+  hcd_int_disable(rhport);
+  if (USBFSH->MIS_ST & USBFS_UMS_DEV_ATTACH) {
+    // D- pulled up in idle: low speed device
+    bool const is_low = (USBFSH->MIS_ST & USBFS_UMS_DM_LEVEL) != 0;
+    _hcd.root_speed = is_low ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
+    set_root_low_speed(is_low);
+    USBFSH->HOST_CTRL |= USBFS_UH_PORT_EN;
+    USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
   }
-  _hcd.root_speed = sp;
 
-  // Let SOF run so slow controllers can power up their USB engine before the
-  // first SETUP. Bus is active (SOF on), so no suspend risk.
-  tusb_time_delay_ms_api(200);
-
-  USBFSH->HOST_RX_DMA = (uint32_t) USBFS_RX_Buf;
-  USBFSH->HOST_TX_DMA = (uint32_t) USBFS_TX_Buf;
-  USBFSH->INT_FG      = 0xFF;
+  // drop the DETECT edge of the reset itself, root_port_check() reads the line state
+  USBFSH->INT_FG = USBFS_UIF_DETECT;
+  _hcd.in_reset = false;
+  root_port_check(rhport, false);
   hcd_int_enable(rhport);
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
-  (void) rhport;
+  (void)rhport;
   return _hcd.root_speed;
 }
 
 void hcd_device_close(uint8_t rhport, uint8_t daddr) {
-  (void) rhport;
-  // Hot-unplug / address change: flush every ep[] slot owned by the device.
-  free_ep_daddr(daddr);
-  if (daddr == _hcd.cur_daddr) _hcd.cur_daddr = 0xFF;
-}
-
-//--------------------------------------------------------------------+
-// Endpoints
-//--------------------------------------------------------------------+
-
-bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t* ep_desc) {
-  (void) rhport;
-  TU_ASSERT(daddr < 128);
-
-  uint8_t  ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
-  uint8_t  dir    = tu_edpt_dir(ep_desc->bEndpointAddress);
-  uint16_t mps    = tu_edpt_packet_size(ep_desc);
-  if (mps < 8) mps = 8;                               // MPS-floor guard
-
-  ch32_ep_t* ep = find_ep(daddr, ep_num, dir);
-  if (ep == NULL) {
-    ep = (daddr == 0 && ep_num == 0) ? &_hcd.ep[0] : alloc_ep();
-    TU_ASSERT(ep);
-  }
-
-  tu_memclr(ep, sizeof(ch32_ep_t));
-  ep->daddr       = daddr;
-  ep->ep_num      = ep_num;
-  ep->is_out      = (dir == TUSB_DIR_OUT);
-  ep->is_iso      = (ep_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
-  ep->packet_size = mps;                              // marks allocated
-  ep->data_toggle = 0;
-  ep->state       = EP_STATE_IDLE;
-  ep->pid         = (uint8_t)(((ep->is_out ? USB_PID_OUT : USB_PID_IN) << 4) | ep_num);
-  // Interrupt EPs poll at their bInterval (frames); control/bulk poll every frame.
-  ep->interval    = (ep_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT && ep_desc->bInterval)
-                    ? ep_desc->bInterval : 1;
-  ep->next_frame  = 0;                                 // pollable immediately
-  return true;
-}
-
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  ch32_ep_t* ep = find_ep(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
-  if (ep && ep != &_hcd.ep[0]) tu_memclr(ep, sizeof(ch32_ep_t));
-  else if (ep) ep->packet_size = 0;                  // slot0: keep addr0 sentinel
-  return true;
-}
-
-bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
-  (void) rhport;
-  // Queue the 8-byte SETUP as an async transaction on the ep0 slot. The engine
-  // sends it (always DATA0) and the transfer-done IRQ reports completion via
-  // hcd_event_xfer_complete; the host stack then drives the DATA/STATUS stages
-  // through hcd_edpt_xfer below. Nothing blocks here.
-  ch32_ep_t* ep = find_ep(daddr, 0, 0);
-  TU_ASSERT(ep);
-  if (ep->packet_size == 0) ep->packet_size = 8;       // addr0 default pipe (pre-open)
-
-  memcpy(ep->setup, setup_packet, 8);
-  ep->is_setup    = 1;
-  ep->is_out      = 1;                                  // SETUP is host->device
-  ep->data_toggle = 0;                                 // SETUP is always DATA0
-  ep->buf         = NULL;
-  ep->total_len   = 8;
-  ep->xferred_len = 0;
-  ep->interval    = 1;
-  ep->next_frame  = _hcd.frame_count;
-  ep->state       = EP_STATE_ATTEMPT_1;
-
   hcd_int_disable(rhport);
-  try_kick();
+  if (_hcd.cur_idx >= 0 && _hcd.ep[_hcd.cur_idx].daddr == daddr) {
+    engine_stop();
+  }
+  for (uint8_t i = 0; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+    hcd_ep_t *ep = &_hcd.ep[i];
+    if (ep->packet_size != 0 && ep->daddr == daddr) {
+      if (i == 0) {
+        ep->pending = 0; // keep the address 0 control pipe
+      } else {
+        tu_memclr(ep, sizeof(hcd_ep_t));
+      }
+    }
+  }
+  engine_kick();
+  hcd_int_enable(rhport);
+}
+
+//--------------------------------------------------------------------+
+// Controller API
+//--------------------------------------------------------------------+
+
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
+  (void)rh_init;
+  hcd_int_disable(rhport);
+
+  tu_memclr(&_hcd, sizeof(_hcd));
+  _hcd.cur_idx    = -1;
+  _hcd.root_speed = TUSB_SPEED_FULL;
+
+  // USB clock is set up by board_init()
+  USBFSH->BASE_CTRL = USBFS_CTRL_RESET_SIE | USBFS_CTRL_CLR_ALL;
+  tusb_time_delay_ms_api(1);
+  USBFSH->BASE_CTRL = USBFS_CTRL_HOST_MODE;
+  tusb_time_delay_ms_api(1);
+
+  USBFSH->HOST_CTRL    = 0;
+  USBFSH->DEV_ADDR     = 0;
+  USBFSH->HOST_EP_MOD  = USBFS_UH_EP_TX_EN | USBFS_UH_EP_RX_EN;
+  USBFSH->HOST_RX_DMA  = (uint32_t)rx_buf;
+  USBFSH->HOST_TX_DMA  = (uint32_t)tx_buf;
+  USBFSH->HOST_RX_CTRL = 0;
+  USBFSH->HOST_TX_CTRL = 0;
+  USBFSH->BASE_CTRL    = USBFS_CTRL_HOST_MODE | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
+  USBFSH->OTG_CR       = USBFS_CR_CHARGE_VBUS;
+
+  // SOF runs before any device attaches: its interrupt is the frame counter and the tick
+  // that finds a device already connected at power-up, which makes no DETECT edge.
+  USBFSH->HOST_SETUP |= USBFS_UH_SOF_EN;
+
+  USBFSH->INT_FG = 0xFF;
+  USBFSH->INT_EN = USBFS_INT_EN_HST_SOF | USBFS_INT_EN_TRANSFER | USBFS_INT_EN_DETECT;
   hcd_int_enable(rhport);
   return true;
 }
 
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr,
-                   uint8_t* buffer, uint16_t buflen) {
-  (void) rhport;
-  TU_ASSERT(daddr < 128);
+bool hcd_deinit(uint8_t rhport) {
+  hcd_int_disable(rhport);
+  USBFSH->INT_EN    = 0;
+  USBFSH->BASE_CTRL = USBFS_CTRL_RESET_SIE | USBFS_CTRL_CLR_ALL;
+  return true;
+}
 
-  uint8_t ep_num = tu_edpt_number(ep_addr);
-  uint8_t dir    = tu_edpt_dir(ep_addr);
+bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
+  (void)rhport;
+  (void)cfg_id;
+  (void)cfg_param;
+  return false;
+}
 
-  ch32_ep_t* ep;
-  if (ep_num == 0) {
-    // ---- control DATA or STATUS stage on the ep0 slot ----
-    // Direction is per-stage (the SETUP set it for the SETUP token); recompute
-    // the IN/OUT token here. Both the DATA and the STATUS stage begin at DATA1
-    // (a DATA stage's later packets flip via the HW AUTO_TOG).
-    ep = find_ep(daddr, 0, 0);
-    TU_ASSERT(ep);
-    if (ep->packet_size == 0) ep->packet_size = 8;
-    ep->is_setup    = 0;
-    ep->is_out      = (dir == TUSB_DIR_OUT);
-    ep->pid         = (uint8_t)(((ep->is_out ? USB_PID_OUT : USB_PID_IN) << 4) | 0);
-    ep->data_toggle = 1;
-  } else {
-    // ---- interrupt / bulk ----
-    ep = find_ep(daddr, ep_num, dir);
-    TU_ASSERT(ep);
+uint32_t hcd_frame_number(uint8_t rhport) {
+  (void)rhport;
+  return _hcd.frame_count;
+}
+
+void hcd_int_enable(uint8_t rhport) {
+  (void)rhport;
+  NVIC_EnableIRQ(USBHD_IRQn);
+}
+
+void hcd_int_disable(uint8_t rhport) {
+  (void)rhport;
+  NVIC_DisableIRQ(USBHD_IRQn);
+}
+
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  uint8_t const int_fg = USBFSH->INT_FG;
+
+  if (int_fg & USBFS_UIF_DETECT) {
+    USBFSH->INT_FG = USBFS_UIF_DETECT;
+    root_port_check(rhport, in_isr);
   }
 
+  if (int_fg & USBFS_UIF_TRANSFER) {
+    handle_xfer_done(in_isr); // clears the flag
+  }
+
+  if (int_fg & USBFS_UIF_HST_SOF) {
+    USBFSH->INT_FG = USBFS_UIF_HST_SOF;
+    _hcd.frame_count++;
+    root_port_check(rhport, in_isr);
+    engine_kick();
+  }
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
+bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep_desc) {
+  TU_ASSERT(daddr < 128);
+  uint8_t const ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
+  uint8_t const dir    = tu_edpt_dir(ep_desc->bEndpointAddress);
+  uint8_t const xfer_type = ep_desc->bmAttributes.xfer;
+  TU_VERIFY(xfer_type != TUSB_XFER_ISOCHRONOUS);
+
+  hcd_int_disable(rhport);
+  hcd_ep_t *ep = ep_find(daddr, ep_num, dir);
+  if (ep == NULL) {
+    ep = ep_alloc();
+  }
+  if (ep != NULL) {
+    tu_memclr(ep, sizeof(hcd_ep_t));
+    ep->daddr       = daddr;
+    ep->ep_num      = ep_num & 0x0f;
+    ep->is_out      = (dir == TUSB_DIR_OUT) ? 1 : 0;
+    ep->xfer_type   = xfer_type;
+    ep->packet_size = tu_max16(tu_min16(tu_edpt_packet_size(ep_desc), MAX_PACKET_SIZE), 8);
+    ep->interval    = (xfer_type == TUSB_XFER_INTERRUPT && ep_desc->bInterval) ? ep_desc->bInterval : 1;
+    ep->next_frame  = _hcd.frame_count;
+  }
+  hcd_int_enable(rhport);
+
+  TU_ASSERT(ep != NULL);
+  return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  hcd_int_disable(rhport);
+  hcd_ep_t *ep = ep_find(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
+  if (ep != NULL) {
+    if (_hcd.cur_idx >= 0 && &_hcd.ep[_hcd.cur_idx] == ep) {
+      engine_stop();
+    }
+    if (ep == &_hcd.ep[0]) {
+      ep->pending = 0;
+    } else {
+      tu_memclr(ep, sizeof(hcd_ep_t));
+    }
+    engine_kick();
+  }
+  hcd_int_enable(rhport);
+  return true;
+}
+
+bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
+  hcd_ep_t *ep = ep_find(daddr, 0, TUSB_DIR_OUT);
+  TU_ASSERT(ep != NULL);
+
+  hcd_int_disable(rhport);
+  if (ep->packet_size == 0) {
+    ep->packet_size = 8; // address 0 before its endpoint is opened
+    ep->interval    = 1;
+  }
+  memcpy(ep->setup, setup_packet, 8);
+  ep->is_setup    = 1;
+  ep->is_out      = 1;
+  ep->toggle      = 0;
+  ep->buf         = NULL;
+  ep->total_len   = 8;
+  ep->xferred_len = 0;
+  ep->next_frame  = _hcd.frame_count;
+  ep->pending     = 1;
+  engine_kick();
+  hcd_int_enable(rhport);
+  return true;
+}
+
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
+
+  hcd_ep_t *ep = ep_find(daddr, ep_num, dir);
+  TU_ASSERT(ep != NULL && ep->packet_size != 0);
+
+  hcd_int_disable(rhport);
+  if (ep_num == 0) {
+    // control data and status stages start with DATA1
+    ep->is_setup = 0;
+    ep->is_out   = (dir == TUSB_DIR_OUT) ? 1 : 0;
+    ep->toggle   = 1;
+  }
   ep->buf         = buffer;
   ep->total_len   = buflen;
   ep->xferred_len = 0;
-  ep->state       = EP_STATE_ATTEMPT_1;
-  ep->next_frame  = _hcd.frame_count;                  // first poll this frame
 
-  hcd_int_disable(rhport);
-  try_kick();
+  // keep the interval since the last transfer, unless it has already passed
+  int16_t const wait = (int16_t)(ep->next_frame - _hcd.frame_count);
+  if (wait < 0 || wait > ep->interval) {
+    ep->next_frame = _hcd.frame_count;
+  }
+  ep->pending = 1;
+  engine_kick();
   hcd_int_enable(rhport);
   return true;
 }
 
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  ch32_ep_t* ep = find_ep(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
-  if (!ep) return false;
-
   hcd_int_disable(rhport);
-  if (_hcd.cur_idx >= 0 && &_hcd.ep[_hcd.cur_idx] == ep) {
-    // in flight: stop the engine and free the pipe.
-    USBFSH->HOST_EP_PID = 0;
-    CH32_WAIT_SIE_IDLE();
-    _hcd.armed     = false;
-    _hcd.busy_lock = false;
-    _hcd.cur_idx   = -1;
+  hcd_ep_t *ep = ep_find(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
+  if (ep != NULL) {
+    if (_hcd.cur_idx >= 0 && &_hcd.ep[_hcd.cur_idx] == ep) {
+      engine_stop();
+      sie_wait_idle();
+    }
+    ep->pending  = 0;
+    ep->is_setup = 0;
+    engine_kick();
   }
-  ep->state = EP_STATE_IDLE;
-  try_kick();
   hcd_int_enable(rhport);
-  return true;
+  return ep != NULL;
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  // usbh clears stall via a ClearFeature control transfer; just reset our toggle.
-  ch32_ep_t* ep = find_ep(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
-  if (ep) ep->data_toggle = 0;
+  (void)rhport;
+  hcd_ep_t *ep = ep_find(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
+  TU_VERIFY(ep != NULL);
+  ep->toggle = 0;
   return true;
 }
 
