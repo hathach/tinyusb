@@ -1871,6 +1871,11 @@ static uint16_t audiod_tx_packet_size(audiod_function_t *audio, uint16_t data_co
     if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
+    } else if (data_count > fifo_threshold + nominal_size[2]) {
+      // More than a packet over the threshold, as after the host missed
+      // polls: catch up on every packet, or the backlog takes so long to
+      // drain that the host's clock estimate drifts
+      packet_size = nominal_size[2];
     } else if (data_count < (fifo_threshold - slot_size) && blackout <= 0) {
       packet_size = nominal_size[0];
       blackout = -10;
