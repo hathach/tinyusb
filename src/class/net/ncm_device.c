@@ -659,6 +659,10 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     }
     ++ndx;
   }
+  if (ndx == 0) {
+    TU_LOG_DRV("(EE) no datagram in ndp16\n");
+    return false;
+  }
 
   #if CFG_TUD_NCM_LOG_LEVEL >= 3
   TU_LOG_BUF(3, ntb->data[i], len);
