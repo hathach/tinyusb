@@ -199,7 +199,7 @@ static inline int8_t ep_find_next_ready(int8_t cur) {
 // the whole span lies in the 15-bit DMA window, the first 32 KB of SRAM
 static inline bool dma_reachable(const void *addr, uint32_t len) {
   uintptr_t const a = (uintptr_t)addr;
-  return a >= 0x20000000u && a + len <= 0x20008000u;
+  return a >= 0x20000000u && a <= 0x20008000u && len <= 0x20008000u - a;
 }
 
 static inline bool dma_capable(const uint8_t *addr, uint16_t len) {
@@ -790,7 +790,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
     TU_ASSERT(buflen <= ep->packet_size || dir == TUSB_DIR_IN);
   }
   if (ep->packet_size > MAX_PACKET_SIZE) {
-    TU_ASSERT(dma_capable(buffer, ep->packet_size) && (dir == TUSB_DIR_OUT || buflen >= ep->packet_size));
+    if (dir == TUSB_DIR_OUT) {
+      TU_ASSERT(dma_capable(buffer, buflen));
+    } else {
+      TU_ASSERT(buflen >= ep->packet_size && dma_capable(buffer, ep->packet_size));
+    }
   }
 
   hcd_int_disable(rhport);
