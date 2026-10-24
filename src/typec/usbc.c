@@ -75,24 +75,26 @@ TU_ATTR_WEAK void tcd_disconnect(uint8_t rhport) {
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
-  return _usbc_inited && _port_inited[rhport];
+  return rhport < TUP_TYPEC_RHPORTS_NUM && _usbc_inited && _port_inited[rhport];
 }
 
 bool tuc_connect(uint8_t rhport) {
-  TU_VERIFY(rhport < TUP_TYPEC_RHPORTS_NUM && tuc_inited(rhport));
+  TU_VERIFY(tuc_inited(rhport));
 
   tcd_connect(rhport);
   return true;
 }
 
 bool tuc_disconnect(uint8_t rhport) {
-  TU_VERIFY(rhport < TUP_TYPEC_RHPORTS_NUM && tuc_inited(rhport));
+  TU_VERIFY(tuc_inited(rhport));
 
   tcd_disconnect(rhport);
   return true;
 }
 
 bool tuc_init(uint8_t rhport, uint32_t port_type) {
+  TU_ASSERT(rhport < TUP_TYPEC_RHPORTS_NUM);
+
   // Initialize stack
   if (!_usbc_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
@@ -198,6 +200,8 @@ bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) 
 }
 
 bool tuc_msg_request(uint8_t rhport, void const* rdo) {
+  TU_VERIFY(tuc_inited(rhport));
+
   pd_header_t const header = {
       .msg_type = PD_DATA_REQUEST,
       .data_role = PD_DATA_ROLE_UFP,
@@ -212,6 +216,8 @@ bool tuc_msg_request(uint8_t rhport, void const* rdo) {
 }
 
 bool tuc_msg_soft_reset(uint8_t rhport) {
+  TU_VERIFY(tuc_inited(rhport));
+
   pd_header_t const header = {
       .msg_type = PD_CTRL_SOFT_RESET,
       .data_role = PD_DATA_ROLE_UFP,
