@@ -366,7 +366,8 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
     TU_ASSERT(usbtmc_state.ep_int_in != 0, 0);
   }
 #endif
-  change_state(STATE_CLOSED, STATE_NAK);
+  // Cannot fail: the state was checked to be STATE_CLOSED above
+  (void) change_state(STATE_CLOSED, STATE_NAK);
   tud_usbtmc_open_cb(itf_desc->bInterfaceNumber);
 
   return drv_len;
@@ -752,6 +753,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       tud_usbtmc_bulkOut_clearFeature_cb();
     } else if (ep_addr == usbtmc_state.ep_bulk_in) {
       bool rearm = false;
+      bool shorted = true;
       usbtmc_lock();
       usbd_edpt_stall(rhport, (uint8_t) ep_addr);
       usbd_edpt_clear_stall(rhport, (uint8_t) ep_addr);
@@ -767,9 +769,10 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           break;
         case STATE_ABORTING_BULK_IN:
         case STATE_ABORTING_BULK_IN_SHORTED:
-          // The abort still ends with a short packet (USBTMC 1.0 Tables 17, 26)
+          // The abort still ends with a short packet (USBTMC 1.0 Tables 17, 26). If it is not queued, the state
+          // stays, so the host's next CLEAR_FEATURE(Bulk-IN) queues it again.
           usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
-          (void) usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false);
+          shorted = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false);
           break;
         default:
           break;
@@ -780,6 +783,9 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         // bulk-OUT was left unarmed for the reply. Result ignored: false means the callback armed it already.
         (void) tud_usbtmc_start_bus_read();
       }
+      // usbd ACKs the CLEAR_FEATURE whatever this returns. No breakpoint: usbd treats a refused transfer as
+      // recoverable, and the state left above lets the host's next CLEAR_FEATURE(Bulk-IN) queue the packet again.
+      TU_VERIFY(shorted);
     } else if ((usbtmc_state.ep_int_in != 0) && (ep_addr == usbtmc_state.ep_int_in)) {
       // Clearing interrupt in EP. It drops the endpoint's claim, so not while the application holds it
       // (tud_usbtmc_transmit_notification_data()).
@@ -879,14 +885,22 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       usbtmcd_state_enum const old_state = usbtmc_state.state;
       bool const in_progress = (old_state == STATE_TX_REQUESTED) || (old_state == STATE_TX_INITIATED) ||
                               (old_state == STATE_TX_SHORTED);
-      bool const abort = in_progress && (usbtmc_state.last_bulk_in_tag == tu_u16_low(request->wValue));
+      bool const matched = in_progress && (usbtmc_state.last_bulk_in_tag == tu_u16_low(request->wValue));
+      bool abort = matched;
       if (abort) {
+        uint32_t const old_remaining = usbtmc_state.transfer_size_remaining;
         usbtmc_state.transfer_size_remaining = 0u;
         // TX_INITIATED always has a full packet in flight, the short packet follows it in usbtmcd_xfer_cb()
         usbtmc_state.state = (old_state == STATE_TX_INITIATED) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
         if (old_state == STATE_TX_REQUESTED) {
           // Send short packet, nothing is in the buffer yet
-          (void) usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false);
+          abort = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false);
+          if (!abort) {
+            // Nothing was queued: the request stays as it was, and the abort is refused with STATUS_FAILED, the
+            // device cannot begin it (USBTMC 1.0 4.2.1.1 rule 2b); the host then sends no CHECK (Table 26)
+            usbtmc_state.transfer_size_remaining = old_remaining;
+            usbtmc_state.state = old_state;
+          }
         }
       }
       usbtmc_unlock();
@@ -896,7 +910,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
           start_split(SPLIT_ABORT_BULK_IN);
         }
-      } else if (in_progress) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
+      } else if (in_progress && !matched) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
       } else {
         rsp.USBTMC_status = USBTMC_STATUS_FAILED;
@@ -917,10 +931,6 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       };
       if (usbtmc_state.split == SPLIT_ABORT_BULK_IN) {
         switch (usbtmc_state.state) {
-          case STATE_ABORTING_BULK_IN_ABORTED:
-            rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-            rsp.NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent;
-            break;
           case STATE_ABORTING_BULK_IN:
           case STATE_ABORTING_BULK_IN_SHORTED:
             // The full or the short packet is still queued
@@ -928,7 +938,13 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
             rsp.bmAbortBulkIn.BulkInFifoBytes = 1u;
             break;
           default:
-            rsp.USBTMC_status = USBTMC_STATUS_FAILED;
+            // The short packet has been sent: while the split lasts only its completion leaves the states above.
+            // A bus reset ends the split, CLEAR_FEATURE(Bulk-IN) keeps them, CLEAR_FEATURE(Bulk-OUT) and
+            // tud_usbtmc_start_bus_read() leave them alone, and any other class request answers SPLIT_IN_PROGRESS
+            // in them (split_actions_running()). STATE_ABORTING_BULK_IN_ABORTED, or a state moved on from it, such
+            // as STATE_NAK after CLEAR_FEATURE(Bulk-OUT) or STATE_IDLE once bulk-OUT is armed, is a completed abort.
+            rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
+            rsp.NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent;
             break;
         }
         // The application may still answer PENDING, not ready for the next command (Table 29)
