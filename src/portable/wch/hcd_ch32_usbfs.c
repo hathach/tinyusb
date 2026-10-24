@@ -48,10 +48,12 @@
 // Config
 //--------------------------------------------------------------------+
 
-// ep[0] is the default control pipe of address 0, the rest are allocated on open.
+// ep[0] is the default control pipe of address 0, the rest are allocated on open: control
+// plus about three endpoints for every device and hub
 #ifndef CFG_TUH_WCH_USBFS_ENDPOINT_MAX
-  #define CFG_TUH_WCH_USBFS_ENDPOINT_MAX 16
+  #define CFG_TUH_WCH_USBFS_ENDPOINT_MAX (1 + 4 * (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB))
 #endif
+TU_VERIFY_STATIC(CFG_TUH_WCH_USBFS_ENDPOINT_MAX <= 127, "ep[] index is int8_t");
 
 enum {
   // NAKs per control/bulk endpoint and frame before it waits for the next frame, to save CPU
@@ -112,7 +114,9 @@ static tuh_configure_wch_usbfs_t _tuh_cfg = {
 // aligned within the first 32 KB of SRAM (15-bit DMA address). An IN has no receive limit,
 // the SIE writes the whole packet whatever its length (a 392-byte packet was seen to land in
 // full), so it needs a max packet of room. Other packets go through this buffer, shared by
-// both directions since only one transaction is ever on the wire.
+// both directions since only one transaction is ever on the wire. A device that babbles past
+// its max packet still overruns the receive buffer: nothing in the SIE stops it, and the
+// transfer can only be failed afterwards.
 TU_ATTR_ALIGNED(4) static uint8_t bounce_buf[MAX_PACKET_SIZE];
 
 enum {
@@ -192,9 +196,14 @@ static inline int8_t ep_find_next_ready(int8_t cur) {
 // Transaction
 //--------------------------------------------------------------------+
 
-static inline bool dma_capable(const uint8_t *addr) {
+// the whole span lies in the 15-bit DMA window, the first 32 KB of SRAM
+static inline bool dma_reachable(const void *addr, uint32_t len) {
   uintptr_t const a = (uintptr_t)addr;
-  return (a & 3u) == 0 && (a & ~(uintptr_t)0x7FFFu) == 0x20000000u;
+  return a >= 0x20000000u && a + len <= 0x20008000u;
+}
+
+static inline bool dma_capable(const uint8_t *addr, uint16_t len) {
+  return ((uintptr_t)addr & 3u) == 0 && dma_reachable(addr, len);
 }
 
 static inline void sie_wait_idle(void) {
@@ -203,13 +212,30 @@ static inline void sie_wait_idle(void) {
 }
 
 // With INT_BUSY the SIE holds off while UIF_TRANSFER is set, and clearing the flag lets it
-// run the token in HOST_EP_PID. So a token is always written first and the flag cleared
-// after it, and the token is zeroed before the flag of a finished transaction is cleared.
+// run the token in HOST_EP_PID. So the token of a transaction is zeroed, and the SIE idle,
+// before its flag is cleared; a new token is written after the flag is cleared.
 static inline void engine_stop(void) {
   USBFSH->HOST_EP_PID = 0;
+  sie_wait_idle();
   USBFSH->INT_FG = USBFS_UIF_TRANSFER;
   _hcd.cur_idx   = -1;
   _hcd.sel_daddr = 0xff;
+}
+
+// Stop the transaction on the wire for an abort or close. One that completed before the stop
+// keeps its data toggle: the device has already advanced it.
+static void engine_cancel(void) {
+  int8_t const idx = _hcd.cur_idx;
+  USBFSH->HOST_EP_PID = 0;
+  sie_wait_idle();
+  if (idx >= 0 && (USBFSH->INT_FG & USBFS_UIF_TRANSFER) && (USBFSH->INT_ST & USBFS_UIS_TOG_OK)) {
+    hcd_ep_t *ep = &_hcd.ep[idx];
+    if (ep->xfer_type != TUSB_XFER_ISOCHRONOUS && !ep->is_setup) {
+      uint8_t const ctrl = ep->is_out ? USBFSH->HOST_TX_CTRL : USBFSH->HOST_RX_CTRL;
+      ep->toggle = (ctrl & USBFS_UH_T_TOG) ? 1 : 0; // same bit position as USBFS_UH_R_TOG
+    }
+  }
+  engine_stop();
 }
 
 // Select device address and signalling: a low speed device on the root port uses low
@@ -271,7 +297,7 @@ static void xact_start(int8_t idx, bool new_ep, bool at_sof) {
     tog = 0;
   } else if (ep->is_out) {
     uint16_t const len = tu_min16(remain, ep->packet_size);
-    if (len == 0 || dma_capable(cursor)) {
+    if (len == 0 || dma_capable(cursor, len)) {
       USBFSH->HOST_TX_DMA = (uint32_t)(len ? cursor : bounce_buf);
     } else {
       memcpy(bounce_buf, cursor, len);
@@ -280,7 +306,7 @@ static void xact_start(int8_t idx, bool new_ep, bool at_sof) {
     USBFSH->HOST_TX_LEN = len;
     pid = USB_PID_OUT;
   } else {
-    ep->bounce = !(remain >= ep->packet_size && dma_capable(cursor));
+    ep->bounce = !(remain >= ep->packet_size && dma_capable(cursor, ep->packet_size));
     USBFSH->HOST_RX_DMA = (uint32_t)(ep->bounce ? bounce_buf : cursor);
     USBFSH->HOST_TX_LEN = 0;
     pid = USB_PID_IN;
@@ -325,9 +351,16 @@ static void engine_next(int8_t cur) {
   }
 }
 
-// next packet of a multi-packet transfer, unless an endpoint of a higher rank is ready
+// next packet of a multi-packet transfer, unless an endpoint of a higher rank is ready; an
+// interrupt endpoint runs one transaction per service interval
 static void xact_continue(int8_t idx) {
-  int8_t const other = ep_find_ready(idx, ep_rank(&_hcd.ep[idx]));
+  hcd_ep_t *ep = &_hcd.ep[idx];
+  if (ep->xfer_type == TUSB_XFER_INTERRUPT) {
+    ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
+    engine_next(idx);
+    return;
+  }
+  int8_t const other = ep_find_ready(idx, ep_rank(ep));
   if (other >= 0) {
     xact_start(other, true, false);
   } else {
@@ -568,7 +601,8 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
 
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
-  TU_ASSERT(dma_capable(bounce_buf));
+  // bounce_buf and the SETUP packets in _hcd are DMA sources and targets
+  TU_ASSERT(dma_reachable(bounce_buf, sizeof(bounce_buf)) && dma_reachable(&_hcd, sizeof(_hcd)));
   hcd_int_disable(rhport);
 
   tu_memclr(&_hcd, sizeof(_hcd));
@@ -655,7 +689,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     engine_kick(true);
   }
 
-  if (int_fg & USBFS_UIF_TRANSFER) {
+  // read the flag again: the SOF kick clears a stale one before it starts a transaction
+  if ((int_fg & USBFS_UIF_TRANSFER) && (USBFSH->INT_FG & USBFS_UIF_TRANSFER)) {
     handle_xfer_done(in_isr); // clears the flag
   }
 }
@@ -672,10 +707,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   uint16_t const mps = tu_edpt_packet_size(ep_desc);
   TU_ASSERT(mps > 0);
 
-  // FS isochronous: 2^(bInterval-1) frames, interrupt: bInterval frames
+  // FS isochronous: 2^(bInterval-1) frames, up to 128 here; interrupt: bInterval frames
   uint8_t interval = 1;
   if (xfer_type == TUSB_XFER_ISOCHRONOUS) {
-    interval = (uint8_t)(1u << (tu_min8(tu_max8(ep_desc->bInterval, 1), 8) - 1));
+    TU_VERIFY(ep_desc->bInterval >= 1 && ep_desc->bInterval <= 8);
+    interval = (uint8_t)(1u << (ep_desc->bInterval - 1));
   } else if (xfer_type == TUSB_XFER_INTERRUPT && ep_desc->bInterval) {
     interval = ep_desc->bInterval;
   }
@@ -691,7 +727,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
     ep->ep_num      = ep_num & 0x0f;
     ep->is_out      = (dir == TUSB_DIR_OUT) ? 1 : 0;
     ep->xfer_type   = xfer_type;
-    ep->packet_size = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? tu_min16(mps, 1023) : tu_max16(tu_min16(mps, MAX_PACKET_SIZE), 8);
+    ep->packet_size = tu_min16(mps, (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1023 : MAX_PACKET_SIZE);
     ep->interval    = interval;
     ep->next_frame  = _hcd.frame_count;
   }
@@ -706,7 +742,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   hcd_ep_t *ep = ep_find(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
   if (ep != NULL) {
     if (_hcd.cur_idx >= 0 && &_hcd.ep[_hcd.cur_idx] == ep) {
-      engine_stop();
+      engine_cancel();
     }
     if (ep == &_hcd.ep[0]) {
       ep->pending = 0;
@@ -754,7 +790,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
     TU_ASSERT(buflen <= ep->packet_size || dir == TUSB_DIR_IN);
   }
   if (ep->packet_size > MAX_PACKET_SIZE) {
-    TU_ASSERT(dma_capable(buffer) && (dir == TUSB_DIR_OUT || buflen >= ep->packet_size));
+    TU_ASSERT(dma_capable(buffer, ep->packet_size) && (dir == TUSB_DIR_OUT || buflen >= ep->packet_size));
   }
 
   hcd_int_disable(rhport);
@@ -784,8 +820,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   hcd_ep_t *ep = ep_find(daddr, tu_edpt_number(ep_addr), tu_edpt_dir(ep_addr));
   if (ep != NULL) {
     if (_hcd.cur_idx >= 0 && &_hcd.ep[_hcd.cur_idx] == ep) {
-      engine_stop();
-      sie_wait_idle();
+      engine_cancel();
     }
     ep->pending  = 0;
     ep->is_setup = 0;
