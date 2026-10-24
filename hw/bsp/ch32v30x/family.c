@@ -78,7 +78,7 @@ __attribute__((interrupt)) void USBFS_IRQHandler(void) {
   #endif
 
   #if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBFS
-  tuh_int_handler(0);
+  tuh_int_handler(BOARD_TUH_RHPORT);
   #endif
 }
 
