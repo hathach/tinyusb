@@ -275,6 +275,20 @@ def t_abort_in_low_tag(d):
     _abort_in_before_reply(d, 50)
 
 
+def t_abort_in_then_other_request(d):
+    """A completed abort followed by another class request instead of its CHECK_STATUS: the request is handled,
+    the CHECK_STATUS response discarded (4.2.1.1 rule 3a), and the device takes commands again."""
+    tag = d.request()
+    rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag, d.ep_in, 2)
+    expect(rsp[0] == SUCCESS, f'INITIATE_ABORT_BULK_IN {rsp.hex()}')
+    expect(len(d.read_pkt()) == 0, 'abort did not end with a zero-length packet')
+    rsp = d.itf_req(GET_CAPABILITIES, 0, 0x18)
+    expect(rsp[0] == SUCCESS, f'GET_CAPABILITIES after the abort completed: {rsp[:2].hex()}')
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK after another request: {rsp.hex()}, want SPLIT_NOT_IN_PROGRESS')
+    d.idn()
+
+
 def t_abort_in_mid_transfer(d):
     """Abort with a full packet in flight: it is sent, then a short packet (Table 26, 4.2.1.5 example);
     NBYTES_TXD is the data bytes the host received."""
@@ -464,7 +478,7 @@ def t_clear_in_halt_mid_reply(d):
 
 CASES = [
     t_idn_tag_sweep, t_echo_sizes, t_indicator_pulse, t_read_stb, t_trigger,
-    t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_mid_transfer, t_abort_out,
+    t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_then_other_request, t_abort_in_mid_transfer, t_abort_out,
     t_header_errors, t_excess_data, t_short_transfer,
     t_clear_with_pending_in, t_check_without_initiate,
     t_clear_out_halt_mid_reply, t_clear_in_halt_mid_reply,
