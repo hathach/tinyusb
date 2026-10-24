@@ -509,10 +509,8 @@ static bool handle_dev_msg_in(void *data, size_t len) {
 // First packet of a Bulk-OUT transfer. Returning false Halts bulk-OUT, as a Table 7 error requires (USBTMC 1.0 3.2.2.4)
 static bool handle_msg_out_header(uint8_t rhport, usbtmc_msg_generic_t *msg, uint32_t len) {
   TU_VERIFY(len >= sizeof(usbtmc_msg_generic_t));
-  // bTagInverse must be the one's complement of bTag. '~' acts on the promoted int, so the complement is narrowed
-  // to 8 bits in its own variable: gcc's -Wsign-compare rejects a cast complement inside the comparison.
-  uint8_t const tag_from_inverse = (uint8_t) ~(msg->header.bTagInverse);
-  TU_VERIFY(msg->header.bTag == tag_from_inverse);
+  // bTagInverse must be the one's complement of bTag
+  TU_VERIFY((msg->header.bTag ^ msg->header.bTagInverse) == 0xff);
   TU_VERIFY(msg->header.bTag != 0x00);
 
   // Reported by INITIATE_ABORT_BULK_OUT as the current or most recent Bulk-OUT transfer (USBTMC 1.0 Table 19)
