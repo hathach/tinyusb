@@ -281,6 +281,9 @@ def t_abort_in_then_other_request(d):
     tag = d.request()
     rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag, d.ep_in, 2)
     expect(rsp[0] == SUCCESS, f'INITIATE_ABORT_BULK_IN {rsp.hex()}')
+    # PENDING here is the queued short packet's, not the application's: it must not outlive that packet
+    rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
+    expect(rsp[0] == PENDING, f'CHECK before the short packet is read: {rsp.hex()}')
     expect(len(d.read_pkt()) == 0, 'abort did not end with a zero-length packet')
     rsp = d.itf_req(GET_CAPABILITIES, 0, 0x18)
     expect(rsp[0] == SUCCESS, f'GET_CAPABILITIES after the abort completed: {rsp[:2].hex()}')
@@ -416,6 +419,18 @@ def t_check_without_initiate(d):
     d.idn()
 
 
+def t_clear_then_other_request(d):
+    """A clear the application has finished, then another class request instead of CHECK_CLEAR_STATUS: the
+    request is handled and the clear's CHECK response discarded (4.2.1.1 rule 3a)."""
+    expect(d.itf_req(INITIATE_CLEAR, 0, 1)[0] == SUCCESS, 'INITIATE_CLEAR')
+    rsp = d.itf_req(GET_CAPABILITIES, 0, 0x18)
+    expect(rsp[0] == SUCCESS, f'GET_CAPABILITIES after the clear finished: {rsp[:2].hex()}')
+    rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'CHECK_CLEAR_STATUS after another request: {rsp.hex()}')
+    d.dev.clear_halt(d.ep_out)
+    d.idn()
+
+
 def t_clear_out_halt_during_clear(d):
     """CLEAR_FEATURE(bulk-OUT) before the clear has finished: the clear still completes, short packet included
     (Table 17: the INITIATE actions complete across a standard request)."""
@@ -482,7 +497,7 @@ CASES = [
     t_header_errors, t_excess_data, t_short_transfer,
     t_clear_with_pending_in, t_check_without_initiate,
     t_clear_out_halt_mid_reply, t_clear_in_halt_mid_reply,
-    t_clear_out_halt_during_clear, t_clear_in_halt_during_abort,
+    t_clear_then_other_request, t_clear_out_halt_during_clear, t_clear_in_halt_during_abort,
 ]
 
 
