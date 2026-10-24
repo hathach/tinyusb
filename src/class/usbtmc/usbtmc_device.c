@@ -228,6 +228,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
           (((uint8_t const *) data)[len - 1u] == term_char);
   }
   if (ret) {
+    uint32_t const request_size = usbtmc_state.transfer_size_remaining;
     usbtmc_msg_dev_dep_msg_in_header_t *hdr = (usbtmc_msg_dev_dep_msg_in_header_t *) usbtmc_epbuf.epin;
     tu_varclr(hdr);
     hdr->header.MsgID = vendor_specific_requested ? USBTMC_MSGID_VENDOR_SPECIFIC_IN : USBTMC_MSGID_DEV_DEP_MSG_IN;
@@ -250,6 +251,8 @@ bool tud_usbtmc_transmit_dev_msg_data(
     usbtmc_state.state = (packet_len == usbtmc_state.ep_bulk_in_mps) ? STATE_TX_INITIATED : STATE_TX_SHORTED;
     ret = usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packet_len, false);
     if (!ret) {
+      // Nothing was queued: the request stays as it was, for a retry
+      usbtmc_state.transfer_size_remaining = request_size;
       usbtmc_state.in_flight = 0;
       usbtmc_state.state = STATE_TX_REQUESTED;
     }
@@ -652,15 +655,28 @@ static uint8_t split_check_request(usbtmcd_split_enum split) {
 }
 
 // True while the actions of the accepted INITIATE are still running (USBTMC 1.0 4.2.1.1 rule 3a): an abort until
-// its short packet has been sent and the application no longer answers PENDING; a clear until its CHECK_STATUS
-// completes, since only tud_usbtmc_check_clear_cb() tells when the Function Layer is done (Tables 32, 35).
-static bool split_in_progress(void) {
+// its short packet has been sent and the application no longer answers PENDING; a clear while Bulk-IN holds a
+// packet or the Function Layer is not done. Only tud_usbtmc_check_clear_cb() can tell the latter (Tables 32, 35),
+// so it is asked here, and a clear it reports finished ends as its CHECK_CLEAR_STATUS would have.
+static bool split_actions_running(uint8_t rhport) {
   switch (usbtmc_state.split) {
     case SPLIT_ABORT_BULK_IN:
       return (usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED) ||
              usbtmc_state.split_app_pending;
-    case SPLIT_CLEAR:
-      return true;
+    case SPLIT_CLEAR: {
+      if (usbd_edpt_busy(rhport, usbtmc_state.ep_bulk_in)) {
+        return true;
+      }
+      usbtmc_get_clear_status_rsp_t clear_rsp = {0};
+      if (!tud_usbtmc_check_clear_cb(&clear_rsp) || (clear_rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
+        return true;
+      }
+      if (clear_rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
+        (void) change_state(STATE_CLEARING, STATE_NAK);
+      }
+      start_split(SPLIT_NONE);
+      return false;
+    }
     case SPLIT_ABORT_BULK_OUT: // complete when accepted: bulk-OUT is Halted at once
       return usbtmc_state.split_app_pending;
     default:
@@ -767,7 +783,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // its own response and does nothing else; once they completed, it discards the CHECK_STATUS response
   // (USBTMC 1.0 4.2.1.1 rule 3a)
   bool const own_check = (request->bRequest == split_check_request(usbtmc_state.split));
-  if (!own_check && split_in_progress()) {
+  if (!own_check && split_actions_running(rhport)) {
     // static: a data stage longer than CFG_TUD_ENDPOINT0_BUFSIZE reads it after this returns.
     // GET_CAPABILITIES has the longest response.
     static uint8_t rsp[sizeof(usbtmc_capabilities_specific_t)];
@@ -899,13 +915,16 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
             break;
         }
         // The application may still answer PENDING, not ready for the next command (Table 29)
+        uint8_t const driver_status = rsp.USBTMC_status;
         TU_VERIFY(tud_usbtmc_check_abort_bulk_in_cb(&rsp));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
           // bulk-OUT is not armed: tud_usbtmc_start_bus_read() arms it from NAK, unless the callback already did
           (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
         }
-        usbtmc_state.split_app_pending = (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
-        if (!usbtmc_state.split_app_pending) {
+        // A PENDING is the application's own only where the driver had none: its packets are all sent
+        usbtmc_state.split_app_pending = (driver_status == USBTMC_STATUS_SUCCESS) &&
+                                         (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
+        if (rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
           start_split(SPLIT_NONE);
         }
       }
