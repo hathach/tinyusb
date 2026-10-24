@@ -56,6 +56,8 @@
 //--------------------------------------------------------------------+
 
 typedef struct {
+  TU_ATTR_ALIGNED(4) uint8_t setup[8]; // DMA source of the SETUP packet
+
   uint8_t daddr;
   uint8_t ep_num   : 4;
   uint8_t is_out   : 1; // current direction, also SETUP
@@ -63,7 +65,8 @@ typedef struct {
   uint8_t pending  : 1; // transfer queued
   uint8_t toggle   : 1; // DATA0/DATA1
 
-  uint8_t  xfer_type;
+  uint8_t xfer_type : 2;
+  uint8_t bounce    : 1; // current IN packet lands in bounce_buf
   uint8_t  interval;    // service interval in frames
   uint16_t packet_size; // 0 = free slot
   uint16_t next_frame;  // earliest frame for the next attempt
@@ -71,8 +74,6 @@ typedef struct {
   uint16_t total_len;
   uint16_t xferred_len;
   uint8_t *buf;
-
-  uint8_t setup[8];
 } hcd_ep_t;
 
 typedef struct {
@@ -88,9 +89,11 @@ typedef struct {
 
 static hcd_data_t _hcd;
 
-// One max packet each, the engine re-points the DMA at them for every transaction
-TU_ATTR_ALIGNED(4) static uint8_t rx_buf[MAX_PACKET_SIZE];
-TU_ATTR_ALIGNED(4) static uint8_t tx_buf[MAX_PACKET_SIZE];
+// The DMA works on the transfer buffer directly where it can: the address must be 4-byte
+// aligned within the first 32 KB of SRAM (15-bit DMA address), and an IN always accepts up
+// to 64 bytes, so it needs that much room left. Other packets go through this buffer, shared
+// by both directions since only one transaction is ever on the wire.
+TU_ATTR_ALIGNED(4) static uint8_t bounce_buf[MAX_PACKET_SIZE];
 
 enum {
   XACT_OK = 0,
@@ -147,6 +150,11 @@ static int8_t ep_find_next_ready(int8_t cur) {
 // Transaction
 //--------------------------------------------------------------------+
 
+static inline bool dma_capable(const uint8_t *addr) {
+  uintptr_t const a = (uintptr_t)addr;
+  return (a & 3u) == 0 && (a & ~(uintptr_t)0x7FFFu) == 0x20000000u;
+}
+
 static inline void sie_wait_idle(void) {
   uint32_t timeout = SIE_WAIT_TIMEOUT;
   while (!(USBFSH->MIS_ST & USBFS_UMS_SIE_FREE) && --timeout) {}
@@ -201,25 +209,30 @@ static void xact_start(int8_t idx, bool new_ep) {
   }
 
   sie_wait_idle();
-  USBFSH->HOST_RX_DMA = (uint32_t)rx_buf;
-  USBFSH->HOST_TX_DMA = (uint32_t)tx_buf;
 
   uint8_t pid;
   uint8_t tog = ep->toggle ? USBFS_UH_T_TOG : 0; // same bit position as USBFS_UH_R_TOG
+  uint8_t *const cursor = ep->buf + ep->xferred_len;
+  uint16_t const remain = ep->total_len - ep->xferred_len;
 
   if (ep->is_setup) {
-    memcpy(tx_buf, ep->setup, 8);
+    USBFSH->HOST_TX_DMA = (uint32_t)ep->setup;
     USBFSH->HOST_TX_LEN = 8;
     pid = USB_PID_SETUP;
     tog = 0;
   } else if (ep->is_out) {
-    uint16_t const len = tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-    if (len > 0) {
-      memcpy(tx_buf, ep->buf + ep->xferred_len, len);
+    uint16_t const len = tu_min16(remain, ep->packet_size);
+    if (len == 0 || dma_capable(cursor)) {
+      USBFSH->HOST_TX_DMA = (uint32_t)(len ? cursor : bounce_buf);
+    } else {
+      memcpy(bounce_buf, cursor, len);
+      USBFSH->HOST_TX_DMA = (uint32_t)bounce_buf;
     }
     USBFSH->HOST_TX_LEN = len;
     pid = USB_PID_OUT;
   } else {
+    ep->bounce = !(remain >= MAX_PACKET_SIZE && dma_capable(cursor));
+    USBFSH->HOST_RX_DMA = (uint32_t)(ep->bounce ? bounce_buf : cursor);
     USBFSH->HOST_TX_LEN = 0;
     pid = USB_PID_IN;
   }
@@ -301,8 +314,8 @@ static void handle_xfer_done(bool in_isr) {
         }
       } else {
         uint16_t const len = tu_min16((uint16_t)USBFSH->RX_LEN, ep->total_len - ep->xferred_len);
-        if (len > 0) {
-          memcpy(ep->buf + ep->xferred_len, rx_buf, len);
+        if (ep->bounce && len > 0) {
+          memcpy(ep->buf + ep->xferred_len, bounce_buf, len);
         }
         ep->xferred_len += len;
         ep->toggle = (USBFSH->HOST_RX_CTRL & USBFS_UH_R_TOG) ? 1 : 0;
@@ -434,6 +447,7 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
 
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
+  TU_ASSERT(dma_capable(bounce_buf));
   hcd_int_disable(rhport);
 
   tu_memclr(&_hcd, sizeof(_hcd));
@@ -449,8 +463,8 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   USBFSH->HOST_CTRL    = 0;
   USBFSH->DEV_ADDR     = 0;
   USBFSH->HOST_EP_MOD  = USBFS_UH_EP_TX_EN | USBFS_UH_EP_RX_EN;
-  USBFSH->HOST_RX_DMA  = (uint32_t)rx_buf;
-  USBFSH->HOST_TX_DMA  = (uint32_t)tx_buf;
+  USBFSH->HOST_RX_DMA  = (uint32_t)bounce_buf;
+  USBFSH->HOST_TX_DMA  = (uint32_t)bounce_buf;
   USBFSH->HOST_RX_CTRL = 0;
   USBFSH->HOST_TX_CTRL = 0;
   USBFSH->BASE_CTRL    = USBFS_CTRL_HOST_MODE | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
