@@ -19,7 +19,10 @@
  * Every transaction completes from the transfer-done interrupt and nothing blocks the
  * caller. A NAK, or no response, reschedules the endpoint for its next service frame: the
  * next frame for control and bulk, bInterval frames later for interrupt endpoints.
- * Isochronous transfers are not supported.
+ *
+ * An isochronous endpoint runs one transaction per service interval, without handshake and
+ * always DATA0, and one packet per transfer. It is served before any other endpoint, also
+ * between the packets of a longer transfer, so that it is not pushed out of its frame.
  */
 
 #include "tusb_option.h"
@@ -136,8 +139,22 @@ static inline bool ep_is_ready(const hcd_ep_t *ep) {
   return ep->packet_size != 0 && ep->pending && (int16_t)(_hcd.frame_count - ep->next_frame) >= 0;
 }
 
-// round-robin scan starting after cur so that no endpoint monopolizes the engine
+static int8_t ep_find_ready_iso(void) {
+  for (uint8_t i = 1; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+    if (_hcd.ep[i].xfer_type == TUSB_XFER_ISOCHRONOUS && ep_is_ready(&_hcd.ep[i])) {
+      return (int8_t)i;
+    }
+  }
+  return -1;
+}
+
+// isochronous endpoints first, then a round-robin scan starting after cur so that no
+// endpoint monopolizes the engine
 static int8_t ep_find_next_ready(int8_t cur) {
+  int8_t const iso = ep_find_ready_iso();
+  if (iso >= 0) {
+    return iso;
+  }
   for (uint8_t k = 1; k <= CFG_TUH_WCH_USBFS_ENDPOINT_MAX; k++) {
     int8_t i = (int8_t)(((int)cur + k) % CFG_TUH_WCH_USBFS_ENDPOINT_MAX);
     if (ep_is_ready(&_hcd.ep[i])) {
@@ -211,6 +228,7 @@ static void xact_start(int8_t idx, bool new_ep) {
 
   sie_wait_idle();
 
+  bool const is_iso = (ep->xfer_type == TUSB_XFER_ISOCHRONOUS);
   uint8_t pid;
   uint8_t tog = ep->toggle ? USBFS_UH_T_TOG : 0; // same bit position as USBFS_UH_R_TOG
   uint8_t *const cursor = ep->buf + ep->xferred_len;
@@ -238,7 +256,12 @@ static void xact_start(int8_t idx, bool new_ep) {
     pid = USB_PID_IN;
   }
 
-  USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
+  if (is_iso) {
+    // DATA0, no handshake (same bit position as USBFS_UH_R_RES)
+    USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = USBFS_UH_T_RES;
+  } else {
+    USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
+  }
   USBFSH->INT_FG       = USBFS_UIF_TRANSFER;
   USBFSH->HOST_EP_PID  = (uint8_t)((pid << 4) | ep->ep_num);
 }
@@ -264,6 +287,16 @@ static void engine_next(int8_t cur) {
   }
 }
 
+// next packet of a multi-packet transfer, unless an isochronous endpoint is due
+static void xact_continue(int8_t idx) {
+  int8_t const iso = ep_find_ready_iso();
+  if (iso >= 0 && iso != idx) {
+    xact_start(iso, true);
+  } else {
+    xact_start(idx, false);
+  }
+}
+
 static uint8_t xact_result(void) {
   uint8_t const st = USBFSH->INT_ST;
   if (st & USBFS_UIS_TOG_OK) {
@@ -283,11 +316,36 @@ static void xfer_complete(int8_t idx, xfer_result_t result, bool in_isr) {
 
   ep->pending  = 0;
   ep->is_setup = 0;
-  // the next transfer of an interrupt endpoint waits for its interval
-  ep->next_frame = (uint16_t)(_hcd.frame_count + (ep->xfer_type == TUSB_XFER_INTERRUPT ? ep->interval : 0));
+  // the next transfer of a periodic endpoint waits for its interval
+  bool const periodic = (ep->xfer_type == TUSB_XFER_INTERRUPT || ep->xfer_type == TUSB_XFER_ISOCHRONOUS);
+  ep->next_frame = (uint16_t)(_hcd.frame_count + (periodic ? ep->interval : 0));
 
   hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
   engine_next(idx);
+}
+
+static void handle_iso_done(int8_t idx, bool in_isr) {
+  hcd_ep_t *ep = &_hcd.ep[idx];
+
+  if (ep->is_out) {
+    ep->xferred_len = ep->total_len;
+    xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
+    return;
+  }
+
+  uint8_t const res = USBFSH->INT_ST & USBFS_UIS_H_RES_MASK;
+  uint16_t const rx_len = (uint16_t)USBFSH->RX_LEN;
+  if ((res != USB_PID_DATA0 && res != USB_PID_DATA1) || rx_len > ep->packet_size) {
+    xfer_complete(idx, XFER_RESULT_FAILED, in_isr); // no data or babble
+    return;
+  }
+
+  uint16_t const len = tu_min16(rx_len, ep->total_len);
+  if (ep->bounce && len > 0) {
+    memcpy(ep->buf, bounce_buf, len);
+  }
+  ep->xferred_len = len;
+  xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
 }
 
 static void handle_xfer_done(bool in_isr) {
@@ -299,6 +357,10 @@ static void handle_xfer_done(bool in_isr) {
   }
 
   hcd_ep_t *ep = &_hcd.ep[idx];
+  if (ep->xfer_type == TUSB_XFER_ISOCHRONOUS) {
+    handle_iso_done(idx, in_isr);
+    return;
+  }
 
   switch (xact_result()) {
     case XACT_OK:
@@ -311,7 +373,7 @@ static void handle_xfer_done(bool in_isr) {
         if (ep->xferred_len >= ep->total_len) {
           xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
         } else {
-          xact_start(idx, false);
+          xact_continue(idx);
         }
       } else {
         uint16_t const rx_len = (uint16_t)USBFSH->RX_LEN;
@@ -328,7 +390,7 @@ static void handle_xfer_done(bool in_isr) {
         if (len < ep->packet_size || ep->xferred_len >= ep->total_len) {
           xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
         } else {
-          xact_start(idx, false);
+          xact_continue(idx);
         }
       }
       break;
@@ -544,7 +606,16 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   uint8_t const ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
   uint8_t const dir    = tu_edpt_dir(ep_desc->bEndpointAddress);
   uint8_t const xfer_type = ep_desc->bmAttributes.xfer;
-  TU_VERIFY(xfer_type != TUSB_XFER_ISOCHRONOUS);
+  uint16_t const mps = tu_edpt_packet_size(ep_desc);
+  TU_ASSERT(mps > 0);
+
+  // FS isochronous: 2^(bInterval-1) frames, interrupt: bInterval frames
+  uint8_t interval = 1;
+  if (xfer_type == TUSB_XFER_ISOCHRONOUS) {
+    interval = (uint8_t)(1u << (tu_min8(tu_max8(ep_desc->bInterval, 1), 8) - 1));
+  } else if (xfer_type == TUSB_XFER_INTERRUPT && ep_desc->bInterval) {
+    interval = ep_desc->bInterval;
+  }
 
   hcd_int_disable(rhport);
   hcd_ep_t *ep = ep_find(daddr, ep_num, dir);
@@ -557,8 +628,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
     ep->ep_num      = ep_num & 0x0f;
     ep->is_out      = (dir == TUSB_DIR_OUT) ? 1 : 0;
     ep->xfer_type   = xfer_type;
-    ep->packet_size = tu_max16(tu_min16(tu_edpt_packet_size(ep_desc), MAX_PACKET_SIZE), 8);
-    ep->interval    = (xfer_type == TUSB_XFER_INTERRUPT && ep_desc->bInterval) ? ep_desc->bInterval : 1;
+    ep->packet_size = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? tu_min16(mps, 1023) : tu_max16(tu_min16(mps, MAX_PACKET_SIZE), 8);
+    ep->interval    = interval;
     ep->next_frame  = _hcd.frame_count;
   }
   hcd_int_enable(rhport);
@@ -614,6 +685,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
 
   hcd_ep_t *ep = ep_find(daddr, ep_num, dir);
   TU_ASSERT(ep != NULL && ep->packet_size != 0);
+
+  // one isochronous packet per transfer; a packet larger than bounce_buf goes straight to buffer
+  if (ep->xfer_type == TUSB_XFER_ISOCHRONOUS) {
+    TU_ASSERT(buflen <= ep->packet_size || dir == TUSB_DIR_IN);
+  }
+  if (ep->packet_size > MAX_PACKET_SIZE) {
+    TU_ASSERT(dma_capable(buffer) && (dir == TUSB_DIR_OUT || buflen >= ep->packet_size));
+  }
 
   hcd_int_disable(rhport);
   if (ep_num == 0) {
