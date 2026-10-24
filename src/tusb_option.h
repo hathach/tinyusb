@@ -383,6 +383,14 @@
   #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
+// Polled host: hcd_init() leaves the controller's global interrupt (GAHBCFG.GINT) disabled and the
+// application calls tuh_int_handler(rhport, false) from its own loop. For a platform where the
+// controller's interrupt must stay off: on a bare-metal Raspberry Pi the first host interrupt after
+// the port is powered resets the board.
+#ifndef CFG_TUH_DWC2_POLLED
+  #define CFG_TUH_DWC2_POLLED 0
+#endif
+
 #if defined(TUP_USBIP_DWC2)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO    CFG_TUD_DWC2_SLAVE_ENABLE
   #define CFG_TUH_EDPT_DEDICATED_HWFIFO    CFG_TUH_DWC2_SLAVE_ENABLE

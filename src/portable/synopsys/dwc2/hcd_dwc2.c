@@ -718,7 +718,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
-  gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
+  if (!CFG_TUH_DWC2_POLLED) {
+    gahbcfg |= GAHBCFG_GINT; // Enable global interrupt, unless the application polls tuh_int_handler()
+  }
   dwc2->gahbcfg = gahbcfg;
 
   return true;
