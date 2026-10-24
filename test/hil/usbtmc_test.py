@@ -25,11 +25,11 @@ VID, PID = 0xCAFE, 0x401C
 # bRequest
 INITIATE_ABORT_BULK_OUT, CHECK_ABORT_BULK_OUT_STATUS = 1, 2
 INITIATE_ABORT_BULK_IN, CHECK_ABORT_BULK_IN_STATUS = 3, 4
-INITIATE_CLEAR, CHECK_CLEAR_STATUS = 5, 6
+INITIATE_CLEAR, CHECK_CLEAR_STATUS, GET_CAPABILITIES = 5, 6, 7
 INDICATOR_PULSE, READ_STATUS_BYTE = 64, 128
 # USBTMC_status
 SUCCESS, PENDING, FAILED, NOT_IN_PROGRESS, SPLIT_NOT_IN_PROGRESS = 0x01, 0x02, 0x80, 0x81, 0x82
-INT_IN_BUSY = 0x20
+SPLIT_IN_PROGRESS, INT_IN_BUSY = 0x83, 0x20
 # MsgID
 DEV_DEP_MSG_OUT, REQUEST_DEV_DEP_MSG_IN, TRIGGER = 1, 2, 128
 
@@ -285,11 +285,19 @@ def t_abort_in_mid_transfer(d):
     expect(len(first) == d.mps, f'first packet {len(first)} bytes')
     rsp = d.ep_req(INITIATE_ABORT_BULK_IN, tag, d.ep_in, 2)
     expect(rsp[0] == SUCCESS, f'INITIATE_ABORT_BULK_IN {rsp.hex()}')
+    # The abort's packets are still queued: any other class request answers STATUS_SPLIT_IN_PROGRESS and does
+    # nothing (4.2.1.1 rule 3a)
+    rsp = d.itf_req(INITIATE_CLEAR, 0, 1)
+    expect(rsp[0] == SPLIT_IN_PROGRESS, f'INITIATE_CLEAR during the abort: {rsp.hex()}, want SPLIT_IN_PROGRESS')
+    rsp = d.itf_req(GET_CAPABILITIES, 0, 0x18)
+    expect(rsp[0] == SPLIT_IN_PROGRESS, f'GET_CAPABILITIES during the abort: {rsp[:2].hex()}, want SPLIT_IN_PROGRESS')
     rest = d.read_transfer()
     rsp = d.ep_req(CHECK_ABORT_BULK_IN_STATUS, 0, d.ep_in, 8)
     sent = len(first) - 12 + sum(len(p) for p in rest)
     expect(rsp[0] == SUCCESS, f'CHECK_ABORT_BULK_IN_STATUS {rsp.hex()}')
     expect(struct.unpack_from('<I', rsp, 4)[0] == sent, f'NBYTES_TXD {rsp.hex()}, host received {sent}')
+    rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
+    expect(rsp[0] == SPLIT_NOT_IN_PROGRESS, f'the refused INITIATE_CLEAR started a clear: {rsp.hex()}')
 
 
 def t_abort_out(d):
@@ -379,7 +387,8 @@ def t_clear_with_pending_in(d):
     rsp = d.itf_req(CHECK_CLEAR_STATUS, 0, 2)
     expect(rsp[0] == SUCCESS and not rsp[1] & 1, f'CHECK_CLEAR_STATUS after the short packet: {rsp.hex()}')
     d.dev.clear_halt(d.ep_out)
-    d.idn()
+    # Straight to an abort before any reply: the cleared transfer's bytes must not show up in its NBYTES_TXD
+    _abort_in_before_reply(d, 77)
 
 
 def t_check_without_initiate(d):
