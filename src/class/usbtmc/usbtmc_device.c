@@ -106,6 +106,7 @@ typedef struct
 {
   volatile usbtmcd_state_enum state;
   usbtmcd_split_enum split;
+  bool split_app_pending;          // the application answered the split's CHECK_STATUS with PENDING
 
   uint8_t itf_id;
   uint8_t rhport;
@@ -169,9 +170,7 @@ TU_ATTR_WEAK bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
 }
 #endif
 
-#ifndef NDEBUG
 tu_static uint8_t term_char;
-#endif
 
 tu_static uint8_t term_char_requested = false;
 
@@ -217,21 +216,17 @@ bool tud_usbtmc_transmit_dev_msg_data(
     const void *data, size_t len,
     bool endOfMessage,
     bool usingTermChar) {
-#ifndef NDEBUG
-  TU_ASSERT(len > 0u);
-  TU_ASSERT(len <= usbtmc_state.transfer_size_remaining);
-  TU_ASSERT(usbtmc_state.transfer_size_sent == 0u);
-  if (usingTermChar) {
-    TU_ASSERT(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
-    TU_ASSERT(term_char_requested);
-    TU_ASSERT(((uint8_t const *) data)[len - 1u] == term_char);
-  }
-#endif
-
   // Checked, prepared and queued in one locked block: an abort or a clear on the USB task, and the request after
   // it, can then never see a half-built reply or receive the reply meant for the request before.
+  // A reply holds 1 to TransferSize bytes the host asked for, and ends on TermChar only if the host enabled it
+  // and the interface supports it (USBTMC 1.0 Tables 4, 9). Checked against the request under the lock: an
+  // abort may have retired it.
   usbtmc_lock();
-  bool ret = (usbtmc_state.state == STATE_TX_REQUESTED);
+  bool ret = (usbtmc_state.state == STATE_TX_REQUESTED) && (len > 0u) && (len <= usbtmc_state.transfer_size_remaining);
+  if (ret && usingTermChar) {
+    ret = usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar && term_char_requested &&
+          (((uint8_t const *) data)[len - 1u] == term_char);
+  }
   if (ret) {
     usbtmc_msg_dev_dep_msg_in_header_t *hdr = (usbtmc_msg_dev_dep_msg_in_header_t *) usbtmc_epbuf.epin;
     tu_varclr(hdr);
@@ -264,9 +259,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
 }
 
 bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
-#ifndef NDEBUG
-  TU_ASSERT(len > 0);
-#endif
+  TU_VERIFY(len > 0u);
   // Under the lock, so a bus reset or CLEAR_FEATURE(Interrupt-IN), which drops the claim, cannot come between
   // the claim and the transfer. No interrupt endpoint, or not configured yet: never claim endpoint 0x00.
   bool ret = false;
@@ -285,12 +278,10 @@ bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
 
 void usbtmcd_init_cb(void) {
   usbtmc_state.capabilities = tud_usbtmc_get_capabilities_cb();
-#ifndef NDEBUG
-  #if CFG_TUD_USBTMC_ENABLE_488
+#if CFG_TUD_USBTMC_ENABLE_488
   // Per USB488 spec: table 8
   TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.listenOnly, );
   TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.talkOnly, );
-  #endif
 #endif
 
   usbtmc_mutex = osal_mutex_create(&usbtmc_mutex_def);
@@ -313,10 +304,8 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   TU_VERIFY(itf_desc->bInterfaceClass == TUD_USBTMC_APP_CLASS, 0);
   TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_USBTMC_APP_SUBCLASS, 0);
 
-#ifndef NDEBUG
   // Only 2 or 3 endpoints are allowed for USBTMC.
   TU_ASSERT((itf_desc->bNumEndpoints == 2) || (itf_desc->bNumEndpoints == 3), 0);
-#endif
 
   TU_ASSERT(usbtmc_state.state == STATE_CLOSED, 0);
 
@@ -363,18 +352,12 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   // bulk endpoints are required, but interrupt IN is optional
   TU_ASSERT(usbtmc_state.ep_bulk_in != 0, 0);
   TU_ASSERT(usbtmc_state.ep_bulk_out != 0, 0);
-#ifndef NDEBUG
-  if (itf_desc->bNumEndpoints == 2) {
-    TU_ASSERT(usbtmc_state.ep_int_in == 0, 0);
-  } else if (itf_desc->bNumEndpoints == 3) {
-    TU_ASSERT(usbtmc_state.ep_int_in != 0, 0);
-  }
-  #if (CFG_TUD_USBTMC_ENABLE_488)
+  TU_ASSERT((usbtmc_state.ep_int_in != 0) == (itf_desc->bNumEndpoints == 3), 0);
+#if (CFG_TUD_USBTMC_ENABLE_488)
   if (usbtmc_state.capabilities->bmIntfcCapabilities488.is488_2 ||
       usbtmc_state.capabilities->bmDevCapabilities488.SR1) {
     TU_ASSERT(usbtmc_state.ep_int_in != 0, 0);
   }
-  #endif
 #endif
   change_state(STATE_CLOSED, STATE_NAK);
   tud_usbtmc_open_cb(itf_desc->bInterfaceNumber);
@@ -501,16 +484,12 @@ static bool handle_dev_msg_in(void *data, size_t len) {
     usbtmc_state.transfer_size_remaining = msg->TransferSize;
     usbtmc_state.transfer_size_sent = 0u;
     usbtmc_state.in_flight = 0u;
+    term_char_requested = msg->bmTransferAttributes.TermCharEnabled;
+    term_char = msg->TermChar;
     usbtmc_state.state = STATE_TX_REQUESTED;
   }
   usbtmc_unlock();
   TU_VERIFY(idle);
-
-  term_char_requested = msg->bmTransferAttributes.TermCharEnabled;
-
-#ifndef NDEBUG
-  term_char = msg->TermChar;
-#endif
 
   TU_VERIFY(tud_usbtmc_msgBulkIn_request_cb(msg));
   return true;
@@ -657,17 +636,47 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   return false;
 }
 
-// True while the actions of an accepted INITIATE are still running and bRequest is not its CHECK_STATUS:
-// an abort until its short packet has been sent, a clear while Bulk-IN still holds a packet.
-static bool split_in_progress(uint8_t rhport, uint8_t b_request) {
+static void start_split(usbtmcd_split_enum split) {
+  usbtmc_state.split = split;
+  usbtmc_state.split_app_pending = false;
+}
+
+// The CHECK_STATUS request that answers the outstanding INITIATE
+static uint8_t split_check_request(usbtmcd_split_enum split) {
+  switch (split) {
+    case SPLIT_ABORT_BULK_OUT: return USBTMC_bREQUEST_CHECK_ABORT_BULK_OUT_STATUS;
+    case SPLIT_ABORT_BULK_IN:  return USBTMC_bREQUEST_CHECK_ABORT_BULK_IN_STATUS;
+    case SPLIT_CLEAR:          return USBTMC_bREQUEST_CHECK_CLEAR_STATUS;
+    default:                   return 0u;
+  }
+}
+
+// True while the actions of the accepted INITIATE are still running (USBTMC 1.0 4.2.1.1 rule 3a): an abort until
+// its short packet has been sent and the application no longer answers PENDING; a clear until its CHECK_STATUS
+// completes, since only tud_usbtmc_check_clear_cb() tells when the Function Layer is done (Tables 32, 35).
+static bool split_in_progress(void) {
   switch (usbtmc_state.split) {
     case SPLIT_ABORT_BULK_IN:
-      return (b_request != USBTMC_bREQUEST_CHECK_ABORT_BULK_IN_STATUS) &&
-             ((usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED));
+      return (usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED) ||
+             usbtmc_state.split_app_pending;
     case SPLIT_CLEAR:
-      return (b_request != USBTMC_bREQUEST_CHECK_CLEAR_STATUS) && usbd_edpt_busy(rhport, usbtmc_state.ep_bulk_in);
+      return true;
+    case SPLIT_ABORT_BULK_OUT: // complete when accepted: bulk-OUT is Halted at once
+      return usbtmc_state.split_app_pending;
     default:
-      return false; // an abort of Bulk-OUT completes when it is accepted
+      return false;
+  }
+}
+
+// A request other than its CHECK_STATUS after the INITIATE's actions completed: the CHECK_STATUS response is
+// discarded (4.2.1.1 rule 3a). An abort of Bulk-IN then ends as its successful CHECK_STATUS would, except that
+// the application is not called, so bulk-OUT is armed here.
+static void retire_split(void) {
+  bool const rearm = (usbtmc_state.split == SPLIT_ABORT_BULK_IN) &&
+                     change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
+  start_split(SPLIT_NONE);
+  if (rearm) {
+    (void) tud_usbtmc_start_bus_read();
   }
 }
 
@@ -755,8 +764,10 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   // Verification that we own the interface is unneeded since it's been routed to us specifically.
 
   // While an INITIATE's actions are still running, any other class request answers STATUS_SPLIT_IN_PROGRESS in
-  // its own response and does nothing else (USBTMC 1.0 4.2.1.1 rule 3a)
-  if (split_in_progress(rhport, request->bRequest)) {
+  // its own response and does nothing else; once they completed, it discards the CHECK_STATUS response
+  // (USBTMC 1.0 4.2.1.1 rule 3a)
+  bool const own_check = (request->bRequest == split_check_request(usbtmc_state.split));
+  if (!own_check && split_in_progress()) {
     // static: a data stage longer than CFG_TUD_ENDPOINT0_BUFSIZE reads it after this returns.
     // GET_CAPABILITIES has the longest response.
     static uint8_t rsp[sizeof(usbtmc_capabilities_specific_t)];
@@ -766,6 +777,9 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     rsp[0] = USBTMC_STATUS_SPLIT_IN_PROGRESS;
     TU_VERIFY(tud_control_xfer(rhport, request, rsp, request->wLength));
     return true;
+  }
+  if (!own_check && (usbtmc_state.split != SPLIT_NONE)) {
+    retire_split();
   }
 
   switch (request->bRequest) {
@@ -791,7 +805,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         usbtmc_unlock();
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_out_cb(&(rsp.USBTMC_status)));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
-          usbtmc_state.split = SPLIT_ABORT_BULK_OUT;
+          start_split(SPLIT_ABORT_BULK_OUT);
         }
       }
       TU_VERIFY(tud_control_xfer(rhport, request, (void *) &rsp, sizeof(rsp)));
@@ -810,8 +824,9 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         rsp.NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent;
         TU_VERIFY(tud_usbtmc_check_abort_bulk_out_cb(&rsp));
-        if (rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
-          usbtmc_state.split = SPLIT_NONE;
+        usbtmc_state.split_app_pending = (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
+        if (!usbtmc_state.split_app_pending) {
+          start_split(SPLIT_NONE);
         }
       }
       TU_VERIFY(tud_control_xfer(rhport, request, (void *) &rsp, sizeof(rsp)));
@@ -846,7 +861,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_in_cb(&(rsp.USBTMC_status)));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
-          usbtmc_state.split = SPLIT_ABORT_BULK_IN;
+          start_split(SPLIT_ABORT_BULK_IN);
         }
       } else if (in_progress) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
@@ -889,8 +904,9 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           // bulk-OUT is not armed: tud_usbtmc_start_bus_read() arms it from NAK, unless the callback already did
           (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
         }
-        if (rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
-          usbtmc_state.split = SPLIT_NONE;
+        usbtmc_state.split_app_pending = (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
+        if (!usbtmc_state.split_app_pending) {
+          start_split(SPLIT_NONE);
         }
       }
       TU_VERIFY(tud_control_xfer(rhport, request, (void *) &rsp, sizeof(rsp)));
@@ -911,7 +927,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         usbtmc_state.transfer_size_remaining = 0;
         usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
         usbtmc_unlock();
-        usbtmc_state.split = SPLIT_CLEAR;
+        start_split(SPLIT_CLEAR);
       }
       TU_VERIFY(tud_control_xfer(rhport, request, (void *) &tmc_status, sizeof(tmc_status)));
       return true;
@@ -933,7 +949,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         // Let app check if it's clear
         TU_VERIFY(tud_usbtmc_check_clear_cb(&clear_rsp));
         if (clear_rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
-          usbtmc_state.split = SPLIT_NONE;
+          start_split(SPLIT_NONE);
         }
         if (clear_rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
           // bulk-OUT stays Halted until the host's CLEAR_FEATURE, whose callback arms it again
