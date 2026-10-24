@@ -530,10 +530,13 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/dcd_ch32_usbhs.c",
+          "wch/hcd_ch32_usbfs.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -549,10 +552,13 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/dcd_ch32_usbhs.c",
+          "wch/hcd_ch32_usbfs.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
