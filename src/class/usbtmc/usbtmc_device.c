@@ -106,7 +106,6 @@ typedef struct
 {
   volatile usbtmcd_state_enum state;
   usbtmcd_split_enum split;
-  bool split_app_pending;          // the application answered the split's CHECK_STATUS with PENDING
 
   uint8_t itf_id;
   uint8_t rhport;
@@ -494,7 +493,11 @@ static bool handle_dev_msg_in(void *data, size_t len) {
   usbtmc_unlock();
   TU_VERIFY(idle);
 
-  TU_VERIFY(tud_usbtmc_msgBulkIn_request_cb(msg));
+  if (!tud_usbtmc_msgBulkIn_request_cb(msg)) {
+    // Refused: no reply will come. bulk-OUT is Halted on return, and CLEAR_FEATURE then arms it from NAK.
+    (void) change_state(STATE_TX_REQUESTED, STATE_NAK);
+    return false;
+  }
   return true;
 }
 
@@ -641,7 +644,6 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
 static void start_split(usbtmcd_split_enum split) {
   usbtmc_state.split = split;
-  usbtmc_state.split_app_pending = false;
 }
 
 // The CHECK_STATUS request that answers the outstanding INITIATE
@@ -657,27 +659,25 @@ static uint8_t split_check_request(usbtmcd_split_enum split) {
 // True while the actions of the accepted INITIATE are still running (USBTMC 1.0 4.2.1.1 rule 3a): an abort until
 // its short packet has been sent and the application is done, a clear while Bulk-IN holds a packet or the
 // Function Layer is not done. Only the CHECK callbacks tell whether the application is done (Tables 23, 29, 35),
-// so once the packets are gone they are asked again here, and a split they report finished ends as its
-// CHECK_STATUS would have.
+// so once the packets are gone they are asked here, and a split they report finished ends as its CHECK_STATUS
+// would have: the new request is then handled and that CHECK_STATUS response discarded.
 static bool split_actions_running(uint8_t rhport) {
   switch (usbtmc_state.split) {
     case SPLIT_ABORT_BULK_IN: {
       if ((usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED)) {
         return true;
       }
-      if (usbtmc_state.split_app_pending) {
-        usbtmc_check_abort_bulk_rsp_t rsp = {
-            .USBTMC_status = USBTMC_STATUS_SUCCESS,
-            .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
-        };
-        if (!tud_usbtmc_check_abort_bulk_in_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
-          return true;
-        }
-        if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
-          (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
-        }
-        start_split(SPLIT_NONE);
+      usbtmc_check_abort_bulk_rsp_t rsp = {
+          .USBTMC_status = USBTMC_STATUS_SUCCESS,
+          .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
+      };
+      if (!tud_usbtmc_check_abort_bulk_in_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
+        return true;
       }
+      if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
+        (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
+      }
+      start_split(SPLIT_NONE);
       return false;
     }
     case SPLIT_CLEAR: {
@@ -696,32 +696,18 @@ static bool split_actions_running(uint8_t rhport) {
     }
     case SPLIT_ABORT_BULK_OUT: {
       // The driver's part is complete when accepted: bulk-OUT is Halted at once
-      if (usbtmc_state.split_app_pending) {
-        usbtmc_check_abort_bulk_rsp_t rsp = {
-            .USBTMC_status = USBTMC_STATUS_SUCCESS,
-            .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
-        };
-        if (!tud_usbtmc_check_abort_bulk_out_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
-          return true;
-        }
-        start_split(SPLIT_NONE);
+      usbtmc_check_abort_bulk_rsp_t rsp = {
+          .USBTMC_status = USBTMC_STATUS_SUCCESS,
+          .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
+      };
+      if (!tud_usbtmc_check_abort_bulk_out_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
+        return true;
       }
+      start_split(SPLIT_NONE);
       return false;
     }
     default:
       return false;
-  }
-}
-
-// A request other than its CHECK_STATUS after the INITIATE's actions completed: the CHECK_STATUS response is
-// discarded (4.2.1.1 rule 3a). An abort of Bulk-IN then ends as its successful CHECK_STATUS would, except that
-// the application is not called, so bulk-OUT is armed here.
-static void retire_split(void) {
-  bool const rearm = (usbtmc_state.split == SPLIT_ABORT_BULK_IN) &&
-                     change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
-  start_split(SPLIT_NONE);
-  if (rearm) {
-    (void) tud_usbtmc_start_bus_read();
   }
 }
 
@@ -823,9 +809,6 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     TU_VERIFY(tud_control_xfer(rhport, request, rsp, request->wLength));
     return true;
   }
-  if (!own_check && (usbtmc_state.split != SPLIT_NONE)) {
-    retire_split();
-  }
 
   switch (request->bRequest) {
     // USBTMC required requests
@@ -869,8 +852,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         rsp.NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent;
         TU_VERIFY(tud_usbtmc_check_abort_bulk_out_cb(&rsp));
-        usbtmc_state.split_app_pending = (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
-        if (!usbtmc_state.split_app_pending) {
+        if (rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
           start_split(SPLIT_NONE);
         }
       }
@@ -944,15 +926,11 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
             break;
         }
         // The application may still answer PENDING, not ready for the next command (Table 29)
-        uint8_t const driver_status = rsp.USBTMC_status;
         TU_VERIFY(tud_usbtmc_check_abort_bulk_in_cb(&rsp));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
           // bulk-OUT is not armed: tud_usbtmc_start_bus_read() arms it from NAK, unless the callback already did
           (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
         }
-        // A PENDING is the application's own only where the driver had none: its packets are all sent
-        usbtmc_state.split_app_pending = (driver_status == USBTMC_STATUS_SUCCESS) &&
-                                         (rsp.USBTMC_status == USBTMC_STATUS_PENDING);
         if (rsp.USBTMC_status != USBTMC_STATUS_PENDING) {
           start_split(SPLIT_NONE);
         }
