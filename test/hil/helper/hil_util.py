@@ -36,6 +36,7 @@ device_tests = [
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp',
+    'device/usbtmc',  # cafe:401c; raw USBTMC/USB488 requests via usbtmc_test.py (pyusb)
     'device/usbtest',  # cafe:4010, unique PID; runs the Linux testusb tier-4 battery via usbtest.py
     # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
 ]

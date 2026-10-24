@@ -75,6 +75,7 @@ HARNESS_FILES = (
     'test/hil/pymtp.py',
     'test/hil/mtp_test.py',
     'test/hil/mtp_raw.py',
+    'test/hil/usbtmc_test.py',
     'test/hil/helper/__init__.py',
     'test/hil/helper/agentrc.py',
     'test/hil/helper/hil_args.py',

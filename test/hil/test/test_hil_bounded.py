@@ -370,7 +370,7 @@ class RemoteStaging(unittest.TestCase):
                     rel = node.args[0].value
                     yield from (f'lib/agentrc/{f}' for f in (agentrc.HIL_LOAD, rel, *agentrc.files_of(rel)))
 
-        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
+        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py', 'usbtmc_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
         todo, seen, loaded = list(seeds), set(), set()
