@@ -17,12 +17,14 @@
  * with several downstream devices share the engine.
  *
  * Every transaction completes from the transfer-done interrupt and nothing blocks the
- * caller. A NAK, or no response, reschedules the endpoint for its next service frame: the
- * next frame for control and bulk, bInterval frames later for interrupt endpoints.
+ * caller. The next transaction starts from the interrupt handler as soon as one ends, in the
+ * order isochronous, interrupt, control, bulk, round-robin within each type. A longer
+ * transfer yields to a higher type at every packet. A periodic endpoint runs once per
+ * service interval: a NAK, or no response, waits for its next interval. A control or bulk
+ * NAK is retried in the same frame, at most CFG_TUH_WCH_USBFS_NAK_PER_FRAME times; no
+ * response waits for the next frame.
  *
- * An isochronous endpoint runs one transaction per service interval, without handshake and
- * always DATA0, and one packet per transfer. It is served before any other endpoint, also
- * between the packets of a longer transfer, so that it is not pushed out of its frame.
+ * An isochronous endpoint runs without handshake, always DATA0, one packet per transfer.
  */
 
 #include "tusb_option.h"
@@ -51,6 +53,12 @@
   #define CFG_TUH_WCH_USBFS_ENDPOINT_MAX 16
 #endif
 
+// NAKs per control/bulk endpoint and frame before it waits for the next frame, 0 = no limit
+// (the bus never idles while a transfer is pending, at the cost of one interrupt per NAK)
+#ifndef CFG_TUH_WCH_USBFS_NAK_PER_FRAME
+  #define CFG_TUH_WCH_USBFS_NAK_PER_FRAME 0
+#endif
+
 // Bound for every wait on the SIE
 #define SIE_WAIT_TIMEOUT 2000000u
 
@@ -70,6 +78,7 @@ typedef struct {
 
   uint8_t xfer_type : 2;
   uint8_t bounce    : 1; // current IN packet lands in bounce_buf
+  uint8_t nak_count : 5; // NAKs in this frame
   uint8_t  interval;    // service interval in frames
   uint16_t packet_size; // 0 = free slot
   uint16_t next_frame;  // earliest frame for the next attempt
@@ -83,6 +92,7 @@ typedef struct {
   volatile uint16_t frame_count;
   int8_t   cur_idx;        // ep[] index on the wire, -1 = engine idle
   int8_t   last_idx;       // last started ep[] index, for round-robin
+  uint8_t  sel_daddr;      // device the SIE is set up for, 0xff = none
   bool     attached;       // root port connection reported to usbh
   bool     in_reset;       // root port bus reset in progress
   tusb_speed_t root_speed;
@@ -139,29 +149,37 @@ static inline bool ep_is_ready(const hcd_ep_t *ep) {
   return ep->packet_size != 0 && ep->pending && (int16_t)(_hcd.frame_count - ep->next_frame) >= 0;
 }
 
-static int8_t ep_find_ready_iso(void) {
-  for (uint8_t i = 1; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
-    if (_hcd.ep[i].xfer_type == TUSB_XFER_ISOCHRONOUS && ep_is_ready(&_hcd.ep[i])) {
-      return (int8_t)i;
-    }
-  }
-  return -1;
+// service order: isochronous, interrupt, control, bulk
+static inline uint8_t ep_rank(const hcd_ep_t *ep) {
+  static const uint8_t rank[4] = {
+    [TUSB_XFER_ISOCHRONOUS] = 0,
+    [TUSB_XFER_INTERRUPT]   = 1,
+    [TUSB_XFER_CONTROL]     = 2,
+    [TUSB_XFER_BULK]        = 3,
+  };
+  return rank[ep->xfer_type];
 }
 
-// isochronous endpoints first, then a round-robin scan starting after cur so that no
-// endpoint monopolizes the engine
-static int8_t ep_find_next_ready(int8_t cur) {
-  int8_t const iso = ep_find_ready_iso();
-  if (iso >= 0) {
-    return iso;
-  }
+// Ready endpoint of the highest rank, round-robin within a rank: the scan starts after cur.
+// Only ranks below max_rank count, so max_rank 4 finds any endpoint.
+static int8_t ep_find_ready(int8_t cur, uint8_t max_rank) {
+  int8_t found = -1;
   for (uint8_t k = 1; k <= CFG_TUH_WCH_USBFS_ENDPOINT_MAX; k++) {
-    int8_t i = (int8_t)(((int)cur + k) % CFG_TUH_WCH_USBFS_ENDPOINT_MAX);
-    if (ep_is_ready(&_hcd.ep[i])) {
-      return i;
+    int8_t const i = (int8_t)(((int)cur + k) % CFG_TUH_WCH_USBFS_ENDPOINT_MAX);
+    const hcd_ep_t *ep = &_hcd.ep[i];
+    if (ep_is_ready(ep) && ep_rank(ep) < max_rank) {
+      found = i;
+      max_rank = ep_rank(ep);
+      if (max_rank == 0) {
+        break;
+      }
     }
   }
-  return -1;
+  return found;
+}
+
+static inline int8_t ep_find_next_ready(int8_t cur) {
+  return ep_find_ready(cur, 4);
 }
 
 //--------------------------------------------------------------------+
@@ -184,12 +202,18 @@ static inline void sie_wait_idle(void) {
 static inline void engine_stop(void) {
   USBFSH->HOST_EP_PID = 0;
   USBFSH->INT_FG = USBFS_UIF_TRANSFER;
-  _hcd.cur_idx = -1;
+  _hcd.cur_idx   = -1;
+  _hcd.sel_daddr = 0xff;
 }
 
 // Select device address and signalling: a low speed device on the root port uses low
 // speed signalling, one behind a full speed hub needs PRE with full speed tokens.
 static void select_device(uint8_t daddr) {
+  // address 0 is a different device for every enumeration
+  if (daddr == _hcd.sel_daddr && daddr != 0) {
+    return;
+  }
+  _hcd.sel_daddr = daddr;
   USBFSH->DEV_ADDR = (uint8_t)((USBFSH->DEV_ADDR & USBFS_UDA_GP_BIT) | (daddr & USBFS_USB_ADDR_MASK));
 
   tuh_bus_info_t bus_info;
@@ -217,7 +241,7 @@ static void select_device(uint8_t daddr) {
   }
 }
 
-static void xact_start(int8_t idx, bool new_ep) {
+static void xact_start(int8_t idx, bool new_ep, bool at_sof) {
   hcd_ep_t *ep = &_hcd.ep[idx];
   _hcd.cur_idx  = idx;
   _hcd.last_idx = idx;
@@ -262,38 +286,46 @@ static void xact_start(int8_t idx, bool new_ep) {
   } else {
     USBFSH->HOST_TX_CTRL = USBFSH->HOST_RX_CTRL = (uint8_t)(USBFS_UH_T_AUTO_TOG | USBFS_UH_R_AUTO_TOG | tog);
   }
+  // An SOF is about to go out: the SIE would hold this token until after it (RM 23.2.1.4
+  // SOF_PRES), ahead of the isochronous endpoint due in the new frame. Stay idle instead, the
+  // bus is held anyway, and let the SOF interrupt start the engine. Checked last to keep the
+  // race short.
+  if (!at_sof && ep_rank(ep) > 0 && (USBFSH->MIS_ST & USBFS_UMS_SOF_PRES)) {
+    engine_stop();
+    return;
+  }
   USBFSH->INT_FG       = USBFS_UIF_TRANSFER;
   USBFSH->HOST_EP_PID  = (uint8_t)((pid << 4) | ep->ep_num);
 }
 
 // Start the next ready endpoint if the engine is idle. Call with the interrupt masked or
 // from the interrupt handler.
-static void engine_kick(void) {
+static void engine_kick(bool at_sof) {
   if (_hcd.cur_idx >= 0 || !_hcd.attached || _hcd.in_reset) {
     return;
   }
   int8_t const idx = ep_find_next_ready(_hcd.last_idx);
   if (idx >= 0) {
-    xact_start(idx, true);
+    xact_start(idx, true, at_sof);
   }
 }
 
 static void engine_next(int8_t cur) {
   int8_t const idx = ep_find_next_ready(cur);
   if (idx >= 0) {
-    xact_start(idx, true);
+    xact_start(idx, true, false);
   } else {
     engine_stop();
   }
 }
 
-// next packet of a multi-packet transfer, unless an isochronous endpoint is due
+// next packet of a multi-packet transfer, unless an endpoint of a higher rank is ready
 static void xact_continue(int8_t idx) {
-  int8_t const iso = ep_find_ready_iso();
-  if (iso >= 0 && iso != idx) {
-    xact_start(iso, true);
+  int8_t const other = ep_find_ready(idx, ep_rank(&_hcd.ep[idx]));
+  if (other >= 0) {
+    xact_start(other, true, false);
   } else {
-    xact_start(idx, false);
+    xact_start(idx, false, false);
   }
 }
 
@@ -312,7 +344,9 @@ static uint8_t xact_result(void) {
 
 static void xfer_complete(int8_t idx, xfer_result_t result, bool in_isr) {
   hcd_ep_t *ep = &_hcd.ep[idx];
+  uint8_t const daddr   = ep->daddr;
   uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->is_out ? TUSB_DIR_OUT : TUSB_DIR_IN);
+  uint16_t const len    = ep->xferred_len;
 
   ep->pending  = 0;
   ep->is_setup = 0;
@@ -320,8 +354,9 @@ static void xfer_complete(int8_t idx, xfer_result_t result, bool in_isr) {
   bool const periodic = (ep->xfer_type == TUSB_XFER_INTERRUPT || ep->xfer_type == TUSB_XFER_ISOCHRONOUS);
   ep->next_frame = (uint16_t)(_hcd.frame_count + (periodic ? ep->interval : 0));
 
-  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
+  // keep the bus busy: start the next transaction before handing the completion to usbh
   engine_next(idx);
+  hcd_event_xfer_complete(daddr, ep_addr, len, result, in_isr);
 }
 
 static void handle_iso_done(int8_t idx, bool in_isr) {
@@ -396,6 +431,15 @@ static void handle_xfer_done(bool in_isr) {
       break;
 
     case XACT_NAK:
+      // control and bulk retry in this frame, after the other ready endpoints
+      if (ep->xfer_type == TUSB_XFER_CONTROL || ep->xfer_type == TUSB_XFER_BULK) {
+        if (CFG_TUH_WCH_USBFS_NAK_PER_FRAME == 0 || ++ep->nak_count < CFG_TUH_WCH_USBFS_NAK_PER_FRAME) {
+          engine_next(idx);
+          break;
+        }
+      }
+      TU_ATTR_FALLTHROUGH;
+
     case XACT_TIMEOUT:
       // retry in the next service frame, usbh times out a control transfer that never ends
       ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
@@ -492,6 +536,9 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 
 void hcd_device_close(uint8_t rhport, uint8_t daddr) {
   hcd_int_disable(rhport);
+  if (daddr == _hcd.sel_daddr) {
+    _hcd.sel_daddr = 0xff;
+  }
   if (_hcd.cur_idx >= 0 && _hcd.ep[_hcd.cur_idx].daddr == daddr) {
     engine_stop();
   }
@@ -505,7 +552,7 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
       }
     }
   }
-  engine_kick();
+  engine_kick(false);
   hcd_int_enable(rhport);
 }
 
@@ -520,6 +567,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   tu_memclr(&_hcd, sizeof(_hcd));
   _hcd.cur_idx    = -1;
+  _hcd.sel_daddr  = 0xff;
   _hcd.root_speed = TUSB_SPEED_FULL;
 
   // USB clock is set up by board_init()
@@ -585,15 +633,21 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     root_port_check(rhport, in_isr);
   }
 
-  if (int_fg & USBFS_UIF_TRANSFER) {
-    handle_xfer_done(in_isr); // clears the flag
-  }
-
+  // a new frame first, so that the transfer that just ended hands over to an endpoint due in it
   if (int_fg & USBFS_UIF_HST_SOF) {
     USBFSH->INT_FG = USBFS_UIF_HST_SOF;
     _hcd.frame_count++;
+    #if CFG_TUH_WCH_USBFS_NAK_PER_FRAME
+    for (uint8_t i = 0; i < CFG_TUH_WCH_USBFS_ENDPOINT_MAX; i++) {
+      _hcd.ep[i].nak_count = 0;
+    }
+    #endif
     root_port_check(rhport, in_isr);
-    engine_kick();
+    engine_kick(true);
+  }
+
+  if (int_fg & USBFS_UIF_TRANSFER) {
+    handle_xfer_done(in_isr); // clears the flag
   }
 }
 
@@ -650,7 +704,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
     } else {
       tu_memclr(ep, sizeof(hcd_ep_t));
     }
-    engine_kick();
+    engine_kick(false);
   }
   hcd_int_enable(rhport);
   return true;
@@ -674,7 +728,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
   ep->xferred_len = 0;
   ep->next_frame  = _hcd.frame_count;
   ep->pending     = 1;
-  engine_kick();
+  engine_kick(false);
   hcd_int_enable(rhport);
   return true;
 }
@@ -711,7 +765,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
     ep->next_frame = _hcd.frame_count;
   }
   ep->pending = 1;
-  engine_kick();
+  engine_kick(false);
   hcd_int_enable(rhport);
   return true;
 }
@@ -726,7 +780,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
     }
     ep->pending  = 0;
     ep->is_setup = 0;
-    engine_kick();
+    engine_kick(false);
   }
   hcd_int_enable(rhport);
   return ep != NULL;
