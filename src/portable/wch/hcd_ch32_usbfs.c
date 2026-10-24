@@ -90,9 +90,10 @@ typedef struct {
 static hcd_data_t _hcd;
 
 // The DMA works on the transfer buffer directly where it can: the address must be 4-byte
-// aligned within the first 32 KB of SRAM (15-bit DMA address), and an IN always accepts up
-// to 64 bytes, so it needs that much room left. Other packets go through this buffer, shared
-// by both directions since only one transaction is ever on the wire.
+// aligned within the first 32 KB of SRAM (15-bit DMA address). An IN has no receive limit,
+// the SIE writes the whole packet whatever its length (a 392-byte packet was seen to land in
+// full), so it needs a max packet of room. Other packets go through this buffer, shared by
+// both directions since only one transaction is ever on the wire.
 TU_ATTR_ALIGNED(4) static uint8_t bounce_buf[MAX_PACKET_SIZE];
 
 enum {
@@ -231,7 +232,7 @@ static void xact_start(int8_t idx, bool new_ep) {
     USBFSH->HOST_TX_LEN = len;
     pid = USB_PID_OUT;
   } else {
-    ep->bounce = !(remain >= MAX_PACKET_SIZE && dma_capable(cursor));
+    ep->bounce = !(remain >= ep->packet_size && dma_capable(cursor));
     USBFSH->HOST_RX_DMA = (uint32_t)(ep->bounce ? bounce_buf : cursor);
     USBFSH->HOST_TX_LEN = 0;
     pid = USB_PID_IN;
@@ -313,7 +314,12 @@ static void handle_xfer_done(bool in_isr) {
           xact_start(idx, false);
         }
       } else {
-        uint16_t const len = tu_min16((uint16_t)USBFSH->RX_LEN, ep->total_len - ep->xferred_len);
+        uint16_t const rx_len = (uint16_t)USBFSH->RX_LEN;
+        if (rx_len > ep->packet_size) {
+          xfer_complete(idx, XFER_RESULT_FAILED, in_isr); // babble
+          break;
+        }
+        uint16_t const len = tu_min16(rx_len, ep->total_len - ep->xferred_len);
         if (ep->bounce && len > 0) {
           memcpy(ep->buf + ep->xferred_len, bounce_buf, len);
         }
