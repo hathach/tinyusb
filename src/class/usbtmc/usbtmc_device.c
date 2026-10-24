@@ -770,7 +770,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         case STATE_ABORTING_BULK_IN:
         case STATE_ABORTING_BULK_IN_SHORTED:
           // The abort still ends with a short packet (USBTMC 1.0 Tables 17, 26). If it is not queued, the state
-          // stays, so the host's next CLEAR_FEATURE(Bulk-IN) queues it again.
+          // stays, so the host's next CHECK_ABORT_BULK_IN_STATUS or CLEAR_FEATURE(Bulk-IN) queues it again.
           usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
           shorted = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false);
           break;
@@ -930,12 +930,22 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           .USBTMC_status = USBTMC_STATUS_SPLIT_NOT_IN_PROGRESS,
       };
       if (usbtmc_state.split == SPLIT_ABORT_BULK_IN) {
-        switch (usbtmc_state.state) {
+        usbtmc_lock();
+        usbtmcd_state_enum const state = usbtmc_state.state;
+        bool queued = true;
+        if ((state == STATE_ABORTING_BULK_IN_SHORTED) && !usbd_edpt_busy(rhport, usbtmc_state.ep_bulk_in)) {
+          // The short packet was refused (usbtmcd_xfer_cb(), CLEAR_FEATURE(Bulk-IN)) and nothing is queued: queue it
+          // again. Refused once more, the state stays, and this CHECK or CLEAR_FEATURE(Bulk-IN) retries it.
+          queued = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false);
+        }
+        usbtmc_unlock();
+        switch (state) {
           case STATE_ABORTING_BULK_IN:
           case STATE_ABORTING_BULK_IN_SHORTED:
-            // The full or the short packet is still queued
+            // The full or the short packet is still queued, unless the retry above was refused: then the host has
+            // nothing to read and only sends CHECK again (USBTMC 1.0 Table 29)
             rsp.USBTMC_status = USBTMC_STATUS_PENDING;
-            rsp.bmAbortBulkIn.BulkInFifoBytes = 1u;
+            rsp.bmAbortBulkIn.BulkInFifoBytes = queued ? 1u : 0u;
             break;
           default:
             // The short packet has been sent: while the split lasts only its completion leaves the states above.
