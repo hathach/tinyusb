@@ -35,6 +35,7 @@ DEV_DEP_MSG_OUT, REQUEST_DEV_DEP_MSG_IN, TRIGGER = 1, 2, 128
 
 TMO = 3000  # ms per transfer
 APP_DELAY_MS = 50  # the example answers a query after 2x this; the abort cases race it
+PROBE_TAG = 77  # next_write's bTag, never issued by Dut.next_tag: a Bulk-OUT bTag report of it is a parsed probe
 
 
 class SkipCase(Exception):
@@ -93,6 +94,8 @@ class Dut:
     def next_tag(self):
         t = self.tag
         self.tag = 1 if self.tag == 255 else self.tag + 1
+        if self.tag == PROBE_TAG:
+            self.tag += 1
         return t
 
     def write(self, data, timeout=1000):
@@ -195,7 +198,7 @@ def expect(cond, msg):
 def next_write(d):
     """What the next Bulk-OUT write meets: 'stall', 'ack', or 'nak' (endpoint left unarmed)."""
     try:
-        d.write(d.hdr(DEV_DEP_MSG_OUT, 77, 4, attr=1) + b'nop\n', timeout=500)
+        d.write(d.hdr(DEV_DEP_MSG_OUT, PROBE_TAG, 4, attr=1) + b'nop\n', timeout=500)
         return 'ack'
     except usb.core.USBError as e:
         if e.errno == errno.EPIPE:
@@ -203,6 +206,26 @@ def next_write(d):
         if e.errno == errno.ETIMEDOUT:
             return 'nak'
         raise
+
+
+def table7_halt(d, what):
+    """A Table 7 error Halts bulk-OUT, the data received before the Halt discarded; 3.2.2.4 sets no deadline. A
+    DCD with no software NAK on bulk-OUT (nRF USBD) ACKs one more packet into its buffer before the class Halts
+    it, so one ACKed write is accepted and the next must stall. Returns whether one was ACKed, for table7_discarded."""
+    r = next_write(d)
+    acked = r == 'ack'
+    if acked:
+        r = next_write(d)
+    expect(r == 'stall', f'{what}: next write {r}{" after one ack" if acked else ""}, want stall')
+    return acked
+
+
+def table7_discarded(d, acked, what):
+    # The write ACKed before the Halt must not have been parsed: INITIATE_ABORT_BULK_OUT reports the latest
+    # Bulk-OUT bTag (Table 19), and wValue 0 matches no transfer, so it aborts nothing
+    if acked:
+        rsp = d.ep_req(INITIATE_ABORT_BULK_OUT, 0, d.ep_out, 2)
+        expect(rsp[1] != PROBE_TAG, f'{what}: the write ACKed before the Halt reached the device ({rsp.hex()})')
 
 
 def need_full_speed(d):
@@ -367,9 +390,9 @@ def t_header_errors(d):
     ]
     for pkt, what in cases:
         d.write(pkt)
-        r = next_write(d)
-        expect(r == 'stall', f'{what}: next write {r}, want stall')
+        acked = table7_halt(d, what)
         d.dev.clear_halt(d.ep_out)
+        table7_discarded(d, acked, what)
         d.idn()
 
 
@@ -380,19 +403,19 @@ def t_excess_data(d):
     raw = b''.join(d.read_transfer())
     expect(raw[1] == tag and raw[12:17] == b'ABCDE', f'aligned message, reply {raw[:20].hex()}')
     d.write(d.hdr(DEV_DEP_MSG_OUT, d.next_tag(), 4, attr=1) + b'WXYZ' + bytes(8))
-    r = next_write(d)
-    expect(r == 'stall', f'excess data: next write {r}, want stall')
+    acked = table7_halt(d, 'excess data')
     _no_abort_to_check(d)
     d.dev.clear_halt(d.ep_out)
+    table7_discarded(d, acked, 'excess data')
 
 
 def t_short_transfer(d):
     """A transfer ending short of TransferSize Halts bulk-OUT (Table 7 index 4)."""
     d.write(d.hdr(DEV_DEP_MSG_OUT, d.next_tag(), 100, attr=1) + bytes(20))
-    r = next_write(d)
-    expect(r == 'stall', f'short transfer: next write {r}, want stall')
+    acked = table7_halt(d, 'short transfer')
     _no_abort_to_check(d)
     d.dev.clear_halt(d.ep_out)
+    table7_discarded(d, acked, 'short transfer')
 
 
 def _no_abort_to_check(d):
