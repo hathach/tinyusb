@@ -655,14 +655,31 @@ static uint8_t split_check_request(usbtmcd_split_enum split) {
 }
 
 // True while the actions of the accepted INITIATE are still running (USBTMC 1.0 4.2.1.1 rule 3a): an abort until
-// its short packet has been sent and the application no longer answers PENDING; a clear while Bulk-IN holds a
-// packet or the Function Layer is not done. Only tud_usbtmc_check_clear_cb() can tell the latter (Tables 32, 35),
-// so it is asked here, and a clear it reports finished ends as its CHECK_CLEAR_STATUS would have.
+// its short packet has been sent and the application is done, a clear while Bulk-IN holds a packet or the
+// Function Layer is not done. Only the CHECK callbacks tell whether the application is done (Tables 23, 29, 35),
+// so once the packets are gone they are asked again here, and a split they report finished ends as its
+// CHECK_STATUS would have.
 static bool split_actions_running(uint8_t rhport) {
   switch (usbtmc_state.split) {
-    case SPLIT_ABORT_BULK_IN:
-      return (usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED) ||
-             usbtmc_state.split_app_pending;
+    case SPLIT_ABORT_BULK_IN: {
+      if ((usbtmc_state.state == STATE_ABORTING_BULK_IN) || (usbtmc_state.state == STATE_ABORTING_BULK_IN_SHORTED)) {
+        return true;
+      }
+      if (usbtmc_state.split_app_pending) {
+        usbtmc_check_abort_bulk_rsp_t rsp = {
+            .USBTMC_status = USBTMC_STATUS_SUCCESS,
+            .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
+        };
+        if (!tud_usbtmc_check_abort_bulk_in_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
+          return true;
+        }
+        if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
+          (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);
+        }
+        start_split(SPLIT_NONE);
+      }
+      return false;
+    }
     case SPLIT_CLEAR: {
       if (usbd_edpt_busy(rhport, usbtmc_state.ep_bulk_in)) {
         return true;
@@ -677,8 +694,20 @@ static bool split_actions_running(uint8_t rhport) {
       start_split(SPLIT_NONE);
       return false;
     }
-    case SPLIT_ABORT_BULK_OUT: // complete when accepted: bulk-OUT is Halted at once
-      return usbtmc_state.split_app_pending;
+    case SPLIT_ABORT_BULK_OUT: {
+      // The driver's part is complete when accepted: bulk-OUT is Halted at once
+      if (usbtmc_state.split_app_pending) {
+        usbtmc_check_abort_bulk_rsp_t rsp = {
+            .USBTMC_status = USBTMC_STATUS_SUCCESS,
+            .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
+        };
+        if (!tud_usbtmc_check_abort_bulk_out_cb(&rsp) || (rsp.USBTMC_status == USBTMC_STATUS_PENDING)) {
+          return true;
+        }
+        start_split(SPLIT_NONE);
+      }
+      return false;
+    }
     default:
       return false;
   }
