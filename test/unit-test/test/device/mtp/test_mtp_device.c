@@ -266,6 +266,7 @@ static struct {
   bool queue_twice;       // the first data_send/receive is repeated: the second must be refused
   bool silent;            // command_received_cb does nothing: the test drives the API itself
   bool receive_after_last; // data_xfer_cb arms a read after the last payload too
+  bool rx_count_only;     // APP_RECEIVE counts the payload without storing it
   uint16_t resp_code;
   uint8_t resp_nparams;
   bool resp_refused_once; // the dcd refuses the first response, which the app retries unchanged
@@ -338,8 +339,10 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb) {
     app_send_next(cb);
   } else if (app.data_mode == APP_RECEIVE) {
     mtp_container_info_t* io = &cb->io_container;
-    TEST_ASSERT_LESS_OR_EQUAL(sizeof(app.rx), app.received + io->payload_bytes);
-    memcpy(app.rx + app.received, io->payload, io->payload_bytes);
+    if (!app.rx_count_only) {
+      TEST_ASSERT_LESS_OR_EQUAL(sizeof(app.rx), app.received + io->payload_bytes);
+      memcpy(app.rx + app.received, io->payload, io->payload_bytes);
+    }
     app.received += io->payload_bytes;
     if (app.receive_after_last || cb->total_xferred_bytes < io->header->len) TEST_ASSERT_TRUE(tud_mtp_data_receive(io));
   }
@@ -769,8 +772,8 @@ static uint32_t start_data_out_unknown(uint8_t* pkt) {
 }
 
 // the short packet ends the phase, and header->len then reads what arrived: the app stops re-arming
-static void check_data_out_unknown_short(uint32_t full_buffers, uint32_t last) {
-  open_device(TUSB_SPEED_HIGH);
+static void check_data_out_unknown_short(tusb_speed_t speed, uint32_t full_buffers, uint32_t last) {
+  open_device(speed);
   uint8_t pkt[BUFSIZE];
   const uint32_t tid = start_data_out_unknown(pkt);
   for (uint32_t i = 0; i < full_buffers; i++) {
@@ -788,9 +791,32 @@ static void check_data_out_unknown_short(uint32_t full_buffers, uint32_t last) {
   expect_response(tid, MTP_RESP_OK, 0);
 }
 
-void test_data_out_unknown_len_single_short_packet(void) { check_data_out_unknown_short(0, 300); }
-void test_data_out_unknown_len_short_after_full_buffers(void) { check_data_out_unknown_short(2, 100); }
-void test_data_out_unknown_len_one_byte_after_full_buffer(void) { check_data_out_unknown_short(1, 1); }
+void test_data_out_unknown_len_single_short_packet(void) { check_data_out_unknown_short(TUSB_SPEED_HIGH, 0, 300); }
+void test_data_out_unknown_len_short_after_full_buffers(void) { check_data_out_unknown_short(TUSB_SPEED_HIGH, 2, 100); }
+void test_data_out_unknown_len_one_byte_after_full_buffer(void) { check_data_out_unknown_short(TUSB_SPEED_HIGH, 1, 1); }
+// full speed: whole 64-byte packets then a ZLP end the read before the buffer fills
+void test_data_out_unknown_len_fs_packets_then_zlp(void) { check_data_out_unknown_short(TUSB_SPEED_FULL, 1, 3 * 64); }
+
+// past 4 GiB the 32-bit count wraps to 0: the next packet is payload, not a container header
+void test_data_out_unknown_len_past_4gib(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  const uint32_t tid = start_data_out_unknown(pkt);
+  app.rx_count_only = true;
+  const uint32_t full_buffers = (uint32_t) ((1ull << 32) / BUFSIZE) + 1; // the count wraps to 0, then one more
+  for (uint32_t i = 0; i < full_buffers; i++) {
+    host_out(pkt, BUFSIZE);
+    log_reset(); // only the read each completion re-arms, checked below
+    if (i == 0) memset(pkt, 0xA5, sizeof(pkt)); // payload from here: no container header to mistake
+  }
+  TEST_ASSERT_EQUAL(full_buffers, app.xfer_calls);
+  TEST_ASSERT_EQUAL(0, app.complete_calls);
+  TEST_ASSERT_TRUE_MESSAGE(xfer_of(EP_OUT)->active, "no read armed after the wrap");
+  host_out(pkt, 100);
+  TEST_ASSERT_EQUAL(1, app.complete_calls);
+  TEST_ASSERT_EQUAL(MTP_PHASE_DATA_COMPLETE, app.complete_phase);
+  expect_response(tid, MTP_RESP_OK, 0);
+}
 
 // a whole number of buffers: the app's own read takes the terminating ZLP
 void test_data_out_unknown_len_full_buffers_then_zlp(void) {

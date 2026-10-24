@@ -81,6 +81,7 @@ typedef struct {
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
   bool cmd_waiting; // the saved command waits for a data IN abandoned on Cancel to retire
+  bool out_first;   // data OUT: the next packet starts with the container header
 
   uint32_t total_len;
   uint32_t xferred_len;
@@ -285,6 +286,7 @@ bool tud_mtp_data_send(mtp_container_info_t *p_container) {
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase = MTP_PHASE_DATA;
+    p_mtp->out_first = false;
     p_mtp->xferred_len = 0;
     p_mtp->total_len   = p_container->header->len;
 
@@ -314,6 +316,7 @@ bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase       = MTP_PHASE_DATA;
+    p_mtp->out_first   = true;
     p_mtp->xferred_len = 0;
     p_mtp->total_len   = p_container->header->len;
   }
@@ -605,8 +608,11 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       cb_data.total_xferred_bytes = p_mtp->xferred_len;
 
       const bool is_data_in = (ep_addr == p_mtp->ep_in);
-      const bool is_first_out = !is_data_in && (p_mtp->xferred_len == xferred_bytes);
+      // a flag, not xferred_len == xferred_bytes: past 4 GiB of a ContainerLength 0xFFFFFFFF phase
+      // the 32-bit count wraps to 0
+      const bool is_first_out = !is_data_in && p_mtp->out_first;
       if (is_first_out) {
+        p_mtp->out_first = false;
         // the host's container header declares the data phase length; less than a header
         // (including a bare ZLP), or a container that is not this transaction's data block,
         // is a protocol error
