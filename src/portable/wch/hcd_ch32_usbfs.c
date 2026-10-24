@@ -22,7 +22,8 @@
  * transfer yields to a higher type at every packet. A periodic endpoint runs once per
  * service interval: a NAK, or no response, waits for its next interval. A control or bulk
  * NAK is retried in the same frame, at most max_nak times (tuh_configure()); no
- * response waits for the next frame.
+ * response waits for the next frame. NAKs never end a transfer, but three consecutive
+ * transactions without response fail it (USB 2.0 5.3.2).
  *
  * An isochronous endpoint runs without handshake, always DATA0, one packet per transfer.
  */
@@ -61,6 +62,10 @@ enum {
   // interrupt per NAK.
   MAX_NAK_DEFAULT = 3,
   MAX_NAK_LIMIT   = 31, // width of hcd_ep_t.nak_count
+
+  // consecutive transactions without response that fail a transfer, the three bus errors
+  // of USB 2.0 5.3.2; a NAK is no error
+  XACT_ERR_MAX = 3, // fits hcd_ep_t.err_count
 };
 
 // Bound for every wait on the SIE
@@ -83,6 +88,7 @@ typedef struct {
   uint8_t xfer_type : 2;
   uint8_t bounce    : 1; // current IN packet lands in bounce_buf
   uint8_t nak_count : 5; // NAKs in this frame
+  uint8_t err_count : 2; // consecutive transactions without response
   uint8_t  interval;    // service interval in frames
   uint16_t packet_size; // 0 = free slot
   uint16_t next_frame;  // earliest frame for the next attempt
@@ -398,6 +404,13 @@ static void xfer_complete(int8_t idx, xfer_result_t result, bool in_isr) {
   hcd_event_xfer_complete(daddr, ep_addr, len, result, in_isr);
 }
 
+// retry the current transaction in the next service frame
+static void xact_retry_later(int8_t idx) {
+  hcd_ep_t *ep = &_hcd.ep[idx];
+  ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
+  engine_next(idx);
+}
+
 static void handle_iso_done(int8_t idx, bool in_isr) {
   hcd_ep_t *ep = &_hcd.ep[idx];
 
@@ -438,6 +451,7 @@ static void handle_xfer_done(bool in_isr) {
 
   switch (xact_result()) {
     case XACT_OK:
+      ep->err_count = 0;
       if (ep->is_setup) {
         ep->xferred_len = 8;
         xfer_complete(idx, XFER_RESULT_SUCCESS, in_isr);
@@ -470,19 +484,25 @@ static void handle_xfer_done(bool in_isr) {
       break;
 
     case XACT_NAK:
-      // control and bulk retry in this frame, after the other ready endpoints
-      if (ep->xfer_type == TUSB_XFER_CONTROL || ep->xfer_type == TUSB_XFER_BULK) {
-        if (_tuh_cfg.max_nak == 0 || ++ep->nak_count < _tuh_cfg.max_nak) {
-          engine_next(idx);
-          break;
-        }
+      // the device answered: no error. Control and bulk retry in this frame, after the other
+      // ready endpoints, the rest in the next service frame
+      ep->err_count = 0;
+      if ((ep->xfer_type == TUSB_XFER_CONTROL || ep->xfer_type == TUSB_XFER_BULK) &&
+          (_tuh_cfg.max_nak == 0 || ++ep->nak_count < _tuh_cfg.max_nak)) {
+        engine_next(idx);
+      } else {
+        xact_retry_later(idx);
       }
-      TU_ATTR_FALLTHROUGH;
+      break;
 
     case XACT_TIMEOUT:
-      // retry in the next service frame, usbh times out a control transfer that never ends
-      ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
-      engine_next(idx);
+      // no response is a bus error: retry in the next service frame, fail the transfer on the
+      // third in a row so that a gone device is reported
+      if (++ep->err_count >= XACT_ERR_MAX) {
+        xfer_complete(idx, XFER_RESULT_FAILED, in_isr);
+      } else {
+        xact_retry_later(idx);
+      }
       break;
 
     case XACT_STALL:
@@ -768,6 +788,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
   ep->is_setup    = 1;
   ep->is_out      = 1;
   ep->toggle      = 0;
+  ep->err_count   = 0;
   ep->buf         = NULL;
   ep->total_len   = 8;
   ep->xferred_len = 0;
@@ -807,6 +828,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
   ep->buf         = buffer;
   ep->total_len   = buflen;
   ep->xferred_len = 0;
+  ep->err_count   = 0;
 
   // keep the interval since the last transfer, unless it has already passed
   int16_t const wait = (int16_t)(ep->next_frame - _hcd.frame_count);
