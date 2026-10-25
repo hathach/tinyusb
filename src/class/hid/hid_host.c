@@ -69,7 +69,7 @@ TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, cons
 TU_ATTR_WEAK void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result) {
   // keep polling as an application does from tuh_hid_report_received_cb(), unless the transfer was cancelled
   if (result != XFER_RESULT_ABORTED) {
-    (void) tuh_hid_receive_report(dev_addr, idx);
+    TU_ASSERT(tuh_hid_receive_report(dev_addr, idx), );
   }
 }
 

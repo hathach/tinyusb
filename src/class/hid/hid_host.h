@@ -139,8 +139,9 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx);
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);
 
 // Invoked instead of tuh_hid_report_received_cb() when the interrupt IN transfer failed, e.g. stalled, a
-// transaction error or the device is gone. The default calls tuh_hid_receive_report() again, so polling goes on
-// as it does when the application re-arms from tuh_hid_report_received_cb(); override it to change that.
+// transaction error or the device is gone. The default calls tuh_hid_receive_report() again, except after an
+// aborted transfer, so polling goes on as it does when the application re-arms from tuh_hid_report_received_cb();
+// override it to change that.
 void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result);
 
 // Invoked when sent report to device successfully via interrupt endpoint
