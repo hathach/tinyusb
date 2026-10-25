@@ -31,6 +31,12 @@ static uint8_t release_count; // endpoint released after a failed queue
 static bool    xfer_ok;       // what the HCD answers when a transfer is queued
 static uint8_t report_cb_count;
 
+static uint8_t breakpoint_count; // TU_BREAKPOINT() hits, see CFG_TUSB_DEBUG_BREAKPOINT in project.yml
+
+void hid_breakpoint_hook(void) {
+  breakpoint_count++;
+}
+
 //--------------------------------------------------------------------+
 // Host stack functions called by hid_host.c
 //--------------------------------------------------------------------+
@@ -112,17 +118,18 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
   (void)report;
   (void)len;
   report_cb_count++;
-  (void)tuh_hid_receive_report(dev_addr, idx);
+  TEST_ASSERT_TRUE(tuh_hid_receive_report(dev_addr, idx));
 }
 
 //--------------------------------------------------------------------+
 // Tests
 //--------------------------------------------------------------------+
 void setUp(void) {
-  xfer_count      = 0;
-  release_count   = 0;
-  xfer_ok         = true;
-  report_cb_count = 0;
+  xfer_count       = 0;
+  release_count    = 0;
+  xfer_ok          = true;
+  report_cb_count  = 0;
+  breakpoint_count = 0;
 
   TEST_ASSERT_TRUE(hidh_init());
   TEST_ASSERT_EQUAL(sizeof(hid_itf_desc),
@@ -172,4 +179,12 @@ void test_default_rearm_failure(void) {
   TEST_ASSERT_EQUAL(1, release_count);
   TEST_ASSERT_EQUAL(0, report_cb_count);
   TEST_ASSERT_TRUE(tuh_hid_receive_ready(HID_DEV_ADDR, 0)); // endpoint idle, no transfer pending
+}
+
+// The host controller can refuse the re-arm, e.g. when the device is gone: that must not halt the CPU
+void test_default_rearm_failure_no_breakpoint(void) {
+  xfer_ok = false;
+  TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_FAILED, 0));
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL(0, breakpoint_count);
 }
