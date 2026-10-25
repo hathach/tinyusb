@@ -25,7 +25,6 @@
   #include "rp2040_usb.h"
   #include "osal/osal.h"
 
-  #include "common/tusb_sysview.h"
   #include "host/hcd.h"
   #include "host/usbh.h"
 

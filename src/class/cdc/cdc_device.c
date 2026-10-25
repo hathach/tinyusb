@@ -9,7 +9,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_CDC)
 
-#include "common/tusb_sysview.h"
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 

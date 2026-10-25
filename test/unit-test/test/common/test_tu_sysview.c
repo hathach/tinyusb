@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-// tusb_sysview.c's ISR depth counter, against a stub for SEGGER_SYSVIEW_Record{Enter,Exit}ISR().
+// tusb.c's SystemView ISR depth counter, against a stub for SEGGER_SYSVIEW_Record{Enter,Exit}ISR().
 // A dual-role BSP's vector ISR calls tud_int_handler() and tuh_int_handler() back to back, each
 // self-wrapped: its outer ENTER/EXIT bracket nests them so the counter records one span, while two
 // unbracketed pairs stay two.
@@ -32,8 +32,8 @@
 #include "unity.h"
 
 // Files to test
-#include "common/tusb_sysview.h"
-TEST_SOURCE_FILE("tusb_sysview.c")
+#include "tusb.h"
+TEST_SOURCE_FILE("tusb.c")
 
 //--------------------------------------------------------------------+
 // SEGGER_SYSVIEW stub (test/support/fake_vendor/SEGGER_SYSVIEW.h declares these; not
@@ -46,10 +46,10 @@ static unsigned exit_isr_count;
 void SEGGER_SYSVIEW_RecordEnterISR(void) { enter_isr_count++; }
 void SEGGER_SYSVIEW_RecordExitISR(void)  { exit_isr_count++; }
 
-// Unused by these tests (tusb_sysview_isr_enter/_exit is the only surface exercised), but
-// tusb_sysview.c's OTHER functions (tusb_sysview_init/heap_alloc/heap_free/name_resource) still
+// Unused by these tests (tu_sysview_isr_enter/_exit is the only surface exercised), but
+// tusb.c's OTHER SystemView functions (tu_sysview_init/heap_alloc/heap_free/name_resource) still
 // need to link even though this test never calls them -- Ceedling compiles/links the whole
-// tusb_sysview.c translation unit, not just the functions a given test happens to call.
+// tusb.c translation unit, not just the functions a given test happens to call.
 void SEGGER_SYSVIEW_Init(U32 SysFreq, U32 CPUFreq, const SEGGER_SYSVIEW_OS_API *pOSAPI,
                           SEGGER_SYSVIEW_SEND_SYS_DESC_FUNC pfSendSysDesc) {
   (void) SysFreq; (void) CPUFreq; (void) pOSAPI; (void) pfSendSysDesc;
@@ -93,8 +93,8 @@ void tearDown(void) {
 
 // Simple single self-wrapped call: ENTER, EXIT -- sanity check, not the interesting case.
 void test_single_pair_records_once(void) {
-  tusb_sysview_isr_enter();
-  tusb_sysview_isr_exit();
+  tu_sysview_isr_enter();
+  tu_sysview_isr_exit();
 
   TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
   TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
@@ -109,12 +109,12 @@ void test_single_pair_records_once(void) {
 // This is the exact sequence one real hardware interrupt now produces. It must record exactly
 // one ENTER/EXIT pair, not three.
 void test_outer_bracket_collapses_nested_dual_role_pair(void) {
-  tusb_sysview_isr_enter();  // outer
-  tusb_sysview_isr_enter();  //   tud_int_handler's self-wrap: enter
-  tusb_sysview_isr_exit();   //   tud_int_handler's self-wrap: exit
-  tusb_sysview_isr_enter();  //   tuh_int_handler's self-wrap: enter
-  tusb_sysview_isr_exit();   //   tuh_int_handler's self-wrap: exit
-  tusb_sysview_isr_exit();   // outer
+  tu_sysview_isr_enter();  // outer
+  tu_sysview_isr_enter();  //   tud_int_handler's self-wrap: enter
+  tu_sysview_isr_exit();   //   tud_int_handler's self-wrap: exit
+  tu_sysview_isr_enter();  //   tuh_int_handler's self-wrap: enter
+  tu_sysview_isr_exit();   //   tuh_int_handler's self-wrap: exit
+  tu_sysview_isr_exit();   // outer
 
   TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
   TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
@@ -122,10 +122,10 @@ void test_outer_bracket_collapses_nested_dual_role_pair(void) {
 
 // without the outer bracket, two back-to-back self-wrapped pairs are two spans
 void test_two_sequential_pairs_without_outer_bracket_do_not_collapse(void) {
-  tusb_sysview_isr_enter();  // tud_int_handler's self-wrap: enter
-  tusb_sysview_isr_exit();   // tud_int_handler's self-wrap: exit
-  tusb_sysview_isr_enter();  // tuh_int_handler's self-wrap: enter
-  tusb_sysview_isr_exit();   // tuh_int_handler's self-wrap: exit
+  tu_sysview_isr_enter();  // tud_int_handler's self-wrap: enter
+  tu_sysview_isr_exit();   // tud_int_handler's self-wrap: exit
+  tu_sysview_isr_enter();  // tuh_int_handler's self-wrap: enter
+  tu_sysview_isr_exit();   // tuh_int_handler's self-wrap: exit
 
   TEST_ASSERT_EQUAL_UINT(2, enter_isr_count);
   TEST_ASSERT_EQUAL_UINT(2, exit_isr_count);
@@ -135,10 +135,10 @@ void test_two_sequential_pairs_without_outer_bracket_do_not_collapse(void) {
 // that's mid-span) collapses the same way as the deliberate outer bracket above -- the counter
 // doesn't distinguish why it's nested, only that it is.
 void test_preempting_isr_nests_and_collapses(void) {
-  tusb_sysview_isr_enter();  // low-priority ISR's own wrap: enter
-  tusb_sysview_isr_enter();  //   preempting high-priority ISR's wrap: enter
-  tusb_sysview_isr_exit();   //   preempting high-priority ISR's wrap: exit
-  tusb_sysview_isr_exit();   // low-priority ISR's own wrap: exit
+  tu_sysview_isr_enter();  // low-priority ISR's own wrap: enter
+  tu_sysview_isr_enter();  //   preempting high-priority ISR's wrap: enter
+  tu_sysview_isr_exit();   //   preempting high-priority ISR's wrap: exit
+  tu_sysview_isr_exit();   // low-priority ISR's own wrap: exit
 
   TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
   TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);

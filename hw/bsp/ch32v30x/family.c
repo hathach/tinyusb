@@ -49,12 +49,6 @@
 
 #include "bsp/board_api.h"
 #include "board.h"
-// Pulled in directly (matching ch32v20x/family.c), not left to tusb.h's transitive
-// usbd.h/usbh.h path: those only get included when CFG_TUD_ENABLED/CFG_TUH_ENABLED are set,
-// which the board_test example leaves at 0 -- SEGGER_SYSVIEW_X_GetTimestamp() below is gated
-// purely on CFG_TUD_SYSVIEW/CFG_TUH_SYSVIEW, so a SYSVIEW build of a no-USB example needs this
-// header's SEGGER_SYSVIEW.h include on its own to see that function's prototype.
-#include "common/tusb_sysview.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

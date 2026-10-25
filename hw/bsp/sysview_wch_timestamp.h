@@ -16,7 +16,7 @@
 // itself was given.
 //
 // RISC-V has no DWT cycle counter, so SystemView takes its timestamp from a hardware timer
-// (contract in src/common/tusb_sysview.c: free-running microseconds). The QingKe SysTick is a
+// (contract in src/tusb.c: free-running microseconds). The QingKe SysTick is a
 // peripheral, not a core register: its CNT counts HCLK cycles and is reloaded to 0 by hardware
 // every millisecond (CMP = clock/1000 - 1, see each family's SysTick_Config). Composing the
 // millisecond tick with CNT costs no extra peripheral and leaves the 1 ms tick untouched.

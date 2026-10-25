@@ -13,7 +13,6 @@
 #endif
 
 #include "common/tusb_common.h"
-#include "common/tusb_sysview.h"
 
 #if CFG_TUH_MAX3421
 #include "portable/analog/max3421/hcd_max3421.h"

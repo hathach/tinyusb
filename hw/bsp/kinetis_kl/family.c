@@ -34,7 +34,6 @@
 #include "fsl_port.h"
 #include "fsl_clock.h"
 #include "fsl_lpsci.h"
-#include "common/tusb_sysview.h"
 
 #include "clock_config.h"
 
@@ -45,7 +44,7 @@ void USB0_IRQHandler(void)
 {
   // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
   // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
   TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0, true);

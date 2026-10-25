@@ -507,8 +507,7 @@ function(family_configure_common TARGET RTOS)
     file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sysview_shim/SEGGER_RTT_ConfDefaults.h
          CONTENT "#include \"SEGGER_RTT_Conf.h\"\n" @ONLY)
     target_sources(${TARGET} PUBLIC
-      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
-      ${TOP}/src/common/tusb_sysview.c)
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
     # Use SEGGER_RTT.c's portable C writer instead of SEGGER_RTT_ASM_ARMv7M.S. The .S is ARM
     # assembly (fails to assemble on RISC-V: "unknown pseudo-op: .syntax") and RTT selects it via
     # RTT_USE_ASM, which it derives from the core -- a source-list condition cannot track that

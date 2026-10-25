@@ -12,7 +12,7 @@ SCRIPTS = "skills/target-debug/scripts/"
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
 SYSVIEW_CHANNEL = 1
 # absolute event id -> name for sysview_report.py --event-map; test_sysview_ci checks it
-# against tusb_sysview.h's TU_SV_ID_* enum
+# against tusb_debug.h's TU_SV_ID_* enum
 EVENT_MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helper", "sysview_events.json")
 WORKLOAD_EVENT_NAME = "tud_cdc_read"
 

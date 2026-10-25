@@ -20,7 +20,6 @@ manufacturer: WCH
 
 #include "bsp/board_api.h"
 #include "board.h"
-#include "common/tusb_sysview.h"
 
 /* CH32v203 depending on variants can support 2 USB IPs: FSDEV (port0) and USBFS (port1).
  * By default, we use FSDEV, but you can explicitly select by define:
@@ -61,7 +60,7 @@ FSDEV_NAKED_ISR(USBWakeUp_IRQHandler)
 __attribute__((interrupt)) __attribute__((used)) void USBHD_IRQHandler(void) {
   // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
   // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
   TU_SYSVIEW_ISR_ENTER();
   #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(1);

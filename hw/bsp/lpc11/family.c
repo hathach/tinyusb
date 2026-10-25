@@ -41,7 +41,6 @@
 
 #include "bsp/board_api.h"
 #include "board.h"
-#include "common/tusb_sysview.h"
 
 extern void USB_IRQHandler(void);
 extern void SysTick_Handler(void);
@@ -107,7 +106,7 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 #if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
 // Cortex-M0 has no DWT cycle counter, so SystemView takes its timestamp from a hardware timer
-// (contract in src/common/tusb_sysview.c: free-running microseconds). CT32B0 is a genuinely 32-bit
+// (contract in src/tusb.c: free-running microseconds). CT32B0 is a genuinely 32-bit
 // counter prescaled to 1 MHz in board_init(), so its TC is already the required value and wraps
 // only every ~71 minutes.
 uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {

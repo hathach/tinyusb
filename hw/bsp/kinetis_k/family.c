@@ -36,7 +36,6 @@
 #include "fsl_uart.h"
 #include "fsl_sysmpu.h"
 #include "common/tusb_fifo.h"
-#include "common/tusb_sysview.h"
 
 #include "board/clock_config.h"
 #include "board/pin_mux.h"
@@ -61,7 +60,7 @@ void UART0_RX_TX_IRQHandler(void) {
 void USB0_IRQHandler(void) {
   // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
   // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
   TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0);

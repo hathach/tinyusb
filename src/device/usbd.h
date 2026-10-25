@@ -9,7 +9,6 @@
 #define TUSB_USBD_H_
 
 #include "common/tusb_common.h"
-#include "common/tusb_sysview.h"
 
 #ifdef __cplusplus
 extern "C" {

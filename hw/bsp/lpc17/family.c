@@ -31,7 +31,6 @@
 #include "chip.h"
 #include "bsp/board_api.h"
 #include "board.h"
-#include "common/tusb_sysview.h"
 
 // Invoked by startup code
 void SystemInit(void) {
@@ -153,7 +152,7 @@ uint32_t tusb_time_millis_api(void) {
 void USB_IRQHandler(void) {
   // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
   // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
   TU_SYSVIEW_ISR_ENTER();
   #if CFG_TUD_ENABLED
   tud_int_handler(0);

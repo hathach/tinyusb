@@ -14,7 +14,7 @@
 // Source: a TMR in Continuous mode at prescaler 1 (f_PCLK = f_SYS_CLK/2 = 48 MHz, UG6971
 // Eq. 15-1). The 1 MHz "microseconds" contract the M0/RISC-V families follow is unreachable
 // here -- the prescaler is powers-of-two only -- so the frequency is reported alongside via
-// SEGGER_SYSVIEW_X_GetTimestampFreq() (see CFG_TUSB_SYSVIEW_TIMESTAMP_BSP in tusb_sysview.c).
+// SEGGER_SYSVIEW_X_GetTimestampFreq() (see CFG_TUSB_SYSVIEW_TIMESTAMP_BSP in tusb.c).
 // UG6971 15.2 guarantees TMRn_CNT "is always readable, even while the timer is enabled and
 // counting". With CMP=0xFFFFFFFF the hardware wrap reloads CNT to 0x0000_0001, not 0
 // (UG6971 15.5.1): modulus 2^32-1, i.e. one 20.8 ns slip per ~89.5 s wrap -- ~0.23 ppb, far

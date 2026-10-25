@@ -23,12 +23,12 @@
  */
 
 // Host-side stand-in for lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.h, used ONLY by
-// test_tusb_sysview.c (the only unit test that forces CFG_TUD_SYSVIEW nonzero -- every other
-// test leaves it at the tusb_option.h default of 0, so common/tusb_sysview.h's
+// test_tu_sysview.c (the only unit test that forces CFG_TUD_SYSVIEW nonzero -- every other
+// test leaves it at the tusb_option.h default of 0, so common/tusb_debug.h's
 // `#include "SEGGER_SYSVIEW.h"` never triggers for them and this file is never reached).
 // The real vendor header pulls in its own SEGGER.h/SEGGER_SYSVIEW_ConfDefaults.h chain, written
 // for an embedded target -- not worth dragging onto the host just to unit-test a depth counter.
-// Declares exactly the surface src/common/tusb_sysview.c references; test_tusb_sysview.c
+// Declares exactly the surface src/tusb.c references; test_tu_sysview.c
 // provides the definitions (hand-written stubs, not CMock-generated).
 #ifndef SEGGER_SYSVIEW_H
 #define SEGGER_SYSVIEW_H

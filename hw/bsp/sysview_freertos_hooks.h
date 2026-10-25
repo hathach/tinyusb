@@ -20,7 +20,7 @@
   // Both macros below are generic FreeRTOS.h knobs (FreeRTOS.h supplies a "#ifndef ... 0"
   // default for each, identically on every port -- verified against lib/FreeRTOS-Kernel), not
   // architecture-specific, so forcing them here is safe for any family this header is wired
-  // into. tusb_sysview_stack_report() (src/common/tusb_sysview.c) needs
+  // into. tu_sysview_stack_report() (src/tusb.c) needs
   // configRECORD_STACK_HIGH_ADDRESS=1 to compute true "bytes used at peak" instead of
   // (inverted) headroom; without it the number it publishes is the exact opposite of the
   // "stack high-water" label the PR-comment legend gives it. configUSE_TRACE_FACILITY=1 is
@@ -29,12 +29,12 @@
   #define configUSE_TRACE_FACILITY        1
   #undef  configRECORD_STACK_HIGH_ADDRESS
   #define configRECORD_STACK_HIGH_ADDRESS 1
-  #ifndef TU_SYSVIEW_HEAP_HOOKS_DECLARED /* avoid -Werror=redundant-decls vs tusb_sysview.h */
+  #ifndef TU_SYSVIEW_HEAP_HOOKS_DECLARED /* avoid -Werror=redundant-decls vs tusb_debug.h */
   #define TU_SYSVIEW_HEAP_HOOKS_DECLARED
-  extern void tusb_sysview_heap_alloc(void* ptr, unsigned size);
-  extern void tusb_sysview_heap_free(void* ptr);
+  extern void tu_sysview_heap_alloc(void* ptr, unsigned size);
+  extern void tu_sysview_heap_free(void* ptr);
   #endif
-  #define traceMALLOC(pvAddress, uiSize) tusb_sysview_heap_alloc(pvAddress, uiSize)
-  #define traceFREE(pvAddress, uiSize)   tusb_sysview_heap_free(pvAddress)
+  #define traceMALLOC(pvAddress, uiSize) tu_sysview_heap_alloc(pvAddress, uiSize)
+  #define traceFREE(pvAddress, uiSize)   tu_sysview_heap_free(pvAddress)
   #include "SEGGER_SYSVIEW_FreeRTOS.h"
 #endif

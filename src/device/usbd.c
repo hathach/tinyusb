@@ -9,7 +9,6 @@
 
 #if CFG_TUD_ENABLED
 
-#include "common/tusb_sysview.h"
 #include "tusb.h"
 #include "device/dcd.h"
 #include "common/tusb_private.h"
@@ -529,7 +528,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     return true; // skip if already initialized
   }
   TU_ASSERT(rh_init);
-  tusb_sysview_init(); // no-op unless a SYSVIEW level is set; here so tud_init() alone starts recording
+  tu_sysview_init(); // no-op unless a SYSVIEW level is set; here so tud_init() alone starts recording
  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
@@ -564,7 +563,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Init device mutex
   _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
 #if CFG_TUD_SYSVIEW
-  tusb_sysview_name_resource(_usbd_mutex, "usbd_mutex");
+  tu_sysview_name_resource(_usbd_mutex, "usbd_mutex");
 #endif
   TU_ASSERT(_usbd_mutex);
 #endif
@@ -860,7 +859,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
     { static uint16_t sv_cnt = 0;
-      if (0 == (++sv_cnt & 0x3FFu)) { tusb_sysview_stack_report(); } }
+      if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
 #endif
 
     // allow to exit tud_task() if there is no event in the next run

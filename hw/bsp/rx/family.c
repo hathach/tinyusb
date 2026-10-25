@@ -27,7 +27,6 @@
 #include "bsp/board_api.h"
 #include "board.h"
 #include "interrupt_handlers.h"
-#include "common/tusb_sysview.h"
 
 #define SYSTEM_PRCR_PRC1      (1<<1)
 #define SYSTEM_PRCR_PRKEY     (0xA5u<<8)
@@ -114,7 +113,7 @@ void BOARD_USB_IRQ_HANDLER(void)
 {
   // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
   // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb_sysview.c collapses this outer+inner nesting into one pair.
+  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
   TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0, true);

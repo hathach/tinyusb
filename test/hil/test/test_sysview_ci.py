@@ -446,12 +446,12 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
 
 
 class EventMap(unittest.TestCase):
-    """sysview_events.json names TU_SV_EVENT_BASE + each TU_SV_ID_* of tusb_sysview.h, in enum
+    """sysview_events.json names TU_SV_EVENT_BASE + each TU_SV_ID_* of tusb_debug.h, in enum
     order: a reordered or inserted id would otherwise mislabel every function row."""
 
     def test_matches_the_header_enum(self):
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        with open(os.path.join(root, "src", "common", "tusb_sysview.h")) as f:
+        with open(os.path.join(root, "src", "common", "tusb_debug.h")) as f:
             header = f.read()
         base = int(re.search(r"#define TU_SV_EVENT_BASE (\d+)", header).group(1))
         enum = re.search(r"TU_SV_ID_TUD_TASK = 0,(.*?)TU_SV_ID_COUNT", header, re.S).group(1)

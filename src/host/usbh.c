@@ -9,7 +9,6 @@
 
 #if CFG_TUH_ENABLED
 
-#include "common/tusb_sysview.h"
 #include "hcd.h"
 #include "tusb.h"
 #include "usbh_pvt.h"
@@ -538,7 +537,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (tuh_rhport_is_active(rhport)) {
     return true; // skip if already initialized
   }
-  tusb_sysview_init(); // no-op unless a SYSVIEW level is set; here so tuh_init() alone starts recording
+  tu_sysview_init(); // no-op unless a SYSVIEW level is set; here so tuh_init() alone starts recording
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   char const* speed_str = 0;
   switch (rh_init->speed) {
@@ -585,7 +584,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
   #if CFG_TUH_SYSVIEW
-    tusb_sysview_name_resource(_usbh_mutex, "usbh_mutex");
+    tu_sysview_name_resource(_usbh_mutex, "usbh_mutex");
   #endif
     TU_ASSERT(_usbh_mutex);
   #endif
@@ -935,7 +934,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     // rotation state, so a dual-role build leaves it to the device task alone.
 #if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && !CFG_TUD_ENABLED && CFG_TUSB_OS == OPT_OS_FREERTOS
     { static uint16_t sv_cnt = 0;
-      if (0 == (++sv_cnt & 0x3FFu)) { tusb_sysview_stack_report(); } }
+      if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
 #endif
 
     // allow to exit tuh_task() if there is no event in the next run
