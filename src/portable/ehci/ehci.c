@@ -104,8 +104,9 @@
  * maximum packet size: OUT from H0 upwards, IN from the end with two
  * complete-split retries before H7 ends. No bus-time admission, interrupt
  * reservations or frame-spanning splits; IN is limited
- * to 564 bytes and OUT to 1023. Direct FS uses the embedded TT, which ignores
- * the S-mask/C-mask (left zero) and allows 1023 bytes in either direction.
+ * to 564 bytes and OUT to 1023. Direct FS uses the embedded TT with the
+ * S-mask/C-mask left zero. A single endpoint may use 1023 bytes in either
+ * direction, but several share a small per-frame budget (iso_ep_open).
  *
  * CFG_TUH_UNCACHED_MEM_SECTION must be non-cacheable or coherent because TDs
  * are unlinked while the schedule runs; payload buffers keep cache maintenance.
@@ -882,6 +883,23 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
     // Reopening with other parameters needs a close first, which releases the
     // TD and any split window sized for the old maximum packet.
     return opened->max_xfer_bytes == mps * mult && opened->interval == interval;
+  }
+  if (bus.speed == TUSB_SPEED_FULL && ehci_data.regs->portsc_bm.nxp_port_speed == TUSB_SPEED_FULL) {
+    // On a native FS port the embedded TT serves one ISO endpoint of any size,
+    // but several only while each packet is at most 220 bytes and they total at
+    // most 440 per frame, in either direction. Beyond that the earliest-opened
+    // endpoints get no tokens at all. Measured on RT1064, the S-masks have no
+    // effect on it; the manual documents no limit.
+    uint16_t total = mps;
+    uint16_t largest = mps;
+    bool shared = false;
+    for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
+      uint16_t const size = ehci_data.qtd_pool[i].iso.max_xfer_bytes;
+      total += size;
+      largest = tu_max16(largest, size);
+      shared = true;
+    }
+    TU_ASSERT(!shared || (largest <= 220 && total <= 440));
   }
 
   uint8_t const dir = tu_edpt_dir(desc->bEndpointAddress);
