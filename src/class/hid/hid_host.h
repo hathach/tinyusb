@@ -136,10 +136,12 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx);
 
 // Invoked when received report from device via interrupt endpoint
 // Note: if there is report ID (composite), it is 1st byte of report
-// report = NULL indicate there is error in the transfer e.g stalled response. A zero-length report with a valid
-// pointer is not an error, some devices send those. It is up to the application whether to call
-// tuh_hid_receive_report() again after an error.
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);
+
+// Invoked instead of tuh_hid_report_received_cb() when the interrupt IN transfer failed, e.g. stalled, a
+// transaction error or the device is gone. The default calls tuh_hid_receive_report() again, so polling goes on
+// as it does when the application re-arms from tuh_hid_report_received_cb(); override it to change that.
+void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result);
 
 // Invoked when sent report to device successfully via interrupt endpoint
 void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);

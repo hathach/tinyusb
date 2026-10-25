@@ -33,6 +33,11 @@ static uint8_t        report_cb_idx;
 static const uint8_t *report_cb_report;
 static uint16_t       report_cb_len;
 
+static uint8_t       failed_cb_count;
+static uint8_t       failed_cb_daddr;
+static uint8_t       failed_cb_idx;
+static xfer_result_t failed_cb_result;
+
 //--------------------------------------------------------------------+
 // Host stack functions called by hid_host.c
 //--------------------------------------------------------------------+
@@ -116,6 +121,13 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
   report_cb_len    = len;
 }
 
+void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result) {
+  failed_cb_count++;
+  failed_cb_daddr  = dev_addr;
+  failed_cb_idx    = idx;
+  failed_cb_result = result;
+}
+
 //--------------------------------------------------------------------+
 // Tests
 //--------------------------------------------------------------------+
@@ -126,6 +138,10 @@ void setUp(void) {
   report_cb_idx    = TUSB_INDEX_INVALID_8;
   report_cb_report = NULL;
   report_cb_len    = 0xFFFF;
+  failed_cb_count  = 0;
+  failed_cb_daddr  = 0;
+  failed_cb_idx    = TUSB_INDEX_INVALID_8;
+  failed_cb_result = XFER_RESULT_SUCCESS;
 
   TEST_ASSERT_TRUE(hidh_init());
   TEST_ASSERT_EQUAL(sizeof(hid_itf_desc),
@@ -147,6 +163,7 @@ void test_hidh_report_received(void) {
   TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_SUCCESS, sizeof(report)));
 
   TEST_ASSERT_EQUAL(1, report_cb_count);
+  TEST_ASSERT_EQUAL(0, failed_cb_count);
   TEST_ASSERT_EQUAL(HID_DEV_ADDR, report_cb_daddr);
   TEST_ASSERT_EQUAL(0, report_cb_idx);
   TEST_ASSERT_EQUAL_PTR(edpt_xfer_buffer, report_cb_report);
@@ -163,19 +180,18 @@ void test_hidh_report_received_zero_length(void) {
   TEST_ASSERT_EQUAL(0, report_cb_len);
 }
 
-// A failed transfer passes report = NULL, so the application can tell it from a zero-length report
+// A failed transfer is no report: tuh_hid_report_failed_cb() gets its result, tuh_hid_report_received_cb() nothing,
+// so neither a stale buffer nor a zero length reaches the application as data
 void test_hidh_report_failed(void) {
   const xfer_result_t results[] = {XFER_RESULT_FAILED, XFER_RESULT_STALLED, XFER_RESULT_TIMEOUT, XFER_RESULT_ABORTED};
 
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
-    report_cb_report = edpt_xfer_buffer; // not NULL, so the check below sees what the callback got
-
     TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, results[i], 0));
 
-    TEST_ASSERT_EQUAL(i + 1, report_cb_count);
-    TEST_ASSERT_EQUAL(HID_DEV_ADDR, report_cb_daddr);
-    TEST_ASSERT_EQUAL(0, report_cb_idx);
-    TEST_ASSERT_NULL(report_cb_report);
-    TEST_ASSERT_EQUAL(0, report_cb_len);
+    TEST_ASSERT_EQUAL(0, report_cb_count);
+    TEST_ASSERT_EQUAL(i + 1, failed_cb_count);
+    TEST_ASSERT_EQUAL(HID_DEV_ADDR, failed_cb_daddr);
+    TEST_ASSERT_EQUAL(0, failed_cb_idx);
+    TEST_ASSERT_EQUAL(results[i], failed_cb_result);
   }
 }
