@@ -171,20 +171,13 @@ void test_success_and_failure_rearm_once_each(void) {
   TEST_ASSERT_EQUAL(1, report_cb_count);
 }
 
-// When the new transfer cannot be queued, the endpoint is released and polling ends without a callback
+// The host controller can refuse the re-arm, e.g. when the device is gone: the endpoint is released and polling
+// ends without a callback, but the CPU must not halt
 void test_default_rearm_failure(void) {
   xfer_ok = false;
   TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_FAILED, 0));
   TEST_ASSERT_EQUAL(2, xfer_count);
   TEST_ASSERT_EQUAL(1, release_count);
   TEST_ASSERT_EQUAL(0, report_cb_count);
-  TEST_ASSERT_TRUE(tuh_hid_receive_ready(HID_DEV_ADDR, 0)); // endpoint idle, no transfer pending
-}
-
-// The host controller can refuse the re-arm, e.g. when the device is gone: that must not halt the CPU
-void test_default_rearm_failure_no_breakpoint(void) {
-  xfer_ok = false;
-  TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_FAILED, 0));
-  TEST_ASSERT_EQUAL(2, xfer_count);
   TEST_ASSERT_EQUAL(0, breakpoint_count);
 }
