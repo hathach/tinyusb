@@ -563,6 +563,13 @@ class CaptureBudget(unittest.TestCase):
         self.assertEqual(captured, ["b"])
         self.assertEqual(err, "captured")
 
+    def test_capture_bound_reserves_a_reap_grace_per_flasher_call(self):
+        from helper import hil_util
+        board = {"sysview": {"duration_s": 15}}
+        with unittest.mock.patch.object(hil_util, "CMD_TIMEOUT", 100), \
+                unittest.mock.patch.object(hil_util, "REAP_GRACE", 7):
+            self.assertEqual(sysview_ci.capture_bound_s(board), 3 * (100 + 7) + sysview_ci.CAPTURE_FIXED_S + 15)
+
     def test_report_is_on_disk_before_decoding(self):
         on_disk = []
 

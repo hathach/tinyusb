@@ -449,10 +449,11 @@ DECODE_MARGIN_S = DECODE_STOP_S + 5
 
 def capture_bound_s(board):
     """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
-    CMD_TIMEOUT (the capture flash; its DAP rescue or the capture; the park reflash) plus the
-    capture's own bounds and its workload."""
+    CMD_TIMEOUT plus the REAP_GRACE each spends when killed (the capture flash; its DAP rescue or
+    the capture; the park reflash) plus the capture's own bounds and its workload."""
     from helper import hil_util
-    return 3 * hil_util.CMD_TIMEOUT + CAPTURE_FIXED_S + board["sysview"]["duration_s"]
+    return (3 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + CAPTURE_FIXED_S
+            + board["sysview"]["duration_s"])
 
 def flash_and_capture_one(board, fw, out_dir):
     """PHASE 2 (under the board lock): flash, RTT-capture raw SVDat bytes over agentrc's
