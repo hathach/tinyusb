@@ -656,6 +656,9 @@ void hcd_int_disable(uint8_t rhport) {
 //--------------------------------------------------------------------+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
   (void)rhport;
+  // not after hcd_deinit() (e.g. from tuh_umount_cb()): an endpoint opened now would lead a later transfer to the
+  // freed rp2usb_lock
+  TU_VERIFY(hcd_running);
   pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
   hw_endpoint_t *ep;
   if (dev_addr == 0) {
