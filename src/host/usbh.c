@@ -623,13 +623,16 @@ bool tuh_deinit(uint8_t rhport) {
     return true;
   }
 
-  // deinit host controller
   hcd_int_disable(rhport);
+
+  // remove all devices on this rhport (hub_addr = 0, hub_port = 0) while the controller is still set up:
+  // hcd_device_close() may need its resources (rp2040: the spin lock rp2usb_deinit() frees) and may have to
+  // stop a transfer still under way
+  remove_device_tree(rhport, 0, 0);
+
+  // deinit host controller
   TU_ASSERT(hcd_deinit(rhport));
   _usbh_controller_id = TUSB_INDEX_INVALID_8;
-
-  // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
-  remove_device_tree(rhport, 0, 0);
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
