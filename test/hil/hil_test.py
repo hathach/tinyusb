@@ -505,6 +505,8 @@ def read_disk_file(uid: str, lun: int, fname: str) -> bytes:
 # ~5 KB of transfers plus libmtp setup takes seconds, not minutes; a larger value makes a
 # wedged MTP board cost that much on every retry, all charged to the pool guard.
 MTP_SESSION_MARGIN = 30  # transfer budget after enumeration; past it the session is killed
+# the usbtmc cases take ~7 s at full speed (stm32l412nucleo); past this after enumeration the session is killed
+USBTMC_SESSION_MARGIN = 30
 # room past the child's OWN enumeration budget for the echo exchange (3 x write + a 2000ms
 # hidapi read) and interpreter start-up, so the outer kill only fires on a real stall
 HID_ECHO_MARGIN = 30
@@ -1305,6 +1307,24 @@ def test_device_mtp(board):
         raise AssertionError(f'MTP session wedged (abandoned after {t + MTP_SESSION_MARGIN}s; '
                              f'the session process may linger unkillable in D state)')
     assert r.returncode == 0, f'MTP session failed (rc {r.returncode}):\n{r.stdout}'
+
+
+def test_device_usbtmc(board):
+    # Raw USBTMC/USB488 requests from usbtmc_test.py, in a child for the same reason as mtp_test.py:
+    # a pyusb call blocked in a usbfs ioctl cannot be bounded in-process.
+    uid = board['uid']
+    script = Path(__file__).resolve().parent / 'usbtmc_test.py'
+    t = enum_timeout()
+    r = hil_util.run_cmd(
+        f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t}',
+        timeout=t + USBTMC_SESSION_MARGIN)
+    out = hil_util.cmd_stdout_text(r.stdout)
+    if r.returncode == 124:
+        # run_cmd keeps what the killed child flushed: the cases that failed before the wedge
+        raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
+                             f'the session process may linger unkillable in D state):\n{out[-600:]}')
+    fails = [line for line in out.splitlines() if line.startswith(('FAIL', 'device lost'))]
+    assert r.returncode == 0, f'USBTMC session failed (rc {r.returncode}):\n' + '\n'.join(fails or [out[-600:]])
 
 
 def test_device_net_lwip_webserver(board):
