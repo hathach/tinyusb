@@ -899,7 +899,7 @@ static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t cons
       largest = tu_max16(largest, size);
       shared = true;
     }
-    TU_ASSERT(!shared || (largest <= 220 && total <= 440));
+    TU_VERIFY(!shared || (largest <= 220 && total <= 440));
   }
 
   uint8_t const dir = tu_edpt_dir(desc->bEndpointAddress);
