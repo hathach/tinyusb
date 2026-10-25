@@ -131,13 +131,12 @@ TU_ATTR_ALWAYS_INLINE static inline void epx_ctrl_prepare(uint8_t transfer_type)
   usbh_dpram->epx_ctrl = EPX_CTRL_DEFAULT | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB);
 }
 
-// Save buffer context for EPX preemption (called after STOP_TRANS).
-// Undo PID toggle and buffer accounting for buffers NOT completed on the wire.
+// Undo PID toggle and buffer accounting for EPX buffers NOT completed on the wire (called after STOP_TRANS).
 // A buffer completed on wire means: controller reached STATUS phase (ACK received).
 //   OUT completed: FULL cleared to 0 in STATUS phase (was 1 when armed)
 //   IN  completed: FULL set to 1 in STATUS phase (was 0 when armed)
 // So undo when: AVAIL=1 (never started), or (OUT: FULL=1) or (IN: FULL=0)
-static void __tusb_irq_path_func(epx_save_context)(hw_endpoint_t *ep) {
+static void __tusb_irq_path_func(epx_undo_unsent)(hw_endpoint_t *ep) {
   uint32_t   buf_ctrl = usbh_dpram->epx_buf_ctrl;
   const bool is_out   = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT);
 
@@ -162,7 +161,11 @@ static void __tusb_irq_path_func(epx_save_context)(hw_endpoint_t *ep) {
       buf_ctrl = 0;
     }
   } while (buf_ctrl > 0);
+}
 
+// Save buffer context for EPX preemption (called after STOP_TRANS)
+static void __tusb_irq_path_func(epx_save_context)(hw_endpoint_t *ep) {
+  epx_undo_unsent(ep);
   usbh_dpram->epx_buf_ctrl = 0;
 
   ep->state = EPSTATE_PENDING;
@@ -272,6 +275,12 @@ static void __tusb_irq_path_func(epx_start_next_pending)(void) {
 //--------------------------------------------------------------------+
 static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_result_t xfer_result, bool is_more) {
   if (ep == epx && xfer_result != XFER_RESULT_SUCCESS) {
+    // bufctrl_prepare16() toggled next_pid for every buffer it armed; give back the toggles of packets that never
+    // completed on the wire, or the next transfer on this endpoint goes out with the wrong DATA PID (IN: DATA_SEQ
+    // error, OUT: the device drops it as a repeat). A SETUP has no data buffers.
+    if (!(usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)) {
+      epx_undo_unsent(ep);
+    }
     epx_drop_buffers();
   }
 
