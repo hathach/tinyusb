@@ -94,8 +94,8 @@ int sys_write (int fhdl, const char *buf, size_t count) {
     }
   }
   if (sent < count) {
-#if defined(__GCC_ATOMIC_LONG_LOCK_FREE) && __GCC_ATOMIC_LONG_LOCK_FREE < 2
-    board_swo_dropped += count - sent; // no lock-free atomics (armv6-m, rv32 without A): avoid the libatomic call
+#if !defined(__ATOMIC_RELAXED) || (defined(__GCC_ATOMIC_LONG_LOCK_FREE) && __GCC_ATOMIC_LONG_LOCK_FREE < 2)
+    board_swo_dropped += count - sent; // not atomic, may undercount if an ISR log interleaves (no lock-free __atomic)
 #else
     __atomic_fetch_add(&board_swo_dropped, count - sent, __ATOMIC_RELAXED); // a logger call from an ISR may interleave
 #endif
