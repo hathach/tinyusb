@@ -626,11 +626,6 @@ class DecodeDeadline(unittest.TestCase):
         self.assertIn("decode skipped", err)
         popen.assert_not_called()
 
-    def test_a_decode_cut_by_the_deadline_is_reported(self):
-        cut = subprocess.TimeoutExpired("sysview_record.py", 30)
-        err, _, _ = self.decode(time.monotonic() + 30, self.step(returncode=None, communicate=[cut, cut, ("", "")]))
-        self.assertIn("decode timed out", err)
-
     def test_a_cut_decoder_gets_sigterm_then_its_group_sigkill(self):
         # SIGKILL alone would skip sysview_record.py's handler, which stops SystemView and Xvfb
         cut = subprocess.TimeoutExpired("sysview_record.py", 30)
@@ -641,8 +636,9 @@ class DecodeDeadline(unittest.TestCase):
             popen = unittest.mock.Mock(return_value=step)
             with unittest.mock.patch("subprocess.Popen", popen), \
                     unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-                sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                      {"raw": "r", "workload_ok": True}, time.monotonic() + 30)
+                err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
+                                            {"raw": "r", "workload_ok": True}, time.monotonic() + 30)["error"]
+        self.assertIn("decode timed out", err)
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
         self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
                                             unittest.mock.call.killpg(4321, signal.SIGKILL)])
@@ -664,14 +660,28 @@ class DecodeStopsARealChild(unittest.TestCase):
     """A real decoder stand-in cut by the deadline: SIGTERM lets it clean up, SIGKILL takes its group."""
     BOARD = DecodeDeadline.BOARD
 
-    def run_child(self, body):
+    def run_child(self, setup):
+        """Run setup in the stand-in, which then signals ready and sleeps; its 2 s timeout starts
+        only once it is ready, so a slow start cannot take SIGTERM before setup has run."""
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
-        script = os.path.join(tmp, "decoder.py")
+        script, ready = os.path.join(tmp, "decoder.py"), os.path.join(tmp, "ready")
         with open(script, "w") as f:
             f.write("import os, signal, subprocess, sys, time\n"
-                    f"TMP = {tmp!r}\n" + body)
-        with unittest.mock.patch("helper.agentrc.path_of", lambda p: script):
+                    f"TMP = {tmp!r}\n" + setup +
+                    f"open({ready!r}, 'w').close()\n"
+                    "time.sleep(60)\n")
+        real_popen = subprocess.Popen
+
+        def popen_until_ready(*args, **kwargs):
+            p = real_popen(*args, **kwargs)
+            for _ in range(1500):
+                if os.path.exists(ready) or p.poll() is not None:
+                    break
+                time.sleep(0.02)
+            return p
+        with unittest.mock.patch("helper.agentrc.path_of", lambda p: script), \
+                unittest.mock.patch("subprocess.Popen", popen_until_ready):
             start = time.monotonic()
             err = sysview_ci.decode_one(self.BOARD, "c", tmp, {"raw": "r", "workload_ok": True},
                                         time.monotonic() + 2)["error"]
@@ -682,8 +692,7 @@ class DecodeStopsARealChild(unittest.TestCase):
             "def on_term(*_):\n"
             "    open(os.path.join(TMP, 'cleaned'), 'w').close()\n"
             "    sys.exit(3)\n"
-            "signal.signal(signal.SIGTERM, on_term)\n"
-            "time.sleep(60)\n")
+            "signal.signal(signal.SIGTERM, on_term)\n")
         self.assertIn("decode timed out", err)
         self.assertTrue(os.path.exists(os.path.join(tmp, "cleaned")))
         self.assertLess(took, 10)
@@ -693,8 +702,7 @@ class DecodeStopsARealChild(unittest.TestCase):
             err, tmp, took = self.run_child(
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
                 "c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
-                "open(os.path.join(TMP, 'child'), 'w').write(str(c.pid))\n"
-                "time.sleep(60)\n")
+                "open(os.path.join(TMP, 'child'), 'w').write(str(c.pid))\n")
         self.assertIn("decode timed out", err)
         self.assertLess(took, 10)
         with open(os.path.join(tmp, "child")) as f:
