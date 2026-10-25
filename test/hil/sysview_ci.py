@@ -6,7 +6,7 @@ capture: flash a SYSVIEW build, drive the workload, RTT-capture, decode. Capture
 run agentrc's rtt.py and target-debug sysview scripts from lib/agentrc at the get_deps.py pin
 (agentrc's skills/target-debug/sysview.md is their manual).
 """
-import argparse, glob, html, json, os, re, sys
+import argparse, glob, html, json, os, re, signal, sys
 
 SCRIPTS = "skills/target-debug/scripts/"
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
@@ -439,8 +439,12 @@ def build_one(board, repo_root):
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
 CAPTURE_FIXED_S = 90
 
-# what PHASE 3 keeps of --budget-s after a board's decode is cut, to write its report and exit
-DECODE_MARGIN_S = 5
+# sysview_record.py's worst case from SIGTERM to exit: its error screenshot 30 s, SystemView's
+# -quit QUIT_S 20 s, then SIGTERM and SIGKILL to SystemView's and Xvfb's groups GROUP_S 5 s each
+DECODE_STOP_S = 30 + 20 + 4 * 5
+
+# what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, write its report and exit
+DECODE_MARGIN_S = DECODE_STOP_S + 5
 
 def capture_bound_s(board):
     """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
@@ -555,6 +559,24 @@ def _capture(board, fw, out_dir, rtt):
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
+def _stop_decoder(p):
+    """SIGTERM first: sysview_record.py closes the SystemView and Xvfb it started in their own
+    sessions only from its signal handler, so a SIGKILL would leave them running. Then SIGKILL
+    to whatever of the decoder's own group outlived the grace."""
+    import subprocess
+    p.terminate()
+    try:
+        p.communicate(timeout=DECODE_STOP_S)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    # not reaped yet, so its pid still names its group; a child may hold the pipes after it exits
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    p.communicate()
+
 def decode_one(board, commit, out_dir, capture, deadline=None):
     """PHASE 3 (no board lock): decode the raw SVDat capture with agentrc's sysview scripts
     and report it, each step cut at the time.monotonic() deadline if one is given. Never raises."""
@@ -568,11 +590,19 @@ def decode_one(board, commit, out_dir, capture, deadline=None):
             if left <= 0:
                 raise TimeoutError("decode skipped: --budget-s spent")
             timeout = min(timeout, left)
+        # its own session, so the final SIGKILL reaches its children but not this script
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                             start_new_session=True)
         try:
-            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            out, err = p.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
+            _stop_decoder(p)
             raise TimeoutError(f"decode timed out after {timeout:.0f} s"
                                + (" (--budget-s)" if deadline is not None else ""))
+        except BaseException:
+            _stop_decoder(p)
+            raise
+        return subprocess.CompletedProcess(cmd, p.returncode, out, err)
     try:
         dec = os.path.join(out_dir, f"{name}-decoded")
         r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_record.py"),

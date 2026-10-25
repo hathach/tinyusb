@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import contextlib, io, json, os, re, shlex, shutil, subprocess, sys, tempfile, time, unittest, unittest.mock
+import contextlib, io, json, os, re, shlex, shutil, signal, subprocess, sys, tempfile, time, unittest, unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import sysview_ci
 
@@ -582,32 +582,134 @@ class DecodeDeadline(unittest.TestCase):
     """decode_one cuts each decode step at the --budget-s deadline main() passes it."""
     BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
 
-    def decode(self, deadline, run):
-        with unittest.mock.patch("subprocess.run", run) as m, \
+    @staticmethod
+    def step(returncode=1, stdout="", stderr="boom", communicate=None):
+        """A Popen stand-in whose communicate() returns (stdout, stderr), or follows communicate."""
+        p = unittest.mock.Mock(pid=4321, returncode=returncode)
+        p.communicate.side_effect = communicate or [(stdout, stderr)]
+        return p
+
+    def decode(self, deadline, *steps):
+        popen = unittest.mock.Mock(side_effect=list(steps))
+        with unittest.mock.patch("subprocess.Popen", popen), \
+                unittest.mock.patch("os.killpg") as killpg, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-            return sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                         {"raw": "r", "workload_ok": True}, deadline)["error"], m
+            err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
+                                        {"raw": "r", "workload_ok": True}, deadline)["error"]
+        return err, popen, killpg
 
     def test_timeout_is_capped_by_the_deadline(self):
-        failed = subprocess.CompletedProcess([], 1, "", "boom")
-        err, run = self.decode(time.monotonic() + 30, unittest.mock.Mock(return_value=failed))
+        step = self.step()
+        err, _, _ = self.decode(time.monotonic() + 30, step)
         self.assertIn("record decode failed", err)
-        self.assertLessEqual(run.call_args.kwargs["timeout"], 30)
+        self.assertLessEqual(step.communicate.call_args.kwargs["timeout"], 30)
 
     def test_no_deadline_keeps_the_step_timeout(self):
-        failed = subprocess.CompletedProcess([], 1, "", "boom")
-        err, run = self.decode(None, unittest.mock.Mock(return_value=failed))
-        self.assertEqual(run.call_args.kwargs["timeout"], 900)
+        step = self.step()
+        self.decode(None, step)
+        self.assertEqual(step.communicate.call_args.kwargs["timeout"], 900)
+
+    def test_the_second_step_gets_what_the_first_left(self):
+        clock = [1000.0]
+        def record_takes_20_s(timeout):
+            clock[0] += 20
+            return "", ""
+        record = self.step(returncode=0, communicate=record_takes_20_s)
+        report = self.step()
+        with unittest.mock.patch("time.monotonic", lambda: clock[0]):
+            err, _, _ = self.decode(clock[0] + 30, record, report)
+        self.assertIn("decode failed", err)
+        self.assertLessEqual(report.communicate.call_args.kwargs["timeout"], 10)
 
     def test_a_spent_budget_skips_the_decode(self):
-        err, run = self.decode(time.monotonic() - 1, unittest.mock.Mock())
+        err, popen, _ = self.decode(time.monotonic() - 1)
         self.assertIn("decode skipped", err)
-        run.assert_not_called()
+        popen.assert_not_called()
 
     def test_a_decode_cut_by_the_deadline_is_reported(self):
-        err, _ = self.decode(time.monotonic() + 30, unittest.mock.Mock(
-            side_effect=subprocess.TimeoutExpired("sysview_record.py", 30)))
+        cut = subprocess.TimeoutExpired("sysview_record.py", 30)
+        err, _, _ = self.decode(time.monotonic() + 30, self.step(returncode=None, communicate=[cut, cut, ("", "")]))
         self.assertIn("decode timed out", err)
+
+    def test_a_cut_decoder_gets_sigterm_then_its_group_sigkill(self):
+        # SIGKILL alone would skip sysview_record.py's handler, which stops SystemView and Xvfb
+        cut = subprocess.TimeoutExpired("sysview_record.py", 30)
+        step = self.step(returncode=None, communicate=[cut, cut, ("", "")])
+        order = unittest.mock.Mock()
+        step.terminate.side_effect = lambda: order.terminate()
+        with unittest.mock.patch("os.killpg", side_effect=lambda pid, sig: order.killpg(pid, sig)):
+            popen = unittest.mock.Mock(return_value=step)
+            with unittest.mock.patch("subprocess.Popen", popen), \
+                    unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
+                sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
+                                      {"raw": "r", "workload_ok": True}, time.monotonic() + 30)
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
+                                            unittest.mock.call.killpg(4321, signal.SIGKILL)])
+        self.assertEqual(step.communicate.call_args_list[1].kwargs["timeout"], sysview_ci.DECODE_STOP_S)
+
+    def test_a_decoder_that_exits_on_sigterm_is_not_sigkilled(self):
+        cut = subprocess.TimeoutExpired("sysview_record.py", 30)
+        step = self.step(returncode=None, communicate=[cut, ("", "")])
+        err, _, killpg = self.decode(time.monotonic() + 30, step)
+        self.assertIn("decode timed out", err)
+        step.terminate.assert_called_once()
+        killpg.assert_not_called()
+
+    def test_the_stop_margin_fits_the_decoder_grace(self):
+        self.assertGreater(sysview_ci.DECODE_MARGIN_S, sysview_ci.DECODE_STOP_S)
+
+
+class DecodeStopsARealChild(unittest.TestCase):
+    """A real decoder stand-in cut by the deadline: SIGTERM lets it clean up, SIGKILL takes its group."""
+    BOARD = DecodeDeadline.BOARD
+
+    def run_child(self, body):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        script = os.path.join(tmp, "decoder.py")
+        with open(script, "w") as f:
+            f.write("import os, signal, subprocess, sys, time\n"
+                    f"TMP = {tmp!r}\n" + body)
+        with unittest.mock.patch("helper.agentrc.path_of", lambda p: script):
+            start = time.monotonic()
+            err = sysview_ci.decode_one(self.BOARD, "c", tmp, {"raw": "r", "workload_ok": True},
+                                        time.monotonic() + 2)["error"]
+        return err, tmp, time.monotonic() - start
+
+    def test_sigterm_runs_the_decoders_cleanup(self):
+        err, tmp, took = self.run_child(
+            "def on_term(*_):\n"
+            "    open(os.path.join(TMP, 'cleaned'), 'w').close()\n"
+            "    sys.exit(3)\n"
+            "signal.signal(signal.SIGTERM, on_term)\n"
+            "time.sleep(60)\n")
+        self.assertIn("decode timed out", err)
+        self.assertTrue(os.path.exists(os.path.join(tmp, "cleaned")))
+        self.assertLess(took, 10)
+
+    def test_a_decoder_ignoring_sigterm_is_killed_with_its_group(self):
+        with unittest.mock.patch.object(sysview_ci, "DECODE_STOP_S", 0.5):
+            err, tmp, took = self.run_child(
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                "c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                "open(os.path.join(TMP, 'child'), 'w').write(str(c.pid))\n"
+                "time.sleep(60)\n")
+        self.assertIn("decode timed out", err)
+        self.assertLess(took, 10)
+        with open(os.path.join(tmp, "child")) as f:
+            child = int(f.read())
+        for _ in range(100):
+            try:
+                with open(f"/proc/{child}/stat") as f:
+                    if f.read().rsplit(")", 1)[1].split()[0] == "Z":
+                        break
+            except (FileNotFoundError, ProcessLookupError):
+                break
+            time.sleep(0.02)
+        else:
+            os.kill(child, signal.SIGKILL)
+            self.fail(f"the decoder's child {child} outlived its group's SIGKILL")
 
 
 class TestBuildOneFirmwarePath(unittest.TestCase):
