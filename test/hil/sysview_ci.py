@@ -439,9 +439,10 @@ def build_one(board, repo_root):
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
 CAPTURE_FIXED_S = 90
 
-# sysview_record.py's worst case from SIGTERM to exit: its error screenshot 30 s, SystemView's
-# -quit QUIT_S 20 s, then SIGTERM and SIGKILL to SystemView's and Xvfb's groups GROUP_S 5 s each
-DECODE_STOP_S = 30 + 20 + 4 * 5
+# sysview_record.py's worst case from SIGTERM to exit: its error screenshot 30 s, sending -quit
+# (connect and banner recv 10 s each), SystemView's -quit QUIT_S 20 s, then SIGTERM and SIGKILL
+# to SystemView's and Xvfb's groups GROUP_S 5 s each
+DECODE_STOP_S = 30 + 2 * 10 + 20 + 4 * 5
 
 # what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, write its report and exit
 DECODE_MARGIN_S = DECODE_STOP_S + 5
@@ -570,7 +571,8 @@ def _stop_decoder(p):
         return
     except subprocess.TimeoutExpired:
         pass
-    # not reaped yet, so its pid still names its group; a child may hold the pipes after it exits
+    # p.pid still names the group: the wrapper is unreaped, or terminate()'s poll() reaped it
+    # and a member of its group still holds the pipes
     try:
         os.killpg(p.pid, signal.SIGKILL)
     except ProcessLookupError:
