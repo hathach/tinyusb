@@ -36,6 +36,10 @@
 static hw_endpoint_t  ep_pool[USB_MAX_ENDPOINTS];
 static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 
+// Between hcd_init() and hcd_deinit(). tuh_deinit() calls hcd_deinit() before it removes the devices, so
+// hcd_device_close() can come after rp2usb_deinit() has freed the lock it would take.
+static bool hcd_running = false;
+
   #ifndef HAS_STOP_EPX_ON_NAK
 static volatile bool epx_switch_request = false;
   #endif
@@ -527,6 +531,8 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   // clear epx and interrupt eps
   memset(&ep_pool, 0, sizeof(ep_pool));
+  epx         = &ep_pool[0];
+  hcd_running = true;
 
   // Enable in host mode with SOF / Keep alive on
   usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
@@ -547,6 +553,14 @@ bool hcd_deinit(uint8_t rhport) {
   irq_remove_handler(USBCTRL_IRQ, hcd_rp2040_irq);
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+
+  // The controller is reset, so no transfer is under way: forget every endpoint while the lock still exists, and
+  // let the hcd_device_close() calls tuh_deinit() makes next return at once
+  rp2usb_critical_enter();
+  hcd_running = false;
+  memset(&ep_pool, 0, sizeof(ep_pool));
+  epx = &ep_pool[0];
+  rp2usb_critical_exit();
 
   // Release allocated resources
   rp2usb_deinit();
@@ -588,6 +602,10 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
+
+  if (!hcd_running) {
+    return; // after hcd_deinit(): nothing open, and rp2usb_lock is gone
+  }
 
   rp2usb_critical_enter();
 
