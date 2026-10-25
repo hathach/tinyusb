@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import contextlib, io, json, os, re, shlex, shutil, subprocess, sys, tempfile, unittest, unittest.mock
+import contextlib, io, json, os, re, shlex, shutil, subprocess, sys, tempfile, time, unittest, unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import sysview_ci
 
@@ -530,7 +530,7 @@ class CaptureBudget(unittest.TestCase):
     """--budget-s: a board whose flash, capture and park reflash may not fit in what is left is
     not flashed, so the caller's kill never lands before the park image is back."""
 
-    def run_capture(self, budget_s):
+    def run_capture(self, budget_s, capture=(None, "captured")):
         from helper import hil_lock
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
@@ -545,7 +545,7 @@ class CaptureBudget(unittest.TestCase):
         with unittest.mock.patch.object(sys, "argv", argv), \
                 unittest.mock.patch.object(sysview_ci, "build_one", lambda b, r: ("fw.elf", None)), \
                 unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
-                                           lambda b, fw, d: captured.append(b["name"]) or (None, "captured")), \
+                                           lambda b, fw, d: captured.append(b["name"]) or capture), \
                 unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
                 contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
             sysview_ci.main()
@@ -562,6 +562,52 @@ class CaptureBudget(unittest.TestCase):
         captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60)
         self.assertEqual(captured, ["b"])
         self.assertEqual(err, "captured")
+
+    def test_report_is_on_disk_before_decoding(self):
+        on_disk = []
+
+        def decode(board, commit, out_dir, capture, deadline):
+            with open(os.path.join(out_dir, "sysview-b.json")) as f:
+                on_disk.append(json.load(f)["error"])
+            return sysview_ci.board_result(board, commit, error="decoded")
+        board = {"sysview": {"duration_s": 15}}
+        with unittest.mock.patch.object(sysview_ci, "decode_one", decode):
+            captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60,
+                                             capture=({"raw": "r", "workload_ok": True}, None))
+        self.assertIn("decode did not finish", on_disk[0])
+        self.assertEqual(err, "decoded")
+
+
+class DecodeDeadline(unittest.TestCase):
+    """decode_one cuts each decode step at the --budget-s deadline main() passes it."""
+    BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
+
+    def decode(self, deadline, run):
+        with unittest.mock.patch("subprocess.run", run) as m, \
+                unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
+            return sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
+                                         {"raw": "r", "workload_ok": True}, deadline)["error"], m
+
+    def test_timeout_is_capped_by_the_deadline(self):
+        failed = subprocess.CompletedProcess([], 1, "", "boom")
+        err, run = self.decode(time.monotonic() + 30, unittest.mock.Mock(return_value=failed))
+        self.assertIn("record decode failed", err)
+        self.assertLessEqual(run.call_args.kwargs["timeout"], 30)
+
+    def test_no_deadline_keeps_the_step_timeout(self):
+        failed = subprocess.CompletedProcess([], 1, "", "boom")
+        err, run = self.decode(None, unittest.mock.Mock(return_value=failed))
+        self.assertEqual(run.call_args.kwargs["timeout"], 900)
+
+    def test_a_spent_budget_skips_the_decode(self):
+        err, run = self.decode(time.monotonic() - 1, unittest.mock.Mock())
+        self.assertIn("decode skipped", err)
+        run.assert_not_called()
+
+    def test_a_decode_cut_by_the_deadline_is_reported(self):
+        err, _ = self.decode(time.monotonic() + 30, unittest.mock.Mock(
+            side_effect=subprocess.TimeoutExpired("sysview_record.py", 30)))
+        self.assertIn("decode timed out", err)
 
 
 class TestBuildOneFirmwarePath(unittest.TestCase):

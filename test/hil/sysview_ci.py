@@ -439,6 +439,9 @@ def build_one(board, repo_root):
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
 CAPTURE_FIXED_S = 90
 
+# what PHASE 3 keeps of --budget-s after a board's decode is cut, to write its report and exit
+DECODE_MARGIN_S = 5
+
 def capture_bound_s(board):
     """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
     CMD_TIMEOUT (the capture flash; its DAP rescue or the capture; the park reflash) plus the
@@ -552,29 +555,41 @@ def _capture(board, fw, out_dir, rtt):
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
-def decode_one(board, commit, out_dir, capture):
+def decode_one(board, commit, out_dir, capture, deadline=None):
     """PHASE 3 (no board lock): decode the raw SVDat capture with agentrc's sysview scripts
-    and report it. Never raises."""
-    import subprocess
+    and report it, each step cut at the time.monotonic() deadline if one is given. Never raises."""
+    import subprocess, time
     from helper import agentrc
     sv, name = board["sysview"], board["name"]
+
+    def run(cmd, timeout):
+        if deadline is not None:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise TimeoutError("decode skipped: --budget-s spent")
+            timeout = min(timeout, left)
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError(f"decode timed out after {timeout:.0f} s"
+                               + (" (--budget-s)" if deadline is not None else ""))
     try:
         dec = os.path.join(out_dir, f"{name}-decoded")
-        r = subprocess.run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_record.py"),
-                            "--from-raw", capture["raw"], "--out", dec],
-                           capture_output=True, text=True, timeout=900)
+        r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_record.py"),
+                 "--from-raw", capture["raw"], "--out", dec], 900)
         if r.returncode:
             return board_result(board, commit, error=f"record decode failed: {r.stderr[-200:]}")
-        r = subprocess.run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_report.py"),
-                            dec, "--json", "--event-map", EVENT_MAP,
-                            "--workload-event", str(workload_event())],
-                           capture_output=True, text=True, timeout=600)
+        r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_report.py"),
+                 dec, "--json", "--event-map", EVENT_MAP,
+                 "--workload-event", str(workload_event())], 600)
         if r.returncode:
             return board_result(board, commit, error=f"decode failed: {r.stderr[-200:]}")
         m = json.loads(r.stdout)
         info = {"route": "openocd-rtt", "poll_ms": 1, "live_window_s": m.get("live_window_s"),
                 "workload_ok": capture["workload_ok"], "park_error": capture.get("park_error")}
         return board_result(board, commit, metrics=m, capture_info=info)
+    except TimeoutError as e:
+        return board_result(board, commit, error=str(e))
     except Exception as e:
         return board_result(board, commit, error=f"{type(e).__name__}: {e}")
 
@@ -637,7 +652,8 @@ def main():
     cp.add_argument("--out", default="sysview-out")
     cp.add_argument("--budget-s", type=float, default=None,
                     help="seconds before the caller kills this run: a board's flash and capture start "
-                         "only while the rest covers capture_bound_s(), so no kill lands before its park reflash")
+                         "only while the rest covers capture_bound_s(), so no kill lands before its park reflash; "
+                         "decoding is cut at it too")
     cp.add_argument("--get-deps", action="store_true",
                     help="fetch lib/SystemView and the selected boards' deps first (CI's clean checkout)")
     args = ap.parse_args()
@@ -701,16 +717,26 @@ def main():
             finally:
                 if lock_fh:
                     hil_lock.release_board_lock(lock_fh)
+        def write_result(board, result, capture):
+            if result["error"] and capture and capture.get("park_error"):
+                result["error"] += f"; {capture['park_error']}"
+            with open(os.path.join(args.out, f"sysview-{board['name']}.json"), "w") as f:
+                json.dump(result, f)
+            return result
+        # Every board's report is on disk before decoding starts: a kill that still lands
+        # during PHASE 3 leaves each captured board's placeholder, not nothing.
+        results = {}
+        for board in boards:
+            capture, err = captures[board["name"]]
+            results[board["name"]] = write_result(board, board_result(board, commit, error=err or
+                                                  "decode did not finish before the run was killed"), capture)
         # PHASE 3: decode + report every board with a successful capture, no lock held.
+        deadline = None if args.budget_s is None else start + args.budget_s - DECODE_MARGIN_S
         for board in boards:
             name = board["name"]
             capture, err = captures[name]
-            result = board_result(board, commit, error=err) if err else \
-                decode_one(board, commit, args.out, capture)
-            if result["error"] and capture and capture.get("park_error"):
-                result["error"] += f"; {capture['park_error']}"
-            with open(os.path.join(args.out, f"sysview-{name}.json"), "w") as f:
-                json.dump(result, f)
+            result = results[name] if err else \
+                write_result(board, decode_one(board, commit, args.out, capture, deadline), capture)
             park_error = result["capture"].get("park_error")
             print(f"{name}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))
         sys.exit(0)
