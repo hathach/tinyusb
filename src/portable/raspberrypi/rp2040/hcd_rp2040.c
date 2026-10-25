@@ -468,6 +468,22 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     }
   }
 
+  // A packet with the wrong DATA PID: the device repeated one whose ACK it missed, or the toggles are out of step
+  // (USB 2.0 §8.6.4: a host must survive either). The controller discards it. Fail the EPX transfer instead of
+  // panicking (usbh and the class driver see a failed transfer, as for an RX timeout), and before BUFF_STATUS, which
+  // would otherwise deliver that buffer as a success. Which endpoint received the packet is not reported: with EPX
+  // receiving it is taken to be EPX's; an interrupt endpoint the controller polls keeps its buffer armed with the PID
+  // it expects, so the device's next packet completes it.
+  if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
+    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+    pico_trace("data seq error: epx %02x buf_ctrl 0x%08lx\n", epx->ep_addr, (unsigned long)usbh_dpram->epx_buf_ctrl);
+    if (epx->state == EPSTATE_ACTIVE && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN &&
+        !(usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)) {
+      sie_stop_xfer();
+      xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
+    }
+  }
+
   if (status & USB_INTS_BUFF_STATUS_BITS) {
     handle_buf_status_isr();
   }
@@ -492,11 +508,6 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
   if (status & USB_INTS_HOST_SOF_BITS) {
     sof_service();
-  }
-
-  if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
-    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-    panic("Data Seq Error \n");
   }
 }
 
