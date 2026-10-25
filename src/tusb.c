@@ -557,8 +557,9 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 // SystemView builds with both stacks off too: a no-USB example's BSP ISR wraps and SystemView's
 // interrupt-id hook still link against it
-#if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
 #include "tusb.h"
+
+#if TU_SYSVIEW_ENABLED
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
@@ -579,13 +580,8 @@ extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
 #define SYSVIEW_RAM_BASE    (0x20000000)
 #endif
 
-// CPU clock reported to SystemView (and, on DWT cores, the timestamp frequency). SystemCoreClock
-// is a CMSIS global that non-CMSIS SDKs do not have -- the Pico SDK for one -- so route it through
-// a weak accessor those BSPs override (hw/bsp/rp2040/family.c). Unused weak definitions are
-// dropped by --gc-sections, taking the SystemCoreClock reference with them.
-// Most targets' vendor CMSIS/device header already declares SystemCoreClock, but there is no
-// single header this file can include to get it across vendors, so declare it and silence the
-// duplicate for this line alone.
+// CPU clock (and DWT timestamp rate). Weak because non-CMSIS SDKs (Pico SDK) have no SystemCoreClock;
+// declared here since no single vendor header provides it.
 #if defined(__GNUC__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wredundant-decls"
@@ -639,37 +635,21 @@ static void send_sys_desc(void) {
 }
 
 #if defined(CFG_TUSB_SYSVIEW_TIMESTAMP_BSP) && CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
-  // ARMv7-M part whose DWT lacks CYCCNT (MAX32665/6: DWT_CTRL.NOCYCCNT reads 1 — a part like
-  // this LINKS fine, so the fails-to-link signal below never fires; the symptom is every
-  // duration silently decoding as 0). Its family.cmake builds SystemView with
-  // SEGGER_SYSVIEW_CORE_OTHER so SEGGER calls SEGGER_SYSVIEW_X_GetTimestamp(), and — because
-  // the fixed-1MHz microsecond contract below may be unreachable (MAX32 prescalers are
-  // powers-of-two only) — the BSP reports the counter's rate as well:
-  //
-  //     uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void);       // free-running counter
-  //     uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);   // its rate, Hz
+  // ARMv7-M without DWT CYCCNT (MAX32665/6, NOCYCCNT=1), built as SEGGER_SYSVIEW_CORE_OTHER: the BSP
+  // supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, as 1 MHz needs a prescaler the part lacks.
   extern uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
   #define SYSVIEW_TIMESTAMP_FREQ SEGGER_SYSVIEW_X_GetTimestampFreq()
 #elif !defined(SEGGER_SYSVIEW_CORE) || (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3)
-  // No DWT cycle counter on this core (ARMv6-M M0/M0+, RISC-V, ...), so the BSP must supply the
-  // timestamp from a free-running hardware timer. Contract for hw/bsp/<family>/family.c:
-  //
-  //     uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void);   // free-running, MICROSECONDS
-  //
-  // Microseconds (not core cycles) keeps one fixed frequency for every such family, so nothing
-  // else has to be told which timer was used. A family without an implementation fails to link
-  // naming this symbol — that is the intended "SYSVIEW not ported to this family yet" signal.
+  // No DWT CYCCNT (ARMv6-M, RISC-V): hw/bsp/<family>/family.c supplies SEGGER_SYSVIEW_X_GetTimestamp(),
+  // a free-running microsecond count; a family without one fails to link on that symbol.
   #define SYSVIEW_TIMESTAMP_FREQ 1000000u
 #else
   // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
   #define SYSVIEW_TIMESTAMP_FREQ tusb_sysview_cpu_freq()
 #endif
 
-/* Active-interrupt id. ConfDefaults reads it from the Cortex-M ICSR itself on
- * both CM3 (bits [8:0]) and CM0 (bits [5:0]); only cores it doesn't know
- * (RISC-V here) need this hook. On RISC-V the analogous "what am I currently
- * servicing" register is mcause, whose low bits carry the trap/interrupt code
- * while an ISR runs. */
+// Active interrupt id for cores ConfDefaults does not read ICSR on: RISC-V (mcause), or a Cortex-M
+// built as SEGGER_SYSVIEW_CORE_OTHER.
 #if !defined(SEGGER_SYSVIEW_CORE) || \
     ((SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3) && (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM0))
 U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
@@ -679,9 +659,7 @@ U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
   return (U32) (mcause & 0xFFFu);
   #elif defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || \
         defined(__ARM_ARCH_8_1M_MAIN__) || defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_8M_BASE__)
-  // A Cortex-M built as SEGGER_SYSVIEW_CORE_OTHER (CFG_TUSB_SYSVIEW_TIMESTAMP_BSP parts,
-  // e.g. MAX3266x) lands here: same ICSR.VECTACTIVE read ConfDefaults would have inlined.
-  // 9 bits on v7-M/v8-M-mainline, 6 on v6-M — 0x1FF covers both (upper bits read 0 there).
+  // ICSR.VECTACTIVE: 9 bits on v7-M/v8-M mainline, 6 on v6-M (upper bits read 0)
   return (*(volatile uint32_t*) 0xE000ED04u) & 0x1FFu;
   #else
   return 0; // unknown core: report "no interrupt" rather than a bogus id
@@ -689,22 +667,10 @@ U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
 }
 #endif
 
-// Depth-counted ISR enter/exit (tusb_debug.h's TU_SYSVIEW_ISR_ENTER/_EXIT): ten dual-role
-// BSPs call tud_int_handler()+tuh_int_handler() back-to-back from ONE hardware ISR, each of
-// which self-wraps -- so one real interrupt would otherwise emit ENTER,EXIT,ENTER,EXIT to
-// SEGGER's recorder (double activation count, each span timed at roughly half its true
-// duration). This counter only collapses NESTED enter/exit pairs, though -- two back-to-back
-// (non-nested) pairs still emit twice on their own. The actual fix is two-part: each of those
-// ten BSPs' vector ISR (hw/bsp/<family>/family.c) wraps its whole tud_+tuh_int_handler() body in
-// one more outer TU_SYSVIEW_ISR_ENTER()/_EXIT() pair, which nests the two inner (self-wrapped)
-// calls inside it -- THIS counter is what then collapses that nesting down to a single
-// ENTER/EXIT. Only the outermost 0->1 transition records ENTER, matching the 1->0 transition
-// that records EXIT.
-//
-// volatile because it is written from ISR context, and on parts whose USB IRQs nest (ch32v20x
-// documents HP preempting LP) two different ISRs can reach it. The increment/decrement stay
-// non-atomic: a lost update miscounts one span and self-corrects on the next balanced pair
-// rather than wedging, which is not worth a critical section on every ISR entry.
+// Records only the outermost enter/exit: dual-role BSPs bracket their back-to-back self-wrapped
+// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs
+// (ch32v20x HP over LP) can both reach it; non-atomic on purpose, as a lost update miscounts one
+// span and recovers on the next balanced pair.
 static volatile uint8_t _sv_isr_depth;
 
 void tu_sysview_isr_enter(void) {
@@ -713,16 +679,9 @@ void tu_sysview_isr_enter(void) {
   }
 }
 
-// SCB->ICSR.PENDSVSET (Cortex-M0/M3+ only -- see the SEGGER_SYSVIEW_CORE guard below) tells
-// us, at the moment the outermost ISR span ends, whether a context switch was requested while it
-// ran (e.g. a FreeRTOS ISR-context give/notify that pends PendSV). If it was, this interrupt will
-// NOT return to the task it preempted -- it falls through to PendSV and the scheduler picks the
-// next task, possibly a different one. RecordExitISRToScheduler() is the record that tells
-// SystemView that story; the plain RecordExitISR() below claims the interrupted task resumes
-// directly, which is wrong whenever PendSV is pending -- every FreeRTOS capture showed the USB
-// ISR "returning" to the interrupted task, immediately followed by a causeless switch. RISC-V
-// (SEGGER_SYSVIEW_CORE_OTHER here) has no PendSV analogue and no ICSR, so it always takes the
-// plain exit record.
+// PendSV pending at the outermost exit means the ISR returns through the scheduler, not to the
+// task it preempted: record ExitISRToScheduler then, or SystemView shows a causeless switch.
+// Cortex-M only; RISC-V has no PendSV and takes the plain exit record.
 #if defined(SEGGER_SYSVIEW_CORE) && \
     ((SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3) || (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM0))
   #define SV_ICSR_PENDSVSET_PENDING() \
@@ -748,11 +707,8 @@ void tu_sysview_init(void) {
   if (inited) { return; }
   inited = true;
 #if defined(SEGGER_SYSVIEW_CORE) && (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3)
-  /* DWT cycle counter drives timestamps; enable on-target so recording never
-   * depends on a debugger-side enable (also needed post-mortem). CYCCNT is
-   * optional even on ARMv7-M: DWT_CTRL.NOCYCCNT (bit 25) reads 1 when the
-   * counter is absent, in which case enabling it is a no-op and timestamps
-   * would stall — check first, as SEGGER's own sample config does. */
+  // DWT CYCCNT drives timestamps: enable it on target, not via a debugger (post-mortem too), unless
+  // DWT_CTRL.NOCYCCNT (bit 25) says the counter is absent.
   (*(volatile unsigned int*) 0xE000EDFC) |= (1u << 24);   /* DEMCR.TRCENA */
   if (((*(volatile unsigned int*) 0xE0001000) & (1u << 25)) == 0) {
     (*(volatile unsigned int*) 0xE0001000) |= 1u;         /* DWT_CTRL.CYCCNTENA */
@@ -767,19 +723,12 @@ void tu_sysview_init(void) {
 #endif
 }
 
-// pHeap is a handle identifying the heap, not the block being (de)allocated -- it must stay the
-// same across every Define/Alloc/Free call or SystemView cannot associate them. A stable dummy
-// object's address serves that purpose (its own bytes are never touched); the actual base is
-// unknowable from here regardless (events still carry the real ptr+size).
+// SystemView's heap id: any stable address, the same for every Define/Alloc/Free call.
 static uint8_t _sv_heap_handle;
 
 void tu_sysview_heap_alloc(void* ptr, unsigned size) {
-  // _SendPacket() (SystemView's SEGGER_SYSVIEW.c) reads SEGGER_SYSVIEW_GET_TIMESTAMP() before
-  // it checks EnableState, so a call reaching SEGGER_SYSVIEW_HeapAlloc() below before
-  // tu_sysview_init() has run -- e.g. FreeRTOS's own early heap allocations -- can read a
-  // still clock-gated timer (TIM2 on stm32f0/g0/u0, CT32B0 on lpc11): a bus fault. Guarded here
-  // (mirrored on the free side below) instead of relying on every caller to have run
-  // board_init()/tu_sysview_init() first.
+  // SystemView reads the timestamp before checking it is enabled, so FreeRTOS's allocations before
+  // tu_sysview_init() would read a still clock-gated timer (TIM2 on stm32f0/g0/u0, CT32B0 on lpc11).
   if (!SEGGER_SYSVIEW_IsStarted()) { return; }
 #if CFG_TUSB_OS == OPT_OS_FREERTOS && defined(configTOTAL_HEAP_SIZE) && (configTOTAL_HEAP_SIZE > 0)
   // capacity is the heap_4/heap_5 arena; without a known one (heap_3, another OS) the events are
@@ -803,11 +752,8 @@ void tu_sysview_stack_report(void) {
 // sysview_freertos_hooks.h forces configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
 #if CFG_TUSB_OS == OPT_OS_FREERTOS && (configUSE_TRACE_FACILITY == 1) && \
     ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
-  // Same cap SEGGER's own FreeRTOS table uses (hw/bsp/family_support.cmake's
-  // SYSVIEW_FREERTOS_MAX_NOF_TASKS) -- one number instead of two that can drift apart.
-  // uxTaskGetSystemState() returns 0 -- not a truncated list -- when status[] is smaller than
-  // the actual task count, silently emptying this table above the cap; report nothing rather
-  // than guess. Raise SYSVIEW_FREERTOS_MAX_NOF_TASKS if that ceiling is hit.
+  // SEGGER's FreeRTOS task-table cap (family_support.cmake). Above it uxTaskGetSystemState() returns
+  // 0, not a truncated list, so nothing is reported.
   #ifndef SYSVIEW_FREERTOS_MAX_NOF_TASKS
   #define SYSVIEW_FREERTOS_MAX_NOF_TASKS 16
   #endif
@@ -848,4 +794,4 @@ void tu_sysview_stack_report(void) {
 #endif
 }
 
-#endif // CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+#endif // TU_SYSVIEW_ENABLED

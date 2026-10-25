@@ -63,9 +63,7 @@ static inline void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_UNUSED;
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline void USB_Any_Handler(void) {
-  // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
-  // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
   TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUD_ENABLED
   tud_int_handler(0);

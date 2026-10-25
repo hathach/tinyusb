@@ -58,9 +58,7 @@ FSDEV_NAKED_ISR(USBWakeUp_IRQHandler)
 
 // Port1: USBFS
 __attribute__((interrupt)) __attribute__((used)) void USBHD_IRQHandler(void) {
-  // Outer bracket: tud_/tuh_int_handler() each self-wrap with TU_SYSVIEW_ISR_ENTER/EXIT, so a
-  // dual-role build without this records ENTER,EXIT,ENTER,EXIT for one real interrupt -- the
-  // depth counter in tusb.c collapses this outer+inner nesting into one pair.
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
   TU_SYSVIEW_ISR_ENTER();
   #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(1);

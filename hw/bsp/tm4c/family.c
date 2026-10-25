@@ -9,11 +9,7 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB0_Handler(void) {
-  // Outer bracket around both back-to-back calls: each of tud_/tuh_int_handler() already
-  // self-wraps with TU_SYSVIEW_ISR_ENTER/EXIT, so without this a dual-role build (both
-  // CFG_TUD_ENABLED and CFG_TUH_ENABLED) records ENTER,EXIT,ENTER,EXIT for one real interrupt.
-  // The depth counter in tusb.c collapses this outer+inner nesting into a single
-  // ENTER/EXIT pair regardless of which role(s) are compiled in.
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
   TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0, true);

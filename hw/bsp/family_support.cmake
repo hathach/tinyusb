@@ -475,6 +475,7 @@ function(family_configure_common TARGET RTOS)
     if (NOT EXISTS ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
       message(FATAL_ERROR "SYSVIEW needs lib/SystemView: run python3 tools/get_deps.py lib/SystemView")
     endif ()
+    set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
     if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
       # -DSYSVIEW_BUFFER_SIZE always wins. Otherwise a family may declare its own default
       # (SYSVIEW_BUFFER_SIZE_DEFAULT in family.cmake, the SYSVIEW_RAM_BASE_DEFAULT pattern):
@@ -535,7 +536,7 @@ function(family_configure_common TARGET RTOS)
       SYSVIEW_DEVICE_NAME="${BOARD}"
       SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
       SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
-      SYSVIEW_FREERTOS_MAX_NOF_TASKS=16)
+      SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
     # Gate on this example's own RTOS, not "TARGET freertos_kernel": that target is global to an
     # examples/-level configure (the first FreeRTOS example creates it), and rp2040 never creates it.
     if (RTOS STREQUAL "freertos")
@@ -547,7 +548,7 @@ function(family_configure_common TARGET RTOS)
       # of ${TARGET} itself, so the defines/include dirs already set on
       # ${TARGET} above reach them without this block).
       if (TARGET freertos_config)
-        target_compile_definitions(freertos_config INTERFACE CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW} SYSVIEW_FREERTOS_MAX_NOF_TASKS=16)
+        target_compile_definitions(freertos_config INTERFACE CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW} SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
         target_include_directories(freertos_config INTERFACE
           ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
           ${SYSVIEW_SRC}/Sample/FreeRTOSV11

@@ -197,17 +197,21 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
-  // the SDK registers this as the ISR itself, bypassing tud_int_handler()'s SystemView span
-  TU_SYSVIEW_ISR_ENTER();
   const uint32_t status  = usb_hw->ints;
+  uint32_t sof_count = 0;
 
   if (status & USB_INTF_DEV_SOF_BITS) {
-    uint32_t sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
+    sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
 
   #if CFG_TUSB_RP2_ERRATA_E15
-    e15_last_sof = time_us_32();                           // timing critical
+    e15_last_sof = time_us_32();                  // timing critical: before the SystemView record below
   #endif
+  }
 
+  // the SDK registers this as the ISR itself, bypassing tud_int_handler()'s SystemView span
+  TU_SYSVIEW_ISR_ENTER();
+
+  if (status & USB_INTF_DEV_SOF_BITS) {
     dcd_event_sof(0, sof_count, true);
   }
 
