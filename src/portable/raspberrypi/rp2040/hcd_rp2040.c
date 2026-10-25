@@ -318,6 +318,11 @@ static void epx_retire(hw_endpoint_t *ep) {
 }
 
 static void __tusb_irq_path_func(epx_start_next_pending)(void) {
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  if (int_polls_stopping) {
+    return; // an abort or close during the pause: sof_service() starts the next one when the two frames are up
+  }
+  #endif
   if (epx->state != EPSTATE_ACTIVE) {
     hw_endpoint_t *next_ep = epx_is_pending(epx) ? epx : epx_next_pending(epx);
     if (next_ep != NULL) {
@@ -868,13 +873,10 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       ep->next_pid = 1;
     }
 
-    // If EPX is busy with another transfer, mark as pending
+    // If EPX is busy with another transfer, or must wait for the interrupt endpoint polls to stop (sof_service() then
+    // starts it), mark as pending; with another one pending, a NAKing endpoint must let it run (STOP_EPX_ON_NAK)
     rp2usb_critical_enter();
-    if (epx->state != EPSTATE_ACTIVE && !epx_idle_start_ok()) {
-      ep->user_buf      = buffer; // sof_service() starts it once the interrupt endpoint polls are out of the way
-      ep->remaining_len = buflen;
-      ep->state         = EPSTATE_PENDING;
-    } else if (epx->state == EPSTATE_ACTIVE) {
+    if (epx->state == EPSTATE_ACTIVE || !epx_idle_start_ok()) {
       ep->user_buf      = buffer;
       ep->remaining_len = buflen;
       ep->state         = EPSTATE_PENDING;
@@ -920,10 +922,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   ep->remaining_len = 8;
   ep->xferred_len   = 0;
 
-  // If EPX is busy, mark as pending setup (DPRAM already has the packet)
-  if (epx->state != EPSTATE_ACTIVE && !epx_idle_start_ok()) {
-    ep->state = EPSTATE_PENDING_SETUP; // sof_service() starts it once the interrupt endpoint polls are out of the way
-  } else if (epx->state == EPSTATE_ACTIVE) {
+  // If EPX is busy, or must wait for the interrupt endpoint polls to stop (sof_service() then starts it), mark as
+  // pending setup (DPRAM already has the packet)
+  if (epx->state == EPSTATE_ACTIVE || !epx_idle_start_ok()) {
     ep->state = EPSTATE_PENDING_SETUP;
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
