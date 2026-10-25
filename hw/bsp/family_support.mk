@@ -111,6 +111,11 @@ ifneq ($(LOG),)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
+# SWO Trace: keeps the SWO pin and the trace clock for a debug probe's SWO capture
+ifeq ($(TRACE_SWO),1)
+  CFLAGS += -DTRACE_SWO
+endif
+
 # Logger: default is uart, can be set to rtt or swo
 ifeq ($(LOGGER),rtt)
   CFLAGS += -DLOGGER_RTT

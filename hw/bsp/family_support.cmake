@@ -435,6 +435,14 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC TRACE_ETM)
   endif ()
 
+  # SWO Trace option: keeps the SWO pin and the trace clock for a debug probe's SWO capture
+  if (TRACE_SWO STREQUAL "1")
+    if (TRACE_ETM STREQUAL "1")
+      message(FATAL_ERROR "TRACE_SWO and TRACE_ETM select different trace port modes: choose one")
+    endif ()
+    target_compile_definitions(${TARGET} PUBLIC TRACE_SWO)
+  endif ()
+
   # LOGGER option
   if (DEFINED LOGGER)
     string(TOUPPER ${LOGGER} LOGGER)
