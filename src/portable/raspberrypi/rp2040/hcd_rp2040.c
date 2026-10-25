@@ -279,12 +279,10 @@ static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_resu
     // completed on the wire, or the next transfer on this endpoint goes out with the wrong DATA PID (IN: DATA_SEQ
     // error, OUT: the device drops it as a repeat). Not for EP0: hcd_edpt_xfer() sets its PID for every stage, and a
     // SETUP has no data buffers (an RX timeout has already cleared SEND_SETUP, so that bit cannot tell).
+    // The RX timeout path does not wait for STOP_TRANS (nor would that settle it, see there), and the ISR must not
+    // wait: the buffer control is read and then cleared at once by epx_drop_buffers(), so a retry finds no AVAILABLE
+    // buffer; only a packet already on the wire at that moment can still complete, the race that path already accepts.
     if (tu_edpt_number(ep->ep_addr) != 0) {
-      // the RX timeout path writes STOP_TRANS without waiting for it: let a retry under way finish first, so the
-      // buffer state read is final (bounded, unlike sie_stop_xfer(): a controller that never clears it is not waited on)
-      for (uint32_t i = 0; i < 256u && (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS); i++) {
-        busy_wait_at_least_cycles(64);
-      }
       epx_undo_unsent(ep);
     }
     epx_drop_buffers();
