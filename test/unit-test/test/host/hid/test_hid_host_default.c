@@ -137,7 +137,7 @@ void tearDown(void) {
 
 // The default queues exactly one new transfer per failure, the report callback is not involved
 void test_default_rearms_after_failure(void) {
-  const xfer_result_t results[] = {XFER_RESULT_FAILED, XFER_RESULT_STALLED, XFER_RESULT_TIMEOUT};
+  const xfer_result_t results[] = {XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
 
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
     TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, results[i], 0));
@@ -146,7 +146,10 @@ void test_default_rearms_after_failure(void) {
   TEST_ASSERT_EQUAL(0, report_cb_count);
 }
 
-void test_default_stops_after_abort(void) {
+// A stalled endpoint stays halted until CLEAR_FEATURE(ENDPOINT_HALT), an aborted transfer was cancelled: no re-arm
+void test_default_stops_after_stall_or_abort(void) {
+  TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_STALLED, 0));
+  TEST_ASSERT_EQUAL(1, xfer_count);
   TEST_ASSERT_TRUE(hidh_xfer_cb(HID_DEV_ADDR, HID_EP_IN, XFER_RESULT_ABORTED, 0));
   TEST_ASSERT_EQUAL(1, xfer_count);
   TEST_ASSERT_EQUAL(0, report_cb_count);

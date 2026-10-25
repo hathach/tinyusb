@@ -67,9 +67,13 @@ TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, cons
 }
 
 TU_ATTR_WEAK void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result) {
-  // keep polling as an application does from tuh_hid_report_received_cb(), unless the transfer was cancelled
-  if (result != XFER_RESULT_ABORTED) {
-    TU_ASSERT(tuh_hid_receive_report(dev_addr, idx), );
+  // keep polling after a transient error, as an application does from tuh_hid_report_received_cb(). A stalled
+  // endpoint stays halted until a CLEAR_FEATURE(ENDPOINT_HALT), and an aborted transfer was cancelled: no re-arm.
+  // The re-arm can still be refused by the host controller, which only stops polling: log it, never trap.
+  if (result != XFER_RESULT_STALLED && result != XFER_RESULT_ABORTED) {
+    if (!tuh_hid_receive_report(dev_addr, idx)) {
+      TU_LOG_DRV("  [idx=%u] re-arm after a failed report failed\r\n", idx);
+    }
   }
 }
 
