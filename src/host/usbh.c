@@ -2164,6 +2164,14 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       tusb_desc_configuration_t const* desc_config =
       (tusb_desc_configuration_t const*) _usbh_epbuf.ctrl;
 
+      // wTotalLength was only bounded on the 9-byte read, the device can report a larger value in the full descriptor
+      uint16_t const total_len = tu_le16toh(tu_unaligned_read16(_usbh_epbuf.ctrl + offsetof(tusb_desc_configuration_t, wTotalLength)));
+      if (!TUH_VALIDATE_BASIC(total_len <= tu_le16toh(xfer->setup->wLength))) {
+        TU_LOG_USBH("Configuration wTotalLength %u exceeds requested length\r\n", total_len);
+        is_enum_failed = true;
+        break;
+      }
+
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
         is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, ENUM_CONFIG_DRIVER);
       } else {
