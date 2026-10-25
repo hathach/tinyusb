@@ -255,7 +255,9 @@ static bool __tusb_irq_path_func(epx_idle_start_ok)(void) {
     return false;
   }
   const uint32_t polling = usb_hw->int_ep_ctrl;
-  if (polling == 0) {
+  if (polling == 0 || !(usb_hw->sie_ctrl & USB_SIE_CTRL_SOF_EN_BITS)) {
+    // nothing polled, or a low-speed device on the root port: keep-alives instead of SOFs, so no HOST_SOF to time
+    // the pause with (and no start for the pending transfer); not paused there
     return true;
   }
   usb_hw_clear->int_ep_ctrl = polling;
