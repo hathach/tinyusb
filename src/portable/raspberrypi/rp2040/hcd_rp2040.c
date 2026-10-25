@@ -421,7 +421,7 @@ static void __tusb_irq_path_func(sof_service)(void) {
 }
 
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
-  const uint32_t status = usb_hw->ints;
+  uint32_t status = usb_hw->ints;
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
     uint8_t speed = dev_speed();
@@ -481,6 +481,12 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
         !(usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)) {
       sie_stop_xfer();
       xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
+  #ifdef HAS_STOP_EPX_ON_NAK
+      // a NAK stop latched with the error was the failed transfer's; xfer_complete_isr() may have started the next
+      // pending one, which the NAK branch below would otherwise restart as a data transfer (a queued SETUP included)
+      usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+      status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
+  #endif
     }
   }
 
