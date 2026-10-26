@@ -265,6 +265,7 @@ da1469x_dk_pro  DA1469x Development Kit Pro  da1469x   https://lpccs-docs.renesa
 portenta_c33    Arduino Portenta C33         ra        https://www.arduino.cc/pro/hardware-product-portenta-c33/
 ra2a1_ek        RA2A1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra2a1-evaluation-kit-ra2a1-mcu-group
 ra4m1_ek        RA4M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m1-evaluation-kit-ra4m1-mcu-group
+ra4m2_ek        RA4M2 EK                     ra        https://www.renesas.com/en/design-resources/boards-kits/ek-ra4m2
 ra4m3_ek        RA4M3 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m3-evaluation-kit-ra4m3-mcu-group
 ra6m1_ek        RA6M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m1-evaluation-kit-ra6m1-mcu-group
 ra6m5_ek        RA6M5 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m5-evaluation-kit-ra6m5-mcu-group
