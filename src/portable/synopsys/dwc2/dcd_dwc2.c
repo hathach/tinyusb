@@ -185,7 +185,7 @@ static void dma_setup_prepare(uint8_t rhport) {
       - Scatter/Gather DMA mode: 4 words per endpoint direction
   - TX FIFO: one fifo for each IN endpoint. Size is dynamic depending on packet size, starting from top with EP0 IN.
   - Shared RX FIFO: a shared fifo for all OUT endpoints. Holds the largest packet, or the 2 largest bulk/periodic packets;
-    in Slave mode also one packet of every periodic endpoint.
+    in high-speed Slave mode also one packet of every periodic endpoint.
 
   We allocate TX FIFOs from top to bottom (using a top pointer), this to allow the RX FIFO to grow dynamically, which is
   possible since the free space is located between the RX and TX FIFOs.
@@ -224,14 +224,16 @@ static void dma_setup_prepare(uint8_t rhport) {
   scheduled after periodic ones and are assumed to be drained before the next (micro)frame, i.e. the USB interrupt is
   not blocked for that long. High-bandwidth OUT endpoints are not supported.
 
-  In Slave mode the CPU pops the RX FIFO about as fast as the bus fills it (measured on STM32U5A5 HS: 1024 bytes take
-  ~18 us vs a ~21 us transaction), so 2 packets leave almost no margin when more periodic packets follow in the same
-  (micro)frame: a refused periodic packet is lost (isochronous) or only retried next interval (interrupt). Slave mode
-  therefore reserves one packet of every periodic endpoint. With Buffer DMA, 2 packets measured as good as master.
+  In high-speed Slave mode the CPU pops the RX FIFO about as fast as the bus fills it (measured on STM32U5A5: 1024 bytes
+  take ~18 us vs a ~21 us transaction), so 2 packets leave almost no margin when more periodic packets follow in the
+  same microframe: a refused periodic packet is lost (isochronous) or only retried next interval (interrupt). It
+  therefore reserves one packet of every periodic endpoint. At full speed a packet takes much longer on the bus than to
+  pop, and 2 packets leave ~50 us for the USB interrupt (measured on STM32F407 OTG_FS), enough when its priority is
+  right. With Buffer DMA, 2 packets measured as good as master.
 
   Therefore, in words with each packet = max packet size / 4 rounded up:
 
-    GRXFSIZ = 13 + 1 + max(L + 1, (P1 + 1) + (P2 + 1), Slave mode ? S : 0) + 2 x EPOUTnum
+    GRXFSIZ = 13 + 1 + max(L + 1, (P1 + 1) + (P2 + 1), HS Slave mode ? S : 0) + 2 x EPOUTnum
 
     - L: largest OUT packet of any endpoint, EP0 included
     - P1, P2: the 2 largest of {B, B, I1, I2}, with B the largest bulk packet (counted twice) and I1, I2 the 2 largest
@@ -243,7 +245,7 @@ static void dma_setup_prepare(uint8_t rhport) {
   preallocate their largest packet with dcd_edpt_iso_alloc() and are switched with dcd_edpt_iso_activate().
 */
 
-static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool is_dma) {
+static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool sum_periodic) {
   // 2 largest of {B, B, I1, I2}
   uint16_t p1 = rx->bulk;
   uint16_t p2 = rx->bulk;
@@ -254,7 +256,7 @@ static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool
   const uint16_t pair = (uint16_t) ((p1 != 0 ? p1 + 1 : 0) + (p2 != 0 ? p2 + 1 : 0));
 
   uint16_t pkt_sz = tu_max16((uint16_t) (rx->largest + 1), pair);
-  if (!is_dma) {
+  if (sum_periodic) {
     pkt_sz = tu_max16(pkt_sz, rx->periodic_sum);
   }
   return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
@@ -285,12 +287,14 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
         rx.periodic[1] = fifo_size;
       }
     }
-    const uint16_t new_sz = calc_device_grxfsiz(&rx, ep_count, dma_device_enabled(dwc2));
+    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+    const bool sum_periodic = !dma_device_enabled(dwc2) && dsts.enum_speed == DCFG_SPEED_HIGH;
+    const uint16_t new_sz = calc_device_grxfsiz(&rx, ep_count, sum_periodic);
 
     // If size_rx needs to be extended check if there is enough free space
     if (dwc2->grxfsiz < new_sz) {
       if (new_sz > _dcd_data.dfifo_top) {
-        // Slave mode reserves a packet of every periodic OUT endpoint, Buffer DMA only the 2 largest
+        // HS Slave mode reserves a packet of every periodic OUT endpoint, Buffer DMA only the 2 largest
         const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
         const bool dma_hint = !dma_device_enabled(dwc2) && ghwcfg2.arch == GHWCFG2_ARCH_INTERNAL_DMA;
         TU_LOG1("DWC2: EP %02X needs %u words of RX FIFO, only %u free%s\r\n", ep_addr, new_sz, _dcd_data.dfifo_top,
@@ -339,7 +343,7 @@ static void dfifo_device_init(uint8_t rhport) {
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
   const bool is_dma = dma_device_enabled(dwc2);
-  dwc2->grxfsiz = calc_device_grxfsiz(&_dcd_data.rx, dwc2_controller->ep_count, is_dma);
+  dwc2->grxfsiz = calc_device_grxfsiz(&_dcd_data.rx, dwc2_controller->ep_count, false);
   _dcd_data.dfifo_top = dwc2_controller->otg_dfifo_depth;
   if (is_dma) {
     _dcd_data.dfifo_top -= 2 * dwc2_controller->ep_count;
