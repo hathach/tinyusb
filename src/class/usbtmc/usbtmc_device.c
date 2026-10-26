@@ -823,7 +823,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       bTag = request->wValue & 0x7F;
       TU_VERIFY(request->bmRequestType == 0xA1);
       TU_VERIFY((request->wValue & (~0x7F)) == 0u);// Other bits are required to be zero (USB488v1.0 Table 11)
-      TU_VERIFY(bTag >= 0x02 && bTag <= 127);
+      TU_VERIFY(bTag >= 0x02); // 7-bit tag, 0 and 1 reserved
       TU_VERIFY(request->wIndex == usbtmc_state.itf_id);
       TU_VERIFY(request->wLength == 0x0003);
       rsp.bTag = (uint8_t) bTag;

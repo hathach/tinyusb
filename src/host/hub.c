@@ -288,7 +288,9 @@ static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
   xfer->buffer      = get_hub_epbuf(xfer->daddr)->ctrl_buf;
   xfer->complete_cb = config_set_port_power;
 
-  TU_ASSERT(tuh_control_xfer(xfer), );
+  const bool ret = tuh_control_xfer(xfer);
+  xfer->setup    = NULL; // usbh copied the request, do not leave a pointer to this frame
+  TU_ASSERT(ret, );
 }
 
 static void config_set_port_power (tuh_xfer_t* xfer) {

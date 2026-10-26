@@ -351,7 +351,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
     driver = &_app_driver[drv_id];
   } else {
     drv_id -= _app_driver_count;
-    if (_builtin_driver_count > 0 && drv_id < _builtin_driver_count) {
+    if (drv_id < _builtin_driver_count) {
       driver = &usbh_class_drivers[drv_id];
     }
   }
@@ -538,7 +538,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     return true; // skip if already initialized
   }
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
-  char const* speed_str = 0;
+  char const* speed_str = "Unknown";
   switch (rh_init->speed) {
     case TUSB_SPEED_HIGH:
       speed_str = "High";
@@ -593,7 +593,6 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     tu_memclr(_usbh_devices, sizeof(_usbh_devices));
     tu_memclr(&_usbh_data, sizeof(_usbh_data));
 
-    _usbh_controller_id = TUSB_INDEX_INVALID_8;
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
     for (uint8_t i = 0; i < TOTAL_DEVICES; i++) {
@@ -741,7 +740,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUSB_OS_HAS_SCHEDULER
   // Save task handle on 1st run
-  if (_usbh_data.task_hdl == NULL) {
+  if (!_usbh_data.task_hdl) {
     _usbh_data.task_hdl = osal_task_get_current_handle();
   }
 #endif
@@ -2018,6 +2017,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       TU_ASSERT(new_addr != 0,);
 
       usbh_device_t* new_dev = get_device(new_addr);
+      TU_ASSERT(new_dev, );
       new_dev->bus_info = *dev0_bus;
       new_dev->desc_device.bMaxPacketSize0 = desc_device->bMaxPacketSize0;
 
@@ -2250,6 +2250,7 @@ static uint8_t enum_get_new_address(bool is_hub) {
 
 static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg) {
   usbh_device_t* dev = get_device(dev_addr);
+  TU_ASSERT(dev);
   uint16_t const total_len = tu_le16toh(desc_cfg->wTotalLength);
   uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + total_len;
   uint8_t const* p_desc   = tu_desc_next(desc_cfg);
@@ -2369,8 +2370,9 @@ static void enum_teardown(bool success) {
 
   if (!success && daddr <= TOTAL_DEVICES) {
     usbh_device_close(_usbh_data.dev0_bus.rhport, daddr);
-    if (daddr > 0) {
-      clear_device(get_device(daddr));
+    usbh_device_t *dev = get_device(daddr);
+    if (dev != NULL) {
+      clear_device(dev);
     }
   }
 }

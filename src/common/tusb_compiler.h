@@ -28,6 +28,9 @@
   #define TU_VERIFY_STATIC   static_assert
 #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
+#elif defined(__GNUC__) && !defined(__cplusplus) && !defined(__CC_ARM)
+  // GCC and clang accept it before C11 too
+  #define TU_VERIFY_STATIC(const_expr, _mess) __extension__ _Static_assert(const_expr, _mess)
 #elif defined(__CCRX__)
   #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, TU_COUNTER)[(const_expr) ? 1 : 0];
 #else

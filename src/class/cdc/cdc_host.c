@@ -884,7 +884,7 @@ static void cdch_process_line_state_on_enum(tuh_xfer_t *xfer) {
 static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  request result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  request result = %d\r\n", (int) xfer->result);
   const cdch_serial_driver_t *driver = &serial_drivers[p_cdc->serial_drid];
   driver->request_complete(p_cdc, xfer);
 
@@ -898,7 +898,7 @@ static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
 static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  stage1 set baudrate result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  stage1 set baudrate result = %d\r\n", (int) xfer->result);
   const cdch_serial_driver_t *driver = &serial_drivers[p_cdc->serial_drid];
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
@@ -915,7 +915,7 @@ static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
 static void cdch_set_line_coding_stage2_data_format_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  stage2 set data format result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  stage2 set data format result = %d\r\n", (int) xfer->result);
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     p_cdc->line.coding = p_cdc->requested_line.coding; // update data format
@@ -2162,7 +2162,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
       }
       type = pl2303_detect_type(p_cdc, 2); // step 2 now with supports_hx_status
       TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
-      TU_LOG_DRV("  PL2303 type detected: %u\r\n", type);
+      TU_LOG_DRV("  PL2303 type detected: %d\r\n", (int) type);
 
       p_cdc->pl2303.type = type;
       p_cdc->pl2303.quirks |= pl2303_type_data[type].quirks;

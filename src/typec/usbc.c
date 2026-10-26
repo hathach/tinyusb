@@ -192,6 +192,7 @@ bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) 
 
   // copy data objcet if available
   uint16_t const n_data_obj = header->n_data_obj;
+  TU_VERIFY(n_data_obj == 0 || data != NULL);
   if (n_data_obj > 0) {
     memcpy(_tx_buf + sizeof(pd_header_t), data, n_data_obj * 4);
   }

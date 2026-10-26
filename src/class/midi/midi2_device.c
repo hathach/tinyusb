@@ -278,7 +278,6 @@ static uint16_t _tx_nonseg_len_to_mps(midi2d_tx_t* tx) {
     uint8_t pkt_words = midi2_ump_word_count(mt);
     uint16_t pkt_bytes = (uint16_t) pkt_words * 4;
 
-    if (pkt_bytes == 0) break;
     if ((uint16_t) (available - bytes) < pkt_bytes) break;
     if ((uint16_t) (bytes + pkt_bytes) > tx->mps) break;
 
@@ -351,10 +350,10 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
          | ((uint32_t) STREAM_ENDPOINT_INFO << 16)
          | ((uint32_t) UMP_VER_MAJOR << 8)
          | (uint32_t) UMP_VER_MINOR;
-  msg[1] = (UINT32_C(1) << 31)  // Static Function Blocks flag
+  msg[1] = TU_BIT(31)  // Static Function Blocks flag
          | ((uint32_t)(_gtb_block_count(p_midi) & 0x7F) << 24)
-         | (UINT32_C(1) << 9)   // MIDI 2.0 Protocol capability
-         | (UINT32_C(1) << 8);  // MIDI 1.0 Protocol capability
+         | TU_BIT(9)   // MIDI 2.0 Protocol capability
+         | TU_BIT(8);  // MIDI 1.0 Protocol capability
   _nego_send_ump(p_midi, msg, 4);
 }
 
@@ -371,8 +370,8 @@ static uint16_t _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t stat
   if (!str || str[0] == '\0') return 0;
 
   const uint16_t total_len = (uint16_t) strlen(str);
-  const uint8_t per_pkt = has_index ? 13 : 14;
   const uint8_t head_chars = has_index ? 1 : 2;  // chars carried in word0
+  const uint8_t per_pkt = (uint8_t) (head_chars + 12); // plus 4 chars in each of words 1..3
   if (offset >= total_len) return total_len;
 
   while (offset < total_len) {
@@ -396,15 +395,14 @@ static uint16_t _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t stat
     const char* p = str + offset;
     if (has_index) {
       msg[0] |= ((uint32_t) index << 8);                       // bits 15:8 = index
-      if (n > 0) msg[0] |= (uint32_t)(uint8_t) p[0];           // bits  7:0 = char 0
+      msg[0] |= (uint32_t)(uint8_t) p[0];                      // bits  7:0 = char 0
     } else {
-      if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);    // bits 15:8 = char 0
+      msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);               // bits 15:8 = char 0
       if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];           // bits  7:0 = char 1
     }
-    for (uint8_t i = head_chars; i < n; i++) {
-      uint8_t word_idx = (uint8_t)(1 + (i - head_chars) / 4);
-      uint8_t shift    = (uint8_t)(24 - ((i - head_chars) % 4) * 8);
-      msg[word_idx] |= ((uint32_t)(uint8_t) p[i] << shift);
+    // words 1..3 carry the rest, 4 chars each
+    for (uint8_t j = 0; head_chars + j < n; j++) {
+      msg[1 + j / 4] |= ((uint32_t)(uint8_t) p[head_chars + j] << (24 - (j % 4) * 8));
     }
 
     _nego_send_ump(p_midi, msg, 4);
@@ -433,7 +431,7 @@ static void _nego_send_device_identity(midi2d_interface_t* p_midi) {
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_DEVICE_IDENTITY << 16);
-  msg[1] = id.manufacturer & UINT32_C(0x7F7F7F);
+  msg[1] = id.manufacturer & (uint32_t) 0x7F7F7F;
   // Family and model are 14-bit numbers sent least significant byte first,
   // as in the Device Inquiry reply. Manufacturer above is a byte sequence
   // rather than a number, so it keeps its own order.
@@ -459,7 +457,7 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_FB_INFO << 16)
-         | (UINT32_C(1) << 15)
+         | TU_BIT(15)
          | ((uint32_t) fb_idx << 8)
          | _fb_dir_byte(type);  // UI hint + bDirection from the GTB block type
   msg[1] = ((uint32_t) first_group << 24)

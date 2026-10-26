@@ -568,7 +568,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
   if (event != XFER_RESULT_SUCCESS) {
     // a failed transfer's length is meaningless: a 0-byte failure would pass for a ZLP
-    TU_LOG_DRV("  MTP xfer failed: %u\r\n", event);
+    TU_LOG_DRV("  MTP xfer failed: %d\r\n", (int) event);
     p_mtp->phase = MTP_PHASE_ERROR;
   }
 
