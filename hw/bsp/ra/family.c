@@ -127,6 +127,20 @@ void board_init(void) {
   }
 #endif
 
+#ifdef TRACE_SWO
+#ifndef BSP_MCU_GROUP_RA6M5
+  #error "TRACE_SWO: only RA6M5 is covered"
+#endif
+  // SWO on P109 (TDO/SWO, its reset function) needs the trace clock: TRCKEN, with TRCK kept as found. TRCKCR is
+  // writable only while a debugger is connected (DBGSTR.CDBGPWRUPREQ, RA6M5 HUM TRCKCR) and sits behind PRCR.PRC0;
+  // without a debugger the clock stays stopped, and a later capture starts it itself
+  if (R_DEBUG->DBGSTR & R_DEBUG_DBGSTR_CDBGPWRUPREQ_Msk) {
+    R_BSP_RegisterProtectDisable(BSP_REG_PROTECT_CGC);
+    R_SYSTEM->TRCKCR |= R_SYSTEM_TRCKCR_TRCKEN_Msk;
+    R_BSP_RegisterProtectEnable(BSP_REG_PROTECT_CGC);
+  }
+#endif
+
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USBFS_INT_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
