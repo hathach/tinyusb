@@ -55,8 +55,9 @@
 #define IFX_USBHS_PERI_HF_SRC  1
 #define IFX_USBHS_PERI_DIV     3
 
-// otg_dfifo_depth = GHWCFG3.DfifoDepth (bits [31:16]) in 32-bit words.
-// Read live from this core: GHWCFG3 = 0x1A4F80E8 -> 0x1A4F = 6735 words.
+// otg_dfifo_depth is the total SPRAM = GHWCFG3.DfifoDepth + EP_LOC_CNT in 32-bit words.
+// Read live from this core: GHWCFG3 = 0x1A4F80E8 -> DfifoDepth = 0x1A4F = 6735 words.
+// EP_LOC_CNT is not documented for PSE84, so DfifoDepth alone is used as a safe lower bound.
 static const dwc2_controller_t _dwc2_controller[] = {
   {
     .reg_base = DWC2_REG_BASE,
@@ -121,12 +122,12 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_clock_init(uint8_t rhport, tusb_ro
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
-  (void) rhport;
   (void) role;
+  const IRQn_Type irqn = (IRQn_Type) _dwc2_controller[rhport].irqnum;
   if (enabled) {
-    NVIC_EnableIRQ(usbhs_interrupt_usbhsctrl_IRQn);
+    NVIC_EnableIRQ(irqn);
   } else {
-    NVIC_DisableIRQ(usbhs_interrupt_usbhsctrl_IRQn);
+    NVIC_DisableIRQ(irqn);
   }
 }
 
@@ -134,19 +135,19 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_
 #define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
+  // RmtWkUpSig must be held 1-15 ms (USB 2.0 7.1.7.7)
+  Cy_SysLib_Delay(1);
 }
 
 // MCU specific PHY init, called BEFORE core reset. Enables the Infineon USB
 // subsystem (SS) so the DWC2 core registers become accessible. Already enabled
 // in dwc2_clock_init; re-asserted here (idempotent) to match the documented
-// PHY bring-up sequence.
+// PHY bring-up sequence, keeping the runtime role dwc2_clock_init programmed.
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void) hs_phy_type;
-#if CFG_TUH_ENABLED
-  ifx_usbhs_ss_enable((USBHS_Type*) dwc2, TUSB_ROLE_HOST);
-#else
-  ifx_usbhs_ss_enable((USBHS_Type*) dwc2, TUSB_ROLE_DEVICE);
-#endif
+  USBHS_Type* wrapper = (USBHS_Type*) dwc2;
+  const tusb_role_t role = (wrapper->SS.SUBSYSTEM_CTL & USBHS_SS_SUBSYSTEM_CTL_USB_MODE_Msk) ? TUSB_ROLE_HOST : TUSB_ROLE_DEVICE;
+  ifx_usbhs_ss_enable(wrapper, role);
 }
 
 // MCU specific PHY deinit, disable subsystem/PHY power
