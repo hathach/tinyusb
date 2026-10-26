@@ -410,7 +410,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
     rx_buffer[ep_num] = NULL;
   }
 
-  else if (ep_dir == TUSB_DIR_IN) {
+  else {
     tx_buffer_offset[ep_num] = 0;
     tx_buffer_max[ep_num] = 0;
     tx_buffer[ep_num] = NULL;
@@ -512,7 +512,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     dcd_int_enable(0);
   }
 
-  else if (ep_dir == TUSB_DIR_OUT) {
+  else {
     while (rx_buffer[ep_num] != NULL)
       ;
 

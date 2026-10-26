@@ -1164,9 +1164,6 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   if (xfer_pending) {
     edpt->xfer_pending = 0;
     edpt->uframe_countdown = 0;
-  }
-
-  if (xfer_pending) {
     hcd_int_enable(rhport);
     return true;
   }

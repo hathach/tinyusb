@@ -350,20 +350,7 @@ static inline int update_free_block_list(free_block_t *blks, unsigned num, uint_
       .beg = addr + size,
       .end = p->end
     };
-    p->end = addr;
-    if (p->beg == p->end) {
-      if (tmp.beg != tmp.end) {
-        *p = tmp;
-        return 0;
-      }
-      /* remove block */
-      free_block_t *end = blks + num;
-      while (p + 1 < end) {
-        *p = *(p + 1);
-        ++p;
-      }
-      return -1;
-    }
+    p->end = addr; // p->beg < addr: the block before addr is never empty
     if (tmp.beg == tmp.end) return 0;
     blks[num] = tmp;
     return 1;

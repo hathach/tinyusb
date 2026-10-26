@@ -126,7 +126,7 @@
 #define  USBC_REG_o_EPFIFO3		    0x000C
 #define  USBC_REG_o_EPFIFO4		    0x0010
 #define  USBC_REG_o_EPFIFO5		    0x0014
-#define  USBC_REG_o_EPFIFOx(n)	    (0x0000 + (n<<2))
+#define  USBC_REG_o_EPFIFOx(n)	    (0x0000 + ((n)<<2))
 
 #define  USBC_REG_o_DEVCTL		    0x0041
 
