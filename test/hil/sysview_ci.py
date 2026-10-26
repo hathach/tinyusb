@@ -34,7 +34,7 @@ LEGEND = ("<sub>**Legend** — **p50/p99**: median / 99th-percentile duration ov
           "(effectively) zero base -- not literally infinite, just too big to express as a "
           "normal percentage; **gone** marks a row base had that PR does not (work that used to "
           "run no longer does, or was renamed -- investigate before merging). **pt**: "
-          "percentage points. **CPU load, workload win**: context's busy share summed from the raw scheduling events over the workload window (the span of `tud_cdc_read` activity -- the throughput test's own footprint); falls back to SystemView's whole-recording share, labelled as such. "
+          "percentage points. **CPU load, workload win**: context's busy share summed from the raw scheduling events over the workload window (the span of `tud_cdc_read` activity -- the throughput test's own footprint); falls back to the whole-recording share, labelled as such. "
           "**stack high-water**: peak bytes of stack used. Function rows/bars are ordered by "
           "CPU occupancy (calls × p50) in the PR capture, hottest first; base-only rows sort "
           "after them. **– ⚠︎**: metric withheld — RTT ring overflowed (`overflow N`), no "
@@ -194,7 +194,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         # a malformed capture JSON must not abort the whole report
         return "\n".join(lines + ["capture failed: missing metrics", ""])
     bm_all = (base_j or {}).get("metrics") or {}
-    # reported, not gated: e.g. SystemView error dialogs while decoding (agentrc sysview.md, Unattended use)
+    # reported, not gated: e.g. the decoder's timing warnings (agentrc sysview.md)
     park_error = (pr_j.get("capture") or {}).get("park_error")
     warnings = (pm_all.get("warnings") or []) + ([park_error] if park_error else [])
     warnings = [f"> ⚠︎ {w}" for w in warnings]
@@ -245,7 +245,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         if r: lines.append(r)
     # CPU load rows prefer cpu_pct_workload -- busy time summed from the raw scheduling
     # events over the workload window (span of tud_cdc_read activity), the number that
-    # answers "load while the throughput test ran". Falls back to SystemView's
+    # answers "load while the throughput test ran". Falls back to the
     # whole-recording cpu_pct, labelled as such, when no workload window was found.
     bwl, pwl = by_name(bm_all.get("contexts_workload")), by_name(pm_all.get("contexts_workload"))
     use_wl = bool(pwl)
@@ -440,9 +440,9 @@ def build_one(board, repo_root):
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
 CAPTURE_FIXED_S = 90
 
-# sysview_record.py's worst case from SIGTERM to exit: its error screenshot 30 s, sending -quit
-# (connect and banner recv 10 s each), SystemView's -quit QUIT_S 20 s, then SIGTERM and SIGKILL
-# to SystemView's and Xvfb's groups GROUP_S 5 s each
+# sysview_record.py's worst case from SIGTERM to exit, sized for its --gui decode: its error screenshot
+# 30 s, sending -quit (connect and banner recv 10 s each), SystemView's -quit QUIT_S 20 s, then SIGTERM
+# and SIGKILL to SystemView's and Xvfb's groups GROUP_S 5 s each. The native decode used here exits at once.
 DECODE_STOP_S = 30 + 2 * 10 + 20 + 4 * 5
 
 # what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, reap it (REAP_GRACE 10 s),
@@ -564,9 +564,9 @@ def _capture(board, fw, out_dir, rtt):
         return None, f"{type(e).__name__}: {e}"
 
 def _stop_decoder(p):
-    """SIGTERM first: sysview_record.py closes the SystemView and Xvfb it started in their own
-    sessions only from its signal handler, so a SIGKILL would leave them running. Then SIGKILL
-    to whatever of the decoder's own group outlived the grace."""
+    """SIGTERM first: sysview_record.py's signal handler records the failure (and under --gui closes
+    the SystemView and Xvfb it started), which a SIGKILL would skip. Then SIGKILL to whatever of the
+    decoder's own group outlived the grace."""
     import subprocess
     p.terminate()
     try:

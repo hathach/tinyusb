@@ -635,7 +635,7 @@ class DecodeDeadline(unittest.TestCase):
         popen.assert_not_called()
 
     def test_a_cut_decoder_gets_sigterm_then_its_group_sigkill(self):
-        # SIGKILL alone would skip sysview_record.py's handler, which stops SystemView and Xvfb
+        # SIGKILL alone would skip sysview_record.py's handler, which records the failure
         cut = subprocess.TimeoutExpired("sysview_record.py", 30)
         step = self.step(returncode=None, communicate=[cut, cut, ("", "")])
         order = unittest.mock.Mock()
