@@ -21,8 +21,9 @@ application switches to its DFU image:
 Once DFU_DETACH completes the interface is in appDETACH.  There DFU_GETSTATUS
 and DFU_GETSTATE report appDETACH, and any other DFU request, including one
 sent in the wrong direction, stalls and returns to appIDLE, cancelling the
-detach.  An unplug (on ports that report one) or a SET_CONFIGURATION also
-cancels it, so a later bus reset does not call the callback.
+detach.  An unplug (on ports that report one) or a SET_CONFIGURATION that
+changes the configuration, including to 0, also cancels it, so a later bus
+reset does not call the callback; repeating the active one leaves it pending.
 
 The runtime driver deviates from DFU 1.1 section 5.1 and Appendix A.2.2:
 
