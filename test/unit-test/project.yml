@@ -148,6 +148,10 @@
       - CFG_TUH_HID=1
       - CFG_TUSB_DEBUG=0
       - CFG_TUSB_DEBUG_BREAKPOINT=hid_breakpoint_hook
+    :test_midi_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_MIDI=1
+      - CFG_TUSB_DEBUG=0
     :test_msc_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
