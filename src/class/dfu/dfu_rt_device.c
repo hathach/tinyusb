@@ -90,7 +90,7 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
   if (stage == CONTROL_STAGE_ACK && request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS &&
       request->bRequest == DFU_REQUEST_DETACH) {
-    // armed after the status stage, so a self-detach cannot cut off the request's own status stage
+    // armed once the controller reports the status stage complete, which is not proof the host received it
     _dfu_rt.state = APP_DETACH;
     if (_dfu_rt.attrs & DFU_ATTR_WILL_DETACH) {
       tud_dfu_runtime_reboot_to_dfu_cb();
