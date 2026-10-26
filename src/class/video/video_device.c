@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2021 Koji KITAYAMA
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Koji Kitayama
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -865,7 +846,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
       /* FS must be less than or equal to max packet size */
       TU_VERIFY (tu_edpt_packet_size(ep) >= max_size);
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
-      usbd_edpt_iso_activate(rhport, ep);
+      TU_ASSERT(usbd_edpt_iso_activate(rhport, ep));
 #else
       TU_ASSERT(usbd_edpt_open(rhport, ep));
 #endif
@@ -1163,6 +1144,9 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             video_probe_and_commit_control_t *param = &stm->probe_commit_payload;
             TU_VERIFY(_update_streaming_parameters(stm, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
+            if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < param->dwMaxPayloadTransferSize) {
+              param->dwMaxPayloadTransferSize = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+            }
             stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {

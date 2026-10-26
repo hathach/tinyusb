@@ -1,30 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright(c) N Conrad
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *   1. Redistributions of source code must retain the above copyright notice,
- *      this list of conditions and the following disclaimer.
- *   2. Redistributions in binary form must reproduce the above copyright notice,
- *      this list of conditions and the following disclaimer in the documentation
- *      and/or other materials provided with the distribution.
- *   3. Neither the name of STMicroelectronics nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Nathan Conrad
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -34,6 +11,10 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_STM32C0
   #include "stm32c0xx.h"
+  #define FSDEV_HAS_SBUF_ISO 1
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #include "stm32c5xx.h"
   #define FSDEV_HAS_SBUF_ISO 1
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F0
@@ -164,20 +145,24 @@
   #define FSDEV_USE_SBUF_ISO 0
 #endif
 
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
-
+// STM32L1 calls it USB_FS_WKUP_IRQn; alias so the commented USBWakeUp_IRQn below
+// can be uncommented as-is.
 #if TU_CHECK_MCU(OPT_MCU_STM32L1) && !defined(USBWakeUp_IRQn)
   #define USBWakeUp_IRQn USB_FS_WKUP_IRQn
 #endif
 
+// USB interrupt vectors to enable in NVIC. The EXTI-line USB wakeup interrupt
+// (USBWakeUp_IRQn, and USBWakeUp_RMP_IRQn on F3) is left commented out: resume is
+// handled in-band via ISTR.WKUP in the USB_LP/HP ISR; the EXTI line is only needed to
+// wake the core from STOP mode, which this driver does not implement (it never arms or
+// clears that EXTI line, so enabling its NVIC vector can only spuriously fire/freeze).
+// TODO: uncomment USBWakeUp_IRQn (+ arm/clear its EXTI line) when adding STOP-mode wakeup.
 static const IRQn_Type fsdev_irq[] = {
   #if TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32L0, OPT_MCU_STM32L4, OPT_MCU_STM32U5)
     USB_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32L5, OPT_MCU_STM32U3)
     USB_FS_IRQn,
-  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
+  #elif TU_CHECK_MCU(OPT_MCU_STM32C0, OPT_MCU_STM32C5, OPT_MCU_STM32H5, OPT_MCU_STM32U0)
     USB_DRD_FS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
     #ifdef STM32G0B0xx
@@ -188,15 +173,15 @@ static const IRQn_Type fsdev_irq[] = {
   #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
     USB_HP_CAN1_TX_IRQn,
     USB_LP_CAN1_RX0_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
     USB_HP_CAN_TX_IRQn,
     USB_LP_CAN_RX0_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
     USB_HP_IRQn,
     USB_LP_IRQn,
-    USBWakeUp_IRQn,
+    //USBWakeUp_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
     USB_HP_IRQn,
     USB_LP_IRQn,
@@ -219,7 +204,7 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_enable(uint8_t rhport) {
   if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
     NVIC_EnableIRQ(USB_HP_IRQn);
     NVIC_EnableIRQ(USB_LP_IRQn);
-    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
+    //NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
   } else
   #endif
   {
@@ -239,7 +224,7 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
     NVIC_DisableIRQ(USB_HP_IRQn);
     NVIC_DisableIRQ(USB_LP_IRQn);
-    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
+    //NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
   } else
   #endif
   {
@@ -262,30 +247,45 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
  *
  * CTR may trigger before final PMA SRAM accesses complete on OUT transfers.
  * Insert delay before reading PMA count/data.
- * Max CPU frequency in MHz, used to derive conservative FSDEV PMA delay defaults.
+ * Max CPU frequency in Hz, used to derive conservative FSDEV PMA delay defaults.
  */
 #if CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #define FSDEV_STM32_CPU_MHZ 250U
+  #define FSDEV_STM32_CPU_HZ 250000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-  #define FSDEV_STM32_CPU_MHZ 160U
+  #define FSDEV_STM32_CPU_HZ 160000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-  #define FSDEV_STM32_CPU_MHZ 96U
+  #define FSDEV_STM32_CPU_HZ 96000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-  #define FSDEV_STM32_CPU_MHZ 56U
+  #define FSDEV_STM32_CPU_HZ 56000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #define FSDEV_STM32_CPU_MHZ 64U
+  #define FSDEV_STM32_CPU_HZ 64000000U
 #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-  #define FSDEV_STM32_CPU_MHZ 48U
+  #define FSDEV_STM32_CPU_HZ 48000000U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C5
+  #define FSDEV_STM32_CPU_HZ 144000000U
 #endif
 
+// 11 cycles / 800ns = ~13750000 cycles per second, used to derive conservative FSDEV PMA delay defaults
 #ifndef CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT
-  #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ / 4U)
+  #define CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT (FSDEV_STM32_CPU_HZ / 13750000U)
 #endif
 
+// 11 cycles / 6.4us = ~1718750 cycles per second, used to derive conservative FSDEV PMA delay defaults
 #ifndef CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT
-  #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_MHZ * 2U)
+  #define CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT (FSDEV_STM32_CPU_HZ / 1718750U)
 #endif
 
+/**
+ * LDR from SP-relative: 2 cycles
+ * SUBS: 1 cycle
+ * STR to SP-relative: 2 cycles
+ * LDR from SP-relative: 2 cycles
+ * CMP: 1 cycle
+ * BNE:
+ * taken: 3 cycles total (often shown as 1 + pipeline refill)
+ * not taken: 1 cycle
+ * Total cycles if delay is needed: 11 cycles
+ */
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_btable_workaround_delay(bool low_speed) {
   volatile uint32_t cycle_count = low_speed ? CFG_TUSB_FSDEV_BTABLE_LS_DELAY_COUNT : CFG_TUSB_FSDEV_BTABLE_FS_DELAY_COUNT;
   while (cycle_count > 0U) {

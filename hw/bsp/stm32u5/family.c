@@ -82,6 +82,11 @@ void OTG_HS_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
 #endif
+
+// USB PD
+void UCPD1_IRQHandler(void) {
+  tuc_int_handler(0);
+}
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -243,6 +248,29 @@ void board_init(void) {
 
   /* Non-standard VBus sense settings */
   board_vbus_sense_init();
+
+#if CFG_TUC_ENABLED
+  // USB PD
+  // Default CC1/CC2 is PA15/PB15
+
+  // Enable pwr for disabling dead battery feature in Power's CR3
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_RCC_CRC_CLK_ENABLE();
+  __HAL_RCC_UCPD_CLK_ENABLE();
+
+  // Enable DMA for USB PD
+  __HAL_RCC_GPDMA1_CLK_ENABLE();
+
+  #ifdef UCPD_DBn_PIN
+  // Configure DBn pin
+  GPIO_InitStruct.Pin = UCPD_DBn_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(UCPD_DBn_PORT, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(UCPD_DBn_PORT, UCPD_DBn_PIN, GPIO_PIN_SET);
+  #endif
+
+#endif
 }
 
 //--------------------------------------------------------------------+

@@ -1,26 +1,8 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2021 Koji Kitayama
- * Portions copyrighted (c) 2021 Roland Winistoerfer
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Koji Kitayama
+ * SPDX-FileCopyrightText: Portions copyrighted (c) 2021 Roland Winistoerfer
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -472,11 +454,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (rusb2_is_highspeed_rhport(rhport) ) {
     rusb->SYSCFG_b.HSE = 1;
     rusb->PHYSET_b.HSEB = 0;
-    rusb->PHYSET_b.DIRPD = 0;
-    R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
-    rusb->PHYSET_b.PLLRESET = 0;
-    rusb->LPSTS_b.SUSPENDM = 1;
-    while ( !rusb->PLLSTA_b.PLLLOCK );
+    // same PHY reference-clock + power-up requirements as dcd_init: without CLKSEL matching the
+    // board XTAL the PLL never locks and the wait below would spin forever (e.g. EK-RA8M1, 20 MHz)
+    rusb2_utmi_phy_powerup(rusb);
     rusb->SYSCFG_b.DRPD = 1;
     rusb->SYSCFG_b.DCFM = 1;
     rusb->SYSCFG_b.DPRPU = 0;

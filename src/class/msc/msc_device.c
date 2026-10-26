@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -186,7 +167,7 @@ static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
     } else if (SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir)) {
       TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else if (0 == block_count) {
+    } else if (0 == block_count || (cbw->total_bytes >> 16) >= block_count) { // or block size > 16-bit, without a divide
       TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status = MSC_CSW_STATUS_FAILED;
     } else if (cbw->total_bytes / block_count == 0) {
@@ -545,7 +526,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
           // Invoke user callback if not built-in
           if ((resplen < 0) && (p_msc->sense_key == 0)) {
-            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
+            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf,
+                                      (uint16_t) tu_min32(p_msc->total_len, CFG_TUD_MSC_EP_BUFSIZE));
           }
 
           if (resplen < 0) {

@@ -59,6 +59,30 @@ void SystemInit(void);
 // Invoked by startup code
 void SystemInit(void)
 {
+#if defined(__ICCARM__) && !defined(DONT_RESET_ON_RESTART)
+  __disable_irq();
+#endif
+
+  if (Chip_CREG_OnChipFlashIsPresent()) {
+    // The boot ROM configures flash for its 96 MHz clock, and debugger core
+    // resets can preserve it. Use safe timing before switching the M4 to 204 MHz.
+    Chip_CREG_SetFLASHAccess(FLASHTIM_SAFE_SETTING);
+    __DSB();
+    __ISB();
+  }
+
+#if defined(__ICCARM__) && !defined(DONT_RESET_ON_RESTART)
+  // A debugger restart resets the M4 core, but can leave LPC43 peripherals and
+  // pending interrupts active. Match the GCC startup sequence, which the IAR
+  // startup lacks, before the C runtime can reuse peripheral DMA memory.
+  LPC_RGU->RESET_CTRL[0] = 0x10DF1000u;
+  LPC_RGU->RESET_CTRL[1] = 0x01DFF7FFu;
+  for (uint32_t i = 0; i < 8; i++) {
+    NVIC->ICPR[i] = UINT32_MAX;
+  }
+  __enable_irq();
+#endif
+
 #ifdef __USE_LPCOPEN
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
 
@@ -89,7 +113,13 @@ void SystemInit(void)
 //    Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
 //  }
 
+#ifdef TRACE_ETM
+  // Trace clock is limited to 60MHz, limit CPU clock to 120MHz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, 120000000UL, true);
+  board_trace_pinmux(); // after clock setup so TRACECLK starts at its final frequency
+#else
   Chip_SetupXtalClocking();
+#endif
 }
 
 void board_init(void)

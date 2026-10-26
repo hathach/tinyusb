@@ -10,6 +10,7 @@
 */
 void OnProjectLoad (void) {
   Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
   Project.SetTraceTiming (50, 50, 50, 50);
   Project.SetDevice ("MIMXRT1011xxx4A");
   Project.SetHostIF ("USB", "");
@@ -22,7 +23,7 @@ void OnProjectLoad (void) {
 
   // timing delay for trace pins in pico seconds, default is 2 nano seconds
 
-	File.Open ("../../../../../../examples/cmake-build-metro-m7-1011-sd/device/cdc_msc/cdc_msc.elf");
+	File.Open ("../../../../../../examples/cmake-build-metro_m7_1011/device/cdc_msc/cdc_msc.elf");
 }
 
 /*********************************************************************

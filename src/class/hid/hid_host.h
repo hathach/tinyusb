@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -156,6 +137,13 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx);
 // Invoked when received report from device via interrupt endpoint
 // Note: if there is report ID (composite), it is 1st byte of report
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);
+
+// Invoked instead of tuh_hid_report_received_cb() when the interrupt IN transfer failed, e.g. stalled, a
+// transaction error or the device is gone. The default calls tuh_hid_receive_report() again after a transient
+// error (XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT), so polling goes on as it does when the application re-arms from
+// tuh_hid_report_received_cb(). It does not re-arm after XFER_RESULT_STALLED, since the endpoint stays halted until
+// a CLEAR_FEATURE(ENDPOINT_HALT), nor after XFER_RESULT_ABORTED. Override it to change that.
+void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result);
 
 // Invoked when sent report to device successfully via interrupt endpoint
 void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);

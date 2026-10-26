@@ -66,10 +66,11 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 // Declare for buffer for usb transfer, may need to be in USB/DMA section and
 // multiple of dcache line size if dcache is enabled (for some ports).
 CFG_TUH_MEM_SECTION struct {
-  TUH_EPBUF_TYPE_DEF(tusb_desc_device_t, device);
   TUH_EPBUF_DEF(serial, 64*sizeof(uint16_t));
   TUH_EPBUF_DEF(buf, 128*sizeof(uint16_t));
 } desc;
+
+static tusb_desc_device_t descriptor_device[CFG_TUH_DEVICE_MAX + 1];
 
 void led_blinking_task(void* param);
 void print_devinfo_task(void* param);
@@ -117,6 +118,12 @@ int main(void) {
 
 /*------------- TinyUSB Callbacks -------------*/
 
+void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device) {
+  if (daddr <= CFG_TUH_DEVICE_MAX) {
+    descriptor_device[daddr] = *desc_device;
+  }
+}
+
 // Invoked when device is mounted (configured). Runs in the host task — keep
 // it minimal. The actual descriptor fetching/printing happens in
 // print_devinfo_task() below, which runs in a different context (main loop
@@ -144,18 +151,11 @@ void tuh_umount_cb(uint8_t daddr) {
 // OS_NONE / dedicated FreeRTOS task on RTOS).
 //--------------------------------------------------------------------+
 
-static void print_one_device(uint8_t daddr) {
-  // Get Device Descriptor
-  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.device, 18);
-  if (XFER_RESULT_SUCCESS != xfer_result) {
-    printf("Failed to get device descriptor\r\n");
-    return;
-  }
+static void print_one_device(uint8_t daddr, const tusb_desc_device_t *desc_device) {
+  printf("Device %u: ID %04x:%04x SN ", daddr, desc_device->idVendor, desc_device->idProduct);
 
-  printf("Device %u: ID %04x:%04x SN ", daddr, desc.device.idVendor, desc.device.idProduct);
-
-  xfer_result = XFER_RESULT_FAILED;
-  if (desc.device.iSerialNumber != 0) {
+  uint8_t xfer_result = XFER_RESULT_FAILED;
+  if (desc_device->iSerialNumber != 0) {
     xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.serial, sizeof(desc.serial));
   }
   if (XFER_RESULT_SUCCESS != xfer_result) {
@@ -168,36 +168,36 @@ static void print_one_device(uint8_t daddr) {
   printf("\r\n");
 
   printf("Device Descriptor:\r\n");
-  printf("  bLength             %u\r\n", desc.device.bLength);
-  printf("  bDescriptorType     %u\r\n", desc.device.bDescriptorType);
-  printf("  bcdUSB              %04x\r\n", desc.device.bcdUSB);
-  printf("  bDeviceClass        %u\r\n", desc.device.bDeviceClass);
-  printf("  bDeviceSubClass     %u\r\n", desc.device.bDeviceSubClass);
-  printf("  bDeviceProtocol     %u\r\n", desc.device.bDeviceProtocol);
-  printf("  bMaxPacketSize0     %u\r\n", desc.device.bMaxPacketSize0);
-  printf("  idVendor            0x%04x\r\n", desc.device.idVendor);
-  printf("  idProduct           0x%04x\r\n", desc.device.idProduct);
-  printf("  bcdDevice           %04x\r\n", desc.device.bcdDevice);
+  printf("  bLength             %u\r\n", desc_device->bLength);
+  printf("  bDescriptorType     %u\r\n", desc_device->bDescriptorType);
+  printf("  bcdUSB              %04x\r\n", desc_device->bcdUSB);
+  printf("  bDeviceClass        %u\r\n", desc_device->bDeviceClass);
+  printf("  bDeviceSubClass     %u\r\n", desc_device->bDeviceSubClass);
+  printf("  bDeviceProtocol     %u\r\n", desc_device->bDeviceProtocol);
+  printf("  bMaxPacketSize0     %u\r\n", desc_device->bMaxPacketSize0);
+  printf("  idVendor            0x%04x\r\n", desc_device->idVendor);
+  printf("  idProduct           0x%04x\r\n", desc_device->idProduct);
+  printf("  bcdDevice           %04x\r\n", desc_device->bcdDevice);
 
-  printf("  iManufacturer       %u     ", desc.device.iManufacturer);
-  if (desc.device.iManufacturer != 0) {
+  printf("  iManufacturer       %u     ", desc_device->iManufacturer);
+  if (desc_device->iManufacturer != 0) {
     if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
       print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
     }
   }
   printf("\r\n");
 
-  printf("  iProduct            %u     ", desc.device.iProduct);
-  if (desc.device.iProduct != 0) {
+  printf("  iProduct            %u     ", desc_device->iProduct);
+  if (desc_device->iProduct != 0) {
     if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
       print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
     }
   }
   printf("\r\n");
 
-  printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
+  printf("  iSerialNumber       %u     ", desc_device->iSerialNumber);
   printf("%s\r\n", (char*)desc.serial); // serial is already UTF-8
-  printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
+  printf("  bNumConfigurations  %u\r\n", desc_device->bNumConfigurations);
 }
 
 void print_devinfo_task(void* param) {
@@ -209,7 +209,7 @@ void print_devinfo_task(void* param) {
     for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
       if (need_devinfo[daddr]) {
         need_devinfo[daddr] = false;
-        print_one_device(daddr);
+        print_one_device(daddr, &descriptor_device[daddr]);
       }
     }
 #if CFG_TUSB_OS == OPT_OS_FREERTOS

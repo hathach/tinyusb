@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2022 Rafael Silva (@perigoso)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2022 Rafael Silva (@perigoso)
+ * SPDX-FileCopyrightText: Copyright (c) 2022 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -67,6 +49,23 @@ typedef struct {
 
   #define rusb2_is_highspeed_rhport(_p)  (_p == 1)
   #define rusb2_is_highspeed_reg(_reg)   (_reg == RUSB2_REG(1))
+
+  // UTMI PHY reference clock is the main oscillator: PHYSET.CLKSEL must match the board XTAL
+  // before the PHY PLL is released (RA6M5 UM R01UH0891 29.2.17: 00=12 MHz, 10=20 MHz,
+  // 11=24 MHz reset default). EK-RA6M5 runs 24 MHz (default works); EK-RA8M1 runs 20 MHz and
+  // never locks/chirps on the default. A board with a non-standard USB clocking scheme can
+  // pre-define RUSB2_PHYSET_CLKSEL_VALUE to override this selection.
+  #ifndef RUSB2_PHYSET_CLKSEL_VALUE
+    #if   BSP_CFG_XTAL_HZ == 12000000
+      #define RUSB2_PHYSET_CLKSEL_VALUE 0u
+    #elif BSP_CFG_XTAL_HZ == 20000000
+      #define RUSB2_PHYSET_CLKSEL_VALUE 2u
+    #elif BSP_CFG_XTAL_HZ == 24000000
+      #define RUSB2_PHYSET_CLKSEL_VALUE 3u
+    #else
+      #error "USBHS UTMI PHY: no PHYSET.CLKSEL encoding for this BSP_CFG_XTAL_HZ; define RUSB2_PHYSET_CLKSEL_VALUE"
+    #endif
+  #endif
 #else
   #define RUSB2_CONTROLLER_COUNT 1
 
@@ -101,6 +100,36 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
 // MCU specific PHY init
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void) {
 }
+
+// PIPEnCTR.ACLRM needs >= 100 ns between its 1 and 0 writes (RA4M1 UM p678, RA6M5 UM p907/p1009)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
+  R_BSP_SoftwareDelay((uint32_t)1, BSP_DELAY_UNITS_MICROSECONDS);
+}
+
+#ifdef RUSB2_SUPPORT_HIGHSPEED
+// UTMI PHY power-up per the FSP reference sequence (r_usb_preg_access.c), shared by dcd_init and
+// hcd_init: program CLKSEL to the board XTAL while the PHY is powered down (DIRPD=1), 1 us,
+// release DIRPD, 1 ms, release PLLRESET, then wait for PLL lock. Changing CLKSEL as the PHY
+// powers up gets mis-sampled (EK-RA8M1, 20 MHz).
+static inline void rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
+  uint16_t physet = rusb->PHYSET | RUSB2_PHYSET_DIRPD_Msk;
+  rusb->PHYSET = physet;
+  #ifdef RUSB2_PHYSET_CLKSEL_VALUE
+  physet = (uint16_t) ((physet & ~RUSB2_PHYSET_CLKSEL_Msk) |
+                       (RUSB2_PHYSET_CLKSEL_VALUE << RUSB2_PHYSET_CLKSEL_Pos));
+  rusb->PHYSET = physet;
+  #endif
+  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MICROSECONDS);
+  physet &= (uint16_t) ~RUSB2_PHYSET_DIRPD_Msk;
+  rusb->PHYSET = physet;
+  R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
+  rusb->PHYSET_b.PLLRESET = 0;
+
+  // set UTMI to operating mode and wait for PLL lock confirmation
+  rusb->LPSTS_b.SUSPENDM = 1;
+  while (!rusb->PLLSTA_b.PLLLOCK) {}
+}
+#endif
 
 #ifdef __cplusplus
 }

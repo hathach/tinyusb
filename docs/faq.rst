@@ -1,6 +1,6 @@
-**************************
-Frequently Asked Questions
-**************************
+****
+FAQs
+****
 
 General Questions
 =================

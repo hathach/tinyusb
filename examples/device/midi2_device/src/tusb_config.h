@@ -81,6 +81,10 @@ extern "C" {
 //------------- CLASS -------------//
 #define CFG_TUD_MIDI2           1
 
+// UMP Endpoint name shown by the host. Set to your device name; keep the USB
+// iProduct string (usb_descriptors.c) in sync.
+#define CFG_TUD_MIDI2_EP_NAME   "TinyUSB MIDI 2.0"
+
 #ifdef __cplusplus
 }
 #endif

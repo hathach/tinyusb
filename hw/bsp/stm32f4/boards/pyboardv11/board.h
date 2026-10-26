@@ -39,7 +39,9 @@
 #define UART_ID               2
 
 #define PINID_LED      0
+#ifndef TRACE_SWO // the USR button is PB3, which TRACE_SWO takes as TRACESWO
 #define PINID_BUTTON   1
+#endif
 #define PINID_UART_TX  2
 #define PINID_UART_RX  3
 

@@ -6,7 +6,7 @@
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
       "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
         "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
         "BOARD": "${presetName}"
@@ -17,7 +17,7 @@
       "hidden": true,
       "description": "Configure preset for the ${presetName} board",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
       "cacheVariables": {
         "BOARD": "${presetName}"
       }
@@ -40,6 +40,18 @@
     },
     {
       "name": "apard32690",
+      "inherits": "default"
+    },
+    {
+      "name": "apm32f072_dev_board",
+      "inherits": "default"
+    },
+    {
+      "name": "apm32f103_dev_board",
+      "inherits": "default"
+    },
+    {
+      "name": "apm32f107_dev_board",
       "inherits": "default"
     },
     {
@@ -123,6 +135,10 @@
       "inherits": "default"
     },
     {
+      "name": "ch32v103c_bluepill",
+      "inherits": "default"
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "inherits": "default"
     },
@@ -136,6 +152,10 @@
     },
     {
       "name": "ch32v307v_r1_1v0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch582m_evt",
       "inherits": "default"
     },
     {
@@ -495,11 +515,19 @@
       "inherits": "default"
     },
     {
+      "name": "pico2_etm_trace",
+      "inherits": "default"
+    },
+    {
       "name": "pico_sdk",
       "inherits": "default"
     },
     {
       "name": "portenta_c33",
+      "inherits": "default"
+    },
+    {
+      "name": "py32f071_dev_board",
       "inherits": "default"
     },
     {
@@ -627,6 +655,10 @@
       "inherits": "default"
     },
     {
+      "name": "stm32c542nucleo",
+      "inherits": "default"
+    },
+    {
       "name": "stm32f070rbnucleo",
       "inherits": "default"
     },
@@ -724,6 +756,10 @@
     },
     {
       "name": "stm32h503nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h533nucleo",
       "inherits": "default"
     },
     {
@@ -871,6 +907,10 @@
       "inherits": "default"
     },
     {
+      "name": "yd-ch582m",
+      "inherits": "default"
+    },
+    {
       "name": "adafruit_feather_esp32_v2",
       "inherits": "default single config"
     },
@@ -988,6 +1028,21 @@
       "configurePreset": "apard32690"
     },
     {
+      "name": "apm32f072_dev_board",
+      "description": "Build preset for the apm32f072_dev_board board",
+      "configurePreset": "apm32f072_dev_board"
+    },
+    {
+      "name": "apm32f103_dev_board",
+      "description": "Build preset for the apm32f103_dev_board board",
+      "configurePreset": "apm32f103_dev_board"
+    },
+    {
+      "name": "apm32f107_dev_board",
+      "description": "Build preset for the apm32f107_dev_board board",
+      "configurePreset": "apm32f107_dev_board"
+    },
+    {
       "name": "arduino_nano33_ble",
       "description": "Build preset for the arduino_nano33_ble board",
       "configurePreset": "arduino_nano33_ble"
@@ -1088,6 +1143,11 @@
       "configurePreset": "ch32f205r-r0"
     },
     {
+      "name": "ch32v103c_bluepill",
+      "description": "Build preset for the ch32v103c_bluepill board",
+      "configurePreset": "ch32v103c_bluepill"
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "description": "Build preset for the ch32v103r_r1_1v0 board",
       "configurePreset": "ch32v103r_r1_1v0"
@@ -1106,6 +1166,11 @@
       "name": "ch32v307v_r1_1v0",
       "description": "Build preset for the ch32v307v_r1_1v0 board",
       "configurePreset": "ch32v307v_r1_1v0"
+    },
+    {
+      "name": "ch582m_evt",
+      "description": "Build preset for the ch582m_evt board",
+      "configurePreset": "ch582m_evt"
     },
     {
       "name": "circuitplayground_bluefruit",
@@ -1598,6 +1663,11 @@
       "configurePreset": "nutiny_sdk_nuc505"
     },
     {
+      "name": "pico2_etm_trace",
+      "description": "Build preset for the pico2_etm_trace board",
+      "configurePreset": "pico2_etm_trace"
+    },
+    {
       "name": "pico_sdk",
       "description": "Build preset for the pico_sdk board",
       "configurePreset": "pico_sdk"
@@ -1606,6 +1676,11 @@
       "name": "portenta_c33",
       "description": "Build preset for the portenta_c33 board",
       "configurePreset": "portenta_c33"
+    },
+    {
+      "name": "py32f071_dev_board",
+      "description": "Build preset for the py32f071_dev_board board",
+      "configurePreset": "py32f071_dev_board"
     },
     {
       "name": "pybadge",
@@ -1763,6 +1838,11 @@
       "configurePreset": "stm32c071nucleo"
     },
     {
+      "name": "stm32c542nucleo",
+      "description": "Build preset for the stm32c542nucleo board",
+      "configurePreset": "stm32c542nucleo"
+    },
+    {
       "name": "stm32f070rbnucleo",
       "description": "Build preset for the stm32f070rbnucleo board",
       "configurePreset": "stm32f070rbnucleo"
@@ -1886,6 +1966,11 @@
       "name": "stm32h503nucleo",
       "description": "Build preset for the stm32h503nucleo board",
       "configurePreset": "stm32h503nucleo"
+    },
+    {
+      "name": "stm32h533nucleo",
+      "description": "Build preset for the stm32h533nucleo board",
+      "configurePreset": "stm32h533nucleo"
     },
     {
       "name": "stm32h563nucleo",
@@ -2066,6 +2151,11 @@
       "name": "xmc4700_relax",
       "description": "Build preset for the xmc4700_relax board",
       "configurePreset": "xmc4700_relax"
+    },
+    {
+      "name": "yd-ch582m",
+      "description": "Build preset for the yd-ch582m board",
+      "configurePreset": "yd-ch582m"
     }
   ],
   "workflowPresets": [
@@ -2209,6 +2299,45 @@
         {
           "type": "build",
           "name": "apard32690"
+        }
+      ]
+    },
+    {
+      "name": "apm32f072_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "apm32f072_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "apm32f072_dev_board"
+        }
+      ]
+    },
+    {
+      "name": "apm32f103_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "apm32f103_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "apm32f103_dev_board"
+        }
+      ]
+    },
+    {
+      "name": "apm32f107_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "apm32f107_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "apm32f107_dev_board"
         }
       ]
     },
@@ -2473,6 +2602,19 @@
       ]
     },
     {
+      "name": "ch32v103c_bluepill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v103c_bluepill"
+        },
+        {
+          "type": "build",
+          "name": "ch32v103c_bluepill"
+        }
+      ]
+    },
+    {
       "name": "ch32v103r_r1_1v0",
       "steps": [
         {
@@ -2521,6 +2663,19 @@
         {
           "type": "build",
           "name": "ch32v307v_r1_1v0"
+        }
+      ]
+    },
+    {
+      "name": "ch582m_evt",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch582m_evt"
+        },
+        {
+          "type": "build",
+          "name": "ch582m_evt"
         }
       ]
     },
@@ -3799,6 +3954,19 @@
       ]
     },
     {
+      "name": "pico2_etm_trace",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pico2_etm_trace"
+        },
+        {
+          "type": "build",
+          "name": "pico2_etm_trace"
+        }
+      ]
+    },
+    {
       "name": "pico_sdk",
       "steps": [
         {
@@ -3821,6 +3989,19 @@
         {
           "type": "build",
           "name": "portenta_c33"
+        }
+      ]
+    },
+    {
+      "name": "py32f071_dev_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "py32f071_dev_board"
+        },
+        {
+          "type": "build",
+          "name": "py32f071_dev_board"
         }
       ]
     },
@@ -4228,6 +4409,19 @@
       ]
     },
     {
+      "name": "stm32c542nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32c542nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32c542nucleo"
+        }
+      ]
+    },
+    {
       "name": "stm32f070rbnucleo",
       "steps": [
         {
@@ -4549,6 +4743,19 @@
         {
           "type": "build",
           "name": "stm32h503nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h533nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h533nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h533nucleo"
         }
       ]
     },
@@ -5017,6 +5224,19 @@
         {
           "type": "build",
           "name": "xmc4700_relax"
+        }
+      ]
+    },
+    {
+      "name": "yd-ch582m",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "yd-ch582m"
+        },
+        {
+          "type": "build",
+          "name": "yd-ch582m"
         }
       ]
     }

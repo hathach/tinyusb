@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2021 Tian Yunhao (t123yh)
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Tian Yunhao (t123yh)
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -77,6 +58,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   (void) ctx; (void) in_isr;
 }
@@ -115,6 +100,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait (osal_semaphore_t s
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl) {
+  (void) sem_hdl;
   // TODO: implement
 }
 
@@ -163,13 +149,18 @@ typedef osal_queue_def_t* osal_queue_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
   os_mbx_init(qdef->mbox, (qdef->depth + 4) * 4);
-  _init_box(qdef->pool, ((qdef->item_sz+3)/4)*(qdef->depth) + 3, qdef->item_sz);
+  uint32_t const pool_size = (((qdef->item_sz + 3u) / 4u) * qdef->depth + 3u) * sizeof(U32);
+  if (_init_box(qdef->pool, pool_size, qdef->item_sz) != 0) {
+    return NULL;
+  }
   return qdef;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
   void* buf;
-  os_mbx_wait(qhdl->mbox, &buf, msec2wait(msec));
+  if (os_mbx_wait(qhdl->mbox, &buf, msec2wait(msec)) == OS_R_TMO) {
+    return false;
+  }
   memcpy(data, buf, qhdl->item_sz);
   _free_box(qhdl->pool, buf);
   return true;
@@ -181,7 +172,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr) {
+  // Each message owns a pool block, so allocation reserves mailbox capacity.
   void* buf = _alloc_box(qhdl->pool);
+  if (buf == NULL) {
+    return false;
+  }
   memcpy(buf, data, qhdl->item_sz);
   if ( !in_isr ) {
     os_mbx_send(qhdl->mbox, buf, 0xFFFF);

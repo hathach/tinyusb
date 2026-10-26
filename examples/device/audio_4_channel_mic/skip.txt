@@ -1,5 +1,7 @@
 mcu:SAMD11
-mcu:SAME5X
 mcu:SAMG
 family:broadcom_64bit
 family:espressif
+mcu:CH583
+mcu:CH32X035
+mcu:APM32F103

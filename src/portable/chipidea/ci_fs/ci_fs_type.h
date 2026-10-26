@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2023 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -45,6 +26,60 @@ extern "C" {
 // Note: some MCUs can only access these registers in 8-bit mode
 // align 4 is used to get rid of reserved fields
 #define _va32     volatile TU_ATTR_ALIGNED(4)
+
+//--------------------------------------------------------------------+
+// Buffer Descriptor Table (BDT) - shared by the device (dcd) and host (hcd) drivers
+// since both target the same ChipIdea-FS silicon. Keep the layout in one place so a
+// fix cannot silently drift between the two drivers.
+//--------------------------------------------------------------------+
+
+// Token PID values reported in the BDT tok_pid field / written to the TOKEN register.
+// The device driver only uses OUT/IN/SETUP; the rest are host-only.
+enum {
+  TOK_PID_OUT   = 0x1u,
+  TOK_PID_IN    = 0x9u,
+  TOK_PID_SETUP = 0xDu,
+  TOK_PID_DATA0 = 0x3u,
+  TOK_PID_DATA1 = 0xbu,
+  TOK_PID_ACK   = 0x2u,
+  TOK_PID_STALL = 0xeu,
+  TOK_PID_NAK   = 0xau,
+  TOK_PID_BUSTO = 0x0u,
+  TOK_PID_ERR   = 0xfu,
+};
+
+// Note: this header is included before the CMSIS device header, so use plain `volatile`
+// rather than CMSIS `__IO`.
+typedef struct TU_ATTR_PACKED
+{
+  union {
+    uint32_t head;
+    struct {
+      union {
+        struct {
+                   uint16_t           :  2;
+          volatile uint16_t tok_pid   :  4;
+                   uint16_t data      :  1;
+          volatile uint16_t own       :  1;
+                   uint16_t           :  8;
+        };
+        struct {
+                   uint16_t           :  2;
+                   uint16_t bdt_stall :  1;
+                   uint16_t dts       :  1;
+                   uint16_t ninc      :  1;
+                   uint16_t keep      :  1;
+                   uint16_t           : 10;
+        };
+      };
+      volatile uint16_t bc : 10;
+               uint16_t    :  6;
+    };
+  };
+  uint8_t *addr;
+}buffer_descriptor_t;
+
+TU_VERIFY_STATIC( sizeof(buffer_descriptor_t) == 8, "size is not correct" );
 
 typedef struct {
   _va32 uint8_t PER_ID;                 // [00] Peripheral ID register

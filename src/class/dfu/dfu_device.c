@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2021 XMOS LIMITED
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2021 XMOS LIMITED
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -60,23 +42,13 @@ typedef struct {
 
 static dfu_state_ctx_t _dfu_ctx;
 
-#if CFG_TUD_DFU_XFER_BUFSIZE > CFG_TUD_ENDPOINT0_BUFSIZE
-TU_ATTR_ALIGNED(4) uint8_t _transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
-#endif
+// Download data must remain valid across the following GETSTATUS control transfer
+TU_ATTR_ALIGNED(4) static uint8_t _transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
 
 static void reset_state(void) {
   _dfu_ctx.state = DFU_IDLE;
   _dfu_ctx.status = DFU_STATUS_OK;
   _dfu_ctx.flashing_in_progress = false;
-}
-
-static inline uint8_t* get_xfer_buffer(void) {
-  // Use EP0 buffer if it is large enough, otherwise use dedicated buffer
-  #if CFG_TUD_DFU_XFER_BUFSIZE > CFG_TUD_ENDPOINT0_BUFSIZE
-  return _transfer_buf;
-  #else
-  return usbd_get_ctrl_buf();
-  #endif
 }
 
 static bool reply_getstatus(uint8_t rhport, const tusb_control_request_t* request, dfu_state_t state, dfu_status_t status, uint32_t timeout);
@@ -294,10 +266,10 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
           TU_VERIFY(_dfu_ctx.attrs & DFU_ATTR_CAN_UPLOAD);
           TU_VERIFY(request->wLength <= CFG_TUD_DFU_XFER_BUFSIZE);
 
-          const uint16_t xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, get_xfer_buffer(),
+          const uint16_t xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, _transfer_buf,
                                                       request->wLength);
 
-          return tud_control_xfer(rhport, request, get_xfer_buffer(), xfer_len);
+          return tud_control_xfer(rhport, request, _transfer_buf, xfer_len);
         }
         break;
 
@@ -317,7 +289,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
           if (request->wLength > 0) {
             // Download with payload -> transition to DOWNLOAD SYNC
             _dfu_ctx.state = DFU_DNLOAD_SYNC;
-            return tud_control_xfer(rhport, request, get_xfer_buffer(), request->wLength);
+            return tud_control_xfer(rhport, request, _transfer_buf, request->wLength);
           } else {
             // Download is complete -> transition to MANIFEST SYNC
             _dfu_ctx.state = DFU_MANIFEST_SYNC;
@@ -391,7 +363,7 @@ static bool process_download_get_status(uint8_t rhport, uint8_t stage, const tus
   } else if (stage == CONTROL_STAGE_ACK) {
     if (_dfu_ctx.flashing_in_progress) {
       _dfu_ctx.state = DFU_DNBUSY;
-      tud_dfu_download_cb(_dfu_ctx.alt, _dfu_ctx.block, get_xfer_buffer(), _dfu_ctx.length);
+      tud_dfu_download_cb(_dfu_ctx.alt, _dfu_ctx.block, _transfer_buf, _dfu_ctx.length);
     } else {
       _dfu_ctx.state = DFU_DNLOAD_IDLE;
     }

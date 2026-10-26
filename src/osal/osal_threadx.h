@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -88,6 +69,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_deinit(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
  if (!in_isr) {
    ctx->interrupt_set(false);
@@ -109,8 +94,11 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, 
 typedef TX_SEMAPHORE osal_semaphore_def_t, * osal_semaphore_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semdef) {
-  tx_semaphore_create(semdef, TX_NULL, 0);
-  return semdef;
+  if (TX_SUCCESS == tx_semaphore_create(semdef, (CHAR *)TX_NULL, 0)) {
+    return semdef;
+  } else {
+    return NULL;
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t sem_hdl) {
@@ -137,7 +125,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t s
 typedef TX_MUTEX osal_mutex_def_t, *osal_mutex_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t *mdef) {
-  if (TX_SUCCESS == tx_mutex_create(mdef, mdef->tx_mutex_name, TX_NO_INHERIT)) {
+  if (TX_SUCCESS == tx_mutex_create(mdef, (CHAR *)TX_NULL, TX_NO_INHERIT)) {
   	return mdef;
   } else {
     return NULL;
@@ -145,8 +133,7 @@ TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_de
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_delete(osal_mutex_t mutex_hdl) {
-  (void) mutex_hdl;
-  return true; // nothing to do
+  return TX_SUCCESS == tx_mutex_delete(mutex_hdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_lock(osal_mutex_t mutex_hdl, uint32_t msec) {
@@ -175,14 +162,15 @@ osal_queue_def_t _name = {                                \
 
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
-  return TX_SUCCESS ==
-           tx_queue_create(qdef, qdef->tx_queue_name, qdef->tx_queue_message_size, qdef->tx_queue_start, qdef->tx_queue_capacity * qdef->tx_queue_message_size * 4)
-		   ? qdef : 0;
+  if (TX_SUCCESS == tx_queue_create(qdef, qdef->tx_queue_name, qdef->tx_queue_message_size, qdef->tx_queue_start, qdef->tx_queue_capacity * qdef->tx_queue_message_size * 4)) {
+    return qdef;
+  } else {
+    return NULL;
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
-  (void) qhdl;
-  return true;
+  return TX_SUCCESS == tx_queue_delete(qhdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {

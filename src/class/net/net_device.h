@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2020 Peter Lawrence
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Peter Lawrence
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -38,6 +19,12 @@
 /* Maximum Transmission Unit (in bytes) of the network, including Ethernet header */
 #ifndef CFG_TUD_NET_MTU
 #define CFG_TUD_NET_MTU           1514
+#endif
+
+// Link speed in bit/s reported to the host, 0 = USB bus speed.
+// One value for both directions: Linux and Microsoft's NCM sample read the two speed fields in opposite order.
+#ifndef CFG_TUD_NET_LINK_BITRATE
+#define CFG_TUD_NET_LINK_BITRATE  0
 #endif
 
 
@@ -105,6 +92,10 @@ extern uint8_t tud_network_mac_address[6];
 
 // Optional callback: informs the application about host requested packet filter bits
 void tud_network_set_packet_filter_cb(uint16_t packet_filter);
+
+// Optional callback: called during netd_init() to get the initial link state.
+// Override to return the actual physical link state instead of the compile-time default.
+bool tud_network_default_link_state_cb(void);
 
 // Set the network link state (up/down) and notify the host
 void tud_network_link_state(uint8_t rhport, bool is_up);

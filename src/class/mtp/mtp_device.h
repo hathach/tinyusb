@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2025 Ennebi Elettronica (https://ennebielettronica.com)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2025 Ennebi Elettronica (https://ennebielettronica.com)
+ * SPDX-FileCopyrightText: Copyright (c) 2025 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -103,7 +85,10 @@ bool tud_mtp_data_send(mtp_container_info_t* p_container);
 // receive data phase
 bool tud_mtp_data_receive(mtp_container_info_t* p_container);
 
-// send response
+// Send response. Normally called from tud_mtp_command_received_cb() (command without a data
+// phase) or tud_mtp_data_complete_cb(). May also be called from a data callback to end the
+// transaction early; the terminating ZLP the host still owes is then absorbed by the driver.
+// Returns false if the response could not be queued, leaving the phase unchanged.
 bool tud_mtp_response_send(mtp_container_info_t* p_container);
 
 // send event notification on event endpoint
@@ -144,6 +129,10 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
 
 // Invoked when a data packet is transferred. If data spans over multiple packets, application can use
 // total_xferred_bytes and io_container's payload_bytes to determine the offset and remaining bytes to be transferred.
+// Data OUT: io_container's header->len is the host's ContainerLength. When that is 0xFFFFFFFF (a data phase too
+// long for 32 bits, MTP 1.1 Appendix H) a short packet ends the phase, and header->len then reads the bytes
+// actually received, so re-arming while total_xferred_bytes < header->len stops there. total_xferred_bytes is
+// 32-bit: past 4 GiB it wraps.
 // Return negative to stall the endpoints
 int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data);
 

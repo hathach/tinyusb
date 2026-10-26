@@ -64,8 +64,8 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/nxp/khci/dcd_khci.c
-    ${TOP}/src/portable/nxp/khci/hcd_khci.c
+    ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
+    ${TOP}/src/portable/chipidea/ci_fs/hcd_ci_fs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

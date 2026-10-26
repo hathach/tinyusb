@@ -39,6 +39,10 @@ extern "C" {
 
 #include "tusb.h"
 
+#if defined(LOGGER_RTT)
+#include "SEGGER_RTT.h"
+#endif
+
 #if CFG_TUSB_OS == OPT_OS_ZEPHYR
   #include <zephyr/kernel.h>
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS

@@ -10,10 +10,11 @@
 */
 void OnProjectLoad (void) {
   Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (4);
   Project.SetDevice ("R7FA8M1AH");
   Project.SetHostIF ("USB", "");
   Project.SetTargetIF ("SWD");
-  Project.SetTIFSpeed ("50 MHz");
+  Project.SetTIFSpeed ("4 MHz");   // 50 MHz SWD gave intermittent "Failed to initialize DAP"
 
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M85F.svd");
   Project.AddSvdFile ("../../../../../../../cmsis-svd-data/data/Renesas/R7FA6M5BH.svd");
@@ -32,7 +33,7 @@ void OnProjectLoad (void) {
 void BeforeTargetConnect (void) {
   // Trace pin init is done by J-Link script file as J-Link script files are IDE independent
 	//Project.SetJLinkScript("../../../debug.jlinkscript");
-  Project.SetJLinkScript ("$(ProjectDir)/Renesas_RA8_TracePins.pex");
+  Project.SetJLinkScript ("./ra8m1_trace.JLinkScript");
 }
 
 /*********************************************************************
@@ -40,12 +41,14 @@ void BeforeTargetConnect (void) {
 *       AfterTargetConnect
 *
 * Function description
-*   Event handler routine. Optional.
+*   Cache the boot-ROM range for the trace decoder on --attach sessions
+*   too (the download hook that normally does this is skipped on attach).
 *
 **********************************************************************
 */
-//void AfterTargetConnect (void) {
-//}
+void AfterTargetConnect (void) {
+  Exec.Command("ReadIntoTraceCache 0x0 0x10000");
+}
 
 /*********************************************************************
 *
@@ -83,7 +86,11 @@ void BeforeTargetConnect (void) {
 */
 void AfterTargetDownload (void) {
   _SetupTarget();
+  // RA8 executes chip-ROM code at runtime (seen at ~0x3B20); without this the
+  // trace decoder dies there ("not covered by trace cache" -> unknown packet)
+  Exec.Command("ReadIntoTraceCache 0x0 0x10000");
 }
+
 
 /*********************************************************************
 *

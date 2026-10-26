@@ -37,6 +37,8 @@
 extern "C" {
 #endif
 
+#define UART_ID        3
+
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2
@@ -54,13 +56,13 @@ static board_pindef_t board_pindef[] = {
     .active_state = 0
   },
   { // UART TX
-    .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_8, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
     .active_state = 0
   },
   { // UART RX
-    .port = GPIOA,
-    .pin_init = { .Pin = GPIO_PIN_10, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART3 },
     .active_state = 0
   },
 };
@@ -86,7 +88,12 @@ static inline void SystemClock_Config(void) {
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLL1_SOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
+  #ifdef TRACE_ETM
+  RCC_OscInitStruct.PLL.PLLN = 100; // 100 MHz core: the Nucleo trace path (CN5 via solder bridges)
+                                    // corrupts the trace stream at higher TRACECLK (= SYSCLK/2)
+  #else
   RCC_OscInitStruct.PLL.PLLN = 250;
+  #endif
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;

@@ -28,15 +28,8 @@
 #include "class/usbtmc/usbtmc.h"
 #include "class/usbtmc/usbtmc_device.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]         HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x401c
 
 #define USB_VID   0xcafe
 #define USB_BCD   0x0200
@@ -79,16 +72,26 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 #if defined(CFG_TUD_USBTMC)
 
+#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#  define EPNUM_USBTMC_OUT 0x01
+#  define EPNUM_USBTMC_IN  0x82
+#  define EPNUM_USBTMC_INT 0x83
+#else
+#  define EPNUM_USBTMC_OUT 0x01
+#  define EPNUM_USBTMC_IN  0x81
+#  define EPNUM_USBTMC_INT 0x82
+#endif
+
 #  define TUD_USBTMC_DESC_MAIN(_itfnum,_bNumEndpoints, _bulkMaxPacketLength) \
      TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, TUD_USBTMC_PROTOCOL_USB488), \
-     TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x01, /* IN = */ 0x81, /* packet size = */_bulkMaxPacketLength)
+     TUD_USBTMC_BULK_DESCRIPTORS(EPNUM_USBTMC_OUT, EPNUM_USBTMC_IN, /* packet size = */_bulkMaxPacketLength)
 
 #if CFG_TUD_USBTMC_ENABLE_INT_EP
 // USBTMC Interrupt xfer always has length of 2, but we use epMaxSize=8 for
 //  compatibility with mcus that only allow 8, 16, 32 or 64 for FS endpoints
 #  define TUD_USBTMC_DESC(_itfnum, _bulkMaxPacketLength) \
      TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3, _bulkMaxPacketLength), \
-     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x82, /* epMaxSize = */ 8, /* bInterval = */16u )
+     TUD_USBTMC_INT_DESCRIPTOR(EPNUM_USBTMC_INT, /* epMaxSize = */ 8, /* bInterval = */16u )
 #  define TUD_USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
 
 #else

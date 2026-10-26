@@ -33,6 +33,10 @@ function(family_add_board BOARD_TARGET)
     __USE_LPCOPEN
     CORE_M4
     CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
+    CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
+    CFG_TUH_MEM_SECTION=__attribute__\(\(section\(\".data.$RAM2\"\)\)\)
+    # host is on root-hub port index 0; the dual examples would otherwise default it to 1
+    BOARD_TUH_RHPORT=0
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/inc

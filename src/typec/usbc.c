@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2023 Ha Thach (thach@tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2023 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -50,6 +31,7 @@ static bool _usbc_inited = false;
 
 // if port is initialized
 static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
+static bool _port_attached[TUP_TYPEC_RHPORTS_NUM];
 
 // Max possible PD size is 262 bytes
 static uint8_t _rx_buf[64] TU_ATTR_ALIGNED(4);
@@ -76,17 +58,47 @@ TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* 
   return false;
 }
 
+TU_ATTR_WEAK void tuc_attach_changed_cb(uint8_t rhport, bool attached) {
+  (void) rhport;
+  (void) attached;
+}
+
+TU_ATTR_WEAK void tcd_connect(uint8_t rhport) {
+  (void) rhport;
+}
+
+TU_ATTR_WEAK void tcd_disconnect(uint8_t rhport) {
+  (void) rhport;
+}
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
-  return _usbc_inited && _port_inited[rhport];
+  return rhport < TUP_TYPEC_RHPORTS_NUM && _usbc_inited && _port_inited[rhport];
+}
+
+bool tuc_connect(uint8_t rhport) {
+  TU_VERIFY(tuc_inited(rhport));
+
+  tcd_connect(rhport);
+  return true;
+}
+
+bool tuc_disconnect(uint8_t rhport) {
+  TU_VERIFY(tuc_inited(rhport));
+
+  tcd_disconnect(rhport);
+  return true;
 }
 
 bool tuc_init(uint8_t rhport, uint32_t port_type) {
+  TU_ASSERT(rhport < TUP_TYPEC_RHPORTS_NUM);
+
   // Initialize stack
   if (!_usbc_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
+    tu_memclr(_port_attached, sizeof(_port_attached));
 
     _usbc_q = osal_queue_create(&_usbc_qdef);
     TU_ASSERT(_usbc_q != NULL);
@@ -121,8 +133,14 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
     if (!osal_queue_receive(_usbc_q, &event, timeout_ms)) return;
 
     switch (event.event_id) {
-      case TCD_EVENT_CC_CHANGED:
+      case TCD_EVENT_CC_CHANGED: {
+        bool const attached = event.cc_changed.cc_state[0] != 0 || event.cc_changed.cc_state[1] != 0;
+        if (_port_attached[event.rhport] != attached) {
+          _port_attached[event.rhport] = attached;
+          tuc_attach_changed_cb(event.rhport, attached);
+        }
         break;
+      }
 
       case TCD_EVENT_RX_COMPLETE:
         // TODO process message here in ISR, move to thread later
@@ -182,6 +200,8 @@ bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) 
 }
 
 bool tuc_msg_request(uint8_t rhport, void const* rdo) {
+  TU_VERIFY(tuc_inited(rhport));
+
   pd_header_t const header = {
       .msg_type = PD_DATA_REQUEST,
       .data_role = PD_DATA_ROLE_UFP,
@@ -193,6 +213,22 @@ bool tuc_msg_request(uint8_t rhport, void const* rdo) {
   };
 
   return usbc_msg_send(rhport, &header, rdo);
+}
+
+bool tuc_msg_soft_reset(uint8_t rhport) {
+  TU_VERIFY(tuc_inited(rhport));
+
+  pd_header_t const header = {
+      .msg_type = PD_CTRL_SOFT_RESET,
+      .data_role = PD_DATA_ROLE_UFP,
+      .specs_rev = PD_REV_30,
+      .power_role = PD_POWER_ROLE_SINK,
+      .msg_id = 0,
+      .n_data_obj = 0,
+      .extended = 0,
+  };
+
+  return usbc_msg_send(rhport, &header, NULL);
 }
 
 void tcd_event_handler(tcd_event_t const * event, bool in_isr) {

@@ -27,16 +27,8 @@
 #include "class/net/net_device.h"
 #include "tusb.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]       NET | VENDOR | MIDI | HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n) ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID                                                                                           \
-  (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) | \
-   PID_MAP(ECM_RNDIS, 5) | PID_MAP(NCM, 5))
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x4018
 
 // String Descriptor Index
 enum {

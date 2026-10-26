@@ -7,12 +7,25 @@ This example demonstrates a USB composite device with a Printer class interface 
 
 This is useful for debugging printer class communication or as a reference for implementing printer class devices.
 
-#### USB Interfaces
+#### USB Descriptors
 
 | Interface | Class | Description |
 |-----------|-------|-------------|
 | 0 | CDC ACM | Virtual serial port |
 | 2 | Printer | USB Printer (bidirectional, protocol 2) |
+
+#### Configuration
+
+Notable `tusb_config.h` settings:
+
+```c
+#define CFG_TUD_CDC                1
+#define CFG_TUD_PRINTER            1
+#define CFG_TUD_CDC_RX_BUFSIZE     (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_CDC_TX_BUFSIZE     (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_PRINTER_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#define CFG_TUD_PRINTER_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+```
 
 #### How to Test
 

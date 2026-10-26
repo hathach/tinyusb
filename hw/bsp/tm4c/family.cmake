@@ -79,6 +79,6 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
-  family_flash_openocd(${TARGET})
-  family_flash_uniflash(${TARGET})
+  family_flash_lm4flash(${TARGET})
+  # family_flash_uniflash(${TARGET})
 endfunction()

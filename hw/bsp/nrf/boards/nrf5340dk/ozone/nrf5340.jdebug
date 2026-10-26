@@ -29,9 +29,13 @@ void OnProjectLoad (void) {
 
   Project.SetTraceSource ("Trace Pins");
   Project.SetTracePortWidth (4);
+  // +3 ns sample point: the DK's analog-switch/SWO stubs make TD=0 marginal
+  // (Ozone sends TraceSampleAdjust TD=0 when no timing is set); solid across
+  // the +2..+4 ns band with SB27/SB28 cut, SB57 (SWO) left intact
+  Project.SetTraceTiming (3000, 3000, 3000, 3000);
 
   // User settings
-  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-pca10095/cdc_msc.elf");
+  File.Open ("../../../../../../examples/cmake-build-nrf5340dk/device/cdc_msc/cdc_msc.elf");
 }
 
 /*********************************************************************

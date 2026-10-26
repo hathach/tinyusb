@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2021, Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2021, Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -145,6 +126,14 @@
     #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
   #endif
 
+  // Errata ERR050101, listed for RT1015/RT1020/RT1024/RT1050 (no fix scheduled) and for
+  // RT1060/RT1064 rev A (fixed in rev B); not listed for RT1010 or the RT11xx family.
+  #if defined(MIMXRT1015_SERIES) || defined(MIMXRT1021_SERIES) || defined(MIMXRT1024_SERIES) || \
+      defined(MIMXRT1051_SERIES) || defined(MIMXRT1052_SERIES) || defined(MIMXRT1061_SERIES) || \
+      defined(MIMXRT1062_SERIES) || defined(MIMXRT1064_SERIES)
+    #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 1
+  #endif
+
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #define TUP_USBIP_CHIPIDEA_FS
   #define TUP_USBIP_CHIPIDEA_FS_KINETIS
@@ -160,7 +149,6 @@
 #elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // 8 CBI + 1 ISO
   #define TUP_DCD_ENDPOINT_MAX 9
-  #define TUP_DCD_EDPT_CLOSE_API
 
 #elif TU_CHECK_MCU(OPT_MCU_NRF54)
   #define TUP_USBIP_DWC2
@@ -201,6 +189,12 @@
 // ST
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_STM32C0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_USBIP_FSDEV_DRD
+  #define CFG_TUSB_FSDEV_PMA_SIZE 2048u
+
+#elif TU_CHECK_MCU(OPT_MCU_STM32C5)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_USBIP_FSDEV_DRD
@@ -393,6 +387,10 @@
       #define TUP_DCD_ENDPOINT_MAX 6
     #endif
   #endif
+
+  // TypeC controller
+  #define TUP_USBIP_TYPEC_STM32
+  #define TUP_TYPEC_RHPORTS_NUM 1
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32WB)
   #define TUP_USBIP_FSDEV
@@ -614,6 +612,15 @@
 
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32X035)
+  #define TUP_USBIP_WCH_USBFS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+    #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX 8
+
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
   // v20x support both port0 FSDEV (USBD) and port1 USBFS
   #define TUP_USBIP_WCH_USBFS
@@ -659,6 +666,19 @@
     #define TUP_DCD_EDPT_CLOSE_API
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_CH583)
+  // CH582/583 USBFS: older WCH USBFS IP with a single combined per-endpoint control register
+  // (like CH32V103), driven by the shared dcd_ch32_usbfs.c on USB0 (rhport 0). Device only:
+  // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
+  // USB2 (rhport 1) is not provided here.
+  #define TUP_USBIP_WCH_USBFS
+
+  #ifndef CFG_TUD_WCH_USBIP_USBFS
+    #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX 8
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
@@ -675,7 +695,9 @@
 #elif TU_CHECK_MCU(OPT_MCU_AT32F403A_407, OPT_MCU_AT32F413)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_AT32
-  #define CFG_TUSB_FSDEV_PMA_SIZE 512u
+  #define CFG_TUSB_FSDEV_PMA_SIZE 768u
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4
 
 #elif TU_CHECK_MCU(OPT_MCU_AT32F415)
   #define TUP_USBIP_DWC2
@@ -705,6 +727,36 @@
   #define TUP_RHPORT_HIGHSPEED    1
 
   #define TU_ATTR_FAST_FUNC __attribute__((section(".fast")))
+
+//--------------------------------------------------------------------+
+// Puya
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_PY32F0)
+  #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_PY32
+  #define TUP_DCD_ENDPOINT_MAX 6
+  // PY32 shares the buffer between IN and OUT of the same endpoint number.
+  // Possible to share IN/OUT if only one direction is armed at any one time
+  #define CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY 1
+
+//--------------------------------------------------------------------+
+// Geehy
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F0XX)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_APM32
+  #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F103)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_APM32
+  #define CFG_TUSB_FSDEV_PMA_SIZE 512u
+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F107)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_APM32
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+  #define TUP_DCD_ENDPOINT_MAX    4
 
 #endif
 
@@ -743,13 +795,22 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-#if defined(TUP_USBIP_IP3511) || defined(TUP_USBIP_RUSB2)
-  #define TUP_DCD_EDPT_CLOSE_API
-#endif
-
-// USBIP implement dcd_edpt_close() and does not support ISO alloc & activate API
+// TUP_DCD_EDPT_CLOSE_API is deprecated: these USBIPs implement dcd_edpt_close() and lack the
+// ISO alloc & activate API. IP3511, RUSB2 and NRF5X have been migrated to ISO_ALLOC; the remaining
+// CLOSE_API MCUs (mm32, pic, da1469x, f1c100s, ch32-usbhs) are pending per-board verification.
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
+#endif
+
+// Set by silicon whose isochronous IN endpoint can be unprimed by an IN token sent to that same
+// endpoint number on ANOTHER device sharing the host, taking one of this device's OUT endpoints
+// down with it - undetectable in software. Descriptors must then give an isochronous IN endpoint
+// a number no other device on the bus uses; a number is only safe while it stays unique, so two
+// affected boards on one hub must not pick the same one. Default 0 (no such conflict). Set it to
+// 0 by hand on RT1060/RT1064 rev B, which carry the fix - the revision cannot be told apart at
+// compile time, so the affected parts are assumed to be rev A.
+#ifndef CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
+  #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 0
 #endif
 
 // Some USBIPs (SAMG, SAMX7X, PIC32, MAX3266x/MAX78002) cannot assign the same endpoint

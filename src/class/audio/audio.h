@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- * Copyright (c) 2020 Reinhard Panhuber
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Reinhard Panhuber
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -101,6 +82,71 @@ typedef enum {
   AUDIO_TERM_TYPE_OUT_COMMUNICATION_SPEAKER = 0x0306,
   AUDIO_TERM_TYPE_OUT_LOW_FRQ_EFFECTS_SPEAKER = 0x0307,
 } audio_terminal_output_type_t;
+
+/// 2.4 - Audio Class-Bi-directional Terminal Types UAC2
+typedef enum
+{
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_UNDEFINED = 0x0400,
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_HEADSET_HAND_HELD = 0x0401,
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_HEADSET_MOUNTED = 0x0402,
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_SPEAKERPHONE = 0x0403,
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_SPEAKERPHONE_ECHO_SUPPRESS = 0x0404,
+  AUDIO_TERM_TYPE_BI_DIRECTIONAL_SPEAKERPHONE_ECHO_CANCEL = 0x0405,
+} audio_terminal_bi_directional_type_t;
+
+/// 2.5 - Audio Class-Telephone Terminal Types UAC2
+typedef enum
+{
+  AUDIO_TERM_TYPE_TELEPHONE_UNDEFINED = 0x0500,
+  AUDIO_TERM_TYPE_TELEPHONE_PHONE_LINE = 0x0501,
+  AUDIO_TERM_TYPE_TELEPHONE_TELEPHONE = 0x0502,
+  AUDIO_TERM_TYPE_TELEPHONE_DOWN_LINE_PHONE = 0x0503,
+} audio_terminal_telephony_type_t;
+
+/// 2.6 - Audio Class-External Types UAC2
+typedef enum
+{
+  AUDIO_TERM_TYPE_EXTERNAL_UNDEFINED = 0x0600,
+  AUDIO_TERM_TYPE_EXTERNAL_ANALOG_CONNECTOR = 0x0601,
+  AUDIO_TERM_TYPE_EXTERNAL_DIGITAL_AUDIO = 0x0602,
+  AUDIO_TERM_TYPE_EXTERNAL_LINE_CONNECTOR = 0x0603,
+  AUDIO_TERM_TYPE_EXTERNAL_LEGACY_AUDIO_CONNECTOR = 0x0604,
+  AUDIO_TERM_TYPE_EXTERNAL_SPDIF_INTERFACE = 0x0605,
+  AUDIO_TERM_TYPE_EXTERNAL_1394_DA_STREAM = 0x0606,
+  AUDIO_TERM_TYPE_EXTERNAL_1394_DV_STREAM_SOUNDTRACK = 0x0607,
+  AUDIO_TERM_TYPE_EXTERNAL_ADAT_LIGHTPIPE = 0x0608,
+  AUDIO_TERM_TYPE_EXTERNAL_TDIF = 0x0609,
+  AUDIO_TERM_TYPE_EXTERNAL_MADI = 0x060A,
+} audio_terminal_external_type_t;
+
+/// 2.7 - Audio Class-Embedded Types UAC2
+typedef enum
+{
+  AUDIO_TERM_TYPE_EMBEDDED_UNDEFINED = 0x0700,
+  AUDIO_TERM_TYPE_EMBEDDED_LEVEL_CALIBRATION_NOISE_SOURCE = 0x0701,
+  AUDIO_TERM_TYPE_EMBEDDED_EQUALIZATION_NOISE = 0x0702,
+  AUDIO_TERM_TYPE_EMBEDDED_CD_PLAYER = 0x0703,
+  AUDIO_TERM_TYPE_EMBEDDED_DAT = 0x0704,
+  AUDIO_TERM_TYPE_EMBEDDED_DCC = 0x0705,
+  AUDIO_TERM_TYPE_EMBEDDED_COMPRESSED_AUDIO_PLAYER = 0x0706,
+  AUDIO_TERM_TYPE_EMBEDDED_ANALOG_TAPE = 0x0707,
+  AUDIO_TERM_TYPE_EMBEDDED_PHONOGRAPH = 0x0708,
+  AUDIO_TERM_TYPE_EMBEDDED_VCR_AUDIO = 0x0709,
+  AUDIO_TERM_TYPE_EMBEDDED_VIDEO_DISC_AUDIO = 0x070A,
+  AUDIO_TERM_TYPE_EMBEDDED_DVD_AUDIO = 0x070B,
+  AUDIO_TERM_TYPE_EMBEDDED_TV_TUNER_AUDIO = 0x070C,
+  AUDIO_TERM_TYPE_EMBEDDED_SATELLITE_RECEIVER_AUDIO = 0x070D,
+  AUDIO_TERM_TYPE_EMBEDDED_CABLE_TUNER_AUDIO = 0x070E,
+  AUDIO_TERM_TYPE_EMBEDDED_DSS_AUDIO = 0x070F,
+  AUDIO_TERM_TYPE_EMBEDDED_RADIO_RECEIVER = 0x0710,
+  AUDIO_TERM_TYPE_EMBEDDED_RADIO_TRANSMITTER = 0x0711,
+  AUDIO_TERM_TYPE_EMBEDDED_MULTI_TRACK_RECORDER = 0x0712,
+  AUDIO_TERM_TYPE_EMBEDDED_SYNTHESIZER = 0x0713,
+  AUDIO_TERM_TYPE_EMBEDDED_PIANO = 0x0714,
+  AUDIO_TERM_TYPE_EMBEDDED_GUITAR = 0x0715,
+  AUDIO_TERM_TYPE_EMBEDDED_DRUMS = 0x0716,
+  AUDIO_TERM_TYPE_EMBEDDED_OTHER_MUSICAL_INSTRUMENT = 0x0717,
+} audio_terminal_embedded_type_t;
 
 /// Rest is yet to be implemented
 
@@ -490,10 +536,19 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bDescriptorType; ///< Descriptor Type. Value: TUSB_DESC_ENDPOINT.
   uint8_t bEndpointAddress;///< The address of the endpoint on the USB device described by this descriptor.
   struct TU_ATTR_PACKED {
+#if (TU_BITFIELD_ORDER == TU_BITFIELD_LE)
     uint8_t xfer  : 2;        // Control, ISO, Bulk, Interrupt
     uint8_t sync  : 2;        // None, Asynchronous, Adaptive, Synchronous
     uint8_t usage : 2;        // Data, Feedback, Implicit feedback
     uint8_t       : 2;
+#elif (TU_BITFIELD_ORDER == TU_BITFIELD_BE)
+    uint8_t       : 2;
+    uint8_t usage : 2;        // Data, Feedback, Implicit feedback
+    uint8_t sync  : 2;        // None, Asynchronous, Adaptive, Synchronous
+    uint8_t xfer  : 2;        // Control, ISO, Bulk, Interrupt
+#else
+  #error "Please define TU_BITFIELD_ORDER as TU_BITFIELD_LE or TU_BITFIELD_BE"
+#endif
   } bmAttributes;
   uint16_t wMaxPacketSize; ///< Maximum packet size this endpoint is capable of sending or receiving when this configuration is selected.
   uint8_t bInterval;       ///< Interval for polling endpoint for data transfers.
@@ -629,6 +684,7 @@ typedef enum {
   AUDIO20_TE_CTRL_UNDERFLOW = 0x05,
   AUDIO20_TE_CTRL_OVERFLOW = 0x06,
   AUDIO20_TE_CTRL_LATENCY = 0x07,
+  AUDIO20_TE_CTRL_PHANTOM_POWER = 0x08,
 } audio20_terminal_control_selector_t;
 
 /// A.17.5 - Mixer Control Selectors
@@ -982,6 +1038,7 @@ typedef enum {
   AUDIO20_IN_TERM_CTRL_CLUSTER_POS = 6,
   AUDIO20_IN_TERM_CTRL_UNDERFLOW_POS = 8,
   AUDIO20_IN_TERM_CTRL_OVERFLOW_POS = 10,
+  AUDIO20_IN_TERM_CTRL_PHANTOM_POWER_POS = 12,
 } audio20_terminal_input_control_pos_t;
 
 /// Audio Class-Output Terminal Controls UAC2
@@ -1176,29 +1233,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bLockDelayUnits;   ///< Indicates the units used for the wLockDelay field. See: audio20_cs_as_iso_data_ep_lock_delay_unit_t.
   uint16_t wLockDelay;       ///< Indicates the time it takes this endpoint to reliably lock its internal clock recovery circuitry. Units used depend on the value of the bLockDelayUnits field.
 } audio20_desc_cs_as_iso_data_ep_t;
-
-// 5.2.2 Control Request Layout
-typedef struct TU_ATTR_PACKED {
-  union {
-    struct TU_ATTR_PACKED {
-      uint8_t recipient : 5;///< Recipient type tusb_request_recipient_t.
-      uint8_t type : 2;     ///< Request type tusb_request_type_t.
-      uint8_t direction : 1;///< Direction type. tusb_dir_t
-    } bmRequestType_bit;
-
-    uint8_t bmRequestType;
-  };
-
-  uint8_t bRequest;///< Request type audio_cs_req_t
-  uint8_t bChannelNumber;
-  uint8_t bControlSelector;
-  union {
-    uint8_t bInterface;
-    uint8_t bEndpoint;
-  };
-  uint8_t bEntityID;
-  uint16_t wLength;
-} audio20_control_request_t;
 
 //// 5.2.3 Control Request Parameter Block Layout
 

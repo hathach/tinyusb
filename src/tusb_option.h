@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -30,8 +11,8 @@
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     20
-#define TUSB_VERSION_REVISION  1
+#define TUSB_VERSION_MINOR     21
+#define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
 #define TUSB_VERSION_STRING    TU_XSTRING(TUSB_VERSION_MAJOR) "." TU_XSTRING(TUSB_VERSION_MINOR) "." TU_XSTRING(TUSB_VERSION_REVISION)
@@ -98,6 +79,7 @@
 #define OPT_MCU_STM32N6           319 ///< ST N6
 #define OPT_MCU_STM32WBA          320 ///< ST WBA
 #define OPT_MCU_STM32U3           321 ///< ST U3
+#define OPT_MCU_STM32C5           322 ///< ST C5
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -195,6 +177,9 @@
 #define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 #define OPT_MCU_CH32V20X         2220 ///< WCH CH32V20X
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
+#define OPT_MCU_CH583            2240 ///< WCH CH583
+#define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
+#define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -221,6 +206,14 @@
 // HPMicro
 #define OPT_MCU_HPM              2600  ///< HPMicro
 
+// Puya
+#define OPT_MCU_PY32F0           2700  ///< Puya PY32F0
+
+// Geehy
+#define OPT_MCU_APM32F0XX        2800  ///< Geehy APM32F0xx
+#define OPT_MCU_APM32F103        2801  ///< Geehy APM32F103
+#define OPT_MCU_APM32F107        2802  ///< Geehy APM32F107
+
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
 #define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
@@ -239,6 +232,7 @@
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
 #define OPT_OS_THREADX    9  ///< ThreadX
+#define OPT_OS_STK        10 ///< SuperTinyKernel RTOS (STK)
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -257,6 +251,16 @@
 #define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
+// Validation Level
+// Optional validation of data received from the USB peer, traded against code size. Coverage is parser-specific
+// and expanded incrementally. CFG_TUSB_VALIDATION_LEVEL sets the default for both device and host; use the
+// CFG_TUD_VALIDATION_LEVEL / CFG_TUH_VALIDATION_LEVEL overrides when the roles need different policies.
+//--------------------------------------------------------------------+
+#define TUSB_VALIDATION_NONE   0 ///< trusted peers, minimal code size
+#define TUSB_VALIDATION_BASIC  1 ///< structural memory-safety checks where supported
+#define TUSB_VALIDATION_STRICT 2 ///< additional USB and class-specific conformance checks
+
+//--------------------------------------------------------------------+
 // Include tusb_config.h
 //--------------------------------------------------------------------+
 
@@ -268,6 +272,46 @@
 #endif
 
 #include "common/tusb_mcu.h"
+
+//--------------------------------------------------------------------+
+// Validation Options
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUSB_VALIDATION_LEVEL
+  #define CFG_TUSB_VALIDATION_LEVEL TUSB_VALIDATION_BASIC
+#endif
+
+#ifndef CFG_TUD_VALIDATION_LEVEL
+  #define CFG_TUD_VALIDATION_LEVEL CFG_TUSB_VALIDATION_LEVEL
+#endif
+
+#ifndef CFG_TUH_VALIDATION_LEVEL
+  #define CFG_TUH_VALIDATION_LEVEL CFG_TUSB_VALIDATION_LEVEL
+#endif
+
+#if (CFG_TUSB_VALIDATION_LEVEL < TUSB_VALIDATION_NONE) || \
+    (CFG_TUSB_VALIDATION_LEVEL > TUSB_VALIDATION_STRICT)
+  #error "CFG_TUSB_VALIDATION_LEVEL must be TUSB_VALIDATION_NONE, TUSB_VALIDATION_BASIC, or TUSB_VALIDATION_STRICT"
+#endif
+
+#if (CFG_TUD_VALIDATION_LEVEL < TUSB_VALIDATION_NONE) || \
+    (CFG_TUD_VALIDATION_LEVEL > TUSB_VALIDATION_STRICT)
+  #error "CFG_TUD_VALIDATION_LEVEL must be TUSB_VALIDATION_NONE, TUSB_VALIDATION_BASIC, or TUSB_VALIDATION_STRICT"
+#endif
+
+#if (CFG_TUH_VALIDATION_LEVEL < TUSB_VALIDATION_NONE) || \
+    (CFG_TUH_VALIDATION_LEVEL > TUSB_VALIDATION_STRICT)
+  #error "CFG_TUH_VALIDATION_LEVEL must be TUSB_VALIDATION_NONE, TUSB_VALIDATION_BASIC, or TUSB_VALIDATION_STRICT"
+#endif
+
+// Validation conditions are short-circuited at lower levels and compile out when the result is unused.
+#define TUD_VALIDATION_CHECK(_level, _cond) ((CFG_TUD_VALIDATION_LEVEL < (_level)) || (_cond))
+#define TUH_VALIDATION_CHECK(_level, _cond) ((CFG_TUH_VALIDATION_LEVEL < (_level)) || (_cond))
+
+#define TUD_VALIDATE_BASIC(_cond) TUD_VALIDATION_CHECK(TUSB_VALIDATION_BASIC, _cond)
+#define TUH_VALIDATE_BASIC(_cond) TUH_VALIDATION_CHECK(TUSB_VALIDATION_BASIC, _cond)
+#define TUD_VALIDATE_STRICT(_cond) TUD_VALIDATION_CHECK(TUSB_VALIDATION_STRICT, _cond)
+#define TUH_VALIDATE_STRICT(_cond) TUH_VALIDATION_CHECK(TUSB_VALIDATION_STRICT, _cond)
 
 //--------------------------------------------------------------------+
 // USBIP
@@ -309,6 +353,17 @@
   #endif
 
   #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Periodic Transfer Interrupt (PTI) for device Buffer DMA (DCTL.IgnrFrmNum).
+// When enabled, ISOC even/odd frame matching is ignored so a transfer can be
+// armed in the current or next (micro)frame. Invalid in Slave mode; requires DMA.
+#ifndef CFG_TUD_DWC2_PTI_ENABLE
+  #ifndef CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
+    #define CFG_TUD_DWC2_PTI_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_PTI_ENABLE CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
 #endif
 
 // DMA mode for host
@@ -367,7 +422,9 @@
 #if defined(TUP_USBIP_MUSB)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO              1
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE           4 // 32 bit data
-  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS   // allow odd 16bit access
+  #if !defined(TUP_USBIP_MUSB_PY32)
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS // allow odd 16bit access
+  #endif
   #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS    // allow odd 8bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE           0 // fixed hwfifo
 #endif
@@ -711,6 +768,22 @@
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
+
+  // Timeout in ms for each control transfer; raise it for a device with slow control requests.
+  // A broken device that ACKs SETUP but never completes a later stage (e.g NAK forever) would
+  // otherwise stall the control pipe - and during enumeration also hub polling - forever.
+  // 5s matches Linux's USB_CTRL_GET/SET_TIMEOUT.
+  #ifndef CFG_TUH_CONTROL_TIMEOUT_MS
+    #define CFG_TUH_CONTROL_TIMEOUT_MS 5000
+  #endif
+
+  // Total enumeration attempts per attach: when the device fails an enumeration transfer, the
+  // port is reset and enumeration restarted. Some devices wedge EP0 when a bus reset arrives in
+  // their enumerated state but recover on the next reset. 1 = no retry.
+  #ifndef CFG_TUH_ENUM_ATTEMPT_MAX
+    #define CFG_TUH_ENUM_ATTEMPT_MAX 2
+  #endif
+
 #endif // CFG_TUH_ENABLED
 
 // Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
@@ -824,6 +897,10 @@
   { 0x067b, 0x23f3 }  /* GS */
 #endif
 
+#ifndef CFG_TUH_AUDIO
+  #define CFG_TUH_AUDIO  0
+#endif
+
 #ifndef CFG_TUH_HID
   #define CFG_TUH_HID    0
 #endif
@@ -852,9 +929,6 @@
   #define CFG_TUH_MSC    0
 #endif
 
-#ifndef CFG_TUH_VENDOR
-  #define CFG_TUH_VENDOR 0
-#endif
 
 #ifndef CFG_TUH_API_EDPT_XFER
   #define CFG_TUH_API_EDPT_XFER 0

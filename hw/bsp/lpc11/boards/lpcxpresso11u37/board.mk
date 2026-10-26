@@ -4,8 +4,7 @@ MCU_DRV = 11xx
 CFLAGS += \
   -DCORE_M0 \
   -DCFG_EXAMPLE_MSC_READONLY \
-  -DCFG_EXAMPLE_VIDEO_READONLY \
-  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))'
+  -DCFG_EXAMPLE_VIDEO_READONLY
 
 # mcu driver cause following warnings
 CFLAGS += \

@@ -1,0 +1,77 @@
+# Path-based auto-labeling for USB IP / port drivers.
+# Maps changed dcd/hcd files under src/portable/ to their "Port <ip>" label.
+# Consumed by actions/labeler (see .github/workflows/labeler.yml -> label-port job).
+
+"Port DWC2":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/synopsys/dwc2/**'
+
+"Port EHCI":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/ehci/**'
+
+"Port OHCI":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/ohci/**'
+
+"Port FSDev":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/st/stm32_fsdev/**'
+
+"Port ChipIdea":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/chipidea/**'
+
+"Port NXP IP3511":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/nxp/lpc_ip3511/**'
+
+"Port NXP IP3516":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/nxp/lpc_ip3516/**'
+
+"Port MUSB":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/portable/mentor/musb/**'
+          - 'src/portable/sunxi/**'
+
+"Port RUSB2":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/renesas/rusb2/**'
+
+"Port WCH USBFS":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/wch/*usbfs*'
+
+"Port WCH USBHS":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/wch/*usbhs*'
+
+"Port MAX3421":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/analog/max3421/**'
+
+"Port SAMD":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/microchip/samd/**'
+
+"Port SAMG":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/microchip/samg/**'
+
+"Port nRF":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/nordic/nrf5x/**'
+
+"Port Nuvoton":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/nuvoton/**'
+
+"Port RP2":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/raspberrypi/**'
+
+"Port MSP430":
+  - changed-files:
+      - any-glob-to-any-file: 'src/portable/ti/msp430x5xx/**'

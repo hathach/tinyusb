@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -83,6 +64,17 @@ TU_ATTR_WEAK void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
 
 TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len) {
   (void) dev_addr; (void) idx; (void) report; (void) len;
+}
+
+TU_ATTR_WEAK void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result) {
+  // keep polling after a transient error, as an application does from tuh_hid_report_received_cb(). A stalled
+  // endpoint stays halted until a CLEAR_FEATURE(ENDPOINT_HALT), and an aborted transfer was cancelled: no re-arm.
+  // The re-arm can still be refused by the host controller, which only stops polling: log it, never trap.
+  if (result != XFER_RESULT_STALLED && result != XFER_RESULT_ABORTED) {
+    if (!tuh_hid_receive_report(dev_addr, idx)) {
+      TU_LOG_DRV("  [idx=%u] re-arm after a failed report failed\r\n", idx);
+    }
+  }
 }
 
 TU_ATTR_WEAK void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len) {
@@ -465,8 +457,6 @@ bool hidh_deinit(void) {
 }
 
 bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
-  (void) result;
-
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const idx = get_idx_by_epaddr(daddr, ep_addr);
 
@@ -475,9 +465,16 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
   hidh_epbuf_t* epbuf = get_hid_epbuf(idx);
 
   if (dir == TUSB_DIR_IN) {
-    TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
-    TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
-    tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
+    if (result == XFER_RESULT_SUCCESS) {
+      TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
+      TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
+      tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
+    } else {
+      // a failed transfer is not a report: the buffer holds stale data, and a zero length cannot tell it from
+      // the legitimate zero-length reports some devices send
+      TU_LOG_DRV("  [idx=%u] Get Report failed: result=%u\r\n", idx, result);
+      tuh_hid_report_failed_cb(daddr, idx, result);
+    }
   } else {
     tuh_hid_report_sent_cb(daddr, idx, epbuf->epout, (uint16_t) xferred_bytes);
   }
@@ -490,7 +487,9 @@ void hidh_close(uint8_t daddr) {
     hidh_interface_t* p_hid = &_hidh_itf[i];
     if (p_hid->daddr == daddr) {
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
-      tuh_hid_umount_cb(daddr, i);
+      if (p_hid->mounted) {
+        tuh_hid_umount_cb(daddr, i); // only an interface the application got tuh_hid_mount_cb() for
+      }
       tu_memclr(p_hid, sizeof(hidh_interface_t));
     }
   }
@@ -704,6 +703,10 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
       size = 4; // HID 1.11 6.2.2.2 3 is 4 bytes
     }
 
+    // item data must fit in the remaining descriptor; a truncated item would
+    // read past the buffer and underflow desc_len below
+    if (size > desc_len) break;
+
     uint8_t const data8 = (size > 0) ? desc_report[0] : 0;
 
     TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
@@ -738,7 +741,12 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
         switch (tag) {
           case RI_GLOBAL_USAGE_PAGE:
             // only take in account the "usage page" before REPORT ID
-            if (ri_collection_depth == 0) memcpy(&info->usage_page, desc_report, size);
+            if (ri_collection_depth == 0) {
+              // zero-extend: a shorter payload must not leave a stale high byte
+              // from a previous usage page item in the same report
+              info->usage_page = 0;
+              memcpy(&info->usage_page, desc_report, TU_MIN(size, sizeof(info->usage_page)));
+            }
             break;
 
           case RI_GLOBAL_LOGICAL_MIN: break;

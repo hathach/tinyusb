@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2026 Saulo Verissimo
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Saulo Verissimo
+ * SPDX-FileCopyrightText: Copyright (c) 2026 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -42,17 +24,20 @@ TU_ATTR_WEAK void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt) { (void) itf; (
 TU_ATTR_WEAK bool tud_midi2_get_req_itf_cb(uint8_t rhport, const tusb_control_request_t* request) {
   (void) rhport; (void) request; return false;
 }
-TU_ATTR_WEAK uint8_t tud_midi2_num_groups_cb(uint8_t itf) {
-  (void) itf; return CFG_TUD_MIDI2_NUM_GROUPS;
-}
-TU_ATTR_WEAK uint8_t tud_midi2_num_function_blocks_cb(uint8_t itf) {
-  (void) itf; return CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS;
-}
 TU_ATTR_WEAK const char* tud_midi2_ep_name_cb(uint8_t itf) {
   (void) itf; return CFG_TUD_MIDI2_EP_NAME;
 }
 TU_ATTR_WEAK const char* tud_midi2_product_id_cb(uint8_t itf) {
   (void) itf; return CFG_TUD_MIDI2_PRODUCT_ID;
+}
+TU_ATTR_WEAK const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx) {
+  (void) itf; (void) fb_idx; return NULL;
+}
+TU_ATTR_WEAK tud_midi2_stream_result_t tud_midi2_stream_msg_cb(uint8_t itf, const uint32_t* ump_words) {
+  (void) itf; (void) ump_words; return MIDI2_STREAM_PASS;
+}
+TU_ATTR_WEAK bool tud_midi2_device_identity_cb(uint8_t itf, tud_midi2_device_identity_t* identity) {
+  (void) itf; (void) identity; return false;
 }
 
 //--------------------------------------------------------------------+
@@ -77,12 +62,14 @@ enum {
 enum {
   STREAM_ENDPOINT_DISCOVERY = 0x000,
   STREAM_ENDPOINT_INFO      = 0x001,
+  STREAM_DEVICE_IDENTITY    = 0x002,
   STREAM_EP_NAME            = 0x003,
   STREAM_PROD_INSTANCE_ID   = 0x004,
   STREAM_CONFIG_REQUEST     = 0x005,
   STREAM_CONFIG_NOTIFY      = 0x006,
   STREAM_FB_DISCOVERY       = 0x010,
   STREAM_FB_INFO            = 0x011,
+  STREAM_FB_NAME            = 0x012,
 };
 
 enum {
@@ -90,11 +77,14 @@ enum {
   UMP_VER_MINOR = 1,
 };
 
-// Group Terminal Block descriptor types (USB-MIDI 2.0)
+// Function Block Info Notification low byte: UI hint (bits 5:4) + direction
+// (bits 1:0). See USB-MIDI 2.0 / UMP Function Block Info Notification.
 enum {
-  MIDI2_CS_GRP_TRM_BLOCK      = 0x26,
-  MIDI2_GRP_TRM_BLOCK_HEADER  = 0x01,
-  MIDI2_GRP_TRM_BLOCK_ENTRY   = 0x02,
+  FB_DIR_INPUT   = 0x1,
+  FB_DIR_OUTPUT  = 0x2,
+  FB_DIR_BIDIR   = 0x3,
+  FB_UI_RECEIVER = (1u << 4),
+  FB_UI_SENDER   = (1u << 5),
 };
 
 //--------------------------------------------------------------------+
@@ -116,6 +106,16 @@ typedef struct {
   uint8_t alt_setting;
   uint8_t protocol;
   bool    negotiated;
+
+  // Discovery reply bits waiting for TX FIFO room, drained on TX complete
+  uint8_t nego_pending_ep_filter;
+  uint8_t nego_pending_fb_filter;
+  uint8_t nego_pending_fb_num;    // block requested by the pending discovery, 0xFF = all
+  uint8_t nego_pending_fb_next;   // next block index to reply for
+  bool nego_pending_fb_restart;   // restart after the active FB name when requests merge
+  uint16_t nego_text_status;      // text reply owning nego_text_offset, 0 = none
+  uint16_t nego_text_offset;      // progress into the text reply being sent
+  uint8_t nego_text_index;        // Function Block index for an active FB name
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   struct {
@@ -139,8 +139,6 @@ CFG_TUD_MEM_SECTION static midi2d_epbuf_t _midi2d_epbuf[CFG_TUD_MIDI2];
 
 TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_GROUPS >= 1 && CFG_TUD_MIDI2_NUM_GROUPS <= 16,
                  "CFG_TUD_MIDI2_NUM_GROUPS must be 1..16");
-TU_VERIFY_STATIC(CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS >= 1 && CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS <= 32,
-                 "CFG_TUD_MIDI2_NUM_FUNCTION_BLOCKS must be 1..32");
 
 #define ITF_MEM_RESET_SIZE offsetof(midi2d_interface_t, ep_stream)
 
@@ -163,10 +161,54 @@ static const uint8_t _default_gtb_desc[] = {
   0x00,                                     // nGroupTrm: first group (0)
   CFG_TUD_MIDI2_NUM_GROUPS,                 // nNumGroupTrm
   CFG_TUD_MIDI2_BLOCK_STRIDX,               // iBlockItem: string descriptor index (0 = none)
-  0x00,                                     // bMIDIProtocol: unknown/not fixed
+  CFG_TUD_MIDI2_GTB_PROTOCOL,               // bMIDIProtocol: default MIDI protocol
   0, 0,                                     // wMaxInputBandwidth: unknown
   0, 0                                      // wMaxOutputBandwidth: unknown
 };
+
+// Map GTB bGrpTrmBlkType to the FB Info Notification low byte (UI hint + dir).
+static inline uint8_t _fb_dir_byte(uint8_t gtb_type) {
+  switch (gtb_type) {
+    case MIDI2_GTB_INPUT_ONLY:  return FB_UI_RECEIVER | FB_DIR_INPUT;
+    case MIDI2_GTB_OUTPUT_ONLY: return FB_UI_SENDER | FB_DIR_OUTPUT;
+    default:                    return FB_UI_RECEIVER | FB_UI_SENDER | FB_DIR_BIDIR;
+  }
+}
+
+// Walk the GTB descriptor. Returns the number of block entries. When block
+// `idx` exists, fills its type / first group / group count / protocol.
+static uint8_t _gtb_blocks(const uint8_t* desc, uint16_t len, uint8_t idx,
+                           uint8_t* type, uint8_t* first_group, uint8_t* num_groups,
+                           uint8_t* protocol) {
+  uint8_t count = 0;
+  uint16_t off = MIDI2_GTB_HEADER_LEN;  // skip the list header
+  while (off + MIDI2_GTB_ENTRY_LEN <= len && desc[off] >= MIDI2_GTB_ENTRY_LEN) {
+    if (desc[off + 2] == MIDI2_GRP_TRM_BLOCK_ENTRY) {
+      if (count == idx) {
+        if (type)        *type = desc[off + 4];        // bGrpTrmBlkType
+        if (first_group) *first_group = desc[off + 5]; // nGroupTrm
+        if (num_groups)  *num_groups = desc[off + 6];  // nNumGroupTrm
+        if (protocol)    *protocol = desc[off + 8];    // bMIDIProtocol
+      }
+      count++;
+    }
+    off = (uint16_t)(off + desc[off]);
+  }
+  return count;
+}
+
+static bool _gtb_desc_valid(const uint8_t* desc, uint16_t len) {
+  return desc != NULL && len >= TUD_MIDI2_GTB_DESC_LEN(1);
+}
+
+// GTB descriptor source: the single source of truth for block topology.
+// Override to expose multiple Group Terminal Blocks with independent
+// directions and group spans.
+TU_ATTR_WEAK const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len) {
+  (void) itf;
+  *len = (uint16_t) sizeof(_default_gtb_desc);
+  return _default_gtb_desc;
+}
 
 //--------------------------------------------------------------------+
 // Common utility functions
@@ -174,6 +216,33 @@ static const uint8_t _default_gtb_desc[] = {
 
 static inline uint8_t _itf_idx(const midi2d_interface_t* p_midi) {
   return (uint8_t)(p_midi - _midi2d_itf);
+}
+
+static uint8_t _gtb_block_count(midi2d_interface_t* p_midi) {
+  uint16_t len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &len);
+  TU_ASSERT(_gtb_desc_valid(gtb, len), 0);
+  return _gtb_blocks(gtb, len, 0xFF, NULL, NULL, NULL, NULL);
+}
+
+// The protocol in use before any Stream Configuration: the one the first
+// Group Terminal Block declares, MIDI 2.0 when that is MIDI 2.0 or unknown.
+static uint8_t _gtb_protocol(midi2d_interface_t* p_midi) {
+  uint16_t len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &len);
+  uint8_t protocol = MIDI2_GTB_PROTOCOL_UNKNOWN;
+  if (_gtb_desc_valid(gtb, len)) {
+    _gtb_blocks(gtb, len, 0, NULL, NULL, NULL, &protocol);
+  }
+  switch (protocol) {
+    case MIDI2_GTB_PROTOCOL_MIDI1_64:
+    case MIDI2_GTB_PROTOCOL_MIDI1_64_JR:
+    case MIDI2_GTB_PROTOCOL_MIDI1_128:
+    case MIDI2_GTB_PROTOCOL_MIDI1_128_JR:
+      return MIDI_PROTOCOL_MIDI1;
+    default:
+      return MIDI_PROTOCOL_MIDI2;
+  }
 }
 
 static inline bool _tx_opened(const midi2d_interface_t* p_midi) {
@@ -283,23 +352,35 @@ static void _nego_send_endpoint_info(midi2d_interface_t* p_midi) {
          | ((uint32_t) UMP_VER_MAJOR << 8)
          | (uint32_t) UMP_VER_MINOR;
   msg[1] = (UINT32_C(1) << 31)  // Static Function Blocks flag
-         | ((uint32_t)(tud_midi2_num_function_blocks_cb(_itf_idx(p_midi)) & 0x7F) << 24)
+         | ((uint32_t)(_gtb_block_count(p_midi) & 0x7F) << 24)
          | (UINT32_C(1) << 9)   // MIDI 2.0 Protocol capability
          | (UINT32_C(1) << 8);  // MIDI 1.0 Protocol capability
   _nego_send_ump(p_midi, msg, 4);
 }
 
-static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status, const char* str) {
-  if (!str || str[0] == '\0') return;
+// Send a UMP Stream text notification, multi-packet (Complete/Start/Continue/
+// End in the Format field). When has_index is set, word0 bits 15:8 carry an
+// index byte (the Function Block number for FB Name) and 13 chars fit per
+// packet; otherwise the text starts there and 14 chars fit (Endpoint Name,
+// Product Instance Id).
+// Sends a stream text from `offset` and returns how far it got. Resuming keeps
+// the End packet, which dropping the tail would lose.
+static uint16_t _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status,
+                                       bool has_index, uint8_t index, const char* str,
+                                       uint16_t offset) {
+  if (!str || str[0] == '\0') return 0;
 
-  uint16_t total_len = (uint16_t) strlen(str);
-  uint16_t offset = 0;
+  const uint16_t total_len = (uint16_t) strlen(str);
+  const uint8_t per_pkt = has_index ? 13 : 14;
+  const uint8_t head_chars = has_index ? 1 : 2;  // chars carried in word0
+  if (offset >= total_len) return total_len;
 
   while (offset < total_len) {
+    if (tu_fifo_remaining(&p_midi->ep_stream.tx.ff) < 16) break;
     uint16_t remaining = total_len - offset;
-    uint8_t n = (uint8_t)((remaining > 14) ? 14 : remaining);
+    uint8_t n = (uint8_t)((remaining > per_pkt) ? per_pkt : remaining);
     bool is_first = (offset == 0);
-    bool is_last  = (remaining <= 14);
+    bool is_last  = (remaining <= per_pkt);
 
     uint8_t form;
     if (is_first && is_last) form = 0;
@@ -313,17 +394,23 @@ static void _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t status, 
            | ((uint32_t) status << 16);
 
     const char* p = str + offset;
-    if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);
-    if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];
-    for (uint8_t i = 2; i < n; i++) {
-      uint8_t word_idx = (uint8_t)(1 + (i - 2) / 4);
-      uint8_t shift    = (uint8_t)(24 - ((i - 2) % 4) * 8);
+    if (has_index) {
+      msg[0] |= ((uint32_t) index << 8);                       // bits 15:8 = index
+      if (n > 0) msg[0] |= (uint32_t)(uint8_t) p[0];           // bits  7:0 = char 0
+    } else {
+      if (n > 0) msg[0] |= ((uint32_t)(uint8_t) p[0] << 8);    // bits 15:8 = char 0
+      if (n > 1) msg[0] |= (uint32_t)(uint8_t) p[1];           // bits  7:0 = char 1
+    }
+    for (uint8_t i = head_chars; i < n; i++) {
+      uint8_t word_idx = (uint8_t)(1 + (i - head_chars) / 4);
+      uint8_t shift    = (uint8_t)(24 - ((i - head_chars) % 4) * 8);
       msg[word_idx] |= ((uint32_t)(uint8_t) p[i] << shift);
     }
 
     _nego_send_ump(p_midi, msg, 4);
     offset += n;
   }
+  return offset;
 }
 
 static void _nego_send_config_notify(midi2d_interface_t* p_midi, uint8_t protocol) {
@@ -334,26 +421,189 @@ static void _nego_send_config_notify(midi2d_interface_t* p_midi, uint8_t protoco
   _nego_send_ump(p_midi, msg, 4);
 }
 
+static void _nego_send_device_identity(midi2d_interface_t* p_midi) {
+  tud_midi2_device_identity_t id;
+  tu_memclr(&id, sizeof(id));
+  if (!tud_midi2_device_identity_cb(_itf_idx(p_midi), &id)) return;
+
+  // Every field is a run of bytes, each carrying 7 bits, laid out in the same
+  // order as the MIDI 1.0 Device Inquiry reply this message mirrors. A 1-byte
+  // manufacturer ID occupies the first of the three bytes, the other two stay
+  // zero, so the caller passes it as 0x7D0000 and not 0x00007D.
+  uint32_t msg[4] = {0};
+  msg[0] = ((uint32_t) MT_STREAM << 28)
+         | ((uint32_t) STREAM_DEVICE_IDENTITY << 16);
+  msg[1] = id.manufacturer & UINT32_C(0x7F7F7F);
+  // Family and model are 14-bit numbers sent least significant byte first,
+  // as in the Device Inquiry reply. Manufacturer above is a byte sequence
+  // rather than a number, so it keeps its own order.
+  msg[2] = ((uint32_t)  (id.family       & 0x7F) << 24)
+         | ((uint32_t) ((id.family >> 7) & 0x7F) << 16)
+         | ((uint32_t)  (id.model        & 0x7F) << 8)
+         | ((uint32_t) ((id.model  >> 7) & 0x7F));
+  msg[3] = ((uint32_t) ((id.sw_revision >> 24) & 0x7F) << 24)
+         | ((uint32_t) ((id.sw_revision >> 16) & 0x7F) << 16)
+         | ((uint32_t) ((id.sw_revision >>  8) & 0x7F) << 8)
+         | ((uint32_t)  (id.sw_revision        & 0x7F));
+  _nego_send_ump(p_midi, msg, 4);
+}
+
 static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
+  // Derive direction and group span for this block from the GTB descriptor.
+  uint16_t gtb_len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &gtb_len);
+  TU_ASSERT(_gtb_desc_valid(gtb, gtb_len),);
+  uint8_t type = 0x00, first_group = 0, num_groups = (uint8_t) CFG_TUD_MIDI2_NUM_GROUPS;
+  _gtb_blocks(gtb, gtb_len, fb_idx, &type, &first_group, &num_groups, NULL);
+
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_FB_INFO << 16)
          | (UINT32_C(1) << 15)
          | ((uint32_t) fb_idx << 8)
-         | 0x02;  // bDirection: bidirectional
-  msg[1] = ((uint32_t) 0 << 24)  // bFirstGroup
-         | ((uint32_t) tud_midi2_num_groups_cb(_itf_idx(p_midi)) << 16);
+         | _fb_dir_byte(type);  // UI hint + bDirection from the GTB block type
+  msg[1] = ((uint32_t) first_group << 24)
+         | ((uint32_t) num_groups << 16)
+         | ((uint32_t) (CFG_TUD_MIDI2_FB_CI_VERSION     & 0xFF) << 8)
+         | ((uint32_t) (CFG_TUD_MIDI2_FB_SYSEX8_STREAMS & 0xFF));
   _nego_send_ump(p_midi, msg, 4);
 }
 
+static void _nego_clear_pending(midi2d_interface_t* p_midi) {
+  p_midi->nego_pending_ep_filter = 0;
+  p_midi->nego_pending_fb_filter = 0;
+  p_midi->nego_pending_fb_num = 0;
+  p_midi->nego_pending_fb_next = 0;
+  p_midi->nego_pending_fb_restart = false;
+  p_midi->nego_text_status = 0;
+  p_midi->nego_text_offset = 0;
+  p_midi->nego_text_index = 0;
+}
+
+static const char* _nego_text_cb(midi2d_interface_t* p_midi, uint16_t status, uint8_t index) {
+  const uint8_t itf = _itf_idx(p_midi);
+  switch (status) {
+    case STREAM_EP_NAME:          return tud_midi2_ep_name_cb(itf);
+    case STREAM_PROD_INSTANCE_ID: return tud_midi2_product_id_cb(itf);
+    case STREAM_FB_NAME:          return tud_midi2_fb_name_cb(itf, index);
+    default:                      return NULL;
+  }
+}
+
+// Send or resume one text reply. While it is incomplete, its status and index
+// identify the sole owner of nego_text_offset so another discovery request
+// cannot resume a different string from the same offset.
+static bool _nego_send_text(midi2d_interface_t* p_midi, uint16_t status, uint8_t index) {
+  const char* text = _nego_text_cb(p_midi, status, index);
+  const uint16_t len = text ? (uint16_t) strlen(text) : 0;
+
+  p_midi->nego_text_status = status;
+  p_midi->nego_text_index = index;
+  p_midi->nego_text_offset = _nego_send_stream_text(p_midi, status, status == STREAM_FB_NAME,
+                                                     index, text, p_midi->nego_text_offset);
+  if (p_midi->nego_text_offset < len) return false;
+
+  p_midi->nego_text_status = 0;
+  p_midi->nego_text_offset = 0;
+  p_midi->nego_text_index = 0;
+  return true;
+}
+
+// Send pending discovery replies, one whole reply at a time and only when the
+// TX FIFO can take it. A full-filter Endpoint Discovery asks for more bytes
+// than the default FIFO holds; replies that do not fit stay pending and are
+// retried from the TX complete path, paced by the transfer flow.
+static void _nego_send_pending(midi2d_interface_t* p_midi) {
+  tu_fifo_t* tx_ff = &p_midi->ep_stream.tx.ff;
+
+  // An incomplete text sequence must finish before any newly arrived request
+  // is serviced; otherwise its Continue/End packets could be attached to a
+  // different Endpoint or Function Block string.
+  if (p_midi->nego_text_status) {
+    const uint16_t status = p_midi->nego_text_status;
+    const uint8_t index = p_midi->nego_text_index;
+    if (!_nego_send_text(p_midi, status, index)) return;
+
+    if (status == STREAM_FB_NAME) {
+      if (p_midi->nego_pending_fb_restart) {
+        p_midi->nego_pending_fb_next = 0;
+        p_midi->nego_pending_fb_restart = false;
+      } else {
+        p_midi->nego_pending_fb_next++;
+      }
+    } else {
+      const uint8_t bit = (status == STREAM_EP_NAME) ? 0x04 : 0x08;
+      p_midi->nego_pending_ep_filter &= (uint8_t) ~bit;
+    }
+  }
+
+  while (p_midi->nego_pending_ep_filter) {
+    const uint8_t bit = (uint8_t)(p_midi->nego_pending_ep_filter & (uint8_t)(-p_midi->nego_pending_ep_filter));
+    uint16_t status = 0;
+    switch (bit) {
+      case 0x04: status = STREAM_EP_NAME; break;
+      case 0x08: status = STREAM_PROD_INSTANCE_ID; break;
+      default: break;
+    }
+
+    if (status != 0) {
+      if (!_nego_send_text(p_midi, status, 0)) return;
+    } else {
+      if (tu_fifo_remaining(tx_ff) < 16) return;
+      switch (bit) {
+        case 0x01: _nego_send_endpoint_info(p_midi); break;
+        case 0x02: _nego_send_device_identity(p_midi); break;
+        case 0x10: _nego_send_config_notify(p_midi, p_midi->protocol); break;
+        default: break;
+      }
+    }
+    p_midi->nego_pending_ep_filter &= (uint8_t) ~bit;
+  }
+
+  const uint8_t fb_count = _gtb_block_count(p_midi);
+  while (p_midi->nego_pending_fb_filter && p_midi->nego_pending_fb_next < fb_count) {
+    const uint8_t f = p_midi->nego_pending_fb_next;
+    if (p_midi->nego_pending_fb_num != 0xFF && p_midi->nego_pending_fb_num != f) {
+      p_midi->nego_pending_fb_next++;
+      continue;
+    }
+    if ((p_midi->nego_pending_fb_filter & 0x01) && p_midi->nego_text_offset == 0) {
+      if (tu_fifo_remaining(tx_ff) < 16) return;
+      _nego_send_fb_info(p_midi, f);
+    }
+    if (p_midi->nego_pending_fb_filter & 0x02) {
+      if (!_nego_send_text(p_midi, STREAM_FB_NAME, f)) return;
+    }
+    p_midi->nego_pending_fb_next++;
+  }
+  if (p_midi->nego_pending_fb_next >= fb_count) p_midi->nego_pending_fb_filter = 0;
+}
+
 static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* words) {
+  // Let the application override this message before the built-in responder.
+  switch (tud_midi2_stream_msg_cb(_itf_idx(p_midi), words)) {
+    case MIDI2_STREAM_HANDLED:
+      return;
+    case MIDI2_STREAM_NEGOTIATED_MIDI1:
+      p_midi->protocol = MIDI_PROTOCOL_MIDI1;
+      p_midi->negotiated = true;
+      return;
+    case MIDI2_STREAM_NEGOTIATED_MIDI2:
+      p_midi->protocol = MIDI_PROTOCOL_MIDI2;
+      p_midi->negotiated = true;
+      return;
+    case MIDI2_STREAM_PASS:
+    default:
+      break;
+  }
+
   uint16_t status = (words[0] >> 16) & 0x3FF;
 
   switch (status) {
     case STREAM_ENDPOINT_DISCOVERY:
-      _nego_send_endpoint_info(p_midi);
-      _nego_send_stream_text(p_midi, STREAM_EP_NAME, tud_midi2_ep_name_cb(_itf_idx(p_midi)));
-      _nego_send_stream_text(p_midi, STREAM_PROD_INSTANCE_ID, tud_midi2_product_id_cb(_itf_idx(p_midi)));
+      // Filter bitmap: each bit set asks for one individual reply.
+      p_midi->nego_pending_ep_filter |= (uint8_t)(words[1] & 0x1F);
+      _nego_send_pending(p_midi);
       break;
 
     case STREAM_CONFIG_REQUEST: {
@@ -367,15 +617,23 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
     }
 
     case STREAM_FB_DISCOVERY: {
-      uint8_t fb_idx = (words[0] >> 8) & 0xFF;
-      uint8_t fb_count = tud_midi2_num_function_blocks_cb(_itf_idx(p_midi));
-      if (fb_idx == 0xFF) {
-        for (uint8_t f = 0; f < fb_count; f++) {
-          _nego_send_fb_info(p_midi, f);
+      const uint8_t req_num = (uint8_t)((words[0] >> 8) & 0xFF);
+      const uint8_t req_filter = (uint8_t)(words[0] & 0x03);
+      // Merge with a pending request: repeating a Function Block Info is allowed
+      // at any time, losing a requested one is not.
+      if (req_filter && p_midi->nego_pending_fb_filter) {
+        if (p_midi->nego_pending_fb_num != req_num) p_midi->nego_pending_fb_num = 0xFF;
+        if (p_midi->nego_text_status == STREAM_FB_NAME) {
+          p_midi->nego_pending_fb_restart = true;
+        } else {
+          p_midi->nego_pending_fb_next = 0;
         }
-      } else if (fb_idx < fb_count) {
-        _nego_send_fb_info(p_midi, fb_idx);
+      } else if (!p_midi->nego_pending_fb_filter) {
+        p_midi->nego_pending_fb_num = req_num;
+        p_midi->nego_pending_fb_next = 0;
       }
+      p_midi->nego_pending_fb_filter |= req_filter;  // bit 0: FB Info, bit 1: FB Name
+      _nego_send_pending(p_midi);
       break;
     }
 
@@ -609,7 +867,7 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   p_midi->rhport      = rhport;
   p_midi->itf_num     = desc_midi->bInterfaceNumber;
   p_midi->alt_setting = 0;
-  p_midi->protocol    = MIDI_PROTOCOL_MIDI2;
+  p_midi->protocol    = _gtb_protocol(p_midi);
   p_midi->negotiated  = false;
 
   p_desc = tu_desc_next(p_desc);
@@ -685,10 +943,11 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
 
       tu_edpt_stream_clear(&p_midi->ep_stream.rx);
       tu_fifo_clear(&p_midi->ep_stream.tx.ff);
+      _nego_clear_pending(p_midi);
 
       if (alt == 1) {
         p_midi->negotiated = false;
-        p_midi->protocol   = MIDI_PROTOCOL_MIDI2;
+        p_midi->protocol   = _gtb_protocol(p_midi);
       }
 
       // Re-arm RX endpoint for receiving data after alt setting change
@@ -718,11 +977,15 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
 
       if (tud_midi2_get_req_itf_cb(rhport, request)) return true;
 
+      uint16_t gtb_len = 0;
+      const uint8_t* gtb = tud_midi2_gtb_desc_cb(idx, &gtb_len);
+      TU_ASSERT(_gtb_desc_valid(gtb, gtb_len), false);
+
       uint16_t len = request->wLength;
-      if (len > sizeof(_default_gtb_desc)) {
-        len = sizeof(_default_gtb_desc);
+      if (len > gtb_len) {
+        len = gtb_len;
       }
-      tud_control_xfer(rhport, request, (void*)(uintptr_t) _default_gtb_desc, len);
+      tud_control_xfer(rhport, request, (void*)(uintptr_t) gtb, len);
       return true;
     }
 
@@ -748,9 +1011,15 @@ bool midi2d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
         _nego_process_rx(p_midi);
       }
       tud_midi2_rx_cb(idx);
+    } else {
+      tu_edpt_stream_read_xfer_complete(ep_rx, 0); // release ep_buf for the re-arm below
     }
     tu_edpt_stream_read_xfer(ep_rx);
   } else if (ep_addr == ep_tx->ep_addr && result == XFER_RESULT_SUCCESS) {
+    // Completed transfer freed FIFO room: flush discovery replies still pending.
+    if (p_midi->alt_setting == 1) {
+      _nego_send_pending(p_midi);
+    }
     uint16_t queued = _tx_start_xfer(p_midi);
     // Send ZLP if no more data is queued but the last transfer was exactly mps
     if (queued == 0 && tu_fifo_count(&ep_tx->ff) == 0 && xferred_bytes > 0 &&

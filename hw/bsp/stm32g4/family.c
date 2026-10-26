@@ -61,9 +61,11 @@ void USB_LP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USBWakeUp_IRQHandler(void) {
-  tud_int_handler(0);
-}
+// USB wakeup EXTI IRQ is not enabled by the fsdev driver (see fsdev_stm32.h);
+// restore when STOP-mode wakeup is implemented.
+//void USBWakeUp_IRQHandler(void) {
+//  tud_int_handler(0);
+//}
 
 // USB PD
 void UCPD1_IRQHandler(void) {
@@ -99,7 +101,7 @@ void board_init(void) {
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_HP_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   NVIC_SetPriority(USB_LP_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  //NVIC_SetPriority(USBWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;

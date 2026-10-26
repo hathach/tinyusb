@@ -4,7 +4,7 @@
       <debugger kind="GDB" isBundled="true" />
       <env />
     </debugger>
-    <gdbserver dir="$CMakeProjectDir$" exe="$USER_HOME$/app/riscv-openocd-wch/src/openocd" args="-f hw/bsp/ch32v20x/wch-riscv.cfg">
+    <gdbserver dir="$CMakeProjectDir$" exe="openocd" args="-f target/wch-riscv.cfg">
       <env />
     </gdbserver>
     <console enabled="true" port="4444" />

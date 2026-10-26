@@ -1,30 +1,9 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Nathan Conrad
- *
- * Portions:
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- * Copyright (c) 2022 Simon Küppers (skuep)
- * Copyright (c) 2022 HiFiPhile
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Nathan Conrad
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-FileCopyrightText: Copyright (c) 2022 Simon Küppers (skuep)
+ * SPDX-FileCopyrightText: Copyright (c) 2022 HiFiPhile (Zixun LI)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -41,6 +20,7 @@
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
  * C0                             2048 byte buffer; 32-bit bus; host mode
+ * C5                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
  * H5                             2048 byte buffer; 32-bit bus; host mode
@@ -124,6 +104,10 @@ typedef struct {
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
 static uint8_t    remoteWakeCountdown; // When wake is requested
+#if defined(TUP_USBIP_FSDEV_CH32)
+static bool       ep0_ctrl_dir_in;
+static bool       ep0_ctrl_has_data;
+#endif
 
 //--------------------------------------------------------------------+
 // Prototypes
@@ -152,6 +136,23 @@ TU_ATTR_ALWAYS_INLINE static inline void edpt0_prepare_setup(void) {
 TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint8_t dir) {
   return &xfer_status[epnum][dir];
 }
+
+#if defined(TUP_USBIP_FSDEV_CH32)
+// CH32 EP0 workaround: gate handshakes by switching EP0 type CONTROL<->BULK.
+// need_exclusive brackets the read-modify-write so the USB ISR can't race it.
+TU_ATTR_ALWAYS_INLINE static inline void ep0_set_type(uint32_t ep_type, bool need_exclusive) {
+  if (need_exclusive) {
+    fsdev_int_disable(0);
+  }
+  uint32_t ep_reg = ep_read(0) | U_EP_CTR_TX | U_EP_CTR_RX;
+  ep_reg &= U_EPREG_MASK;
+  ep_reg = (ep_reg & ~U_EP_T_FIELD) | ep_type;
+  ep_write(0, ep_reg, false);
+  if (need_exclusive) {
+    fsdev_int_enable(0);
+  }
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -230,6 +231,11 @@ static void handle_bus_reset(uint8_t rhport) {
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+  ep0_ctrl_dir_in = false;
+  ep0_ctrl_has_data = false;
+#endif
+
   edpt0_open(rhport);              // open control endpoint (both IN & OUT)
 
   FSDEV_REG->DADDR = U_DADDR_EF; // Enable USB Function
@@ -261,6 +267,12 @@ static void handle_ctr_tx(uint32_t ep_id) {
   if (xfer->total_len != xfer->queued_len) {
     dcd_transmit_packet(xfer, (uint16_t)ep_id);
   } else {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Control read: block unsolicited EP0 OUT ACK.
+    if ((ep_num == 0u) && ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+      ep0_set_type(U_EP_BULK, false);
+    }
+#endif
     dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -277,6 +289,16 @@ static void handle_ctr_setup(uint32_t ep_id) {
 
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    tusb_control_request_t const *request = (tusb_control_request_t const *) (void *) setup_packet;
+    ep0_ctrl_dir_in = (request->bmRequestType_bit.direction == TUSB_DIR_IN);
+    ep0_ctrl_has_data = (request->wLength != 0u);
+
+    // For control write, block unsolicited EP0 OUT ACK until transfer is armed in edpt_xfer().
+    if (!ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+      ep0_set_type(U_EP_BULK, false);
+    }
+#endif
     dcd_event_setup_received(0, (uint8_t *)setup_packet, true);
     // Hardware should reset EP0 RX/TX to NAK and both toggle to 1
   } else {
@@ -292,6 +314,14 @@ static void handle_ctr_rx(uint32_t ep_id) {
   const uint8_t ep_num = ep_reg & U_EPADDR_FIELD;
   const bool    is_iso = ep_is_iso(ep_reg);
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
+
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Control write: re-lock EP0 OUT after each DATA OUT packet until next edpt_xfer().
+  if ((ep_num == 0u) && !ep0_ctrl_dir_in && ep0_ctrl_has_data) {
+    ep0_set_type(U_EP_BULK, false);
+    ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_BULK;
+  }
+#endif
 
   uint8_t buf_id;
   #if FSDEV_USE_SBUF_ISO == 0
@@ -342,7 +372,7 @@ void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
-  if (int_status & U_ISTR_SOF) {
+  if ((int_status & U_ISTR_SOF) && (FSDEV_REG->CNTR & U_CNTR_SOFM)) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~U_ISTR_SOF;
     dcd_event_sof(0, FSDEV_REG->FNR & U_FNR_FN, true);
   }
@@ -431,8 +461,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
     const uint8_t dev_addr = (uint8_t)request->wValue;
     FSDEV_REG->DADDR       = (U_DADDR_EF | dev_addr);
   }
-
-  edpt0_prepare_setup();
 }
 
 /***
@@ -705,8 +733,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
   xfer_ctl_t   *xfer   = xfer_ctl_ptr(ep_num, dir);
   const uint8_t ep_idx = xfer->ep_idx;
-
   if (dir == TUSB_DIR_IN) {
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Safe to restore CONTROL before arming IN: no pending OUT for the errata to blind-ACK.
+    if (ep_num == 0u) {
+      ep0_set_type(U_EP_CONTROL, true);
+    }
+#endif
     dcd_transmit_packet(xfer, ep_idx);
   } else {
     uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR
@@ -726,6 +759,13 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+    // Restore CONTROL in the same write as STAT_RX=VALID (after bufsize): a separate earlier
+    // write would re-enable the blind OUT ACK while still NAK'd with a stale buffer.
+    if (ep_num == 0u) {
+      ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+    }
+#endif
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
     ep_write(ep_idx, ep_reg, true);
   }
@@ -772,6 +812,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir);
   ep_change_status(&ep_reg, dir, EP_STAT_STALL);
 
+#if defined(TUP_USBIP_FSDEV_CH32)
+  // Stall ends the transfer without edpt_xfer() (the only other CONTROL restore); else a rejected
+  // control-write leaves EP0 typed BULK and the host's recovery SETUP is ignored until bus reset.
+  if (ep_num == 0u) {
+    ep_reg = (ep_reg & ~U_EP_T_FIELD) | U_EP_CONTROL;
+  }
+#endif
+
   ep_write(ep_idx, ep_reg, true);
 }
 
@@ -787,7 +835,17 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_reg &= U_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
   if (!ep_is_iso(ep_reg)) {
-    ep_change_status(&ep_reg, dir, EP_STAT_NAK);
+    // Only knock a genuinely STALLED endpoint down to NAK (the class then re-arms it). If the
+    // endpoint is armed (VALID) - e.g. a clear-halt used purely to reset the data toggle, as in
+    // usbtest case 29 - leave STAT untouched so the in-flight transfer isn't disarmed with no
+    // completion, which would leak the usbd claim and starve the endpoint. Masking the STAT bits
+    // to 0 writes no toggle, so an armed/idle endpoint keeps its current status.
+    const uint8_t stat_pos = (uint8_t) (U_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0u : 8u));
+    if (((ep_reg >> stat_pos) & 0x3u) == EP_STAT_STALL) {
+      ep_change_status(&ep_reg, dir, EP_STAT_NAK);
+    } else {
+      ep_reg &= ~EP_STAT_MASK(dir);
+    }
   }
   ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
   ep_write(ep_idx, ep_reg, true);

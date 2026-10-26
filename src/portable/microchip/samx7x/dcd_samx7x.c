@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2018, hathach (tinyusb.org)
- * Copyright (c) 2021, HiFiPhile
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2018, Ha Thach (tinyusb.org)
+ * SPDX-FileCopyrightText: Copyright (c) 2021, HiFiPhile (Zixun LI)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -57,6 +38,7 @@ typedef struct {
   uint16_t   queued_len;
   uint16_t   max_packet_size;
   uint8_t    interval;
+  bool       zlp_pending;
   tu_fifo_t *fifo;
 } xfer_ctl_t;
 
@@ -287,7 +269,11 @@ static void dcd_ep_handler(uint8_t ep_ix) {
     if (int_status & DEVEPTISR_TXINI) {
       // Acknowledge the interrupt
       USB_REG->DEVEPTICR[ep_ix] = DEVEPTICR_TXINIC;
-      if ((xfer->total_len != xfer->queued_len)) {
+      if (xfer->zlp_pending) {
+        // TXINI means the bank is free, so validating it now actually sends the ZLP
+        xfer->zlp_pending         = false;
+        USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_FIFOCONC;
+      } else if ((xfer->total_len != xfer->queued_len)) {
         // TX not complete
         dcd_transmit_packet(xfer, ep_ix);
       } else {
@@ -524,10 +510,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   xfer_ctl_t *xfer = &xfer_status[epnum];
 
-  xfer->buffer     = buffer;
-  xfer->total_len  = total_bytes;
-  xfer->queued_len = 0;
-  xfer->fifo       = NULL;
+  xfer->buffer      = buffer;
+  xfer->total_len   = total_bytes;
+  xfer->queued_len  = 0;
+  xfer->zlp_pending = false;
+  xfer->fifo        = NULL;
 
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0) {
     uint32_t udd_dma_ctrl = total_bytes << DEVDMACONTROL_BUFF_LENGTH_Pos;
@@ -544,6 +531,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   } else {
     if (dir == TUSB_DIR_OUT) {
       USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
+    } else if (total_bytes == 0 && epnum != 0) {
+      // Clearing FIFOCON on a busy bank is a no-op that swallows the ZLP, so the empty bank is validated
+      // from the TXINI handler, where it is guaranteed free. TXINI is sticky and every bank freed while it
+      // was masked (DMA transfers run with it masked) leaves it set, so acknowledge it first; if a bank is
+      // writable already, raise the interrupt by hand like the ASF driver does
+      xfer->zlp_pending         = true;
+      USB_REG->DEVEPTICR[epnum] = DEVEPTICR_TXINIC;
+      if (USB_REG->DEVEPTISR[epnum] & DEVEPTISR_RWALL) {
+        USB_REG->DEVEPTIFR[epnum] = DEVEPTIFR_TXINIS;
+      }
+      USB_REG->DEVEPTIER[epnum] = DEVEPTIER_TXINES;
     } else {
       dcd_transmit_packet(xfer, epnum);
     }
@@ -563,10 +561,11 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
 
   xfer_ctl_t *xfer = &xfer_status[epnum];
 
-  xfer->buffer     = NULL;
-  xfer->total_len  = total_bytes;
-  xfer->queued_len = 0;
-  xfer->fifo       = ff;
+  xfer->buffer      = NULL;
+  xfer->total_len   = total_bytes;
+  xfer->queued_len  = 0;
+  xfer->zlp_pending = false;
+  xfer->fifo        = ff;
 
   if (dir == TUSB_DIR_OUT) {
     USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;

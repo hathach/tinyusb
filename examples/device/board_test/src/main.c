@@ -122,12 +122,6 @@ int main(void) {
   return 0;
 }
 
-#ifdef ESP_PLATFORM
-void app_main(void) {
-  main();
-}
-#endif
-
 //--------------------------------------------------------------------+
 // FreeRTOS
 //--------------------------------------------------------------------+
@@ -171,5 +165,11 @@ void tx_application_define(void *first_unused_memory) {
   tx_thread_create(&_main_thread, main_thread_name, board_test_loop, 0,
                    _main_thread_stack, MAIN_TASK_STACK_SIZE,
                    1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
+}
+#endif
+
+#ifdef ESP_PLATFORM
+void app_main(void) {
+  main();
 }
 #endif

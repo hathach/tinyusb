@@ -8,10 +8,6 @@ set(JLINK_OPTION "-USB 000727031389")
 set(PYOCD_TARGET LPC55S28)
 set(NXPLINK_DEVICE LPC55S28:LPCXpresso55S28)
 
-# device fullspeed, host highspeed
-set(RHPORT_DEVICE 0)
-set(RHPORT_HOST 1)
-
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     CPU_LPC55S28JBD100

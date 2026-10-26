@@ -99,13 +99,46 @@ void board_init(void) {
   R_IOPORT_Open(&IOPORT_CFG_CTRL, &IOPORT_CFG_NAME);
 
 #ifdef TRACE_ETM
-  // TRCKCR is protected by PRCR bit0 register
-  R_SYSTEM->PRCR = (uint16_t) (BSP_PRV_PRCR_KEY | 0x01);
+  // TRCKCR is only writable while a debugger is connected (RA HUM) - a
+  // standalone boot must skip trace init or the write wedges the chip into
+  // an un-attachable crash loop (recover: power-cycle + immediate erase)
+  if (DCB->DHCSR & DCB_DHCSR_C_DEBUGEN_Msk) {
+    // TRCKCR is protected by PRCR bit0 register
+    R_SYSTEM->PRCR = (uint16_t) (BSP_PRV_PRCR_KEY | 0x01);
 
-  // Enable trace clock (max 100Mhz). Since PLL/CPU is 200Mhz, clock div = 2
-  R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x01;
+    // TCLK pin = TRCLK/2; set the divider with TRCKEN=0 first (HUM procedure).
+    // Values are the empirical per-board ceilings.
+#if defined(BSP_MCU_GROUP_RA8M1)
+    // 480 MHz CPU: /4 -> 120 MHz TRCLK, 60 MHz pin - chip max, clean on
+    // EK-RA8M1 with the committed empty-OnTraceStart JLinkScript (which
+    // defers the trace clock to firmware; without it the FSP MOCO->PLL
+    // switch steps the clock mid-stream and any divider fails)
+    R_SYSTEM->TRCKCR = 0x02;
+    R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x02;
+#else
+    // RA6M5 200 MHz CPU: /4 -> 50 MHz TRCLK, 25 MHz pin. /2 (50 MHz pin) is
+    // silent on the EK-RA6M5 in every combination - board path ceiling,
+    // reconfirmed with J9 closed and the OnTraceStart override
+    R_SYSTEM->TRCKCR = 0x02;
+    R_SYSTEM->TRCKCR = R_SYSTEM_TRCKCR_TRCKEN_Msk | 0x02;
+#endif
 
-  R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_KEY;
+    R_SYSTEM->PRCR = (uint16_t) BSP_PRV_PRCR_KEY;
+  }
+#endif
+
+#ifdef TRACE_SWO
+#ifndef BSP_MCU_GROUP_RA6M5
+  #error "TRACE_SWO: only RA6M5 is covered"
+#endif
+  // SWO on P109 (TDO/SWO, its reset function) needs the trace clock: TRCKEN, with TRCK kept as found. TRCKCR is
+  // writable only while a debugger is connected (DBGSTR.CDBGPWRUPREQ, RA6M5 HUM TRCKCR) and sits behind PRCR.PRC0;
+  // without a debugger the clock stays stopped, and a later capture starts it itself
+  if (R_DEBUG->DBGSTR & R_DEBUG_DBGSTR_CDBGPWRUPREQ_Msk) {
+    R_BSP_RegisterProtectDisable(BSP_REG_PROTECT_CGC);
+    R_SYSTEM->TRCKCR |= R_SYSTEM_TRCKCR_TRCKEN_Msk;
+    R_BSP_RegisterProtectEnable(BSP_REG_PROTECT_CGC);
+  }
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS

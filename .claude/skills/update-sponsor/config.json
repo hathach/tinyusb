@@ -1,0 +1,15 @@
+{
+  "_comment": "Curated data for update_sponsor.py. Committed. Edit by hand.",
+  "_exclude": "Logins that never get labels, however they qualify. The maintainer is a public member of the adafruit org, so without this every self-authored ticket would be tagged 'Reported by an Adafruit member'.",
+  "_org_members": "Sponsoring ORGANIZATIONS only. A GitHub org never opens tickets itself - its people do. List the logins that should inherit that org's tier. Curated on purpose: the public-members API misses private members and over-counts uninvolved ones.",
+  "org_members": {
+    "8086net": [
+      "burtyb"
+    ]
+  },
+  "_adafruit_members_extra": "Adafruit logins the org's PUBLIC member list omits. Unioned with `gh api orgs/adafruit/public_members`. Never use /members: it returns concealed members to an org admin, and the Adafruit label would then publish an affiliation those people deliberately hid.",
+  "adafruit_members_extra": [],
+  "exclude": [
+    "hathach"
+  ]
+}

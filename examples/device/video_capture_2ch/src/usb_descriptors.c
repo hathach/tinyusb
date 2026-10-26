@@ -27,15 +27,8 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]  VIDEO | AUDIO | MIDI | HID | MSC | CDC          [LSB]
- */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-    PID_MAP(MIDI, 3) | PID_MAP(AUDIO, 4) | PID_MAP(VIDEO, 5) | PID_MAP(VENDOR, 6) )
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x401e
 
 #define USB_VID   0xCafe
 #define USB_BCD   0x0200
@@ -117,8 +110,15 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#define EPNUM_VIDEO_IN_1    0x81
-#define EPNUM_VIDEO_IN_2    0x82
+#if CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 && !CFG_TUD_VIDEO_STREAMING_BULK
+  // ERR050101 (see CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101): an isochronous IN endpoint needs a number
+  // no other device on the bus uses
+  #define EPNUM_VIDEO_IN_1    0x86
+  #define EPNUM_VIDEO_IN_2    0x87
+#else
+  #define EPNUM_VIDEO_IN_1    0x81
+  #define EPNUM_VIDEO_IN_2    0x82
+#endif
 
 #if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   #define USE_MJPEG 1

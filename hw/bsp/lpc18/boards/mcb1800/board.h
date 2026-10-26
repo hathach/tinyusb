@@ -48,15 +48,6 @@
 
 static inline void board_lpc18_pinmux(void) {
   const PINMUX_GRP_T pinmuxing[] = {
-    // ETM Trace
-    #ifdef TRACE_ETM
-    { 0xF, 4, SCU_MODE_FUNC2 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 5, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 6, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 7, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    { 0xF, 8, SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
-    #endif
-
     // LEDs
     { 0xD, 10, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4) },
     { 0xD, 11, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN) },
@@ -95,6 +86,24 @@ static inline void board_lpc18_pinmux(void) {
     Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
   }
 }
+
+#ifdef TRACE_ETM
+// Must run AFTER Chip_SetupCoreClock: muxing the trace pins earlier starts
+// TRACECLK at the boot clock and the mid-init frequency switch desyncs the
+// trace decoder ("Unknown trace data packet").
+static inline void board_trace_pinmux(void) {
+  // SCU_MODE_INACT: disable the pull-up on the 60 MHz trace lines - leaving it
+  // enabled degrades the edges enough for intermittent decode corruption.
+  const PINMUX_GRP_T trace_pinmux[] = {
+    { 0xF, 4, SCU_MODE_INACT | SCU_MODE_FUNC2 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 5, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 6, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 7, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+    { 0xF, 8, SCU_MODE_INACT | SCU_MODE_FUNC3 | SCU_MODE_HIGHSPEEDSLEW_EN },
+  };
+  Chip_SCU_SetPinMuxing(trace_pinmux, sizeof(trace_pinmux) / sizeof(PINMUX_GRP_T));
+}
+#endif
 
 #ifdef __cplusplus
  }

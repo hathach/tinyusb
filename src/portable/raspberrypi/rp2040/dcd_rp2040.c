@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -361,8 +343,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // TU_LOG(1, "Chip Version B%u\r\n", rp2040_chip_version());
 
+  // A warm restart (SWD flash, debugger reset) keeps the previous image's pull-up: sample it before
+  // rp2usb_init() resets USBCTRL
+  const bool was_attached = (resets_hw->reset_done & RESETS_RESET_USBCTRL_BITS) &&
+                            (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS);
+
   // Reset hardware to default state
   rp2usb_init();
+
+  // hold the pull-up off 2 ms so the host sees a detach even behind a max-size full-speed packet
+  // (USB 2.0 7.1.7.3 needs undriven SE0)
+  if (was_attached) {
+    busy_wait_us(2000);
+  }
 
   #if FORCE_VBUS_DETECT
   // Force VBUS detect so the device thinks it is plugged into a host
@@ -404,6 +397,9 @@ bool dcd_deinit(uint8_t rhport) {
   // reset usb hardware into initial state
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+
+  // Release allocated resources
+  rp2usb_deinit();
 
   return true;
 }
@@ -568,9 +564,46 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
-    ep->next_pid = 0; // reset data toggle
-    io_rw_32 *buf_reg      = get_buf_ctrl(epnum, dir);
-    *buf_reg               = 0;
+
+    if (ep->state == EPSTATE_ACTIVE) {
+      // Clear-halt on an endpoint with an in-flight transfer is used as a data-toggle reset
+      // (e.g. usbtest case 29) rather than to recover from a real stall (a stall aborts the
+      // transfer, leaving the endpoint IDLE). Abort and re-issue the transfer with the toggle
+      // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
+      // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
+      uint8_t*       user_buf  = ep->user_buf;
+      uint16_t       remaining = ep->remaining_len;
+      const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
+      io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      // bufctrl_prepare16() subtracts each armed buffer's length from remaining_len when arming,
+      // for BOTH directions, before the host has drained (IN) or filled (OUT) it. The abort below
+      // discards those still-armed buffers, so rewind remaining_len by their lengths or the re-issue
+      // is short by 1-2 packets. IN additionally advances user_buf as packets are copied into DPRAM,
+      // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
+      const uint32_t bc = *buf_reg;
+      uint16_t staged = 0;
+      if (bc & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
+      }
+      if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
+        staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
+      }
+      remaining = (uint16_t)(remaining + staged);
+      if (dir == TUSB_DIR_IN) {
+        user_buf -= staged;
+      }
+      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
+      ep->next_pid = 0;           // DATA0
+      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+      // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
+      // the eventual completion reports the full length, not just the post-clear-halt remainder.
+      ep->xferred_len += xferred;
+    } else {
+      ep->next_pid = 0; // reset data toggle
+      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
+      *buf_reg          = 0; // clear the stall response
+    }
   }
 }
 

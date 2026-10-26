@@ -125,7 +125,7 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_add_bin_hex(${TARGET})
-  family_flash_openocd_wch(${TARGET})
+  family_flash_openocd(${TARGET})
   family_flash_wlink_rs(${TARGET})
   #family_flash_uf2(${TARGET} ${UF2_FAMILY_ID})
 endfunction()

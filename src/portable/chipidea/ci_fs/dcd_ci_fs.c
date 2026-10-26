@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2020 Koji Kitayama
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Koji Kitayama
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -42,43 +24,7 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-
-enum {
-  TOK_PID_OUT   = 0x1u,
-  TOK_PID_IN    = 0x9u,
-  TOK_PID_SETUP = 0xDu,
-};
-
-typedef struct TU_ATTR_PACKED
-{
-  union {
-    uint32_t head;
-    struct {
-      union {
-        struct {
-               uint16_t           :  2;
-          __IO uint16_t tok_pid   :  4;
-               uint16_t data      :  1;
-          __IO uint16_t own       :  1;
-               uint16_t           :  8;
-        };
-        struct {
-               uint16_t           :  2;
-               uint16_t bdt_stall :  1;
-               uint16_t dts       :  1;
-               uint16_t ninc      :  1;
-               uint16_t keep      :  1;
-               uint16_t           : 10;
-        };
-      };
-      __IO uint16_t bc : 10;
-           uint16_t    :  6;
-    };
-  };
-  uint8_t *addr;
-}buffer_descriptor_t;
-
-TU_VERIFY_STATIC( sizeof(buffer_descriptor_t) == 8, "size is not correct" );
+// TOK_PID_* and buffer_descriptor_t are shared with the host driver in ci_fs_type.h
 
 typedef struct TU_ATTR_PACKED
 {
@@ -193,6 +139,17 @@ static void process_tokdne(uint8_t rhport)
     return;
   }
   const unsigned length = ep->length;
+
+  /* Transfer is complete. For OUT, a multi-packet transfer speculatively arms the
+   * sibling (even/odd) BDT to avoid NAK. When the transfer ends early - e.g. the host
+   * sends a short packet before filling both buffers - that sibling is left armed
+   * (own=1). A leftover armed BDT desyncs the even/odd ping-pong so the next OUT
+   * packet lands in the wrong buffer half (buffer + max_packet_size instead of
+   * buffer), making the stack read stale data. Disarm it here. */
+  if (dir == TUSB_DIR_OUT) {
+    _dcd.bdt[epnum][dir][odd ^ 1].own = 0;
+  }
+
   dcd_event_xfer_complete(rhport,
                           tu_edpt_addr(epnum, dir),
                           length - remaining, XFER_RESULT_SUCCESS, true);

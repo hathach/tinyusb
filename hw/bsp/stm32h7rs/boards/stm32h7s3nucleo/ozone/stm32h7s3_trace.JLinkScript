@@ -1,0 +1,11 @@
+/* STM32H7RS pin trace: the CSTF funnel, TMC (ETF) and TPIU are not in the
+ * core ROM table - declare them or J-Link aborts trace init with "Required
+ * trace components for pin trace not found!" (addresses per SEGGER's
+ * NUCLEO-H7S3L8 trace example script; AP0).
+ */
+int ConfigTargetSettings(void) {
+  JLINK_ExecCommand("CORESIGHT_SetCSTFBaseAddr = 0x5C013000 ForceUnlock = 1 APIndex = 0");
+  JLINK_ExecCommand("CORESIGHT_SetTMCBaseAddr = 0x5C014000 ForceUnlock = 1 APIndex = 0");
+  JLINK_ExecCommand("CORESIGHT_SetTPIUBaseAddr = 0x5C015000 ForceUnlock = 1 APIndex = 0");
+  return 0;
+}

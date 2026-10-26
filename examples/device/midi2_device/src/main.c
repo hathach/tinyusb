@@ -546,6 +546,38 @@ void tud_midi2_set_itf_cb(uint8_t itf, uint8_t alt) {
   printf("[ALT] Host selected alt=%u\r\n", (unsigned)alt);
 }
 
+// PROTOTYPE: two Function Blocks with independent directions.
+//   FB0: output only, group 0   FB1: input only, group 1
+static const uint8_t gtb_two_blocks[] = {
+  TUD_MIDI2_GTB_HEADER(2),
+  TUD_MIDI2_GTB_BLOCK(1, MIDI2_GTB_OUTPUT_ONLY, 0, 1, 0),  // block 1: group 0
+  TUD_MIDI2_GTB_BLOCK(2, MIDI2_GTB_INPUT_ONLY,  1, 1, 0),  // block 2: group 1
+};
+
+const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len) {
+  (void)itf;
+  *len = sizeof(gtb_two_blocks);
+  return gtb_two_blocks;
+}
+
+const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx) {
+  (void)itf;
+  return (fb_idx == 0) ? "Synth Out" : "Keys In";
+}
+
+// Sent when the host asks for a Device Identity Notification (Endpoint
+// Discovery 'd' filter bit). Same four fields as the MIDI 1.0 Device Inquiry
+// reply; 0x7D is the prototyping SysEx ID, placed in the first of the three
+// manufacturer bytes.
+bool tud_midi2_device_identity_cb(uint8_t itf, tud_midi2_device_identity_t* identity) {
+  (void)itf;
+  identity->manufacturer = 0x7D0000;
+  identity->family       = 0x0001;
+  identity->model        = 0x0001;
+  identity->sw_revision  = 0x00010000;
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // Initial Setup - Program Change, CC, Per-Note Management
 //--------------------------------------------------------------------+

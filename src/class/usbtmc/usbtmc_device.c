@@ -1,25 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Nathan Conrad
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Nathan Conrad
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -270,9 +252,12 @@ bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
   TU_ASSERT(len > 0);
   TU_ASSERT(usbtmc_state.ep_int_in != 0);
 #endif
-  TU_VERIFY(usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in));
+  TU_VERIFY(usbd_edpt_claim(usbtmc_state.rhport, usbtmc_state.ep_int_in));
 
-  TU_VERIFY(tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) == 0);
+  if (tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) != 0) {
+    usbd_edpt_release(usbtmc_state.rhport, usbtmc_state.ep_int_in);
+    return false;
+  }
   TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, usbtmc_epbuf.epnotif, (uint16_t) len, false));
   return true;
 }
@@ -512,9 +497,24 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
           case USBTMC_MSGID_USB488_TRIGGER:
-            // Spec says we halt the EP if we didn't declare we support it.
-            TU_VERIFY(usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger);
-            TU_VERIFY(tud_usbtmc_msg_trigger_cb(msg));
+            // Unlike the messages above, TRIGGER is complete on arrival and has no response, so nothing else
+            // will move us out of STATE_IDLE. Do it here, otherwise the tud_usbtmc_start_bus_read() below (and
+            // any call the application makes from its callback) is a no-op and the bulk-OUT endpoint is left
+            // un-armed, silently timing out every subsequent host transfer.
+            TU_VERIFY(atomicChangeState(STATE_IDLE, STATE_NAK));
+
+            // Spec says we halt the EP if we didn't declare we support it; do the same when the application
+            // rejects the trigger. The callback result must not be wrapped in TU_VERIFY() here: returning
+            // early would skip both the stall and the re-arm below.
+            if (!usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger ||
+                !tud_usbtmc_msg_trigger_cb(msg)) {
+              usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+              return false;
+            }
+            // Result deliberately ignored: false here means the endpoint is already armed - either the
+            // application re-armed it from its callback, or a transfer is still queued - not that arming
+            // failed. Stalling on it would halt a healthy endpoint.
+            tud_usbtmc_start_bus_read();
 
             break;
 #endif
@@ -841,7 +841,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
                   },
                   .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))};
           // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
-          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *) &intMsg, sizeof(intMsg), false);
+          (void) tud_usbtmc_transmit_notification_data(&intMsg, sizeof(intMsg));
         }
       } else {
         rsp.statusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status));

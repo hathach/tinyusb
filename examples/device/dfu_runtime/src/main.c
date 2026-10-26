@@ -62,13 +62,21 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-void led_blinking_task(void);
+void led_blinking_task(void* param);
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+void freertos_init(void);
+#endif
 
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
 
+  // If using FreeRTOS: create blinky and tinyusb device tasks
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  freertos_init();
+#else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
     .role = TUSB_ROLE_DEVICE,
@@ -81,8 +89,9 @@ int main(void)
   while (1)
   {
     tud_task(); // tinyusb device task
-    led_blinking_task();
+    led_blinking_task(NULL);
   }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -126,17 +135,87 @@ void tud_dfu_runtime_reboot_to_dfu_cb(void)
 // BLINKING TASK + Indicator pulse
 //--------------------------------------------------------------------+
 
-void led_blinking_task(void)
+void led_blinking_task(void* param)
 {
+  (void) param;
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  // Blink every interval ms
-  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
-    return; // not enough time
-  }
-  start_ms += blink_interval_ms;
+  while (1) {
+    #if CFG_TUSB_OS == OPT_OS_FREERTOS
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+    #else
+    // Blink every interval ms
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
+    #endif
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+    start_ms += blink_interval_ms;
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
 }
+
+//--------------------------------------------------------------------+
+// FreeRTOS
+//--------------------------------------------------------------------+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+
+#ifdef ESP_PLATFORM
+  #define USBD_STACK_SIZE    4096
+  int main(void);
+  void app_main(void) {
+    main();
+  }
+#else
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
+
+// static task allocation
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+#endif
+
+// USB Device Driver task: processes all usb events and invokes callbacks
+void usb_device_task(void* param) {
+  (void) param;
+
+  // init device stack on configured roothub port. Must be called after the
+  // scheduler starts: the USB IRQ handler uses RTOS queue APIs.
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  board_init_after_tusb();
+
+  // RTOS forever loop
+  while (1) {
+    tud_task(); // put thread to waiting state until there is a new event
+  }
+}
+
+void freertos_init(void) {
+  #if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  #else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  #endif
+
+  // only start scheduler for non-espressif mcu (espressif starts it in startup code)
+  #ifndef ESP_PLATFORM
+  vTaskStartScheduler();
+  #endif
+}
+#endif

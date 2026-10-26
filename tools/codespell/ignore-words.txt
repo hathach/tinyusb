@@ -5,7 +5,9 @@ endianess
 fro
 hsi
 inout
+linke
 mot
+ore
 pris
 ptd
 ser

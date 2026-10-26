@@ -1,25 +1,6 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -82,6 +63,75 @@
 #ifndef __R
   #define __R  volatile const
 #endif
+
+#if defined(TUP_USBIP_MUSB_PY32)
+
+typedef struct TU_ATTR_PACKED {
+  __IO uint8_t  csrh;          // 0x04, 0x08: CSRH
+  __IO uint8_t  csrl;          // 0x05, 0x09: CSRL
+  __IO uint8_t  maxp;          // 0x06, 0x0A: MAXP
+  __I  uint8_t  reserved;
+} musb_ep_maxp_csr_t;
+
+TU_VERIFY_STATIC(sizeof(musb_ep_maxp_csr_t) == 4, "size is not correct");
+
+typedef struct TU_ATTR_PACKED {
+  __IO uint8_t  csr0l;         // 0x00: CSR0
+  __IO uint8_t  count0;        // 0x01: COUNT0
+  __I  uint8_t  reserved_0x02[2];
+
+  union {
+    struct {
+      __IO uint8_t  tx_csrh;       // 0x04: TX CSRH
+      __IO uint8_t  tx_csrl;       // 0x05: TX CSRL
+      __IO uint8_t  tx_maxp;       // 0x06: TX MAXP
+      __I  uint8_t  reserved_0x07;
+
+      __IO uint8_t  rx_csrh;       // 0x08: RX CSRH
+      __IO uint8_t  rx_csrl;       // 0x09: RX CSRL
+      __IO uint8_t  rx_maxp;       // 0x0A: RX MAXP
+      __I  uint8_t  reserved_0x0b;
+    };
+
+    musb_ep_maxp_csr_t maxp_csr[2];
+  };
+
+  __IO uint16_t rx_count;      // 0x0C: RX COUNT
+  __I  uint8_t  reserved_0x0e[2];
+} musb_ep_csr_t;
+
+TU_VERIFY_STATIC(sizeof(musb_ep_csr_t) == 16, "size is not correct");
+
+typedef struct TU_ATTR_PACKED {
+  __IO uint8_t  faddr;         // 0x00: FADDR
+  __IO uint8_t  power;         // 0x01: POWER
+  __I  uint8_t  reserved_0x02[2];
+
+  __IO uint8_t  intr_usb;      // 0x04: INTRUSB
+  __IO uint8_t  intr_rx;       // 0x05: INTRRX
+  __IO uint8_t  intr_tx;       // 0x06: INTRTX
+  __I  uint8_t  reserved_0x07;
+
+  __IO uint8_t  intr_usben;    // 0x08: INTRUSBEN
+  union {
+    struct {
+      __IO uint8_t  intr_rxen;     // 0x09: INTRRXEN
+      __IO uint8_t  intr_txen;     // 0x0A: INTRTXEN
+    };
+
+    __IO uint8_t intren_ep[2];     // 0x09-0x0A: RX, TX
+  };
+  __I  uint8_t  reserved_0x0b;
+
+  __IO uint16_t frame;         // 0x0C: FRAME
+  __IO uint8_t  index;         // 0x0E: INDEX
+  __I  uint8_t  reserved_0x0f;
+
+  musb_ep_csr_t indexed_csr;   // 0x10-0x1F: Indexed CSR
+  __IO uint32_t fifo[16];      // 0x20-0x5F: FIFO 0-15
+} musb_regs_t;
+
+#else
 
 typedef struct TU_ATTR_PACKED {
   __IO uint16_t maxp;          // 0x00, 0x04: MAXP
@@ -295,6 +345,8 @@ typedef struct {
 } musb_regs_t;
 
 TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x350, "size is not correct");
+
+#endif
 
 //--------------------------------------------------------------------+
 // Helper

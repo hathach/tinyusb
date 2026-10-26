@@ -43,14 +43,16 @@ extern "C" {
 #define OTG_FS_VBUS_SENSE     1
 #define OTG_HS_VBUS_SENSE     0
 
-#define PINID_LED          0
-#define PINID_BUTTON       1
-#define PINID_UART_TX      2
-#define PINID_UART_RX      3
-#define PINID_TCPP0203_EN  4
-#define PINID_I2C_SCL      5
-#define PINID_I2C_SDA      6
-#define PINID_TCPP0203_INT 7
+#define UART_ID               1
+
+#define PINID_LED             0
+#define PINID_BUTTON          1
+#define PINID_UART_TX         2
+#define PINID_UART_RX         3
+#define PINID_TCPP0203_EN     4
+#define PINID_I2C_SCL         5
+#define PINID_I2C_SDA         6
+#define PINID_TCPP0203_INT    7
 
 static board_pindef_t board_pindef[] = {
   { // LED

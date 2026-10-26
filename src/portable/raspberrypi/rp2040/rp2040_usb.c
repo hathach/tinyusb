@@ -1,26 +1,7 @@
 /*
- * The MIT License (MIT)
- *
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- * Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * SPDX-FileCopyrightText: Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+ * SPDX-FileCopyrightText: Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
+ * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
  */
@@ -102,6 +83,10 @@ void rp2usb_init(void) {
   TU_LOG2_INT(sizeof(hw_endpoint_t));
 
   critical_section_init(&rp2usb_lock);
+}
+
+void rp2usb_deinit(void) {
+  critical_section_deinit(&rp2usb_lock);
 }
 
 void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
@@ -195,10 +180,15 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
   // Note: device EP0 does not have an endpoint control register
   if (ep_reg != NULL) {
     uint32_t ep_ctrl = *ep_reg;
+    // Isochronous endpoints get a single DPRAM buffer (hw_endpoint_open only double-sizes BULK), so
+    // they must never be double-buffered here even when a transfer spans multiple packets, or buffer
+    // 1 (at dpram_buf+64) would spill into the next endpoint's DPRAM. (Never true for BULK, so the
+    // double-buffered bulk path is unaffected.)
+    const bool is_iso = (((ep_ctrl >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u) == TUSB_XFER_ISOCHRONOUS);
   #if CFG_TUH_ENABLED
-    const bool force_single = (rp2usb_is_host_mode() && ep->interrupt_num > 0);
+    const bool force_single = is_iso || (rp2usb_is_host_mode() && ep->interrupt_num > 0);
   #else
-    const bool force_single = false;
+    const bool force_single = is_iso;
   #endif
 
     if (ep->remaining_len && !force_single) {
