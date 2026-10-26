@@ -35,7 +35,6 @@ import argparse
 import json
 import os
 import re
-import shlex
 import signal
 import subprocess
 import sys
@@ -89,8 +88,8 @@ HALT_BOUND = HALT_TIMEOUT + hil_util.REAP_GRACE   # run_cmd's bound plus its pos
 def halt_openocd(rec_board, timeout):
     # whether a halted core stalls the transfer in flight depends on the variant's USB engine
     # and debug freeze
-    return hil_util.run_cmd(f'{hil_flash._openocd_cmd_base(rec_board["flasher"])} '
-                            f'-c "init; halt; exit"', timeout=timeout)
+    return hil_util.run_cmd([*hil_flash._openocd_cmd_base(rec_board['flasher']), '-c', 'init; halt; exit'],
+                            timeout=timeout)
 
 
 HALTED_MARK = 'WEDGE_DRILL_HALTED'
@@ -135,10 +134,10 @@ def halt_held(rec_board, timeout):
     """halt_openocd for a WCH-Link: its openocd shutdown sends the probe's detach (wlinke.c
     wlink_quit), which resumes the core, so the halt holds only if openocd is SIGKILLed once
     halted. The probe opens once, so openocd is dead when this returns; ProbeHeld otherwise."""
-    cmd = (hil_flash._openocd_cmd_base(rec_board['flasher'])
-           + f' -c "init; halt; echo {HALTED_MARK}; sleep {int(timeout * 1000)}; shutdown"')
+    cmd = [*hil_flash._openocd_cmd_base(rec_board['flasher']),
+           '-c', f'init; halt; echo {HALTED_MARK}; sleep {int(timeout * 1000)}; shutdown']
     # no shell: the process reaped below must be openocd itself
-    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True, errors='replace', start_new_session=True)
     out, halted = [], threading.Event()
 

@@ -117,6 +117,12 @@ class Rig:
             patcher = mock.patch.object(obj, name, value)
             patcher.start()
             test.addCleanup(patcher.stop)
+        # the suite runs under CI too, whose job variables would preempt run_case's own openocd_esp refusal
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        test.addCleanup(patcher.stop)
+        for var in run_case.hil_util.openocd_esp().CI_JOB_ENV:
+            os.environ.pop(var, None)
 
     def run(self, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -149,7 +155,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
                 (['--board', 'noflasher'], 'noflasher in'),
                 (['--board', 'nouid'], 'nouid in'),
-                (['--board', 'esp'], 'esp: openocd_esp: only hil_test.py'),
+                (['--board', 'esp'], 'esp: openocd_esp is refused to a caller that does not declare'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
                 (['--board', 'solo', '--variant', 'duo-a'], 'solo has no variant duo-a')):

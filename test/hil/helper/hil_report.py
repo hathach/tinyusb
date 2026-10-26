@@ -20,17 +20,10 @@ matrix) import by path without lib/agentrc.
 import argparse
 import importlib.util
 import json
-import os
 import socket
 import sys
 from pathlib import Path
 from typing import NamedTuple
-try:
-    import fcntl
-    msvcrt = None
-except ImportError:   # Windows
-    import msvcrt
-    fcntl = None
 
 
 REPORT_MD = 'hil_report.md'
@@ -48,6 +41,13 @@ LOCKED_CELL = 'board-locked'
 # flash like LOCKED_CELL, but rig-side, not contention a re-admission waits out. Its value is
 # '❌ <the error>'.
 LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
+# refused by a recovery blocker (`hil` Board locks: a cleanup holder, live or dead, a protected
+# record left on a free flock, a takeover journal): refused before any flash like LOCKED_CELL,
+# but it never frees on its own, so a blocker, never waited out. Its value is '❌ <the refusal,
+# naming the holder>'.
+RECOVERY_BLOCKER_CELL = 'recovery-blocker'
+# the cells of a board refused its lock, one per row
+_REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL)
 # 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
 # recovery could not clear, or a device it could no longer identify), so the rest of the
 # board was skipped
@@ -60,7 +60,8 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
 # a board whose openocd_esp session the provider left running: its lock went to a cleanup holder
-# (hil_test.retain_board_lock), and its value is '❌ <receipt, holder and token>'
+# (hil_test.retain_board_lock), and its value is '❌ <receipt, then holder and token, or the
+# protected record left as the recovery blocker>'
 CLEANUP_PENDING_CELL = 'cleanup-pending'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
@@ -75,18 +76,24 @@ _core = None
 _schema = None
 
 
+def _agentrc():
+    if __package__:
+        from . import agentrc
+        return agentrc
+    # a script run: helper/ is on sys.path, not test/hil, so the package is not
+    spec = importlib.util.spec_from_file_location('tinyusb_hil_agentrc', Path(__file__).with_name('agentrc.py'))
+    agentrc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(agentrc)
+    return agentrc
+
+
 def core():
     """agentrc's hil_report_core at the pin, loaded on first use: importing this module for
     board_variants() loads no provider."""
     global _core
     if _core is None:
-        if __package__:
-            from . import agentrc
-        else:   # a script run: helper/ is on sys.path, not test/hil, so the package is not
-            spec = importlib.util.spec_from_file_location('tinyusb_hil_agentrc', Path(__file__).with_name('agentrc.py'))
-            agentrc = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(agentrc)
-        _core = agentrc.load('skills/hil/scripts/hil_report_core.py', 'tinyusb_hil_report_core')
+        agentrc = _agentrc()   # bound by this name: RemoteStaging reads agentrc.load's literal paths
+        _core = agentrc.load_file('skills/hil/scripts/hil_report_core.py')
     return _core
 
 
@@ -430,16 +437,15 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
     # duration None, keeping the previous full-run value
     for name, _, _, rows, *_ in mret:
         unbuilt = any(cells.get(RUN_ABORTED_CELL) == BUILD_REFUSED for _, cells, _ in rows)
-        if rows and not unbuilt and not any(LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells
-                                            for _, cells, _ in rows):
+        if rows and not unbuilt and not any(k in cells for _, cells, _ in rows for k in _REFUSAL_CELLS):
             # board ran for real: clear a stale lock-failure cell (its row is keyed by
             # board name; test rows may be variant names), and a stale wedge cell on every
             # row of the board -- a green re-run must not stay red for ever under last
             # time's wedge
             stale = acc.get(name)
             if stale is not None:
-                stale[0].pop(LOCKED_CELL, None)
-                stale[0].pop(LOCK_UNAVAILABLE_CELL, None)
+                for k in _REFUSAL_CELLS:
+                    stale[0].pop(k, None)
                 stale[0].pop(WEDGED_CELL, None)
                 stale[0].pop(CLEANUP_PENDING_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
@@ -473,9 +479,9 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             if BOUNDARY_CELL not in cells:
                 row[0].pop(BOUNDARY_CELL, None)
             # one lock refusal per row: this attempt's replaces an earlier one of the other kind
-            if LOCKED_CELL in cells or LOCK_UNAVAILABLE_CELL in cells:
-                row[0].pop(LOCKED_CELL, None)
-                row[0].pop(LOCK_UNAVAILABLE_CELL, None)
+            if any(k in cells for k in _REFUSAL_CELLS):
+                for k in _REFUSAL_CELLS:
+                    row[0].pop(k, None)
             row[0].update(cells)
             if dur is not None:
                 row[1] = dur
@@ -567,7 +573,7 @@ def variants_of(cfg: dict, board: str) -> list:
 
 
 # cells that say why a board did not run, never a test's result
-_MARKER_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, WEDGED_CELL)
+_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL)
 
 
 def _board_rows(report: dict) -> dict:
@@ -663,6 +669,13 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
             results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
                              'wedged': False, 'skipped': [], **kept, 'detail': unusable}, mine, False))
             continue
+        blocked = next((cells[RECOVERY_BLOCKER_CELL] for cells in mine.values()
+                        if RECOVERY_BLOCKER_CELL in cells), None)
+        if blocked is not None and not aborted and not board_wedged:
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}'},
+                            mine, False))
+            continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
         bad = []
         skipped = []
@@ -711,16 +724,16 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
 def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
     """`boards`' rows of `report` in the shared rules' shape ({board, verdict, detail, evidence},
     the `hil` skill's Verdicts), folded from summarize()'s: wedged, never heard back from
-    (pool-timeout, run-aborted) or left to a cleanup holder is a blocker; locked, build
-    refused, unbuilt or skipped is not-run. A configured board without a report row gets no
-    row, which apply_run_rules makes a blocker. Unlike the snapshot, a board passes only with
-    a passing test cell."""
+    (pool-timeout, run-aborted), left to a cleanup holder or refused by a recovery blocker is a
+    blocker; locked, build refused, unbuilt or skipped is not-run. A configured board without
+    a report row gets no row, which apply_run_rules makes a blocker. Unlike the snapshot, a
+    board passes only with a passing test cell."""
     return [_normalised(r, cells) for r, cells, missing in _results(cfg, boards, report) if not missing]
 
 
 def _normalised(r: dict, cells: dict) -> dict:
     tests = [v for c in cells.values() for t, v in c.items() if t not in _MARKER_CELLS]
-    unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c
+    unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c or RECOVERY_BLOCKER_CELL in c
                      or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
     failed = any(cell_state(v) == 'fail' for v in tests)
     exercised = any(cell_state(v) == 'pass' for v in tests)
@@ -822,33 +835,16 @@ def _prepare(argv: list) -> int:
             return 1
         print(f'error: cannot prepare {REPORT_MD}: {e}', file=sys.stderr)
         try:
-            _write_notice(report_dir, f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
-        except OSError as e2:
+            # loaded apart from the core, which may be what failed to load
+            agentrc = _agentrc()
+            notice = agentrc.load_file('skills/hil/scripts/hil_report_notice.py')
+            notice.write_unavailable(report_dir, Path(REPORT_JSON).stem,
+                                     f'{REPORT_MD} could not be prepared from {REPORT_JSON} ({e})')
+        except Exception as e2:  # noqa: BLE001 - ImportError, OSError or WriterHeld: the first error stands
             print(f'error: nor write its unavailable notice: {e2}', file=sys.stderr)
         return 1
     print(f'{REPORT_JSON}: {reading.outcome}' + (f' -- {reading.detail}' if reading.detail else ''))
     return 0
-
-
-def _write_notice(report_dir: Path, why: str) -> None:
-    """The unavailable notice, without the core (it may be what failed): replaced atomically,
-    under the core's writer lock (`.<stem>.lock`, never waited for). Raises OSError, also
-    when another writer holds the lock."""
-    report_dir.mkdir(parents=True, exist_ok=True)
-    fd = os.open(report_dir / f'.{Path(REPORT_JSON).stem}.lock', os.O_RDWR | os.O_CREAT, 0o666)
-    try:
-        if fcntl:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        else:
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-        md, tmp = report_dir / REPORT_MD, report_dir / f'.{REPORT_MD}.{os.getpid()}.tmp'
-        try:
-            tmp.write_text(f'**HIL report unavailable: {" ".join(why.split())}.**\n', encoding='utf-8')
-            os.replace(tmp, md)
-        finally:
-            tmp.unlink(missing_ok=True)
-    finally:
-        os.close(fd)
 
 
 def _no_selection(argv: list) -> int:

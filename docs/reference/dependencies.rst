@@ -21,6 +21,7 @@ hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sd
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
 hw/mcu/geehy/APM32F0xx_SDK                https://github.com/GeehySemi/APM32F0xx_SDK.git                    cfc1fe826e1869133de86d4c6b298fc153e6bc32  apm32f0xx
+hw/mcu/geehy/APM32F10x_SDK                https://github.com/GeehySemi/APM32F10x_SDK.git                    cb084dd9ce994cc6fc449f692cdc78f34d7e2edb  apm32f10x
 hw/mcu/hpmicro/hpm_sdk                    https://github.com/hpmicro/hpm_sdk                                8d2af741ecc4aaa82d7ee395dc1ce25d7070c3ff  hpmicro
 hw/mcu/infineon/mtb-xmclib-cat3           https://github.com/Infineon/mtb-xmclib-cat3.git                   daf5500d03cba23e68c2f241c30af79cd9d63880  xmc4000
 hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg
@@ -98,7 +99,7 @@ hw/mcu/wch/ch583                          https://github.com/openwch/ch583.git  
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg tm4c efm32
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   9b777ae5c5b8e9e456065a00294d1e5f5f9facf5  all
-lib/agentrc                               https://github.com/hathach/agentrc.git                            9e41f6fc89375df73d453c45e4c5a97103830fcd
+lib/agentrc                               https://github.com/hathach/agentrc.git                            992c40c24398bf07ee51b48abfe442b837b5d9b6
 lib/fatfs                                 https://github.com/abbrev/fatfs.git                               30ca13c62615df0d2e9104ab41256985b96590c1  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55

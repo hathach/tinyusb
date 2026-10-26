@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -46,6 +47,9 @@ deps_optional = {
     'hw/mcu/geehy/APM32F0xx_SDK': ['https://github.com/GeehySemi/APM32F0xx_SDK.git',
                                     'cfc1fe826e1869133de86d4c6b298fc153e6bc32',
                                     'apm32f0xx'],
+    'hw/mcu/geehy/APM32F10x_SDK': ['https://github.com/GeehySemi/APM32F10x_SDK.git',
+                                    'cb084dd9ce994cc6fc449f692cdc78f34d7e2edb',
+                                    'apm32f10x'],
     'hw/mcu/infineon/mtb-xmclib-cat3': ['https://github.com/Infineon/mtb-xmclib-cat3.git',
                                         'daf5500d03cba23e68c2f241c30af79cd9d63880',
                                         'xmc4000'],
@@ -305,7 +309,7 @@ deps_optional = {
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '9e41f6fc89375df73d453c45e4c5a97103830fcd',
+                    '992c40c24398bf07ee51b48abfe442b837b5d9b6',
                     ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
@@ -361,8 +365,16 @@ def dep_head(path):
     return None if head.startswith('ref:') else head
 
 
+# repository-locating subset of `git rev-parse --local-env-vars`; config and transport vars stay
+GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+                'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SHALLOW_FILE',
+                'GIT_GRAFT_FILE', 'GIT_PREFIX')
+
+
 def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     title = f'Command Error: {cmd}'
     if r.returncode != 0:
         print(title)

@@ -23,7 +23,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
-import code_size  # noqa: E402  stdlib-only; its snapshot loader is the one compare uses
+import code_size  # noqa: E402  its engine's snapshot loader is the one compare uses
 
 WORKFLOW = 'build.yml'
 BRANCH = 'master'
@@ -50,7 +50,8 @@ def gh_items(path, key):
 
 def current_base_sha(current):
     """The one base_sha the PR run's legs record, else None."""
-    shas = {code_size._commits(leg)[1] for leg in code_size.load_snapshots(current)['legs'].values()}
+    engine = code_size.load_engine()
+    shas = {engine._commits(leg)[1] for leg in engine.load_snapshots(current)['legs'].values()}
     return shas.pop() if len(shas) == 1 else None
 
 

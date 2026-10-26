@@ -8,8 +8,9 @@ layout), runs it there, and copies the report pair, its attempt records and the
 <config>.failed re-run spec back to the checkout root.
 
 The transport -- the leased, wiped tree, the guarded staging, run and fetch, the run records
--- is agentrc's hil_remote_core, from this script's checkout's lib/agentrc at the pin; the
-report document is helper/hil_report.py over agentrc's hil_report_core.
+-- is agentrc's hil_remote_core, from the tested checkout's lib/agentrc at its pin, the one
+copy of agentrc the process loads (hil_load); the report document is helper/hil_report.py over
+agentrc's hil_report_core.
 
 `--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json, locked for as
 long as the run lives, then the done record ID.done.json (exit status, the report files it
@@ -31,7 +32,6 @@ on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config j
 """
 import argparse
 import importlib
-import importlib.util
 import json
 import os
 import re
@@ -42,34 +42,32 @@ import tempfile
 from pathlib import Path
 
 
-def _load_core():
-    """hil_remote_core through this checkout's helper/agentrc.py, by path: the adapter and its
-    transport come from one checkout whatever ROOT_DIR names."""
-    spec = importlib.util.spec_from_file_location(
-        'tinyusb_hil_remote_agentrc', Path(__file__).resolve().parents[4] / 'test/hil/helper/agentrc.py')
-    agentrc = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(agentrc)
-    return agentrc.load('skills/hil/scripts/hil_remote_core.py', 'tinyusb_hil_remote_core')
+ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).resolve()
 
 
+def helper(name):
+    """A test/hil/helper module, imported from this checkout's harness."""
+    if str(ROOT / 'test' / 'hil') not in sys.path:
+        sys.path.insert(0, str(ROOT / 'test' / 'hil'))
+    return importlib.import_module(f'helper.{name}')
+
+
+# through ROOT's loader, as its harness helpers load theirs: hil_load refuses a second lib/agentrc
 try:
-    core = _load_core()
+    core = helper('agentrc').load_file('skills/hil/scripts/hil_remote_core.py')
 except ImportError as e:   # lib/agentrc off its pin: the message names the fetch
     sys.exit(f'error: {e}')
 fail = core.fail
 
-ROOT = Path(os.environ.get('ROOT_DIR') or Path(__file__).resolve().parents[4]).resolve()
-
 # Everything the rig executes, by repo-relative path. test_hil_bounded's RemoteStaging walks
 # the harness's import closure and requires each file here, so keep this a plain literal.
 # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist: its README keeps it staged.
-# helper/agentrc.py exec_module's agentrc's shared scripts (the board-lock primitive, the USB
-# observation, the RTT console, the flash provider, the TT reset, the usbtest mechanics) after
-# checking lib/agentrc/.git/HEAD against the commit tools/get_deps.py pins: the lib/agentrc and
-# tools/ entries let the rig's tree pass the same check, and RemoteStaging requires one per
-# agentrc.load target and per file a target loads or launches by path (the provider's runner,
-# pyocd launcher and user script, the openocd_esp backend's esp_session, and the TT reset's
-# root child, which is hil_tt.py itself). helper/hil_report.py loads the report core.
+# helper/agentrc.py loads agentrc's shared scripts (the board-lock primitive, the USB
+# observation, the RTT console, the flash provider, the TT reset, the usbtest mechanics) through
+# agentrc's hil_load after checking lib/agentrc/.git/HEAD against the commit tools/get_deps.py
+# pins: the lib/agentrc and tools/ entries let the rig's tree pass the same check, and
+# RemoteStaging requires hil_load and each agentrc.load target with its FILES, the files it
+# loads or launches by path. helper/hil_report.py loads the report core.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -89,12 +87,15 @@ HARNESS_FILES = (
     'tools/get_deps.py',
     'lib/agentrc/.git/HEAD',
     'lib/agentrc/skills/hil/scripts/hil_flash.py',
+    'lib/agentrc/skills/hil/scripts/hil_load.py',
     'lib/agentrc/skills/hil/scripts/hil_openocd_esp.py',
+    'lib/agentrc/skills/hil/scripts/esptool_session.py',
     'lib/agentrc/skills/hil/scripts/hil_process.py',
     'lib/agentrc/skills/hil/scripts/pyocd/run_pyocd.py',
     'lib/agentrc/skills/hil/scripts/pyocd/user_script.py',
     'lib/agentrc/skills/hil/scripts/hil_lock.py',
     'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
     'lib/agentrc/skills/hil/scripts/hil_tt.py',
     'lib/agentrc/skills/hil/scripts/hil_usbtest.py',
     'lib/agentrc/skills/hil/scripts/usb_observe.py',
@@ -110,13 +111,6 @@ FIRMWARE_FILTER = ['--prune-empty-dirs', '--include=*/', *(f'--include=*{x}' for
 EXAMPLE_ROLES = ('device', 'dual', 'host', 'typec')
 
 RUNS_DIR = '.hil-remote'
-
-def helper(name):
-    """A test/hil/helper module, imported from this checkout's harness."""
-    if str(ROOT / 'test' / 'hil') not in sys.path:
-        sys.path.insert(0, str(ROOT / 'test' / 'hil'))
-    return importlib.import_module(f'helper.{name}')
-
 
 def build_command(config_path, boards, build_dir):
     """The build contract's line for the dirs hil_test.py flashes, each roster variant included."""

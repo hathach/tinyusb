@@ -6,6 +6,7 @@
 #   python3 test/hil/test/test_hil_report.py
 import json
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -385,6 +386,12 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         got = self._sum(['alpha'], [('alpha', {hil_report.LOCK_UNAVAILABLE_CELL: cell})])
         self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
                                   'wedged': False, 'skipped': [], 'detail': cell})
+
+    def test_a_recovery_blocker_is_neither_contention_nor_a_fail(self):
+        cell = '❌ board locked: {"pid": 7, "role": "cleanup-holder"} (recovery blocker: ...)'
+        got = self._sum(['alpha'], [('alpha', {hil_report.RECOVERY_BLOCKER_CELL: cell})])
+        self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
+                                  'wedged': False, 'skipped': [], 'detail': f'recovery blocker; not flashed: {cell}'})
 
     def test_a_board_with_no_row_is_marked_not_run(self):
         got = self._sum(['alpha', 'beta'], [('alpha', {'usbtest': 'pass'})])
@@ -893,7 +900,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         self.assertNotIn(hil_report.BOUNDARY_CELL, cells)
 
     def test_a_board_that_really_ran_drops_its_stale_lock_cell(self):
-        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL):
+        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL, hil_report.RECOVERY_BLOCKER_CELL):
             with self.subTest(key=key):
                 td = TemporaryDirectory()
                 self.addCleanup(td.cleanup)
@@ -1483,24 +1490,52 @@ class ConsumerCommands(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
         self.assertFalse((clean / hil_report.REPORT_JSON).exists())
-        if os.name != 'nt':
-            import fcntl
-            with open(clean / '.hil_report.lock', 'a') as held:
-                fcntl.flock(held, fcntl.LOCK_EX)
-                r = run('prepare')
-                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-                self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
-                                 'never written under another writer\'s lock')
         r = run('prepare')
         self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
-        md = (clean / hil_report.REPORT_MD).read_text(encoding='utf-8')
-        self.assertTrue(md.startswith('**HIL report unavailable: hil_report.md could not be prepared'), md)
-        self.assertNotIn('✅', md, 'the table the JSON does not back is gone')
+        self.assertIn('nor write its unavailable notice', r.stderr)
+        self.assertEqual(r.stderr.count('python3 tools/get_deps.py lib/agentrc'), 2, r.stderr)
+        self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
+                         'without lib/agentrc there is no notice writer either')
         r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil/helper"); import hil_report; '
                             'print(hil_report.board_variants({"name": "b"})[0]["name"])'],
                            capture_output=True, text=True, timeout=60, cwd=clean)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, 'b'), r.stderr)
+
+    def test_a_core_that_fails_to_load_still_gets_the_notice_written(self):
+        """agentrc's hil_report_notice is loaded apart from the core: prepare's fallback when
+        the core is what failed."""
+        clean = self.rd / 'checkout'
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
+                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
+                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py'):
+            (clean / rel).parent.mkdir(parents=True, exist_ok=True)
+            (clean / rel).write_bytes((REPO / rel).read_bytes())
+        md = clean / hil_report.REPORT_MD
+        md.write_text('| b | ✅ |\n', encoding='utf-8')
+
+        def prepare():
+            return subprocess.run([sys.executable, str(clean / 'test/hil/helper/hil_report.py'), 'prepare',
+                                   '--report-dir', str(clean)], capture_output=True, text=True, timeout=60,
+                                  env={**os.environ, 'PYTHONSAFEPATH': '1'})
+        if os.name != 'nt':
+            import fcntl
+            with open(clean / '.hil_report.lock', 'a') as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                r = prepare()
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn('another writer holds', r.stderr)
+                self.assertEqual(md.read_text(encoding='utf-8'), '| b | ✅ |\n',
+                                 'never written under another writer\'s lock')
+        for _ in range(2):
+            r = prepare()
+            self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
+            self.assertIn('has no skills/hil/scripts/hil_report_core.py', r.stderr)
+            text = md.read_text(encoding='utf-8')
+            self.assertTrue(text.startswith('**HIL report unavailable: hil_report.md could not be prepared'), text)
+            self.assertEqual(text.count('**HIL report unavailable'), 1, 'an earlier notice is never nested')
+            head, legacy = text.split('_Legacy text', 1)
+            self.assertNotIn('✅', head, 'the table the JSON does not back is not the report')
+            self.assertIn('| b | ✅ |', legacy)
 
     def test_the_cli_runs_as_a_script_under_pythonsafepath(self):
         cfg = self.rd / 'cfg.json'
@@ -1700,6 +1735,20 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         got = self.verdicts(['a', 'c'])
         self.assertEqual(got, {'a': ('fail', False), 'c': ('not-run', False)})
 
+    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board b: stale record {"protected": true} (recovery blocker: ...)'}
+
+    def test_a_recovery_blocker_stands_and_bars_the_retry(self):
+        self.attempt(False, {'a': self.FAIL_A, 'b': {'b': self.BLOCKED}})
+        cfg = json.loads(self.cfg.read_text())
+        doc = hil_report._load(self.rd)[0]
+        self.assertEqual([r['verdict'] for r in hil_report.normalised_rows(cfg, ['b'], doc)], ['blocker'])
+        self.attempt(True, {'a': self.PASS_A})
+        snapshot = hil_report.summarize(cfg, ['b'], hil_report._load(self.rd)[0])['results'][0]
+        self.assertIn('recovery blocker; not flashed', snapshot['detail'], 'a retry of a peer keeps it')
+        self.attempt(True, {'b': {'b': {'t': '✅'}}})
+        self.assertEqual(self.verdicts(['a', 'b']), {'a': ('fail', False), 'b': ('blocker', False)},
+                         'a later pass never clears it, and its run was no eligible retry of a\'s fail')
+
     def test_a_usbtest_batterys_fail_is_final(self):
         self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 28/29'}}})
         self.attempt(True, {'b': {'b': {'device/usbtest': '✅ 29/29'}}})
@@ -1826,7 +1875,9 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         self.addCleanup(td.cleanup)
         root = Path(td.name)
         for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
-                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
+                    'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
                     'test/hil/tinyusb.json', 'test/hil/hfp.json'):
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_bytes((REPO / rel).read_bytes())
@@ -1837,11 +1888,29 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         shim.chmod(0o755)
         return root
 
-    def run_step(self, root, script, env):
+    def run_step(self, root, script, env, rc=0):
         r = subprocess.run(['bash', '-e', '-c', script], cwd=root, capture_output=True, text=True, timeout=120,
                            env={**os.environ, 'PATH': f'{root / "bin"}:{os.environ["PATH"]}',
-                                'GITHUB_ENV': str(root / 'github_env'), **env})
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                                'GITHUB_ENV': str(root / 'github_env'), 'GITHUB_OUTPUT': str(root / 'github_output'),
+                                'RUNNER_TEMP': str(root / 'runner_temp'), 'GITHUB_RUN_ATTEMPT': '2', **env})
+        self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+        return r
+
+    @staticmethod
+    def output_dir(root):
+        outputs = dict(line.split('=', 1) for line in (root / 'github_output').read_text().splitlines())
+        return Path(root, outputs['dir'])
+
+    def upload(self, step, src, artifact):
+        """upload-artifact's copy of what the step's paths name under the prepare step's dir `src`."""
+        for line in step['with']['path'].splitlines():
+            self.assertTrue(line.startswith('${{ steps.prepare.outputs.dir }}/'), line)
+            rel = line.split('/', 1)[1].rstrip('/')
+            if (src / rel).is_dir():
+                shutil.copytree(src / rel, artifact / rel)
+            elif (src / rel).exists():
+                artifact.mkdir(parents=True, exist_ok=True)
+                shutil.copy(src / rel, artifact / rel)
 
     def test_each_leg_prepares_the_pair_before_its_upload(self):
         for name, job in self.legs().items():
@@ -1849,11 +1918,57 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 names = [st.get('name') for st in job['steps']]
                 upload = job['steps'][names.index('Upload HIL report')]
                 prepare = job['steps'][names.index('Upload HIL report') - 1]
-                self.assertEqual((prepare['name'], prepare['if']), ('Prepare HIL report', upload['if']))
+                self.assertEqual((prepare['name'], prepare['id'], prepare['if']),
+                                 ('Prepare HIL report', 'prepare', upload['if']))
                 self.assertIn('hil_report.py prepare', prepare['run'])
+                self.assertTrue(upload['with']['overwrite'], 'a later attempt replaces the earlier artifact')
                 paths = upload['with']['path']
-                for f in ('hil_report.md', 'hil_report.json', 'hil_report.attempts/'):
-                    self.assertIn(f, paths)
+                for f in ('hil_report.md', 'hil_report.json', 'hil_report.attempts/', 'hil_report.unprepared'):
+                    self.assertIn(f'${{{{ steps.prepare.outputs.dir }}}}/{f}', paths)
+
+    @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
+    def test_an_unprepared_report_uploads_only_its_failure_and_the_comment_says_so(self):
+        """With lib/agentrc missing or off its pin, prepare loads neither the core nor the notice
+        writer; with no checkout at all it does not even start. The report dir persists across a run's attempts, so it can hold an earlier attempt's
+        green report: the upload takes a fresh dir holding only the failure, and the PR comment
+        shows that, never the earlier table."""
+        legs = self.legs()   # skips without PyYAML
+        import yaml
+        comment = yaml.safe_load((REPO / '.github/workflows/pr_comment.yml').read_text(encoding='utf-8'))
+        combine = next(st for st in comment['jobs']['hil-comment']['steps'] if st.get('id') == 'combine')
+        for name, job in legs.items():
+            for provider in ('missing', 'off-pin', 'no-checkout'):
+                with self.subTest(name, provider=provider):
+                    root = self.sandbox()
+                    report_dir = root / 'report' if name != 'hil-hfp-iar' else root
+                    report_dir.mkdir(exist_ok=True)
+                    stale = {hil_report.REPORT_MD: '| b | ✅ |\n', hil_report.REPORT_JSON: '{"rows": []}\n'}
+                    for f, text in stale.items():
+                        (report_dir / f).write_text(text, encoding='utf-8')
+                    if provider == 'missing':
+                        shutil.rmtree(root / 'lib/agentrc')
+                    elif provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
+                        shutil.rmtree(root / 'test')
+                        shutil.rmtree(root / 'lib')
+                    else:
+                        (root / 'lib/agentrc/.git/HEAD').write_text('0' * 40 + '\n')
+                    steps = job['steps']
+                    prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
+                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir)}, rc=1)
+                    if provider != 'no-checkout':
+                        self.assertIn('nor write its unavailable notice', r.stderr)
+                    for f, text in stale.items():
+                        self.assertEqual((report_dir / f).read_text(encoding='utf-8'), text, 'the report dir is left')
+                    out = self.output_dir(root)
+                    self.assertNotEqual(out.resolve(), report_dir.resolve())
+                    artifact = root / 'hil-reports' / f'hil-report-{name}'
+                    self.upload(next(st for st in steps if st.get('name') == 'Upload HIL report'), out, artifact)
+                    # the marker alone: pr_comment.yml says the report is unavailable from it
+                    self.assertEqual(sorted(p.name for p in artifact.iterdir()), ['hil_report.unprepared'])
+                    self.run_step(root, self.script(combine), {})
+                    posted = (root / 'hil_combined.md').read_text(encoding='utf-8')
+                    self.assertIn('the latest attempt could not prepare it', posted)
+                    self.assertNotIn('✅', posted)
 
     @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
     def test_a_skipped_leg_uploads_a_no_selection_report(self):
@@ -1876,6 +1991,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 self.run_step(root, self.script(test), env)
                 prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
                 self.run_step(root, self.script(prepare), env)
+                self.assertEqual(self.output_dir(root).resolve(), report_dir.resolve())
                 reading = hil_report.core().read_document(report_dir / hil_report.REPORT_JSON, hil_report.schema())
                 self.assertEqual((reading.outcome, reading.meta['termination']), ('empty', 'no-boards'))
                 md = (report_dir / hil_report.REPORT_MD).read_text(encoding='utf-8')

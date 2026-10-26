@@ -36,11 +36,17 @@ class Wrappers(unittest.TestCase):
     def test_run_cmd_forwards_every_mode_and_the_knobs(self):
         seen = self.capture('run_cmd')
         hil_util.run_cmd('c', 'd', binary=True, split_stderr=True, quiet=True)
-        hil_util.run_cmd(['c'], timeout=5)
+        hil_util.run_cmd(['c'], timeout=5, env={'NO_COLOR': '1'})
         self.assertEqual(seen, [
-            (('c', 'd'), dict(timeout=33, binary=True, split_stderr=True, quiet=True, reap_grace=4, verbose=True)),
+            (('c', 'd'), dict(timeout=33, binary=True, split_stderr=True, quiet=True, reap_grace=4, verbose=True,
+                              env=None)),
             ((['c'], None), dict(timeout=5, binary=False, split_stderr=False, quiet=False, reap_grace=4,
-                                 verbose=True))])
+                                 verbose=True, env={'NO_COLOR': '1'}))])
+
+    def test_a_real_argv_run_adds_env_to_the_inherited_environment(self):
+        r = hil_util.run_cmd(['sh', '-c', 'printf "%s %s" "$HIL_UTIL_ENV" "${HOME:+home}"'],
+                             env={'HIL_UTIL_ENV': 'a b'})
+        self.assertEqual((r.returncode, r.stdout), (0, 'a b home'))
 
     def test_run_alongside_reaps_for_reap_grace(self):
         seen = self.capture('run_alongside')
@@ -104,8 +110,8 @@ class BottomLayer(unittest.TestCase):
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
         # farm_profile included: test_hil_util_is_a_single_module_instance imports it
-        # on the bare runner, and its `import serial` is function-local for exactly
-        # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
+        # on the bare runner, so a module-level non-stdlib import there must fail HERE,
+        # not on every PR's pre-commit CI
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
                     'helper/hil_lock', 'helper/agentrc', 'helper/farm_profile', 'helper/hil_farm_check',
                     '../../tools/build', '../../tools/build_utils',
@@ -114,8 +120,7 @@ class BottomLayer(unittest.TestCase):
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
             tree = ast.parse((hil_dir / f'{mod}.py').read_text())
             # module level only: a deferred import inside a function cannot break
-            # importability (farm_profile keeps `import serial` function-local
-            # for exactly that reason)
+            # importability
             for node in tree.body:
                 roots = []
                 if isinstance(node, ast.Import):

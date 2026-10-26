@@ -51,6 +51,10 @@ host_test = [
     'host/device_info',
 ]
 
+# flashers of the boards built under esp-idf: the CI matrix's esp-idf bucket and CI's esp leg
+# (change_impact.rig_legs)
+ESP_IDF_FLASHERS = ('esptool', 'openocd_esp')
+
 verbose = False
 
 def pos_int_env(name: str, default: int) -> int:
@@ -96,8 +100,7 @@ TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo r
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
 # `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
-# a bare checkout before CI fetches lib/agentrc. Kept for the process because
-# helper/agentrc.load makes a new module per call, and a second load is a second runner.
+# a bare checkout before CI fetches lib/agentrc.
 _provider = None
 
 
@@ -107,11 +110,8 @@ def provider():
     global _provider
     if _provider is None:
         from . import agentrc
-        # literal paths: RemoteStaging reads them to check the rig gets each one
-        _provider = agentrc.load('skills/hil/scripts/hil_flash.py', 'tinyusb_hil_flash_provider',
-                                 requires=('skills/hil/scripts/hil_process.py',
-                                           'skills/hil/scripts/pyocd/run_pyocd.py',
-                                           'skills/hil/scripts/pyocd/user_script.py'))
+        # a literal path: RemoteStaging reads it and its FILES to check the rig gets each one
+        _provider = agentrc.load_file('skills/hil/scripts/hil_flash.py')
     return _provider
 
 
@@ -119,28 +119,25 @@ _openocd_esp = None
 
 
 def openocd_esp():
-    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded once like provider(): its own
-    hil_flash and usb_observe instances, and target-debug's esp_session for the managed session."""
+    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded on first use like provider(): the
+    process's one hil_flash and usb_observe, and target-debug's esp_session for the managed session."""
     global _openocd_esp
     if _openocd_esp is None:
         from . import agentrc
-        _openocd_esp = agentrc.load('skills/hil/scripts/hil_openocd_esp.py', 'tinyusb_hil_openocd_esp',
-                                    requires=('skills/hil/scripts/hil_flash.py',
-                                              'skills/hil/scripts/hil_process.py',
-                                              'skills/hil/scripts/usb_observe.py',
-                                              'skills/target-debug/scripts/esp_session.py'))
+        _openocd_esp = agentrc.load_file('skills/hil/scripts/hil_openocd_esp.py')
     return _openocd_esp
 
 
 def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
-            quiet: bool = False) -> subprocess.CompletedProcess:
+            quiet: bool = False, env: dict | None = None) -> subprocess.CompletedProcess:
     """The provider's bounded runner (hil_process.run_cmd: own session, killpg on expiry, rc 124
-    when it had to be killed) with this harness's CMD_TIMEOUT default, REAP_GRACE and
-    `verbose`, read on every call."""
+    when it had to be killed; `cmd` a shell string or an argv list, `env` added to the inherited
+    environment) with this harness's CMD_TIMEOUT default, REAP_GRACE and `verbose`, read on every
+    call."""
     return provider().hil_process.run_cmd(
         cmd, cwd, timeout=CMD_TIMEOUT if timeout is None else timeout, binary=binary,
-        split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose)
+        split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose, env=env)
 
 
 def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:

@@ -79,9 +79,12 @@ sys.exit(int(os.environ.get('FAKE_RC', '0')))
 '''
 
 # what a fake checkout needs real: the harness's argument parser, and the report adapter with
-# the loader, the pin and the core it loads
+# the loader, the pin, hil_load, the core it loads and the notice the core loads; and, though
+# the rig never runs it, the transport core hil_remote.py loads through that checkout's loader
 REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py',
-        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_report_core.py')
+        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
+        'lib/agentrc/skills/hil/scripts/hil_report_core.py', 'lib/agentrc/skills/hil/scripts/hil_report_notice.py')
+REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
 
 CONFIG = {'boards': [
     {'name': 'alpha', 'flasher': {'name': 'jlink'}},
@@ -120,6 +123,7 @@ class Rig(unittest.TestCase):
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             src = REPO / rel
             shutil.copy(src, self.root / rel) if rel in REAL else (self.root / rel).write_text('#')
+        shutil.copy(REPO / REMOTE_CORE, self.root / REMOTE_CORE)
         (self.root / 'test/hil/tinyusb.json').write_text(json.dumps(CONFIG))
         self.home = self.tmp / 'home'
         (self.home / '.local/bin').mkdir(parents=True)
@@ -278,6 +282,7 @@ class Staging(Rig):
         """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
         rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
         rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
+                 'lib/agentrc/skills/hil/scripts/hil_process.py',
                  'lib/agentrc/skills/hil/scripts/usb_observe.py',
                  'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
         for rel in rels:

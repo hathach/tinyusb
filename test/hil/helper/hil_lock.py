@@ -8,8 +8,8 @@ mechanics are agentrc's shared board-lock primitive, lib/agentrc at the commit
 tools/get_deps.py pins (`python3 tools/get_deps.py lib/agentrc`); this adapter
 is the module and CLI (hold/release/status) every caller uses, and adds
 `hold --all [--config CONFIG.json]` over tinyusb's roster. Imported, callers get the provider
-module itself (the loader registers it under this name), so a monkeypatched
-hil_lock.BOARD_LOCK_DIR reaches every function that reads it.
+module itself (this name is registered as it), so a monkeypatched hil_lock.BOARD_LOCK_DIR
+reaches every function that reads it.
 """
 import argparse
 import json
@@ -22,8 +22,10 @@ else:  # run as a script: helper/ is sys.path[0], unless -P or PYTHONSAFEPATH dr
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import agentrc
 
-# A __main__ run must not load the provider as __main__ too, or its own CLI would run.
-_lock = agentrc.load('skills/hil/scripts/hil_lock.py', 'hil_lock' if __name__ == '__main__' else __name__)
+# a __main__ run keeps this module, whose main() wraps the provider's CLI
+_lock = agentrc.load_file('skills/hil/scripts/hil_lock.py')
+if __name__ != '__main__':
+    sys.modules[__name__] = _lock
 
 
 def boards_from_config(config: str) -> list:

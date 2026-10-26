@@ -53,6 +53,10 @@ typedef struct {
   } capacity[CFG_TUH_MSC_MAXLUN];
 } msch_interface_t;
 
+// max_lun (and tuh_msc_get_maxlun()) are uint8_t, so the clamped LUN count must stay representable:
+// a value of 256 would cast back to 0 and report no LUNs at all.
+TU_VERIFY_STATIC(CFG_TUH_MSC_MAXLUN <= 255, "CFG_TUH_MSC_MAXLUN must fit in a uint8_t LUN count");
+
 typedef struct {
   TUH_EPBUF_TYPE_DEF(msc_cbw_t, cbw);
   TUH_EPBUF_TYPE_DEF(msc_csw_t, csw);
@@ -455,7 +459,9 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   // MAXLUN's response is minus 1 by specs, STALL means 1
   if (XFER_RESULT_SUCCESS == xfer->result) {
     uint8_t* enum_buf = usbh_get_enum_buf();
-    p_msc->max_lun = enum_buf[0] + 1;
+    // enum_buf[0] is device-controlled; clamp the LUN count to the capacity[] storage (and widen the
+    // +1) so it can't exceed CFG_TUH_MSC_MAXLUN in the per-LUN getters, nor wrap to 0 at 0xFF.
+    p_msc->max_lun = (uint8_t) tu_min32((uint32_t) enum_buf[0] + 1u, CFG_TUH_MSC_MAXLUN);
   } else {
     p_msc->max_lun = 1;
   }

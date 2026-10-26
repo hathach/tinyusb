@@ -2148,7 +2148,8 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE,);
 
       // Get full configuration descriptor
-      uint8_t const config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
+      uint8_t const config_idx = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0xFF);
       TU_LOG_USBH("Get Configuration[%u] Descriptor\r\n", config_idx);
       is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, total_len,
                                                          process_enumeration, ENUM_SET_CONFIG);
@@ -2156,12 +2157,30 @@ static void process_enumeration(tuh_xfer_t *xfer) {
     }
 
     case ENUM_SET_CONFIG: {
-      uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
+      uint8_t config_idx = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0xFF);
+
+      // Pointer to data from previous GET_DESCRIPTOR request. Allows us to get the bConfigurationValue used in SET_CONFIGURATION request.
+      tusb_desc_configuration_t const* desc_config =
+      (tusb_desc_configuration_t const*) _usbh_epbuf.ctrl;
+
+      // wTotalLength was only bounded on the 9-byte read, the device can report a larger value in the full descriptor
+      uint16_t const total_len = tu_le16toh(tu_unaligned_read16(_usbh_epbuf.ctrl + offsetof(tusb_desc_configuration_t, wTotalLength)));
+      if (!TUH_VALIDATE_BASIC(total_len <= tu_le16toh(xfer->setup->wLength))) {
+        TU_LOG_USBH("Configuration wTotalLength %u exceeds requested length\r\n", total_len);
+        is_enum_failed = true;
+        break;
+      }
+
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
-        is_enum_failed = !tuh_configuration_set(daddr, config_idx+1u, process_enumeration, ENUM_CONFIG_DRIVER);
+        is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, ENUM_CONFIG_DRIVER);
       } else {
         config_idx++;
-        TU_ASSERT(config_idx < dev->desc_device.bNumConfigurations,);
+        if (config_idx >= dev->desc_device.bNumConfigurations) {
+          TU_LOG_USBH("No acceptable configuration\r\n");
+          is_enum_failed = true;
+          break;
+        }
         TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
         is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
                                                            process_enumeration, ENUM_GET_FULL_CONFIG_DESC);
@@ -2291,6 +2310,7 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   usbh_device_t* dev = get_device(dev_addr);
+  TU_ASSERT(dev != NULL,);
 
   for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++) {
     // continue with next valid interface

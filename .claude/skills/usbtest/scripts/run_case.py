@@ -10,7 +10,8 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
-roster, it flashes through openocd_esp (only hil_test.py retains a lock its session needs), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
+roster, it flashes through openocd_esp (its ordinary, always-released lock cannot be kept through a session left
+running; use hil_test.py), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
 is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
 process is alive on this host, checked before and again after taking the lock. That check is
 host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
@@ -156,7 +157,7 @@ def resolve(config, board_name, variant):
     if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
             and isinstance(flasher.get('name'), str) and flasher['name']):
         raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
-    if why := hil_flash.retained_lock_only(board):
+    if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         raise Refused(f'{board_name}: {why}')
     try:
         names = [v['name'] for v in hil_report.board_variants(board)]

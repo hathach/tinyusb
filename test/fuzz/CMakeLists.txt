@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(tinyusb_fuzz C CXX)
 
 cmake_path(SET TOP NORMALIZE ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, msc_bot, net or net_ncm; empty for all")
+set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, msc_bot, net, net_ncm or usbh_enum; empty for all")
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "fuzz harnesses need clang: configure with CC=clang CXX=clang++")
@@ -139,4 +139,14 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net_ncm")
   target_include_directories(net_ncm PRIVATE ${DIR} ${TOP}/src)
   fuzz_target_common(net_ncm)
   fuzz_add_seed_test(net_ncm SEED ${DIR}/net_ncm_seed_corpus.zip)
+endif ()
+
+# Host configuration enumeration and control-transfer stages with a synthetic HCD.
+if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "usbh_enum")
+  set(DIR ${CMAKE_CURRENT_LIST_DIR}/host/usbh_enum)
+  add_executable(usbh_enum ${DIR}/fuzz.c ${DIR}/callbacks.c
+    ${TOP}/src/tusb.c ${TOP}/src/common/tusb_fifo.c)
+  target_include_directories(usbh_enum PRIVATE ${DIR} ${TOP}/src)
+  fuzz_target_common(usbh_enum)
+  fuzz_add_seed_test(usbh_enum SEED ${DIR}/usbh_enum_seed_corpus.zip)
 endif ()

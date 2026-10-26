@@ -14,6 +14,7 @@ mcu:SAMD11
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
 mcu:STM32L0
+mcu:APM32F103
 board:lpcxpresso11u37
 board:lpcxpresso1347
 family:broadcom_32bit

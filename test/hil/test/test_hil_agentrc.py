@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 # helper/agentrc.py, the one loader for agentrc's shared scripts, in a scratch tree: it refuses
 # with the fetch command and the pin in the last line a caller's traceback prints unless
-# lib/agentrc is at the pin and holds the file, and a module whose exec fails stays out of
-# sys.modules. Run directly:
+# lib/agentrc is at the pin and holds hil_load, the file and its FILES; it loads through
+# hil_load, one module per file whatever names load it, and a module whose exec fails stays
+# out of sys.modules. Run directly:
 #   python3 test/hil/test/test_hil_agentrc.py
 import os
 import shutil
@@ -31,9 +32,9 @@ class PinnedDependency(unittest.TestCase):
         self.pin = agentrc.PIN
 
     def provide(self, head, files=None):
-        """lib/agentrc with .git/HEAD at `head`; each file copied from the real checkout, or
-        written from its text."""
-        for rel, text in (files or {RTT_PY: None}).items():
+        """lib/agentrc with .git/HEAD at `head`; each file (hil_load and rtt.py by default)
+        copied from the real checkout, or written from its text."""
+        for rel, text in (files or {agentrc.HIL_LOAD: None, RTT_PY: None}).items():
             path = os.path.join(self.root, 'lib/agentrc', rel)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             if text is None:
@@ -70,8 +71,17 @@ class PinnedDependency(unittest.TestCase):
         self.provide(self.pin)
         self.assert_refused(self.load('skills/none/scripts/none.py'), 'skills/none/scripts/none.py')
 
+    def test_hil_load_missing_at_the_pin_refuses(self):
+        self.provide(self.pin, {RTT_PY: None})
+        self.assert_refused(self.load(), agentrc.HIL_LOAD)
+
+    def test_a_files_entry_missing_at_the_pin_refuses_naming_it(self):
+        self.provide(self.pin, {agentrc.HIL_LOAD: None,
+                                'needs.py': 'FILES = ("skills/hil/scripts/hil_load.py", "gone.py")\n'})
+        self.assert_refused(self.load('needs.py'), 'gone.py')
+
     def test_a_failed_exec_leaves_no_module_registered(self):
-        self.provide(self.pin, {'broken.py': 'raise RuntimeError("broken")\n'})
+        self.provide(self.pin, {agentrc.HIL_LOAD: None, 'broken.py': 'raise RuntimeError("broken")\n'})
         code = ('import sys; sys.path.insert(0, "test/hil"); from helper import agentrc\n'
                 'try:\n    agentrc.load("broken.py", "under_test")\n'
                 'except RuntimeError:\n    print("under_test" in sys.modules)\n')
@@ -83,6 +93,13 @@ class PinnedDependency(unittest.TestCase):
         r = self.load(then='; print(sys.modules["under_test"].RttError.__module__)')
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout, f'{os.path.join(self.root, "lib/agentrc", RTT_PY)}\nunder_test\n')
+
+    def test_every_name_of_a_file_is_one_module(self):
+        self.provide(self.pin)
+        r = self.load(then=f'; m = sys.modules["under_test"]; print(agentrc.load({RTT_PY!r}, "again") is m,'
+                           f' agentrc.load_file({RTT_PY!r}) is m, sys.modules["agentrc_rtt"] is m)')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines()[1], 'True True True')
 
 
 if __name__ == '__main__':

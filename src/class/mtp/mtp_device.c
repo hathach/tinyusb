@@ -81,6 +81,7 @@ typedef struct {
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
   bool cmd_waiting; // the saved command waits for a data IN abandoned on Cancel to retire
+  bool out_first;   // data OUT: the next packet starts with the container header
 
   uint32_t total_len;
   uint32_t xferred_len;
@@ -93,6 +94,10 @@ typedef struct {
 } mtpd_interface_t;
 
 TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE <= UINT16_MAX, "usbd_edpt_xfer() length is 16-bit");
+// A data OUT phase of unknown length ends on a short packet, seen as a read shorter than the
+// buffer: the buffer has to be a whole number of bulk packets.
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64) == 0,
+                 "CFG_TUD_MTP_EP_BUFSIZE must be a multiple of the bulk max packet size");
 
 typedef struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_MTP_EP_BUFSIZE);
@@ -281,6 +286,7 @@ bool tud_mtp_data_send(mtp_container_info_t *p_container) {
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase = MTP_PHASE_DATA;
+    p_mtp->out_first = false;
     p_mtp->xferred_len = 0;
     p_mtp->total_len   = p_container->header->len;
 
@@ -310,6 +316,7 @@ bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase       = MTP_PHASE_DATA;
+    p_mtp->out_first   = true;
     p_mtp->xferred_len = 0;
     p_mtp->total_len   = p_container->header->len;
   }
@@ -601,8 +608,11 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       cb_data.total_xferred_bytes = p_mtp->xferred_len;
 
       const bool is_data_in = (ep_addr == p_mtp->ep_in);
-      const bool is_first_out = !is_data_in && (p_mtp->xferred_len == xferred_bytes);
+      // a flag, not xferred_len == xferred_bytes: past 4 GiB of a ContainerLength 0xFFFFFFFF phase
+      // the 32-bit count wraps to 0
+      const bool is_first_out = !is_data_in && p_mtp->out_first;
       if (is_first_out) {
+        p_mtp->out_first = false;
         // the host's container header declares the data phase length; less than a header
         // (including a bare ZLP), or a container that is not this transaction's data block,
         // is a protocol error
@@ -631,6 +641,20 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (is_data_in) {
         // IN completion: short packet, ZLP, or reaching total_len
         is_complete = (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
+      } else if (p_mtp->total_len == UINT32_MAX) {
+        // ContainerLength 0xFFFFFFFF: the host did not fit the length in 32 bits (MTP 1.1 Appendix H),
+        // so the short packet or ZLP ends the phase. A header-only first packet is Appendix H's split
+        // header, not an empty phase (that declares a length of 12).
+        is_complete = (xferred_bytes < threshold) && !(is_first_out && xferred_bytes == sizeof(mtp_container_header_t));
+        if (is_complete) {
+          // the length is now known: the application stops re-arming once total_xferred_bytes reaches it
+          p_mtp->total_len = p_mtp->xferred_len;
+          if (is_first_out) {
+            p_container->header.len = p_mtp->xferred_len;
+          } else {
+            p_mtp->io_header.len = p_mtp->xferred_len;
+          }
+        }
       } else {
         // OUT completion: reaching total_len or ZLP only. A short packet does NOT end the phase
         // (an early short packet before total_len is the cancel case, not normal completion).
