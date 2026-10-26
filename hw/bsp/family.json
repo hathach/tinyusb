@@ -2454,8 +2454,7 @@
           "renesas/rusb2/rusb2_common.c"
         ],
         "roles": [
-          "device",
-          "host"
+          "device"
         ]
       }
     },
