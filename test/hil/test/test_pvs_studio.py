@@ -73,6 +73,16 @@ class Variant(unittest.TestCase):
         out = pvs.variant_entries({'example': 'device/cdc_msc'}, self.base())
         self.assertEqual([Path(e['file']).name for e in out], ['tusb.c', 'usbd.c'])
 
+    def test_example_from_output_relative_to_directory(self):
+        e = dict(entry(f'{SRC}/tusb.c'), directory='/b/cmake-build')
+        e['output'] = 'device/cdc_msc/CMakeFiles/x.dir/tusb.c.obj'
+        self.assertEqual(pvs.example_of(e), 'device/cdc_msc')
+
+    def test_example_from_relative_object_argument_without_output(self):
+        e = {'directory': '/b/cmake-build', 'file': f'{SRC}/tusb.c',
+             'arguments': ['/opt/gcc/bin/arm-none-eabi-gcc', '-o', 'host/cdc_msc_hid/CMakeFiles/x.dir/tusb.c.obj', '-c', 'x']}
+        self.assertEqual(pvs.example_of(e), 'host/cdc_msc_hid')
+
     def test_config_file_and_replaced_define(self):
         p = {'example': 'device/cdc_msc', 'config': 'test/pvs/x/tusb_config.h', 'defines': {'CFG_TUSB_MCU': 'OPT_MCU_NONE'}}
         args = pvs.variant_entries(p, self.base())[0]['arguments']

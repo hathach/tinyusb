@@ -119,7 +119,12 @@ def board_entries(name):
 
 def example_of(entry):
     """role/example a cmake entry's object belongs to, '' when it names none."""
-    m = re.search(r'/(device|host|dual|typec)/([^/]+)/CMakeFiles/', entry.get('output', '') or ' '.join(family_json.compile_tokens(entry)))
+    obj = entry.get('output')
+    if not obj:
+        tokens = family_json.compile_tokens(entry)
+        obj = next((tokens[i + 1] for i, tok in enumerate(tokens[:-1]) if tok == '-o'), '')
+    # older CMake writes the object path relative to `directory`
+    m = re.search(r'/(device|host|dual|typec)/([^/]+)/CMakeFiles/', os.path.join(entry['directory'], obj))
     return f'{m.group(1)}/{m.group(2)}' if m else ''
 
 
