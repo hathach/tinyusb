@@ -189,8 +189,8 @@ From USB 2.0 §8.5.5 (Calibre book 775, p. 229-230):
 
 ## Wrong profile
 
-Expect `Linux gadget zero` in dmesg at probe; otherwise verify the device is `0525:a4a0` and
-reflash an older `cafe:4010` build.
+Expect `Linux gadget zero` in dmesg at probe; otherwise check the device is `0525:a4a0`: one still
+reporting `cafe:4010` runs an older build, so reflash it with the current `examples/device/usbtest`.
 
 ## Traps that pass gcc and desk review
 
