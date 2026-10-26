@@ -19,7 +19,7 @@ another battery's load on this board's host controller does not matter for what 
 A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
---shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
+--shared --variants layout), waits for 0525:a4a0 with the board's serial, and runs usbtest.py
 with post-hang recovery when the board's recovery flasher can deliver it. --after park flashes
 device/board_test afterwards unless the device is wedged or the verdict is incomplete.
 
@@ -82,10 +82,10 @@ SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce onc
 PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
 HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus hil_usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
-# host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
-# (sysfs_write: 15 s tee + 5 s reap) and the 3 s bind. An estimate, not a bound: the battery
+# host-compat retries, setpci, modprobe, the pattern write (sysfs_write: 15 s tee + 5 s reap) and
+# the usbfs CONNECT child at its bound plus the reap. An estimate, not a bound: the battery
 # budget starts before it, so a slower start costs cases (reported BUDGET), not a kill.
-SETUP_S = 8 + 3 + 2 * HELPER_S + usbtest.REGISTER_LOCK_TIMEOUT + 2 * (15 + 5) + 3
+SETUP_S = 8 + 3 + 2 * HELPER_S + (15 + 5) + (usbtest.CONNECT_TIMEOUT + 5)
 # each case: its timeout, the 5 s post-kill reap, the dmesg read, and the find_device between cases
 CASE_EXTRA_S = 5 + HELPER_S + 5
 PROC = Path('/proc')
