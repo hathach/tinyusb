@@ -52,6 +52,13 @@ Make:
 make BOARD=raspberry_pi_pico all
 ```
 
+FreeRTOS: add `-DRTOS=freertos` (CMake) or `RTOS=freertos` (Make). ESP-IDF builds
+always use FreeRTOS (from the repository root, with ESP-IDF exported):
+
+```bash
+python3 tools/build.py -b espressif_s3_devkitm -e device/cdc_msc_throughput
+```
+
 ## Measuring throughput (Linux)
 
 The MSC disk appears as a raw block device (e.g. `/dev/sdX`); the CDC port as `/dev/ttyACMx`.

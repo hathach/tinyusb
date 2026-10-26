@@ -244,7 +244,7 @@ enum {
   TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1 << 6,
 };
 
-#define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
+#define TUSB_DESC_CONFIG_POWER_MA(x)  ((uint8_t)TU_MIN((x)/2, UINT8_MAX))
 
 // USB 2.0 Spec Table 9-7: Test Mode Selectors
 typedef enum {

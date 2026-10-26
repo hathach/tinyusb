@@ -51,4 +51,4 @@ make BOARD=raspberry_pi_pico all
 
 After flashing, open the landing page (`https://example.tinyusb.org/webusb-serial/index.html`) in a WebUSB-capable browser such as Chrome, click **Connect**, and select the device — the on-board LED lights solid once connected. Characters typed in the web page are echoed back, and are also mirrored to the CDC serial port (e.g. `/dev/ttyACM0`) and vice versa.
 
-On Linux/macOS you may need to install the udev rules from `examples/device/99-tinyusb.rules` for the browser to access the device.
+On Linux/macOS you may need to install the udev rules from `examples/device/99-tinyusb-examples.rules` for the browser to access the device.

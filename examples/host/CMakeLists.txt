@@ -7,6 +7,7 @@ family_initialize_project(tinyusb_host_examples ${CMAKE_CURRENT_LIST_DIR})
 
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
 set(EXAMPLE_LIST
+  audio_host
   bare_api
   cdc_msc_hid
   cdc_msc_hid_freertos

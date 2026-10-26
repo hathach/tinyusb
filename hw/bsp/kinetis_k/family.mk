@@ -17,8 +17,8 @@ LDFLAGS += \
   --specs=nosys.specs --specs=nano.specs \
 
 SRC_C += \
-	src/portable/nxp/khci/dcd_khci.c \
-	src/portable/nxp/khci/hcd_khci.c \
+	src/portable/chipidea/ci_fs/dcd_ci_fs.c \
+	src/portable/chipidea/ci_fs/hcd_ci_fs.c \
 	$(MCU_DIR)/system_${MCU_VARIANT}.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(SDK_DIR)/drivers/gpio/fsl_gpio.c \

@@ -1,0 +1,20 @@
+/* RA8M1 pin trace: CSTF funnel and TMC are off the core ROM table (AP1) -
+ * declare them or trace init cannot route the M85 ETM stream (addresses per
+ * SEGGER's RA8 trace example script). Pins + TRCKCR belong to firmware
+ * (trace_etm_init): the SEGGER pex also muxed them at trace start, and its
+ * clock choice fought the firmware's mid-run = decoder desync.
+ */
+int ConfigTargetSettings(void) {
+  JLINK_ExecCommand("CORESIGHT_SetCSTFBaseAddr = 0x80013000 ForceUnlock = 1 APIndex = 1");
+  JLINK_ExecCommand("CORESIGHT_SetTMCBaseAddr = 0x80014000 ForceUnlock = 1 APIndex = 1");
+  return 0;
+}
+
+/* Replace J-Link's built-in RA8 trace start, which enables the trace clock
+ * from reset - bsp_clock_init's MOCO -> 480 MHz PLL switch would then step
+ * TRCLK mid-stream and desync the decoder. The firmware's trace_etm_init
+ * enables TRCKCR at the final clock instead.
+ */
+int OnTraceStart(void) {
+  return 0;
+}

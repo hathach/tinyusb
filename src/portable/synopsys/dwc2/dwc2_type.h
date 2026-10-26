@@ -967,6 +967,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DCTL_POPRGDNE_Pos                (11U)
 #define DCTL_POPRGDNE_Msk                (0x1UL << DCTL_POPRGDNE_Pos)             // 0x00000800
 #define DCTL_POPRGDNE                    DCTL_POPRGDNE_Msk                        // Power-on programming done
+#define DCTL_IGNRFRMNUM_Pos              (15U)
+#define DCTL_IGNRFRMNUM_Msk              (0x1UL << DCTL_IGNRFRMNUM_Pos)           // 0x00008000
+#define DCTL_IGNRFRMNUM                  DCTL_IGNRFRMNUM_Msk                      // Ignore frame number (PTI in Buffer DMA)
 
 /********************  Bit definition for HFIR register  ********************/
 #define HFIR_FRIVL_Pos                   (0U)

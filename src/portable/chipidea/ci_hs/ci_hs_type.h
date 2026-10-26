@@ -29,6 +29,14 @@ enum {
   USBCMD_INTR_THRESHOLD_MASK = 0x00FF0000u, // Interrupt Threshold bit 23:16
 };
 
+// DEVICEADDR
+#define DEVICEADDR_USBADR_POS 25
+
+enum {
+  DEVICEADDR_USBADRA     = TU_BIT(24),  ///< Device Address Advance: stage USBADR until the next EP0 IN is ACKed
+  DEVICEADDR_USBADR_MASK = 0xFE000000u, ///< Device Address bit 31:25
+};
+
 // PORTSC1
 #define PORTSC1_PORT_SPEED_POS    26
 
@@ -36,8 +44,16 @@ enum {
   PORTSC1_CURRENT_CONNECT_STATUS = TU_BIT(0),
   PORTSC1_FORCE_PORT_RESUME      = TU_BIT(6),
   PORTSC1_SUSPEND                = TU_BIT(7),
+  PORTSC1_PORT_RESET             = TU_BIT(8), // read-only in device mode: a reset is being driven
   PORTSC1_FORCE_FULL_SPEED       = TU_BIT(24),
   PORTSC1_PORT_SPEED             = TU_BIT(26) | TU_BIT(27)
+};
+
+// PORTSC1 PSPD field values, once shifted down by PORTSC1_PORT_SPEED_POS. 3 is undefined.
+enum {
+  PORTSC1_PORT_SPEED_FULL = 0,
+  PORTSC1_PORT_SPEED_LOW  = 1,
+  PORTSC1_PORT_SPEED_HIGH = 2,
 };
 
 // OTGSC
@@ -71,11 +87,18 @@ enum {
   USBMODE_VBUS_POWER_SELECT = TU_BIT(5), // Need to be enabled for LPC18XX/43XX in host mode
 };
 
+// SBUSCFG
+enum {
+  SBUSCFG_AHBBRST_INCR16_UNSPEC = 7, // INCR16 burst, remainder as unspecified-length bursts
+};
+
 // Device Registers
 typedef struct
 {
   //------------- ID + HW Parameter Registers-------------//
-  volatile uint32_t TU_RESERVED[64]; ///< For iMX RT10xx, but not used by LPC18XX/LPC43XX
+  volatile uint32_t TU_RESERVED[36]; ///< ID/HW parameter registers, not used by this driver
+  volatile uint32_t SBUSCFG;         ///< System Bus Interface Configuration (not present on every MCU)
+  volatile uint32_t TU_RESERVED[27];
 
   //------------- Capability Registers-------------//
   volatile uint8_t  CAPLENGTH;       ///< Capability Registers Length

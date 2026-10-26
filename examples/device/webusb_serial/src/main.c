@@ -39,7 +39,7 @@
  * is done automatically by firmware.
  *
  * - On Linux/macOS, udev permission may need to be updated by
- *   - copying '/examples/device/99-tinyusb.rules' file to /etc/udev/rules.d/ then
+ *   - copying 'examples/device/99-tinyusb-examples.rules' file to /etc/udev/rules.d/ then
  *   - run 'sudo udevadm control --reload-rules && sudo udevadm trigger'
  */
 

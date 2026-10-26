@@ -36,6 +36,9 @@ static const ci_hs_controller_t _ci_controller[] =
 
 #define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
+// NXP recommends AHBBRST = INCR16 (remainder as unspecified-length bursts)
+#define CI_HS_SET_AHB_BURST(_p)  (CI_HS_REG(_p)->SBUSCFG = SBUSCFG_AHBBRST_INCR16_UNSPEC)
+
 //------------- DCD -------------//
 #define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
 #define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)

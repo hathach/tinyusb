@@ -29,6 +29,7 @@
 */
 
 #include "stdio.h"
+#include <string.h>
 
 // https://github.com/openwch/ch32v307/pull/90
 // https://github.com/openwch/ch32v20x/pull/12
@@ -55,10 +56,19 @@
 
 // TODO maybe having FS as port0, HS as port1
 
-__attribute__((interrupt)) void USBHS_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_USBHS
-  tud_int_handler(0);
-  #endif
+// The startup enables QingKe hardware context stacking. Avoid duplicating its
+// register saves in software: closely spaced ISO transactions need a short IRQ entry.
+#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+// Keep the assembly call visible to LTO, as in the CH32V20x USB interrupt wrappers.
+TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = dcd_int_handler;
+#endif
+
+__attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
+#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+  __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret");
+#else
+  __asm volatile("mret");
+#endif
 }
 
 __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
@@ -164,6 +174,14 @@ uint32_t board_button_read(void) {
 #else
   return false;
 #endif
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  volatile uint32_t* ch32_uuid = ((volatile uint32_t*) 0x1FFFF7E8UL); // ESIG unique ID
+  uint32_t uid[3] = { ch32_uuid[0], ch32_uuid[1], ch32_uuid[2] };
+  const size_t len = max_len < sizeof(uid) ? max_len : sizeof(uid);
+  memcpy(id, uid, len); // byte copy: id[] need not be 4-byte aligned
+  return len;
 }
 
 int board_uart_read(uint8_t* buf, int len) {

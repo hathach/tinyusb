@@ -29,7 +29,7 @@
 #include "usb_descriptors.h"
 
 #define USB_VID   0xCafe
-#define USB_PID   0x4005
+#define USB_PID   0x4019
 #define USB_BCD   0x0200
 
 //--------------------------------------------------------------------+
@@ -67,7 +67,15 @@ uint8_t const *tud_descriptor_device_cb(void) {
 //--------------------------------------------------------------------+
 
 // Endpoint numbers
-#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x82
+  #define EPNUM_PRINTER_OUT 0x05
+  #define EPNUM_PRINTER_IN  0x85
+#elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
     // Put bulk on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
     #define EPNUM_CDC_NOTIF   0x81

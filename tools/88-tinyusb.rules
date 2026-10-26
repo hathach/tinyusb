@@ -1,0 +1,93 @@
+# Copy this file to the location of your distribution's udev rules:
+# Then reload udev configuration by executing:
+#   sudo cp 88-tinyusb.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Check SUBSYSTEM
+SUBSYSTEMS=="hidraw", KERNEL=="hidraw*", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="usbmon", MODE="0640", GROUP="wireshark"
+
+# Rule applies to all TinyUSB example
+ATTRS{idVendor}=="cafe", MODE="0666", GROUP="dialout"
+
+# Rule to make Trinket/Pro Trinket/Gemma/Flora programmable without running Arduino as root.
+# Tested with Ubuntu 14.04 and 12.04.  Other distributions might need to update GROUP="dialout"
+# to another group value like "users".
+SUBSYSTEM=="usb", ATTRS{idProduct}=="0c9f", ATTRS{idVendor}=="1781", MODE="0660", GROUP="dialout"
+
+# Rule to blacklist Adafruit USB CDC boards from being manipulated by ModemManager.
+# Fixes issue with hanging references to /dev/ttyACM* devices on Ubuntu 15.04.
+ATTRS{idVendor}=="239a", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# All Adafruit boards
+ATTRS{idVendor}=="239a", MODE="0660", GROUP="adm"
+
+# All Espressif boards
+ATTRS{idVendor}=="303a", MODE="0660", GROUP="adm"
+
+# All RaspberryPi boards
+ATTRS{idVendor}=="2e8a", MODE="0660", GROUP="adm"
+
+# All NXP Boards
+ATTRS{idVendor}=="1fc9", MODE="0660", GROUP="adm"
+
+# All ST
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0483", GROUP="adm"
+
+# Rule to blacklist TinyUSB example from being manipulated by ModemManager.
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="cafe", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Xplained Pro SamG55 Device
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2111", MODE="0666", GROUP="users", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEMS=="tty", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2111", MODE="0666", GROUP="users", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# TI Stellaris/Tiva-C Launchpad ICDI
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1cbe", ATTRS{idProduct}=="00fd", MODE="0666"
+
+# CMSIS-DAP, vendor = ARM
+SUBSYSTEM=="usb", ATTR{idVendor}=="0d28", MODE="0666"
+
+# wch-link
+SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8010", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="4348", ATTR{idProduct}=="55e0", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1a86", ATTR{idProduct}=="8012", GROUP="plugdev"
+
+# Pxlogic
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2a0e", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", MODE="0666"
+
+# Arduino Renesas
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="2341", MODE="0666"
+
+# E2/E2 Lite/E1/E20/IE850A emulator
+ATTR{idProduct}=="82a1", ATTR{idVendor}=="045b", MODE="0666"
+ATTR{idProduct}=="82a0", ATTR{idVendor}=="045b", MODE="0666"
+ATTR{idProduct}=="823b", ATTR{idVendor}=="045b", MODE="0666"
+ATTR{idProduct}=="823c", ATTR{idVendor}=="045b", MODE="0666"
+ATTR{idProduct}=="0250", ATTR{idVendor}=="045b", MODE="0666"
+# Prevent E2/E2Lite/E1/E20/IE850A from being captured by modem manager service as E2/E2 Lite/E1/E20/IE850A is not a modem
+ATTR{idProduct}=="82a1", ATTR{idVendor}=="045b", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTR{idProduct}=="82a0", ATTR{idVendor}=="045b", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTR{idProduct}=="823b", ATTR{idVendor}=="045b", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTR{idProduct}=="823c", ATTR{idVendor}=="045b", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTR{idProduct}=="0250", ATTR{idVendor}=="045b", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+#TI MSP430UIF
+ATTRS{idVendor}=="2047",ATTRS{idProduct}=="0010",MODE="0666"
+ATTRS{idVendor}=="2047",ATTRS{idProduct}=="0013",MODE="0666"
+ATTRS{idVendor}=="2047",ATTRS{idProduct}=="0014",MODE="0666"
+ATTRS{idVendor}=="2047",ATTRS{idProduct}=="0203",MODE="0666"
+ATTRS{idVendor}=="2047",ATTRS{idProduct}=="0204",MODE="0666"
+ATTRS{idVendor}=="0451",ATTRS{idProduct}=="f432",MODE="0666"
+
+# fomu
+ATTRS{idVendor}=="1209",ATTRS{idProduct}=="5bf0",MODE="0666"
+
+# FTDI
+ATTRS{idVendor}=="0403", MODE="0660", GROUP="adm"
+
+# Sipeed Slogic16
+SUBSYSTEM=="usb", ATTRS{idVendor}=="359f", MODE="0666", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# ataradov usb-sniffer (github.com/ataradov/usb-sniffer): programmed unit + blank FX2LP
+ATTRS{idVendor}=="6666", ATTRS{idProduct}=="6620", MODE="0666"
+ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="8613", MODE="0666"

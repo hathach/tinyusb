@@ -3,20 +3,24 @@ mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
 mcu:CH583
+mcu:CH32X035
 mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103
 mcu:MCXA15
-mcu:MKL25ZXX
 mcu:MSP430x5xx
 mcu:FT90X
 mcu:SAMD11
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
 mcu:STM32L0
+mcu:APM32F103
 board:lpcxpresso11u37
 board:lpcxpresso1347
 family:broadcom_32bit
 family:broadcom_64bit
 family:nuc121_125
 family:hpmicro
+# same7x has no FreeRTOSConfig.h wired up in the tree (hw/bsp/same7x/FreeRTOSConfig/
+# does not exist): fatal error: FreeRTOSConfig.h: No such file or directory
+family:same7x

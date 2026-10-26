@@ -20,11 +20,11 @@ on:
         required: false
         default: ''
         type: string
-      upload-artifacts:
+      example-map:
         required: false
-        default: false
-        type: boolean
-      upload-metrics:
+        default: ''
+        type: string
+      upload-artifacts:
         required: false
         default: false
         type: boolean
@@ -32,13 +32,24 @@ on:
         required: false
         default: false
         type: boolean
-      code-changed:
-        required: false
-        default: true
-        type: boolean
 
 jobs:
   family:
+    # PR-scoped HIL selection can produce an empty build-args list for a toolchain
+    # (e.g. a dwc2-only change with no riscv boards affected); an empty matrix
+    # vector fails the job outright ("Matrix vector 'arg' does not contain any
+    # values"), so skip cleanly instead.
+    #
+    # Why that is safe for callers: GitHub SKIPS the dependents of a skipped
+    # `needs:` job, so this only works because the caller (hil-build) is itself a
+    # *matrix* job - a matrix with one skipped leg and one successful leg
+    # aggregates to success, and its dependents run.
+    #
+    # NOT covered: if every leg is empty the whole caller job skips, and so does
+    # everything that needs it. That is fine only because an all-empty selection
+    # means no board was selected for those rigs, so the rig jobs would have had
+    # nothing to run anyway (see the invariant on hil-build in build.yml).
+    if: inputs.build-args != '[]'
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
@@ -61,45 +72,134 @@ jobs:
         with:
           arg: ${{ matrix.arg }}
 
+      - name: Resolve PR example filter
+        if: inputs.example-map != '' && inputs.example-map != '{}'
+        env:
+          # values are PR-derived - keep them out of ${{ }} script interpolation
+          # (env expansion word-splits but never re-parses shell metacharacters)
+          EXAMPLE_MAP: ${{ inputs.example-map }}
+          FAMILY: ${{ matrix.arg }}
+        run: |
+          # -e flags for this family; a family absent from the map builds everything
+          EX_ARGS=$(printf '%s' "$EXAMPLE_MAP" | jq -r --arg fam "$FAMILY" '(.[$fam] // []) | map("-e " + .) | join(" ")') || EX_ARGS=''
+          # the map's values are example dir names from the PR checkout, and `jq -r`
+          # un-escapes them: a path with a newline (git allows it) would otherwise write
+          # extra NAME=VALUE lines into GITHUB_ENV for every later step of this job.
+          # Anything outside the example-name alphabet drops the filter (= build all),
+          # which is the safe direction.
+          case "$EX_ARGS" in
+            *[!-A-Za-z0-9_/\ ]*)
+              echo "::warning::unexpected characters in the example filter - building all examples"
+              EX_ARGS='' ;;
+          esac
+          echo "EX_ARGS=$EX_ARGS"
+          echo "EX_ARGS=$EX_ARGS" >> $GITHUB_ENV
+
       - name: Build
-        if: ${{ inputs.code-changed }}
+        id: build
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }}
+            # --target all never builds the *-membrowse/*-membrowse-upload custom
+            # targets (they are not part of CMake's default `all`, and family_add_membrowse
+            # only declares them at configure time) - membrowse itself never runs in this
+            # step, so it does not need installing here.
+            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb bash -c "python tools/build.py ${{ inputs.build-options }} --target all ${{ matrix.arg }} $EX_ARGS"
           else
             BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
-            if [ "${{ inputs.upload-metrics }}" = "true" ]; then
-              BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
-            fi
-            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }}
+            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }} $EX_ARGS
           fi
         shell: bash
 
+      - name: Code size snapshot
+        id: code-size
+        # measurement only: it also runs after a failed Build and records that in the
+        # snapshot, and a sizing failure never fails the leg. Before the membrowse upload,
+        # so a membrowse service error cannot cost the local measurement.
+        if: ${{ !cancelled() && inputs.upload-membrowse }}
+        continue-on-error: true
+        env:
+          ARG: ${{ matrix.arg }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          TOOLCHAIN: ${{ inputs.toolchain }}
+        run: |
+          # the engine is agentrc's at the pin; the ESP-IDF container sees it through the mount
+          python tools/get_deps.py lib/agentrc
+          if [ "$TOOLCHAIN" != esp-idf ]; then
+            python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS
+            exit
+          fi
+          # in the build's image: membrowse reads the /project link commands and linker scripts.
+          # The command is constant (PR-derived values arrive as env), and the container's root
+          # does not own the runner's checkout, which git refuses without safe.directory.
+          docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME -v "$PWD:/project" -w /project \
+            espressif/idf:tinyusb bash -c 'git config --global --add safe.directory /project &&
+              pip install --only-binary :all: membrowse==1.2.12 >/dev/null &&
+              python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS'
+        shell: bash
+
       - name: Membrowse Upload
-        if: inputs.toolchain != 'esp-idf' && inputs.upload-membrowse == true
+        # after a failed Build too: its unbuilt examples still go --identical, and
+        # --expect-built fails the ones it should have built instead (never identical)
+        if: ${{ !cancelled() && inputs.upload-membrowse }}
         continue-on-error: true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          ARG: ${{ matrix.arg }}
         run: |
-          # if code-changed is false --> there is no elf -> membrowse target upload with --identical flag
+          # --ci-pinned-boards-only: families without a CI board were built as compile
+          # smoke-checks only and must not upload. -e (in $EX_ARGS or $ARG) only picks
+          # the board there (see resolve_ci_boards()); every example of it uploads,
+          # the unbuilt ones --identical.
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
+          CMD="python tools/build.py $BUILD_PY_ARGS --ci-pinned-boards-only --target examples-membrowse-upload --expect-built -j 1 $ARG $EX_ARGS"
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            # docker run only inherits what -e names explicitly (a GHA container gets
+            # none of the runner's env by default): membrowse's --github metadata
+            # detection (GITHUB_EVENT_NAME/GITHUB_SHA/...) and its fork-PR tokenless
+            # auth need these to see the actual event, and GITHUB_SHA to report the
+            # right commit. GITHUB_EVENT_PATH points outside the $PWD mount, so mount
+            # it too (read-only); guard it since local/non-Actions runs leave it unset.
+            DOCKER_ENV=(-e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -e CI="$CI"
+                        -e GITHUB_ACTIONS="$GITHUB_ACTIONS" -e GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME"
+                        -e GITHUB_SHA="$GITHUB_SHA" -e GITHUB_REF_NAME="$GITHUB_REF_NAME"
+                        -e GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH")
+            DOCKER_MOUNTS=(-v $PWD:/project)
+            [ -n "$GITHUB_EVENT_PATH" ] && DOCKER_MOUNTS+=(-v "$GITHUB_EVENT_PATH:$GITHUB_EVENT_PATH:ro")
+            docker run --rm "${DOCKER_ENV[@]}" "${DOCKER_MOUNTS[@]}" -w /project espressif/idf:tinyusb bash -c "pip install --only-binary :all: membrowse==1.2.12 >/dev/null && $CMD"
+          else
+            $CMD
+          fi
         shell: bash
 
-      - name: Upload Artifacts for Metrics
-        if: inputs.upload-metrics == true && inputs.code-changed == true
-        uses: actions/upload-artifact@v7
-        with:
-          name: metrics-${{ matrix.arg }}
-          path: cmake-build/cmake-build-*/metrics.json
+      - name: Artifact name
+        if: ${{ !cancelled() && (inputs.upload-artifacts || steps.code-size.outcome == 'success' || steps.code-size.outcome == 'failure') }}
+        env:
+          ARG: ${{ matrix.arg }}
+        run: |
+          # -e example filters carry '/', which upload-artifact forbids in artifact
+          # names; strip them from the NAME only (the build already consumed them).
+          # Names without -e stay byte-identical to before. Two entries differing
+          # only in their -e list cannot exist - the -e list is a function of
+          # (board), and variant suffixes (--build-name/-D/--cflag) survive the
+          # strip - so the stripped name is still unique per matrix entry.
+          TAG=$(printf '%s' "$ARG" | sed -E 's/ -e [^ ]+//g')
+          # board and example names come from the roster, which a PR can edit; a newline
+          # in one would write extra NAME=VALUE lines into GITHUB_ENV for every later
+          # step. There is no safe fallback name here - a wrong one mislabels the
+          # firmware the rig then flashes - so refuse instead.
+          case "$TAG" in
+            *[!-A-Za-z0-9_/\ .=+]*)
+              echo "::error::refusing to build an artifact name from '$ARG'"; exit 1 ;;
+          esac
+          echo "ARTIFACT_TAG=$TAG" >> $GITHUB_ENV
 
       - name: Upload Artifacts for Hardware Testing
-        if: inputs.upload-artifacts == true && inputs.code-changed == true
+        if: inputs.upload-artifacts == true
         uses: actions/upload-artifact@v7
         with:
-          name: binaries-${{ matrix.arg }}
+          name: binaries-${{ inputs.toolchain }}-${{ env.ARTIFACT_TAG }}
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin
@@ -109,3 +209,15 @@ jobs:
             cmake-build/cmake-build-*/*/*/config.env
             cmake-build/cmake-build-*/*/*/flash_args
             cmake-build/hw/mcu/**/*.ld
+
+      - name: Upload code size snapshot
+        if: ${{ !cancelled() && (steps.code-size.outcome == 'success' || steps.code-size.outcome == 'failure') }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          # the toolchain too: the same family could be a leg of two toolchains
+          name: code-size-${{ inputs.toolchain }}-${{ env.ARTIFACT_TAG }}
+          path: code-size/*.json
+          # master's snapshots are the baselines PRs compare against
+          retention-days: ${{ github.event_name == 'push' && 90 || 14 }}
+          if-no-files-found: ignore

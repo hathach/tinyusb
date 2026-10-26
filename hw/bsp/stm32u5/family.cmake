@@ -68,15 +68,23 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-    ${TOP}/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c
-    ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
-    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
-    ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
-    ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
+  # U535/U545 carry the USB FS dual-role IP, every other U5 OTG: the split tusb_mcu.h makes
+  if (MCU_VARIANT MATCHES "^stm32u5[34]5")
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+      ${TOP}/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c
+      ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
+      )
+  else ()
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+      ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
+      ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
+      )
+  endif ()
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../

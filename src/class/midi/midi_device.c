@@ -534,6 +534,8 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
     if (result == XFER_RESULT_SUCCESS) {
       tu_edpt_stream_read_xfer_complete(ep_st_rx, xferred_bytes);
       tud_midi_rx_cb(idx);                      // invoke callback
+    } else {
+      tu_edpt_stream_read_xfer_complete(ep_st_rx, 0); // release ep_buf for the re-arm below
     }
     tu_edpt_stream_read_xfer(ep_st_rx);         // prepare for next data
   } else if (ep_addr == ep_st_tx->ep_addr && result == XFER_RESULT_SUCCESS) {

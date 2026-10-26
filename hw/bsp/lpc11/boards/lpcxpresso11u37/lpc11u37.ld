@@ -172,6 +172,22 @@ SECTIONS
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc8
+    /* Main (MSP/ISR) stack lives at the top of the USB SRAM bank: the 8K main bank is packed so
+       tight that only ~280 B remained above .bss, and ISR frames overflowed into the topmost task
+       stack (cdc_msc_freertos hard fault). Nothing else is placed in this bank in either build
+       system, so the stack owns all 2 KB; the ASSERT is future-proofing in case USB buffers are
+       ever mapped here again.
+
+       This bank is clocked by SYSAHBCLKCTRL[27] (USBRAM enable), and the stack is used from the
+       first instruction of the reset handler - long before any TinyUSB or BSP code could turn a
+       clock on. It works because the boot ROM hands over with that bit already set. Anything that
+       gates the USB RAM clock to save power will hard fault at reset, not at USB init. */
+    __user_stack_top = ORIGIN(RamUsb2) + LENGTH(RamUsb2);
+    /* Stated as an addition, not a subtraction: ld arithmetic is unsigned, so an overflowing
+       bank would underflow the difference into a huge positive value and pass silently. */
+    ASSERT(ADDR(.noinit_RAM2) + SIZEOF(.noinit_RAM2) + 0x200 <= __user_stack_top,
+           "main stack headroom in RamUsb2 below 512 bytes")
+
     PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc8 - 0);
 

@@ -33,6 +33,11 @@ void fsdev_core_reset(void) {
 
   // Clear pending interrupts
   FSDEV_REG->ISTR = 0;
+
+  #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
+  // Enable larger PMA area
+  CRM->misc1_bit.usbbufs = 1;
+  #endif
 }
 
 // De-initialize the USB Core

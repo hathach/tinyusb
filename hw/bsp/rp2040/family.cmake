@@ -28,6 +28,8 @@ elseif (PICO_PLATFORM STREQUAL "rp2350-arm-s" OR PICO_PLATFORM STREQUAL "rp2350"
 	set(OPENOCD_TARGET rp2350)
 elseif (PICO_PLATFORM STREQUAL "rp2350-riscv")
 	set(JLINK_DEVICE rp2350_riscv_0)
+	# rp2350-riscv.cfg needs the raspberrypi/openocd fork: mainline's riscv
+	# target does not take the -dap/-ap-num the config uses
 	set(OPENOCD_TARGET rp2350-riscv)
 endif()
 
@@ -120,11 +122,11 @@ target_sources(tinyusb_host_base INTERFACE
 		${TOP}/src/host/usbh.c
 		${TOP}/src/host/hub.c
 		${TOP}/src/class/cdc/cdc_host.c
+		${TOP}/src/class/audio/audio_host.c
 		${TOP}/src/class/hid/hid_host.c
 		${TOP}/src/class/midi/midi_host.c
 		${TOP}/src/class/midi/midi2_host.c
 		${TOP}/src/class/msc/msc_host.c
-		${TOP}/src/class/vendor/vendor_host.c
 		)
 
 # Sometimes have to do host specific actions in mostly common functions

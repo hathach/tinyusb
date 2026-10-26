@@ -52,7 +52,7 @@ INC += \
 
 LD_FILE ?= $(FAMILY_PATH)/linker/ch582.ld
 
-OPENOCD_WCH_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
+OPENOCD_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
 flash: flash-openocd-wch
 
 # For freeRTOS port source

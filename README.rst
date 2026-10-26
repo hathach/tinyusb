@@ -1,7 +1,7 @@
 TinyUSB
 =======
 
-|Sponsor| |Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
+|Sponsor| |License| |Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |CodeRabbit| |Greptile|
 
 Overview
 --------
@@ -60,7 +60,7 @@ Supporters (Word)
 
 .. WORD-SUPPORTERS-START
 
-*No supporters yet — be the first!*
+cee\*\*\*\*
 
 .. WORD-SUPPORTERS-END
 
@@ -69,7 +69,7 @@ Thanks (Byte)
 
 .. BYTE-THANKS-START
 
-*No names listed yet — be the first!*
+`@8086net <https://github.com/8086net>`__, `@GCRev <https://github.com/GCRev>`__
 
 .. BYTE-THANKS-END
 
@@ -184,7 +184,7 @@ Supported CPUs
 |              | MAX32 650, 666, 690,        | ✅     |      | ✅        | musb                   | 1-dir ep           |
 |              | MAX78002                    |        |      |           |                        |                    |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
-| Artery AT32  | F403a_407, F413             | ✅     |      |           | stm32_fsdev            | 512 USB RAM        |
+| Artery AT32  | F403a_407, F413             | ✅     |      |           | stm32_fsdev            | 768 USB RAM        |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | F415, F435_437, F423,       | ✅     | ✅   |           | dwc2                   |                    |
 |              | F425, F45x                  |        |      |           |                        |                    |
@@ -202,6 +202,12 @@ Supported CPUs
 |              | P4                          | ✅     | ✅   | ✅        | dwc2                   |                    |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | S31                         | ✅     | ✅   | ✅        | dwc2                   |                    |
++--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
+| Geehy APM32  | F072                        | ✅     |      | ❌        | stm32_fsdev            | 1KB USB RAM        |
+|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
+|              | F103                        | ✅     |      | ❌        | stm32_fsdev            | 512 USB RAM        |
+|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
+|              | F107                        | ✅     | ✅   | ❌        | dwc2                   |                    |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 | GigaDevice   | GD32VF103                   | ✅     |      | ❌        | dwc2                   |                    |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
@@ -237,11 +243,9 @@ Supported CPUs
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | NUC505                      | ✅     |      | ✅        | nuc505                 |                    |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+--------------------+
-| NXP          | iMXRT   | RT 10xx, 11xx     | ✅     | ✅   | ✅        | ci_hs, ehci            |                    |
+| NXP          | iMXRT   | RT 10xx, 11xx     | ✅     | ✅   | ✅        | ci_hs, ehci            | ERR050101 [4]_     |
 |              +---------+-------------------+--------+------+-----------+------------------------+--------------------+
-|              | Kinetis | KL                | ✅     | 🟡   | ❌        | ci_fs, khci            |                    |
-|              |         +-------------------+--------+------+-----------+------------------------+--------------------+
-|              |         | K32L2             | ✅     |      | ❌        | khci                   | ci_fs variant      |
+|              | Kinetis | KL, K32L          | ✅     | 🟡   | ❌        | ci_fs                  |                    |
 |              +---------+-------------------+--------+------+-----------+------------------------+--------------------+
 |              | LPC     | 11u, 13, 15       | ✅     | ❌   | ❌        | lpc_ip3511             |                    |
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
@@ -253,13 +257,15 @@ Supported CPUs
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
 |              |         | 54                | 🟡     | 🟡   | ✅        | lpc_ip3511, lpc_ip3516 | NRND [1]_          |
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
-|              |         | 55                | ✅     | ✅   | ✅        | lpc_ip3511, lpc_ip3516 |                    |
+|              |         | 55                | ✅     | ✅   | ✅        | lpc_ip3511, lpc_ip3516 | USB.3/USB.5 [5]_   |
 |              +---------+-------------------+--------+------+-----------+------------------------+--------------------+
 |              | MCX     | N9                | ✅     |      | ✅        | ci_fs, ci_hs, ehci     |                    |
 |              |         +-------------------+--------+------+-----------+------------------------+--------------------+
 |              |         | A15               | ✅     |      |           | ci_fs                  |                    |
 |              +---------+-------------------+--------+------+-----------+------------------------+--------------------+
 |              | RW61x                       | ✅     | ✅   | ✅        | ci_hs, ehci            |                    |
++--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
+| Puya         | PY32F071, PY32F072          | ✅     | ❌   | ❌        | musb                   | 1-dir ep [6]_      |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 | Raspberry Pi | RP2040, RP2350              | ✅     | ✅   | ❌        | rp2040, pio_usb        |                    |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+--------------------+
@@ -305,13 +311,15 @@ Supported CPUs
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 | ValentyUSB   | eptri                       | ✅     | ❌   | ❌        | eptri                  |                    |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
-| WCH          | CH32F20x                    | 🟡     |      | ✅        | ch32_usbhs             | ISO data loss [2]_ |
+| WCH          | CH32F20x                    | 🟡     |      | ✅        | ch32_usbhs             | ISO/INT [2]_ [3]_  |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | CH32V20x                    | 🟡     |      | ❌        | stm32_fsdev/ch32_usbfs | ISO data loss [2]_ |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
-|              | CH32V305, CH32V307          | 🟡     |      | ✅        | ch32_usbfs/hs          | ISO data loss [2]_ |
+|              | CH32V305, CH32V307          | 🟡     |      | ✅        | ch32_usbfs/hs          | ISO/INT [2]_ [3]_  |
 |              +-----------------------------+--------+------+-----------+------------------------+--------------------+
 |              | CH583/2, CH32V103           | 🟡     |      | ❌        | ch32_usbfs             | ISO data loss [2]_ |
+|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
+|              | CH32X033, CH32X035          | 🟡     |      | ❌        | ch32_usbfs             | ISO data loss [2]_ |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 
 Table Legend
@@ -325,7 +333,11 @@ Table Legend
 ========= =========================
 
 .. [1] NRND (Not Recommended for New Design), see `NXP LPC54600 issues <docs/reference/device_issues.rst#nxp-lpc54600>`_
-.. [2] ISO data loss, see `WCH CH32F20x/CH32V20x/CH32V30x issues <docs/reference/device_issues.rst#wch-ch32f20x-ch32v20x-ch32v30x>`_
+.. [2] ISO data loss, see `WCH isochronous transfer status overwritten <docs/reference/device_issues.rst#wch-iso-status-overwrite>`_
+.. [3] Interrupt endpoint starvation on USBHS, see `WCH USBHS interrupt endpoint starvation <docs/reference/device_issues.rst#wch-usbhs-interrupt-starvation>`_
+.. [4] Endpoint conflict on affected RT10xx parts and silicon revisions, see `NXP i.MX RT ERR050101 <docs/reference/device_issues.rst#nxp-i-mx-rt1015-rt1020-rt1024-rt1050-rt1060-rt1064>`_
+.. [5] Speed detection and ISO IN limitations on LPC55S2x/LPC552x, see `NXP LPC55S2x/LPC552x issues <docs/reference/device_issues.rst#nxp-lpc55s2x-lpc552x>`_
+.. [6] Shared endpoint FIFOs and packet-size limits, see `Puya PY32F071/072 limitations <docs/reference/device_issues.rst#puya-py32f071-072>`_
 
 Development Tools
 -----------------
@@ -349,6 +361,12 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |Membrowse| image:: https://membrowse.com/badge.svg
    :target: https://membrowse.com/public/hathach/tinyusb
+.. |CodeRabbit| image:: https://img.shields.io/coderabbit/prs/github/hathach/tinyusb?utm_source=oss&utm_medium=github&utm_campaign=hathach%2Ftinyusb&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews
+   :alt: CodeRabbit Pull Request Reviews
+   :target: https://coderabbit.ai
+.. |Greptile| image:: https://www.greptile.com/badge.svg
+   :alt: Greptile: The War on Bugs
+   :target: https://www.greptile.com/?utm_source=oss_badge&utm_medium=readme&utm_campaign=greptile_for_open_source
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 .. |Sponsor| image:: https://img.shields.io/badge/sponsor-%E2%9D%A4-ec6cb9.svg

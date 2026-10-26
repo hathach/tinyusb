@@ -209,11 +209,11 @@ bool tu_edpt_claim(volatile uint8_t* ep_state, osal_mutex_t mutex) {
   (void) mutex;
 
   // pre-check to help reducing mutex lock
-  TU_VERIFY((*ep_state & (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) == 0);
+  TU_VERIFY((*ep_state & (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_RX_PENDING)) == 0);
   (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
-  // can only claim the endpoint if it is not busy and not claimed yet.
-  bool const available = (*ep_state & (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) == 0;
+  // can only claim the endpoint if it is not busy, not claimed yet and its received data is consumed.
+  bool const available = (*ep_state & (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_RX_PENDING)) == 0;
   if (available) {
     *ep_state |= TU_EDPT_STATE_CLAIMED;
   }
@@ -274,7 +274,7 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
 #endif
 
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
-                              const uint8_t *p_desc, uint16_t desc_len) {
+                              uint8_t ep_max, const uint8_t *p_desc, uint16_t desc_len) {
   const uint8_t *desc_end = p_desc + desc_len;
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
@@ -283,6 +283,7 @@ bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t it
       const uint8_t ep_addr  = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
       const uint8_t ep_num   = tu_edpt_number(ep_addr);
       const uint8_t ep_dir   = tu_edpt_dir(ep_addr);
+      TU_ASSERT(ep_num < ep_max);
       ep2drv[ep_num][ep_dir] = driver_id;
     } else if (desc_type == TUSB_DESC_INTERFACE) {
       const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
@@ -405,7 +406,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
-  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
 
   // flush if fifo has more than packet size or
   // in rare case: fifo depth is configured too small (which never reach packet size)
@@ -447,7 +448,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 }
 
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {
-  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
+  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
   tu_edpt_stream_read_xfer(s);
   return num_read;
 }

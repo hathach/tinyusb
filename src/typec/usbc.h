@@ -65,6 +65,7 @@ extern void tcd_int_handler(uint8_t rhport);
 
 bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end);
 bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header);
+void tuc_attach_changed_cb(uint8_t rhport, bool attached);
 
 //--------------------------------------------------------------------+
 //

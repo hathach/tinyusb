@@ -31,6 +31,7 @@ static bool _usbc_inited = false;
 
 // if port is initialized
 static bool _port_inited[TUP_TYPEC_RHPORTS_NUM];
+static bool _port_attached[TUP_TYPEC_RHPORTS_NUM];
 
 // Max possible PD size is 262 bytes
 static uint8_t _rx_buf[64] TU_ATTR_ALIGNED(4);
@@ -55,6 +56,11 @@ TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* 
   (void) rhport;
   (void) header;
   return false;
+}
+
+TU_ATTR_WEAK void tuc_attach_changed_cb(uint8_t rhport, bool attached) {
+  (void) rhport;
+  (void) attached;
 }
 
 TU_ATTR_WEAK void tcd_connect(uint8_t rhport) {
@@ -90,6 +96,7 @@ bool tuc_init(uint8_t rhport, uint32_t port_type) {
   // Initialize stack
   if (!_usbc_inited) {
     tu_memclr(_port_inited, sizeof(_port_inited));
+    tu_memclr(_port_attached, sizeof(_port_attached));
 
     _usbc_q = osal_queue_create(&_usbc_qdef);
     TU_ASSERT(_usbc_q != NULL);
@@ -124,8 +131,14 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
     if (!osal_queue_receive(_usbc_q, &event, timeout_ms)) return;
 
     switch (event.event_id) {
-      case TCD_EVENT_CC_CHANGED:
+      case TCD_EVENT_CC_CHANGED: {
+        bool const attached = event.cc_changed.cc_state[0] != 0 || event.cc_changed.cc_state[1] != 0;
+        if (_port_attached[event.rhport] != attached) {
+          _port_attached[event.rhport] = attached;
+          tuc_attach_changed_cb(event.rhport, attached);
+        }
         break;
+      }
 
       case TCD_EVENT_RX_COMPLETE:
         // TODO process message here in ISR, move to thread later

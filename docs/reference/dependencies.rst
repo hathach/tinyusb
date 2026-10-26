@@ -4,10 +4,10 @@ Dependencies
 
 MCU low-level peripheral drivers and external libraries for building TinyUSB examples
 
-========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
+========================================  ================================================================  ========================================  =========================================================================================================================================================================================================================================================================================================================================================
 Local Path                                Repo                                                              Commit                                    Required by
-========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
-hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
+========================================  ================================================================  ========================================  =========================================================================================================================================================================================================================================================================================================================================================
+hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  f1c100s
 hw/mcu/analog/msdk                        https://github.com/analogdevicesinc/msdk.git                      b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  maxim
 hw/mcu/artery/at32f402_405                https://github.com/ArteryTek/AT32F402_405_Firmware_Library.git    4424515c2663e82438654e0947695295df2abdfe  at32f402_405
 hw/mcu/artery/at32f403a_407               https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git   f2cb360c3d28fada76b374308b8c4c61d37a090b  at32f403a_407
@@ -20,6 +20,8 @@ hw/mcu/artery/at32f45x                    https://github.com/ArteryTek/AT32F45x_
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       03f74eac84645178fdde7f2e5ca9acdcb7bd9dcd  ft9xx
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
+hw/mcu/geehy/APM32F0xx_SDK                https://github.com/GeehySemi/APM32F0xx_SDK.git                    cfc1fe826e1869133de86d4c6b298fc153e6bc32  apm32f0xx
+hw/mcu/geehy/APM32F10x_SDK                https://github.com/GeehySemi/APM32F10x_SDK.git                    cb084dd9ce994cc6fc449f692cdc78f34d7e2edb  apm32f10x
 hw/mcu/hpmicro/hpm_sdk                    https://github.com/hpmicro/hpm_sdk                                8d2af741ecc4aaa82d7ee395dc1ce25d7070c3ff  hpmicro
 hw/mcu/infineon/mtb-xmclib-cat3           https://github.com/Infineon/mtb-xmclib-cat3.git                   daf5500d03cba23e68c2f241c30af79cd9d63880  xmc4000
 hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg
@@ -33,12 +35,14 @@ hw/mcu/nxp/mcux-devices-mcx               https://github.com/nxp-mcuxpresso/mcux
 hw/mcu/nxp/mcux-devices-rt                https://github.com/nxp-mcuxpresso/mcux-devices-rt                 dba2b523c9df61f3330bd186242f8210a8e47c45  imxrt
 hw/mcu/nxp/mcux-sdk                       https://github.com/nxp-mcuxpresso/mcux-sdk                        a1bdae309a14ec95a4f64a96d3315a4f89c397c6  kinetis_k kinetis_kl lpc54 rw61x
 hw/mcu/nxp/mcuxsdk-core                   https://github.com/nxp-mcuxpresso/mcuxsdk-core                    0c5c6b16deb211110e06bde896cdff59ab213e16  imxrt kinetis_k32l lpc51 lpc55 mcx
+hw/mcu/puya/PY32F071_Firmware             https://github.com/OpenPuya/PY32F071_Firmware.git                 73e384cddce63e3019de41d9b6af17dfc96fa536  py32f0
+hw/mcu/puya/PY32F072_Firmware             https://github.com/OpenPuya/PY32F072_Firmware.git                 bc3a6cdbece335a27abb8b51e6fc4911f5116185  py32f0
 hw/mcu/raspberry_pi/FreeRTOS-Kernel       https://github.com/raspberrypi/FreeRTOS-Kernel.git                4f7299d6ea746b27a9dd19e87af568e34bd65b15  rp2040
 hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                675543bcc9baa8170f868ab7ba316d418dbcf41f  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                         706b4e0cf485605c32351e2f90f5698267996023  rx
 hw/mcu/silabs/cmsis-dfp-efm32gg12b        https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git           f1c31b7887669cb230b3ea63f9b56769078960bc  efm32
-hw/mcu/sony/cxd56/spresense-exported-sdk  https://github.com/sonydevworld/spresense-exported-sdk.git        2ec2a1538362696118dc3fdf56f33dacaf8f4067  spresense
+hw/mcu/sony/cxd56/spresense-exported-sdk  https://github.com/sonydevworld/spresense-exported-sdk.git        2ec2a1538362696118dc3fdf56f33dacaf8f4067  cxd56
 hw/mcu/st/cmsis-device-u0                 https://github.com/STMicroelectronics/cmsis-device-u0.git         e3a627c6a5bc4eb2388e1885a95cc155e1672253  stm32u0
 hw/mcu/st/cmsis-device-wba                https://github.com/STMicroelectronics/cmsis-device-wba.git        647d8522e5fd15049e9a1cc30ed19d85e5911eaf  stm32wba
 hw/mcu/st/cmsis_device_c0                 https://github.com/STMicroelectronics/cmsis_device_c0.git         517611273f835ffe95318947647bc1408f69120d  stm32c0
@@ -90,14 +94,16 @@ hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.gi
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v30x
+hw/mcu/wch/ch32x035                       https://github.com/openwch/ch32x035.git                           c6253942b29ff2a3f5e2829182a874afffa45881  ch32x035
 hw/mcu/wch/ch583                          https://github.com/openwch/ch583.git                              bd508ad7ceed48377619837051412a651952857f  ch583
-lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg tm4c
+lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg tm4c efm32
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   9b777ae5c5b8e9e456065a00294d1e5f5f9facf5  all
+lib/agentrc                               https://github.com/hathach/agentrc.git                            992c40c24398bf07ee51b48abfe442b837b5d9b6
 lib/fatfs                                 https://github.com/abbrev/fatfs.git                               30ca13c62615df0d2e9104ab41256985b96590c1  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
 lib/threadx                               https://github.com/eclipse-threadx/threadx.git                    4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae  all
-tools/linkermap                           https://github.com/hathach/linkermap.git                          8e1f440fa15c567aceb5aa0d14f6d18c329cc67f  all
+tools/linkermap                           https://github.com/hathach/linkermap.git                          89b42dd5b6e5d1874769fb74e2d7b557a225213c
 tools/uf2                                 https://github.com/microsoft/uf2.git                              c594542b2faa01cc33a2b97c9fbebc38549df80a  all
-========================================  ================================================================  ========================================  ===================================================================================================================================================================================================================================================================================================================================================
+========================================  ================================================================  ========================================  =========================================================================================================================================================================================================================================================================================================================================================

@@ -121,6 +121,11 @@ void board_init(void) {
 
   // set portfunc: USB1 = host, USB2 = device
   LPC_USB->StCtrl = 0x3;
+
+  // VBUS on the USB1 host connector, see the P1.19 note in board.h. Driven either way:
+  // left as an input it would float the switch enable in a device-only build.
+  Chip_GPIO_SetPinState(LPC_GPIO, 1, 19, CFG_TUH_ENABLED);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, 1, 19);
 }
 
 //--------------------------------------------------------------------+
@@ -133,6 +138,19 @@ void board_led_write(bool state) {
 
 uint32_t board_button_read(void) {
   return BUTTON_ACTIV_STATE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // IAP ReadUID (cmd 58) returns status + 4 words = full 128-bit UID
+  // (lpcopen's Chip_IAP_ReadUID() only returns the first word)
+  unsigned int command[5] = { IAP_READ_UID_CMD, 0, 0, 0, 0 };
+  unsigned int result[5];
+  iap_entry(command, result);
+  TU_ASSERT(result[0] == IAP_CMD_SUCCESS, 0);
+
+  size_t const len = tu_min32(max_len, 16);
+  memcpy(id, &result[1], len);
+  return len;
 }
 
 int board_uart_read(uint8_t *buf, int len) {

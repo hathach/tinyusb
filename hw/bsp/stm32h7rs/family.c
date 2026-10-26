@@ -98,17 +98,24 @@ void OTG_HS_IRQHandler(void) {
 
 #ifdef TRACE_ETM
 void trace_etm_init(void) {
-  // H7 trace pin is PE2 to PE6
-  GPIO_InitTypeDef  gpio_init;
-  gpio_init.Pin       = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
+  // Nucleo-H7S3L8 routes 4-bit trace to the CN1 MIPI20: TRACE_CLK/D0 on
+  // PE2/PE3, TRACE_D1/D2/D3 on the PG14/PD2/PC12 alternates (MB1737 Table 7).
+  // No pull: pull-ups degrade the edges at the 100 MHz trace clock (= cpu/3/2)
+  GPIO_InitTypeDef gpio_init;
   gpio_init.Mode      = GPIO_MODE_AF_PP;
-  gpio_init.Pull      = GPIO_PULLUP;
+  gpio_init.Pull      = GPIO_NOPULL;
   gpio_init.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
   gpio_init.Alternate = GPIO_AF0_TRACE;
+  gpio_init.Pin = GPIO_PIN_2 | GPIO_PIN_3;
   HAL_GPIO_Init(GPIOE, &gpio_init);
+  gpio_init.Pin = GPIO_PIN_14;
+  HAL_GPIO_Init(GPIOG, &gpio_init);
+  gpio_init.Pin = GPIO_PIN_2;
+  HAL_GPIO_Init(GPIOD, &gpio_init);
+  gpio_init.Pin = GPIO_PIN_12;
+  HAL_GPIO_Init(GPIOC, &gpio_init);
 
-  // Enable trace clk, also in D1 and D3 domain
-  DBGMCU->CR |= DBGMCU_CR_DBG_TRACECKEN | DBGMCU_CR_DBG_CKD1EN | DBGMCU_CR_DBG_CKD3EN;
+  DBGMCU->CR |= DBGMCU_CR_DBGCKEN | DBGMCU_CR_TRACECLKEN;
 }
 #else
   #define trace_etm_init()

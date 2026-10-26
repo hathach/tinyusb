@@ -25,7 +25,6 @@
 // * tud_usbtmc_open_cb
 // * tud_usbtmc_msg_data_cb
 // * tud_usbtmc_msgBulkIn_complete_cb
-// * tud_usbtmc_msg_trigger_cb
 // * (successful) tud_usbtmc_check_abort_bulk_out_cb
 // * (successful) tud_usbtmc_check_abort_bulk_in_cb
 // * (successful) tud_usmtmc_bulkOut_clearFeature_cb

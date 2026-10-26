@@ -58,10 +58,29 @@ extern "C" {
   #define CFG_TUD_MIDI2_PRODUCT_ID  "TinyUSB-MIDI2"
 #endif
 
+// Function Block capabilities reported in Function Block Info Notification.
+// The GTB descriptor carries direction and group span, but not these: they
+// depend on what the application implements, so they default to "none".
+#ifndef CFG_TUD_MIDI2_FB_CI_VERSION
+  #define CFG_TUD_MIDI2_FB_CI_VERSION      0  // 0: none or unknown, 1 or higher: MIDI-CI version
+#endif
+
+#ifndef CFG_TUD_MIDI2_FB_SYSEX8_STREAMS
+  #define CFG_TUD_MIDI2_FB_SYSEX8_STREAMS  0  // 0: unsupported, 1: single, 2-255: simultaneous streams
+#endif
+
 // String descriptor index for the Group Terminal Block (iBlockItem, Table 5-6).
 // 0 = no string descriptor (default, spec-allowed).
 #ifndef CFG_TUD_MIDI2_BLOCK_STRIDX
   #define CFG_TUD_MIDI2_BLOCK_STRIDX 0
+#endif
+
+// Default MIDI protocol (bMIDIProtocol, USB-MIDI 2.0 Table 5-6) of the default
+// Group Terminal Block and of TUD_MIDI2_GTB_BLOCK. MIDI 2.0 matches the
+// driver's own default protocol; a host may treat an unknown protocol (0x00)
+// as MIDI 1.0, as macOS does.
+#ifndef CFG_TUD_MIDI2_GTB_PROTOCOL
+  #define CFG_TUD_MIDI2_GTB_PROTOCOL MIDI2_GTB_PROTOCOL_MIDI2
 #endif
 
 //--------------------------------------------------------------------+
@@ -81,6 +100,18 @@ enum {
   MIDI2_GTB_OUTPUT_ONLY   = 0x02,
 };
 
+// Default MIDI protocol of a block's Group Terminals (bMIDIProtocol),
+// USB-MIDI 2.0 Appendix A.7. JR: Jitter Reduction Timestamps.
+enum {
+  MIDI2_GTB_PROTOCOL_UNKNOWN      = 0x00,  // use MIDI-CI
+  MIDI2_GTB_PROTOCOL_MIDI1_64     = 0x01,  // MIDI 1.0, UMP up to 64 bits
+  MIDI2_GTB_PROTOCOL_MIDI1_64_JR  = 0x02,
+  MIDI2_GTB_PROTOCOL_MIDI1_128    = 0x03,  // MIDI 1.0, UMP up to 128 bits
+  MIDI2_GTB_PROTOCOL_MIDI1_128_JR = 0x04,
+  MIDI2_GTB_PROTOCOL_MIDI2        = 0x11,  // MIDI 2.0
+  MIDI2_GTB_PROTOCOL_MIDI2_JR     = 0x12,
+};
+
 // GTB descriptor sizes (bytes).
 enum {
   MIDI2_GTB_HEADER_LEN = 5,   // list header
@@ -93,9 +124,13 @@ enum {
 #define TUD_MIDI2_GTB_HEADER(_nblocks) \
   MIDI2_GTB_HEADER_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_HEADER, \
   U16_TO_U8S_LE(TUD_MIDI2_GTB_DESC_LEN(_nblocks))
-#define TUD_MIDI2_GTB_BLOCK(_id, _type, _first_group, _num_groups, _stridx) \
+// A block entry with its default MIDI protocol (MIDI2_GTB_PROTOCOL_*).
+#define TUD_MIDI2_GTB_BLOCK_PROTOCOL(_id, _type, _first_group, _num_groups, _stridx, _protocol) \
   MIDI2_GTB_ENTRY_LEN, MIDI2_CS_GRP_TRM_BLOCK, MIDI2_GRP_TRM_BLOCK_ENTRY, \
-  (_id), (_type), (_first_group), (_num_groups), (_stridx), 0x00, 0, 0, 0, 0
+  (_id), (_type), (_first_group), (_num_groups), (_stridx), (_protocol), 0, 0, 0, 0
+// A block entry with CFG_TUD_MIDI2_GTB_PROTOCOL.
+#define TUD_MIDI2_GTB_BLOCK(_id, _type, _first_group, _num_groups, _stridx) \
+  TUD_MIDI2_GTB_BLOCK_PROTOCOL(_id, _type, _first_group, _num_groups, _stridx, CFG_TUD_MIDI2_GTB_PROTOCOL)
 
 //--------------------------------------------------------------------+
 // MIDI Protocol Values (returned by tud_midi2_n_protocol)
@@ -118,6 +153,17 @@ typedef enum {
   MIDI2_STREAM_NEGOTIATED_MIDI2,
 } tud_midi2_stream_result_t;
 
+// Device identity fields, as defined for the MIDI 1.0 Device Inquiry reply and
+// reused by the Device Identity Notification. Every byte carries 7 bits.
+// A 1-byte System Exclusive ID goes in the first of the three manufacturer
+// bytes, so 0x7D is passed as 0x7D0000.
+typedef struct {
+  uint32_t manufacturer;   // 3 bytes, first byte is most significant
+  uint16_t family;         // 2 bytes
+  uint16_t model;          // 2 bytes
+  uint32_t sw_revision;    // 4 bytes
+} tud_midi2_device_identity_t;
+
 //--------------------------------------------------------------------+
 // Application Callback API (weak, optional)
 //--------------------------------------------------------------------+
@@ -137,6 +183,12 @@ const uint8_t* tud_midi2_gtb_desc_cb(uint8_t itf, uint16_t* len);
 // Optional per-block name, sent as a Function Block Name Notification during
 // discovery. Return NULL or "" for no name.
 const char* tud_midi2_fb_name_cb(uint8_t itf, uint8_t fb_idx);
+
+// Optional device identity, sent as a Device Identity Notification when the
+// host sets the 'd' bit in the Endpoint Discovery filter. Same four fields as
+// the MIDI 1.0 Device Inquiry reply. Return false to skip the notification,
+// which is the default. All values are 7-bit per byte.
+bool tud_midi2_device_identity_cb(uint8_t itf, tud_midi2_device_identity_t* identity);
 
 // Optional: intercept an incoming UMP Stream message (MT 0xF). Return PASS to
 // let the built-in responder handle it, or HANDLED / NEGOTIATED_* if the app

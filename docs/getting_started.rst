@@ -37,7 +37,7 @@ Get the Code
    Some MCU families require additional SDKs, please follow their instructions to install and set it up
 
    * **rp2040**: Requires `pico-sdk <https://github.com/raspberrypi/pico-sdk>`_
-   * **Espressif (esp32)**: Requires `esp-idf <https://github.com/espressif/esp-idf>`_. Only a few examples support the ESP-IDF build system. Look for ones with `src/CMakeLists.txt` that contain `idf_component_register()`, such as `cdc_msc_freertos`.
+   * **Espressif (esp32)**: Requires `esp-idf <https://github.com/espressif/esp-idf>`_ v5.3 or later. Only a few examples support the ESP-IDF build system. Look for ones with `src/CMakeLists.txt` that contain `idf_component_register()`, such as `cdc_msc_freertos`.
 .. note::
    For MacOS native build with arm-none-eabi-gcc toolchain it's better to install it via brew install --cask gcc-arm-embedded
 
@@ -181,7 +181,7 @@ Some examples require udev permissions to access USB devices:
 
 .. code-block:: bash
 
-   $ cp `examples/device/99-tinyusb.rules <https://github.com/hathach/tinyusb/tree/master/examples/device/99-tinyusb.rules>`_ /etc/udev/rules.d/
+   $ sudo cp examples/device/99-tinyusb-examples.rules /etc/udev/rules.d/
    $ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Next Steps

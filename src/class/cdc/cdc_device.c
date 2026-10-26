@@ -323,9 +323,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
           tu_edpt_stream_open(stream_tx, rhport, desc_ep, CFG_TUD_CDC_TX_EPSIZE);
 
-  #if CFG_TUD_CDC_TX_PERSISTENT
-          tu_edpt_stream_write_xfer(stream_tx); // flush pending data
-  #else
+  #if !CFG_TUD_CDC_TX_PERSISTENT
           tu_edpt_stream_clear(stream_tx);
   #endif
         } else {

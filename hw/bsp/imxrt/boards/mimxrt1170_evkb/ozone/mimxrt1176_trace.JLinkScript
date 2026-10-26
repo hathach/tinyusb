@@ -1,0 +1,11 @@
+/* RT1176 pin trace: the CSSYS TPIU and ATB funnel live on the system APB-AP
+ * (AP2) and are not discoverable from the CM7 ROM table - declare them, or
+ * J-Link aborts with "Required trace components for pin trace not found!"
+ * (addresses per i.MX RT1170 RM memory map: CSSYS TPIU E004_6000, CSSYS ATB
+ * Funnel E004_5000; same values as SEGGER's RT1176 trace example script).
+ */
+int ConfigTargetSettings(void) {
+  JLINK_ExecCommand("CORESIGHT_SetTPIUBaseAddr = 0xE0046000 ForceUnlock = 1 APIndex = 2");
+  JLINK_ExecCommand("CORESIGHT_SetCSTFBaseAddr = 0xE0045000 ForceUnlock = 1 APIndex = 2");
+  return 0;
+}

@@ -88,7 +88,12 @@ static inline void SystemClock_Config(void) {
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLL1_SOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
+  #ifdef TRACE_ETM
+  RCC_OscInitStruct.PLL.PLLN = 100; // 100 MHz core: the Nucleo trace path (CN5 via solder bridges)
+                                    // corrupts the trace stream at higher TRACECLK (= SYSCLK/2)
+  #else
   RCC_OscInitStruct.PLL.PLLN = 250;
+  #endif
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;

@@ -368,7 +368,7 @@ typedef enum
 /// @}
 
 //--------------------------------------------------------------------+
-// HID KEYCODE
+// HID KEYCODE - defined by HID Usage Table: Keyboard/Keypad Page (0x07)
 //--------------------------------------------------------------------+
 #define HID_KEY_NONE                        0x00
 #define HID_KEY_A                           0x04
@@ -772,11 +772,12 @@ enum {
   HID_USAGE_PAGE_KEYBOARD                  = 0x07,
   HID_USAGE_PAGE_LED                       = 0x08,
   HID_USAGE_PAGE_BUTTON                    = 0x09,
-  HID_USAGE_PAGE_ORDINAL                   = 0x0a,
-  HID_USAGE_PAGE_TELEPHONY                 = 0x0b,
-  HID_USAGE_PAGE_CONSUMER                  = 0x0c,
-  HID_USAGE_PAGE_DIGITIZER                 = 0x0d,
-  HID_USAGE_PAGE_PID                       = 0x0f,
+  HID_USAGE_PAGE_ORDINAL                   = 0x0A,
+  HID_USAGE_PAGE_TELEPHONY                 = 0x0B,
+  HID_USAGE_PAGE_CONSUMER                  = 0x0C,
+  HID_USAGE_PAGE_DIGITIZER                 = 0x0D,
+  HID_USAGE_PAGE_HAPTIC                    = 0x0E,
+  HID_USAGE_PAGE_PID                       = 0x0F,
   HID_USAGE_PAGE_UNICODE                   = 0x10,
   HID_USAGE_PAGE_SOC                       = 0x11,
   HID_USAGE_PAGE_EYE_AND_HEAD_TRACKERS     = 0x12,
@@ -786,528 +787,1091 @@ enum {
   HID_USAGE_PAGE_SENSORS                   = 0x20,
   // 0x21 - 0x3f is reserved
   HID_USAGE_PAGE_MEDICAL_INSTRUMENT        = 0x40,
+  HID_USAGE_PAGE_BRAILLE_DISPLAY           = 0x41,
   HID_USAGE_PAGE_LIGHTING_AND_ILLUMINATION = 0x59,
   HID_USAGE_PAGE_MONITOR                   = 0x80, // 0x80 - 0x83
   HID_USAGE_PAGE_POWER                     = 0x84,
   HID_USAGE_PAGE_BATTERY                   = 0x85,
   // 0x86 - 0x87 is reserved for Power Device
-  HID_USAGE_PAGE_BARCODE_SCANNER           = 0x8c,
-  HID_USAGE_PAGE_SCALE                     = 0x8d,
-  HID_USAGE_PAGE_MSR                       = 0x8e,
+  HID_USAGE_PAGE_BARCODE_SCANNER           = 0x8C,
+  HID_USAGE_PAGE_SCALE                     = 0x8D,
+  HID_USAGE_PAGE_MSR                       = 0x8E,
   HID_USAGE_PAGE_CAMERA                    = 0x90,
   HID_USAGE_PAGE_ARCADE                    = 0x91,
+  HID_USAGE_PAGE_GAMING                    = 0x92,   // Gaming Standards Association (GSA) HID usage page
   HID_USAGE_PAGE_FIDO                      = 0xF1D0, // FIDO alliance HID usage page
   HID_USAGE_PAGE_VENDOR                    = 0xFF00  // 0xFF00 - 0xFFFF
 };
 
 /// HID Usage Table - Table 6: Generic Desktop Page
 enum {
-  HID_USAGE_DESKTOP_POINTER                               = 0x01,
-  HID_USAGE_DESKTOP_MOUSE                                 = 0x02,
-  HID_USAGE_DESKTOP_JOYSTICK                              = 0x04,
-  HID_USAGE_DESKTOP_GAMEPAD                               = 0x05,
-  HID_USAGE_DESKTOP_KEYBOARD                              = 0x06,
-  HID_USAGE_DESKTOP_KEYPAD                                = 0x07,
-  HID_USAGE_DESKTOP_MULTI_AXIS_CONTROLLER                 = 0x08,
-  HID_USAGE_DESKTOP_TABLET_PC_SYSTEM                      = 0x09,
-  HID_USAGE_DESKTOP_X                                     = 0x30,
-  HID_USAGE_DESKTOP_Y                                     = 0x31,
-  HID_USAGE_DESKTOP_Z                                     = 0x32,
-  HID_USAGE_DESKTOP_RX                                    = 0x33,
-  HID_USAGE_DESKTOP_RY                                    = 0x34,
-  HID_USAGE_DESKTOP_RZ                                    = 0x35,
-  HID_USAGE_DESKTOP_SLIDER                                = 0x36,
-  HID_USAGE_DESKTOP_DIAL                                  = 0x37,
-  HID_USAGE_DESKTOP_WHEEL                                 = 0x38,
-  HID_USAGE_DESKTOP_HAT_SWITCH                            = 0x39,
-  HID_USAGE_DESKTOP_COUNTED_BUFFER                        = 0x3a,
-  HID_USAGE_DESKTOP_BYTE_COUNT                            = 0x3b,
-  HID_USAGE_DESKTOP_MOTION_WAKEUP                         = 0x3c,
-  HID_USAGE_DESKTOP_START                                 = 0x3d,
-  HID_USAGE_DESKTOP_SELECT                                = 0x3e,
-  HID_USAGE_DESKTOP_VX                                    = 0x40,
-  HID_USAGE_DESKTOP_VY                                    = 0x41,
-  HID_USAGE_DESKTOP_VZ                                    = 0x42,
-  HID_USAGE_DESKTOP_VBRX                                  = 0x43,
-  HID_USAGE_DESKTOP_VBRY                                  = 0x44,
-  HID_USAGE_DESKTOP_VBRZ                                  = 0x45,
-  HID_USAGE_DESKTOP_VNO                                   = 0x46,
-  HID_USAGE_DESKTOP_FEATURE_NOTIFICATION                  = 0x47,
-  HID_USAGE_DESKTOP_RESOLUTION_MULTIPLIER                 = 0x48,
-  HID_USAGE_DESKTOP_SYSTEM_CONTROL                        = 0x80,
-  HID_USAGE_DESKTOP_SYSTEM_POWER_DOWN                     = 0x81,
-  HID_USAGE_DESKTOP_SYSTEM_SLEEP                          = 0x82,
-  HID_USAGE_DESKTOP_SYSTEM_WAKE_UP                        = 0x83,
-  HID_USAGE_DESKTOP_SYSTEM_CONTEXT_MENU                   = 0x84,
-  HID_USAGE_DESKTOP_SYSTEM_MAIN_MENU                      = 0x85,
-  HID_USAGE_DESKTOP_SYSTEM_APP_MENU                       = 0x86,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_HELP                      = 0x87,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_EXIT                      = 0x88,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_SELECT                    = 0x89,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_RIGHT                     = 0x8A,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_LEFT                      = 0x8B,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_UP                        = 0x8C,
-  HID_USAGE_DESKTOP_SYSTEM_MENU_DOWN                      = 0x8D,
-  HID_USAGE_DESKTOP_SYSTEM_COLD_RESTART                   = 0x8E,
-  HID_USAGE_DESKTOP_SYSTEM_WARM_RESTART                   = 0x8F,
-  HID_USAGE_DESKTOP_DPAD_UP                               = 0x90,
-  HID_USAGE_DESKTOP_DPAD_DOWN                             = 0x91,
-  HID_USAGE_DESKTOP_DPAD_RIGHT                            = 0x92,
-  HID_USAGE_DESKTOP_DPAD_LEFT                             = 0x93,
-  HID_USAGE_DESKTOP_SYSTEM_DOCK                           = 0xA0,
-  HID_USAGE_DESKTOP_SYSTEM_UNDOCK                         = 0xA1,
-  HID_USAGE_DESKTOP_SYSTEM_SETUP                          = 0xA2,
-  HID_USAGE_DESKTOP_SYSTEM_BREAK                          = 0xA3,
-  HID_USAGE_DESKTOP_SYSTEM_DEBUGGER_BREAK                 = 0xA4,
-  HID_USAGE_DESKTOP_APPLICATION_BREAK                     = 0xA5,
-  HID_USAGE_DESKTOP_APPLICATION_DEBUGGER_BREAK            = 0xA6,
-  HID_USAGE_DESKTOP_SYSTEM_SPEAKER_MUTE                   = 0xA7,
-  HID_USAGE_DESKTOP_SYSTEM_HIBERNATE                      = 0xA8,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_INVERT                 = 0xB0,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_INTERNAL               = 0xB1,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_EXTERNAL               = 0xB2,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_BOTH                   = 0xB3,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_DUAL                   = 0xB4,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_TOGGLE_INT_EXT         = 0xB5,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_SWAP_PRIMARY_SECONDARY = 0xB6,
-  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_LCD_AUTOSCALE          = 0xB7
+  HID_USAGE_DESKTOP_POINTER                                    = 0x01, // CP
+  HID_USAGE_DESKTOP_MOUSE                                      = 0x02, // CA
+  // 03 Reserved
+
+  HID_USAGE_DESKTOP_JOYSTICK                                   = 0x04, // CA
+  HID_USAGE_DESKTOP_GAMEPAD                                    = 0x05, // CA
+  HID_USAGE_DESKTOP_KEYBOARD                                   = 0x06, // CA
+  HID_USAGE_DESKTOP_KEYPAD                                     = 0x07, // CA
+  HID_USAGE_DESKTOP_MULTI_AXIS_CONTROLLER                      = 0x08, // CA
+  HID_USAGE_DESKTOP_TABLET_PC_SYSTEM                           = 0x09, // CA
+  HID_USAGE_DESKTOP_WATER_COOLING                              = 0x0A, // CA
+  HID_USAGE_DESKTOP_COMPUTER_CHASSIS                           = 0x0B, // CA
+  HID_USAGE_DESKTOP_WIRELESS_RADIO                             = 0x0C, // CA
+  HID_USAGE_DESKTOP_PORTABLE_DEVICE                            = 0x0D, // CA
+  HID_USAGE_DESKTOP_SYSTEM_MULTI_AXIS_CONTROLLER               = 0x0E, // CA
+  HID_USAGE_DESKTOP_SPATIAL_CONTROLLER                         = 0x0F, // CA
+  HID_USAGE_DESKTOP_ASSISTIVE                                  = 0x10, // CA
+  HID_USAGE_DESKTOP_DEVICE_DOCK                                = 0x11, // CA
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE                            = 0x12, // CA
+  HID_USAGE_DESKTOP_CALL_STATE_MANAGEMENT                      = 0x13, // CA
+  // 14-2F Reserved
+
+  HID_USAGE_DESKTOP_X                                          = 0x30, // DV
+  HID_USAGE_DESKTOP_Y                                          = 0x31, // DV
+  HID_USAGE_DESKTOP_Z                                          = 0x32, // DV
+  HID_USAGE_DESKTOP_RX                                         = 0x33, // DV
+  HID_USAGE_DESKTOP_RY                                         = 0x34, // DV
+  HID_USAGE_DESKTOP_RZ                                         = 0x35, // DV
+  HID_USAGE_DESKTOP_SLIDER                                     = 0x36, // DV
+  HID_USAGE_DESKTOP_DIAL                                       = 0x37, // DV
+  HID_USAGE_DESKTOP_WHEEL                                      = 0x38, // DV
+  HID_USAGE_DESKTOP_HAT_SWITCH                                 = 0x39, // DV
+  HID_USAGE_DESKTOP_COUNTED_BUFFER                             = 0x3A, // CL
+  HID_USAGE_DESKTOP_BYTE_COUNT                                 = 0x3B, // DV
+  HID_USAGE_DESKTOP_MOTION_WAKEUP                              = 0x3C, // OSC/DF
+  HID_USAGE_DESKTOP_START                                      = 0x3D, // OOC
+  HID_USAGE_DESKTOP_SELECT                                     = 0x3E, // OOC
+  // 3F Reserved
+
+  HID_USAGE_DESKTOP_VX                                         = 0x40, // DV
+  HID_USAGE_DESKTOP_VY                                         = 0x41, // DV
+  HID_USAGE_DESKTOP_VZ                                         = 0x42, // DV
+  HID_USAGE_DESKTOP_VBRX                                       = 0x43, // DV
+  HID_USAGE_DESKTOP_VBRY                                       = 0x44, // DV
+  HID_USAGE_DESKTOP_VBRZ                                       = 0x45, // DV
+  HID_USAGE_DESKTOP_VNO                                        = 0x46, // DV
+  HID_USAGE_DESKTOP_FEATURE_NOTIFICATION                       = 0x47, // DV/DF
+  HID_USAGE_DESKTOP_RESOLUTION_MULTIPLIER                      = 0x48, // DV
+  HID_USAGE_DESKTOP_QX                                         = 0x49, // DV
+  HID_USAGE_DESKTOP_QY                                         = 0x4A, // DV
+  HID_USAGE_DESKTOP_QZ                                         = 0x4B, // DV
+  HID_USAGE_DESKTOP_QW                                         = 0x4C, // DV
+  // 4D-7F Reserved
+
+  HID_USAGE_DESKTOP_SYSTEM_CONTROL                             = 0x80, // CA
+  HID_USAGE_DESKTOP_SYSTEM_POWER_DOWN                          = 0x81, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_SLEEP                               = 0x82, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_WAKE_UP                             = 0x83, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_CONTEXT_MENU                        = 0x84, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MAIN_MENU                           = 0x85, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_APP_MENU                            = 0x86, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_HELP                           = 0x87, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_EXIT                           = 0x88, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_SELECT                         = 0x89, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_RIGHT                          = 0x8A, // RTC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_LEFT                           = 0x8B, // RTC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_UP                             = 0x8C, // RTC
+  HID_USAGE_DESKTOP_SYSTEM_MENU_DOWN                           = 0x8D, // RTC
+  HID_USAGE_DESKTOP_SYSTEM_COLD_RESTART                        = 0x8E, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_WARM_RESTART                        = 0x8F, // OSC
+  HID_USAGE_DESKTOP_DPAD_UP                                    = 0x90, // OOC
+  HID_USAGE_DESKTOP_DPAD_DOWN                                  = 0x91, // OOC
+  HID_USAGE_DESKTOP_DPAD_RIGHT                                 = 0x92, // OOC
+  HID_USAGE_DESKTOP_DPAD_LEFT                                  = 0x93, // OOC
+  HID_USAGE_DESKTOP_INDEX_TRIGGER                              = 0x94, // MC/DV
+  HID_USAGE_DESKTOP_PALM_TRIGGER                               = 0x95, // MC/DV
+  HID_USAGE_DESKTOP_THUMBSTICK                                 = 0x96, // CP
+  HID_USAGE_DESKTOP_SYSTEM_FUNCTION_SHIFT                      = 0x97, // MC
+  HID_USAGE_DESKTOP_SYSTEM_FUNCTION_SHIFT_LOCK                 = 0x98, // OOC
+  HID_USAGE_DESKTOP_SYSTEM_FUNCTION_SHIFT_LOCK_INDICATOR       = 0x99, // DV
+  HID_USAGE_DESKTOP_SYSTEM_DISMISS_NOTIFICATION                = 0x9A, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DO_NOT_DISTURB                      = 0x9B, // OOC
+  // 9C-9F Reserved
+
+  HID_USAGE_DESKTOP_SYSTEM_DOCK                                = 0xA0, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_UNDOCK                              = 0xA1, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_SETUP                               = 0xA2, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_BREAK                               = 0xA3, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DEBUGGER_BREAK                      = 0xA4, // OSC
+  HID_USAGE_DESKTOP_APPLICATION_BREAK                          = 0xA5, // OSC
+  HID_USAGE_DESKTOP_APPLICATION_DEBUGGER_BREAK                 = 0xA6, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_SPEAKER_MUTE                        = 0xA7, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_HIBERNATE                           = 0xA8, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_MICROPHONE_MUTE                     = 0xA9, // OOC
+  HID_USAGE_DESKTOP_SYSTEM_ACCESSIBILITY_BINDING               = 0xAA, // OOC
+  // AB-AF Reserved
+
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_INVERT                      = 0xB0, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_INTERNAL                    = 0xB1, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_EXTERNAL                    = 0xB2, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_BOTH                        = 0xB3, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_DUAL                        = 0xB4, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_TOGGLE_INT_EXT              = 0xB5, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_SWAP_PRIMARY_SECONDARY      = 0xB6, // OSC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_LCD_AUTOSCALE               = 0xB7, // OSC
+  // B8-BF Reserved
+
+  HID_USAGE_DESKTOP_SENSOR_ZONE                                = 0xC0, // CL
+  HID_USAGE_DESKTOP_RPM                                        = 0xC1, // DV
+  HID_USAGE_DESKTOP_COOLANT_LEVEL                              = 0xC2, // DV
+  HID_USAGE_DESKTOP_COOLANT_CRITICAL_LEVEL                     = 0xC3, // SV
+  HID_USAGE_DESKTOP_COOLANT_PUMP                               = 0xC4, // US
+  HID_USAGE_DESKTOP_CHASSIS_ENCLOSURE                          = 0xC5, // CL
+  HID_USAGE_DESKTOP_WIRELESS_RADIO_BUTTON                      = 0xC6, // OOC
+  HID_USAGE_DESKTOP_WIRELESS_RADIO_LED                         = 0xC7, // OOC
+  HID_USAGE_DESKTOP_WIRELESS_RADIO_SLIDER_SWITCH               = 0xC8, // OOC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_ROTATION_LOCK_BUTTON        = 0xC9, // OOC
+  HID_USAGE_DESKTOP_SYSTEM_DISPLAY_ROTATION_LOCK_SLIDER_SWITCH = 0xCA, // OOC
+  HID_USAGE_DESKTOP_CONTROL_ENABLE                             = 0xCB, // DF
+  // CC-CF Reserved
+
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_UNIQUE_ID                  = 0xD0, // DV
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_VENDOR_ID                  = 0xD1, // DV
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_PRIMARY_USAGE_PAGE         = 0xD2, // DV
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_PRIMARY_USAGE_ID           = 0xD3, // DV
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_DOCKING_STATE              = 0xD4, // DF
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_DISPLAY_OCCLUSION          = 0xD5, // CL
+  HID_USAGE_DESKTOP_DOCKABLE_DEVICE_OBJECT_TYPE                = 0xD6, // DV
+  // D7-DF Reserved
+
+  HID_USAGE_DESKTOP_CALL_ACTIVE_LED                            = 0xE0, // OOC
+  HID_USAGE_DESKTOP_CALL_MUTE_TOGGLE                           = 0xE1, // OSC
+  HID_USAGE_DESKTOP_CALL_MUTE_LED                              = 0xE2  // OOC
+  // E3-FFFF Reserved
+};
+
+/// HID Usage Table: Simulation Controls Page (0x02)
+enum {
+  HID_USAGE_SIMULATION_CONTROLS_FLIGHT_SIMULATION_DEVICE       = 0x01, // CA
+  HID_USAGE_SIMULATION_CONTROLS_AUTOMOBILE_SIMULATION_DEVICE   = 0x02, // CA
+  HID_USAGE_SIMULATION_CONTROLS_TANK_SIMULATION_DEVICE         = 0x03, // CA
+  HID_USAGE_SIMULATION_CONTROLS_SPACESHIP_SIMULATION_DEVICE    = 0x04, // CA
+  HID_USAGE_SIMULATION_CONTROLS_SUBMARINE_SIMULATION_DEVICE    = 0x05, // CA
+  HID_USAGE_SIMULATION_CONTROLS_SAILING_SIMULATION_DEVICE      = 0x06, // CA
+  HID_USAGE_SIMULATION_CONTROLS_MOTORCYCLE_SIMULATION_DEVICE   = 0x07, // CA
+  HID_USAGE_SIMULATION_CONTROLS_SPORTS_SIMULATION_DEVICE       = 0x08, // CA
+  HID_USAGE_SIMULATION_CONTROLS_AIRPLANE_SIMULATION_DEVICE     = 0x09, // CA
+  HID_USAGE_SIMULATION_CONTROLS_HELICOPTER_SIMULATION_DEVICE   = 0x0A, // CA
+  HID_USAGE_SIMULATION_CONTROLS_MAGIC_CARPET_SIMULATION_DEVICE = 0x0B, // CA
+  HID_USAGE_SIMULATION_CONTROLS_BICYCLE_SIMULATION_DEVICE      = 0x0C, // CA
+  // 0D-1F Reserved
+
+  HID_USAGE_SIMULATION_CONTROLS_FLIGHT_CONTROL_STICK           = 0x20, // CA
+  HID_USAGE_SIMULATION_CONTROLS_FLIGHT_STICK                   = 0x21, // CA
+  HID_USAGE_SIMULATION_CONTROLS_CYCLIC_CONTROL                 = 0x22, // CP
+  HID_USAGE_SIMULATION_CONTROLS_CYCLIC_TRIM                    = 0x23, // CP
+  HID_USAGE_SIMULATION_CONTROLS_FLIGHT_YOKE                    = 0x24, // CA
+  HID_USAGE_SIMULATION_CONTROLS_TRACK_CONTROL                  = 0x25, // CP
+  // 26-AF Reserved
+
+  HID_USAGE_SIMULATION_CONTROLS_AILERON                        = 0xB0, // DV
+  HID_USAGE_SIMULATION_CONTROLS_AILERON_TRIM                   = 0xB1, // DV
+  HID_USAGE_SIMULATION_CONTROLS_ANTI_TORQUE_CONTROL            = 0xB2, // DV
+  HID_USAGE_SIMULATION_CONTROLS_AUTOPILOT_ENABLE               = 0xB3, // OOC
+  HID_USAGE_SIMULATION_CONTROLS_CHAFF_RELEASE                  = 0xB4, // OSC
+  HID_USAGE_SIMULATION_CONTROLS_COLLECTIVE_CONTROL             = 0xB5, // DV
+  HID_USAGE_SIMULATION_CONTROLS_DIVE_BRAKE                     = 0xB6, // DV
+  HID_USAGE_SIMULATION_CONTROLS_ELECTRONIC_COUNTERMEASURES     = 0xB7, // OOC
+  HID_USAGE_SIMULATION_CONTROLS_ELEVATOR                       = 0xB8, // DV
+  HID_USAGE_SIMULATION_CONTROLS_ELEVATOR_TRIM                  = 0xB9, // DV
+  HID_USAGE_SIMULATION_CONTROLS_RUDDER                         = 0xBA, // DV
+  HID_USAGE_SIMULATION_CONTROLS_THROTTLE                       = 0xBB, // DV
+  HID_USAGE_SIMULATION_CONTROLS_FLIGHT_COMMUNICATIONS          = 0xBC, // OOC
+  HID_USAGE_SIMULATION_CONTROLS_FLARE_RELEASE                  = 0xBD, // OSC
+  HID_USAGE_SIMULATION_CONTROLS_LANDING_GEAR                   = 0xBE, // OOC
+  HID_USAGE_SIMULATION_CONTROLS_TOE_BRAKE                      = 0xBF, // DV
+  HID_USAGE_SIMULATION_CONTROLS_TRIGGER                        = 0xC0, // MC
+  HID_USAGE_SIMULATION_CONTROLS_WEAPONS_ARM                    = 0xC1, // OOC
+  HID_USAGE_SIMULATION_CONTROLS_WEAPONS_SELECT                 = 0xC2, // OSC
+  HID_USAGE_SIMULATION_CONTROLS_WING_FLAPS                     = 0xC3, // DV
+  HID_USAGE_SIMULATION_CONTROLS_ACCELERATOR                    = 0xC4, // DV
+  HID_USAGE_SIMULATION_CONTROLS_BRAKE                          = 0xC5, // DV
+  HID_USAGE_SIMULATION_CONTROLS_CLUTCH                         = 0xC6, // DV
+  HID_USAGE_SIMULATION_CONTROLS_SHIFTER                        = 0xC7, // DV
+  HID_USAGE_SIMULATION_CONTROLS_STEERING                       = 0xC8, // DV
+  HID_USAGE_SIMULATION_CONTROLS_TURRET_DIRECTION               = 0xC9, // DV
+  HID_USAGE_SIMULATION_CONTROLS_BARREL_ELEVATION               = 0xCA, // DV
+  HID_USAGE_SIMULATION_CONTROLS_DIVE_PLANE                     = 0xCB, // DV
+  HID_USAGE_SIMULATION_CONTROLS_BALLAST                        = 0xCC, // DV
+  HID_USAGE_SIMULATION_CONTROLS_BICYCLE_CRANK                  = 0xCD, // DV
+  HID_USAGE_SIMULATION_CONTROLS_HANDLE_BARS                    = 0xCE, // DV
+  HID_USAGE_SIMULATION_CONTROLS_FRONT_BRAKE                    = 0xCF, // DV
+  HID_USAGE_SIMULATION_CONTROLS_REAR_BRAKE                     = 0xD0, // DV
+  // D1-FFFF Reserved
+};
+
+/// HID Usage Table: VR Controls Page (0x03)
+enum {
+  HID_USAGE_VR_CONTROLS_BELT                 = 0x01, // CA
+  HID_USAGE_VR_CONTROLS_BODY_SUIT            = 0x02, // CA
+  HID_USAGE_VR_CONTROLS_FLEXOR               = 0x03, // CP
+  HID_USAGE_VR_CONTROLS_GLOVE                = 0x04, // CA
+  HID_USAGE_VR_CONTROLS_HEAD_TRACKER         = 0x05, // CP
+  HID_USAGE_VR_CONTROLS_HEAD_MOUNTED_DISPLAY = 0x06, // CA
+  HID_USAGE_VR_CONTROLS_HAND_TRACKER         = 0x07, // CA
+  HID_USAGE_VR_CONTROLS_OCULOMETER           = 0x08, // CA
+  HID_USAGE_VR_CONTROLS_VEST                 = 0x09, // CA
+  HID_USAGE_VR_CONTROLS_ANIMATRONIC_DEVICE   = 0x0A, // CA
+  // 0B-1F Reserved
+
+  HID_USAGE_VR_CONTROLS_STEREO_ENABLE        = 0x20, // OOC
+  HID_USAGE_VR_CONTROLS_DISPLAY_ENABLE       = 0x21  // OOC
+  // 22-FFFF Reserved
+};
+
+/// HID Usage Table: Sports Controls Page (0x04)
+enum {
+  HID_USAGE_SPORTS_CONTROLS_BASEBALL_BAT         = 0x01, // CA
+  HID_USAGE_SPORTS_CONTROLS_GOLF_CLUB            = 0x02, // CA
+  HID_USAGE_SPORTS_CONTROLS_ROWING_MACHINE       = 0x03, // CA
+  HID_USAGE_SPORTS_CONTROLS_TREADMILL            = 0x04, // CA
+  // 05-2F Reserved
+
+  HID_USAGE_SPORTS_CONTROLS_OAR                  = 0x30, // DV
+  HID_USAGE_SPORTS_CONTROLS_SLOPE                = 0x31, // DV
+  HID_USAGE_SPORTS_CONTROLS_RATE                 = 0x32, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_SPEED          = 0x33, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_FACE_ANGLE     = 0x34, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_HEEL_TOE       = 0x35, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_FOLLOW_THROUGH = 0x36, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_TEMPO          = 0x37, // DV
+  HID_USAGE_SPORTS_CONTROLS_STICK_TYPE           = 0x38, // NAry
+  HID_USAGE_SPORTS_CONTROLS_STICK_HEIGHT         = 0x39, // DV
+  // 3A-4F Reserved
+
+  HID_USAGE_SPORTS_CONTROLS_PUTTER               = 0x50, // Sel
+  HID_USAGE_SPORTS_CONTROLS_1_IRON               = 0x51, // Sel
+  HID_USAGE_SPORTS_CONTROLS_2_IRON               = 0x52, // Sel
+  HID_USAGE_SPORTS_CONTROLS_3_IRON               = 0x53, // Sel
+  HID_USAGE_SPORTS_CONTROLS_4_IRON               = 0x54, // Sel
+  HID_USAGE_SPORTS_CONTROLS_5_IRON               = 0x55, // Sel
+  HID_USAGE_SPORTS_CONTROLS_6_IRON               = 0x56, // Sel
+  HID_USAGE_SPORTS_CONTROLS_7_IRON               = 0x57, // Sel
+  HID_USAGE_SPORTS_CONTROLS_8_IRON               = 0x58, // Sel
+  HID_USAGE_SPORTS_CONTROLS_9_IRON               = 0x59, // Sel
+  HID_USAGE_SPORTS_CONTROLS_10_IRON              = 0x5A, // Sel
+  HID_USAGE_SPORTS_CONTROLS_11_IRON              = 0x5B, // Sel
+  HID_USAGE_SPORTS_CONTROLS_SAND_WEDGE           = 0x5C, // Sel
+  HID_USAGE_SPORTS_CONTROLS_LOFT_WEDGE           = 0x5D, // Sel
+  HID_USAGE_SPORTS_CONTROLS_POWER_WEDGE          = 0x5E, // Sel
+  HID_USAGE_SPORTS_CONTROLS_1_WOOD               = 0x5F, // Sel
+  HID_USAGE_SPORTS_CONTROLS_3_WOOD               = 0x60, // Sel
+  HID_USAGE_SPORTS_CONTROLS_5_WOOD               = 0x61, // Sel
+  HID_USAGE_SPORTS_CONTROLS_7_WOOD               = 0x62, // Sel
+  HID_USAGE_SPORTS_CONTROLS_9_WOOD               = 0x63, // Sel
+  // 64-FFFF Reserved
+};
+
+/// HID Usage Table: Game Controls Page (0x05)
+enum {
+  HID_USAGE_GAME_CONTROLS_3D_GAME_CONTROLLER     = 0x01, // CA
+  HID_USAGE_GAME_CONTROLS_PINBALL_DEVICE         = 0x02, // CA
+  HID_USAGE_GAME_CONTROLS_GUN_DEVICE             = 0x03, // CA
+  // 04-1F Reserved
+
+  HID_USAGE_GAME_CONTROLS_POINT_OF_VIEW          = 0x20, // CP
+  HID_USAGE_GAME_CONTROLS_TURN_RIGHT_LEFT        = 0x21, // DV
+  HID_USAGE_GAME_CONTROLS_PITCH_FORWARD_BACKWARD = 0x22, // DV
+  HID_USAGE_GAME_CONTROLS_ROLL_RIGHT_LEFT        = 0x23, // DV
+  HID_USAGE_GAME_CONTROLS_MOVE_RIGHT_LEFT        = 0x24, // DV
+  HID_USAGE_GAME_CONTROLS_MOVE_FORWARD_BACKWARD  = 0x25, // DV
+  HID_USAGE_GAME_CONTROLS_MOVE_UP_DOWN           = 0x26, // DV
+  HID_USAGE_GAME_CONTROLS_LEAN_RIGHT_LEFT        = 0x27, // DV
+  HID_USAGE_GAME_CONTROLS_LEAN_FORWARD_BACKWARD  = 0x28, // DV
+  HID_USAGE_GAME_CONTROLS_HEIGHT_OF_POV          = 0x29, // DV
+  HID_USAGE_GAME_CONTROLS_FLIPPER                = 0x2A, // MC
+  HID_USAGE_GAME_CONTROLS_SECONDARY_FLIPPER      = 0x2B, // MC
+  HID_USAGE_GAME_CONTROLS_BUMP                   = 0x2C, // MC
+  HID_USAGE_GAME_CONTROLS_NEW_GAME               = 0x2D, // OSC
+  HID_USAGE_GAME_CONTROLS_SHOOT_BALL             = 0x2E, // OSC
+  HID_USAGE_GAME_CONTROLS_PLAYER                 = 0x2F, // OSC
+  HID_USAGE_GAME_CONTROLS_GUN_BOLT               = 0x30, // OOC
+  HID_USAGE_GAME_CONTROLS_GUN_CLIP               = 0x31, // OOC
+  HID_USAGE_GAME_CONTROLS_GUN_SELECTOR           = 0x32, // NAry
+  HID_USAGE_GAME_CONTROLS_GUN_SINGLE_SHOT        = 0x33, // Sel
+  HID_USAGE_GAME_CONTROLS_GUN_BURST              = 0x34, // Sel
+  HID_USAGE_GAME_CONTROLS_GUN_AUTOMATIC          = 0x35, // Sel
+  HID_USAGE_GAME_CONTROLS_GUN_SAFETY             = 0x36, // OOC
+  HID_USAGE_GAME_CONTROLS_GAMEPAD_FIRE_JUMP      = 0x37, // CL
+  // 38 Reserved
+
+  HID_USAGE_GAME_CONTROLS_GAMEPAD_TRIGGER        = 0x39, // CL
+  HID_USAGE_GAME_CONTROLS_FORM_FITTING_GAMEPAD   = 0x3A  // SF
+  // 3B-FFFF Reserved
+};
+
+/// HID Usage Table: Generic Device Controls Page (0x06)
+enum {
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_BACKGROUND_NONUSER_CONTROLS     = 0x01, // CA
+  // 02-1F Reserved
+
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_BATTERY_STRENGTH                = 0x20, // DV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_WIRELESS_CHANNEL                = 0x21, // DV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_WIRELESS_ID                     = 0x22, // DV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_DISCOVER_WIRELESS_CONTROL       = 0x23, // OSC
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SECURITY_CODE_CHARACTER_ENTERED = 0x24, // OSC
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SECURITY_CODE_CHARACTER_ERASED  = 0x25, // OSC
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SECURITY_CODE_CLEARED           = 0x26, // OSC
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SEQUENCE_ID                     = 0x27, // DV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SEQUENCE_ID_RESET               = 0x28, // DF
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_RF_SIGNAL_STRENGTH              = 0x29, // DV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_SOFTWARE_VERSION                = 0x2A, // CL
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_PROTOCOL_VERSION                = 0x2B, // CL
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_HARDWARE_VERSION                = 0x2C, // CL
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_MAJOR                           = 0x2D, // SV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_MINOR                           = 0x2E, // SV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_REVISION                        = 0x2F, // SV
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_HANDEDNESS                      = 0x30, // NAry
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_EITHER_HAND                     = 0x31, // Sel
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_LEFT_HAND                       = 0x32, // Sel
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_RIGHT_HAND                      = 0x33, // Sel
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_BOTH_HANDS                      = 0x34, // Sel
+  // 35-3F Reserved
+
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_GRIP_POSE_OFFSET                = 0x40, // CP
+  HID_USAGE_GENERIC_DEVICE_CONTROLS_POINTER_POSE_OFFSET             = 0x41  // CP
+  // 42-FFFF Reserved
+};
+
+/// HID Usage Table: Keyboard/Keypad Page (0x07)
+/// Defined above
+
+/// HID Usage Table: LED Page (0x08)
+enum {
+  HID_USAGE_LED_NUM_LOCK                   = 0x01, // OOC
+  HID_USAGE_LED_CAPS_LOCK                  = 0x02, // OOC
+  HID_USAGE_LED_SCROLL_LOCK                = 0x03, // OOC
+  HID_USAGE_LED_COMPOSE                    = 0x04, // OOC
+  HID_USAGE_LED_KANA                       = 0x05, // OOC
+  HID_USAGE_LED_POWER                      = 0x06, // OOC
+  HID_USAGE_LED_SHIFT                      = 0x07, // OOC
+  HID_USAGE_LED_DO_NOT_SHIFT               = 0x08, // OOC
+  HID_USAGE_LED_MUTE                       = 0x09, // OOC
+  HID_USAGE_LED_TONE_ENABLE                = 0x0A, // OOC
+  HID_USAGE_LED_HIGH_CUT_FILTER            = 0x0B, // OOC
+  HID_USAGE_LED_LOW_CUT_FILTER             = 0x0C, // OOC
+  HID_USAGE_LED_EQUALIZER_ENABLE           = 0x0D, // OOC
+  HID_USAGE_LED_SOUND_FIELD_ON             = 0x0E, // OOC
+  HID_USAGE_LED_SURROUND_ON                = 0x0F, // OOC
+  HID_USAGE_LED_REPEAT                     = 0x10, // OOC
+  HID_USAGE_LED_STEREO                     = 0x11, // OOC
+  HID_USAGE_LED_SAMPLING_RATE_DETECT       = 0x12, // OOC
+  HID_USAGE_LED_SPINNING                   = 0x13, // OOC
+  HID_USAGE_LED_CAV                        = 0x14, // OOC
+  HID_USAGE_LED_CLV                        = 0x15, // OOC
+  HID_USAGE_LED_RECORDING_FORMAT_DETECT    = 0x16, // OOC
+  HID_USAGE_LED_OFF_HOOK                   = 0x17, // OOC
+  HID_USAGE_LED_RING                       = 0x18, // OOC
+  HID_USAGE_LED_MESSAGE_WAITING            = 0x19, // OOC
+  HID_USAGE_LED_DATA_MODE                  = 0x1A, // OOC
+  HID_USAGE_LED_BATTERY_OPERATION          = 0x1B, // OOC
+  HID_USAGE_LED_BATTERY_OK                 = 0x1C, // OOC
+  HID_USAGE_LED_BATTERY_LOW                = 0x1D, // OOC
+  HID_USAGE_LED_SPEAKER                    = 0x1E, // OOC
+  HID_USAGE_LED_HEADSET                    = 0x1F, // OOC
+  HID_USAGE_LED_HOLD                       = 0x20, // OOC
+  HID_USAGE_LED_MICROPHONE                 = 0x21, // OOC
+  HID_USAGE_LED_COVERAGE                   = 0x22, // OOC
+  HID_USAGE_LED_NIGHT_MODE                 = 0x23, // OOC
+  HID_USAGE_LED_SEND_CALLS                 = 0x24, // OOC
+  HID_USAGE_LED_CALL_PICKUPS               = 0x25, // OOC
+  HID_USAGE_LED_CONFERENCE                 = 0x26, // OOC
+  HID_USAGE_LED_STANDBY                    = 0x27, // OOC
+  HID_USAGE_LED_CAMERA_ON                  = 0x28, // OOC
+  HID_USAGE_LED_CAMERA_OFF                 = 0x29, // OOC
+  HID_USAGE_LED_ON_LINE                    = 0x2A, // OOC
+  HID_USAGE_LED_OFF_LINE                   = 0x2B, // OOC
+  HID_USAGE_LED_BUSY                       = 0x2C, // OOC
+  HID_USAGE_LED_READY                      = 0x2D, // OOC
+  HID_USAGE_LED_PAPER_OUT                  = 0x2E, // OOC
+  HID_USAGE_LED_PAPER_JAM                  = 0x2F, // OOC
+  HID_USAGE_LED_REMOTE                     = 0x30, // OOC
+  HID_USAGE_LED_FORWARD                    = 0x31, // OOC
+  HID_USAGE_LED_REVERSE                    = 0x32, // OOC
+  HID_USAGE_LED_STOP                       = 0x33, // OOC
+  HID_USAGE_LED_REWIND                     = 0x34, // OOC
+  HID_USAGE_LED_FAST_FORWARD               = 0x35, // OOC
+  HID_USAGE_LED_PLAY                       = 0x36, // OOC
+  HID_USAGE_LED_PAUSE                      = 0x37, // OOC
+  HID_USAGE_LED_RECORD                     = 0x38, // OOC
+  HID_USAGE_LED_ERROR                      = 0x39, // OOC
+  HID_USAGE_LED_USAGE_SELECTED_INDICATOR   = 0x3A, // US
+  HID_USAGE_LED_USAGE_IN_USE_INDICATOR     = 0x3B, // US
+  HID_USAGE_LED_USAGE_MULTI_MODE_INDICATOR = 0x3C, // UM
+  HID_USAGE_LED_INDICATOR_ON               = 0x3D, // Sel
+  HID_USAGE_LED_INDICATOR_FLASH            = 0x3E, // Sel
+  HID_USAGE_LED_INDICATOR_SLOW_BLINK       = 0x3F, // Sel
+  HID_USAGE_LED_INDICATOR_FAST_BLINK       = 0x40, // Sel
+  HID_USAGE_LED_INDICATOR_OFF              = 0x41, // Sel
+  HID_USAGE_LED_FLASH_ON_TIME              = 0x42, // DV
+  HID_USAGE_LED_SLOW_BLINK_ON_TIME         = 0x43, // DV
+  HID_USAGE_LED_SLOW_BLINK_OFF_TIME        = 0x44, // DV
+  HID_USAGE_LED_FAST_BLINK_ON_TIME         = 0x45, // DV
+  HID_USAGE_LED_FAST_BLINK_OFF_TIME        = 0x46, // DV
+  HID_USAGE_LED_USAGE_INDICATOR_COLOR      = 0x47, // UM
+  HID_USAGE_LED_INDICATOR_RED              = 0x48, // Sel
+  HID_USAGE_LED_INDICATOR_GREEN            = 0x49, // Sel
+  HID_USAGE_LED_INDICATOR_AMBER            = 0x4A, // Sel
+  HID_USAGE_LED_GENERIC_INDICATOR          = 0x4B, // OOC
+  HID_USAGE_LED_SYSTEM_SUSPEND             = 0x4C, // OOC
+  HID_USAGE_LED_EXTERNAL_POWER_CONNECTED   = 0x4D, // OOC
+  HID_USAGE_LED_INDICATOR_BLUE             = 0x4E, // Sel
+  HID_USAGE_LED_INDICATOR_ORANGE           = 0x4F, // Sel
+  HID_USAGE_LED_GOOD_STATUS                = 0x50, // OOC
+  HID_USAGE_LED_WARNING_STATUS             = 0x51, // OOC
+  HID_USAGE_LED_RGB_LED                    = 0x52, // CL
+  HID_USAGE_LED_RED_LED_CHANNEL            = 0x53, // DV
+  HID_USAGE_LED_BLUE_LED_CHANNEL           = 0x54, // DV
+  HID_USAGE_LED_GREEN_LED_CHANNEL          = 0x55, // DV
+  HID_USAGE_LED_LED_INTENSITY              = 0x56, // DV
+  HID_USAGE_LED_SYSTEM_MICROPHONE_MUTE     = 0x57, // OOC
+  // 58-5F Reserved
+
+  HID_USAGE_LED_PLAYER_INDICATOR           = 0x60, // NAry
+  HID_USAGE_LED_PLAYER_1                   = 0x61, // Sel
+  HID_USAGE_LED_PLAYER_2                   = 0x62, // Sel
+  HID_USAGE_LED_PLAYER_3                   = 0x63, // Sel
+  HID_USAGE_LED_PLAYER_4                   = 0x64, // Sel
+  HID_USAGE_LED_PLAYER_5                   = 0x65, // Sel
+  HID_USAGE_LED_PLAYER_6                   = 0x66, // Sel
+  HID_USAGE_LED_PLAYER_7                   = 0x67, // Sel
+  HID_USAGE_LED_PLAYER_8                   = 0x68, // Sel
+  // 69-FFFF Reserved
+};
+
+/// HID Usage Table: Button Page (0x09)
+/// Intentionally skipped
+
+/// HID Usage Table: Ordinal Page (0x0A)
+/// Intentionally skipped
+
+/// HID Usage Table: Telephony Device Page (0x0B)
+enum {
+  HID_USAGE_TELEPHONY_PHONE                       = 0x0001, // CA
+  HID_USAGE_TELEPHONY_ANSWERING_MACHINE           = 0x0002, // CA
+  HID_USAGE_TELEPHONY_MESSAGE_CONTROLS            = 0x0003, // CL
+  HID_USAGE_TELEPHONY_HANDSET                     = 0x0004, // CL
+  HID_USAGE_TELEPHONY_HEADSET                     = 0x0005, // CL/CA
+  HID_USAGE_TELEPHONY_TELEPHONY_KEY_PAD           = 0x0006, // NAry
+  HID_USAGE_TELEPHONY_PROGRAMMABLE_BUTTON         = 0x0007, // NAry
+  // 08-1F Reserved
+
+  HID_USAGE_TELEPHONY_HOOK_SWITCH                 = 0x0020, // OOC
+  HID_USAGE_TELEPHONY_FLASH                       = 0x0021, // MC
+  HID_USAGE_TELEPHONY_FEATURE                     = 0x0022, // OSC
+  HID_USAGE_TELEPHONY_HOLD                        = 0x0023, // OOC
+  HID_USAGE_TELEPHONY_REDIAL                      = 0x0024, // OSC
+  HID_USAGE_TELEPHONY_TRANSFER                    = 0x0025, // OSC
+  HID_USAGE_TELEPHONY_DROP                        = 0x0026, // OSC
+  HID_USAGE_TELEPHONY_PARK                        = 0x0027, // OOC
+  HID_USAGE_TELEPHONY_FORWARD_CALLS               = 0x0028, // OOC
+  HID_USAGE_TELEPHONY_ALTERNATE_FUNCTION          = 0x0029, // MC
+  HID_USAGE_TELEPHONY_LINE                        = 0x002A, // OSC/NAry
+  HID_USAGE_TELEPHONY_SPEAKER_PHONE               = 0x002B, // OOC
+  HID_USAGE_TELEPHONY_CONFERENCE                  = 0x002C, // OOC
+  HID_USAGE_TELEPHONY_RING_ENABLE                 = 0x002D, // OOC
+  HID_USAGE_TELEPHONY_RING_SELECT                 = 0x002E, // OSC
+  HID_USAGE_TELEPHONY_PHONE_MUTE                  = 0x002F, // OOC
+  HID_USAGE_TELEPHONY_CALLER_ID                   = 0x0030, // MC
+  HID_USAGE_TELEPHONY_SEND                        = 0x0031, // OOC
+  // 32-4F Reserved
+
+  HID_USAGE_TELEPHONY_SPEED_DIAL                  = 0x0050, // OSC
+  HID_USAGE_TELEPHONY_STORE_NUMBER                = 0x0051, // OSC
+  HID_USAGE_TELEPHONY_RECALL_NUMBER               = 0x0052, // OSC
+  HID_USAGE_TELEPHONY_PHONE_DIRECTORY             = 0x0053, // OOC
+  // 54-6F Reserved
+
+  HID_USAGE_TELEPHONY_VOICE_MAIL                  = 0x0070, // OOC
+  HID_USAGE_TELEPHONY_SCREEN_CALLS                = 0x0071, // OOC
+  HID_USAGE_TELEPHONY_DO_NOT_DISTURB              = 0x0072, // OOC
+  HID_USAGE_TELEPHONY_MESSAGE                     = 0x0073, // OSC
+  HID_USAGE_TELEPHONY_ANSWER_ON_OFF               = 0x0074, // OOC
+  // 75-8F Reserved
+
+  HID_USAGE_TELEPHONY_INSIDE_DIAL_TONE            = 0x0090, // MC
+  HID_USAGE_TELEPHONY_OUTSIDE_DIAL_TONE           = 0x0091, // MC
+  HID_USAGE_TELEPHONY_INSIDE_RING_TONE            = 0x0092, // MC
+  HID_USAGE_TELEPHONY_OUTSIDE_RING_TONE           = 0x0093, // MC
+  HID_USAGE_TELEPHONY_PRIORITY_RING_TONE          = 0x0094, // MC
+  HID_USAGE_TELEPHONY_INSIDE_RINGBACK             = 0x0095, // MC
+  HID_USAGE_TELEPHONY_PRIORITY_RINGBACK           = 0x0096, // MC
+  HID_USAGE_TELEPHONY_LINE_BUSY_TONE              = 0x0097, // MC
+  HID_USAGE_TELEPHONY_REORDER_TONE                = 0x0098, // MC
+  HID_USAGE_TELEPHONY_CALL_WAITING_TONE           = 0x0099, // MC
+  HID_USAGE_TELEPHONY_CONFIRMATION_TONE_1         = 0x009A, // MC
+  HID_USAGE_TELEPHONY_CONFIRMATION_TONE_2         = 0x009B, // MC
+  HID_USAGE_TELEPHONY_TONES_OFF                   = 0x009C, // OOC
+  HID_USAGE_TELEPHONY_OUTSIDE_RINGBACK            = 0x009D, // MC
+  HID_USAGE_TELEPHONY_RINGER                      = 0x009E, // OOC
+  // 9F-AF Reserved
+
+  HID_USAGE_TELEPHONY_PHONE_KEY_0                 = 0x00B0, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_1                 = 0x00B1, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_2                 = 0x00B2, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_3                 = 0x00B3, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_4                 = 0x00B4, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_5                 = 0x00B5, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_6                 = 0x00B6, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_7                 = 0x00B7, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_8                 = 0x00B8, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_9                 = 0x00B9, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_STAR              = 0x00BA, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_POUND             = 0x00BB, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_A                 = 0x00BC, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_B                 = 0x00BD, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_C                 = 0x00BE, // Sel
+  HID_USAGE_TELEPHONY_PHONE_KEY_D                 = 0x00BF, // Sel
+  HID_USAGE_TELEPHONY_PHONE_CALL_HISTORY_KEY      = 0x00C0, // Sel
+  HID_USAGE_TELEPHONY_PHONE_CALLER_ID_KEY         = 0x00C1, // Sel
+  HID_USAGE_TELEPHONY_PHONE_SETTINGS_KEY          = 0x00C2, // Sel
+  // C3-EF Reserved
+
+  HID_USAGE_TELEPHONY_HOST_CONTROL                = 0x00F0, // OOC
+  HID_USAGE_TELEPHONY_HOST_AVAILABLE              = 0x00F1, // OOC
+  HID_USAGE_TELEPHONY_HOST_CALL_ACTIVE            = 0x00F2, // OOC
+  HID_USAGE_TELEPHONY_ACTIVATE_HANDSET_AUDIO      = 0x00F3, // OOC
+  HID_USAGE_TELEPHONY_RING_TYPE                   = 0x00F4, // NAry
+  HID_USAGE_TELEPHONY_REDIALABLE_PHONE_NUMBER     = 0x00F5, // OOC
+  // F6-F7 Reserved
+
+  HID_USAGE_TELEPHONY_STOP_RING_TONE              = 0x00F8, // Sel
+  HID_USAGE_TELEHONY_PSTN_RING_TONE               = 0x00F9, // Sel
+  HID_USAGE_TELEPHONY_HOST_RING_TONE              = 0x00FA, // Sel
+  HID_USAGE_TELEPHONY_ALERT_SOUND_ERROR           = 0x00FB, // Sel
+  HID_USAGE_TELEPHONY_ALERT_SOUND_CONFIRM         = 0x00FC, // Sel
+  HID_USAGE_TELEPHONY_ALERT_SOUND_NOTIFICATION    = 0x00FD, // Sel
+  HID_USAGE_TELEPHONY_SILENT_RING                 = 0x00FE, // Sel
+  // FF-107 Reserved
+
+  HID_USAGE_TELEPHONY_EMAIL_MESSAGE_WAITING       = 0x0108, // OOC
+  HID_USAGE_TELEPHONY_VOICEMAIL_MESSAGE_WAITING   = 0x0109, // OOC
+  HID_USAGE_TELEPHONY_HOST_HOLD                   = 0x010A, // OOC
+  // 10B-10F Reserved
+
+  HID_USAGE_TELEPHONY_INCOMING_CALL_HISTORY_COUNT = 0x0110, // DV
+  HID_USAGE_TELEPHONY_OUTGOING_CALL_HISTORY_COUNT = 0x0111, // DV
+  HID_USAGE_TELEPHONY_INCOMING_CALL_HISTORY       = 0x0112, // CL
+  HID_USAGE_TELEPHONY_OUTGOING_CALL_HISTORY       = 0x0113, // CL
+  HID_USAGE_TELEPHONY_PHONE_LOCALE                = 0x0114, // DV
+  // 115-13F Reserved
+
+  HID_USAGE_TELEPHONY_PHONE_TIME_SECOND           = 0x0140, // DV
+  HID_USAGE_TELEPHONY_PHONE_TIME_MINUTE           = 0x0141, // DV
+  HID_USAGE_TELEPHONY_PHONE_TIME_HOUR             = 0x0142, // DV
+  HID_USAGE_TELEPHONY_PHONE_DATE_DAY              = 0x0143, // DV
+  HID_USAGE_TELEPHONY_PHONE_DATE_MONTH            = 0x0144, // DV
+  HID_USAGE_TELEPHONY_PHONE_DATE_YEAR             = 0x0145, // DV
+  HID_USAGE_TELEPHONY_HANDSET_NICKNAME            = 0x0146, // DV
+  HID_USAGE_TELEPHONY_ADDRESS_BOOK_ID             = 0x0147, // DV
+  // 148-149 Reserved
+
+  HID_USAGE_TELEPHONY_CALL_DURATION               = 0x014A, // DV
+  HID_USAGE_TELEPHONY_DUAL_MODE_PHONE             = 0x014B, // CA
+  // 14C-FFFF Reserved
 };
 
 /// HID Usage Table: Consumer Page (0x0C)
-/// Only contains controls that supported by Windows (whole list is too long)
 enum {
-  HID_USAGE_CONSUMER_UNASSIGNED                        = 0x0000,
+  HID_USAGE_CONSUMER_UNASSIGNED                              = 0x0000,
 
   // Generic Control
-  HID_USAGE_CONSUMER_CONTROL                           = 0x0001,
-  HID_USAGE_CONSUMER_NUMERIC_KEY_PAD                   = 0x0002,
-  HID_USAGE_CONSUMER_PROGRAMMABLE_BUTTONS              = 0x0003,
-  HID_USAGE_CONSUMER_MICROPHONE                        = 0x0004,
-  HID_USAGE_CONSUMER_HEADPHONE                         = 0x0005,
-  HID_USAGE_CONSUMER_GRAPHIC_EQUALIZER                 = 0x0006,
-  // 07-1F Reserved
+  HID_USAGE_CONSUMER_CONTROL                                 = 0x0001, // CA
+  HID_USAGE_CONSUMER_NUMERIC_KEY_PAD                         = 0x0002, // NAry
+  HID_USAGE_CONSUMER_PROGRAMMABLE_BUTTONS                    = 0x0003, // NAry
+  HID_USAGE_CONSUMER_MICROPHONE                              = 0x0004, // CA
+  HID_USAGE_CONSUMER_HEADPHONE                               = 0x0005, // CA
+  HID_USAGE_CONSUMER_GRAPHIC_EQUALIZER                       = 0x0006, // CA
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT                      = 0x0007, // CA
+  // 08-1F Reserved
 
-  HID_USAGE_CONSUMER_PLUS_10                           = 0x0020,
-  HID_USAGE_CONSUMER_PLUS_100                          = 0x0021,
-  HID_USAGE_CONSUMER_AM_PM                             = 0x0022,
+  HID_USAGE_CONSUMER_PLUS_10                                 = 0x0020, // OSC
+  HID_USAGE_CONSUMER_PLUS_100                                = 0x0021, // OSC
+  HID_USAGE_CONSUMER_AM_PM                                   = 0x0022, // OSC
   // 23-3F Reserved
 
   // Power Control
-  HID_USAGE_CONSUMER_POWER                             = 0x0030,
-  HID_USAGE_CONSUMER_RESET                             = 0x0031,
-  HID_USAGE_CONSUMER_SLEEP                             = 0x0032,
+  HID_USAGE_CONSUMER_POWER                                   = 0x0030, // OOC
+  HID_USAGE_CONSUMER_RESET                                   = 0x0031, // OSC
+  HID_USAGE_CONSUMER_SLEEP                                   = 0x0032, // OSC
 
-  HID_USAGE_CONSUMER_SLEEP_AFTER                       = 0x0033,
-  HID_USAGE_CONSUMER_SLEEP_MODE                        = 0x0034,
-  HID_USAGE_CONSUMER_ILLUMINATION                      = 0x0035,
-  HID_USAGE_CONSUMER_FUNCTION_BUTTONS                  = 0x0036,
+  HID_USAGE_CONSUMER_SLEEP_AFTER                             = 0x0033, // OSC
+  HID_USAGE_CONSUMER_SLEEP_MODE                              = 0x0034, // RTC
+  HID_USAGE_CONSUMER_ILLUMINATION                            = 0x0035, // OOC
+  HID_USAGE_CONSUMER_FUNCTION_BUTTONS                        = 0x0036, // NAry
   // 37-3F Reserved
-  HID_USAGE_CONSUMER_MENU                              = 0x0040,
-  HID_USAGE_CONSUMER_MENU_PICK                         = 0x0041,
-  HID_USAGE_CONSUMER_MENU_UP                           = 0x0042,
-  HID_USAGE_CONSUMER_MENU_DOWN                         = 0x0043,
-  HID_USAGE_CONSUMER_MENU_LEFT                         = 0x0044,
-  HID_USAGE_CONSUMER_MENU_RIGHT                        = 0x0045,
-  HID_USAGE_CONSUMER_MENU_ESCAPE                       = 0x0046,
-  HID_USAGE_CONSUMER_MENU_VALUE_INCREASE               = 0x0047,
-  HID_USAGE_CONSUMER_MENU_VALUE_DECREASE               = 0x0048,
+  HID_USAGE_CONSUMER_MENU                                    = 0x0040, // OOC
+  HID_USAGE_CONSUMER_MENU_PICK                               = 0x0041, // OSC
+  HID_USAGE_CONSUMER_MENU_UP                                 = 0x0042, // OSC
+  HID_USAGE_CONSUMER_MENU_DOWN                               = 0x0043, // OSC
+  HID_USAGE_CONSUMER_MENU_LEFT                               = 0x0044, // OSC
+  HID_USAGE_CONSUMER_MENU_RIGHT                              = 0x0045, // OSC
+  HID_USAGE_CONSUMER_MENU_ESCAPE                             = 0x0046, // OSC
+  HID_USAGE_CONSUMER_MENU_VALUE_INCREASE                     = 0x0047, // OSC
+  HID_USAGE_CONSUMER_MENU_VALUE_DECREASE                     = 0x0048, // OSC
   // 49-5F Reserved
-  HID_USAGE_CONSUMER_DATA_ON_SCREEN                    = 0x0060,
-  HID_USAGE_CONSUMER_CLOSED_CAPTION                    = 0x0061,
-  HID_USAGE_CONSUMER_CLOSED_CAPTION_SELECT             = 0x0062,
-  HID_USAGE_CONSUMER_VCR_TV                            = 0x0063,
-  HID_USAGE_CONSUMER_BROADCAST_MODE                    = 0x0064,
-  HID_USAGE_CONSUMER_SNAPSHOT                          = 0x0065,
-  HID_USAGE_CONSUMER_STILL                             = 0x0066,
+  HID_USAGE_CONSUMER_DATA_ON_SCREEN                          = 0x0060, // OOC
+  HID_USAGE_CONSUMER_CLOSED_CAPTION                          = 0x0061, // OOC
+  HID_USAGE_CONSUMER_CLOSED_CAPTION_SELECT                   = 0x0062, // OSC
+  HID_USAGE_CONSUMER_VCR_TV                                  = 0x0063, // OOC
+  HID_USAGE_CONSUMER_BROADCAST_MODE                          = 0x0064, // OSC
+  HID_USAGE_CONSUMER_SNAPSHOT                                = 0x0065, // OSC
+  HID_USAGE_CONSUMER_STILL                                   = 0x0066, // OSC
+  HID_USAGE_CONSUMER_PICTURE_IN_PICTURE_TOGGLE               = 0x0067, // OSC
+  HID_USAGE_CONSUMER_PICTURE_IN_PICTURE_SWAP                 = 0x0068, // OSC
+  HID_USAGE_CONSUMER_RED_MENU_BUTTON                         = 0x0069, // MC
+  HID_USAGE_CONSUMER_GREEN_MENU_BUTTON                       = 0x006A, // MC
+  HID_USAGE_CONSUMER_BLUE_MENU_BUTTON                        = 0x006B, // MC
+  HID_USAGE_CONSUMER_YELLOW_MENU_BUTTON                      = 0x006C, // MC
+  HID_USAGE_CONSUMER_ASPECT                                  = 0x006D, // OSC
+  HID_USAGE_CONSUMER_3D_MODE_SELECT                          = 0x006E, // OSC
+  HID_USAGE_CONSUMER_DISPLAY_BRIGHTNESS_INCREMENT            = 0x006F, // RTC
+  HID_USAGE_CONSUMER_DISPLAY_BRIGHTNESS_DECREMENT            = 0x0070, // RTC
+  HID_USAGE_CONSUMER_DISPLAY_BRIGHTNESS                      = 0x0071, // LC
+  HID_USAGE_CONSUMER_DISPLAY_BACKLIGHT_TOGGLE                = 0x0072, // OOC
+  HID_USAGE_CONSUMER_DISPLAY_SET_BRIGHTNESS_TO_MINIMUM       = 0x0073, // OSC
+  HID_USAGE_CONSUMER_DISPLAY_SET_BRIGHTNESS_TO_MAXIMUM       = 0x0074, // OSC
+  HID_USAGE_CONSUMER_DISPLAY_SET_AUTO_BRIGHTNESS             = 0x0075, // OOC
+  HID_USAGE_CONSUMER_CAMERA_ACCESS_ENABLED                   = 0x0076, // OOC
+  HID_USAGE_CONSUMER_CAMERA_ACCESS_DISABLED                  = 0x0077, // OOC
+  HID_USAGE_CONSUMER_CAMERA_ACCESS_TOGGLE                    = 0x0078, // OOC
+  HID_USAGE_CONSUMER_KEYBOARD_BRIGHTNESS_INCREMENT           = 0x0079, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BRIGHTNESS_DECREMENT           = 0x007A, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_SET_LEVEL            = 0x007B, // LC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_OOC                  = 0x007C, // OOC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_SET_MINIMUM          = 0x007D, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_SET_MAXIMUM          = 0x007E, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_AUTO                 = 0x007F, // OOC
+  HID_USAGE_CONSUMER_SELECTION                               = 0x0080, // NAry
+  HID_USAGE_CONSUMER_ASSIGN_SELECTION                        = 0x0081, // OSC
+  HID_USAGE_CONSUMER_MODE_STEP                               = 0x0082, // OSC
+  HID_USAGE_CONSUMER_RECALL_LAST                             = 0x0083, // OSC
+  HID_USAGE_CONSUMER_ENTER_CHANNEL                           = 0x0084, // OSC
+  HID_USAGE_CONSUMER_ORDER_MOVIE                             = 0x0085, // OSC
+  HID_USAGE_CONSUMER_CHANNEL                                 = 0x0086, // LC
+  HID_USAGE_CONSUMER_MEDIA_SELECTION                         = 0x0087, // NAry
+  HID_USAGE_CONSUMER_MEDIA_SELECT_COMPUTER                   = 0x0088, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_TV                         = 0x0089, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_WWW                        = 0x008A, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_DVD                        = 0x008B, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_TELEPHONE                  = 0x008C, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_PROGRAM_GUIDE              = 0x008D, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_VIDEO_PHONE                = 0x008E, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_GAMES                      = 0x008F, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_MESSAGES                   = 0x0090, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_CD                         = 0x0091, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_VCR                        = 0x0092, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_TUNER                      = 0x0093, // Sel
+  HID_USAGE_CONSUMER_QUIT                                    = 0x0094, // OSC
+  HID_USAGE_CONSUMER_HELP                                    = 0x0095, // OOC
+  HID_USAGE_CONSUMER_MEDIA_SELECT_TAPE                       = 0x0096, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_CABLE                      = 0x0097, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_SATELLITE                  = 0x0098, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_SECURITY                   = 0x0099, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_HOME                       = 0x009A, // Sel
+  HID_USAGE_CONSUMER_MEDIA_SELECT_CALL                       = 0x009B, // Sel
+  HID_USAGE_CONSUMER_CHANNEL_INCREMENT                       = 0x009C, // OSC
+  HID_USAGE_CONSUMER_CHANNEL_DECREMENT                       = 0x009D, // OSC
+  HID_USAGE_CONSUMER_MEDIA_SELECT_SAP                        = 0x009E, // Sel
+  // 9F Reserved
+  HID_USAGE_CONSUMER_VCR_PLUS                                = 0x00A0, // OSC
+  HID_USAGE_CONSUMER_ONCE                                    = 0x00A1, // OSC
+  HID_USAGE_CONSUMER_DAILY                                   = 0x00A2, // OSC
+  HID_USAGE_CONSUMER_WEEKLY                                  = 0x00A3, // OSC
+  HID_USAGE_CONSUMER_MONTHLY                                 = 0x00A4, // OSC
+  // A5-AF Reserved
 
-  // 67-7F Reserved
-  // Screen Brightness
-  HID_USAGE_CONSUMER_BRIGHTNESS_INCREMENT              = 0x006F,
-  HID_USAGE_CONSUMER_BRIGHTNESS_DECREMENT              = 0x0070,
+  HID_USAGE_CONSUMER_PLAY                                    = 0x00B0, // OOC
+  HID_USAGE_CONSUMER_PAUSE                                   = 0x00B1, // OOC
+  HID_USAGE_CONSUMER_RECORD                                  = 0x00B2, // OOC
+  HID_USAGE_CONSUMER_FAST_FORWARD                            = 0x00B3, // OOC
+  HID_USAGE_CONSUMER_REWIND                                  = 0x00B4, // OOC
+  HID_USAGE_CONSUMER_SCAN_NEXT_TRACK                         = 0x00B5, // OSC
+  HID_USAGE_CONSUMER_SCAN_PREVIOUS_TRACK                     = 0x00B6, // OSC
+  HID_USAGE_CONSUMER_STOP                                    = 0x00B7, // OSC
+  HID_USAGE_CONSUMER_EJECT                                   = 0x00B8, // OSC
+  HID_USAGE_CONSUMER_RANDOM_PLAY                             = 0x00B9, // OOC
+  HID_USAGE_CONSUMER_SELECT_DISC                             = 0x00BA, // NAry
+  HID_USAGE_CONSUMER_ENTER_DISC                              = 0x00BB, // MC
+  HID_USAGE_CONSUMER_REPEAT                                  = 0x00BC, // OSC
+  HID_USAGE_CONSUMER_TRACKING                                = 0x00BD, // LC
+  HID_USAGE_CONSUMER_TRACK_NORMAL                            = 0x00BE, // OSC
+  HID_USAGE_CONSUMER_SLOW_TRACKING                           = 0x00BF, // LC
+  HID_USAGE_CONSUMER_FRAME_FORWARD                           = 0x00C0, // RTC
+  HID_USAGE_CONSUMER_FRAME_BACK                              = 0x00C1, // RTC
+  HID_USAGE_CONSUMER_MARK                                    = 0x00C2, // OSC
+  HID_USAGE_CONSUMER_CLEAR_MARK                              = 0x00C3, // OSC
+  HID_USAGE_CONSUMER_REPEAT_FROM_MARK                        = 0x00C4, // OOC
+  HID_USAGE_CONSUMER_RETURN_TO_MARK                          = 0x00C5, // OSC
+  HID_USAGE_CONSUMER_SEARCH_MARK_FORWARD                     = 0x00C6, // OSC
+  HID_USAGE_CONSUMER_SEARCH_MARK_BACKWARDS                   = 0x00C7, // OSC
+  HID_USAGE_CONSUMER_COUNTER_RESET                           = 0x00C8, // OSC
+
 
   // These HID usages operate only on mobile systems (battery powered) and
   // require Windows 8 (build 8302 or greater).
-  HID_USAGE_CONSUMER_WIRELESS_RADIO_CONTROLS           = 0x000C,
-  HID_USAGE_CONSUMER_WIRELESS_RADIO_BUTTONS            = 0x00C6,
-  HID_USAGE_CONSUMER_WIRELESS_RADIO_LED                = 0x00C7,
-  HID_USAGE_CONSUMER_WIRELESS_RADIO_SLIDER_SWITCH      = 0x00C8,
-
-  HID_USAGE_CONSUMER_SELECTION                         = 0x0080,
-  HID_USAGE_CONSUMER_ASSIGN_SELECTION                  = 0x0081,
-  HID_USAGE_CONSUMER_MODE_STEP                         = 0x0082,
-  HID_USAGE_CONSUMER_RECALL_LAST                       = 0x0083,
-  HID_USAGE_CONSUMER_ENTER_CHANNEL                     = 0x0084,
-  HID_USAGE_CONSUMER_ORDER_MOVIE                       = 0x0085,
-  HID_USAGE_CONSUMER_CHANNEL                           = 0x0086,
-  HID_USAGE_CONSUMER_MEDIA_SELECTION                   = 0x0087,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_COMPUTER             = 0x0088,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_TV                   = 0x0089,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_WWW                  = 0x008A,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_DVD                  = 0x008B,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_TELEPHONE            = 0x008C,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_PROGRAM_GUIDE        = 0x008D,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_VIDEO_PHONE          = 0x008E,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_GAMES                = 0x008F,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_MESSAGES             = 0x0090,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_CD                   = 0x0091,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_VCR                  = 0x0092,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_TUNER                = 0x0093,
-  HID_USAGE_CONSUMER_QUIT                              = 0x0094,
-  HID_USAGE_CONSUMER_HELP                              = 0x0095,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_TAPE                 = 0x0096,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_CABLE                = 0x0097,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_SATELLITE            = 0x0098,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_SECURITY             = 0x0099,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_HOME                 = 0x009A,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_CALL                 = 0x009B,
-  HID_USAGE_CONSUMER_CHANNEL_INCREMENT                 = 0x009C,
-  HID_USAGE_CONSUMER_CHANNEL_DECREMENT                 = 0x009D,
-  HID_USAGE_CONSUMER_MEDIA_SELECT_SAP                  = 0x009E,
-  // 9F Reserved
-  HID_USAGE_CONSUMER_VCR_PLUS                          = 0x00A0,
-  HID_USAGE_CONSUMER_ONCE                              = 0x00A1,
-  HID_USAGE_CONSUMER_DAILY                             = 0x00A2,
-  HID_USAGE_CONSUMER_WEEKLY                            = 0x00A3,
-  HID_USAGE_CONSUMER_MONTHLY                           = 0x00A4,
-  // A5-AF Reserved
-
-  HID_USAGE_CONSUMER_PLAY                              = 0x00B0,
-  HID_USAGE_CONSUMER_PAUSE                             = 0x00B1,
-  HID_USAGE_CONSUMER_RECORD                            = 0x00B2,
-  HID_USAGE_CONSUMER_FAST_FORWARD                      = 0x00B3,
-  HID_USAGE_CONSUMER_REWIND                            = 0x00B4,
-  HID_USAGE_CONSUMER_SCAN_NEXT_TRACK                   = 0x00B5,
-  HID_USAGE_CONSUMER_SCAN_PREVIOUS_TRACK               = 0x00B6,
-  HID_USAGE_CONSUMER_STOP                              = 0x00B7,
-  HID_USAGE_CONSUMER_EJECT                             = 0x00B8,
-  HID_USAGE_CONSUMER_RANDOM_PLAY                       = 0x00B9,
-  HID_USAGE_CONSUMER_SELECT_DISC                       = 0x00BA,
-  HID_USAGE_CONSUMER_ENTER_DISC                        = 0x00BB,
-  HID_USAGE_CONSUMER_REPEAT                            = 0x00BC,
-  HID_USAGE_CONSUMER_TRACKING                          = 0x00BD,
-  HID_USAGE_CONSUMER_TRACK_NORMAL                      = 0x00BE,
-  HID_USAGE_CONSUMER_SLOW_TRACKING                     = 0x00BF,
-  HID_USAGE_CONSUMER_FRAME_FORWARD                     = 0x00C0,
-  HID_USAGE_CONSUMER_FRAME_BACK                        = 0x00C1,
-  HID_USAGE_CONSUMER_MARK                              = 0x00C2,
-  HID_USAGE_CONSUMER_CLEAR_MARK                        = 0x00C3,
-  HID_USAGE_CONSUMER_REPEAT_FROM_MARK                  = 0x00C4,
-  HID_USAGE_CONSUMER_RETURN_TO_MARK                    = 0x00C5,
-  HID_USAGE_CONSUMER_SEARCH_MARK_FORWARD               = 0x00C6,
-  HID_USAGE_CONSUMER_SEARCH_MARK_BACKWARDS             = 0x00C7,
-  HID_USAGE_CONSUMER_COUNTER_RESET                     = 0x00C8,
-  HID_USAGE_CONSUMER_SHOW_COUNTER                      = 0x00C9,
-  HID_USAGE_CONSUMER_TRACKING_INCREMENT                = 0x00CA,
-  HID_USAGE_CONSUMER_TRACKING_DECREMENT                = 0x00CB,
-  HID_USAGE_CONSUMER_STOP_EJECT                        = 0x00CC,
+  HID_USAGE_CONSUMER_WIRELESS_RADIO_CONTROLS                 = 0x000C,
+  HID_USAGE_CONSUMER_WIRELESS_RADIO_BUTTONS                  = 0x00C6,
+  HID_USAGE_CONSUMER_WIRELESS_RADIO_LED                      = 0x00C7,
+  HID_USAGE_CONSUMER_WIRELESS_RADIO_SLIDER_SWITCH            = 0x00C8,
 
 
-  // Media Control
-  HID_USAGE_CONSUMER_PLAY_PAUSE                        = 0x00CD,
-
-  HID_USAGE_CONSUMER_PLAY_SKIP                         = 0x00CE,
-
-  // CF-DF Reserved
-  HID_USAGE_CONSUMER_VOLUME                            = 0x00E0,
-  HID_USAGE_CONSUMER_BALANCE                           = 0x00E1,
-  HID_USAGE_CONSUMER_MUTE                              = 0x00E2,
-  HID_USAGE_CONSUMER_BASS                              = 0x00E3,
-  HID_USAGE_CONSUMER_TREBLE                            = 0x00E4,
-  HID_USAGE_CONSUMER_BASS_BOOST                        = 0x00E5,
-  HID_USAGE_CONSUMER_SURROUND_MODE                     = 0x00E6,
-  HID_USAGE_CONSUMER_LOUDNESS                          = 0x00E7,
-  HID_USAGE_CONSUMER_MPX                               = 0x00E8,
-  HID_USAGE_CONSUMER_VOLUME_INCREMENT                  = 0x00E9,
-  HID_USAGE_CONSUMER_VOLUME_DECREMENT                  = 0x00EA,
+  HID_USAGE_CONSUMER_SHOW_COUNTER                            = 0x00C9, // OSC
+  HID_USAGE_CONSUMER_TRACKING_INCREMENT                      = 0x00CA, // RTC
+  HID_USAGE_CONSUMER_TRACKING_DECREMENT                      = 0x00CB, // RTC
+  HID_USAGE_CONSUMER_STOP_EJECT                              = 0x00CC, // OSC
+  HID_USAGE_CONSUMER_PLAY_PAUSE                              = 0x00CD, // OSC
+  HID_USAGE_CONSUMER_PLAY_SKIP                               = 0x00CE, // OSC
+  HID_USAGE_CONSUMER_VOICE_COMMAND                           = 0x00CF, // OSC
+  HID_USAGE_CONSUMER_INVOKE_CAPTURE_INTERFACE                = 0x00D0, // Sel
+  HID_USAGE_CONSUMER_START_OR_STOP_GAME_RECORDING            = 0x00D1, // Sel
+  HID_USAGE_CONSUMER_HISTORICAL_GAME_CAPTURE                 = 0x00D2, // Sel
+  HID_USAGE_CONSUMER_CAPTURE_GAME_SCREENSHOT                 = 0x00D3, // Sel
+  HID_USAGE_CONSUMER_SHOW_OR_HIDE_RECORDING_INDICATOR        = 0x00D4, // Sel
+  HID_USAGE_CONSUMER_START_OR_STOP_MICROPHONE_CAPTURE        = 0x00D5, // Sel
+  HID_USAGE_CONSUMER_START_OR_STOP_CAMERA_CAPTURE            = 0x00D6, // Sel
+  HID_USAGE_CONSUMER_START_OR_STOP_GAME_BROADCAST            = 0x00D7, // Sel
+  HID_USAGE_CONSUMER_START_OR_STOP_VOICE_DICTATION_SESSION   = 0x00D8, // OOC
+  HID_USAGE_CONSUMER_INVOKE_DISMISS_EMOJI_PICKER             = 0x00D9, // OOC
+  // DA-DF Reserved
+  HID_USAGE_CONSUMER_VOLUME                                  = 0x00E0, // LC
+  HID_USAGE_CONSUMER_BALANCE                                 = 0x00E1, // LC
+  HID_USAGE_CONSUMER_MUTE                                    = 0x00E2, // OOC
+  HID_USAGE_CONSUMER_BASS                                    = 0x00E3, // LC
+  HID_USAGE_CONSUMER_TREBLE                                  = 0x00E4, // LC
+  HID_USAGE_CONSUMER_BASS_BOOST                              = 0x00E5, // OOC
+  HID_USAGE_CONSUMER_SURROUND_MODE                           = 0x00E6, // OSC
+  HID_USAGE_CONSUMER_LOUDNESS                                = 0x00E7, // OOC
+  HID_USAGE_CONSUMER_MPX                                     = 0x00E8, // OOC
+  HID_USAGE_CONSUMER_VOLUME_INCREMENT                        = 0x00E9, // RTC
+  HID_USAGE_CONSUMER_VOLUME_DECREMENT                        = 0x00EA, // RTC
   // EB-EF Reserved
-  HID_USAGE_CONSUMER_SPEED_SELECT                      = 0x00F0,
-  HID_USAGE_CONSUMER_PLAYBACK_SPEED                    = 0x00F1,
-  HID_USAGE_CONSUMER_STANDARD_PLAY                     = 0x00F2,
-  HID_USAGE_CONSUMER_LONG_PLAY                         = 0x00F3,
-  HID_USAGE_CONSUMER_EXTENDED_PLAY                     = 0x00F4,
-  HID_USAGE_CONSUMER_SLOW                              = 0x00F5,
+  HID_USAGE_CONSUMER_SPEED_SELECT                            = 0x00F0, // OSC
+  HID_USAGE_CONSUMER_PLAYBACK_SPEED                          = 0x00F1, // NAry
+  HID_USAGE_CONSUMER_STANDARD_PLAY                           = 0x00F2, // Sel
+  HID_USAGE_CONSUMER_LONG_PLAY                               = 0x00F3, // Sel
+  HID_USAGE_CONSUMER_EXTENDED_PLAY                           = 0x00F4, // Sel
+  HID_USAGE_CONSUMER_SLOW                                    = 0x00F5, // OSC
   // F6-FF Reserved
-  HID_USAGE_CONSUMER_FAN_ENABLE                        = 0x0100,
-  HID_USAGE_CONSUMER_FAN_SPEED                         = 0x0101,
-  HID_USAGE_CONSUMER_LIGHT_ENABLE                      = 0x0102,
-  HID_USAGE_CONSUMER_LIGHT_ILLUMINATION_LEVEL          = 0x0103,
-  HID_USAGE_CONSUMER_CLIMATE_CONTROL_ENABLE            = 0x0104,
-  HID_USAGE_CONSUMER_ROOM_TEMPERATURE                  = 0x0105,
-  HID_USAGE_CONSUMER_SECURITY_ENABLE                   = 0x0106,
-  HID_USAGE_CONSUMER_FIRE_ALARM                        = 0x0107,
-  HID_USAGE_CONSUMER_POLICE_ALARM                      = 0x0108,
-  HID_USAGE_CONSUMER_PROXIMITY                         = 0x0109,
-  HID_USAGE_CONSUMER_MOTION                            = 0x010A,
-  HID_USAGE_CONSUMER_DURESS_ALARM                      = 0x010B,
-  HID_USAGE_CONSUMER_HOLDUP_ALARM                      = 0x010C,
-  HID_USAGE_CONSUMER_MEDICAL_ALARM                     = 0x010D,
+  HID_USAGE_CONSUMER_FAN_ENABLE                              = 0x0100, // OOC
+  HID_USAGE_CONSUMER_FAN_SPEED                               = 0x0101, // LC
+  HID_USAGE_CONSUMER_LIGHT_ENABLE                            = 0x0102, // OOC
+  HID_USAGE_CONSUMER_LIGHT_ILLUMINATION_LEVEL                = 0x0103, // LC
+  HID_USAGE_CONSUMER_CLIMATE_CONTROL_ENABLE                  = 0x0104, // OOC
+  HID_USAGE_CONSUMER_ROOM_TEMPERATURE                        = 0x0105, // LC
+  HID_USAGE_CONSUMER_SECURITY_ENABLE                         = 0x0106, // OOC
+  HID_USAGE_CONSUMER_FIRE_ALARM                              = 0x0107, // OSC
+  HID_USAGE_CONSUMER_POLICE_ALARM                            = 0x0108, // OSC
+  HID_USAGE_CONSUMER_PROXIMITY                               = 0x0109, // LC
+  HID_USAGE_CONSUMER_MOTION                                  = 0x010A, // OSC
+  HID_USAGE_CONSUMER_DURESS_ALARM                            = 0x010B, // OSC
+  HID_USAGE_CONSUMER_HOLDUP_ALARM                            = 0x010C, // OSC
+  HID_USAGE_CONSUMER_MEDICAL_ALARM                           = 0x010D, // OSC
   // 10E-14F Reserved
-  HID_USAGE_CONSUMER_BALANCE_RIGHT                     = 0x0150,
-  HID_USAGE_CONSUMER_BALANCE_LEFT                      = 0x0151,
-  HID_USAGE_CONSUMER_BASS_INCREMENT                    = 0x0152,
-  HID_USAGE_CONSUMER_BASS_DECREMENT                    = 0x0153,
-  HID_USAGE_CONSUMER_TREBLE_INCREMENT                  = 0x0154,
-  HID_USAGE_CONSUMER_TREBLE_DECREMENT                  = 0x0155,
+  HID_USAGE_CONSUMER_BALANCE_RIGHT                           = 0x0150, // RTC
+  HID_USAGE_CONSUMER_BALANCE_LEFT                            = 0x0151, // RTC
+  HID_USAGE_CONSUMER_BASS_INCREMENT                          = 0x0152, // RTC
+  HID_USAGE_CONSUMER_BASS_DECREMENT                          = 0x0153, // RTC
+  HID_USAGE_CONSUMER_TREBLE_INCREMENT                        = 0x0154, // RTC
+  HID_USAGE_CONSUMER_TREBLE_DECREMENT                        = 0x0155, // RTC
 
   // 156-15F Reserved
-  HID_USAGE_CONSUMER_SPEAKER_SYSTEM                    = 0x0160,
-  HID_USAGE_CONSUMER_CHANNEL_LEFT                      = 0x0161,
-  HID_USAGE_CONSUMER_CHANNEL_RIGHT                     = 0x0162,
-  HID_USAGE_CONSUMER_CHANNEL_CENTER                    = 0x0163,
-  HID_USAGE_CONSUMER_CHANNEL_FRONT                     = 0x0164,
-  HID_USAGE_CONSUMER_CHANNEL_CENTER_FRONT              = 0x0165,
-  HID_USAGE_CONSUMER_CHANNEL_SIDE                      = 0x0166,
-  HID_USAGE_CONSUMER_CHANNEL_SURROUND                  = 0x0167,
-  HID_USAGE_CONSUMER_CHANNEL_LOW_FREQUENCY             = 0x0168,
-  // Enhancement
-  // CL 15.12.1
-  HID_USAGE_CONSUMER_CHANNEL_TOP                       = 0x0169,
-  HID_USAGE_CONSUMER_CHANNEL_UNKNOWN                   = 0x016A,
+  HID_USAGE_CONSUMER_SPEAKER_SYSTEM                          = 0x0160, // CL
+  HID_USAGE_CONSUMER_CHANNEL_LEFT                            = 0x0161, // CL
+  HID_USAGE_CONSUMER_CHANNEL_RIGHT                           = 0x0162, // CL
+  HID_USAGE_CONSUMER_CHANNEL_CENTER                          = 0x0163, // CL
+  HID_USAGE_CONSUMER_CHANNEL_FRONT                           = 0x0164, // CL
+  HID_USAGE_CONSUMER_CHANNEL_CENTER_FRONT                    = 0x0165, // CL
+  HID_USAGE_CONSUMER_CHANNEL_SIDE                            = 0x0166, // CL
+  HID_USAGE_CONSUMER_CHANNEL_SURROUND                        = 0x0167, // CL
+  HID_USAGE_CONSUMER_CHANNEL_LOW_FREQUENCY                   = 0x0168, // CL
+  HID_USAGE_CONSUMER_CHANNEL_TOP                             = 0x0169, // CL
+  HID_USAGE_CONSUMER_CHANNEL_UNKNOWN                         = 0x016A, // CL
   // 16B-16F Reserved
-  HID_USAGE_CONSUMER_SUB_CHANNEL                       = 0x0170,
-  HID_USAGE_CONSUMER_SUB_CHANNEL_INCREMENT             = 0x0171,
-  HID_USAGE_CONSUMER_SUB_CHANNEL_DECREMENT             = 0x0172,
-  HID_USAGE_CONSUMER_ALTERNATE_AUDIO_INCREMENT         = 0x0173,
-  HID_USAGE_CONSUMER_ALTERNATE_AUDIO_DECREMENT         = 0x0174,
+  HID_USAGE_CONSUMER_SUB_CHANNEL                             = 0x0170, // LC
+  HID_USAGE_CONSUMER_SUB_CHANNEL_INCREMENT                   = 0x0171, // OSC
+  HID_USAGE_CONSUMER_SUB_CHANNEL_DECREMENT                   = 0x0172, // OSC
+  HID_USAGE_CONSUMER_ALTERNATE_AUDIO_INCREMENT               = 0x0173, // OSC
+  HID_USAGE_CONSUMER_ALTERNATE_AUDIO_DECREMENT               = 0x0174, // OSC
   // 175-17F Reserved
-  HID_USAGE_CONSUMER_APPLICATION_LAUNCH_BUTTONS        = 0x0180,
-  HID_USAGE_CONSUMER_AL_LAUNCH_BUTTON_CONFIGURATION    = 0x0181,
-  // Tool
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_PROGRAMMABLE_BUTTON            = 0x0182,
-  // Configuration
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_CONSUMER_CONTROL_CONFIGURATION = 0x0183,
-  // Configuration
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_WORD_PROCESSOR                 = 0x0184,
-  HID_USAGE_CONSUMER_AL_TEXT_EDITOR                    = 0x0185,
-  HID_USAGE_CONSUMER_AL_SPREADSHEET                    = 0x0186,
-  HID_USAGE_CONSUMER_AL_GRAPHICS_EDITOR                = 0x0187,
-  HID_USAGE_CONSUMER_AL_PRESENTATION_APP               = 0x0188,
-  HID_USAGE_CONSUMER_AL_DATABASE_APP                   = 0x0189,
-  HID_USAGE_CONSUMER_AL_EMAIL_READER                   = 0x018A,
-  HID_USAGE_CONSUMER_AL_NEWSREADER                     = 0x018B,
-  HID_USAGE_CONSUMER_AL_VOICEMAIL                      = 0x018C,
-  HID_USAGE_CONSUMER_AL_CONTACTS_ADDRESS_BOOK          = 0x018D,
-  HID_USAGE_CONSUMER_AL_CALENDAR_SCHEDULE              = 0x018E,
-  HID_USAGE_CONSUMER_AL_TASK_PROJECT_MANAGER           = 0x018F,
-  HID_USAGE_CONSUMER_AL_LOG_JOURNAL_TIMECARD           = 0x0190,
-  HID_USAGE_CONSUMER_AL_CHECKBOOK_FINANCE              = 0x0191,
-  HID_USAGE_CONSUMER_AL_CALCULATOR                     = 0x0192,
-  HID_USAGE_CONSUMER_AL_A_V_CAPTURE_PLAYBACK           = 0x0193,
-  HID_USAGE_CONSUMER_AL_LOCAL_MACHINE_BROWSER          = 0x0194,
-  HID_USAGE_CONSUMER_AL_LAN_WAN_BROWSER                = 0x0195,
-  HID_USAGE_CONSUMER_AL_INTERNET_BROWSER               = 0x0196,
-  HID_USAGE_CONSUMER_AL_REMOTE_NETWORKING_ISP          = 0x0197,
-  // Connect
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_NETWORK_CONFERENCE             = 0x0198,
-  HID_USAGE_CONSUMER_AL_NETWORK_CHAT                   = 0x0199,
-  HID_USAGE_CONSUMER_AL_TELEPHONY_DIALER               = 0x019A,
-  HID_USAGE_CONSUMER_AL_LOGON                          = 0x019B,
-  HID_USAGE_CONSUMER_AL_LOGOFF                         = 0x019C,
-  HID_USAGE_CONSUMER_AL_LOGON_LOGOFF                   = 0x019D,
-  HID_USAGE_CONSUMER_AL_TERMINAL_LOCK_SCREENSAVER      = 0x019E,
-  HID_USAGE_CONSUMER_AL_CONTROL_PANEL                  = 0x019F,
-  HID_USAGE_CONSUMER_AL_COMMAND_LINE_PROCESSOR_RUN     = 0x01A0,
-  HID_USAGE_CONSUMER_AL_PROCESS_TASK_MANAGER           = 0x01A1,
-  HID_USAGE_CONSUMER_AL_SELECT_TASK_APPLICATION        = 0x01A2,
-  HID_USAGE_CONSUMER_AL_NEXT_TASK_APPLICATION          = 0x01A3,
-  HID_USAGE_CONSUMER_AL_PREVIOUS_TASK_APPLICATION      = 0x01A4,
-  HID_USAGE_CONSUMER_AL_PREEMPTIVE_HALT                = 0x01A5,
-  // Task_Application
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_INTEGRATED_HELP_CENTER         = 0x01A6,
-  HID_USAGE_CONSUMER_AL_DOCUMENTS                      = 0x01A7,
-  HID_USAGE_CONSUMER_AL_THESAURUS                      = 0x01A8,
-  HID_USAGE_CONSUMER_AL_DICTIONARY                     = 0x01A9,
-  HID_USAGE_CONSUMER_AL_DESKTOP                        = 0x01AA,
-  HID_USAGE_CONSUMER_AL_SPELL_CHECK                    = 0x01AB,
-  HID_USAGE_CONSUMER_AL_GRAMMAR_CHECK                  = 0x01AC,
-  HID_USAGE_CONSUMER_AL_WIRELESS_STATUS                = 0x01AD,
-  HID_USAGE_CONSUMER_AL_KEYBOARD_LAYOUT                = 0x01AE,
-  HID_USAGE_CONSUMER_AL_VIRUS_PROTECTION               = 0x01AF,
-  HID_USAGE_CONSUMER_AL_ENCRYPTION                     = 0x01B0,
-  HID_USAGE_CONSUMER_AL_SCREEN_SAVER                   = 0x01B1,
-  HID_USAGE_CONSUMER_AL_ALARMS                         = 0x01B2,
-  HID_USAGE_CONSUMER_AL_CLOCK                          = 0x01B3,
-  HID_USAGE_CONSUMER_AL_FILE_BROWSER                   = 0x01B4,
-  HID_USAGE_CONSUMER_AL_POWER_STATUS                   = 0x01B5,
-  HID_USAGE_CONSUMER_AL_IMAGE_BROWSER                  = 0x01B6,
-  HID_USAGE_CONSUMER_AL_AUDIO_BROWSER                  = 0x01B7,
-  HID_USAGE_CONSUMER_AL_MOVIE_BROWSER                  = 0x01B8,
-  HID_USAGE_CONSUMER_AL_DIGITAL_RIGHTS_MANAGER         = 0x01B9,
-  HID_USAGE_CONSUMER_AL_DIGITAL_WALLET                 = 0x01BA,
+  HID_USAGE_CONSUMER_APPLICATION_LAUNCH_BUTTONS              = 0x0180, // NAry
+  HID_USAGE_CONSUMER_AL_LAUNCH_BUTTON_CONFIGURATION          = 0x0181, // Sel
+  HID_USAGE_CONSUMER_AL_PROGRAMMABLE_BUTTON                  = 0x0182, // Sel
+  HID_USAGE_CONSUMER_AL_CONSUMER_CONTROL_CONFIGURATION       = 0x0183, // Sel
+  HID_USAGE_CONSUMER_AL_WORD_PROCESSOR                       = 0x0184, // Sel
+  HID_USAGE_CONSUMER_AL_TEXT_EDITOR                          = 0x0185, // Sel
+  HID_USAGE_CONSUMER_AL_SPREADSHEET                          = 0x0186, // Sel
+  HID_USAGE_CONSUMER_AL_GRAPHICS_EDITOR                      = 0x0187, // Sel
+  HID_USAGE_CONSUMER_AL_PRESENTATION_APP                     = 0x0188, // Sel
+  HID_USAGE_CONSUMER_AL_DATABASE_APP                         = 0x0189, // Sel
+  HID_USAGE_CONSUMER_AL_EMAIL_READER                         = 0x018A, // Sel
+  HID_USAGE_CONSUMER_AL_NEWSREADER                           = 0x018B, // Sel
+  HID_USAGE_CONSUMER_AL_VOICEMAIL                            = 0x018C, // Sel
+  HID_USAGE_CONSUMER_AL_CONTACTS_ADDRESS_BOOK                = 0x018D, // Sel
+  HID_USAGE_CONSUMER_AL_CALENDAR_SCHEDULE                    = 0x018E, // Sel
+  HID_USAGE_CONSUMER_AL_TASK_PROJECT_MANAGER                 = 0x018F, // Sel
+  HID_USAGE_CONSUMER_AL_LOG_JOURNAL_TIMECARD                 = 0x0190, // Sel
+  HID_USAGE_CONSUMER_AL_CHECKBOOK_FINANCE                    = 0x0191, // Sel
+  HID_USAGE_CONSUMER_AL_CALCULATOR                           = 0x0192, // Sel
+  HID_USAGE_CONSUMER_AL_A_V_CAPTURE_PLAYBACK                 = 0x0193, // Sel
+  HID_USAGE_CONSUMER_AL_LOCAL_MACHINE_BROWSER                = 0x0194, // Sel
+  HID_USAGE_CONSUMER_AL_LAN_WAN_BROWSER                      = 0x0195, // Sel
+  HID_USAGE_CONSUMER_AL_INTERNET_BROWSER                     = 0x0196, // Sel
+  HID_USAGE_CONSUMER_AL_REMOTE_NETWORKING_ISP                = 0x0197, // Sel
+  HID_USAGE_CONSUMER_AL_NETWORK_CONFERENCE                   = 0x0198, // Sel
+  HID_USAGE_CONSUMER_AL_NETWORK_CHAT                         = 0x0199, // Sel
+  HID_USAGE_CONSUMER_AL_TELEPHONY_DIALER                     = 0x019A, // Sel
+  HID_USAGE_CONSUMER_AL_LOGON                                = 0x019B, // Sel
+  HID_USAGE_CONSUMER_AL_LOGOFF                               = 0x019C, // Sel
+  HID_USAGE_CONSUMER_AL_LOGON_LOGOFF                         = 0x019D, // Sel
+  HID_USAGE_CONSUMER_AL_TERMINAL_LOCK_SCREENSAVER            = 0x019E, // Sel
+  HID_USAGE_CONSUMER_AL_CONTROL_PANEL                        = 0x019F, // Sel
+  HID_USAGE_CONSUMER_AL_COMMAND_LINE_PROCESSOR_RUN           = 0x01A0, // Sel
+  HID_USAGE_CONSUMER_AL_PROCESS_TASK_MANAGER                 = 0x01A1, // Sel
+  HID_USAGE_CONSUMER_AL_SELECT_TASK_APPLICATION              = 0x01A2, // Sel
+  HID_USAGE_CONSUMER_AL_NEXT_TASK_APPLICATION                = 0x01A3, // Sel
+  HID_USAGE_CONSUMER_AL_PREVIOUS_TASK_APPLICATION            = 0x01A4, // Sel
+  HID_USAGE_CONSUMER_AL_PREEMPTIVE_HALT                      = 0x01A5, // Sel
+  HID_USAGE_CONSUMER_AL_INTEGRATED_HELP_CENTER               = 0x01A6, // Sel
+  HID_USAGE_CONSUMER_AL_DOCUMENTS                            = 0x01A7, // Sel
+  HID_USAGE_CONSUMER_AL_THESAURUS                            = 0x01A8, // Sel
+  HID_USAGE_CONSUMER_AL_DICTIONARY                           = 0x01A9, // Sel
+  HID_USAGE_CONSUMER_AL_DESKTOP                              = 0x01AA, // Sel
+  HID_USAGE_CONSUMER_AL_SPELL_CHECK                          = 0x01AB, // Sel
+  HID_USAGE_CONSUMER_AL_GRAMMAR_CHECK                        = 0x01AC, // Sel
+  HID_USAGE_CONSUMER_AL_WIRELESS_STATUS                      = 0x01AD, // Sel
+  HID_USAGE_CONSUMER_AL_KEYBOARD_LAYOUT                      = 0x01AE, // Sel
+  HID_USAGE_CONSUMER_AL_VIRUS_PROTECTION                     = 0x01AF, // Sel
+  HID_USAGE_CONSUMER_AL_ENCRYPTION                           = 0x01B0, // Sel
+  HID_USAGE_CONSUMER_AL_SCREEN_SAVER                         = 0x01B1, // Sel
+  HID_USAGE_CONSUMER_AL_ALARMS                               = 0x01B2, // Sel
+  HID_USAGE_CONSUMER_AL_CLOCK                                = 0x01B3, // Sel
+  HID_USAGE_CONSUMER_AL_FILE_BROWSER                         = 0x01B4, // Sel
+  HID_USAGE_CONSUMER_AL_POWER_STATUS                         = 0x01B5, // Sel
+  HID_USAGE_CONSUMER_AL_IMAGE_BROWSER                        = 0x01B6, // Sel
+  HID_USAGE_CONSUMER_AL_AUDIO_BROWSER                        = 0x01B7, // Sel
+  HID_USAGE_CONSUMER_AL_MOVIE_BROWSER                        = 0x01B8, // Sel
+  HID_USAGE_CONSUMER_AL_DIGITAL_RIGHTS_MANAGER               = 0x01B9, // Sel
+  HID_USAGE_CONSUMER_AL_DIGITAL_WALLET                       = 0x01BA, // Sel
   // 1BB Reserved
-  HID_USAGE_CONSUMER_AL_INSTANT_MESSAGING              = 0x01BC,
-  HID_USAGE_CONSUMER_AL_OEM_FEATURES_TIPS_TUTORIAL     = 0x01BD,
-  // Browser
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_OEM_HELP                       = 0x01BE,
-  HID_USAGE_CONSUMER_AL_ONLINE_COMMUNITY               = 0x01BF,
-  HID_USAGE_CONSUMER_AL_ENTERTAINMENT_CONTENT          = 0x01C0,
-  // Browser
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_ONLINE_SHOPPING_BROWSER        = 0x01C1,
-  HID_USAGE_CONSUMER_AL_SMARTCARD_INFORMATION_HELP     = 0x01C2,
-  HID_USAGE_CONSUMER_AL_MARKET_MONITOR_FINANCE         = 0x01C3,
-  // Browser
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_CUSTOMIZED_CORPORATE_NEWS      = 0x01C4,
-  // Browser
-  // Sel 15.15
-  HID_USAGE_CONSUMER_AL_ONLINE_ACTIVITY_BROWSER        = 0x01C5,
-  HID_USAGE_CONSUMER_AL_RESEARCH_SEARCH_BROWSER        = 0x01C6,
-  HID_USAGE_CONSUMER_AL_AUDIO_PLAYER                   = 0x01C7,
-  // 1C8-1FF Reserved
-  HID_USAGE_CONSUMER_GENERIC_GUI_APPLICATION           = 0x0200,
-  // ' Controls
-  // '
-  HID_USAGE_CONSUMER_AC_NEW                            = 0x0201,
-  HID_USAGE_CONSUMER_AC_OPEN                           = 0x0202,
-  HID_USAGE_CONSUMER_AC_CLOSE                          = 0x0203,
-  HID_USAGE_CONSUMER_AC_EXIT                           = 0x0204,
-  HID_USAGE_CONSUMER_AC_MAXIMIZE                       = 0x0205,
-  HID_USAGE_CONSUMER_AC_MINIMIZE                       = 0x0206,
-  HID_USAGE_CONSUMER_AC_SAVE                           = 0x0207,
-  HID_USAGE_CONSUMER_AC_PRINT                          = 0x0208,
-  HID_USAGE_CONSUMER_AC_PROPERTIES                     = 0x0209,
-  HID_USAGE_CONSUMER_AC_UNDO                           = 0x021A,
-  HID_USAGE_CONSUMER_AC_COPY                           = 0x021B,
-  HID_USAGE_CONSUMER_AC_CUT                            = 0x021C,
-  HID_USAGE_CONSUMER_AC_PASTE                          = 0x021D,
-  HID_USAGE_CONSUMER_AC_SELECT_ALL                     = 0x021E,
-  HID_USAGE_CONSUMER_AC_FIND                           = 0x021F,
-  HID_USAGE_CONSUMER_AC_FIND_AND_REPLACE               = 0x0220,
-  // Browser/Explorer Specific
-  HID_USAGE_CONSUMER_AC_SEARCH                         = 0x0221,
-  HID_USAGE_CONSUMER_AC_GO_TO                          = 0x0222,
-  HID_USAGE_CONSUMER_AC_HOME                           = 0x0223,
-  HID_USAGE_CONSUMER_AC_BACK                           = 0x0224,
-  HID_USAGE_CONSUMER_AC_FORWARD                        = 0x0225,
-  HID_USAGE_CONSUMER_AC_STOP                           = 0x0226,
-  HID_USAGE_CONSUMER_AC_REFRESH                        = 0x0227,
-  HID_USAGE_CONSUMER_AC_PREVIOUS_LINK                  = 0x0228,
-  HID_USAGE_CONSUMER_AC_NEXT_LINK                      = 0x0229,
-  HID_USAGE_CONSUMER_AC_BOOKMARKS                      = 0x022A,
-  HID_USAGE_CONSUMER_AC_HISTORY                        = 0x022B,
-  HID_USAGE_CONSUMER_AC_SUBSCRIPTIONS                  = 0x022C,
-  HID_USAGE_CONSUMER_AC_ZOOM_IN                        = 0x022D,
-  HID_USAGE_CONSUMER_AC_ZOOM_OUT                       = 0x022E,
-  HID_USAGE_CONSUMER_AC_ZOOM                           = 0x022F,
-  HID_USAGE_CONSUMER_AC_FULL_SCREEN_VIEW               = 0x0230,
-  HID_USAGE_CONSUMER_AC_NORMAL_VIEW                    = 0x0231,
-  HID_USAGE_CONSUMER_AC_VIEW_TOGGLE                    = 0x0232,
-  HID_USAGE_CONSUMER_AC_SCROLL_UP                      = 0x0233,
-  HID_USAGE_CONSUMER_AC_SCROLL_DOWN                    = 0x0234,
-  HID_USAGE_CONSUMER_AC_SCROLL                         = 0x0235,
-  HID_USAGE_CONSUMER_AC_PAN_LEFT                       = 0x0236,
-  HID_USAGE_CONSUMER_AC_PAN_RIGHT                      = 0x0237,
-  // Mouse Horizontal scroll
-  HID_USAGE_CONSUMER_AC_PAN                            = 0x0238,
-  HID_USAGE_CONSUMER_AC_NEW_WINDOW                     = 0x0239,
-  HID_USAGE_CONSUMER_AC_TILE_HORIZONTALLY              = 0x023A,
-  HID_USAGE_CONSUMER_AC_TILE_VERTICALLY                = 0x023B,
-  HID_USAGE_CONSUMER_AC_FORMAT                         = 0x023C,
-  HID_USAGE_CONSUMER_AC_EDIT                           = 0x023D,
-  HID_USAGE_CONSUMER_AC_BOLD                           = 0x023E,
-  HID_USAGE_CONSUMER_AC_ITALICS                        = 0x023F,
-  HID_USAGE_CONSUMER_AC_UNDERLINE                      = 0x0240,
-  HID_USAGE_CONSUMER_AC_STRIKETHROUGH                  = 0x0241,
-  HID_USAGE_CONSUMER_AC_SUBSCRIPT                      = 0x0242,
-  HID_USAGE_CONSUMER_AC_SUPERSCRIPT                    = 0x0243,
-  HID_USAGE_CONSUMER_AC_ALL_CAPS                       = 0x0244,
-  HID_USAGE_CONSUMER_AC_ROTATE                         = 0x0245,
-  HID_USAGE_CONSUMER_AC_RESIZE                         = 0x0246,
-  HID_USAGE_CONSUMER_AC_FLIP_HORIZONTAL                = 0x0247,
-  HID_USAGE_CONSUMER_AC_FLIP_VERTICAL                  = 0x0248,
-  HID_USAGE_CONSUMER_AC_MIRROR_HORIZONTAL              = 0x0249,
-  HID_USAGE_CONSUMER_AC_MIRROR_VERTICAL                = 0x024A,
-  HID_USAGE_CONSUMER_AC_FONT_SELECT                    = 0x024B,
-  HID_USAGE_CONSUMER_AC_FONT_COLOR                     = 0x024C,
-  HID_USAGE_CONSUMER_AC_FONT_SIZE                      = 0x024D,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_LEFT                   = 0x024E,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_CENTER_H               = 0x024F,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_RIGHT                  = 0x0250,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_BLOCK_H                = 0x0251,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_TOP                    = 0x0252,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_CENTER_V               = 0x0253,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_BOTTOM                 = 0x0254,
-  HID_USAGE_CONSUMER_AC_JUSTIFY_BLOCK_V                = 0x0255,
-  HID_USAGE_CONSUMER_AC_INDENT_DECREASE                = 0x0256,
-  HID_USAGE_CONSUMER_AC_INDENT_INCREASE                = 0x0257,
-  HID_USAGE_CONSUMER_AC_NUMBERED_LIST                  = 0x0258,
-  HID_USAGE_CONSUMER_AC_RESTART_NUMBERING              = 0x0259,
-  HID_USAGE_CONSUMER_AC_BULLETED_LIST                  = 0x025A,
-  HID_USAGE_CONSUMER_AC_PROMOTE                        = 0x025B,
-  HID_USAGE_CONSUMER_AC_DEMOTE                         = 0x025C,
-  HID_USAGE_CONSUMER_AC_YES                            = 0x025D,
-  HID_USAGE_CONSUMER_AC_NO                             = 0x025E,
-  HID_USAGE_CONSUMER_AC_CANCEL                         = 0x025F,
-  HID_USAGE_CONSUMER_AC_CATALOG                        = 0x0260,
-  HID_USAGE_CONSUMER_AC_BUY_CHECKOUT                   = 0x0261,
-  HID_USAGE_CONSUMER_AC_ADD_TO_CART                    = 0x0262,
-  HID_USAGE_CONSUMER_AC_EXPAND                         = 0x0263,
-  HID_USAGE_CONSUMER_AC_EXPAND_ALL                     = 0x0264,
-  HID_USAGE_CONSUMER_AC_COLLAPSE                       = 0x0265,
-  HID_USAGE_CONSUMER_AC_COLLAPSE_ALL                   = 0x0266,
-  HID_USAGE_CONSUMER_AC_PRINT_PREVIEW                  = 0x0267,
-  HID_USAGE_CONSUMER_AC_PASTE_SPECIAL                  = 0x0268,
-  HID_USAGE_CONSUMER_AC_INSERT_MODE                    = 0x0269,
-  HID_USAGE_CONSUMER_AC_DELETE                         = 0x026A,
-  HID_USAGE_CONSUMER_AC_LOCK                           = 0x026B,
-  HID_USAGE_CONSUMER_AC_UNLOCK                         = 0x026C,
-  HID_USAGE_CONSUMER_AC_PROTECT                        = 0x026D,
-  HID_USAGE_CONSUMER_AC_UNPROTECT                      = 0x026E,
-  HID_USAGE_CONSUMER_AC_ATTACH_COMMENT                 = 0x026F,
-  HID_USAGE_CONSUMER_AC_DELETE_COMMENT                 = 0x0270,
-  HID_USAGE_CONSUMER_AC_VIEW_COMMENT                   = 0x0271,
-  HID_USAGE_CONSUMER_AC_SELECT_WORD                    = 0x0272,
-  HID_USAGE_CONSUMER_AC_SELECT_SENTENCE                = 0x0273,
-  HID_USAGE_CONSUMER_AC_SELECT_PARAGRAPH               = 0x0274,
-  HID_USAGE_CONSUMER_AC_SELECT_COLUMN                  = 0x0275,
-  HID_USAGE_CONSUMER_AC_SELECT_ROW                     = 0x0276,
-  HID_USAGE_CONSUMER_AC_SELECT_TABLE                   = 0x0277,
-  HID_USAGE_CONSUMER_AC_SELECT_OBJECT                  = 0x0278,
-  HID_USAGE_CONSUMER_AC_REDO_REPEAT                    = 0x0279,
-  HID_USAGE_CONSUMER_AC_SORT                           = 0x027A,
-  HID_USAGE_CONSUMER_AC_SORT_ASCENDING                 = 0x027B,
-  HID_USAGE_CONSUMER_AC_SORT_DESCENDING                = 0x027C,
-  HID_USAGE_CONSUMER_AC_FILTER                         = 0x027D,
-  HID_USAGE_CONSUMER_AC_SET_CLOCK                      = 0x027E,
-  HID_USAGE_CONSUMER_AC_VIEW_CLOCK                     = 0x027F,
-  HID_USAGE_CONSUMER_AC_SELECT_TIME_ZONE               = 0x0280,
-  HID_USAGE_CONSUMER_AC_EDIT_TIME_ZONES                = 0x0281,
-  HID_USAGE_CONSUMER_AC_SET_ALARM                      = 0x0282,
-  HID_USAGE_CONSUMER_AC_CLEAR_ALARM                    = 0x0283,
-  HID_USAGE_CONSUMER_AC_SNOOZE_ALARM                   = 0x0284,
-  HID_USAGE_CONSUMER_AC_RESET_ALARM                    = 0x0285,
-  HID_USAGE_CONSUMER_AC_SYNCHRONIZE                    = 0x0286,
-  HID_USAGE_CONSUMER_AC_SEND_RECEIVE                   = 0x0287,
-  HID_USAGE_CONSUMER_AC_SEND_TO                        = 0x0288,
-  HID_USAGE_CONSUMER_AC_REPLY                          = 0x0289,
-  HID_USAGE_CONSUMER_AC_REPLY_ALL                      = 0x028A,
-  HID_USAGE_CONSUMER_AC_FORWARD_MSG                    = 0x028B,
-  HID_USAGE_CONSUMER_AC_SEND                           = 0x028C,
-  HID_USAGE_CONSUMER_AC_ATTACH_FILE                    = 0x028D,
-  HID_USAGE_CONSUMER_AC_UPLOAD                         = 0x028E,
-  HID_USAGE_CONSUMER_AC_DOWNLOAD_SAVE_TARGET_AS        = 0x028F,
-  HID_USAGE_CONSUMER_AC_SET_BORDERS                    = 0x0290,
-  HID_USAGE_CONSUMER_AC_INSERT_ROW                     = 0x0291,
-  HID_USAGE_CONSUMER_AC_INSERT_COLUMN                  = 0x0292,
-  HID_USAGE_CONSUMER_AC_INSERT_FILE                    = 0x0293,
-  HID_USAGE_CONSUMER_AC_INSERT_PICTURE                 = 0x0294,
-  HID_USAGE_CONSUMER_AC_INSERT_OBJECT                  = 0x0295,
-  HID_USAGE_CONSUMER_AC_INSERT_SYMBOL                  = 0x0296,
-  HID_USAGE_CONSUMER_AC_SAVE_AND_CLOSE                 = 0x0297,
-  HID_USAGE_CONSUMER_AC_RENAME                         = 0x0298,
-  HID_USAGE_CONSUMER_AC_MERGE                          = 0x0299,
-  HID_USAGE_CONSUMER_AC_SPLIT                          = 0x029A,
-  HID_USAGE_CONSUMER_AC_DISRIBUTE_HORIZONTALLY         = 0x029B,
-  HID_USAGE_CONSUMER_AC_DISTRIBUTE_VERTICALLY          = 0x029C,
-  // 29D-FFFF Reserved
+  HID_USAGE_CONSUMER_AL_INSTANT_MESSAGING                    = 0x01BC, // Sel
+  HID_USAGE_CONSUMER_AL_OEM_FEATURES_TIPS_TUTORIAL           = 0x01BD, // Sel
+  HID_USAGE_CONSUMER_AL_OEM_HELP                             = 0x01BE, // Sel
+  HID_USAGE_CONSUMER_AL_ONLINE_COMMUNITY                     = 0x01BF, // Sel
+  HID_USAGE_CONSUMER_AL_ENTERTAINMENT_CONTENT                = 0x01C0, // Sel
+  HID_USAGE_CONSUMER_AL_ONLINE_SHOPPING_BROWSER              = 0x01C1, // Sel
+  HID_USAGE_CONSUMER_AL_SMARTCARD_INFORMATION_HELP           = 0x01C2, // Sel
+  HID_USAGE_CONSUMER_AL_MARKET_MONITOR_FINANCE               = 0x01C3, // Sel
+  HID_USAGE_CONSUMER_AL_CUSTOMIZED_CORPORATE_NEWS            = 0x01C4, // Sel
+  HID_USAGE_CONSUMER_AL_ONLINE_ACTIVITY_BROWSER              = 0x01C5, // Sel
+  HID_USAGE_CONSUMER_AL_RESEARCH_SEARCH_BROWSER              = 0x01C6, // Sel
+  HID_USAGE_CONSUMER_AL_AUDIO_PLAYER                         = 0x01C7, // Sel
+  HID_USAGE_CONSUMER_AL_MESSAGE_STATUS                       = 0x01C8, // Sel
+  HID_USAGE_CONSUMER_AL_CONTACT_SYNC                         = 0x01C9, // Sel
+  HID_USAGE_CONSUMER_AL_NAVIGATION                           = 0x01CA, // Sel
+  HID_USAGE_CONSUMER_AL_CONTEXT_AWARE_DESKTOP_ASSISTANT      = 0x01CB, // Sel
+  // 1CC-1FF Reserved
+  HID_USAGE_CONSUMER_GENERIC_GUI_APPLICATION                 = 0x0200, // NAry
+  HID_USAGE_CONSUMER_AC_NEW                                  = 0x0201, // Sel
+  HID_USAGE_CONSUMER_AC_OPEN                                 = 0x0202, // Sel
+  HID_USAGE_CONSUMER_AC_CLOSE                                = 0x0203, // Sel
+  HID_USAGE_CONSUMER_AC_EXIT                                 = 0x0204, // Sel
+  HID_USAGE_CONSUMER_AC_MAXIMIZE                             = 0x0205, // Sel
+  HID_USAGE_CONSUMER_AC_MINIMIZE                             = 0x0206, // Sel
+  HID_USAGE_CONSUMER_AC_SAVE                                 = 0x0207, // Sel
+  HID_USAGE_CONSUMER_AC_PRINT                                = 0x0208, // Sel
+  HID_USAGE_CONSUMER_AC_PROPERTIES                           = 0x0209, // Sel
+  // 20A-219 Reserved
+  HID_USAGE_CONSUMER_AC_UNDO                                 = 0x021A, // Sel
+  HID_USAGE_CONSUMER_AC_COPY                                 = 0x021B, // Sel
+  HID_USAGE_CONSUMER_AC_CUT                                  = 0x021C, // Sel
+  HID_USAGE_CONSUMER_AC_PASTE                                = 0x021D, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_ALL                           = 0x021E, // Sel
+  HID_USAGE_CONSUMER_AC_FIND                                 = 0x021F, // Sel
+  HID_USAGE_CONSUMER_AC_FIND_AND_REPLACE                     = 0x0220, // Sel
+  HID_USAGE_CONSUMER_AC_SEARCH                               = 0x0221, // Sel
+  HID_USAGE_CONSUMER_AC_GO_TO                                = 0x0222, // Sel
+  HID_USAGE_CONSUMER_AC_HOME                                 = 0x0223, // Sel
+  HID_USAGE_CONSUMER_AC_BACK                                 = 0x0224, // Sel
+  HID_USAGE_CONSUMER_AC_FORWARD                              = 0x0225, // Sel
+  HID_USAGE_CONSUMER_AC_STOP                                 = 0x0226, // Sel
+  HID_USAGE_CONSUMER_AC_REFRESH                              = 0x0227, // Sel
+  HID_USAGE_CONSUMER_AC_PREVIOUS_LINK                        = 0x0228, // Sel
+  HID_USAGE_CONSUMER_AC_NEXT_LINK                            = 0x0229, // Sel
+  HID_USAGE_CONSUMER_AC_BOOKMARKS                            = 0x022A, // Sel
+  HID_USAGE_CONSUMER_AC_HISTORY                              = 0x022B, // Sel
+  HID_USAGE_CONSUMER_AC_SUBSCRIPTIONS                        = 0x022C, // Sel
+  HID_USAGE_CONSUMER_AC_ZOOM_IN                              = 0x022D, // Sel
+  HID_USAGE_CONSUMER_AC_ZOOM_OUT                             = 0x022E, // Sel
+  HID_USAGE_CONSUMER_AC_ZOOM                                 = 0x022F, // LC
+  HID_USAGE_CONSUMER_AC_FULL_SCREEN_VIEW                     = 0x0230, // Sel
+  HID_USAGE_CONSUMER_AC_NORMAL_VIEW                          = 0x0231, // Sel
+  HID_USAGE_CONSUMER_AC_VIEW_TOGGLE                          = 0x0232, // Sel
+  HID_USAGE_CONSUMER_AC_SCROLL_UP                            = 0x0233, // Sel
+  HID_USAGE_CONSUMER_AC_SCROLL_DOWN                          = 0x0234, // Sel
+  HID_USAGE_CONSUMER_AC_SCROLL                               = 0x0235, // LC
+  HID_USAGE_CONSUMER_AC_PAN_LEFT                             = 0x0236, // Sel
+  HID_USAGE_CONSUMER_AC_PAN_RIGHT                            = 0x0237, // Sel
+  HID_USAGE_CONSUMER_AC_PAN                                  = 0x0238, // LC
+  HID_USAGE_CONSUMER_AC_NEW_WINDOW                           = 0x0239, // Sel
+  HID_USAGE_CONSUMER_AC_TILE_HORIZONTALLY                    = 0x023A, // Sel
+  HID_USAGE_CONSUMER_AC_TILE_VERTICALLY                      = 0x023B, // Sel
+  HID_USAGE_CONSUMER_AC_FORMAT                               = 0x023C, // Sel
+  HID_USAGE_CONSUMER_AC_EDIT                                 = 0x023D, // Sel
+  HID_USAGE_CONSUMER_AC_BOLD                                 = 0x023E, // Sel
+  HID_USAGE_CONSUMER_AC_ITALICS                              = 0x023F, // Sel
+  HID_USAGE_CONSUMER_AC_UNDERLINE                            = 0x0240, // Sel
+  HID_USAGE_CONSUMER_AC_STRIKETHROUGH                        = 0x0241, // Sel
+  HID_USAGE_CONSUMER_AC_SUBSCRIPT                            = 0x0242, // Sel
+  HID_USAGE_CONSUMER_AC_SUPERSCRIPT                          = 0x0243, // Sel
+  HID_USAGE_CONSUMER_AC_ALL_CAPS                             = 0x0244, // Sel
+  HID_USAGE_CONSUMER_AC_ROTATE                               = 0x0245, // Sel
+  HID_USAGE_CONSUMER_AC_RESIZE                               = 0x0246, // Sel
+  HID_USAGE_CONSUMER_AC_FLIP_HORIZONTAL                      = 0x0247, // Sel
+  HID_USAGE_CONSUMER_AC_FLIP_VERTICAL                        = 0x0248, // Sel
+  HID_USAGE_CONSUMER_AC_MIRROR_HORIZONTAL                    = 0x0249, // Sel
+  HID_USAGE_CONSUMER_AC_MIRROR_VERTICAL                      = 0x024A, // Sel
+  HID_USAGE_CONSUMER_AC_FONT_SELECT                          = 0x024B, // Sel
+  HID_USAGE_CONSUMER_AC_FONT_COLOR                           = 0x024C, // Sel
+  HID_USAGE_CONSUMER_AC_FONT_SIZE                            = 0x024D, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_LEFT                         = 0x024E, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_CENTER_H                     = 0x024F, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_RIGHT                        = 0x0250, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_BLOCK_H                      = 0x0251, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_TOP                          = 0x0252, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_CENTER_V                     = 0x0253, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_BOTTOM                       = 0x0254, // Sel
+  HID_USAGE_CONSUMER_AC_JUSTIFY_BLOCK_V                      = 0x0255, // Sel
+  HID_USAGE_CONSUMER_AC_INDENT_DECREASE                      = 0x0256, // Sel
+  HID_USAGE_CONSUMER_AC_INDENT_INCREASE                      = 0x0257, // Sel
+  HID_USAGE_CONSUMER_AC_NUMBERED_LIST                        = 0x0258, // Sel
+  HID_USAGE_CONSUMER_AC_RESTART_NUMBERING                    = 0x0259, // Sel
+  HID_USAGE_CONSUMER_AC_BULLETED_LIST                        = 0x025A, // Sel
+  HID_USAGE_CONSUMER_AC_PROMOTE                              = 0x025B, // Sel
+  HID_USAGE_CONSUMER_AC_DEMOTE                               = 0x025C, // Sel
+  HID_USAGE_CONSUMER_AC_YES                                  = 0x025D, // Sel
+  HID_USAGE_CONSUMER_AC_NO                                   = 0x025E, // Sel
+  HID_USAGE_CONSUMER_AC_CANCEL                               = 0x025F, // Sel
+  HID_USAGE_CONSUMER_AC_CATALOG                              = 0x0260, // Sel
+  HID_USAGE_CONSUMER_AC_BUY_CHECKOUT                         = 0x0261, // Sel
+  HID_USAGE_CONSUMER_AC_ADD_TO_CART                          = 0x0262, // Sel
+  HID_USAGE_CONSUMER_AC_EXPAND                               = 0x0263, // Sel
+  HID_USAGE_CONSUMER_AC_EXPAND_ALL                           = 0x0264, // Sel
+  HID_USAGE_CONSUMER_AC_COLLAPSE                             = 0x0265, // Sel
+  HID_USAGE_CONSUMER_AC_COLLAPSE_ALL                         = 0x0266, // Sel
+  HID_USAGE_CONSUMER_AC_PRINT_PREVIEW                        = 0x0267, // Sel
+  HID_USAGE_CONSUMER_AC_PASTE_SPECIAL                        = 0x0268, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_MODE                          = 0x0269, // Sel
+  HID_USAGE_CONSUMER_AC_DELETE                               = 0x026A, // Sel
+  HID_USAGE_CONSUMER_AC_LOCK                                 = 0x026B, // Sel
+  HID_USAGE_CONSUMER_AC_UNLOCK                               = 0x026C, // Sel
+  HID_USAGE_CONSUMER_AC_PROTECT                              = 0x026D, // Sel
+  HID_USAGE_CONSUMER_AC_UNPROTECT                            = 0x026E, // Sel
+  HID_USAGE_CONSUMER_AC_ATTACH_COMMENT                       = 0x026F, // Sel
+  HID_USAGE_CONSUMER_AC_DELETE_COMMENT                       = 0x0270, // Sel
+  HID_USAGE_CONSUMER_AC_VIEW_COMMENT                         = 0x0271, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_WORD                          = 0x0272, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_SENTENCE                      = 0x0273, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_PARAGRAPH                     = 0x0274, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_COLUMN                        = 0x0275, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_ROW                           = 0x0276, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_TABLE                         = 0x0277, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_OBJECT                        = 0x0278, // Sel
+  HID_USAGE_CONSUMER_AC_REDO_REPEAT                          = 0x0279, // Sel
+  HID_USAGE_CONSUMER_AC_SORT                                 = 0x027A, // Sel
+  HID_USAGE_CONSUMER_AC_SORT_ASCENDING                       = 0x027B, // Sel
+  HID_USAGE_CONSUMER_AC_SORT_DESCENDING                      = 0x027C, // Sel
+  HID_USAGE_CONSUMER_AC_FILTER                               = 0x027D, // Sel
+  HID_USAGE_CONSUMER_AC_SET_CLOCK                            = 0x027E, // Sel
+  HID_USAGE_CONSUMER_AC_VIEW_CLOCK                           = 0x027F, // Sel
+  HID_USAGE_CONSUMER_AC_SELECT_TIME_ZONE                     = 0x0280, // Sel
+  HID_USAGE_CONSUMER_AC_EDIT_TIME_ZONES                      = 0x0281, // Sel
+  HID_USAGE_CONSUMER_AC_SET_ALARM                            = 0x0282, // Sel
+  HID_USAGE_CONSUMER_AC_CLEAR_ALARM                          = 0x0283, // Sel
+  HID_USAGE_CONSUMER_AC_SNOOZE_ALARM                         = 0x0284, // Sel
+  HID_USAGE_CONSUMER_AC_RESET_ALARM                          = 0x0285, // Sel
+  HID_USAGE_CONSUMER_AC_SYNCHRONIZE                          = 0x0286, // Sel
+  HID_USAGE_CONSUMER_AC_SEND_RECEIVE                         = 0x0287, // Sel
+  HID_USAGE_CONSUMER_AC_SEND_TO                              = 0x0288, // Sel
+  HID_USAGE_CONSUMER_AC_REPLY                                = 0x0289, // Sel
+  HID_USAGE_CONSUMER_AC_REPLY_ALL                            = 0x028A, // Sel
+  HID_USAGE_CONSUMER_AC_FORWARD_MSG                          = 0x028B, // Sel
+  HID_USAGE_CONSUMER_AC_SEND                                 = 0x028C, // Sel
+  HID_USAGE_CONSUMER_AC_ATTACH_FILE                          = 0x028D, // Sel
+  HID_USAGE_CONSUMER_AC_UPLOAD                               = 0x028E, // Sel
+  HID_USAGE_CONSUMER_AC_DOWNLOAD_SAVE_TARGET_AS              = 0x028F, // Sel
+  HID_USAGE_CONSUMER_AC_SET_BORDERS                          = 0x0290, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_ROW                           = 0x0291, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_COLUMN                        = 0x0292, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_FILE                          = 0x0293, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_PICTURE                       = 0x0294, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_OBJECT                        = 0x0295, // Sel
+  HID_USAGE_CONSUMER_AC_INSERT_SYMBOL                        = 0x0296, // Sel
+  HID_USAGE_CONSUMER_AC_SAVE_AND_CLOSE                       = 0x0297, // Sel
+  HID_USAGE_CONSUMER_AC_RENAME                               = 0x0298, // Sel
+  HID_USAGE_CONSUMER_AC_MERGE                                = 0x0299, // Sel
+  HID_USAGE_CONSUMER_AC_SPLIT                                = 0x029A, // Sel
+  HID_USAGE_CONSUMER_AC_DISRIBUTE_HORIZONTALLY               = 0x029B, // Sel
+  HID_USAGE_CONSUMER_AC_DISTRIBUTE_VERTICALLY                = 0x029C, // Sel
+  HID_USAGE_CONSUMER_AC_NEXT_KEYBOARD_LAYOUT_SELECT          = 0x029D, // Sel
+  HID_USAGE_CONSUMER_AC_NAVIGATION_GUIDANCE                  = 0x029E, // Sel
+  HID_USAGE_CONSUMER_AC_DESKTOP_SHOW_ALL_WINDOWS             = 0x029F, // Sel
+  HID_USAGE_CONSUMER_AC_SOFT_KEY_LEFT                        = 0x02A0, // Sel
+  HID_USAGE_CONSUMER_AC_SOFT_KEY_RIGHT                       = 0x02A1, // Sel
+  HID_USAGE_CONSUMER_AC_DESKTOP_SHOW_ALL_APPLICATIONS        = 0x02A2, // Sel
+  // 2A3-2AF Reserved
+  HID_USAGE_CONSUMER_AC_IDLE_KEEP_ALIVE                         = 0x02B0, // Sel
+  // 2B1-2BF Reserved
+  HID_USAGE_CONSUMER_EXTENDED_KEYBOARD_ATTRIBUTES_COLLECTION    = 0x02C0, // CL
+  HID_USAGE_CONSUMER_KEYBOARD_FORM_FACTOR                       = 0x02C1, // SV
+  HID_USAGE_CONSUMER_KEYBOARD_KEY_TYPE                          = 0x02C2, // SV
+  HID_USAGE_CONSUMER_KEYBOARD_PHYSICAL_LAYOUT                   = 0x02C3, // SV
+  HID_USAGE_CONSUMER_VENDOR_SPECIFIC_KEYBOARD_PHYSICAL_LAYOUT   = 0x02C4, // SV
+  HID_USAGE_CONSUMER_KEYBOARD_IETF_LANGUAGE_TAG_INDEX           = 0x02C5, // SV
+  HID_USAGE_CONSUMER_IMPLEMENTED_KEYBOARD_INPUT_ASSIST_CONTROLS = 0x02C6, // SV
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_PREVIOUS             = 0x02C7, // Sel
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_NEXT                 = 0x02C8, // Sel
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_PREVIOUS_GROUP       = 0x02C9, // Sel
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_NEXT_GROUP           = 0x02CA, // Sel
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_ACCEPT               = 0x02CB, // Sel
+  HID_USAGE_CONSUMER_KEYBOARD_INPUT_ASSIST_CANCEL               = 0x02CC, // Sel
+  // 2CD-2CF Reserved
+  HID_USAGE_CONSUMER_PRIVACY_SCREEN_TOGGLE                      = 0x02D0, // OOC
+  HID_USAGE_CONSUMER_PRIVACY_SCREEN_LEVEL_DECREMENT             = 0x02D1, // RTC
+  HID_USAGE_CONSUMER_PRIVACY_SCREEN_LEVEL_INCREMENT             = 0x02D2, // RTC
+  HID_USAGE_CONSUMER_PRIVACY_SCREEN_LEVEL_MINIMUM               = 0x02D3, // OSC
+  HID_USAGE_CONSUMER_PRIVACY_SCREEN_LEVEL_MAXIMUM               = 0x02D4, // OSC
+  // 2D5-4FF Reserved
+  HID_USAGE_CONSUMER_CONTACT_EDITED                             = 0x0500, // OOC
+  HID_USAGE_CONSUMER_CONTACT_ADDED                              = 0x0501, // OOC
+  HID_USAGE_CONSUMER_CONTACT_RECORD_ACTIVE                      = 0x0502, // OOC
+  HID_USAGE_CONSUMER_CONTACT_INDEX                              = 0x0503, // DV
+  HID_USAGE_CONSUMER_CONTACT_NICKNAME                           = 0x0504, // DV
+  HID_USAGE_CONSUMER_CONTACT_FIRST_NAME                         = 0x0505, // DV
+  HID_USAGE_CONSUMER_CONTACT_LAST_NAME                          = 0x0506, // DV
+  HID_USAGE_CONSUMER_CONTACT_FULL_NAME                          = 0x0507, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_PERSONAL              = 0x0508, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_BUSINESS              = 0x0509, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_MOBILE                = 0x050A, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_PAGER                 = 0x050B, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_FAX                   = 0x050C, // DV
+  HID_USAGE_CONSUMER_CONTACT_PHONE_NUMBER_OTHER                 = 0x050D, // DV
+  HID_USAGE_CONSUMER_CONTACT_EMAIL_PERSONAL                     = 0x050E, // DV
+  HID_USAGE_CONSUMER_CONTACT_EMAIL_BUSINESS                     = 0x050F, // DV
+  HID_USAGE_CONSUMER_CONTACT_EMAIL_OTHER                        = 0x0510, // DV
+  HID_USAGE_CONSUMER_CONTACT_EMAIL_MAIN                         = 0x0511, // DV
+  HID_USAGE_CONSUMER_CONTACT_SPEED_DIAL_NUMBER                  = 0x0512, // DV
+  HID_USAGE_CONSUMER_CONTACT_STATUS_FLAG                        = 0x0513, // DV
+  HID_USAGE_CONSUMER_CONTACT_MISC                               = 0x0514, // DV
+  HID_USAGE_CONSUMER_KEYBOARD_BRIGHTNESS_NEXT                   = 0x0515, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BRIGHTNESS_PREVIOUS               = 0x0516, // OSC
+  HID_USAGE_CONSUMER_KEYBOARD_BACKLIGHT_LEVEL_SUGGESTION        = 0x0517, // SV
+  // 518-FFFF Reserved
 
+  // For Backwards compatibility to prevent current builds from breaking
+  HID_USAGE_CONSUMER_BRIGHTNESS_INCREMENT               = HID_USAGE_CONSUMER_DISPLAY_BRIGHTNESS_INCREMENT, // RTC
+  HID_USAGE_CONSUMER_BRIGHTNESS_DECREMENT               = HID_USAGE_CONSUMER_DISPLAY_BRIGHTNESS_DECREMENT, // RTC
 };
 
 /// HID Usage Table: Digitizer Page (0x0D)
@@ -1371,6 +1935,7 @@ enum {
   HID_USAGE_DIGITIZER_SURFACE_SWITCH                      = 0x57, // DF
   HID_USAGE_DIGITIZER_BUTTON_SWITCH                       = 0x58, // DF
   HID_USAGE_DIGITIZER_PAD_TYPE                            = 0x59, // SF
+  HID_USAGE_DIGITIZER_SECONDARY_BARREL_SWITCH             = 0x5A, // MC
   HID_USAGE_DIGITIZER_TRANSDUCER_SERIAL_NUMBER            = 0x5B, // SV
   HID_USAGE_DIGITIZER_PREFERRED_COLOR                     = 0x5C, // DV
   HID_USAGE_DIGITIZER_PREFERRED_COLOR_LOCKED              = 0x5D, // MC
@@ -1431,151 +1996,500 @@ enum {
   // Reserved (0xB1 - 0xFFFF)
 };
 
+/// HID Usage Table: Haptics Page (0x0E)
+enum{
+  HID_USAGE_HAPTICS_SIMPLE_HAPTIC_CONTROLLER          = 0x0001, // CA/CL
+  // Reserved (0x0002 - 0x000F)
+  HID_USAGE_HAPTICS_WAVEFORM_LIST                     = 0x0010, // NAry
+  HID_USAGE_HAPTICS_DURATION_LIST                     = 0x0011, // NAry
+  // Reserved (0x0012 - 0x001F)
+  HID_USAGE_HAPTICS_AUTO_TRIGGER                      = 0x0020, // DV
+  HID_USAGE_HAPTICS_MANUAL_TRIGGER                    = 0x0021, // DV
+  HID_USAGE_HAPTICS_AUTO_TRIGGER_ASSOCIATED_CONTROL   = 0x0022, // SV
+  HID_USAGE_HAPTICS_INTENSITY                         = 0x0023, // DV
+  HID_USAGE_HAPTICS_REPEAT_COUNT                      = 0x0024, // DV
+  HID_USAGE_HAPTICS_RETRIGGER_PERIOD                  = 0x0025, // DV
+  HID_USAGE_HAPTICS_WAVEFORM_VENDOR_PAGE              = 0x0026, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_VENDOR_ID                = 0x0027, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_CUTOFF_TIME              = 0x0028, // SV
+  // Reserved (0x0029 - 0x1000)
+  HID_USAGE_HAPTICS_WAVEFORM_NONE                     = 0x1001, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_STOP                     = 0x1002, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_CLICK                    = 0x1003, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_BUZZ_CONTINUOUS          = 0x1004, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_RUMBLE_CONTINUOUS        = 0x1005, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_PRESS                    = 0x1006, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_RELEASE                  = 0x1007, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_HOVER                    = 0x1008, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_SUCCESS                  = 0x1009, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_ERROR                    = 0x100A, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_INK_CONTINUOUS           = 0x100B, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_PENCIL_CONTINUOUS        = 0x100C, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_MARKER_CONTINUOUS        = 0x100D, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_CHISEL_MARKER_CONTINUOUS = 0x100E, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_BRUSH_CONTINUOUS         = 0x100F, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_ERASER_CONTINUOUS        = 0x1010, // SV
+  HID_USAGE_HAPTICS_WAVEFORM_SPARKLE_CONTINUOUS       = 0x1011, // SV
+  // Reserved (0x1012 - 0xFFFF)
+};
+
 /// HID Usage Table: Physical Input Device Page (0x0F)
 enum {
   HID_USAGE_PID_UNDEFINED                                = 0x00,
-  HID_USAGE_PID_PHYSICAL_INPUT_DEVICE                    = 0x01,
-  HID_USAGE_PID_NORMAL                                   = 0x20,
-  HID_USAGE_PID_SET_EFFECT_REPORT                        = 0x21,
-  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_INDEX             = 0x22,
-  HID_USAGE_PID_PARAMETER_BLOCK_OFFSET                   = 0x23,
-  HID_USAGE_PID_ROM_FLAG                                 = 0x24,
-  HID_USAGE_PID_EFFECT_TYPE                              = 0x25,
-  HID_USAGE_PID_ET_CONSTANTFORCE                         = 0x26,
-  HID_USAGE_PID_ET_RAMP                                  = 0x27,
-  HID_USAGE_PID_ET_CUSTOMFORCE                           = 0x28,
-  HID_USAGE_PID_ET_SQUARE                                = 0x30,
-  HID_USAGE_PID_ET_SINE                                  = 0x31,
-  HID_USAGE_PID_ET_TRIANGLE                              = 0x32,
-  HID_USAGE_PID_ET_SAWTOOTH_UP                           = 0x33,
-  HID_USAGE_PID_ET_SAWTOOTH_DOWN                         = 0x34,
-  HID_USAGE_PID_ET_SPRING                                = 0x40,
-  HID_USAGE_PID_ET_DAMPER                                = 0x41,
-  HID_USAGE_PID_ET_INERTIA                               = 0x42,
-  HID_USAGE_PID_ET_FRICTION                              = 0x43,
-  HID_USAGE_PID_DURATION                                 = 0x50,
-  HID_USAGE_PID_SAMPLE_PERIOD                            = 0x51,
-  HID_USAGE_PID_GAIN                                     = 0x52,
-  HID_USAGE_PID_TRIGGER_BUTTON                           = 0x53,
-  HID_USAGE_PID_TRIGGER_REPEAT_INTERVAL                  = 0x54,
-  HID_USAGE_PID_AXES_ENABLE                              = 0x55,
-  HID_USAGE_PID_DIRECTION_ENABLE                         = 0x56,
-  HID_USAGE_PID_DIRECTION                                = 0x57,
-  HID_USAGE_PID_TYPE_SPECIFIC_BLOCK_OFFSET               = 0x58,
-  HID_USAGE_PID_BLOCK_TYPE                               = 0x59,
-  HID_USAGE_PID_SET_ENVELOPE_REPORT                      = 0x5a,
-  HID_USAGE_PID_ATTACK_LEVEL                             = 0x5b,
-  HID_USAGE_PID_ATTACK_TIME                              = 0x5c,
-  HID_USAGE_PID_FADE_LEVEL                               = 0x5d,
-  HID_USAGE_PID_FADE_TIME                                = 0x5e,
-  HID_USAGE_PID_SET_CONDITION_REPORT                     = 0x5f,
-  HID_USAGE_PID_CENTERPOINT_OFFSET                       = 0x60,
-  HID_USAGE_PID_POSITIVE_COEFFICIENT                     = 0x61,
-  HID_USAGE_PID_NEGATIVE_COEFFICIENT                     = 0x62,
-  HID_USAGE_PID_POSITIVE_SATURATION                      = 0x63,
-  HID_USAGE_PID_NEGATIVE_SATURATION                      = 0x64,
-  HID_USAGE_PID_DEAD_BAND                                = 0x65,
-  HID_USAGE_PID_DOWNLOAD_FORCE_SAMPLE                    = 0x66,
-  HID_USAGE_PID_ISOCH_CUSTOMFORCE_ENABLE                 = 0x67,
-  HID_USAGE_PID_CUSTOMFORCE_DATA_REPORT                  = 0x68,
-  HID_USAGE_PID_CUSTOMFORCE_DATA                         = 0x69,
-  HID_USAGE_PID_CUSTOMFORCE_VENDOR_DEFINED_DATA          = 0x6a,
-  HID_USAGE_PID_SET_CUSTOMFORCE_REPORT                   = 0x6b,
-  HID_USAGE_PID_CUSTOMFORCE_DATA_OFFSET                  = 0x6c,
-  HID_USAGE_PID_SAMPLE_COUNT                             = 0x6d,
-  HID_USAGE_PID_SET_PERIODIC_REPORT                      = 0x6e,
-  HID_USAGE_PID_OFFSET                                   = 0x6f,
-  HID_USAGE_PID_MAGNITUDE                                = 0x70,
-  HID_USAGE_PID_PHASE                                    = 0x71,
-  HID_USAGE_PID_PERIOD                                   = 0x72,
-  HID_USAGE_PID_SET_CONSTANTFORCE_REPORT                 = 0x73,
-  HID_USAGE_PID_SET_RAMPFORCE_REPORT                     = 0x74,
-  HID_USAGE_PID_RAMP_START                               = 0x75,
-  HID_USAGE_PID_RAMP_END                                 = 0x76,
-  HID_USAGE_PID_EFFECT_OPERATION_REPORT                  = 0x77,
-  HID_USAGE_PID_EFFECT_OPERATION                         = 0x78,
-  HID_USAGE_PID_OP_EFFECT_START                          = 0x79,
-  HID_USAGE_PID_OP_EFFECT_START_SOLO                     = 0x7a,
-  HID_USAGE_PID_OP_EFFECT_STOP                           = 0x7b,
-  HID_USAGE_PID_LOOP_COUNT                               = 0x7c,
-  HID_USAGE_PID_DEVICE_GAIN_REPORT                       = 0x7d,
-  HID_USAGE_PID_DEVICE_GAIN                              = 0x7e,
-  HID_USAGE_PID_PARAMETER_BLOCK_POOLS_REPORT             = 0x7f,
-  HID_USAGE_PID_RAM_POOL_SIZE                            = 0x80,
-  HID_USAGE_PID_ROM_POOL_SIZE                            = 0x81,
-  HID_USAGE_PID_ROM_EFFECT_BLOCK_COUNT                   = 0x82,
-  HID_USAGE_PID_SIMULTANEOUS_EFFECTS_MAX                 = 0x83,
-  HID_USAGE_PID_POOL_ALIGNMENT                           = 0x84,
-  HID_USAGE_PID_PARAMETER_BLOCK_MOVE_REPORT              = 0x85,
-  HID_USAGE_PID_MOVE_SOURCE                              = 0x86,
-  HID_USAGE_PID_MOVE_DESTINATION                         = 0x87,
-  HID_USAGE_PID_MOVE_LENGTH                              = 0x88,
-  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_LOAD_REPORT       = 0x89,
-  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_LOAD_STATUS       = 0x8b,
-  HID_USAGE_PID_BLOCK_LOAD_SUCCESS                       = 0x8c,
-  HID_USAGE_PID_BLOCK_LOAD_FULL                          = 0x8d,
-  HID_USAGE_PID_BLOCK_LOAD_ERROR                         = 0x8e,
-  HID_USAGE_PID_BLOCK_HANDLE                             = 0x8f,
-  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_FREE_REPORT       = 0x90,
-  HID_USAGE_PID_TYPE_SPECIFIC_BLOCK_HANDLE               = 0x91,
-  HID_USAGE_PID_PID_STATE_REPORT                         = 0x92,
-  HID_USAGE_PID_EFFECT_PLAYING                           = 0x94,
-  HID_USAGE_PID_PID_DEVICE_CONTROL_REPORT                = 0x95,
-  HID_USAGE_PID_PID_DEVICE_CONTROL                       = 0x96,
-  HID_USAGE_PID_DC_ENABLE_ACTUATORS                      = 0x97,
-  HID_USAGE_PID_DC_DISABLE_ACTUATORS                     = 0x98,
-  HID_USAGE_PID_DC_STOP_ALL_EFFECTS                      = 0x99,
-  HID_USAGE_PID_DC_RESET                                 = 0x9a,
-  HID_USAGE_PID_DC_PAUSE                                 = 0x9b,
-  HID_USAGE_PID_DC_CONTINUE                              = 0x9c,
-  HID_USAGE_PID_DEVICE_PAUSED                            = 0x9f,
-  HID_USAGE_PID_ACTUATORS_ENABLED                        = 0xa0,
-  HID_USAGE_PID_SAFETY_SWITCH                            = 0xa4,
-  HID_USAGE_PID_ACTUATOR_OVERRIDE_SWITCH                 = 0xa5,
-  HID_USAGE_PID_ACTUATOR_POWER                           = 0xa6,
-  HID_USAGE_PID_START_DELAY                              = 0xa7,
-  HID_USAGE_PID_PARAMETER_BLOCK_SIZE                     = 0xa8,
-  HID_USAGE_PID_DEVICEMANAGED_POOL                       = 0xa9,
-  HID_USAGE_PID_SHARED_PARAMETER_BLOCKS                  = 0xaa,
-  HID_USAGE_PID_CREATE_NEW_EFFECT_PARAMETER_BLOCK_REPORT = 0xab,
-  HID_USAGE_PID_RAM_POOL_AVAILABLE                       = 0xac,
+  HID_USAGE_PID_PHYSICAL_INPUT_DEVICE                    = 0x01, // CA
+  // Reserved (0x02 - 0x1F)
+  HID_USAGE_PID_NORMAL                                   = 0x20, // DV
+  HID_USAGE_PID_SET_EFFECT_REPORT                        = 0x21, // CL
+  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_INDEX             = 0x22, // DV
+  HID_USAGE_PID_PARAMETER_BLOCK_OFFSET                   = 0x23, // DV
+  HID_USAGE_PID_ROM_FLAG                                 = 0x24, // DF
+  HID_USAGE_PID_EFFECT_TYPE                              = 0x25, // NAry
+  HID_USAGE_PID_ET_CONSTANTFORCE                         = 0x26, // Sel
+  HID_USAGE_PID_ET_RAMP                                  = 0x27, // Sel
+  HID_USAGE_PID_ET_CUSTOMFORCE                           = 0x28, // Sel
+  // Reserved (0x29 - 0x2F)
+  HID_USAGE_PID_ET_SQUARE                                = 0x30, // Sel
+  HID_USAGE_PID_ET_SINE                                  = 0x31, // Sel
+  HID_USAGE_PID_ET_TRIANGLE                              = 0x32, // Sel
+  HID_USAGE_PID_ET_SAWTOOTH_UP                           = 0x33, // Sel
+  HID_USAGE_PID_ET_SAWTOOTH_DOWN                         = 0x34, // Sel
+  // Reserved (0x35 - 0x3F)
+  HID_USAGE_PID_ET_SPRING                                = 0x40, // Sel
+  HID_USAGE_PID_ET_DAMPER                                = 0x41, // Sel
+  HID_USAGE_PID_ET_INERTIA                               = 0x42, // Sel
+  HID_USAGE_PID_ET_FRICTION                              = 0x43, // Sel
+  // Reserved (0x44 - 0x4F)
+  HID_USAGE_PID_DURATION                                 = 0x50, // DV
+  HID_USAGE_PID_SAMPLE_PERIOD                            = 0x51, // DV
+  HID_USAGE_PID_GAIN                                     = 0x52, // DV
+  HID_USAGE_PID_TRIGGER_BUTTON                           = 0x53, // DV
+  HID_USAGE_PID_TRIGGER_REPEAT_INTERVAL                  = 0x54, // DV
+  HID_USAGE_PID_AXES_ENABLE                              = 0x55, // US
+  HID_USAGE_PID_DIRECTION_ENABLE                         = 0x56, // DF
+  HID_USAGE_PID_DIRECTION                                = 0x57, // CL
+  HID_USAGE_PID_TYPE_SPECIFIC_BLOCK_OFFSET               = 0x58, // CL
+  HID_USAGE_PID_BLOCK_TYPE                               = 0x59, // NAry
+  HID_USAGE_PID_SET_ENVELOPE_REPORT                      = 0x5A, // CL/SV
+  HID_USAGE_PID_ATTACK_LEVEL                             = 0x5B, // DV
+  HID_USAGE_PID_ATTACK_TIME                              = 0x5C, // DV
+  HID_USAGE_PID_FADE_LEVEL                               = 0x5D, // DV
+  HID_USAGE_PID_FADE_TIME                                = 0x5E, // DV
+  HID_USAGE_PID_SET_CONDITION_REPORT                     = 0x5F, // CL/SV
+  HID_USAGE_PID_CENTERPOINT_OFFSET                       = 0x60, // DV
+  HID_USAGE_PID_POSITIVE_COEFFICIENT                     = 0x61, // DV
+  HID_USAGE_PID_NEGATIVE_COEFFICIENT                     = 0x62, // DV
+  HID_USAGE_PID_POSITIVE_SATURATION                      = 0x63, // DV
+  HID_USAGE_PID_NEGATIVE_SATURATION                      = 0x64, // DV
+  HID_USAGE_PID_DEAD_BAND                                = 0x65, // DV
+  HID_USAGE_PID_DOWNLOAD_FORCE_SAMPLE                    = 0x66, // CL
+  HID_USAGE_PID_ISOCH_CUSTOMFORCE_ENABLE                 = 0x67, // DF
+  HID_USAGE_PID_CUSTOMFORCE_DATA_REPORT                  = 0x68, // CL
+  HID_USAGE_PID_CUSTOMFORCE_DATA                         = 0x69, // DV
+  HID_USAGE_PID_CUSTOMFORCE_VENDOR_DEFINED_DATA          = 0x6A, // DV
+  HID_USAGE_PID_SET_CUSTOMFORCE_REPORT                   = 0x6B, // CL/SV
+  HID_USAGE_PID_CUSTOMFORCE_DATA_OFFSET                  = 0x6C, // DV
+  HID_USAGE_PID_SAMPLE_COUNT                             = 0x6D, // DV
+  HID_USAGE_PID_SET_PERIODIC_REPORT                      = 0x6E, // CL/SV
+  HID_USAGE_PID_OFFSET                                   = 0x6F, // DV
+  HID_USAGE_PID_MAGNITUDE                                = 0x70, // DV
+  HID_USAGE_PID_PHASE                                    = 0x71, // DV
+  HID_USAGE_PID_PERIOD                                   = 0x72, // DV
+  HID_USAGE_PID_SET_CONSTANTFORCE_REPORT                 = 0x73, // CL/SV
+  HID_USAGE_PID_SET_RAMPFORCE_REPORT                     = 0x74, // CL/SV
+  HID_USAGE_PID_RAMP_START                               = 0x75, // DV
+  HID_USAGE_PID_RAMP_END                                 = 0x76, // DV
+  HID_USAGE_PID_EFFECT_OPERATION_REPORT                  = 0x77, // CL
+  HID_USAGE_PID_EFFECT_OPERATION                         = 0x78, // NAry
+  HID_USAGE_PID_OP_EFFECT_START                          = 0x79, // Sel
+  HID_USAGE_PID_OP_EFFECT_START_SOLO                     = 0x7A, // Sel
+  HID_USAGE_PID_OP_EFFECT_STOP                           = 0x7B, // Sel
+  HID_USAGE_PID_LOOP_COUNT                               = 0x7C, // DV
+  HID_USAGE_PID_DEVICE_GAIN_REPORT                       = 0x7D, // CL
+  HID_USAGE_PID_DEVICE_GAIN                              = 0x7E, // DV
+  HID_USAGE_PID_PARAMETER_BLOCK_POOLS_REPORT             = 0x7F, // CL
+  HID_USAGE_PID_RAM_POOL_SIZE                            = 0x80, // DV
+  HID_USAGE_PID_ROM_POOL_SIZE                            = 0x81, // SV
+  HID_USAGE_PID_ROM_EFFECT_BLOCK_COUNT                   = 0x82, // SV
+  HID_USAGE_PID_SIMULTANEOUS_EFFECTS_MAX                 = 0x83, // SV
+  HID_USAGE_PID_POOL_ALIGNMENT                           = 0x84, // SV
+  HID_USAGE_PID_PARAMETER_BLOCK_MOVE_REPORT              = 0x85, // CL
+  HID_USAGE_PID_MOVE_SOURCE                              = 0x86, // DV
+  HID_USAGE_PID_MOVE_DESTINATION                         = 0x87, // DV
+  HID_USAGE_PID_MOVE_LENGTH                              = 0x88, // DV
+  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_LOAD_REPORT       = 0x89, // CL
+  // Reserved (0x8A)
+  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_LOAD_STATUS       = 0x8B, // NAry
+  HID_USAGE_PID_BLOCK_LOAD_SUCCESS                       = 0x8C, // Sel
+  HID_USAGE_PID_BLOCK_LOAD_FULL                          = 0x8D, // Sel
+  HID_USAGE_PID_BLOCK_LOAD_ERROR                         = 0x8E, // Sel
+  HID_USAGE_PID_BLOCK_HANDLE                             = 0x8F, // DV
+  HID_USAGE_PID_EFFECT_PARAMETER_BLOCK_FREE_REPORT       = 0x90, // CL
+  HID_USAGE_PID_TYPE_SPECIFIC_BLOCK_HANDLE               = 0x91, // CL
+  HID_USAGE_PID_PID_STATE_REPORT                         = 0x92, // CL
+  // Reserved (0x93)
+  HID_USAGE_PID_EFFECT_PLAYING                           = 0x94, // DF
+  HID_USAGE_PID_PID_DEVICE_CONTROL_REPORT                = 0x95, // CL
+  HID_USAGE_PID_PID_DEVICE_CONTROL                       = 0x96, // NAry
+  HID_USAGE_PID_DC_ENABLE_ACTUATORS                      = 0x97, // Sel
+  HID_USAGE_PID_DC_DISABLE_ACTUATORS                     = 0x98, // Sel
+  HID_USAGE_PID_DC_STOP_ALL_EFFECTS                      = 0x99, // Sel
+  HID_USAGE_PID_DC_RESET                                 = 0x9A, // Sel
+  HID_USAGE_PID_DC_PAUSE                                 = 0x9B, // Sel
+  HID_USAGE_PID_DC_CONTINUE                              = 0x9C, // Sel
+  // Reserved (0x9D - 0x9E)
+  HID_USAGE_PID_DEVICE_PAUSED                            = 0x9F, // DF
+  HID_USAGE_PID_ACTUATORS_ENABLED                        = 0xA0, // DF
+  // Reserved (0xA1 - 0xA3)
+  HID_USAGE_PID_SAFETY_SWITCH                            = 0xA4, // DF
+  HID_USAGE_PID_ACTUATOR_OVERRIDE_SWITCH                 = 0xA5, // DF
+  HID_USAGE_PID_ACTUATOR_POWER                           = 0xA6, // OOC
+  HID_USAGE_PID_START_DELAY                              = 0xA7, // DV
+  HID_USAGE_PID_PARAMETER_BLOCK_SIZE                     = 0xA8, // CL
+  HID_USAGE_PID_DEVICEMANAGED_POOL                       = 0xA9, // SF
+  HID_USAGE_PID_SHARED_PARAMETER_BLOCKS                  = 0xAA, // SF
+  HID_USAGE_PID_CREATE_NEW_EFFECT_PARAMETER_BLOCK_REPORT = 0xAB, // CL
+  HID_USAGE_PID_RAM_POOL_AVAILABLE                       = 0xAC, // DV
+  // Reserved (0xAD - 0xFFFF)
+};
+
+/// HID Usage Table: Unicode Page (0x10)
+/// Intentionally skipped
+
+/// HID Usage Table: SoC Page (0x11)
+enum {
+  HID_USAGE_SOC_SOC_CONTROL                      = 0x01, // CA
+  HID_USAGE_SOC_FIRMWARE_TRANSFER                = 0x02, // CL
+  HID_USAGE_SOC_FIRMWARE_FILE_ID                 = 0x03, // DV
+  HID_USAGE_SOC_FILE_OFFSET_IN_BYTES             = 0x04, // DV
+  HID_USAGE_SOC_FILE_TRANSFER_SIZE_MAX_IN_BYTES  = 0x05, // DV
+  HID_USAGE_SOC_FILE_PAYLOAD                     = 0x06, // DV
+  HID_USAGE_SOC_FILE_PAYLOAD_SIZE_IN_BYTES       = 0x07, // DV
+  HID_USAGE_SOC_FILE_PAYLOAD_CONTAINS_LAST_BYTES = 0x08, // DF
+  HID_USAGE_SOC_FILE_TRANSFER_STOP               = 0x09, // DF
+  HID_USAGE_SOC_FILE_TRANSFER_TILL_END           = 0x0A  // DF
+  // Reserved (0x0B - 0xFFFF)
+};
+
+/// HID Usage Table: Eye and Head Trackers Page (0x12)
+enum {
+  HID_USAGE_EYE_AND_HEAD_TRACKER_EYE_TRACKER                 = 0x0001, // CA
+  HID_USAGE_EYE_AND_HEAD_TRACKER_HEAD_TRACKER                = 0x0002, // CA
+  // Reserved (0x0003 - 0x000F)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_TRACKING_DATA               = 0x0010, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CAPABILITIES                = 0x0011, // CL
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CONFIGURATION               = 0x0012, // CL
+  HID_USAGE_EYE_AND_HEAD_TRACKER_STATUS                      = 0x0013, // CL
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CONTROL                     = 0x0014, // CL
+  // Reserved (0x0015 - 0x001F)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_SENSOR_TIMESTAMP            = 0x0020, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_POSITION_X                  = 0x0021, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_POSITION_Y                  = 0x0022, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_POSITION_Z                  = 0x0023, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_GAZE_POINT                  = 0x0024, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_LEFT_EYE_POSITION           = 0x0025, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_RIGHT_EYE_POSITION          = 0x0026, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_HEAD_POSITION               = 0x0027, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_HEAD_DIRECTION_POINT        = 0x0028, // CP
+  HID_USAGE_EYE_AND_HEAD_TRACKER_ROTATION_ABOUT_X_AXIS       = 0x0029, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_ROTATION_ABOUT_Y_AXIS       = 0x002A, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_ROTATION_ABOUT_Z_AXIS       = 0x002B, // DV
+  // Reserved (0x002C - 0x00FF)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_TRACKER_QUALITY             = 0x0100, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_MINIMUM_TRACKING_DISTANCE   = 0x0101, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_OPTIMUM_TRACKING_DISTANCE   = 0x0102, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_MAXIMUM_TRACKING_DISTANCE   = 0x0103, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_MAXIMUM_SCREEN_PLANE_WIDTH  = 0x0104, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_MAXIMUM_SCREEN_PLANE_HEIGHT = 0x0105, // SV
+  // Reserved (0x0106 - 0x01FF)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_DISPLAY_MANUFACTURER_ID     = 0x0200, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_DISPLAY_PRODUCT_ID          = 0x0201, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_DISPLAY_SERIAL_NUMBER       = 0x0202, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_DISPLAY_MANUFACTURER_DATE   = 0x0203, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CALIBRATED_SCREEN_WIDTH     = 0x0204, // SV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CALIBRATED_SCREEN_HEIGHT    = 0x0205, // SV
+  // Reserved (0x0206 - 0x02FF)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_SAMPLING_FREQUENCY          = 0x0300, // DV
+  HID_USAGE_EYE_AND_HEAD_TRACKER_CONFIGURATION_STATUS        = 0x0301, // DV
+  // Reserved (0x0302 - 0x03FF)
+  HID_USAGE_EYE_AND_HEAD_TRACKER_DEVICE_MODE_REQUEST         = 0x0400, // DV
+  // Reserved (0x0401 - 0xFFFF)
+};
+
+/// HID Usage Table - Auxiliary Display Page (0x14)
+enum {
+  HID_USAGE_AUX_DISPLAY_ALPHANUMERIC_DISPLAY         = 0x01, // CA
+  HID_USAGE_AUX_DISPLAY_AUXILIARY_DISPLAY            = 0x02, // CA
+  // Reserved (0x03 - 0x1F)
+  HID_USAGE_AUX_DISPLAY_DISPLAY_ATTRIBUTES_REPORT    = 0x20, // CL
+  HID_USAGE_AUX_DISPLAY_ASCII_CHARACTER_SET          = 0x21, // SF
+  HID_USAGE_AUX_DISPLAY_DATA_READ_BACK               = 0x22, // SF
+  HID_USAGE_AUX_DISPLAY_FONT_READ_BACK               = 0x23, // SF
+  HID_USAGE_AUX_DISPLAY_DISPLAY_CONTROL_REPORT       = 0x24, // CL
+  HID_USAGE_AUX_DISPLAY_CLEAR_DISPLAY                = 0x25, // DF
+  HID_USAGE_AUX_DISPLAY_DISPLAY_ENABLE               = 0x26, // DF
+  HID_USAGE_AUX_DISPLAY_SCREEN_SAVER_DELAY           = 0x27, // SV/DV
+  HID_USAGE_AUX_DISPLAY_SCREEN_SAVER_ENABLE          = 0x28, // DF
+  HID_USAGE_AUX_DISPLAY_VERTICAL_SCROLL              = 0x29, // SF/DF
+  HID_USAGE_AUX_DISPLAY_HORIZONTAL_SCROLL            = 0x2A, // SF/DF
+  HID_USAGE_AUX_DISPLAY_CHARACTER_REPORT             = 0x2B, // CL
+  HID_USAGE_AUX_DISPLAY_DISPLAY_DATA                 = 0x2C, // DV
+  HID_USAGE_AUX_DISPLAY_DISPLAY_STATUS               = 0x2D, // CL
+  HID_USAGE_AUX_DISPLAY_STAT_NOT_READY               = 0x2E, // Sel
+  HID_USAGE_AUX_DISPLAY_STAT_READY                   = 0x2F, // Sel
+  HID_USAGE_AUX_DISPLAY_ERR_NOT_A_LOADABLE_CHARACTER = 0x30, // Sel
+  HID_USAGE_AUX_DISPLAY_ERR_FONT_DATA_CANNOT_BE_READ = 0x31, // Sel
+  HID_USAGE_AUX_DISPLAY_CURSOR_POSITION_REPORT       = 0x32, // Sel
+  HID_USAGE_AUX_DISPLAY_ROW                          = 0x33, // DV
+  HID_USAGE_AUX_DISPLAY_COLUMN                       = 0x34, // DV
+  HID_USAGE_AUX_DISPLAY_ROWS                         = 0x35, // SV
+  HID_USAGE_AUX_DISPLAY_COLUMNS                      = 0x36, // SV
+  HID_USAGE_AUX_DISPLAY_CURSOR_PIXEL_POSITIONING     = 0x37, // SF
+  HID_USAGE_AUX_DISPLAY_CURSOR_MODE                  = 0x38, // DF
+  HID_USAGE_AUX_DISPLAY_CURSOR_ENABLE                = 0x39, // DF
+  HID_USAGE_AUX_DISPLAY_CURSOR_BLINK                 = 0x3A, // DF
+  HID_USAGE_AUX_DISPLAY_FONT_REPORT                  = 0x3B, // CL
+  HID_USAGE_AUX_DISPLAY_FONT_DATA                    = 0x3C, // Buffered Bytes
+  HID_USAGE_AUX_DISPLAY_CHARACTER_WIDTH              = 0x3D, // SV
+  HID_USAGE_AUX_DISPLAY_CHARACTER_HEIGHT             = 0x3E, // SV
+  HID_USAGE_AUX_DISPLAY_CHARACTER_SPACING_HORIZONTAL = 0x3F, // SV
+  HID_USAGE_AUX_DISPLAY_CHARACTER_SPACING_VERTICAL   = 0x40, // SV
+  HID_USAGE_AUX_DISPLAY_UNICODE_CHARACTER_SET        = 0x41, // SF
+  HID_USAGE_AUX_DISPLAY_FONT_7_SEGMENT               = 0x42, // SF
+  HID_USAGE_AUX_DISPLAY_7_SEGMENT_DIRECT_MAP         = 0x43, // SF
+  HID_USAGE_AUX_DISPLAY_FONT_14_SEGMENT              = 0x44, // SF
+  HID_USAGE_AUX_DISPLAY_14_SEGMENT_DIRECT_MAP        = 0x45, // SF
+  HID_USAGE_AUX_DISPLAY_DISPLAY_BRIGHTNESS           = 0x46, // DV
+  HID_USAGE_AUX_DISPLAY_DISPLAY_CONTRAST             = 0x47, // DV
+  HID_USAGE_AUX_DISPLAY_CHARACTER_ATTRIBUTE          = 0x48, // CL
+  HID_USAGE_AUX_DISPLAY_ATTRIBUTE_READBACK           = 0x49, // SF
+  HID_USAGE_AUX_DISPLAY_ATTRIBUTE_DATA               = 0x4A, // DV
+  HID_USAGE_AUX_DISPLAY_CHAR_ATTR_ENHANCE            = 0x4B, // OOC
+  HID_USAGE_AUX_DISPLAY_CHAR_ATTR_UNDERLINE          = 0x4C, // OOC
+  HID_USAGE_AUX_DISPLAY_CHAR_ATTR_BLINK              = 0x4D, // OOC
+  // Reserved (0x4E - 0x7F)
+  HID_USAGE_AUX_DISPLAY_BITMAP_SIZE_X                = 0x80, // SV
+  HID_USAGE_AUX_DISPLAY_BITMAP_SIZE_Y                = 0x81, // SV
+  HID_USAGE_AUX_DISPLAY_MAX_BLIT_SIZE                = 0x82, // SV
+  HID_USAGE_AUX_DISPLAY_BIT_DEPTH_FORMAT             = 0x83, // SV
+  HID_USAGE_AUX_DISPLAY_DISPLAY_ORIENTATION          = 0x84, // DV
+  HID_USAGE_AUX_DISPLAY_PALETTE_REPORT               = 0x85, // CL
+  HID_USAGE_AUX_DISPLAY_PALETTE_DATA_SIZE            = 0x86, // SV
+  HID_USAGE_AUX_DISPLAY_PALETTE_DATA_OFFSET          = 0x87, // SV
+  HID_USAGE_AUX_DISPLAY_PALETTE_DATA                 = 0x88, // Buffered Bytes
+  // Reserved (0x89)
+  HID_USAGE_AUX_DISPLAY_BLIT_REPORT                  = 0x8A, // CL
+  HID_USAGE_AUX_DISPLAY_BLIT_RECTANGLE_X1            = 0x8B, // SV
+  HID_USAGE_AUX_DISPLAY_BLIT_RECTANGLE_Y1            = 0x8C, // SV
+  HID_USAGE_AUX_DISPLAY_BLIT_RECTANGLE_X2            = 0x8D, // SV
+  HID_USAGE_AUX_DISPLAY_BLIT_RECTANGLE_Y2            = 0x8E, // SV
+  HID_USAGE_AUX_DISPLAY_BLIT_DATA                    = 0x8F, // Buffered Bytes
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON                  = 0x90, // CL
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON_ID               = 0x91, // SV
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON_SIDE             = 0x92, // SV
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON_OFFSET_1         = 0x93, // SV
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON_OFFSET_2         = 0x94, // SV
+  HID_USAGE_AUX_DISPLAY_SOFT_BUTTON_REPORT           = 0x95, // SV
+  // Reserved (0x96 - 0xC1)
+  HID_USAGE_AUX_DISPLAY_SOFT_KEYS                    = 0xC2, // SV
+  // Reserved (0xC3 - 0xCB)
+  HID_USAGE_AUX_DISPLAY_DATA_EXTENSIONS              = 0xCC, // SF
+  // Reserved (0xCD - 0xCE)
+  HID_USAGE_AUX_DISPLAY_CHARACTER_MAPPING            = 0xCF, // SV
+  // Reserved (0xD0 - 0xDC)
+  HID_USAGE_AUX_DISPLAY_UNICODE_EQUIVALENT           = 0xDD, // SV
+  // Reserved (0xDE)
+  HID_USAGE_AUX_DISPLAY_CHARACTER_PAGE_MAPPING       = 0xDF, // SV
+  // Reserved (0xE0 - 0xFE)
+  HID_USAGE_AUX_DISPLAY_REQUEST_REPORT               = 0xFF  // DV
+  // Reserved (0x100 - 0xFFFF)
+};
+
+/// HID Usage Table - Medical Instrument Page (0x40)
+enum {
+  HID_USAGE_MEDICAL_INSTRUMENT_MEDICAL_ULTRASOUND           = 0x01, // CA
+  // Reserved (0x02 - 0x1F)
+  HID_USAGE_MEDICAL_INSTRUMENT_VCR_ACQUISITION              = 0x20, // OOC
+  HID_USAGE_MEDICAL_INSTRUMENT_FREEZE_THAW                  = 0x21, // OOC
+  HID_USAGE_MEDICAL_INSTRUMENT_CLIP_STORE                   = 0x22, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_UPDATE                       = 0x23, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_NEXT                         = 0x24, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_SAVE                         = 0x25, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_PRINT                        = 0x26, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_MICROPHONE_ENABLE            = 0x27, // OSC
+  // Reserved (0x28 - 0x3F)
+  HID_USAGE_MEDICAL_INSTRUMENT_CINE                         = 0x40, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_TRANSMIT_POWER               = 0x41, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_VOLUME                       = 0x42, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_FOCUS                        = 0x43, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_DEPTH                        = 0x44, // LC
+  // Reserved (0x45 - 0x5F)
+  HID_USAGE_MEDICAL_INSTRUMENT_SOFT_STEP_PRIMARY            = 0x60, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_SOFT_STEP_SECONDARY          = 0x61, // LC
+  // Reserved (0x62 - 0x6F)
+  HID_USAGE_MEDICAL_INSTRUMENT_DEPTH_GAIN_COMPENSATION      = 0x70, // LC
+  // Reserved (0x71 - 0x7F)
+  HID_USAGE_MEDICAL_INSTRUMENT_ZOOM_SELECT                  = 0x80, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_ZOOM_ADJUST                  = 0x81, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_SPECTRAL_DOPPLER_MODE_SELECT = 0x82, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_SPECTRAL_DOPPLER_ADJUST      = 0x83, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_COLOR_DOPPLER_MODE_SELECT    = 0x84, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_COLOR_DOPPLER_ADJUST         = 0x85, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_MOTION_MODE_SELECT           = 0x86, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_MOTION_MODE_ADJUST           = 0x87, // LC
+  HID_USAGE_MEDICAL_INSTRUMENT_2D_MODE_SELECT               = 0x88, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_2D_MODE_ADJUST               = 0x89, // LC
+  // Reserved (0x8A - 0x9F)
+  HID_USAGE_MEDICAL_INSTRUMENT_SOFT_CONTROL_SELECT          = 0xA0, // OSC
+  HID_USAGE_MEDICAL_INSTRUMENT_SOFT_CONTROL_ADJUST          = 0xA1, // LC
+  // Reserved (0xA2 - 0xFFFF)
 };
 
 /// HID Usage Table - Lighting And Illumination Page (0x59)
 enum {
-  HID_USAGE_LIGHTING_LAMP_ARRAY                          = 0x01,
-  HID_USAGE_LIGHTING_LAMP_ARRAY_ATTRIBUTES_REPORT        = 0x02,
-  HID_USAGE_LIGHTING_LAMP_COUNT                          = 0x03,
-  HID_USAGE_LIGHTING_BOUNDING_BOX_WIDTH_IN_MICROMETERS   = 0x04,
-  HID_USAGE_LIGHTING_BOUNDING_BOX_HEIGHT_IN_MICROMETERS  = 0x05,
-  HID_USAGE_LIGHTING_BOUNDING_BOX_DEPTH_IN_MICROMETERS   = 0x06,
-  HID_USAGE_LIGHTING_LAMP_ARRAY_KIND                     = 0x07,
-  HID_USAGE_LIGHTING_MIN_UPDATE_INTERVAL_IN_MICROSECONDS = 0x08,
-  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_REQUEST_REPORT      = 0x20,
-  HID_USAGE_LIGHTING_LAMP_ID                             = 0x21,
-  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_RESPONSE_REPORT     = 0x22,
-  HID_USAGE_LIGHTING_POSITION_X_IN_MICROMETERS           = 0x23,
-  HID_USAGE_LIGHTING_POSITION_Y_IN_MICROMETERS           = 0x24,
-  HID_USAGE_LIGHTING_POSITION_Z_IN_MICROMETERS           = 0x25,
-  HID_USAGE_LIGHTING_LAMP_PURPOSES                       = 0x26,
-  HID_USAGE_LIGHTING_UPDATE_LATENCY_IN_MICROSECONDS      = 0x27,
-  HID_USAGE_LIGHTING_RED_LEVEL_COUNT                     = 0x28,
-  HID_USAGE_LIGHTING_GREEN_LEVEL_COUNT                   = 0x29,
-  HID_USAGE_LIGHTING_BLUE_LEVEL_COUNT                    = 0x2A,
-  HID_USAGE_LIGHTING_INTENSITY_LEVEL_COUNT               = 0x2B,
-  HID_USAGE_LIGHTING_IS_PROGRAMMABLE                     = 0x2C,
-  HID_USAGE_LIGHTING_INPUT_BINDING                       = 0x2D,
-  HID_USAGE_LIGHTING_LAMP_MULTI_UPDATE_REPORT            = 0x50,
-  HID_USAGE_LIGHTING_RED_UPDATE_CHANNEL                  = 0x51,
-  HID_USAGE_LIGHTING_GREEN_UPDATE_CHANNEL                = 0x52,
-  HID_USAGE_LIGHTING_BLUE_UPDATE_CHANNEL                 = 0x53,
-  HID_USAGE_LIGHTING_INTENSITY_UPDATE_CHANNEL            = 0x54,
-  HID_USAGE_LIGHTING_LAMP_UPDATE_FLAGS                   = 0x55,
-  HID_USAGE_LIGHTING_LAMP_RANGE_UPDATE_REPORT            = 0x60,
-  HID_USAGE_LIGHTING_LAMP_ID_START                       = 0x61,
-  HID_USAGE_LIGHTING_LAMP_ID_END                         = 0x62,
-  HID_USAGE_LIGHTING_LAMP_ARRAY_CONTROL_REPORT           = 0x70,
-  HID_USAGE_LIGHTING_AUTONOMOUS_MODE                     = 0x71,
+  HID_USAGE_LIGHTING_LAMP_ARRAY                          = 0x01, // CA
+  HID_USAGE_LIGHTING_LAMP_ARRAY_ATTRIBUTES_REPORT        = 0x02, // CL
+  HID_USAGE_LIGHTING_LAMP_COUNT                          = 0x03, // SV/DV
+  HID_USAGE_LIGHTING_BOUNDING_BOX_WIDTH_IN_MICROMETERS   = 0x04, // SV
+  HID_USAGE_LIGHTING_BOUNDING_BOX_HEIGHT_IN_MICROMETERS  = 0x05, // SV
+  HID_USAGE_LIGHTING_BOUNDING_BOX_DEPTH_IN_MICROMETERS   = 0x06, // SV
+  HID_USAGE_LIGHTING_LAMP_ARRAY_KIND                     = 0x07, // SV
+  HID_USAGE_LIGHTING_MIN_UPDATE_INTERVAL_IN_MICROSECONDS = 0x08, // SV
+  // Reserved (0x09 - 0x1F)
+  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_REQUEST_REPORT      = 0x20, // CL
+  HID_USAGE_LIGHTING_LAMP_ID                             = 0x21, // SV/DV
+  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_RESPONSE_REPORT     = 0x22, // CL
+  HID_USAGE_LIGHTING_POSITION_X_IN_MICROMETERS           = 0x23, // DV
+  HID_USAGE_LIGHTING_POSITION_Y_IN_MICROMETERS           = 0x24, // DV
+  HID_USAGE_LIGHTING_POSITION_Z_IN_MICROMETERS           = 0x25, // DV
+  HID_USAGE_LIGHTING_LAMP_PURPOSES                       = 0x26, // DV
+  HID_USAGE_LIGHTING_UPDATE_LATENCY_IN_MICROSECONDS      = 0x27, // DV
+  HID_USAGE_LIGHTING_RED_LEVEL_COUNT                     = 0x28, // DV
+  HID_USAGE_LIGHTING_GREEN_LEVEL_COUNT                   = 0x29, // DV
+  HID_USAGE_LIGHTING_BLUE_LEVEL_COUNT                    = 0x2A, // DV
+  HID_USAGE_LIGHTING_INTENSITY_LEVEL_COUNT               = 0x2B, // DV
+  HID_USAGE_LIGHTING_IS_PROGRAMMABLE                     = 0x2C, // DV
+  HID_USAGE_LIGHTING_INPUT_BINDING                       = 0x2D, // DV
+  // Reserved (0x2E - 0x4F)
+  HID_USAGE_LIGHTING_LAMP_MULTI_UPDATE_REPORT            = 0x50, // CL
+  HID_USAGE_LIGHTING_RED_UPDATE_CHANNEL                  = 0x51, // DV
+  HID_USAGE_LIGHTING_GREEN_UPDATE_CHANNEL                = 0x52, // DV
+  HID_USAGE_LIGHTING_BLUE_UPDATE_CHANNEL                 = 0x53, // DV
+  HID_USAGE_LIGHTING_INTENSITY_UPDATE_CHANNEL            = 0x54, // DV
+  HID_USAGE_LIGHTING_LAMP_UPDATE_FLAGS                   = 0x55, // DV
+  // Reserved (0x56 - 0x5F)
+  HID_USAGE_LIGHTING_LAMP_RANGE_UPDATE_REPORT            = 0x60, // CL
+  HID_USAGE_LIGHTING_LAMP_ID_START                       = 0x61, // DV
+  HID_USAGE_LIGHTING_LAMP_ID_END                         = 0x62, // DV
+  // Reserved (0x63 - 0x6F)
+  HID_USAGE_LIGHTING_LAMP_ARRAY_CONTROL_REPORT           = 0x70, // CL
+  HID_USAGE_LIGHTING_AUTONOMOUS_MODE                     = 0x71, // DV
+  // Reserved (0x72 - 0xFFFF)
+};
+
+/// HID Usage Table: Monitor Page (0x80)
+enum {
+  HID_USAGE_MONITOR_MONITOR_CONTROL  = 0x01, // CA
+  HID_USAGE_MONITOR_EDID_INFORMATION = 0x02, // SV
+  HID_USAGE_MONITOR_VDIF_INFORMATION = 0x03, // SV
+  HID_USAGE_MONITOR_VESA_VERSION     = 0x04  // SV
+  // Reserved (0x05 - 0xFFFF)
+};
+
+/// HID Usage Table: Monitor Enumerated Page (0x81)
+/// Intentionally skipped
+
+/// HID Usage Table: VESA Virtual Controls Page (0x82)
+enum {
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_DEGAUSS                          = 0x01, // DV
+  // Reserved (0x02 - 0x0F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_BRIGHTNESS                       = 0x10, // DV
+  // Reserved (0x11)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_CONTRAST                         = 0x12, // DV
+  // Reserved (0x13 - 0x15)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_RED_VIDEO_GAIN                   = 0x16, // DV
+  // Reserved (0x17)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_GREEN_VIDEO_GAIN                 = 0x18, // DV
+  // Reserved (0x19)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_BLUE_VIDEO_GAIN                  = 0x1A, // DV
+  // Reserved (0x1B)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_FOCUS                            = 0x1C, // DV
+  // Reserved (0x1D - 0x1F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_POSITION              = 0x20, // DV
+  // Reserved (0x21)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_SIZE                  = 0x22, // DV
+  // Reserved (0x23)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_PINCUSHION            = 0x24, // DV
+  // Reserved (0x25)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_PINCUSHION_BALANCE    = 0x26, // DV
+  // Reserved (0x27)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_MISCONVERGENCE        = 0x28, // DV
+  // Reserved (0x29)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_LINEARITY             = 0x2A, // DV
+  // Reserved (0x2B)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_LINEARITY_BALANCE     = 0x2C, // DV
+  // Reserved (0x2D - 0x2F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_POSITION                = 0x30, // DV
+  // Reserved (0x31)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_SIZE                    = 0x32, // DV
+  // Reserved (0x33)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_PINCUSHION              = 0x34, // DV
+  // Reserved (0x35)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_PINCUSHION_BALANCE      = 0x36, // DV
+  // Reserved (0x37)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_MISCONVERGENCE          = 0x38, // DV
+  // Reserved (0x39)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_LINEARITY               = 0x3A, // DV
+  // Reserved (0x3B)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_LINEARITY_BALANCE       = 0x3C, // DV
+  // Reserved (0x3D - 0x3F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_PARALLELOGRAM_DISTORTION         = 0x40, // DV
+  // Reserved (0x41)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_TRAPEZOIDAL_DISTORTION           = 0x42, // DV
+  // Reserved (0x43)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_TILT                             = 0x44, // DV
+  // Reserved (0x45)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_TOP_CORNER_DISTORTION_CONTROL    = 0x46, // DV
+  // Reserved (0x47)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_TOP_CORNER_DISTORTION_BALANCE    = 0x48, // DV
+  // Reserved (0x49)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_BOTTOM_CORNER_DISTORTION_CONTROL = 0x4A, // DV
+  // Reserved (0x4B)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_BOTTOM_CORNER_DISTORTION_BALANCE = 0x4C, // DV
+  // Reserved (0x4D - 0x55)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_MOIRE                 = 0x56, // DV
+  // Reserved (0x57)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_MOIRE                   = 0x58, // DV
+  // Reserved (0x59 - 0x5D)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_INPUT_LEVEL_SELECT               = 0x5E, // NAry
+  // Reserved (0x5F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_INPUT_SOURCE_SELECT              = 0x60, // NAry
+  // Reserved (0x61 - 0x6B)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_RED_VIDEO_BLACK_LEVEL            = 0x6C, // DV
+  // Reserved (0x6D)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_GREEN_VIDEO_BLACK_LEVEL          = 0x6E, // DV
+  // Reserved (0x6F)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_BLUE_VIDEO_BLACK_LEVEL           = 0x70, // DV
+  // Reserved (0x71 - 0xA1)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_AUTO_SIZE_CENTER                 = 0xA2, // NAry
+  // Reserved (0xA3)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_POLARITY_HORIZONTAL_SYNC         = 0xA4, // NAry
+  // Reserved (0xA5)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_POLARITY_VERTICAL_SYNC           = 0xA6, // NAry
+  // Reserved (0xA7)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_SYNC_TYPE                        = 0xA8, // NAry
+  // Reserved (0xA9)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_SCREEN_ORIENTATION               = 0xAA, // NAry
+  // Reserved (0xAB)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_HORIZONTAL_FREQUENCY             = 0xAC, // DV
+  // Reserved (0xAD)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_VERTICAL_FREQUENCY               = 0xAE, // DV
+  // Reserved (0xAF)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_SETTINGS                         = 0xB0, // NAry
+  // Reserved (0xB1 - 0xC9)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_ON_SCREEN_DISPLAY                = 0xCA, // NAry
+  // Reserved (0xCB - 0xD3)
+  HID_USAGE_VESA_VIRTUAL_CONTROLS_STEREO_MODE                      = 0xD4, // NAry
+  // Reserved (0xD5 - 0xFFFF)
 };
 
 /// HID Usage Table: Power Device Page (0x84)
@@ -1665,6 +2579,7 @@ enum {
   HID_USAGE_POWER_I_MANUFACTURER         = 0xFD,
   HID_USAGE_POWER_I_PRODUCT              = 0xFE,
   HID_USAGE_POWER_I_SERIAL_NUMBER        = 0xFF
+  // Reserved (0x100 - 0xFFFF)
 };
 
 /// HID Usage Table: Battery System Page (0x85)
@@ -1770,6 +2685,48 @@ enum {
   HID_USAGE_BATTERY_LEVEL_2                        = 0xF2,
   HID_USAGE_BATTERY_LEVEL_3                        = 0xF3
   // F4-FF Reserved
+};
+
+/// HID Usage Table: Camera Control Page (0x90)
+enum {
+  // Reserved (0x01 - 0x1F)
+  HID_USAGE_CAMERA_CONTROL_CAMERA_AUTO_FOCUS = 0x20, // OSC
+  HID_USAGE_CAMERA_CONTROL_CAMERA_SHUTTER    = 0x21  // OSC
+  // Reserved (0x22 - 0xFFFF)
+};
+
+/// HID Usage Table: Arcade Page (0x91)
+enum {
+  HID_USAGE_ARCADE_GENERAL_PURPOSE_IO_CARD              = 0x01, // CA
+  HID_USAGE_ARCADE_COIN_DOOR                            = 0x02, // CA
+  HID_USAGE_ARCADE_WATCHDOG_TIMER                       = 0x03, // CA
+  // Reserved (0x04 - 0x2F)
+  HID_USAGE_ARCADE_GENERAL_PURPOSE_ANALOG_INPUT_STATE   = 0x30, // DV
+  HID_USAGE_ARCADE_GENERAL_PURPOSE_DIGITAL_INPUT_STATE  = 0x31, // DV
+  HID_USAGE_ARCADE_GENERAL_PURPOSE_OPTICAL_INPUT_STATE  = 0x32, // DV
+  HID_USAGE_ARCADE_GENERAL_PURPOSE_DIGITAL_OUTPUT_STATE = 0x33, // DV
+  HID_USAGE_ARCADE_NUMBER_OF_COIN_DOORS                 = 0x34, // DV
+  HID_USAGE_ARCADE_COIN_DRAWER_DROP_COUNT               = 0x35, // DV
+  HID_USAGE_ARCADE_COIN_DRAWER_START                    = 0x36, // OOC
+  HID_USAGE_ARCADE_COIN_DRAWER_SERVICE                  = 0x37, // OOC
+  HID_USAGE_ARCADE_COIN_DRAWER_TILT                     = 0x38, // OOC
+  HID_USAGE_ARCADE_COIN_DOOR_TEST                       = 0x39, // OOC
+  // Reserved (0x3A - 0x3F)
+  HID_USAGE_ARCADE_COIN_DOOR_LOCKOUT                    = 0x40, // OOC
+  HID_USAGE_ARCADE_WATCHDOG_TIMEOUT                     = 0x41, // DV
+  HID_USAGE_ARCADE_WATCHDOG_ACTION                      = 0x42, // NAry
+  HID_USAGE_ARCADE_WATCHDOG_REBOOT                      = 0x43, // Sel
+  HID_USAGE_ARCADE_WATCHDOG_RESTART                     = 0x44, // Sel
+  HID_USAGE_ARCADE_ALARM_INPUT                          = 0x45, // DV
+  HID_USAGE_ARCADE_COIN_DOOR_COUNTER                    = 0x46, // OOC
+  HID_USAGE_ARCADE_IO_DIRECTION_MAPPING                 = 0x47, // DV
+  HID_USAGE_ARCADE_SET_IO_DIRECTION_MAPPING             = 0x48, // DV
+  HID_USAGE_ARCADE_EXTENDED_OPTICAL_INPUT_STATE         = 0x49, // DV
+  HID_USAGE_ARCADE_PIN_PAD_INPUT_STATE                  = 0x4A, // DV
+  HID_USAGE_ARCADE_PIN_PAD_STATUS                       = 0x4B, // DV
+  HID_USAGE_ARCADE_PIN_PAD_OUTPUT                       = 0x4C, // OOC
+  HID_USAGE_ARCADE_PIN_PAD_COMMAND                      = 0x4D, // DV
+  // Reserved (0x4E - 0xFFFF)
 };
 
 /// HID Usage Table: FIDO Alliance Page (0xF1D0)

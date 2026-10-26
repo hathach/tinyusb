@@ -26,7 +26,8 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
-#define USB_PID           (0x4000 | ((CFG_TUD_CDC) ? (1 << 0) : 0) | ((CFG_TUD_MSC) ? (1 << 1) : 0))
+// Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
+#define USB_PID           0x4009
 #define USB_VID           0xCafe
 #define USB_BCD           0x0200
 
@@ -64,7 +65,15 @@ enum {
 };
 
 // Place bulk endpoints on EP>=8 for MAX32690 class parts (bigger FIFO, DPB-capable).
-#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x82
+  #define EPNUM_MSC_OUT     0x05
+  #define EPNUM_MSC_IN      0x85
+#elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
   #if TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
     // Put bulk on EP>=8 so the 2048/4096-byte FIFOs can back double packet buffering
     #define EPNUM_CDC_NOTIF   0x81

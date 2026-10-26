@@ -5,6 +5,7 @@ endianess
 fro
 hsi
 inout
+linke
 mot
 ore
 pris

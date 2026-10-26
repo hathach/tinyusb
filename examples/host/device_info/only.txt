@@ -1,9 +1,14 @@
+family:broadcom_32bit
+family:efm32
 family:espressif
+family:gd32vf103
 family:hpmicro
-family:samd21
+family:samd2x_l2x
 family:samd5x_e5x
+family:xmc4000
 mcu:CH32V20X
 mcu:KINETIS_KL
+mcu:KINETIS_K
 mcu:LPC175X_6X
 mcu:LPC177X_8X
 mcu:LPC18XX
@@ -31,3 +36,4 @@ mcu:STM32H7RS
 mcu:STM32N6
 mcu:STM32U3
 mcu:STM32U5
+mcu:APM32F107

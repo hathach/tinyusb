@@ -1,0 +1,113 @@
+/*********************************************************************
+*
+*       OnProjectLoad
+*
+* Function description
+*   Project load routine. Required.
+*
+* Notes
+*   Nucleo-H563ZI trace: PE2-PE6 reach the MIPI-20 connector (CN5) only
+*   with SB8, SB9, SB64, SB68, SB70, SB71, SB78 removed (MB1404 UM).
+*   Firmware must be built with TRACE_ETM=1 (trace pin + DBGMCU init).
+*
+*   The trace path through the solder bridges is signal-marginal: reliable
+*   only at 100 MHz core (TRACE_ETM builds select this automatically in
+*   board.h), port width 1 and +5 ns sample timing (validated empirically;
+*   width 4 or 250 MHz core corrupts the stream within ~100 ms).
+*
+**********************************************************************
+*/
+void OnProjectLoad (void) {
+  Project.SetTraceSource ("Trace Pins");
+  Project.SetTracePortWidth (1);
+  Project.SetTraceTiming (5000, 5000, 5000, 5000);
+  Project.SetSWO (0);
+  Edit.SysVar (VAR_TRACE_CORE_CLOCK, 100000000);
+  Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
+
+  Project.SetDevice ("STM32H563ZI");
+  Project.SetHostIF ("USB", "");
+  Project.SetTargetIF ("SWD");
+  Project.SetTIFSpeed ("4 MHz");
+
+  File.Open ("../../../../../../examples/cmake-build-stm32h563nucleo/device/cdc_msc/cdc_msc.elf");
+}
+
+/*********************************************************************
+*
+*       AfterTargetConnect
+*
+* Function description
+*   Enable the trace clock domain (DBGMCU_CR: TRACE_IOEN | TRACE_CLKEN |
+*   TRACE_MODE=4-bit) BEFORE Ozone touches the trace CoreSight components.
+*   On STM32H5 an access to unclocked trace components hangs the debug AP
+*   ("Failed to read target status") until the board is power-cycled.
+*
+**********************************************************************
+*/
+void AfterTargetConnect (void) {
+  unsigned int cr;
+  cr = Target.ReadU32(0x44024004);   // DBGMCU_CR
+  // clock the domain (CLKEN|MODE=4-bit) but keep the pins OFF (clear IOEN):
+  // the pins must only go live via firmware trace_etm_init() AFTER the system
+  // clock switch, or the mid-trace frequency change desyncs the decoder.
+  Target.WriteU32(0x44024004, (cr & 0xFFFFFFEF) | 0xE0);
+}
+
+/*********************************************************************
+*
+*       AfterTargetReset
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetReset (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}
+
+/*********************************************************************
+*
+*       AfterTargetDownload
+*
+* Function description
+*   Event handler routine.
+*    - Sets the PC register to program reset value.
+*    - Sets the SP register to program reset value on Cortex-M.
+*
+**********************************************************************
+*/
+void AfterTargetDownload (void) {
+  unsigned int SP;
+  unsigned int PC;
+  unsigned int VectorTableAddr;
+
+  VectorTableAddr = Elf.GetBaseAddr();
+
+  if (VectorTableAddr == 0xFFFFFFFF) {
+    Util.Log("Project file error: failed to get program base");
+  } else {
+    SP = Target.ReadU32(VectorTableAddr);
+    Target.SetReg("SP", SP);
+
+    PC = Target.ReadU32(VectorTableAddr + 4);
+    Target.SetReg("PC", PC);
+  }
+}

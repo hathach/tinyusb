@@ -1,1 +1,41 @@
-AGENTS.md
+# TinyUSB Agent Instructions
+
+## Working Rules
+
+- Worktrees — symlink `deps_all` paths from `tools/get_deps.py` to the primary checkout; replace a symlink and rerun `get_deps.py` only for a different revision.
+- Code references — boards: `hw/bsp/`, `docs/reference/boards.rst`; classes: `src/class/`; core/config: `src/tusb.h`, `src/tusb_option.h`, each example's `src/tusb_config.h`; build/deps: `tools/build.py`, `tools/get_deps.py`; unit tests: `test/unit-test/project.yml`.
+
+## Code Rules
+
+- C99, 2-space indent, no tabs; `snake_case` helpers, `UPPER_CASE` macros, `tud_`/`tuh_` public APIs, `TU_` macros.
+- No dynamic allocation. Defer ISR work to task context. Use `TU_ASSERT()` for error checks; check return values.
+- Keep headers self-contained with `#if CFG_TUSB_MCU` guards. Include order: C stdlib → tusb common → drivers → classes.
+
+## Skills
+
+- Agents, skills and workflows beyond this repo's `.claude/` come from [agentrc](https://github.com/hathach/agentrc); install it before agent work on TinyUSB.
+- Skill script tests live in `.claude/test/test_*.py`.
+- Hardware diagnosis and repair use agentrc's `hw-debugger`; independent hardware claims and committed-fix validation use `hw-validator`; routine HIL runs use `hil-operator`, which follows the HIL contract below — all orchestrated by `chief`.
+- Driver audit: the `code-audit` workflow with `dirs` (e.g. `src/portable/<vendor>/<driver>`) and `dimensions`: `correctness: transfer state machines, endpoint bookkeeping, completion and error paths`; `ISR safety: work deferred to task context, shared-state races, register access ordering`; `register use vs datasheet and MCU errata: cross-check the reference manual AND errata sheets via the read-doc skill; if the skill is unavailable treat the document as absent (low confidence, never a web/filesystem substitute); a missing erratum workaround is a finding`; `style: repo conventions (TU_ASSERT, no dynamic allocation, include order, naming)`.
+- usbtest battery: load `usbtest` before bringing up `examples/device/usbtest` on a new MCU or DCD, or before debugging a failed usbtest case (a red usbtest cell, a testusb errno, NOTRUN or HUNG); it maps the case to the DCD path and runs chosen cases on one board.
+- Static analysis: the `pvs-studio` agent with rules `.PVS-Studio/.pvsconfig` (never add suppressions) on a board's examples build; `raspberry_pi_pico` mirrors CI, `stm32f407disco` is fastest.
+
+## Build and Validate
+
+- Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, or with `--variants <hil config>` one `cmake-build/cmake-build-<variant>` per roster variant, the dirs HIL flashes from, so preserve them. Flash with `ninja -C cmake-build/cmake-build-<board|variant> <example>-jlink` or `-openocd`, naming the variant for a `--variants` build; for routine rig tests use the HIL harness, whose roster pins the probe.
+- HIL contract: `.claude/skills/hil-contract/SKILL.md`. It owns taking and releasing a rig board, names the HIL config json for the host you are on, and names the launcher of the `hil` skill's farm (board/probe health) check.
+- Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
+- ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
+- Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
+- For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
+- For DCD bring-up or a behavior change (`src/portable/<vendor>/<driver>`), use the usbtest battery for hardware sign-off: run every case of the justified tier. If no suitable rig board is available, report hardware validation pending.
+- After board/dependency changes, regenerate docs with `build-doc`.
+- Before committing code changes, verify size impact with agentrc's `code-size` (the build contract's Code size section).
+
+## PRs and Follow-ups
+
+- Before opening or updating a PR, follow Build and Validate. HIL is not part of it.
+- After opening a PR, ask the human to authorize one headless `chief` invocation to drive reviews and CI to green under agentrc chief's Authorization exception. Name the PR URL, head repository and branch, and actions: push commits to that branch, post replies to the PR's review feedback, and resolve review threads through `pr-babysit` with `autoPush: true`. On an affirmative answer, launch it in the PR worktree through agentrc's `headless-chief` skill (`chief_run.py`), never a bare `claude -p`, and relay its exit as that skill directs. The task names the PR, head repository and branch, expected HEAD and scope, and includes the question and answer verbatim. Leave the checkout to chief until it exits; a new chief invocation requires a fresh exchange. TinyUSB `pr-babysit` args:
+  `{"pr": <num>, "protected": "^test/hil/[^/]+\\.json$"}`; reviewers are agentrc's default.
+  (`protected` excludes the HIL rig rosters from automated fixes).
+- The follow-up label is `followup`.

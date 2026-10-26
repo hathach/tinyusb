@@ -284,6 +284,8 @@ typedef struct {
   #include "fsdev_ch32.h"
 #elif defined(TUP_USBIP_FSDEV_AT32)
   #include "fsdev_at32.h"
+#elif defined(TUP_USBIP_FSDEV_APM32)
+  #include "fsdev_apm32.h"
 #else
   #error "Unknown USB IP"
 #endif

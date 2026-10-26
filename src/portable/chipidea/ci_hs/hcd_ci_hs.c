@@ -82,6 +82,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   hcd_reg->USBMODE = USBMODE_CM_HOST;
   #endif
 
+  #ifdef CI_HS_SET_AHB_BURST
+  CI_HS_SET_AHB_BURST(rhport);
+  #endif
+
   #if !TUH_OPT_HIGH_SPEED
   hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
   #endif

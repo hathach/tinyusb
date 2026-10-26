@@ -30,6 +30,7 @@
 #define MUSB_CFG_SHARED_FIFO       0
 #define MUSB_CFG_DYNAMIC_FIFO      1
 #define MUSB_CFG_DYNAMIC_FIFO_SIZE 4096
+#define MUSB_INTR_EP_TX_RX_SWAP    0
 
 static const uintptr_t MUSB_BASES[] = { USB0_BASE };
 

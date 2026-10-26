@@ -14,7 +14,7 @@ except:
 
 # Example must be compiled with CFG_AUDIO_DEBUG=1
 VID = 0xcafe
-PID = 0x4014
+PID = 0x401b
 
 CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX = 2
 

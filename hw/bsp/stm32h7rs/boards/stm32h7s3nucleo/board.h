@@ -123,7 +123,13 @@ static inline void SystemClock_Config(void)
   RCC_OscInitStruct.PLL1.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL1.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL1.PLLM = 12;
+#ifdef TRACE_ETM
+  // 300 MHz core -> 50 MHz trace clock: at 600 MHz the stream survives idle
+  // but dies (unknown trace packet) during IRQ-heavy bursts, e.g. USB traffic
+  RCC_OscInitStruct.PLL1.PLLN = 150;
+#else
   RCC_OscInitStruct.PLL1.PLLN = 300;
+#endif
   RCC_OscInitStruct.PLL1.PLLP = 1;
   RCC_OscInitStruct.PLL1.PLLQ = 2;
   RCC_OscInitStruct.PLL1.PLLR = 2;

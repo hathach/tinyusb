@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="sam70" uniqueID="1e732be4-71f3-41be-b79b-e91778969278">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="ATSAME70Q21B" reset-before="false" frequency="16000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>
