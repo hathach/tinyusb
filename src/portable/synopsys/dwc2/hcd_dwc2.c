@@ -302,6 +302,23 @@ static tusb_speed_t hprt_speed_get(dwc2_regs_t* dwc2) {
   return speed;
 }
 
+// Mask this controller's interrupt over a region shared with the ISR; returns GAHBCFG for gint_restore(). A region
+// that finds it masked writes neither: the mask belongs to an enclosing region or, on a multi-core MCU, to one running
+// on the other core, after whose unmask restoring the 0 read here would leave the interrupt masked for good.
+TU_ATTR_ALWAYS_INLINE static inline uint32_t gint_mask(dwc2_regs_t* dwc2) {
+  const uint32_t gahbcfg = dwc2->gahbcfg;
+  if (gahbcfg & GAHBCFG_GINT) {
+    dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+  }
+  return gahbcfg;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void gint_restore(dwc2_regs_t* dwc2, uint32_t gahbcfg) {
+  if (gahbcfg & GAHBCFG_GINT) {
+    dwc2->gahbcfg = gahbcfg;
+  }
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc2) {
   (void) dwc2;
   // Internal DMA only
@@ -704,21 +721,20 @@ static uint16_t channel_enable(dwc2_regs_t* dwc2, dwc2_channel_t* channel,
   if (next_periodic_frame) {
     // Prevent the USB interrupt from consuming the selected frame before
     // HCCHAR.CHENA is written. Queue-space waits happen before this helper.
-    const uint32_t gahbcfg = dwc2->gahbcfg;
-    dwc2->gahbcfg          = gahbcfg & ~GAHBCFG_GINT;
+    const uint32_t gahbcfg = gint_mask(dwc2);
     const uint32_t hfnum   = dwc2->hfnum;
     periodic_frame         = (uint16_t) ((hfnum + 1u) & HCD_FRAME_NUMBER_MASK);
     if (split_ss != HCD_SPLIT_SLOT_NONE) {
       const uint8_t ch_id = (uint8_t) (channel - dwc2->channel);
       if (!split_ss_start_ok(dwc2, ch_id, periodic_frame, split_ss)) {
-        dwc2->gahbcfg = gahbcfg;
+        gint_restore(dwc2, gahbcfg);
         return HCD_PERIODIC_FRAME_NOT_STARTED;
       }
       split_ss_record(dwc2, ch_id, periodic_frame);
     }
     hcchar          = (hcchar & ~HCCHAR_ODDFRM) | (((hfnum & 1u) ^ 1u) << HCCHAR_ODDFRM_Pos);
     channel->hcchar = hcchar | HCCHAR_CHENA;
-    dwc2->gahbcfg   = gahbcfg;
+    gint_restore(dwc2, gahbcfg);
   } else {
     channel->hcchar = hcchar | HCCHAR_CHENA;
   }
@@ -740,13 +756,12 @@ static uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel
   // replays this whole function, and that wait must not run on the deferral path. Taking the frame is a
   // read-modify-write on state shared with the ISR, and hcd_edpt_xfer() reaches here from task context,
   // so mask this controller's interrupt across it.
-  const uint32_t gahbcfg = dwc2->gahbcfg;
-  dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+  const uint32_t gahbcfg = gint_mask(dwc2);
   const bool claimed = ls_frame_claim(dwc2, channel);
   if (!claimed) {
     channel_park(dwc2, channel, next_periodic_frame ? PARK_IN_TOKEN_PERIODIC : PARK_IN_TOKEN);
   }
-  dwc2->gahbcfg = gahbcfg;
+  gint_restore(dwc2, gahbcfg);
   if (!claimed) {
     return DWC2_LS_PARKED; // the park itself may already be replayed by now, so callers go by this
   }
@@ -1118,10 +1133,10 @@ static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, boo
 // close an opened endpoint
 static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
   hcd_endpoint_t *edpt           = &_hcd_data.edpt[ep_id];
-  const uint32_t  gahbcfg        = dwc2->gahbcfg;
+  uint32_t        gahbcfg;
   bool            channel_active = false;
   while (1) {
-    dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+    gahbcfg = gint_mask(dwc2);
     uint8_t ch_id = TUSB_INDEX_INVALID_8;
     for (uint8_t i = 0; i < DWC2_CHANNEL_COUNT_MAX; i++) {
       if (_hcd_data.xfer[i].allocated && _hcd_data.xfer[i].ep_id == ep_id) {
@@ -1137,7 +1152,7 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
       channel_active = teardown == CHANNEL_TEARDOWN_HALTING;
       break;
     }
-    dwc2->gahbcfg = gahbcfg;
+    gint_restore(dwc2, gahbcfg);
     channel_disable_wait(dwc2, &dwc2->channel[ch_id]);
   }
 
@@ -1145,7 +1160,7 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
   if (!channel_active) {
     edpt_dealloc(edpt); // no active channel, safe to de-alloc now
   }
-  dwc2->gahbcfg = gahbcfg;
+  gint_restore(dwc2, gahbcfg);
 }
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
@@ -1756,20 +1771,19 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
 #if DWC2_LS_ONE_XACT_PER_FRAME
       // Claim and enable in one go, see channel_send_in_token(). Without a claim here a SETUP would leave the
       // frame free for the next stage of its own control transfer.
-      const uint32_t gahbcfg = dwc2->gahbcfg;
-      dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+      const uint32_t gahbcfg = gint_mask(dwc2);
       if (!ls_frame_claim(dwc2, channel)) {
         edpt->next_pid = saved_pid;
         edpt->next_do_ping = saved_do_ping;
         channel_park(dwc2, channel, defer_periodic_out ? PARK_XFER_START_PERIODIC : PARK_XFER_START);
-        dwc2->gahbcfg = gahbcfg;
+        gint_restore(dwc2, gahbcfg);
         return true; // accepted, SOF will start it
       }
 #endif
       hcd_dcache_clean(edpt->buffer, edpt->buflen);
       periodic_frame = channel_enable(dwc2, channel, is_period, split_ss);
 #if DWC2_LS_ONE_XACT_PER_FRAME
-      dwc2->gahbcfg = gahbcfg;
+      gint_restore(dwc2, gahbcfg);
 #endif
     }
   }
@@ -1802,14 +1816,13 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
       // The final FIFO word creates the OUT request. Keep CHENA and that write
       // atomic with respect to this controller's ISR.
       // This region never waits for FIFO or queue space.
-      const uint32_t gahbcfg = dwc2->gahbcfg;
-      dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+      const uint32_t gahbcfg = gint_mask(dwc2);
       if (defer_periodic_out && is_period) {
         const dwc2_hfnum_t hfnum = {.value = dwc2->hfnum};
         if (hfnum.remainning < DWC2_PERIODIC_OUT_MIN_FRREM) {
           edpt->next_pid = saved_pid;
           edpt->next_do_ping = saved_do_ping;
-          dwc2->gahbcfg = gahbcfg;
+          gint_restore(dwc2, gahbcfg);
           return false;
         }
       }
@@ -1821,7 +1834,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
         edpt->next_pid = saved_pid;
         edpt->next_do_ping = saved_do_ping;
         channel_park(dwc2, channel, defer_periodic_out ? PARK_XFER_START_PERIODIC : PARK_XFER_START);
-        dwc2->gahbcfg = gahbcfg;
+        gint_restore(dwc2, gahbcfg);
         return true; // accepted, SOF will start it
       }
 #endif
@@ -1834,7 +1847,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
         // initial synchronous write.
         dwc2->gintmsk |= (is_period ? GINTSTS_PTX_FIFO_EMPTY : GINTSTS_NPTX_FIFO_EMPTY);
       }
-      dwc2->gahbcfg = gahbcfg;
+      gint_restore(dwc2, gahbcfg);
     }
   }
 #endif
@@ -1865,8 +1878,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
 static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
   hcd_endpoint_t* edpt      = &_hcd_data.edpt[ep_id];
   const bool      is_period = channel_is_periodic(edpt->hcchar);
-  uint32_t        gahbcfg   = dwc2->gahbcfg;
-  dwc2->gahbcfg             = gahbcfg & ~GAHBCFG_GINT;
+  uint32_t        gahbcfg   = gint_mask(dwc2);
   const uint8_t ch_id       = channel_alloc(dwc2);
   const bool    phase       = edpt->periodic_phase;
   if (ch_id < 16) {
@@ -1882,16 +1894,15 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
       edpt->xfer_pending = 0;
     }
   }
-  dwc2->gahbcfg = gahbcfg;
+  gint_restore(dwc2, gahbcfg);
   TU_ASSERT(ch_id < 16); // all channel are in used
 
   if (!channel_xfer_start(dwc2, ch_id, true)) {
-    gahbcfg       = dwc2->gahbcfg;
-    dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+    gahbcfg = gint_mask(dwc2);
     edpt->periodic_phase = phase;
     channel_dealloc(dwc2, ch_id);
     periodic_xfer_defer(dwc2, edpt, false);
-    dwc2->gahbcfg = gahbcfg;
+    gint_restore(dwc2, gahbcfg);
   }
   return true;
 }
@@ -1914,8 +1925,7 @@ static uint32_t periodic_xfer_countdown(dwc2_regs_t* dwc2, hcd_endpoint_t const*
 // Defer a periodic transfer to the SOF interrupt: the next SOF, or with next_interval the endpoint's next service
 // interval. Its countdown is taken once the SOF interrupt is armed, so that no SOF goes uncounted.
 static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, bool next_interval) {
-  const uint32_t gahbcfg = dwc2->gahbcfg;
-  dwc2->gahbcfg = gahbcfg & ~GAHBCFG_GINT;
+  const uint32_t gahbcfg = gint_mask(dwc2);
 
   if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
     dwc2->gintsts = GINTSTS_SOF;
@@ -1925,7 +1935,7 @@ static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, bool ne
   edpt->uframe_countdown = next_interval ? periodic_xfer_countdown(dwc2, edpt) : 0;
   edpt->xfer_pending = 1;
 
-  dwc2->gahbcfg = gahbcfg;
+  gint_restore(dwc2, gahbcfg);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
@@ -1954,15 +1964,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
     // Started in its start-split microframe: from here when that is the next one, otherwise by the SOF interrupt, or
     // after the END of an isochronous OUT packet that holds it
-    const uint32_t gahbcfg = dwc2->gahbcfg;
-    dwc2->gahbcfg          = gahbcfg & ~GAHBCFG_GINT;
+    const uint32_t gahbcfg = gint_mask(dwc2);
     periodic_xfer_defer(dwc2, edpt, edpt->periodic_phase);
     const bool start = edpt->uframe_countdown == 0 && ((dwc2->hfnum + 1u) & 7u) == split_ss_uframe(edpt) &&
                        !split_ss_hold(dwc2, edpt);
     if (start) {
       edpt->xfer_pending = 0;
     }
-    dwc2->gahbcfg = gahbcfg;
+    gint_restore(dwc2, gahbcfg);
     if (start && !edpt_xfer_kickoff(dwc2, ep_id)) {
       periodic_xfer_defer(dwc2, edpt, false); // no channel free, try from SOF
     }

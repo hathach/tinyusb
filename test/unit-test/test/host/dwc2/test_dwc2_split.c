@@ -12,6 +12,8 @@
 static uint8_t payload[512];
 static void (*on_int_enable)(void);
 static unsigned fifo_writes;
+static uint32_t gahbcfg_at_fifo_write;
+static bool     fifo_write_unmasks; // models another core ending its own masked region meanwhile
 
 void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
                      const tu_hwfifo_access_t* access_mode) {
@@ -20,6 +22,10 @@ void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
   (void) access_mode;
   if (len > 0) {
     fifo_writes++;
+  }
+  gahbcfg_at_fifo_write = test_regs.gahbcfg;
+  if (fifo_write_unmasks) {
+    test_regs.gahbcfg |= GAHBCFG_GINT;
   }
 }
 
@@ -31,6 +37,7 @@ void setUp(void) {
   on_int_enable = NULL;
   _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
+  fifo_write_unmasks = false;
   dwc2_ghwcfg2_t hw = {.value = 0};
   hw.num_host_ch = 15;
   test_regs.ghwcfg2 = hw.value;
@@ -791,5 +798,28 @@ void test_bulk_complete_split_waits_for_the_next_microframe(void) {
       TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
       TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
     }
+  }
+}
+
+void test_slave_out_start_restores_only_an_interrupt_mask_it_set(void) {
+  // The FIFO write of a slave OUT start runs with the interrupt masked. Found masked already, the mask is another
+  // region's, on a multi-core MCU possibly one on the other core that unmasks first: restoring the 0 read here would
+  // leave the interrupt masked for good.
+  for (unsigned found_masked = 0; found_masked < 2; found_masked++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    bulk_nak_endpoint(false, false);
+    _hcd_data.xfer[0].allocated = false;
+    test_regs.channel[0].hcchar &= ~HCCHAR_CHENA;
+    dwc2_hnptxsts_t nptx = {.value = test_regs.hnptxsts};
+    nptx.fifo_available = 64;
+    test_regs.hnptxsts = nptx.value;
+    test_regs.gahbcfg = found_masked ? 0 : GAHBCFG_GINT;
+    fifo_write_unmasks = found_masked;
+
+    TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, 0x01, payload, 64));
+    TEST_ASSERT_EQUAL(1, fifo_writes);
+    TEST_ASSERT_BITS_LOW(GAHBCFG_GINT, gahbcfg_at_fifo_write);
+    TEST_ASSERT_BITS_HIGH(GAHBCFG_GINT, test_regs.gahbcfg);
   }
 }
