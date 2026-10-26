@@ -704,10 +704,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        patch(usbtest.hil_usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data: writes.append((str(path), data)))
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
@@ -749,7 +746,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
         self.assertIn('not a wedge', err)
         self.assertNotIn('unrecovered hang', err)
-        self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
+        self.assertEqual(writes, [], 'a standalone run wrote to sysfs')
 
     def test_a_hang_without_recovery_flags_stays_wedged_and_nothing_is_written(self):
         data, err, _exc, writes = self._main(proc=_FakeProc(reaps=True))

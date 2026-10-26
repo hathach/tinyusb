@@ -3,7 +3,7 @@
 """tinyusb's profile for agentrc's farm check engine (the `hil` skill's Farm check; the engine's
 module docstring is the contract), run by helper/hil_farm_check.py.
 
-Per board: the flash probe matched by its uid (never a cafe device), then a reset through it
+Per board: the flash probe matched by its uid (never a TinyUSB DUT), then a reset through it
 with tinyusb's hil_flash (esptool: rom_reset_esptool) and the engine's tracked runner. A reset
 that exits 0 counts only when the provider's reset_problem finds none; lm4flash has no
 reset-only mode. An openocd_esp session the provider leaves running joins the engine's ledger

@@ -43,7 +43,7 @@ class FakeDriver:
         self.test.addCleanup(setattr, module, name, getattr(module, name))
         setattr(module, name, value)
 
-    def sysfs_write(self, path, data, check=True):
+    def sysfs_write(self, path, data):
         self.writes.append((Path(path).name, data))
         return True
 
