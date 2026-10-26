@@ -414,6 +414,14 @@ TU_ATTR_ALWAYS_INLINE static inline void control_xfer_set_stage(uint8_t stage) {
   }
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool hcd_edpt_xfer_traced(uint8_t rhport, uint8_t daddr, uint8_t ep_addr,
+                                                              uint8_t *buffer, uint16_t buflen) {
+  TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+  const bool ok = hcd_edpt_xfer(rhport, daddr, ep_addr, buffer, buflen);
+  TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+  return ok;
+}
+
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
   TU_ASSERT(_usbh_data.call_after.func == NULL);
   TU_LOG_USBH("USBH schedule function after %u ms\r\n", (unsigned int)ms);
@@ -1201,7 +1209,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             // DATA stage: initial data toggle is always 1
             control_xfer_set_stage(CONTROL_STAGE_DATA);
             const uint8_t ep_data = tu_edpt_addr(0, request->bmRequestType_bit.direction);
-            if (!hcd_edpt_xfer(rhport, daddr, ep_data, ctrl_info->buffer, request->wLength)) {
+            if (!hcd_edpt_xfer_traced(rhport, daddr, ep_data, ctrl_info->buffer, request->wLength)) {
               control_xfer_complete(daddr, XFER_RESULT_FAILED);
               return false;
             }
@@ -1219,7 +1227,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             // ACK stage: toggle is always 1
             control_xfer_set_stage(CONTROL_STAGE_ACK);
             const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
-            if (!hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0)) {
+            if (!hcd_edpt_xfer_traced(rhport, daddr, ep_status, NULL, 0)) {
               control_xfer_complete(daddr, XFER_RESULT_FAILED);
               return false;
             }
@@ -1399,11 +1407,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
   dev->ep_callback[epnum][dir].user_data   = user_data;
 #endif
 
-  TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
-  bool const ok = hcd_edpt_xfer(dev->bus_info.rhport, dev_addr, ep_addr, buffer, total_bytes);
-  TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
-
-  if (ok) {
+  if (hcd_edpt_xfer_traced(dev->bus_info.rhport, dev_addr, ep_addr, buffer, total_bytes)) {
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {
