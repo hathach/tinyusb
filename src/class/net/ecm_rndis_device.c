@@ -40,6 +40,7 @@ typedef struct {
   // TODO since configuration descriptor may not be long-lived memory, we should
   // keep a copy of endpoint attribute instead
   uint8_t const * ecm_desc_epdata;
+  uint8_t const * ecm_desc_end;
 } netd_interface_t;
 
 typedef struct ecm_notify_struct {
@@ -128,23 +129,23 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   //------------- Management Interface -------------//
   _netd_itf.itf_num = itf_desc->bInterfaceNumber;
 
-  uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
+  uint8_t const * desc_end = (uint8_t const *) itf_desc + max_len;
 
   // Communication Functional Descriptors
-  while (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len) {
-    drv_len += tu_desc_len(p_desc);
+  while (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc)) {
     p_desc   = tu_desc_next(p_desc);
   }
 
   // notification endpoint (if any)
-  if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
-    TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0);
+  if (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
+    TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc, desc_end), 0);
 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const*)p_desc)->bEndpointAddress;
 
-    drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
+    p_desc = tu_desc_skip_ss_ep_companion(p_desc, desc_end);
   }
 
   //------------- Data Interface -------------//
@@ -152,18 +153,21 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // - CDC-ECM data interface has 2 alternate settings
   //   - 0 : zero endpoints for inactive (default)
   //   - 1 : IN & OUT endpoints for active networking
-  TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t) &&
+            TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
 
   do {
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
     tusb_desc_interface_t const * data_itf_desc = (tusb_desc_interface_t const *) p_desc;
     TU_ASSERT(TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass, 0);
 
-    drv_len += tu_desc_len(p_desc);
     p_desc   = tu_desc_next(p_desc);
-  } while (_netd_itf.ecm_mode && (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) && (drv_len <= max_len));
+  } while (_netd_itf.ecm_mode && tu_desc_in_bounds(p_desc, desc_end) &&
+           TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
 
   // Pair of endpoints
-  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t) &&
+            TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
   // Save the actual bulk endpoint size (IN and OUT assumed equal)
   _netd_itf.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
@@ -172,9 +176,17 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     // ECM by default is in-active, save the endpoint attribute
     // to open later when received setInterface
     _netd_itf.ecm_desc_epdata = p_desc;
+    _netd_itf.ecm_desc_end = desc_end;
+
+    // The inactive ECM endpoints are not opened yet, but their companions still belong to this function.
+    for (uint8_t e = 0; e < 2; e++) {
+      TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t) &&
+                TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
+      p_desc = tu_desc_skip_ss_ep_companion(tu_desc_next(p_desc), desc_end);
+    }
   } else {
     // Open endpoint pair for RNDIS
-    TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in), 0);
+    TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in, &p_desc), 0);
 
     // we are ready to transmit a packet
     can_xmit = true;
@@ -183,9 +195,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     tud_network_recv_renew();
   }
 
-  drv_len += 2*sizeof(tusb_desc_endpoint_t);
-
-  return drv_len;
+  return (uint16_t)(p_desc - (uint8_t const *)itf_desc);
 }
 
 static void ecm_report(bool nc) {
@@ -248,8 +258,8 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
               if (_netd_itf.ep_in == 0 && _netd_itf.ep_out == 0) {
                 TU_ASSERT(_netd_itf.ecm_desc_epdata);
                 TU_ASSERT(
-                  usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &
-                    _netd_itf.ep_in));
+                  usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, _netd_itf.ecm_desc_end, 2, TUSB_XFER_BULK,
+                    &_netd_itf.ep_out, &_netd_itf.ep_in, NULL));
 
                 // TODO should be merge with RNDIS's after endpoint opened
                 // Also should have opposite callback for application to disable network !!

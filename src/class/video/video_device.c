@@ -779,7 +779,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
     TU_VERIFY(cur < end);
     tusb_desc_endpoint_t const *notif = (tusb_desc_endpoint_t const *)cur;
     /* Open the notification endpoint */
-    TU_ASSERT(usbd_edpt_open(rhport, notif));
+    TU_ASSERT(usbd_edpt_open(rhport, notif, end));
   }
   self->cur = (uint16_t) ((uint8_t const*)vc - beg);
   return true;
@@ -848,11 +848,11 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
       TU_ASSERT(usbd_edpt_iso_activate(rhport, ep));
 #else
-      TU_ASSERT(usbd_edpt_open(rhport, ep));
+      TU_ASSERT(usbd_edpt_open(rhport, ep, end));
 #endif
     } else {
       TU_VERIFY(TUSB_XFER_BULK == ep->bmAttributes.xfer);
-      TU_ASSERT(usbd_edpt_open(rhport, ep));
+      TU_ASSERT(usbd_edpt_open(rhport, ep, end));
     }
     stm->desc.ep[i] = (uint16_t) (cur - desc);
     TU_LOG_DRV("    open EP%02x\r\n", _desc_ep_addr(cur));
