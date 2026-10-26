@@ -90,7 +90,7 @@ function(family_configure_example TARGET RTOS)
 
   if (SYSVIEW)
     # Work around lib/SEGGER_RTT's generic RISC-V lock trapping on WCH's QingKe core, see the header.
-    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../sysview_rtt_conf_wch.h)
+    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf.h)
   endif ()
 
   target_sources(${TARGET} PUBLIC

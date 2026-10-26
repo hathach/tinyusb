@@ -723,33 +723,9 @@ void tu_sysview_init(void) {
 #endif
 }
 
-// SystemView's heap id: any stable address, the same for every Define/Alloc/Free call.
-static uint8_t _sv_heap_handle;
-
-void tu_sysview_heap_alloc(void* ptr, unsigned size) {
-  // SystemView reads the timestamp before checking it is enabled, so FreeRTOS's allocations before
-  // tu_sysview_init() would read a still clock-gated timer (TIM2 on stm32f0/g0/u0, CT32B0 on lpc11).
-  if (!SEGGER_SYSVIEW_IsStarted()) { return; }
-#if CFG_TUSB_OS == OPT_OS_FREERTOS && defined(configTOTAL_HEAP_SIZE) && (configTOTAL_HEAP_SIZE > 0)
-  // capacity is the heap_4/heap_5 arena; without a known one (heap_3, another OS) the events are
-  // still recorded, with no used/free percentage
-  static bool heap_defined = false;
-  if (!heap_defined) {
-    SEGGER_SYSVIEW_HeapDefine(&_sv_heap_handle, &_sv_heap_handle, configTOTAL_HEAP_SIZE, 0);
-    heap_defined = true;
-  }
-#endif
-  SEGGER_SYSVIEW_HeapAlloc(&_sv_heap_handle, ptr, size);
-}
-
-void tu_sysview_heap_free(void* ptr) {
-  if (!SEGGER_SYSVIEW_IsStarted()) { return; } // mirrors the alloc side's guard above
-  SEGGER_SYSVIEW_HeapFree(&_sv_heap_handle, ptr);
-}
-
 void tu_sysview_stack_report(void) {
 // Bytes used at peak needs pxEndOfStack, which TaskStatus_t has only under this condition (task.h);
-// sysview_freertos_hooks.h forces configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
+// the SYSVIEW families' FreeRTOSConfig.h set configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
 #if CFG_TUSB_OS == OPT_OS_FREERTOS && (configUSE_TRACE_FACILITY == 1) && \
     ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
   // SEGGER's FreeRTOS task-table cap (family_support.cmake). Above it uxTaskGetSystemState() returns

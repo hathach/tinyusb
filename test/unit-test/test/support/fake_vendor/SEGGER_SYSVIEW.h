@@ -46,14 +46,10 @@ void SEGGER_SYSVIEW_SetRAMBase(U32 RAMBaseAddress);
 void SEGGER_SYSVIEW_Start(void);
 void SEGGER_SYSVIEW_DisableEvents(U32 DisableMask);
 void SEGGER_SYSVIEW_SendSysDesc(const char *sSysDesc);
-int  SEGGER_SYSVIEW_IsStarted(void);
 void SEGGER_SYSVIEW_RecordEnterISR(void);
 void SEGGER_SYSVIEW_RecordExitISR(void);
 void SEGGER_SYSVIEW_RecordVoid(unsigned int Id);
 void SEGGER_SYSVIEW_RecordEndCall(unsigned int Id);
-void SEGGER_SYSVIEW_HeapDefine(void *pHeap, void *pBase, unsigned int HeapSize, unsigned int MetadataSize);
-void SEGGER_SYSVIEW_HeapAlloc(void *pHeap, void *pUserData, unsigned int UserDataLen);
-void SEGGER_SYSVIEW_HeapFree(void *pHeap, void *pUserData);
 void SEGGER_SYSVIEW_NameResource(U32 ResourceId, const char *sName);
 
 #endif

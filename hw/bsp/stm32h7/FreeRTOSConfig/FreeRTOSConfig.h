@@ -146,7 +146,13 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
-/* SEGGER SystemView instrumentation (SYSVIEW=<level> build) — must be last */
-#include "sysview_freertos_hooks.h"
+/* SEGGER SystemView (SYSVIEW=<level> build): its trace hooks must be last */
+#if (defined(CFG_TUD_SYSVIEW) && CFG_TUD_SYSVIEW) || (defined(CFG_TUH_SYSVIEW) && CFG_TUH_SYSVIEW)
+  #undef  INCLUDE_uxTaskPriorityGet
+  #define INCLUDE_uxTaskPriorityGet       1
+  #undef  INCLUDE_xTaskGetIdleTaskHandle
+  #define INCLUDE_xTaskGetIdleTaskHandle  1
+  #include "SEGGER_SYSVIEW_FreeRTOS.h"
+#endif
 
 #endif

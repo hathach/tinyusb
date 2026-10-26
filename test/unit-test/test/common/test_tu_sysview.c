@@ -47,7 +47,7 @@ void SEGGER_SYSVIEW_RecordEnterISR(void) { enter_isr_count++; }
 void SEGGER_SYSVIEW_RecordExitISR(void)  { exit_isr_count++; }
 
 // Unused by these tests (tu_sysview_isr_enter/_exit is the only surface exercised), but
-// tusb.c's OTHER SystemView functions (tu_sysview_init/heap_alloc/heap_free/name_resource) still
+// tusb.c's OTHER SystemView functions (tu_sysview_init/name_resource) still
 // need to link even though this test never calls them -- Ceedling compiles/links the whole
 // tusb.c translation unit, not just the functions a given test happens to call.
 void SEGGER_SYSVIEW_Init(U32 SysFreq, U32 CPUFreq, const SEGGER_SYSVIEW_OS_API *pOSAPI,
@@ -58,16 +58,8 @@ void SEGGER_SYSVIEW_SetRAMBase(U32 RAMBaseAddress) { (void) RAMBaseAddress; }
 void SEGGER_SYSVIEW_Start(void) {}
 void SEGGER_SYSVIEW_DisableEvents(U32 DisableMask) { (void) DisableMask; }
 void SEGGER_SYSVIEW_SendSysDesc(const char *sSysDesc) { (void) sSysDesc; }
-int  SEGGER_SYSVIEW_IsStarted(void) { return 0; }
 void SEGGER_SYSVIEW_RecordVoid(unsigned int Id) { (void) Id; }
 void SEGGER_SYSVIEW_RecordEndCall(unsigned int Id) { (void) Id; }
-void SEGGER_SYSVIEW_HeapDefine(void *pHeap, void *pBase, unsigned int HeapSize, unsigned int MetadataSize) {
-  (void) pHeap; (void) pBase; (void) HeapSize; (void) MetadataSize;
-}
-void SEGGER_SYSVIEW_HeapAlloc(void *pHeap, void *pUserData, unsigned int UserDataLen) {
-  (void) pHeap; (void) pUserData; (void) UserDataLen;
-}
-void SEGGER_SYSVIEW_HeapFree(void *pHeap, void *pUserData) { (void) pHeap; (void) pUserData; }
 void SEGGER_SYSVIEW_NameResource(U32 ResourceId, const char *sName) { (void) ResourceId; (void) sName; }
 
 // tusb_sysview_cpu_freq()'s weak default (CFG_TUSB_OS != OPT_OS_FREERTOS branch, which is

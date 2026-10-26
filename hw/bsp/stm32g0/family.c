@@ -34,7 +34,20 @@
 #include "board.h"
 
 #if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
-#include "../sysview_stm32_tim2.h"
+// Cortex-M0/M0+ has no DWT cycle counter: SystemView's timestamp is TIM2, the only 32-bit timer,
+// free-running at 1 MHz (wraps every ~71 min). A part without TIM2 gets SystemView's link error.
+static inline void sysview_stm32_tim2_start(void) {
+  __HAL_RCC_TIM2_CLK_ENABLE();
+  TIM2->PSC = SystemCoreClock / 1000000u - 1u; // CK_CNT = fCK_PSC / (PSC + 1) = 1 MHz
+  TIM2->ARR = 0xFFFFFFFFu;                     // 32-bit counter: free-run, wrap only at full range
+  TIM2->EGR = TIM_EGR_UG;                      // latch PSC/ARR into the shadow regs, clears CNT
+  TIM2->SR  = 0;                               // drop the update flag UG just raised
+  TIM2->CR1 = TIM_CR1_CEN;
+}
+
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  return TIM2->CNT;
+}
 #endif
 
 #ifdef UART_ID

@@ -359,12 +359,7 @@ function(family_add_rtos TARGET RTOS)
       if (NOT TARGET freertos_config)
         add_library(freertos_config INTERFACE)
         target_include_directories(freertos_config INTERFACE
-          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig
-          # hw/bsp itself: FreeRTOSConfig.h's shared SYSVIEW hook block lives at
-          # hw/bsp/sysview_freertos_hooks.h, one level up from the family-specific dir above.
-          # Unconditional (not gated on SYSVIEW): the #include line in FreeRTOSConfig.h always
-          # runs, only its effect is SYSVIEW-guarded, so this must always resolve too.
-          ${CMAKE_CURRENT_FUNCTION_LIST_DIR})
+          ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig)
         target_link_libraries(freertos_config INTERFACE board_${BOARD})
       endif()
 
@@ -563,18 +558,17 @@ function(family_configure_common TARGET RTOS)
       set(SYSVIEW_FREERTOS_HOOKED FALSE)
       if (EXISTS ${SYSVIEW_FREERTOS_CONFIG_H})
         file(READ ${SYSVIEW_FREERTOS_CONFIG_H} SYSVIEW_FREERTOS_CONFIG_CONTENTS)
-        # the hook block is the shared hw/bsp/sysview_freertos_hooks.h, included per family
-        string(FIND "${SYSVIEW_FREERTOS_CONFIG_CONTENTS}" "sysview_freertos_hooks.h" SYSVIEW_FREERTOS_HOOK_IDX)
+        string(FIND "${SYSVIEW_FREERTOS_CONFIG_CONTENTS}" "SEGGER_SYSVIEW_FreeRTOS.h" SYSVIEW_FREERTOS_HOOK_IDX)
         if (NOT SYSVIEW_FREERTOS_HOOK_IDX EQUAL -1)
           set(SYSVIEW_FREERTOS_HOOKED TRUE)
         endif ()
       endif ()
       if (NOT SYSVIEW_FREERTOS_HOOKED)
         message(WARNING
-          "SYSVIEW: ${SYSVIEW_FREERTOS_CONFIG_H} has no sysview_freertos_hooks.h include - "
+          "SYSVIEW: ${SYSVIEW_FREERTOS_CONFIG_H} has no SEGGER_SYSVIEW_FreeRTOS.h include - "
           "the per-task CPU-load table will be EMPTY for ${TARGET}/${BOARD}. Only "
-          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; add "
-          "'#include \"sysview_freertos_hooks.h\"' (see any of theirs) to "
+          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; copy their SystemView "
+          "block, with configUSE_TRACE_FACILITY and configRECORD_STACK_HIGH_ADDRESS set to 1, into "
           "hw/bsp/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h to add ${FAMILY}.")
       endif ()
     endif ()
