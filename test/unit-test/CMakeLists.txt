@@ -143,4 +143,24 @@ target_compile_definitions(test_audio_host PRIVATE
   CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
   )
 
+add_ceedling_test(
+  test_dwc2_split
+  ${CEEDLING_WORKDIR}/test/host/dwc2/test_dwc2_split.c
+  ""
+  "${CEEDLING_BUILD_DIR}/test/mocks/test_dwc2_split/mock_dwc2_test.c"
+  )
+
+target_compile_definitions(test_dwc2_split PRIVATE
+  CFG_TUSB_MCU=OPT_MCU_NONE
+  CFG_TUSB_RHPORT0_MODE=OPT_MODE_HOST
+  CFG_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
+  CFG_TUD_ENABLED=0
+  CFG_TUSB_DEBUG=0
+  TUP_USBIP_DWC2
+  TUP_RHPORT_HIGHSPEED=1
+  CFG_TUH_HUB=1
+  CFG_TUH_DWC2_SLAVE_ENABLE=1
+  CFG_TUH_DWC2_DMA_ENABLE=1
+  )
+
 enable_testing()
