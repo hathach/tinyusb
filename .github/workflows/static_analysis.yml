@@ -7,6 +7,13 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'hw/bsp/**'
+      - '.PVS-Studio/**'
+      - 'tools/pvs_studio.py'
+      - 'tools/family_json.py'
+      - 'tools/build.py'
+      - 'tools/get_deps.py'
+      - 'test/pvs/**'
+      - '.github/actions/**'
       - '.github/workflows/static_analysis.yml'
   pull_request:
     branches: [ master ]
@@ -14,6 +21,13 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'hw/bsp/**'
+      - '.PVS-Studio/**'
+      - 'tools/pvs_studio.py'
+      - 'tools/family_json.py'
+      - 'tools/build.py'
+      - 'tools/get_deps.py'
+      - 'test/pvs/**'
+      - '.github/actions/**'
       - '.github/workflows/static_analysis.yml'
 
 permissions:
@@ -89,57 +103,111 @@ jobs:
           name: codeql-${{ matrix.board }}
           path: ${{ steps.analyze.outputs.sarif-output }}
 
-  PVS-Studio:
-    # Only run on non-forked PR since secrets token is required
-    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+  PVS-Studio-Matrix:
+    # Secrets are needed: same-repository PRs, pushes and manual runs only; a fork PR gets no PVS verdict
+    if: github.repository_owner == 'hathach' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'raspberry_pi_pico'
+    outputs:
+      legs: ${{ steps.legs.outputs.legs }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
 
+      - name: Legs from .PVS-Studio/matrix.json
+        id: legs
+        run: echo "legs=$(python3 tools/pvs_studio.py list --ci-matrix 12)" >> $GITHUB_OUTPUT
+
+  PVS-Studio:
+    needs: PVS-Studio-Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: ${{ fromJSON(needs.PVS-Studio-Matrix.outputs.legs) }}
+    env:
+      TOOLCHAIN: ${{ matrix.leg.toolchain }}
+      SHARD: ${{ matrix.leg.shard }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+
+      - name: Leg boards
+        run: |
+          echo "LEG_NAME=${TOOLCHAIN}-${SHARD/\//of}" >> $GITHUB_ENV
+          echo "LEG_BOARDS=$(python3 tools/pvs_studio.py list --toolchain "$TOOLCHAIN" --shard "$SHARD" --boards)" >> $GITHUB_ENV
+
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
         with:
-          arg: -b${{ matrix.board }}
+          arg: ${{ env.LEG_BOARDS }}
 
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
-          toolchain: 'arm-gcc'
+          toolchain: ${{ env.TOOLCHAIN }}
 
-      - name: Install Tools
+      - name: Install PVS-Studio
+        env:
+          PVS_STUDIO_CREDENTIALS: ${{ secrets.PVS_STUDIO_CREDENTIALS }}
         run: |
           wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo apt-key add -
           sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.pvs-studio.com/etc/viva64.list
-          sudo apt update
+          # refresh only the PVS-Studio index; keep the runner's others
+          sudo apt update -o Dir::Etc::sourcelist=sources.list.d/viva64.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
           sudo apt install pvs-studio
-          pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+          read -r n k <<< "$PVS_STUDIO_CREDENTIALS"
+          pvs-studio-analyzer credentials "$n" "$k"
           pvs-studio-analyzer --version
 
       - name: Analyze
         run: |
-          mkdir -p build
-          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
-          cmake --build build
-          pvs-studio-analyzer analyze -f build/compile_commands.json -R .PVS-Studio/.pvsconfig -j4 --security-related-issues --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser -e lib/ -e hw/mcu/ -e */iar/cxarm/ -e pico-sdk/
-          plog-converter -t sarif -o pvs-studio-${{ matrix.board }}.sarif PVS-Studio.log
+          if [ "$TOOLCHAIN" == "esp-idf" ]; then
+            # the analyzer binaries are static: run them inside the ESP-IDF image with the license
+            docker run --rm -e TOOLCHAIN -e SHARD -v "$PWD:/project" -w /project \
+              -v /usr/bin/pvs-studio:/usr/bin/pvs-studio:ro \
+              -v /usr/bin/pvs-studio-analyzer:/usr/bin/pvs-studio-analyzer:ro \
+              -v /usr/bin/plog-converter:/usr/bin/plog-converter:ro \
+              -v "$HOME/.config/PVS-Studio:/root/.config/PVS-Studio:ro" \
+              espressif/idf:tinyusb bash -c 'git config --global --add safe.directory /project && python3 tools/pvs_studio.py run --toolchain "$TOOLCHAIN" --shard "$SHARD" --out pvs-out'
+          else
+            python3 tools/pvs_studio.py run --toolchain "$TOOLCHAIN" --shard "$SHARD" --out pvs-out
+          fi
 
       - name: Upload SARIF
+        if: always() && hashFiles('pvs-out/pvs-studio.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: pvs-studio-${{ matrix.board }}.sarif
-          category: PVS-Studio
+          sarif_file: pvs-out/pvs-studio.sarif
+          category: PVS-Studio-${{ env.LEG_NAME }}
 
-      - name: Upload artifact
+      - name: Upload results
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pvs-studio-${{ matrix.board }}
-          path: pvs-studio-${{ matrix.board }}.sarif
+          name: pvs-studio-${{ env.LEG_NAME }}
+          path: |
+            pvs-out/*.result.json
+            pvs-out/pvs-studio.sarif
+          if-no-files-found: error
+
+  PVS-Studio-Verdict:
+    # coverage spans every leg, so the verdict is taken over all of their results
+    needs: PVS-Studio
+    if: always() && needs.PVS-Studio.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+
+      - name: Download results
+        uses: actions/download-artifact@v5
+        with:
+          pattern: pvs-studio-*
+          path: pvs-results
+
+      - name: Verdict
+        shell: bash  # -o pipefail: the verdict's exit, not tee's
+        run: python3 tools/pvs_studio.py verdict pvs-results/* | tee -a "$GITHUB_STEP_SUMMARY"
 
   SonarQube:
     # Only run on non-forked PR since secrets token is required

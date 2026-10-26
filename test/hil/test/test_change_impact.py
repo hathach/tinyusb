@@ -1100,6 +1100,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_wedge_sweep.py',
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
+            'test/hil/test/test_pvs_studio.py',
             'test/hil/test/test_setup_toolchain.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
