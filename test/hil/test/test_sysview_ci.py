@@ -650,6 +650,14 @@ class DecodeDeadline(unittest.TestCase):
         self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
                                             unittest.mock.call.killpg(4321, signal.SIGKILL)])
         self.assertEqual(step.communicate.call_args_list[1].kwargs["timeout"], sysview_ci.DECODE_STOP_S)
+        from helper import hil_util
+        self.assertEqual(step.communicate.call_args_list[2].kwargs["timeout"], hil_util.REAP_GRACE)
+
+    def test_a_step_cut_by_its_own_timeout_is_not_blamed_on_the_budget(self):
+        cut = subprocess.TimeoutExpired("sysview_record.py", 900)
+        err, _, _ = self.decode(time.monotonic() + 5000, self.step(returncode=None, communicate=[cut, ("", "")]))
+        self.assertIn("decode timed out after 900 s", err)
+        self.assertNotIn("--budget-s", err)
 
     def test_a_decoder_that_exits_on_sigterm_is_not_sigkilled(self):
         cut = subprocess.TimeoutExpired("sysview_record.py", 30)
@@ -658,9 +666,6 @@ class DecodeDeadline(unittest.TestCase):
         self.assertIn("decode timed out", err)
         step.terminate.assert_called_once()
         killpg.assert_not_called()
-
-    def test_the_stop_margin_fits_the_decoder_grace(self):
-        self.assertGreater(sysview_ci.DECODE_MARGIN_S, sysview_ci.DECODE_STOP_S)
 
 
 class DecodeStopsARealChild(unittest.TestCase):

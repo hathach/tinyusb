@@ -444,8 +444,9 @@ CAPTURE_FIXED_S = 90
 # to SystemView's and Xvfb's groups GROUP_S 5 s each
 DECODE_STOP_S = 30 + 2 * 10 + 20 + 4 * 5
 
-# what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, write its report and exit
-DECODE_MARGIN_S = DECODE_STOP_S + 5
+# what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, reap it (REAP_GRACE 10 s),
+# write its report and exit
+DECODE_MARGIN_S = DECODE_STOP_S + 10 + 5
 
 def capture_bound_s(board):
     """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
@@ -574,11 +575,15 @@ def _stop_decoder(p):
         pass
     # p.pid still names the group: the wrapper is unreaped, or terminate()'s poll() reaped it
     # and a member of its group still holds the pipes
+    from helper import hil_util
     try:
         os.killpg(p.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except OSError:
         pass
-    p.communicate()
+    try:
+        p.communicate(timeout=hil_util.REAP_GRACE)
+    except subprocess.TimeoutExpired:
+        pass  # a member stuck in D state still holds the pipes: abandoned, as hil_process does
 
 def decode_one(board, commit, out_dir, capture, deadline=None):
     """PHASE 3 (no board lock): decode the raw SVDat capture with agentrc's sysview scripts
@@ -588,10 +593,12 @@ def decode_one(board, commit, out_dir, capture, deadline=None):
     sv, name = board["sysview"], board["name"]
 
     def run(cmd, timeout):
+        cut_by_budget = False
         if deadline is not None:
             left = deadline - time.monotonic()
             if left <= 0:
                 raise TimeoutError("decode skipped: --budget-s spent")
+            cut_by_budget = left < timeout
             timeout = min(timeout, left)
         # its own session, so the final SIGKILL reaches its children but not this script
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -601,7 +608,7 @@ def decode_one(board, commit, out_dir, capture, deadline=None):
         except subprocess.TimeoutExpired:
             _stop_decoder(p)
             raise TimeoutError(f"decode timed out after {timeout:.0f} s"
-                               + (" (--budget-s)" if deadline is not None else ""))
+                               + (" (--budget-s)" if cut_by_budget else ""))
         except BaseException:
             _stop_decoder(p)
             raise
