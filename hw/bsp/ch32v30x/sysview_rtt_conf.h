@@ -1,8 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
  * SPDX-License-Identifier: MIT
- *
- * This file is part of the TinyUSB stack.
  */
 
 // Force-included in SYSVIEW builds (family.cmake) so it claims SEGGER_RTT_CONF_H before the vendored

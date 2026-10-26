@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """SystemView CI: per-board capture on the HIL rig + PR performance report.
 
 report: pure -- two directories of sysview-<board>.json in, markdown out.

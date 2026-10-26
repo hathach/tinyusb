@@ -1,8 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2019 Ha Thach (tinyusb.org)
  * SPDX-License-Identifier: MIT
- *
- * This file is part of the TinyUSB stack.
  */
 
 // SEGGER_SYSVIEW timestamp for the MAX32 parts, whose Cortex-M4 DWT has NO cycle counter:
