@@ -591,9 +591,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   #if OSAL_MUTEX_REQUIRED
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
-  #if CFG_TUH_SYSVIEW
     tu_sysview_name_resource(_usbh_mutex, "usbh_mutex");
-  #endif
     TU_ASSERT(_usbh_mutex);
   #endif
 

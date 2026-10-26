@@ -318,6 +318,7 @@ uint32_t tusb_sysview_cpu_freq(void);
 #define TUH_SYSVIEW_RET(_level, _id)
 #define tu_sysview_init()
 #define tu_sysview_stack_report()
+#define tu_sysview_name_resource(_handle, _name)
 
 #endif // TU_SYSVIEW_ENABLED
 

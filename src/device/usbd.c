@@ -562,9 +562,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #if OSAL_MUTEX_REQUIRED
   // Init device mutex
   _usbd_mutex = osal_mutex_create(&_ubsd_mutexdef);
-#if CFG_TUD_SYSVIEW
   tu_sysview_name_resource(_usbd_mutex, "usbd_mutex");
-#endif
   TU_ASSERT(_usbd_mutex);
 #endif
 
