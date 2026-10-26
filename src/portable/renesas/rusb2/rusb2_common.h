@@ -14,8 +14,8 @@
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
 
-  // Hack for D0FIFO definitions on RA with usb device support only
-  #ifdef RUSB2_RA_USBFS_DEVICE_ONLY
+  // USBFS mini module only has CFIFO: map D0FIFO/D1FIFO to it
+  #ifdef RUSB2_RA_USBFS_PIPE4567_ONLY
     #define D0FIFO      CFIFO
     #define D0FIFOSEL   CFIFOSEL
     #define D0FIFOSEL_b CFIFOSEL_b

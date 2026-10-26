@@ -11,13 +11,13 @@
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_RUSB2)
 
-#ifdef RUSB2_RA_USBFS_DEVICE_ONLY
-#error "Host mode not supported for this device"
-#endif
-
 #include "host/hcd.h"
 #include "host/usbh.h"
 #include "rusb2_common.h"
+
+#ifdef RUSB2_RA_USBFS_DEVICE_ONLY
+  #error "Host mode not supported for this device"
+#endif
 
   #define TU_RUSB2_HCD_DBG 2
 
