@@ -446,6 +446,26 @@ void test_late_complete_split_in_the_microframe_tail_goes_in_the_next(void) {
   }
 }
 
+void test_slave_complete_split_never_spins_on_a_full_periodic_queue(void) {
+  // An IN at the head of a full queue waits for RxFIFO space, which the RxFIFO service after SOF in the ISR frees
+  pending_csplit(0, true, 8, 2);
+  _hcd_data.xfer[0].csplit_wait = 0;
+  test_regs.hfnum = (3500u << 16) | 10u; // its first complete-split is due now
+  set_ptx_queue(0);
+  TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
+  TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].csplit_wait);
+  TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);
+
+  // the ISR tail retries it once the RxFIFO service has freed an entry
+  set_ptx_queue(1);
+  test_regs.gintsts = 0;
+  hcd_int_handler(0, true);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].csplit_wait);
+  TEST_ASSERT_EQUAL(3, _hcd_data.xfer[0].csplit_next);
+}
+
 void test_iso_out_piece_for_a_microframe_the_core_no_longer_serves_fails_the_packet(void) {
   // the MID of a packet started in microframe 9 is for 10
   const struct {
@@ -821,5 +841,30 @@ void test_slave_out_start_restores_only_an_interrupt_mask_it_set(void) {
     TEST_ASSERT_EQUAL(1, fifo_writes);
     TEST_ASSERT_BITS_LOW(GAHBCFG_GINT, gahbcfg_at_fifo_write);
     TEST_ASSERT_BITS_HIGH(GAHBCFG_GINT, test_regs.gahbcfg);
+  }
+}
+
+void test_parked_bulk_channel_closes_only_the_microframe_it_parked_in(void) {
+  // an isochronous OUT MID due in the microframe the bulk channel parked in by max_nak, in a later one, and in a later
+  // one with the channel still enabled, as a slave IN parked between packets is
+  for (unsigned i = 0; i < 3; i++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    bulk_nak_endpoint(true, true);
+    _tuh_cfg.max_nak = 1;
+    const uint16_t parked_in = 8u * 20u + 1u;
+    test_regs.hfnum = (3500u << 16) | parked_in;
+    TEST_ASSERT_FALSE(bulk_nak(false, true));
+    TEST_ASSERT_EQUAL(PARK_IN_TOKEN, _hcd_data.xfer[0].park);
+    if (i == 2) {
+      test_regs.channel[0].hcchar |= HCCHAR_CHENA;
+    }
+
+    const uint16_t uframe = (uint16_t) (parked_in + (i == 0 ? 0u : 1u));
+    endpoint(1, false, 400, true);
+    _hcd_data.xfer[1].split_uframe = (uint16_t) (uframe - 1u);
+    _hcd_data.xfer[1].iso_open = 1;
+    test_regs.hfnum = (3500u << 16) | uframe;
+    TEST_ASSERT_EQUAL(i == 1, channel_iso_out_next(&test_regs, 1));
   }
 }

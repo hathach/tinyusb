@@ -457,6 +457,11 @@ TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2,
 // Park a channel for the SOF interrupt to replay the call kind names, and make sure SOF is running to pick it up.
 static void channel_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel, channel_park_t kind) {
   _hcd_data.xfer[channel - dwc2->channel].park = (uint8_t) kind;
+#if HCD_SPLIT
+  if (!channel_is_periodic(channel->hcchar)) {
+    _hcd_nonperiodic_uframe = nonperiodic_uframe_tag(dwc2->hfnum); // its NAKed tokens may have run in this microframe
+  }
+#endif
   if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
     dwc2->gintsts = GINTSTS_SOF;
     dwc2->gintmsk |= GINTMSK_SOFM;
@@ -907,15 +912,16 @@ static bool split_nonperiodic_ended(uint32_t hfnum) {
 }
 
 // The core may have started non-periodic transactions in the microframe of hfnum: a control or bulk transfer is in
-// progress, or one ended in it
+// progress, or one ended or parked in it. A channel parked disabled has no request queued.
 static bool split_nonperiodic_active(dwc2_regs_t* dwc2, uint32_t hfnum) {
   if (split_nonperiodic_ended(hfnum)) {
     return true;
   }
   const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t i = 0; i < max_channel; i++) {
-    const hcd_xfer_t* xfer = &_hcd_data.xfer[i];
-    if (xfer->allocated && !channel_is_periodic(_hcd_data.edpt[xfer->ep_id].hcchar)) {
+    const hcd_xfer_t* xfer   = &_hcd_data.xfer[i];
+    const bool        parked = xfer->park != PARK_NONE && 0 == (dwc2->channel[i].hcchar & HCCHAR_CHENA);
+    if (xfer->allocated && !parked && !channel_is_periodic(_hcd_data.edpt[xfer->ep_id].hcchar)) {
       return true;
     }
   }
@@ -966,6 +972,12 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
   // the request queue has room before the HFNUM sample that selects the microframe
   const bool is_in = (channel->hcchar & HCCHAR_EPDIR) != 0;
+  if (is_in && !dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, true)) {
+    // an IN at the queue head waits for RxFIFO space only the RxFIFO service frees (Programming Guide Table 1-2)
+    _hcd_csplit_behind = true;
+    channel_csplit_wait(dwc2, xfer);
+    return true;
+  }
   while (is_in && 0 == req_queue_avail(dwc2, true)) {
     // blocking wait for request queue available
   }
