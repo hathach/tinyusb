@@ -1794,9 +1794,8 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         self.assertIn('0/30', cm.exception.metric)
 
 class UsbtestNeverCleansUp(unittest.TestCase):
-    """main's finally writes nothing: remove_id makes the next registration wait on peers'
-    in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
-    through the uninterruptible device_lock. The id and bindings stay for every run."""
+    """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a
+    host xHCI through the uninterruptible device_lock. The bindings stay for every run."""
 
     def test_the_finally_block_writes_nothing(self):
         import ast
@@ -1807,7 +1806,7 @@ class UsbtestNeverCleansUp(unittest.TestCase):
         self.assertTrue(fins, 'main lost its finally; retarget this test')
         for fin in fins:
             body = ast.unparse(ast.Module(body=fin.finalbody, type_ignores=[]))
-            # every registry/bind write goes through sysfs_write
+            # every sysfs write goes through sysfs_write
             self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
 

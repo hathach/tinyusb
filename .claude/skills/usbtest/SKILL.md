@@ -8,7 +8,7 @@ description: Use when bringing up examples/device/usbtest (0525:a4a0) on a new M
 `examples/device/usbtest` is the device-side peer of the kernel's `usbtest.ko`/`testusb`
 (Gadget Zero source/sink): 30 cases over EP0, bulk, interrupt and isochronous, including halt,
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
-is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the id registration,
+is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the driver loading and
 binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
 agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
 
@@ -189,11 +189,8 @@ From USB 2.0 §8.5.5 (Calibre book 775, p. 229-230):
 
 ## Wrong profile
 
-The static id gives every kernel the same profile: dmesg shows `Linux gadget zero` at probe. Any
-other name means the device is not `0525:a4a0` (an older `cafe:4010` build needs reflashing) or a
-dynamic id shadows the static entry (usb_probe_interface tries dynids first): `sudo modprobe -r
-usbtest && sudo modprobe usbtest` on a reserved, idle rig (the HIL contract's Reservation for
-rig-wide operations; `modprobe -r` blocks, unkillably, behind any case still in flight).
+Expect `Linux gadget zero` in dmesg at probe; otherwise verify the device is `0525:a4a0` and
+reflash an older `cafe:4010` build.
 
 ## Traps that pass gcc and desk review
 

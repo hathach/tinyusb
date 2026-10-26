@@ -60,10 +60,10 @@ def scan_usb() -> dict:
 def probe_candidates(board: dict) -> list:
     """Busports of every flasher probe matching the board's flasher uid, best tier only
     (usb_observe.jlink_serial_candidates: J-Link's zero padding of an all-digit serial, never
-    for an all-zero uid), excluding VID cafe (TinyUSB DUT firmware): a probe's uid can
+    for an all-zero uid), excluding TinyUSB DUT firmware (hil_util.is_dut_id): a probe's uid can
     coincidentally equal its DUT's (Espressif USB-Serial-JTAG bridges derive both from the
     same MAC), and the DUT is never the probe."""
-    probes = {bp: dev['serial'] for bp, dev in scan_usb().items() if not dev['vidpid'].startswith('cafe:')}
+    probes = {bp: dev['serial'] for bp, dev in scan_usb().items() if not hil_util.is_dut_id(dev['vidpid'])}
     return usb_observe.jlink_serial_candidates(board['flasher']['uid'], probes)
 
 

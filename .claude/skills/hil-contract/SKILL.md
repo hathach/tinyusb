@@ -276,11 +276,10 @@ PREFIX, since each carries trailing detail:
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
   `"pass": true`.
-- `**HIL run aborted: config error: …**`, `**HIL run aborted: usbtest id registration failed: …**`
-  and `**HIL run aborted: No boards left: check_build.py refused every build (…)**` — boards
-  were selected but none was tested: a roster error, a failed usbtest registration, or, under
-  `--build`, `check_build.py` refusing every board. A fresh run shows no table on the first
-  two; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
+- `**HIL run aborted: config error: …**` and `**HIL run aborted: No boards left: check_build.py
+  refused every build (…)**` — boards were selected but none was tested: a roster error or,
+  under `--build`, `check_build.py` refusing every board. A fresh run shows no table on the
+  first; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
   not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run alike
   write every board's `build refused` row as this run's — report them ran=false/pass=false;
   `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that board, and the

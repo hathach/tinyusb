@@ -96,6 +96,12 @@ CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 REAP_GRACE = 10
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
+USBTEST_ID = ('0525', 'a4a0')   # examples/device/usbtest: Linux Gadget Zero, in usbtest's static ids
+
+
+def is_dut_id(vidpid: str) -> bool:
+    """Whether 'vvvv:pppp' is TinyUSB example firmware: VID cafe, or the usbtest example."""
+    return vidpid.startswith('cafe:') or vidpid == ':'.join(USBTEST_ID)
 
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is

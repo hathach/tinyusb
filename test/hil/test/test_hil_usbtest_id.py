@@ -73,6 +73,8 @@ class Wrappers(unittest.TestCase):
                for f in ('idVendor', 'idProduct')]
         self.assertEqual(ids, [0x0525, 0xa4a0])
         self.assertEqual((usbtest.VID, usbtest.PID), ('0525', 'a4a0'))
+        from helper import hil_util
+        self.assertEqual(hil_util.USBTEST_ID, (usbtest.VID, usbtest.PID))
 
     def test_reprobes_interface_0_through_the_devices_node(self):
         fake = FakeDriver(self)
