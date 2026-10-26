@@ -372,6 +372,25 @@ static void hwfifo_receive(uint8_t rhport, uint8_t * buffer, uint16_t len, bool 
   max3421_spi_unlock(rhport, in_isr);
 }
 
+// Read and drop len bytes of RCVFIFO in one SPI transfer, in small chunks to keep the stack small
+static void hwfifo_drain(uint8_t rhport, uint8_t len, bool in_isr) {
+  uint8_t hirq;
+  const uint8_t reg = RCVVFIFO_ADDR;
+  uint8_t drain[4];
+
+  max3421_spi_lock(rhport, in_isr);
+
+  tuh_max3421_spi_xfer_api(rhport, &reg, &hirq, 1);
+  _hcd_data.hirq = hirq;
+  while (len > 0) {
+    const uint8_t n = tu_min8(len, sizeof(drain));
+    tuh_max3421_spi_xfer_api(rhport, NULL, drain, n);
+    len -= n;
+  }
+
+  max3421_spi_unlock(rhport, in_isr);
+}
+
 //--------------------------------------------------------------------+
 // Endpoint helper
 //--------------------------------------------------------------------+
@@ -1065,11 +1084,15 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
       while (hirq & HIRQ_RCVDAV_IRQ) {
         const uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, in_isr);
-        xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
-        if (xact_len) {
-          hwfifo_receive(rhport, ep->buf, xact_len, in_isr);
-          ep->buf += xact_len;
-          ep->xferred_len += xact_len;
+        if (ep) {
+          xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
+          if (xact_len) {
+            hwfifo_receive(rhport, ep->buf, xact_len, in_isr);
+            ep->buf += xact_len;
+            ep->xferred_len += xact_len;
+          }
+        } else if (rcvbc) {
+          hwfifo_drain(rhport, rcvbc, in_isr); // data received for an endpoint that is no longer open
         }
 
         // ack RCVDVAV IRQ
@@ -1077,7 +1100,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
       }
 
-      if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
+      if (ep && (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len)) {
         ep->state = EP_STATE_COMPLETE;
       }
     }
