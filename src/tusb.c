@@ -634,7 +634,7 @@ static void send_sys_desc(void) {
   }
 }
 
-#if defined(CFG_TUSB_SYSVIEW_TIMESTAMP_BSP) && CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
+#if CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
   // ARMv7-M without DWT CYCCNT (MAX32665/6, NOCYCCNT=1), built as SEGGER_SYSVIEW_CORE_OTHER: the BSP
   // supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, as 1 MHz needs a prescaler the part lacks.
   extern uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);

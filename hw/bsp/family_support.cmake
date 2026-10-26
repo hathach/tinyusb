@@ -567,8 +567,10 @@ function(family_configure_common TARGET RTOS)
         message(WARNING
           "SYSVIEW: ${SYSVIEW_FREERTOS_CONFIG_H} has no SEGGER_SYSVIEW_FreeRTOS.h include - "
           "the per-task CPU-load table will be EMPTY for ${TARGET}/${BOARD}. Only "
-          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; copy their SystemView "
-          "block, with configUSE_TRACE_FACILITY and configRECORD_STACK_HIGH_ADDRESS set to 1, into "
+          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; copy their "
+          "FREERTOS_SYSVIEW_ENABLED definition, the two INCLUDE_* options it sets and the closing "
+          "SEGGER_SYSVIEW_FreeRTOS.h block, with configUSE_TRACE_FACILITY and "
+          "configRECORD_STACK_HIGH_ADDRESS set to 1, into "
           "hw/bsp/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h to add ${FAMILY}.")
       endif ()
     endif ()

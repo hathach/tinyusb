@@ -566,6 +566,10 @@
 #ifndef CFG_TUH_SYSVIEW
   #define CFG_TUH_SYSVIEW 0
 #endif
+// The BSP supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, SEGGER_SYSVIEW_X_GetTimestampFreq()
+#ifndef CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
+  #define CFG_TUSB_SYSVIEW_TIMESTAMP_BSP 0
+#endif
 
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL
