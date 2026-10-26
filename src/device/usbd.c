@@ -689,10 +689,6 @@ static bool run_after_queue_call(void) {
       }
     }
  */
-// a failed assertion in tud_task_ext() closes its SystemView CALL first
-#define TU_ASSERT_SV(_cond) \
-  TUD_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK, )
-
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
@@ -789,7 +785,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
         if (0 != epnum) {
           driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TU_ASSERT_SV(driver);
+          TUD_SYSVIEW_ASSERT(driver, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK, );
         }
 
         // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
@@ -864,7 +860,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     timeout_ms = 0;
   }
 }
-#undef TU_ASSERT_SV
 
 //--------------------------------------------------------------------+
 // Control Endpoint
