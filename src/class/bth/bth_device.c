@@ -26,7 +26,9 @@ typedef struct {
   uint16_t ep_acl_in_pkt_sz;
   uint8_t ep_acl_out;
   uint8_t ep_voice[2];// Not used yet
+#if CFG_TUD_BTH_ISO_ALT_COUNT > 0
   uint8_t ep_voice_size[2][CFG_TUD_BTH_ISO_ALT_COUNT];
+#endif
 
   // Previous amount of bytes sent when issuing ZLP
   uint32_t prev_xferred_bytes;
@@ -110,8 +112,6 @@ void btd_reset(uint8_t rhport) {
 uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
   tusb_desc_endpoint_t const *desc_ep;
   uint16_t drv_len = 0;
-  // Size of single alternative of ISO interface
-  const uint16_t iso_alt_itf_size = sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t);
   // Size of hci interface
   const uint16_t hci_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
   // Ensure this is BT Primary Controller
@@ -148,12 +148,15 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
     desc_ep_acl_in = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep_acl_in);
   }
 
-  itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));
-
   // Prepare for incoming data from host
   TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE, false), 0);
 
   drv_len = hci_itf_size;
+
+#if CFG_TUD_BTH_ISO_ALT_COUNT > 0
+  // Size of single alternative of ISO interface
+  const uint16_t iso_alt_itf_size = sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t);
+  itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));
 
   // Ensure this is still BT Primary Controller
   TU_ASSERT(TUSB_CLASS_WIRELESS_CONTROLLER == itf_desc->bInterfaceClass &&
@@ -209,6 +212,7 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
     _btd_itf.ep_voice_size[dir][itf_desc->bAlternateSetting] = (uint8_t) tu_edpt_packet_size(desc_ep);
     drv_len += iso_alt_itf_size;
   }
+#endif
 
   return drv_len;
 }
