@@ -94,7 +94,6 @@ class ExitStatus(unittest.TestCase):
     def main(self, *extra, find=None, status='PASS', stranded=False):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
                                     {'num': num, 'name': 'x', 'params': '', 'status': status, 'secs': 0.1})
-        usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)

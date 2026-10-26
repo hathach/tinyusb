@@ -572,7 +572,7 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device is agentrc's hil_usbtest.find_device for cafe:4010, reading the sysfs
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for 0525:a4a0, reading the sysfs
     root the harness's usb_observe names: one module, so a patched root reaches it."""
 
     def setUp(self):
@@ -704,7 +704,6 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
         patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
@@ -834,7 +833,6 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
         patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded,
                                                            SYS_USB_DEVICES='/sys/bus/usb/devices'))
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.argv(self)
         out, err = usbtest_harness.Out(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
@@ -988,7 +986,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.addCleanup(td.cleanup)
         dev = Path(td.name) / '1-1'
         dev.mkdir()
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
 
         def patch(obj, name, value):
@@ -1140,7 +1138,7 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
         dev = Path(self.td.name) / '1-1'
         dev.mkdir()
         # a real (readable) fake sysfs node, so the bounded reads run unmodified
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
         self.dev = dev
 
@@ -1334,7 +1332,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_util.run_cmd = lambda *a, **k: R()
         # usbtest_enumerated is nested in test_device_usbtest, so stub what it calls
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         self.raised = None
@@ -1393,7 +1391,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1701,7 +1699,7 @@ class UsbtestLearnsTopology(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'run_cmd',
                               lambda *a, **k: self.order.append('battery') or R())
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': 'cafe', 'pid': '4010',
+            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': '0525', 'pid': 'a4a0',
              'serial': 'U'}])
         self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
 
@@ -1792,7 +1790,7 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('no cafe:4010 device', str(cm.exception))
+        self.assertIn('no 0525:a4a0 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
 class UsbtestNeverCleansUp(unittest.TestCase):

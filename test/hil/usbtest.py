@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Run the Linux kernel usbtest/testusb battery against a TinyUSB usbtest device.
 
-Device firmware: examples/device/usbtest (VID:PID cafe:4010). The firmware
+Device firmware: examples/device/usbtest (VID:PID 0525:a4a0, Gadget Zero). The firmware
 advertises its capability tier in bcdDevice low byte; the battery is selected
 accordingly (see examples/device/usbtest/README.md).
 
 Requires: usbtest kernel module (CONFIG_USB_TEST), testusb binary (built from
-kernel tools/usb/testusb.c), sudo for driver binding + usbfs ioctls.
+kernel tools/usb/testusb.c), write access to the device's usbfs node
+(tools/88-tinyusb.rules) or sudo.
 
-Driver registration and binding, the bounded testusb case run and its verdict, and the
+Driver loading and binding, the bounded testusb case run and its verdict, and the
 upstream host controller check are agentrc's hil_usbtest (lib/agentrc, helper/agentrc.py);
 this script picks the battery and its options, and owns the recovery and the report. A case
 gated off by the driver's capability profile (or an in-kernel parameter check) is NOTRUN,
 reported as a failure since every case in the selected battery is expected to run.
 
-Binding references Gadget Zero (0525:a4a0) so the dynamic id inherits its capability
-profile (autoconf + ctrl_out + iso + intr). autoconf is also what enables bulk endpoint
-discovery; the capability flags only unlock cases, they don't require the endpoints to exist.
+Gadget Zero's id is in usbtest's static table, so usbtest binds it by itself with that
+capability profile (autoconf + ctrl_out + iso + intr) on any kernel; usbtest has no new_id
+since 6.12.108. autoconf is also what enables bulk endpoint discovery; the capability flags
+only unlock cases, they don't require the endpoints to exist.
 """
 
 import argparse
@@ -35,10 +37,9 @@ from helper import agentrc  # noqa: E402
 
 hil_usbtest = agentrc.load_file('skills/hil/scripts/hil_usbtest.py')
 
-VID = 'cafe'
-PID = '4010'
-GZ_REF = '0525 a4a0'  # copy Gadget Zero's capability profile (ctrl_out+iso+intr)
-REGISTER_LOCK_TIMEOUT = hil_usbtest.REGISTER_LOCK_TIMEOUT
+VID = '0525'
+PID = 'a4a0'
+CONNECT_TIMEOUT = hil_usbtest.CONNECT_TIMEOUT
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
 RECOVER_SETTLE = 5          # after the recovery step, to let a freed ioctl unwind
@@ -143,19 +144,9 @@ def check_host_compat(dev):
     hil_usbtest.check_host_compat(dev['node'])
 
 
-def register_usbtest_id():
-    """Register cafe:4010 with usbtest, inheriting Gadget Zero's profile: one new_id write
-    per module load, before any battery, under one flock in hil_lock's dir
-    (hil_usbtest.register_usbtest_id). A wrong entry is repaired by a module reload
-    (usbtest skill, "Repair a wrong profile"), never by remove_id + this."""
-    from helper import hil_lock
-    hil_usbtest.register_usbtest_id(VID, PID, GZ_REF, hil_lock.BOARD_LOCK_DIR)
-
-
 def bind_usbtest(dev):
-    """Bind the device's interface 0 to usbtest. The id is registered already
-    (register_usbtest_id), so this writes only this device's own bind/unbind."""
-    hil_usbtest.bind_usbtest(f"{dev['sysname']}:1.0")
+    """Bind the device's interface 0 to usbtest (hil_usbtest.ensure_usbtest_bound)."""
+    hil_usbtest.ensure_usbtest_bound(f"{dev['sysname']}:1.0", dev['node'])
 
 
 set_pattern = hil_usbtest.set_pattern
@@ -370,7 +361,6 @@ def main():
         sys.exit(f"{dev['node']} is not writable: testusb would run under sudo, where a "
                  'post-hang recovery cannot be confirmed; install tools/88-tinyusb.rules')
 
-    register_usbtest_id()
     results = []
     unrecovered_hang = False
     try:
@@ -417,7 +407,7 @@ def main():
                     r.update(status='FAIL', detail=abort_reason)
                 break
             # re-resolve: a re-enumeration changes the node path. The concrete serial, not
-            # args.serial (may be None), so this never retargets another cafe:4010 device.
+            # args.serial (may be None), so this never retargets another usbtest device.
             live = find_device(dev['serial'])
             if live and live.get('ambiguous'):
                 # the dual-port WCH parts answer one serial on two nodes around a
@@ -449,9 +439,8 @@ def main():
             results += [{'num': n, 'status': 'BUDGET', 'detail': f'not run: {abort_reason}'}
                         for n in cases if n not in ran]
     finally:
-        # Nothing is written: remove_id/unbind take the uninterruptible device_lock (see
-        # register_usbtest_id; the unbind path has wedged a host xHCI), and cafe:4010 is
-        # usbtest's own PID, so a binding left behind claims nothing else.
+        # Nothing is written: unbind takes the uninterruptible device_lock (the unbind path
+        # has wedged a host xHCI), and a binding left behind claims nothing else.
         if unrecovered_hang and any(r['status'] == 'HUNG' for r in results):
             # testusb still holds the device lock in a usbfs ioctl (see usb-kernel-recover)
             print('unrecovered hang: the device keeps its usbfs lock until the DUT is reset '
