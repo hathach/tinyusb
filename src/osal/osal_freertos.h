@@ -84,7 +84,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec) {
   uint32_t ticks = pdMS_TO_TICKS(msec);
 
   // If configTICK_RATE_HZ is less than 1000 and 1 tick > 1 ms, we still need to delay at least 1 tick
-  if (ticks == 0) { ticks = 1; }
+  if (ticks == 0) { ticks = 1; } //-V547 constant in this configuration
 
   return ticks;
 }

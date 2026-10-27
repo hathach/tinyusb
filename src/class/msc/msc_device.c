@@ -476,7 +476,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         return false;
       }
 
-      memcpy(p_cbw, _mscd_epbuf.buf, sizeof(msc_cbw_t));
+      memcpy(p_cbw, _mscd_epbuf.buf, sizeof(msc_cbw_t)); //-V1086 epbuf is at least one CBW long
 
       TU_LOG_DRV("  SCSI Command [Lun%u]: %s\r\n", p_cbw->lun, tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
       // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, p_cbw, xferred_bytes, 2);

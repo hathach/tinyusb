@@ -731,7 +731,7 @@ void dcd_int_handler(uint8_t rhport)
   uint32_t const ep_int_status = LPC_USB->EpIntSt & LPC_USB->EpIntEn;
 
   // Control Endpoint are fast
-  if (dev_int_status & DEV_INT_ENDPOINT_FAST_MASK)
+  if (dev_int_status & DEV_INT_ENDPOINT_FAST_MASK) //-V1051 fast interrupt is a device status bit
   {
     // Note clear USBEpIntClr will also clear the setup received bit --> clear after handle setup packet
     // Only clear USBEpIntClr 1 endpoint each, and should wait for CDFULL bit set

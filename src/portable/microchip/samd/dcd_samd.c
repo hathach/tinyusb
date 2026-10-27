@@ -79,7 +79,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
   while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
 
-  USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending
+  USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending //-V567 write-1-to-clear
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
 
   return true;

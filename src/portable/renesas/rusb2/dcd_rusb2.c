@@ -281,7 +281,7 @@ static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
       tu_hwfifo_read_to_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
       tu_hwfifo_read(&rusb->CFIFO, buf, len, &access_mode);
-      pipe->buf = (uint8_t *)buf + len;
+      pipe->buf = (uint8_t *)buf + len; //-V769 len > 0 implies a buffer
     }
   }
 
@@ -800,7 +800,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   rusb->INTSTS0 = 0;
   rusb->INTENB0 = RUSB2_INTSTS0_VBINT_Msk | RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_BEMP_Msk |
-                  RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (_dcd.sof_enabled ? RUSB2_INTSTS0_SOFR_Msk : 0) |
+                  RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (_dcd.sof_enabled ? RUSB2_INTSTS0_SOFR_Msk : 0) | //-V547 constant in this configuration
                   RUSB2_INTSTS0_RESM_Msk;
   rusb->BEMPENB = 1;
   rusb->BRDYENB = 1;

@@ -385,7 +385,7 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   TU_LOG(TU_RUSB2_HCD_DBG, "NRDY %d %x\r\n", num, *ctr);
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
-    case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break; //-V1037 both PIDs mean a stalled pipe
     case RUSB2_PIPE_CTR_PID_STALL2: result = XFER_RESULT_STALLED; break;
     case RUSB2_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }

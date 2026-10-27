@@ -571,12 +571,12 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
     // Event queue
     _usbh_q = osal_queue_create(&_usbh_qdef);
-    TU_ASSERT(_usbh_q != NULL);
+    TU_ASSERT(_usbh_q != NULL); //-V547 NULL on OSALs whose queue create can fail
 
   #if CFG_TUH_HUB
     // Deferred attachment queue
     _usbh_daq = osal_queue_create(&_usbh_daqdef);
-    TU_ASSERT(_usbh_daq != NULL);
+    TU_ASSERT(_usbh_daq != NULL); //-V547 NULL on OSALs whose queue create can fail
   #endif
 
   #if OSAL_MUTEX_REQUIRED
@@ -625,7 +625,7 @@ bool tuh_deinit(uint8_t rhport) {
   // deinit host controller
   hcd_int_disable(rhport);
   TU_ASSERT(hcd_deinit(rhport));
-  _usbh_controller_id = TUSB_INDEX_INVALID_8;
+  _usbh_controller_id = TUSB_INDEX_INVALID_8; //-V779 reachable when the weak callback returns
 
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
@@ -1093,7 +1093,7 @@ static void control_xfer_dispatch_pending(void) {
 
     // mismatched daddr_gen means pending transfer is stale due to the device got disconnected while in the FIFO
     // Note: the address can be re-allocated to another device at this point.
-    if (xfer.daddr_gen == _usbh_data.daddr_gen[xfer.daddr]) {
+    if (xfer.daddr_gen == _usbh_data.daddr_gen[xfer.daddr]) { //-V614 set whenever has_xfer is true
       TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(xfer.daddr), xfer.daddr,
                   (xfer.setup.bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer.setup.bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                       tu_str_std_request[xfer.setup.bRequest] : "Class Request");
@@ -1186,7 +1186,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             }
             return true;
           }
-          TU_ATTR_FALLTHROUGH;
+          TU_ATTR_FALLTHROUGH; //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
 
         case CONTROL_STAGE_DATA: {
             if (request->wLength > 0) {
@@ -1704,7 +1704,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
         #if CFG_TUH_HUB
         if (is_hub_addr(daddr)) {
           TU_LOG_USBH("  is a HUB device %u\r\n", daddr);
-          removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1;
+          removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1; //-V557 hub addresses start at CFG_TUH_DEVICE_MAX + 1
         } else
         #endif
         {
@@ -2044,7 +2044,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       // save the received device descriptor
       tusb_desc_device_t const *desc_device = (tusb_desc_device_t const *) _usbh_epbuf.ctrl;
 
-      memcpy(&dev->desc_device, (const uint8_t*) desc_device + offsetof(tusb_desc_device_t, bcdUSB), sizeof(desc_device_noheader_t));
+      memcpy(&dev->desc_device, (const uint8_t*) desc_device + offsetof(tusb_desc_device_t, bcdUSB), sizeof(desc_device_noheader_t)); //-V522 dev asserted non-NULL for daddr > 0
 
       tuh_enum_descriptor_device_cb(daddr, desc_device); // callback
       is_enum_failed = !tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, 2,
@@ -2070,7 +2070,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    }
+    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
 
     case ENUM_GET_STRING_MANUFACTURER: {
       if (dev->desc_device.iManufacturer != 0)  {
@@ -2081,7 +2081,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    }
+    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
 
     case ENUM_GET_STRING_PRODUCT_LEN: {
       if (dev->desc_device.iProduct != 0) {
@@ -2104,7 +2104,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    }
+    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
 
     case ENUM_GET_STRING_SERIAL_LEN: {
       if (dev->desc_device.iSerialNumber != 0) {
@@ -2127,7 +2127,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    }
+    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
 
     case ENUM_GET_9BYTE_CONFIG_DESC: {
       // Get 9-byte for total length

@@ -809,7 +809,7 @@ void dcd_int_handler(uint8_t rhport)
     break;
 
     default:
-      while(true);
+      while(true); //-V776 trap on an unknown vector
   }
 
 }

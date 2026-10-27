@@ -890,13 +890,13 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_capture_xfer(s)) {
+    if (s->running && !audioh_stream_capture_xfer(s)) { //-V560 running is cleared by the weak callback
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }
   } else {
     // Notify the application before requesting the next playback packet.
     tuh_audio_playback_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_playback_xfer(s)) {
+    if (s->running && !audioh_stream_playback_xfer(s)) { //-V560 running is cleared by the weak callback
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }
   }
@@ -1473,7 +1473,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   const uint16_t iso_xfer_size =
     (tuh_speed_get(p_audio->daddr) == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_ISO_HS_MAX : TUSB_EPSIZE_ISO_FS_MAX;
   const uint32_t frame_bytes_32 = (uint32_t)class_info.channels * tuh_audio_format_bytes(format);
-  if (frame_bytes_32 == 0 || frame_bytes_32 > iso_xfer_size) {
+  if (frame_bytes_32 == 0 || frame_bytes_32 > iso_xfer_size) { //-V560 constant in this configuration
     TU_LOG_DRV("  AUDIO AS itf %u: frame size %lu not supported\r\n", itf_num, (unsigned long)frame_bytes_32);
     return p_desc;
   }
@@ -1546,7 +1546,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     return p_desc;
   }
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1 && p_audio->rate_source_count >= AUDIOH_MAX_RATE_SOURCES) {
+  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1 && p_audio->rate_source_count >= AUDIOH_MAX_RATE_SOURCES) { //-V560 protocol set by the descriptor parser
     TU_LOG_DRV("  AUDIO AS itf %u alt %u: reach max rate sources %u\r\n", itf_num, alt, AUDIOH_MAX_RATE_SOURCES);
     return p_desc;
   }
@@ -1554,7 +1554,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
   const uint8_t as_idx = stream->as_count;
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1) {
+  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1) { //-V547 protocol set by the descriptor parser
     as_config.rate_source_idx                          = p_audio->rate_source_count;
     p_audio->rate_source[p_audio->rate_source_count++] = rate_source;
   }

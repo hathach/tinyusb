@@ -558,7 +558,7 @@ bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) 
   uint8_t size = tud_audio_n_version(func_id) == 2 ? sizeof(audio20_interrupt_data_t) : sizeof(audio10_interrupt_data_t);
 
   // INT EP buffer must be large enough
-  TU_ASSERT(size <= sizeof(int_ep_buf[func_id].buf));
+  TU_ASSERT(size <= sizeof(int_ep_buf[func_id].buf)); //-V547 buffer sized from the same config value
 
   // Check length
   if (tu_memcpy_s(int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf), data, size) == 0) {

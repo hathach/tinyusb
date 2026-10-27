@@ -604,7 +604,7 @@ bool tud_deinit(uint8_t rhport) {
   TU_ASSERT(dcd_deinit(rhport));
 
   // Deinit class drivers
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) { //-V779 reachable when the weak callback returns
     usbd_class_driver_t const* driver = get_driver(i);
     if(driver && driver->deinit) {
       TU_LOG_USBD("%s deinit\r\n", driver->name);
@@ -1203,7 +1203,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
         TU_VERIFY(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type);
 
         // Clear complete callback if driver set since it can also stall the request.
-        ctrl_xfer->complete_cb = NULL;
+        ctrl_xfer->complete_cb = NULL; //-V1048 a driver callback may have set it
 
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_INTERFACE: {
@@ -1237,7 +1237,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       uint8_t const ep_num  = tu_edpt_number(ep_addr);
       uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-      TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
+      TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) ); //-V547 constant in this configuration
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.ep2drv[ep_num][ep_dir]);
 
       if (TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type) {
@@ -1270,7 +1270,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
             // Some classes such as USBTMC need to clear/re-init their buffer on CLEAR_FEATURE.
             // Clear complete callback if driver set since it can also stall the request.
             (void) invoke_class_control(rhport, driver, p_request);
-            ctrl_xfer->complete_cb = NULL;
+            ctrl_xfer->complete_cb = NULL; //-V1048 invoke_class_control may have set it
 
             // STD request must always be ACKed; skip ZLP status if driver already did that.
             if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
@@ -1612,7 +1612,7 @@ bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {
 bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
   (void) rhport;
 
-  TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
+  TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX); //-V547 constant in this configuration
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t)_usbd_dev.speed));
 
   return dcd_edpt_open(_usbd_rhport, desc_ep);
@@ -1833,7 +1833,7 @@ void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
-  TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
+  TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX); //-V547 constant in this configuration
   return dcd_edpt_iso_alloc(_usbd_rhport, ep_addr, largest_packet_size);
 #else
   (void) ep_addr; (void) largest_packet_size;
@@ -1847,7 +1847,7 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep)
   uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_ep->bEndpointAddress);
 
-  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
+  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX); //-V547 constant in this configuration
   TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t)_usbd_dev.speed));
 
   _usbd_dev.ep_status[epnum][dir] = 0;

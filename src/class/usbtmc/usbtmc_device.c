@@ -546,7 +546,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
       case STATE_ABORTING_BULK_OUT:
         // Should be stalled by now, shouldn't have received a packet.
-        return false;
+        return false; //-V1037 separate states with the same outcome
 
       case STATE_TX_REQUESTED:
       case STATE_TX_INITIATED:

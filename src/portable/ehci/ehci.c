@@ -223,7 +223,7 @@ void hcd_port_reset(uint8_t rhport) {
   uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
 
 #if TU_CHECK_MCU(OPT_MCU_HPM)
-  if (usb_phy_get_line_state((USB_Type *)CI_HS_REG(rhport)) == usb_line_state2) {
+  if (usb_phy_get_line_state((USB_Type *)CI_HS_REG(rhport)) == usb_line_state2) { //-V1027 HPM PHY API takes its own type for the same registers
       portsc |= USB_PORTSC1_STS_MASK;
   } else {
       portsc &= ~USB_PORTSC1_STS_MASK;

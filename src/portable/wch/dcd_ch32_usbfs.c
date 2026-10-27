@@ -45,7 +45,7 @@
     // EP0-4 and EP5-7 are split, and EP4 has no DMA register
     static inline volatile uint32_t* ch32_usbfs_ep_dma_reg(uint8_t ep) {
       switch (ep) {
-        case 0: return &USBOTG_FS->UEP0_DMA;
+        case 0: return &USBOTG_FS->UEP0_DMA; //-V1037 EP4 shares the EP0 DMA buffer
         case 1: return &USBOTG_FS->UEP1_DMA;
         case 2: return &USBOTG_FS->UEP2_DMA;
         case 3: return &USBOTG_FS->UEP3_DMA;

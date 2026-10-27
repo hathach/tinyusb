@@ -188,13 +188,13 @@ bool parse_msg_control(uint8_t rhport, pd_header_t const* header) {
 
 bool usbc_msg_send(uint8_t rhport, pd_header_t const* header, void const* data) {
   // copy header
-  memcpy(_tx_buf, header, sizeof(pd_header_t));
+  memcpy(_tx_buf, header, sizeof(pd_header_t)); //-V1086 tx buffer is header plus data objects
 
   // copy data objcet if available
   uint16_t const n_data_obj = header->n_data_obj;
   TU_VERIFY(n_data_obj == 0 || data != NULL);
   if (n_data_obj > 0) {
-    memcpy(_tx_buf + sizeof(pd_header_t), data, n_data_obj * 4);
+    memcpy(_tx_buf + sizeof(pd_header_t), data, n_data_obj * 4); //-V522 //-V575 data is non-NULL when n_data_obj > 0
   }
 
   return tcd_msg_send(rhport, _tx_buf, sizeof(pd_header_t) + n_data_obj * 4);

@@ -709,7 +709,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     if (ep_dir == USBD_DIR_IN)
       total_ram = USBD_RAMTOTAL_IN;
     else
-      total_ram = USBD_RAMTOTAL_OUT;
+      total_ram = USBD_RAMTOTAL_OUT; //-V523 IN and OUT RAM totals are equal on this part
     // Work out how much has been allocated to existing endpoints.
     // The total RAM allocated should always be a positive number as this
     // algorithm should not let it go below zero.

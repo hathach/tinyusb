@@ -699,7 +699,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           p_mtp->phase = MTP_PHASE_ERROR; // application aborts: stall rather than arm another read
           break;
         }
-        if (!is_complete && p_mtp->phase == MTP_PHASE_RESPONSE) {
+        if (!is_complete && p_mtp->phase == MTP_PHASE_RESPONSE) { //-V560 phase changes in the callbacks above
           // Answered before the host finished sending: device-initiated cancel. Stalling ep_in
           // also retires the queued response.
           p_mtp->phase = MTP_PHASE_ERROR;
@@ -718,7 +718,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
 
       // skipped when a data callback above already answered
-      if (is_complete && p_mtp->phase == MTP_PHASE_DATA) {
+      if (is_complete && p_mtp->phase == MTP_PHASE_DATA) { //-V560 phase changes in the callbacks above
         p_mtp->phase = MTP_PHASE_DATA_COMPLETE;
         cb_data.phase = MTP_PHASE_DATA_COMPLETE;
         cb_data.io_container = headered_packet;

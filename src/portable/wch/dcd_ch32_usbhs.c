@@ -253,7 +253,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   const uint8_t    ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
   const tusb_dir_t dir    = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(ep_num < EP_MAX);
+  TU_ASSERT(ep_num < EP_MAX); //-V547 constant in this configuration
 
   if (ep_num == 0) {
     return true;

@@ -1283,7 +1283,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   uint8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
-    if (0 == ofs_ep) {
+    if (0 == ofs_ep) { //-V547 constant in this configuration
       continue;
     }
     ep_addr = _desc_ep_addr(desc + ofs_ep);

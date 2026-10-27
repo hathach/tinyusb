@@ -369,7 +369,7 @@ static uint16_t _nego_send_stream_text(midi2d_interface_t* p_midi, uint16_t stat
                                        uint16_t offset) {
   if (!str || str[0] == '\0') return 0;
 
-  const uint16_t total_len = (uint16_t) strlen(str);
+  const uint16_t total_len = (uint16_t) strlen(str); //-V1029 descriptor text is far below 64 KiB
   const uint8_t head_chars = has_index ? 1 : 2;  // chars carried in word0
   const uint8_t per_pkt = (uint8_t) (head_chars + 12); // plus 4 chars in each of words 1..3
   if (offset >= total_len) return total_len;
@@ -428,7 +428,7 @@ static void _nego_send_device_identity(midi2d_interface_t* p_midi) {
   // order as the MIDI 1.0 Device Inquiry reply this message mirrors. A 1-byte
   // manufacturer ID occupies the first of the three bytes, the other two stay
   // zero, so the caller passes it as 0x7D0000 and not 0x00007D.
-  uint32_t msg[4] = {0};
+  uint32_t msg[4] = {0}; //-V779 reachable when the weak callback returns
   msg[0] = ((uint32_t) MT_STREAM << 28)
          | ((uint32_t) STREAM_DEVICE_IDENTITY << 16);
   msg[1] = id.manufacturer & (uint32_t) 0x7F7F7F;

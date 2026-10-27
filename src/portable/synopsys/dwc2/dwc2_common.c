@@ -111,7 +111,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
 
     // Set 16-bit interface if supported
-    if (phy_width == 16) {
+    if (phy_width == 16) { //-V547 constant in this configuration
       gusbcfg |= GUSBCFG_PHYIF16;
     } else {
       gusbcfg &= ~GUSBCFG_PHYIF16;
@@ -131,7 +131,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // - 9 if using 8-bit PHY interface
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (phy_width == 16 ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  gusbcfg |= (phy_width == 16 ? 5u : 9u) << GUSBCFG_TRDT_Pos; //-V547 constant in this configuration
   dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY update post reset

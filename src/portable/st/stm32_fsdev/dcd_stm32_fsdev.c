@@ -564,7 +564,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   const tusb_dir_t dir         = tu_edpt_dir(ep_addr);
   const uint16_t   packet_size = tu_edpt_packet_size(desc_ep);
   const uint8_t    ep_idx      = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
-  TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
+  TU_ASSERT(ep_idx < FSDEV_EP_COUNT); //-V547 constant in this configuration
 
   uint32_t ep_reg = ep_read(ep_idx) & ~U_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | U_EP_CTR_TX | U_EP_CTR_RX;
@@ -724,7 +724,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
-  ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
+  ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits //-V501 macro tests the direction it is given
   ep_write(ep_ix, ep_reg, true);
 }
 
