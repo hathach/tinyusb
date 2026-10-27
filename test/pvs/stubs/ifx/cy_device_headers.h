@@ -6,15 +6,6 @@
 #include <stdint.h>
 
 typedef enum {
-  NonMaskableInt_IRQn            = -14,
-  HardFault_IRQn                 = -13,
-  MemoryManagement_IRQn          = -12,
-  BusFault_IRQn                  = -11,
-  UsageFault_IRQn                = -10,
-  SecureFault_IRQn               = -9,
-  SVCall_IRQn                    = -5,
-  DebugMonitor_IRQn              = -4,
-  PendSV_IRQn                    = -2,
   SysTick_IRQn                   = -1,
   usbhs_interrupt_usbhsctrl_IRQn = 174,
 } IRQn_Type;
@@ -27,8 +18,6 @@ typedef enum {
 #define __FPU_PRESENT          1
 #define __DSP_PRESENT          1
 #define __SAUREGION_PRESENT    1
-#define __ICACHE_PRESENT       0
-#define __DCACHE_PRESENT       0
 
 #include "core_cm33.h"
 

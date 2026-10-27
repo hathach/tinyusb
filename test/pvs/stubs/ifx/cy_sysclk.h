@@ -6,7 +6,6 @@
 
 typedef enum {
   CY_SYSCLK_SUCCESS   = 0x00UL,
-  CY_SYSCLK_BAD_PARAM = 0x01UL,
 } cy_en_sysclk_status_t;
 
 void Cy_SysClk_PeriGroupSlaveInit(uint32_t periNum, uint32_t groupNum, uint32_t slaveNum, uint32_t clkHfNum);
