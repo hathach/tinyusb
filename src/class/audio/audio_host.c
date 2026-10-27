@@ -80,7 +80,7 @@
  *
  *   host controller -> audioh_xfer_cb()
  *     +-- capture data
- *     |     +-- copy whole audio frames to the FIFO, dropping the packet if it does not fit
+ *     |     +-- copy whole audio frames to the FIFO, dropping the oldest frames to make room
  *     |     +-- tuh_audio_capture_cb()
  *     |     `-- audioh_stream_capture_xfer()
  *     +-- playback data
@@ -886,8 +886,13 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   if (s->dir == TUSB_DIR_IN) {
     // Queue whole capture frames, notify the application, then re-arm.
     const uint16_t bytes = (uint16_t)(xferred_bytes - (xferred_bytes % s->frame_bytes));
-    // On overrun drop the newest packet: overwriting unread frames could tear one a reader is copying
-    if (bytes > 0 && tu_fifo_remaining(&s->edpt.ff) >= bytes) {
+    // On overrun drop the oldest whole frames. Discard takes the read mutex, so it never tears a
+    // frame a reader is copying, which an overwritable FIFO could.
+    if (bytes > 0 && bytes <= tu_fifo_depth(&s->edpt.ff)) {
+      const uint16_t remaining = tu_fifo_remaining(&s->edpt.ff);
+      if (remaining < bytes) {
+        tu_fifo_discard_n(&s->edpt.ff, bytes - remaining);
+      }
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
@@ -2237,11 +2242,12 @@ uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint3
   TU_VERIFY(s->state == STREAM_STATE_READY && s->running, 0);
 
   // Never return a partial audio frame.
+  // The capture writer may discard old frames meanwhile, so report what was actually read.
   const uint32_t frames = TU_MIN(frame_count, tu_fifo_count(&s->edpt.ff) / s->frame_bytes);
-  if (frames > 0) {
-    tu_fifo_read_n(&s->edpt.ff, buffer, (uint16_t)(frames * s->frame_bytes));
+  if (frames == 0) {
+    return 0;
   }
-  return frames;
+  return tu_fifo_read_n(&s->edpt.ff, buffer, (uint16_t)(frames * s->frame_bytes)) / s->frame_bytes;
 }
 
 uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx) {
