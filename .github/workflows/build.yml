@@ -461,6 +461,9 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
+    # self-hosted rigs keep state between jobs: no write token, none left in the checkout
+    permissions:
+      contents: read
     # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
@@ -516,6 +519,8 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -605,6 +610,8 @@ jobs:
   hil-tinyusb-esp:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
+    permissions:
+      contents: read
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     # above hil_test.py's pool guard (60 min) with ~15 min for the pre-pool checkout
     # and the report upload, so its own guard still writes a report;
@@ -644,6 +651,8 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5

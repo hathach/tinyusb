@@ -674,7 +674,7 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 
         usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen', Popen)
         usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
         r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
         self.assertEqual((r['status'], r['num']), ('HUNG', 1))
         self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
@@ -683,8 +683,8 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 class HangRecoveryOnTheMainPath(unittest.TestCase):
     """The transitions through usbtest.main(): a HUNG case aborts the battery; ONE recovery
     step runs through the convoy-safe flasher (reset where it has one, else reflash); the
-    child reaping afterwards is the only thing that clears `wedged`; an unverifiable child
-    (sudo) keeps the hang; a late-cleared timeout also aborts but is not a wedge."""
+    child reaping afterwards is the only thing that clears `wedged`; a late-cleared timeout
+    also aborts but is not a wedge."""
 
     def _main(self, proc=None, recover=None, reset=True, raising_reset=False, late=False):
         """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
@@ -704,7 +704,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data: writes.append((str(path), data)))
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda verb, *args: writes.append((verb, *args)))
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
@@ -802,12 +802,6 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertIn('recovery step raised', err)
         self.assertEqual(self._steps(), ['reset', 'settle'])
         self.assertFalse(data['wedged'], 'the reset landed before the flasher raised')
-
-    def test_under_sudo_the_hang_cannot_be_cleared(self):
-        data, err, _exc, _w = self._main(proc=None, recover=True)
-        self.assertTrue(data['wedged'])
-        self.assertEqual(self._steps(), ['reset', 'settle'], 'the step still runs; only the verdict is withheld')
-        self.assertIn('cannot confirm', err)
 
     def test_the_settle_keeps_its_validated_minimum(self):
         import usbtest
