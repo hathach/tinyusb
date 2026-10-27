@@ -625,7 +625,7 @@ bool tuh_deinit(uint8_t rhport) {
   // deinit host controller
   hcd_int_disable(rhport);
   TU_ASSERT(hcd_deinit(rhport));
-  _usbh_controller_id = TUSB_INDEX_INVALID_8; //-V779 reachable when the weak callback returns
+  _usbh_controller_id = TUSB_INDEX_INVALID_8; //-V779 reachable when the port overrides the weak hcd_deinit
 
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
@@ -1186,7 +1186,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             }
             return true;
           }
-          TU_ATTR_FALLTHROUGH; //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
+          TU_ATTR_FALLTHROUGH;
 
         case CONTROL_STAGE_DATA: {
             if (request->wLength > 0) {
@@ -2070,7 +2070,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
+    }
 
     case ENUM_GET_STRING_MANUFACTURER: {
       if (dev->desc_device.iManufacturer != 0)  {
@@ -2081,7 +2081,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
+    }
 
     case ENUM_GET_STRING_PRODUCT_LEN: {
       if (dev->desc_device.iProduct != 0) {
@@ -2104,7 +2104,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
+    }
 
     case ENUM_GET_STRING_SERIAL_LEN: {
       if (dev->desc_device.iSerialNumber != 0) {
@@ -2127,7 +2127,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         break;
       }
       TU_ATTR_FALLTHROUGH;
-    } //-V796 TU_ATTR_FALLTHROUGH is an empty statement on compilers without the attribute
+    }
 
     case ENUM_GET_9BYTE_CONFIG_DESC: {
       // Get 9-byte for total length

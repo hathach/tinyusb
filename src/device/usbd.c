@@ -604,7 +604,7 @@ bool tud_deinit(uint8_t rhport) {
   TU_ASSERT(dcd_deinit(rhport));
 
   // Deinit class drivers
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) { //-V779 reachable when the weak callback returns
+  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) { //-V779 reachable when the port overrides the weak dcd_deinit
     usbd_class_driver_t const* driver = get_driver(i);
     if(driver && driver->deinit) {
       TU_LOG_USBD("%s deinit\r\n", driver->name);

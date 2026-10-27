@@ -397,7 +397,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     ;
 
   // enable basic USB interrupts
-  USB->HOST.INTFLAG.reg |= USB->HOST.INTFLAG.reg; // clear pending //-V567 write-1-to-clear
+  USB->HOST.INTFLAG.reg |= USB->HOST.INTFLAG.reg; // clear pending //-V567 unsequenced volatile reads, single-read rewrite in #4342
   USB->HOST.INTENCLR.reg = USB_HOST_INTENCLR_MASK;
   USB->HOST.INTENSET.reg = USB_HOST_INTENSET_DCONN;
   USB->HOST.INTENSET.reg = USB_HOST_INTENSET_DDISC;
@@ -507,7 +507,7 @@ void hcd_port_reset(uint8_t rhport)
 {
   hcd_int_disable(rhport);
   samd_free_all_pipes();
-  USB->HOST.INTFLAG.reg |= USB->HOST.INTFLAG.reg; // clear pending //-V567 write-1-to-clear
+  USB->HOST.INTFLAG.reg |= USB->HOST.INTFLAG.reg; // clear pending //-V567 unsequenced volatile reads, single-read rewrite in #4342
   USB->HOST.CTRLB.bit.BUSRESET = 1;
   fake_fnum = 0;
 }
@@ -613,7 +613,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   USB->HOST.HostPipe[pipe].PSTATUSSET.reg = USB_HOST_PSTATUSSET_BK0RDY;
 
   // clear pending interrupts
-  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 write-1-to-clear
+  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 unsequenced volatile reads, single-read rewrite in #4342
 
   // begin transfer
   USB->HOST.HostPipe[pipe].PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
@@ -656,7 +656,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t* b
   }
 
   // clear pending interrupts
-  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 write-1-to-clear
+  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 unsequenced volatile reads, single-read rewrite in #4342
 
   // begin transfer
   USB->HOST.HostPipe[pipe].PSTATUSCLR.reg = USB_HOST_PSTATUSCLR_PFREEZE;
@@ -731,7 +731,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
   TU_LOG3("%d\r\n", pipe);
 
   // clear pending interrupts
-  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 write-1-to-clear
+  USB->HOST.HostPipe[pipe].PINTFLAG.reg |= USB->HOST.HostPipe[pipe].PINTFLAG.reg; //-V567 unsequenced volatile reads, single-read rewrite in #4342
 
   // clear stalled state
   USB->HOST.HostPipe[pipe].PSTATUSSET.reg = USB_HOST_PSTATUSSET_PFREEZE;

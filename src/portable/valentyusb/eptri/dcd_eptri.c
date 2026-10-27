@@ -109,11 +109,11 @@ void queue_log_append(uint8_t ep_num, uint16_t sz) {
 static void tx_more_data(void) {
   // Send more data
   uint8_t added_bytes;
-  for (added_bytes = 0; (added_bytes < EP_SIZE) && (tx_buffer_offset[tx_ep] < tx_buffer_max[tx_ep]); added_bytes++) { //-V567 volatile only for the ISR
+  for (added_bytes = 0; (added_bytes < EP_SIZE) && (tx_buffer_offset[tx_ep] < tx_buffer_max[tx_ep]); added_bytes++) { //-V567 unsequenced volatile reads, rewrite in #4342
 #if LOG_USB
     usb_log[usb_log_offset].data[added_bytes] = tx_buffer[tx_ep][tx_buffer_offset[tx_ep]];
 #endif
-    usb_in_data_write(tx_buffer[tx_ep][tx_buffer_offset[tx_ep]++]); //-V567 volatile only for the ISR
+    usb_in_data_write(tx_buffer[tx_ep][tx_buffer_offset[tx_ep]++]); //-V567 unsequenced volatile reads, rewrite in #4342
   }
 
 #if LOG_USB
@@ -145,7 +145,7 @@ static void process_tx(void) {
     return;
   }
 
-  if (tx_buffer_offset[tx_ep] >= tx_buffer_max[tx_ep]) { //-V567 volatile only for the ISR
+  if (tx_buffer_offset[tx_ep] >= tx_buffer_max[tx_ep]) { //-V567 unsequenced volatile reads, rewrite in #4342
 #if DEBUG
     last_tx_buffer = tx_buffer[tx_ep];
     last_tx_ep = tx_ep;
