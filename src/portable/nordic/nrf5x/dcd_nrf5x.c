@@ -909,7 +909,7 @@ static void handle_out_end_isr(uint32_t int_status) {
       if (!xfer->started || xfer->dma_xferid != xfer->xferid) {
         continue; // no armed transfer, or the DMA was started for one since retired: the packet is dropped
       }
-      uint16_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
+      uint16_t const xact_len = (epnum == EP_ISO_NUM) ? NRF_USBD->ISOOUT.AMOUNT : NRF_USBD->EPOUT[epnum].AMOUNT;
 
       xfer->buffer += xact_len;
       xfer->actual_len += xact_len;
