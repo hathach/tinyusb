@@ -553,7 +553,7 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 #endif
 
-#if TU_SYSVIEW_ENABLED
+#if CFG_TUSB_SYSVIEW_ENABLED
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
@@ -764,6 +764,6 @@ void tu_sysview_stack_report(void) {
 #endif
 }
 
-#endif // TU_SYSVIEW_ENABLED
+#endif // CFG_TUSB_SYSVIEW_ENABLED
 
 #endif // host or device enabled

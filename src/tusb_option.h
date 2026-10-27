@@ -570,6 +570,8 @@
 #ifndef CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
   #define CFG_TUSB_SYSVIEW_TIMESTAMP_BSP 0
 #endif
+// Derived, not a setting: only enabled stacks contribute their SystemView level.
+#define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED && CFG_TUD_SYSVIEW) || (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW))
 
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL

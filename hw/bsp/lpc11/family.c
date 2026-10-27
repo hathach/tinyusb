@@ -91,7 +91,7 @@ void board_init(void) {
   // USB: Setup PLL clock, and power
   Chip_USB_Init();
 
-#if TU_SYSVIEW_ENABLED
+#if CFG_TUSB_SYSVIEW_ENABLED
   // Free-running 1 MHz timestamp source for SystemView, see SEGGER_SYSVIEW_X_GetTimestamp() below.
   // CT32B0 is unused elsewhere in this BSP; SysTick is left alone since it backs the 1 ms tick.
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_CT32B0);
@@ -104,7 +104,7 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-#if TU_SYSVIEW_ENABLED
+#if CFG_TUSB_SYSVIEW_ENABLED
 // Cortex-M0 has no DWT cycle counter, so SystemView takes its timestamp from a hardware timer
 // (contract in src/tusb.c: free-running microseconds). CT32B0 is a genuinely 32-bit
 // counter prescaled to 1 MHz in board_init(), so its TC is already the required value and wraps

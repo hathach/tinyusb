@@ -156,11 +156,8 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 // SystemView
 //--------------------------------------------------------------------+
 
-// a role's level counts only when its stack is enabled: a no-USB example gets no SystemView code
-#define TU_SYSVIEW_ENABLED ((CFG_TUD_ENABLED && CFG_TUD_SYSVIEW) || (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW))
-
 // Category levels — overridable, must expand to a literal 1..4. Defined
-// unconditionally (not gated on TU_SYSVIEW_ENABLED) so usbd.h/usbh.h can
+// unconditionally (not gated on CFG_TUSB_SYSVIEW_ENABLED) so usbd.h/usbh.h can
 // compare CFG_TUD_SYSVIEW/CFG_TUH_SYSVIEW against them even when SYSVIEW is
 // fully disabled; an undefined macro reads as 0 in #if, which would make
 // "CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR" true (0 >= 0) instead of
@@ -178,7 +175,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define CFG_TUSB_SYSVIEW_LEVEL_CLASS  4   // class driver API
 #endif
 
-#if TU_SYSVIEW_ENABLED
+#if CFG_TUSB_SYSVIEW_ENABLED
 // SEGGER.h defines INLINE (under #ifndef) and leaves it defined; nothing here uses it, but a
 // vendor SDK header included later in the same TU (lpcopen's lpc_types.h, unconditional
 // #define INLINE inline) redefines it and fails -Werror. Drop only the copy SEGGER.h added --
@@ -309,7 +306,7 @@ uint32_t tusb_sysview_cpu_freq(void);
   #define TU_SYSVIEW_ISR_EXIT()
 #endif
 
-#else // !TU_SYSVIEW_ENABLED
+#else // !CFG_TUSB_SYSVIEW_ENABLED
 
 #define TU_SYSVIEW_ISR_ENTER()
 #define TU_SYSVIEW_ISR_EXIT()
@@ -321,7 +318,7 @@ uint32_t tusb_sysview_cpu_freq(void);
 #define tu_sysview_stack_report()
 #define tu_sysview_name_resource(_handle, _name)
 
-#endif // TU_SYSVIEW_ENABLED
+#endif // CFG_TUSB_SYSVIEW_ENABLED
 
 // TU_ASSERT that closes the instrumented function's CALL with its RET before returning, so a failed
 // assertion leaves no dangling pair. _cond is evaluated once and an application's TU_ASSERT override

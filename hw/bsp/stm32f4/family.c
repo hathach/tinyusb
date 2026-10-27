@@ -163,7 +163,7 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-  #if TU_SYSVIEW_ENABLED
+  #if CFG_TUSB_SYSVIEW_ENABLED
   // SystemView's lock raises BASEPRI to SEGGER_RTT_MAX_INTERRUPT_PRIORITY; a USB IRQ above it would
   // record into a packet the interrupted code is still building
   NVIC_SetPriority(OTG_FS_IRQn, SEGGER_RTT_MAX_INTERRUPT_PRIORITY >> (8U - __NVIC_PRIO_BITS));
