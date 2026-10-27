@@ -668,14 +668,16 @@ jobs:
           merge-multiple: true
 
       - name: Download base branch SystemView captures
-        # The newest same-repo base-branch run with a sysview-* artifact (docs-only pushes skip HIL),
-        # bounded to the newest 30 runs: 1 list call + 1 artifact-list page per examined run + the download.
+        # The newest same-repo base-branch push run with a sysview-* artifact (docs-only pushes skip HIL),
+        # bounded to the newest 30 push runs: 1 list call + 1 artifact-list page per examined run + the download.
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
         run: |
-          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?branch=$BASE_REF&per_page=30" \
+          # event=push server-side: fork PRs from a branch named $BASE_REF would otherwise take window slots
+          runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+            -f branch="$BASE_REF" -f event=push -F per_page=30 \
             --jq '.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY) | .id')
           for run in $runs; do
             found=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" \
@@ -688,7 +690,7 @@ jobs:
               exit 0
             fi
           done
-          echo "No base SystemView captures in the newest 30 $BASE_REF runs"
+          echo "No base SystemView captures in the newest 30 $BASE_REF push runs"
 
       - name: Generate SystemView report
         id: report
