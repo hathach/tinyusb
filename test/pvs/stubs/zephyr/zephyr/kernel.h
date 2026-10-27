@@ -2,6 +2,7 @@
 #ifndef PVS_STUB_ZEPHYR_KERNEL_H_
 #define PVS_STUB_ZEPHYR_KERNEL_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct { int64_t ticks; } k_timeout_t;

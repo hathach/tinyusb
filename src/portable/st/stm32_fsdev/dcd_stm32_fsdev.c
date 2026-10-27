@@ -526,7 +526,7 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type) {
   }
 
   // Allocation failed
-  TU_ASSERT(0);
+  TU_ASSERT(false, 0xFF);
 }
 
 void edpt0_open(uint8_t rhport) {
@@ -564,7 +564,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
   const tusb_dir_t dir         = tu_edpt_dir(ep_addr);
   const uint16_t   packet_size = tu_edpt_packet_size(desc_ep);
   const uint8_t    ep_idx      = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
-  TU_ASSERT(ep_idx < FSDEV_EP_COUNT); //-V547 constant in this configuration
+  TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
 
   uint32_t ep_reg = ep_read(ep_idx) & ~U_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | U_EP_CTR_TX | U_EP_CTR_RX;
@@ -631,6 +631,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t dir    = tu_edpt_dir(ep_addr);
   const uint8_t ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
+  TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
 
   #if CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP != 0
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, true);
