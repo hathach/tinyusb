@@ -5,9 +5,9 @@ A minimal device that exposes a DFU runtime interface, advertising to the host t
 ## What it does
 
 - Exposes a single DFU runtime interface alongside normal operation.
-- On a DFU_DETACH request, it does not actually reboot into a bootloader; instead it speeds up the LED blink as an indicator (this example is intentionally minimal).
+- Its descriptor clears `bitWillDetach`, so the host follows DFU_DETACH with a USB reset, and TinyUSB invokes `tud_dfu_runtime_reboot_to_dfu_cb()` on that reset. The callback does not actually reboot into a bootloader; instead it speeds up the LED blink as an indicator (this example is intentionally minimal).
 - Provides a BOS / Microsoft OS 2.0 descriptor so Windows binds the WinUSB driver.
-- LED blink rate indicates bus state (not mounted / mounted / suspended / DFU detach).
+- LED blink rate indicates bus state (not mounted / mounted / suspended / reset after DFU detach).
 
 ## USB Descriptors
 
@@ -53,4 +53,4 @@ Request a switch to DFU mode:
 dfu-util -e
 ```
 
-This sends a DETACH request. Since the example is minimal it does not enter a real bootloader; it instead changes the LED to a fast blink as confirmation.
+This sends a DETACH request and then resets the device. Since the example is minimal it does not enter a real bootloader: the reset switches the LED to a fast blink, and the host then re-enumerates the same runtime device, whose mount callback restores the mounted blink rate, so the fast blink shows only briefly.
