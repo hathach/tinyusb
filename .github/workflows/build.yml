@@ -675,6 +675,7 @@ jobs:
           branch: ${{ github.base_ref }}
           name: sysview-.*
           name_is_regexp: true
+          search_artifacts: true
           path: base-sysview
         continue-on-error: true
 
