@@ -244,6 +244,16 @@
         "src/portable/microchip/pic32mz/dcd_pic32mz.c"
       ]
     },
+    "cfg-pse84": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PSE84"
+      },
+      "includes": [
+        "test/pvs/stubs/ifx"
+      ]
+    },
     "ch32f205r-r0": {
       "board": "ch32f205r-r0"
     },
