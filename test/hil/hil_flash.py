@@ -159,7 +159,6 @@ def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> sub
     port = p.esptool_port(flasher['uid'])
     fw_dir = Path(firmware).parent
     chip, flash_args = _esptool_inputs(fw_dir)
-    print(f'esptool {rt["version"]} ({rt["exe"]}) on {port}', flush=True)
     op = p.flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args, cwd=str(fw_dir),
                          timeout=_bound(timeout), run=_runner(run), esptool=rt['exe'])
     return judged(op, p.esptool_problem(op))
