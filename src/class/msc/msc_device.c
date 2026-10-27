@@ -657,7 +657,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
   return true;
 }
-#undef TU_ASSERT_SV
 
 /*------------------------------------------------------------------*/
 /* SCSI Command Process

@@ -947,7 +947,6 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     timeout_ms = 0;
   }
 }
-#undef TU_ASSERT_SV
 
 //--------------------------------------------------------------------+
 // Control transfer

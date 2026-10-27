@@ -189,7 +189,6 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 #ifndef TU_SV_INLINE_PREDEFINED
   #undef INLINE
 #endif
-#undef TU_SV_INLINE_PREDEFINED
 
 // Function-timing event ids, recorded as TU_SV_EVENT_BASE + id (see below).
 // Not registered as a SEGGER_SYSVIEW_MODULE (SystemView shows them as raw
