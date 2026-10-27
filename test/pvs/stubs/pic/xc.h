@@ -1,16 +1,11 @@
-// Analysis-only stand-in for Microchip XC16/XC32 <xc.h>: just the SFRs dcd_pic.c and dcd_pic32mz.c use.
+// Analysis-only stand-in for Microchip XC32 <xc.h>: just the SFRs dcd_pic.c and dcd_pic32mz.c use.
 // Bit positions follow the PIC32 Family Reference Manual Section 27 (USB OTG) and DS60001320H (PIC32MZ EF).
 #ifndef PVS_STUB_XC_H
 #define PVS_STUB_XC_H
 
 #include <stdint.h>
 
-#if CFG_TUSB_MCU == OPT_MCU_PIC24 || CFG_TUSB_MCU == OPT_MCU_DSPIC33
-typedef uint16_t xc_sfr_t;
-void __delay_ms(unsigned long ms); // XC16 libpic30.h
-#else
 typedef uint32_t xc_sfr_t;
-#endif
 
 #define XC_SFR(name) \
   extern volatile xc_sfr_t name; \
@@ -18,31 +13,19 @@ typedef uint32_t xc_sfr_t;
   extern volatile xc_sfr_t name##SET; \
   extern volatile xc_sfr_t name##INV
 
-#define XC_USB_REGS(n) \
-  XC_SFR(U##n##OTGIR); XC_SFR(U##n##OTGIE); XC_SFR(U##n##PWRC); XC_SFR(U##n##IR); XC_SFR(U##n##IE); \
-  XC_SFR(U##n##EIR); XC_SFR(U##n##STAT); XC_SFR(U##n##CON); XC_SFR(U##n##ADDR); XC_SFR(U##n##BDTP1); \
-  XC_SFR(U##n##BDTP2); XC_SFR(U##n##BDTP3); XC_SFR(U##n##EP0)
+XC_SFR(U1OTGIR); XC_SFR(U1OTGIE); XC_SFR(U1PWRC); XC_SFR(U1IR); XC_SFR(U1IE); XC_SFR(U1EIR); XC_SFR(U1STAT);
+XC_SFR(U1CON); XC_SFR(U1ADDR); XC_SFR(U1BDTP1); XC_SFR(U1BDTP2); XC_SFR(U1BDTP3); XC_SFR(U1EP0);
+XC_SFR(U2EP0);
+XC_SFR(IEC0); XC_SFR(IEC1); XC_SFR(IEC7);
+XC_SFR(IFS0); XC_SFR(IFS1); XC_SFR(IFS4); XC_SFR(IFS7);
 
-XC_USB_REGS(1);
-XC_USB_REGS(2);
-XC_SFR(IEC0); XC_SFR(IEC1); XC_SFR(IEC5); XC_SFR(IEC7);
-XC_SFR(IFS0); XC_SFR(IFS1); XC_SFR(IFS4); XC_SFR(IFS5); XC_SFR(IFS7);
-
-typedef struct { xc_sfr_t VBUSVDIF:1, :1, SESENDIF:1, SESVDIF:1, ACTVIF:1, LSTATEIF:1, T1MSECIF:1, IDIF:1; } U1OTGIRbits_t;
 typedef struct { xc_sfr_t USBPWR:1, USUSPND:1, :1, USBBUSY:1, USLPGRD:1, :2, UACTPND:1; } U1PWRCbits_t;
-typedef struct { xc_sfr_t URSTIE:1, UERRIE:1, SOFIE:1, TRNIE:1, IDLEIE:1, RESUMEIE:1, ATTACHIE:1, STALLIE:1; } U1IEbits_t;
 typedef struct { xc_sfr_t USBEN:1, PPBRST:1, RESUME:1, HOSTEN:1, USBRST:1, PKTDIS:1, SE0:1, JSTATE:1; } U1CONbits_t;
-typedef struct { xc_sfr_t PPB:2, :2, USBSIDL:1; } U1CNFG1bits_t;
 typedef struct { xc_sfr_t USBIE:1, USB1IE:1, USB2IE:1; } IECbits_t;
-typedef struct { xc_sfr_t USB1IF:1; } IFSbits_t;
 
-extern volatile U1OTGIRbits_t U1OTGIRbits;
 extern volatile U1PWRCbits_t U1PWRCbits;
-extern volatile U1IEbits_t U1IEbits;
 extern volatile U1CONbits_t U1CONbits;
-extern volatile U1CNFG1bits_t U1CNFG1bits;
-extern volatile IECbits_t IEC0bits, IEC1bits, IEC5bits, IEC7bits;
-extern volatile IFSbits_t IFS5bits;
+extern volatile IECbits_t IEC0bits, IEC1bits, IEC7bits;
 
 #define _U1OTGIR_ACTVIF_MASK        0x10u
 #define _U1OTGIE_ACTVIE_MASK        0x10u

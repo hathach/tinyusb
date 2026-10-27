@@ -10,7 +10,6 @@
         "CFG_TUD_RPI_PIO_USB": "1"
       },
       "expect": {
-        "CFG_TUD_RPI_PIO_USB": "1",
         "CFG_TUH_RPI_PIO_USB": "1"
       }
     },
@@ -118,10 +117,7 @@
       "flags": [
         "-U__has_attribute",
         "-Wno-error"
-      ],
-      "expect": {
-        "__CC_ARM": "1"
-      }
+      ]
     },
     "cfg-os-rtthread": {
       "base": "stm32f407disco",
@@ -131,10 +127,7 @@
       },
       "includes": [
         "test/pvs/stubs/rtthread"
-      ],
-      "expect": {
-        "CFG_TUSB_OS": "OPT_OS_RTTHREAD"
-      }
+      ]
     },
     "cfg-os-rtx4": {
       "base": "stm32f407disco",
@@ -144,10 +137,7 @@
       },
       "includes": [
         "test/pvs/stubs/rtx4"
-      ],
-      "expect": {
-        "CFG_TUSB_OS": "OPT_OS_RTX4"
-      }
+      ]
     },
     "cfg-os-zephyr": {
       "base": "stm32f407disco",
@@ -157,10 +147,7 @@
       },
       "includes": [
         "test/pvs/stubs/zephyr"
-      ],
-      "expect": {
-        "CFG_TUSB_OS": "OPT_OS_ZEPHYR"
-      }
+      ]
     },
     "cfg-os-mynewt": {
       "base": "stm32f407disco",
@@ -170,10 +157,7 @@
       },
       "includes": [
         "test/pvs/stubs/mynewt"
-      ],
-      "expect": {
-        "CFG_TUSB_OS": "OPT_OS_MYNEWT"
-      }
+      ]
     },
     "cfg-os-stk": {
       "base": "stm32f407disco",
@@ -183,19 +167,12 @@
       },
       "includes": [
         "test/pvs/stubs/stk"
-      ],
-      "expect": {
-        "CFG_TUSB_OS": "OPT_OS_STK"
-      }
+      ]
     },
     "cfg-os-stk-cpp": {
       "base": "stm32f407disco",
       "example": "dual/host_info_to_device_cdc",
       "defines": {
-        "CFG_TUSB_OS": "OPT_OS_STK",
-        "CFG_TUH_OSAL_STK_USE_CPP": "1"
-      },
-      "expect": {
         "CFG_TUSB_OS": "OPT_OS_STK",
         "CFG_TUH_OSAL_STK_USE_CPP": "1"
       }
@@ -210,14 +187,13 @@
         "test/pvs/stubs/pic"
       ],
       "flags": [
-        "-Wno-error"
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
       ],
       "sources": [
         "src/portable/microchip/pic/dcd_pic.c"
-      ],
-      "expect": {
-        "CFG_TUSB_MCU": "OPT_MCU_PIC32MX"
-      }
+      ]
     },
     "cfg-pic32mm": {
       "base": "stm32f407disco",
@@ -229,14 +205,13 @@
         "test/pvs/stubs/pic"
       ],
       "flags": [
-        "-Wno-error"
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
       ],
       "sources": [
         "src/portable/microchip/pic/dcd_pic.c"
-      ],
-      "expect": {
-        "CFG_TUSB_MCU": "OPT_MCU_PIC32MM"
-      }
+      ]
     },
     "cfg-pic32mk": {
       "base": "stm32f407disco",
@@ -248,14 +223,13 @@
         "test/pvs/stubs/pic"
       ],
       "flags": [
-        "-Wno-error"
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
       ],
       "sources": [
         "src/portable/microchip/pic/dcd_pic.c"
-      ],
-      "expect": {
-        "CFG_TUSB_MCU": "OPT_MCU_PIC32MK"
-      }
+      ]
     },
     "cfg-pic32mz": {
       "base": "stm32f407disco",
@@ -268,10 +242,7 @@
       ],
       "sources": [
         "src/portable/microchip/pic32mz/dcd_pic32mz.c"
-      ],
-      "expect": {
-        "CFG_TUSB_MCU": "OPT_MCU_PIC32MZ"
-      }
+      ]
     },
     "ch32f205r-r0": {
       "board": "ch32f205r-r0"

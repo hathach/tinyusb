@@ -13,7 +13,7 @@ A profile is one compile database:
 Each database is analyzed on its own; diagnostics GA:1-3 whose position is under src/
 are the findings. Coverage comes from preprocessing every src/ translation unit of every
 profile with its own command: a tracked src/ file is covered when some profile keeps a
-non-directive line of it; each `expect` macro must have that value in the profile's tusb.c.
+non-directive line of it; each `defines` and `expect` macro must have that value in the profile's tusb.c.
 `gaps` records what no profile can cover here, with a status (missing-toolchain,
 missing-dependency, not-applicable) and a reason; a used gap makes the verdict
 `incomplete`, an unexplained uncovered file makes it `failed`.
@@ -124,7 +124,7 @@ def example_of(entry):
         tokens = family_json.compile_tokens(entry)
         obj = next((tokens[i + 1] for i, tok in enumerate(tokens[:-1]) if tok == '-o'), '')
     # older CMake writes the object path relative to `directory`
-    m = re.search(r'/(device|host|dual|typec)/([^/]+)/CMakeFiles/', os.path.join(entry['directory'], obj))
+    m = re.search(r'/(device|host|dual|typec)/([^/]+)/CMakeFiles/', Path(entry['directory'], obj).as_posix())
     return f'{m.group(1)}/{m.group(2)}' if m else ''
 
 
@@ -245,7 +245,7 @@ def macro_values(entry):
 
 
 def check_expect(p, entries):
-    exp = p.get('expect')
+    exp = {**p.get('defines', {}), **p.get('expect', {})}
     if not exp:
         return
     tusb = tusb_entry(entries)

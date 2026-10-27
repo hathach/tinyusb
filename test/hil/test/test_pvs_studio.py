@@ -123,6 +123,21 @@ class TusbEntry(unittest.TestCase):
         self.assertIsNone(pvs.tusb_entry([entry('/opt/x/src/tusb.c')]))
 
 
+class CheckExpect(unittest.TestCase):
+    def check(self, p, got):
+        with mock.patch.object(pvs, 'macro_values', return_value=got):
+            pvs.check_expect(p, [entry(f'{SRC}/tusb.c')])
+
+    def test_defines_are_expected_too(self):
+        self.check({'defines': {'CFG_TUSB_OS': 'OPT_OS_STK'}}, {'CFG_TUSB_OS': 'OPT_OS_STK'})
+        with self.assertRaises(pvs.Failure):  # a config file overrode the -D
+            self.check({'defines': {'CFG_TUSB_OS': 'OPT_OS_STK'}}, {'CFG_TUSB_OS': 'OPT_OS_NONE'})
+
+    def test_expect_alone(self):
+        with self.assertRaises(pvs.Failure):
+            self.check({'expect': {'CFG_TUH_HUB': '2'}}, {})
+
+
 class BuildBoard(unittest.TestCase):
     def failure(self, out):
         with mock.patch.object(pvs.subprocess, 'run', return_value=mock.Mock(returncode=1, stdout=out, stderr='')):
