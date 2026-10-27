@@ -668,16 +668,27 @@ jobs:
           merge-multiple: true
 
       - name: Download base branch SystemView captures
-        uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
-        with:
-          workflow: build.yml
-          workflow_conclusion: ''
-          branch: ${{ github.base_ref }}
-          name: sysview-.*
-          name_is_regexp: true
-          search_artifacts: true
-          path: base-sysview
+        # The newest same-repo base-branch run with a sysview-* artifact (docs-only pushes skip HIL),
+        # bounded to the newest 30 runs: 1 list call + 1 artifact-list page per examined run + the download.
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?branch=$BASE_REF&per_page=30" \
+            --jq '.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY) | .id')
+          for run in $runs; do
+            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" \
+              --jq '[.artifacts[] | select((.expired | not) and (.name | startswith("sysview-")))] | length')
+            if [ "$found" -gt 0 ]; then
+              echo "Base SystemView captures from run $run"
+              # into a temp dir first so a failed download leaves base-sysview absent, never partial
+              gh run download "$run" -R "$GITHUB_REPOSITORY" -p 'sysview-*' -D base-sysview.tmp
+              mv base-sysview.tmp base-sysview
+              exit 0
+            fi
+          done
+          echo "No base SystemView captures in the newest 30 $BASE_REF runs"
 
       - name: Generate SystemView report
         id: report
