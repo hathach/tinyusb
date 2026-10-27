@@ -77,7 +77,7 @@ python3 test/hil/usbtest.py --serial <board-uid>
 
 Requirements on the host: `usbtest` kernel module (`CONFIG_USB_TEST`, `modprobe usbtest`),
 the `testusb` binary built from kernel `tools/usb/testusb.c`, and write access to the
-device's usbfs node (`tools/88-tinyusb.rules`) or sudo.
+device's usbfs node (`tools/88-tinyusb.rules`).
 
 Manual runs are possible but beware `testusb` defaults: always pass explicit `-s`/`-v`
 values that are multiples of 512 — the device streams whole max-size packets, so a
@@ -90,6 +90,6 @@ at full speed).
 # example: bulk write/read. -A <node> first: with -D alone testusb opens every
 # usbfs node and blocks on any stuck device's lock
 N=/dev/bus/usb/<BBB>/<DDD>
-sudo testusb -A $N -D $N -t 1 -c 128 -s 1024 -v 512
-sudo testusb -A $N -D $N -t 2 -c 128 -s 1024 -v 512
+testusb -A $N -D $N -t 1 -c 128 -s 1024 -v 512
+testusb -A $N -D $N -t 2 -c 128 -s 1024 -v 512
 ```
