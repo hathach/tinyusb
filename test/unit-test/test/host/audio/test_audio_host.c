@@ -1317,15 +1317,16 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
   TEST_ASSERT_TRUE(tuh_audio_mute_supported(0, 0));
 }
 
-// Without application reads the capture FIFO keeps its oldest frames and drops a new packet that no longer fits whole;
+// Without application reads a new packet that no longer fits drops just enough of the oldest whole frames;
 // the capture callback still reports the received length.
-void test_audio_host_capture_overrun_drops_newest_packet(void) {
+void test_audio_host_capture_overrun_drops_oldest_frames(void) {
   enum { PACKET = 96, FRAME = 3 };
   uint8_t        captured[CFG_TUH_AUDIO_STREAM_BUFSIZE];
   const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % FRAME);
   const uint8_t  fitting    = (uint8_t)(fifo_depth / PACKET);
-  const uint32_t kept       = (uint32_t)fitting * PACKET;
+  const uint16_t first_kept = (uint16_t)(fifo_depth - fitting * PACKET); // tail of packet 1 left after the overrun
   TEST_ASSERT_LESS_THAN(AUDIO_TEST_MAX_XFERS - 2, fitting);
+  TEST_ASSERT_LESS_THAN(PACKET, first_kept);
 
   mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
   TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
@@ -1334,7 +1335,7 @@ void test_audio_host_capture_overrun_drops_newest_packet(void) {
   complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
 
-  // packets 1..fitting fill the FIFO; packet fitting + 1 does not fit
+  // packets 1..fitting fit; packet fitting + 1 drops the head of packet 1
   for (uint8_t packet = 0; packet <= fitting; packet++) {
     TEST_ASSERT_NOT_NULL(edpt_xfer_buffer[packet]);
     memset(edpt_xfer_buffer[packet], packet + 1, PACKET);
@@ -1344,19 +1345,11 @@ void test_audio_host_capture_overrun_drops_newest_packet(void) {
     TEST_ASSERT_EQUAL_UINT16(PACKET, capture_cb_bytes);
   }
 
-  TEST_ASSERT_EQUAL_UINT32(kept / FRAME, tuh_audio_read_available(0, 0));
-  TEST_ASSERT_EQUAL_UINT32(kept / FRAME, tuh_audio_read(0, 0, captured, fifo_depth / FRAME));
-  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, PACKET);
-  TEST_ASSERT_EACH_EQUAL_UINT8(fitting, captured + kept - PACKET, PACKET);
-
-  // room again: the next packet is queued
-  memset(edpt_xfer_buffer[fitting + 1], fitting + 2, PACKET);
-  complete_edpt(0x81);
-  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, PACKET));
-  TEST_ASSERT_EQUAL_UINT16(PACKET, capture_cb_bytes);
-  TEST_ASSERT_EQUAL_UINT32(PACKET / FRAME, tuh_audio_read_available(0, 0));
-  TEST_ASSERT_EQUAL_UINT32(PACKET / FRAME, tuh_audio_read(0, 0, captured, PACKET / FRAME));
-  TEST_ASSERT_EACH_EQUAL_UINT8(fitting + 2, captured, PACKET);
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / FRAME, tuh_audio_read_available(0, 0));
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / FRAME, tuh_audio_read(0, 0, captured, fifo_depth / FRAME));
+  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, first_kept);
+  TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + first_kept, PACKET);
+  TEST_ASSERT_EACH_EQUAL_UINT8(fitting + 1, captured + fifo_depth - PACKET, PACKET);
 }
 
 void test_audio_host_maps_duplex_fus_declared_before_usb_terminals(void) {

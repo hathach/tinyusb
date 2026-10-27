@@ -196,8 +196,8 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
    * - ``CFG_TUH_AUDIO_STREAM_BUFSIZE``
      - ``1024`` bytes
      - Per-stream FIFO depth.  Playback sends silence when a complete packet
-       is unavailable; capture drops each newly received packet that does not
-       fit in the FIFO.
+       is unavailable; capture drops the oldest unread frames to make room for
+       a newly received packet.
 
 Increase the endpoint buffers for high channel counts, sample rates, or sample
 widths.  All buffers are statically allocated, so these maxima directly affect
@@ -236,8 +236,8 @@ every channel; obtain its byte size with ``tuh_audio_config_frame_size()``.
 may be shorter than requested.  Use ``tuh_audio_read_available()`` and
 ``tuh_audio_write_available()`` to service the FIFOs from the application task;
 the transfer callbacks are notifications and need not drive FIFO servicing.
-A received capture packet that does not fit in the FIFO's free space is
-dropped whole, so keep up with capture.
+When a received capture packet does not fit in the FIFO's free space, the
+oldest unread whole frames are dropped to make room, so keep up with capture.
 
 Callbacks and failures
 ----------------------
@@ -248,9 +248,7 @@ entity IDs or descriptor fields needed for later raw controls, but do not
 submit control transfers from this callback.
 
 ``tuh_audio_capture_cb()`` and ``tuh_audio_playback_cb()`` report successful
-isochronous transfers.  The capture callback's byte count is the received
-length, including a packet dropped because it did not fit in the FIFO; use
-``tuh_audio_read_available()`` for what was queued.  ``tuh_audio_event_cb()`` reports asynchronous start and
+isochronous transfers.  ``tuh_audio_event_cb()`` reports asynchronous start and
 stop completion and ``TUH_AUDIO_EVENT_XFER_FAILED``.  A failed stream has been
 stopped; the application may reconfigure or restart it.  Clear all saved
 indices and associated state in ``tuh_audio_umount_cb()`` because an index may
