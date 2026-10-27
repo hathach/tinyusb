@@ -156,7 +156,8 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 // SystemView
 //--------------------------------------------------------------------+
 
-#define TU_SYSVIEW_ENABLED (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW)
+// a role's level counts only when its stack is enabled: a no-USB example gets no SystemView code
+#define TU_SYSVIEW_ENABLED ((CFG_TUD_ENABLED && CFG_TUD_SYSVIEW) || (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW))
 
 // Category levels — overridable, must expand to a literal 1..4. Defined
 // unconditionally (not gated on TU_SYSVIEW_ENABLED) so usbd.h/usbh.h can
@@ -297,7 +298,8 @@ uint32_t tusb_sysview_cpu_freq(void);
 // ISR wrap for the shared tusb_int_handler entry, through tusb.c's depth counter
 // (tu_sysview_isr_enter() has why): a dual-role BSP's nested tud_/tuh_int_handler() wraps
 // record one span.
-#if (CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR) || (CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR)
+#if (CFG_TUD_ENABLED && CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR) || \
+    (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR)
   void tu_sysview_isr_enter(void);
   void tu_sysview_isr_exit(void);
   #define TU_SYSVIEW_ISR_ENTER() tu_sysview_isr_enter()

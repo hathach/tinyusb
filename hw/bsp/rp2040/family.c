@@ -261,7 +261,7 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-#if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+#if TU_SYSVIEW_ENABLED
 // RP2040 (Cortex-M0+) has no DWT cycle counter, so SystemView takes its timestamp from a hardware
 // timer (contract in src/tusb.c: free-running microseconds). The RP2040/RP2350
 // timer block is already a free-running 1 MHz counter started by the SDK at boot, so there is

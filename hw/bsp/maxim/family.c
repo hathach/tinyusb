@@ -49,7 +49,7 @@
 #include "board.h"
 #include "bsp/board_api.h"
 
-#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && (defined(MAX32665) || defined(MAX32666))
+#if TU_SYSVIEW_ENABLED && (defined(MAX32665) || defined(MAX32666))
 #include "sysview_max32_tmr.h"
 #endif
 
@@ -76,7 +76,7 @@ void board_init(void) {
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && (defined(MAX32665) || defined(MAX32666))
+#if TU_SYSVIEW_ENABLED && (defined(MAX32665) || defined(MAX32666))
   sysview_max32_tmr_start();
 #endif
 

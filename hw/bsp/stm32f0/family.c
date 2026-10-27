@@ -33,7 +33,7 @@
 #include "common/tusb_fifo.h"
 #include "board.h"
 
-#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+#if TU_SYSVIEW_ENABLED && defined(TIM2)
 // Cortex-M0/M0+ has no DWT cycle counter: SystemView's timestamp is TIM2, the only 32-bit timer,
 // free-running at 1 MHz (wraps every ~71 min). A part without TIM2 gets SystemView's link error.
 static inline void sysview_stm32_tim2_start(void) {
@@ -127,7 +127,7 @@ void board_init(void) {
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && defined(TIM2)
+#if TU_SYSVIEW_ENABLED && defined(TIM2)
   sysview_stm32_tim2_start();
 #endif
 

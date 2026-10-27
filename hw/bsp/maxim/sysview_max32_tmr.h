@@ -23,7 +23,7 @@
 // ARM_CM4F port -- MSDK's TMR-based tickless demos are never compiled here), so any instance
 // is free; override with -DSYSVIEW_MAX32_TMR=<0..5> if an application claims TMR0.
 //
-// Include once from family.c inside its `#if CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW` guard:
+// Include once from family.c inside its `#if TU_SYSVIEW_ENABLED` guard:
 // SEGGER_SYSVIEW_X_GetTimestamp*() below are non-static linker-visible hooks (SEGGER calls
 // them by name), so a second include in the same TU is a redefinition error.
 #ifndef TUSB_BSP_SYSVIEW_MAX32_TMR_H_

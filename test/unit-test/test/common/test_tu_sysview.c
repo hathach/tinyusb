@@ -11,8 +11,34 @@
 #include "unity.h"
 
 // Files to test
+#include "osal/osal.h"
+#include "tusb_fifo.h"
 #include "tusb.h"
+#include "usbd.h"
 TEST_SOURCE_FILE("tusb.c")
+TEST_SOURCE_FILE("usbd_control.c")
+
+// SystemView compiles only with a stack enabled, so tusb.c links the device stack against these
+#include "mock_dcd.h"
+
+uint32_t tusb_time_millis_api(void) {
+  return 0;
+}
+
+uint8_t const* tud_descriptor_device_cb(void) {
+  return NULL;
+}
+
+uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
+  (void) index;
+  return NULL;
+}
+
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+  (void) index;
+  (void) langid;
+  return NULL;
+}
 
 //--------------------------------------------------------------------+
 // SEGGER_SYSVIEW stub (test/support/fake_vendor/SEGGER_SYSVIEW.h declares these; not

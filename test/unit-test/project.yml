@@ -173,12 +173,11 @@
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
     # tusb.c's SystemView body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
-    # compile in when CFG_TUD_SYSVIEW is nonzero; every other test leaves it at the
-    # tusb_option.h default of 0 (undefined here) so this test is fully isolated. No rhport mode
-    # leaves tusb.c with its SystemView part alone, so the test links no stack.
+    # compile in when CFG_TUD_SYSVIEW is nonzero with the device stack enabled; every other test
+    # leaves it at the tusb_option.h default of 0 (undefined here) so this test is fully isolated.
     :test_tu_sysview:
       - CFG_TUD_SYSVIEW=1
-      - CFG_TUSB_RHPORT0_MODE=OPT_MODE_NONE
+      - CFG_TUD_MSC=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

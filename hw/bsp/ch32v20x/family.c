@@ -102,7 +102,7 @@ uint32_t tusb_time_millis_api(void) {
 }
 #endif
 
-#if (CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW) && CFG_TUSB_OS == OPT_OS_NONE
+#if TU_SYSVIEW_ENABLED && CFG_TUSB_OS == OPT_OS_NONE
 // SystemView timestamp in microseconds (src/tusb.c): RISC-V has no DWT, so it composes the 1 ms
 // system_ticks with SysTick CNT, which hardware reloads to 0 every millisecond.
 uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
@@ -126,7 +126,7 @@ uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
   last = t;
   return t;
 }
-#elif CFG_TUD_SYSVIEW || CFG_TUH_SYSVIEW
+#elif TU_SYSVIEW_ENABLED
 #error "SYSVIEW on ch32v20x needs the bare-metal SysTick tick; not ported for this RTOS yet"
 #endif
 

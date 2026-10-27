@@ -553,12 +553,6 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 #endif
 
-#endif // host or device enabled
-
-// SystemView builds with both stacks off too: a no-USB example's BSP ISR wraps and SystemView's
-// interrupt-id hook still link against it
-#include "tusb.h"
-
 #if TU_SYSVIEW_ENABLED
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
@@ -771,3 +765,5 @@ void tu_sysview_stack_report(void) {
 }
 
 #endif // TU_SYSVIEW_ENABLED
+
+#endif // host or device enabled
