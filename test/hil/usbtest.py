@@ -7,7 +7,7 @@ accordingly (see examples/device/usbtest/README.md).
 
 Requires: usbtest kernel module (CONFIG_USB_TEST), testusb binary (built from
 kernel tools/usb/testusb.c), write access to the device's usbfs node
-(tools/88-tinyusb.rules) or sudo.
+(tools/88-tinyusb.rules).
 
 Driver loading and binding, the bounded testusb case run and its verdict, and the
 upstream host controller check are agentrc's hil_usbtest (lib/agentrc, helper/agentrc.py);
@@ -69,7 +69,7 @@ def recovery_reserve(flasher: dict) -> int:
             + RECOVER_OVERHEAD)
 
 
-HELPER_TIMEOUT = hil_usbtest.HELPER_TIMEOUT   # sudo helpers' bound (dmesg/modprobe/setpci/tee)
+HELPER_TIMEOUT = hil_usbtest.HELPER_TIMEOUT   # the root helpers' bound (hil_root.py verbs)
 
 # Battery per tier, in run order: control sanity, simple bulk, queued, unaligned, unlink,
 # halt/toggle, throughput last.
@@ -150,9 +150,6 @@ def bind_usbtest(dev):
 
 
 set_pattern = hil_usbtest.set_pattern
-needs_sudo = hil_usbtest.needs_sudo
-
-sudo_forbidden = False   # set by main when a post-hang recovery was requested
 
 
 def run_case(num, dev, testusb, quick, timeout):
@@ -162,7 +159,7 @@ def run_case(num, dev, testusb, quick, timeout):
     result = {'num': num, 'name': CASE_NAMES[num], 'params': fs_hs}
     # HUNG carries `_proc`, the killed child main() watches after the recovery step
     result.update(hil_usbtest.run_case(testusb, dev['node'], num, fs_hs.split(), timeout,
-                                       wedge_confirm=WEDGE_CONFIRM_S, sudo_forbidden=sudo_forbidden))
+                                       wedge_confirm=WEDGE_CONFIRM_S))
     if result['status'] == 'PASS' and num in (27, 28) and result['secs'] > 0:
         opts = dict(zip(fs_hs.split()[::2], fs_hs.split()[1::2]))
         total = int(opts['-c']) * int(opts['-s']) * int(opts['-g'])
@@ -217,10 +214,6 @@ def recover_hang(board_json, fw, proc, dev):
     except Exception as e:
         print(f'recovery step raised: {e}', file=sys.stderr)
     time.sleep(RECOVER_SETTLE)     # let the freed ioctl unwind
-    if proc is None:
-        print('cannot confirm the recovery: testusb ran under sudo, so the '
-              'killed child is the wrapper', file=sys.stderr)
-        return False
     try:
         proc.wait(timeout=RECOVER_REAP)
     except subprocess.TimeoutExpired:
@@ -353,13 +346,6 @@ def main():
 
     # before touching the device: an incompatible host exits here, before any bind
     check_host_compat(dev)
-    # run_case would wrap testusb in sudo, where a HUNG case's reap only proves the wrapper
-    # exited, so the recovery the caller asked for could never be confirmed
-    global sudo_forbidden
-    sudo_forbidden = bool(args.recover_board)
-    if sudo_forbidden and needs_sudo(dev['node']):
-        sys.exit(f"{dev['node']} is not writable: testusb would run under sudo, where a "
-                 'post-hang recovery cannot be confirmed; install tools/88-tinyusb.rules')
 
     results = []
     unrecovered_hang = False

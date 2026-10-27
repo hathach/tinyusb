@@ -67,8 +67,10 @@ class Battery(unittest.TestCase):
         self.assertEqual(([c['status'] for c in data['cases']], rc > 0), (['FAIL'], True))
 
     def test_the_child_runs_through_the_harness_runner(self):
-        # agentrc's hil_tt itself, its child caught where hil_util.run_cmd is looked up per call
-        usbtest_harness.patch(self, hil_tt, 'tt_port', lambda b, s: ('/dev/bus/usb/005/058', 2))
+        # agentrc's hil_tt itself, its hil_root child caught where hil_util.run_cmd is looked up per call
+        usbtest_harness.patch(self, usbtest_harness, 'DEV', {**usbtest_harness.DEV, 'speed': '12', 'sysname': '5-1.2'})
+        usbtest_harness.patch(self, hil_tt.hil_root, 'tt_hub', lambda b: ('5-1', 2, 5, 58, (0, 0)))
+        usbtest_harness.patch(self, hil_tt.hil_root, 'INSTALLED', '/nonexistent/hil_usbtest')   # this checkout's copy
         usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
         usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
         spawned = []
@@ -76,7 +78,7 @@ class Battery(unittest.TestCase):
                               or subprocess.CompletedProcess(cmd, 124, '', None))
         _, data, _ = self.main('11', tt=hil_tt)
         (cmd, kw), = spawned
-        self.assertEqual(cmd[cmd.index('-I'):], ['-I', hil_tt.__file__, '/dev/bus/usb/005/058', '2'])
+        self.assertEqual(cmd[cmd.index('-I'):], ['-I', hil_tt.hil_root.__file__, 'reset-tt', '5-1.2'])
         self.assertIn(os.path.join('lib', 'agentrc', ''), hil_tt.__file__)
         self.assertEqual(kw, {'timeout': hil_tt.HELPER_TIMEOUT, 'quiet': True})
         self.assertEqual(data['cases'][0]['status'], 'FAIL')   # a timed-out helper is unconfirmed
@@ -114,8 +116,9 @@ class BeforeFlash(unittest.TestCase):
         intf.mkdir(parents=True)
         (intf / 'bInterfaceProtocol').write_text('02\n')
         (intf.parent / 'busnum').write_text('5\n')
-        (intf.parent / 'devnum').write_text('58\n')
-        usbtest_harness.patch(self, hil_tt, 'SYS_USB', Path(td.name))
+        for k, v in (('devnum', '58'), ('maxchild', '4'), ('idVendor', '05e3'), ('idProduct', '0610')):
+            (intf.parent / k).write_text(v + '\n')
+        usbtest_harness.patch(self, hil_tt.hil_root, 'SYS_USB', Path(td.name))
         usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
         usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
         spawned = []

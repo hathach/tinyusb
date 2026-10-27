@@ -84,15 +84,14 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
   takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
   confines the scan to the DUT (`hil_usbtest.py` does this; `-A` must come first, it clears `-D`).
-  When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
+  A hold on the DUT's own lock that ends within the 30 s
   watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
   that outlasts the watch becomes HUNG.
 - **The binding stays.** The firmware is Gadget Zero (`0525:a4a0`), an id in usbtest's static
   table, so usbtest binds it by itself; `usbtest.py` only reprobes an unbound interface (usbfs
   CONNECT) and never unbinds: that takes the uninterruptible device lock. Recovery of a HUNG case is one
   step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
-  cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`, so
-  under `sudo -n` (node not writable, the child is the wrapper) it stays set. A manual run
+  cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`. A manual run
   without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
   when the serial matches two devices or cannot be read after a case; stderr names which
   (`reported wedged: ...`).
@@ -122,7 +121,7 @@ under a timer.
 | 71                 | EPROTO: the device answered wrong or too slowly after host retries                         |
 | NOTRUN             | testusb opened the device and the kernel skipped the case: profile or parameter gate       |
 | FAIL "did not run" | testusb never reached the ioctl (open or usage error): read the case's captured `stderr`   |
-| HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
+| HUNG               | testusb not reaped 35 s after SIGKILL                                                      |
 | BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
 
 | Failing case(s)    | Exercises                                  | First suspect                                                              |

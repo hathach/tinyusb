@@ -35,7 +35,8 @@ class FakeDriver:
         self.writes, self.runs = [], []
         self.test = test
         for name, value in (('DRIVER', self.driver), ('SYS_USB', self.sys_usb),
-                            ('sysfs_write', self.sysfs_write), ('run', self.run)):
+                            ('sysfs_write', self.sysfs_write), ('run', self.run),
+                            ('node_writable', lambda node: True)):   # as the udev rule makes it
             self.patch(name, value)
 
     def patch(self, name, value):
@@ -43,8 +44,8 @@ class FakeDriver:
         self.test.addCleanup(setattr, module, name, getattr(module, name))
         setattr(module, name, value)
 
-    def sysfs_write(self, path, data):
-        self.writes.append((Path(path).name, data))
+    def sysfs_write(self, verb, *args):
+        self.writes.append((verb, *args))
         return True
 
     def run(self, cmd, **kw):
@@ -107,64 +108,39 @@ class StandaloneLeavesThePeersAlone(unittest.TestCase):
         self.assertTrue((ours / 'driver').is_symlink() and (peer / 'driver').is_symlink())
 
 
-class SudoTestusbRefusesRecovery(unittest.TestCase):
-    """Under sudo a HUNG case's reap proves only that the wrapper exited, so a battery that
-    was asked to recover must refuse to start rather than promise what it cannot confirm."""
+class UnwritableNodeRefuses(unittest.TestCase):
+    """testusb never runs under sudo: a node this user cannot write stops the battery before
+    any bind, and one that turns root-only between cases (a re-enumeration) fails that case."""
 
-    def run_main(self, *extra):
+    def test_main_refuses_before_any_case(self):
         ran = []
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
                                     ran.append(num) or {'num': num, 'name': 'x', 'params': '',
                                                         'status': 'PASS', 'detail': ''})
-        usbtest_harness.patch(self, usbtest, 'needs_sudo', lambda node: True)
-        def mutated(*a):
-            raise AssertionError('the refusal must come before any bind')
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: False)
 
-        usbtest_harness.patch(self, usbtest, 'bind_usbtest', mutated)
-        usbtest_harness.argv(self, *extra)
-        with redirect_stdout(usbtest_harness.Out()), redirect_stderr(io.StringIO()):
-            try:
-                usbtest.main()
-            except SystemExit as e:
-                return ran, str(e.code)
-        return ran, None
+        def mutated(*a, **k):
+            raise AssertionError('the refusal must come before any module load or CONNECT')
 
-    def test_a_recovery_request_refuses_before_any_case(self):
-        ran, err = self.run_main('--recover-board', '{"name": "b", "flasher": {"name": "openocd"}}')
-        self.assertEqual(ran, [])
-        self.assertIn('cannot be confirmed', err)
-
-    def test_without_a_recovery_request_sudo_still_runs(self):
-        usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
-        ran = []
-        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
-                                    ran.append(num) or {'num': num, 'name': 'x', 'params': '',
-                                                        'status': 'PASS', 'detail': ''})
-        usbtest_harness.patch(self, usbtest, 'needs_sudo', lambda node: True)
+        for name in ('load_usbtest', 'run', '_root_soft'):
+            usbtest_harness.patch(self, usbtest.hil_usbtest, name, mutated)
         usbtest_harness.argv(self)
         with redirect_stdout(usbtest_harness.Out()), redirect_stderr(io.StringIO()):
-            usbtest.main()
-        self.assertEqual(ran, [1])
+            with self.assertRaises(SystemExit) as cm:
+                usbtest.main()
+        self.assertEqual(ran, [])
+        self.assertIn("is not writable", str(cm.exception.code))
+        self.assertIn("udev rule", str(cm.exception.code))
 
-
-class SudoAfterAdmission(unittest.TestCase):
-    """A node that turns root-only after main's check (a re-enumeration between cases) must
-    still not get a sudo-wrapped testusb under a recovery request: run_case hands main's
-    decision to the provider on every case."""
-
-    def setUp(self):
-        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: True)
-        self.addCleanup(setattr, usbtest, 'sudo_forbidden', usbtest.sudo_forbidden)
-
-    def test_run_case_refuses_sudo_when_forbidden(self):
-        usbtest.sudo_forbidden = True
+    def test_run_case_fails_without_launching(self):
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: False)
         launched = []
         usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen',
                               lambda *a, **k: launched.append(a) or (_ for _ in ()).throw(AssertionError))
         r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 5)
         self.assertEqual((r['status'], launched), ('FAIL', []))
         self.assertEqual((r['num'], r['name']), (1, usbtest.CASE_NAMES[1]))
-        self.assertIn('refusing a sudo-wrapped testusb', r['detail'])
+        self.assertIn('udev rule', r['detail'])
 
 
 if __name__ == '__main__':
