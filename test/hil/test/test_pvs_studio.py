@@ -242,6 +242,15 @@ class Verdict(unittest.TestCase):
         self.assertEqual(v['verdict'], 'failed')
         self.assertEqual(v['failedProfiles'], {'b': 'boom'})
 
+    def test_duplicate_profile_results_fail_in_any_order(self):
+        m = dict(self.MATRIX, gaps={})
+        kept = {'src/tusb.c': 1, 'src/portable/x/dcd_x.c': 1, 'src/osal/osal_none.h': 1}
+        bad = result('a', status='failed', error='boom')
+        for a in ([bad, result('a', kept=kept)], [result('a', kept=kept), bad]):
+            v = self.v([*a, result('b', kept=kept)], matrix=m)
+            self.assertEqual(v['verdict'], 'failed')
+            self.assertEqual(v['failedProfiles'], {'a': 'duplicate profile results'})
+
     def test_failed_on_unexplained_uncovered(self):
         v = self.v([result('a'), result('b')])
         self.assertEqual(v['verdict'], 'failed')
@@ -290,6 +299,12 @@ class Select(unittest.TestCase):
             pvs.select(self.M, 'arm-gcc', '3/2')
         with self.assertRaises(pvs.Failure):
             pvs.select(self.M, names=['zz'])
+
+    def test_unknown_toolchain_or_empty_selection_fails(self):
+        with self.assertRaises(pvs.Failure):
+            pvs.select(self.M, 'arm-gccc')
+        with self.assertRaises(pvs.Failure):
+            pvs.select(self.M, 'riscv-gcc', '2/2')
 
     def test_ci_matrix_covers_every_group_once(self):
         legs = pvs.ci_matrix(self.M, 1)
@@ -391,6 +406,13 @@ class Run(unittest.TestCase):
                 mock.patch('builtins.print') as out:
             self.assertEqual(pvs.main(['run', '--profile', 'stm32f407disco', '--out', d]), 1)
         self.assertEqual(json.loads(out.call_args_list[-1].args[0])['verdict'], 'failed')
+
+    def test_unknown_toolchain_fails_before_running(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(pvs, 'run_profile') as rp, \
+                mock.patch('builtins.print') as out:
+            self.assertEqual(pvs.main(['run', '--toolchain', 'arm-gccc', '--out', d]), 1)
+        rp.assert_not_called()
+        self.assertIn('unknown toolchain', json.loads(out.call_args_list[-1].args[0])['error'])
 
     def test_stale_log_is_dropped_before_the_profile_runs(self):
         with tempfile.TemporaryDirectory() as d:

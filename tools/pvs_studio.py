@@ -340,6 +340,8 @@ def verdict(matrix, results, sources=None):
     have = {r['profile']: r for r in results}
     missing_profiles = sorted(expected - set(have))
     failed = {n: r.get('error', '') for n, r in have.items() if r['status'] != 'ok'}
+    names = [r['profile'] for r in results]
+    failed.update({n: 'duplicate profile results' for n in set(names) if names.count(n) > 1})
     kept = {}
     for r in have.values():
         for f, n in r['kept'].items():
@@ -396,12 +398,17 @@ def select(matrix, toolchain=None, shard=None, names=()):
     if names:
         need = set(names) | {prof[n]['base'] for n in names if 'base' in prof[n]}
         return [n for g in groups(matrix) for n in g if n in need]
+    toolchains = {toolchain_of(matrix, n) for n in prof}
+    if toolchain and toolchain not in toolchains:
+        raise Failure(f'unknown toolchain {toolchain}, expected one of {sorted(toolchains)}')
     gs = groups(matrix, toolchain)
     if shard:
         k, n = (int(x) for x in shard.split('/'))
         if not 1 <= k <= n:
             raise Failure(f'bad shard {shard}')
         gs = gs[k - 1::n]
+    if not gs:
+        raise Failure(f'no profile selected (toolchain {toolchain}, shard {shard})')
     return [n for g in gs for n in g]
 
 
