@@ -55,10 +55,10 @@ static dcd_data_t _dcd;
 // - Pipes 3 to 5: Bulk
 // - Pipes 6 to 9: Interrupt
 //
-// Note: for small mcu such as
-// - RA2A1: only pipe 4-7 are available, and no support for ISO
+// Note: for small mcu with USBFS mini module (e.g RA2A1, RA4E2, RA6E2, RA6T3)
+// only pipe 4-7 are available, and no support for ISO
 static unsigned find_pipe(unsigned xfer_type) {
-  #if defined(BSP_MCU_GROUP_RA2A1)
+  #ifdef RUSB2_RA_USBFS_PIPE4567_ONLY
   const uint8_t pipe_idx_arr[4][2] = {
       { 0, 0 }, // Control
       { 0, 0 }, // Isochronous not supported
