@@ -168,6 +168,10 @@
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    :test_bth_descriptor.c: # full name: the substring would also match test_bth_descriptor_no_voice
+      - CFG_TUD_BTH_ISO_ALT_COUNT=2
+    :test_bth_descriptor_no_voice:
+      - CFG_TUD_BTH_ISO_ALT_COUNT=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
