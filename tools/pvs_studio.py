@@ -6,8 +6,8 @@ A profile is one compile database:
   cmake-build/cmake-build-pvs-<name>, its full example set unless `args` narrows it;
 - `base`: a compile-only variant of another profile's database: the src/ entries of its
   `example`, each with `-DCFG_TUSB_CONFIG_FILE="<config>"`, the named `defines` replacing the
-  command's own and `-I` for each of `includes`, plus `sources` (src/ files that example does not compile)
-  cloned from its src/tusb.c entry. Every entry must pass the real compiler's
+  command's own, `-I` for each of `includes` and the extra compiler `flags`, plus `sources` (src/ files that
+  example does not compile) cloned from its src/tusb.c entry. Every entry must pass the real compiler's
   -fsyntax-only: compile-only evidence, not a firmware build.
 
 Each database is analyzed on its own; diagnostics GA:1-3 whose position is under src/
@@ -154,7 +154,8 @@ def variant_entries(p, entries):
         if twice:
             raise Failure(f'{e["file"]}: {twice} defined more than once, replacement is ambiguous')
         i = kept.index('-c') if '-c' in kept else len(kept) - 1
-        kept[i:i] = [f'-D{k}={v}' for k, v in defines.items()] + [f'-I{ROOT / d}' for d in p.get('includes', [])]
+        kept[i:i] = ([f'-D{k}={v}' for k, v in defines.items()] + [f'-I{ROOT / d}' for d in p.get('includes', [])]
+                     + p.get('flags', []))
         out.append({'directory': e['directory'], 'file': e['file'], 'arguments': kept})
     tusb = tusb_entry(out)
     for s in p.get('sources', []):

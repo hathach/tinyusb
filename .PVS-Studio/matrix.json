@@ -107,6 +107,172 @@
         "src/portable/template/hcd_template.c"
       ]
     },
+    "cfg-armcc": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "config": "test/pvs/template/tusb_config.h",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_NONE",
+        "__CC_ARM": "1"
+      },
+      "flags": [
+        "-U__has_attribute",
+        "-Wno-error"
+      ],
+      "expect": {
+        "__CC_ARM": "1"
+      }
+    },
+    "cfg-os-rtthread": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_RTTHREAD"
+      },
+      "includes": [
+        "test/pvs/stubs/rtthread"
+      ],
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_RTTHREAD"
+      }
+    },
+    "cfg-os-rtx4": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_RTX4"
+      },
+      "includes": [
+        "test/pvs/stubs/rtx4"
+      ],
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_RTX4"
+      }
+    },
+    "cfg-os-zephyr": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_ZEPHYR"
+      },
+      "includes": [
+        "test/pvs/stubs/zephyr"
+      ],
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_ZEPHYR"
+      }
+    },
+    "cfg-os-mynewt": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_MYNEWT"
+      },
+      "includes": [
+        "test/pvs/stubs/mynewt"
+      ],
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_MYNEWT"
+      }
+    },
+    "cfg-os-stk": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_STK"
+      },
+      "includes": [
+        "test/pvs/stubs/stk"
+      ],
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_STK"
+      }
+    },
+    "cfg-os-stk-cpp": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_STK",
+        "CFG_TUH_OSAL_STK_USE_CPP": "1"
+      },
+      "expect": {
+        "CFG_TUSB_OS": "OPT_OS_STK",
+        "CFG_TUH_OSAL_STK_USE_CPP": "1"
+      }
+    },
+    "cfg-pic32mx": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MX"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ],
+      "expect": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MX"
+      }
+    },
+    "cfg-pic32mm": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MM"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ],
+      "expect": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MM"
+      }
+    },
+    "cfg-pic32mk": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MK"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ],
+      "expect": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MK"
+      }
+    },
+    "cfg-pic32mz": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MZ"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "sources": [
+        "src/portable/microchip/pic32mz/dcd_pic32mz.c"
+      ],
+      "expect": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MZ"
+      }
+    },
     "ch32f205r-r0": {
       "board": "ch32f205r-r0"
     },
@@ -369,42 +535,6 @@
     "src/class/cdc/cdc_rndis.h": {
       "status": "not-applicable",
       "reason": "orphan header: no source or example includes it"
-    },
-    "src/common/tusb_compiler.h": {
-      "status": "missing-toolchain",
-      "reason": "its __CC_ARM branch needs Arm Compiler 5 (armcc); not available in CI or on the dev host"
-    },
-    "src/osal/osal_mynewt.h": {
-      "status": "missing-dependency",
-      "reason": "needs Apache Mynewt os/os.h; no Mynewt kernel in tools/get_deps.py"
-    },
-    "src/osal/osal_rtthread.h": {
-      "status": "missing-dependency",
-      "reason": "needs the RT-Thread kernel rtthread.h; lib/rt-thread holds only the TinyUSB port glue"
-    },
-    "src/osal/osal_rtx4.h": {
-      "status": "missing-dependency",
-      "reason": "needs Keil RTX4 rtl.h; not available under tools/get_deps.py"
-    },
-    "src/osal/osal_stk.h": {
-      "status": "missing-dependency",
-      "reason": "needs SuperTinyKernel stk_c.h; not in tools/get_deps.py"
-    },
-    "src/osal/osal_zephyr.h": {
-      "status": "missing-dependency",
-      "reason": "needs Zephyr zephyr/kernel.h (ZEPHYR_BASE); no Zephyr tree in tools/get_deps.py"
-    },
-    "src/portable/microchip/pic/dcd_pic.c": {
-      "status": "missing-toolchain",
-      "reason": "needs Microchip XC16/XC32 <xc.h>; no BSP family and no XC toolchain in CI or on the dev host"
-    },
-    "src/portable/microchip/pic32mz/dcd_pic32mz.c": {
-      "status": "missing-toolchain",
-      "reason": "hw/bsp/pic32mz is make-only and needs XC32 <xc.h>; no XC toolchain in CI or on the dev host"
-    },
-    "src/portable/microchip/pic32mz/usbhs_registers.h": {
-      "status": "missing-toolchain",
-      "reason": "included only by dcd_pic32mz.c, which needs XC32 <xc.h>"
     }
   }
 }

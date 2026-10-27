@@ -92,6 +92,12 @@ class Variant(unittest.TestCase):
         self.assertLess(args.index('-DCFG_TUSB_MCU=OPT_MCU_NONE'), args.index('-c'))
         self.assertIn(f'-I{REPO}/examples/device/cdc_msc/src', args)  # example include dir kept
 
+    def test_flags_follow_the_base_flags(self):
+        base = [entry(f'{SRC}/tusb.c', defines=('-Werror',))]
+        args = pvs.variant_entries({'example': 'device/cdc_msc', 'flags': ['-Wno-error']}, base)[0]['arguments']
+        self.assertLess(args.index('-Werror'), args.index('-Wno-error'))
+        self.assertLess(args.index('-Wno-error'), args.index('-c'))
+
     def test_twice_defined_is_ambiguous(self):
         base = [entry(f'{SRC}/tusb.c', defines=('-DA=1', '-DA=2'))]
         with self.assertRaises(pvs.Failure):

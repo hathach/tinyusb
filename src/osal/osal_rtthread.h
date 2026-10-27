@@ -156,7 +156,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, v
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const *data, bool in_isr) {
   (void) in_isr;
-  return rt_mq_send(qhdl, (void *)data, qhdl->msg_size) == RT_EOK;
+  // v4.0 takes a non-const buffer
+  return rt_mq_send(qhdl, (void *) (uintptr_t) data, qhdl->msg_size) == RT_EOK;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
