@@ -188,6 +188,10 @@
       - CFG_TUD_SYSVIEW=0
       - CFG_TUH_SYSVIEW=1
       - CFG_TUD_MSC=0
+    :test_dfu_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_DFU=1
+      - CFG_TUD_DFU_XFER_BUFSIZE=64
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
