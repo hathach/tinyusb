@@ -28,7 +28,7 @@
         },
         {
             "name": "lpcxpresso43s67",
-            "uid": "08F000044528BAAA8D858F58C50700F5",
+            "uid": "0C60020145401EAA0E4B6C64C40700F5",
             "tests": {
                 "device": true, "host": false, "dual": false
             },
