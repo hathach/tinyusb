@@ -12,7 +12,7 @@ import argparse, glob, html, json, os, re, signal, sys
 SCRIPTS = "skills/target-debug/scripts/"
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
 SYSVIEW_CHANNEL = 1
-# absolute event id -> name for sysview_report.py --event-map; test_sysview_ci checks it
+# absolute event id -> name for sysview_report.py --event-map; test_hil_sysview_ci checks it
 # against tusb_debug.h's TU_SV_ID_* enum
 EVENT_MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helper", "sysview_events.json")
 WORKLOAD_EVENT_NAME = "tud_cdc_read"
@@ -112,19 +112,18 @@ def fmt_delta(b, p):
 
 def metric_cell(side_json, m, fmt):
     reason = gate(side_json, m)
-    if reason in (None,):
+    if reason is None:
         return fmt(m), None
-    if reason == "new":
-        return None, "new"
-    if reason == "failed":
-        return None, "failed"
+    if reason in ("new", "failed"):
+        return None, reason
     return f"– ⚠︎ {reason}", reason
 
 def missing_reason(side_j, key):
     """Why a row the other side has is absent here: "gone" only from a usable capture that
     measured the table (sysview_report.py nulls a table it cannot support)."""
-    if gate(side_j, None):
-        return gate(side_j, None)
+    reason = gate(side_j, None)
+    if reason:
+        return reason
     return "not measured" if ((side_j or {}).get("metrics") or {}).get(key) is None else "gone"
 
 def row(label, bmap, pmap, name, base_j, pr_j, key="p50_us", unit=" µs", pr_missing="gone"):
@@ -178,7 +177,8 @@ def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, pr_missing="gone"):
     return bcell, pcell, delta
 
 def board_section(name, base_j, pr_j, base_dropped=None):
-    live_window_s = (pr_j.get("capture") or {}).get("live_window_s")
+    pm_all = pr_j.get("metrics") or {}
+    live_window_s = pm_all.get("live_window_s", (pr_j.get("capture") or {}).get("live_window_s"))
     heading = f"### {name}" + (f" — live {live_window_s:.1f} s" if live_window_s is not None else "")
     if base_dropped:
         # The report header states the PR-side config only, so a dropped baseline has to say
@@ -189,7 +189,6 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         # one inert line: build and tool output must not add headings, fences or HTML
         err = html.escape(re.sub(r"\s+", " ", str(pr_j["error"])).strip()).replace("`", "&#96;")
         return "\n".join(lines + [f"capture failed: {err}", ""])
-    pm_all = pr_j.get("metrics") or {}
     if not pm_all:
         # a malformed capture JSON must not abort the whole report
         return "\n".join(lines + ["capture failed: missing metrics", ""])
@@ -626,7 +625,7 @@ def decode_one(board, commit, out_dir, capture, deadline=None):
         if r.returncode:
             return board_result(board, commit, error=f"decode failed: {r.stderr[-200:]}")
         m = json.loads(r.stdout)
-        info = {"route": "openocd-rtt", "poll_ms": 1, "live_window_s": m.get("live_window_s"),
+        info = {"live_window_s": m.get("live_window_s"),
                 "workload_ok": capture["workload_ok"], "park_error": capture.get("park_error")}
         return board_result(board, commit, metrics=m, capture_info=info)
     except TimeoutError as e:

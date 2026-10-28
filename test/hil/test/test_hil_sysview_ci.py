@@ -12,7 +12,7 @@ def metrics(overflow=0, funcs=None, isr=None, contexts=None, stack=None, live_wi
             "warnings": []}
 
 def board_json(board="stm32f407disco", err=None, workload_ok=None, **mk):
-    cap = {"route": "openocd-rtt", "poll_ms": 1, "live_window_s": 14.2}
+    cap = {"live_window_s": 14.2}
     if workload_ok is not None:
         cap["workload_ok"] = workload_ok
     return {"board": board, "commit": "abc1234", "example": "device/cdc_msc",
@@ -206,6 +206,21 @@ class Report(unittest.TestCase):
     def test_heading_shows_live_window(self):
         md = self.go([board_json()], [board_json()])
         self.assertIn("### stm32f407disco — live 14.2 s", md)
+
+    def test_heading_prefers_metrics_live_window(self):
+        md = self.go([], [board_json(live_window_s=12.3)])
+        self.assertIn("### stm32f407disco — live 12.3 s", md)
+
+    def test_heading_falls_back_when_metrics_window_is_missing(self):
+        for m in (None, {}, {"overflow": 0}):
+            with self.subTest(metrics=m):
+                j = board_json()
+                j["metrics"] = m
+                self.assertIn("### stm32f407disco — live 14.2 s", self.go([], [j]))
+
+    def test_heading_omits_unknown_metrics_window(self):
+        md = self.go([], [board_json(live_window_s=None)])
+        self.assertIn("### stm32f407disco\n", md)
 
     # ---- base-only rows (present in base, absent from PR) must render, not vanish ----
 
@@ -455,14 +470,23 @@ class EventMap(unittest.TestCase):
         with open(os.path.join(root, "src", "common", "tusb_debug.h")) as f:
             header = f.read()
         base = int(re.search(r"#define TU_SV_EVENT_BASE (\d+)", header).group(1))
-        enum = re.search(r"TU_SV_ID_TUD_TASK = 0,(.*?)TU_SV_ID_COUNT", header, re.S).group(1)
-        count = 1 + len(re.findall(r"TU_SV_ID_\w+,", enum))
-        # the header's own "<id> <name>" list above the enum
-        listed = dict(re.findall(r"(\d+) (\w+)[,\n]", re.search(r"--event-map\):\n((?://.*\n)+)", header).group(1)))
+        expected = {
+            "TU_SV_ID_TUD_TASK": "tud_task",
+            "TU_SV_ID_USBD_XFER": "usbd_edpt_xfer",
+            "TU_SV_ID_DCD_XFER": "dcd_edpt_xfer",
+            "TU_SV_ID_CDC_FLUSH": "tud_cdc_write_flush",
+            "TU_SV_ID_CDC_READ": "tud_cdc_read",
+            "TU_SV_ID_MSC_XFER": "mscd_xfer_cb",
+            "TU_SV_ID_TUH_TASK": "tuh_task",
+            "TU_SV_ID_HCD_XFER": "hcd_edpt_xfer",
+        }
+        enum = re.search(r"typedef enum \{([^{}]*TU_SV_ID_COUNT[^{}]*)\}", header, re.S).group(1)
+        enum = re.sub(r"//[^\n]*|/\*.*?\*/", "", enum, flags=re.S)
+        members = [member.strip() for member in enum.split(",") if member.strip()]
+        self.assertEqual(members, ["TU_SV_ID_TUD_TASK = 0", *list(expected)[1:], "TU_SV_ID_COUNT"])
         with open(sysview_ci.EVENT_MAP) as f:
             names = json.load(f)
-        self.assertEqual(names, {str(base + int(i)): n for i, n in listed.items()})
-        self.assertEqual(sorted(int(i) for i in names), list(range(base, base + count)))
+        self.assertEqual(names, {str(base + i): label for i, label in enumerate(expected.values())})
 
     def test_workload_anchor_is_tud_cdc_read(self):
         with open(sysview_ci.EVENT_MAP) as f:

@@ -73,15 +73,14 @@ repos:
   # pre-commit CI.
   # No types_or: the rig rosters (*.json) are inputs too.
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
-  # and md5-checks the logo header from there as its MTP fixtures. The test_[hs][iy]* pattern
-  # is test_hil*.py plus test_sysview_ci.py.
+  # and md5-checks the logo header from there as its MTP fixtures.
   # tools/get_deps.py is in scope: it holds the lib/agentrc pin the suites check.
   # language: python so pre-commit's venv supplies pyusb and pyserial, which the rig
   # scripts under test import.
   - id: hil-test
     name: hil-test
     files: ^(test/hil/|examples/device/mtp/src/|tools/get_deps\.py$|\.claude/skills/hil-contract/scripts/hil_remote\.py$)
-    entry: python3 -m unittest discover -s test/hil/test -p 'test_[hs][iy]*.py'
+    entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: python
     additional_dependencies: [pyusb, pyserial]

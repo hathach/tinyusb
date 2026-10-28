@@ -675,6 +675,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
         run: |
+          if ! python3 -c 'import glob, sys; sys.exit(not glob.glob("pr-sysview/**/sysview-*.json", recursive=True))'; then
+            exit 0
+          fi
           # event=push server-side: fork PRs from a branch named $BASE_REF would otherwise take window slots
           runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
             -f branch="$BASE_REF" -f event=push -F per_page=30 \

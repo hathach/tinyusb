@@ -1091,6 +1091,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_reset_order.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_stale_setup.py',
+            'test/hil/test/test_hil_sysview_ci.py',
             'test/hil/test/test_hil_teardown_stress.py',
             'test/hil/test/test_hil_tty_raw.py',
             'test/hil/test/test_hil_usbtest_id.py',
@@ -1101,7 +1102,6 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/test_setup_toolchain.py',
-            'test/hil/test/test_sysview_ci.py',
             'test/hil/test/usbtest_harness.py',
         ], 'test/hil/test/ gained or lost a file; it is carved out of rule 2, so confirm '
            'the rig still does not read anything in there before updating this list')
