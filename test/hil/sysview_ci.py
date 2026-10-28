@@ -126,11 +126,20 @@ def missing_reason(side_j, key):
         return reason
     return "not measured" if ((side_j or {}).get("metrics") or {}).get(key) is None else "gone"
 
-def row(label, bmap, pmap, name, base_j, pr_j, key="p50_us", unit=" µs", pr_missing="gone"):
+def base_missing_reason(base_j, key):
+    """missing_reason() for the base side, where a row the measured table lacks is "new"."""
+    reason = missing_reason(base_j, key)
+    return "new" if reason == "gone" else reason
+
+def row(label, bmap, pmap, name, base_j, pr_j, key="p50_us", unit=" µs", pr_missing="gone",
+        base_missing="new"):
     bm, pm = bmap.get(name), pmap.get(name)
     if pm is None and bm is None:
         return None
     fmt = lambda m: f"{m[key]:.1f}{unit}" if m else "—"
+    if bm is None and base_missing != "new":
+        pcell, _ = metric_cell(pr_j, pm, fmt)
+        return f"| {label} | – ⚠︎ {base_missing} | {pcell or '—'} | — |"
     bcell, bgate = metric_cell(base_j, bm, fmt) if bm else ("—", None)
     if pm is None and pr_missing != "gone":
         return f"| {label} | {bcell or '—'} | – ⚠︎ {pr_missing} | — |"
@@ -142,7 +151,7 @@ def row(label, bmap, pmap, name, base_j, pr_j, key="p50_us", unit=" µs", pr_mis
         delta = fmt_delta(bm and bm[key], pm and pm[key])
     return f"| {label} | {bcell} | {pcell} | {delta} |"
 
-def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, pr_missing="gone"):
+def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, pr_missing="gone", base_missing="new"):
     """Render (base_cell, pr_cell, delta) for a base/PR value pair that has no per-sample "n"
     of its own (contexts' cpu_pct, stack's bytes_used) -- gated through gate() the same as every
     duration metric, passing name_metrics=None so gate()'s n<GATE_MIN_N check no-ops.
@@ -160,7 +169,7 @@ def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, pr_missing="gone"):
             return fmt(b), "—", "**gone**"
         return f"– ⚠︎ {breason}", "—", "—"  # base itself unusable -- can't confirm "gone" either
     preason = gate(pr_j, None)
-    breason = "new" if b is None else gate(base_j, None)
+    breason = base_missing if b is None else gate(base_j, None)
     pcell = fmt(p) if preason is None else ("—" if preason == "new" else f"– ⚠︎ {preason}")
     if breason is None:
         bcell = fmt(b)
@@ -209,8 +218,8 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         # absent) are per-half reasons here too, same precedence as an ordinary gate() withhold.
         preason50 = missing_reason(pr_j, "isr") if pm is None else gate(pr_j, pm)
         preason99 = missing_reason(pr_j, "isr") if pm is None else gate_p99(pr_j, pm)
-        breason50 = "new" if bm is None else gate(base_j, bm)
-        breason99 = "new" if bm is None else gate_p99(base_j, bm)
+        breason50 = base_missing_reason(base_j, "isr") if bm is None else gate(base_j, bm)
+        breason99 = base_missing_reason(base_j, "isr") if bm is None else gate_p99(base_j, bm)
         def _half(m, reason, key):
             if reason is None:
                 return f"{m[key]:.1f}"
@@ -240,7 +249,8 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     order += sorted(set(bfn) - set(pfn))
     for fname in order:
         r = row(f"`{fname}` p50", bfn, pfn, fname, base_j, pr_j,
-                pr_missing=missing_reason(pr_j, "functions"))
+                pr_missing=missing_reason(pr_j, "functions"),
+                base_missing=base_missing_reason(base_j, "functions"))
         if r: lines.append(r)
     # CPU load rows prefer cpu_pct_workload -- busy time summed from the raw scheduling
     # events over the workload window (span of tud_cdc_read activity), the number that
@@ -250,6 +260,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     use_wl = bool(pwl)
     bctx, pctx = (bwl, pwl) if use_wl else \
         (by_name(bm_all.get("contexts")), by_name(pm_all.get("contexts")))
+    ctx_key = "contexts_workload" if use_wl else "contexts"
     key = "cpu_pct_workload" if use_wl else "cpu_pct"
     label = "CPU load, workload win" if use_wl else "CPU load, whole recording"
     for cname in sorted(set(pctx) | set(bctx)):
@@ -260,7 +271,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
                 # sysview_report.py nulls a load it cannot compute
                 lambda b_, p_: ("—" if None in (b_[key], p_[key]) or abs(p_[key] - b_[key]) < 0.1
                                 else f"{p_[key]-b_[key]:+.1f} pt"),
-                missing_reason(pr_j, "contexts_workload" if use_wl else "contexts"))
+                missing_reason(pr_j, ctx_key), base_missing_reason(base_j, ctx_key))
             lines.append(f"| {label} ({cname}) | {bcell} | {pcell} | {d} |")
     bst, pst = by_name(bm_all.get("stack")), by_name(pm_all.get("stack"))
     for sname in sorted(set(pst) | set(bst)):
@@ -269,7 +280,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
             base_j, pr_j, b, sm, lambda m: f"{m['bytes_used']} B",
             lambda b_, p_: ("—" if b_['bytes_used'] == p_['bytes_used'] else
                             f"{p_['bytes_used']-b_['bytes_used']:+d} B"),
-            missing_reason(pr_j, "stack"))
+            missing_reason(pr_j, "stack"), base_missing_reason(base_j, "stack"))
         lines.append(f"| `{sname}` stack high-water | {bcell} | {pcell} | {d} |")
     # chart: occupancy order, PR-gate-eligible only, capped; base series only if
     # every charted function is ungated on the base side too (no holes in a mermaid series).

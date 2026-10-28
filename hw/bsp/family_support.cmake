@@ -470,7 +470,9 @@ function(family_configure_common TARGET RTOS)
     if (NOT EXISTS ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
       message(FATAL_ERROR "SYSVIEW needs lib/SystemView: run python3 tools/get_deps.py lib/SystemView")
     endif ()
-    set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
+    if (NOT DEFINED SYSVIEW_FREERTOS_MAX_NOF_TASKS)
+      set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
+    endif ()
     if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
       # a family's SYSVIEW_BUFFER_SIZE_DEFAULT: RAM-rich ones set 65536, as at 4096 mimxrt1064_evk lost
       # 96.7% of ISR exit contexts at ~109 Hz

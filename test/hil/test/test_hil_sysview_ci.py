@@ -191,6 +191,29 @@ class Report(unittest.TestCase):
         self.assertNotIn("**gone**", md.split("<sub>")[0])
         self.assertIn("| `tud_task` p50 | 5.0 µs | – ⚠︎ no time base | — |", md)
 
+    def test_unmeasured_base_rows_are_not_new(self):
+        base = board_json()
+        for k in ("functions", "isr", "contexts", "stack"):
+            base["metrics"][k] = None
+        pr = board_json(funcs=[F("tud_task", 22000, 7.4)], isr=[I("ISR 83", 24000, 6.7)],
+                        contexts=[{"name": "usbd", "cpu_pct": 7.0}],
+                        stack=[{"name": "cdc", "bytes_used": 300}])
+        table = self.go([base], [pr]).split("```mermaid")[0]
+        self.assertNotIn("new", table)
+        self.assertIn("| `tud_task` p50 | – ⚠︎ not measured | 7.4 µs | — |", table)
+        self.assertIn("| ISR 83 p50 / p99 | – ⚠︎ not measured / – ⚠︎ not measured / "
+                      "– ⚠︎ not measured µs | 6.7 / 9.7 / 60.3 µs | — / — |", table)
+        self.assertIn("| CPU load, whole recording (usbd) | – ⚠︎ not measured | 7.0 % | — |", table)
+        self.assertIn("| `cdc` stack high-water | – ⚠︎ not measured | 300 B | — |", table)
+
+    def test_row_missing_from_measured_base_table_is_new(self):
+        pr = board_json(funcs=[F("tud_task", 22000, 7.4)], isr=[I("ISR 83", 24000, 6.7)],
+                        stack=[{"name": "cdc", "bytes_used": 300}])
+        md = self.go([board_json()], [pr])
+        self.assertIn("| `tud_task` p50 | — | 7.4 µs | new |", md)
+        self.assertIn("| ISR 83 p50 / p99 | — / — / — µs | 6.7 / 9.7 / 60.3 µs | new / new |", md)
+        self.assertIn("| `cdc` stack high-water | — | 300 B | new |", md)
+
     def test_report_warnings_are_shown(self):
         j = board_json()
         j["metrics"]["warnings"] = ["SystemView showed 3 error dialog(s)"]
