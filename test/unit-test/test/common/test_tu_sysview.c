@@ -88,6 +88,21 @@ void tearDown(void) {
 // Tests
 //--------------------------------------------------------------------+
 
+extern tusb_role_t _tusb_rhport_role[];
+
+// tusb_int_handler() records the span only for an interrupt (in_isr true), not a task-context call
+void test_int_handler_records_span_only_in_isr(void) {
+  _tusb_rhport_role[0] = TUSB_ROLE_DEVICE;
+  dcd_int_handler_Expect(0);
+  tusb_int_handler(0, true);
+  dcd_int_handler_Expect(0);
+  tusb_int_handler(0, false);
+  _tusb_rhport_role[0] = TUSB_ROLE_INVALID;
+
+  TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
+  TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
+}
+
 // Simple single self-wrapped call: ENTER, EXIT -- sanity check, not the interesting case.
 void test_single_pair_records_once(void) {
   tu_sysview_isr_enter();

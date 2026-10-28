@@ -130,7 +130,12 @@ bool tusb_inited(void) {
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
   // ports may call this from task context (in_isr false): no ISR span then
-  if (in_isr) { TU_SYSVIEW_ISR_ENTER(); }
+  bool sv_span = in_isr;
+#if CFG_TUD_ENABLED && CFG_TUH_ENABLED && (TUD_SYSVIEW_ISR_TRACED != TUH_SYSVIEW_ISR_TRACED)
+  // dual-role with one role traced: the other role's interrupt records no span
+  sv_span = sv_span && (_tusb_rhport_role[rhport] == (TUD_SYSVIEW_ISR_TRACED ? TUSB_ROLE_DEVICE : TUSB_ROLE_HOST));
+#endif
+  if (sv_span) { TU_SYSVIEW_ISR_ENTER(); }
 
   #if CFG_TUD_ENABLED
   if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
@@ -145,7 +150,7 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   }
   #endif
 
-  if (in_isr) { TU_SYSVIEW_ISR_EXIT(); }
+  if (sv_span) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 bool tusb_deinit(uint8_t rhport) {
@@ -727,40 +732,42 @@ void tu_sysview_stack_report(void) {
   #ifndef SYSVIEW_FREERTOS_MAX_NOF_TASKS
   #define SYSVIEW_FREERTOS_MAX_NOF_TASKS 16
   #endif
-  // static: 16 TaskStatus_t is ~700 bytes, too much for usbd's stack. Single writer (usbd's
-  // periodic report, or usbh's in a host-only build), so no locking.
+  // static: 16 TaskStatus_t is ~700 bytes, too much for usbd's stack
   static TaskStatus_t status[SYSVIEW_FREERTOS_MAX_NOF_TASKS];
   static char names[SYSVIEW_FREERTOS_MAX_NOF_TASKS][configMAX_TASK_NAME_LEN];
   // One task per call: a burst of SendTaskInfo() calls (each locking and writing the RTT ring)
   // dropped same54_xplained off the bus.
   static UBaseType_t next_idx = 0;
-  // The snapshot suspends the scheduler to scan every stack, so take it once per lap. The scheduler
-  // stays suspended while names are copied: vTaskDelete() of another task frees its TCB at once.
   static UBaseType_t n = 0;
+  // usbd's and usbh's tasks both report, so the scheduler stays suspended across the whole report
+  // (single-core ports only). It also keeps vTaskDelete() of another task from freeing its TCB
+  // while its name is copied.
+  vTaskSuspendAll();
   if (next_idx == 0) {
-    vTaskSuspendAll();
+    // the snapshot scans every stack, so take it once per lap
     n = uxTaskGetSystemState(status, TU_ARRAY_SIZE(status), NULL);
     for (UBaseType_t t = 0; t < n; t++) {
       strncpy(names[t], status[t].pcTaskName, configMAX_TASK_NAME_LEN - 1);
       names[t][configMAX_TASK_NAME_LEN - 1] = '\0';
     }
-    (void) xTaskResumeAll();
   }
-  if (n == 0) { return; }
-  UBaseType_t const i = next_idx;
-  next_idx = (next_idx + 1 < n) ? next_idx + 1 : 0;
+  if (n != 0) {
+    UBaseType_t const i = next_idx;
+    next_idx = (next_idx + 1 < n) ? next_idx + 1 : 0;
 
-  SEGGER_SYSVIEW_TASKINFO info = {0};
-  info.TaskID    = (U32)(uintptr_t) status[i].xHandle;
-  info.sName     = names[i];
-  info.Prio      = status[i].uxCurrentPriority;
-  info.StackBase = (U32)(uintptr_t) status[i].pxStackBase;
-  uint32_t const free_bytes = status[i].usStackHighWaterMark * sizeof(StackType_t);
-  uint32_t const stack_size = (uint32_t)(uintptr_t) status[i].pxEndOfStack -
-                               (uint32_t)(uintptr_t) status[i].pxStackBase + sizeof(StackType_t);
-  info.StackSize  = stack_size;
-  info.StackUsage = (free_bytes < stack_size) ? (stack_size - free_bytes) : 0;
-  SEGGER_SYSVIEW_SendTaskInfo(&info);
+    SEGGER_SYSVIEW_TASKINFO info = {0};
+    info.TaskID    = (U32)(uintptr_t) status[i].xHandle;
+    info.sName     = names[i];
+    info.Prio      = status[i].uxCurrentPriority;
+    info.StackBase = (U32)(uintptr_t) status[i].pxStackBase;
+    uint32_t const free_bytes = status[i].usStackHighWaterMark * sizeof(StackType_t);
+    uint32_t const stack_size = (uint32_t)(uintptr_t) status[i].pxEndOfStack -
+                                 (uint32_t)(uintptr_t) status[i].pxStackBase + sizeof(StackType_t);
+    info.StackSize  = stack_size;
+    info.StackUsage = (free_bytes < stack_size) ? (stack_size - free_bytes) : 0;
+    SEGGER_SYSVIEW_SendTaskInfo(&info);
+  }
+  (void) xTaskResumeAll();
 #endif
 }
 

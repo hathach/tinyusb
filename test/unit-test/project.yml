@@ -178,6 +178,12 @@
     :test_tu_sysview:
       - CFG_TUD_SYSVIEW=1
       - CFG_TUD_MSC=0
+    # dual-role with only the host traced
+    :test_tu_dual_sysview:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUD_SYSVIEW=0
+      - CFG_TUH_SYSVIEW=1
+      - CFG_TUD_MSC=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

@@ -180,8 +180,7 @@ extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 // vector ISR rather than tusb_int_handler(), so the SystemView ISR span is recorded here.
 #define _tuh_int_handler_arg0()   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
 #if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
-  #define _tuh_int_handler_arg1(_rhport) \
-    do { TU_SYSVIEW_ISR_ENTER(); hcd_int_handler(_rhport, true); TU_SYSVIEW_ISR_EXIT(); } while(0)
+  #define _tuh_int_handler_arg1(_rhport) _tuh_int_handler_arg2(_rhport, true)
   // _in_isr read once: ENTER and EXIT must agree
   #define _tuh_int_handler_arg2(_rhport, _in_isr) \
     do { bool const _sv_in_isr = (_in_isr); \

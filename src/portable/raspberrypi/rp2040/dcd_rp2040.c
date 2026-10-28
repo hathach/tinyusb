@@ -209,7 +209,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
   }
 
   // the SDK registers this as the ISR itself, bypassing tud_int_handler()'s SystemView span
-  TU_SYSVIEW_ISR_ENTER();
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
 
   if (status & USB_INTF_DEV_SOF_BITS) {
     dcd_event_sof(0, sof_count, true);
@@ -332,7 +332,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
-  TU_SYSVIEW_ISR_EXIT();
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 /*------------------------------------------------------------------*/

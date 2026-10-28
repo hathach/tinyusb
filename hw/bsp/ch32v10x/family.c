@@ -64,7 +64,6 @@ static uint32_t SysTick_Config(uint32_t ticks) {
 uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
-
 #endif
 
 void board_init(void) {

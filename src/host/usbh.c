@@ -936,9 +936,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
     TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
 
-    // host-only builds: tud_task_ext()'s periodic report never runs. The reporter keeps static
-    // rotation state, so a dual-role build leaves it to the device task alone.
-#if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && !CFG_TUD_ENABLED && CFG_TUSB_OS == OPT_OS_FREERTOS
+    // reports too in a dual-role build: the device task may be untraced or idle (dynamic_switch in host mode)
+#if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
     { static uint16_t sv_cnt = 0;
       if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
 #endif

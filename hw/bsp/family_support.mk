@@ -170,7 +170,6 @@ ifeq ($(RTOS),freertos)
 	SRC_S += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 	INC += \
 		$(TOP)/hw/bsp/$(FAMILY)/FreeRTOSConfig \
-		$(TOP)/hw/bsp \
 		$(TOP)/$(FREERTOS_SRC)/include \
 		$(TOP)/$(FREERTOS_PORTABLE_SRC)
 

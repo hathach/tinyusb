@@ -175,6 +175,10 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define CFG_TUSB_SYSVIEW_LEVEL_CLASS  4   // class driver API
 #endif
 
+// a role's ISR spans are recorded only when its stack is enabled and its level reaches ISR
+#define TUD_SYSVIEW_ISR_TRACED (CFG_TUD_ENABLED && CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR)
+#define TUH_SYSVIEW_ISR_TRACED (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR)
+
 #if CFG_TUSB_SYSVIEW_ENABLED
 // SEGGER.h defines INLINE (under #ifndef) and leaves it defined; nothing here uses it, but a
 // vendor SDK header included later in the same TU (lpcopen's lpc_types.h, unconditional
@@ -188,12 +192,8 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #undef INLINE
 #endif
 
-// Function-timing event ids, recorded as TU_SV_EVENT_BASE + id (see below).
-// Not registered as a SEGGER_SYSVIEW_MODULE (SystemView shows them as raw
-// "Event(txxx)" instead of a name) — kept here, in this fixed order, and named host-side by
-// test/hil/helper/sysview_events.json (agentrc's sysview_report.py --event-map):
-//   0 tud_task, 1 usbd_edpt_xfer, 2 dcd_edpt_xfer, 3 tud_cdc_write_flush,
-//   4 tud_cdc_read, 5 mscd_xfer_cb, 6 tuh_task, 7 hcd_edpt_xfer
+// Function-timing event ids, recorded as TU_SV_EVENT_BASE + id (see below). The order is fixed:
+// test/hil/helper/sysview_events.json names them host-side (agentrc's sysview_report.py --event-map).
 typedef enum {
   TU_SV_ID_TUD_TASK = 0,   // one usbd event processed        (level USB)
   TU_SV_ID_USBD_XFER,      // usbd_edpt_xfer                  (level USB)
@@ -223,80 +223,20 @@ uint32_t tusb_sysview_cpu_freq(void);
 // id SEGGER_SYSVIEW_RegisterModule() would give the first module.
 #define TU_SV_EVENT_BASE 512
 
-// Per-level backends: _TUD_SV_CALL_<n> is live iff CFG_TUD_SYSVIEW >= n.
-// TU_LOG-style: TUD_SYSVIEW_CALL(level, id) token-pastes to the backend, so a
-// site whose level exceeds the config expands to nothing. The level argument
-// is one of the CFG_TUSB_SYSVIEW_LEVEL_* macros (expands to 1..4 first).
+// _level is one of the CFG_TUSB_SYSVIEW_LEVEL_* constants, so a site above the configured level
+// compiles to nothing
 #define _TU_SV_RECORD(_id) SEGGER_SYSVIEW_RecordVoid(TU_SV_EVENT_BASE + (_id))
 #define _TU_SV_END(_id)    SEGGER_SYSVIEW_RecordEndCall(TU_SV_EVENT_BASE + (_id))
 
-#if CFG_TUD_SYSVIEW >= 1
-  #define _TUD_SV_CALL_1(_id) _TU_SV_RECORD(_id)
-  #define _TUD_SV_RET_1(_id)  _TU_SV_END(_id)
-#else
-  #define _TUD_SV_CALL_1(_id)
-  #define _TUD_SV_RET_1(_id)
-#endif
-#if CFG_TUD_SYSVIEW >= 2
-  #define _TUD_SV_CALL_2(_id) _TU_SV_RECORD(_id)
-  #define _TUD_SV_RET_2(_id)  _TU_SV_END(_id)
-#else
-  #define _TUD_SV_CALL_2(_id)
-  #define _TUD_SV_RET_2(_id)
-#endif
-#if CFG_TUD_SYSVIEW >= 3
-  #define _TUD_SV_CALL_3(_id) _TU_SV_RECORD(_id)
-  #define _TUD_SV_RET_3(_id)  _TU_SV_END(_id)
-#else
-  #define _TUD_SV_CALL_3(_id)
-  #define _TUD_SV_RET_3(_id)
-#endif
-#if CFG_TUD_SYSVIEW >= 4
-  #define _TUD_SV_CALL_4(_id) _TU_SV_RECORD(_id)
-  #define _TUD_SV_RET_4(_id)  _TU_SV_END(_id)
-#else
-  #define _TUD_SV_CALL_4(_id)
-  #define _TUD_SV_RET_4(_id)
-#endif
-#if CFG_TUH_SYSVIEW >= 1
-  #define _TUH_SV_CALL_1(_id) _TU_SV_RECORD(_id)
-  #define _TUH_SV_RET_1(_id)  _TU_SV_END(_id)
-#else
-  #define _TUH_SV_CALL_1(_id)
-  #define _TUH_SV_RET_1(_id)
-#endif
-#if CFG_TUH_SYSVIEW >= 2
-  #define _TUH_SV_CALL_2(_id) _TU_SV_RECORD(_id)
-  #define _TUH_SV_RET_2(_id)  _TU_SV_END(_id)
-#else
-  #define _TUH_SV_CALL_2(_id)
-  #define _TUH_SV_RET_2(_id)
-#endif
-#if CFG_TUH_SYSVIEW >= 3
-  #define _TUH_SV_CALL_3(_id) _TU_SV_RECORD(_id)
-  #define _TUH_SV_RET_3(_id)  _TU_SV_END(_id)
-#else
-  #define _TUH_SV_CALL_3(_id)
-  #define _TUH_SV_RET_3(_id)
-#endif
-#if CFG_TUH_SYSVIEW >= 4
-  #define _TUH_SV_CALL_4(_id) _TU_SV_RECORD(_id)
-  #define _TUH_SV_RET_4(_id)  _TU_SV_END(_id)
-#else
-  #define _TUH_SV_CALL_4(_id)
-  #define _TUH_SV_RET_4(_id)
-#endif
-
-#define TUD_SYSVIEW_CALL(_level, _id) TU_XSTRCAT(_TUD_SV_CALL_, _level)(_id)
-#define TUD_SYSVIEW_RET(_level, _id)  TU_XSTRCAT(_TUD_SV_RET_, _level)(_id)
-#define TUH_SYSVIEW_CALL(_level, _id) TU_XSTRCAT(_TUH_SV_CALL_, _level)(_id)
-#define TUH_SYSVIEW_RET(_level, _id)  TU_XSTRCAT(_TUH_SV_RET_, _level)(_id)
+#define TUD_SYSVIEW_CALL(_level, _id) do { if (CFG_TUD_SYSVIEW >= (_level)) { _TU_SV_RECORD(_id); } } while (0)
+#define TUD_SYSVIEW_RET(_level, _id)  do { if (CFG_TUD_SYSVIEW >= (_level)) { _TU_SV_END(_id); } } while (0)
+#define TUH_SYSVIEW_CALL(_level, _id) do { if (CFG_TUH_SYSVIEW >= (_level)) { _TU_SV_RECORD(_id); } } while (0)
+#define TUH_SYSVIEW_RET(_level, _id)  do { if (CFG_TUH_SYSVIEW >= (_level)) { _TU_SV_END(_id); } } while (0)
 
 // ISR wrap for the shared tusb_int_handler entry, through tusb.c's depth counter
 // (tu_sysview_isr_enter() has why): a dual-role BSP's nested tud_/tuh_int_handler() wraps
 // record one span.
-#if (CFG_TUD_ENABLED && CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR) || \
-    (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR)
+#if TUD_SYSVIEW_ISR_TRACED || TUH_SYSVIEW_ISR_TRACED
   void tu_sysview_isr_enter(void);
   void tu_sysview_isr_exit(void);
   #define TU_SYSVIEW_ISR_ENTER() tu_sysview_isr_enter()

@@ -472,11 +472,8 @@ function(family_configure_common TARGET RTOS)
     endif ()
     set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
     if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
-      # -DSYSVIEW_BUFFER_SIZE always wins. Otherwise a family may declare its own default
-      # (SYSVIEW_BUFFER_SIZE_DEFAULT in family.cmake, the SYSVIEW_RAM_BASE_DEFAULT pattern):
-      # RAM-rich families set 65536, the dual-role dogfood's measured-safe value -- at the
-      # global 4096 fallback mimxrt1064_evk lost 96.7% of ISR exit contexts at only ~109 Hz.
-      # Small-RAM parts keep the 4096 fallback and override per board.
+      # a family's SYSVIEW_BUFFER_SIZE_DEFAULT: RAM-rich ones set 65536, as at 4096 mimxrt1064_evk lost
+      # 96.7% of ISR exit contexts at ~109 Hz
       if (DEFINED SYSVIEW_BUFFER_SIZE_DEFAULT)
         set(SYSVIEW_BUFFER_SIZE ${SYSVIEW_BUFFER_SIZE_DEFAULT})
       else ()
@@ -484,76 +481,55 @@ function(family_configure_common TARGET RTOS)
       endif ()
     endif ()
     if (NOT DEFINED SYSVIEW_RAM_BASE)
-      # A family whose SRAM does not start at the Cortex-M-canonical 0x20000000 (SEGGER's
-      # RAM-pointer ID shrink underflows and every named mutex/task id comes out garbage
-      # otherwise) sets SYSVIEW_RAM_BASE_DEFAULT in its own
-      # family.cmake, before this function runs (e.g. hw/bsp/lpc11/family.cmake). A
-      # -DSYSVIEW_RAM_BASE=... on the command line still wins over both (DEFINED first, above).
+      # a family whose SRAM is not at 0x20000000 sets SYSVIEW_RAM_BASE_DEFAULT, or SEGGER's RAM-pointer
+      # id shrink underflows and every task/mutex id comes out garbage
       if (DEFINED SYSVIEW_RAM_BASE_DEFAULT)
         set(SYSVIEW_RAM_BASE ${SYSVIEW_RAM_BASE_DEFAULT})
       else ()
         set(SYSVIEW_RAM_BASE 0x20000000)
       endif ()
     endif ()
-    # vendored lib/SEGGER_RTT predates SEGGER_RTT_ConfDefaults.h; bridge it. file(CONFIGURE), not
-    # file(WRITE): this runs once per target inside a per-target function (30+ times in an
-    # examples/-level build), and file(WRITE) touches the file's mtime unconditionally on every
-    # call, forcing every TU that includes it to rebuild every configure. file(CONFIGURE) only
-    # writes when the content actually changes -- and it never does, here.
+    # vendored lib/SEGGER_RTT predates SEGGER_RTT_ConfDefaults.h; bridge it. file(CONFIGURE) writes
+    # only on a content change, so this per-target call does not rebuild every TU as file(WRITE) would.
     file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sysview_shim/SEGGER_RTT_ConfDefaults.h
          CONTENT "#include \"SEGGER_RTT_Conf.h\"\n" @ONLY)
     target_sources(${TARGET} PUBLIC
       ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
-    # Use SEGGER_RTT.c's portable C writer instead of SEGGER_RTT_ASM_ARMv7M.S. The .S is ARM
-    # assembly (fails to assemble on RISC-V: "unknown pseudo-op: .syntax") and RTT selects it via
-    # RTT_USE_ASM, which it derives from the core -- a source-list condition cannot track that
-    # reliably, since not every family even sets CMAKE_SYSTEM_CPU (rp2040 does not, so an
-    # arch-matching guard silently dropped the file on rp2350 while RTT still called into it).
-    # Forcing the C path costs a little RTT write throughput and works on every architecture.
+    # RTT's portable C writer: RTT_USE_ASM picks the ARMv7-M .S from the core, which no source-list
+    # condition tracks (rp2040 sets no CMAKE_SYSTEM_CPU) and which fails to assemble on RISC-V
     target_compile_definitions(${TARGET} PUBLIC RTT_USE_ASM=0)
     if (NOT LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
     endif ()
-    target_include_directories(${TARGET} PUBLIC
+    set(SYSVIEW_INC
       ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
       ${CMAKE_BINARY_DIR}/sysview_shim
       ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+    set(SYSVIEW_DEFS CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW}
+      SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
+    target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
     # vendor sources are not expected to pass TinyUSB's -Werror set
     set_source_files_properties(
       ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
       ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
       ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
       TARGET_DIRECTORY ${TARGET} PROPERTIES COMPILE_OPTIONS "-w")
-    target_compile_definitions(${TARGET} PUBLIC
-      CFG_TUD_SYSVIEW=${SYSVIEW}
-      CFG_TUH_SYSVIEW=${SYSVIEW}
+    target_compile_definitions(${TARGET} PUBLIC ${SYSVIEW_DEFS}
       SYSVIEW_APP_NAME="${TARGET}"
       SYSVIEW_DEVICE_NAME="${BOARD}"
       SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
-      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
-      SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
+      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE})
     # Gate on this example's own RTOS, not "TARGET freertos_kernel": that target is global to an
     # examples/-level configure (the first FreeRTOS example creates it), and rp2040 never creates it.
     if (RTOS STREQUAL "freertos")
       target_sources(${TARGET} PUBLIC ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c)
-      # freertos_config is the INTERFACE target the kernel and app both see:
-      # defines + include dirs there make the FreeRTOSConfig.h guarded block
-      # work. rp2040 never creates this target (its FreeRTOS-Kernel-Core is an
-      # INTERFACE library whose sources - tasks.c etc - become literal sources
-      # of ${TARGET} itself, so the defines/include dirs already set on
-      # ${TARGET} above reach them without this block).
+      # the kernel sees FreeRTOSConfig.h through freertos_config; rp2040 has no such target, as its
+      # kernel sources compile as part of ${TARGET}
       if (TARGET freertos_config)
-        target_compile_definitions(freertos_config INTERFACE CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW} SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
-        target_include_directories(freertos_config INTERFACE
-          ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
-          ${SYSVIEW_SRC}/Sample/FreeRTOSV11
-          ${CMAKE_BINARY_DIR}/sysview_shim
-          ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+        target_compile_definitions(freertos_config INTERFACE ${SYSVIEW_DEFS})
+        target_include_directories(freertos_config INTERFACE ${SYSVIEW_INC} ${SYSVIEW_SRC}/Sample/FreeRTOSV11)
       endif ()
-      # The FreeRTOSConfig.h hook block (traceTASK_SWITCHED_IN/OUT +
-      # SEGGER_SYSVIEW_FreeRTOS.h) is what actually feeds the per-task CPU-load
-      # table. Without it SYSVIEW still builds/links/records ISR + function +
-      # marker data, but that table is silently empty - warn loudly instead.
+      # without FreeRTOSConfig.h's SEGGER_SYSVIEW_FreeRTOS.h hooks the per-task CPU-load table is empty
       set(SYSVIEW_FREERTOS_CONFIG_H ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h)
       set(SYSVIEW_FREERTOS_HOOKED FALSE)
       if (EXISTS ${SYSVIEW_FREERTOS_CONFIG_H})
