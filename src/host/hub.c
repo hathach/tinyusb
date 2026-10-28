@@ -186,6 +186,7 @@ bool hub_deinit(void) {
 
 uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   (void)rhport;
+  TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, 0); // only a hub-class device gets a hub address
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass && 0 == itf_desc->bInterfaceSubClass, 0);
 
   const uint16_t itf_ep_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);

@@ -145,29 +145,31 @@ static void complete_ctrl_data(uint8_t idx, const void *data, uint16_t len) {
   complete_ctrl(idx, XFER_RESULT_SUCCESS);
 }
 
+// hub interface and its status-change endpoint
+static const struct TU_ATTR_PACKED {
+  tusb_desc_interface_t itf;
+  tusb_desc_endpoint_t  ep;
+} desc_hub_itf = {
+  .itf = {
+    .bLength            = sizeof(tusb_desc_interface_t),
+    .bDescriptorType    = TUSB_DESC_INTERFACE,
+    .bInterfaceNumber   = 0,
+    .bNumEndpoints      = 1,
+    .bInterfaceClass    = TUSB_CLASS_HUB,
+    .bInterfaceSubClass = 0,
+  },
+  .ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EP_IN,
+    .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
+    .wMaxPacketSize   = 1,
+    .bInterval        = 12,
+  },
+};
+
 static void open_hub(uint8_t daddr) {
-  const struct TU_ATTR_PACKED {
-    tusb_desc_interface_t itf;
-    tusb_desc_endpoint_t  ep;
-  } desc = {
-    .itf = {
-      .bLength            = sizeof(tusb_desc_interface_t),
-      .bDescriptorType    = TUSB_DESC_INTERFACE,
-      .bInterfaceNumber   = 0,
-      .bNumEndpoints      = 1,
-      .bInterfaceClass    = TUSB_CLASS_HUB,
-      .bInterfaceSubClass = 0,
-    },
-    .ep = {
-      .bLength          = sizeof(tusb_desc_endpoint_t),
-      .bDescriptorType  = TUSB_DESC_ENDPOINT,
-      .bEndpointAddress = EP_IN,
-      .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
-      .wMaxPacketSize   = 1,
-      .bInterval        = 12,
-    },
-  };
-  TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, daddr, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(sizeof(desc_hub_itf), hub_open(0, daddr, &desc_hub_itf.itf, sizeof(desc_hub_itf)));
 }
 
 // open, then run SET_CONFIG: hub descriptor, power every port, arm the status poll
@@ -233,6 +235,17 @@ void setUp(void) {
 }
 
 void tearDown(void) {
+}
+
+//--------------------------------------------------------------------+
+// Open
+//--------------------------------------------------------------------+
+// usbh gives a hub address only to a device whose bDeviceClass is hub, but offers each interface to every driver
+void test_open_rejects_non_hub_address(void) {
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    TEST_ASSERT_EQUAL(0, hub_open(0, daddr, &desc_hub_itf.itf, sizeof(desc_hub_itf)));
+  }
+  open_hub(HUB_A);
 }
 
 //--------------------------------------------------------------------+
