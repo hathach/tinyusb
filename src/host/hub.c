@@ -199,6 +199,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   // Check device descriptor for MTT hub (bDeviceProtocol == 2)
   // MTT hub has 2 alt settings: alt 0 is STT (protocol 1), alt 1 is MTT (protocol 2)
   // Consume both alt settings and use alt setting 1 for endpoint
+  bool               mtt = false;
   tusb_desc_device_t desc_dev;
   if (tuh_descriptor_get_device_local(dev_addr, &desc_dev) && desc_dev.bDeviceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT) {
     drv_len += itf_ep_len;
@@ -207,7 +208,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
     TU_ASSERT(desc_alt1->bDescriptorType == TUSB_DESC_INTERFACE && desc_alt1->bInterfaceClass == TUSB_CLASS_HUB &&
                 desc_alt1->bInterfaceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT,
               0);
-    p_hub->mtt   = true;
+    mtt          = true;
     desc_itf_use = desc_alt1;
   }
 
@@ -216,6 +217,8 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
+  // set only once opened: hub_close() clears an opened hub
+  p_hub->mtt     = mtt;
   p_hub->itf_num = itf_desc->bInterfaceNumber;
   p_hub->ep_in   = desc_ep->bEndpointAddress;
 

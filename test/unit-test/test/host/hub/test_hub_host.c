@@ -34,6 +34,11 @@ static ctrl_req_t ctrl_reqs[MAX_CTRL];
 static uint8_t    ctrl_count;
 static bool       ctrl_reject;
 
+// device seen by hub_open(): bDeviceProtocol of its device descriptor (none if 0), status endpoint open failing
+static uint8_t dev_protocol;
+static bool    edpt_open_fail;
+static uint8_t itf_set_count; // SET_INTERFACE requests
+
 // completions of the test callback, in order
 typedef struct {
   uintptr_t     user_data;
@@ -67,13 +72,18 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
   (void) desc_ep;
-  return true;
+  return !edpt_open_fail;
 }
 
 bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc_device) {
   (void) daddr;
-  (void) desc_device;
-  return false;
+  if (dev_protocol == 0) {
+    return false;
+  }
+  memset(desc_device, 0, sizeof(*desc_device));
+  desc_device->bDeviceClass    = TUSB_CLASS_HUB;
+  desc_device->bDeviceProtocol = dev_protocol;
+  return true;
 }
 
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer_cb_t complete_cb,
@@ -83,6 +93,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
   (void) itf_alt;
   (void) complete_cb;
   (void) user_data;
+  itf_set_count++;
   return true;
 }
 
@@ -225,12 +236,15 @@ static void attach_on_port1(uint8_t daddr) {
 }
 
 void setUp(void) {
-  ctrl_count  = 0;
-  ctrl_reject = false;
-  cb_count    = 0;
-  poll_count  = 0;
-  poll_buf    = NULL;
-  event_count = 0;
+  ctrl_count     = 0;
+  ctrl_reject    = false;
+  dev_protocol   = 0;
+  edpt_open_fail = false;
+  itf_set_count  = 0;
+  cb_count       = 0;
+  poll_count     = 0;
+  poll_buf       = NULL;
+  event_count    = 0;
   hub_init();
 }
 
@@ -246,6 +260,38 @@ void test_open_rejects_non_hub_address(void) {
     TEST_ASSERT_EQUAL(0, hub_open(0, daddr, &desc_hub_itf.itf, sizeof(desc_hub_itf)));
   }
   open_hub(HUB_A);
+}
+
+// a failed open leaves the entry unopened, which hub_close() does not clear
+void test_open_failed_does_not_leave_mtt(void) {
+  // multi-TT hub: alternate setting 1 (multi TT) follows setting 0, each with the status-change endpoint
+  uint8_t desc[2 * sizeof(desc_hub_itf)];
+  memcpy(desc, &desc_hub_itf, sizeof(desc_hub_itf));
+  memcpy(desc + sizeof(desc_hub_itf), &desc_hub_itf, sizeof(desc_hub_itf));
+  tusb_desc_interface_t *alt1 = (tusb_desc_interface_t *) (desc + sizeof(desc_hub_itf));
+  alt1->bAlternateSetting     = 1;
+  alt1->bInterfaceProtocol    = HUB_PROTOCOL_HIGH_SPEED_MTT;
+
+  dev_protocol   = HUB_PROTOCOL_HIGH_SPEED_MTT;
+  edpt_open_fail = true;
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  hub_close(HUB_A);
+
+  // a single-TT hub at the same address reads its hub descriptor without selecting alternate setting 1
+  dev_protocol   = HUB_PROTOCOL_HIGH_SPEED_STT;
+  edpt_open_fail = false;
+  open_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  TEST_ASSERT_EQUAL(0, itf_set_count);
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_GET_DESCRIPTOR, ctrl_reqs[0].setup.bRequest);
+  hub_close(HUB_A);
+
+  // the multi-TT hub opened successfully still selects it
+  dev_protocol = HUB_PROTOCOL_HIGH_SPEED_MTT;
+  TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, HUB_A, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  TEST_ASSERT_EQUAL(1, itf_set_count);
 }
 
 //--------------------------------------------------------------------+
