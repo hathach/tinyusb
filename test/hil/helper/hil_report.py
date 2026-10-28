@@ -370,7 +370,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 def mark_report_aborted(report_dir: Path, msg: str, fresh: bool = True) -> None:
     """Record a run that stopped before any board was tested although boards were selected
-    (a roster error, a failed usbtest registration): `aborted`, never no-boards, so the shared
+    (a roster error): `aborted`, never no-boards, so the shared
     rules read every selected board as a blocker. `fresh` as mark_report_no_boards."""
     _mark_report(report_dir, f'**HIL run aborted: {msg}.**\n', 'aborted', fresh)
 

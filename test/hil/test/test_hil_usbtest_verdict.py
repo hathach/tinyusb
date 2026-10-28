@@ -41,7 +41,7 @@ class RunCase(unittest.TestCase):
             f.write(FAKE_TESTUSB)
         os.chmod(self.testusb, stat.S_IRWXU)
         usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
         self.addCleanup(os.environ.pop, 'FAKE_OUT', None)
         self.addCleanup(os.environ.pop, 'FAKE_RC', None)
 
@@ -67,7 +67,7 @@ class RunCase(unittest.TestCase):
 
 class Options(unittest.TestCase):
     """The provider gets each case's options for the device's speed verbatim, --quick dividing
-    every count by 8, and main's WEDGE_CONFIRM_S and sudo decision."""
+    every count by 8, and main's WEDGE_CONFIRM_S."""
 
     def options(self, speed, quick, num=1):
         seen = []
@@ -76,7 +76,7 @@ class Options(unittest.TestCase):
         usbtest.run_case(num, {'node': NODE, 'speed': speed}, '/x/testusb', quick, 30)
         (args, kw), = seen
         self.assertEqual(args[:3] + args[4:], ('/x/testusb', NODE, num, 30))
-        self.assertEqual(kw, {'wedge_confirm': usbtest.WEDGE_CONFIRM_S, 'sudo_forbidden': usbtest.sudo_forbidden})
+        self.assertEqual(kw, {'wedge_confirm': usbtest.WEDGE_CONFIRM_S})
         return args[3]
 
     def test_full_and_high_speed(self):
@@ -94,7 +94,6 @@ class ExitStatus(unittest.TestCase):
     def main(self, *extra, find=None, status='PASS', stranded=False):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
                                     {'num': num, 'name': 'x', 'params': '', 'status': status, 'secs': 0.1})
-        usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)

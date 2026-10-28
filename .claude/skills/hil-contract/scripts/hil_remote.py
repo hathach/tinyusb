@@ -96,6 +96,7 @@ HARNESS_FILES = (
     'lib/agentrc/skills/hil/scripts/hil_lock.py',
     'lib/agentrc/skills/hil/scripts/hil_report_core.py',
     'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
+    'lib/agentrc/skills/hil/scripts/hil_root.py',
     'lib/agentrc/skills/hil/scripts/hil_tt.py',
     'lib/agentrc/skills/hil/scripts/hil_usbtest.py',
     'lib/agentrc/skills/hil/scripts/usb_observe.py',

@@ -106,13 +106,16 @@ void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes) {
 
   uint8_t buffer[48];
   uint8_t cable_num = 0;
-  uint32_t bytes_read = tuh_midi_stream_read(idx, &cable_num, buffer, sizeof(buffer));
+  uint32_t bytes_read;
 
-  printf("Cable %u rx: ", cable_num);
-  for (uint32_t i = 0; i < bytes_read; i++) {
-    printf("%02X ", buffer[i]);
+  // drain the FIFO, a single read stops at a cable change or when the buffer is nearly full
+  while ((bytes_read = tuh_midi_stream_read(idx, &cable_num, buffer, sizeof(buffer))) > 0) {
+    printf("Cable %u rx: ", cable_num);
+    for (uint32_t i = 0; i < bytes_read; i++) {
+      printf("%02X ", buffer[i]);
+    }
+    printf("\r\n");
   }
-  printf("\r\n");
 }
 
 void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes) {

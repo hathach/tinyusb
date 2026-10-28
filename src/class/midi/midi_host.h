@@ -127,6 +127,8 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, const uint8_t *p_
 // Get the MIDI stream from the device. Set the value pointed
 // to by p_cable_num to the MIDI cable number intended to receive it.
 // The MIDI stream will be stored in the buffer pointed to by p_buffer.
+// bufsize must be at least 3, the largest message in one event packet; it
+// stops early, leaving the next packet in the FIFO, when that packet may not fit.
 // Return the number of bytes added to the buffer.
 // Note that this function ignores the CIN field of the MIDI packet
 // because a number of commercial devices out there do not encode

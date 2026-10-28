@@ -66,6 +66,17 @@ TU_ATTR_WEAK void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, cons
   (void) dev_addr; (void) idx; (void) report; (void) len;
 }
 
+TU_ATTR_WEAK void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result) {
+  // keep polling after a transient error, as an application does from tuh_hid_report_received_cb(). A stalled
+  // endpoint stays halted until a CLEAR_FEATURE(ENDPOINT_HALT), and an aborted transfer was cancelled: no re-arm.
+  // The re-arm can still be refused by the host controller, which only stops polling: log it, never trap.
+  if (result != XFER_RESULT_STALLED && result != XFER_RESULT_ABORTED) {
+    if (!tuh_hid_receive_report(dev_addr, idx)) {
+      TU_LOG_DRV("  [idx=%u] re-arm after a failed report failed\r\n", idx);
+    }
+  }
+}
+
 TU_ATTR_WEAK void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len) {
   (void) dev_addr; (void) idx; (void) report; (void) len;
 }
@@ -446,8 +457,6 @@ bool hidh_deinit(void) {
 }
 
 bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
-  (void) result;
-
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const idx = get_idx_by_epaddr(daddr, ep_addr);
 
@@ -456,9 +465,16 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
   hidh_epbuf_t* epbuf = get_hid_epbuf(idx);
 
   if (dir == TUSB_DIR_IN) {
-    TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
-    TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
-    tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
+    if (result == XFER_RESULT_SUCCESS) {
+      TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
+      TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
+      tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
+    } else {
+      // a failed transfer is not a report: the buffer holds stale data, and a zero length cannot tell it from
+      // the legitimate zero-length reports some devices send
+      TU_LOG_DRV("  [idx=%u] Get Report failed: result=%u\r\n", idx, result);
+      tuh_hid_report_failed_cb(daddr, idx, result);
+    }
   } else {
     tuh_hid_report_sent_cb(daddr, idx, epbuf->epout, (uint16_t) xferred_bytes);
   }

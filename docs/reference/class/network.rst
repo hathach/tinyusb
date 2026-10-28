@@ -41,6 +41,11 @@ Configuration options
    * - ``CFG_TUD_NET_MTU``
      - ``1514`` bytes
      - Maximum Ethernet frame including its 14-byte Ethernet header.
+   * - ``CFG_TUD_NET_LINK_BITRATE``
+     - ``0`` (USB bus speed)
+     - Link speed in bit/s reported to the host, for both directions; only
+       NCM reports it so far.  Hosts use it to rank the interface (Windows
+       derives the route metric from it); it does not limit the transfer rate.
    * - ``CFG_TUD_NCM_OUT_NTB_MAX_SIZE``
      - ``3200`` bytes
      - Largest host-to-device NTB received.  At least 2048 bytes (see
