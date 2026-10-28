@@ -21,8 +21,9 @@ descriptor.
      - What it controls
    * - ``CFG_TUD_BTH_ISO_ALT_COUNT``
      - Required
-     - Number of isochronous voice alternate settings.  Pass one paired
-       IN/OUT packet size per setting to ``TUD_BTH_DESCRIPTOR``.  The driver
+     - Number of isochronous voice alternate settings, ``0`` for a single
+       HCI interface without them.  Pass one paired IN/OUT packet size per
+       setting to ``TUD_BTH_DESCRIPTOR``.  The driver
        only parses these alternates: it does not open the voice endpoints or
        switch alternate settings, so SCO/voice traffic is not supported yet.
    * - ``CFG_TUD_BTH_EVENT_EPSIZE``

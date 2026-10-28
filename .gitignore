@@ -56,7 +56,9 @@ cmake-build-*
 sdkconfig
 # ESP-IDF component manager lock
 dependencies.lock
-.PVS-Studio
+.PVS-Studio/*
+!.PVS-Studio/.pvsconfig
+!.PVS-Studio/matrix.json
 .vscode/
 CMakeFiles
 Debug

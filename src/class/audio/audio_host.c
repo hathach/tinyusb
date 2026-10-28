@@ -842,8 +842,8 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
 
   const uint32_t target_q16 = (uint32_t)target_q16_64;
   const uint64_t max_bytes  = (((uint64_t)target_q16 + 0xFFFFu) >> 16) * s->frame_bytes;
-  if (max_bytes == 0 || max_bytes > as->ep_size || max_bytes > CFG_TUH_AUDIO_EPOUT_BUFSIZE ||
-      max_bytes > CFG_TUH_AUDIO_STREAM_BUFSIZE) {
+  if (max_bytes == 0 || max_bytes > as->ep_size ||
+      max_bytes > TU_MIN(CFG_TUH_AUDIO_EPOUT_BUFSIZE, CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
     TU_LOG_DRV("  AUDIO feedback exceeds playback packet capacity: 0x%08lx\r\n", (unsigned long)feedback_q16);
     return;
   }
@@ -869,7 +869,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
 
   // Failed, stalled, and aborted transfers do not carry valid audio data.
   if (result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
+    TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%d\r\n", dev_addr, ep_addr, (int) result);
     audioh_stream_xfer_failed(s, (tusb_xfer_result_t)result);
     return true;
   }
@@ -890,13 +890,13 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_capture_xfer(s)) {
+    if (s->running && !audioh_stream_capture_xfer(s)) { //-V560 running is cleared by the weak callback
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }
   } else {
     // Notify the application before requesting the next playback packet.
     tuh_audio_playback_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_playback_xfer(s)) {
+    if (s->running && !audioh_stream_playback_xfer(s)) { //-V560 running is cleared by the weak callback
       audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
     }
   }
@@ -950,7 +950,7 @@ static bool audioh_as_rate_fits(const audioh_interface_t *p_audio, const tuh_aud
   const uint64_t packet_bytes     = max_frames * frame_bytes;
 
   return packet_bytes > 0 && packet_bytes <= as->ep_size &&
-         (stream->dir != TUSB_DIR_OUT || (packet_bytes <= epbuf_size && packet_bytes <= CFG_TUH_AUDIO_STREAM_BUFSIZE));
+         (stream->dir != TUSB_DIR_OUT || packet_bytes <= TU_MIN(epbuf_size, CFG_TUH_AUDIO_STREAM_BUFSIZE));
 }
 
 static bool audioh_ac_entity_valid(const audioh_interface_t *p_audio, const uint8_t *p_desc) {
@@ -1473,7 +1473,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   const uint16_t iso_xfer_size =
     (tuh_speed_get(p_audio->daddr) == TUSB_SPEED_HIGH) ? TUSB_EPSIZE_ISO_HS_MAX : TUSB_EPSIZE_ISO_FS_MAX;
   const uint32_t frame_bytes_32 = (uint32_t)class_info.channels * tuh_audio_format_bytes(format);
-  if (frame_bytes_32 == 0 || frame_bytes_32 > iso_xfer_size) {
+  if (frame_bytes_32 == 0 || frame_bytes_32 > iso_xfer_size) { //-V560 constant in this configuration
     TU_LOG_DRV("  AUDIO AS itf %u: frame size %lu not supported\r\n", itf_num, (unsigned long)frame_bytes_32);
     return p_desc;
   }
@@ -1498,7 +1498,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
   // Capture always requests the endpoint's maximum packet size, so both the
   // transfer buffer and FIFO must hold it.
-  if (stream->dir == TUSB_DIR_IN && (ep->ep_size > epbuf_size || ep->ep_size > CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
+  if (stream->dir == TUSB_DIR_IN && ep->ep_size > TU_MIN(epbuf_size, CFG_TUH_AUDIO_STREAM_BUFSIZE)) {
     TU_LOG_DRV("  AUDIO AS itf %u alt %u: capture ep size %u exceeds buffer capacity\r\n", itf_num, alt, ep->ep_size);
     return p_desc;
   }
@@ -1546,7 +1546,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
     return p_desc;
   }
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1 && p_audio->rate_source_count >= AUDIOH_MAX_RATE_SOURCES) {
+  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1 && p_audio->rate_source_count >= AUDIOH_MAX_RATE_SOURCES) { //-V560 protocol set by the descriptor parser
     TU_LOG_DRV("  AUDIO AS itf %u alt %u: reach max rate sources %u\r\n", itf_num, alt, AUDIOH_MAX_RATE_SOURCES);
     return p_desc;
   }
@@ -1554,7 +1554,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
   const uint8_t as_idx = stream->as_count;
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
-  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1) {
+  if (p_audio->protocol == AUDIO_INT_PROTOCOL_CODE_V1) { //-V547 protocol set by the descriptor parser
     as_config.rate_source_idx                          = p_audio->rate_source_count;
     p_audio->rate_source[p_audio->rate_source_count++] = rate_source;
   }
@@ -2001,6 +2001,9 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
     }
   }
 
+  const uint16_t frame_bytes = (uint16_t)tuh_audio_config_frame_size(&cfg);
+  TU_VERIFY(frame_bytes > 0, false); // divides the capture FIFO depth below
+
   // Reopen even when the address is unchanged: packet size and interval belong
   // to the alternate setting and may differ.
   TU_VERIFY(audioh_stream_close_ep(s), false);
@@ -2009,7 +2012,7 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   s->active_config             = config_idx;
   s->active_as                 = as_idx;
   s->active_rate               = rate_idx;
-  s->frame_bytes               = (uint16_t)tuh_audio_config_frame_size(&cfg);
+  s->frame_bytes               = frame_bytes;
   s->state                     = STREAM_STATE_IDLE;
   if (s->dir == TUSB_DIR_OUT) {
     const uint32_t     frame_div  = (tuh_speed_get(s->daddr) == TUSB_SPEED_HIGH) ? 8000u : 1000u;
@@ -2022,7 +2025,7 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
   }
   if (s->dir == TUSB_DIR_IN) {
     // Overwrite mode is frame-safe only when FIFO depth is a whole-frame multiple.
-    const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % s->frame_bytes);
+    const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % frame_bytes);
     if (!tu_fifo_config(&s->edpt.ff, s->ff_buf, fifo_depth, true)) {
       audioh_stream_fail(s);
       return false;
@@ -2076,7 +2079,7 @@ static void audioh_stream_start_set_freq_complete(tuh_xfer_t *xfer) {
     return;
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%u\r\n", xfer->result);
+    TU_LOG_DRV("  AUDIO set sampling frequency failed: result=%d\r\n", (int) xfer->result);
     audioh_stream_start_done(s, xfer->result);
     return;
   }
@@ -2116,7 +2119,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
     return;
   }
   if (xfer->result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO SET_INTERFACE activate failed: result=%u\r\n", xfer->result);
+    TU_LOG_DRV("  AUDIO SET_INTERFACE activate failed: result=%d\r\n", (int) xfer->result);
     audioh_stream_start_done(s, xfer->result);
     return;
   }
@@ -2183,7 +2186,7 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
   if (s->daddr != xfer->daddr || s->operation != AUDIOH_STREAM_OP_STOP) {
     return;
   }
-  TU_LOG_DRV("  AUDIO SET_INTERFACE deactivate done: result=%u\r\n", xfer->result);
+  TU_LOG_DRV("  AUDIO SET_INTERFACE deactivate done: result=%d\r\n", (int) xfer->result);
   s->operation = AUDIOH_STREAM_OP_NONE;
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_STOP_COMPLETE, xfer->result);
 }
@@ -2314,7 +2317,9 @@ static bool audioh_control_submit(uint8_t idx, uint8_t entity_id, tusb_dir_t dir
   xfer->ep_addr = 0;
   xfer->setup   = &setup;
   xfer->buffer  = buffer;
-  return tuh_control_xfer(xfer);
+  const bool ret = tuh_control_xfer(xfer);
+  xfer->setup    = NULL; // usbh copied the request, do not leave a pointer to this frame
+  return ret;
 }
 
 bool tuh_audio_control_xfer(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,

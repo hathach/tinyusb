@@ -469,7 +469,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const*
     ohci_gtd_t* gtd = gtd_find_free();
     TU_ASSERT(gtd);
     p_ed->td_head.address = (uint32_t)_phys_addr(gtd);
-    p_ed->td_tail = (uint32_t)_phys_addr(gtd);
+    p_ed->td_tail = (uint32_t)_phys_addr(gtd); //-V656 empty TD list: head equals tail
   }
 
   ed_list_insert(p_ed_head[ep_desc->bmAttributes.xfer], p_ed);
@@ -624,7 +624,7 @@ TU_ATTR_ALWAYS_INLINE static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const* cons
 
 static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd) {
   if (gtd_is_control(gtd)) {
-    uint8_t idx = ((uintptr_t)gtd - (uintptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0]);
+    uint8_t idx = ((uintptr_t)gtd - (uintptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0]); //-V619 index from address within the control array
     return &ohci_data.gtd_extra_control[idx];
   }else {
     return &ohci_data.gtd_extra[gtd - ohci_data.gtd_pool];
@@ -652,7 +652,7 @@ static void done_queue_isr(uint8_t hostid) {
   while (td_head != NULL) {
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
-    ohci_gtd_t* const qtd = (ohci_gtd_t*) td_head;
+    ohci_gtd_t* const qtd = (ohci_gtd_t*) td_head; //-V1027 gtd and td share their leading layout
     xfer_result_t const event = (qtd->condition_code == OHCI_CCODE_NO_ERROR) ? XFER_RESULT_SUCCESS :
                                 (qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
     qtd->used = 0; // free TD

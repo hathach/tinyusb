@@ -144,7 +144,7 @@ typedef struct
   __IM uint32_t RESERVED[2]; // Extend structure size for array like usage, registers for each channel are 0x20 bytes apart.
 } da146xx_dma_channel_t;
 
-#define DMA_CHANNEL_REGS(n) ((da146xx_dma_channel_t *)(DMA) + n)
+#define DMA_CHANNEL_REGS(n) ((da146xx_dma_channel_t *)(DMA) + (n))
 #define RX_DMA_REGS  DMA_CHANNEL_REGS(TU_DA146XX_DMA_RX_CHANNEL)
 #define TX_DMA_REGS  DMA_CHANNEL_REGS((TU_DA146XX_DMA_RX_CHANNEL) + 1)
 
@@ -224,7 +224,7 @@ static struct
 };
 
 // Converts xfer pointer to epnum (0,1,2,3) regardless of xfer direction
-#define XFER_EPNUM(xfer)      ((xfer - &_dcd.xfer_status[0][0]) >> 1)
+#define XFER_EPNUM(xfer)      (((xfer) - &_dcd.xfer_status[0][0]) >> 1)
 // Converts xfer pointer to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
 #define XFER_REGS(xfer)       ep_regs[XFER_EPNUM(xfer)]
 // Converts epnum (0,1,2,3) to EPx_REGS pointer

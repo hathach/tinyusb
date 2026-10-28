@@ -340,7 +340,7 @@ static cdch_interface_t* get_itf_by_xfer(const tuh_xfer_t * xfer) {
         #if CFG_TUH_CDC_CH34X
         case SERIAL_DRIVER_CH34X:
           // ch34x has only one interface
-          return p_cdc;
+          return p_cdc; //-V1037 distinct lookups returning the same instance
         #endif
 
         #if CFG_TUH_CDC_PL2303
@@ -740,7 +740,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   if (TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass) {
     return acm_open(daddr, itf_desc, max_len);
-  } else if (SERIAL_DRIVER_COUNT > 1 &&
+  } else if (SERIAL_DRIVER_COUNT > 1 && //-V560 constant in this configuration
              TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
     uint16_t vid, pid;
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid), 0);
@@ -884,7 +884,7 @@ static void cdch_process_line_state_on_enum(tuh_xfer_t *xfer) {
 static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  request result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  request result = %d\r\n", (int) xfer->result);
   const cdch_serial_driver_t *driver = &serial_drivers[p_cdc->serial_drid];
   driver->request_complete(p_cdc, xfer);
 
@@ -898,7 +898,7 @@ static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
 static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  stage1 set baudrate result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  stage1 set baudrate result = %d\r\n", (int) xfer->result);
   const cdch_serial_driver_t *driver = &serial_drivers[p_cdc->serial_drid];
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
@@ -915,7 +915,7 @@ static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
 static void cdch_set_line_coding_stage2_data_format_complete(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  stage2 set data format result = %u\r\n", xfer->result);
+  TU_LOG_DRV("  stage2 set data format result = %d\r\n", (int) xfer->result);
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     p_cdc->line.coding = p_cdc->requested_line.coding; // update data format
@@ -2162,7 +2162,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
       }
       type = pl2303_detect_type(p_cdc, 2); // step 2 now with supports_hx_status
       TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
-      TU_LOG_DRV("  PL2303 type detected: %u\r\n", type);
+      TU_LOG_DRV("  PL2303 type detected: %d\r\n", (int) type);
 
       p_cdc->pl2303.type = type;
       p_cdc->pl2303.quirks |= pl2303_type_data[type].quirks;
@@ -2341,7 +2341,7 @@ static pl2303_type_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step) {
     if (desc_dev.bDeviceClass == 0x00 || desc_dev.bDeviceClass == 0xff) {
       return PL2303_TYPE_H; /* variant 1 */
     }
-    return PL2303_TYPE_H; /* variant 0 */
+    return PL2303_TYPE_H; /* variant 0 */ //-V523 pl2303 variants mirror the Linux driver
   }
 
   switch (desc_dev.bcdUSB) {
@@ -2360,7 +2360,7 @@ static pl2303_type_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step) {
       switch (desc_dev.bcdDevice) {
         case 0x100: /* GC */
         case 0x105:
-          return PL2303_TYPE_HXN;
+          return PL2303_TYPE_HXN; //-V1037 pl2303 variants mirror the Linux driver
 
         case 0x300: /* GT / TA */
           if (step == 1) {
@@ -2429,7 +2429,7 @@ static uint32_t pl2303_get_supported_baud_rate(uint32_t baud) {
 
   if (i == TU_ARRAY_SIZE(baud_sup)) {
     baud = baud_sup[i - 1];
-  } else if (i > 0 && (baud_sup[i] - baud) > (baud - baud_sup[i - 1])) {
+  } else if (i > 0 && (baud_sup[i] - baud) > (baud - baud_sup[i - 1])) { //-V658 baud_sup[i] > baud >= baud_sup[i - 1] here
     baud = baud_sup[i - 1];
   } else {
     baud = baud_sup[i];

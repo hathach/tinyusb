@@ -34,8 +34,8 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
   #define EP_RX_CTRL(ep)     *(volatile uint8_t *)((volatile uint8_t *)&(USBHSD->UEP0_RX_CTRL) + (ep) * 4)
   #define EP_RX_MAX_LEN(ep)  *(volatile uint16_t *)((volatile uint16_t *)&(USBHSD->UEP0_MAX_LEN) + (ep) * 2)
 
-  #define EP_TX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_TX_DMA) + (ep - 1))
-  #define EP_RX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_RX_DMA) + (ep - 1))
+  #define EP_TX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_TX_DMA) + ((ep) - 1))
+  #define EP_RX_DMA_ADDR(ep) *(volatile uint32_t *)((volatile uint32_t *)&(USBHSD->UEP1_RX_DMA) + ((ep) - 1))
 
 /* Endpoint Buffer */
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
@@ -253,7 +253,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   const uint8_t    ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
   const tusb_dir_t dir    = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  TU_ASSERT(ep_num < EP_MAX);
+  TU_ASSERT(ep_num < EP_MAX); //-V547 constant in this configuration
 
   if (ep_num == 0) {
     return true;

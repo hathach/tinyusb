@@ -145,7 +145,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // PHY bring-up sequence, keeping the runtime role dwc2_clock_init programmed.
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void) hs_phy_type;
-  USBHS_Type* wrapper = (USBHS_Type*) dwc2;
+  USBHS_Type* wrapper = (USBHS_Type*) dwc2; //-V1027 USBHS_Type wraps the DWC2 core at the same base
   const tusb_role_t role = (wrapper->SS.SUBSYSTEM_CTL & USBHS_SS_SUBSYSTEM_CTL_USB_MODE_Msk) ? TUSB_ROLE_HOST : TUSB_ROLE_DEVICE;
   ifx_usbhs_ss_enable(wrapper, role);
 }
@@ -153,7 +153,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_
 // MCU specific PHY deinit, disable subsystem/PHY power
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void) hs_phy_type;
-  USBHS_Type* wrapper = (USBHS_Type*) dwc2;
+  USBHS_Type* wrapper = (USBHS_Type*) dwc2; //-V1027 USBHS_Type wraps the DWC2 core at the same base
   wrapper->SS.SUBSYSTEM_CTL &= ~USBHS_SS_SUBSYSTEM_CTL_SS_ENABLE_Msk;
 }
 

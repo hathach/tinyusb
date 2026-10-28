@@ -472,7 +472,7 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
     } else {
       // a failed transfer is not a report: the buffer holds stale data, and a zero length cannot tell it from
       // the legitimate zero-length reports some devices send
-      TU_LOG_DRV("  [idx=%u] Get Report failed: result=%u\r\n", idx, result);
+      TU_LOG_DRV("  [idx=%u] Get Report failed: result=%d\r\n", idx, (int) result);
       tuh_hid_report_failed_cb(daddr, idx, result);
     }
   } else {

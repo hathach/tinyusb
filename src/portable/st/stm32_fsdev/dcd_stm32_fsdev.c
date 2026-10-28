@@ -526,7 +526,7 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type) {
   }
 
   // Allocation failed
-  TU_ASSERT(0);
+  TU_ASSERT(false, 0xFF);
 }
 
 void edpt0_open(uint8_t rhport) {
@@ -631,6 +631,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t dir    = tu_edpt_dir(ep_addr);
   const uint8_t ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
+  TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
 
   #if CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP != 0
   uint32_t pma_addr  = dcd_pma_alloc(largest_packet_size, true);
@@ -724,7 +725,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
-  ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
+  ep_reg &= U_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits //-V501 macro tests the direction it is given
   ep_write(ep_ix, ep_reg, true);
 }
 

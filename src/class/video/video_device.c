@@ -517,9 +517,6 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
-        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
-        break;
-
       case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
@@ -560,10 +557,13 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
   uint_fast8_t const fmtnum = param->bFormatIndex;
   if (0 == fmtnum) {
     switch (request) {
-      case VIDEO_REQUEST_GET_MAX:
-        if (_get_desc_vs(stm))
-          param->bFormatIndex = _get_desc_vs(stm)->stm.bNumFormats;
+      case VIDEO_REQUEST_GET_MAX: {
+        tusb_desc_vs_itf_t const *vs = _get_desc_vs(stm);
+        if (vs) {
+          param->bFormatIndex = vs->stm.bNumFormats;
+        }
         break;
+      }
 
       case VIDEO_REQUEST_GET_MIN:
       case VIDEO_REQUEST_GET_DEF:
@@ -632,9 +632,6 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
-        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
-        break;
-
       case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
@@ -747,7 +744,7 @@ static bool _close_vc_itf(uint8_t rhport, videod_interface_t *self)
  * @param[in]     altnum   The target alternate setting number. */
 static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t altnum)
 {
-  TU_LOG_DRV("    open VC %d\r\n", altnum);
+  TU_LOG_DRV("    open VC %u\r\n", (unsigned) altnum);
   uint8_t const *beg = self->beg;
   uint8_t const *end = beg + self->len;
 
@@ -801,7 +798,7 @@ static bool _init_vs_configuration(videod_streaming_interface_t *stm) {
 static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint_fast8_t altnum)
 {
   uint_fast8_t i;
-  TU_LOG_DRV("    reopen VS %d\r\n", altnum);
+  TU_LOG_DRV("    reopen VS %u\r\n", (unsigned) altnum);
   uint8_t const *desc = _videod_itf[stm->index_vc].beg;
 
 #ifndef TUP_DCD_EDPT_ISO_ALLOC
@@ -1286,7 +1283,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   uint8_t ep_addr = 0;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
-    if (0 == ofs_ep) {
+    if (0 == ofs_ep) { //-V547 constant in this configuration
       continue;
     }
     ep_addr = _desc_ep_addr(desc + ofs_ep);
@@ -1354,7 +1351,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     self = &_videod_itf[ctl_idx];
     break;
   }
-  TU_ASSERT(ctl_idx < CFG_TUD_VIDEO, 0);
+  TU_ASSERT(self, 0);
 
   uint8_t const *end = (uint8_t const*)itf_desc + max_len;
   self->beg = (uint8_t const*) itf_desc;

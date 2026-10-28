@@ -328,7 +328,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
 
   #if TU_CHECK_MCU(OPT_MCU_HPM)
-  usb_phy_init((USB_Type *)dcd_reg, false);
+  usb_phy_init((USB_Type *)dcd_reg, false); //-V1027 HPM PHY API takes its own type for the same registers
   #endif
 
   return controller_reset(rhport);
@@ -751,7 +751,7 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
     const uint32_t edpt_complete = dcd_reg->ENDPTCOMPLETE;
-    dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge
+    dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge //-V1048 write-1-to-clear
 
     // 42.5.6.6.4 Transfer Completion (p.2413): a failed dTD also sets ENDPTCOMPLETE
     // nothing to do, we will submit xfer as error to usbd

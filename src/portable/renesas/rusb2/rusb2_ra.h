@@ -57,8 +57,8 @@ typedef struct {
   #define RUSB2_SUPPORT_HIGHSPEED
   #define RUSB2_CONTROLLER_COUNT 2
 
-  #define rusb2_is_highspeed_rhport(_p)  (_p == 1)
-  #define rusb2_is_highspeed_reg(_reg)   (_reg == RUSB2_REG(1))
+  #define rusb2_is_highspeed_rhport(_p)  ((_p) == 1)
+  #define rusb2_is_highspeed_reg(_reg)   ((_reg) == RUSB2_REG(1))
 
   // UTMI PHY reference clock is the main oscillator: PHYSET.CLKSEL must match the board XTAL
   // before the PHY PLL is released (RA6M5 UM R01UH0891 29.2.17: 00=12 MHz, 10=20 MHz,

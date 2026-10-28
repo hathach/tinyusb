@@ -5,6 +5,7 @@ TINYUSB_SRC_C += \
 	src/device/usbd.c \
 	src/typec/usbc.c \
 	src/class/audio/audio_device.c \
+	src/class/bth/bth_device.c \
 	src/class/cdc/cdc_device.c \
 	src/class/dfu/dfu_device.c \
 	src/class/dfu/dfu_rt_device.c \

@@ -1246,7 +1246,7 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
       } intr;
       intr.value = epout->intr;
 
-      epout->intr = intr.value; // Clear interrupt //-V::2584::{otg_int}
+      epout->intr = intr.value; // Clear interrupt //-V::2584::{otg_int} //-V1048 write-1-to-clear
 
       if (is_dma) {
         #if CFG_TUD_DWC2_DMA_ENABLE
@@ -1379,7 +1379,7 @@ void dcd_int_handler(uint8_t rhport) {
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
-    dwc2->gotgint = otg_int;
+    dwc2->gotgint = otg_int; //-V1048 write-1-to-clear
   }
 
   if(gintsts & GINTSTS_SOF && dwc2->gintmsk & GINTMSK_SOFM) {

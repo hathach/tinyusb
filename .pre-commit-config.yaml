@@ -137,6 +137,13 @@ repos:
     language: system
     pass_filenames: false
 
+  - id: pvs-studio-test
+    name: pvs-studio-test
+    files: ^(tools/(pvs_studio|family_json)\.py|\.PVS-Studio/matrix\.json|test/hil/test/test_pvs_studio\.py)$
+    entry: python3 test/hil/test/test_pvs_studio.py
+    language: system
+    pass_filenames: false
+
 #  - id: build-fuzzer
 #    name: build-fuzzer
 #    files: ^(src/|test/fuzz/)

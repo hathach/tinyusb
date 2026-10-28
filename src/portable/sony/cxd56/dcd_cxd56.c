@@ -87,14 +87,15 @@ static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_
   #ifdef EP_ALLOCREQ
   // SDK v2
   usbdcd_driver.req[0] = EP_ALLOCREQ(usbdcd_driver.ep[0]);
-  if (usbdcd_driver.req[0] != NULL) {
-    usbdcd_driver.req[0]->len = 64;
-    usbdcd_driver.req[0]->buf = EP_ALLOCBUFFER(usbdcd_driver.ep[0], 64);
-    if (!usbdcd_driver.req[0]->buf) {
-      EP_FREEREQ(usbdcd_driver.ep[0], usbdcd_driver.req[0]);
-      usbdcd_driver.req[0] = NULL;
-      return ENOMEM;
-    }
+  if (usbdcd_driver.req[0] == NULL) {
+    return ENOMEM;
+  }
+  usbdcd_driver.req[0]->len = 64;
+  usbdcd_driver.req[0]->buf = EP_ALLOCBUFFER(usbdcd_driver.ep[0], 64);
+  if (!usbdcd_driver.req[0]->buf) {
+    EP_FREEREQ(usbdcd_driver.ep[0], usbdcd_driver.req[0]);
+    usbdcd_driver.req[0] = NULL;
+    return ENOMEM;
   }
   #else
   // SDK v3

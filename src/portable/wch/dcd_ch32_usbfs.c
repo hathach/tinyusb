@@ -45,7 +45,7 @@
     // EP0-4 and EP5-7 are split, and EP4 has no DMA register
     static inline volatile uint32_t* ch32_usbfs_ep_dma_reg(uint8_t ep) {
       switch (ep) {
-        case 0: return &USBOTG_FS->UEP0_DMA;
+        case 0: return &USBOTG_FS->UEP0_DMA; //-V1037 EP4 shares the EP0 DMA buffer
         case 1: return &USBOTG_FS->UEP1_DMA;
         case 2: return &USBOTG_FS->UEP2_DMA;
         case 3: return &USBOTG_FS->UEP3_DMA;
@@ -62,9 +62,9 @@
     #define EP_CTRL(ep)    ((&USBOTG_FS->UEP0_CTRL_H)[2 * (ep) + ((ep) > 4 ? 24 : 0)])
   #else
     #define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
-    #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * ep])
-    #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_TX_CTRL)[4 * ep])
-    #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * ep])
+    #define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_TX_LEN)[2 * (ep)])
+    #define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_TX_CTRL)[4 * (ep)])
+    #define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_RX_CTRL)[4 * (ep)])
   #endif
 
 // Map generic TX/RX control values to split or combined endpoint control registers.

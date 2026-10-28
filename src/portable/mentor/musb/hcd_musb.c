@@ -130,20 +130,7 @@ static inline int update_free_block_list(free_block_t *blks, unsigned num, uint_
       .beg = addr + size,
       .end = p->end
     };
-    p->end = addr;
-    if (p->beg == p->end) {
-      if (tmp.beg != tmp.end) {
-        *p = tmp;
-        return 0;
-      }
-      /* remove block */
-      free_block_t *end = blks + num;
-      while (p + 1 < end) {
-        *p = *(p + 1);
-        ++p;
-      }
-      return -1;
-    }
+    p->end = addr; // p->beg < addr: the block before addr is never empty
     if (tmp.beg == tmp.end) return 0;
     blks[num] = tmp;
     return 1;
@@ -376,6 +363,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
 {
   (void)rhport;
   unsigned const pipenum = find_pipe(dev_addr, ep_addr);
+  if (!pipenum) return false;
   unsigned const dir_tx  = tu_edpt_dir(ep_addr) ? 0: 1;
   pipe_state_t *pipe = &_hcd.pipe[pipenum - 1][dir_tx];
   pipe->buf          = buffer;

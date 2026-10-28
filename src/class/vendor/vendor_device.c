@@ -714,7 +714,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       const uint8_t dir = tu_edpt_dir(desc_ep->bEndpointAddress);
       const uint8_t xfer = desc_ep->bmAttributes.xfer;
       const uint16_t mps = tu_edpt_packet_size(desc_ep);
-      TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, 0);
+      TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, 0); //-V547 constant in this configuration
 
       if (seen_type[epnum][dir] != 0) {
         // reused address in a later altsetting: same type, same packet size unless isochronous

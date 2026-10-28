@@ -26,6 +26,7 @@
 //--------------------------------------------------------------------+
 enum {
   PIPE_COUNT = 10,
+  RUSB2_HCD_ADDR_MAX = 5, // USBa can only handle device addresses 0 to 5
 };
 
 TU_ATTR_PACKED_BEGIN
@@ -56,8 +57,8 @@ TU_ATTR_BIT_FIELD_ORDER_END
 
 typedef struct {
   pipe_state_t pipe[PIPE_COUNT];
-  uint8_t      ep[4][2][15]; /* a lookup table for a pipe index from an endpoint address */
-  uint8_t      ctl_mps[5];   /* EP0 max packet size for each device */
+  uint8_t      ep[RUSB2_HCD_ADDR_MAX][2][15]; /* a lookup table for a pipe index from an endpoint address, device 1 to max */
+  uint8_t      ctl_mps[RUSB2_HCD_ADDR_MAX + 1]; /* EP0 max packet size for each device address 0 to max */
 } hcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -117,8 +118,9 @@ static volatile uint16_t* addr_to_pipectr(uint8_t rhport, uint8_t dev_addr, unsi
   const unsigned epn = tu_edpt_number(ep_addr);
 
   if (epn) {
+    TU_ASSERT(dev_addr > 0 && dev_addr <= RUSB2_HCD_ADDR_MAX, NULL);
     const unsigned dir_in = tu_edpt_dir(ep_addr);
-    const unsigned num = _hcd.ep[dev_addr][dir_in][epn - 1];
+    const unsigned num = _hcd.ep[dev_addr - 1][dir_in][epn - 1];
     return get_pipectr(rusb, num);
   } else {
     return get_pipectr(rusb, 0);
@@ -387,7 +389,7 @@ static void process_pipe_nrdy(uint8_t rhport, unsigned num)
   TU_LOG(TU_RUSB2_HCD_DBG, "NRDY %d %x\r\n", num, *ctr);
   switch (*ctr & RUSB2_PIPE_CTR_PID_Msk) {
     default: return;
-    case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break;
+    case RUSB2_PIPE_CTR_PID_STALL: result = XFER_RESULT_STALLED; break; //-V1037 both PIDs mean a stalled pipe
     case RUSB2_PIPE_CTR_PID_STALL2: result = XFER_RESULT_STALLED; break;
     case RUSB2_PIPE_CTR_PID_NAK:   result = XFER_RESULT_FAILED;  break;
   }
@@ -554,7 +556,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   uint16_t volatile *ctr;
 
-  TU_ASSERT(dev_addr < 6,); /* USBa can only handle addresses from 0 to 5. */
+  TU_ASSERT(dev_addr <= RUSB2_HCD_ADDR_MAX,);
   if (!dev_addr) return;
 
   _hcd.ctl_mps[dev_addr] = 0;
@@ -583,7 +585,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
  *--------------------------------------------------------------------+*/
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
-  TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
+  TU_ASSERT(dev_addr <= RUSB2_HCD_ADDR_MAX);
 
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   TU_LOG(TU_RUSB2_HCD_DBG, "S %d %x\r\n", dev_addr, rusb->DCPCTR);
@@ -616,7 +618,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *ep_desc)
 {
-  TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
+  TU_ASSERT(dev_addr <= RUSB2_HCD_ADDR_MAX);
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
   const unsigned ep_addr = ep_desc->bEndpointAddress;

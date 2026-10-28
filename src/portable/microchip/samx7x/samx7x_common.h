@@ -2079,7 +2079,7 @@ typedef struct
 #define FIFO_RAM_ADDR     0xA0100000u
 
 // Errata: The DMA feature is not available for Pipe/Endpoint 7
-#define EP_DMA_SUPPORT(epnum) (epnum >= 1 && epnum <= 6 && CFG_TUD_SAMX7X_DMA_ENABLE)
+#define EP_DMA_SUPPORT(epnum) ((epnum) >= 1 && (epnum) <= 6 && CFG_TUD_SAMX7X_DMA_ENABLE)
 
 //------------- DCache -------------//
 #if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE

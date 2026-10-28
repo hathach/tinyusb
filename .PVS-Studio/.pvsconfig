@@ -17,3 +17,12 @@
 //+V2614 DISABLE_LENGHT_LIMIT_CHECK:YES
 //-V:memcpy:2628 Pointer arguments to the 'memcpy' function should be pointers to qualified or unqualified versions of compatible types.
 //-V::2659 [MISRA-C-16.1] Switch statements should be well-formed. Every switch-clause should be terminated by an unconditional 'break' statement
+
+// Classes disabled globally: every instance in src/ was triaged as one of the intended patterns below, but new
+// instances go unreported too. Any other finding is suppressed at its line with a reason.
+//-V::525 Register tables and per-endpoint lookups repeat by design
+//-V::566 MMIO base addresses and the osal task-handle sentinel are integer-to-pointer casts by design
+//-V::785 switch on a configuration constant selects the build's variant
+//-V::796 Missing breaks are caught by GCC's -Wimplicit-fallthrough; PVS only sees the empty TU_ATTR_FALLTHROUGH fallback
+//-V::1008 Loops bounded by a CFG_* count run once when the configuration sets it to 1
+//-V::1044 Register poll loops wait on volatile hardware state

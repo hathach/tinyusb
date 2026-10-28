@@ -1164,9 +1164,6 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   if (xfer_pending) {
     edpt->xfer_pending = 0;
     edpt->uframe_countdown = 0;
-  }
-
-  if (xfer_pending) {
     hcd_int_enable(rhport);
     return true;
   }
@@ -1914,7 +1911,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
           }
         }
 
-        more_isr = more_isr || edpt->xfer_pending;
+        more_isr = more_isr || edpt->xfer_pending; //-V560 kickoff may clear xfer_pending
       }
     }
   }
@@ -2009,7 +2006,7 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
         // may need to reset port
       }
     }
-    hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+    hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ; //-V684 the 30/60 MHz select is 0
   }
 
   dwc2->hcfg = hcfg;

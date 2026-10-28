@@ -109,7 +109,7 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
       ep_ctrl |= EP_CTRL_ENABLE_BITS;
     }
 
-    *get_ep_ctrl(epnum, dir) = ep_ctrl;
+    *get_ep_ctrl(epnum, dir) = ep_ctrl; //-V522 epnum and dir are bounded by the caller
 
     hard_assert(hw_buffer_ptr < usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
     pico_info("  Allocated %d bytes (0x%p)\r\n", size, ep->dpram_buf);
@@ -161,7 +161,7 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
       usb_hw_clear->buf_status = bit;
       buf_status &= ~bit;
 
-      if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id, dir == TUSB_DIR_OUT)) {
+      if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id, dir == TUSB_DIR_OUT)) { //-V1051 buf_reg holds the status of buf_id
         const uint16_t xferred_len = ep->xferred_len;
         rp2usb_reset_transfer(ep);
         dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
@@ -190,7 +190,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   }
 
   // clear non-control hw endpoints
-  tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2 * sizeof(hw_endpoint_t));
+  tu_memclr(&hw_endpoints[1], sizeof(hw_endpoints) - sizeof(hw_endpoints[0]));
 
   // reclaim buffer space
   hw_buffer_ptr = &usb_dpram->epx_data[0];
@@ -273,7 +273,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
   #endif
 
     // disable SOF interrupt if it is used for RESUME in remote wakeup
-    if (!keep_sof_alive && !_sof_enable) {
+    if (!keep_sof_alive && !_sof_enable) { //-V560 constant in this configuration
       usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
     }
   }

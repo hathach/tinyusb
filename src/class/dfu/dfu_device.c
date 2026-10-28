@@ -181,7 +181,7 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   }
 
   //------------- DFU Functional descriptor -------------//
-  const tusb_desc_dfu_functional_t*func_desc = (const tusb_desc_dfu_functional_t*) itf_desc;
+  const tusb_desc_dfu_functional_t*func_desc = (const tusb_desc_dfu_functional_t*) itf_desc; //-V1027 descriptor walk casts by bDescriptorType
   TU_ASSERT(tu_desc_type(func_desc) == TUSB_DESC_FUNCTIONAL, 0);
   drv_len += sizeof(tusb_desc_dfu_functional_t);
 

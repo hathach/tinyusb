@@ -175,7 +175,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
-CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) volatile static dcd_data_t _dcd;
+static CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) volatile dcd_data_t _dcd;
 
 #if TU_PIC_INT_SIZE == 4
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
@@ -317,7 +317,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   _dcd.bdt[0][1][in_odd ^ 1].own   = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-          _dcd.setup_packet, sizeof(_dcd.setup_packet));
+          _dcd.setup_packet, sizeof(_dcd.setup_packet), true);
 }
 
 static void process_stall(uint8_t rhport)
@@ -791,7 +791,7 @@ void dcd_int_handler(uint8_t rhport)
 
   if (is & _U1IR_UERRIF_MASK) {
     uint32_t es = U1EIR;
-    U1EIR = es;
+    U1EIR = es; //-V1048 write-1-to-clear: writing back the read value clears those errors
     U1IR = is; /* discard any pending events */
   }
 

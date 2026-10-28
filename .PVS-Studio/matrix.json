@@ -1,0 +1,521 @@
+{
+  "profiles": {
+    "adafruit_fruit_jam": {
+      "board": "adafruit_fruit_jam"
+    },
+    "adafruit_fruit_jam-pio-device": {
+      "base": "adafruit_fruit_jam",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUD_RPI_PIO_USB": "1"
+      },
+      "expect": {
+        "CFG_TUH_RPI_PIO_USB": "1"
+      }
+    },
+    "apm32f072_dev_board": {
+      "board": "apm32f072_dev_board"
+    },
+    "apm32f103_dev_board": {
+      "board": "apm32f103_dev_board"
+    },
+    "apm32f107_dev_board": {
+      "board": "apm32f107_dev_board"
+    },
+    "at32f403a_weact_blackpill": {
+      "board": "at32f403a_weact_blackpill"
+    },
+    "at_start_f402": {
+      "board": "at_start_f402"
+    },
+    "at_start_f413": {
+      "board": "at_start_f413"
+    },
+    "at_start_f415": {
+      "board": "at_start_f415"
+    },
+    "at_start_f423": {
+      "board": "at_start_f423"
+    },
+    "at_start_f425": {
+      "board": "at_start_f425"
+    },
+    "at_start_f435": {
+      "board": "at_start_f435"
+    },
+    "at_start_f455": {
+      "board": "at_start_f455"
+    },
+    "b_g474e_dpow1": {
+      "board": "b_g474e_dpow1"
+    },
+    "b_u585i_iot2a": {
+      "board": "b_u585i_iot2a"
+    },
+    "cfg-device-all": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "config": "test/pvs/device_all/tusb_config.h",
+      "expect": {
+        "CFG_TUD_BTH": "1",
+        "CFG_TUD_ECM_RNDIS": "1",
+        "CFG_TUSB_DEBUG": "3"
+      }
+    },
+    "cfg-device-alt": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "config": "test/pvs/device_alt/tusb_config.h",
+      "includes": [
+        "test/pvs/os_custom"
+      ],
+      "expect": {
+        "CFG_TUD_NCM": "1",
+        "CFG_TUSB_OS": "OPT_OS_CUSTOM"
+      }
+    },
+    "cfg-host-all": {
+      "base": "stm32f407disco",
+      "example": "host/cdc_msc_hid",
+      "config": "test/pvs/host_all/tusb_config.h",
+      "expect": {
+        "CFG_TUH_CDC_PL2303": "1",
+        "CFG_TUH_HUB": "2"
+      }
+    },
+    "cfg-host-alt": {
+      "base": "stm32f407disco",
+      "example": "host/cdc_msc_hid",
+      "config": "test/pvs/host_alt/tusb_config.h",
+      "includes": [
+        "test/pvs/os_custom"
+      ],
+      "expect": {
+        "CFG_TUH_HUB": "0"
+      }
+    },
+    "cfg-template": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "config": "test/pvs/template/tusb_config.h",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_NONE"
+      },
+      "sources": [
+        "src/portable/template/dcd_template.c",
+        "src/portable/template/hcd_template.c"
+      ]
+    },
+    "cfg-armcc": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "config": "test/pvs/template/tusb_config.h",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_NONE",
+        "__CC_ARM": "1"
+      },
+      "flags": [
+        "-U__has_attribute",
+        "-Wno-error"
+      ]
+    },
+    "cfg-os-rtthread": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_RTTHREAD"
+      },
+      "includes": [
+        "test/pvs/stubs/rtthread"
+      ]
+    },
+    "cfg-os-rtx4": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_RTX4"
+      },
+      "includes": [
+        "test/pvs/stubs/rtx4"
+      ]
+    },
+    "cfg-os-zephyr": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_ZEPHYR"
+      },
+      "includes": [
+        "test/pvs/stubs/zephyr"
+      ]
+    },
+    "cfg-os-mynewt": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_MYNEWT"
+      },
+      "includes": [
+        "test/pvs/stubs/mynewt"
+      ]
+    },
+    "cfg-os-stk": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_STK"
+      },
+      "includes": [
+        "test/pvs/stubs/stk"
+      ]
+    },
+    "cfg-os-stk-cpp": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_OS": "OPT_OS_STK",
+        "CFG_TUH_OSAL_STK_USE_CPP": "1"
+      }
+    },
+    "cfg-pic32mx": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MX"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ]
+    },
+    "cfg-pic32mm": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MM"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ]
+    },
+    "cfg-pic32mk": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MK"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "flags": [
+        "-Wno-error=discarded-qualifiers",
+        "-Wno-error=unused-parameter",
+        "-Wno-error=cast-qual"
+      ],
+      "sources": [
+        "src/portable/microchip/pic/dcd_pic.c"
+      ]
+    },
+    "cfg-pic32mz": {
+      "base": "stm32f407disco",
+      "example": "device/cdc_msc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PIC32MZ"
+      },
+      "includes": [
+        "test/pvs/stubs/pic"
+      ],
+      "sources": [
+        "src/portable/microchip/pic32mz/dcd_pic32mz.c"
+      ]
+    },
+    "cfg-pse84": {
+      "base": "stm32f407disco",
+      "example": "dual/host_info_to_device_cdc",
+      "defines": {
+        "CFG_TUSB_MCU": "OPT_MCU_PSE84"
+      },
+      "includes": [
+        "test/pvs/stubs/ifx"
+      ]
+    },
+    "ch32f205r-r0": {
+      "board": "ch32f205r-r0"
+    },
+    "ch32v103c_bluepill": {
+      "board": "ch32v103c_bluepill",
+      "toolchain": "riscv-gcc"
+    },
+    "ch32v307v_r1_1v0": {
+      "board": "ch32v307v_r1_1v0",
+      "toolchain": "riscv-gcc"
+    },
+    "ch582m_evt": {
+      "board": "ch582m_evt",
+      "toolchain": "riscv-gcc"
+    },
+    "cynthion_d11": {
+      "board": "cynthion_d11"
+    },
+    "da14695_dk_usb": {
+      "board": "da14695_dk_usb"
+    },
+    "ea4088_quickstart": {
+      "board": "ea4088_quickstart"
+    },
+    "ea4357": {
+      "board": "ea4357"
+    },
+    "ek_tm4c123gxl": {
+      "board": "ek_tm4c123gxl"
+    },
+    "espressif_p4_function_ev": {
+      "board": "espressif_p4_function_ev",
+      "toolchain": "esp-idf"
+    },
+    "espressif_s3_devkitm": {
+      "board": "espressif_s3_devkitm",
+      "toolchain": "esp-idf"
+    },
+    "f1c100s": {
+      "board": "f1c100s"
+    },
+    "feather_nrf52840_express": {
+      "board": "feather_nrf52840_express"
+    },
+    "feather_rp2040_max3421": {
+      "board": "feather_rp2040_max3421"
+    },
+    "fomu": {
+      "board": "fomu",
+      "toolchain": "riscv-gcc"
+    },
+    "frdm_k32l2a4s": {
+      "board": "frdm_k32l2a4s"
+    },
+    "frdm_k64f": {
+      "board": "frdm_k64f"
+    },
+    "frdm_kl25z": {
+      "board": "frdm_kl25z"
+    },
+    "frdm_mcxa153": {
+      "board": "frdm_mcxa153"
+    },
+    "frdm_mcxn947": {
+      "board": "frdm_mcxn947"
+    },
+    "frdm_rw612": {
+      "board": "frdm_rw612"
+    },
+    "gr_citrus": {
+      "board": "gr_citrus",
+      "toolchain": "rx-gcc"
+    },
+    "hpm6750evk2": {
+      "board": "hpm6750evk2",
+      "toolchain": "riscv-gcc"
+    },
+    "lpcxpresso11u68": {
+      "board": "lpcxpresso11u68"
+    },
+    "lpcxpresso1347": {
+      "board": "lpcxpresso1347"
+    },
+    "lpcxpresso1549": {
+      "board": "lpcxpresso1549"
+    },
+    "lpcxpresso1769": {
+      "board": "lpcxpresso1769"
+    },
+    "lpcxpresso18s37": {
+      "board": "lpcxpresso18s37"
+    },
+    "lpcxpresso51u68": {
+      "board": "lpcxpresso51u68"
+    },
+    "lpcxpresso54114": {
+      "board": "lpcxpresso54114"
+    },
+    "lpcxpresso54628-host1": {
+      "board": "lpcxpresso54628",
+      "args": [
+        "-DRHPORT_HOST=1"
+      ]
+    },
+    "lpcxpresso55s69": {
+      "board": "lpcxpresso55s69"
+    },
+    "max32666fthr": {
+      "board": "max32666fthr"
+    },
+    "metro_m0_express": {
+      "board": "metro_m0_express"
+    },
+    "metro_m4_express": {
+      "board": "metro_m4_express"
+    },
+    "mimxrt1064_evk": {
+      "board": "mimxrt1064_evk"
+    },
+    "mm32f327x_mb39": {
+      "board": "mm32f327x_mb39"
+    },
+    "mm900evxb": {
+      "board": "mm900evxb",
+      "toolchain": "ft9xx-gcc"
+    },
+    "msp_exp430f5529lp": {
+      "board": "msp_exp430f5529lp",
+      "toolchain": "msp430-gcc"
+    },
+    "msp_exp432e401y": {
+      "board": "msp_exp432e401y"
+    },
+    "nanoch32v203": {
+      "board": "nanoch32v203",
+      "toolchain": "riscv-gcc"
+    },
+    "nrf54lm20dk": {
+      "board": "nrf54lm20dk"
+    },
+    "nutiny_nuc126v": {
+      "board": "nutiny_nuc126v"
+    },
+    "nutiny_sdk_nuc120": {
+      "board": "nutiny_sdk_nuc120"
+    },
+    "nutiny_sdk_nuc121": {
+      "board": "nutiny_sdk_nuc121"
+    },
+    "nutiny_sdk_nuc125": {
+      "board": "nutiny_sdk_nuc125"
+    },
+    "nutiny_sdk_nuc505": {
+      "board": "nutiny_sdk_nuc505"
+    },
+    "py32f071_dev_board": {
+      "board": "py32f071_dev_board"
+    },
+    "ra6m5_ek": {
+      "board": "ra6m5_ek"
+    },
+    "raspberry_pi_pico": {
+      "board": "raspberry_pi_pico"
+    },
+    "raspberry_pi_pico2": {
+      "board": "raspberry_pi_pico2"
+    },
+    "raspberrypi_cm4": {
+      "board": "raspberrypi_cm4",
+      "toolchain": "aarch64-gcc"
+    },
+    "raspberrypi_zero": {
+      "board": "raspberrypi_zero"
+    },
+    "same70_xplained": {
+      "board": "same70_xplained"
+    },
+    "samg55_xplained": {
+      "board": "samg55_xplained"
+    },
+    "sipeed_longan_nano": {
+      "board": "sipeed_longan_nano",
+      "toolchain": "riscv-gcc"
+    },
+    "sltb009a": {
+      "board": "sltb009a"
+    },
+    "spresense": {
+      "board": "spresense"
+    },
+    "stlinkv3mini": {
+      "board": "stlinkv3mini"
+    },
+    "stm32c071nucleo": {
+      "board": "stm32c071nucleo"
+    },
+    "stm32c542nucleo": {
+      "board": "stm32c542nucleo"
+    },
+    "stm32f070rbnucleo": {
+      "board": "stm32f070rbnucleo"
+    },
+    "stm32f103_bluepill": {
+      "board": "stm32f103_bluepill"
+    },
+    "stm32f207nucleo": {
+      "board": "stm32f207nucleo"
+    },
+    "stm32f303disco": {
+      "board": "stm32f303disco"
+    },
+    "stm32f407disco": {
+      "board": "stm32f407disco"
+    },
+    "stm32f407disco-threadx": {
+      "board": "stm32f407disco",
+      "args": [
+        "-DRTOS=threadx"
+      ]
+    },
+    "stm32g0b1nucleo": {
+      "board": "stm32g0b1nucleo"
+    },
+    "stm32h503nucleo": {
+      "board": "stm32h503nucleo"
+    },
+    "stm32h743eval": {
+      "board": "stm32h743eval"
+    },
+    "stm32h7s3nucleo": {
+      "board": "stm32h7s3nucleo"
+    },
+    "stm32l052dap52": {
+      "board": "stm32l052dap52"
+    },
+    "stm32l412nucleo": {
+      "board": "stm32l412nucleo"
+    },
+    "stm32n657nucleo": {
+      "board": "stm32n657nucleo"
+    },
+    "stm32u083cdk": {
+      "board": "stm32u083cdk"
+    },
+    "stm32wb55nucleo": {
+      "board": "stm32wb55nucleo"
+    },
+    "stm32wba_nucleo": {
+      "board": "stm32wba_nucleo"
+    },
+    "weact_ch32x035_core_board": {
+      "board": "weact_ch32x035_core_board",
+      "toolchain": "riscv-gcc"
+    },
+    "xmc4500_relax": {
+      "board": "xmc4500_relax"
+    }
+  },
+  "gaps": {
+    "src/class/cdc/cdc_rndis.h": {
+      "status": "not-applicable",
+      "reason": "orphan header: no source or example includes it"
+    }
+  }
+}

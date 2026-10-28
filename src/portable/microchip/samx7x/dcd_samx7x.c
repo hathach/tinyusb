@@ -516,7 +516,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   xfer->zlp_pending = false;
   xfer->fifo        = NULL;
 
-  if (EP_DMA_SUPPORT(epnum) && total_bytes != 0) {
+  if (EP_DMA_SUPPORT(epnum) && total_bytes != 0) { //-V560 constant in this configuration
     uint32_t udd_dma_ctrl = total_bytes << DEVDMACONTROL_BUFF_LENGTH_Pos;
     if (dir == TUSB_DIR_OUT) {
       udd_dma_ctrl |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;

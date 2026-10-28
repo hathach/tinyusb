@@ -297,7 +297,7 @@ static void ep0_fill_tx(xfer_ctl_t * xfer_in)
         USB_REGS->EPCSR[0].CSR0L_DEVICEbits.TXPKTRDY = 1;
         break;
       case EP0_STAGE_SETUP_OUT_NO_DATA:
-        ep0_set_stage(EP0_STAGE_STATUS_IN);
+        ep0_set_stage(EP0_STAGE_STATUS_IN); //-V1037 both stages hand over to STATUS_IN the same way
         USB_REGS->EPCSR[0].CSR0L_DEVICEbits.w = (USBHS_EP0_DEVICE_SERVICED_RXPKTRDY | USBHS_EP0_DEVICE_DATAEND);
         break;
       case EP0_STAGE_DATA_OUT_COMPLETE:

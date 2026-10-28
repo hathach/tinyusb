@@ -67,7 +67,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   ci_hs_regs_t *hcd_reg = CI_HS_REG(rhport);
 
   #if CFG_TUSB_MCU == OPT_MCU_HPM
-  usb_phy_init((USB_Type *)hcd_reg, true);
+  usb_phy_init((USB_Type *)hcd_reg, true); //-V1027 HPM PHY API takes its own type for the same registers
   #endif
 
   // Reset controller
