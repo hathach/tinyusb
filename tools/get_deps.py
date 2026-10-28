@@ -96,7 +96,7 @@ deps_optional = {
                                            '4f7299d6ea746b27a9dd19e87af568e34bd65b15',
                                            'rp2040'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '675543bcc9baa8170f868ab7ba316d418dbcf41f',
+                                         'b186e36bea0f3bcc2ee94ca1fa81e7f71281443a',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',

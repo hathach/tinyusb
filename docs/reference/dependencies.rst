@@ -38,7 +38,7 @@ hw/mcu/nxp/mcuxsdk-core                   https://github.com/nxp-mcuxpresso/mcux
 hw/mcu/puya/PY32F071_Firmware             https://github.com/OpenPuya/PY32F071_Firmware.git                 73e384cddce63e3019de41d9b6af17dfc96fa536  py32f0
 hw/mcu/puya/PY32F072_Firmware             https://github.com/OpenPuya/PY32F072_Firmware.git                 bc3a6cdbece335a27abb8b51e6fc4911f5116185  py32f0
 hw/mcu/raspberry_pi/FreeRTOS-Kernel       https://github.com/raspberrypi/FreeRTOS-Kernel.git                4f7299d6ea746b27a9dd19e87af568e34bd65b15  rp2040
-hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                675543bcc9baa8170f868ab7ba316d418dbcf41f  rp2040
+hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                b186e36bea0f3bcc2ee94ca1fa81e7f71281443a  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                         706b4e0cf485605c32351e2f90f5698267996023  rx
 hw/mcu/silabs/cmsis-dfp-efm32gg12b        https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git           f1c31b7887669cb230b3ea63f9b56769078960bc  efm32
