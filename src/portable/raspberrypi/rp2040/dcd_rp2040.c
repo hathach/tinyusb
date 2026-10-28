@@ -196,7 +196,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   hw_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-static void __tusb_irq_path_func(dcd_rp2040_irq_service)(bool sv_span) {
+TU_ATTR_ALWAYS_INLINE static inline void dcd_rp2040_irq_service(bool sv_span) {
   const uint32_t status  = usb_hw->ints;
   uint32_t sof_count = 0;
 

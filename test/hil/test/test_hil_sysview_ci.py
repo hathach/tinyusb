@@ -371,6 +371,19 @@ class WorkloadCpuRow(unittest.TestCase):
         md = sysview_ci.report(self.base, self.pr)
         self.assertIn("| CPU load, workload win (usbd) | 25.0 % | 35.0 % | +10.0 pt |", md)
 
+    def test_unmeasured_base_workload_is_not_new(self):
+        for name, base_wl, cells in (("absent", ..., "– ⚠︎ not measured | 35.0 % | —"),
+                                     ("null", None, "– ⚠︎ not measured | 35.0 % | —"),
+                                     ("empty", [], "— | 35.0 % | new")):
+            with self.subTest(name):
+                base = board_json()
+                if base_wl is not ...:
+                    base["metrics"]["contexts_workload"] = base_wl
+                write_set(self.base, base)
+                write_set(self.pr, self._wl(35.0, 700.0))
+                md = sysview_ci.report(self.base, self.pr)
+                self.assertIn(f"| CPU load, workload win (usbd) | {cells} |", md)
+
 
 class SystemExitDoesNotAbortRun(unittest.TestCase):
     """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol.
