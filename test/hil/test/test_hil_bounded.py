@@ -572,7 +572,7 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device is agentrc's hil_usbtest.find_device for cafe:4010, reading the sysfs
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for 0525:a4a0, reading the sysfs
     root the harness's usb_observe names: one module, so a patched root reaches it."""
 
     def setUp(self):
@@ -674,7 +674,7 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 
         usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen', Popen)
         usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
         r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
         self.assertEqual((r['status'], r['num']), ('HUNG', 1))
         self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
@@ -683,8 +683,8 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 class HangRecoveryOnTheMainPath(unittest.TestCase):
     """The transitions through usbtest.main(): a HUNG case aborts the battery; ONE recovery
     step runs through the convoy-safe flasher (reset where it has one, else reflash); the
-    child reaping afterwards is the only thing that clears `wedged`; an unverifiable child
-    (sudo) keeps the hang; a late-cleared timeout also aborts but is not a wedge."""
+    child reaping afterwards is the only thing that clears `wedged`; a late-cleared timeout
+    also aborts but is not a wedge."""
 
     def _main(self, proc=None, recover=None, reset=True, raising_reset=False, late=False):
         """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
@@ -704,11 +704,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        patch(usbtest.hil_usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda verb, *args: writes.append((verb, *args)))
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
@@ -750,7 +746,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
         self.assertIn('not a wedge', err)
         self.assertNotIn('unrecovered hang', err)
-        self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
+        self.assertEqual(writes, [], 'a standalone run wrote to sysfs')
 
     def test_a_hang_without_recovery_flags_stays_wedged_and_nothing_is_written(self):
         data, err, _exc, writes = self._main(proc=_FakeProc(reaps=True))
@@ -807,12 +803,6 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertEqual(self._steps(), ['reset', 'settle'])
         self.assertFalse(data['wedged'], 'the reset landed before the flasher raised')
 
-    def test_under_sudo_the_hang_cannot_be_cleared(self):
-        data, err, _exc, _w = self._main(proc=None, recover=True)
-        self.assertTrue(data['wedged'])
-        self.assertEqual(self._steps(), ['reset', 'settle'], 'the step still runs; only the verdict is withheld')
-        self.assertIn('cannot confirm', err)
-
     def test_the_settle_keeps_its_validated_minimum(self):
         import usbtest
         self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
@@ -834,7 +824,6 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
         patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded,
                                                            SYS_USB_DEVICES='/sys/bus/usb/devices'))
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.argv(self)
         out, err = usbtest_harness.Out(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
@@ -988,7 +977,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.addCleanup(td.cleanup)
         dev = Path(td.name) / '1-1'
         dev.mkdir()
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
 
         def patch(obj, name, value):
@@ -1140,7 +1129,7 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
         dev = Path(self.td.name) / '1-1'
         dev.mkdir()
         # a real (readable) fake sysfs node, so the bounded reads run unmodified
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
         self.dev = dev
 
@@ -1334,7 +1323,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_util.run_cmd = lambda *a, **k: R()
         # usbtest_enumerated is nested in test_device_usbtest, so stub what it calls
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         self.raised = None
@@ -1393,7 +1382,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1701,7 +1690,7 @@ class UsbtestLearnsTopology(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'run_cmd',
                               lambda *a, **k: self.order.append('battery') or R())
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': 'cafe', 'pid': '4010',
+            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': '0525', 'pid': 'a4a0',
              'serial': 'U'}])
         self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
 
@@ -1792,13 +1781,12 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('no cafe:4010 device', str(cm.exception))
+        self.assertIn('no 0525:a4a0 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
 class UsbtestNeverCleansUp(unittest.TestCase):
-    """main's finally writes nothing: remove_id makes the next registration wait on peers'
-    in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
-    through the uninterruptible device_lock. The id and bindings stay for every run."""
+    """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a
+    host xHCI through the uninterruptible device_lock. The bindings stay for every run."""
 
     def test_the_finally_block_writes_nothing(self):
         import ast
@@ -1809,7 +1797,7 @@ class UsbtestNeverCleansUp(unittest.TestCase):
         self.assertTrue(fins, 'main lost its finally; retarget this test')
         for fin in fins:
             body = ast.unparse(ast.Module(body=fin.finalbody, type_ignores=[]))
-            # every registry/bind write goes through sysfs_write
+            # every sysfs write goes through sysfs_write
             self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
 

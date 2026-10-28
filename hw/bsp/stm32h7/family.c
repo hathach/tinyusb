@@ -113,6 +113,29 @@ static void trace_etm_init(void) {
 #define trace_etm_init()
 #endif
 
+#ifdef TRACE_SWO
+#if !(defined(STM32H742xx) || defined(STM32H743xx) || defined(STM32H753xx) || defined(STM32H750xx))
+  #error "TRACE_SWO: only the RM0433 parts (STM32H742, H743/753, H750) are covered"
+#endif
+// SWO on PB3 (TRACESWO, AF0). RM0433: DBGMCU_CR enables the trace and D1/D3 debug clocks; the SWO funnel (SWTF)
+// passes the core's trace to the SWO unit once its port S0 is enabled, a write the CPU makes only after unlocking
+// SWTF_LAR (debuggers need no unlock)
+#define SWTF_CTRL (*(volatile uint32_t*) 0x5C004000)
+#define SWTF_LAR  (*(volatile uint32_t*) 0x5C004FB0)
+static void trace_swo_init(void) {
+  GPIO_InitTypeDef gpio_init = {
+    .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+    .Alternate = GPIO_AF0_TRACE
+  };
+  HAL_GPIO_Init(GPIOB, &gpio_init);
+  DBGMCU->CR |= DBGMCU_CR_DBG_TRACECKEN | DBGMCU_CR_DBG_CKD1EN | DBGMCU_CR_DBG_CKD3EN;
+  SWTF_LAR = 0xC5ACCE55;
+  SWTF_CTRL |= 1u; // ENS0
+}
+#else
+#define trace_swo_init()
+#endif
+
 void board_init(void) {
   SCB_EnableICache();
 
@@ -253,6 +276,7 @@ void board_init(void) {
   board_vbus_set(BOARD_TUH_RHPORT, true);
 #endif
 
+  trace_swo_init(); // last: no later pin setup may take PB3
 }
 
 //--------------------------------------------------------------------+

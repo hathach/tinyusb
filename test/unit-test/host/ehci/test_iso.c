@@ -249,6 +249,37 @@ static void test_shared_pools(void) {
   }
 }
 
+// Several ISO endpoints on a native FS port share a small per-frame budget;
+// one endpoint alone may use the full packet size.
+static void test_native_fs_shared(void) {
+  reset(TUSB_SPEED_FULL);
+  assert(open_ep(0x01, TUSB_SPEED_FULL, 1023, 1));
+  assert(!open_ep(0x82, TUSB_SPEED_FULL, 64, 1)); // a second one with a large first
+  assert(iso_ep_find(1, 0x82) == NULL);
+
+  reset(TUSB_SPEED_FULL);
+  assert(open_ep(0x01, TUSB_SPEED_FULL, 220, 1));
+  assert(!open_ep(0x82, TUSB_SPEED_FULL, 221, 1)); // each packet at most 220 bytes
+  assert(open_ep(0x82, TUSB_SPEED_FULL, 220, 1));  // 440 bytes, IN and OUT together
+  assert(!open_ep(0x03, TUSB_SPEED_FULL, 1, 1));   // at most 440 bytes per frame
+  assert(open_ep(0x01, TUSB_SPEED_FULL, 220, 1));  // reopening is not a new endpoint
+
+  reset(TUSB_SPEED_FULL);
+  for (uint8_t i = 1; i <= 4; i++) {
+    assert(open_ep(i, TUSB_SPEED_FULL, 64, 1));
+  }
+
+  // Behind a HS hub the hub's TT and the split windows apply instead.
+  reset(TUSB_SPEED_HIGH);
+#if EHCI_ISO_FIXTURE_HUBS
+  buses[1].hub_addr = HUB_A;
+  buses[1].hub_port = 1;
+  buses[HUB_A].speed = TUSB_SPEED_HIGH;
+  assert(open_ep(0x01, TUSB_SPEED_FULL, 376, 1));
+  assert(open_ep(0x02, TUSB_SPEED_FULL, 376, 1));
+#endif
+}
+
 static void test_native_fs(void) {
   reset(TUSB_SPEED_FULL);
   assert(open_ep(0x81, TUSB_SPEED_FULL, 1023, 1));
@@ -1150,6 +1181,7 @@ int main(void) {
   test_shared_pools();
   test_sparse_iso_pool();
   test_native_fs();
+  test_native_fs_shared();
 #if CFG_TUH_HUB
   test_split();
   test_split_audio();

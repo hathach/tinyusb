@@ -306,7 +306,8 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
         request->bmRequestType_bit.direction == TUSB_DIR_OUT &&
         _netd_itf.itf_num == request->wIndex) {
       if (!_netd_itf.ecm_mode) {
-        rndis_class_set_handler(_netd_epbuf.ctrl, request->wLength);
+        // ctrl buffer only holds NETD_CONTROL_SIZE bytes; pass the count actually received
+        rndis_class_set_handler(_netd_epbuf.ctrl, tu_min16(request->wLength, NETD_CONTROL_SIZE));
       }
     }
   }

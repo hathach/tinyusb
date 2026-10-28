@@ -39,8 +39,9 @@ static tusb_desc_device_t const desc_device = {
     .bDeviceProtocol    = 0x00,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = 0xCafe,
-    .idProduct          = 0x4010,
+    // Linux Gadget Zero: usbtest's static id table binds it with the source/sink profile on any kernel
+    .idVendor           = 0x0525,
+    .idProduct          = 0xA4A0,
     .bcdDevice          = 0x0100 | USBTEST_TIER,
 
     .iManufacturer      = 0x01,

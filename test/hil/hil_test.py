@@ -62,7 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
-import usbtest    # the recovery bounds and the id registration; batteries run it as a subprocess
+import usbtest    # the recovery bounds and the device id; batteries run it as a subprocess
 from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
@@ -1536,7 +1536,7 @@ def test_device_hid_generic_inout(board):
 
 def test_device_usbtest(board):
     global board_wedged, board_pci
-    # Runs test/hil/usbtest.py against the cafe:4010 device; the pass count goes in the
+    # Runs test/hil/usbtest.py against the 0525:a4a0 (Gadget Zero) device; the pass count goes in the
     # report cell ("✅ 30/30", or "❌ 29/30" on a partial).
     uid = board['uid']
 
@@ -1545,7 +1545,7 @@ def test_device_usbtest(board):
         # serial, different PID) can linger and would fail usbtest.py's lookup -- and
         # filtering on the two lock-free descriptor fields rules out every other device
         # on the bus before the one read that can block.
-        return usb_observe.usb_scan(vid_pid=('cafe', '4010'), serial=uid)
+        return usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=uid)
 
     end = time.monotonic() + enum_timeout()
     seen = usbtest_enumerated()
@@ -1554,7 +1554,7 @@ def test_device_usbtest(board):
         seen = usbtest_enumerated()
     if not seen:
         # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
-        raise TestFail(f'no cafe:4010 device with serial {uid}',
+        raise TestFail(f'no {usbtest.VID}:{usbtest.PID} device with serial {uid}',
                        metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
     # the DUT is enumerated now, so learn its controller for the next run's dispatch order.
     # Dual-port parts (CH32V307 usbhs/usbfs variants) share one uid: the first port seen wins.
@@ -1709,7 +1709,8 @@ def reset_dut_tt(board: Board) -> bool:
     """Reset the TT of the board's hub port before a flash (helper/hil_tt): a leaked TT
     buffer from the previous test would otherwise fail this one's enumeration. False when
     hil_tt.reset_tt could not confirm the reset."""
-    found = usb_observe.usb_scan(vid='cafe', serial=board['uid'])
+    found = usb_observe.usb_scan(vid='cafe', serial=board['uid']) + \
+        usb_observe.usb_scan(vid_pid=(usbtest.VID, usbtest.PID), serial=board['uid'])
     if len(found) > 1:
         return True  # one serial on two ports (dual-port parts mid-reflash): no safe target
     if found:
@@ -1970,21 +1971,6 @@ def _tests_for(board: Board) -> tuple:
         test_list = list(board_tests['only'])
     skipped = [s for s in board_tests.get('skip', []) if s in test_list]
     return [t for t in test_list if t not in skipped], skipped
-
-
-def register_usbtest_if_selected(boards: list, report_dir: Path, fresh: bool) -> None:
-    """Register usbtest's id once, before any battery: a new_id write during batteries
-    waits for every peer's in-flight case (usbtest.register_usbtest_id). A failure stops the
-    run here, leaving a report rather than the previous run's table."""
-    if not any('device/usbtest' in _tests_for(b)[0] for b in boards):
-        return
-    try:
-        usbtest.register_usbtest_id()
-    except SystemExit as e:
-        msg = f'usbtest id registration failed: {e}'
-        print(f'ERROR: {msg}', flush=True)
-        hil_report.mark_report_aborted(report_dir, msg, fresh=fresh)
-        sys.exit(1)
 
 
 def cleanup_pending(name: str) -> str:
@@ -2535,7 +2521,6 @@ def main() -> None:
         # regression the parameter exists to prevent.
         hil_report.mark_report_no_boards(report_dir, msg, fresh=not args.accumulate)
         sys.exit(1)
-    register_usbtest_if_selected(config_boards, report_dir, fresh=not args.accumulate)
 
     build_err = 0
     # result tuples for the boards whose build check_build.py refused: reported and put in

@@ -107,6 +107,24 @@ void USARTn_IRQHandler(void) {
 }
 #endif
 
+#ifdef TRACE_SWO
+#if !(defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx) || \
+      defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx))
+  #error "TRACE_SWO: only the RM0090 parts (STM32F405/415, F407/417, F427/437, F429/439) are covered"
+#endif
+// SWO on PB3 (TRACESWO, AF0): TRACE_IOEN clocks the TPIU, TRACE_MODE 00 is asynchronous (RM0090 DBGMCU_CR)
+static void trace_swo_init(void) {
+  GPIO_InitTypeDef gpio_init = {
+    .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
+    .Alternate = GPIO_AF0_TRACE
+  };
+  HAL_GPIO_Init(GPIOB, &gpio_init);
+  DBGMCU->CR = (DBGMCU->CR & ~DBGMCU_CR_TRACE_MODE) | DBGMCU_CR_TRACE_IOEN;
+}
+#else
+#define trace_swo_init()
+#endif
+
 void board_init(void) {
   board_clock_init();
 
@@ -238,6 +256,8 @@ void board_init(void) {
 #if CFG_TUH_ENABLED
   board_vbus_set(BOARD_TUH_RHPORT, true);
 #endif
+
+  trace_swo_init(); // last: no later pin setup may take PB3
 }
 
 //--------------------------------------------------------------------+
