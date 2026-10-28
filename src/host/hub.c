@@ -411,7 +411,9 @@ static void process_new_status(tuh_xfer_t* xfer) {
   // usbh fails a removed hub's requests after hub_close(): nothing to re-arm
   TU_VERIFY(get_hub_itf(daddr)->ep_in != 0,);
 
-  if (xfer->result != XFER_RESULT_SUCCESS) {
+  // a reply shorter than requested (GET_STATUS: 4 bytes, CLEAR_FEATURE: none) fails, so a short status is
+  // never decoded from the previous buffer contents
+  if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len < tu_le16toh(xfer->setup->wLength)) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
     return;
   }

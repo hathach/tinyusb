@@ -2010,7 +2010,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
   switch (state) {
   #if CFG_TUH_HUB
     case ENUM_HUB_RERSET: {
-      if (xfer->result != XFER_RESULT_SUCCESS) {
+      if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len < sizeof(hub_port_status_response_t)) {
         is_enum_failed = true; // ctrl_buf does not hold this port's status
         break;
       }
@@ -2034,8 +2034,8 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
     case ENUM_HUB_CLEAR_RESET:
     case ENUM_HUB_CLEAR_RESET_RETRY: {
-      if (xfer->result != XFER_RESULT_SUCCESS) {
-        is_enum_failed = true;
+      if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len < sizeof(hub_port_status_response_t)) {
+        is_enum_failed = true; // ctrl_buf does not hold this port's status
         break;
       }
       hub_port_status_response_t port_status;

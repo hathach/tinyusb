@@ -153,6 +153,7 @@ static void complete_ctrl(uint8_t idx, xfer_result_t result) {
 
 static void complete_ctrl_data(uint8_t idx, const void *data, uint16_t len) {
   memcpy(ctrl_reqs[idx].xfer.buffer, data, len);
+  ctrl_reqs[idx].xfer.actual_len = len;
   complete_ctrl(idx, XFER_RESULT_SUCCESS);
 }
 
@@ -341,6 +342,42 @@ void test_port_status_failed_after_close_reaches_caller(void) {
   TEST_ASSERT_EQUAL(1, cb_count);
   TEST_ASSERT_EQUAL(1, cb_records[0].user_data);
   TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, cb_records[0].result);
+}
+
+// a short reply leaves the previous status in ctrl_buf: it fails like any failed read
+void test_short_port_status_rearms(void) {
+  configure_hub(HUB_A, 4);
+  attach_on_port1(HUB_A); // ctrl_buf: port 1 connected, connection changed
+
+  poll_buf[0] = TU_BIT(2);
+  TEST_ASSERT_TRUE(hub_xfer_cb(HUB_A, EP_IN, XFER_RESULT_SUCCESS, 1));
+  assert_get_port_status(2, HUB_A, 2);
+  const uint8_t  polls       = poll_count;
+  const uint16_t status_only = 0; // wPortStatus without wPortChange
+  complete_ctrl_data(2, &status_only, sizeof(status_only));
+
+  TEST_ASSERT_EQUAL(3, ctrl_count); // no CLEAR_FEATURE for port 1's change
+  TEST_ASSERT_EQUAL(polls + 1, poll_count);
+  TEST_ASSERT_EQUAL(1, event_count);
+}
+
+void test_short_hub_status_rearms(void) {
+  configure_hub(HUB_A, 1);
+  hub_status_response_t resp = {0};
+  resp.change.over_current   = 1;
+
+  for (uint8_t len = 0; len < sizeof(resp); len++) {
+    poll_buf[0] = TU_BIT(0);
+    TEST_ASSERT_TRUE(hub_xfer_cb(HUB_A, EP_IN, XFER_RESULT_SUCCESS, 1));
+    TEST_ASSERT_EQUAL(len + 1, ctrl_count);
+    assert_get_port_status(len, HUB_A, 0);
+    memcpy(ctrl_reqs[len].xfer.buffer, &resp, sizeof(resp)); // what an earlier reply left in ctrl_buf
+    const uint8_t polls = poll_count;
+    complete_ctrl_data(len, &resp, len);
+
+    TEST_ASSERT_EQUAL(len + 1, ctrl_count); // no CLEAR_FEATURE
+    TEST_ASSERT_EQUAL(polls + 1, poll_count);
+  }
 }
 
 //--------------------------------------------------------------------+
