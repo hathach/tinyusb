@@ -166,13 +166,13 @@ static void rndis_query(void)
 // and len are host controlled. Returns NULL when the requested window is not
 // fully covered by the bytes received (encapsulated_len), so a crafted offset
 // cannot read past the control buffer. Subtraction form avoids wrap.
-static void *rndis_set_infobuf(const rndis_set_msg_t *m, uint32_t offset, uint32_t len)
+static const void *rndis_set_infobuf(const rndis_set_msg_t *m, uint32_t offset, uint32_t len)
 {
   const uint32_t base = (uint32_t) offsetof(rndis_set_msg_t, RequestId);
   if (encapsulated_len < base) return NULL;
   const uint32_t avail = encapsulated_len - base;
   if (offset > avail || len > avail - offset) return NULL;
-  return (void *) ((uint8_t *) &(m->RequestId) + offset);
+  return (const uint8_t *) &(m->RequestId) + offset;
 }
 
 static void rndis_handle_config_parm(const char *data, int keyoffset, int valoffset, int keylen, int vallen)
@@ -208,8 +208,8 @@ static void rndis_handle_set_msg(void)
     /* Parameters set up in 'Advanced' tab */
     case OID_GEN_RNDIS_CONFIG_PARAMETER:
       {
-        rndis_config_parameter_t *p;
-        p = (rndis_config_parameter_t *) rndis_set_infobuf(m, m->InformationBufferOffset, sizeof(rndis_config_parameter_t));
+        const rndis_config_parameter_t *p;
+        p = (const rndis_config_parameter_t *) rndis_set_infobuf(m, m->InformationBufferOffset, sizeof(rndis_config_parameter_t));
         if (p == NULL) { c->Status = RNDIS_STATUS_INVALID_DATA; break; }
         rndis_handle_config_parm((const char *) p, p->ParameterNameOffset, p->ParameterValueOffset, p->ParameterNameLength, p->ParameterValueLength);
       }
