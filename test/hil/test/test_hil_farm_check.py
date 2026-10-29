@@ -122,6 +122,12 @@ class Probe(unittest.TestCase):
         self.bus([('1-2', 'p', 'cafe:4001')])
         self.assertEqual(self.candidates('P'), [])
 
+    def test_a_board_left_on_the_usbtest_firmware_is_never_its_own_probe(self):
+        self.bus([('1-1', 'p', '303a:1001'), ('1-2', 'p', '0525:a4a0')])
+        self.assertEqual(self.candidates('P'), ['1-1'])
+        self.bus([('1-2', 'p', '0525:a4a0')])
+        self.assertEqual(self.candidates('P'), [])
+
     def test_every_exact_match_is_returned_for_the_engine_to_refuse(self):
         self.bus([('1-2', '123', '1366:0101'), ('1-1', '123', '1366:0101'), ('1-3', '000123', '1366:0101')])
         self.assertEqual(self.candidates('123'), ['1-1', '1-2'])

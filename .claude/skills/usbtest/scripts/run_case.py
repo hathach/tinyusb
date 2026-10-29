@@ -19,7 +19,7 @@ another battery's load on this board's host controller does not matter for what 
 A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
---shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
+--shared --variants layout), waits for 0525:a4a0 with the board's serial, and runs usbtest.py
 with post-hang recovery when the board's recovery flasher can deliver it. --after park flashes
 device/board_test afterwards unless the device is wedged or the verdict is incomplete.
 
@@ -80,12 +80,12 @@ hil_util.provider()   # an incomplete flash provider is refused here, before any
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
 PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
-HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus hil_usbtest.run()'s reap
+HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a root helper at its bound plus hil_usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
-# host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
-# (sysfs_write: 15 s tee + 5 s reap) and the 3 s bind. An estimate, not a bound: the battery
+# host-compat retries, modprobe, the pattern write (15 s hil_root + 5 s reap) and
+# the usbfs CONNECT child at its bound plus the reap. An estimate, not a bound: the battery
 # budget starts before it, so a slower start costs cases (reported BUDGET), not a kill.
-SETUP_S = 8 + 3 + 2 * HELPER_S + usbtest.REGISTER_LOCK_TIMEOUT + 2 * (15 + 5) + 3
+SETUP_S = 8 + 3 + HELPER_S + (15 + 5) + (usbtest.CONNECT_TIMEOUT + 5)
 # each case: its timeout, the 5 s post-kill reap, the dmesg read, and the find_device between cases
 CASE_EXTRA_S = 5 + HELPER_S + 5
 PROC = Path('/proc')
@@ -191,8 +191,7 @@ def live_peers():
     """([(pid, name)], complete) for processes that run or drive a battery on this host."""
     found, complete = [], True
     own = lineage()
-    # hidepid hides other users' processes without an error, and testusb may run under sudo:
-    # detect the restriction itself
+    # hidepid hides other users' processes without an error: detect the restriction itself
     if os.geteuid() != 0 and not os.access(PROC / '1' / 'cmdline', os.R_OK):
         complete = False
     for d in PROC.glob('[0-9]*'):

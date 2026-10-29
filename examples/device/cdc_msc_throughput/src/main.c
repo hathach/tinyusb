@@ -170,8 +170,8 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
     main();
   }
 #else
-  // Increase stack size when debug log is enabled
-  #define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  // Increase stack size when debug log or SYSVIEW instrumentation is enabled
+  #define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2) * ((CFG_TUSB_DEBUG || CFG_TUD_SYSVIEW) ? 2 : 1)
 #endif
 
 #if configSUPPORT_STATIC_ALLOCATION

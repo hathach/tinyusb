@@ -1,6 +1,6 @@
 ---
 name: usbtest
-description: Use when bringing up examples/device/usbtest (cafe:4010) on a new MCU or DCD, or when a usbtest case fails — a red usbtest cell in a HIL report, testusb errno 110/32/5/71, NOTRUN or HUNG cases, device "did not bind", SET_CONFIGURATION fails, halt/toggle-clear/unlink/interrupt/isochronous failures. Load it before reproducing or debugging the case. A Linux PC hosts the link and drives TinyUSB in device role: it exercises the DCD, not the TinyUSB host stack.
+description: Use when bringing up examples/device/usbtest (0525:a4a0) on a new MCU or DCD, or when a usbtest case fails — a red usbtest cell in a HIL report, testusb errno 110/32/5/71, NOTRUN or HUNG cases, device "did not bind", SET_CONFIGURATION fails, halt/toggle-clear/unlink/interrupt/isochronous failures. Load it before reproducing or debugging the case. A Linux PC hosts the link and drives TinyUSB in device role: it exercises the DCD, not the TinyUSB host stack.
 ---
 
 # usbtest — bring-up and failed cases of the Linux kernel USB battery
@@ -8,7 +8,7 @@ description: Use when bringing up examples/device/usbtest (cafe:4010) on a new M
 `examples/device/usbtest` is the device-side peer of the kernel's `usbtest.ko`/`testusb`
 (Gadget Zero source/sink): 30 cases over EP0, bulk, interrupt and isochronous, including halt,
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
-is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the id registration,
+is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the driver loading and
 binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
 agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
 
@@ -37,7 +37,7 @@ python3 .claude/skills/build/scripts/check_build.py --board <board> -e device/us
 ```
 
 ```bash
-# lock, flash usbtest from the roster, wait for cafe:4010, run, park on board_test, release
+# lock, flash usbtest from the roster, wait for 0525:a4a0, run, park on board_test, release
 python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config> --board <board> --tests 13,29 --after park
 ```
 
@@ -84,14 +84,14 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
   node while scanning, even with `-D` (`tools/usb/testusb.c` find_testdev), and opening a node
   takes its device lock, so one stuck peer or hub stalls every case on the host. `-A <node>`
   confines the scan to the DUT (`hil_usbtest.py` does this; `-A` must come first, it clears `-D`).
-  When testusb runs without `sudo -n`, a hold on the DUT's own lock that ends within the 30 s
+  A hold on the DUT's own lock that ends within the 30 s
   watch is a FAIL `timeout after Ns (the kill landed Ns late; ...)` that stops the battery; one
   that outlasts the watch becomes HUNG.
-- **The id and binding stay.** `usbtest.py` registers `cafe 4010` once and never unbinds or
-  removes it: those writes take the uninterruptible device lock. Recovery of a HUNG case is one
+- **The binding stays.** The firmware is Gadget Zero (`0525:a4a0`), an id in usbtest's static
+  table, so usbtest binds it by itself; `usbtest.py` only reprobes an unbound interface (usbfs
+  CONNECT) and never unbinds: that takes the uninterruptible device lock. Recovery of a HUNG case is one
   step: a probe reset, or a reflash where the flasher has none (esptool); never a root-port
-  cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`, so
-  under `sudo -n` (node not writable, the child is the wrapper) it stays set. A manual run
+  cycle (`usb-kernel-recover`). Only the killed testusb reaping afterwards clears `wedged`. A manual run
   without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
   when the serial matches two devices or cannot be read after a case; stderr names which
   (`reported wedged: ...`).
@@ -121,7 +121,7 @@ under a timer.
 | 71                 | EPROTO: the device answered wrong or too slowly after host retries                         |
 | NOTRUN             | testusb opened the device and the kernel skipped the case: profile or parameter gate       |
 | FAIL "did not run" | testusb never reached the ioctl (open or usage error): read the case's captured `stderr`   |
-| HUNG               | testusb not reaped 35 s after SIGKILL; under `sudo -n` 5 s and unconfirmed (wrapper only)  |
+| HUNG               | testusb not reaped 35 s after SIGKILL                                                      |
 | BUDGET             | never dispatched: the battery stopped first; its detail names why                          |
 
 | Failing case(s)    | Exercises                                  | First suspect                                                              |
@@ -188,17 +188,8 @@ From USB 2.0 §8.5.5 (Calibre book 775, p. 229-230):
 
 ## Wrong profile
 
-`/sys/bus/usb/drivers/usbtest/new_id` lists only `cafe 4010`, never the profile behind it, and a
-bound interface keeps the profile it was probed with. The right one probes as `Linux gadget zero`
-in dmesg; the user-mode profile (`0525 a4a4`) passes bulk but reports 14, 21, 25, 26 and 15, 16,
-22, 23 as NOTRUN. Repair is a module reload on a reserved, idle rig:
-
-1. Reserve the whole fleet as the HIL contract's Reservation says for rig-wide operations, and confirm no `testusb` or
-   `usbtest.py` is running: `modprobe -r` detaches every bound interface and blocks, unkillably,
-   behind any case still in flight. It is never refused for an interface in use.
-2. `sudo modprobe -r usbtest && sudo modprobe usbtest`.
-3. The next `usbtest.py` or `hil_test.py` run registers the id again.
-4. Confirm a `Linux gadget zero` probe for the next board, then release.
+Expect `Linux gadget zero` in dmesg at probe; otherwise check the device is `0525:a4a0`: one still
+reporting `cafe:4010` runs an older build, so reflash it with the current `examples/device/usbtest`.
 
 ## Traps that pass gcc and desk review
 

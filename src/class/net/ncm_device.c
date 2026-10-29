@@ -211,13 +211,10 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
         .wLength = 8
       }
     };
-    if (tud_speed_get() == TUSB_SPEED_HIGH) {
-      notify_speed_change.downlink = 480000000;
-      notify_speed_change.uplink = 480000000;
-    } else {
-      notify_speed_change.downlink = 12000000;
-      notify_speed_change.uplink = 12000000;
-    }
+    const uint32_t bus_bitrate = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
+    const uint32_t link_bitrate = (CFG_TUD_NET_LINK_BITRATE) ? (CFG_TUD_NET_LINK_BITRATE) : bus_bitrate;
+    notify_speed_change.downlink = link_bitrate;
+    notify_speed_change.uplink   = link_bitrate;
 
     uint16_t notif_len = sizeof(notify_speed_change.header) + notify_speed_change.header.wLength;
     ncm_epbuf.epnotif = notify_speed_change;

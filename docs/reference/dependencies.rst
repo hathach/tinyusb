@@ -38,7 +38,7 @@ hw/mcu/nxp/mcuxsdk-core                   https://github.com/nxp-mcuxpresso/mcux
 hw/mcu/puya/PY32F071_Firmware             https://github.com/OpenPuya/PY32F071_Firmware.git                 73e384cddce63e3019de41d9b6af17dfc96fa536  py32f0
 hw/mcu/puya/PY32F072_Firmware             https://github.com/OpenPuya/PY32F072_Firmware.git                 bc3a6cdbece335a27abb8b51e6fc4911f5116185  py32f0
 hw/mcu/raspberry_pi/FreeRTOS-Kernel       https://github.com/raspberrypi/FreeRTOS-Kernel.git                4f7299d6ea746b27a9dd19e87af568e34bd65b15  rp2040
-hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                675543bcc9baa8170f868ab7ba316d418dbcf41f  rp2040
+hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git                b186e36bea0f3bcc2ee94ca1fa81e7f71281443a  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                                edcc97d684b6f716728a60d7a6fea049d9870bd6  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                         706b4e0cf485605c32351e2f90f5698267996023  rx
 hw/mcu/silabs/cmsis-dfp-efm32gg12b        https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git           f1c31b7887669cb230b3ea63f9b56769078960bc  efm32
@@ -99,7 +99,8 @@ hw/mcu/wch/ch583                          https://github.com/openwch/ch583.git  
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg tm4c efm32
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   9b777ae5c5b8e9e456065a00294d1e5f5f9facf5  all
-lib/agentrc                               https://github.com/hathach/agentrc.git                            992c40c24398bf07ee51b48abfe442b837b5d9b6
+lib/SystemView                            https://github.com/SEGGERMicro/SystemView.git                     92ca7a810c5765ba64911919acd511c61b6b083f
+lib/agentrc                               https://github.com/hathach/agentrc.git                            56a1263aa04e239d653e7e1c7a233aae2cf7f0f3
 lib/fatfs                                 https://github.com/abbrev/fatfs.git                               30ca13c62615df0d2e9104ab41256985b96590c1  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55

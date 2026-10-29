@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -95,7 +96,7 @@ deps_optional = {
                                            '4f7299d6ea746b27a9dd19e87af568e34bd65b15',
                                            'rp2040'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '675543bcc9baa8170f868ab7ba316d418dbcf41f',
+                                         'b186e36bea0f3bcc2ee94ca1fa81e7f71281443a',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -306,9 +307,13 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # fetched by path only: just -DSYSVIEW builds need it (test/hil/sysview_ci.py capture --get-deps)
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                       '92ca7a810c5765ba64911919acd511c61b6b083f',
+                       ''],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '992c40c24398bf07ee51b48abfe442b837b5d9b6',
+                    '56a1263aa04e239d653e7e1c7a233aae2cf7f0f3',
                     ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
@@ -364,8 +369,16 @@ def dep_head(path):
     return None if head.startswith('ref:') else head
 
 
+# repository-locating subset of `git rev-parse --local-env-vars`; config and transport vars stay
+GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+                'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SHALLOW_FILE',
+                'GIT_GRAFT_FILE', 'GIT_PREFIX')
+
+
 def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     title = f'Command Error: {cmd}'
     if r.returncode != 0:
         print(title)

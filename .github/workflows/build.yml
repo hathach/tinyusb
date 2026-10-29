@@ -461,12 +461,16 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
+    # self-hosted rigs keep state between jobs: no write token, none left in the checkout
+    permissions:
+      contents: read
     # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
     # before it; the report write and the upload after it. A ceiling below guard+tail cancels the job
-    # before hil_report.md exists. Both legs share the script and the guard.
-    timeout-minutes: 75
+    # before hil_report.md exists. Both legs share the script and the guard. The last 20 min are
+    # the SystemView capture step's own timeout, which runs after the report.
+    timeout-minutes: 95
     strategy:
       fail-fast: false
       matrix:
@@ -516,6 +520,8 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -596,6 +602,117 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      - name: SystemView capture
+        # Best-effort perf capture after the HIL report, never gates the job: the -b boards of
+        # the test step's selection (sysview_ci.py capture has no -bt), building, fetching their
+        # deps and lib/SystemView itself. Skipped on re-run attempts: a re-run recaptures every
+        # board, wasting shared-rig time for no report benefit.
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        # the kill reaches the shell, not python, so no finally reflashes the park image:
+        # --budget-s (a minute under this) starts a board's flash only when its park fits before it
+        timeout-minutes: 20
+        env:
+          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
+          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
+          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
+          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
+        run: |
+          case "$HIL_JSON" in
+            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
+            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
+          esac
+          if [ "$SEL_RUN" = "false" ]; then echo "SystemView capture skipped by PR selection (no affected boards on this rig)"; exit 0; fi
+          SYSVIEW_BOARD_ARGS=""
+          set -- $SEL_ARGS
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              # a trailing bare -b has no pair to consume: shift just the one token
+              -b) [ $# -ge 2 ] && { SYSVIEW_BOARD_ARGS="$SYSVIEW_BOARD_ARGS -b $2"; shift 2; } || shift ;;
+              *) shift ;;
+            esac
+          done
+          python3 test/hil/sysview_ci.py capture ${{ env.HIL_JSON }} \
+            $SYSVIEW_BOARD_ARGS --get-deps --budget-s 1140 --out sysview-out
+
+      - name: Upload SystemView captures
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-${{ matrix.display }}
+          path: sysview-out/sysview-*.json
+          if-no-files-found: ignore
+          overwrite: true
+
+  # ---------------------------------------
+  # Compare this run's SystemView captures (uploaded by hil-tinyusb) against the base
+  # branch's latest captures on the same workflow, producing a sticky-comment-ready
+  # markdown table. hfp.json has no sysview-flagged boards, so its capture step never
+  # uploads anything; only tinyusb.json's captures ever feed this.
+  # ---------------------------------------
+  sysview-report:
+    needs: hil-tinyusb
+    if: always() && github.event_name == 'pull_request' && needs.hil-tinyusb.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+
+      - name: Download PR SystemView captures
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          pattern: sysview-*
+          path: pr-sysview
+          merge-multiple: true
+
+      - name: Download base branch SystemView captures
+        # The newest same-repo base-branch push run with a sysview-* artifact (docs-only pushes skip HIL),
+        # bounded to the newest 30 push runs: 1 list call + 1 artifact-list page per examined run + the download.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if ! python3 -c 'import glob, sys; sys.exit(not glob.glob("pr-sysview/**/sysview-*.json", recursive=True))'; then
+            exit 0
+          fi
+          # event=push server-side: fork PRs from a branch named $BASE_REF would otherwise take window slots
+          runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+            -f branch="$BASE_REF" -f event=push -F per_page=30 \
+            --jq '.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY) | .id')
+          for run in $runs; do
+            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" \
+              --jq '[.artifacts[] | select((.expired | not) and (.name | startswith("sysview-")))] | length')
+            if [ "$found" -gt 0 ]; then
+              echo "Base SystemView captures from run $run"
+              # into a temp dir first so a failed download leaves base-sysview absent, never partial
+              gh run download "$run" -R "$GITHUB_REPOSITORY" -p 'sysview-*' -D base-sysview.tmp
+              mv base-sysview.tmp base-sysview
+              exit 0
+            fi
+          done
+          echo "No base SystemView captures in the newest 30 $BASE_REF push runs"
+
+      - name: Generate SystemView report
+        id: report
+        continue-on-error: true        # informational comment: a generator crash must not red the PR
+        run: |
+          python3 test/hil/sysview_ci.py report base-sysview pr-sysview -o sysview_report.md
+          if [ -s sysview_report.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload SystemView Comment Artifact
+        if: steps.report.outputs.found == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-comment
+          path: sysview_report.md
+          if-no-files-found: ignore
+          overwrite: true
+
   # ---------------------------------------
   # Hardware in the loop (HIL) - espressif boards only
   # Same rig as hil-tinyusb (tinyusb.json) but gated only on the slow esp-idf build,
@@ -605,6 +722,8 @@ jobs:
   hil-tinyusb-esp:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
+    permissions:
+      contents: read
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     # above hil_test.py's pool guard (60 min) with ~15 min for the pre-pool checkout
     # and the report upload, so its own guard still writes a report;
@@ -644,6 +763,8 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5

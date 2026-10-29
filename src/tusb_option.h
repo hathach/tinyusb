@@ -155,6 +155,7 @@
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+#define OPT_MCU_PSE84            1801 ///< Infineon PSOC Edge E84 (PSE84)
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
@@ -556,6 +557,22 @@
 #ifndef CFG_TUSB_DEBUG
   #define CFG_TUSB_DEBUG 0
 #endif
+
+// SEGGER SystemView instrumentation level (like CFG_TUSB_DEBUG):
+//   0=off  1=USB ISR  2=+usbd/usbh functions  3=+dcd/hcd API  4=+class driver API
+// Requires lib/SystemView (python3 tools/get_deps.py) and a SYSVIEW=<level> build.
+#ifndef CFG_TUD_SYSVIEW
+  #define CFG_TUD_SYSVIEW 0
+#endif
+#ifndef CFG_TUH_SYSVIEW
+  #define CFG_TUH_SYSVIEW 0
+#endif
+// The BSP supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, SEGGER_SYSVIEW_X_GetTimestampFreq()
+#ifndef CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
+  #define CFG_TUSB_SYSVIEW_TIMESTAMP_BSP 0
+#endif
+// Derived, not a setting: only enabled stacks contribute their SystemView level.
+#define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED && CFG_TUD_SYSVIEW) || (CFG_TUH_ENABLED && CFG_TUH_SYSVIEW))
 
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL

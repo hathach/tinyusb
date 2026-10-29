@@ -78,6 +78,34 @@ uint32_t tusb_time_millis_api(void) {
 }
 #endif
 
+#if CFG_TUSB_SYSVIEW_ENABLED && CFG_TUSB_OS == OPT_OS_NONE
+// SystemView timestamp in microseconds (src/tusb.c): RISC-V has no DWT, so it composes the 1 ms
+// system_ticks with SysTick CNT, which hardware reloads to 0 every millisecond.
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  // GetSysClock() (register read + divide) is the SysTick clock; the clock is fixed after board_init()
+  static uint32_t cycles_per_us;
+  if (cycles_per_us == 0) {
+    cycles_per_us = GetSysClock() / 1000000u;
+  }
+  uint32_t ms, cnt, pend;
+  do { // re-read the tick: CNT wraps to 0 exactly when system_ticks increments
+    ms = system_ticks;
+    // Callers hold SEGGER_RTT_LOCK(), so a wrap's tick IRQ can be pending: SR bit 0 (CNTIF) latches
+    // the wrap. SR before CNT: a wrap between the two reads must not pair a pre-wrap CNT with a
+    // post-wrap pending flag (that adds a phantom ~1 ms)
+    pend = SysTick->SR & 1u;
+    cnt = (uint32_t) SysTick->CNT;
+  } while (ms != system_ticks || pend != (SysTick->SR & 1u));
+  uint32_t t = (ms + (pend ? 1u : 0u)) * 1000u + (cycles_per_us ? cnt / cycles_per_us : 0);
+  static uint32_t last; // monotonic clamp; callers are serialized by the RTT lock
+  if ((int32_t) (t - last) < 0) { t = last; }
+  last = t;
+  return t;
+}
+#elif CFG_TUSB_SYSVIEW_ENABLED
+#error "SYSVIEW on ch583 needs the bare-metal SysTick tick; not ported for this RTOS yet"
+#endif
+
 //--------------------------------------------------------------------+
 // Board Init
 //--------------------------------------------------------------------+

@@ -145,8 +145,15 @@ void board_init(void) {
 
   // Set UART interrupt higher priority than USB OTG since the F7 USART has no hardware RX FIFO, so a host example's
   // UART RX must not be starved by the frequent USB host interrupts or incoming bytes overrun (ORE) and dropped.
+  #if CFG_TUSB_SYSVIEW_ENABLED
+  // SystemView's lock raises BASEPRI to SEGGER_RTT_MAX_INTERRUPT_PRIORITY; a USB IRQ above it would
+  // record into a packet the interrupted code is still building
+  NVIC_SetPriority(OTG_FS_IRQn, SEGGER_RTT_MAX_INTERRUPT_PRIORITY >> (8U - __NVIC_PRIO_BITS));
+  NVIC_SetPriority(OTG_HS_IRQn, SEGGER_RTT_MAX_INTERRUPT_PRIORITY >> (8U - __NVIC_PRIO_BITS));
+  #else
   NVIC_SetPriority(OTG_FS_IRQn, 1);
   NVIC_SetPriority(OTG_HS_IRQn, 1);
+  #endif
   #ifdef UART_ID
   NVIC_SetPriority(USARTn_IRQn, 0);
   #endif

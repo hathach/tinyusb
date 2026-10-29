@@ -33,12 +33,21 @@ manufacturer: WCH
 // hardware context stack and corrupts the return on nesting. Emit naked handlers that rely on
 // HWSTK for context save/restore (equivalent to WCH's "WCH-Interrupt-fast"), which nests safely.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_FSDEV
-  // The `call dcd_int_handler` below lives inside naked asm where LTO cannot see it; without a
-  // compiler-visible reference, -flto builds (make) internalize/drop the symbol and the link fails.
-  TU_ATTR_USED static void (*const fsdev_isr_keep)(uint8_t) = dcd_int_handler;
+  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
+  static void fsdev_dcd_int_handler(uint8_t rhport) {
+    tud_int_handler(rhport);
+  }
+    #define FSDEV_ISR_TARGET fsdev_dcd_int_handler
+  #else
+    #define FSDEV_ISR_TARGET dcd_int_handler
+  #endif
+  // The `call` below lives inside naked asm where LTO cannot see it; without a compiler-visible
+  // reference, -flto builds (make) internalize/drop the symbol and the link fails.
+  TU_ATTR_USED static void (*const fsdev_isr_keep)(uint8_t) = FSDEV_ISR_TARGET;
   #define FSDEV_NAKED_ISR(name) \
     __attribute__((naked)) __attribute__((used)) void name(void) { \
-      __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret"); }
+      __asm volatile("li a0, 0\n\t call " TU_XSTRING(FSDEV_ISR_TARGET) "\n\t mret"); }
 #else
   #define FSDEV_NAKED_ISR(name) \
     __attribute__((naked)) __attribute__((used)) void name(void) { __asm volatile("mret"); }
@@ -49,6 +58,8 @@ FSDEV_NAKED_ISR(USBWakeUp_IRQHandler)
 
 // Port1: USBFS
 __attribute__((interrupt)) __attribute__((used)) void USBHD_IRQHandler(void) {
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
+  TU_SYSVIEW_ISR_ENTER();
   #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(1);
   #endif
@@ -56,6 +67,7 @@ __attribute__((interrupt)) __attribute__((used)) void USBHD_IRQHandler(void) {
   #if CFG_TUH_ENABLED
   tuh_int_handler(1);
   #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 __attribute__((interrupt)) __attribute__((used)) void USBHDWakeUp_IRQHandler(void) {
@@ -88,6 +100,34 @@ static uint32_t SysTick_Config(uint32_t ticks) {
 uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
+#endif
+
+#if CFG_TUSB_SYSVIEW_ENABLED && CFG_TUSB_OS == OPT_OS_NONE
+// SystemView timestamp in microseconds (src/tusb.c): RISC-V has no DWT, so it composes the 1 ms
+// system_ticks with SysTick CNT, which hardware reloads to 0 every millisecond.
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  // SystemCoreClock is the SysTick clock; the clock is fixed after board_init()
+  static uint32_t cycles_per_us;
+  if (cycles_per_us == 0) {
+    cycles_per_us = SystemCoreClock / 1000000u;
+  }
+  uint32_t ms, cnt, pend;
+  do { // re-read the tick: CNT wraps to 0 exactly when system_ticks increments
+    ms = system_ticks;
+    // Callers hold SEGGER_RTT_LOCK(), so a wrap's tick IRQ can be pending: SR bit 0 (CNTIF) latches
+    // the wrap. SR before CNT: a wrap between the two reads must not pair a pre-wrap CNT with a
+    // post-wrap pending flag (that adds a phantom ~1 ms)
+    pend = SysTick->SR & 1u;
+    cnt = (uint32_t) SysTick->CNT;
+  } while (ms != system_ticks || pend != (SysTick->SR & 1u));
+  uint32_t t = (ms + (pend ? 1u : 0u)) * 1000u + (cycles_per_us ? cnt / cycles_per_us : 0);
+  static uint32_t last; // monotonic clamp; callers are serialized by the RTT lock
+  if ((int32_t) (t - last) < 0) { t = last; }
+  last = t;
+  return t;
+}
+#elif CFG_TUSB_SYSVIEW_ENABLED
+#error "SYSVIEW on ch32v20x needs the bare-metal SysTick tick; not ported for this RTOS yet"
 #endif
 
 void board_init(void) {

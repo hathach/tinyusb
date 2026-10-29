@@ -35,8 +35,6 @@ def stub_device(test, usbtest, run_case):
     patch(test, usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: False,
                                                               SYS_USB_DEVICES='/sys/bus/usb/devices'))
     patch(test, usbtest, 'run_case', run_case)
-    patch(test, usbtest, 'needs_sudo', lambda node: False)
-    patch(test, usbtest, 'sudo_forbidden', False)   # main() sets it; restored after the test
 
 
 def argv(test, *extra):

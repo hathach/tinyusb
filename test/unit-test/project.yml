@@ -109,6 +109,10 @@
     - ../../src/**
   :include:
     - ../../src/**
+    # Fake vendor headers for tests that need one but shouldn't drag the real vendored lib/
+    # onto the host build (see test/support/fake_vendor/SEGGER_SYSVIEW.h) -- only reached by a
+    # test that opts in via a :defines per-test matcher below, e.g. CFG_TUD_SYSVIEW.
+    - test/support/fake_vendor
   :support:
     - test/support
   :libraries: []
@@ -139,6 +143,19 @@
       - CFG_TUSB_DEBUG=0
       - CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
       - CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+    :test_hid_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_HID=1
+      - CFG_TUSB_DEBUG=0
+    :test_hid_host_default:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_HID=1
+      - CFG_TUSB_DEBUG=0
+      - CFG_TUSB_DEBUG_BREAKPOINT=hid_breakpoint_hook
+    :test_midi_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_MIDI=1
+      - CFG_TUSB_DEBUG=0
     :test_msc_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
@@ -159,6 +176,18 @@
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    # tusb.c's SystemView body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
+    # compile in when CFG_TUD_SYSVIEW is nonzero with the device stack enabled; every other test
+    # leaves it at the tusb_option.h default of 0 (undefined here) so this test is fully isolated.
+    :test_tu_sysview:
+      - CFG_TUD_SYSVIEW=1
+      - CFG_TUD_MSC=0
+    # dual-role with only the host traced
+    :test_tu_dual_sysview:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUD_SYSVIEW=0
+      - CFG_TUH_SYSVIEW=1
+      - CFG_TUD_MSC=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
