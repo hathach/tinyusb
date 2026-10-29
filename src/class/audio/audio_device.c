@@ -934,19 +934,19 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
 
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
         if (ep_in != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size));
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_EP_OUT
         if (ep_out != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size));
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
         if (ep_fb != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_fb, 4);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_fb, 4));
         }
   #endif
       }

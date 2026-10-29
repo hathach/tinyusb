@@ -1402,7 +1402,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       p_desc = tu_desc_next(p_desc);
     }
     if(ep_addr > 0 && ep_size > 0) {
-      usbd_edpt_iso_alloc(rhport, ep_addr, ep_size);
+      TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_addr, ep_size), 0);
     }
 #endif
     if (0 == stm_idx && 1 == bInCollection) {
