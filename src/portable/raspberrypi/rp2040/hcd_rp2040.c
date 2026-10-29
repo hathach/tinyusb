@@ -495,26 +495,23 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     if (epx == status_epx && epx->state == EPSTATE_ACTIVE && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN &&
         !(usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)) {
       sie_stop_xfer();
+      // Switching state latched for this attempt must not reach the transfer started next on EPX (this one again, or
+      // the next pending one, a queued SETUP included), which would be stopped and restarted as a data transfer
+  #ifdef HAS_STOP_EPX_ON_NAK
+      // a NAK stop latched with the error: the NAK branch below would act on it
+      usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+      status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
+  #else
+      // a switch request from the last SOF: the next SOF would stop the new transfer at once
+      epx_switch_request = false;
+  #endif
       if (epx->data_seq_retries < EPX_DATA_SEQ_RETRY_MAX && !(usb_hw->buf_status & 1u)) {
         epx->data_seq_retries++;
         epx_save_context(epx); // PIDs of the buffers not received given back, EPX pending again
         usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS | USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-  #ifdef HAS_STOP_EPX_ON_NAK
-        // a NAK stop latched with the error was this attempt's: the NAK branch below must not restart it again
-        usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
-        status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
-  #else
-        epx_switch_request = false;
-  #endif
         epx_switch_ep(epx); // the same transfer again at once, as after a NAK stop
       } else {
         xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
-  #ifdef HAS_STOP_EPX_ON_NAK
-        // a NAK stop latched with the error was the failed transfer's; xfer_complete_isr() may have started the next
-        // pending one, which the NAK branch below would otherwise restart as a data transfer (a queued SETUP included)
-        usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
-        status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
-  #endif
       }
     }
   }
