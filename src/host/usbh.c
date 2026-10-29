@@ -416,9 +416,9 @@ TU_ATTR_ALWAYS_INLINE static inline void control_xfer_set_stage(uint8_t stage) {
 
 TU_ATTR_ALWAYS_INLINE static inline bool hcd_edpt_xfer_traced(uint8_t rhport, uint8_t daddr, uint8_t ep_addr,
                                                               uint8_t *buffer, uint16_t buflen) {
-  TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
   const bool ok = hcd_edpt_xfer(rhport, daddr, ep_addr, buffer, buflen);
-  TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_HCD_XFER);
   return ok;
 }
 
@@ -726,7 +726,7 @@ bool tuh_task_event_ready(void) {
 }
 
 // a failed assertion in tuh_task_ext() closes its SystemView CALL first
-#define TU_ASSERT_SV(_cond) TUH_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK, )
+#define TU_ASSERT_SV(_cond) TU_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK, )
 
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
@@ -831,7 +831,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       }
     }
 
-    TUH_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
+    TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
         // Should we miss the hub detach event due to high traffic, Or due to physical debouncing, some devices can
@@ -878,7 +878,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         } else {
           usbh_device_t* dev = get_device(event.dev_addr);
           if (!(dev && dev->connected)) {
-            TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
+            TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
             return;
           }
 
@@ -934,10 +934,10 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         // unknown event
         break;
     }
-    TUH_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
+    TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
 
-    // reports too in a dual-role build: the device task may be untraced or idle (dynamic_switch in host mode)
-#if CFG_TUH_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+    // reports too in a dual-role build: the device task may be idle (dynamic_switch in host mode)
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
     { static uint16_t sv_cnt = 0;
       if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
 #endif

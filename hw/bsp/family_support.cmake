@@ -507,7 +507,7 @@ function(family_configure_common TARGET RTOS)
       ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
       ${CMAKE_BINARY_DIR}/sysview_shim
       ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
-    set(SYSVIEW_DEFS CFG_TUD_SYSVIEW=${SYSVIEW} CFG_TUH_SYSVIEW=${SYSVIEW}
+    set(SYSVIEW_DEFS CFG_TUSB_SYSVIEW=${SYSVIEW}
       SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
     target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
     # vendor sources are not expected to pass TinyUSB's -Werror set

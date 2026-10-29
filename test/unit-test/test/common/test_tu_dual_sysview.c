@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-// tusb_int_handler()'s ISR span in a dual-role build where only the host role is traced
-// (CFG_TUD_SYSVIEW=0, CFG_TUH_SYSVIEW=1): a device interrupt records none.
+// tusb_int_handler()'s ISR span in a traced dual-role build: one span per interrupt in either role.
 
 #include "unity.h"
 
@@ -81,16 +80,16 @@ void tearDown(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_INVALID;
 }
 
-void test_untraced_device_role_records_no_span(void) {
+void test_device_role_records_one_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_DEVICE;
   tusb_int_handler(0, true);
 
   TEST_ASSERT_EQUAL_UINT(1, dcd_irq_count);
-  TEST_ASSERT_EQUAL_UINT(0, enter_isr_count);
-  TEST_ASSERT_EQUAL_UINT(0, exit_isr_count);
+  TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
+  TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
 }
 
-void test_traced_host_role_records_one_span(void) {
+void test_host_role_records_one_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_HOST;
   tusb_int_handler(0, true);
 
@@ -99,7 +98,7 @@ void test_traced_host_role_records_one_span(void) {
   TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
 }
 
-void test_traced_host_role_from_task_context_records_no_span(void) {
+void test_host_role_from_task_context_records_no_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_HOST;
   tusb_int_handler(0, false);
 

@@ -50,10 +50,10 @@
   #include "timers.h"
 
   // Increase stack size when debug log or SYSVIEW instrumentation is enabled
-  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * ((CFG_TUSB_DEBUG || CFG_TUD_SYSVIEW) ? 2 : 1)
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * ((CFG_TUSB_DEBUG || CFG_TUSB_SYSVIEW) ? 2 : 1)
 #endif
 
-#define HID_STACK_SIZE      (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUD_SYSVIEW) ? 2 : 1))
+#define HID_STACK_SIZE      (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUSB_SYSVIEW) ? 2 : 1))
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES

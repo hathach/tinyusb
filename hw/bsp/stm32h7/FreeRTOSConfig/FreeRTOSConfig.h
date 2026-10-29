@@ -100,7 +100,7 @@
 #define configTIMER_TASK_STACK_DEPTH           configMINIMAL_STACK_SIZE
 
 /* SEGGER SystemView (SYSVIEW=<level> build) */
-#if (defined(CFG_TUD_SYSVIEW) && CFG_TUD_SYSVIEW) || (defined(CFG_TUH_SYSVIEW) && CFG_TUH_SYSVIEW)
+#if defined(CFG_TUSB_SYSVIEW) && CFG_TUSB_SYSVIEW
   #define FREERTOS_SYSVIEW_ENABLED 1
 #else
   #define FREERTOS_SYSVIEW_ENABLED 0

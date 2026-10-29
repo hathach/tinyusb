@@ -721,7 +721,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     TU_LOG_USBD("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
 #endif
 
-    TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
+    TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
     switch (event.event_id) {
       case DCD_EVENT_BUS_RESET_START:
         TU_LOG_USBD("\r\n");
@@ -785,7 +785,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
         if (0 != epnum) {
           driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TUD_SYSVIEW_ASSERT(driver, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK, );
+          TU_SYSVIEW_ASSERT(driver, CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK, );
         }
 
         // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
@@ -849,9 +849,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_BREAKPOINT();
         break;
     }
-    TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
+    TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
 
-#if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
     { static uint16_t sv_cnt = 0;
       if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
 #endif
@@ -1680,16 +1680,16 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
 
-  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer()
   // could return and USBD task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir] =
     (uint8_t) ((_usbd_dev.ep_status[epnum][dir] & ~TU_EDPT_STATE_RX_PENDING) | TU_EDPT_STATE_BUSY);
 
-  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
   bool const ok = dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr);
-  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_PORT, TU_SV_ID_DCD_XFER);
 
   if (!ok) {
     // Driver refused the transfer, mark endpoint as ready to allow next transfer. This is a
@@ -1700,7 +1700,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     TU_LOG_USBD("FAILED\r\n");
   }
 
-  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
   return ok;
 }
 

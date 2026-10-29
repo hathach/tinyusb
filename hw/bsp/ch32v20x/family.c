@@ -33,7 +33,7 @@ manufacturer: WCH
 // hardware context stack and corrupts the return on nesting. Emit naked handlers that rely on
 // HWSTK for context save/restore (equivalent to WCH's "WCH-Interrupt-fast"), which nests safely.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_FSDEV
-  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
   static void fsdev_dcd_int_handler(uint8_t rhport) {
     tud_int_handler(rhport);
