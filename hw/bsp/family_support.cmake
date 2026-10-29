@@ -510,6 +510,10 @@ function(family_configure_common TARGET RTOS)
     set(SYSVIEW_DEFS CFG_TUSB_SYSVIEW=${SYSVIEW}
       SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
     target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
+      target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf_cortexm.h\"")
+    endif ()
     # vendor sources are not expected to pass TinyUSB's -Werror set
     set_source_files_properties(
       ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c

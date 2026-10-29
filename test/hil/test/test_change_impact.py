@@ -1465,6 +1465,25 @@ class TestLibRule(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
+    def test_build_sysview_input_selects_nothing(self):
+        s = self.b(['hw/bsp/sysview_rtt_conf_cortexm.h'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], [])
+        self.assertEqual(s['family_examples'], {})
+
+    def test_hil_sysview_input_selects_the_capture_boards(self):
+        # build.yml's SystemView capture runs only on selected boards, so a SYSVIEW-only input must select them
+        roster = [dict(b) for b in ROSTER]
+        roster[1]['sysview'] = {'example': 'device/cdc_msc'}
+        s = change_impact.classify(['hw/bsp/sysview_rtt_conf_cortexm.h'], REPO, [('test/hil/tinyusb.json', roster)])
+        self.assertFalse(s['full'])
+        self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}})
+
+    def test_hil_sysview_input_without_capture_boards_selects_nothing(self):
+        s = sel(['hw/bsp/sysview_rtt_conf_cortexm.h'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['boards'], {})
+
 
 # A miniature get_deps.py: the module shape the parser must cope with (imports,
 # both dep dicts, the derived deps_all, a function) without the real 300-entry file.

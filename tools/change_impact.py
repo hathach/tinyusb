@@ -48,6 +48,7 @@ can actually build.
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 16c | `hw/bsp/sysview_*` | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these, which build.yml's SystemView capture runs on the selected boards) |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 | 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
@@ -139,6 +140,10 @@ _LOCAL_TOOLING_RE = re.compile(r'^tools/drivers_coverage_check\.py$')
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
 _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
+# SystemView build inputs: only a SYSVIEW=<level> configure (family_support.cmake) reads them. No matrix or
+# hil-build leg sets one, but build.yml's SystemView capture builds them for the selected boards with a roster
+# sysview entry, so the HIL axis selects those boards' capture example.
+_SYSVIEW_INPUT_RE = re.compile(r'^hw/bsp/sysview_[^/]+$')
 # Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
@@ -835,6 +840,16 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         s.add(boards, 'all', f'{path}: mcu dir -> families {sorted(fams)} -> boards {boards}')
         return
 
+    if _SYSVIEW_INPUT_RE.match(path):                             # rule 16c
+        captured = [b for b in roster_boards if b.get('sysview')]
+        if not captured:
+            s.reasons.append(f'{path}: read only by a SYSVIEW build, no roster board captures one, no contribution')
+        for b in captured:
+            example = b['sysview']['example']
+            s.roles.add(test_role(example))
+            s.add([b['name']], {example}, f'{path}: SystemView capture -> {b["name"]} {example}')
+        return
+
     m = re.match(r'lib/([^/]+)/', path)
     if m:
         lib = m.group(1)
@@ -1419,6 +1434,9 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             s.note(path, 'typec', 'gap', f'{path}: typec enabled by no example config, no contribution')
             return
         s.add(path, 'typec', all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
+        return
+    if _SYSVIEW_INPUT_RE.match(path):                             # rule 16c
+        s.note(path, 'sysview', 'gap', f'{path}: read only by a SYSVIEW build, which no matrix leg sets, no contribution')
         return
     m = re.match(r'lib/([^/]+)/', path)
     if m:                                                         # rule 16a
