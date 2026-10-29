@@ -1,6 +1,6 @@
 # The SystemView capture's manifest beside a traced image, <target>.sysview.json, which test/hil/sysview_ci.py checks
-# before flashing: board, example, every -D the build dir was configured with, the image's sha256, and the commit
-# and cleanliness of the tree when it last linked.
+# before flashing: board, example, every -D the build dir was configured with, the event filter and RTT buffer size
+# the image is built with, the image's sha256, and the commit and cleanliness of the tree when it last linked.
 #
 # Included: defines the functions below. Run as
 #   cmake -DCONFIG=<configure-time json> -DELF=<image> -DOUT=<manifest> -DTOP=<repo> -P sysview_manifest.cmake
@@ -50,10 +50,20 @@ function(sysview_record_command_line)
 endfunction()
 
 # Writes TARGET's manifest config, the command-line set at its current values, and completes it each time TARGET links.
+# Called where SYSVIEW_DISABLE_EVENTS and SYSVIEW_BUFFER_SIZE reach the compiler (family_support.cmake), so eventMask
+# and bufferSize are the values it gets, however they were set or defaulted.
 function(sysview_manifest TARGET BOARD EXAMPLE)
   set(manifest "{}")
   string(JSON manifest SET "${manifest}" board "\"${BOARD}\"")
   string(JSON manifest SET "${manifest}" example "\"${EXAMPLE}\"")
+  if (DEFINED SYSVIEW_DISABLE_EVENTS)
+    string(JSON manifest SET "${manifest}" eventMask "\"${SYSVIEW_DISABLE_EVENTS}\"")
+  else ()
+    string(JSON manifest SET "${manifest}" eventMask "\"none\"")
+  endif ()
+  if (DEFINED SYSVIEW_BUFFER_SIZE)
+    string(JSON manifest SET "${manifest}" bufferSize "\"${SYSVIEW_BUFFER_SIZE}\"")
+  endif ()
   string(JSON manifest SET "${manifest}" commandLine "{}")
   foreach (var IN LISTS SYSVIEW_COMMAND_LINE_VARS)
     string(REPLACE "\\" "\\\\" value "$CACHE{${var}}")

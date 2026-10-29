@@ -44,8 +44,7 @@ LEGEND = ("<sub>**Legend** — **p50/p99**: median / 99th-percentile duration ov
           "`n>100` for the tail estimate to be statistically meaningful, so it can show `n=<n>` "
           "even on a row whose p50 is shown); withheld beats wrong. Durations read "
           "**p50 / p99 / max**, all as captured — spliced CALL/RET pairs are discarded "
-          "upstream and counted in `dropped_pairs`. Capture: OpenOCD RTT "
-          "@1 ms poll — p50/p99 match the J-Link recorder within ~1%.</sub>")
+          "upstream and counted in `dropped_pairs`.</sub>")
 
 def load_set(d):
     out = {}
@@ -183,6 +182,21 @@ def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, table):
         delta = delta_fn(b, p)
     return bcell, pcell, delta
 
+def inert(text):
+    """One line of text that adds no Markdown heading, fence or HTML."""
+    return html.escape(re.sub(r"\s+", " ", str(text)).strip()).replace("`", "&#96;")
+
+def config_line(j):
+    """The capture's own configuration (capture_config), as recorded beside its numbers."""
+    c = (j.get("capture") or {}).get("config")
+    if not isinstance(c, dict) or not c:
+        return "*configuration not recorded*"
+    b, r = (v if isinstance(v, dict) else {} for v in (c.get("build"), c.get("route")))
+    events = "all events" if c.get("event_mask") == "none" else f"events masked {c.get('event_mask')}"
+    return inert(f"{j.get('example')} · {c.get('variant')} · SYSVIEW={b.get('SYSVIEW')} buffer "
+                 f"{c.get('buffer')} · {events} · workload {j.get('workload')} "
+                 f"r{c.get('workload_rev')} {j.get('duration_s')} s · OpenOCD RTT channel {r.get('channel')}")
+
 def board_section(name, base_j, pr_j, base_dropped=None):
     pm_all = pr_j.get("metrics") or {}
     live_window_s = pm_all.get("live_window_s", (pr_j.get("capture") or {}).get("live_window_s"))
@@ -190,13 +204,12 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     if base_dropped:
         # The report header states the PR-side config only, so a dropped baseline has to say
         # here why every row reads "new" -- otherwise it looks like base never captured.
-        heading += f" — base dropped, capture config changed ({', '.join(base_dropped)})"
-    lines = [heading, ""]
+        heading += f" — base dropped, capture config changed ({inert(', '.join(base_dropped))})"
+    lines = [heading, "", config_line(pr_j), ""]
     # the board left without its park image, whether or not the capture itself failed
     park_error = (pr_j.get("capture") or {}).get("park_error")
     if pr_j.get("error"):
         # one inert line each: build and tool output must not add headings, fences or HTML
-        inert = lambda t: html.escape(re.sub(r"\s+", " ", str(t)).strip()).replace("`", "&#96;")
         return "\n".join(lines + [f"capture failed: {inert(pr_j['error'])}", ""]
                          + ([f"> ⚠︎ {inert(park_error)}", ""] if park_error else []))
     if not pm_all:
@@ -308,15 +321,37 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     return "\n".join(lines) + "\n"
 
 CAPTURE_CFG_KEYS = ("example", "workload", "duration_s")
+# capture_config's, with the sub-keys a dict one needs; every one required and non-null on both sides, so an older
+# or partial record is never comparable
+CONFIG_KEYS = {"variant": (), "build": ("BOARD", "SYSVIEW"), "buffer": (), "event_mask": (),
+               "route": ("recorder", "ocd_args", "reset_before_attach", "channel"), "workload_rev": ()}
+
+def _unknown(value, subs=()):
+    """A required value absent or null, or a dict one lacking a required sub-key; False and 0 are values."""
+    return value is None or bool(subs) and (not isinstance(value, dict) or any(value.get(s) is None for s in subs))
 
 def capture_cfg_changes(base_j, pr_j):
     """Config differences that make a baseline incomparable: a PR that changes a board's
-    sysview example, workload or duration_s measures different work, so base-vs-PR deltas
-    would be noise dressed up as a regression."""
+    sysview example, workload, duration_s, traced build, event filter or capture route measures
+    different work, so base-vs-PR deltas would be noise dressed up as a regression."""
     if not base_j:
         return []
-    return [f"{k} `{base_j.get(k)}`→`{pr_j.get(k)}`"
-            for k in CAPTURE_CFG_KEYS if base_j.get(k) != pr_j.get(k)]
+    changes = []
+    for k in CAPTURE_CFG_KEYS:
+        if _unknown(base_j.get(k)) or _unknown(pr_j.get(k)):
+            changes.append(f"{k} unknown")
+        elif base_j[k] != pr_j[k]:
+            changes.append(f"{k} {base_j[k]}→{pr_j[k]}")
+    bc, pc = (c if isinstance(c := (j.get("capture") or {}).get("config"), dict) else {} for j in (base_j, pr_j))
+    for k, subs in CONFIG_KEYS.items():
+        if _unknown(bc.get(k), subs) or _unknown(pc.get(k), subs):
+            changes.append(f"{k} unknown")
+        elif isinstance(bc[k], dict) and isinstance(pc[k], dict):
+            changes += [f"{k}.{sub} {bc[k].get(sub)}→{pc[k].get(sub)}"
+                        for sub in sorted(set(bc[k]) | set(pc[k])) if bc[k].get(sub) != pc[k].get(sub)]
+        elif bc[k] != pc[k]:
+            changes.append(f"{k} {bc[k]}→{pc[k]}")
+    return changes
 
 def report(base_dir, pr_dir):
     pr = load_set(pr_dir)
@@ -330,9 +365,7 @@ def report(base_dir, pr_dir):
     # .get throughout: one malformed capture JSON must not abort the whole report -- the same
     # rule gate()/board_section() already follow one layer down.
     base_commit = next(iter(base.values())).get("commit", "?") if base else "(none)"
-    head = (f"*{any_pr.get('example', '?')} `SYSVIEW=4`, workload `{any_pr.get('workload', '?')}` "
-            f"{any_pr.get('duration_s', '?')} s, OpenOCD rtt @1 ms · "
-            f"base `{base_commit}` → PR `{any_pr.get('commit', '?')}`*")
+    head = f"*base `{inert(base_commit)}` → PR `{inert(any_pr.get('commit', '?'))}`*"
     parts = [HEADER, "", head, ""]
     for b in boards:
         changed = capture_cfg_changes(base.get(b), pr[b])
@@ -395,6 +428,8 @@ def _workload_cdc_burst(node, duration_s):
     # a device that stays enumerated but echoes nothing gives a capture of an idle bus
     return echoed > 0
 
+# bumped with any change to what a workload does, so captures across it are never compared
+WORKLOAD_REVISIONS = {"cdc_burst": 1, "idle": 1}
 WORKLOADS = {"cdc_burst": _workload_cdc_burst,
              "idle": lambda node, duration_s: __import__("time").sleep(duration_s) or True}
 
@@ -433,6 +468,8 @@ def manifest_problems(board, sv, fw, head):
         problems.append(f"built as {m.get('board')} {m.get('example')}")
     if got != want or cli.get("CFLAGS_CLI", "").split() != sv["flags"]:
         problems.append(f"built with {cli}")
+    if m.get("eventMask") != want.get("SYSVIEW_DISABLE_EVENTS", "none"):
+        problems.append(f"built with event mask {m.get('eventMask')}")
     if m.get("commit") != head or head == "unknown":
         problems.append(f"built at {m.get('commit')}, the checkout is at {head}")
     if m.get("dirty") is not False:
@@ -505,7 +542,30 @@ def capture_one(board, fw, out_dir):
         rtt = agentrc.load_file("skills/rtt/scripts/rtt.py")
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
-    return _capture(board, fw, out_dir, rtt)
+    capture, err = _capture(board, fw, out_dir, rtt)
+    if capture:
+        try:
+            capture["config"] = capture_config(board, fw, rtt)
+        except Exception as e:
+            return None, f"capture config unreadable: {type(e).__name__}: {e}"
+    return capture, err
+
+def capture_config(board, fw, rtt):
+    """What makes two captures of a board comparable besides CAPTURE_CFG_KEYS: the traced build's -D set from its
+    manifest (find_capture_firmware checked it), the event filter it holds, the route down to the recorder's code
+    (rtt.py fixes the poll interval) and the workload's revision."""
+    import hashlib
+    from helper import hil_report
+    with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
+        manifest = json.load(f)
+    build = {k: v for k, v in manifest["commandLine"].items() if k != "MEMBROWSE_BOARD"}
+    with open(rtt.__file__, "rb") as f:
+        recorder = hashlib.sha256(f.read()).hexdigest()[:12]
+    return {"variant": hil_report.sysview_build(board)["name"], "build": build,
+            "buffer": manifest["bufferSize"], "event_mask": manifest["eventMask"],
+            "route": {"recorder": f"openocd rtt.py {recorder}", "ocd_args": capture_ocd_args(board),
+                      "reset_before_attach": session_resets(board), "channel": SYSVIEW_CHANNEL},
+            "workload_rev": WORKLOAD_REVISIONS[board["sysview"]["workload"]]}
 
 def _capture(board, fw, out_dir, rtt):
     import threading, time
@@ -671,7 +731,7 @@ def main():
     rp.add_argument("base_dir"); rp.add_argument("pr_dir")
     rp.add_argument("-o", "--out", default="sysview_report.md")
     dp = sub.add_parser("decode")
-    dp.add_argument("dir", help="hil_test.py --sysview-out's directory")
+    dp.add_argument("dir", help="hil_test.py --sysview-out's directory, or downloaded artifacts of it")
     dp.add_argument("--budget-s", type=float, default=None,
                     help="seconds before the caller kills this run: decoding is cut at it")
     args = ap.parse_args()
@@ -683,14 +743,21 @@ def main():
     elif args.cmd == "decode":
         import time
         deadline = None if args.budget_s is None else time.monotonic() + args.budget_s - DECODE_MARGIN_S
-        for path in sorted(glob.glob(os.path.join(args.dir, "sysview-*.json"))):
-            with open(path) as f:
-                result = json.load(f)
-            if result["capture"].get("status") == "captured":
-                result = decode_one(result, args.dir, deadline)
-                write_result(args.dir, result)
-            park_error = result["capture"].get("park_error")
-            print(f"{result['board']}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))
+        # recursive: a downloaded artifact sits in its own subdirectory, its raw files beside its records
+        for path in sorted(glob.glob(os.path.join(args.dir, "**", "sysview-*.json"), recursive=True)):
+            try:
+                with open(path) as f:
+                    result = json.load(f)
+                capture = result.get("capture") or {}
+                # an undecoded capture only: a decoded one may have no raw left beside it to decode again
+                if capture.get("status") == "captured" and result.get("error") == NOT_DECODED:
+                    result = decode_one(result, os.path.dirname(path), deadline)
+                    with open(path, "w") as f:
+                        json.dump(result, f)
+                park_error = capture.get("park_error")
+                print(f"{result['board']}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))
+            except Exception as e:   # one unreadable record must not cost the others their decode
+                print(f"{path}: not decoded: {type(e).__name__}: {e}")
         sys.exit(0)
 
 if __name__ == "__main__":

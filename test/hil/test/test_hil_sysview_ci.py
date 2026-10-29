@@ -11,8 +11,17 @@ def metrics(overflow=0, funcs=None, isr=None, contexts=None, stack=None, live_wi
             "dropped_pairs": 0, "live_window_s": live_window_s,
             "warnings": []}
 
+# a capture_config of the f407's roster capture
+CONFIG = {"variant": "stm32f407disco-sysview",
+          "build": {"BOARD": "stm32f407disco", "CMAKE_BUILD_TYPE": "MinSizeRel", "SYSVIEW": "4",
+                    "SYSVIEW_BUFFER_SIZE": "65536", "TOOLCHAIN": "gcc"},
+          "buffer": "65536", "event_mask": "none",
+          "route": {"recorder": "openocd rtt.py 0123456789ab", "ocd_args": "-f interface/stlink.cfg",
+                    "reset_before_attach": True, "channel": 1},
+          "workload_rev": 1}
+
 def board_json(board="stm32f407disco", err=None, workload_ok=None, **mk):
-    cap = {"live_window_s": 14.2}
+    cap = {"live_window_s": 14.2, "config": json.loads(json.dumps(CONFIG))}
     if workload_ok is not None:
         cap["workload_ok"] = workload_ok
     return {"board": board, "commit": "abc1234", "example": "device/cdc_msc",
@@ -468,11 +477,35 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         conn.read.return_value = b""
         board = self._board("b")
         board["sysview"]["duration_s"] = 0
+        with open(os.path.join(self.tmp, "fw.sysview.json"), "w") as f:
+            json.dump({"commandLine": {"BOARD": "b", "MEMBROWSE_BOARD": "b-sysview", "SYSVIEW": "4",
+                                       "SYSVIEW_DISABLE_EVENTS": "0x2"}, "eventMask": "0x2", "bufferSize": "4096"}, f)
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
-            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
-        self.assertEqual((capture, err), ({"raw": "b-capture.SVDat", "workload_ok": True}, None))
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), self.tmp)
+        self.assertIsNone(err)
+        config = capture.pop("config")
+        self.assertEqual(capture, {"raw": "b-capture.SVDat", "workload_ok": True})
         self.assertTrue(os.path.exists(os.path.join(self.tmp, "b-capture.SVDat")))
+        recorder = config["route"].pop("recorder")
+        self.assertRegex(recorder, r"^openocd rtt\.py [0-9a-f]{12}$")
+        self.assertEqual(config, {"variant": "b-sysview", "build": {"BOARD": "b", "SYSVIEW": "4",
+                                                                    "SYSVIEW_DISABLE_EVENTS": "0x2"},
+                                  "buffer": "4096", "event_mask": "0x2",
+                                  "route": {"ocd_args": "-f interface/x.cfg -f target/y.cfg",
+                                            "reset_before_attach": True, "channel": sysview_ci.SYSVIEW_CHANNEL},
+                                  "workload_rev": sysview_ci.WORKLOAD_REVISIONS["idle"]})
+
+    def test_a_capture_without_its_manifest_is_a_failure(self):
+        conn = unittest.mock.Mock(eof=False)
+        conn.read.return_value = b""
+        board = self._board("b")
+        board["sysview"]["duration_s"] = 0
+        with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
+                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), self.tmp)
+        self.assertIsNone(capture)
+        self.assertIn("capture config unreadable", err)
 
 
 class EventMap(unittest.TestCase):
@@ -565,6 +598,93 @@ class CdcBurstWorkload(unittest.TestCase):
         self.assertFalse(self.run_workload(echo_until=0))
 
 
+class CaptureConfigComparison(unittest.TestCase):
+    """A base whose capture configuration differs, or is not recorded, is dropped, never compared."""
+
+    def changes(self, edit_base=None, edit_pr=None):
+        b, p = board_json(), board_json()
+        for j, edit in ((b, edit_base), (p, edit_pr)):
+            if edit:
+                edit(j["capture"]["config"])
+        return sysview_ci.capture_cfg_changes(b, p)
+
+    def test_the_same_configuration_compares(self):
+        self.assertEqual(self.changes(), [])
+
+    def test_each_field_is_part_of_the_identity(self):
+        for edit, change in (
+                (lambda c: c.update(variant="stm32f407disco-x"), "variant stm32f407disco-sysview→stm32f407disco-x"),
+                (lambda c: c["build"].update(SYSVIEW_BUFFER_SIZE="4096"), "build.SYSVIEW_BUFFER_SIZE 65536→4096"),
+                (lambda c: c["build"].update(CFLAGS_CLI="-DX=1"), "build.CFLAGS_CLI None→-DX=1"),
+                (lambda c: c.update(buffer="4096"), "buffer 65536→4096"),
+                (lambda c: c.update(event_mask="0x2"), "event_mask none→0x2"),
+                (lambda c: c["route"].update(channel=2), "route.channel 1→2"),
+                (lambda c: c["route"].update(recorder="openocd rtt.py ffffffffffff"),
+                 "route.recorder openocd rtt.py 0123456789ab→openocd rtt.py ffffffffffff"),
+                (lambda c: c.update(workload_rev=2), "workload_rev 1→2")):
+            with self.subTest(change):
+                self.assertEqual(self.changes(edit_pr=edit), [change])
+
+    def test_a_missing_or_null_field_on_both_sides_never_compares(self):
+        both = lambda edit: self.changes(edit_base=edit, edit_pr=edit)
+        self.assertEqual(both(lambda c: c["route"].pop("channel")), ["route unknown"])
+        self.assertEqual(both(lambda c: c.update(event_mask=None)), ["event_mask unknown"])
+        self.assertEqual(both(lambda c: c.pop("buffer")), ["buffer unknown"])
+        self.assertEqual(both(lambda c: c["build"].pop("SYSVIEW")), ["build unknown"])
+        self.assertEqual(both(lambda c: c.update(route="openocd")), ["route unknown"])
+        b, p = board_json(), board_json()
+        del b["duration_s"], p["duration_s"]
+        self.assertEqual(sysview_ci.capture_cfg_changes(b, p), ["duration_s unknown"])
+
+    def test_false_and_zero_are_values(self):
+        both = lambda edit: self.changes(edit_base=edit, edit_pr=edit)
+        self.assertEqual(both(lambda c: c["route"].update(reset_before_attach=False, channel=0)), [])
+
+    def test_an_unrecorded_field_never_compares_even_on_both_sides(self):
+        drop = lambda c: c.pop("event_mask")
+        self.assertEqual(self.changes(edit_base=drop), ["event_mask unknown"])
+        self.assertEqual(self.changes(edit_base=drop, edit_pr=drop), ["event_mask unknown"])
+        old = board_json()
+        del old["capture"]["config"]
+        self.assertEqual(sysview_ci.capture_cfg_changes(old, board_json()),
+                         [f"{k} unknown" for k in sysview_ci.CONFIG_KEYS])
+
+    def test_a_dropped_base_names_why_and_each_board_states_its_configuration(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        base, pr = board_json(), board_json()
+        pr["capture"]["config"]["event_mask"] = "0x2"
+        write_set(os.path.join(tmp, "b"), base)
+        write_set(os.path.join(tmp, "p"), pr)
+        md = sysview_ci.report(os.path.join(tmp, "b"), os.path.join(tmp, "p"))
+        self.assertIn("— base dropped, capture config changed (event_mask none→0x2)", md)
+        self.assertIn("device/cdc_msc · stm32f407disco-sysview · SYSVIEW=4 buffer 65536 · events masked 0x2 · "
+                      "workload cdc_burst r1 15 s · OpenOCD RTT channel 1", md)
+        self.assertNotIn("@1 ms", md)
+
+    def test_a_malformed_configuration_still_renders(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for name, edit in (("route", lambda j: j["capture"]["config"].update(route="openocd")),
+                           ("build", lambda j: j["capture"]["config"].update(build=["SYSVIEW=4"])),
+                           ("config", lambda j: j["capture"].update(config="cfg"))):
+            with self.subTest(name):
+                pr = board_json()
+                edit(pr)
+                write_set(os.path.join(tmp, name, "b"), board_json())
+                write_set(os.path.join(tmp, name, "p"), pr)
+                md = sysview_ci.report(os.path.join(tmp, name, "b"), os.path.join(tmp, name, "p"))
+                self.assertIn("unknown", md.split("\n", 6)[4])   # the dropped-base heading
+
+    def test_an_unrecorded_configuration_says_so(self):
+        j = board_json()
+        del j["capture"]["config"]
+        self.assertEqual(sysview_ci.config_line(j), "*configuration not recorded*")
+
+    def test_every_workload_has_a_revision(self):
+        self.assertEqual(set(sysview_ci.WORKLOAD_REVISIONS), set(sysview_ci.WORKLOADS))
+
+
 class CaptureBound(unittest.TestCase):
     def test_capture_bound_reserves_a_reap_grace_per_flasher_call(self):
         from helper import hil_util
@@ -632,6 +752,34 @@ class DecodeCommand(unittest.TestCase):
         before = time.monotonic()
         decoded, _ = self.main("--budget-s", "1000")
         self.assertAlmostEqual(decoded[0][2] - before, 1000 - sysview_ci.DECODE_MARGIN_S, delta=5)
+
+    def test_downloaded_artifacts_decode_in_their_own_dirs(self):
+        b = CaptureResult.BOARD
+        nested = os.path.join(self.dir, "sysview-tinyusb")
+        os.makedirs(nested)
+        sysview_ci.write_result(nested, sysview_ci.capture_result(b, "c", {"raw": "b-capture.SVDat",
+                                                                            "workload_ok": True}))
+        old = os.path.join(self.dir, "sysview-old")
+        os.makedirs(old)
+        older = board_json(board="o")   # decoded on the rig before records carried a status
+        with open(os.path.join(old, "sysview-o.json"), "w") as f:
+            json.dump(older, f)
+        decoded_before = {**board_json(board="d"), "capture": {**board_json()["capture"], "status": "captured",
+                                                                "raw": "d-capture.SVDat"}}
+        with open(os.path.join(old, "sysview-d.json"), "w") as f:   # no raw beside it: never decoded again
+            json.dump(decoded_before, f)
+        with open(os.path.join(old, "sysview-bad.json"), "w") as f:
+            f.write("{")
+        decoded, out = self.main()
+        self.assertEqual(decoded, [("b-capture.SVDat", nested, None)])
+        with open(os.path.join(nested, "sysview-b.json")) as f:
+            self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
+        with open(os.path.join(old, "sysview-o.json")) as f:
+            self.assertEqual(json.load(f), older)
+        with open(os.path.join(old, "sysview-d.json")) as f:
+            self.assertEqual(json.load(f), decoded_before)
+        self.assertIn(f"{os.path.join(old, 'sysview-bad.json')}: not decoded: JSONDecodeError", out)
+        self.assertIn("b: ok", out)
 
     def test_an_empty_dir_decodes_nothing(self):
         self.assertEqual(self.main(), ([], ""))
@@ -818,6 +966,7 @@ class FindCaptureFirmware(unittest.TestCase):
             if with_manifest and path.endswith(".elf"):
                 m = {"board": board["name"], "example": board["sysview"]["example"], "commandLine": self.CLI,
                      "commit": self.HEAD, "dirty": False, "elfSha256": hashlib.sha256(rel.encode()).hexdigest(),
+                     "eventMask": "none",
                      **manifest}
                 with open(stem + ".sysview.json", "w") as f:
                     json.dump(m, f)
@@ -857,6 +1006,8 @@ class FindCaptureFirmware(unittest.TestCase):
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CMAKE_BUILD_TYPE": "Debug"}},
                  "built with"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"example": "device/hid_composite"}, "built as"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"eventMask": "0x2"}, "built with event mask 0x2"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"eventMask": None}, "built with event mask None"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": True}, "uncommitted changes"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": None}, "uncommitted changes")):
             fw, err = self._find(self._board(), images, head, **manifest)
@@ -902,7 +1053,7 @@ class ManifestProducer(unittest.TestCase):
     def _run(self, *cmd, cwd=None):
         return subprocess.run(cmd, cwd=cwd or self.dir, env=self.ENV, check=True, capture_output=True, text=True)
 
-    def _configure(self, *defines):
+    def _configure(self, *defines, before_manifest=""):
         src = os.path.join(self.dir, "src")
         os.makedirs(src, exist_ok=True)
         with open(os.path.join(src, "main.c"), "w") as f:
@@ -916,6 +1067,7 @@ project(t C)
 option(OPT_DECLARED "x" OFF)
 set(RTOS noos CACHE STRING "")
 add_executable(app main.c)
+{before_manifest}
 sysview_manifest(app board1 device/ex)
 """)
         self._run("cmake", "-S", "src", "-B", "b", *defines)
@@ -930,6 +1082,18 @@ sysview_manifest(app board1 device/ex)
         # a reconfigure without them keeps their values, and so the record
         self.assertEqual(self._configure()["commandLine"], want)
         self.assertEqual(self._configure("-DRTOS=zephyr")["commandLine"], {**want, "RTOS": "zephyr"})
+
+    def test_the_event_mask_is_the_value_the_compiler_gets_however_it_was_set(self):
+        self.assertEqual(self._configure()["eventMask"], "none")
+        self.assertEqual(self._configure("-DSYSVIEW_DISABLE_EVENTS=0x4")["eventMask"], "0x4")
+        # set in CMake after the command-line record: in no -D, still in the manifest
+        m = self._configure(before_manifest="set(SYSVIEW_DISABLE_EVENTS 0x2)")
+        self.assertEqual(m["eventMask"], "0x2")
+
+    def test_the_buffer_size_is_the_value_the_compiler_gets(self):
+        self.assertNotIn("bufferSize", self._configure())
+        m = self._configure(before_manifest="set(SYSVIEW_BUFFER_SIZE 4096)")   # a family default, in no -D
+        self.assertEqual(m["bufferSize"], "4096")
 
     def test_an_untouched_declared_option_is_no_command_line_setting(self):
         self.assertEqual(self._configure("-DPLAIN=1")["commandLine"], {"PLAIN": "1"})

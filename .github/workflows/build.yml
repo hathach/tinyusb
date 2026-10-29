@@ -468,9 +468,8 @@ jobs:
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
     # before it; the report write and the upload after it. A ceiling below guard+tail cancels the job
-    # before hil_report.md exists. Both legs share the script and the guard. The last 20 min are
-    # the SystemView decode step's own timeout, which runs after the report.
-    timeout-minutes: 95
+    # before hil_report.md exists. Both legs share the script and the guard.
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -607,20 +606,16 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
-      - name: SystemView decode
-        # Best-effort perf metrics from the test step's captures, never gates the job; no hardware
-        if: ${{ !cancelled() && github.run_attempt == '1' }}
-        continue-on-error: true
-        timeout-minutes: 20
-        run: python3 test/hil/sysview_ci.py decode sysview-out --budget-s 1140
-
       - name: Upload SystemView captures
+        # records and raw captures, base-branch pushes included: sysview-report decodes them off the rig
         if: ${{ !cancelled() && github.run_attempt == '1' }}
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: sysview-${{ matrix.display }}
-          path: sysview-out/sysview-*.json
+          path: |
+            sysview-out/sysview-*.json
+            sysview-out/*-capture.SVDat
           if-no-files-found: ignore
           overwrite: true
 
@@ -634,6 +629,9 @@ jobs:
     needs: hil-tinyusb
     if: always() && github.event_name == 'pull_request' && needs.hil-tinyusb.result != 'skipped'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read   # the base branch run's artifacts
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
@@ -673,6 +671,17 @@ jobs:
             fi
           done
           echo "No base SystemView captures in the newest 30 $BASE_REF push runs"
+
+      - name: Decode SystemView captures
+        # both sides with this checkout's decoder (lib/agentrc at its pin), each record on its own: one that cannot
+        # decode keeps its "decode did not run" error, and so does every record when the fetch fails
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          python3 tools/get_deps.py lib/agentrc
+          for d in pr-sysview base-sysview; do
+            if [ -d "$d" ]; then python3 test/hil/sysview_ci.py decode "$d" --budget-s 400; fi
+          done
 
       - name: Generate SystemView report
         id: report

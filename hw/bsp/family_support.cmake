@@ -538,6 +538,11 @@ function(family_configure_common TARGET RTOS)
         target_include_directories(freertos_config INTERFACE ${SYSVIEW_INC} ${SYSVIEW_SRC}/Sample/FreeRTOSV11)
       endif ()
     endif ()
+    if (DEFINED SYSVIEW_DISABLE_EVENTS)
+      # its only way in (tusb.c refuses any other), so the manifest's eventMask is the capture's event filter
+      target_compile_definitions(${TARGET} PUBLIC SYSVIEW_DISABLE_EVENTS=${SYSVIEW_DISABLE_EVENTS}
+        SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+    endif ()
     if (SYSVIEW_POST_MORTEM)
       target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
       # SEGGER_SYSVIEW_SYNC_PERIOD_SHIFT stays at its source default (8)

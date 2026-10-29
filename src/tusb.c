@@ -555,6 +555,11 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 #if CFG_TUSB_SYSVIEW_ENABLED
 
+#if defined(SYSVIEW_DISABLE_EVENTS) && !defined(SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+  // the SystemView capture takes its event filter from the build manifest (hw/bsp/sysview_manifest.cmake)
+  #error "SYSVIEW_DISABLE_EVENTS is set only through CMake's SYSVIEW_DISABLE_EVENTS (family_support.cmake)"
+#endif
+
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 // SYSVIEW_FREERTOS_H is the guard of SEGGER_SYSVIEW_FreeRTOS.h, which FreeRTOSConfig.h must include for its trace hooks
 #ifndef SYSVIEW_FREERTOS_H
