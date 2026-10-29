@@ -208,6 +208,7 @@ jobs:
             cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
             cmake-build/cmake-build-*/*/*/config.env
             cmake-build/cmake-build-*/*/*/flash_args
+            cmake-build/cmake-build-*/*/*/*.sysview.json
             cmake-build/hw/mcu/**/*.ld
 
       - name: Upload code size snapshot

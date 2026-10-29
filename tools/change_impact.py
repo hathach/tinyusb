@@ -48,7 +48,7 @@ can actually build.
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
-| 16c | `hw/bsp/sysview_*` | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these, which build.yml's SystemView capture runs on the selected boards) |
+| 16c | `hw/bsp/sysview_*`, `lib/SystemView/**`, its `tools/get_deps.py` pin; `lib/SEGGER_RTT/**` too (also rule 16a) | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these: hil-build's traced leg for the selected boards) |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 | 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
@@ -140,10 +140,12 @@ _LOCAL_TOOLING_RE = re.compile(r'^tools/drivers_coverage_check\.py$')
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
 _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
-# SystemView build inputs: only a SYSVIEW=<level> configure (family_support.cmake) reads them. No matrix or
-# hil-build leg sets one, but build.yml's SystemView capture builds them for the selected boards with a roster
-# sysview entry, so the HIL axis selects those boards' capture example.
+# SystemView build inputs: only a SYSVIEW=<level> configure (family_support.cmake) reads them. No build matrix
+# leg sets one; hil-build's traced leg (hil_ci_set_matrix.py) builds them for each selected board with a roster
+# sysview entry, so the HIL axis selects those boards' capture example. lib/SystemView and its get_deps.py pin
+# are the same kind of input, and lib/SEGGER_RTT is compiled into every traced build too.
 _SYSVIEW_INPUT_RE = re.compile(r'^hw/bsp/sysview_[^/]+$')
+_SYSVIEW_DEP = 'lib/SystemView'
 # Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
@@ -419,9 +421,22 @@ _DEPS_ALIAS_TOKENS = frozenset({'sam3x', 'samd21', 'samd51', 'same5x',
                                 'stm32l1', 'stm32l5'})
 
 
+def _select_sysview_capture(s, why, roster_boards):
+    """Select each roster board's SystemView capture example (rule 16c): the traced build hil-build
+    makes and the capture flashes. True when a board was selected."""
+    captured = [b for b in roster_boards if b.get('sysview')]
+    if not captured:
+        s.reasons.append(f'{why}: read only by a SYSVIEW build, no roster board captures one, no contribution')
+    for b in captured:
+        example = b['sysview']['example']
+        s.roles.add(test_role(example))
+        s.add([b['name']], {example}, f'{why}: SystemView capture -> {b["name"]} {example}')
+    return bool(captured)
+
+
 def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
     """Families whose tools/get_deps.py dep entries changed between two versions of
-    the file, plus the path of each changed _HIL_HARNESS_DEPS entry, or None meaning
+    the file, plus the path of each changed _HIL_HARNESS_DEPS or lib/SystemView entry, or None meaning
     'cannot tell - use the full matrix'.
 
     None on: anything outside deps_mandatory/deps_optional differing (a logic change
@@ -447,7 +462,7 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         for key in set(base_x) | set(head_x):
             if base_x.get(key) == head_x.get(key):
                 continue
-            if key in _HIL_HARNESS_DEPS:
+            if key in _HIL_HARNESS_DEPS or key == _SYSVIEW_DEP:
                 harness.add(key)
             for entry in (base_x.get(key), head_x.get(key)):
                 if entry and len(entry) > 2:
@@ -734,10 +749,13 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         if get_deps_families & _HIL_HARNESS_DEPS:
             s.force_full(f'{path}: a HIL harness dep changed -> full matrix')
             return
-        if not get_deps_families:
-            s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
+        if _SYSVIEW_DEP in get_deps_families:
+            _select_sysview_capture(s, f'{path}: {_SYSVIEW_DEP} pin', roster_boards)
+        if not get_deps_families - {_SYSVIEW_DEP}:
+            if _SYSVIEW_DEP not in get_deps_families:
+                s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
             return
-        fams = sorted(get_deps_families)
+        fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         s.families.update(fams)
         boards = [b['name'] for b in roster_boards
                   if board_family(b['name'], repo_root) in get_deps_families]
@@ -840,14 +858,8 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         s.add(boards, 'all', f'{path}: mcu dir -> families {sorted(fams)} -> boards {boards}')
         return
 
-    if _SYSVIEW_INPUT_RE.match(path):                             # rule 16c
-        captured = [b for b in roster_boards if b.get('sysview')]
-        if not captured:
-            s.reasons.append(f'{path}: read only by a SYSVIEW build, no roster board captures one, no contribution')
-        for b in captured:
-            example = b['sysview']['example']
-            s.roles.add(test_role(example))
-            s.add([b['name']], {example}, f'{path}: SystemView capture -> {b["name"]} {example}')
+    if _SYSVIEW_INPUT_RE.match(path) or path.startswith(_SYSVIEW_DEP + '/'):   # rule 16c
+        _select_sysview_capture(s, path, roster_boards)
         return
 
     m = re.match(r'lib/([^/]+)/', path)
@@ -856,7 +868,10 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         # only the tests whose example builds the lib, and only those the rig runs
         tests = {e for e in lib_examples(lib, repo_root)
                  if any(e in pool for pool in ALL_TESTS.values()) or e in extras}
+        traced = False
         if lib == 'SEGGER_RTT':
+            # every traced build compiles it: SystemView records through RTT
+            traced = _select_sysview_capture(s, path, roster_boards)
             # no example names this lib, but a board whose roster entry says
             # "logger": "rtt" (variant defines LOGGER=rtt) reads EVERY test's console
             # through it -- a break here silently breaks all of that board's rows
@@ -866,6 +881,8 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
                 s.add(rtt_boards, 'all',
                       f'{path}: SEGGER_RTT is the rtt console on {rtt_boards} -> all tests')
                 return
+        if traced and not tests:
+            return
         if not tests:
             s.reasons.append(f'{path}: lib {lib} used by no HIL test, no contribution')
             return
@@ -1357,9 +1374,13 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         if get_deps_families & _HIL_HARNESS_DEPS:
             s.force_full(path, 'get-deps', f'{path}: lib/agentrc holds the CI size engine -> full build matrix')
             return
-        fams = sorted(get_deps_families)
+        fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         if not fams:
-            s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
+            if _SYSVIEW_DEP in get_deps_families:
+                s.note(path, 'sysview', 'gap', f'{path}: {_SYSVIEW_DEP} pin, built only by hil-build\'s traced legs '
+                                               f'(HIL selection), no contribution')
+            else:
+                s.note(path, 'get-deps', 'none', f'{path}: no build-family dependency changed, no contribution')
             return
         s.add(path, 'get-deps', fams, 'all', f'{path}: dep entries changed -> families {fams}', fams)
         return
@@ -1435,8 +1456,9 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(path, 'typec', all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
         return
-    if _SYSVIEW_INPUT_RE.match(path):                             # rule 16c
-        s.note(path, 'sysview', 'gap', f'{path}: read only by a SYSVIEW build, which no matrix leg sets, no contribution')
+    if _SYSVIEW_INPUT_RE.match(path) or path.startswith(_SYSVIEW_DEP + '/'):   # rule 16c
+        s.note(path, 'sysview', 'gap', f'{path}: read only by a SYSVIEW build, which only hil-build\'s traced legs '
+                                       f'(HIL selection) set, no contribution')
         return
     m = re.match(r'lib/([^/]+)/', path)
     if m:                                                         # rule 16a

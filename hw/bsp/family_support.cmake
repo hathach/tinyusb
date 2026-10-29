@@ -540,6 +540,28 @@ function(family_configure_common TARGET RTOS)
       target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
       # SEGGER_SYSVIEW_SYNC_PERIOD_SHIFT stays at its source default (8)
     endif ()
+    # <target>.sysview.json beside the image: board, example and the configure's command-line -D set (cache
+    # entries of type UNINITIALIZED), completed by sysview_manifest.cmake each time the image links
+    file(RELATIVE_PATH _sv_example ${TOP}/examples ${CMAKE_CURRENT_SOURCE_DIR})
+    set(_sv_manifest "{}")
+    string(JSON _sv_manifest SET "${_sv_manifest}" board "\"${BOARD}\"")
+    string(JSON _sv_manifest SET "${_sv_manifest}" example "\"${_sv_example}\"")
+    string(JSON _sv_manifest SET "${_sv_manifest}" commandLine "{}")
+    get_cmake_property(_sv_cache CACHE_VARIABLES)
+    foreach (_sv_var IN LISTS _sv_cache)
+      get_property(_sv_type CACHE ${_sv_var} PROPERTY TYPE)
+      if (_sv_type STREQUAL "UNINITIALIZED")
+        string(REPLACE "\\" "\\\\" _sv_value "$CACHE{${_sv_var}}")
+        string(REPLACE "\"" "\\\"" _sv_value "${_sv_value}")
+        string(JSON _sv_manifest SET "${_sv_manifest}" commandLine ${_sv_var} "\"${_sv_value}\"")
+      endif ()
+    endforeach ()
+    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.sysview.in.json CONTENT "${_sv_manifest}\n")
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -DCONFIG=${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.sysview.in.json
+              -DELF=$<TARGET_FILE:${TARGET}> -DOUT=$<TARGET_FILE_DIR:${TARGET}>/${TARGET}.sysview.json -DTOP=${TOP}
+              -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_manifest.cmake
+      VERBATIM)
     message(STATUS "SYSVIEW instrumentation enabled (buffer=${SYSVIEW_BUFFER_SIZE})")
   endif ()
 

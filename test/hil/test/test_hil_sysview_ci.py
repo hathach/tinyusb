@@ -604,7 +604,7 @@ class CaptureBudget(unittest.TestCase):
         captured = []
         argv = ["sysview_ci.py", "capture", cfg, "--out", out, "--budget-s", str(budget_s)]
         with unittest.mock.patch.object(sys, "argv", argv), \
-                unittest.mock.patch.object(sysview_ci, "find_capture_firmware", lambda b: ("fw.elf", None)), \
+                unittest.mock.patch.object(sysview_ci, "find_capture_firmware", lambda b, h: ("fw.elf", None)), \
                 unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
                                            lambda b, fw, d: captured.append(b["name"]) or capture), \
                 unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
@@ -796,50 +796,83 @@ class DecodeStopsARealChild(unittest.TestCase):
 class FindCaptureFirmware(unittest.TestCase):
     """The capture flashes hil-build's sysview-leg image and never builds on the rig. The path
     carries the flasher's extension: JLinkExe's loadfile and OpenOCD's program infer the format
-    from it, and an extension-less path fails only after the board lock is taken."""
+    from it, and an extension-less path fails only after the board lock is taken. The image's
+    manifest (family_support.cmake) must vouch for it: this commit, this build, this file."""
 
-    def _find(self, board, artifacts):
-        import hil_flash
+    HEAD = "c0ffee" * 6 + "c0ff"
+    CLI = {"BOARD": "stm32f407disco", "TOOLCHAIN": "gcc", "MEMBROWSE_BOARD": "stm32f407disco-sysview",
+           "SYSVIEW": "4", "SYSVIEW_BUFFER_SIZE": "65536"}
+
+    def _find(self, board, images, head=HEAD, **manifest):
+        """images: {path under cmake-build: True to write a matching manifest beside it}"""
+        import hashlib, hil_flash
         from helper import hil_util
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
-        for a in artifacts:
-            path = os.path.join(root, "cmake-build", a)
+        for rel, with_manifest in images.items():
+            path = os.path.join(root, "cmake-build", rel)
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            open(path, "w").close()
+            with open(path, "wb") as f:
+                f.write(rel.encode())
+            stem = os.path.splitext(path)[0]
+            if with_manifest and path.endswith(".elf"):
+                m = {"board": board["name"], "example": board["sysview"]["example"], "commandLine": self.CLI,
+                     "commit": self.HEAD, "dirty": False, "elfSha256": hashlib.sha256(rel.encode()).hexdigest(),
+                     **manifest}
+                with open(stem + ".sysview.json", "w") as f:
+                    json.dump(m, f)
         with unittest.mock.patch.object(hil_util, "TINYUSB_ROOT", type(hil_util.TINYUSB_ROOT)(root)), \
                 unittest.mock.patch.object(hil_flash, "build_dir", "cmake-build"):
-            return sysview_ci.find_capture_firmware(board)
+            return sysview_ci.find_capture_firmware(board, head)
 
     def _board(self, flasher="jlink", **extra):
         return {"name": "stm32f407disco", "flasher": {"name": flasher},
                 "sysview": {"example": "device/cdc_msc", "buffer": 65536}, **extra}
 
+    LEG = "cmake-build-stm32f407disco-sysview/device/cdc_msc/cdc_msc"
+
     def test_the_sysview_leg_image_with_the_flasher_extension(self):
-        leg = "cmake-build-stm32f407disco-sysview/device/cdc_msc/cdc_msc"
-        fw, err = self._find(self._board(), [f"{leg}.elf", f"{leg}.bin",
-                                             "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf"])
+        fw, err = self._find(self._board(), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False,
+                                             "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(err)
-        self.assertTrue(fw.endswith(f"{leg}.elf"), fw)
+        self.assertTrue(fw.endswith(f"{self.LEG}.elf"), fw)
 
     def test_a_missing_image_names_the_build_that_makes_it(self):
         # the test leg's untraced image is no substitute
-        fw, err = self._find(self._board(), ["cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf"])
+        fw, err = self._find(self._board(), {"cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
         self.assertIn("python3 tools/build.py -b stm32f407disco --build-name stm32f407disco-sysview "
                       "-e device/cdc_msc -DSYSVIEW=4 -DSYSVIEW_BUFFER_SIZE=65536", err)
+
+    def test_an_image_its_manifest_does_not_vouch_for_is_refused(self):
+        for images, head, manifest, why in (
+                ({f"{self.LEG}.elf": False}, self.HEAD, {}, "no usable manifest"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"elfSha256": "0" * 64}, "describes another image"),
+                ({f"{self.LEG}.elf": True}, "beef" * 10, {}, "the checkout is at"),
+                ({f"{self.LEG}.elf": True}, "unknown", {"commit": "unknown"}, "the checkout is at unknown"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "SYSVIEW_POST_MORTEM": "1"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CFLAGS_CLI": "-DX=1"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"example": "device/hid_composite"}, "built as")):
+            fw, err = self._find(self._board(), images, head, **manifest)
+            self.assertIsNone(fw, why)
+            self.assertIn(why, err)
+            self.assertIn("remove cmake-build/cmake-build-stm32f407disco-sysview", err)
 
     def test_the_variant_flags_name_the_leg(self):
         board = self._board(flasher="openocd", name="raspberry_pi_pico",
                             variant=[{"name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1"}])
         leg = "cmake-build-raspberry_pi_pico-sysview/device/cdc_msc/cdc_msc.elf"
-        self.assertEqual(self._find(board, [leg])[1], None)
-        fw, err = self._find(board, [])
+        fw, err = self._find(board, {leg: True}, commandLine={**self.CLI, "CFLAGS_CLI": "-DCFG_TUH_RPI_PIO_USB=1"})
+        self.assertIsNone(err)
+        fw, err = self._find(board, {leg: True})
+        self.assertIn("built with", err)
         self.assertIn("--cflag=-DCFG_TUH_RPI_PIO_USB=1", err)
 
     def test_a_board_with_several_variants_is_an_error_not_a_guess(self):
         board = self._board(variant=[{"name": "a"}, {"name": "b"}])
-        fw, err = self._find(board, ["cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf"])
+        fw, err = self._find(board, {"cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
         self.assertIn("2 variants", err)
 

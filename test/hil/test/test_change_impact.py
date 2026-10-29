@@ -1484,6 +1484,42 @@ class TestLibRule(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
+    def _traced_roster(self):
+        roster = [dict(b) for b in ROSTER]
+        roster[1]['sysview'] = {'example': 'device/cdc_msc'}
+        return [('test/hil/tinyusb.json', roster)]
+
+    def test_hil_a_traced_build_dependency_selects_the_capture_boards(self):
+        # lib/SystemView is compiled only by hil-build's traced legs; lib/SEGGER_RTT by them too
+        for path in ('lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+            s = change_impact.classify([path], REPO, self._traced_roster())
+            self.assertFalse(s['full'])
+            self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}},
+                             path)
+        b = self.b(['lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c'])
+        self.assertEqual((b['full'], b['families']), (False, []))
+
+    def test_hil_the_systemview_pin_selects_the_capture_boards(self):
+        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+            real = f.read()
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import get_deps
+        commit = get_deps.deps_optional['lib/SystemView'][1]
+        bumped = real.replace(commit, '0' * len(commit))
+        # no family token: without its path a pin bump would select nothing
+        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
+        self.assertEqual(gd, {'lib/SystemView'})
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd)
+        self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}})
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd)
+        self.assertEqual((b['full'], b['families']), (False, []))
+        # alongside a family's bump both are selected
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd | {'nrf'})
+        self.assertIn('stm32f407disco', s['boards'])
+        self.assertEqual(s['families'], ['nrf'])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd | {'nrf'})
+        self.assertEqual(b['families'], ['nrf'])
+
 
 # A miniature get_deps.py: the module shape the parser must cope with (imports,
 # both dep dicts, the derived deps_all, a function) without the real 300-entry file.

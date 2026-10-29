@@ -410,20 +410,53 @@ def _err_excerpt(text, head=500, tail=500):
         return t
     return f"{t[:head]}\n[...{len(t) - head - tail} chars omitted...]\n{t[-tail:]}"
 
-def find_capture_firmware(board):
-    """The traced image hil-build's sysview leg made for `board` (hil_report.sysview_build), with
-    the flasher's extension: (fw_path, None), or (None, why not) naming the build that makes it.
-    The rig never builds. Never raises."""
+# command-line -D keys tools/build.py sets on its own; every other one must be the traced leg's
+_BUILD_PY_KEYS = {"BOARD", "TOOLCHAIN", "MEMBROWSE_BOARD", "CFLAGS_CLI"}
+
+def manifest_problems(board, sv, fw, head):
+    """Why the image's <target>.sysview.json (family_support.cmake) does not vouch for `fw` as `sv`'s build
+    of this checkout, as a list; empty when it does."""
+    import hashlib
+    path = os.path.splitext(fw)[0] + ".sysview.json"
+    try:
+        with open(path) as f:
+            m = json.load(f)
+        with open(os.path.splitext(fw)[0] + ".elf", "rb") as f:
+            sha = hashlib.sha256(f.read()).hexdigest()
+    except (OSError, ValueError) as e:
+        return [f"no usable manifest: {e}"]
+    cli = m.get("commandLine") or {}
+    want = dict(d.partition("=")[::2] for d in sv["defines"])
+    got = {k: v for k, v in cli.items() if k not in _BUILD_PY_KEYS}
+    problems = []
+    if m.get("elfSha256") != sha:
+        problems.append("the manifest describes another image")
+    if (m.get("board"), m.get("example")) != (board["name"], sv["example"]):
+        problems.append(f"built as {m.get('board')} {m.get('example')}")
+    if got != want or cli.get("CFLAGS_CLI", "").split() != sv["flags"]:
+        problems.append(f"built with {cli}")
+    if m.get("commit") != head or head == "unknown":
+        problems.append(f"built at {m.get('commit')}, the checkout is at {head}")
+    return problems
+
+def find_capture_firmware(board, head):
+    """The traced image hil-build's sysview leg made for `board` (hil_report.sysview_build) at commit `head`,
+    with the flasher's extension: (fw_path, None), or (None, why not) naming the build that makes it. Its
+    manifest must match, so a stale or differently configured image is never flashed. The rig never builds.
+    Never raises."""
     try:
         import hil_flash
         from helper import hil_report
         sv = hil_report.sysview_build(board)
-        fw = hil_flash.find_firmware(sv["name"], sv["example"], board["flasher"]["name"])
-        if fw:
-            return str(fw), None
         cmd = " ".join(["python3 tools/build.py -b", board["name"], "--build-name", sv["name"], "-e", sv["example"],
                         *(f"-D{d}" for d in sv["defines"]), *(f"--cflag={t}" for t in sv["flags"])])
-        return None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
+        fw = hil_flash.find_firmware(sv["name"], sv["example"], board["flasher"]["name"])
+        if not fw:
+            return None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
+        problems = manifest_problems(board, sv, str(fw), head)
+        if problems:
+            return None, f"{fw}: {'; '.join(problems)} (remove cmake-build/cmake-build-{sv['name']} and run: {cmd})"
+        return str(fw), None
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
@@ -634,10 +667,10 @@ def _reflash_pristine(board, park):
     except Exception as e:
         return f"park reflash raised {type(e).__name__}: {e}"
 
-def _git_commit(repo_root):
+def _git_commit(repo_root, short=True):
     import subprocess
     try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root,
+        r = subprocess.run(["git", "rev-parse", *(["--short"] if short else []), "HEAD"], cwd=repo_root,
                             capture_output=True, text=True, timeout=10)
         return r.stdout.strip() if r.returncode == 0 else "unknown"
     except Exception:
@@ -685,7 +718,8 @@ def main():
         # 3 phases so the board lock, which blocks concurrent CI on that board, is held only
         # for the part that touches hardware (PHASE 2).
         # PHASE 1: find every selected board's traced image, no lock held.
-        builds = {board["name"]: find_capture_firmware(board) for board in boards}
+        head = _git_commit(repo_root, short=False)
+        builds = {board["name"]: find_capture_firmware(board, head) for board in boards}
         # PHASE 2: per board, flash + RTT-capture under that board's lock only.
         captures = {}
         for board in boards:
