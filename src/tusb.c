@@ -556,6 +556,13 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 #if CFG_TUSB_SYSVIEW_ENABLED
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+// SYSVIEW_FREERTOS_H is the guard of SEGGER_SYSVIEW_FreeRTOS.h, which FreeRTOSConfig.h must include for its trace hooks
+#ifndef SYSVIEW_FREERTOS_H
+  #pragma message("SYSVIEW: FreeRTOSConfig.h does not include SEGGER_SYSVIEW_FreeRTOS.h, so the per-task CPU-load " \
+                  "table is empty. Wire it as hw/bsp/stm32f4/FreeRTOSConfig/FreeRTOSConfig.h does: its " \
+                  "FREERTOS_SYSVIEW_ENABLED block, the two INCLUDE_* options it sets, the closing include, and " \
+                  "configUSE_TRACE_FACILITY and configRECORD_STACK_HIGH_ADDRESS set to 1.")
+#endif
 extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
 #define SYSVIEW_OS_API  (&SYSVIEW_X_OS_TraceAPI)
 #define SYSVIEW_OS_DESC ",O=FreeRTOS"

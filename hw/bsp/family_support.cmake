@@ -535,26 +535,6 @@ function(family_configure_common TARGET RTOS)
         target_compile_definitions(freertos_config INTERFACE ${SYSVIEW_DEFS})
         target_include_directories(freertos_config INTERFACE ${SYSVIEW_INC} ${SYSVIEW_SRC}/Sample/FreeRTOSV11)
       endif ()
-      # without FreeRTOSConfig.h's SEGGER_SYSVIEW_FreeRTOS.h hooks the per-task CPU-load table is empty
-      set(SYSVIEW_FREERTOS_CONFIG_H ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h)
-      set(SYSVIEW_FREERTOS_HOOKED FALSE)
-      if (EXISTS ${SYSVIEW_FREERTOS_CONFIG_H})
-        file(READ ${SYSVIEW_FREERTOS_CONFIG_H} SYSVIEW_FREERTOS_CONFIG_CONTENTS)
-        string(FIND "${SYSVIEW_FREERTOS_CONFIG_CONTENTS}" "SEGGER_SYSVIEW_FreeRTOS.h" SYSVIEW_FREERTOS_HOOK_IDX)
-        if (NOT SYSVIEW_FREERTOS_HOOK_IDX EQUAL -1)
-          set(SYSVIEW_FREERTOS_HOOKED TRUE)
-        endif ()
-      endif ()
-      if (NOT SYSVIEW_FREERTOS_HOOKED)
-        message(WARNING
-          "SYSVIEW: ${SYSVIEW_FREERTOS_CONFIG_H} has no SEGGER_SYSVIEW_FreeRTOS.h include - "
-          "the per-task CPU-load table will be EMPTY for ${TARGET}/${BOARD}. Only "
-          "hw/bsp/{nrf,samd5x_e5x,stm32f4,stm32f7,stm32h7} are wired today; copy their "
-          "FREERTOS_SYSVIEW_ENABLED definition, the two INCLUDE_* options it sets and the closing "
-          "SEGGER_SYSVIEW_FreeRTOS.h block, with configUSE_TRACE_FACILITY and "
-          "configRECORD_STACK_HIGH_ADDRESS set to 1, into "
-          "hw/bsp/${FAMILY}/FreeRTOSConfig/FreeRTOSConfig.h to add ${FAMILY}.")
-      endif ()
     endif ()
     if (SYSVIEW_POST_MORTEM)
       target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
