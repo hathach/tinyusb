@@ -1831,6 +1831,11 @@ class TestBuildClassifier(unittest.TestCase):
         self.assertTrue(self.b(['hw/bsp/board.c'])['full'])
         self.assertTrue(self.b(['hw/bsp/family_support.cmake'])['full'])
 
+    def test_the_sysview_manifest_helper_is_full(self):            # rule 16, not 16c
+        # family_support.cmake includes it in every configure, traced or not
+        self.assertTrue(self.b(['hw/bsp/sysview_manifest.cmake'])['full'])
+        self.assertTrue(sel(['hw/bsp/sysview_manifest.cmake'])['full'])
+
     def test_mcu_rule(self):                                       # rule 7
         s = self.b(['hw/mcu/nordic/nrf5x/nrf_clock.h'])
         self.assertEqual(s['families'], ['nrf'])

@@ -417,16 +417,16 @@ def manifest_problems(board, sv, fw, head):
     """Why the image's <target>.sysview.json (family_support.cmake) does not vouch for `fw` as `sv`'s build
     of this checkout, as a list; empty when it does."""
     import hashlib
-    path = os.path.splitext(fw)[0] + ".sysview.json"
     try:
-        with open(path) as f:
+        with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
             m = json.load(f)
-        with open(os.path.splitext(fw)[0] + ".elf", "rb") as f:
+        with open(fw, "rb") as f:
             sha = hashlib.sha256(f.read()).hexdigest()
     except (OSError, ValueError) as e:
         return [f"no usable manifest: {e}"]
     cli = m.get("commandLine") or {}
-    want = dict(d.partition("=")[::2] for d in sv["defines"])
+    # tools/build.py configures every build MinSizeRel
+    want = {"CMAKE_BUILD_TYPE": "MinSizeRel", **dict(d.partition("=")[::2] for d in sv["defines"])}
     got = {k: v for k, v in cli.items() if k not in _BUILD_PY_KEYS}
     problems = []
     if m.get("elfSha256") != sha:
@@ -437,6 +437,8 @@ def manifest_problems(board, sv, fw, head):
         problems.append(f"built with {cli}")
     if m.get("commit") != head or head == "unknown":
         problems.append(f"built at {m.get('commit')}, the checkout is at {head}")
+    if m.get("dirty") is not False:
+        problems.append("built from uncommitted changes: commit them first")
     return problems
 
 def find_capture_firmware(board, head):
@@ -453,6 +455,9 @@ def find_capture_firmware(board, head):
         fw = hil_flash.find_firmware(sv["name"], sv["example"], board["flasher"]["name"])
         if not fw:
             return None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
+        if fw.suffix != ".elf":
+            # the manifest hashes the ELF, so it cannot vouch for a .bin flashed beside it
+            return None, f"{board['flasher']['name']} flashes {fw.suffix} images; the capture checks only ELF ones"
         problems = manifest_problems(board, sv, str(fw), head)
         if problems:
             return None, f"{fw}: {'; '.join(problems)} (remove cmake-build/cmake-build-{sv['name']} and run: {cmd})"

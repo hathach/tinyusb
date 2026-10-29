@@ -801,7 +801,7 @@ class FindCaptureFirmware(unittest.TestCase):
 
     HEAD = "c0ffee" * 6 + "c0ff"
     CLI = {"BOARD": "stm32f407disco", "TOOLCHAIN": "gcc", "MEMBROWSE_BOARD": "stm32f407disco-sysview",
-           "SYSVIEW": "4", "SYSVIEW_BUFFER_SIZE": "65536"}
+           "CMAKE_BUILD_TYPE": "MinSizeRel", "SYSVIEW": "4", "SYSVIEW_BUFFER_SIZE": "65536"}
 
     def _find(self, board, images, head=HEAD, **manifest):
         """images: {path under cmake-build: True to write a matching manifest beside it}"""
@@ -854,11 +854,20 @@ class FindCaptureFirmware(unittest.TestCase):
                  "built with"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CFLAGS_CLI": "-DX=1"}},
                  "built with"),
-                ({f"{self.LEG}.elf": True}, self.HEAD, {"example": "device/hid_composite"}, "built as")):
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CMAKE_BUILD_TYPE": "Debug"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"example": "device/hid_composite"}, "built as"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": True}, "uncommitted changes"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": None}, "uncommitted changes")):
             fw, err = self._find(self._board(), images, head, **manifest)
             self.assertIsNone(fw, why)
             self.assertIn(why, err)
             self.assertIn("remove cmake-build/cmake-build-stm32f407disco-sysview", err)
+
+    def test_a_bin_flasher_is_refused_as_the_manifest_hashes_the_elf(self):
+        fw, err = self._find(self._board(flasher="lm4flash"), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False})
+        self.assertIsNone(fw)
+        self.assertIn("lm4flash flashes .bin images", err)
 
     def test_the_variant_flags_name_the_leg(self):
         board = self._board(flasher="openocd", name="raspberry_pi_pico",
@@ -875,6 +884,94 @@ class FindCaptureFirmware(unittest.TestCase):
         fw, err = self._find(board, {"cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
         self.assertIn("2 variants", err)
+
+
+@unittest.skipUnless(shutil.which("cmake") and shutil.which("cc") and shutil.which("git"), "needs cmake, cc and git")
+class ManifestProducer(unittest.TestCase):
+    """hw/bsp/sysview_manifest.cmake, which writes what FindCaptureFirmware checks."""
+
+    SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))), "hw", "bsp", "sysview_manifest.cmake")
+    # git and cmake read these from a hook or CI environment; drop them so each acts on its own temp dir
+    ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_") and k != "CONFIG"}
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def _run(self, *cmd, cwd=None):
+        return subprocess.run(cmd, cwd=cwd or self.dir, env=self.ENV, check=True, capture_output=True, text=True)
+
+    def _configure(self, *defines):
+        src = os.path.join(self.dir, "src")
+        os.makedirs(src, exist_ok=True)
+        with open(os.path.join(src, "main.c"), "w") as f:
+            f.write("int main(void) { return 0; }\n")
+        with open(os.path.join(src, "CMakeLists.txt"), "w") as f:
+            # declared after the record, as RTOS and CMAKE_C_FLAGS are in family_support.cmake and project()
+            f.write(f"""cmake_minimum_required(VERSION 3.20)
+include({self.SCRIPT})
+sysview_record_command_line()
+project(t C)
+option(OPT_DECLARED "x" OFF)
+set(RTOS noos CACHE STRING "")
+add_executable(app main.c)
+sysview_manifest(app board1 device/ex)
+""")
+        self._run("cmake", "-S", "src", "-B", "b", *defines)
+        with open(os.path.join(self.dir, "b", "app.sysview.in.json")) as f:
+            return json.load(f)
+
+    def test_every_define_any_configure_was_given_at_its_current_value(self):
+        m = self._configure("-DPLAIN=1", "-DTYPED:BOOL=ON", "-DOPT_DECLARED=ON", "-DRTOS=freertos",
+                            "-DCMAKE_C_FLAGS:STRING=-DX=1")
+        want = {"PLAIN": "1", "TYPED": "ON", "OPT_DECLARED": "ON", "RTOS": "freertos", "CMAKE_C_FLAGS": "-DX=1"}
+        self.assertEqual((m["board"], m["example"], m["commandLine"]), ("board1", "device/ex", want))
+        # a reconfigure without them keeps their values, and so the record
+        self.assertEqual(self._configure()["commandLine"], want)
+        self.assertEqual(self._configure("-DRTOS=zephyr")["commandLine"], {**want, "RTOS": "zephyr"})
+
+    def test_an_untouched_declared_option_is_no_command_line_setting(self):
+        self.assertEqual(self._configure("-DPLAIN=1")["commandLine"], {"PLAIN": "1"})
+
+    def _complete(self, top):
+        import hashlib
+        cfg, elf, out = (os.path.join(self.dir, n) for n in ("in.json", "app.elf", "out.json"))
+        with open(cfg, "w") as f:
+            json.dump({"board": "board1"}, f)
+        with open(elf, "wb") as f:
+            f.write(b"image")
+        self._run("cmake", f"-DCONFIG={cfg}", f"-DELF={elf}", f"-DOUT={out}", f"-DTOP={top}", "-P", self.SCRIPT)
+        with open(out) as f:
+            m = json.load(f)
+        self.assertEqual((m["board"], m["elfSha256"]), ("board1", hashlib.sha256(b"image").hexdigest()))
+        return m
+
+    def test_the_commit_and_whether_the_sources_differ_from_it(self):
+        top = os.path.join(self.dir, "repo")
+        os.makedirs(os.path.join(top, "src"))
+        with open(os.path.join(top, "src", "a.c"), "w") as f:
+            f.write("a\n")
+        self._run("git", "init", "-q", cwd=top)
+        self._run("git", "add", ".", cwd=top)
+        self._run("git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                  "commit", "-qm", "c", cwd=top)
+        head = self._run("git", "rev-parse", "HEAD", cwd=top).stdout.strip()
+        self.assertEqual((self._complete(top)["commit"], self._complete(top)["dirty"]), (head, False))
+        # CI's own fetches sit untracked at the top, outside the build's source dirs
+        os.makedirs(os.path.join(top, "pico-sdk"))
+        open(os.path.join(top, "pico-sdk", "x"), "w").close()
+        self.assertFalse(self._complete(top)["dirty"])
+        open(os.path.join(top, "src", "new.c"), "w").close()
+        self.assertTrue(self._complete(top)["dirty"])
+        os.remove(os.path.join(top, "src", "new.c"))
+        with open(os.path.join(top, "src", "a.c"), "w") as f:
+            f.write("b\n")
+        self.assertTrue(self._complete(top)["dirty"])
+
+    def test_no_git_is_an_unknown_commit_and_a_dirty_tree(self):
+        m = self._complete(self.dir)
+        self.assertEqual((m["commit"], m["dirty"]), ("unknown", True))
 
 
 if __name__ == '__main__':
