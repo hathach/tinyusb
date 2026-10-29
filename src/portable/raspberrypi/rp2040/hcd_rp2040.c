@@ -500,12 +500,17 @@ static void __tusb_irq_path_func(hcd_rp2040_irq_service)(void) {
   }
 }
 
+  #if TUH_SYSVIEW_ISR_TRACED
 // the SDK registers this as the ISR itself, bypassing tuh_int_handler()'s SystemView span
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
-  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
+  TU_SYSVIEW_ISR_ENTER();
   hcd_rp2040_irq_service();
-  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
+  TU_SYSVIEW_ISR_EXIT();
 }
+  #else
+    // untraced, the service is the ISR itself, so it runs without a wrapper call level
+    #define hcd_rp2040_irq hcd_rp2040_irq_service
+  #endif
 
 void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void)rhport;

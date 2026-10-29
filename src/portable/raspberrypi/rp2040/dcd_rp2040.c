@@ -620,7 +620,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
 void __tusb_irq_path_func(dcd_int_handler)(uint8_t rhport) {
   (void) rhport;
+  #if TUD_SYSVIEW_ISR_TRACED
   dcd_rp2040_irq_service(false); // callers own the span, and only in ISR context
+  #else
+  dcd_rp2040_irq(); // one inlined service copy: a second makes gcc outline its helpers on RP2350
+  #endif
 }
 
 #endif
