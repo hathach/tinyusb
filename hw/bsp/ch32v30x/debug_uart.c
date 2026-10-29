@@ -69,7 +69,6 @@ void uart_write(char c)
 	unsigned int tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
 
     NVIC_DisableIRQ(USART1_IRQn);
-    __asm volatile("fence.i" ::: "memory"); // QingKe manual: fence.i after masking an interrupt
     if((tx_consume != tx_produce) || (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET)) {
 		tx_buf[tx_produce] = c;
 		tx_produce = tx_produce_next;

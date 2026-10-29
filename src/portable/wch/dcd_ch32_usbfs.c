@@ -425,11 +425,6 @@ void dcd_int_enable(uint8_t rhport) {
 void dcd_int_disable(uint8_t rhport) {
   (void)rhport;
   NVIC_DisableIRQ(USBHD_IRQn);
-#if CFG_TUSB_MCU == OPT_MCU_CH583 || CFG_TUSB_MCU == OPT_MCU_CH32X035
-  __asm volatile("" ::: "memory"); // the SDK helper already fences, without a memory clobber
-#elif defined(__riscv)
-  __asm volatile("fence.i" ::: "memory"); // QingKe manuals: fence.i after masking an interrupt
-#endif
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {

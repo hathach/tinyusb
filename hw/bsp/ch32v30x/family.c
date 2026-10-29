@@ -104,7 +104,6 @@ void board_init(void) {
 
   /* Disable interrupts during init */
   __disable_irq();
-  __asm volatile("fence.i" ::: "memory"); // QingKe manual: the SDK's __disable_irq() omits the required fence.i
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / 1000);
