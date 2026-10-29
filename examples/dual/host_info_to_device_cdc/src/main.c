@@ -389,8 +389,8 @@ static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
   }
 #else
   // Increase stack size when debug log or SYSVIEW instrumentation is enabled
-  #define USBD_STACK_SIZE    (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUSB_SYSVIEW) ? 4 : 2))
-  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUSB_SYSVIEW) ? 4 : 2))
+  #define USBD_STACK_SIZE    (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 4 : 2))
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 4 : 2))
 #endif
 
 #define MAIN_STACK_SIZE    (configMINIMAL_STACK_SIZE*4)
