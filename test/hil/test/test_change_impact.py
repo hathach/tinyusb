@@ -2536,6 +2536,33 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             else:
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
 
+    def _matrix_of(self, boards):
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+            json.dump({'boards': boards}, f)
+            f.flush()
+            return subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+
+    def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
+        # its own build name, so neither the test image nor the parking board_test is replaced
+        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd'},
+                'variant': [{'name': 'raspberry_pi_pico', 'flags': '-DCFG_TUH_RPI_PIO_USB=1'}],
+                'sysview': {'example': 'device/cdc_msc', 'buffer': 65536}}
+        r = self._matrix_of([pico])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['arm-gcc'], [
+            '-b raspberry_pi_pico --cflag=-DCFG_TUH_RPI_PIO_USB=1',
+            '-b raspberry_pi_pico --build-name raspberry_pi_pico-sysview -e device/cdc_msc -DSYSVIEW=4 '
+            '-DSYSVIEW_BUFFER_SIZE=65536 --cflag=-DCFG_TUH_RPI_PIO_USB=1'])
+
+    def test_a_sysview_board_with_several_variants_is_refused(self):
+        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+             'variant': [{'name': 'stm32f723disco'}, {'name': 'stm32f723disco-DMA', 'flags': '-DX=1'}],
+             'sysview': {'example': 'device/cdc_msc'}}
+        r = self._matrix_of([b])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('cannot tell which one to trace', r.stderr)
+
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         import tempfile
         p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
@@ -2591,11 +2618,16 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         sel = json.dumps(mf(boards={board: 'all'}, hil_examples={board: ['device/board_test', 'device/cdc_msc']}))
         m = json.loads(self.run_matrix('--select', sel))
         entries = [e for entries in m.values() for e in entries]
+        traced = [e for e in entries if f'--build-name {board}-sysview' in e]
         self.assertTrue(entries)
         for e in entries:
             self.assertIn(f'-b {board}', e)
-            self.assertIn('-e device/board_test', e)
-            self.assertIn('-e device/cdc_msc', e)
+            if e not in traced:
+                self.assertIn('-e device/board_test', e)
+                self.assertIn('-e device/cdc_msc', e)
+        # the capture's traced leg builds its one example whatever the selection
+        for e in traced:
+            self.assertEqual(re.findall(r'-e (\S+)', e), ['device/cdc_msc'])
 
 
 class TestBuildPyExampleFilter(unittest.TestCase):
@@ -3415,7 +3447,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
             'class P:\n'
             '    def __enter__(self): return self\n'
             '    def __exit__(self, *a): return False\n'
-            '    def map(self, fn, items): return [0] * len(items)\n'
+            '    def map(self, fn, items): print(*items, sep="\\n"); return [0] * len(items)\n'
             'get_deps.Pool = P\n'
             "sys.argv = ['get_deps.py'] + sys.argv[1:]\n"
             'sys.exit(get_deps.main())\n')
@@ -3433,6 +3465,14 @@ class TestGetDepsExampleShim(unittest.TestCase):
     def test_plain_board_still_works(self):
         r = self.run_get_deps('-b', 'stm32f407disco')
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_a_traced_build_fetches_systemview(self):
+        # hil_ci_set_matrix.py's sysview leg hands its -D list here: only SYSVIEW=<nonzero> adds the sources
+        for defines, fetched in ((['-DSYSVIEW=4', '-DSYSVIEW_BUFFER_SIZE=65536'], True),
+                                 (['-DSYSVIEW=0'], False), (['-DMAX3421_HOST=1'], False)):
+            r = self.run_get_deps('-b', 'stm32f407disco', *defines)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual('lib/SystemView' in r.stdout.split(), fetched, (defines, r.stdout))
 
 
 

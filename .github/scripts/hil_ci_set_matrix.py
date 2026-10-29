@@ -22,6 +22,15 @@ def _resolve_config_path(config_file):
     raise FileNotFoundError(f'Config file not found: {config_file}')
 
 
+def _variant_args(v):
+    # build_util.yml's Build step splices this string into bash source,
+    # so the quoting round-trips a spaced value into one argv item like
+    # build_board's argv path. The SAME string also reaches the get_deps
+    # env expansion and the artifact-name charset, where spaced/quoted
+    # values still fail (loudly) -- keep defines space-free
+    return ''.join(f' -D{shlex.quote(d)}' for d in v['defines']) + ''.join(f' --cflag={tok}' for tok in v['flags'])
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_files', nargs='+', help='Configuration JSON file(s)')
@@ -117,16 +126,16 @@ def main():
                 arg = build_board
                 if v['name'] != name:
                     arg += f' --build-name {v["name"]}'
-                # build_util.yml's Build step splices this string into bash source,
-                # so the quoting round-trips a spaced value into one argv item like
-                # build_board's argv path. The SAME string also reaches the get_deps
-                # env expansion and the artifact-name charset, where spaced/quoted
-                # values still fail (loudly) -- keep defines space-free
-                for d in v['defines']:
-                    arg += f' -D{shlex.quote(d)}'
-                for tok in v['flags']:
-                    arg += f' --cflag={tok}'
-                append_build_arg(toolchain, arg)
+                append_build_arg(toolchain, arg + _variant_args(v))
+
+            # the SystemView capture's traced image: a leg of its own, never the test or parking build
+            try:
+                sv = hil_report.sysview_build(board)
+            except ValueError as e:
+                raise SystemExit(f'{config_file}: {e}')
+            if sv:
+                append_build_arg(toolchain, f'-b {name} --build-name {sv["name"]} -e {sv["example"]}' +
+                                 _variant_args(sv))
 
     print(json.dumps(matrix))
 

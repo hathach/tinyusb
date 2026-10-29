@@ -604,7 +604,7 @@ class CaptureBudget(unittest.TestCase):
         captured = []
         argv = ["sysview_ci.py", "capture", cfg, "--out", out, "--budget-s", str(budget_s)]
         with unittest.mock.patch.object(sys, "argv", argv), \
-                unittest.mock.patch.object(sysview_ci, "build_one", lambda b, r: ("fw.elf", None)), \
+                unittest.mock.patch.object(sysview_ci, "find_capture_firmware", lambda b: ("fw.elf", None)), \
                 unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
                                            lambda b, fw, d: captured.append(b["name"]) or capture), \
                 unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
@@ -793,97 +793,55 @@ class DecodeStopsARealChild(unittest.TestCase):
             self.fail(f"the decoder's child {child} outlived its group's SIGKILL")
 
 
-class TestBuildOneFirmwarePath(unittest.TestCase):
-    """build_one must return a path the flasher can actually open. JLinkExe's loadfile
-    and OpenOCD's program both infer the image format from the extension, so an
-    extension-less path dies with 'File is of unknown / unsupported format' -- and only
-    after phase 2 has taken the board lock. Observed on stm32f407disco + raspberry_pi_pico."""
+class FindCaptureFirmware(unittest.TestCase):
+    """The capture flashes hil-build's sysview-leg image and never builds on the rig. The path
+    carries the flasher's extension: JLinkExe's loadfile and OpenOCD's program infer the format
+    from it, and an extension-less path fails only after the board lock is taken."""
 
-    def _board(self, flasher="jlink"):
-        return {"name": "stm32f407disco", "flasher": {"name": flasher},
-                "sysview": {"example": "device/cdc_msc"}}
-
-    def _repo(self, artifacts):
+    def _find(self, board, artifacts):
+        import hil_flash
+        from helper import hil_util
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
-        bdir = os.path.join(root, "examples", "cmake-build-sysview-stm32f407disco")
-        os.makedirs(bdir)
         for a in artifacts:
-            open(os.path.join(bdir, a), "w").close()
-        return root
+            path = os.path.join(root, "cmake-build", a)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "w").close()
+        with unittest.mock.patch.object(hil_util, "TINYUSB_ROOT", type(hil_util.TINYUSB_ROOT)(root)), \
+                unittest.mock.patch.object(hil_flash, "build_dir", "cmake-build"):
+            return sysview_ci.find_capture_firmware(board)
 
-    def test_returns_existing_file_with_extension(self):
-        root = self._repo(["cdc_msc.elf", "cdc_msc.bin", "cdc_msc.hex"])
-        with unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], 0, "", "")):
-            fw, err = sysview_ci.build_one(self._board(), root)
+    def _board(self, flasher="jlink", **extra):
+        return {"name": "stm32f407disco", "flasher": {"name": flasher},
+                "sysview": {"example": "device/cdc_msc", "buffer": 65536}, **extra}
+
+    def test_the_sysview_leg_image_with_the_flasher_extension(self):
+        leg = "cmake-build-stm32f407disco-sysview/device/cdc_msc/cdc_msc"
+        fw, err = self._find(self._board(), [f"{leg}.elf", f"{leg}.bin",
+                                             "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf"])
         self.assertIsNone(err)
-        self.assertTrue(fw.endswith(".elf"), fw)
-        self.assertTrue(os.path.exists(fw), fw)
+        self.assertTrue(fw.endswith(f"{leg}.elf"), fw)
 
-    def test_missing_binary_is_an_error_not_a_bad_path(self):
-        # a build that emitted nothing must fail in phase 1, before the board lock
-        root = self._repo([])
-        with unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], 0, "", "")):
-            fw, err = sysview_ci.build_one(self._board(), root)
+    def test_a_missing_image_names_the_build_that_makes_it(self):
+        # the test leg's untraced image is no substitute
+        fw, err = self._find(self._board(), ["cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf"])
         self.assertIsNone(fw)
-        self.assertIn("no .elf", err)
+        self.assertIn("python3 tools/build.py -b stm32f407disco --build-name stm32f407disco-sysview "
+                      "-e device/cdc_msc -DSYSVIEW=4 -DSYSVIEW_BUFFER_SIZE=65536", err)
 
-    def test_failed_build_reports_the_diagnostics_ninja_prints_on_stdout(self):
-        failed = subprocess.CompletedProcess([], 1, "main.c:1:20: error: 'x' undeclared", None)
-        with unittest.mock.patch("subprocess.run", return_value=failed) as run:
-            fw, err = sysview_ci.build_one(self._board(), self._repo([]))
+    def test_the_variant_flags_name_the_leg(self):
+        board = self._board(flasher="openocd", name="raspberry_pi_pico",
+                            variant=[{"name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1"}])
+        leg = "cmake-build-raspberry_pi_pico-sysview/device/cdc_msc/cdc_msc.elf"
+        self.assertEqual(self._find(board, [leg])[1], None)
+        fw, err = self._find(board, [])
+        self.assertIn("--cflag=-DCFG_TUH_RPI_PIO_USB=1", err)
+
+    def test_a_board_with_several_variants_is_an_error_not_a_guess(self):
+        board = self._board(variant=[{"name": "a"}, {"name": "b"}])
+        fw, err = self._find(board, ["cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf"])
         self.assertIsNone(fw)
-        self.assertIn("error: 'x' undeclared", err)
-        self.assertEqual(run.call_args_list[0].kwargs["stdout"], subprocess.PIPE)
-        self.assertEqual(run.call_args_list[0].kwargs["stderr"], subprocess.STDOUT)
-
-
-class GetPicoSdk(unittest.TestCase):
-    def _repo(self, checkout):
-        root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, root, True)
-        os.makedirs(os.path.join(root, ".github", "actions", "get_deps"))
-        with open(os.path.join(root, ".github", "actions", "get_deps", "action.yml"), "w") as f:
-            f.write("        repository: raspberrypi/pico-sdk\n        ref: 2.3.1\n")
-        if checkout:
-            os.makedirs(os.path.join(root, "pico-sdk"))
-        return root
-
-    def _get(self, root, rc=0):
-        env = {k: v for k, v in os.environ.items() if k != "PICO_SDK_PATH"}
-        with unittest.mock.patch.dict(os.environ, env, clear=True), \
-             unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], rc, "", "boom")) as run:
-            err = sysview_ci._get_pico_sdk(root)
-            sdk = os.environ.get("PICO_SDK_PATH")
-        return err, sdk, [c.args[0] for c in run.call_args_list]
-
-    def test_existing_checkout_refreshes_any_ref_kind(self):
-        root = self._repo(checkout=True)
-        path = os.path.join(root, "pico-sdk")
-        err, sdk, cmds = self._get(root)
-        self.assertIsNone(err)
-        self.assertEqual(sdk, path)
-        self.assertEqual(cmds, [["git", "-C", path, "fetch", "--depth", "1", "origin", "2.3.1"],
-                                ["git", "-C", path, "checkout", "-q", "--detach", "FETCH_HEAD"]])
-
-    def test_missing_checkout_is_cloned(self):
-        root = self._repo(checkout=False)
-        err, sdk, cmds = self._get(root)
-        self.assertIsNone(err)
-        self.assertEqual(sdk, os.path.join(root, "pico-sdk"))
-        self.assertEqual(cmds, [["git", "clone", "--depth", "1", "--branch", "2.3.1",
-                                 "https://github.com/raspberrypi/pico-sdk.git",
-                                 os.path.join(root, "pico-sdk")]])
-
-    def test_failed_refresh_is_an_error_and_leaves_the_path_unset(self):
-        err, sdk, cmds = self._get(self._repo(checkout=True), rc=1)
-        self.assertIsNone(sdk)
-        self.assertEqual(len(cmds), 1)
-        self.assertIn("pico-sdk 2.3.1: git -C", err)
-        self.assertIn("failed: boom", err)
+        self.assertIn("2 variants", err)
 
 
 if __name__ == '__main__':

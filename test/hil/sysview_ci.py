@@ -3,7 +3,7 @@
 """SystemView CI: per-board capture on the HIL rig + PR performance report.
 
 report: pure -- two directories of sysview-<board>.json in, markdown out.
-capture: flash a SYSVIEW build, drive the workload, RTT-capture, decode. Capture and decode
+capture: flash the SYSVIEW image hil-build made, drive the workload, RTT-capture, decode. Capture and decode
 run agentrc's rtt.py and target-debug sysview scripts from lib/agentrc at the get_deps.py pin
 (agentrc's skills/target-debug/sysview.md is their manual).
 """
@@ -410,32 +410,20 @@ def _err_excerpt(text, head=500, tail=500):
         return t
     return f"{t[:head]}\n[...{len(t) - head - tail} chars omitted...]\n{t[-tail:]}"
 
-def build_one(board, repo_root):
-    """PHASE 1 (no board lock): cmake configure + build. Returns (fw_path, error) --
-    fw_path INCLUDES the flasher's extension. Never raises."""
-    import subprocess, hil_flash
-    sv, name = board["sysview"], board["name"]
+def find_capture_firmware(board):
+    """The traced image hil-build's sysview leg made for `board` (hil_report.sysview_build), with
+    the flasher's extension: (fw_path, None), or (None, why not) naming the build that makes it.
+    The rig never builds. Never raises."""
     try:
-        exdir = os.path.join(repo_root, "examples", sv["example"])
-        bdir = os.path.join(repo_root, "examples", f"cmake-build-sysview-{name}")
-        buf = [f"-DSYSVIEW_BUFFER_SIZE={sv['buffer']}"] if "buffer" in sv else []
-        for cmd in ([ "cmake", "-B", bdir, f"-DBOARD={name}", "-G", "Ninja",
-                      "-DCMAKE_BUILD_TYPE=MinSizeRel", "-DSYSVIEW=4", *buf, "." ],
-                    [ "cmake", "--build", bdir ]):
-            # ninja prints the compiler's diagnostics on stdout, cmake its configure errors on stderr
-            r = subprocess.run(cmd, cwd=exdir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               text=True, timeout=1800)
-            if r.returncode:
-                return None, f"build failed: {_err_excerpt(r.stdout)}"
-        # Both JLinkExe's `loadfile` and OpenOCD's `program` infer the image format from
-        # the extension, so the flasher needs the real filename: an extension-less path
-        # dies with "File is of unknown / unsupported format" after taking the board lock.
-        base = os.path.basename(sv["example"])
-        ext = hil_flash.FLASHER_SUFFIX.get(board["flasher"]["name"].lower(), ".elf")
-        fw = os.path.join(bdir, base + ext)
-        if not os.path.exists(fw):
-            return None, f"build produced no {ext}: {fw}"
-        return fw, None
+        import hil_flash
+        from helper import hil_report
+        sv = hil_report.sysview_build(board)
+        fw = hil_flash.find_firmware(sv["name"], sv["example"], board["flasher"]["name"])
+        if fw:
+            return str(fw), None
+        cmd = " ".join(["python3 tools/build.py -b", board["name"], "--build-name", sv["name"], "-e", sv["example"],
+                        *(f"-D{d}" for d in sv["defines"]), *(f"--cflag={t}" for t in sv["flags"])])
+        return None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
@@ -646,34 +634,6 @@ def _reflash_pristine(board, park):
     except Exception as e:
         return f"park reflash raised {type(e).__name__}: {e}"
 
-def _get_pico_sdk(repo_root):
-    """pico-sdk is no get_deps.py dep: CI's get_deps action checks it out into <workspace>/pico-sdk
-    and exports PICO_SDK_PATH, which the HIL job never runs. Do the same at the action's ref.
-    None once PICO_SDK_PATH is set, else why not; never raises."""
-    import subprocess
-    if os.environ.get("PICO_SDK_PATH"):
-        return None
-    try:
-        with open(os.path.join(repo_root, ".github", "actions", "get_deps", "action.yml")) as f:
-            m = re.search(r"repository:\s*raspberrypi/pico-sdk\s+ref:\s*(\S+)", f.read())
-        if not m:
-            return "no pico-sdk ref in .github/actions/get_deps/action.yml"
-        ref, path = m.group(1), os.path.join(repo_root, "pico-sdk")
-        if not os.path.isdir(path):
-            cmds = [["git", "clone", "--depth", "1", "--branch", ref,
-                     "https://github.com/raspberrypi/pico-sdk.git", path]]
-        else:  # a self-hosted runner's workspace can keep an older checkout
-            cmds = [["git", "-C", path, "fetch", "--depth", "1", "origin", ref],
-                    ["git", "-C", path, "checkout", "-q", "--detach", "FETCH_HEAD"]]
-        for cmd in cmds:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-            if r.returncode:
-                return f"pico-sdk {ref}: {' '.join(cmd[:4])} failed: {_err_excerpt(r.stderr)}"
-        os.environ["PICO_SDK_PATH"] = path
-        return None
-    except Exception as e:
-        return f"pico-sdk: {type(e).__name__}: {e}"
-
 def _git_commit(repo_root):
     import subprocess
     try:
@@ -698,8 +658,6 @@ def main():
                     help="seconds before the caller kills this run: a board's flash and capture start "
                          "only while the rest covers capture_bound_s(), so no kill lands before its park reflash; "
                          "decoding is cut at it too")
-    cp.add_argument("--get-deps", action="store_true",
-                    help="fetch lib/SystemView and the selected boards' deps first (CI's clean checkout)")
     args = ap.parse_args()
     if args.cmd == "report":
         md = report(args.base_dir, args.pr_dir)
@@ -723,21 +681,11 @@ def main():
             sys.exit(0)
         os.makedirs(args.out, exist_ok=True)
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        rp2_boards = {b["name"] for b in boards
-                      if os.path.isdir(os.path.join(repo_root, "hw", "bsp", "rp2040", "boards", b["name"]))}
-        sdk_error = None
-        if args.get_deps:
-            import subprocess
-            subprocess.run([sys.executable, os.path.join(repo_root, "tools", "get_deps.py"), "lib/SystemView",
-                            *(a for b in boards for a in ("-b", b["name"]))], cwd=repo_root, check=False)
-            if rp2_boards:
-                sdk_error = _get_pico_sdk(repo_root)
         commit = _git_commit(repo_root)
         # 3 phases so the board lock, which blocks concurrent CI on that board, is held only
         # for the part that touches hardware (PHASE 2).
-        # PHASE 1: build every selected board, no lock held.
-        builds = {board["name"]: (None, sdk_error) if sdk_error and board["name"] in rp2_boards
-                  else build_one(board, repo_root) for board in boards}
+        # PHASE 1: find every selected board's traced image, no lock held.
+        builds = {board["name"]: find_capture_firmware(board) for board in boards}
         # PHASE 2: per board, flash + RTT-capture under that board's lock only.
         captures = {}
         for board in boards:

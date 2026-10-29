@@ -604,9 +604,9 @@ jobs:
 
       - name: SystemView capture
         # Best-effort perf capture after the HIL report, never gates the job: the -b boards of
-        # the test step's selection (sysview_ci.py capture has no -bt), building, fetching their
-        # deps and lib/SystemView itself. Skipped on re-run attempts: a re-run recaptures every
-        # board, wasting shared-rig time for no report benefit.
+        # the test step's selection (sysview_ci.py capture has no -bt), flashing the traced image
+        # hil-build's sysview leg uploaded with the binaries. Skipped on re-run attempts: a re-run
+        # recaptures every board, wasting shared-rig time for no report benefit.
         if: ${{ !cancelled() && github.run_attempt == '1' }}
         continue-on-error: true
         # the kill reaches the shell, not python, so no finally reflashes the park image:
@@ -633,7 +633,7 @@ jobs:
             esac
           done
           python3 test/hil/sysview_ci.py capture ${{ env.HIL_JSON }} \
-            $SYSVIEW_BOARD_ARGS --get-deps --budget-s 1140 --out sysview-out
+            $SYSVIEW_BOARD_ARGS --budget-s 1140 --out sysview-out
 
       - name: Upload SystemView captures
         if: ${{ !cancelled() && github.run_attempt == '1' }}
