@@ -38,7 +38,8 @@ class FakeGh:
 
     def __init__(self, parents, runs=None, artifacts=None, status='ahead'):
         self.parents, self.runs, self.artifacts, self.status = parents, runs or {}, artifacts or {}, status
-        self.pr_head, self.pr_repo, self.attempts = None, NAME, {}
+        self.pr_head, self.pr_repo, self.attempts, self.pr_base = None, NAME, {}, 'master'
+        self.compared = []
 
     def __call__(self, path, paginate=False):
         reply = self.reply(path)
@@ -55,8 +56,10 @@ class FakeGh:
             parent = self.parents.get(m.group(1))
             return {'parents': [{'sha': parent}] if parent else []}
         if re.fullmatch(rf'repos/{NAME}/pulls/\d+', path):
-            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}}}
-        if re.fullmatch(rf'repos/{NAME}/compare/\w+\.\.\.master', path):
+            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}},
+                    'base': {'ref': self.pr_base}}
+        if m := re.fullmatch(rf'repos/{NAME}/compare/\w+\.\.\.([\w./-]+)', path):
+            self.compared.append(m.group(1))
             return {'status': self.status}
         raise AssertionError(f'unexpected API call {path}')
 
@@ -148,6 +151,30 @@ class Baseline(unittest.TestCase):
         info = self.lookup(broken)
         self.assertEqual((info['sha'], info['run_id']), (None, None))
         self.assertIn('the baseline lookup failed: gh api: HTTP 502', info['note'])
+
+
+class BaselineOfAnotherKind(unittest.TestCase):
+    """lookup_sha's keywords, which sysview_ci.py's baseline passes: the base branch, and which artifacts make a run
+    a baseline."""
+
+    def test_the_branch_names_the_runs_and_the_ancestry(self):
+        fake = FakeGh({}, {sha('b'): [run(6, sha('b')), run(7, sha('b'), branch='sysview')]},
+                      {6: SNAPSHOTS, 7: SNAPSHOTS})
+        with mock.patch.object(ci, 'gh', fake):
+            info = ci.lookup_sha(NAME, sha('b'), branch='sysview')
+        self.assertEqual((info['run_id'], fake.compared), (7, ['sysview']))
+        fake.status = 'diverged'
+        with mock.patch.object(ci, 'gh', fake):
+            self.assertIn('not on sysview', ci.lookup_sha(NAME, sha('b'), branch='sysview')['note'])
+
+    def test_the_predicate_sees_every_unexpired_name(self):
+        seen = []
+        arts = [artifact(1, 'sysview-tinyusb'), artifact(2, 'binaries-x'), artifact(3, 'sysview-old', expired=True)]
+        fake = FakeGh({}, {sha('b'): [run(7, sha('b'))]}, {7: arts})
+        with mock.patch.object(ci, 'gh', fake):
+            info = ci.lookup_sha(NAME, sha('b'), usable=lambda names: seen.append(names) or 'sysview-tinyusb' in names)
+        self.assertEqual((info['run_id'], seen), (7, [{'sysview-tinyusb', 'binaries-x'}]))
+        self.assertFalse(ci.has_snapshots({'sysview-tinyusb', 'code-size-scope'}))
 
 
 def pr_run(run_id, prs=(5,), branch='feature', repo=NAME):

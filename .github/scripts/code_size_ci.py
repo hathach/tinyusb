@@ -55,32 +55,38 @@ def current_base_sha(current):
     return shas.pop() if len(shas) == 1 else None
 
 
-def is_master_ancestor(repo, sha):
-    """Whether `sha` is on master's history, so a PR can never pick its own run as baseline."""
-    return gh(f'repos/{repo}/compare/{sha}...{BRANCH}')['status'] in ('ahead', 'identical')
+def is_master_ancestor(repo, sha, branch=BRANCH):
+    """Whether `sha` is on `branch`'s history, so a PR can never pick its own run as baseline."""
+    return gh(f'repos/{repo}/compare/{sha}...{branch}')['status'] in ('ahead', 'identical')
 
 
-def snapshot_run(repo, sha):
-    """The latest completed master push Build run of `sha` with unexpired snapshots, else None."""
+def has_snapshots(names):
+    """Whether a run's unexpired artifact `names` hold code-size snapshots: a docs-only commit uploads a scope that
+    measured nothing, not a baseline."""
+    sizes = {n for n in names if n.startswith('code-size-')}
+    return 'code-size-scope' in sizes and len(sizes) > 1
+
+
+def snapshot_run(repo, sha, branch=BRANCH, usable=has_snapshots):
+    """The latest completed `branch` push Build run of `sha` whose unexpired artifact names are `usable`, else None."""
     runs = gh_items(f'repos/{repo}/actions/workflows/{WORKFLOW}/runs?head_sha={sha}&event=push'
-                    f'&branch={BRANCH}&status=completed', 'workflow_runs')
+                    f'&branch={branch}&status=completed', 'workflow_runs')
     for run in sorted(runs, key=lambda r: r['run_number'], reverse=True):
-        if run['head_sha'] != sha or run['head_branch'] != BRANCH or run['event'] != 'push' \
+        if run['head_sha'] != sha or run['head_branch'] != branch or run['event'] != 'push' \
                 or (run.get('head_repository') or {}).get('full_name') != repo:
             continue
         names = {a['name'] for a in gh_items(f'repos/{repo}/actions/runs/{run["id"]}/artifacts', 'artifacts')
-                 if a['name'].startswith('code-size-') and not a['expired']}
-        # a docs-only commit uploads a scope that measured nothing: not a baseline
-        if 'code-size-scope' in names and len(names) > 1:
+                 if not a['expired']}
+        if usable(names):
             return run
     return None
 
 
-def find_baseline(repo, sha):
+def find_baseline(repo, sha, branch=BRANCH, usable=has_snapshots):
     """(run, depth) of the first first-parent ancestor of `sha`, itself at depth 0, with
-    snapshots, or None within MAX_DEPTH."""
+    usable artifacts, or None within MAX_DEPTH."""
     for depth in range(MAX_DEPTH):
-        run = snapshot_run(repo, sha)
+        run = snapshot_run(repo, sha, branch, usable)
         if run:
             return run, depth
         parents = gh(f'repos/{repo}/commits/{sha}')['parents']
@@ -99,19 +105,19 @@ def lookup(repo, current):
     return lookup_sha(repo, sha)
 
 
-def lookup_sha(repo, sha, whose='this PR\'s'):
-    """The baseline description of base commit `sha`: its master Build run with snapshots,
+def lookup_sha(repo, sha, whose='this PR\'s', branch=BRANCH, usable=has_snapshots):
+    """The baseline description of base commit `sha`: its `branch` Build run with usable artifacts,
     else its nearest first-parent ancestor's (approximate), whose later changes count as
     `whose`; 'sha' None with a 'note' when there is none. Raises RuntimeError on an API failure."""
     info = {'sha': None, 'url': None, 'exact': False, 'run_id': None}
-    if not is_master_ancestor(repo, sha):
-        return {**info, 'note': f'base {sha[:10]} is not on {BRANCH}'}
-    found = find_baseline(repo, sha)
+    if not is_master_ancestor(repo, sha, branch):
+        return {**info, 'note': f'base {sha[:10]} is not on {branch}'}
+    found = find_baseline(repo, sha, branch, usable)
     if found is None:
-        return {**info, 'note': f'no {BRANCH} Build run with snapshots within {MAX_DEPTH} commits of {sha[:10]}'}
+        return {**info, 'note': f'no {branch} Build run with snapshots within {MAX_DEPTH} commits of {sha[:10]}'}
     run, depth = found
     info = {'sha': run['head_sha'], 'url': run['html_url'], 'exact': depth == 0, 'run_id': run['id']}
-    note = f'{depth} {BRANCH} commits before this build\'s base {sha[:10]}: their changes count as {whose}'
+    note = f'{depth} {branch} commits before this build\'s base {sha[:10]}: their changes count as {whose}'
     return {**info, 'note': note} if depth else info
 
 

@@ -521,6 +521,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+          # the merge commit's parents: the SystemView capture records its base and head (checkout_identity)
+          fetch-depth: 2
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -616,88 +618,6 @@ jobs:
           path: |
             sysview-out/sysview-*.json
             sysview-out/*-capture.SVDat
-          if-no-files-found: ignore
-          overwrite: true
-
-  # ---------------------------------------
-  # Compare this run's SystemView captures (uploaded by hil-tinyusb) against the base
-  # branch's latest captures on the same workflow, producing a sticky-comment-ready
-  # markdown table. hfp.json has no sysview-flagged boards, so its test step captures
-  # nothing; only tinyusb.json's captures ever feed this.
-  # ---------------------------------------
-  sysview-report:
-    needs: hil-tinyusb
-    if: always() && github.event_name == 'pull_request' && needs.hil-tinyusb.result != 'skipped'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read   # the base branch run's artifacts
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v6
-
-      - name: Download PR SystemView captures
-        uses: actions/download-artifact@v5
-        continue-on-error: true
-        with:
-          pattern: sysview-*
-          path: pr-sysview
-          merge-multiple: true
-
-      - name: Download base branch SystemView captures
-        # The newest same-repo base-branch push run with a sysview-* artifact (docs-only pushes skip HIL),
-        # bounded to the newest 30 push runs: 1 list call + 1 artifact-list page per examined run + the download.
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if ! python3 -c 'import glob, sys; sys.exit(not glob.glob("pr-sysview/**/sysview-*.json", recursive=True))'; then
-            exit 0
-          fi
-          # event=push server-side: fork PRs from a branch named $BASE_REF would otherwise take window slots
-          runs=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
-            -f branch="$BASE_REF" -f event=push -F per_page=30 \
-            --jq '.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY) | .id')
-          for run in $runs; do
-            found=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?per_page=100" \
-              --jq '[.artifacts[] | select((.expired | not) and (.name | startswith("sysview-")))] | length')
-            if [ "$found" -gt 0 ]; then
-              echo "Base SystemView captures from run $run"
-              # into a temp dir first so a failed download leaves base-sysview absent, never partial
-              gh run download "$run" -R "$GITHUB_REPOSITORY" -p 'sysview-*' -D base-sysview.tmp
-              mv base-sysview.tmp base-sysview
-              exit 0
-            fi
-          done
-          echo "No base SystemView captures in the newest 30 $BASE_REF push runs"
-
-      - name: Decode SystemView captures
-        # both sides with this checkout's decoder (lib/agentrc at its pin), each record on its own: one that cannot
-        # decode keeps its "decode did not run" error, and so does every record when the fetch fails
-        continue-on-error: true
-        timeout-minutes: 15
-        run: |
-          python3 tools/get_deps.py lib/agentrc
-          for d in pr-sysview base-sysview; do
-            if [ -d "$d" ]; then python3 test/hil/sysview_ci.py decode "$d" --budget-s 400; fi
-          done
-
-      - name: Generate SystemView report
-        id: report
-        continue-on-error: true        # informational comment: a generator crash must not red the PR
-        run: |
-          python3 test/hil/sysview_ci.py report base-sysview pr-sysview -o sysview_report.md
-          if [ -s sysview_report.md ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Upload SystemView Comment Artifact
-        if: steps.report.outputs.found == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: sysview-comment
-          path: sysview_report.md
           if-no-files-found: ignore
           overwrite: true
 

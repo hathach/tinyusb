@@ -145,6 +145,7 @@ print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 sysview_out = None  # --sysview-out; sysview_head/_commit: the checkout's full and short HEAD it records
 sysview_head = sysview_commit = None
+sysview_identity = None  # sysview_ci.checkout_identity, recorded for the PR comment's baseline
 pool_deadline = None  # time.monotonic() the pool guard fires at: the drain's and, inherited by fork, each worker's
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 _current_variant = None  # and its build variant
@@ -2179,7 +2180,8 @@ def test_board(board: Board) -> tuple:
             try:
                 # a capture that never flashed left the board as the tests did: its park is the run's own business
                 sysview_ci.write_result(sysview_out, sysview_ci.capture_result(
-                    board, sysview_commit, capture, error, park_error=park_error if flashed else None))
+                    board, sysview_commit, capture, error, park_error=park_error if flashed else None,
+                    identity=sysview_identity))
             except Exception as e:
                 log_line(f'{name:25} SystemView capture record not written: {type(e).__name__}: {e}')
 
@@ -2463,7 +2465,7 @@ def main() -> None:
     global board_test
     global max_retry
     global skip_flash
-    global sysview_out, sysview_head, sysview_commit, pool_deadline
+    global sysview_out, sysview_head, sysview_commit, sysview_identity, pool_deadline
 
     duration = time.time()
 
@@ -2492,6 +2494,7 @@ def main() -> None:
         repo_root = str(Path(__file__).resolve().parents[2])
         sysview_head = sysview_ci._git_commit(repo_root, short=False)
         sysview_commit = sysview_ci._git_commit(repo_root)
+        sysview_identity = sysview_ci.checkout_identity(repo_root)
 
     # if config file is not found, try to find it in the same directory as this script
     if not config_file.exists():

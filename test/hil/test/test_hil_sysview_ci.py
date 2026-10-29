@@ -91,8 +91,8 @@ class Report(unittest.TestCase):
         err = "build failed: x.c:1: error\n# not a heading\n```\n<details><b>x</b>\n"
         section = self.go([board_json()], [board_json(err=err)]).split("<sub>")[0]
         line = next(l for l in section.splitlines() if l.startswith("capture failed:"))
-        self.assertEqual(line, "capture failed: build failed: x.c:1: error # not a heading "
-                               "&#96;&#96;&#96; &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
+        self.assertEqual(line, "capture failed: build failed: x.c:1: error \\# not a heading "
+                               "\\`\\`\\` &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
         self.assertNotIn("<details>", section)
 
     def test_non_string_capture_error_renders_capture_failed(self):
@@ -657,9 +657,9 @@ class CaptureConfigComparison(unittest.TestCase):
         write_set(os.path.join(tmp, "b"), base)
         write_set(os.path.join(tmp, "p"), pr)
         md = sysview_ci.report(os.path.join(tmp, "b"), os.path.join(tmp, "p"))
-        self.assertIn("— base dropped, capture config changed (event_mask none→0x2)", md)
-        self.assertIn("device/cdc_msc · stm32f407disco-sysview · SYSVIEW=4 buffer 65536 · events masked 0x2 · "
-                      "workload cdc_burst r1 15 s · OpenOCD RTT channel 1", md)
+        self.assertIn("— base dropped, capture config changed (event\\_mask none→0x2)", md)
+        self.assertIn("*device/cdc\\_msc · stm32f407disco-sysview · SYSVIEW=4 buffer 65536 · events masked 0x2 · "
+                      "workload cdc\\_burst r1 15 s · OpenOCD RTT channel 1*", md)
         self.assertNotIn("@1 ms", md)
 
     def test_a_malformed_configuration_still_renders(self):
@@ -789,7 +789,11 @@ class DecodeDeadline(unittest.TestCase):
     """decode_one cuts each decode step at the --budget-s deadline `decode` passes it."""
     RESULT = sysview_ci.capture_result({"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle",
                                                                  "duration_s": 15}},
-                                       "c", {"raw": "r", "workload_ok": True})
+                                       "c", {"raw": "b-capture.SVDat", "workload_ok": True})
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
 
     @staticmethod
     def step(returncode=1, stdout="", stderr="boom", communicate=None):
@@ -803,7 +807,7 @@ class DecodeDeadline(unittest.TestCase):
         with unittest.mock.patch("subprocess.Popen", popen), \
                 unittest.mock.patch("os.killpg") as killpg, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-            err = sysview_ci.decode_one(self.RESULT, tempfile.gettempdir(), deadline)["error"]
+            err = sysview_ci.decode_one(self.RESULT, self.tmp, deadline)["error"]
         return err, popen, killpg
 
     def test_a_decoded_capture_keeps_its_record(self):
@@ -811,8 +815,9 @@ class DecodeDeadline(unittest.TestCase):
                  self.step(returncode=0, stdout=json.dumps({"live_window_s": 14.2, "overflow": 0}), stderr="")]
         with unittest.mock.patch("subprocess.Popen", unittest.mock.Mock(side_effect=steps)) as popen, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-            r = sysview_ci.decode_one(self.RESULT, "/out")
-        self.assertEqual(popen.call_args_list[0].args[0][2:4], ["--from-raw", "/out/r"])
+            r = sysview_ci.decode_one(self.RESULT, self.tmp)
+        self.assertEqual(popen.call_args_list[0].args[0][2:4],
+                         ["--from-raw", os.path.join(os.path.realpath(self.tmp), "b-capture.SVDat")])
         self.assertEqual((r["error"], r["metrics"], r["commit"]), (None, {"live_window_s": 14.2, "overflow": 0}, "c"))
         self.assertEqual(r["capture"], {**self.RESULT["capture"], "live_window_s": 14.2})
 
@@ -854,7 +859,7 @@ class DecodeDeadline(unittest.TestCase):
             popen = unittest.mock.Mock(return_value=step)
             with unittest.mock.patch("subprocess.Popen", popen), \
                     unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-                err = sysview_ci.decode_one(self.RESULT, tempfile.gettempdir(), time.monotonic() + 30)["error"]
+                err = sysview_ci.decode_one(self.RESULT, self.tmp, time.monotonic() + 30)["error"]
         self.assertIn("decode timed out", err)
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
         self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
@@ -1136,6 +1141,270 @@ sysview_manifest(app board1 device/ex)
     def test_no_git_is_an_unknown_commit_and_a_dirty_tree(self):
         m = self._complete(self.dir)
         self.assertEqual((m["commit"], m["dirty"]), ("unknown", True))
+
+
+class Baseline(unittest.TestCase):
+    """sysview_ci.py baseline: the push run of the base commit the PR captures were built against, found by
+    code_size_ci's lookup on the PR's base branch, among runs that hold captures."""
+    BASE = "b" * 40
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        sys.path.insert(0, os.path.join(sysview_ci.REPO_ROOT, ".github", "scripts"))
+        modules = unittest.mock.patch.dict(sys.modules)   # the real one, whatever another test registered
+        modules.start()
+        self.addCleanup(modules.stop)
+        sys.modules.pop("code_size_ci", None)
+        import code_size_ci
+        from test_code_size_ci import FakeGh, artifact, run
+        self.ci = code_size_ci
+        self.fake = FakeGh({}, {self.BASE: [run(7, self.BASE, branch="sysview")]},
+                           {7: [artifact(1, "sysview-tinyusb"), artifact(2, "code-size-scope")]})
+        self.fake.pr_base = "sysview"
+
+    def records(self, *identities):
+        for i, ident in enumerate(identities):
+            write_set(os.path.join(self.tmp, f"a{i}"), {**board_json(board=f"b{i}"), **ident})
+
+    def baseline(self):
+        with unittest.mock.patch.object(self.ci, "gh", self.fake):
+            return sysview_ci.baseline("hathach/tinyusb", 5, self.tmp)
+
+    def test_the_base_commit_on_the_prs_base_branch(self):
+        ident = {"base_sha": self.BASE, "base_ref": "sysview"}
+        self.records(ident, ident)
+        info = self.baseline()
+        self.assertEqual((info["sha"], info["run_id"], info["exact"], self.fake.compared),
+                         (self.BASE, 7, True, ["sysview"]))
+
+    def test_a_run_without_captures_is_no_baseline(self):
+        self.fake.artifacts[7] = [artifact for artifact in self.fake.artifacts[7] if artifact["id"] == 2]
+        self.records({"base_sha": self.BASE, "base_ref": "sysview"})
+        self.assertIsNone(self.baseline()["run_id"])
+
+    def test_records_that_do_not_name_one_valid_base_commit(self):
+        for name, idents in (("disagree", [{"base_sha": self.BASE, "base_ref": "sysview"},
+                                           {"base_sha": "c" * 40, "base_ref": "sysview"}]),
+                             ("short", [{"base_sha": "b" * 10, "base_ref": "sysview"}]),
+                             ("upper", [{"base_sha": "B" * 40, "base_ref": "sysview"}]),
+                             ("missing", [{}]),
+                             ("refs disagree", [{"base_sha": self.BASE, "base_ref": "sysview"},
+                                                {"base_sha": self.BASE, "base_ref": "master"}])):
+            with self.subTest(name):
+                shutil.rmtree(self.tmp)
+                self.records(*idents)
+                info = self.baseline()
+                self.assertEqual((info["sha"], info["note"]),
+                                 (None, "the PR captures record no single base commit"))
+        with open(os.path.join(self.tmp, "a0", "sysview-bad.json"), "w") as f:
+            f.write("{")
+        self.assertIsNone(self.baseline()["sha"])
+
+    def test_a_retargeted_pr_is_named_not_reinterpreted(self):
+        self.records({"base_sha": self.BASE, "base_ref": "master"})
+        info = self.baseline()
+        self.assertEqual((info["sha"], info["note"]),
+                         (None, "the captures were built against master, the PR now targets sysview"))
+        self.assertEqual(self.fake.compared, [])
+
+    def test_the_cli_writes_a_failure_as_a_note(self):
+        self.records({"base_sha": self.BASE, "base_ref": "sysview"})
+        out = os.path.join(self.tmp, "info.json")
+
+        def boom(path, paginate=False):
+            raise RuntimeError("HTTP 502")
+        with unittest.mock.patch.object(self.ci, "gh", boom), \
+                unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", "baseline", "--repo", "o/r", "--pr", "5",
+                                                         "--current", self.tmp, "--info", out]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            sysview_ci.main()
+        with open(out) as f:
+            info = json.load(f)
+        self.assertEqual((info["sha"], info["note"]), (None, "the baseline lookup failed: RuntimeError: HTTP 502"))
+
+
+class BaselineReport(unittest.TestCase):
+    """The report's header names the baseline the lookup chose, and only that commit's records are compared."""
+    SHA = "b" * 40
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.base, self.pr = os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p")
+        write_set(self.pr, board_json(funcs=[F("tud_task", 22000, 7.6)]))
+
+    def report(self, info, base_sha=SHA):
+        write_set(self.base, {**board_json(funcs=[F("tud_task", 22000, 7.4)]), "sha": base_sha})
+        return sysview_ci.report(self.base, self.pr, info)
+
+    def test_exact_approximate_and_none(self):
+        exact = {"sha": self.SHA, "exact": True, "run_id": 7, "url": "u"}
+        self.assertIn("*base `bbbbbbbbbb` (exact) → PR `abc1234`*", self.report(exact))
+        approx = {**exact, "exact": False, "note": "no build for X; nearest ancestor 1 commit back"}
+        self.assertIn("(approximate: no build for X; nearest ancestor 1 commit back)", self.report(approx))
+        md = sysview_ci.report(os.path.join(self.tmp, "none"), self.pr,
+                               {"sha": None, "exact": False, "note": "no build found within 30 commits"})
+        self.assertIn("*no baseline: no build found within 30 commits · PR `abc1234`*", md)
+        self.assertIn("| new |", md)
+
+    def test_a_base_record_of_another_commit_is_dropped(self):
+        md = self.report({"sha": self.SHA, "exact": True}, base_sha="c" * 40)
+        self.assertIn("base dropped, base record of commit cccccccccc, not the baseline's", md)
+        self.assertNotIn("+2.7%", md)
+        self.assertIn("+2.7%", self.report({"sha": self.SHA, "exact": True}))
+
+
+class HostileRecord(unittest.TestCase):
+    """A PR builds its own records: whatever text they hold renders as text, and a non-number where the report
+    formats a number is a malformed record, never a crash or a rendered value."""
+    EVIL = "x](https://evil.example/a.png) <img src=x> | `y` **z** #1 @u www.e.com\n## H"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def render(self, *pr, base=(), info=None):
+        for side, objs in (("b", base), ("p", pr)):
+            os.makedirs(os.path.join(self.tmp, side))
+            for i, o in enumerate(objs):   # a board name is no file name here
+                with open(os.path.join(self.tmp, side, f"sysview-{i}.json"), "w") as f:
+                    json.dump(o, f)
+        return sysview_ci.report(os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p"), info)
+
+    def assert_inert(self, out):
+        """No link, image, HTML, heading, autolink or cell break of the record's own, outside its code spans (where
+        GitHub renders none, and only a | needs escaping); the mermaid labels hold no character that ends one.
+        @-mentions are pr_comment.yml's, over the whole comment."""
+        body, _, chart = out.split("<sub>**Legend**")[0].partition("```mermaid")
+        text = re.sub(r"(?<!\\)`[^`]*`", "CODE", body)   # code() leaves no backtick inside, md() none unescaped
+        self.assertNotRegex(text, r"(?<!\\)\]\(")
+        for bad in ("<img", "https://", "www.e"):
+            self.assertNotIn(bad, text)
+        self.assertEqual([l for l in text.splitlines() if l.startswith("#")],
+                         [sysview_ci.HEADER] + [l for l in text.splitlines() if l.startswith("### ")])
+        for line in body.splitlines():   # GFM splits a cell on | inside a code span too
+            if line.startswith("|"):
+                self.assertEqual(len(re.findall(r"(?<!\\)\|", line)), 5, line)
+        for line in chart.splitlines():
+            if "x-axis" in line:
+                self.assertRegex(line, r"^    x-axis \[[A-Za-z0-9_.:, -]*\]$")
+
+    def test_every_rendered_position(self):
+        j = board_json(board=self.EVIL, funcs=[F(self.EVIL, 22000, 7.4)], isr=[I(self.EVIL, 24000, 6.7)],
+                       contexts=[{"name": "ISR " + self.EVIL, "cpu_pct": 12.0}],
+                       stack=[{"name": self.EVIL, "bytes_used": 512}])
+        j["metrics"]["warnings"] = [self.EVIL]
+        j["capture"]["park_error"] = self.EVIL
+        j["capture"]["config"]["variant"] = self.EVIL
+        j["example"] = j["commit"] = self.EVIL
+        out = self.render(j, base=[{**json.loads(json.dumps(j)), "sha": "c" * 40}],
+                          info={"sha": "b" * 40, "exact": False, "note": self.EVIL})
+        self.assert_inert(out)
+        self.assertIn("evil.example", out)   # shown, as text
+        failed = board_json(board="f", err=self.EVIL)
+        failed["capture"]["park_error"] = self.EVIL
+        shutil.rmtree(self.tmp)
+        self.assert_inert(self.render(failed, info={"sha": None, "note": self.EVIL}))
+
+    def test_a_non_number_is_a_malformed_record(self):
+        for name, mutate in (
+                ("scalar", lambda j: j["metrics"].__setitem__("overflow", "0")),
+                ("bool scalar", lambda j: j["metrics"].__setitem__("dropped_pairs", True)),
+                ("row value", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", "7.4")),
+                ("row name", lambda j: j["metrics"]["functions"][0].__setitem__("name", 3)),
+                ("missing field", lambda j: j["metrics"]["functions"][0].pop("p99_us")),
+                ("null duration", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", None)),
+                ("float count", lambda j: j["metrics"]["functions"][0].__setitem__("n", 22000.5)),
+                ("stack bytes", lambda j: j["metrics"].__setitem__("stack", [{"name": "s", "bytes_used": 1.5}])),
+                ("context field", lambda j: j["metrics"].__setitem__("contexts", [{"name": "usbd"}])),
+                ("workload field", lambda j: j["metrics"].__setitem__("contexts_workload", [{"name": "usbd"}])),
+                ("table", lambda j: j["metrics"].__setitem__("isr", {"a": 1})),
+                ("warnings", lambda j: j["metrics"].__setitem__("warnings", "boom")),
+                ("window", lambda j: j["capture"].__setitem__("live_window_s", "14")),
+                ("capture", lambda j: j.__setitem__("capture", "x"))):
+            with self.subTest(name):
+                shutil.rmtree(self.tmp)
+                j = board_json(funcs=[F("tud_task", 22000, 7.4)])
+                mutate(j)
+                out = self.render(j)
+                self.assertIn("malformed record:", out)
+                self.assertNotIn("tud_task", out)
+
+
+class ArtifactFile(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_only_a_plain_capture_name_inside_the_directory(self):
+        self.assertEqual(sysview_ci.artifact_file(self.tmp, "b-capture.SVDat"),
+                         os.path.join(os.path.realpath(self.tmp), "b-capture.SVDat"))
+        for name in ("../b-capture.SVDat", "/etc/b-capture.SVDat", "sub/b-capture.SVDat", "b.SVDat", "",
+                     None, 3, "..-capture.SVDat/../x-capture.SVDat"):
+            with self.subTest(name), self.assertRaises(ValueError):
+                sysview_ci.artifact_file(self.tmp, name)
+        os.symlink("/etc/passwd", os.path.join(self.tmp, "l-capture.SVDat"))
+        with self.assertRaisesRegex(ValueError, "outside"):
+            sysview_ci.artifact_file(self.tmp, "l-capture.SVDat")
+
+    def test_a_refused_name_is_a_decode_error(self):
+        r = {**board_json(), "error": sysview_ci.NOT_DECODED,
+             "capture": {"status": "captured", "raw": "../x-capture.SVDat"}}
+        self.assertIn("raw file name refused", sysview_ci.decode_one(r, self.tmp)["error"])
+        self.assertEqual(os.listdir(self.tmp), [])
+
+
+class CheckoutIdentity(unittest.TestCase):
+    """What a capture records as its commits, against real clones as CI's checkout makes them: a pull_request build
+    checks out GitHub's merge commit at fetch-depth 2."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        env = unittest.mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        for k in [k for k in os.environ if k.startswith("GIT_")]:
+            del os.environ[k]
+        self.origin = os.path.join(self.tmp, "origin")
+        self.git("init", "-q", "-b", "master", self.origin)
+        self.base = self.commit("base")
+        self.git("-C", self.origin, "checkout", "-q", "-b", "feature")
+        self.head = self.commit("head")
+        self.git("-C", self.origin, "checkout", "-q", "master")
+        self.tip = self.commit("tip")
+        self.git("-C", self.origin, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                 "merge", "-q", "--no-ff", "-m", "merge", "feature")
+        self.merge = self.git("-C", self.origin, "rev-parse", "HEAD")
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    def commit(self, msg):
+        self.git("-C", self.origin, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                 "commit", "-q", "--allow-empty", "-m", msg)
+        return self.git("-C", self.origin, "rev-parse", "HEAD")
+
+    def clone(self, depth):
+        d = os.path.join(self.tmp, f"d{depth}")
+        self.git("clone", "-q", f"--depth={depth}", "-b", "master", f"file://{self.origin}", d)
+        return d
+
+    def test_a_pull_request_merge_at_depth_2(self):
+        env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "master"}
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(2), env),
+                         {"sha": self.merge, "base_sha": self.tip, "head_sha": self.head, "base_ref": "master"})
+
+    def test_too_shallow_for_the_parents_is_unknown(self):
+        env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "master"}
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(1), env),
+                         {"sha": None, "base_sha": None, "head_sha": None, "base_ref": "master"})
+
+    def test_a_push_build_is_its_own_base(self):
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(1), {"GITHUB_EVENT_NAME": "push"}),
+                         {"sha": self.merge, "base_sha": self.merge, "head_sha": self.merge, "base_ref": None})
+
 
 
 if __name__ == '__main__':

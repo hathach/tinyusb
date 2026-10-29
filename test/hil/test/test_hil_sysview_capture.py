@@ -80,6 +80,12 @@ class SysviewCapture(unittest.TestCase):
                           {'raw': f'{BOARD}-capture.SVDat', 'workload_ok': True, 'status': 'captured',
                            'park_error': None}))
 
+    def test_the_record_carries_the_checkout_identity(self):
+        identity = {'sha': 'M' * 40, 'base_sha': 'B' * 40, 'head_sha': 'H' * 40, 'base_ref': 'master'}
+        patch(self, hil_test, 'sysview_identity', identity)
+        self.run_board()
+        self.assertEqual({k: self.result()[k] for k in identity}, identity)
+
     def test_a_dual_selection_captures_and_a_host_only_one_does_not(self):
         self.board['tests'] = {'only': ['dual/host_info_to_device_cdc']}
         self.run_board()

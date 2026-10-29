@@ -12,6 +12,7 @@ their manual).
 import argparse, glob, html, json, os, re, signal, sys
 
 SCRIPTS = "skills/target-debug/scripts/"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
 SYSVIEW_CHANNEL = 1
 # absolute event id -> name for sysview_report.py --event-map; test_hil_sysview_ci checks it
@@ -53,10 +54,54 @@ def load_set(d):
         try:
             with open(p) as f:
                 j = json.load(f)
-            out[j["board"]] = j
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError):
             continue
+        if isinstance(j, dict) and isinstance(j.get("board"), str):
+            why = malformed(j)
+            out[j["board"]] = {"board": j["board"], "error": f"malformed record: {why}"} if why else j
     return out
+
+# the report formats these as numbers: a record holding anything else there is malformed, never rendered
+METRIC_SCALARS = ("overflow", "overflow_total", "dropped_pairs", "live_window_s", "workload_window_s")
+# each table's row fields the report formats: an int, a number, or a number it renders null as "—"
+DURATION_FIELDS = {"n": int, "p50_us": float, "p99_us": float, "max_us": float}
+ROW_FIELDS = {"isr": DURATION_FIELDS, "functions": DURATION_FIELDS, "contexts": {"cpu_pct": None},
+              "contexts_workload": {"cpu_pct_workload": None}, "stack": {"bytes_used": int}}
+
+def _number(v):
+    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool))
+
+def _field_ok(v, kind):
+    return _number(v) and (kind is None or v is not None and (kind is float or isinstance(v, int)))
+
+def malformed(j):
+    """Why record `j` cannot be rendered as data (PR-built, so never trusted), else None."""
+    if not isinstance(j.get("capture") or {}, dict):
+        return "capture is not an object"
+    if not _number((j.get("capture") or {}).get("live_window_s")):
+        return "capture.live_window_s is not a number"
+    m = j.get("metrics")
+    if m is None:
+        return None
+    if not isinstance(m, dict):
+        return "metrics is not an object"
+    for k in METRIC_SCALARS:
+        if not _number(m.get(k)):
+            return f"metrics.{k} is not a number"
+    if not (m.get("warnings") is None or isinstance(m["warnings"], list)
+            and all(isinstance(w, str) for w in m["warnings"])):
+        return "metrics.warnings is not a list of text"
+    for t, fields in ROW_FIELDS.items():
+        rows = m.get(t)
+        if rows is None:
+            continue
+        if not isinstance(rows, list):
+            return f"metrics.{t} is not a list"
+        for r in rows:
+            if not (isinstance(r, dict) and isinstance(r.get("name"), str)
+                    and all(k in r and _field_ok(r[k], kind) for k, kind in fields.items())):
+                return f"metrics.{t} has a row without a name and its {', '.join(fields)}"
+    return None
 
 def gate(side, name_metrics):
     """None if usable, else the withhold reason string."""
@@ -182,9 +227,20 @@ def gated_pair(base_j, pr_j, b, p, fmt, delta_fn, table):
         delta = delta_fn(b, p)
     return bcell, pcell, delta
 
-def inert(text):
-    """One line of text that adds no Markdown heading, fence or HTML."""
-    return html.escape(re.sub(r"\s+", " ", str(text)).strip()).replace("`", "&#96;")
+def md(text):
+    """PR-built text as plain Markdown inside a line it does not start: no HTML, emphasis, link, image, table cell
+    break, code span, issue reference or autolink of its own."""
+    t = html.escape(re.sub(r"\s+", " ", str(text)).strip(), quote=False)
+    t = re.sub(r"([\\`*_\[\]|~#])", r"\\\1", t)
+    return t.replace("://", ":\u200b//").replace("www.", "www\u200b.")
+
+def code(text):
+    """PR-built text as one code span, also inside a table cell: GFM splits a cell on | even in code."""
+    return "`" + re.sub(r"\s+", " ", str(text)).strip().replace("`", "'").replace("|", "\\|") + "`"
+
+def mermaid_label(text):
+    """PR-built text as a mermaid xychart label: no quote, bracket, comma or newline to end it."""
+    return re.sub(r"[^A-Za-z0-9_.:-]", "_", str(text))
 
 def config_line(j):
     """The capture's own configuration (capture_config), as recorded beside its numbers."""
@@ -193,32 +249,32 @@ def config_line(j):
         return "*configuration not recorded*"
     b, r = (v if isinstance(v, dict) else {} for v in (c.get("build"), c.get("route")))
     events = "all events" if c.get("event_mask") == "none" else f"events masked {c.get('event_mask')}"
-    return inert(f"{j.get('example')} · {c.get('variant')} · SYSVIEW={b.get('SYSVIEW')} buffer "
+    return "*" + md(f"{j.get('example')} · {c.get('variant')} · SYSVIEW={b.get('SYSVIEW')} buffer "
                  f"{c.get('buffer')} · {events} · workload {j.get('workload')} "
-                 f"r{c.get('workload_rev')} {j.get('duration_s')} s · OpenOCD RTT channel {r.get('channel')}")
+                 f"r{c.get('workload_rev')} {j.get('duration_s')} s · OpenOCD RTT channel {r.get('channel')}") + "*"
 
 def board_section(name, base_j, pr_j, base_dropped=None):
     pm_all = pr_j.get("metrics") or {}
     live_window_s = pm_all.get("live_window_s", (pr_j.get("capture") or {}).get("live_window_s"))
-    heading = f"### {name}" + (f" — live {live_window_s:.1f} s" if live_window_s is not None else "")
+    heading = f"### {md(name)}" + (f" — live {live_window_s:.1f} s" if live_window_s is not None else "")
     if base_dropped:
         # The report header states the PR-side config only, so a dropped baseline has to say
         # here why every row reads "new" -- otherwise it looks like base never captured.
-        heading += f" — base dropped, capture config changed ({inert(', '.join(base_dropped))})"
+        heading += f" — base dropped, {md(', '.join(base_dropped))}"
     lines = [heading, "", config_line(pr_j), ""]
     # the board left without its park image, whether or not the capture itself failed
     park_error = (pr_j.get("capture") or {}).get("park_error")
     if pr_j.get("error"):
-        # one inert line each: build and tool output must not add headings, fences or HTML
-        return "\n".join(lines + [f"capture failed: {inert(pr_j['error'])}", ""]
-                         + ([f"> ⚠︎ {inert(park_error)}", ""] if park_error else []))
+        # one plain line each: build and tool output must not add headings, fences or HTML
+        return "\n".join(lines + [f"capture failed: {md(pr_j['error'])}", ""]
+                         + ([f"> ⚠︎ {md(park_error)}", ""] if park_error else []))
     if not pm_all:
         # a malformed capture JSON must not abort the whole report
         return "\n".join(lines + ["capture failed: missing metrics", ""])
     bm_all = (base_j or {}).get("metrics") or {}
     # reported, not gated: e.g. the decoder's timing warnings (agentrc sysview.md)
     warnings = (pm_all.get("warnings") or []) + ([park_error] if park_error else [])
-    warnings = [f"> ⚠︎ {w}" for w in warnings]
+    warnings = [f"> ⚠︎ {md(w)}" for w in warnings]
     lines += warnings + [""] if warnings else []  # a blank line ends the quote before the table
     lines += ["| metric | base | PR | Δ |", "|---|---:|---:|---:|"]
     bisr, pisr = by_name(bm_all.get("isr")), by_name(pm_all.get("isr"))
@@ -253,7 +309,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
             d50 = _one_delta(preason50, breason50, bm, pm, 'p50_us')
             d99 = _one_delta(preason99, breason99, bm, pm, 'p99_us')
             return f"{d50} / {d99}"
-        lines.append(f"| {iname} p50 / p99 | {_cell(bm, breason50, breason99)} | "
+        lines.append(f"| {md(iname)} p50 / p99 | {_cell(bm, breason50, breason99)} | "
                      f"{_cell(pm, preason50, preason99)} | {_delta()} |")
     bfn, pfn = by_name(bm_all.get("functions")), by_name(pm_all.get("functions"))
     # PR-side rows keep their existing CPU-occupancy order; base-only rows have no PR
@@ -261,7 +317,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     order = sorted(pfn, key=lambda k: pfn[k]["n"] * pfn[k]["p50_us"], reverse=True)
     order += sorted(set(bfn) - set(pfn))
     for fname in order:
-        r = row(f"`{fname}` p50", bfn, pfn, fname, base_j, pr_j, "functions")
+        r = row(f"{code(fname)} p50", bfn, pfn, fname, base_j, pr_j, "functions")
         if r: lines.append(r)
     # CPU load rows prefer cpu_pct_workload -- busy time summed from the raw scheduling
     # events over the workload window (span of tud_cdc_read activity), the number that
@@ -282,7 +338,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
                 lambda b_, p_: ("—" if None in (b_[key], p_[key]) or abs(p_[key] - b_[key]) < 0.1
                                 else f"{p_[key]-b_[key]:+.1f} pt"),
                 "contexts_workload" if use_wl else "contexts")
-            lines.append(f"| {label} ({cname}) | {bcell} | {pcell} | {d} |")
+            lines.append(f"| {label} ({md(cname)}) | {bcell} | {pcell} | {d} |")
     bst, pst = by_name(bm_all.get("stack")), by_name(pm_all.get("stack"))
     for sname in sorted(set(pst) | set(bst)):
         b, sm = bst.get(sname), pst.get(sname)
@@ -291,7 +347,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
             lambda b_, p_: ("—" if b_['bytes_used'] == p_['bytes_used'] else
                             f"{p_['bytes_used']-b_['bytes_used']:+d} B"),
             "stack")
-        lines.append(f"| `{sname}` stack high-water | {bcell} | {pcell} | {d} |")
+        lines.append(f"| {code(sname)} stack high-water | {bcell} | {pcell} | {d} |")
     # chart: occupancy order, PR-gate-eligible only, capped; base series only if
     # every charted function is ungated on the base side too (no holes in a mermaid series).
     # `c in pfn` excludes base-only rows: the chart is explicitly "hot functions ... in the
@@ -300,7 +356,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     if eligible:
         base_ok = (gate(base_j, None) is None and
                    all(c in bfn and gate(base_j, bfn[c]) is None for c in eligible))
-        short = [re.sub(r'^(tud_|tuh_|dcd_|hcd_)', '', c) for c in eligible]
+        short = [mermaid_label(re.sub(r'^(tud_|tuh_|dcd_|hcd_)', '', c)) for c in eligible]
         pv = [f"{pfn[c]['p50_us']:.1f}" for c in eligible]
         bars = [f"    bar [{', '.join(pv)}]"]
         values = list(pv)
@@ -353,22 +409,37 @@ def capture_cfg_changes(base_j, pr_j):
             changes.append(f"{k} {bc[k]}→{pc[k]}")
     return changes
 
-def report(base_dir, pr_dir):
+def baseline_line(info, base, any_pr):
+    """Which base this report compares against: the baseline lookup's (pr_comment.yml), else the records' own."""
+    pr_commit = code(any_pr.get("commit", "?"))
+    if info is None:
+        base_commit = next(iter(base.values())).get("commit", "?") if base else "(none)"
+        return f"*base {code(base_commit)} → PR {pr_commit}*"
+    if not info.get("sha"):
+        return f"*no baseline: {md(info.get('note') or 'none found')} · PR {pr_commit}*"
+    kind = "exact" if info.get("exact") else f"approximate: {md(info.get('note') or '')}"
+    return f"*base {code(str(info['sha'])[:10])} ({kind}) → PR {pr_commit}*"
+
+def report(base_dir, pr_dir, baseline_info=None):
+    """The PR comment's SystemView section. With `baseline_info` (sysview_ci.py baseline), base records come from
+    its run only, and one recorded at another commit is dropped, never compared."""
     pr = load_set(pr_dir)
     if not pr:
         return ""
     base = load_set(base_dir)
-    if base and not (set(base) & set(pr)):
+    if baseline_info is None and base and not (set(base) & set(pr)):
         return ""
     boards = sorted(pr)
     any_pr = next(iter(pr.values()))
     # .get throughout: one malformed capture JSON must not abort the whole report -- the same
     # rule gate()/board_section() already follow one layer down.
-    base_commit = next(iter(base.values())).get("commit", "?") if base else "(none)"
-    head = f"*base `{inert(base_commit)}` → PR `{inert(any_pr.get('commit', '?'))}`*"
-    parts = [HEADER, "", head, ""]
+    parts = [HEADER, "", baseline_line(baseline_info, base, any_pr), ""]
     for b in boards:
-        changed = capture_cfg_changes(base.get(b), pr[b])
+        if baseline_info is not None and b in base and base[b].get("sha") != baseline_info.get("sha"):
+            changed = [f"base record of commit {str(base[b].get('sha'))[:10]}, not the baseline's"]
+        else:
+            changed = [f"capture config changed ({', '.join(c)})" for c in [capture_cfg_changes(base.get(b), pr[b])]
+                       if c]
         parts.append(board_section(b, None if changed else base.get(b), pr[b], changed))
     parts.append(LEGEND)
     return "\n".join(parts) + "\n"
@@ -520,14 +591,18 @@ def capture_bound_s(board):
     return (2 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + CAPTURE_FIXED_S
             + board["sysview"]["duration_s"])
 
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+
 # the error of a recorded capture until `decode` replaces it
 NOT_DECODED = "decode did not run"
 
-def capture_result(board, commit, capture=None, error=None, park_error=None):
+def capture_result(board, commit, capture=None, error=None, park_error=None, identity=None):
     """The record of a board's capture that hil_test.py writes, and `decode`'s whole input: it decodes only a
-    capture whose status is "captured", from the raw file it names beside the record."""
+    capture whose status is "captured", from the raw file it names beside the record. `identity` is the checkout's
+    (checkout_identity), which the PR comment finds its baseline by."""
     info = {**(capture or {}), "status": "captured" if capture else "failed", "park_error": park_error}
-    return board_result(board, commit, capture_info=info, error=error or (NOT_DECODED if capture else None))
+    return {**board_result(board, commit, capture_info=info, error=error or (NOT_DECODED if capture else None)),
+            **(identity or {})}
 
 def write_result(out_dir, result):
     with open(os.path.join(out_dir, f"sysview-{result['board']}.json"), "w") as f:
@@ -668,10 +743,23 @@ def _stop_decoder(p):
     except subprocess.TimeoutExpired:
         pass  # a member stuck in D state still holds the pipes: abandoned, as hil_process does
 
+# capture_one's raw file name, the only one a record may name
+RAW_RE = re.compile(r"[A-Za-z0-9._-]+-capture\.SVDat")
+
+def artifact_file(out_dir, name):
+    """The raw file `name` a downloaded record names, refused unless it is a plain capture file name resolving inside
+    out_dir: a record is PR-built data, and decode may run with a token beside it."""
+    if not isinstance(name, str) or not RAW_RE.fullmatch(name):
+        raise ValueError(f"raw file name refused: {name!r}")
+    path = os.path.realpath(os.path.join(out_dir, name))
+    if os.path.dirname(path) != os.path.realpath(out_dir):
+        raise ValueError(f"raw file outside its record's directory: {name!r}")
+    return path
+
 def decode_one(result, out_dir, deadline=None):
     """The recorded capture `result` (capture_result) decoded with agentrc's sysview scripts, no hardware, each step
     cut at the time.monotonic() deadline if one is given. Never raises."""
-    import subprocess, time
+    import subprocess, tempfile, time
     from helper import agentrc
     capture = result["capture"]
 
@@ -697,9 +785,10 @@ def decode_one(result, out_dir, deadline=None):
             raise
         return subprocess.CompletedProcess(cmd, p.returncode, out, err)
     try:
-        dec = os.path.join(out_dir, f"{result['board']}-decoded")
+        raw = artifact_file(out_dir, capture.get("raw"))
+        dec = tempfile.mkdtemp(prefix="decoded-", dir=out_dir)
         r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_record.py"),
-                 "--from-raw", os.path.join(out_dir, capture["raw"]), "--out", dec], 900)
+                 "--from-raw", raw, "--out", dec], 900)
         if r.returncode:
             return {**result, "error": f"record decode failed: {r.stderr[-200:]}"}
         r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_report.py"),
@@ -714,6 +803,50 @@ def decode_one(result, out_dir, deadline=None):
         return {**result, "error": str(e)}
     except Exception as e:
         return {**result, "error": f"{type(e).__name__}: {e}"}
+
+def has_captures(names):
+    """Whether a Build run's unexpired artifact `names` hold SystemView captures."""
+    return any(n.startswith("sysview-") for n in names)
+
+def baseline(repo, pr, current):
+    """The baseline description (code_size_ci.lookup_sha's) of the PR run whose records are in `current`: the push
+    run of the base commit they were built against, on the branch PR `pr` targets, else of its nearest first-parent
+    ancestor (approximate). Raises RuntimeError on an API failure."""
+    sys.path.insert(0, os.path.join(REPO_ROOT, ".github", "scripts"))
+    import code_size_ci
+    none = {"sha": None, "url": None, "exact": False, "run_id": None}
+    records = []
+    for p in glob.glob(os.path.join(current, "**", "sysview-*.json"), recursive=True):
+        try:
+            with open(p) as f:
+                records.append(json.load(f))
+        except (OSError, ValueError):
+            records.append(None)
+    shas = {r.get("base_sha") if isinstance(r, dict) else None for r in records}
+    refs = {r.get("base_ref") if isinstance(r, dict) else None for r in records}
+    sha = shas.pop() if len(shas) == 1 else None
+    if not (isinstance(sha, str) and SHA_RE.fullmatch(sha)) or len(refs) != 1:
+        return {**none, "note": "the PR captures record no single base commit"}
+    built_on, target = refs.pop(), code_size_ci.gh(f"repos/{repo}/pulls/{pr}")["base"]["ref"]
+    if built_on != target:
+        return {**none, "note": f"the captures were built against {built_on}, the PR now targets {target}"}
+    return code_size_ci.lookup_sha(repo, sha, branch=target, usable=has_captures)
+
+def checkout_identity(repo_root, env=os.environ):
+    """The checkout's commits as code-size's snapshots record them, the baseline lookup's key: a pull_request build
+    checks out GitHub's merge commit, whose first parent is the base it was built against and second the PR head;
+    any other build is its own. Each None where git cannot resolve it (a checkout too shallow for the parents)."""
+    import subprocess
+    revs = ["HEAD", "HEAD^1", "HEAD^2"] if env.get("GITHUB_EVENT_NAME") == "pull_request" else ["HEAD"]
+    try:
+        r = subprocess.run(["git", "rev-parse", *revs], cwd=repo_root, capture_output=True, text=True, timeout=10)
+        shas = r.stdout.split() if r.returncode == 0 else []
+    except Exception:
+        shas = []
+    if len(shas) != len(revs) or not all(SHA_RE.fullmatch(s) for s in shas):
+        shas = [None] * len(revs)
+    sha, base, head = shas if len(shas) == 3 else shas * 3
+    return {"sha": sha, "base_sha": base, "head_sha": head, "base_ref": env.get("GITHUB_BASE_REF") or None}
 
 def _git_commit(repo_root, short=True):
     import subprocess
@@ -730,13 +863,32 @@ def main():
     rp = sub.add_parser("report")
     rp.add_argument("base_dir"); rp.add_argument("pr_dir")
     rp.add_argument("-o", "--out", default="sysview_report.md")
+    bp = sub.add_parser("baseline", help="find the base branch Build run a PR run's captures compare against")
+    bp.add_argument("--repo", required=True)
+    bp.add_argument("--pr", required=True, type=int)
+    bp.add_argument("--current", required=True, help="the PR run's downloaded sysview-* artifacts")
+    bp.add_argument("--info", required=True, help="where to write the baseline description JSON")
+    rp.add_argument("--baseline-info", help="the baseline description `baseline` wrote")
     dp = sub.add_parser("decode")
     dp.add_argument("dir", help="hil_test.py --sysview-out's directory, or downloaded artifacts of it")
     dp.add_argument("--budget-s", type=float, default=None,
                     help="seconds before the caller kills this run: decoding is cut at it")
     args = ap.parse_args()
-    if args.cmd == "report":
-        md = report(args.base_dir, args.pr_dir)
+    if args.cmd == "baseline":
+        try:
+            info = baseline(args.repo, args.pr, args.current)
+        except Exception as e:   # an API failure or an unexpected reply is a result, the comment says so
+            info = {"sha": None, "url": None, "exact": False, "run_id": None,
+                    "note": f"the baseline lookup failed: {type(e).__name__}: {e}"}
+        with open(args.info, "w") as f:
+            json.dump(info, f)
+        print(json.dumps(info))
+    elif args.cmd == "report":
+        info = None
+        if args.baseline_info:
+            with open(args.baseline_info) as f:
+                info = json.load(f)
+        md = report(args.base_dir, args.pr_dir, info)
         with open(args.out, "w") as f:
             f.write(md)
         print(f"{'empty (no captures)' if not md else args.out}")
