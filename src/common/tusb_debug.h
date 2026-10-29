@@ -247,7 +247,7 @@ uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
 // ISR wrap for the shared tusb_int_handler entry, through tusb.c's depth counter
 // (tu_sysview_isr_enter() has why): a dual-role BSP's nested tud_/tuh_int_handler() wraps
 // record one span.
-#if TUD_SYSVIEW_ISR_TRACED || TUH_SYSVIEW_ISR_TRACED
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   void tu_sysview_isr_enter(void);
   void tu_sysview_isr_exit(void);
   #define TU_SYSVIEW_ISR_ENTER() tu_sysview_isr_enter()

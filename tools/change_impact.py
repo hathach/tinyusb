@@ -430,7 +430,8 @@ def _select_sysview_capture(s, why, roster_boards):
         s.reasons.append(f'{why}: read only by a SYSVIEW build, no roster board captures one, no contribution')
     for b in captured:
         example = b['sysview']['example']
-        s.roles.add(test_role(example))
+        r = test_role(example)
+        s.roles.update(('device', 'host') if r == 'dual' else (r,))
         s.add([b['name']], {example}, f'{why}: SystemView capture -> {b["name"]} {example}')
     return bool(captured)
 
@@ -750,13 +751,13 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         if get_deps_families & _HIL_HARNESS_DEPS:
             s.force_full(f'{path}: a HIL harness dep changed -> full matrix')
             return
+        fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         if _SYSVIEW_DEP in get_deps_families:
             _select_sysview_capture(s, f'{path}: {_SYSVIEW_DEP} pin', roster_boards)
-        if not get_deps_families - {_SYSVIEW_DEP}:
-            if _SYSVIEW_DEP not in get_deps_families:
-                s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
+        elif not fams:
+            s.reasons.append(f'{path}: no build-family dependency changed, no contribution')
+        if not fams:
             return
-        fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         s.families.update(fams)
         boards = [b['name'] for b in roster_boards
                   if board_family(b['name'], repo_root) in get_deps_families]
@@ -882,10 +883,9 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
                 s.add(rtt_boards, 'all',
                       f'{path}: SEGGER_RTT is the rtt console on {rtt_boards} -> all tests')
                 return
-        if traced and not tests:
-            return
         if not tests:
-            s.reasons.append(f'{path}: lib {lib} used by no HIL test, no contribution')
+            if not traced:
+                s.reasons.append(f'{path}: lib {lib} used by no HIL test, no contribution')
             return
         roles = set()
         for test in tests:

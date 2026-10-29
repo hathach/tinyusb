@@ -45,7 +45,8 @@ def gh(path, paginate=False):
 
 def gh_items(path, key):
     """Every item of a paginated list endpoint whose items are under `key`."""
-    return [item for page in gh(path, paginate=True) for item in page[key]]
+    sep = '&' if '?' in path else '?'
+    return [item for page in gh(f'{path}{sep}per_page=100', paginate=True) for item in page[key]]
 
 
 def current_base_sha(current):
@@ -55,7 +56,7 @@ def current_base_sha(current):
     return shas.pop() if len(shas) == 1 else None
 
 
-def is_master_ancestor(repo, sha, branch=BRANCH):
+def is_ancestor_on(repo, sha, branch=BRANCH):
     """Whether `sha` is on `branch`'s history, so a PR can never pick its own run as baseline."""
     return gh(f'repos/{repo}/compare/{sha}...{branch}')['status'] in ('ahead', 'identical')
 
@@ -110,11 +111,11 @@ def lookup_sha(repo, sha, whose='this PR\'s', branch=BRANCH, usable=has_snapshot
     else its nearest first-parent ancestor's (approximate), whose later changes count as
     `whose`; 'sha' None with a 'note' when there is none. Raises RuntimeError on an API failure."""
     info = {'sha': None, 'url': None, 'exact': False, 'run_id': None}
-    if not is_master_ancestor(repo, sha, branch):
+    if not is_ancestor_on(repo, sha, branch):
         return {**info, 'note': f'base {sha[:10]} is not on {branch}'}
     found = find_baseline(repo, sha, branch, usable)
     if found is None:
-        return {**info, 'note': f'no {branch} Build run with snapshots within {MAX_DEPTH} commits of {sha[:10]}'}
+        return {**info, 'note': f'no {branch} Build run with usable artifacts within {MAX_DEPTH} commits of {sha[:10]}'}
     run, depth = found
     info = {'sha': run['head_sha'], 'url': run['html_url'], 'exact': depth == 0, 'run_id': run['id']}
     note = f'{depth} {branch} commits before this build\'s base {sha[:10]}: their changes count as {whose}'

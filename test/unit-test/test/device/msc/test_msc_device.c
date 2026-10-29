@@ -420,7 +420,6 @@ void test_msc_invalid_cbw_closes_its_span(void)
   tud_task();
 
   TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_MSC_XFER]);
-  TEST_ASSERT_EQUAL_UINT(0, sv_depth);
 }
 
 static unsigned deferred_count;

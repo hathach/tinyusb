@@ -2578,12 +2578,27 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             else:
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
 
-    def _matrix_of(self, boards):
+    def _matrix_of(self, boards, *args):
         import tempfile
         with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
             json.dump({'boards': boards}, f)
             f.flush()
-            return subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+            return subprocess.run([sys.executable, HIL_SET_MATRIX, *args, f.name], capture_output=True, text=True)
+
+    def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
+        # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
+        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+                'sysview': {'example': 'device/cdc_msc'}}
+        for examples, traced in ((['device/board_test', 'host/cdc_msc_hid'], False), (['device/board_test'], False),
+                                 (['device/board_test', 'device/cdc_msc'], True),
+                                 (['device/board_test', 'dual/host_info_to_device_cdc'], True)):
+            with self.subTest(examples):
+                sel = mf(boards={'stm32f407disco': [e for e in examples if e != 'device/board_test']},
+                         hil_examples={'stm32f407disco': examples})
+                r = self._matrix_of([f407], '--select', json.dumps(sel))
+                self.assertEqual(r.returncode, 0, r.stderr)
+                legs = json.loads(r.stdout)['arm-gcc']
+                self.assertEqual(any('stm32f407disco-sysview' in leg for leg in legs), traced, legs)
 
     def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
         # its own build name, so neither the test image nor the parking board_test is replaced

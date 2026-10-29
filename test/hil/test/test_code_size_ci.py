@@ -48,7 +48,7 @@ class FakeGh:
     def reply(self, path):
         if m := re.match(rf'repos/{NAME}/actions/workflows/build\.yml/runs\?head_sha=(\w+)&', path):
             return {'workflow_runs': self.runs.get(m.group(1), [])}
-        if m := re.fullmatch(rf'repos/{NAME}/actions/runs/(\d+)/artifacts', path):
+        if m := re.fullmatch(rf'repos/{NAME}/actions/runs/(\d+)/artifacts\?per_page=100', path):
             return {'artifacts': self.artifacts.get(int(m.group(1)), [])}
         if m := re.fullmatch(rf'repos/{NAME}/actions/runs/(\d+)', path):
             return {'run_attempt': self.attempts[int(m.group(1))]}

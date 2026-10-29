@@ -355,7 +355,7 @@ class CaptureConfig(unittest.TestCase):
                                          "sysview": {}})
 
     def test_wrapper_error_shape(self):
-        j = sysview_ci.board_result(self.CFG["boards"][0], "abc1234", error="flash failed: rc=1")
+        j = sysview_ci.capture_result(self.CFG["boards"][0], "abc1234", error="flash failed: rc=1")
         self.assertEqual(j["error"], "flash failed: rc=1"); self.assertIsNone(j["metrics"])
 
 
@@ -396,11 +396,9 @@ class WorkloadCpuRow(unittest.TestCase):
 
 
 class SystemExitDoesNotAbortRun(unittest.TestCase):
-    """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol.
-    SystemExit derives from BaseException, so capture_one's blanket `except Exception` does not catch
-    it: uncaught it escapes hil_test.py's test_board and aborts the whole multi-board run. A board
-    hitting this must produce its own (None, error) result, and the next board must still be
-    attempted."""
+    """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol. SystemExit derives from
+    BaseException, so it would escape hil_test.py's test_board and its worker: capture_one returns it as the board's
+    own (None, error), and a later capture still runs."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -432,7 +430,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", no_symbol), \
                 contextlib.redirect_stderr(io.StringIO()):
             capture, err = sysview_ci.capture_one(
-                self._board("bad"), os.path.join(self.tmp, "bad"), self.tmp)
+                self._board("bad"), os.path.join(self.tmp, "bad.elf"), {}, self.tmp)
         self.assertIsNone(capture)
         self.assertIn("no RTT symbol", err)
 
@@ -440,8 +438,8 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: called.append(elf) or 0x20000000), \
                 contextlib.redirect_stderr(io.StringIO()):
             capture, err = sysview_ci.capture_one(
-                self._board("good"), os.path.join(self.tmp, "good"), self.tmp)
-        self.assertEqual(called, [os.path.join(self.tmp, "good") + ".elf"])
+                self._board("good"), os.path.join(self.tmp, "good.elf"), {}, self.tmp)
+        self.assertEqual(called, [os.path.join(self.tmp, "good.elf")])
         self.assertIsNone(capture)
         self.assertIn("no probe", err)
         self.rtt.OpenocdRtt.assert_called_once_with(
@@ -455,7 +453,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
                                         lambda b, fw: subprocess.CompletedProcess([], 1, stdout="DAP init failed")), \
                 unittest.mock.patch.object(hil_flash, "rescue_openocd", lambda b, out: rescued.append(out)), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.capture_one(self._board("b"), "fw.elf", self.tmp)
+            capture, err = sysview_ci.capture_one(self._board("b"), "fw.elf", {}, self.tmp)
         self.assertIn("flash failed: rc=1", err)
         self.assertEqual(rescued, ["DAP init failed"])
 
@@ -467,7 +465,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), {}, self.tmp)
         self.assertIsNone(capture)
         self.assertIn("No space left", err)
         conn.close.assert_called_once_with()
@@ -477,12 +475,11 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         conn.read.return_value = b""
         board = self._board("b")
         board["sysview"]["duration_s"] = 0
-        with open(os.path.join(self.tmp, "fw.sysview.json"), "w") as f:
-            json.dump({"commandLine": {"BOARD": "b", "MEMBROWSE_BOARD": "b-sysview", "SYSVIEW": "4",
-                                       "SYSVIEW_DISABLE_EVENTS": "0x2"}, "eventMask": "0x2", "bufferSize": "4096"}, f)
+        manifest = {"commandLine": {"BOARD": "b", "MEMBROWSE_BOARD": "b-sysview", "SYSVIEW": "4",
+                                    "SYSVIEW_DISABLE_EVENTS": "0x2"}, "eventMask": "0x2", "bufferSize": "4096"}
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
-            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), self.tmp)
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), manifest, self.tmp)
         self.assertIsNone(err)
         config = capture.pop("config")
         self.assertEqual(capture, {"raw": "b-capture.SVDat", "workload_ok": True})
@@ -496,14 +493,14 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
                                             "reset_before_attach": True, "channel": sysview_ci.SYSVIEW_CHANNEL},
                                   "workload_rev": sysview_ci.WORKLOAD_REVISIONS["idle"]})
 
-    def test_a_capture_without_its_manifest_is_a_failure(self):
+    def test_a_capture_with_an_incomplete_manifest_is_a_failure(self):
         conn = unittest.mock.Mock(eof=False)
         conn.read.return_value = b""
         board = self._board("b")
         board["sysview"]["duration_s"] = 0
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
-            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), self.tmp)
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), {}, self.tmp)
         self.assertIsNone(capture)
         self.assertIn("capture config unreadable", err)
 
@@ -971,7 +968,7 @@ class FindCaptureFirmware(unittest.TestCase):
             if with_manifest and path.endswith(".elf"):
                 m = {"board": board["name"], "example": board["sysview"]["example"], "commandLine": self.CLI,
                      "commit": self.HEAD, "dirty": False, "elfSha256": hashlib.sha256(rel.encode()).hexdigest(),
-                     "eventMask": "none",
+                     "eventMask": "none", "bufferSize": "65536",
                      **manifest}
                 with open(stem + ".sysview.json", "w") as f:
                     json.dump(m, f)
@@ -986,14 +983,30 @@ class FindCaptureFirmware(unittest.TestCase):
     LEG = "cmake-build-stm32f407disco-sysview/device/cdc_msc/cdc_msc"
 
     def test_the_sysview_leg_image_with_the_flasher_extension(self):
-        fw, err = self._find(self._board(), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False,
-                                             "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
+        fw, manifest, err = self._find(self._board(), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False,
+                                                       "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(err)
         self.assertTrue(fw.endswith(f"{self.LEG}.elf"), fw)
+        self.assertEqual(manifest["bufferSize"], "65536")
+
+    def test_the_buffer_is_the_rosters_or_the_family_default(self):
+        for board, manifest, why in (
+                (self._board(), {"bufferSize": "4096"}, "built with buffer 4096"),
+                (self._board(), {"bufferSize": None}, "built with buffer None"),
+                ({**self._board(), "sysview": {"example": "device/cdc_msc"}},
+                 {"bufferSize": None, "commandLine": {k: v for k, v in self.CLI.items() if k != "SYSVIEW_BUFFER_SIZE"}},
+                 "built with buffer None")):
+            fw, _, err = self._find(board, {f"{self.LEG}.elf": True}, **manifest)
+            self.assertIsNone(fw, why)
+            self.assertIn(why, err)
+        board = {**self._board(), "sysview": {"example": "device/cdc_msc"}}
+        fw, _, err = self._find(board, {f"{self.LEG}.elf": True}, bufferSize="4096",
+                                commandLine={k: v for k, v in self.CLI.items() if k != "SYSVIEW_BUFFER_SIZE"})
+        self.assertIsNone(err)
 
     def test_a_missing_image_names_the_build_that_makes_it(self):
         # the test leg's untraced image is no substitute
-        fw, err = self._find(self._board(), {"cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
+        fw, _, err = self._find(self._board(), {"cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
         self.assertIn("python3 tools/build.py -b stm32f407disco --build-name stm32f407disco-sysview "
                       "-e device/cdc_msc -DSYSVIEW=4 -DSYSVIEW_BUFFER_SIZE=65536", err)
@@ -1015,13 +1028,13 @@ class FindCaptureFirmware(unittest.TestCase):
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"eventMask": None}, "built with event mask None"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": True}, "uncommitted changes"),
                 ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": None}, "uncommitted changes")):
-            fw, err = self._find(self._board(), images, head, **manifest)
+            fw, _, err = self._find(self._board(), images, head, **manifest)
             self.assertIsNone(fw, why)
             self.assertIn(why, err)
             self.assertIn("remove cmake-build/cmake-build-stm32f407disco-sysview", err)
 
     def test_a_bin_flasher_is_refused_as_the_manifest_hashes_the_elf(self):
-        fw, err = self._find(self._board(flasher="lm4flash"), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False})
+        fw, _, err = self._find(self._board(flasher="lm4flash"), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False})
         self.assertIsNone(fw)
         self.assertIn("lm4flash flashes .bin images", err)
 
@@ -1029,15 +1042,23 @@ class FindCaptureFirmware(unittest.TestCase):
         board = self._board(flasher="openocd", name="raspberry_pi_pico",
                             variant=[{"name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1"}])
         leg = "cmake-build-raspberry_pi_pico-sysview/device/cdc_msc/cdc_msc.elf"
-        fw, err = self._find(board, {leg: True}, commandLine={**self.CLI, "CFLAGS_CLI": "-DCFG_TUH_RPI_PIO_USB=1"})
+        fw, _, err = self._find(board, {leg: True}, commandLine={**self.CLI, "CFLAGS_CLI": "-DCFG_TUH_RPI_PIO_USB=1"})
         self.assertIsNone(err)
-        fw, err = self._find(board, {leg: True})
+        fw, _, err = self._find(board, {leg: True})
         self.assertIn("built with", err)
         self.assertIn("--cflag=-DCFG_TUH_RPI_PIO_USB=1", err)
 
+    def test_the_keys_build_py_sets_itself_are_the_ones_ignored(self):
+        # a -D tools/build.py adds on its own would otherwise read as a traced build configured differently
+        from helper import hil_util
+        src = (hil_util.TINYUSB_ROOT / "tools" / "build.py").read_text()
+        keys = set(re.findall(r"""['"]-D([A-Z_]+)=""", src))
+        self.assertEqual(keys - sysview_ci._BUILD_PY_KEYS, {"CMAKE_BUILD_TYPE"})
+        self.assertIn("-DCMAKE_BUILD_TYPE=MinSizeRel", src)
+
     def test_a_board_with_several_variants_is_an_error_not_a_guess(self):
         board = self._board(variant=[{"name": "a"}, {"name": "b"}])
-        fw, err = self._find(board, {"cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf": True})
+        fw, _, err = self._find(board, {"cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
         self.assertIn("2 variants", err)
 
@@ -1151,7 +1172,8 @@ class Baseline(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        sys.path.insert(0, os.path.join(sysview_ci.REPO_ROOT, ".github", "scripts"))
+        from helper import hil_util
+        sys.path.insert(0, str(hil_util.TINYUSB_ROOT / ".github" / "scripts"))
         modules = unittest.mock.patch.dict(sys.modules)   # the real one, whatever another test registered
         modules.start()
         self.addCleanup(modules.stop)
@@ -1317,6 +1339,9 @@ class HostileRecord(unittest.TestCase):
                 ("null duration", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", None)),
                 ("float count", lambda j: j["metrics"]["functions"][0].__setitem__("n", 22000.5)),
                 ("stack bytes", lambda j: j["metrics"].__setitem__("stack", [{"name": "s", "bytes_used": 1.5}])),
+                ("huge", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", 10**400)),
+                ("infinite", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", float("inf"))),
+                ("nan", lambda j: j["metrics"].__setitem__("overflow", float("nan"))),
                 ("context field", lambda j: j["metrics"].__setitem__("contexts", [{"name": "usbd"}])),
                 ("workload field", lambda j: j["metrics"].__setitem__("contexts_workload", [{"name": "usbd"}])),
                 ("table", lambda j: j["metrics"].__setitem__("isr", {"a": 1})),

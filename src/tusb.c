@@ -555,7 +555,7 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 #if CFG_TUSB_SYSVIEW_ENABLED
 
-#if defined(SYSVIEW_DISABLE_EVENTS) && !defined(SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+#if defined(SYSVIEW_MANIFEST_BUILD) && defined(SYSVIEW_DISABLE_EVENTS) && !defined(SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
   // the SystemView capture takes its event filter from the build manifest (hw/bsp/sysview_manifest.cmake)
   #error "SYSVIEW_DISABLE_EVENTS is set only through CMake's SYSVIEW_DISABLE_EVENTS (family_support.cmake)"
 #endif
@@ -738,8 +738,7 @@ void tu_sysview_stack_report(tusb_role_t role) {
   }
 // Bytes used at peak needs pxEndOfStack, which TaskStatus_t has only under this condition (task.h);
 // the SYSVIEW families' FreeRTOSConfig.h set configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
-#if CFG_TUSB_OS == OPT_OS_FREERTOS && (configUSE_TRACE_FACILITY == 1) && \
-    ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
+#if (configUSE_TRACE_FACILITY == 1) && ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
   // SEGGER's FreeRTOS task-table cap (family_support.cmake). Above it uxTaskGetSystemState() returns
   // 0, not a truncated list, so nothing is reported.
   #ifndef SYSVIEW_FREERTOS_MAX_NOF_TASKS

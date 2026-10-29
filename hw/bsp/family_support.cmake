@@ -526,7 +526,8 @@ function(family_configure_common TARGET RTOS)
       SYSVIEW_APP_NAME="${TARGET}"
       SYSVIEW_DEVICE_NAME="${BOARD}"
       SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
-      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE})
+      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
+      SYSVIEW_MANIFEST_BUILD)
     # Gate on this example's own RTOS, not "TARGET freertos_kernel": that target is global to an
     # examples/-level configure (the first FreeRTOS example creates it), and rp2040 never creates it.
     if (RTOS STREQUAL "freertos")
@@ -539,7 +540,7 @@ function(family_configure_common TARGET RTOS)
       endif ()
     endif ()
     if (DEFINED SYSVIEW_DISABLE_EVENTS)
-      # its only way in (tusb.c refuses any other), so the manifest's eventMask is the capture's event filter
+      # its only way into a manifest build (tusb.c refuses any other), so the manifest's eventMask is the filter
       target_compile_definitions(${TARGET} PUBLIC SYSVIEW_DISABLE_EVENTS=${SYSVIEW_DISABLE_EVENTS}
         SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
     endif ()

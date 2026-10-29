@@ -87,10 +87,31 @@ jobs:
           path: ${{ runner.temp }}/sysview/pr
         continue-on-error: true
 
+      # a run a newer push or attempt supersedes would only discard the SystemView work below; "Skip a superseded
+      # run" checks again before posting
+      - name: Check the run is still the PR's latest
+        id: early-current
+        env:
+          PR: ${{ needs.pr_number.outputs.number }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          SV="$RUNNER_TEMP/sysview"
+          if ls "$SV"/pr/*/sysview-*.json >/dev/null 2>&1; then
+            # until a later step renders the report, or names its own failure
+            echo '_SystemView report unavailable: a step did not finish (see the job log)._' > "$SV/notice.md"
+          fi
+          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
+               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Every SystemView step is best effort and bounded: a failure or a step its timeout cut leaves a notice in the
-      # section, never the HIL comment unposted. A default branch whose sysview_ci.py predates `baseline` says so.
+      # section, never the HIL comment unposted.
       - name: Find the SystemView baseline
         id: sv-baseline
+        if: steps.early-current.outputs.current == 'true'
         continue-on-error: true
         timeout-minutes: 5
         env:
@@ -99,12 +120,6 @@ jobs:
           SV="$RUNNER_TEMP/sysview"
           mkdir -p "$SV/pr"
           if ! ls "$SV"/pr/*/sysview-*.json >/dev/null 2>&1; then exit 0; fi
-          # until a later step renders the report, or names its own failure
-          echo '_SystemView report unavailable: a step did not finish (see the job log)._' > "$SV/notice.md"
-          if ! python3 test/hil/sysview_ci.py baseline --help >/dev/null 2>&1; then
-            echo '_SystemView report unavailable: the default branch cannot render it._' > "$SV/notice.md"
-            exit 0
-          fi
           python3 test/hil/sysview_ci.py baseline --repo "$REPO" --pr "$PR" --current "$SV/pr" \
             --info "$SV/baseline.json"
           echo "run_id=$(jq -r '.run_id // empty' "$SV/baseline.json")" >> "$GITHUB_OUTPUT"

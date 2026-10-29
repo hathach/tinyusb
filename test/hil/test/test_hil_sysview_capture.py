@@ -46,14 +46,14 @@ class SysviewCapture(unittest.TestCase):
             self.events.append(example)
             return self.park if example == 'device/board_test' else (0, 'pass', None)
         patch(self, hil_test, 'test_example', test_example)
-        patch(self, sysview_ci, 'find_capture_firmware', lambda board, head: ('fw.elf', None))
+        patch(self, sysview_ci, 'find_capture_firmware', lambda board, head: ('fw.elf', {}, None))
         self.capture(lambda: CAPTURED)
         self.board = {'name': BOARD, 'uid': 'U', 'flasher': {'name': 'jlink', 'uid': 'P'},
                       'tests': {'only': ['device/cdc_msc']},
                       'sysview': {'example': 'device/cdc_msc', 'workload': 'idle', 'duration_s': 15}}
 
     def capture(self, outcome):
-        def capture_one(board, fw, out_dir):
+        def capture_one(board, fw, manifest, out_dir):
             self.events.append('capture')
             return outcome()
         patch(self, sysview_ci, 'capture_one', capture_one)
@@ -130,9 +130,10 @@ class SysviewCapture(unittest.TestCase):
                 self.assertEqual((err, r['capture']['status'], r['capture']['park_error']), (0, 'failed', None))
 
     def test_refused_beside_a_pending_provider_cleanup(self):
-        patch(self, hil_flash, 'cleanup_pending', 'session receipt r.json')
+        patch(self, hil_flash, 'cleanup_pending', {'other-board': ['r.json']})
         capture, error, flashed = hil_test._sysview_capture(self.board, BOARD)
-        self.assertEqual((capture, error, flashed), (None, 'skipped: cleanup pending: session receipt r.json', False))
+        self.assertEqual((capture, error, flashed),
+                         (None, 'skipped: other-board: openocd_esp cleanup pending, receipt r.json', False))
         self.assertEqual(self.events, [])
 
     def test_a_capture_that_fits_before_the_pool_guard_runs(self):
@@ -145,9 +146,9 @@ class SysviewCapture(unittest.TestCase):
         self.park = (1, 'fail', None)
         for name, ctx, why in (
                 ('no image', mock.patch.object(sysview_ci, 'find_capture_firmware',
-                                               lambda b, h: (None, 'no image of device/cdc_msc')),
+                                               lambda b, h: (None, None, 'no image of device/cdc_msc')),
                  'no image of device/cdc_msc'),
-                ('failed', mock.patch.object(sysview_ci, 'capture_one', lambda b, fw, d: (None, 'flash failed: rc=1')),
+                ('failed', mock.patch.object(sysview_ci, 'capture_one', lambda b, fw, m, d: (None, 'flash failed: rc=1')),
                  'flash failed: rc=1')):
             with self.subTest(name), ctx:
                 self.events.clear()

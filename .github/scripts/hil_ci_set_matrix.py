@@ -133,7 +133,10 @@ def main():
                 sv = hil_report.sysview_build(board)
             except ValueError as e:
                 raise SystemExit(f'{config_file}: {e}')
-            if sv:
+            # hil_test.py captures only beside a device/ or dual/ test, never for the park image alone
+            captured = name not in ex_map or any(ex.startswith(('device/', 'dual/')) and ex != 'device/board_test'
+                                                 for ex in ex_map[name])
+            if sv and captured:
                 append_build_arg(toolchain, f'-b {name} --build-name {sv["name"]} -e {sv["example"]}' +
                                  _variant_args(sv))
 

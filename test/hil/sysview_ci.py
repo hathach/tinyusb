@@ -12,7 +12,6 @@ their manual).
 import argparse, glob, html, json, os, re, signal, sys
 
 SCRIPTS = "skills/target-debug/scripts/"
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # lib/SystemView takes the first free up-buffer; 0 is the RTT terminal
 SYSVIEW_CHANNEL = 1
 # absolute event id -> name for sysview_report.py --event-map; test_hil_sysview_ci checks it
@@ -69,7 +68,8 @@ ROW_FIELDS = {"isr": DURATION_FIELDS, "functions": DURATION_FIELDS, "contexts": 
               "contexts_workload": {"cpu_pct_workload": None}, "stack": {"bytes_used": int}}
 
 def _number(v):
-    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool))
+    # finite and within float range: the report formats, multiplies and charts these
+    return v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) < 1e300)
 
 def _field_ok(v, kind):
     return _number(v) and (kind is None or v is not None and (kind is float or isinstance(v, int)))
@@ -265,7 +265,7 @@ def board_section(name, base_j, pr_j, base_dropped=None):
     # the board left without its park image, whether or not the capture itself failed
     park_error = (pr_j.get("capture") or {}).get("park_error")
     if pr_j.get("error"):
-        # one plain line each: build and tool output must not add headings, fences or HTML
+        # one plain line each: tool output must not add headings, fences or HTML
         return "\n".join(lines + [f"capture failed: {md(pr_j['error'])}", ""]
                          + ([f"> ⚠︎ {md(park_error)}", ""] if park_error else []))
     if not pm_all:
@@ -459,13 +459,6 @@ def session_resets(board):
     appears); the flasher's post-flash reset already supplied the fresh boot."""
     return not board["sysview"].get("attach_only")
 
-def board_result(board, commit, metrics=None, capture_info=None, error=None):
-    sv = board["sysview"]
-    return {"board": board["name"], "commit": commit,
-            "example": sv["example"], "workload": sv["workload"],
-            "duration_s": sv["duration_s"],
-            "capture": capture_info or {}, "metrics": metrics, "error": error}
-
 def _workload_cdc_burst(node, duration_s):
     """Returns True if traffic ran for the full window, False if the serial link died early
     (device dropped off the bus) or the device stayed enumerated but echoed nothing back, or
@@ -505,10 +498,7 @@ WORKLOADS = {"cdc_burst": _workload_cdc_burst,
              "idle": lambda node, duration_s: __import__("time").sleep(duration_s) or True}
 
 def _err_excerpt(text, head=500, tail=500):
-    """Excerpt a long error from BOTH ends. cmake prints the diagnosis first and the
-    call stack last, ninja the reverse -- keeping only one end drops the useful half
-    (a tail-only slice reported 'eCache.txt' plus a bare call stack for a missing
-    hw/mcu dependency)."""
+    """A long flasher output excerpted from both ends: a tool may put its diagnosis at either."""
     t = (text or "").strip()
     if len(t) <= head + tail:
         return t
@@ -517,17 +507,17 @@ def _err_excerpt(text, head=500, tail=500):
 # command-line -D keys tools/build.py sets on its own; every other one must be the traced leg's
 _BUILD_PY_KEYS = {"BOARD", "TOOLCHAIN", "MEMBROWSE_BOARD", "CFLAGS_CLI"}
 
-def manifest_problems(board, sv, fw, head):
-    """Why the image's <target>.sysview.json (family_support.cmake) does not vouch for `fw` as `sv`'s build
-    of this checkout, as a list; empty when it does."""
+def read_manifest(fw):
+    """The image's <target>.sysview.json (family_support.cmake) and the image's sha256."""
     import hashlib
-    try:
-        with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
-            m = json.load(f)
-        with open(fw, "rb") as f:
-            sha = hashlib.sha256(f.read()).hexdigest()
-    except (OSError, ValueError) as e:
-        return [f"no usable manifest: {e}"]
+    with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
+        m = json.load(f)
+    with open(fw, "rb") as f:
+        return m, hashlib.sha256(f.read()).hexdigest()
+
+def manifest_problems(board, sv, m, sha, head):
+    """Why manifest `m` does not vouch for the image of `sha` as `sv`'s build of this checkout, as a list; empty
+    when it does."""
     cli = m.get("commandLine") or {}
     # tools/build.py configures every build MinSizeRel
     want = {"CMAKE_BUILD_TYPE": "MinSizeRel", **dict(d.partition("=")[::2] for d in sv["defines"])}
@@ -541,6 +531,9 @@ def manifest_problems(board, sv, fw, head):
         problems.append(f"built with {cli}")
     if m.get("eventMask") != want.get("SYSVIEW_DISABLE_EVENTS", "none"):
         problems.append(f"built with event mask {m.get('eventMask')}")
+    # the family default when the roster names no buffer
+    if not m.get("bufferSize") or m["bufferSize"] != want.get("SYSVIEW_BUFFER_SIZE", m["bufferSize"]):
+        problems.append(f"built with buffer {m.get('bufferSize')}")
     if m.get("commit") != head or head == "unknown":
         problems.append(f"built at {m.get('commit')}, the checkout is at {head}")
     if m.get("dirty") is not False:
@@ -549,27 +542,35 @@ def manifest_problems(board, sv, fw, head):
 
 def find_capture_firmware(board, head):
     """The traced image hil-build's sysview leg made for `board` (hil_report.sysview_build) at commit `head`,
-    with the flasher's extension: (fw_path, None), or (None, why not) naming the build that makes it. Its
-    manifest must match, so a stale or differently configured image is never flashed. The rig never builds.
-    Never raises."""
+    with the flasher's extension, and its manifest: (fw_path, manifest, None), or (None, None, why not) naming the
+    build that makes it. The manifest must match, so a stale or differently configured image is never flashed.
+    The rig never builds. Never raises."""
+    import shlex
     try:
         import hil_flash
         from helper import hil_report
         sv = hil_report.sysview_build(board)
-        cmd = " ".join(["python3 tools/build.py -b", board["name"], "--build-name", sv["name"], "-e", sv["example"],
-                        *(f"-D{d}" for d in sv["defines"]), *(f"--cflag={t}" for t in sv["flags"])])
+        cmd = shlex.join(["python3", "tools/build.py", "-b", board["name"], "--build-name", sv["name"],
+                          "-e", sv["example"], *(f"-D{d}" for d in sv["defines"]),
+                          *(f"--cflag={t}" for t in sv["flags"])])
         fw = hil_flash.find_firmware(sv["name"], sv["example"], board["flasher"]["name"])
         if not fw:
-            return None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
+            return None, None, f"no {sv['name']} image of {sv['example']} (built by hil-build, or locally: {cmd})"
         if fw.suffix != ".elf":
             # the manifest hashes the ELF, so it cannot vouch for a .bin flashed beside it
-            return None, f"{board['flasher']['name']} flashes {fw.suffix} images; the capture checks only ELF ones"
-        problems = manifest_problems(board, sv, str(fw), head)
+            return None, None, (f"{board['flasher']['name']} flashes {fw.suffix} images; "
+                                "the capture checks only ELF ones")
+        try:
+            manifest, sha = read_manifest(str(fw))
+            problems = manifest_problems(board, sv, manifest, sha, head)
+        except (OSError, ValueError) as e:
+            manifest, problems = None, [f"no usable manifest: {e}"]
         if problems:
-            return None, f"{fw}: {'; '.join(problems)} (remove cmake-build/cmake-build-{sv['name']} and run: {cmd})"
-        return str(fw), None
+            return None, None, (f"{fw}: {'; '.join(problems)} (remove "
+                                f"{hil_flash.build_dir}/cmake-build-{sv['name']} and run: {cmd})")
+        return str(fw), manifest, None
     except Exception as e:
-        return None, f"{type(e).__name__}: {e}"
+        return None, None, f"{type(e).__name__}: {e}"
 
 # capture_one's bounds besides its flasher calls: nm 30 s, the RTT connect 17 s, the
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
@@ -600,16 +601,18 @@ def capture_result(board, commit, capture=None, error=None, park_error=None, ide
     """The record of a board's capture that hil_test.py writes, and `decode`'s whole input: it decodes only a
     capture whose status is "captured", from the raw file it names beside the record. `identity` is the checkout's
     (checkout_identity), which the PR comment finds its baseline by."""
-    info = {**(capture or {}), "status": "captured" if capture else "failed", "park_error": park_error}
-    return {**board_result(board, commit, capture_info=info, error=error or (NOT_DECODED if capture else None)),
-            **(identity or {})}
+    sv = board["sysview"]
+    return {"board": board["name"], "commit": commit, "example": sv["example"], "workload": sv["workload"],
+            "duration_s": sv["duration_s"],
+            "capture": {**(capture or {}), "status": "captured" if capture else "failed", "park_error": park_error},
+            "metrics": None, "error": error or (NOT_DECODED if capture else None), **(identity or {})}
 
 def write_result(out_dir, result):
     with open(os.path.join(out_dir, f"sysview-{result['board']}.json"), "w") as f:
         json.dump(result, f)
 
-def capture_one(board, fw, out_dir):
-    """Flash fw and RTT-capture raw SVDat bytes over agentrc's rtt.py OpenOCD route while the workload runs, under
+def capture_one(board, fw, manifest, out_dir):
+    """Flash fw (whose `manifest` find_capture_firmware checked) and RTT-capture raw SVDat bytes over agentrc's rtt.py OpenOCD route while the workload runs, under
     the caller's board lock; the caller parks the board after. Returns (capture_dict, error), capture_dict naming
     the raw file in out_dir; never raises an Exception."""
     try:
@@ -620,19 +623,17 @@ def capture_one(board, fw, out_dir):
     capture, err = _capture(board, fw, out_dir, rtt)
     if capture:
         try:
-            capture["config"] = capture_config(board, fw, rtt)
+            capture["config"] = capture_config(board, manifest, rtt)
         except Exception as e:
             return None, f"capture config unreadable: {type(e).__name__}: {e}"
     return capture, err
 
-def capture_config(board, fw, rtt):
+def capture_config(board, manifest, rtt):
     """What makes two captures of a board comparable besides CAPTURE_CFG_KEYS: the traced build's -D set from its
-    manifest (find_capture_firmware checked it), the event filter it holds, the route down to the recorder's code
-    (rtt.py fixes the poll interval) and the workload's revision."""
+    manifest, the event filter and buffer it holds, the route down to the recorder's code (rtt.py fixes the poll
+    interval) and the workload's revision."""
     import hashlib
     from helper import hil_report
-    with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
-        manifest = json.load(f)
     build = {k: v for k, v in manifest["commandLine"].items() if k != "MEMBROWSE_BOARD"}
     with open(rtt.__file__, "rb") as f:
         recorder = hashlib.sha256(f.read()).hexdigest()[:12]
@@ -661,12 +662,8 @@ def _capture(board, fw, out_dir, rtt):
             return None, f"flash failed: rc={r.returncode}" + (f"\n{out}" if out else "")
         node = hil_util.get_serial_dev(board['uid'], 'TinyUSB', 'TinyUSB_Device', 0)
         try:
-            # fw carries the flasher's extension, which is not always .elf (lm4flash and
-            # esptool take .bin); the RTT control block always comes from the ELF's symbols.
-            cb = rtt.nm_rtt_addr(os.path.splitext(fw)[0] + ".elf")
-        except SystemExit as e:
-            # SystemExit derives from BaseException: uncaught it would abort the whole
-            # multi-board run before the boards already captured are written out.
+            cb = rtt.nm_rtt_addr(fw)
+        except SystemExit as e:   # a BaseException: it would escape test_board's except Exception
             return None, f"no RTT symbol: {e}"
         raw = os.path.join(out_dir, f"{name}-capture.SVDat")
         # reset_before_attach: SystemView's one-shot Init record (sync + timestamp frequency) is
@@ -808,13 +805,15 @@ def has_captures(names):
     """Whether a Build run's unexpired artifact `names` hold SystemView captures."""
     return any(n.startswith("sysview-") for n in names)
 
+NO_BASELINE = {"sha": None, "url": None, "exact": False, "run_id": None}
+
 def baseline(repo, pr, current):
     """The baseline description (code_size_ci.lookup_sha's) of the PR run whose records are in `current`: the push
     run of the base commit they were built against, on the branch PR `pr` targets, else of its nearest first-parent
     ancestor (approximate). Raises RuntimeError on an API failure."""
-    sys.path.insert(0, os.path.join(REPO_ROOT, ".github", "scripts"))
+    from helper import hil_util
+    sys.path.insert(0, str(hil_util.TINYUSB_ROOT / ".github" / "scripts"))
     import code_size_ci
-    none = {"sha": None, "url": None, "exact": False, "run_id": None}
     records = []
     for p in glob.glob(os.path.join(current, "**", "sysview-*.json"), recursive=True):
         try:
@@ -826,10 +825,10 @@ def baseline(repo, pr, current):
     refs = {r.get("base_ref") if isinstance(r, dict) else None for r in records}
     sha = shas.pop() if len(shas) == 1 else None
     if not (isinstance(sha, str) and SHA_RE.fullmatch(sha)) or len(refs) != 1:
-        return {**none, "note": "the PR captures record no single base commit"}
+        return {**NO_BASELINE, "note": "the PR captures record no single base commit"}
     built_on, target = refs.pop(), code_size_ci.gh(f"repos/{repo}/pulls/{pr}")["base"]["ref"]
     if built_on != target:
-        return {**none, "note": f"the captures were built against {built_on}, the PR now targets {target}"}
+        return {**NO_BASELINE, "note": f"the captures were built against {built_on}, the PR now targets {target}"}
     return code_size_ci.lookup_sha(repo, sha, branch=target, usable=has_captures)
 
 def checkout_identity(repo_root, env=os.environ):
@@ -848,10 +847,10 @@ def checkout_identity(repo_root, env=os.environ):
     sha, base, head = shas if len(shas) == 3 else shas * 3
     return {"sha": sha, "base_sha": base, "head_sha": head, "base_ref": env.get("GITHUB_BASE_REF") or None}
 
-def _git_commit(repo_root, short=True):
+def _git_commit(repo_root):
     import subprocess
     try:
-        r = subprocess.run(["git", "rev-parse", *(["--short"] if short else []), "HEAD"], cwd=repo_root,
+        r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root,
                             capture_output=True, text=True, timeout=10)
         return r.stdout.strip() if r.returncode == 0 else "unknown"
     except Exception:
@@ -878,8 +877,7 @@ def main():
         try:
             info = baseline(args.repo, args.pr, args.current)
         except Exception as e:   # an API failure or an unexpected reply is a result, the comment says so
-            info = {"sha": None, "url": None, "exact": False, "run_id": None,
-                    "note": f"the baseline lookup failed: {type(e).__name__}: {e}"}
+            info = {**NO_BASELINE, "note": f"the baseline lookup failed: {type(e).__name__}: {e}"}
         with open(args.info, "w") as f:
             json.dump(info, f)
         print(json.dumps(info))

@@ -2304,7 +2304,7 @@ def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> li
 def _park_refusal() -> str:
     """Why _should_park() refuses, for a caller that reports it."""
     return ('--skip-flash' if skip_flash else f'the board is wedged: {board_wedged}' if board_wedged else
-            f'cleanup pending: {hil_flash.cleanup_pending}')
+            '; '.join(f'{n}: {cleanup_pending(n)}' for n in hil_flash.cleanup_pending))
 
 
 # what a SystemView capture leaves of the pool guard besides its own bound and the park's: the board's
@@ -2337,11 +2337,11 @@ def _sysview_capture(board: Board, park_variant: str) -> tuple:
     if why:
         log_line(f'{name:25} SystemView capture skipped: {why}')
         return None, f'skipped: {why}', False
-    fw, err = sysview_ci.find_capture_firmware(board, sysview_head)
+    fw, manifest, err = sysview_ci.find_capture_firmware(board, sysview_head)
     if err:
         log_line(f'{name:25} SystemView capture: {err}')
         return None, err, False
-    capture, err = sysview_ci.capture_one(board, fw, sysview_out)
+    capture, err = sysview_ci.capture_one(board, fw, manifest, sysview_out)
     log_line(f'{name:25} SystemView capture: {err or "captured"}')
     return capture, err, True
 
@@ -2491,10 +2491,9 @@ def main() -> None:
     if args.sysview_out:
         os.makedirs(args.sysview_out, exist_ok=True)
         sysview_out = os.path.abspath(args.sysview_out)
-        repo_root = str(Path(__file__).resolve().parents[2])
-        sysview_head = sysview_ci._git_commit(repo_root, short=False)
-        sysview_commit = sysview_ci._git_commit(repo_root)
-        sysview_identity = sysview_ci.checkout_identity(repo_root)
+        sysview_head = sysview_ci._git_commit(hil_util.TINYUSB_ROOT)
+        sysview_commit = sysview_head[:9] if sysview_head != 'unknown' else sysview_head
+        sysview_identity = sysview_ci.checkout_identity(hil_util.TINYUSB_ROOT)
 
     # if config file is not found, try to find it in the same directory as this script
     if not config_file.exists():
