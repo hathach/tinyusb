@@ -851,10 +851,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
     TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
 
-#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
-    { static uint16_t sv_cnt = 0;
-      if (0 == (++sv_cnt & 0x3FFu)) { tu_sysview_stack_report(); } }
-#endif
+    tu_sysview_stack_report(TUSB_ROLE_DEVICE);
 
     // allow to exit tud_task() if there is no event in the next run
     timeout_ms = 0;

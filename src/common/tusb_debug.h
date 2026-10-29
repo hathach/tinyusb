@@ -207,7 +207,16 @@ typedef enum {
 } tu_sysview_id_t;
 
 void tu_sysview_init(void);
-void tu_sysview_stack_report(void);
+
+// True on every 1024th call for a role; each role counts its own processed events
+bool tu_sysview_stack_report_due(tusb_role_t role);
+
+// Called once per processed usbd/usbh event: a due role reports one task's stack (FreeRTOS, level USB and up)
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+void tu_sysview_stack_report(tusb_role_t role);
+#else
+#define tu_sysview_stack_report(_role)
+#endif
 
 // Give a kernel object (mutex, semaphore) a name in SystemView, so a blocked task reads
 // "waiting on usbd_mutex" instead of a bare address. Sent now and kept for the system description
@@ -255,7 +264,7 @@ uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
 #define TU_SYSVIEW_CALL(_level, _id)
 #define TU_SYSVIEW_RET(_level, _id)
 #define tu_sysview_init()
-#define tu_sysview_stack_report()
+#define tu_sysview_stack_report(_role)
 #define tu_sysview_name_resource(_handle, _name)
 
 #endif // CFG_TUSB_SYSVIEW_ENABLED

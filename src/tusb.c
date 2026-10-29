@@ -721,7 +721,16 @@ void tu_sysview_init(void) {
 #endif
 }
 
-void tu_sysview_stack_report(void) {
+bool tu_sysview_stack_report_due(tusb_role_t role) {
+  static uint16_t count[2]; // device, host
+  return 0 == (++count[role == TUSB_ROLE_HOST] & 0x3FFu);
+}
+
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+void tu_sysview_stack_report(tusb_role_t role) {
+  if (!tu_sysview_stack_report_due(role)) {
+    return;
+  }
 // Bytes used at peak needs pxEndOfStack, which TaskStatus_t has only under this condition (task.h);
 // the SYSVIEW families' FreeRTOSConfig.h set configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
 #if CFG_TUSB_OS == OPT_OS_FREERTOS && (configUSE_TRACE_FACILITY == 1) && \
@@ -769,6 +778,7 @@ void tu_sysview_stack_report(void) {
   (void) xTaskResumeAll();
 #endif
 }
+#endif
 
 #endif // CFG_TUSB_SYSVIEW_ENABLED
 
