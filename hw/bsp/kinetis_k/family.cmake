@@ -16,6 +16,10 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS KINETIS_K CACHE INTERNAL "")
 
+# SRAM_L puts .data/.bss at 0x1FFF0000 (MK64/MK66 m_data in the SDK linker script), below the Cortex-M-canonical
+# 0x20000000 -- see hw/bsp/family_support.cmake's SYSVIEW_RAM_BASE_DEFAULT handling.
+set(SYSVIEW_RAM_BASE_DEFAULT 0x1FFF0000)
+
 
 #------------------------------------
 # Startup & Linker script

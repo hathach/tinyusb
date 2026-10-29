@@ -58,12 +58,15 @@ void UART0_RX_TX_IRQHandler(void) {
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void) {
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
+  TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUH_ENABLED
   tuh_int_handler(0);
 #endif
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 void board_init(void) {

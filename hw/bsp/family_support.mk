@@ -116,6 +116,11 @@ ifeq ($(TRACE_SWO),1)
   CFLAGS += -DTRACE_SWO
 endif
 
+# SYSVIEW is CMake-only (family_support.cmake): fail rather than build an uninstrumented ELF
+ifneq ($(SYSVIEW),)
+$(error SYSVIEW is CMake-only; the Make build has no SystemView support -- build with CMake -DSYSVIEW=1..4)
+endif
+
 # Logger: default is uart, can be set to rtt or swo
 ifeq ($(LOGGER),rtt)
   CFLAGS += -DLOGGER_RTT

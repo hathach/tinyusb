@@ -163,6 +163,14 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+  #if CFG_TUSB_SYSVIEW_ENABLED
+  // SystemView's lock raises BASEPRI to SEGGER_RTT_MAX_INTERRUPT_PRIORITY; a USB IRQ above it would
+  // record into a packet the interrupted code is still building
+  NVIC_SetPriority(OTG_FS_IRQn, SEGGER_RTT_MAX_INTERRUPT_PRIORITY >> (8U - __NVIC_PRIO_BITS));
+    #ifdef __HAL_RCC_USB_OTG_HS_CLK_ENABLE
+  NVIC_SetPriority(OTG_HS_IRQn, SEGGER_RTT_MAX_INTERRUPT_PRIORITY >> (8U - __NVIC_PRIO_BITS));
+    #endif
+  #endif
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;

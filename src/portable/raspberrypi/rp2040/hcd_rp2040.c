@@ -420,7 +420,9 @@ static void __tusb_irq_path_func(sof_service)(void) {
   }
 }
 
+// the SDK registers this as the ISR, so it records its own span; under tuh_int_handler() the depth counter keeps one
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
+  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
   const uint32_t status = usb_hw->ints;
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
@@ -498,6 +500,8 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
     panic("Data Seq Error \n");
   }
+
+  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {

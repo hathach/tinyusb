@@ -59,13 +59,22 @@
 // The startup enables QingKe hardware context stacking. Avoid duplicating its
 // register saves in software: closely spaced ISO transactions need a short IRQ entry.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
+  static void usbhs_dcd_int_handler(uint8_t rhport) {
+    tud_int_handler(rhport);
+  }
+    #define USBHS_ISR_TARGET usbhs_dcd_int_handler
+  #else
+    #define USBHS_ISR_TARGET dcd_int_handler
+  #endif
 // Keep the assembly call visible to LTO, as in the CH32V20x USB interrupt wrappers.
-TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = dcd_int_handler;
+TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = USBHS_ISR_TARGET;
 #endif
 
 __attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
-  __asm volatile("li a0, 0\n\t call dcd_int_handler\n\t mret");
+  __asm volatile("li a0, 0\n\t call " TU_XSTRING(USBHS_ISR_TARGET) "\n\t mret");
 #else
   __asm volatile("mret");
 #endif
@@ -157,7 +166,34 @@ __attribute__((interrupt)) void SysTick_Handler(void) {
 uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
+#endif
 
+#if CFG_TUSB_SYSVIEW_ENABLED && CFG_TUSB_OS == OPT_OS_NONE
+// SystemView timestamp in microseconds (src/tusb.c): RISC-V has no DWT, so it composes the 1 ms
+// system_ticks with SysTick CNT, which hardware reloads to 0 every millisecond.
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  // SystemCoreClock is the SysTick clock; the clock is fixed after board_init()
+  static uint32_t cycles_per_us;
+  if (cycles_per_us == 0) {
+    cycles_per_us = SystemCoreClock / 1000000u;
+  }
+  uint32_t ms, cnt, pend;
+  do { // re-read the tick: CNT wraps to 0 exactly when system_ticks increments
+    ms = system_ticks;
+    // Callers hold SEGGER_RTT_LOCK(), so a wrap's tick IRQ can be pending: SR bit 0 (CNTIF) latches
+    // the wrap. SR before CNT: a wrap between the two reads must not pair a pre-wrap CNT with a
+    // post-wrap pending flag (that adds a phantom ~1 ms)
+    pend = SysTick->SR & 1u;
+    cnt = (uint32_t) SysTick->CNT;
+  } while (ms != system_ticks || pend != (SysTick->SR & 1u));
+  uint32_t t = (ms + (pend ? 1u : 0u)) * 1000u + (cycles_per_us ? cnt / cycles_per_us : 0);
+  static uint32_t last; // monotonic clamp; callers are serialized by the RTT lock
+  if ((int32_t) (t - last) < 0) { t = last; }
+  last = t;
+  return t;
+}
+#elif CFG_TUSB_SYSVIEW_ENABLED
+#error "SYSVIEW on ch32v30x needs the bare-metal SysTick tick; not ported for this RTOS yet"
 #endif
 
 //--------------------------------------------------------------------+
