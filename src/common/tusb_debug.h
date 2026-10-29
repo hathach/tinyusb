@@ -269,17 +269,6 @@ uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
 
 #endif // CFG_TUSB_SYSVIEW_ENABLED
 
-// TU_ASSERT that closes the instrumented function's CALL with its RET before returning, so a failed
-// assertion leaves no dangling pair. _cond is evaluated once and an application's TU_ASSERT override
-// still applies: one that continues instead of returning gets the CALL reopened. _ret is empty for a
-// void function.
-#if CFG_TUSB_SYSVIEW
-#define TU_SYSVIEW_ASSERT(_cond, _level, _id, _ret) \
-  do { if (!(_cond)) { TU_SYSVIEW_RET(_level, _id); TU_ASSERT(false, _ret); TU_SYSVIEW_CALL(_level, _id); } } while (0)
-#else
-#define TU_SYSVIEW_ASSERT(_cond, _level, _id, _ret) TU_ASSERT(_cond, _ret)
-#endif
-
 #ifdef __cplusplus
  }
 #endif
