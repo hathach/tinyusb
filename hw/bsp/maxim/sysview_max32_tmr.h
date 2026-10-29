@@ -6,8 +6,8 @@
 // SEGGER_SYSVIEW timestamp for the MAX32 parts, whose Cortex-M4 DWT has NO cycle counter:
 // DWT_CTRL.NOCYCCNT=1 (read live on max32666fthr, 2026-08-11 -- Maxim implemented only the
 // watchpoint comparators), so SystemView's ARMv7-M default of reading 0xE0001004 returns a
-// frozen 0 and every duration decodes as zero. family.cmake therefore builds SystemView with
-// SEGGER_SYSVIEW_CORE=SEGGER_SYSVIEW_CORE_OTHER, routing timestamps to the hooks below.
+// frozen 0 and every duration decodes as zero. family.cmake therefore defines
+// SEGGER_SYSVIEW_GET_TIMESTAMP as SEGGER_SYSVIEW_X_GetTimestamp, routing timestamps to the hook below.
 //
 // Source: a TMR in Continuous mode at prescaler 1 (f_PCLK = f_SYS_CLK/2 = 48 MHz, UG6971
 // Eq. 15-1). The 1 MHz "microseconds" contract the M0/RISC-V families follow is unreachable
@@ -38,8 +38,8 @@
 
 static inline void sysview_max32_tmr_start(void) {
   mxc_tmr_regs_t* tmr = MXC_TMR_GET_TMR(SYSVIEW_MAX32_TMR);
-  // PERCKCN0 timer disable bits are contiguous from TIMER0D (gcr_regs.h); reset default is
-  // 0 (enabled) -- cleared defensively in case a bootloader or app gated it.
+  // PERCKCN0 timer disable bits are contiguous from TIMER0D (gcr_regs.h) and reset to 1, clock
+  // disabled (UG6971 Table 4-59)
   MXC_GCR->perckcn0 &= ~(MXC_F_GCR_PERCKCN0_TIMER0D << SYSVIEW_MAX32_TMR);
   tmr->cn  = 0;                                // disable while configuring; prescaler bits stay 0 = /1
   tmr->cmp = 0xFFFFFFFFu;                      // free-run over the full range
