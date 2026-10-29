@@ -131,15 +131,24 @@ function(family_add_board BOARD_TARGET)
     BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
     )
 
-  if (SYSVIEW AND (MAX_DEVICE STREQUAL "max32665" OR MAX_DEVICE STREQUAL "max32666"))
-    # This part's Cortex-M4 DWT has no cycle counter (DWT_CTRL.NOCYCCNT=1, read live on
-    # max32666fthr): SystemView's CM3-class default timestamp reads a frozen 0. Route only the
-    # timestamp to hw/bsp/maxim/sysview_max32_tmr.h (a 48 MHz free-running TMR, which also
-    # reports its rate); the core stays CM3-class for the ICSR interrupt id and
-    # ExitISRToScheduler.
+  if (SYSVIEW AND MAX_DEVICE MATCHES "^max326(50|65|66|90)$")
+    # MAX3266x's Cortex-M4 DWT has no cycle counter (DWT_CTRL.NOCYCCNT=1, read live on
+    # max32666fthr): SystemView's CM3-class default timestamp reads a frozen 0. MAX32650 and
+    # MAX32690's user guides do not document their DWT, so they take the same route, which holds
+    # either way. Route only the timestamp to hw/bsp/maxim/sysview_max32_tmr.h (a free-running
+    # PCLK TMR, which also reports its rate); the core stays CM3-class for the ICSR interrupt id
+    # and ExitISRToScheduler.
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       SEGGER_SYSVIEW_GET_TIMESTAMP=SEGGER_SYSVIEW_X_GetTimestamp
       )
+    if (MAX_DEVICE STREQUAL "max32690")
+      target_sources(${BOARD_TARGET} PRIVATE
+        ${MSDK_LIB}/PeriphDrivers/Source/TMR/tmr_common.c
+        ${MSDK_LIB}/PeriphDrivers/Source/TMR/tmr_${PERIPH_SUFFIX}${PERIPH_ID}.c
+        ${MSDK_LIB}/PeriphDrivers/Source/TMR/tmr_revb.c
+        )
+      target_include_directories(${BOARD_TARGET} PUBLIC ${MSDK_LIB}/PeriphDrivers/Source/TMR)
+    endif ()
     if (DEFINED SYSVIEW_MAX32_TMR)
       # timer instance override, default TMR0 -- see sysview_max32_tmr.h
       target_compile_definitions(${BOARD_TARGET} PUBLIC SYSVIEW_MAX32_TMR=${SYSVIEW_MAX32_TMR})
