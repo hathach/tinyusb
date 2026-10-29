@@ -191,6 +191,9 @@ void dcd_int_enable(uint8_t rhport) {
 void dcd_int_disable(uint8_t rhport) {
   (void)rhport;
   NVIC_DisableIRQ(USBHS_IRQn);
+#ifdef __riscv
+  __asm volatile("fence.i" ::: "memory"); // QingKe manuals: fence.i after masking an interrupt
+#endif
 }
 
 void dcd_edpt_close_all(uint8_t rhport) {

@@ -60,8 +60,8 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V103)
 
   if (SYSVIEW)
-    # CSR 0x800 masking, the other WCH families' RTT lock, corrupts QingKe V3's interrupt config (hung the
-    # board with the USB vector at PC=0); without a lock, RTT writes racing an ISR corrupt the stream
+    # QingKe V3A has no gintenr at CSR 0x800, the other WCH families' RTT lock (QingKe V3 manual; writing it hung
+    # the board with the USB vector at PC=0); without a lock, RTT writes racing an ISR corrupt the stream
     message(FATAL_ERROR "SYSVIEW needs an RTT lock; ch32v10x runs in U-mode where mstatus CSR "
       "access traps and no safe mask is wired -- numbers would be silently corrupt")
   endif ()

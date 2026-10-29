@@ -23,8 +23,7 @@
 #define SEGGER_RTT_LOCK() {                                       \
     unsigned int _seg_rtt_lock_state;                             \
     __asm volatile("csrr %0, 0x800" : "=r"(_seg_rtt_lock_state)); \
-    __asm volatile("csrw 0x800, %0" ::"r"(0x80) : "memory");      \
-    __asm volatile("fence.i");
+    __asm volatile("csrw 0x800, %0\n fence.i" ::"r"(0x80) : "memory");
 #define SEGGER_RTT_UNLOCK()                                                 \
     __asm volatile("csrw 0x800, %0" ::"r"(_seg_rtt_lock_state) : "memory"); \
   }

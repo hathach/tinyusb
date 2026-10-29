@@ -68,6 +68,9 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
     NVIC_DisableIRQ(fsdev_irq[i]);
   }
+#ifdef __riscv
+  __asm volatile("fence.i" ::: "memory"); // QingKe manuals: fence.i after masking an interrupt
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
