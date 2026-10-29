@@ -196,7 +196,8 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   hw_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dcd_rp2040_irq_service(bool sv_span) {
+// the SDK registers this as the ISR, so it records its own span; under tud_int_handler() the depth counter keeps one
+static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
   const uint32_t status  = usb_hw->ints;
   uint32_t sof_count = 0;
 
@@ -208,7 +209,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_rp2040_irq_service(bool sv_span) {
   #endif
   }
 
-  if (sv_span) { TU_SYSVIEW_ISR_ENTER(); }
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
 
   if (status & USB_INTF_DEV_SOF_BITS) {
     dcd_event_sof(0, sof_count, true);
@@ -331,12 +332,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_rp2040_irq_service(bool sv_span) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
-  if (sv_span) { TU_SYSVIEW_ISR_EXIT(); }
-}
-
-// the SDK registers this as the ISR itself, bypassing tud_int_handler()'s SystemView span
-static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
-  dcd_rp2040_irq_service(TUD_SYSVIEW_ISR_TRACED);
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 /*------------------------------------------------------------------*/
@@ -620,11 +616,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
 void __tusb_irq_path_func(dcd_int_handler)(uint8_t rhport) {
   (void) rhport;
-  #if TUD_SYSVIEW_ISR_TRACED
-  dcd_rp2040_irq_service(false); // callers own the span, and only in ISR context
-  #else
-  dcd_rp2040_irq(); // one inlined service copy: a second makes gcc outline its helpers on RP2350
-  #endif
+  dcd_rp2040_irq();
 }
 
 #endif

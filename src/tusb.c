@@ -129,7 +129,7 @@ bool tusb_inited(void) {
 
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
-  // ports may call this from task context (in_isr false): no ISR span then
+  // ports may call this from task context (in_isr false): no span here then (a port's ISR body may record its own)
   bool sv_span = in_isr;
 #if CFG_TUD_ENABLED && CFG_TUH_ENABLED && (TUD_SYSVIEW_ISR_TRACED != TUH_SYSVIEW_ISR_TRACED)
   // dual-role with one role traced: the other role's interrupt records no span

@@ -420,7 +420,9 @@ static void __tusb_irq_path_func(sof_service)(void) {
   }
 }
 
-static void __tusb_irq_path_func(hcd_rp2040_irq_service)(void) {
+// the SDK registers this as the ISR, so it records its own span; under tuh_int_handler() the depth counter keeps one
+static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
+  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
   const uint32_t status = usb_hw->ints;
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
@@ -498,24 +500,14 @@ static void __tusb_irq_path_func(hcd_rp2040_irq_service)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
     panic("Data Seq Error \n");
   }
-}
 
-  #if TUH_SYSVIEW_ISR_TRACED
-// the SDK registers this as the ISR itself, bypassing tuh_int_handler()'s SystemView span
-static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
-  TU_SYSVIEW_ISR_ENTER();
-  hcd_rp2040_irq_service();
-  TU_SYSVIEW_ISR_EXIT();
+  if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
-  #else
-    // untraced, the service is the ISR itself, so it runs without a wrapper call level
-    #define hcd_rp2040_irq hcd_rp2040_irq_service
-  #endif
 
 void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void)rhport;
   (void)in_isr;
-  hcd_rp2040_irq_service(); // callers own the span, and only when in_isr
+  hcd_rp2040_irq();
 }
 
 //--------------------------------------------------------------------+
