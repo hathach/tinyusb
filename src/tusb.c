@@ -628,19 +628,16 @@ static void send_sys_desc(void) {
   }
 }
 
-#if CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
-  // ARMv7-M without DWT CYCCNT (MAX32665/6, NOCYCCNT=1), built as SEGGER_SYSVIEW_CORE_OTHER: the BSP
-  // supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, as 1 MHz needs a prescaler the part lacks.
-  extern uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
-  #define SYSVIEW_TIMESTAMP_FREQ SEGGER_SYSVIEW_X_GetTimestampFreq()
-#elif !defined(SEGGER_SYSVIEW_CORE) || (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3)
+TU_ATTR_WEAK uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void) {
+#if defined(SEGGER_SYSVIEW_CORE) && (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3)
+  // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
+  return tusb_sysview_cpu_freq();
+#else
   // No DWT CYCCNT (ARMv6-M, RISC-V): hw/bsp/<family>/family.c supplies SEGGER_SYSVIEW_X_GetTimestamp(),
   // a free-running microsecond count; a family without one fails to link on that symbol.
-  #define SYSVIEW_TIMESTAMP_FREQ 1000000u
-#else
-  // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
-  #define SYSVIEW_TIMESTAMP_FREQ tusb_sysview_cpu_freq()
+  return 1000000u;
 #endif
+}
 
 // Active interrupt id for cores ConfDefaults does not read ICSR on: RISC-V (mcause), or a Cortex-M
 // built as SEGGER_SYSVIEW_CORE_OTHER.
@@ -708,7 +705,7 @@ void tu_sysview_init(void) {
     (*(volatile unsigned int*) 0xE0001000) |= 1u;         /* DWT_CTRL.CYCCNTENA */
   }
 #endif
-  SEGGER_SYSVIEW_Init(SYSVIEW_TIMESTAMP_FREQ, tusb_sysview_cpu_freq(), SYSVIEW_OS_API, send_sys_desc);
+  SEGGER_SYSVIEW_Init(SEGGER_SYSVIEW_X_GetTimestampFreq(), tusb_sysview_cpu_freq(), SYSVIEW_OS_API, send_sys_desc);
   SEGGER_SYSVIEW_SetRAMBase(SYSVIEW_RAM_BASE);
   // no SEGGER_SYSVIEW_RegisterModule(): see TU_SV_EVENT_BASE
   SEGGER_SYSVIEW_Start(); /* self-start: host recorders only drain */

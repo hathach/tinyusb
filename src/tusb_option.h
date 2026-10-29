@@ -564,10 +564,6 @@
 #ifndef CFG_TUSB_SYSVIEW
   #define CFG_TUSB_SYSVIEW 0
 #endif
-// The BSP supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, SEGGER_SYSVIEW_X_GetTimestampFreq()
-#ifndef CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
-  #define CFG_TUSB_SYSVIEW_TIMESTAMP_BSP 0
-#endif
 // Derived, not a setting
 #define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED || CFG_TUH_ENABLED) && CFG_TUSB_SYSVIEW)
 

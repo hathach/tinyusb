@@ -134,12 +134,11 @@ function(family_add_board BOARD_TARGET)
   if (SYSVIEW AND (MAX_DEVICE STREQUAL "max32665" OR MAX_DEVICE STREQUAL "max32666"))
     # This part's Cortex-M4 DWT has no cycle counter (DWT_CTRL.NOCYCCNT=1, read live on
     # max32666fthr): SystemView's CM3-class default timestamp reads a frozen 0. Build
-    # SystemView for the "other" core so it calls the SEGGER_SYSVIEW_X_* hooks, and tell
-    # tusb.c the BSP reports the rate too (hw/bsp/maxim/sysview_max32_tmr.h -- a
-    # 48 MHz free-running TMR; the fixed-1MHz contract needs a prescaler this part lacks).
+    # SystemView for the "other" core so it calls the SEGGER_SYSVIEW_X_* hooks
+    # (hw/bsp/maxim/sysview_max32_tmr.h -- a 48 MHz free-running TMR, which also reports
+    # its rate; the fixed-1MHz contract needs a prescaler this part lacks).
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       SEGGER_SYSVIEW_CORE=SEGGER_SYSVIEW_CORE_OTHER
-      CFG_TUSB_SYSVIEW_TIMESTAMP_BSP=1
       )
     if (DEFINED SYSVIEW_MAX32_TMR)
       # timer instance override, default TMR0 -- see sysview_max32_tmr.h

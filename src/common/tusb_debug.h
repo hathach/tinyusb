@@ -218,6 +218,10 @@ void tu_sysview_name_resource(const void* handle, const char* name);
 // SDK has no such global (e.g. rp2040's Pico SDK) override it in hw/bsp/<family>/family.c.
 uint32_t tusb_sysview_cpu_freq(void);
 
+// Rate of SEGGER_SYSVIEW_GET_TIMESTAMP(). Weak default is the CPU clock for the DWT cycle counter on a CM3-class
+// core, else 1 MHz; a BSP whose timestamp timer runs at another rate overrides it.
+uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
+
 // Fixed event base instead of a registered SEGGER_SYSVIEW_MODULE: SystemView 4.10b on Linux greys
 // out Save Recording / Export Data once any module is registered. 512 is MODULE_EVENT_OFFSET, the
 // id SEGGER_SYSVIEW_RegisterModule() would give the first module.
