@@ -666,9 +666,9 @@ U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
 #endif
 
 // Records only the outermost enter/exit: dual-role BSPs bracket their back-to-back self-wrapped
-// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs
-// (ch32v20x HP over LP) can both reach it; non-atomic on purpose, as a lost update miscounts one
-// span and recovers on the next balanced pair.
+// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs (ch32v20x
+// LP/HP when an application gives them different preemption priorities) can both reach it; non-atomic on
+// purpose, as a lost update miscounts one span and recovers on the next balanced pair.
 static volatile uint8_t _sv_isr_depth;
 
 void tu_sysview_isr_enter(void) {
