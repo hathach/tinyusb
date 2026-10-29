@@ -62,6 +62,7 @@ from multiprocessing import TimeoutError as MpTimeoutError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
+import sysview_ci
 import usbtest    # the recovery bounds and the device id; batteries run it as a subprocess
 from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
@@ -142,6 +143,9 @@ board_test = {}
 skip_flash = False
 print_lock = None
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
+sysview_out = None  # --sysview-out; sysview_head/_commit: the checkout's full and short HEAD it records
+sysview_head = sysview_commit = None
+pool_deadline = None  # time.monotonic() the pool guard fires at: the drain's and, inherited by fork, each worker's
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 _current_variant = None  # and its build variant
 
@@ -2149,10 +2153,35 @@ def test_board(board: Board) -> tuple:
             dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
             rows.append((vname, cells, dur))
 
-        # park: flash board_test last to disable the board's usb; teardown, not a test,
-        # so it is not recorded in the report.
-        if _should_park(skip_flash):
-            test_example(board, variants[0]['name'], 'device/board_test')
+        sv_capture = None   # (capture, error, flashed)
+        try:
+            if sysview_out and 'sysview' in board and \
+                    any(t.startswith(('device/', 'dual/')) for t in test_list):
+                try:
+                    sv_capture = _sysview_capture(board, variants[0]['name'])
+                except Exception as e:
+                    # optional: the board's tests, its park and its blocker check go on
+                    log_line(f'{name:25} SystemView capture raised {type(e).__name__}: {e}')
+                    sv_capture = None, f'{type(e).__name__}: {e}', True
+        finally:
+            # park: flash board_test last to disable the board's usb, after the capture too and when
+            # it is interrupted; teardown, not a test, so it is not recorded in the report.
+            park_error = None
+            if _should_park(skip_flash):
+                park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
+                park_error = ('park flash failed' if park_ec else
+                              'no park (device/board_test) firmware' if park_status == 'skip' else None)
+            elif sv_capture and sv_capture[2]:
+                # the capture left the board wedged or a provider cleanup pending
+                park_error = f'not parked: {_park_refusal()}'
+        if sv_capture:
+            capture, error, flashed = sv_capture
+            try:
+                # a capture that never flashed left the board as the tests did: its park is the run's own business
+                sysview_ci.write_result(sysview_out, sysview_ci.capture_result(
+                    board, sysview_commit, capture, error, park_error=park_error if flashed else None))
+            except Exception as e:
+                log_line(f'{name:25} SystemView capture record not written: {type(e).__name__}: {e}')
 
         pending = cleanup_pending(name)
         if pending:
@@ -2268,6 +2297,51 @@ def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> li
         except MpTimeoutError:
             raise PoolDrainTimeout(mret) from None
     return mret
+
+
+def _park_refusal() -> str:
+    """Why _should_park() refuses, for a caller that reports it."""
+    return ('--skip-flash' if skip_flash else f'the board is wedged: {board_wedged}' if board_wedged else
+            f'cleanup pending: {hil_flash.cleanup_pending}')
+
+
+# what a SystemView capture leaves of the pool guard besides its own bound and the park's: the board's
+# report rows and the drain's report write
+SYSVIEW_MARGIN_S = 60
+
+
+def park_bound_s() -> float:
+    """Worst-case seconds of the final park, test_example(device/board_test): per attempt the Reset_TT helper,
+    the flash and its DAP rescue, each at its timeout plus the REAP_GRACE spent when killed, and the retry sleep."""
+    return max_retry * (hil_tt.HELPER_TIMEOUT + hil_util.REAP_GRACE
+                        + 2 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + 1)
+
+
+def _sysview_capture(board: Board, park_variant: str) -> tuple:
+    """(capture, error, flashed): capture_result's capture and error for this board's roster SystemView capture, run under the board lock;
+    test_board parks after it. Refused, without flashing, where the park would be (_should_park), with no park image
+    to restore the board with, or when the capture and park may not finish before the pool guard, whose abort would
+    void the whole run's report."""
+    name = board['name']
+    why = None
+    if not _should_park(skip_flash):
+        why = _park_refusal()
+    elif not hil_flash.find_firmware(park_variant, 'device/board_test', board['flasher']['name']):
+        why = 'no park (device/board_test) firmware to restore the board with'
+    else:
+        need = sysview_ci.capture_bound_s(board) + park_bound_s() + SYSVIEW_MARGIN_S
+        if pool_deadline is not None and pool_deadline - time.monotonic() < need:
+            why = f'less than the {need:.0f} s the capture and park may take is left before the pool guard'
+    if why:
+        log_line(f'{name:25} SystemView capture skipped: {why}')
+        return None, f'skipped: {why}', False
+    fw, err = sysview_ci.find_capture_firmware(board, sysview_head)
+    if err:
+        log_line(f'{name:25} SystemView capture: {err}')
+        return None, err, False
+    capture, err = sysview_ci.capture_one(board, fw, sysview_out)
+    log_line(f'{name:25} SystemView capture: {err or "captured"}')
+    return capture, err, True
 
 
 def _should_park(skip_flash: bool) -> bool:
@@ -2389,6 +2463,7 @@ def main() -> None:
     global board_test
     global max_retry
     global skip_flash
+    global sysview_out, sysview_head, sysview_commit, pool_deadline
 
     duration = time.time()
 
@@ -2411,6 +2486,12 @@ def main() -> None:
     hil_flash.build_dir = args.build_dir
     max_retry = args.retry
     skip_flash = args.skip_flash
+    if args.sysview_out:
+        os.makedirs(args.sysview_out, exist_ok=True)
+        sysview_out = os.path.abspath(args.sysview_out)
+        repo_root = str(Path(__file__).resolve().parents[2])
+        sysview_head = sysview_ci._git_commit(repo_root, short=False)
+        sysview_commit = sysview_ci._git_commit(repo_root)
 
     # if config file is not found, try to find it in the same directory as this script
     if not config_file.exists():
@@ -2592,6 +2673,7 @@ def main() -> None:
         for f in (hil_report.REPORT_JSON, hil_report.REPORT_MD):
             (report_dir / f).unlink(missing_ok=True)
         failed_fname.unlink(missing_ok=True)
+    pool_deadline = time.monotonic() + POOL_TIMEOUT
     pool = _start_pool(seed)
     # `with` terminates and joins the pool. A worker stuck in uninterruptible sleep hangs
     # that join until the CI job ceiling; the abort paths below have written the report
@@ -2603,9 +2685,8 @@ def main() -> None:
         # was still in flight.
         mret = list(refused_rows)
         it = pool.imap_unordered(test_board, config_boards)
-        deadline = time.monotonic() + POOL_TIMEOUT
         try:
-            mret = drain_pool(it, config_boards, deadline, out=mret)
+            mret = drain_pool(it, config_boards, pool_deadline, out=mret)
         except MpTimeoutError as te:
             mret = te.finished
             _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',

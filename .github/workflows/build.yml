@@ -469,7 +469,7 @@ jobs:
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
     # before it; the report write and the upload after it. A ceiling below guard+tail cancels the job
     # before hil_report.md exists. Both legs share the script and the guard. The last 20 min are
-    # the SystemView capture step's own timeout, which runs after the report.
+    # the SystemView decode step's own timeout, which runs after the report.
     timeout-minutes: 95
     strategy:
       fail-fast: false
@@ -562,7 +562,12 @@ jobs:
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
-          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+          # SystemView capture of the selected roster sysview boards, before each one's final park, flashing the
+          # traced image hil-build's sysview leg uploaded. Not on re-run attempts: a re-run recaptures every board,
+          # wasting shared-rig time for no report benefit.
+          SV_ARGS=''
+          if [ "${{ github.run_attempt }}" = 1 ]; then SV_ARGS='--sysview-out sysview-out'; fi
+          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS $SV_ARGS
 
       - &hil_report_prepare
         name: Prepare HIL report
@@ -602,38 +607,12 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
-      - name: SystemView capture
-        # Best-effort perf capture after the HIL report, never gates the job: the -b boards of
-        # the test step's selection (sysview_ci.py capture has no -bt), flashing the traced image
-        # hil-build's sysview leg uploaded with the binaries. Skipped on re-run attempts: a re-run
-        # recaptures every board, wasting shared-rig time for no report benefit.
+      - name: SystemView decode
+        # Best-effort perf metrics from the test step's captures, never gates the job; no hardware
         if: ${{ !cancelled() && github.run_attempt == '1' }}
         continue-on-error: true
-        # the kill reaches the shell, not python, so no finally reflashes the park image:
-        # --budget-s (a minute under this) starts a board's flash only when its park fits before it
         timeout-minutes: 20
-        env:
-          SEL_ARGS_TINYUSB: ${{ needs.set-matrix.outputs.hil_args_tinyusb }}
-          SEL_RUN_TINYUSB: ${{ needs.set-matrix.outputs.hil_run_tinyusb }}
-          SEL_ARGS_HFP: ${{ needs.set-matrix.outputs.hil_args_hfp }}
-          SEL_RUN_HFP: ${{ needs.set-matrix.outputs.hil_run_hfp }}
-        run: |
-          case "$HIL_JSON" in
-            *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
-            *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
-          esac
-          if [ "$SEL_RUN" = "false" ]; then echo "SystemView capture skipped by PR selection (no affected boards on this rig)"; exit 0; fi
-          SYSVIEW_BOARD_ARGS=""
-          set -- $SEL_ARGS
-          while [ $# -gt 0 ]; do
-            case "$1" in
-              # a trailing bare -b has no pair to consume: shift just the one token
-              -b) [ $# -ge 2 ] && { SYSVIEW_BOARD_ARGS="$SYSVIEW_BOARD_ARGS -b $2"; shift 2; } || shift ;;
-              *) shift ;;
-            esac
-          done
-          python3 test/hil/sysview_ci.py capture ${{ env.HIL_JSON }} \
-            $SYSVIEW_BOARD_ARGS --budget-s 1140 --out sysview-out
+        run: python3 test/hil/sysview_ci.py decode sysview-out --budget-s 1140
 
       - name: Upload SystemView captures
         if: ${{ !cancelled() && github.run_attempt == '1' }}
@@ -648,8 +627,8 @@ jobs:
   # ---------------------------------------
   # Compare this run's SystemView captures (uploaded by hil-tinyusb) against the base
   # branch's latest captures on the same workflow, producing a sticky-comment-ready
-  # markdown table. hfp.json has no sysview-flagged boards, so its capture step never
-  # uploads anything; only tinyusb.json's captures ever feed this.
+  # markdown table. hfp.json has no sysview-flagged boards, so its test step captures
+  # nothing; only tinyusb.json's captures ever feed this.
   # ---------------------------------------
   sysview-report:
     needs: hil-tinyusb

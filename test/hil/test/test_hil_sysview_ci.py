@@ -226,6 +226,13 @@ class Report(unittest.TestCase):
         md = self.go([], [j])
         self.assertIn("> ⚠︎ park reflash failed rc=1\n\n| metric |", md)
 
+    def test_park_error_is_shown_beside_a_capture_error(self):
+        # a captured board whose park failed and whose decode then failed or never ran
+        j = board_json(err="record decode failed: <b>boom</b>")
+        j["capture"]["park_error"] = "park flash failed"
+        md = self.go([], [j])
+        self.assertIn("capture failed: record decode failed: &lt;b&gt;boom&lt;/b&gt;\n\n> ⚠︎ park flash failed\n", md)
+
     def test_heading_shows_live_window(self):
         md = self.go([board_json()], [board_json()])
         self.assertIn("### stm32f407disco — live 14.2 s", md)
@@ -318,7 +325,7 @@ class P99Threshold(unittest.TestCase):
         side = {"metrics": {"live_window_s": 14.2, "overflow": 0}, "capture": {}}
         self.assertIsNone(sysview_ci.gate_p99(side, {"n": sysview_ci.P99_MIN_N + 1}))
 
-class CaptureSelection(unittest.TestCase):
+class CaptureConfig(unittest.TestCase):
     CFG = {"boards": [
         {"name": "a", "uid": "U1", "flasher": {"name": "openocd", "uid": "P1",
          "args": "-f interface/x.cfg -c \"transport select swd\" -f target/y.cfg"},
@@ -328,14 +335,8 @@ class CaptureSelection(unittest.TestCase):
                      "ocd_args": "-f interface/jlink.cfg -f target/z.cfg"}},
         {"name": "c", "uid": "U3", "flasher": {"name": "openocd", "uid": "P3", "args": ""}}]}
 
-    def test_flagged_only(self):
-        self.assertEqual([b["name"] for b in sysview_ci.select_boards(self.CFG, [])], ["a", "b"])
-
-    def test_intersection_with_board_args(self):
-        self.assertEqual([b["name"] for b in sysview_ci.select_boards(self.CFG, ["b", "c"])], ["b"])
-
     def test_ocd_args_resolution(self):
-        a, b = sysview_ci.select_boards(self.CFG, [])
+        a, b, _ = self.CFG["boards"]
         # falls back to the flasher, quoting intact for rtt.py's shlex split
         self.assertEqual(shlex.split(sysview_ci.capture_ocd_args(a)),
                          ["-f", "interface/x.cfg", "-c", "transport select swd", "-f", "target/y.cfg"])
@@ -387,9 +388,8 @@ class WorkloadCpuRow(unittest.TestCase):
 
 class SystemExitDoesNotAbortRun(unittest.TestCase):
     """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol.
-    SystemExit derives from BaseException, so flash_and_capture_one's blanket `except Exception`
-    does not catch it: uncaught it escapes main()'s PHASE 2 loop and aborts the whole multi-board
-    run, so boards captured before the bad one never get their results written in PHASE 3. A board
+    SystemExit derives from BaseException, so capture_one's blanket `except Exception` does not catch
+    it: uncaught it escapes hil_test.py's test_board and aborts the whole multi-board run. A board
     hitting this must produce its own (None, error) result, and the next board must still be
     attempted."""
 
@@ -422,7 +422,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
             raise SystemExit(f"no _SEGGER_RTT in {elf}")
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", no_symbol), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(
+            capture, err = sysview_ci.capture_one(
                 self._board("bad"), os.path.join(self.tmp, "bad"), self.tmp)
         self.assertIsNone(capture)
         self.assertIn("no RTT symbol", err)
@@ -430,7 +430,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         called = []
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: called.append(elf) or 0x20000000), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(
+            capture, err = sysview_ci.capture_one(
                 self._board("good"), os.path.join(self.tmp, "good"), self.tmp)
         self.assertEqual(called, [os.path.join(self.tmp, "good") + ".elf"])
         self.assertIsNone(capture)
@@ -439,16 +439,6 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
             cfg="-f interface/x.cfg -f target/y.cfg", addr=0x20000000, channel=sysview_ci.SYSVIEW_CHANNEL,
             serial_no="P", vid_pid=None, reset_before_attach=True)
 
-    def test_no_park_image_refuses_before_flashing(self):
-        import hil_flash
-        flashed = []
-        with unittest.mock.patch.object(hil_flash, "find_firmware", lambda *a, **k: None), \
-                unittest.mock.patch.object(hil_flash, "flash_openocd", lambda b, fw: flashed.append(fw)):
-            capture, err = sysview_ci.flash_and_capture_one(self._board("b"), "fw.elf", self.tmp)
-        self.assertIsNone(capture)
-        self.assertIn("no park", err)
-        self.assertEqual(flashed, [])
-
     def test_failed_flash_runs_the_dap_rescue(self):
         import hil_flash
         rescued = []
@@ -456,7 +446,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
                                         lambda b, fw: subprocess.CompletedProcess([], 1, stdout="DAP init failed")), \
                 unittest.mock.patch.object(hil_flash, "rescue_openocd", lambda b, out: rescued.append(out)), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(self._board("b"), "fw.elf", self.tmp)
+            capture, err = sysview_ci.capture_one(self._board("b"), "fw.elf", self.tmp)
         self.assertIn("flash failed: rc=1", err)
         self.assertEqual(rescued, ["DAP init failed"])
 
@@ -468,33 +458,21 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
         self.assertIsNone(capture)
         self.assertIn("No space left", err)
         conn.close.assert_called_once_with()
 
-    def _park_fails(self, capture_conn):
-        import hil_flash
-        flashes = iter([subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 1)])
+    def test_the_capture_names_its_raw_file_beside_the_record(self):
+        conn = unittest.mock.Mock(eof=False)
+        conn.read.return_value = b""
         board = self._board("b")
         board["sysview"]["duration_s"] = 0
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
-                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: capture_conn), \
-                unittest.mock.patch.object(hil_flash, "flash_openocd", lambda b, fw: next(flashes)):
-            return sysview_ci.flash_and_capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
-
-    def test_a_failed_park_after_a_capture_is_kept_with_it(self):
-        conn = unittest.mock.Mock(eof=False)
-        conn.read.return_value = b""
-        capture, err = self._park_fails(conn)
-        self.assertIsNone(err)
-        self.assertEqual(capture["park_error"], "park reflash failed rc=1")
-
-    def test_a_failed_park_after_a_failed_capture_joins_its_error(self):
-        conn = unittest.mock.Mock(eof=True)
-        capture, err = self._park_fails(conn)
-        self.assertIsNone(capture)
-        self.assertEqual(err, "openocd RTT server closed during the capture; park reflash failed rc=1")
+                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
+        self.assertEqual((capture, err), ({"raw": "b-capture.SVDat", "workload_ok": True}, None))
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "b-capture.SVDat")))
 
 
 class EventMap(unittest.TestCase):
@@ -587,68 +565,83 @@ class CdcBurstWorkload(unittest.TestCase):
         self.assertFalse(self.run_workload(echo_until=0))
 
 
-class CaptureBudget(unittest.TestCase):
-    """--budget-s: a board whose flash, capture and park reflash may not fit in what is left is
-    not flashed, so the caller's kill never lands before the park image is back."""
-
-    def run_capture(self, budget_s, capture=(None, "captured")):
-        from helper import hil_lock
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp, True)
-        cfg = os.path.join(tmp, "cfg.json")
-        with open(cfg, "w") as f:
-            json.dump({"boards": [{"name": "b", "uid": "U", "flasher": {"name": "openocd", "uid": "P", "args": ""},
-                                   "sysview": {"example": "device/cdc_msc", "workload": "idle",
-                                               "duration_s": 15}}]}, f)
-        out = os.path.join(tmp, "out")
-        captured = []
-        argv = ["sysview_ci.py", "capture", cfg, "--out", out, "--budget-s", str(budget_s)]
-        with unittest.mock.patch.object(sys, "argv", argv), \
-                unittest.mock.patch.object(sysview_ci, "find_capture_firmware", lambda b, h: ("fw.elf", None)), \
-                unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
-                                           lambda b, fw, d: captured.append(b["name"]) or capture), \
-                unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
-                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
-            sysview_ci.main()
-        with open(os.path.join(out, "sysview-b.json")) as f:
-            return captured, json.load(f)["error"]
-
-    def test_a_board_that_cannot_finish_in_the_budget_is_not_flashed(self):
-        captured, err = self.run_capture(budget_s=60)
-        self.assertEqual(captured, [])
-        self.assertIn("skipped", err)
-
-    def test_a_board_that_fits_is_captured(self):
-        board = {"sysview": {"duration_s": 15}}
-        captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60)
-        self.assertEqual(captured, ["b"])
-        self.assertEqual(err, "captured")
-
+class CaptureBound(unittest.TestCase):
     def test_capture_bound_reserves_a_reap_grace_per_flasher_call(self):
         from helper import hil_util
         board = {"sysview": {"duration_s": 15}}
         with unittest.mock.patch.object(hil_util, "CMD_TIMEOUT", 100), \
                 unittest.mock.patch.object(hil_util, "REAP_GRACE", 7):
-            self.assertEqual(sysview_ci.capture_bound_s(board), 3 * (100 + 7) + sysview_ci.CAPTURE_FIXED_S + 15)
+            self.assertEqual(sysview_ci.capture_bound_s(board), 2 * (100 + 7) + sysview_ci.CAPTURE_FIXED_S + 15)
 
-    def test_report_is_on_disk_before_decoding(self):
-        on_disk = []
 
-        def decode(board, commit, out_dir, capture, deadline):
-            with open(os.path.join(out_dir, "sysview-b.json")) as f:
-                on_disk.append(json.load(f)["error"])
-            return sysview_ci.board_result(board, commit, error="decoded")
-        board = {"sysview": {"duration_s": 15}}
-        with unittest.mock.patch.object(sysview_ci, "decode_one", decode):
-            captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60,
-                                             capture=({"raw": "r", "workload_ok": True}, None))
-        self.assertIn("decode did not finish", on_disk[0])
-        self.assertEqual(err, "decoded")
+class CaptureResult(unittest.TestCase):
+    """capture_result is the record hil_test.py writes and `decode`'s whole input."""
+    BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
+
+    def test_a_capture_waits_for_its_decode(self):
+        r = sysview_ci.capture_result(self.BOARD, "c", {"raw": "b-capture.SVDat", "workload_ok": True})
+        self.assertEqual((r["error"], r["metrics"], r["capture"]),
+                         (sysview_ci.NOT_DECODED, None, {"raw": "b-capture.SVDat", "workload_ok": True,
+                                                         "status": "captured", "park_error": None}))
+
+    def test_a_failure_keeps_its_park_error_apart(self):
+        r = sysview_ci.capture_result(self.BOARD, "c", error="flash failed: rc=1", park_error="park flash failed")
+        self.assertEqual((r["error"], r["capture"]["status"], r["capture"]["park_error"]),
+                         ("flash failed: rc=1", "failed", "park flash failed"))
+
+
+class DecodeCommand(unittest.TestCase):
+    """`decode DIR` decodes only records whose capture is "captured", from the raw file each names, and rewrites
+    them in place; failed records stay as hil_test.py wrote them."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def main(self, *args):
+        decoded = []
+
+        def decode(result, out_dir, deadline):
+            decoded.append((result["capture"]["raw"], out_dir, deadline))
+            return {**result, "metrics": {"overflow": 0}, "error": None}
+        with unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", "decode", self.dir, *args]), \
+                unittest.mock.patch.object(sysview_ci, "decode_one", decode), \
+                contextlib.redirect_stdout(io.StringIO()) as out, self.assertRaises(SystemExit) as e:
+            sysview_ci.main()
+        self.assertEqual(e.exception.code, 0)
+        return decoded, out.getvalue()
+
+    def test_only_a_captured_record_is_decoded(self):
+        b = CaptureResult.BOARD
+        sysview_ci.write_result(self.dir, sysview_ci.capture_result(b, "c", {"raw": "b-capture.SVDat",
+                                                                              "workload_ok": True}))
+        failed = sysview_ci.capture_result({**b, "name": "f"}, "c", error="skipped: --skip-flash")
+        sysview_ci.write_result(self.dir, failed)
+        open(os.path.join(self.dir, "f-capture.SVDat"), "w").close()   # a leftover raw file is not a capture
+        decoded, out = self.main()
+        self.assertEqual(decoded, [("b-capture.SVDat", self.dir, None)])
+        with open(os.path.join(self.dir, "sysview-b.json")) as f:
+            self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
+        with open(os.path.join(self.dir, "sysview-f.json")) as f:
+            self.assertEqual(json.load(f), failed)
+        self.assertEqual(out, "b: ok\nf: skipped: --skip-flash\n")
+
+    def test_the_budget_keeps_the_decode_margin(self):
+        sysview_ci.write_result(self.dir, sysview_ci.capture_result(CaptureResult.BOARD, "c", {"raw": "r",
+                                                                                                "workload_ok": True}))
+        before = time.monotonic()
+        decoded, _ = self.main("--budget-s", "1000")
+        self.assertAlmostEqual(decoded[0][2] - before, 1000 - sysview_ci.DECODE_MARGIN_S, delta=5)
+
+    def test_an_empty_dir_decodes_nothing(self):
+        self.assertEqual(self.main(), ([], ""))
 
 
 class DecodeDeadline(unittest.TestCase):
-    """decode_one cuts each decode step at the --budget-s deadline main() passes it."""
-    BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
+    """decode_one cuts each decode step at the --budget-s deadline `decode` passes it."""
+    RESULT = sysview_ci.capture_result({"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle",
+                                                                 "duration_s": 15}},
+                                       "c", {"raw": "r", "workload_ok": True})
 
     @staticmethod
     def step(returncode=1, stdout="", stderr="boom", communicate=None):
@@ -662,9 +655,18 @@ class DecodeDeadline(unittest.TestCase):
         with unittest.mock.patch("subprocess.Popen", popen), \
                 unittest.mock.patch("os.killpg") as killpg, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-            err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                        {"raw": "r", "workload_ok": True}, deadline)["error"]
+            err = sysview_ci.decode_one(self.RESULT, tempfile.gettempdir(), deadline)["error"]
         return err, popen, killpg
+
+    def test_a_decoded_capture_keeps_its_record(self):
+        steps = [self.step(returncode=0, stdout="", stderr=""),
+                 self.step(returncode=0, stdout=json.dumps({"live_window_s": 14.2, "overflow": 0}), stderr="")]
+        with unittest.mock.patch("subprocess.Popen", unittest.mock.Mock(side_effect=steps)) as popen, \
+                unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
+            r = sysview_ci.decode_one(self.RESULT, "/out")
+        self.assertEqual(popen.call_args_list[0].args[0][2:4], ["--from-raw", "/out/r"])
+        self.assertEqual((r["error"], r["metrics"], r["commit"]), (None, {"live_window_s": 14.2, "overflow": 0}, "c"))
+        self.assertEqual(r["capture"], {**self.RESULT["capture"], "live_window_s": 14.2})
 
     def test_timeout_is_capped_by_the_deadline(self):
         step = self.step()
@@ -704,8 +706,7 @@ class DecodeDeadline(unittest.TestCase):
             popen = unittest.mock.Mock(return_value=step)
             with unittest.mock.patch("subprocess.Popen", popen), \
                     unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-                err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                            {"raw": "r", "workload_ok": True}, time.monotonic() + 30)["error"]
+                err = sysview_ci.decode_one(self.RESULT, tempfile.gettempdir(), time.monotonic() + 30)["error"]
         self.assertIn("decode timed out", err)
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
         self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
@@ -731,7 +732,7 @@ class DecodeDeadline(unittest.TestCase):
 
 class DecodeStopsARealChild(unittest.TestCase):
     """A real decoder stand-in cut by the deadline: SIGTERM lets it clean up, SIGKILL takes its group."""
-    BOARD = DecodeDeadline.BOARD
+    RESULT = DecodeDeadline.RESULT
 
     def run_child(self, setup):
         """Run setup in the stand-in, which then signals ready and sleeps; its 2 s timeout starts
@@ -756,8 +757,7 @@ class DecodeStopsARealChild(unittest.TestCase):
         with unittest.mock.patch("helper.agentrc.path_of", lambda p: script), \
                 unittest.mock.patch("subprocess.Popen", popen_until_ready):
             start = time.monotonic()
-            err = sysview_ci.decode_one(self.BOARD, "c", tmp, {"raw": "r", "workload_ok": True},
-                                        time.monotonic() + 2)["error"]
+            err = sysview_ci.decode_one(self.RESULT, tmp, time.monotonic() + 2)["error"]
         return err, tmp, time.monotonic() - start
 
     def test_sigterm_runs_the_decoders_cleanup(self):

@@ -3,9 +3,11 @@
 """SystemView CI: per-board capture on the HIL rig + PR performance report.
 
 report: pure -- two directories of sysview-<board>.json in, markdown out.
-capture: flash the SYSVIEW image hil-build made, drive the workload, RTT-capture, decode. Capture and decode
-run agentrc's rtt.py and target-debug sysview scripts from lib/agentrc at the get_deps.py pin
-(agentrc's skills/target-debug/sysview.md is their manual).
+capture_one: flash the SYSVIEW image hil-build made, drive the workload, RTT-capture; hil_test.py --sysview-out runs it
+under its board lock, before its final park, and records it with capture_result.
+decode: turn each recorded capture into metrics, no hardware. Capture and decode run agentrc's rtt.py and
+target-debug sysview scripts from lib/agentrc at the get_deps.py pin (agentrc's skills/target-debug/sysview.md is
+their manual).
 """
 import argparse, glob, html, json, os, re, signal, sys
 
@@ -190,16 +192,18 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         # here why every row reads "new" -- otherwise it looks like base never captured.
         heading += f" — base dropped, capture config changed ({', '.join(base_dropped)})"
     lines = [heading, ""]
+    # the board left without its park image, whether or not the capture itself failed
+    park_error = (pr_j.get("capture") or {}).get("park_error")
     if pr_j.get("error"):
-        # one inert line: build and tool output must not add headings, fences or HTML
-        err = html.escape(re.sub(r"\s+", " ", str(pr_j["error"])).strip()).replace("`", "&#96;")
-        return "\n".join(lines + [f"capture failed: {err}", ""])
+        # one inert line each: build and tool output must not add headings, fences or HTML
+        inert = lambda t: html.escape(re.sub(r"\s+", " ", str(t)).strip()).replace("`", "&#96;")
+        return "\n".join(lines + [f"capture failed: {inert(pr_j['error'])}", ""]
+                         + ([f"> ⚠︎ {inert(park_error)}", ""] if park_error else []))
     if not pm_all:
         # a malformed capture JSON must not abort the whole report
         return "\n".join(lines + ["capture failed: missing metrics", ""])
     bm_all = (base_j or {}).get("metrics") or {}
     # reported, not gated: e.g. the decoder's timing warnings (agentrc sysview.md)
-    park_error = (pr_j.get("capture") or {}).get("park_error")
     warnings = (pm_all.get("warnings") or []) + ([park_error] if park_error else [])
     warnings = [f"> ⚠︎ {w}" for w in warnings]
     lines += warnings + [""] if warnings else []  # a blank line ends the quote before the table
@@ -337,12 +341,6 @@ def report(base_dir, pr_dir):
     return "\n".join(parts) + "\n"
 
 # ---------------------------------------------------------------- capture
-def select_boards(cfg, board_args):
-    picked = [b for b in cfg["boards"] if "sysview" in b]
-    if board_args:
-        picked = [b for b in picked if b["name"] in set(board_args)]
-    return picked
-
 def capture_ocd_args(board):
     args = board["sysview"].get("ocd_args") or (
         board["flasher"]["args"] if board["flasher"]["name"] == "openocd" else None)
@@ -370,7 +368,7 @@ def _workload_cdc_burst(node, duration_s):
     stopped echoing -- never raises."""
     import serial, time
     # write_timeout: without it, a device that stops draining its OUT endpoint blocks s.write()
-    # forever, wedging PHASE 2 while the board flock is held -- the same failure mode hil_test.py
+    # forever, wedging the capture while the board flock is held -- the same failure mode hil_test.py
     # guards against in open_serial_dev() (SERIAL_WRITE_TIMEOUT, default 10s, sized for
     # whole-firmware-image transfers there). Hardcoded here rather than imported from hil_test:
     # this workload only ever writes 64-byte micro-bursts, so a much shorter deadline catches a
@@ -465,7 +463,7 @@ def find_capture_firmware(board, head):
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
-# flash_and_capture_one's bounds besides its flasher calls: nm 30 s, the RTT connect 17 s, the
+# capture_one's bounds besides its flasher calls: nm 30 s, the RTT connect 17 s, the
 # enumeration wait 25 s, the workload's last write 2 s, the reader join 5 s, the session close 10 s
 CAPTURE_FIXED_S = 90
 
@@ -474,45 +472,40 @@ CAPTURE_FIXED_S = 90
 # and SIGKILL to SystemView's and Xvfb's groups GROUP_S 5 s each. The native decode used here exits at once.
 DECODE_STOP_S = 30 + 2 * 10 + 20 + 4 * 5
 
-# what PHASE 3 keeps of --budget-s after a board's decode is cut, to stop it, reap it (REAP_GRACE 10 s),
+# what decode keeps of --budget-s after a board's decode is cut, to stop it, reap it (REAP_GRACE 10 s),
 # write its report and exit
 DECODE_MARGIN_S = DECODE_STOP_S + 10 + 5
 
 def capture_bound_s(board):
-    """Worst-case seconds of flash_and_capture_one: three flasher calls at the harness's
-    CMD_TIMEOUT plus the REAP_GRACE each spends when killed (the capture flash; its DAP rescue or
-    the capture; the park reflash) plus the capture's own bounds and its workload."""
+    """Worst-case seconds of capture_one: two flasher calls at the harness's CMD_TIMEOUT plus the REAP_GRACE each
+    spends when killed (the flash; its DAP rescue or the capture) plus the capture's own bounds and its workload."""
     from helper import hil_util
-    return (3 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + CAPTURE_FIXED_S
+    return (2 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + CAPTURE_FIXED_S
             + board["sysview"]["duration_s"])
 
-def flash_and_capture_one(board, fw, out_dir):
-    """PHASE 2 (under the board lock): flash, RTT-capture raw SVDat bytes over agentrc's
-    rtt.py OpenOCD route while the workload runs, then reflash the park image before
-    returning. Returns (capture_dict, error); never raises. A failed park reflash is kept as
-    capture_dict["park_error"], or appended to the error."""
-    name, flasher = board["name"], board["flasher"]
+# the error of a recorded capture until `decode` replaces it
+NOT_DECODED = "decode did not run"
+
+def capture_result(board, commit, capture=None, error=None, park_error=None):
+    """The record of a board's capture that hil_test.py writes, and `decode`'s whole input: it decodes only a
+    capture whose status is "captured", from the raw file it names beside the record."""
+    info = {**(capture or {}), "status": "captured" if capture else "failed", "park_error": park_error}
+    return board_result(board, commit, capture_info=info, error=error or (NOT_DECODED if capture else None))
+
+def write_result(out_dir, result):
+    with open(os.path.join(out_dir, f"sysview-{result['board']}.json"), "w") as f:
+        json.dump(result, f)
+
+def capture_one(board, fw, out_dir):
+    """Flash fw and RTT-capture raw SVDat bytes over agentrc's rtt.py OpenOCD route while the workload runs, under
+    the caller's board lock; the caller parks the board after. Returns (capture_dict, error), capture_dict naming
+    the raw file in out_dir; never raises an Exception."""
     try:
-        import hil_flash
         from helper import agentrc
         rtt = agentrc.load_file("skills/rtt/scripts/rtt.py")
-        # device/board_test, the image hil_test.py parks a board with (its USB disabled)
-        park = hil_flash.find_firmware(name, "device/board_test", flasher["name"])
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
-    if not park:
-        return None, "no park (device/board_test) firmware to restore the board with"
-    capture, err = None, None
-    try:
-        capture, err = _capture(board, fw, out_dir, rtt)
-    finally:
-        park_err = _reflash_pristine(board, park)
-    if park_err:
-        if capture:
-            capture["park_error"] = park_err
-        else:
-            err = f"{err}; {park_err}"
-    return capture, err
+    return _capture(board, fw, out_dir, rtt)
 
 def _capture(board, fw, out_dir, rtt):
     import threading, time
@@ -588,7 +581,7 @@ def _capture(board, fw, out_dir, rtt):
         if not workload_ok and wl_start is not None and \
                 (time.monotonic() - wl_start) < sv["duration_s"] / 2:
             return None, f"workload died: {wl_err or 'stopped early'}"
-        return {"raw": raw, "workload_ok": workload_ok}, None
+        return {"raw": os.path.basename(raw), "workload_ok": workload_ok}, None
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
@@ -615,12 +608,12 @@ def _stop_decoder(p):
     except subprocess.TimeoutExpired:
         pass  # a member stuck in D state still holds the pipes: abandoned, as hil_process does
 
-def decode_one(board, commit, out_dir, capture, deadline=None):
-    """PHASE 3 (no board lock): decode the raw SVDat capture with agentrc's sysview scripts
-    and report it, each step cut at the time.monotonic() deadline if one is given. Never raises."""
+def decode_one(result, out_dir, deadline=None):
+    """The recorded capture `result` (capture_result) decoded with agentrc's sysview scripts, no hardware, each step
+    cut at the time.monotonic() deadline if one is given. Never raises."""
     import subprocess, time
     from helper import agentrc
-    sv, name = board["sysview"], board["name"]
+    capture = result["capture"]
 
     def run(cmd, timeout):
         cut_by_budget = False
@@ -644,33 +637,23 @@ def decode_one(board, commit, out_dir, capture, deadline=None):
             raise
         return subprocess.CompletedProcess(cmd, p.returncode, out, err)
     try:
-        dec = os.path.join(out_dir, f"{name}-decoded")
+        dec = os.path.join(out_dir, f"{result['board']}-decoded")
         r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_record.py"),
-                 "--from-raw", capture["raw"], "--out", dec], 900)
+                 "--from-raw", os.path.join(out_dir, capture["raw"]), "--out", dec], 900)
         if r.returncode:
-            return board_result(board, commit, error=f"record decode failed: {r.stderr[-200:]}")
+            return {**result, "error": f"record decode failed: {r.stderr[-200:]}"}
         r = run([sys.executable, agentrc.path_of(SCRIPTS + "sysview_report.py"),
                  dec, "--json", "--event-map", EVENT_MAP,
                  "--workload-event", str(workload_event())], 600)
         if r.returncode:
-            return board_result(board, commit, error=f"decode failed: {r.stderr[-200:]}")
+            return {**result, "error": f"decode failed: {r.stderr[-200:]}"}
         m = json.loads(r.stdout)
-        info = {"live_window_s": m.get("live_window_s"),
-                "workload_ok": capture["workload_ok"], "park_error": capture.get("park_error")}
-        return board_result(board, commit, metrics=m, capture_info=info)
+        return {**result, "capture": {**capture, "live_window_s": m.get("live_window_s")}, "metrics": m,
+                "error": None}
     except TimeoutError as e:
-        return board_result(board, commit, error=str(e))
+        return {**result, "error": str(e)}
     except Exception as e:
-        return board_result(board, commit, error=f"{type(e).__name__}: {e}")
-
-def _reflash_pristine(board, park):
-    """None once the park image is back on the board, else why not; never raises."""
-    import hil_flash
-    try:
-        r = hil_flash.flash_primitive(board["flasher"]["name"])(board, str(park))
-        return f"park reflash failed rc={r.returncode}" if r.returncode else None
-    except Exception as e:
-        return f"park reflash raised {type(e).__name__}: {e}"
+        return {**result, "error": f"{type(e).__name__}: {e}"}
 
 def _git_commit(repo_root, short=True):
     import subprocess
@@ -687,89 +670,27 @@ def main():
     rp = sub.add_parser("report")
     rp.add_argument("base_dir"); rp.add_argument("pr_dir")
     rp.add_argument("-o", "--out", default="sysview_report.md")
-    cp = sub.add_parser("capture")
-    cp.add_argument("config")
-    cp.add_argument("-b", "--board", action="append", default=[],
-                     help="Boards to capture, all sysview-flagged boards if not specified")
-    cp.add_argument("--out", default="sysview-out")
-    cp.add_argument("--budget-s", type=float, default=None,
-                    help="seconds before the caller kills this run: a board's flash and capture start "
-                         "only while the rest covers capture_bound_s(), so no kill lands before its park reflash; "
-                         "decoding is cut at it too")
+    dp = sub.add_parser("decode")
+    dp.add_argument("dir", help="hil_test.py --sysview-out's directory")
+    dp.add_argument("--budget-s", type=float, default=None,
+                    help="seconds before the caller kills this run: decoding is cut at it")
     args = ap.parse_args()
     if args.cmd == "report":
         md = report(args.base_dir, args.pr_dir)
         with open(args.out, "w") as f:
             f.write(md)
         print(f"{'empty (no captures)' if not md else args.out}")
-    elif args.cmd == "capture":
+    elif args.cmd == "decode":
         import time
-        from helper import hil_lock
-        start = time.monotonic()
-        try:
-            with open(args.config) as f:
-                cfg = json.load(f)
-        except (OSError, ValueError) as e:
-            print(f"error: cannot load {args.config}: {e}", file=sys.stderr)
-            sys.exit(1)
-        boards = select_boards(cfg, args.board)
-        if not boards:
-            # not an error: a roster without sysview boards (hfp.json), or none of them selected
-            print(f"no sysview board selected in {args.config}, nothing to capture")
-            sys.exit(0)
-        os.makedirs(args.out, exist_ok=True)
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        commit = _git_commit(repo_root)
-        # 3 phases so the board lock, which blocks concurrent CI on that board, is held only
-        # for the part that touches hardware (PHASE 2).
-        # PHASE 1: find every selected board's traced image, no lock held.
-        head = _git_commit(repo_root, short=False)
-        builds = {board["name"]: find_capture_firmware(board, head) for board in boards}
-        # PHASE 2: per board, flash + RTT-capture under that board's lock only.
-        captures = {}
-        for board in boards:
-            name = board["name"]
-            fw, err = builds[name]
-            if err:
-                captures[name] = (None, err)
-                continue
-            if args.budget_s is not None and \
-                    time.monotonic() - start + capture_bound_s(board) > args.budget_s:
-                captures[name] = (None, f"skipped: less than the {capture_bound_s(board):.0f} s a flash, "
-                                        f"capture and park reflash may take is left of the {args.budget_s:.0f} s budget")
-                continue
-            try:
-                lock_fh = hil_lock.acquire_board_lock(name, reason="sysview capture")
-            except RuntimeError as e:
-                captures[name] = (None, f"board locked: {e}")
-                continue
-            try:
-                captures[name] = flash_and_capture_one(board, fw, args.out)
-            finally:
-                if lock_fh:
-                    hil_lock.release_board_lock(lock_fh)
-        def write_result(board, result, capture):
-            if result["error"] and capture and capture.get("park_error"):
-                result["error"] += f"; {capture['park_error']}"
-            with open(os.path.join(args.out, f"sysview-{board['name']}.json"), "w") as f:
-                json.dump(result, f)
-            return result
-        # Every board's report is on disk before decoding starts: a kill that still lands
-        # during PHASE 3 leaves each captured board's placeholder, not nothing.
-        results = {}
-        for board in boards:
-            capture, err = captures[board["name"]]
-            results[board["name"]] = write_result(board, board_result(board, commit, error=err or
-                                                  "decode did not finish before the run was killed"), capture)
-        # PHASE 3: decode + report every board with a successful capture, no lock held.
-        deadline = None if args.budget_s is None else start + args.budget_s - DECODE_MARGIN_S
-        for board in boards:
-            name = board["name"]
-            capture, err = captures[name]
-            result = results[name] if err else \
-                write_result(board, decode_one(board, commit, args.out, capture, deadline), capture)
+        deadline = None if args.budget_s is None else time.monotonic() + args.budget_s - DECODE_MARGIN_S
+        for path in sorted(glob.glob(os.path.join(args.dir, "sysview-*.json"))):
+            with open(path) as f:
+                result = json.load(f)
+            if result["capture"].get("status") == "captured":
+                result = decode_one(result, args.dir, deadline)
+                write_result(args.dir, result)
             park_error = result["capture"].get("park_error")
-            print(f"{name}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))
+            print(f"{result['board']}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))
         sys.exit(0)
 
 if __name__ == "__main__":
