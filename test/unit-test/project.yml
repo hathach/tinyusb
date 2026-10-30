@@ -186,6 +186,10 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUSB_SYSVIEW=1
       - CFG_TUD_MSC=0
+    :test_dfu_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_DFU=1
+      - CFG_TUD_DFU_XFER_BUFSIZE=64
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
