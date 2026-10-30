@@ -98,7 +98,9 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           SV="$RUNNER_TEMP/sysview"
-          if ls "$SV"/pr/*/sysview-*.json >/dev/null 2>&1; then
+          # find, not a glob: a download of one artifact extracts into the path itself, of several each into its own
+          # subdirectory
+          if [ -n "$(find "$SV/pr" -name 'sysview-*.json' -print -quit 2>/dev/null)" ]; then
             # until a later step renders the report, or names its own failure
             echo '_SystemView report unavailable: a step did not finish (see the job log)._' > "$SV/notice.md"
           fi
@@ -119,13 +121,14 @@ jobs:
         run: |
           SV="$RUNNER_TEMP/sysview"
           mkdir -p "$SV/pr"
-          if ! ls "$SV"/pr/*/sysview-*.json >/dev/null 2>&1; then exit 0; fi
+          if [ -z "$(find "$SV/pr" -name 'sysview-*.json' -print -quit)" ]; then exit 0; fi
           python3 test/hil/sysview_ci.py baseline --repo "$REPO" --pr "$PR" --current "$SV/pr" \
             --info "$SV/baseline.json"
           echo "run_id=$(jq -r '.run_id // empty' "$SV/baseline.json")" >> "$GITHUB_OUTPUT"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Download SystemView baseline captures
+        id: sv-base-download
         if: steps.sv-baseline.outputs.run_id != ''
         continue-on-error: true
         uses: actions/download-artifact@v5
@@ -141,14 +144,17 @@ jobs:
         timeout-minutes: 15
         env:
           BASELINE_RUN_ID: ${{ steps.sv-baseline.outputs.run_id }}
+          # outcome, not conclusion: continue-on-error turns a failed download's conclusion into success
+          BASE_DOWNLOAD: ${{ steps.sv-base-download.outcome }}
         run: |
           SV="$RUNNER_TEMP/sysview"
           mkdir -p "$SV/base"
-          # a baseline whose captures did not download would read every PR row as "new"
-          if [ -n "$BASELINE_RUN_ID" ] && ! ls "$SV"/base/*/sysview-*.json >/dev/null 2>&1; then
-            echo '_SystemView report unavailable: the baseline captures did not download (see the job log)._' \
-              > "$SV/notice.md"
-            exit 0
+          # a failed or partial baseline download would read its missing boards as "new": report the PR alone
+          if [ -n "$BASELINE_RUN_ID" ] && { [ "$BASE_DOWNLOAD" != success ] ||
+               [ -z "$(find "$SV/base" -name 'sysview-*.json' -print -quit)" ]; }; then
+            jq -n --arg run "$BASELINE_RUN_ID" '{sha: null, url: null, exact: false, run_id: null,
+              note: "the captures of baseline run \($run) did not download (see the job log)"}' > "$SV/baseline.json"
+            rm -rf "$SV/base" && mkdir "$SV/base"
           fi
           # the default branch's decoder (lib/agentrc at its pin); a failed fetch leaves every record undecoded
           python3 tools/get_deps.py lib/agentrc || true
