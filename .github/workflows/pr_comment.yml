@@ -139,9 +139,17 @@ jobs:
         if: steps.sv-baseline.outputs.ready == 'true'
         continue-on-error: true
         timeout-minutes: 15
+        env:
+          BASELINE_RUN_ID: ${{ steps.sv-baseline.outputs.run_id }}
         run: |
           SV="$RUNNER_TEMP/sysview"
           mkdir -p "$SV/base"
+          # a baseline whose captures did not download would read every PR row as "new"
+          if [ -n "$BASELINE_RUN_ID" ] && ! ls "$SV"/base/*/sysview-*.json >/dev/null 2>&1; then
+            echo '_SystemView report unavailable: the baseline captures did not download (see the job log)._' \
+              > "$SV/notice.md"
+            exit 0
+          fi
           # the default branch's decoder (lib/agentrc at its pin); a failed fetch leaves every record undecoded
           python3 tools/get_deps.py lib/agentrc || true
           python3 test/hil/sysview_ci.py decode "$SV/pr" --budget-s 300 || true

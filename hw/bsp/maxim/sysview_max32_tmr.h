@@ -38,6 +38,10 @@
 #define SYSVIEW_MAX32_TMR 0
 #endif
 
+#if SYSVIEW_MAX32_TMR < 0 || SYSVIEW_MAX32_TMR > 5
+#error "SYSVIEW_MAX32_TMR: no such timer, use 0..5 (0..3 on MAX32690)"
+#endif
+
 #if defined(MAX32690)
 // MAX32690: TMR0-3 are dual 16-bit timers run here cascaded as one 32-bit counter on PCLK
 // (UG MAX32690 Table 23-1, 23.3); their clock-select, clock-ready and write-done handshakes
