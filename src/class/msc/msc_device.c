@@ -450,14 +450,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-// a failed assertion in mscd_xfer_cb() closes its SystemView CALL first
-#define TU_ASSERT_SV(_cond) \
-  TUD_SYSVIEW_ASSERT(_cond, CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER, false)
-
-bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
-  (void) event;
-  TUD_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
-
+static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t * p_cbw = &p_msc->cbw;
   msc_csw_t * p_csw = &p_msc->csw;
@@ -467,7 +460,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       //------------- new CBW received -------------//
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if (ep_addr != p_msc->ep_out) {
-        TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
         return true;
       }
 
@@ -479,7 +471,6 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         p_msc->stage = MSC_STAGE_NEED_RESET;
         usbd_edpt_stall(rhport, p_msc->ep_in);
         usbd_edpt_stall(rhport, p_msc->ep_out);
-        TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
         return false;
       }
 
@@ -525,7 +516,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           } else {
             // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
             // but it is OK to just receive data then responded with failed status
-            TU_ASSERT_SV(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
+            TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
           }
         } else {
           // First process if it is a built-in commands
@@ -558,7 +549,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             } else {
               // cannot return more than host expect
               p_msc->total_len = tu_min32((uint32_t)resplen, p_cbw->total_bytes);
-              TU_ASSERT_SV(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
+              TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
             }
           }
         }
@@ -569,7 +560,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
       // sanity check to avoid buffer overflow
-      TU_ASSERT_SV(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE);
+      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE);
       // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, _mscd_epbuf.buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0]) {
@@ -637,7 +628,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         }
 
         if (!usbd_edpt_stalled(rhport, p_msc->ep_out)) {
-          TU_ASSERT_SV(prepare_cbw(p_msc));
+          TU_ASSERT(prepare_cbw(p_msc));
         } else {
           p_msc->stage = MSC_STAGE_CMD;
         }
@@ -651,11 +642,18 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   }
 
   if (p_msc->stage == MSC_STAGE_STATUS) {
-    TU_ASSERT_SV(proc_stage_status(p_msc));
+    TU_ASSERT(proc_stage_status(p_msc));
   }
 
-  TUD_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
   return true;
+}
+
+bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
+  (void) event;
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  bool const ret = mscd_xfer(rhport, ep_addr, xferred_bytes);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  return ret;
 }
 
 /*------------------------------------------------------------------*/

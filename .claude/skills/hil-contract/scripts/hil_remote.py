@@ -75,6 +75,7 @@ HARNESS_FILES = (
     'test/hil/pymtp.py',
     'test/hil/mtp_test.py',
     'test/hil/mtp_raw.py',
+    'test/hil/sysview_ci.py',   # hil_test.py imports it; --sysview-out itself is refused here
     'test/hil/helper/__init__.py',
     'test/hil/helper/agentrc.py',
     'test/hil/helper/hil_args.py',
@@ -355,6 +356,9 @@ def run(argv, receipt=None):
     except ImportError as e:
         if e.name != 'fcntl':   # Windows: agentrc.load() passed the pin check before the POSIX-only lock ran
             fail(e)
+    if args.sysview_out:
+        fail('--sysview-out is CI-only: hil-build alone builds the traced image and this run stages none; '
+             'run hil_test.py --sysview-out on the rig against a CI build instead')
     if args.build:
         fail(f'--build would build on the rig, which gets binaries only; build locally with\n'
              f'  {build_command(config_path, select_boards(config, args), args.build_dir)}')

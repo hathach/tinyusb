@@ -1407,6 +1407,42 @@ class EveryAttemptIsKept(unittest.TestCase):
         seq = hil_report.sequence(self.cfg, ['alpha'], self.rd)
         self.assertEqual(seq['current']['rows'][0]['verdict'], 'blocker', 'never not-run: boards were selected')
 
+    def test_an_incomplete_sysview_entry_aborts_before_a_flash(self):
+        """capture_result reads example, workload and duration_s unchecked: a gap would lose the board's record."""
+        good = {'example': 'device/cdc_msc', 'workload': 'cdc_burst', 'duration_s': 15}
+        cases = [([good | {'workload': None}], 'alpha: "workload" None'),
+                 ([good | {'workload': 'bogus'}], 'alpha: "workload" \'bogus\''),
+                 ([good | {'workload': ['cdc_burst']}], 'alpha: "workload" [\'cdc_burst\']'),
+                 ([good | {'workload': {}}], 'alpha: "workload" {}'),
+                 ([{k: v for k, v in good.items() if k != 'duration_s'}], 'alpha: "duration_s" None'),
+                 ([good | {'example': ''}], 'alpha: no "example"'),
+                 ([good | {'example': ['device/cdc_msc']}], 'alpha: no "example"'),
+                 (['device/cdc_msc'], 'alpha: not an object'),
+                 ([good, good | {'duration_s': 0}, {'example': 'device/cdc_msc'}],
+                  'beta: "duration_s" 0 is not a finite positive number of seconds; gamma: "workload" None')]
+        cases += [([good | {'duration_s': d}], f'alpha: "duration_s" {d!r} is')
+                  for d in ('15', True, 0, -1, float('nan'), float('inf'))]
+        for entries, why in cases:
+            with self.subTest(entries=entries):
+                # json.dumps writes NaN and Infinity, as json.load reads them
+                self.cfg.write_text(json.dumps({'boards': [
+                    {'name': name, 'uid': str(i), 'sysview': sv, 'flasher': {'name': 'jlink', 'uid': f'f{i}'}}
+                    for i, (name, sv) in enumerate(zip(('alpha', 'beta', 'gamma'), entries))]}))
+                r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                                   capture_output=True, text=True, timeout=120,
+                                   env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(f'ERROR: "sysview" entry refused: {why}', r.stdout)
+                self.assertNotIn('Traceback', r.stdout + r.stderr)
+                doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['_hil']['termination'], 'aborted')
+        # a complete entry passes on to the next check
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'sysview': good, 'logger': 'bogus',
+                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+        r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                           capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+        self.assertIn('ERROR: unknown "logger" value', r.stdout, r.stdout + r.stderr)
+
     def test_hil_test_refuses_to_start_over_a_report_it_cannot_read(self):
         future = json.dumps({'rows': [], 'scope': '', 'caveat': '', '_hil': {'version': 2}})
         (self.rd / hil_report.REPORT_JSON).write_text(future)

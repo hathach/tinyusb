@@ -30,4 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     # and its delegated runs go against the same one-slot rig and used to inherit 3.
     parser.add_argument('-r', '--retry', type=int, default=1, help='Retry count for failed tests (default: 1)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('--sysview-out', metavar='DIR',
+                        help="SystemView-capture each roster sysview board whose selection has a device or dual test, "
+                             "before its final park, into DIR (sysview_ci.py decode DIR turns them into metrics)")
     return parser

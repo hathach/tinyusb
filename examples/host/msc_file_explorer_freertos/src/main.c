@@ -48,7 +48,7 @@
   #define USBH_STACK_SIZE     4096
 #else
   // Increase stack size when debug log or SYSVIEW instrumentation is enabled.
-  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * ((CFG_TUSB_DEBUG || CFG_TUH_SYSVIEW) ? 4 : 3))
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 4 : 3))
 #endif
 
 enum {
