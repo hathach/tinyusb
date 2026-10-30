@@ -1466,29 +1466,34 @@ class TestLibRule(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
-    def test_build_sysview_input_selects_nothing(self):
-        s = self.b(['hw/bsp/sysview_rtt_conf_cortexm.h'])
+    def _rtt_rosters(self, traced, console):
+        roster = [dict(b) for b in ROSTER]
+        if traced:
+            roster[1]['sysview'] = {'example': 'device/cdc_msc'}
+        if console:
+            roster[0]['logger'] = 'rtt'
+        return [('test/hil/tinyusb.json', roster)]
+
+    def test_build_rtt_lock_header_selects_nothing(self):
+        # force-included only by SYSVIEW and LOGGER=rtt configures, which no main-matrix leg sets
+        s = self.b(['hw/bsp/rtt_conf_cortexm.h'])
         self.assertFalse(s['full'])
         self.assertEqual(s['families'], [])
         self.assertEqual(s['family_examples'], {})
 
-    def test_hil_sysview_input_selects_the_capture_boards(self):
-        # build.yml's SystemView capture runs only on selected boards, so a SYSVIEW-only input must select them
-        roster = [dict(b) for b in ROSTER]
-        roster[1]['sysview'] = {'example': 'device/cdc_msc'}
-        s = change_impact.classify(['hw/bsp/sysview_rtt_conf_cortexm.h'], REPO, [('test/hil/tinyusb.json', roster)])
-        self.assertFalse(s['full'])
-        self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}})
-
-    def test_hil_sysview_input_without_capture_boards_selects_nothing(self):
-        s = sel(['hw/bsp/sysview_rtt_conf_cortexm.h'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
+    def test_hil_rtt_lock_header_selects_what_compiles_segger_rtt(self):
+        traced = {'stm32f407disco': {'device/cdc_msc'}}
+        console = {'raspberry_pi_pico': {'all'}}
+        for (t, c), want in {(False, False): {}, (True, False): traced, (False, True): console,
+                             (True, True): {**traced, **console}}.items():
+            for path in ('hw/bsp/rtt_conf_cortexm.h', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+                s = change_impact.classify([path], REPO, self._rtt_rosters(t, c))
+                self.assertFalse(s['full'])
+                got = {k: {'all'} if v == 'all' else set(v) for k, v in s['boards'].items()}
+                self.assertEqual(got, want, (path, t, c))
 
     def _traced_roster(self):
-        roster = [dict(b) for b in ROSTER]
-        roster[1]['sysview'] = {'example': 'device/cdc_msc'}
-        return [('test/hil/tinyusb.json', roster)]
+        return self._rtt_rosters(True, False)
 
     def test_hil_a_traced_build_dependency_selects_the_capture_boards(self):
         # lib/SystemView is compiled only by hil-build's traced legs; lib/SEGGER_RTT by them too

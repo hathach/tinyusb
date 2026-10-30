@@ -48,7 +48,8 @@ can actually build.
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},sysview_manifest.cmake,family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
-| 16c | `hw/bsp/sysview_*` but `sysview_manifest.cmake` (rule 16), `lib/SystemView/**`, its `tools/get_deps.py` pin; `lib/SEGGER_RTT/**` too (also rule 16a) | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these: hil-build's traced leg for the selected boards) |
+| 16c | `lib/SystemView/**`, its `tools/get_deps.py` pin; `lib/SEGGER_RTT/**` too (also rule 16a) | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these: hil-build's traced leg for the selected boards) |
+| 16d | `hw/bsp/rtt_conf_cortexm.h` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` (rules 16a, 16c): every SYSVIEW and LOGGER=rtt configure force-includes it |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 | 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
@@ -140,13 +141,13 @@ _LOCAL_TOOLING_RE = re.compile(r'^tools/drivers_coverage_check\.py$')
 # build legs compile, so a bad edit can silently drop a family - full build matrix. No
 # rig board depends on it.
 _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
-# SystemView build inputs: only a SYSVIEW=<level> configure (family_support.cmake) reads them. No build matrix
-# leg sets one; hil-build's traced leg (hil_ci_set_matrix.py) builds them for each selected board with a roster
-# sysview entry, so the HIL axis selects those boards' capture example. lib/SystemView and its get_deps.py pin
-# are the same kind of input, and lib/SEGGER_RTT is compiled into every traced build too.
-# sysview_manifest.cmake is not one: family_support.cmake includes it in every configure (rule 16)
-_SYSVIEW_INPUT_RE = re.compile(r'^hw/bsp/sysview_(?!manifest\.cmake$)[^/]+$')
+# lib/SystemView and its get_deps.py pin: only a SYSVIEW=<level> configure (family_support.cmake) reads them. No
+# build matrix leg sets one; hil-build's traced leg (hil_ci_set_matrix.py) builds them for each selected board with
+# a roster sysview entry, so the HIL axis selects those boards' capture example. lib/SEGGER_RTT is compiled into
+# every traced build too.
 _SYSVIEW_DEP = 'lib/SystemView'
+# the RTT lock: force-included by every configure that compiles lib/SEGGER_RTT, so it is classified as that lib
+_RTT_CONF = 'hw/bsp/rtt_conf_cortexm.h'
 # Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
@@ -860,11 +861,11 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         s.add(boards, 'all', f'{path}: mcu dir -> families {sorted(fams)} -> boards {boards}')
         return
 
-    if _SYSVIEW_INPUT_RE.match(path) or path.startswith(_SYSVIEW_DEP + '/'):   # rule 16c
+    if path.startswith(_SYSVIEW_DEP + '/'):                                      # rule 16c
         _select_sysview_capture(s, path, roster_boards)
         return
 
-    m = re.match(r'lib/([^/]+)/', path)
+    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if path == _RTT_CONF else path)   # rule 16d
     if m:
         lib = m.group(1)
         # only the tests whose example builds the lib, and only those the rig runs
@@ -1457,11 +1458,11 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(path, 'typec', all_bsp_families(repo_root), exs, f'{path}: typec -> {sorted(exs)}')
         return
-    if _SYSVIEW_INPUT_RE.match(path) or path.startswith(_SYSVIEW_DEP + '/'):   # rule 16c
+    if path.startswith(_SYSVIEW_DEP + '/'):                                      # rule 16c
         s.note(path, 'sysview', 'gap', f'{path}: read only by a SYSVIEW build, which only hil-build\'s traced legs '
                                        f'(HIL selection) set, no contribution')
         return
-    m = re.match(r'lib/([^/]+)/', path)
+    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if path == _RTT_CONF else path)   # rule 16d
     if m:                                                         # rule 16a
         lib = m.group(1)
         exs = lib_examples(lib, repo_root)

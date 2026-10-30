@@ -452,7 +452,7 @@ function(family_configure_common TARGET RTOS)
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
-      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES SKIP_LINTING ON)
     endif ()
@@ -512,10 +512,6 @@ function(family_configure_common TARGET RTOS)
     set(SYSVIEW_DEFS CFG_TUSB_SYSVIEW=${SYSVIEW}
       SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
     target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-      # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
-      target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf_cortexm.h\"")
-    endif ()
     # vendor sources are not expected to pass TinyUSB's -Werror set
     set_source_files_properties(
       ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
@@ -551,6 +547,11 @@ function(family_configure_common TARGET RTOS)
     file(RELATIVE_PATH _sv_example ${TOP}/examples ${CMAKE_CURRENT_SOURCE_DIR})
     sysview_manifest(${TARGET} ${BOARD} ${_sv_example})
     message(STATUS "SYSVIEW instrumentation enabled (buffer=${SYSVIEW_BUFFER_SIZE})")
+  endif ()
+
+  if ((LOGGER STREQUAL "RTT" OR SYSVIEW) AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+    # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
+    target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rtt_conf_cortexm.h\"")
   endif ()
 
   if (FAMILY STREQUAL "rp2040")

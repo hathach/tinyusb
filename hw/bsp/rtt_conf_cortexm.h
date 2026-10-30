@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-// Force-included in SYSVIEW builds (family_support.cmake). On ARMv7-M/ARMv8-M mainline the vendored
-// SEGGER_RTT_Conf.h locks with BASEPRI, which never masks a priority-0 IRQ, and most BSPs leave the USB IRQ
-// at its reset priority 0: a USB ISR then records into a packet the interrupted code is still building
-// (#4294). UM08027 requires the lock to mask every interrupt that records ("in case of doubt disable all
-// interrupts"), so take PRIMASK on every Cortex-M: the vendored ARMv6-M/ARMv8-M baseline lock already does but
-// its asm lacks a "memory" clobber, and ARMv8.1-M gets no vendored lock at all. Privileged code only (CPS is
-// ignored unprivileged); BASEPRI is left untouched.
+// Force-included wherever SEGGER_RTT.c is built, SYSVIEW or LOGGER=rtt (family_support.cmake/.mk). On ARMv7-M/ARMv8-M
+// mainline the vendored SEGGER_RTT_Conf.h locks with BASEPRI, which never masks a priority-0 IRQ, and most BSPs leave
+// the USB IRQ at its reset priority 0: a USB ISR then writes into a packet or console line the interrupted code is
+// still building (#4294). UM08027 requires the lock to mask every interrupt that records ("in case of doubt disable all
+// interrupts"), so take PRIMASK on every Cortex-M: the vendored ARMv6-M/ARMv8-M baseline lock already does but its asm
+// lacks a "memory" clobber, and ARMv8.1-M gets no vendored lock at all. Privileged code only (CPS is ignored
+// unprivileged); BASEPRI is left untouched.
 #if defined(__GNUC__) && (defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || \
     defined(__ARM_ARCH_8M_BASE__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__))
   #include "SEGGER_RTT_Conf.h"
