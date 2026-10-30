@@ -1277,6 +1277,81 @@ class BaselineReport(unittest.TestCase):
         self.assertIn("+2.7%", self.report({"sha": self.SHA, "exact": True}))
 
 
+class Unrecorded(unittest.TestCase):
+    """A board a rig's HIL report shows tested, with no capture record downloaded, is named, not left out."""
+    ROSTER = {"boards": [{"name": "f407", "sysview": {"example": "device/cdc_msc"}},
+                         {"name": "pico", "variant": [{"name": "pico-v"}], "sysview": {"example": "device/cdc_msc"}},
+                         {"name": "plain"}]}
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.rosters, self.reports = os.path.join(self.tmp, "rosters"), os.path.join(self.tmp, "reports")
+        self.base, self.pr = os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p")
+        os.makedirs(self.rosters)
+        with open(os.path.join(self.rosters, "rig.json"), "w") as f:
+            json.dump(self.ROSTER, f)
+
+    def hil_report(self, rows, rig="rig.json"):
+        d = os.path.join(self.reports, f"hil-report-{rig}")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "hil_report.json"), "w") as f:
+            json.dump({"rows": [{"board": b, "cells": c} for b, c in rows.items()]}, f)
+
+    def unrecorded(self):
+        return sysview_ci.unrecorded_boards(self.reports, self.pr, self.rosters)
+
+    def test_a_tested_board_without_a_record_is_named(self):
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}, "pico-v": {"dual/host_info_to_device_cdc": "✅"},
+                         "plain": {"device/cdc_msc": "✅"}})
+        write_set(self.pr, board_json(board="f407"))
+        self.assertEqual(self.unrecorded(), ["pico"])
+        write_set(self.base, board_json(board="f407"))
+        md = sysview_ci.report(self.base, self.pr, None, self.unrecorded())
+        self.assertIn("_No SystemView capture record for `pico`, which this run's HIL tested", md)
+        self.assertLess(md.index("### f407"), md.index("No SystemView capture record"))
+        self.assertNotIn("No SystemView capture record", sysview_ci.report(self.base, self.pr))
+
+    def test_a_board_whose_capture_could_not_run_is_not_expected(self):
+        # host tests only, a lock refusal, a retired row: hil_test.py takes no capture for these
+        self.hil_report({"f407": {"host/cdc_msc_hid": "✅", "board-locked": "held"},
+                         "pico-v": {"board-locked": "held"}})
+        self.assertEqual(self.unrecorded(), [])
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}}, rig="unknown.json")
+        self.assertEqual(self.unrecorded(), [])
+        d = os.path.join(self.reports, "hil-report-rig.json")
+        with open(os.path.join(d, "hil_report.json"), "w") as f:
+            json.dump({"rows": [{"board": "f407", "retired": True, "cells": {"device/cdc_msc": "✅"}}, "junk"]}, f)
+        self.assertEqual(self.unrecorded(), [])
+
+    def test_an_unreadable_report_expects_nothing(self):
+        self.hil_report({})
+        with open(os.path.join(self.reports, "hil-report-rig.json", "hil_report.json"), "w") as f:
+            f.write("[1, 2")
+        self.assertEqual(self.unrecorded(), [])
+        self.assertEqual(sysview_ci.unrecorded_line([]), "")
+
+    def main(self, *args):
+        real = sysview_ci.unrecorded_boards
+        out = io.StringIO()
+        with unittest.mock.patch.object(sysview_ci, "unrecorded_boards", lambda r, p: real(r, p, self.rosters)), \
+                unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", *args]), contextlib.redirect_stdout(out):
+            sysview_ci.main()
+        return out.getvalue()
+
+    def test_the_cli_names_a_missing_board_only_when_there_is_one(self):
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}, "pico-v": {"device/cdc_msc": "✅"}})
+        write_set(self.pr, board_json(board="f407"))
+        self.assertIn("record for `pico`, which", self.main("unrecorded", self.reports, self.pr))
+        out = os.path.join(self.tmp, "report.md")
+        self.main("report", self.base, self.pr, "--hil-reports", self.reports, "-o", out)
+        with open(out) as f:
+            self.assertIn("record for `pico`, which", f.read())
+        write_set(self.pr, board_json(board="pico"))
+        self.assertEqual(self.main("unrecorded", self.reports, self.pr), "")
+        self.assertEqual(self.main("unrecorded", os.path.join(self.tmp, "none"), self.pr), "")
+
+
 class HostileRecord(unittest.TestCase):
     """A PR builds its own records: whatever text they hold renders as text, and a non-number where the report
     formats a number is a malformed record, never a crash or a rendered value."""

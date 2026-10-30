@@ -420,9 +420,46 @@ def baseline_line(info, base, any_pr):
     kind = "exact" if info.get("exact") else f"approximate: {md(info.get('note') or '')}"
     return f"*base {code(str(info['sha'])[:10])} ({kind}) → PR {pr_commit}*"
 
-def report(base_dir, pr_dir, baseline_info=None):
+def unrecorded_boards(reports_dir, pr_dir, roster_dir=None):
+    """The roster sysview boards with no record in `pr_dir` that a downloaded HIL report shows ran a device or dual
+    test, hil_test.py's condition for a capture: a rig whose capture upload failed otherwise just goes unmentioned.
+    Each report is pr_comment.yml's hil-report-<roster>/hil_report.json, read against the roster of that name in
+    `roster_dir` (this checkout's, the default branch's in CI); one that cannot be read expects nothing."""
+    from helper import hil_report
+    roster_dir = roster_dir or os.path.dirname(os.path.abspath(__file__))
+    expected = set()
+    for p in glob.glob(os.path.join(reports_dir, "hil-report-*", hil_report.REPORT_JSON)):
+        roster = os.path.join(roster_dir, os.path.basename(os.path.dirname(p))[len("hil-report-"):])
+        try:
+            with open(roster) as f:
+                cfg = json.load(f)
+            with open(p) as f:
+                doc = json.load(f)
+            rows = {r["board"]: r.get("cells") for r in doc.get("rows") or []
+                    if isinstance(r, dict) and isinstance(r.get("board"), str) and not r.get("retired")}
+            boards = [b for b in cfg.get("boards", []) if isinstance(b, dict) and "sysview" in b]
+        except (OSError, ValueError, AttributeError, TypeError):
+            continue
+        for b in boards:
+            try:
+                names = {b["name"], *hil_report.variants_of(cfg, b["name"])}
+            except (KeyError, ValueError, TypeError):
+                continue
+            if any(isinstance(c := rows.get(n), dict) and any(str(t).startswith(("device/", "dual/")) for t in c)
+                   for n in names):
+                expected.add(b["name"])
+    return sorted(expected - set(load_set(pr_dir)))
+
+def unrecorded_line(boards):
+    if not boards:
+        return ""
+    return (f"_No SystemView capture record for {', '.join(code(b) for b in boards)}, which this run's HIL tested: "
+            "its capture did not record, or its upload or download failed (see the job logs)._")
+
+def report(base_dir, pr_dir, baseline_info=None, unrecorded=()):
     """The PR comment's SystemView section. With `baseline_info` (sysview_ci.py baseline), base records come from
-    its run only, and one recorded at another commit is dropped, never compared."""
+    its run only, and one recorded at another commit is dropped, never compared. `unrecorded` (unrecorded_boards)
+    is named below the boards."""
     pr = load_set(pr_dir)
     if not pr:
         return ""
@@ -441,6 +478,8 @@ def report(base_dir, pr_dir, baseline_info=None):
             changed = [f"capture config changed ({', '.join(c)})" for c in [capture_cfg_changes(base.get(b), pr[b])]
                        if c]
         parts.append(board_section(b, None if changed else base.get(b), pr[b], changed))
+    if unrecorded:
+        parts += [unrecorded_line(unrecorded), ""]
     parts.append(LEGEND)
     return "\n".join(parts) + "\n"
 
@@ -868,6 +907,11 @@ def main():
     bp.add_argument("--current", required=True, help="the PR run's downloaded sysview-* artifacts")
     bp.add_argument("--info", required=True, help="where to write the baseline description JSON")
     rp.add_argument("--baseline-info", help="the baseline description `baseline` wrote")
+    rp.add_argument("--hil-reports", help="the run's downloaded hil-report-* artifacts: name each board they show "
+                                          "tested with no record (unrecorded_boards)")
+    up = sub.add_parser("unrecorded", help="print the line naming each board the HIL reports show tested with no "
+                                           "record in pr_dir, nothing when there is none")
+    up.add_argument("hil_reports"); up.add_argument("pr_dir")
     dp = sub.add_parser("decode")
     dp.add_argument("dir", help="hil_test.py --sysview-out's directory, or downloaded artifacts of it")
     dp.add_argument("--budget-s", type=float, default=None,
@@ -886,10 +930,15 @@ def main():
         if args.baseline_info:
             with open(args.baseline_info) as f:
                 info = json.load(f)
-        md = report(args.base_dir, args.pr_dir, info)
+        unrecorded = unrecorded_boards(args.hil_reports, args.pr_dir) if args.hil_reports else ()
+        md = report(args.base_dir, args.pr_dir, info, unrecorded)
         with open(args.out, "w") as f:
             f.write(md)
         print(f"{'empty (no captures)' if not md else args.out}")
+    elif args.cmd == "unrecorded":
+        line = unrecorded_line(unrecorded_boards(args.hil_reports, args.pr_dir))
+        if line:
+            print(line)
     elif args.cmd == "decode":
         import time
         deadline = None if args.budget_s is None else time.monotonic() + args.budget_s - DECODE_MARGIN_S

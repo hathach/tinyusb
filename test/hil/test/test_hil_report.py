@@ -1416,6 +1416,7 @@ class EveryAttemptIsKept(unittest.TestCase):
                  ([good | {'workload': {}}], 'alpha: "workload" {}'),
                  ([{k: v for k, v in good.items() if k != 'duration_s'}], 'alpha: "duration_s" None'),
                  ([good | {'example': ''}], 'alpha: no "example"'),
+                 ([good | {'example': ['device/cdc_msc']}], 'alpha: no "example"'),
                  (['device/cdc_msc'], 'alpha: not an object'),
                  ([good, good | {'duration_s': 0}, {'example': 'device/cdc_msc'}],
                   'beta: "duration_s" 0 is not a finite positive number of seconds; gamma: "workload" None')]

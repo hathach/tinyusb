@@ -98,13 +98,22 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # outcome, not conclusion: continue-on-error turns a failed download's conclusion into success
+          PR_DOWNLOAD: ${{ steps.sv-download.outcome }}
         run: |
           SV="$RUNNER_TEMP/sysview"
+          mkdir -p "$SV"
           # find, not a glob: a download of one artifact extracts into the path itself, of several each into its own
           # subdirectory
           if [ -n "$(find "$SV/pr" -name 'sysview-*.json' -print -quit 2>/dev/null)" ]; then
             # until a later step renders the report, or names its own failure
             echo '_SystemView report unavailable: a step did not finish (see the job log)._' > "$SV/notice.md"
+          elif [ "$PR_DOWNLOAD" != success ]; then
+            echo '_SystemView report unavailable: the captures did not download (see the job log)._' > "$SV/notice.md"
+          # no record at all: silent unless a HIL report shows a board tested whose capture should have recorded
+          elif ! python3 test/hil/sysview_ci.py unrecorded hil-reports "$SV/pr" > "$SV/notice.md"; then
+            echo '_SystemView report unavailable: checking the HIL reports for captures failed (see the job log)._' \
+              > "$SV/notice.md"
           fi
           if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
                --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
@@ -165,7 +174,7 @@ jobs:
           python3 test/hil/sysview_ci.py decode "$SV/pr" --budget-s 300 || true
           python3 test/hil/sysview_ci.py decode "$SV/base" --budget-s 300 || true
           if python3 test/hil/sysview_ci.py report "$SV/base" "$SV/pr" --baseline-info "$SV/baseline.json" \
-               -o "$SV/report.md"; then
+               --hil-reports hil-reports -o "$SV/report.md"; then
             rm -f "$SV/notice.md"
             # a failed download can leave some of the run's sysview-* artifacts extracted and not others
             if [ "$PR_DOWNLOAD" != success ] && [ -s "$SV/report.md" ]; then
