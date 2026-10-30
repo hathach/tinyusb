@@ -80,8 +80,9 @@ bool tud_task (void) {
 }
 
 // Make tud_task()/tud_task_ext() return true once the events queued before this call are processed, waking it
-// if blocked. Call from another task (not ISR) to stop the USB task before tud_deinit(). With an RTOS it waits
-// for queue space; return false if not initialized or the queue is full (OS without blocking send: retry)
+// if blocked. Call once per stop from one other task (not ISR) to stop the USB task before tud_deinit().
+// On a full queue it waits for space if the OS adapter's queue send waits (FreeRTOS, ThreadX, Zephyr), else
+// returns false (no OS, RT-Thread, RTX4, Mynewt...): retry. Also returns false if not initialized
 bool tud_task_stop(void);
 
 // Check if there is pending events need processing by tud_task()

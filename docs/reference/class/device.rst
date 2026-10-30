@@ -110,10 +110,12 @@ Core API and callbacks
    * - ``tud_task_stop()``
      - Makes ``tud_task()`` return ``true`` once the events queued before the
        call are processed, waking it if blocked, so another task can stop the
-       USB task before ``tud_deinit()``, which must run in the USB task.  With
-       an RTOS it waits for queue space; it returns ``false`` if the stack is
-       not initialized or, without an RTOS, the queue is full.  Call it from
-       another task, not an ISR.
+       USB task before ``tud_deinit()``, which must run in the USB task.  Call
+       it once per stop, from one other task, not an ISR.  On a full queue it
+       waits for space when the OS adapter's queue send waits (FreeRTOS,
+       ThreadX, Zephyr); otherwise (no OS, RT-Thread, RTX4, Mynewt) it returns
+       ``false`` and the caller retries.  It also returns ``false`` if the
+       stack is not initialized.
    * - ``tud_connected()`` / ``tud_mounted()`` / ``tud_ready()``
      - Reports progressively stronger states: bus activity, configured by the
        host, and configured plus not suspended.  Use ``tud_ready()`` before
