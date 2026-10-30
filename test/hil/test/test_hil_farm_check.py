@@ -435,7 +435,8 @@ class EngineOpenocdEsp(EngineFixture):
         rec = hil_lock.read_record('b')
         if hil_lock.is_cleanup_holder(rec):
             # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
-            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}))
+            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99',
+                                                      'closed': True, 'cleanup': 'done'}))
             hil_lock.release_token(rec['token'])
 
     def test_a_done_session_is_ok_and_released(self):

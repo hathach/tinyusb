@@ -100,7 +100,7 @@ lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   9b777ae5c5b8e9e456065a00294d1e5f5f9facf5  all
 lib/SystemView                            https://github.com/SEGGERMicro/SystemView.git                     92ca7a810c5765ba64911919acd511c61b6b083f
-lib/agentrc                               https://github.com/hathach/agentrc.git                            56a1263aa04e239d653e7e1c7a233aae2cf7f0f3
+lib/agentrc                               https://github.com/hathach/agentrc.git                            12d14432d35231935e9764a72c1bd19dde02c78b
 lib/fatfs                                 https://github.com/abbrev/fatfs.git                               30ca13c62615df0d2e9104ab41256985b96590c1  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
