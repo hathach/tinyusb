@@ -80,9 +80,14 @@ __attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
 #endif
 }
 
-__attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_USBFS
+// USBFS (OTG_FS): the startup vector table names it USBFS_IRQHandler
+__attribute__((interrupt)) void USBFS_IRQHandler(void) {
+  #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
+  #endif
+
+  #if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBFS
+  tuh_int_handler(BOARD_TUH_RHPORT);
   #endif
 }
 
