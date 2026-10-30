@@ -405,8 +405,8 @@ static struct {
   void* param;
 } _usbd_after_queue;
 
-// set by tud_task_stop(), consumed by tud_task_ext()
-static volatile bool _usbd_task_stop;
+// set in the usbd task by the call tud_task_stop() queues, consumed by tud_task_ext()
+static bool _usbd_task_stop;
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
@@ -841,7 +841,7 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     if (_usbd_task_stop) {
       _usbd_task_stop = false;
       TU_LOG_USBD("USBD task stop\r\n");
-      return true; // events still queued wait for the next run, or are dropped by tud_deinit()
+      return true; // events queued after the stop wait for the next run, or are dropped by tud_deinit()
     }
 
 #if CFG_TUD_TASK_EVENTS_PER_RUN > 0
@@ -882,19 +882,24 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   return false;
 }
 
+static void task_stop_call(void* param) {
+  (void) param;
+  _usbd_task_stop = true;
+}
+
 bool tud_task_stop(void) {
   TU_VERIFY(tud_inited());
-  _usbd_task_stop = true;
 
-  // wake a blocked tud_task() with a no-op call; a full queue already keeps it running
+  // The flag is set by the usbd task itself, after the events queued before it: the send below is done
+  // before tud_task() can return and tud_deinit() delete the queue, and a send waiting on a full queue is
+  // released by the task draining it.
   dcd_event_t const event = {
     .rhport    = _usbd_rhport,
     .event_id  = USBD_EVENT_FUNC_CALL,
-    .func_call = { .func = NULL, .param = NULL },
+    .func_call = { .func = task_stop_call, .param = NULL },
   };
-  if (osal_queue_send(_usbd_q, &event, false)) {
-    tud_event_hook_cb(event.rhport, event.event_id, false);
-  }
+  TU_VERIFY(osal_queue_send(_usbd_q, &event, false));
+  tud_event_hook_cb(event.rhport, event.event_id, false);
   return true;
 }
 

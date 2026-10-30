@@ -229,7 +229,7 @@ typedef struct {
 #if CFG_TUSB_OS_HAS_SCHEDULER
   osal_task_handle_t task_hdl;  // host task handle, lazy-captured on first tuh_task_ext()
 #endif
-  volatile bool task_stop;      // set by tuh_task_stop(), consumed by tuh_task_ext()
+  bool task_stop;               // set in the usbh task by the call tuh_task_stop() queues, consumed by tuh_task_ext()
 } usbh_data_t;
 
 static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
@@ -874,7 +874,7 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
     if (stoppable && _usbh_data.task_stop) {
       _usbh_data.task_stop = false;
       TU_LOG_USBH("USBH task stop\r\n");
-      return true; // events still queued wait for the next run, or are dropped by tuh_deinit()
+      return true; // events queued after the stop wait for the next run, or are dropped by tuh_deinit()
     }
 
   #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
@@ -968,17 +968,24 @@ bool tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   return usbh_task_run(timeout_ms, in_isr, true);
 }
 
+static void task_stop_call(void* param) {
+  (void) param;
+  _usbh_data.task_stop = true;
+}
+
 bool tuh_task_stop(void) {
   TU_VERIFY(tuh_inited());
-  _usbh_data.task_stop = true;
 
-  // wake a blocked tuh_task() with a no-op call; a full queue already keeps it running
+  // The flag is set by the usbh task itself, after the events queued before it: the send below is done
+  // before tuh_task() can return and tuh_deinit() delete the queue, and a send waiting on a full queue is
+  // released by the task draining it.
   hcd_event_t event = { 0 };
-  event.rhport   = _usbh_controller_id;
-  event.event_id = USBH_EVENT_FUNC_CALL;
-  if (osal_queue_send(_usbh_q, &event, false)) {
-    tuh_event_hook_cb(event.rhport, event.event_id, false);
-  }
+  event.rhport          = _usbh_controller_id;
+  event.event_id        = USBH_EVENT_FUNC_CALL;
+  event.func_call.func  = task_stop_call;
+  event.func_call.param = NULL;
+  TU_VERIFY(osal_queue_send(_usbh_q, &event, false));
+  tuh_event_hook_cb(event.rhport, event.event_id, false);
   return true;
 }
 

@@ -171,8 +171,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_task(void) {
   return tuh_task_ext(UINT32_MAX, false);
 }
 
-// Make the next tuh_task()/tuh_task_ext() return true, waking it if blocked. Call from another task (not ISR)
-// to stop the USB task before tuh_deinit(). Return false if not initialized
+// Make tuh_task()/tuh_task_ext() return true once the events queued before this call are processed, waking it
+// if blocked. Call from another task (not ISR) to stop the USB task before tuh_deinit(). With an RTOS it waits
+// for queue space; return false if not initialized or the queue is full (OS without blocking send: retry)
 bool tuh_task_stop(void);
 
 // Check if there is pending events need processing by tuh_task()

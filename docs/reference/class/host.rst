@@ -109,10 +109,12 @@ Core API and callbacks
        ``true`` when the stack is not initialized or ``tuh_task_stop()`` was
        called.
    * - ``tuh_task_stop()``
-     - Makes the next ``tuh_task()`` return ``true``, waking it if blocked, so
-       another task can stop the USB task before ``tuh_deinit()``, which must
-       run in the USB task.  Events still queued wait for the next run.
-       Returns ``false`` if the stack is not initialized.  Not for ISR use.
+     - Makes ``tuh_task()`` return ``true`` once the events queued before the
+       call are processed, waking it if blocked, so another task can stop the
+       USB task before ``tuh_deinit()``, which must run in the USB task.  With
+       an RTOS it waits for queue space; it returns ``false`` if the stack is
+       not initialized or, without an RTOS, the queue is full.  Call it from
+       another task, not an ISR.
    * - ``tuh_mount_cb()`` / ``tuh_umount_cb()``
      - Announces a configured device or detachment.  Class mount callbacks
        provide the interface-specific indices used for I/O.

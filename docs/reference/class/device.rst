@@ -108,10 +108,12 @@ Core API and callbacks
        ignored.  Never call either from an ISR.  Both return ``true`` when the
        stack is not initialized or ``tud_task_stop()`` was called.
    * - ``tud_task_stop()``
-     - Makes the next ``tud_task()`` return ``true``, waking it if blocked, so
-       another task can stop the USB task before ``tud_deinit()``, which must
-       run in the USB task.  Events still queued wait for the next run.
-       Returns ``false`` if the stack is not initialized.  Not for ISR use.
+     - Makes ``tud_task()`` return ``true`` once the events queued before the
+       call are processed, waking it if blocked, so another task can stop the
+       USB task before ``tud_deinit()``, which must run in the USB task.  With
+       an RTOS it waits for queue space; it returns ``false`` if the stack is
+       not initialized or, without an RTOS, the queue is full.  Call it from
+       another task, not an ISR.
    * - ``tud_connected()`` / ``tud_mounted()`` / ``tud_ready()``
      - Reports progressively stronger states: bus activity, configured by the
        host, and configured plus not suspended.  Use ``tud_ready()`` before

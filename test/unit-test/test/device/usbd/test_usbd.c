@@ -690,11 +690,6 @@ static unsigned deferred_calls;
 static unsigned after_queue_runs;
 static unsigned deferred_calls_at_after_queue;
 
-static void stop_call(void* param) {
-  (void) param;
-  TEST_ASSERT_TRUE(tud_task_stop());
-}
-
 static void deferred_call(void* param) {
   (void) param;
   deferred_calls++;
@@ -746,45 +741,34 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
 // tud_task_stop
 //--------------------------------------------------------------------+
 
-// the next run returns true without processing; queued events wait for the run after it, which returns false
-void test_usbd_task_stop_returns_true_once(void) {
+// events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
+void test_usbd_task_stop_after_queued_events(void) {
   deferred_calls = 0;
   usbd_defer_func(deferred_call, NULL, false);
   TEST_ASSERT_TRUE(tud_task_stop());
-
-  TEST_ASSERT_TRUE(tud_task());
-  TEST_ASSERT_EQUAL(0, deferred_calls);
-
-  TEST_ASSERT_FALSE(tud_task());
-  TEST_ASSERT_EQUAL(1, deferred_calls);
-  TEST_ASSERT_FALSE(tud_task_event_ready());
-}
-
-// a stop requested while a run is processing events ends that run
-void test_usbd_task_stop_from_event_ends_run(void) {
-  deferred_calls = 0;
-  usbd_defer_func(stop_call, NULL, false);
   usbd_defer_func(deferred_call, NULL, false);
 
   TEST_ASSERT_TRUE(tud_task());
-  TEST_ASSERT_EQUAL(0, deferred_calls);
+  TEST_ASSERT_EQUAL(1, deferred_calls);
 
   TEST_ASSERT_FALSE(tud_task());
-  TEST_ASSERT_EQUAL(1, deferred_calls);
+  TEST_ASSERT_EQUAL(2, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
 }
 
-// a full queue cannot take the wakeup, but the task is busy with it and still stops
+// without an RTOS a full queue refuses the stop and nothing stops; a retry once it drained is taken
 void test_usbd_task_stop_full_queue(void) {
   deferred_calls = 0;
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
     usbd_defer_func(deferred_call, NULL, false);
   }
-  TEST_ASSERT_TRUE(tud_task_stop());
-  TEST_ASSERT_TRUE(tud_task());
-  TEST_ASSERT_EQUAL(0, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_stop());
 
   for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
     TEST_ASSERT_FALSE(tud_task());
   }
   TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls);
+
+  TEST_ASSERT_TRUE(tud_task_stop());
+  TEST_ASSERT_TRUE(tud_task());
 }
