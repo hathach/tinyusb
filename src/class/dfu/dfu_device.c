@@ -32,7 +32,7 @@
 typedef struct {
   uint8_t attrs;
   uint8_t alt;
-  uint8_t alt_count;
+  uint8_t alt_max; // highest bAlternateSetting of the DFU interface
   uint8_t state;
   uint8_t status;
 
@@ -146,7 +146,7 @@ void dfu_moded_reset(uint8_t rhport) {
   (void) rhport;
   _dfu_ctx.attrs = 0;
   _dfu_ctx.alt = 0;
-  _dfu_ctx.alt_count = 0;
+  _dfu_ctx.alt_max = 0;
   reset_state();
 }
 
@@ -188,7 +188,8 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   drv_len += sizeof(tusb_desc_dfu_functional_t);
 
   _dfu_ctx.attrs = func_desc->bAttributes;
-  _dfu_ctx.alt_count = alt_count;
+  // at least one alt was counted; with 256 alts the counter wrapped to 0 and minus 1 gives 255
+  _dfu_ctx.alt_max = (uint8_t) (alt_count - 1u);
 
   // CFG_TUD_DFU_XFER_BUFSIZE has to be set to the buffer size used in TUD_DFU_DESCRIPTOR
   const uint16_t transfer_size = tu_le16toh( tu_unaligned_read16((const uint8_t*) func_desc + offsetof(tusb_desc_dfu_functional_t, wTransferSize)) );
@@ -211,11 +212,10 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
         if (stage == CONTROL_STAGE_SETUP) {
           // alt is passed to the application callbacks as the partition index:
           // an alternate setting the interface does not have is a Request Error
-          const uint8_t alt = (uint8_t)request->wValue;
-          TU_VERIFY(alt < _dfu_ctx.alt_count);
+          TU_VERIFY(request->wValue <= _dfu_ctx.alt_max);
 
           // Switch Alt interface and reset state machine
-          _dfu_ctx.alt = alt;
+          _dfu_ctx.alt = (uint8_t) request->wValue;
           reset_state();
           return tud_control_status(rhport, request);
         }

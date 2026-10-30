@@ -30,6 +30,12 @@ static const uint8_t desc_configuration[] = {
   TUD_DFU_DESCRIPTOR(ITF_NUM_DFU, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
 };
 
+// The most alternate settings an interface can have: bAlternateSetting 0..255, built at run time
+#define ALT_COUNT_MAX 256
+static uint8_t desc_configuration_max[TUD_CONFIG_DESC_LEN + TUD_DFU_DESC_LEN(ALT_COUNT_MAX)];
+
+static const uint8_t *desc_config = desc_configuration;
+
 uint32_t tusb_time_millis_api(void) {
   return 0;
 }
@@ -40,7 +46,7 @@ const uint8_t *tud_descriptor_device_cb(void) {
 
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
   (void)index;
-  return desc_configuration;
+  return desc_config;
 }
 
 const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
@@ -138,6 +144,19 @@ static bool dfu_upload(void) {
   return host_control(&req);
 }
 
+// Bus reset then SET_CONFIGURATION(1) with the given configuration descriptor
+static void configure(const uint8_t *desc) {
+  desc_config = desc;
+  dcd_event_bus_reset(RHPORT, TUSB_SPEED_HIGH, false);
+  tud_task();
+
+  const tusb_control_request_t set_config = {.bmRequestType = 0x00,
+                                             .bRequest      = TUSB_REQ_SET_CONFIGURATION,
+                                             .wValue        = 1};
+  TEST_ASSERT_TRUE(host_control(&set_config));
+  upload_alt = -1;
+}
+
 void setUp(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
@@ -153,14 +172,7 @@ void setUp(void) {
     tusb_init(RHPORT, &dev_init);
   }
 
-  dcd_event_bus_reset(RHPORT, TUSB_SPEED_HIGH, false);
-  tud_task();
-
-  const tusb_control_request_t set_config = {.bmRequestType = 0x00,
-                                             .bRequest      = TUSB_REQ_SET_CONFIGURATION,
-                                             .wValue        = 1};
-  TEST_ASSERT_TRUE(host_control(&set_config));
-  upload_alt = -1;
+  configure(desc_configuration);
 }
 
 void tearDown(void) {
@@ -181,7 +193,35 @@ void test_set_interface_nonexistent_alt_stalls(void) {
   TEST_ASSERT_TRUE(set_interface(1));
   TEST_ASSERT_FALSE(set_interface(ALT_COUNT));
   TEST_ASSERT_FALSE(set_interface(0xFF));
+  TEST_ASSERT_FALSE(set_interface(0x0101)); // high byte must not be dropped
 
   TEST_ASSERT_TRUE(dfu_upload());
   TEST_ASSERT_EQUAL(1, upload_alt);
+}
+
+// 256 alternate settings: the last one (255) is selectable, one past it (low byte 1) stalls
+void test_set_interface_max_alt_count(void) {
+  const uint8_t config_head[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, sizeof(desc_configuration_max), 0x00, 100),
+  };
+  const uint8_t func_desc[] = {
+    9, DFU_DESC_FUNCTIONAL, FUNC_ATTRS, U16_TO_U8S_LE(1000), U16_TO_U8S_LE(CFG_TUD_DFU_XFER_BUFSIZE), U16_TO_U8S_LE(0x0110),
+  };
+  uint8_t *p = desc_configuration_max;
+  memcpy(p, config_head, sizeof(config_head));
+  p += sizeof(config_head);
+  for (unsigned alt = 0; alt < ALT_COUNT_MAX; alt++) {
+    const uint8_t alt_desc[] = {TUD_DFU_ALT(ITF_NUM_DFU, (uint8_t)alt, 0)};
+    memcpy(p, alt_desc, sizeof(alt_desc));
+    p += sizeof(alt_desc);
+  }
+  memcpy(p, func_desc, sizeof(func_desc));
+
+  configure(desc_configuration_max);
+
+  TEST_ASSERT_TRUE(set_interface(255));
+  TEST_ASSERT_FALSE(set_interface(257));
+
+  TEST_ASSERT_TRUE(dfu_upload());
+  TEST_ASSERT_EQUAL(255, upload_alt);
 }
