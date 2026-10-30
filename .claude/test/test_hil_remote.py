@@ -191,6 +191,11 @@ class Refusals(Rig):
         self.refused(r, '--build')
         self.assertIn('check_build.py --board alpha --shared --variants', r.stderr)
 
+    def test_a_systemview_capture_is_ci_only(self):
+        self.build('alpha')
+        r = self.hil_remote('-b', 'alpha', '--sysview-out', 'sv')
+        self.refused(r, '--sysview-out is CI-only')
+
     def test_unknown_board(self):
         self.build('alpha')
         self.refused(self.hil_remote('-b', 'alpha', '-b', 'beta_one'), 'not in the config: beta_one')
@@ -562,7 +567,7 @@ class Units(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             other = 'Q:' if root.drive.upper() != 'Q:' else 'R:'
-            args = types.SimpleNamespace(build=False, build_dir='cmake-build', accumulate=False)
+            args = types.SimpleNamespace(build=False, sysview_out=None, build_dir='cmake-build', accumulate=False)
             with mock.patch.object(hil_remote, 'ROOT', root), mock.patch.object(hil_remote, 'helper'), \
                     mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, Path(f'{other}/rig/tinyusb.json'))), \
                     mock.patch.object(hil_remote, 'resolve_firmware', return_value=[root / 'cmake-build' / 'cmake-build-alpha']), \
@@ -575,8 +580,8 @@ class Units(unittest.TestCase):
 
     def test_the_pin_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
         # agentrc.load() checks the pin before running agentrc's hil_lock, whose fcntl Windows lacks
-        args = types.SimpleNamespace(build=True, board=['alpha'], flasher=None, exclude_flasher=None,
-                                     build_dir='cmake-build')
+        args = types.SimpleNamespace(build=True, sysview_out=None, board=['alpha'], flasher=None,
+                                     exclude_flasher=None, build_dir='cmake-build')
         for error, refusal in ((ModuleNotFoundError("No module named 'fcntl'", name='fcntl'), '--build would build'),
                                (ImportError('lib/agentrc must be at the pin'), 'lib/agentrc must be at the pin')):
             with self.subTest(error), mock.patch.object(hil_remote, 'helper', side_effect=error), \

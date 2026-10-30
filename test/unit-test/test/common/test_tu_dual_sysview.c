@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-// tusb_int_handler()'s ISR span in a dual-role build where only the host role is traced
-// (CFG_TUD_SYSVIEW=0, CFG_TUH_SYSVIEW=1): a device interrupt records none.
+// tusb_int_handler()'s ISR span in a traced dual-role build: one span per interrupt in either role.
 
 #include "unity.h"
 
@@ -81,16 +80,16 @@ void tearDown(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_INVALID;
 }
 
-void test_untraced_device_role_records_no_span(void) {
+void test_device_role_records_one_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_DEVICE;
   tusb_int_handler(0, true);
 
   TEST_ASSERT_EQUAL_UINT(1, dcd_irq_count);
-  TEST_ASSERT_EQUAL_UINT(0, enter_isr_count);
-  TEST_ASSERT_EQUAL_UINT(0, exit_isr_count);
+  TEST_ASSERT_EQUAL_UINT(1, enter_isr_count);
+  TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
 }
 
-void test_traced_host_role_records_one_span(void) {
+void test_host_role_records_one_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_HOST;
   tusb_int_handler(0, true);
 
@@ -99,7 +98,46 @@ void test_traced_host_role_records_one_span(void) {
   TEST_ASSERT_EQUAL_UINT(1, exit_isr_count);
 }
 
-void test_traced_host_role_from_task_context_records_no_span(void) {
+// Brings a role's counter to the end of a lap, so its next 1024th call is due
+static void stack_report_lap_end(tusb_role_t role) {
+  while (!tu_sysview_stack_report_due(role)) {}
+}
+
+void test_stack_report_counters_are_per_role(void) {
+  stack_report_lap_end(TUSB_ROLE_DEVICE);
+  stack_report_lap_end(TUSB_ROLE_HOST);
+  for (int i = 0; i < 1023; i++) {
+    TEST_ASSERT_FALSE(tu_sysview_stack_report_due(TUSB_ROLE_DEVICE));
+  }
+  // the device's 1023 events advanced nothing on the host side
+  for (int i = 0; i < 1023; i++) {
+    TEST_ASSERT_FALSE(tu_sysview_stack_report_due(TUSB_ROLE_HOST));
+  }
+  TEST_ASSERT_TRUE(tu_sysview_stack_report_due(TUSB_ROLE_DEVICE));
+  TEST_ASSERT_TRUE(tu_sysview_stack_report_due(TUSB_ROLE_HOST));
+}
+
+void test_stack_report_alternating_callers_keep_their_own_cadence(void) {
+  stack_report_lap_end(TUSB_ROLE_DEVICE);
+  stack_report_lap_end(TUSB_ROLE_HOST);
+  for (int i = 1; i <= 1024; i++) {
+    TEST_ASSERT_EQUAL(i == 1024, tu_sysview_stack_report_due(TUSB_ROLE_DEVICE));
+    TEST_ASSERT_EQUAL(i == 1024, tu_sysview_stack_report_due(TUSB_ROLE_HOST));
+  }
+}
+
+void test_stack_report_cadence_survives_counter_rollover(void) {
+  stack_report_lap_end(TUSB_ROLE_DEVICE);
+  unsigned due = 0;
+  for (unsigned i = 1; i <= 3u * 65536u; i++) {
+    bool const d = tu_sysview_stack_report_due(TUSB_ROLE_DEVICE);
+    TEST_ASSERT_EQUAL(i % 1024u == 0, d);
+    due += d;
+  }
+  TEST_ASSERT_EQUAL_UINT(3u * 64u, due);
+}
+
+void test_host_role_from_task_context_records_no_span(void) {
   _tusb_rhport_role[0] = TUSB_ROLE_HOST;
   tusb_int_handler(0, false);
 

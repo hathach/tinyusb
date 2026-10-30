@@ -11,8 +11,17 @@ def metrics(overflow=0, funcs=None, isr=None, contexts=None, stack=None, live_wi
             "dropped_pairs": 0, "live_window_s": live_window_s,
             "warnings": []}
 
+# a capture_config of the f407's roster capture
+CONFIG = {"variant": "stm32f407disco-sysview",
+          "build": {"BOARD": "stm32f407disco", "CMAKE_BUILD_TYPE": "MinSizeRel", "SYSVIEW": "4",
+                    "SYSVIEW_BUFFER_SIZE": "65536", "TOOLCHAIN": "gcc"},
+          "buffer": "65536", "event_mask": "none",
+          "route": {"recorder": "openocd rtt.py 0123456789ab", "ocd_args": "-f interface/stlink.cfg",
+                    "reset_before_attach": True, "channel": 1},
+          "workload_rev": 1}
+
 def board_json(board="stm32f407disco", err=None, workload_ok=None, **mk):
-    cap = {"live_window_s": 14.2}
+    cap = {"live_window_s": 14.2, "config": json.loads(json.dumps(CONFIG))}
     if workload_ok is not None:
         cap["workload_ok"] = workload_ok
     return {"board": board, "commit": "abc1234", "example": "device/cdc_msc",
@@ -82,8 +91,8 @@ class Report(unittest.TestCase):
         err = "build failed: x.c:1: error\n# not a heading\n```\n<details><b>x</b>\n"
         section = self.go([board_json()], [board_json(err=err)]).split("<sub>")[0]
         line = next(l for l in section.splitlines() if l.startswith("capture failed:"))
-        self.assertEqual(line, "capture failed: build failed: x.c:1: error # not a heading "
-                               "&#96;&#96;&#96; &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
+        self.assertEqual(line, "capture failed: build failed: x.c:1: error \\# not a heading "
+                               "\\`\\`\\` &lt;details&gt;&lt;b&gt;x&lt;/b&gt;")
         self.assertNotIn("<details>", section)
 
     def test_non_string_capture_error_renders_capture_failed(self):
@@ -226,6 +235,13 @@ class Report(unittest.TestCase):
         md = self.go([], [j])
         self.assertIn("> ⚠︎ park reflash failed rc=1\n\n| metric |", md)
 
+    def test_park_error_is_shown_beside_a_capture_error(self):
+        # a captured board whose park failed and whose decode then failed or never ran
+        j = board_json(err="record decode failed: <b>boom</b>")
+        j["capture"]["park_error"] = "park flash failed"
+        md = self.go([], [j])
+        self.assertIn("capture failed: record decode failed: &lt;b&gt;boom&lt;/b&gt;\n\n> ⚠︎ park flash failed\n", md)
+
     def test_heading_shows_live_window(self):
         md = self.go([board_json()], [board_json()])
         self.assertIn("### stm32f407disco — live 14.2 s", md)
@@ -318,7 +334,7 @@ class P99Threshold(unittest.TestCase):
         side = {"metrics": {"live_window_s": 14.2, "overflow": 0}, "capture": {}}
         self.assertIsNone(sysview_ci.gate_p99(side, {"n": sysview_ci.P99_MIN_N + 1}))
 
-class CaptureSelection(unittest.TestCase):
+class CaptureConfig(unittest.TestCase):
     CFG = {"boards": [
         {"name": "a", "uid": "U1", "flasher": {"name": "openocd", "uid": "P1",
          "args": "-f interface/x.cfg -c \"transport select swd\" -f target/y.cfg"},
@@ -328,14 +344,8 @@ class CaptureSelection(unittest.TestCase):
                      "ocd_args": "-f interface/jlink.cfg -f target/z.cfg"}},
         {"name": "c", "uid": "U3", "flasher": {"name": "openocd", "uid": "P3", "args": ""}}]}
 
-    def test_flagged_only(self):
-        self.assertEqual([b["name"] for b in sysview_ci.select_boards(self.CFG, [])], ["a", "b"])
-
-    def test_intersection_with_board_args(self):
-        self.assertEqual([b["name"] for b in sysview_ci.select_boards(self.CFG, ["b", "c"])], ["b"])
-
     def test_ocd_args_resolution(self):
-        a, b = sysview_ci.select_boards(self.CFG, [])
+        a, b, _ = self.CFG["boards"]
         # falls back to the flasher, quoting intact for rtt.py's shlex split
         self.assertEqual(shlex.split(sysview_ci.capture_ocd_args(a)),
                          ["-f", "interface/x.cfg", "-c", "transport select swd", "-f", "target/y.cfg"])
@@ -345,7 +355,7 @@ class CaptureSelection(unittest.TestCase):
                                          "sysview": {}})
 
     def test_wrapper_error_shape(self):
-        j = sysview_ci.board_result(self.CFG["boards"][0], "abc1234", error="flash failed: rc=1")
+        j = sysview_ci.capture_result(self.CFG["boards"][0], "abc1234", error="flash failed: rc=1")
         self.assertEqual(j["error"], "flash failed: rc=1"); self.assertIsNone(j["metrics"])
 
 
@@ -386,12 +396,9 @@ class WorkloadCpuRow(unittest.TestCase):
 
 
 class SystemExitDoesNotAbortRun(unittest.TestCase):
-    """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol.
-    SystemExit derives from BaseException, so flash_and_capture_one's blanket `except Exception`
-    does not catch it: uncaught it escapes main()'s PHASE 2 loop and aborts the whole multi-board
-    run, so boards captured before the bad one never get their results written in PHASE 3. A board
-    hitting this must produce its own (None, error) result, and the next board must still be
-    attempted."""
+    """rtt.nm_rtt_addr() raises SystemExit when the target ELF has no _SEGGER_RTT symbol. SystemExit derives from
+    BaseException, so it would escape hil_test.py's test_board and its worker: capture_one returns it as the board's
+    own (None, error), and a later capture still runs."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -422,32 +429,22 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
             raise SystemExit(f"no _SEGGER_RTT in {elf}")
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", no_symbol), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(
-                self._board("bad"), os.path.join(self.tmp, "bad"), self.tmp)
+            capture, err = sysview_ci.capture_one(
+                self._board("bad"), os.path.join(self.tmp, "bad.elf"), {}, self.tmp)
         self.assertIsNone(capture)
         self.assertIn("no RTT symbol", err)
 
         called = []
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: called.append(elf) or 0x20000000), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(
-                self._board("good"), os.path.join(self.tmp, "good"), self.tmp)
-        self.assertEqual(called, [os.path.join(self.tmp, "good") + ".elf"])
+            capture, err = sysview_ci.capture_one(
+                self._board("good"), os.path.join(self.tmp, "good.elf"), {}, self.tmp)
+        self.assertEqual(called, [os.path.join(self.tmp, "good.elf")])
         self.assertIsNone(capture)
         self.assertIn("no probe", err)
         self.rtt.OpenocdRtt.assert_called_once_with(
             cfg="-f interface/x.cfg -f target/y.cfg", addr=0x20000000, channel=sysview_ci.SYSVIEW_CHANNEL,
             serial_no="P", vid_pid=None, reset_before_attach=True)
-
-    def test_no_park_image_refuses_before_flashing(self):
-        import hil_flash
-        flashed = []
-        with unittest.mock.patch.object(hil_flash, "find_firmware", lambda *a, **k: None), \
-                unittest.mock.patch.object(hil_flash, "flash_openocd", lambda b, fw: flashed.append(fw)):
-            capture, err = sysview_ci.flash_and_capture_one(self._board("b"), "fw.elf", self.tmp)
-        self.assertIsNone(capture)
-        self.assertIn("no park", err)
-        self.assertEqual(flashed, [])
 
     def test_failed_flash_runs_the_dap_rescue(self):
         import hil_flash
@@ -456,7 +453,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
                                         lambda b, fw: subprocess.CompletedProcess([], 1, stdout="DAP init failed")), \
                 unittest.mock.patch.object(hil_flash, "rescue_openocd", lambda b, out: rescued.append(out)), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(self._board("b"), "fw.elf", self.tmp)
+            capture, err = sysview_ci.capture_one(self._board("b"), "fw.elf", {}, self.tmp)
         self.assertIn("flash failed: rc=1", err)
         self.assertEqual(rescued, ["DAP init failed"])
 
@@ -468,33 +465,44 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
                 unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn), \
                 contextlib.redirect_stderr(io.StringIO()):
-            capture, err = sysview_ci.flash_and_capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), {}, self.tmp)
         self.assertIsNone(capture)
         self.assertIn("No space left", err)
         conn.close.assert_called_once_with()
 
-    def _park_fails(self, capture_conn):
-        import hil_flash
-        flashes = iter([subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 1)])
+    def test_the_capture_names_its_raw_file_beside_the_record(self):
+        conn = unittest.mock.Mock(eof=False)
+        conn.read.return_value = b""
+        board = self._board("b")
+        board["sysview"]["duration_s"] = 0
+        manifest = {"commandLine": {"BOARD": "b", "MEMBROWSE_BOARD": "b-sysview", "SYSVIEW": "4",
+                                    "SYSVIEW_DISABLE_EVENTS": "0x2"}, "eventMask": "0x2", "bufferSize": "4096"}
+        with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
+                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), manifest, self.tmp)
+        self.assertIsNone(err)
+        config = capture.pop("config")
+        self.assertEqual(capture, {"raw": "b-capture.SVDat", "workload_ok": True})
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "b-capture.SVDat")))
+        recorder = config["route"].pop("recorder")
+        self.assertRegex(recorder, r"^openocd rtt\.py [0-9a-f]{12}$")
+        self.assertEqual(config, {"variant": "b-sysview", "build": {"BOARD": "b", "SYSVIEW": "4",
+                                                                    "SYSVIEW_DISABLE_EVENTS": "0x2"},
+                                  "buffer": "4096", "event_mask": "0x2",
+                                  "route": {"ocd_args": "-f interface/x.cfg -f target/y.cfg",
+                                            "reset_before_attach": True, "channel": sysview_ci.SYSVIEW_CHANNEL},
+                                  "workload_rev": sysview_ci.WORKLOAD_REVISIONS["idle"]})
+
+    def test_a_capture_with_an_incomplete_manifest_is_a_failure(self):
+        conn = unittest.mock.Mock(eof=False)
+        conn.read.return_value = b""
         board = self._board("b")
         board["sysview"]["duration_s"] = 0
         with unittest.mock.patch.object(self.rtt, "nm_rtt_addr", lambda elf: 0x20000000), \
-                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: capture_conn), \
-                unittest.mock.patch.object(hil_flash, "flash_openocd", lambda b, fw: next(flashes)):
-            return sysview_ci.flash_and_capture_one(board, os.path.join(self.tmp, "fw"), self.tmp)
-
-    def test_a_failed_park_after_a_capture_is_kept_with_it(self):
-        conn = unittest.mock.Mock(eof=False)
-        conn.read.return_value = b""
-        capture, err = self._park_fails(conn)
-        self.assertIsNone(err)
-        self.assertEqual(capture["park_error"], "park reflash failed rc=1")
-
-    def test_a_failed_park_after_a_failed_capture_joins_its_error(self):
-        conn = unittest.mock.Mock(eof=True)
-        capture, err = self._park_fails(conn)
+                unittest.mock.patch.object(self.rtt, "OpenocdRtt", lambda **k: conn):
+            capture, err = sysview_ci.capture_one(board, os.path.join(self.tmp, "fw.elf"), {}, self.tmp)
         self.assertIsNone(capture)
-        self.assertEqual(err, "openocd RTT server closed during the capture; park reflash failed rc=1")
+        self.assertIn("capture config unreadable", err)
 
 
 class EventMap(unittest.TestCase):
@@ -587,68 +595,202 @@ class CdcBurstWorkload(unittest.TestCase):
         self.assertFalse(self.run_workload(echo_until=0))
 
 
-class CaptureBudget(unittest.TestCase):
-    """--budget-s: a board whose flash, capture and park reflash may not fit in what is left is
-    not flashed, so the caller's kill never lands before the park image is back."""
+class CaptureConfigComparison(unittest.TestCase):
+    """A base whose capture configuration differs, or is not recorded, is dropped, never compared."""
 
-    def run_capture(self, budget_s, capture=(None, "captured")):
-        from helper import hil_lock
+    def changes(self, edit_base=None, edit_pr=None):
+        b, p = board_json(), board_json()
+        for j, edit in ((b, edit_base), (p, edit_pr)):
+            if edit:
+                edit(j["capture"]["config"])
+        return sysview_ci.capture_cfg_changes(b, p)
+
+    def test_the_same_configuration_compares(self):
+        self.assertEqual(self.changes(), [])
+
+    def test_each_field_is_part_of_the_identity(self):
+        for edit, change in (
+                (lambda c: c.update(variant="stm32f407disco-x"), "variant stm32f407disco-sysview→stm32f407disco-x"),
+                (lambda c: c["build"].update(SYSVIEW_BUFFER_SIZE="4096"), "build.SYSVIEW_BUFFER_SIZE 65536→4096"),
+                (lambda c: c["build"].update(CFLAGS_CLI="-DX=1"), "build.CFLAGS_CLI None→-DX=1"),
+                (lambda c: c.update(buffer="4096"), "buffer 65536→4096"),
+                (lambda c: c.update(event_mask="0x2"), "event_mask none→0x2"),
+                (lambda c: c["route"].update(channel=2), "route.channel 1→2"),
+                (lambda c: c["route"].update(recorder="openocd rtt.py ffffffffffff"),
+                 "route.recorder openocd rtt.py 0123456789ab→openocd rtt.py ffffffffffff"),
+                (lambda c: c.update(workload_rev=2), "workload_rev 1→2")):
+            with self.subTest(change):
+                self.assertEqual(self.changes(edit_pr=edit), [change])
+
+    def test_a_missing_or_null_field_on_both_sides_never_compares(self):
+        both = lambda edit: self.changes(edit_base=edit, edit_pr=edit)
+        self.assertEqual(both(lambda c: c["route"].pop("channel")), ["route unknown"])
+        self.assertEqual(both(lambda c: c.update(event_mask=None)), ["event_mask unknown"])
+        self.assertEqual(both(lambda c: c.pop("buffer")), ["buffer unknown"])
+        self.assertEqual(both(lambda c: c["build"].pop("SYSVIEW")), ["build unknown"])
+        self.assertEqual(both(lambda c: c.update(route="openocd")), ["route unknown"])
+        b, p = board_json(), board_json()
+        del b["duration_s"], p["duration_s"]
+        self.assertEqual(sysview_ci.capture_cfg_changes(b, p), ["duration_s unknown"])
+
+    def test_false_and_zero_are_values(self):
+        both = lambda edit: self.changes(edit_base=edit, edit_pr=edit)
+        self.assertEqual(both(lambda c: c["route"].update(reset_before_attach=False, channel=0)), [])
+
+    def test_an_unrecorded_field_never_compares_even_on_both_sides(self):
+        drop = lambda c: c.pop("event_mask")
+        self.assertEqual(self.changes(edit_base=drop), ["event_mask unknown"])
+        self.assertEqual(self.changes(edit_base=drop, edit_pr=drop), ["event_mask unknown"])
+        old = board_json()
+        del old["capture"]["config"]
+        self.assertEqual(sysview_ci.capture_cfg_changes(old, board_json()),
+                         [f"{k} unknown" for k in sysview_ci.CONFIG_KEYS])
+
+    def test_a_dropped_base_names_why_and_each_board_states_its_configuration(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
-        cfg = os.path.join(tmp, "cfg.json")
-        with open(cfg, "w") as f:
-            json.dump({"boards": [{"name": "b", "uid": "U", "flasher": {"name": "openocd", "uid": "P", "args": ""},
-                                   "sysview": {"example": "device/cdc_msc", "workload": "idle",
-                                               "duration_s": 15}}]}, f)
-        out = os.path.join(tmp, "out")
-        captured = []
-        argv = ["sysview_ci.py", "capture", cfg, "--out", out, "--budget-s", str(budget_s)]
-        with unittest.mock.patch.object(sys, "argv", argv), \
-                unittest.mock.patch.object(sysview_ci, "build_one", lambda b, r: ("fw.elf", None)), \
-                unittest.mock.patch.object(sysview_ci, "flash_and_capture_one",
-                                           lambda b, fw, d: captured.append(b["name"]) or capture), \
-                unittest.mock.patch.object(hil_lock, "acquire_board_lock", lambda *a, **k: None), \
-                contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
-            sysview_ci.main()
-        with open(os.path.join(out, "sysview-b.json")) as f:
-            return captured, json.load(f)["error"]
+        base, pr = board_json(), board_json()
+        pr["capture"]["config"]["event_mask"] = "0x2"
+        write_set(os.path.join(tmp, "b"), base)
+        write_set(os.path.join(tmp, "p"), pr)
+        md = sysview_ci.report(os.path.join(tmp, "b"), os.path.join(tmp, "p"))
+        self.assertIn("— base dropped, capture config changed (event\\_mask none→0x2)", md)
+        self.assertIn("*device/cdc\\_msc · stm32f407disco-sysview · SYSVIEW=4 buffer 65536 · events masked 0x2 · "
+                      "workload cdc\\_burst r1 15 s · OpenOCD RTT channel 1*", md)
+        self.assertNotIn("@1 ms", md)
 
-    def test_a_board_that_cannot_finish_in_the_budget_is_not_flashed(self):
-        captured, err = self.run_capture(budget_s=60)
-        self.assertEqual(captured, [])
-        self.assertIn("skipped", err)
+    def test_a_malformed_configuration_still_renders(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for name, edit in (("route", lambda j: j["capture"]["config"].update(route="openocd")),
+                           ("build", lambda j: j["capture"]["config"].update(build=["SYSVIEW=4"])),
+                           ("config", lambda j: j["capture"].update(config="cfg"))):
+            with self.subTest(name):
+                pr = board_json()
+                edit(pr)
+                write_set(os.path.join(tmp, name, "b"), board_json())
+                write_set(os.path.join(tmp, name, "p"), pr)
+                md = sysview_ci.report(os.path.join(tmp, name, "b"), os.path.join(tmp, name, "p"))
+                self.assertIn("unknown", md.split("\n", 6)[4])   # the dropped-base heading
 
-    def test_a_board_that_fits_is_captured(self):
-        board = {"sysview": {"duration_s": 15}}
-        captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60)
-        self.assertEqual(captured, ["b"])
-        self.assertEqual(err, "captured")
+    def test_an_unrecorded_configuration_says_so(self):
+        j = board_json()
+        del j["capture"]["config"]
+        self.assertEqual(sysview_ci.config_line(j), "*configuration not recorded*")
 
+    def test_every_workload_has_a_revision(self):
+        self.assertEqual(set(sysview_ci.WORKLOAD_REVISIONS), set(sysview_ci.WORKLOADS))
+
+
+class CaptureBound(unittest.TestCase):
     def test_capture_bound_reserves_a_reap_grace_per_flasher_call(self):
         from helper import hil_util
         board = {"sysview": {"duration_s": 15}}
         with unittest.mock.patch.object(hil_util, "CMD_TIMEOUT", 100), \
                 unittest.mock.patch.object(hil_util, "REAP_GRACE", 7):
-            self.assertEqual(sysview_ci.capture_bound_s(board), 3 * (100 + 7) + sysview_ci.CAPTURE_FIXED_S + 15)
+            self.assertEqual(sysview_ci.capture_bound_s(board), 2 * (100 + 7) + sysview_ci.CAPTURE_FIXED_S + 15)
 
-    def test_report_is_on_disk_before_decoding(self):
-        on_disk = []
 
-        def decode(board, commit, out_dir, capture, deadline):
-            with open(os.path.join(out_dir, "sysview-b.json")) as f:
-                on_disk.append(json.load(f)["error"])
-            return sysview_ci.board_result(board, commit, error="decoded")
-        board = {"sysview": {"duration_s": 15}}
-        with unittest.mock.patch.object(sysview_ci, "decode_one", decode):
-            captured, err = self.run_capture(budget_s=sysview_ci.capture_bound_s(board) + 60,
-                                             capture=({"raw": "r", "workload_ok": True}, None))
-        self.assertIn("decode did not finish", on_disk[0])
-        self.assertEqual(err, "decoded")
+class CaptureResult(unittest.TestCase):
+    """capture_result is the record hil_test.py writes and `decode`'s whole input."""
+    BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
+
+    def test_a_capture_waits_for_its_decode(self):
+        r = sysview_ci.capture_result(self.BOARD, "c", {"raw": "b-capture.SVDat", "workload_ok": True})
+        self.assertEqual((r["error"], r["metrics"], r["capture"]),
+                         (sysview_ci.NOT_DECODED, None, {"raw": "b-capture.SVDat", "workload_ok": True,
+                                                         "status": "captured", "park_error": None}))
+
+    def test_a_failure_keeps_its_park_error_apart(self):
+        r = sysview_ci.capture_result(self.BOARD, "c", error="flash failed: rc=1", park_error="park flash failed")
+        self.assertEqual((r["error"], r["capture"]["status"], r["capture"]["park_error"]),
+                         ("flash failed: rc=1", "failed", "park flash failed"))
+
+
+class DecodeCommand(unittest.TestCase):
+    """`decode DIR` decodes only records whose capture is "captured", from the raw file each names, and rewrites
+    them in place; failed records stay as hil_test.py wrote them."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def main(self, *args):
+        decoded = []
+
+        def decode(result, out_dir, deadline):
+            decoded.append((result["capture"]["raw"], out_dir, deadline))
+            return {**result, "metrics": {"overflow": 0}, "error": None}
+        with unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", "decode", self.dir, *args]), \
+                unittest.mock.patch.object(sysview_ci, "decode_one", decode), \
+                contextlib.redirect_stdout(io.StringIO()) as out, self.assertRaises(SystemExit) as e:
+            sysview_ci.main()
+        self.assertEqual(e.exception.code, 0)
+        return decoded, out.getvalue()
+
+    def test_only_a_captured_record_is_decoded(self):
+        b = CaptureResult.BOARD
+        sysview_ci.write_result(self.dir, sysview_ci.capture_result(b, "c", {"raw": "b-capture.SVDat",
+                                                                              "workload_ok": True}))
+        failed = sysview_ci.capture_result({**b, "name": "f"}, "c", error="skipped: --skip-flash")
+        sysview_ci.write_result(self.dir, failed)
+        open(os.path.join(self.dir, "f-capture.SVDat"), "w").close()   # a leftover raw file is not a capture
+        decoded, out = self.main()
+        self.assertEqual(decoded, [("b-capture.SVDat", self.dir, None)])
+        with open(os.path.join(self.dir, "sysview-b.json")) as f:
+            self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
+        with open(os.path.join(self.dir, "sysview-f.json")) as f:
+            self.assertEqual(json.load(f), failed)
+        self.assertEqual(out, "b: ok\nf: skipped: --skip-flash\n")
+
+    def test_the_budget_keeps_the_decode_margin(self):
+        sysview_ci.write_result(self.dir, sysview_ci.capture_result(CaptureResult.BOARD, "c", {"raw": "r",
+                                                                                                "workload_ok": True}))
+        before = time.monotonic()
+        decoded, _ = self.main("--budget-s", "1000")
+        self.assertAlmostEqual(decoded[0][2] - before, 1000 - sysview_ci.DECODE_MARGIN_S, delta=5)
+
+    def test_downloaded_artifacts_decode_in_their_own_dirs(self):
+        b = CaptureResult.BOARD
+        nested = os.path.join(self.dir, "sysview-tinyusb")
+        os.makedirs(nested)
+        sysview_ci.write_result(nested, sysview_ci.capture_result(b, "c", {"raw": "b-capture.SVDat",
+                                                                            "workload_ok": True}))
+        old = os.path.join(self.dir, "sysview-old")
+        os.makedirs(old)
+        older = board_json(board="o")   # decoded on the rig before records carried a status
+        with open(os.path.join(old, "sysview-o.json"), "w") as f:
+            json.dump(older, f)
+        decoded_before = {**board_json(board="d"), "capture": {**board_json()["capture"], "status": "captured",
+                                                                "raw": "d-capture.SVDat"}}
+        with open(os.path.join(old, "sysview-d.json"), "w") as f:   # no raw beside it: never decoded again
+            json.dump(decoded_before, f)
+        with open(os.path.join(old, "sysview-bad.json"), "w") as f:
+            f.write("{")
+        decoded, out = self.main()
+        self.assertEqual(decoded, [("b-capture.SVDat", nested, None)])
+        with open(os.path.join(nested, "sysview-b.json")) as f:
+            self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
+        with open(os.path.join(old, "sysview-o.json")) as f:
+            self.assertEqual(json.load(f), older)
+        with open(os.path.join(old, "sysview-d.json")) as f:
+            self.assertEqual(json.load(f), decoded_before)
+        self.assertIn(f"{os.path.join(old, 'sysview-bad.json')}: not decoded: JSONDecodeError", out)
+        self.assertIn("b: ok", out)
+
+    def test_an_empty_dir_decodes_nothing(self):
+        self.assertEqual(self.main(), ([], ""))
 
 
 class DecodeDeadline(unittest.TestCase):
-    """decode_one cuts each decode step at the --budget-s deadline main() passes it."""
-    BOARD = {"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle", "duration_s": 15}}
+    """decode_one cuts each decode step at the --budget-s deadline `decode` passes it."""
+    RESULT = sysview_ci.capture_result({"name": "b", "sysview": {"example": "device/cdc_msc", "workload": "idle",
+                                                                 "duration_s": 15}},
+                                       "c", {"raw": "b-capture.SVDat", "workload_ok": True})
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
 
     @staticmethod
     def step(returncode=1, stdout="", stderr="boom", communicate=None):
@@ -662,9 +804,19 @@ class DecodeDeadline(unittest.TestCase):
         with unittest.mock.patch("subprocess.Popen", popen), \
                 unittest.mock.patch("os.killpg") as killpg, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-            err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                        {"raw": "r", "workload_ok": True}, deadline)["error"]
+            err = sysview_ci.decode_one(self.RESULT, self.tmp, deadline)["error"]
         return err, popen, killpg
+
+    def test_a_decoded_capture_keeps_its_record(self):
+        steps = [self.step(returncode=0, stdout="", stderr=""),
+                 self.step(returncode=0, stdout=json.dumps({"live_window_s": 14.2, "overflow": 0}), stderr="")]
+        with unittest.mock.patch("subprocess.Popen", unittest.mock.Mock(side_effect=steps)) as popen, \
+                unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
+            r = sysview_ci.decode_one(self.RESULT, self.tmp)
+        self.assertEqual(popen.call_args_list[0].args[0][2:4],
+                         ["--from-raw", os.path.join(os.path.realpath(self.tmp), "b-capture.SVDat")])
+        self.assertEqual((r["error"], r["metrics"], r["commit"]), (None, {"live_window_s": 14.2, "overflow": 0}, "c"))
+        self.assertEqual(r["capture"], {**self.RESULT["capture"], "live_window_s": 14.2})
 
     def test_timeout_is_capped_by_the_deadline(self):
         step = self.step()
@@ -704,8 +856,7 @@ class DecodeDeadline(unittest.TestCase):
             popen = unittest.mock.Mock(return_value=step)
             with unittest.mock.patch("subprocess.Popen", popen), \
                     unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
-                err = sysview_ci.decode_one(self.BOARD, "c", tempfile.gettempdir(),
-                                            {"raw": "r", "workload_ok": True}, time.monotonic() + 30)["error"]
+                err = sysview_ci.decode_one(self.RESULT, self.tmp, time.monotonic() + 30)["error"]
         self.assertIn("decode timed out", err)
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
         self.assertEqual(order.mock_calls, [unittest.mock.call.terminate(),
@@ -731,7 +882,7 @@ class DecodeDeadline(unittest.TestCase):
 
 class DecodeStopsARealChild(unittest.TestCase):
     """A real decoder stand-in cut by the deadline: SIGTERM lets it clean up, SIGKILL takes its group."""
-    BOARD = DecodeDeadline.BOARD
+    RESULT = DecodeDeadline.RESULT
 
     def run_child(self, setup):
         """Run setup in the stand-in, which then signals ready and sleeps; its 2 s timeout starts
@@ -756,8 +907,7 @@ class DecodeStopsARealChild(unittest.TestCase):
         with unittest.mock.patch("helper.agentrc.path_of", lambda p: script), \
                 unittest.mock.patch("subprocess.Popen", popen_until_ready):
             start = time.monotonic()
-            err = sysview_ci.decode_one(self.BOARD, "c", tmp, {"raw": "r", "workload_ok": True},
-                                        time.monotonic() + 2)["error"]
+            err = sysview_ci.decode_one(self.RESULT, tmp, time.monotonic() + 2)["error"]
         return err, tmp, time.monotonic() - start
 
     def test_sigterm_runs_the_decoders_cleanup(self):
@@ -793,97 +943,568 @@ class DecodeStopsARealChild(unittest.TestCase):
             self.fail(f"the decoder's child {child} outlived its group's SIGKILL")
 
 
-class TestBuildOneFirmwarePath(unittest.TestCase):
-    """build_one must return a path the flasher can actually open. JLinkExe's loadfile
-    and OpenOCD's program both infer the image format from the extension, so an
-    extension-less path dies with 'File is of unknown / unsupported format' -- and only
-    after phase 2 has taken the board lock. Observed on stm32f407disco + raspberry_pi_pico."""
+class FindCaptureFirmware(unittest.TestCase):
+    """The capture flashes hil-build's sysview-leg image and never builds on the rig. The path
+    carries the flasher's extension: JLinkExe's loadfile and OpenOCD's program infer the format
+    from it, and an extension-less path fails only after the board lock is taken. The image's
+    manifest (family_support.cmake) must vouch for it: this commit, this build, this file."""
 
-    def _board(self, flasher="jlink"):
+    HEAD = "c0ffee" * 6 + "c0ff"
+    CLI = {"BOARD": "stm32f407disco", "TOOLCHAIN": "gcc", "MEMBROWSE_BOARD": "stm32f407disco-sysview",
+           "CMAKE_BUILD_TYPE": "MinSizeRel", "SYSVIEW": "4", "SYSVIEW_BUFFER_SIZE": "65536"}
+
+    def _find(self, board, images, head=HEAD, **manifest):
+        """images: {path under cmake-build: True to write a matching manifest beside it}"""
+        import hashlib, hil_flash
+        from helper import hil_util
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        for rel, with_manifest in images.items():
+            path = os.path.join(root, "cmake-build", rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(rel.encode())
+            stem = os.path.splitext(path)[0]
+            if with_manifest and path.endswith(".elf"):
+                m = {"board": board["name"], "example": board["sysview"]["example"], "commandLine": self.CLI,
+                     "commit": self.HEAD, "dirty": False, "elfSha256": hashlib.sha256(rel.encode()).hexdigest(),
+                     "eventMask": "none", "bufferSize": "65536",
+                     **manifest}
+                with open(stem + ".sysview.json", "w") as f:
+                    json.dump(m, f)
+        with unittest.mock.patch.object(hil_util, "TINYUSB_ROOT", type(hil_util.TINYUSB_ROOT)(root)), \
+                unittest.mock.patch.object(hil_flash, "build_dir", "cmake-build"):
+            return sysview_ci.find_capture_firmware(board, head)
+
+    def _board(self, flasher="jlink", **extra):
         return {"name": "stm32f407disco", "flasher": {"name": flasher},
-                "sysview": {"example": "device/cdc_msc"}}
+                "sysview": {"example": "device/cdc_msc", "buffer": 65536}, **extra}
 
-    def _repo(self, artifacts):
-        root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, root, True)
-        bdir = os.path.join(root, "examples", "cmake-build-sysview-stm32f407disco")
-        os.makedirs(bdir)
-        for a in artifacts:
-            open(os.path.join(bdir, a), "w").close()
-        return root
+    LEG = "cmake-build-stm32f407disco-sysview/device/cdc_msc/cdc_msc"
 
-    def test_returns_existing_file_with_extension(self):
-        root = self._repo(["cdc_msc.elf", "cdc_msc.bin", "cdc_msc.hex"])
-        with unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], 0, "", "")):
-            fw, err = sysview_ci.build_one(self._board(), root)
+    def test_the_sysview_leg_image_with_the_flasher_extension(self):
+        fw, manifest, err = self._find(self._board(), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False,
+                                                       "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(err)
-        self.assertTrue(fw.endswith(".elf"), fw)
-        self.assertTrue(os.path.exists(fw), fw)
+        self.assertTrue(fw.endswith(f"{self.LEG}.elf"), fw)
+        self.assertEqual(manifest["bufferSize"], "65536")
 
-    def test_missing_binary_is_an_error_not_a_bad_path(self):
-        # a build that emitted nothing must fail in phase 1, before the board lock
-        root = self._repo([])
-        with unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], 0, "", "")):
-            fw, err = sysview_ci.build_one(self._board(), root)
+    def test_the_buffer_is_the_rosters_or_the_family_default(self):
+        for board, manifest, why in (
+                (self._board(), {"bufferSize": "4096"}, "built with buffer 4096"),
+                (self._board(), {"bufferSize": None}, "built with buffer None"),
+                ({**self._board(), "sysview": {"example": "device/cdc_msc"}},
+                 {"bufferSize": None, "commandLine": {k: v for k, v in self.CLI.items() if k != "SYSVIEW_BUFFER_SIZE"}},
+                 "built with buffer None")):
+            fw, _, err = self._find(board, {f"{self.LEG}.elf": True}, **manifest)
+            self.assertIsNone(fw, why)
+            self.assertIn(why, err)
+        board = {**self._board(), "sysview": {"example": "device/cdc_msc"}}
+        fw, _, err = self._find(board, {f"{self.LEG}.elf": True}, bufferSize="4096",
+                                commandLine={k: v for k, v in self.CLI.items() if k != "SYSVIEW_BUFFER_SIZE"})
+        self.assertIsNone(err)
+
+    def test_a_missing_image_names_the_build_that_makes_it(self):
+        # the test leg's untraced image is no substitute
+        fw, _, err = self._find(self._board(), {"cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(fw)
-        self.assertIn("no .elf", err)
+        self.assertIn("python3 tools/build.py -b stm32f407disco --build-name stm32f407disco-sysview "
+                      "-e device/cdc_msc -DSYSVIEW=4 -DSYSVIEW_BUFFER_SIZE=65536", err)
 
-    def test_failed_build_reports_the_diagnostics_ninja_prints_on_stdout(self):
-        failed = subprocess.CompletedProcess([], 1, "main.c:1:20: error: 'x' undeclared", None)
-        with unittest.mock.patch("subprocess.run", return_value=failed) as run:
-            fw, err = sysview_ci.build_one(self._board(), self._repo([]))
+    def test_an_image_its_manifest_does_not_vouch_for_is_refused(self):
+        for images, head, manifest, why in (
+                ({f"{self.LEG}.elf": False}, self.HEAD, {}, "no usable manifest"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"elfSha256": "0" * 64}, "describes another image"),
+                ({f"{self.LEG}.elf": True}, "beef" * 10, {}, "the checkout is at"),
+                ({f"{self.LEG}.elf": True}, "unknown", {"commit": "unknown"}, "the checkout is at unknown"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "SYSVIEW_POST_MORTEM": "1"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CFLAGS_CLI": "-DX=1"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"commandLine": {**self.CLI, "CMAKE_BUILD_TYPE": "Debug"}},
+                 "built with"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"example": "device/hid_composite"}, "built as"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"eventMask": "0x2"}, "built with event mask 0x2"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"eventMask": None}, "built with event mask None"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": True}, "uncommitted changes"),
+                ({f"{self.LEG}.elf": True}, self.HEAD, {"dirty": None}, "uncommitted changes")):
+            fw, _, err = self._find(self._board(), images, head, **manifest)
+            self.assertIsNone(fw, why)
+            self.assertIn(why, err)
+            self.assertIn("remove cmake-build/cmake-build-stm32f407disco-sysview", err)
+
+    def test_a_bin_flasher_is_refused_as_the_manifest_hashes_the_elf(self):
+        fw, _, err = self._find(self._board(flasher="lm4flash"), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False})
         self.assertIsNone(fw)
-        self.assertIn("error: 'x' undeclared", err)
-        self.assertEqual(run.call_args_list[0].kwargs["stdout"], subprocess.PIPE)
-        self.assertEqual(run.call_args_list[0].kwargs["stderr"], subprocess.STDOUT)
+        self.assertIn("lm4flash flashes .bin images", err)
 
-
-class GetPicoSdk(unittest.TestCase):
-    def _repo(self, checkout):
-        root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, root, True)
-        os.makedirs(os.path.join(root, ".github", "actions", "get_deps"))
-        with open(os.path.join(root, ".github", "actions", "get_deps", "action.yml"), "w") as f:
-            f.write("        repository: raspberrypi/pico-sdk\n        ref: 2.3.1\n")
-        if checkout:
-            os.makedirs(os.path.join(root, "pico-sdk"))
-        return root
-
-    def _get(self, root, rc=0):
-        env = {k: v for k, v in os.environ.items() if k != "PICO_SDK_PATH"}
-        with unittest.mock.patch.dict(os.environ, env, clear=True), \
-             unittest.mock.patch("subprocess.run",
-                                 return_value=subprocess.CompletedProcess([], rc, "", "boom")) as run:
-            err = sysview_ci._get_pico_sdk(root)
-            sdk = os.environ.get("PICO_SDK_PATH")
-        return err, sdk, [c.args[0] for c in run.call_args_list]
-
-    def test_existing_checkout_refreshes_any_ref_kind(self):
-        root = self._repo(checkout=True)
-        path = os.path.join(root, "pico-sdk")
-        err, sdk, cmds = self._get(root)
+    def test_the_variant_flags_name_the_leg(self):
+        board = self._board(flasher="openocd", name="raspberry_pi_pico",
+                            variant=[{"name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1"}])
+        leg = "cmake-build-raspberry_pi_pico-sysview/device/cdc_msc/cdc_msc.elf"
+        fw, _, err = self._find(board, {leg: True}, commandLine={**self.CLI, "CFLAGS_CLI": "-DCFG_TUH_RPI_PIO_USB=1"})
         self.assertIsNone(err)
-        self.assertEqual(sdk, path)
-        self.assertEqual(cmds, [["git", "-C", path, "fetch", "--depth", "1", "origin", "2.3.1"],
-                                ["git", "-C", path, "checkout", "-q", "--detach", "FETCH_HEAD"]])
+        fw, _, err = self._find(board, {leg: True})
+        self.assertIn("built with", err)
+        self.assertIn("--cflag=-DCFG_TUH_RPI_PIO_USB=1", err)
 
-    def test_missing_checkout_is_cloned(self):
-        root = self._repo(checkout=False)
-        err, sdk, cmds = self._get(root)
-        self.assertIsNone(err)
-        self.assertEqual(sdk, os.path.join(root, "pico-sdk"))
-        self.assertEqual(cmds, [["git", "clone", "--depth", "1", "--branch", "2.3.1",
-                                 "https://github.com/raspberrypi/pico-sdk.git",
-                                 os.path.join(root, "pico-sdk")]])
+    def test_the_keys_build_py_sets_itself_are_the_ones_ignored(self):
+        # a -D tools/build.py adds on its own would otherwise read as a traced build configured differently
+        from helper import hil_util
+        src = (hil_util.TINYUSB_ROOT / "tools" / "build.py").read_text()
+        keys = set(re.findall(r"""['"]-D([A-Z_]+)=""", src))
+        self.assertEqual(keys - sysview_ci._BUILD_PY_KEYS, {"CMAKE_BUILD_TYPE"})
+        self.assertIn("-DCMAKE_BUILD_TYPE=MinSizeRel", src)
 
-    def test_failed_refresh_is_an_error_and_leaves_the_path_unset(self):
-        err, sdk, cmds = self._get(self._repo(checkout=True), rc=1)
-        self.assertIsNone(sdk)
-        self.assertEqual(len(cmds), 1)
-        self.assertIn("pico-sdk 2.3.1: git -C", err)
-        self.assertIn("failed: boom", err)
+    def test_a_board_with_several_variants_is_an_error_not_a_guess(self):
+        board = self._board(variant=[{"name": "a"}, {"name": "b"}])
+        fw, _, err = self._find(board, {"cmake-build-a-sysview/device/cdc_msc/cdc_msc.elf": True})
+        self.assertIsNone(fw)
+        self.assertIn("2 variants", err)
+
+
+@unittest.skipUnless(shutil.which("cmake") and shutil.which("cc") and shutil.which("git"), "needs cmake, cc and git")
+class ManifestProducer(unittest.TestCase):
+    """hw/bsp/sysview_manifest.cmake, which writes what FindCaptureFirmware checks."""
+
+    SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))), "hw", "bsp", "sysview_manifest.cmake")
+    # git and cmake read these from a hook or CI environment; drop them so each acts on its own temp dir
+    ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_") and k != "CONFIG"}
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def _run(self, *cmd, cwd=None):
+        return subprocess.run(cmd, cwd=cwd or self.dir, env=self.ENV, check=True, capture_output=True, text=True)
+
+    def _configure(self, *defines, before_manifest=""):
+        src = os.path.join(self.dir, "src")
+        os.makedirs(src, exist_ok=True)
+        with open(os.path.join(src, "main.c"), "w") as f:
+            f.write("int main(void) { return 0; }\n")
+        with open(os.path.join(src, "CMakeLists.txt"), "w") as f:
+            # declared after the record, as RTOS and CMAKE_C_FLAGS are in family_support.cmake and project()
+            f.write(f"""cmake_minimum_required(VERSION 3.20)
+include({self.SCRIPT})
+sysview_record_command_line()
+project(t C)
+option(OPT_DECLARED "x" OFF)
+set(RTOS noos CACHE STRING "")
+add_executable(app main.c)
+{before_manifest}
+sysview_manifest(app board1 device/ex)
+""")
+        self._run("cmake", "-S", "src", "-B", "b", *defines)
+        with open(os.path.join(self.dir, "b", "app.sysview.in.json")) as f:
+            return json.load(f)
+
+    def test_every_define_any_configure_was_given_at_its_current_value(self):
+        m = self._configure("-DPLAIN=1", "-DTYPED:BOOL=ON", "-DOPT_DECLARED=ON", "-DRTOS=freertos",
+                            "-DCMAKE_C_FLAGS:STRING=-DX=1")
+        want = {"PLAIN": "1", "TYPED": "ON", "OPT_DECLARED": "ON", "RTOS": "freertos", "CMAKE_C_FLAGS": "-DX=1"}
+        self.assertEqual((m["board"], m["example"], m["commandLine"]), ("board1", "device/ex", want))
+        # a reconfigure without them keeps their values, and so the record
+        self.assertEqual(self._configure()["commandLine"], want)
+        self.assertEqual(self._configure("-DRTOS=zephyr")["commandLine"], {**want, "RTOS": "zephyr"})
+
+    def test_the_event_mask_is_the_value_the_compiler_gets_however_it_was_set(self):
+        self.assertEqual(self._configure()["eventMask"], "none")
+        self.assertEqual(self._configure("-DSYSVIEW_DISABLE_EVENTS=0x4")["eventMask"], "0x4")
+        # set in CMake after the command-line record: in no -D, still in the manifest
+        m = self._configure(before_manifest="set(SYSVIEW_DISABLE_EVENTS 0x2)")
+        self.assertEqual(m["eventMask"], "0x2")
+
+    def test_the_buffer_size_is_the_value_the_compiler_gets(self):
+        self.assertNotIn("bufferSize", self._configure())
+        m = self._configure(before_manifest="set(SYSVIEW_BUFFER_SIZE 4096)")   # a family default, in no -D
+        self.assertEqual(m["bufferSize"], "4096")
+
+    def test_an_untouched_declared_option_is_no_command_line_setting(self):
+        self.assertEqual(self._configure("-DPLAIN=1")["commandLine"], {"PLAIN": "1"})
+
+    def _complete(self, top):
+        import hashlib
+        cfg, elf, out = (os.path.join(self.dir, n) for n in ("in.json", "app.elf", "out.json"))
+        with open(cfg, "w") as f:
+            json.dump({"board": "board1"}, f)
+        with open(elf, "wb") as f:
+            f.write(b"image")
+        self._run("cmake", f"-DCONFIG={cfg}", f"-DELF={elf}", f"-DOUT={out}", f"-DTOP={top}", "-P", self.SCRIPT)
+        with open(out) as f:
+            m = json.load(f)
+        self.assertEqual((m["board"], m["elfSha256"]), ("board1", hashlib.sha256(b"image").hexdigest()))
+        return m
+
+    def test_the_commit_and_whether_the_sources_differ_from_it(self):
+        top = os.path.join(self.dir, "repo")
+        os.makedirs(os.path.join(top, "src"))
+        with open(os.path.join(top, "src", "a.c"), "w") as f:
+            f.write("a\n")
+        self._run("git", "init", "-q", cwd=top)
+        self._run("git", "add", ".", cwd=top)
+        self._run("git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                  "commit", "-qm", "c", cwd=top)
+        head = self._run("git", "rev-parse", "HEAD", cwd=top).stdout.strip()
+        self.assertEqual((self._complete(top)["commit"], self._complete(top)["dirty"]), (head, False))
+        # CI's own fetches sit untracked at the top, outside the build's source dirs
+        os.makedirs(os.path.join(top, "pico-sdk"))
+        open(os.path.join(top, "pico-sdk", "x"), "w").close()
+        self.assertFalse(self._complete(top)["dirty"])
+        open(os.path.join(top, "src", "new.c"), "w").close()
+        self.assertTrue(self._complete(top)["dirty"])
+        os.remove(os.path.join(top, "src", "new.c"))
+        with open(os.path.join(top, "src", "a.c"), "w") as f:
+            f.write("b\n")
+        self.assertTrue(self._complete(top)["dirty"])
+
+    def test_no_git_is_an_unknown_commit_and_a_dirty_tree(self):
+        m = self._complete(self.dir)
+        self.assertEqual((m["commit"], m["dirty"]), ("unknown", True))
+
+
+class Baseline(unittest.TestCase):
+    """sysview_ci.py baseline: the push run of the base commit the PR captures were built against, found by
+    code_size_ci's lookup on the PR's base branch, among runs that hold captures."""
+    BASE = "b" * 40
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        from helper import hil_util
+        sys.path.insert(0, str(hil_util.TINYUSB_ROOT / ".github" / "scripts"))
+        modules = unittest.mock.patch.dict(sys.modules)   # the real one, whatever another test registered
+        modules.start()
+        self.addCleanup(modules.stop)
+        sys.modules.pop("code_size_ci", None)
+        import code_size_ci
+        from test_code_size_ci import FakeGh, artifact, run
+        self.ci = code_size_ci
+        self.fake = FakeGh({}, {self.BASE: [run(7, self.BASE, branch="sysview")]},
+                           {7: [artifact(1, "sysview-tinyusb"), artifact(2, "code-size-scope")]})
+        self.fake.pr_base = "sysview"
+
+    def records(self, *identities):
+        for i, ident in enumerate(identities):
+            write_set(os.path.join(self.tmp, f"a{i}"), {**board_json(board=f"b{i}"), **ident})
+
+    def baseline(self):
+        with unittest.mock.patch.object(self.ci, "gh", self.fake):
+            return sysview_ci.baseline("hathach/tinyusb", 5, self.tmp)
+
+    def test_the_base_commit_on_the_prs_base_branch(self):
+        ident = {"base_sha": self.BASE, "base_ref": "sysview"}
+        self.records(ident, ident)
+        info = self.baseline()
+        self.assertEqual((info["sha"], info["run_id"], info["exact"], self.fake.compared),
+                         (self.BASE, 7, True, ["sysview"]))
+
+    def test_a_run_without_captures_is_no_baseline(self):
+        self.fake.artifacts[7] = [artifact for artifact in self.fake.artifacts[7] if artifact["id"] == 2]
+        self.records({"base_sha": self.BASE, "base_ref": "sysview"})
+        self.assertIsNone(self.baseline()["run_id"])
+
+    def test_records_that_do_not_name_one_valid_base_commit(self):
+        for name, idents in (("disagree", [{"base_sha": self.BASE, "base_ref": "sysview"},
+                                           {"base_sha": "c" * 40, "base_ref": "sysview"}]),
+                             ("short", [{"base_sha": "b" * 10, "base_ref": "sysview"}]),
+                             ("upper", [{"base_sha": "B" * 40, "base_ref": "sysview"}]),
+                             ("missing", [{}]),
+                             ("refs disagree", [{"base_sha": self.BASE, "base_ref": "sysview"},
+                                                {"base_sha": self.BASE, "base_ref": "master"}])):
+            with self.subTest(name):
+                shutil.rmtree(self.tmp)
+                self.records(*idents)
+                info = self.baseline()
+                self.assertEqual((info["sha"], info["note"]),
+                                 (None, "the PR captures record no single base commit"))
+        with open(os.path.join(self.tmp, "a0", "sysview-bad.json"), "w") as f:
+            f.write("{")
+        self.assertIsNone(self.baseline()["sha"])
+
+    def test_a_retargeted_pr_is_named_not_reinterpreted(self):
+        self.records({"base_sha": self.BASE, "base_ref": "master"})
+        info = self.baseline()
+        self.assertEqual((info["sha"], info["note"]),
+                         (None, "the captures were built against master, the PR now targets sysview"))
+        self.assertEqual(self.fake.compared, [])
+
+    def test_the_cli_writes_a_failure_as_a_note(self):
+        self.records({"base_sha": self.BASE, "base_ref": "sysview"})
+        out = os.path.join(self.tmp, "info.json")
+
+        def boom(path, paginate=False):
+            raise RuntimeError("HTTP 502")
+        with unittest.mock.patch.object(self.ci, "gh", boom), \
+                unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", "baseline", "--repo", "o/r", "--pr", "5",
+                                                         "--current", self.tmp, "--info", out]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            sysview_ci.main()
+        with open(out) as f:
+            info = json.load(f)
+        self.assertEqual((info["sha"], info["note"]), (None, "the baseline lookup failed: RuntimeError: HTTP 502"))
+
+
+class BaselineReport(unittest.TestCase):
+    """The report's header names the baseline the lookup chose, and only that commit's records are compared."""
+    SHA = "b" * 40
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.base, self.pr = os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p")
+        write_set(self.pr, board_json(funcs=[F("tud_task", 22000, 7.6)]))
+
+    def report(self, info, base_sha=SHA):
+        write_set(self.base, {**board_json(funcs=[F("tud_task", 22000, 7.4)]), "sha": base_sha})
+        return sysview_ci.report(self.base, self.pr, info)
+
+    def test_exact_approximate_and_none(self):
+        exact = {"sha": self.SHA, "exact": True, "run_id": 7, "url": "u"}
+        self.assertIn("*base `bbbbbbbbbb` (exact) → PR `abc1234`*", self.report(exact))
+        approx = {**exact, "exact": False, "note": "no build for X; nearest ancestor 1 commit back"}
+        self.assertIn("(approximate: no build for X; nearest ancestor 1 commit back)", self.report(approx))
+        md = sysview_ci.report(os.path.join(self.tmp, "none"), self.pr,
+                               {"sha": None, "exact": False, "note": "no build found within 30 commits"})
+        self.assertIn("*no baseline: no build found within 30 commits · PR `abc1234`*", md)
+        self.assertIn("| new |", md)
+
+    def test_a_base_record_of_another_commit_is_dropped(self):
+        md = self.report({"sha": self.SHA, "exact": True}, base_sha="c" * 40)
+        self.assertIn("base dropped, base record of commit cccccccccc, not the baseline's", md)
+        self.assertNotIn("+2.7%", md)
+        self.assertIn("+2.7%", self.report({"sha": self.SHA, "exact": True}))
+
+
+class Unrecorded(unittest.TestCase):
+    """A board a rig's HIL report shows tested, with no capture record downloaded, is named, not left out."""
+    ROSTER = {"boards": [{"name": "f407", "sysview": {"example": "device/cdc_msc"}},
+                         {"name": "pico", "variant": [{"name": "pico-v"}], "sysview": {"example": "device/cdc_msc"}},
+                         {"name": "plain"}]}
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.rosters, self.reports = os.path.join(self.tmp, "rosters"), os.path.join(self.tmp, "reports")
+        self.base, self.pr = os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p")
+        os.makedirs(self.rosters)
+        with open(os.path.join(self.rosters, "rig.json"), "w") as f:
+            json.dump(self.ROSTER, f)
+
+    def hil_report(self, rows, rig="rig.json"):
+        d = os.path.join(self.reports, f"hil-report-{rig}")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "hil_report.json"), "w") as f:
+            json.dump({"rows": [{"board": b, "cells": c} for b, c in rows.items()]}, f)
+
+    def unrecorded(self):
+        return sysview_ci.unrecorded_boards(self.reports, self.pr, self.rosters)
+
+    def test_a_tested_board_without_a_record_is_named(self):
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}, "pico-v": {"dual/host_info_to_device_cdc": "✅"},
+                         "plain": {"device/cdc_msc": "✅"}})
+        write_set(self.pr, board_json(board="f407"))
+        self.assertEqual(self.unrecorded(), ["pico"])
+        write_set(self.base, board_json(board="f407"))
+        md = sysview_ci.report(self.base, self.pr, None, self.unrecorded())
+        self.assertIn("_No SystemView capture record for `pico`, which this run's HIL tested", md)
+        self.assertLess(md.index("### f407"), md.index("No SystemView capture record"))
+        self.assertNotIn("No SystemView capture record", sysview_ci.report(self.base, self.pr))
+
+    def test_a_board_whose_capture_could_not_run_is_not_expected(self):
+        # host tests only, a lock refusal, a retired row: hil_test.py takes no capture for these
+        self.hil_report({"f407": {"host/cdc_msc_hid": "✅", "board-locked": "held"},
+                         "pico-v": {"board-locked": "held"}})
+        self.assertEqual(self.unrecorded(), [])
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}}, rig="unknown.json")
+        self.assertEqual(self.unrecorded(), [])
+        d = os.path.join(self.reports, "hil-report-rig.json")
+        with open(os.path.join(d, "hil_report.json"), "w") as f:
+            json.dump({"rows": [{"board": "f407", "retired": True, "cells": {"device/cdc_msc": "✅"}}, "junk"]}, f)
+        self.assertEqual(self.unrecorded(), [])
+
+    def test_an_unreadable_report_expects_nothing(self):
+        self.hil_report({})
+        with open(os.path.join(self.reports, "hil-report-rig.json", "hil_report.json"), "w") as f:
+            f.write("[1, 2")
+        self.assertEqual(self.unrecorded(), [])
+        self.assertEqual(sysview_ci.unrecorded_line([]), "")
+
+    def main(self, *args):
+        real = sysview_ci.unrecorded_boards
+        out = io.StringIO()
+        with unittest.mock.patch.object(sysview_ci, "unrecorded_boards", lambda r, p: real(r, p, self.rosters)), \
+                unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", *args]), contextlib.redirect_stdout(out):
+            sysview_ci.main()
+        return out.getvalue()
+
+    def test_the_cli_names_a_missing_board_only_when_there_is_one(self):
+        self.hil_report({"f407": {"device/cdc_msc": "✅"}, "pico-v": {"device/cdc_msc": "✅"}})
+        write_set(self.pr, board_json(board="f407"))
+        self.assertIn("record for `pico`, which", self.main("unrecorded", self.reports, self.pr))
+        out = os.path.join(self.tmp, "report.md")
+        self.main("report", self.base, self.pr, "--hil-reports", self.reports, "-o", out)
+        with open(out) as f:
+            self.assertIn("record for `pico`, which", f.read())
+        write_set(self.pr, board_json(board="pico"))
+        self.assertEqual(self.main("unrecorded", self.reports, self.pr), "")
+        self.assertEqual(self.main("unrecorded", os.path.join(self.tmp, "none"), self.pr), "")
+
+
+class HostileRecord(unittest.TestCase):
+    """A PR builds its own records: whatever text they hold renders as text, and a non-number where the report
+    formats a number is a malformed record, never a crash or a rendered value."""
+    EVIL = "x](https://evil.example/a.png) <img src=x> | `y` **z** #1 @u www.e.com\n## H"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def render(self, *pr, base=(), info=None):
+        for side, objs in (("b", base), ("p", pr)):
+            os.makedirs(os.path.join(self.tmp, side))
+            for i, o in enumerate(objs):   # a board name is no file name here
+                with open(os.path.join(self.tmp, side, f"sysview-{i}.json"), "w") as f:
+                    json.dump(o, f)
+        return sysview_ci.report(os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p"), info)
+
+    def assert_inert(self, out):
+        """No link, image, HTML, heading, autolink or cell break of the record's own, outside its code spans (where
+        GitHub renders none, and only a | needs escaping); the mermaid labels hold no character that ends one.
+        @-mentions are pr_comment.yml's, over the whole comment."""
+        body, _, chart = out.split("<sub>**Legend**")[0].partition("```mermaid")
+        text = re.sub(r"(?<!\\)`[^`]*`", "CODE", body)   # code() leaves no backtick inside, md() none unescaped
+        self.assertNotRegex(text, r"(?<!\\)\]\(")
+        for bad in ("<img", "https://", "www.e"):
+            self.assertNotIn(bad, text)
+        self.assertEqual([l for l in text.splitlines() if l.startswith("#")],
+                         [sysview_ci.HEADER] + [l for l in text.splitlines() if l.startswith("### ")])
+        for line in body.splitlines():   # GFM splits a cell on | inside a code span too
+            if line.startswith("|"):
+                self.assertEqual(len(re.findall(r"(?<!\\)\|", line)), 5, line)
+        for line in chart.splitlines():
+            if "x-axis" in line:
+                self.assertRegex(line, r"^    x-axis \[[A-Za-z0-9_.:, -]*\]$")
+
+    def test_every_rendered_position(self):
+        j = board_json(board=self.EVIL, funcs=[F(self.EVIL, 22000, 7.4)], isr=[I(self.EVIL, 24000, 6.7)],
+                       contexts=[{"name": "ISR " + self.EVIL, "cpu_pct": 12.0}],
+                       stack=[{"name": self.EVIL, "bytes_used": 512}])
+        j["metrics"]["warnings"] = [self.EVIL]
+        j["capture"]["park_error"] = self.EVIL
+        j["capture"]["config"]["variant"] = self.EVIL
+        j["example"] = j["commit"] = self.EVIL
+        out = self.render(j, base=[{**json.loads(json.dumps(j)), "sha": "c" * 40}],
+                          info={"sha": "b" * 40, "exact": False, "note": self.EVIL})
+        self.assert_inert(out)
+        self.assertIn("evil.example", out)   # shown, as text
+        failed = board_json(board="f", err=self.EVIL)
+        failed["capture"]["park_error"] = self.EVIL
+        shutil.rmtree(self.tmp)
+        self.assert_inert(self.render(failed, info={"sha": None, "note": self.EVIL}))
+
+    def test_a_non_number_is_a_malformed_record(self):
+        for name, mutate in (
+                ("scalar", lambda j: j["metrics"].__setitem__("overflow", "0")),
+                ("bool scalar", lambda j: j["metrics"].__setitem__("dropped_pairs", True)),
+                ("row value", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", "7.4")),
+                ("row name", lambda j: j["metrics"]["functions"][0].__setitem__("name", 3)),
+                ("missing field", lambda j: j["metrics"]["functions"][0].pop("p99_us")),
+                ("null duration", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", None)),
+                ("float count", lambda j: j["metrics"]["functions"][0].__setitem__("n", 22000.5)),
+                ("stack bytes", lambda j: j["metrics"].__setitem__("stack", [{"name": "s", "bytes_used": 1.5}])),
+                ("huge", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", 10**400)),
+                ("infinite", lambda j: j["metrics"]["functions"][0].__setitem__("p50_us", float("inf"))),
+                ("nan", lambda j: j["metrics"].__setitem__("overflow", float("nan"))),
+                ("context field", lambda j: j["metrics"].__setitem__("contexts", [{"name": "usbd"}])),
+                ("workload field", lambda j: j["metrics"].__setitem__("contexts_workload", [{"name": "usbd"}])),
+                ("table", lambda j: j["metrics"].__setitem__("isr", {"a": 1})),
+                ("warnings", lambda j: j["metrics"].__setitem__("warnings", "boom")),
+                ("window", lambda j: j["capture"].__setitem__("live_window_s", "14")),
+                ("capture", lambda j: j.__setitem__("capture", "x"))):
+            with self.subTest(name):
+                shutil.rmtree(self.tmp)
+                j = board_json(funcs=[F("tud_task", 22000, 7.4)])
+                mutate(j)
+                out = self.render(j)
+                self.assertIn("malformed record:", out)
+                self.assertNotIn("tud_task", out)
+
+
+class ArtifactFile(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_only_a_plain_capture_name_inside_the_directory(self):
+        self.assertEqual(sysview_ci.artifact_file(self.tmp, "b-capture.SVDat"),
+                         os.path.join(os.path.realpath(self.tmp), "b-capture.SVDat"))
+        for name in ("../b-capture.SVDat", "/etc/b-capture.SVDat", "sub/b-capture.SVDat", "b.SVDat", "",
+                     None, 3, "..-capture.SVDat/../x-capture.SVDat"):
+            with self.subTest(name), self.assertRaises(ValueError):
+                sysview_ci.artifact_file(self.tmp, name)
+        os.symlink("/etc/passwd", os.path.join(self.tmp, "l-capture.SVDat"))
+        with self.assertRaisesRegex(ValueError, "outside"):
+            sysview_ci.artifact_file(self.tmp, "l-capture.SVDat")
+
+    def test_a_refused_name_is_a_decode_error(self):
+        r = {**board_json(), "error": sysview_ci.NOT_DECODED,
+             "capture": {"status": "captured", "raw": "../x-capture.SVDat"}}
+        self.assertIn("raw file name refused", sysview_ci.decode_one(r, self.tmp)["error"])
+        self.assertEqual(os.listdir(self.tmp), [])
+
+
+class CheckoutIdentity(unittest.TestCase):
+    """What a capture records as its commits, against real clones as CI's checkout makes them: a pull_request build
+    checks out GitHub's merge commit at fetch-depth 2."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        env = unittest.mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        for k in [k for k in os.environ if k.startswith("GIT_")]:
+            del os.environ[k]
+        self.origin = os.path.join(self.tmp, "origin")
+        self.git("init", "-q", "-b", "master", self.origin)
+        self.base = self.commit("base")
+        self.git("-C", self.origin, "checkout", "-q", "-b", "feature")
+        self.head = self.commit("head")
+        self.git("-C", self.origin, "checkout", "-q", "master")
+        self.tip = self.commit("tip")
+        self.git("-C", self.origin, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                 "merge", "-q", "--no-ff", "-m", "merge", "feature")
+        self.merge = self.git("-C", self.origin, "rev-parse", "HEAD")
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    def commit(self, msg):
+        self.git("-C", self.origin, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                 "commit", "-q", "--allow-empty", "-m", msg)
+        return self.git("-C", self.origin, "rev-parse", "HEAD")
+
+    def clone(self, depth):
+        d = os.path.join(self.tmp, f"d{depth}")
+        self.git("clone", "-q", f"--depth={depth}", "-b", "master", f"file://{self.origin}", d)
+        return d
+
+    def test_a_pull_request_merge_at_depth_2(self):
+        env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "master"}
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(2), env),
+                         {"sha": self.merge, "base_sha": self.tip, "head_sha": self.head, "base_ref": "master"})
+
+    def test_too_shallow_for_the_parents_is_unknown(self):
+        env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "master"}
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(1), env),
+                         {"sha": None, "base_sha": None, "head_sha": None, "base_ref": "master"})
+
+    def test_a_push_build_is_its_own_base(self):
+        self.assertEqual(sysview_ci.checkout_identity(self.clone(1), {"GITHUB_EVENT_NAME": "push"}),
+                         {"sha": self.merge, "base_sha": self.merge, "head_sha": self.merge, "base_ref": None})
+
 
 
 if __name__ == '__main__':

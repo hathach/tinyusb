@@ -130,12 +130,7 @@ bool tusb_inited(void) {
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
   // ports may call this from task context (in_isr false): no span here then (a port's ISR body may record its own)
-  bool sv_span = in_isr;
-#if CFG_TUD_ENABLED && CFG_TUH_ENABLED && (TUD_SYSVIEW_ISR_TRACED != TUH_SYSVIEW_ISR_TRACED)
-  // dual-role with one role traced: the other role's interrupt records no span
-  sv_span = sv_span && (_tusb_rhport_role[rhport] == (TUD_SYSVIEW_ISR_TRACED ? TUSB_ROLE_DEVICE : TUSB_ROLE_HOST));
-#endif
-  if (sv_span) { TU_SYSVIEW_ISR_ENTER(); }
+  if (in_isr) { TU_SYSVIEW_ISR_ENTER(); }
 
   #if CFG_TUD_ENABLED
   if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
@@ -150,7 +145,7 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   }
   #endif
 
-  if (sv_span) { TU_SYSVIEW_ISR_EXIT(); }
+  if (in_isr) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 bool tusb_deinit(uint8_t rhport) {
@@ -560,7 +555,19 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
 #if CFG_TUSB_SYSVIEW_ENABLED
 
+#if defined(SYSVIEW_MANIFEST_BUILD) && defined(SYSVIEW_DISABLE_EVENTS) && !defined(SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+  // the SystemView capture takes its event filter from the build manifest (hw/bsp/sysview_manifest.cmake)
+  #error "SYSVIEW_DISABLE_EVENTS is set only through CMake's SYSVIEW_DISABLE_EVENTS (family_support.cmake)"
+#endif
+
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
+// SYSVIEW_FREERTOS_H is the guard of SEGGER_SYSVIEW_FreeRTOS.h, which FreeRTOSConfig.h must include for its trace hooks
+#ifndef SYSVIEW_FREERTOS_H
+  #pragma message("SYSVIEW: FreeRTOSConfig.h does not include SEGGER_SYSVIEW_FreeRTOS.h, so the per-task CPU-load " \
+                  "table is empty. Wire it as hw/bsp/stm32f4/FreeRTOSConfig/FreeRTOSConfig.h does: its " \
+                  "FREERTOS_SYSVIEW_ENABLED block, the two INCLUDE_* options it sets, the closing include, and " \
+                  "configUSE_TRACE_FACILITY and configRECORD_STACK_HIGH_ADDRESS set to 1.")
+#endif
 extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
 #define SYSVIEW_OS_API  (&SYSVIEW_X_OS_TraceAPI)
 #define SYSVIEW_OS_DESC ",O=FreeRTOS"
@@ -633,19 +640,16 @@ static void send_sys_desc(void) {
   }
 }
 
-#if CFG_TUSB_SYSVIEW_TIMESTAMP_BSP
-  // ARMv7-M without DWT CYCCNT (MAX32665/6, NOCYCCNT=1), built as SEGGER_SYSVIEW_CORE_OTHER: the BSP
-  // supplies SEGGER_SYSVIEW_X_GetTimestamp() and its rate, as 1 MHz needs a prescaler the part lacks.
-  extern uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
-  #define SYSVIEW_TIMESTAMP_FREQ SEGGER_SYSVIEW_X_GetTimestampFreq()
-#elif !defined(SEGGER_SYSVIEW_CORE) || (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3)
+TU_ATTR_WEAK uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void) {
+#if defined(SEGGER_SYSVIEW_CORE) && (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3)
+  // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
+  return tusb_sysview_cpu_freq();
+#else
   // No DWT CYCCNT (ARMv6-M, RISC-V): hw/bsp/<family>/family.c supplies SEGGER_SYSVIEW_X_GetTimestamp(),
   // a free-running microsecond count; a family without one fails to link on that symbol.
-  #define SYSVIEW_TIMESTAMP_FREQ 1000000u
-#else
-  // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
-  #define SYSVIEW_TIMESTAMP_FREQ tusb_sysview_cpu_freq()
+  return 1000000u;
 #endif
+}
 
 // Active interrupt id for cores ConfDefaults does not read ICSR on: RISC-V (mcause), or a Cortex-M
 // built as SEGGER_SYSVIEW_CORE_OTHER.
@@ -667,9 +671,9 @@ U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
 #endif
 
 // Records only the outermost enter/exit: dual-role BSPs bracket their back-to-back self-wrapped
-// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs
-// (ch32v20x HP over LP) can both reach it; non-atomic on purpose, as a lost update miscounts one
-// span and recovers on the next balanced pair.
+// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs (ch32v20x
+// LP/HP when an application gives them different preemption priorities) can both reach it; non-atomic on
+// purpose, as a lost update miscounts one span and recovers on the next balanced pair.
 static volatile uint8_t _sv_isr_depth;
 
 void tu_sysview_isr_enter(void) {
@@ -713,7 +717,7 @@ void tu_sysview_init(void) {
     (*(volatile unsigned int*) 0xE0001000) |= 1u;         /* DWT_CTRL.CYCCNTENA */
   }
 #endif
-  SEGGER_SYSVIEW_Init(SYSVIEW_TIMESTAMP_FREQ, tusb_sysview_cpu_freq(), SYSVIEW_OS_API, send_sys_desc);
+  SEGGER_SYSVIEW_Init(SEGGER_SYSVIEW_X_GetTimestampFreq(), tusb_sysview_cpu_freq(), SYSVIEW_OS_API, send_sys_desc);
   SEGGER_SYSVIEW_SetRAMBase(SYSVIEW_RAM_BASE);
   // no SEGGER_SYSVIEW_RegisterModule(): see TU_SV_EVENT_BASE
   SEGGER_SYSVIEW_Start(); /* self-start: host recorders only drain */
@@ -722,11 +726,19 @@ void tu_sysview_init(void) {
 #endif
 }
 
-void tu_sysview_stack_report(void) {
+bool tu_sysview_stack_report_due(tusb_role_t role) {
+  static uint16_t count[2]; // device, host
+  return 0 == (++count[role == TUSB_ROLE_HOST] & 0x3FFu);
+}
+
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+void tu_sysview_stack_report(tusb_role_t role) {
+  if (!tu_sysview_stack_report_due(role)) {
+    return;
+  }
 // Bytes used at peak needs pxEndOfStack, which TaskStatus_t has only under this condition (task.h);
 // the SYSVIEW families' FreeRTOSConfig.h set configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
-#if CFG_TUSB_OS == OPT_OS_FREERTOS && (configUSE_TRACE_FACILITY == 1) && \
-    ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
+#if (configUSE_TRACE_FACILITY == 1) && ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
   // SEGGER's FreeRTOS task-table cap (family_support.cmake). Above it uxTaskGetSystemState() returns
   // 0, not a truncated list, so nothing is reported.
   #ifndef SYSVIEW_FREERTOS_MAX_NOF_TASKS
@@ -770,6 +782,7 @@ void tu_sysview_stack_report(void) {
   (void) xTaskResumeAll();
 #endif
 }
+#endif
 
 #endif // CFG_TUSB_SYSVIEW_ENABLED
 

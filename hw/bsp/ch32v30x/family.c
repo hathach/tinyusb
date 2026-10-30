@@ -59,7 +59,7 @@
 // The startup enables QingKe hardware context stacking. Avoid duplicating its
 // register saves in software: closely spaced ISO transactions need a short IRQ entry.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
-  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
   static void usbhs_dcd_int_handler(uint8_t rhport) {
     tud_int_handler(rhport);

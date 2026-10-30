@@ -28,12 +28,13 @@ manufacturer: WCH
  */
 
 // Port0: USBD (fsdev). The USBD raises three IRQ lines (LP/HP/WakeUp) that all funnel into the
-// non-reentrant tud_int_handler and can nest (HP preempts LP) with QingKe HWSTK enabled. The
+// non-reentrant tud_int_handler. They nest only if given different preemption bits: at their reset
+// PFIC_IPRIOR of 0 none preempts another (QingKe V4 manual 3.3). The startup enables nesting and HWSTK; the
 // mainline toolchain's plain __attribute__((interrupt)) emits a software prologue that fights the
 // hardware context stack and corrupts the return on nesting. Emit naked handlers that rely on
 // HWSTK for context save/restore (equivalent to WCH's "WCH-Interrupt-fast"), which nests safely.
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_FSDEV
-  #if CFG_TUD_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
   static void fsdev_dcd_int_handler(uint8_t rhport) {
     tud_int_handler(rhport);

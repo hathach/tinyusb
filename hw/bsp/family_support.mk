@@ -125,7 +125,9 @@ endif
 ifeq ($(LOGGER),rtt)
   CFLAGS += -DLOGGER_RTT
   #CFLAGS += -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
-  INC   += $(TOP)/lib/SEGGER_RTT/RTT
+  INC   += $(TOP)/lib/SEGGER_RTT/RTT $(TOP)/lib/SEGGER_RTT/Config
+  # Cortex-M: RTT locks with PRIMASK, see the header (a no-op on other cores)
+  CFLAGS += -include $(TOP)/hw/bsp/rtt_conf_cortexm.h
   SRC_C += lib/SEGGER_RTT/RTT/SEGGER_RTT.c
 endif
 ifeq ($(LOGGER),swo)

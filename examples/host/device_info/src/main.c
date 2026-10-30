@@ -305,7 +305,7 @@ void led_blinking_task(void* param) {
   #define USB_STACK_SIZE     4096
 #else
   // Increase stack size when debug log or SYSVIEW instrumentation is enabled
-  #define USB_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * ((CFG_TUSB_DEBUG || CFG_TUH_SYSVIEW) ? 2 : 1)
+  #define USB_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (BOARD_STACK_INSTRUMENTED ? 2 : 1)
 #endif
 
 

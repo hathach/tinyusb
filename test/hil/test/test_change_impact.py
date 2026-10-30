@@ -1091,6 +1091,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_reset_order.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_stale_setup.py',
+            'test/hil/test/test_hil_sysview_capture.py',
             'test/hil/test/test_hil_sysview_ci.py',
             'test/hil/test/test_hil_teardown_stress.py',
             'test/hil/test/test_hil_tty_raw.py',
@@ -1465,6 +1466,66 @@ class TestLibRule(unittest.TestCase):
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
 
+    def _rtt_rosters(self, traced, console):
+        roster = [dict(b) for b in ROSTER]
+        if traced:
+            roster[1]['sysview'] = {'example': 'device/cdc_msc'}
+        if console:
+            roster[0]['logger'] = 'rtt'
+        return [('test/hil/tinyusb.json', roster)]
+
+    def test_build_rtt_lock_header_selects_nothing(self):
+        # force-included only by SYSVIEW and LOGGER=rtt configures, which no main-matrix leg sets
+        s = self.b(['hw/bsp/rtt_conf_cortexm.h'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], [])
+        self.assertEqual(s['family_examples'], {})
+
+    def test_hil_rtt_lock_header_selects_what_compiles_segger_rtt(self):
+        traced = {'stm32f407disco': {'device/cdc_msc'}}
+        console = {'raspberry_pi_pico': {'all'}}
+        for (t, c), want in {(False, False): {}, (True, False): traced, (False, True): console,
+                             (True, True): {**traced, **console}}.items():
+            for path in ('hw/bsp/rtt_conf_cortexm.h', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+                s = change_impact.classify([path], REPO, self._rtt_rosters(t, c))
+                self.assertFalse(s['full'])
+                got = {k: {'all'} if v == 'all' else set(v) for k, v in s['boards'].items()}
+                self.assertEqual(got, want, (path, t, c))
+
+    def _traced_roster(self):
+        return self._rtt_rosters(True, False)
+
+    def test_hil_a_traced_build_dependency_selects_the_capture_boards(self):
+        # lib/SystemView is compiled only by hil-build's traced legs; lib/SEGGER_RTT by them too
+        for path in ('lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+            s = change_impact.classify([path], REPO, self._traced_roster())
+            self.assertFalse(s['full'])
+            self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}},
+                             path)
+        b = self.b(['lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c'])
+        self.assertEqual((b['full'], b['families']), (False, []))
+
+    def test_hil_the_systemview_pin_selects_the_capture_boards(self):
+        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+            real = f.read()
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import get_deps
+        commit = get_deps.deps_optional['lib/SystemView'][1]
+        bumped = real.replace(commit, '0' * len(commit))
+        # no family token: without its path a pin bump would select nothing
+        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
+        self.assertEqual(gd, {'lib/SystemView'})
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd)
+        self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}})
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd)
+        self.assertEqual((b['full'], b['families']), (False, []))
+        # alongside a family's bump both are selected
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd | {'nrf'})
+        self.assertIn('stm32f407disco', s['boards'])
+        self.assertEqual(s['families'], ['nrf'])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd | {'nrf'})
+        self.assertEqual(b['families'], ['nrf'])
+
 
 # A miniature get_deps.py: the module shape the parser must cope with (imports,
 # both dep dicts, the derived deps_all, a function) without the real 300-entry file.
@@ -1775,6 +1836,11 @@ class TestBuildClassifier(unittest.TestCase):
     def test_bsp_top_level_file_is_full(self):                     # rule 16
         self.assertTrue(self.b(['hw/bsp/board.c'])['full'])
         self.assertTrue(self.b(['hw/bsp/family_support.cmake'])['full'])
+
+    def test_the_sysview_manifest_helper_is_full(self):            # rule 16, not 16c
+        # family_support.cmake includes it in every configure, traced or not
+        self.assertTrue(self.b(['hw/bsp/sysview_manifest.cmake'])['full'])
+        self.assertTrue(sel(['hw/bsp/sysview_manifest.cmake'])['full'])
 
     def test_mcu_rule(self):                                       # rule 7
         s = self.b(['hw/mcu/nordic/nrf5x/nrf_clock.h'])
@@ -2517,6 +2583,48 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             else:
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
 
+    def _matrix_of(self, boards, *args):
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+            json.dump({'boards': boards}, f)
+            f.flush()
+            return subprocess.run([sys.executable, HIL_SET_MATRIX, *args, f.name], capture_output=True, text=True)
+
+    def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
+        # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
+        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+                'sysview': {'example': 'device/cdc_msc'}}
+        for examples, traced in ((['device/board_test', 'host/cdc_msc_hid'], False), (['device/board_test'], False),
+                                 (['device/board_test', 'device/cdc_msc'], True),
+                                 (['device/board_test', 'dual/host_info_to_device_cdc'], True)):
+            with self.subTest(examples):
+                sel = mf(boards={'stm32f407disco': [e for e in examples if e != 'device/board_test']},
+                         hil_examples={'stm32f407disco': examples})
+                r = self._matrix_of([f407], '--select', json.dumps(sel))
+                self.assertEqual(r.returncode, 0, r.stderr)
+                legs = json.loads(r.stdout)['arm-gcc']
+                self.assertEqual(any('stm32f407disco-sysview' in leg for leg in legs), traced, legs)
+
+    def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
+        # its own build name, so neither the test image nor the parking board_test is replaced
+        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd'},
+                'variant': [{'name': 'raspberry_pi_pico', 'flags': '-DCFG_TUH_RPI_PIO_USB=1'}],
+                'sysview': {'example': 'device/cdc_msc', 'buffer': 65536}}
+        r = self._matrix_of([pico])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['arm-gcc'], [
+            '-b raspberry_pi_pico --cflag=-DCFG_TUH_RPI_PIO_USB=1',
+            '-b raspberry_pi_pico --build-name raspberry_pi_pico-sysview -e device/cdc_msc -DSYSVIEW=4 '
+            '-DSYSVIEW_BUFFER_SIZE=65536 --cflag=-DCFG_TUH_RPI_PIO_USB=1'])
+
+    def test_a_sysview_board_with_several_variants_is_refused(self):
+        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+             'variant': [{'name': 'stm32f723disco'}, {'name': 'stm32f723disco-DMA', 'flags': '-DX=1'}],
+             'sysview': {'example': 'device/cdc_msc'}}
+        r = self._matrix_of([b])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('cannot tell which one to trace', r.stderr)
+
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         import tempfile
         p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
@@ -2572,11 +2680,16 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         sel = json.dumps(mf(boards={board: 'all'}, hil_examples={board: ['device/board_test', 'device/cdc_msc']}))
         m = json.loads(self.run_matrix('--select', sel))
         entries = [e for entries in m.values() for e in entries]
+        traced = [e for e in entries if f'--build-name {board}-sysview' in e]
         self.assertTrue(entries)
         for e in entries:
             self.assertIn(f'-b {board}', e)
-            self.assertIn('-e device/board_test', e)
-            self.assertIn('-e device/cdc_msc', e)
+            if e not in traced:
+                self.assertIn('-e device/board_test', e)
+                self.assertIn('-e device/cdc_msc', e)
+        # the capture's traced leg builds its one example whatever the selection
+        for e in traced:
+            self.assertEqual(re.findall(r'-e (\S+)', e), ['device/cdc_msc'])
 
 
 class TestBuildPyExampleFilter(unittest.TestCase):
@@ -3396,7 +3509,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
             'class P:\n'
             '    def __enter__(self): return self\n'
             '    def __exit__(self, *a): return False\n'
-            '    def map(self, fn, items): return [0] * len(items)\n'
+            '    def map(self, fn, items): print(*items, sep="\\n"); return [0] * len(items)\n'
             'get_deps.Pool = P\n'
             "sys.argv = ['get_deps.py'] + sys.argv[1:]\n"
             'sys.exit(get_deps.main())\n')
@@ -3414,6 +3527,14 @@ class TestGetDepsExampleShim(unittest.TestCase):
     def test_plain_board_still_works(self):
         r = self.run_get_deps('-b', 'stm32f407disco')
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_a_traced_build_fetches_systemview(self):
+        # hil_ci_set_matrix.py's sysview leg hands its -D list here: only SYSVIEW=<nonzero> adds the sources
+        for defines, fetched in ((['-DSYSVIEW=4', '-DSYSVIEW_BUFFER_SIZE=65536'], True),
+                                 (['-DSYSVIEW=0'], False), (['-DMAX3421_HOST=1'], False)):
+            r = self.run_get_deps('-b', 'stm32f407disco', *defines)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual('lib/SystemView' in r.stdout.split(), fetched, (defines, r.stdout))
 
 
 
