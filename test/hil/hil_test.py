@@ -41,6 +41,7 @@
 import collections
 import io
 import itertools
+import math
 import os
 import random
 import re
@@ -2325,11 +2326,13 @@ def _sysview_entry_problem(sv) -> str | None:
         return 'not an object'
     if not isinstance(sv.get('example'), str) or not sv['example']:
         return 'no "example"'
-    if sv.get('workload') not in sysview_ci.WORKLOADS:
-        return f'"workload" {sv.get("workload")!r} is not one of {", ".join(sysview_ci.WORKLOADS)}'
+    w = sv.get('workload')
+    if not isinstance(w, str) or w not in sysview_ci.WORKLOADS:
+        return f'"workload" {w!r} is not one of {", ".join(sysview_ci.WORKLOADS)}'
     d = sv.get('duration_s')
-    if isinstance(d, bool) or not isinstance(d, (int, float)) or d <= 0:
-        return f'"duration_s" {d!r} is not a positive number of seconds'
+    # json.load reads NaN and Infinity
+    if isinstance(d, bool) or not isinstance(d, (int, float)) or not 0 < d < math.inf:
+        return f'"duration_s" {d!r} is not a finite positive number of seconds'
     return None
 
 
@@ -2558,7 +2561,7 @@ def main() -> None:
                                 and (why := _sysview_entry_problem(e['sysview'])))
     if bad_sysview:
         _config_abort(f'"sysview" entry refused: {"; ".join(bad_sysview)}')
-    bad_logger =[e['name'] for e in config_boards if e.get('logger') not in (None, 'rtt')]
+    bad_logger = [e['name'] for e in config_boards if e.get('logger') not in (None, 'rtt')]
     if bad_logger:
         # only the exact string activates RTT handling; anything else would silently
         # mean VCOM and reproduce the misleading 'No serial device found' failure
