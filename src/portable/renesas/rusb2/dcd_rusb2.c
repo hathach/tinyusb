@@ -12,6 +12,7 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 #include "rusb2_common.h"
 
 //--------------------------------------------------------------------+
@@ -152,7 +153,7 @@ static inline void pipe_brdy_clear(rusb2_reg_t *rusb, unsigned num) {
 // no-handshake iso IN endpoint the host has stopped polling never drains at all — so FRDY would
 // hang forever. This runs with the USB IRQ masked, so a naked spin freezes the whole stack; bound
 // it and let the caller abort the FIFO access. Returns false on timeout.
-#define RUSB2_FIFO_READY_SPIN 100000u
+#define RUSB2_FIFO_READY_SPIN 100000u // bound in loop iterations, not time
 static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   uint32_t spin = RUSB2_FIFO_READY_SPIN;
   while ( rusb->D0FIFOSEL_b.CURPIPE != num ) { if (!spin--) return false; }
@@ -162,8 +163,9 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
 }
 
 // Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
-// USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
-// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
+// caller masks the USB IRQ or holds the critical section. Both bits need PID = NAK and PBUSY = 0,
+// ACLRM also the pipe in no FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM
+// 27.2.30, p641 and notes 2-3).
 // Only D0FIFO serves non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM
 // 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; the next
 // bus reset re-inits it.
@@ -580,14 +582,21 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type
   return true;
 }
 
-static bool process_edpt_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type, uint8_t ep_addr, void *buffer,
-                              uint16_t total_bytes, bool is_isr) {
-  const unsigned epn = tu_edpt_number(ep_addr);
-  if (0 == epn) {
-    return process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
+static bool process_edpt_xfer(uint8_t rhport, int buffer_type, uint8_t ep_addr, void *buffer, uint16_t total_bytes,
+                              bool is_isr) {
+  rusb2_reg_t *rusb = RUSB2_REG(rhport);
+  bool r;
+
+  // IRQ mask, not a critical section: a completion found here must be published before the ISR can
+  // queue a bus reset or SETUP ahead of it
+  usbd_int_mask_enter(is_isr);
+  if (0 == tu_edpt_number(ep_addr)) {
+    r = process_pipe0_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
   } else {
-    return process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
+    r = process_pipe_xfer(rhport, rusb, buffer_type, ep_addr, buffer, total_bytes, is_isr);
   }
+  usbd_int_mask_exit(is_isr);
+  return r;
 }
 
 static void process_pipe0_bemp(uint8_t rhport)
@@ -891,12 +900,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   /* setup pipe */
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
 
   rusb->PIPESEL = num;
   // PIPECFG/PIPEMAXP (and PIPEBUF) change only on an idle NAKing pipe out of CURPIPE (RA4M1 UM 27.3.4.1)
   if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
-    dcd_int_enable(rhport);
+    usbd_critical_exit(false);
     return false;
   }
   _dcd.pipe[num].ep = ep_addr;
@@ -927,30 +936,31 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   // TU_LOG1("O %d %x %x\r\n", rusb->PIPESEL, rusb->PIPECFG, rusb->PIPEMAXP);
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 
   return true;
 }
 
-static void edpt_close(uint8_t rhport, uint8_t ep_addr);
+static bool edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 void dcd_edpt_close_all(uint8_t rhport)
 {
   unsigned i = TU_ARRAY_SIZE(_dcd.pipe);
-  dcd_int_disable(rhport);
   while (--i) { /* Close all pipes except 0 */
+    // one section per pipe: each close may spin in pipe_reset()
+    usbd_critical_enter(false);
     const unsigned ep_addr = _dcd.pipe[i].ep;
-    if (!ep_addr) {
-      continue;
+    const bool     closed  = (ep_addr == 0) || edpt_close(rhport, (uint8_t)ep_addr);
+    usbd_critical_exit(false);
+    if (!closed) {
+      TU_LOG1("RUSB2: pipe %u close timed out, left NAKing\r\n", i);
     }
-    edpt_close(rhport, (uint8_t)ep_addr);
   }
-  dcd_int_enable(rhport);
 }
 
 // Internal helper: on this (ISO_ALLOC) IP the stack no longer calls dcd_edpt_close(); only
-// dcd_edpt_close_all() uses it to tear down each pipe.
-static void edpt_close(uint8_t rhport, uint8_t ep_addr)
+// dcd_edpt_close_all() uses it to tear down each pipe. Returns false if the pipe never went idle.
+static bool edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
   const unsigned epn = tu_edpt_number(ep_addr);
@@ -960,14 +970,14 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   rusb->BRDYENB &= (uint16_t)~TU_BIT(num);
   // PIPECFG changes only on an idle NAKing pipe; on timeout the pipe stays configured but NAKing,
   // and the next open resets it
-  if (pipe_reset(rusb, num, 0)) {
+  const bool idle = pipe_reset(rusb, num, 0);
+  if (idle) {
     rusb->PIPESEL = (uint16_t)num;
     rusb->PIPECFG = 0;
-  } else {
-    TU_LOG1("RUSB2: pipe %u close timed out, left NAKing\r\n", num);
   }
   _dcd.pipe[num]    = (pipe_state_t){0};
   _dcd.ep[dir][epn] = 0;
+  return idle;
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -986,11 +996,11 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   const unsigned num = find_pipe(TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(num);
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
   rusb->PIPESEL = (uint16_t) num;
   // leaves the pipe NAKing until dcd_edpt_iso_activate()
   if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
-    dcd_int_enable(rhport);
+    usbd_critical_exit(false);
     return false;
   }
   _dcd.pipe[num].ep = ep_addr;
@@ -1003,7 +1013,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   rusb->PIPECFG = (uint16_t) ((dir << 4) | epn | RUSB2_PIPECFG_TYPE_ISO | RUSB2_PIPECFG_DBLB_Msk);
   pipe_brdy_clear(rusb, num);
   rusb->BRDYENB |= TU_BIT(num);
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
   return true;
 }
 
@@ -1015,7 +1025,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   const unsigned num = _dcd.ep[dir][epn];
   TU_ASSERT(num); // must have been iso-alloc'd
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
   rusb->PIPESEL = (uint16_t) num;
   // a transfer armed before SET_INTERFACE survives to here (no dcd close on this port): drop the
   // stale bookkeeping so a BRDY firing before the class re-arms can't replay it
@@ -1026,36 +1036,24 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   pipe->zlp_pending = false;
   // abort in-flight + reset data toggle, before PIPEMAXP may change
   if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk | RUSB2_PIPE_CTR_SQCLR_Msk)) {
-    dcd_int_enable(rhport);
+    usbd_critical_exit(false);
     return false;
   }
   rusb->PIPEMAXP          = tu_edpt_packet_size(desc_ep);
   *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
   return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
-  rusb2_reg_t* rusb = RUSB2_REG(rhport);
-
-  dcd_int_disable(rhport);
-  bool r = process_edpt_xfer(rhport, rusb, 0, ep_addr, buffer, total_bytes, is_isr);
-  dcd_int_enable(rhport);
-
-  return r;
+  return process_edpt_xfer(rhport, 0, ep_addr, buffer, total_bytes, is_isr);
 }
 
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
-  rusb2_reg_t* rusb = RUSB2_REG(rhport);
-
-  dcd_int_disable(rhport);
-  bool r = process_edpt_xfer(rhport, rusb, 1, ep_addr, ff, total_bytes, is_isr);
-  dcd_int_enable(rhport);
-
-  return r;
+  return process_edpt_xfer(rhport, 1, ep_addr, ff, total_bytes, is_isr);
 }
 
 // The pipe of a non-control, non-isochronous IN endpoint, whose halt aborts its transfer; else 0
@@ -1073,7 +1071,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   if (!ctr) {
     return;
   }
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
   const uint32_t pid = *ctr & 0x3;
   *ctr = pid | RUSB2_PIPE_CTR_PID_STALL;
   *ctr = RUSB2_PIPE_CTR_PID_STALL;
@@ -1082,7 +1080,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
     // a halt aborts the IN transfer; dcd_edpt_clear_stall() discards what it left in the buffer
     _dcd.pipe[num].queued = false;
   }
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -1094,7 +1092,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   }
   volatile uint16_t *ctr = get_pipectr(rusb, num);
 
-  dcd_int_disable(rhport);
+  usbd_critical_enter(false);
   uint16_t clr = RUSB2_PIPE_CTR_SQCLR_Msk;
   if (tu_edpt_dir(ep_addr)) { /* IN */
     // discard the packets a halt left in a non-iso IN buffer
@@ -1108,25 +1106,29 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     // "SCSI CBW is not valid" -> stall -> reset loop; ra6m5 msc write wedge).
     clr |= RUSB2_PIPE_CTR_ACLRM_Msk;
   }
-  if (!pipe_reset(rusb, num, clr)) {
-    TU_LOG1("RUSB2: pipe %u clear-halt timed out, left NAKing\r\n", num);
-  } else if (tu_edpt_dir(ep_addr)) { /* IN */
-    if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
-      pipe_brdy_clear(rusb, num);    // a stale BRDY must not advance a transfer submitted from here on
-    }
-    *ctr = RUSB2_PIPE_CTR_PID_BUF;
-  } else {
-    rusb->PIPESEL = (uint16_t)num;
-    // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
-    // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
-    // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
-    if (_dcd.pipe[num].queued) {
-      pipe_out_arm(rusb, num);
-    } else if (rusb->PIPECFG_b.TYPE != 1) {
+  const bool idle = pipe_reset(rusb, num, clr); // on timeout the pipe stays NAKing, logged below
+  if (idle) {
+    if (tu_edpt_dir(ep_addr)) { /* IN */
+      if (clr & RUSB2_PIPE_CTR_ACLRM_Msk) {
+        pipe_brdy_clear(rusb, num);    // a stale BRDY must not advance a transfer submitted from here on
+      }
       *ctr = RUSB2_PIPE_CTR_PID_BUF;
+    } else {
+      rusb->PIPESEL = (uint16_t)num;
+      // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
+      // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
+      // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
+      if (_dcd.pipe[num].queued) {
+        pipe_out_arm(rusb, num);
+      } else if (rusb->PIPECFG_b.TYPE != 1) {
+        *ctr = RUSB2_PIPE_CTR_PID_BUF;
+      }
     }
   }
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
+  if (!idle) {
+    TU_LOG1("RUSB2: pipe %u clear-halt timed out, left NAKing\r\n", num);
+  }
 }
 
 //--------------------------------------------------------------------+

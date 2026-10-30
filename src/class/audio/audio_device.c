@@ -375,11 +375,11 @@ TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_reque
 tu_static CFG_TUD_MEM_SECTION audiod_function_t _audiod_fct[CFG_TUD_AUDIO];
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received);
+static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received, bool in_isr);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_sent);
+static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_sent, bool in_isr);
 #endif
 
 static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const *p_request);
@@ -447,7 +447,7 @@ tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
   return NULL;
 }
 
-static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received) {
+static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received, bool in_isr) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
@@ -455,10 +455,10 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
   TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true));
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, in_isr));
   #else
   // Data is already placed in EP FIFO, schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, true));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, in_isr));
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -510,7 +510,7 @@ void tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold) {
   }
 }
 
-static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16_t n_bytes_sent) {
+static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16_t n_bytes_sent, bool in_isr) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
   // Only send something if current alternate interface is not 0 as in this case nothing is to be sent due to UAC2 specifications
@@ -527,10 +527,10 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
   #endif
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   tu_fifo_read_n(&audio->ep_in_ff, audio->lin_buf_in, n_bytes_tx);
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, true));
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, in_isr));
   #else
   // Send everything in ISO EP FIFO
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx, true));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx, in_isr));
   #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer
@@ -1474,7 +1474,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   return false;
 }
 
-bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes, bool in_isr) {
   (void) result;
   (void) xferred_bytes;
 
@@ -1496,7 +1496,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       // This is the only place where we can fill something into the EPs buffer!
 
       // Load new data
-      audiod_tx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes);
+      audiod_tx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes, in_isr);
       return true;
     }
 #endif
@@ -1504,7 +1504,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
     // New audio packet received
     if (audio->ep_out == ep_addr) {
-      audiod_rx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes);
+      audiod_rx_xfer_isr(rhport, audio, (uint16_t) xferred_bytes, in_isr);
       return true;
     }
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1512,7 +1512,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     if (audio->ep_fb == ep_addr) {
       // Schedule a transmit with the new value if EP is not busy
       // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      audiod_fb_send(func_id, true);
+      audiod_fb_send(func_id, in_isr);
       return true;
     }
   #endif
