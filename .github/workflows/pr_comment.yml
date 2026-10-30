@@ -79,6 +79,7 @@ jobs:
         continue-on-error: true
 
       - name: Download SystemView captures
+        id: sv-download
         uses: actions/download-artifact@v5
         with:
           run-id: ${{ github.event.workflow_run.id }}
@@ -86,6 +87,7 @@ jobs:
           pattern: sysview-*
           path: ${{ runner.temp }}/sysview/pr
         continue-on-error: true
+        timeout-minutes: 5
 
       # a run a newer push or attempt supersedes would only discard the SystemView work below; "Skip a superseded
       # run" checks again before posting
@@ -131,6 +133,7 @@ jobs:
         id: sv-base-download
         if: steps.sv-baseline.outputs.run_id != ''
         continue-on-error: true
+        timeout-minutes: 5
         uses: actions/download-artifact@v5
         with:
           run-id: ${{ steps.sv-baseline.outputs.run_id }}
@@ -145,6 +148,7 @@ jobs:
         env:
           BASELINE_RUN_ID: ${{ steps.sv-baseline.outputs.run_id }}
           # outcome, not conclusion: continue-on-error turns a failed download's conclusion into success
+          PR_DOWNLOAD: ${{ steps.sv-download.outcome }}
           BASE_DOWNLOAD: ${{ steps.sv-base-download.outcome }}
         run: |
           SV="$RUNNER_TEMP/sysview"
@@ -163,6 +167,11 @@ jobs:
           if python3 test/hil/sysview_ci.py report "$SV/base" "$SV/pr" --baseline-info "$SV/baseline.json" \
                -o "$SV/report.md"; then
             rm -f "$SV/notice.md"
+            # a failed download can leave some of the run's sysview-* artifacts extracted and not others
+            if [ "$PR_DOWNLOAD" != success ] && [ -s "$SV/report.md" ]; then
+              printf '\n%s\n' '_Some SystemView captures did not download (see the job log): boards may be missing._' \
+                >> "$SV/report.md"
+            fi
           else
             echo '_SystemView report unavailable: rendering it failed (see the job log)._' > "$SV/notice.md"
           fi
