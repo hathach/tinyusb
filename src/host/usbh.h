@@ -162,12 +162,18 @@ bool tuh_inited(void);
 // Task function should be called in main/rtos loop, extended version of tuh_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
+// Return true when the stack is not initialized or tuh_task_stop() was called: leave the task loop, then
+// call tuh_deinit() from this task if needed
+bool tuh_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
-TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
-  tuh_task_ext(UINT32_MAX, false);
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_task(void) {
+  return tuh_task_ext(UINT32_MAX, false);
 }
+
+// Make the next tuh_task()/tuh_task_ext() return true, waking it if blocked. Call from another task (not ISR)
+// to stop the USB task before tuh_deinit(). Return false if not initialized
+bool tuh_task_stop(void);
 
 // Check if there is pending events need processing by tuh_task()
 bool tuh_task_event_ready(void);

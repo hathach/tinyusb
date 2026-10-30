@@ -69,7 +69,8 @@ bool tud_inited(void);
 // Task function should be called in main/rtos loop, extended version of tud_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-// returns true if the task should stop or not initialized
+// Return true when the stack is not initialized or tud_task_stop() was called: leave the task loop, then
+// call tud_deinit() from this task if needed
 bool tud_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
@@ -77,6 +78,10 @@ TU_ATTR_ALWAYS_INLINE static inline
 bool tud_task (void) {
   return tud_task_ext(UINT32_MAX, false);
 }
+
+// Make the next tud_task()/tud_task_ext() return true, waking it if blocked. Call from another task (not ISR)
+// to stop the USB task before tud_deinit(). Return false if not initialized
+bool tud_task_stop(void);
 
 // Check if there is pending events need processing by tud_task()
 bool tud_task_event_ready(void);
@@ -136,9 +141,6 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
-
-// Stop the tud_task
-void tud_stop(void);
 
 //--------------------------------------------------------------------+
 // Application Callbacks

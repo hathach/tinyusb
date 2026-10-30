@@ -105,7 +105,13 @@ Core API and callbacks
    * - ``tud_task()`` / ``tud_task_ext()``
      - Dispatches bus, control, class, and completion events.  The extended
        form selects a wait timeout; its ``in_isr`` argument is currently
-       ignored.  Never call either from an ISR.
+       ignored.  Never call either from an ISR.  Both return ``true`` when the
+       stack is not initialized or ``tud_task_stop()`` was called.
+   * - ``tud_task_stop()``
+     - Makes the next ``tud_task()`` return ``true``, waking it if blocked, so
+       another task can stop the USB task before ``tud_deinit()``, which must
+       run in the USB task.  Events still queued wait for the next run.
+       Returns ``false`` if the stack is not initialized.  Not for ISR use.
    * - ``tud_connected()`` / ``tud_mounted()`` / ``tud_ready()``
      - Reports progressively stronger states: bus activity, configured by the
        host, and configured plus not suspended.  Use ``tud_ready()`` before

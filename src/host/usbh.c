@@ -229,6 +229,7 @@ typedef struct {
 #if CFG_TUSB_OS_HAS_SCHEDULER
   osal_task_handle_t task_hdl;  // host task handle, lazy-captured on first tuh_task_ext()
 #endif
+  volatile bool task_stop;      // set by tuh_task_stop(), consumed by tuh_task_ext()
 } usbh_data_t;
 
 static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
@@ -843,15 +844,20 @@ static bool usbh_process_event(hcd_event_t* event, bool in_isr) {
 
       while(1) { // the mainloop
         application_code();
-        tuh_task(); // tinyusb host task
+        if (tuh_task()) { // tinyusb host task, true once tuh_task_stop() is seen
+          break;
+        }
       }
+      tusb_deinit(0); // same task as tuh_task()
     }
     @endcode
  */
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
+// stoppable is false for the stack's own polling (sync control transfers without a scheduler), which must not
+// consume a stop meant for the application's tuh_task() loop
+static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
   // Skip if stack is not initialized
   if (!tuh_inited()) {
-    return;
+    return true;
   }
 
   (void) in_isr; // not implemented yet
@@ -865,6 +871,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
+    if (stoppable && _usbh_data.task_stop) {
+      _usbh_data.task_stop = false;
+      TU_LOG_USBH("USBH task stop\r\n");
+      return true; // events still queued wait for the next run, or are dropped by tuh_deinit()
+    }
+
   #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
     if (epr >= CFG_TUH_TASK_EVENTS_PER_RUN) {
       TU_LOG_USBH("USBH event limit (" TU_XSTRING(CFG_TUH_TASK_EVENTS_PER_RUN) ") reached\r\n");
@@ -928,7 +940,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         if (ctrl_xfer_expired) {
           control_xfer_timeout_expired();
         }
-        return;
+        return false;
       }
       if (ctrl_xfer_expired) {
         ctrl_info->expired_events++;
@@ -939,7 +951,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     bool const cont = usbh_process_event(&event, in_isr);
     TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUH_TASK);
     if (!cont) {
-      return;
+      return false;
     }
 
     // reports too in a dual-role build: the device task may be idle (dynamic_switch in host mode)
@@ -948,6 +960,26 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     // allow to exit tuh_task() if there is no event in the next run
     timeout_ms = 0;
   }
+
+  return false;
+}
+
+bool tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
+  return usbh_task_run(timeout_ms, in_isr, true);
+}
+
+bool tuh_task_stop(void) {
+  TU_VERIFY(tuh_inited());
+  _usbh_data.task_stop = true;
+
+  // wake a blocked tuh_task() with a no-op call; a full queue already keeps it running
+  hcd_event_t event = { 0 };
+  event.rhport   = _usbh_controller_id;
+  event.event_id = USBH_EVENT_FUNC_CALL;
+  if (osal_queue_send(_usbh_q, &event, false)) {
+    tuh_event_hook_cb(event.rhport, event.event_id, false);
+  }
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -1037,7 +1069,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 #if CFG_TUSB_OS_HAS_SCHEDULER
     osal_task_delay(1);
 #else
-    tuh_task_ext(0, false);
+    (void) usbh_task_run(0, false, false);
 #endif
   }
   TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(daddr), daddr,
@@ -1075,7 +1107,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 #if CFG_TUSB_OS_HAS_SCHEDULER
       osal_task_delay(1);
 #else
-      tuh_task_ext(0, false);
+      (void) usbh_task_run(0, false, false);
 #endif
     }
 
