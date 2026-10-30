@@ -308,6 +308,8 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
   } else {
     // Check IN endpoints concurrently active limit
     if(0 != dwc2_controller->ep_in_count) {
+      // TX FIFO number is the endpoint number, which must be one of the ep_in_count implemented TX FIFOs
+      TU_ASSERT(epnum < dwc2_controller->ep_in_count);
       TU_ASSERT(_dcd_data.allocated_epin_count < dwc2_controller->ep_in_count);
       _dcd_data.allocated_epin_count++;
     }
