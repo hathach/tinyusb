@@ -48,6 +48,7 @@
 
   #define CDC_STACK_SIZE      (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 2 : 1))
   #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+  #define BUTTON_STACK_SIZE   (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 2 : 1))
 #endif
 
 //--------------------------------------------------------------------+
@@ -82,6 +83,9 @@ StaticTask_t cdc_taskdef;
 
 StackType_t devinfo_stack[USBH_STACK_SIZE];
 StaticTask_t devinfo_taskdef;
+
+StackType_t button_stack[BUTTON_STACK_SIZE];
+StaticTask_t button_taskdef;
 #endif
 #endif
 
@@ -90,6 +94,7 @@ static tusb_role_t current_role = TUSB_ROLE_DEVICE;
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 static void usb_task(void *param);
+static void button_task(void *param);
 #endif
 void led_blinking_task(void *param);
 void cdc_task(void *param);
@@ -127,12 +132,14 @@ int main(void) {
                     NULL, configMAX_PRIORITIES-1, usb_stack, &usb_taskdef);
   xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, cdc_stack, &cdc_taskdef);
   xTaskCreateStatic(print_devinfo_task, "devinfo", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, devinfo_stack, &devinfo_taskdef);
+  xTaskCreateStatic(button_task, "button", BUTTON_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, button_stack, &button_taskdef);
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_task, "usb", USBD_STACK_SIZE > USBH_STACK_SIZE ? USBD_STACK_SIZE : USBH_STACK_SIZE,
               NULL, configMAX_PRIORITIES - 1, NULL);
   xTaskCreate(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
   xTaskCreate(print_devinfo_task, "devinfo", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
+  xTaskCreate(button_task, "button", BUTTON_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
 #ifndef ESP_PLATFORM
@@ -201,26 +208,37 @@ static void usb_task(void *param) {
 
   board_init_after_tusb();
 
-  // RTOS forever loop
+  // RTOS forever loop: block until there are events. True means button_task() asked to stop: switch
+  // here, since deinit must run in the task that runs tud_task()/tuh_task()
   while (1) {
-    // Check for button press to switch modes
-    static bool pending_switch = false;
+    const bool stopped = (current_role == TUSB_ROLE_DEVICE) ? tud_task() : tuh_task();
+    if (stopped) {
+      usb_mode_switch();
+    }
+  }
+}
+
+// Button Task for FreeRTOS: wakes the usb task to switch modes on a button press
+static void button_task(void *param) {
+  (void) param;
+  bool pending_switch = false;
+
+  while (1) {
     if (board_button_read()) {
       if (!pending_switch) {
         pending_switch = true;
-        usb_mode_switch();
+        // ignored during a switch (role INVALID), or if the stack is already deinitialized
+        if (current_role == TUSB_ROLE_DEVICE) {
+          (void) tud_task_stop();
+        } else if (current_role == TUSB_ROLE_HOST) {
+          (void) tuh_task_stop();
+        }
       }
     } else {
       pending_switch = false;
     }
 
-    // Process USB tasks based on current mode
-    // Use _ext version to allow return and read button state
-    if (current_role == TUSB_ROLE_DEVICE) {
-      tud_task_ext(10, false);
-    } else {
-      tuh_task_ext(10, false);
-    }
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 #endif
