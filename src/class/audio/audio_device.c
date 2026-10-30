@@ -934,6 +934,10 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
           p_desc = tu_desc_next(p_desc);
         }
 
+        // An allocation failure means the ISO endpoints exceed what the MCU provides (endpoint numbers or
+        // FIFO/packet memory): the configuration is too large for this port, so the open fails on purpose.
+        // Lower the settings that size the EPs (sample rate, channel count, bit resolution, hence wMaxPacketSize
+        // and CFG_TUD_AUDIO_FUNC_x_EP_IN/OUT_SZ_MAX) or the number of audio functions.
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
         if (ep_in != 0) {
           TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size));

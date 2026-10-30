@@ -1402,6 +1402,10 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       p_desc = tu_desc_next(p_desc);
     }
     if(ep_addr > 0 && ep_size > 0) {
+      /* An allocation failure means the ISO endpoint exceeds what the MCU provides (endpoint numbers or
+       * FIFO/packet memory): the configuration is too large for this port, so the open fails on purpose.
+       * Lower the settings that size the EP (resolution, frame rate or format, hence wMaxPacketSize)
+       * or the number of video streaming interfaces. */
       TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_addr, ep_size), 0);
     }
 #endif
