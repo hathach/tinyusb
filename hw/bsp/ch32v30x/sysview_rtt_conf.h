@@ -17,12 +17,13 @@
 #define SEGGER_RTT_MODE_DEFAULT         SEGGER_RTT_MODE_NO_BLOCK_SKIP
 #define SEGGER_RTT_MEMCPY_USE_BYTELOOP  0
 
-// QingKe masks interrupts in CSR 0x800; __disable_irq() clears 0x88 (core_riscv.h). SEGGER_RTT locks
-// from task and ISR context, so LOCK saves the CSR and UNLOCK restores it instead of re-enabling.
+// QingKe masks interrupts in CSR 0x800 (gintenr) and its manual requires fence.i after masking through a CSR, as
+// the SDK's __disable_irq() does. SEGGER_RTT locks from task and ISR context, so LOCK saves the CSR and UNLOCK
+// restores it instead of re-enabling.
 #define SEGGER_RTT_LOCK() {                                       \
     unsigned int _seg_rtt_lock_state;                             \
     __asm volatile("csrr %0, 0x800" : "=r"(_seg_rtt_lock_state)); \
-    __asm volatile("csrc 0x800, %0" ::"r"(0x88) : "memory");
+    __asm volatile("csrc 0x800, %0\n fence.i" ::"r"(0x88) : "memory");
 #define SEGGER_RTT_UNLOCK()                                                 \
     __asm volatile("csrw 0x800, %0" ::"r"(_seg_rtt_lock_state) : "memory"); \
   }
