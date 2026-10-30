@@ -552,7 +552,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
   if (is_hs_phy) {
-    // dcfg Highspeed's mask is 0
+    // dcfg Highspeed's mask is 0, full speed is forced on HS PHY if requested (e.g. HS-only core with UTMI)
+    if (!TUD_OPT_HIGH_SPEED || rh_init->speed == TUSB_SPEED_FULL) {
+      dcfg |= DCFG_DSPD_FS_HSPHY << DCFG_DSPD_Pos;
+    }
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
     // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
