@@ -203,14 +203,23 @@ static void usb_task(void *param) {
     .role = TUSB_ROLE_DEVICE,
     .speed = TUSB_SPEED_AUTO
   };
-  tusb_init(BOARD_RHPORT, &dev_init);
-  current_role = TUSB_ROLE_DEVICE;
+  if (tusb_init(BOARD_RHPORT, &dev_init)) {
+    current_role = TUSB_ROLE_DEVICE;
+  } else {
+    printf("Failed to start DEVICE mode\r\n");
+    current_role = TUSB_ROLE_INVALID;
+  }
 
   board_init_after_tusb();
 
   // RTOS forever loop: block until there are events. True means button_task() asked to stop: switch
   // here, since deinit must run in the task that runs tud_task()/tuh_task()
   while (1) {
+    if (current_role == TUSB_ROLE_INVALID) {
+      // tusb_init() failed: tud_task()/tuh_task() would return true at once, so idle instead of switching
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      continue;
+    }
     const bool stopped = (current_role == TUSB_ROLE_DEVICE) ? tud_task() : tuh_task();
     if (stopped) {
       usb_mode_switch();
@@ -277,7 +286,10 @@ void usb_mode_switch(void) {
       .role = TUSB_ROLE_HOST,
       .speed = TUSB_SPEED_AUTO
     };
-    tusb_init(BOARD_RHPORT, &host_init);
+    if (!tusb_init(BOARD_RHPORT, &host_init)) {
+      printf("Failed to start HOST mode\r\n");
+      return; // current_role stays INVALID
+    }
     current_role = TUSB_ROLE_HOST;
   } else {
     printf("Starting DEVICE mode...\r\n");
@@ -285,7 +297,10 @@ void usb_mode_switch(void) {
       .role = TUSB_ROLE_DEVICE,
       .speed = TUSB_SPEED_AUTO
     };
-    tusb_init(BOARD_RHPORT, &dev_init);
+    if (!tusb_init(BOARD_RHPORT, &dev_init)) {
+      printf("Failed to start DEVICE mode\r\n");
+      return; // current_role stays INVALID
+    }
     current_role = TUSB_ROLE_DEVICE;
   }
 
