@@ -888,7 +888,9 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length;
         // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
         while (p_desc_end - p_desc > 0) {
-          if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
+          // Only isochronous EPs, so the AC interrupt EP is never taken for a data or feedback EP
+          if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT &&
+              ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
             // Unified UAC1/UAC2 endpoint processing
             tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
             bool is_feedback_ep = false;
