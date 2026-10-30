@@ -932,23 +932,30 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
           p_desc = tu_desc_next(p_desc);
         }
 
+        bool alloc_ok = true;
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
         if (ep_in != 0) {
-          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size));
+          alloc_ok = usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-        if (ep_out != 0) {
-          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size));
+        if (alloc_ok && ep_out != 0) {
+          alloc_ok = usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-        if (ep_fb != 0) {
-          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_fb, 4));
+        if (alloc_ok && ep_fb != 0) {
+          alloc_ok = usbd_edpt_iso_alloc(rhport, ep_fb, 4);
         }
   #endif
+
+        if (!alloc_ok) {
+          // Release the slot so a later configuration can use it
+          tu_memclr(&_audiod_fct[i], ITF_MEM_RESET_SIZE);
+        }
+        TU_ASSERT(alloc_ok, 0);
       }
 #endif// TUP_DCD_EDPT_ISO_ALLOC
 

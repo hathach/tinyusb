@@ -1402,7 +1402,15 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       p_desc = tu_desc_next(p_desc);
     }
     if(ep_addr > 0 && ep_size > 0) {
-      TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_addr, ep_size), 0);
+      bool const alloc_ok = usbd_edpt_iso_alloc(rhport, ep_addr, ep_size);
+      if (!alloc_ok) {
+        /* Release the interfaces claimed so far so a later configuration can use them */
+        for (uint8_t i = 0; i <= stm_idx; ++i) {
+          tu_memclr(&_videod_streaming_itf[self->stm[i]], sizeof(videod_streaming_interface_t));
+        }
+        tu_memclr(self, sizeof(*self));
+      }
+      TU_ASSERT(alloc_ok, 0);
     }
 #endif
     if (0 == stm_idx && 1 == bInCollection) {
