@@ -16,6 +16,19 @@
     #define HAS_STOP_EPX_ON_NAK
   #endif
 
+// RP2350: an EPX transfer started from idle while the controller is polling interrupt endpoints by itself can
+// "complete" at once with nothing on the wire (a bulk OUT CBW reported as SUCCESS with 0 bytes, ~15 us after
+// START_TRANS). Transfers started straight after an EPX completion were never affected. So before EPX starts from
+// idle the polls are stopped and two frames allowed to pass (a poll already scheduled can still run in the next
+// frame), then EPX starts and the polls resume.
+  #ifndef CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+    #ifdef HAS_STOP_EPX_ON_NAK
+      #define CFG_TUH_RP2_EPX_PAUSE_INT_POLLS 1
+    #else
+      #define CFG_TUH_RP2_EPX_PAUSE_INT_POLLS 0
+    #endif
+  #endif
+
 // port 0 is native USB port, other is counted as software PIO
   #define RHPORT_NATIVE 0
 
@@ -38,6 +51,12 @@ static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 
   #ifndef HAS_STOP_EPX_ON_NAK
 static volatile bool epx_switch_request = false;
+  #endif
+
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+static bool     int_polls_stopping;   // INT_EP_CTRL cleared for an EPX start from idle, see sof_service()
+static uint32_t int_polls_saved;      // the INT_EP_CTRL bits to set again once EPX has started
+static uint8_t  int_polls_stop_frame; // SOF_RD modulo 32 when they were cleared
   #endif
 
 enum {
@@ -209,6 +228,49 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t int_edpt_status_bit(const hw_endpoi
   return TU_BIT(2u * ep->interrupt_num + (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ? 1u : 0u));
 }
 
+// Start / stop the controller's polling of an interrupt endpoint's slot. While the polls are stopped for an EPX start
+// the change goes to the bits set again afterwards.
+static void __tusb_irq_path_func(int_poll_enable)(uint8_t int_num) {
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  if (int_polls_stopping) {
+    int_polls_saved |= TU_BIT(int_num);
+    return;
+  }
+  #endif
+  usb_hw_set->int_ep_ctrl = TU_BIT(int_num);
+}
+
+static void __tusb_irq_path_func(int_poll_disable)(uint8_t int_num) {
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  int_polls_saved &= ~TU_BIT(int_num);
+  #endif
+  usb_hw_clear->int_ep_ctrl = TU_BIT(int_num);
+}
+
+// For an EPX transfer about to start from idle: true if it may start now; false if the interrupt endpoint polls are
+// being stopped first, the transfer is then left pending and sof_service() starts it. Caller holds the critical section.
+static bool __tusb_irq_path_func(epx_idle_start_ok)(void) {
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  if (int_polls_stopping) {
+    return false;
+  }
+  const uint32_t polling = usb_hw->int_ep_ctrl;
+  if (polling == 0 || !(usb_hw->sie_ctrl & USB_SIE_CTRL_SOF_EN_BITS)) {
+    // nothing polled, or a low-speed device on the root port: keep-alives instead of SOFs, so no HOST_SOF to time
+    // the pause with (and no start for the pending transfer); not paused there
+    return true;
+  }
+  usb_hw_clear->int_ep_ctrl = polling;
+  int_polls_saved           = polling;
+  int_polls_stopping        = true;
+  int_polls_stop_frame      = (uint8_t)(usb_hw->sof_rd & ABORT_FRAME_MASK);
+  usb_hw_set->inte          = USB_INTE_HOST_SOF_BITS;
+  return false;
+  #else
+  return true;
+  #endif
+}
+
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
   const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
@@ -258,8 +320,13 @@ static void epx_retire(hw_endpoint_t *ep) {
 }
 
 static void __tusb_irq_path_func(epx_start_next_pending)(void) {
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  if (int_polls_stopping) {
+    return; // an abort or close during the pause: sof_service() starts the next one when the two frames are up
+  }
+  #endif
   if (epx->state != EPSTATE_ACTIVE) {
-    hw_endpoint_t *next_ep = epx_next_pending(epx);
+    hw_endpoint_t *next_ep = epx_is_pending(epx) ? epx : epx_next_pending(epx);
     if (next_ep != NULL) {
       epx_switch_ep(next_ep);
     }
@@ -360,7 +427,7 @@ TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
   } else {
     rp2usb_reset_transfer(ep);
   }
-  usb_hw_set->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+  int_poll_enable(ep->interrupt_num);
 }
 
   #ifndef HAS_STOP_EPX_ON_NAK
@@ -400,6 +467,18 @@ static void __tusb_irq_path_func(sof_service)(void) {
   bool           sof_needed = false;
   #ifndef HAS_STOP_EPX_ON_NAK
   sof_needed = epx_sof_round_robin(); // first, as close to SOF as possible: its STOP_TRANS relies on it
+  #endif
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  if (int_polls_stopping) {
+    if (((frame - int_polls_stop_frame) & ABORT_FRAME_MASK) >= 2u) {
+      // no poll can be under way now: start EPX, then let the controller poll again (only starts collide)
+      int_polls_stopping = false;
+      epx_start_next_pending();
+      usb_hw_set->int_ep_ctrl = int_polls_saved;
+    } else {
+      sof_needed = true;
+    }
+  }
   #endif
 
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
@@ -531,6 +610,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
   // clear epx and interrupt eps
   memset(&ep_pool, 0, sizeof(ep_pool));
+  #if CFG_TUH_RP2_EPX_PAUSE_INT_POLLS
+  int_polls_stopping = false;
+  int_polls_saved    = 0;
+  #endif
 
   // Enable in host mode with SOF / Keep alive on
   usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
@@ -603,7 +686,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
       } else {
         ep->state = EPSTATE_IDLE;
         // disable interrupt endpoint
-        usb_hw_clear->int_ep_ctrl                       = TU_BIT(ep->interrupt_num);
+        int_poll_disable(ep->interrupt_num);
         usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
 
         io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
@@ -699,7 +782,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
     usb_hw->int_ep_addr_ctrl[int_idx] = addr_ctrl;
 
     // Finally, activate interrupt endpoint
-    usb_hw_set->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+    rp2usb_critical_enter();
+    int_poll_enable(ep->interrupt_num);
+    rp2usb_critical_exit();
   }
 
   return true;
@@ -721,7 +806,7 @@ static bool int_edpt_abort(hw_endpoint_t *ep) {
   if (ep->state == EPSTATE_ABORTING_PENDING) {
     ep->state = EPSTATE_ABORTING; // the queued transfer never reached the controller
   } else if (ep->state == EPSTATE_ACTIVE) {
-    usb_hw_clear->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+    int_poll_disable(ep->interrupt_num);
     const uint32_t buf_ctrl   = *dpram_int_ep_buffer_ctrl(ep->interrupt_num);
     if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
       ep->next_pid = (buf_ctrl & USB_BUF_CTRL_DATA1_PID) ? 1u : 0u; // armed packet not done: reuse its PID
@@ -794,9 +879,10 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       ep->next_pid = 1;
     }
 
-    // If EPX is busy with another transfer, mark as pending
+    // If EPX is busy with another transfer, or must wait for the interrupt endpoint polls to stop (sof_service() then
+    // starts it), mark as pending; with another one pending, a NAKing endpoint must let it run (STOP_EPX_ON_NAK)
     rp2usb_critical_enter();
-    if (epx->state == EPSTATE_ACTIVE) {
+    if (epx->state == EPSTATE_ACTIVE || !epx_idle_start_ok()) {
       ep->user_buf      = buffer;
       ep->remaining_len = buflen;
       ep->state         = EPSTATE_PENDING;
@@ -842,8 +928,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   ep->remaining_len = 8;
   ep->xferred_len   = 0;
 
-  // If EPX is busy, mark as pending setup (DPRAM already has the packet)
-  if (epx->state == EPSTATE_ACTIVE) {
+  // If EPX is busy, or must wait for the interrupt endpoint polls to stop (sof_service() then starts it), mark as
+  // pending setup (DPRAM already has the packet)
+  if (epx->state == EPSTATE_ACTIVE || !epx_idle_start_ok()) {
     ep->state = EPSTATE_PENDING_SETUP;
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
