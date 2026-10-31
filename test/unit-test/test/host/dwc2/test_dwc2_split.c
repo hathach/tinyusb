@@ -756,6 +756,32 @@ void test_sof_teardown_of_an_enabled_parked_channel_never_waits_for_the_queue(vo
   TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park); // channel_disable() drops the park, its halt finishes it
 }
 
+void test_sof_never_waits_for_the_periodic_queue_to_start_a_slave_in(void) {
+  // a due interrupt IN, split and native: SOF leaves it pending on a full queue, which the RxFIFO service after it in
+  // the ISR may be needed to drain
+  for (unsigned split = 0; split < 2; split++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    endpoint(0, true, 64, false);
+    _hcd_data.edpt[0].hcsplt_bm.split_en = split ? 1u : 0u;
+    _hcd_data.edpt[0].hcchar_bm.enable = 1;
+    _hcd_data.edpt[0].xfer_pending = 1;
+    _hcd_data.xfer[0].allocated = false; // its transfer has no channel yet
+
+    set_ptx_queue(0);
+    TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+    TEST_ASSERT_TRUE(_hcd_data.edpt[0].xfer_pending);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+
+    set_ptx_queue(1);
+    (void) handle_sof_irq(0, true);
+    TEST_ASSERT_FALSE(_hcd_data.edpt[0].xfer_pending);
+    TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  }
+}
+
 // Hand the start-split ACK or a complete-split NYET of the bulk split channel 0 to its handler, the channel halted by
 // the core (or, slave IN NYET, by the disable that follows it)
 static void bulk_split_event(bool dma, bool in, uint32_t hcint) {

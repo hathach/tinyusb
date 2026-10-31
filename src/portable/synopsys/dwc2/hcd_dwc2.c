@@ -3285,6 +3285,13 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
           more_isr = true; // start-split waits for its microframe, or for the END of an isochronous OUT packet
           continue;
         }
+        // A slave IN start waits for a periodic request-queue entry, which the RxFIFO service after SOF in this
+        // interrupt may be needed to free (Programming Guide Table 1-2): leave it pending for the next SOF instead.
+        if (CFG_TUH_DWC2_SLAVE_ENABLE && edpt->uframe_countdown == 0 && edpt->hcchar_bm.ep_dir == TUSB_DIR_IN &&
+            !dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, true)) {
+          more_isr = true;
+          continue;
+        }
         if (edpt->uframe_countdown == 0) {
           if (!edpt_xfer_kickoff(dwc2, ep_id)) {
             edpt->uframe_countdown = ucount; // failed to start, try again next frame
