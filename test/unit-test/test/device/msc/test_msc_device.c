@@ -500,6 +500,20 @@ static void host_request_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &sense, sizeof(sense), sizeof(sense), false, true);
 }
 
+// No data moved before the failure, so the CSW reports the whole transfer as residue
+static void expect_failed_io_csw(void)
+{
+  static msc_csw_t csw;
+  csw = (msc_csw_t)
+  {
+    .signature    = MSC_CSW_SIGNATURE,
+    .tag          = 0xCAFECAFE,
+    .data_residue = 512,
+    .status       = MSC_CSW_STATUS_FAILED
+  };
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(csw), sizeof(csw), false, true);
+}
+
 static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
   configure_and_send_io_cbw(SCSI_CMD_READ_10);
@@ -507,8 +521,7 @@ static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t asc
   tud_task();
 
   host_clear_halt(EDPT_MSC_IN);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_failed_io_csw();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 
@@ -528,8 +541,7 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t as
   // the callback fails the data: Bulk-Out stalls and the failed CSW goes out at once
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, 512, 0, true);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_failed_io_csw();
   tud_task();
 
   // no CBW is queued while Bulk-Out is halted
