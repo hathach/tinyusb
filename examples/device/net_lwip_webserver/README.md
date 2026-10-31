@@ -33,8 +33,8 @@ Notable `tusb_config.h` settings:
 // NCM tuning (see ncm.h for performance notes)
 #define CFG_TUD_NCM_IN_NTB_MAX_SIZE  2048
 #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 4096        // 2048 on low-RAM MCUs
-#define CFG_TUD_NCM_OUT_NTB_N        1
-#define CFG_TUD_NCM_IN_NTB_N         1
+#define CFG_TUD_NCM_OUT_NTB_N        2           // 1 on low-RAM MCUs
+#define CFG_TUD_NCM_IN_NTB_N         2           // 1 on low-RAM MCUs
 ```
 
 ## Building
