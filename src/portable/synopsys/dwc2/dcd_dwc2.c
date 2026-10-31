@@ -502,7 +502,13 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
       dcd_dcache_clean(xfer->buffer, total_bytes);
     }
-    dep->diepdma = (uintptr_t) xfer->buffer;
+    uintptr_t dma_addr = (uintptr_t) xfer->buffer;
+    // EP0 OUT status stage has no buffer, but a SETUP received while it is armed is still DMA-written to DOEPDMA0,
+    // which must always point to memory for SETUP packets (Programming Guide v4.20a): use the setup buffer
+    if (epnum == 0 && dir == TUSB_DIR_OUT && total_bytes == 0) {
+      dma_addr = (uintptr_t) _dcd_usbbuf.setup_buffer;
+    }
+    dep->diepdma = dma_addr;
     dep->diepctl = depctl.value; // enable endpoint
   } else
   #endif
@@ -1192,9 +1198,10 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
         // EP0 invalidates only this (final) chunk's DMA-written bytes: DOEPDMA "is incremented on
         // every AHB transaction" (databook 7.1.83), i.e. it points past the last word written.
-        // Read it before dma_setup_prepare() re-targets it at the setup buffer
+        // Read it before dma_setup_prepare() re-targets it at the setup buffer. A zero-length xfer was armed
+        // at the setup buffer instead (edpt_schedule_packets), nothing to invalidate
         uint16_t inval_len = xfer->total_len;
-        if (epnum == 0) {
+        if (epnum == 0 && xfer->total_len != 0) {
           inval_len = (uint16_t)(epout->doepdma - (uintptr_t)xfer->buffer);
         }
 
