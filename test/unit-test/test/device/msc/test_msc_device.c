@@ -181,7 +181,7 @@ static enum { IO_OK, IO_ERROR_WITH_SENSE, IO_ERROR_NO_SENSE } io_mode;
 static int32_t io_failure(uint8_t lun)
 {
   if (io_mode == IO_ERROR_WITH_SENSE) {
-    (void) tud_msc_set_sense(lun, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x00);
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x5A);
   }
   return TUD_MSC_RET_ERROR;
 }
@@ -483,8 +483,8 @@ static void configure_and_send_io_cbw(uint8_t cmd_code)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 }
 
-// The REQUEST SENSE CBW transfer is already expected: the host sends it and must read `sense_key`/`asc`
-static void host_request_sense(uint8_t sense_key, uint8_t asc)
+// The REQUEST SENSE CBW transfer is already expected: the host sends it and must read `sense_key`/`asc`/`ascq`
+static void host_request_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
   static scsi_sense_fixed_resp_t sense;
   sense = (scsi_sense_fixed_resp_t)
@@ -494,12 +494,13 @@ static void host_request_sense(uint8_t sense_key, uint8_t asc)
     .sense_key      = sense_key,
     .add_sense_len  = sizeof(scsi_sense_fixed_resp_t) - 8,
     .add_sense_code = asc,
+    .add_sense_qualifier = ascq,
   };
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &sense, sizeof(sense), sizeof(sense), false, true);
 }
 
-static void check_read10_error_sense(uint8_t sense_key, uint8_t asc)
+static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
   configure_and_send_io_cbw(SCSI_CMD_READ_10);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
@@ -513,11 +514,11 @@ static void check_read10_error_sense(uint8_t sense_key, uint8_t asc)
 
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
   expect_cbw_xfer(&cbw_sense);
-  host_request_sense(sense_key, asc);
+  host_request_sense(sense_key, asc, ascq);
   tud_task();
 }
 
-static void check_write10_error_sense(uint8_t sense_key, uint8_t asc)
+static void check_write10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
   configure_and_send_io_cbw(SCSI_CMD_WRITE_10);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, 512, false, true);
@@ -538,7 +539,7 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc)
   host_clear_halt(EDPT_MSC_OUT);
   expect_cbw_xfer(&cbw_sense);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  host_request_sense(sense_key, asc);
+  host_request_sense(sense_key, asc, ascq);
   tud_task();
 }
 
@@ -546,26 +547,26 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc)
 void test_msc_read10_error_keeps_callback_sense(void)
 {
   io_mode = IO_ERROR_WITH_SENSE;
-  check_read10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
+  check_read10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x5A);
 }
 
 void test_msc_write10_error_keeps_callback_sense(void)
 {
   io_mode = IO_ERROR_WITH_SENSE;
-  check_write10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11);
+  check_write10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x5A);
 }
 
 // Without a sense from the callback, a read10/write10 error defaults to NOT READY / MEDIUM NOT PRESENT
 void test_msc_read10_error_default_sense(void)
 {
   io_mode = IO_ERROR_NO_SENSE;
-  check_read10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
+  check_read10_error_sense(SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
 void test_msc_write10_error_default_sense(void)
 {
   io_mode = IO_ERROR_NO_SENSE;
-  check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A);
+  check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
 //--------------------------------------------------------------------+
