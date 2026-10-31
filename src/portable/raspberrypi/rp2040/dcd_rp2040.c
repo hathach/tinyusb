@@ -591,11 +591,13 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
       const uint32_t bc = *buf_reg;
       uint16_t staged = 0;
-      if (bc & USB_BUF_CTRL_AVAIL) {
-        staged = (uint16_t)(bc & USB_BUF_CTRL_LEN_MASK);
-      }
-      if ((bc >> 16) & USB_BUF_CTRL_AVAIL) {
-        staged = (uint16_t)(staged + ((bc >> 16) & USB_BUF_CTRL_LEN_MASK));
+      for (uint8_t i = 0; i < 2; i++) {
+        const uint16_t half = (uint16_t)(bc >> (16u * i));
+        if (half & USB_BUF_CTRL_AVAIL) {
+          // OUT buffers are armed for a whole packet, the LAST one holds only rx_last_len of the transfer
+          const bool out_last = (dir == TUSB_DIR_OUT) && (half & USB_BUF_CTRL_LAST);
+          staged = (uint16_t)(staged + (out_last ? ep->rx_last_len : (half & USB_BUF_CTRL_LEN_MASK)));
+        }
       }
       remaining = (uint16_t)(remaining + staged);
       if (dir == TUSB_DIR_IN) {
