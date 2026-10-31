@@ -414,8 +414,9 @@ void test_msc_host_enum_get_max_lun_submit_fail(void) {
 // usbh closes the driver before failing the in-flight Get Max LUN, and has already ended the enumeration
 void test_msc_host_enum_unplug_during_get_max_lun(void) {
   msch_close(DADDR);
-  tuh_xfer_t ctrl = {.daddr = DADDR, .result = XFER_RESULT_FAILED};
-  ctrl_xfer.complete_cb(&ctrl);
+  tuh_xfer_t ctrl = ctrl_xfer; // closing keeps the tagid, so only the configured check rejects it
+  ctrl.result = XFER_RESULT_FAILED;
+  ctrl.complete_cb(&ctrl);
 
   TEST_ASSERT_EQUAL(0, xfer_count);
   TEST_ASSERT_EQUAL(0, set_config_count);
