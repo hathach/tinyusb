@@ -166,6 +166,18 @@ void tearDown(void) {
 }
 
 //--------------------------------------------------------------------+
+// Task
+//--------------------------------------------------------------------+
+void test_usbd_task_idle_does_not_mask_interrupts(void) {
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  dcd_int_disable_StopIgnore();
+  dcd_int_enable_StopIgnore();
+
+  // An empty task poll must not call either interrupt mock.
+  TEST_ASSERT_FALSE(tud_task());
+}
+
+//--------------------------------------------------------------------+
 // Get Descriptor
 //--------------------------------------------------------------------+
 
@@ -771,4 +783,17 @@ void test_usbd_task_stop_full_queue(void) {
 
   TEST_ASSERT_TRUE(tud_task_stop());
   TEST_ASSERT_TRUE(tud_task());
+}
+
+// a stop that is the last event of a full run is reported by that run, not left for the idle fast path to hide
+void test_usbd_task_stop_last_event_of_run(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_EVENTS_PER_RUN - 1; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(tud_task_stop());
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_EVENTS_PER_RUN - 1, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
 }
