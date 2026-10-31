@@ -782,6 +782,40 @@ void test_sof_never_waits_for_the_periodic_queue_to_start_a_slave_in(void) {
   }
 }
 
+void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void) {
+  for (unsigned split = 0; split < 2; split++) {
+    setUp();
+    dwc2_int_set_Ignore();
+    tu_hwfifo_read_Ignore();
+    endpoint(0, true, 64, false);
+    _hcd_data.edpt[0].hcsplt_bm.split_en = split ? 1u : 0u;
+    _hcd_data.edpt[0].hcchar_bm.enable = 1;
+    _hcd_data.edpt[0].xfer_pending = 1;
+    _hcd_data.xfer[0].allocated = false;
+    set_ptx_queue(0);
+
+    // channel 1 has an IN packet waiting in the RxFIFO
+    endpoint(1, true, 64, false);
+    dwc2_grxstsp_t rx = {.value = 0};
+    rx.ep_ch_num = 1;
+    rx.byte_count = 32;
+    rx.packet_status = GRXSTS_PKTSTS_RX_DATA;
+    test_regs.grxstsp = rx.value;
+
+    // the RAM gintsts keeps RXFLVL until handle_sof_irq() writes its SOF clear
+    test_regs.gintmsk = GINTSTS_SOF | GINTSTS_RXFLVL;
+    test_regs.gintsts = GINTSTS_SOF | GINTSTS_RXFLVL;
+    hcd_int_handler(0, true);
+
+    TEST_ASSERT_EQUAL(32, _hcd_data.xfer[1].xferred_bytes);
+    TEST_ASSERT_EQUAL(32, _hcd_data.xfer[1].fifo_bytes);
+    TEST_ASSERT_BITS_HIGH(GINTSTS_RXFLVL, test_regs.gintmsk);
+    TEST_ASSERT_TRUE(_hcd_data.edpt[0].xfer_pending);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  }
+}
+
 // Hand the start-split ACK or a complete-split NYET of the bulk split channel 0 to its handler, the channel halted by
 // the core (or, slave IN NYET, by the disable that follows it)
 static void bulk_split_event(bool dma, bool in, uint32_t hcint) {
