@@ -36,7 +36,7 @@ device_tests = [
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp',
-    'device/usbtest',  # cafe:4010, unique PID; runs the Linux testusb tier-4 battery via usbtest.py
+    'device/usbtest',  # 0525:a4a0 (Gadget Zero, usbtest's static id); runs the Linux testusb tier-4 battery via usbtest.py
     # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
 ]
 
@@ -96,6 +96,12 @@ CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 REAP_GRACE = 10
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
+USBTEST_ID = ('0525', 'a4a0')   # examples/device/usbtest: Linux Gadget Zero, in usbtest's static ids
+
+
+def is_dut_id(vidpid: str) -> bool:
+    """Whether 'vvvv:pppp' is TinyUSB example firmware: VID cafe, or the usbtest example."""
+    return vidpid.startswith('cafe:') or vidpid == ':'.join(USBTEST_ID)
 
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is

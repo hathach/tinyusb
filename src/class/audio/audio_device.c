@@ -888,7 +888,9 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length;
         // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
         while (p_desc_end - p_desc > 0) {
-          if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
+          // Only isochronous EPs, so the AC interrupt EP is never taken for a data or feedback EP
+          if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT &&
+              ((tusb_desc_endpoint_t const *) p_desc)->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
             // Unified UAC1/UAC2 endpoint processing
             tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
             bool is_feedback_ep = false;
@@ -932,21 +934,25 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
           p_desc = tu_desc_next(p_desc);
         }
 
+        // An allocation failure means the ISO endpoints exceed what the MCU provides (endpoint numbers or
+        // FIFO/packet memory): the configuration is too large for this port, so the open fails on purpose.
+        // Lower the settings that size the EPs (sample rate, channel count, bit resolution, hence wMaxPacketSize
+        // and CFG_TUD_AUDIO_FUNC_x_EP_IN/OUT_SZ_MAX) or the number of audio functions.
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
         if (ep_in != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size));
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_EP_OUT
         if (ep_out != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size));
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
         if (ep_fb != 0) {
-          usbd_edpt_iso_alloc(rhport, ep_fb, 4);
+          TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_fb, 4));
         }
   #endif
       }

@@ -261,6 +261,25 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
+#if CFG_TUSB_SYSVIEW_ENABLED
+// RP2040 (Cortex-M0+) has no DWT cycle counter, so SystemView takes its timestamp from a hardware
+// timer (contract in src/tusb.c: free-running microseconds). The RP2040/RP2350
+// timer block is already a free-running 1 MHz counter started by the SDK at boot, so there is
+// nothing to configure and no extra peripheral to claim. RP2350 is Cortex-M33 and uses DWT
+// instead, so this is compiled only where it is actually the timestamp source.
+#if !defined(__ARM_ARCH_8M_MAIN__) && !defined(__ARM_ARCH_8_1M_MAIN__)
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  return time_us_32();
+}
+#endif
+
+// The Pico SDK has no CMSIS SystemCoreClock global; supply the CPU frequency SystemView reports
+// (and, on RP2350's DWT, times with) from the SDK's clock API instead.
+uint32_t tusb_sysview_cpu_freq(void) {
+  return clock_get_hz(clk_sys);
+}
+#endif
+
 void board_led_write(bool state) {
   (void) state;
 

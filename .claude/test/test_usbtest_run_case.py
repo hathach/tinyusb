@@ -285,7 +285,7 @@ class Chain(unittest.TestCase):
         rig.enumerates = False
         rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.assertEqual(rc, 1)
-        self.assertIn('no cafe:4010 device with serial UID1', report['error'])
+        self.assertIn('no 0525:a4a0 device with serial UID1', report['error'])
         self.assertNotIn('battery', [c[0] for c in rig.calls])
         self.released(rig)
 

@@ -32,7 +32,7 @@ If `local.json` is missing on a dev PC, ask the user to supply one before a `hil
 
 The launcher for the `hil` skill's Farm check is `test/hil/helper/hil_farm_check.py` (`[CONFIG] [-b BOARD]... [--json] [--report-dir DIR] [-v]`): agentrc's engine from `lib/agentrc` at the pin, with this repo's profile `test/hil/helper/farm_profile.py`. Run it before a HIL campaign, after rig maintenance/reboot, or when boards fail to flash; from a dev PC, on the rig's own checkout: `ssh ci.lan 'cd ~/code/tinyusb && python3 test/hil/helper/hil_farm_check.py'`. Without CONFIG it takes `ci`'s or `tusb`'s roster above and refuses on any other host, so a dev PC names `test/hil/local.json`; `-b` may name `boards-skip` entries.
 
-- Probe: the board's flasher `uid` among the bus serials, never a `cafe` device (an ESP USJ shares its DUT's serial); a J-Link's zero-padded serial matches when no exact one does.
+- Probe: the board's flasher `uid` among the bus serials, never TinyUSB DUT firmware (`cafe:*` or usbtest's `0525:a4a0`; an ESP USJ shares its DUT's serial); a J-Link's zero-padded serial matches when no exact one does.
 - Reset: the flasher's reset-only command through `test/hil/hil_flash.py`; esptool's is agentrc's ROM-loader reset (`chip_id` without the stub, `rom_reset_esptool`), kept out of `hil_test.py`'s resets. Nothing is flashed: the board runs whatever image it had. A reset that exits 0 counts only when its output shows the target answered and nothing in it says the reset did not happen (the provider's `reset_problem`). A WCH board's reset over openocd reports no failure of its own, so its `ok` shows only that the chip answered. lm4flash has no reset-only mode (`unsupported`). An `openocd_esp` board's reset runs the provider's session; Reservation says what one left not proven ended does to the board.
 
 ## Selection
@@ -276,11 +276,10 @@ PREFIX, since each carries trailing detail:
   refused boards DO have a `build refused` row, reported ran=false/pass=false (not run,
   failed), but sit outside N; the `<config>.failed` re-run spec covers both K and M. Never
   `"pass": true`.
-- `**HIL run aborted: config error: …**`, `**HIL run aborted: usbtest id registration failed: …**`
-  and `**HIL run aborted: No boards left: check_build.py refused every build (…)**` — boards
-  were selected but none was tested: a roster error, a failed usbtest registration, or, under
-  `--build`, `check_build.py` refusing every board. A fresh run shows no table on the first
-  two; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
+- `**HIL run aborted: config error: …**` and `**HIL run aborted: No boards left: check_build.py
+  refused every build (…)**` — boards were selected but none was tested: a roster error or,
+  under `--build`, `check_build.py` refusing every board. A fresh run shows no table on the
+  first; an `--accumulate` run keeps the previous attempt's rows under the notice, and they are
   not this run's. On the all-refused-build case, a fresh run AND an `--accumulate` run alike
   write every board's `build refused` row as this run's — report them ran=false/pass=false;
   `--accumulate` also keeps an earlier LOCKED/WEDGED cell for that board, and the

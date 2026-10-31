@@ -736,3 +736,39 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
   tud_task();
   TEST_ASSERT_EQUAL(1, deferred_calls);
 }
+
+//--------------------------------------------------------------------+
+// tud_task_stop
+//--------------------------------------------------------------------+
+
+// events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
+void test_usbd_task_stop_after_queued_events(void) {
+  deferred_calls = 0;
+  usbd_defer_func(deferred_call, NULL, false);
+  TEST_ASSERT_TRUE(tud_task_stop());
+  usbd_defer_func(deferred_call, NULL, false);
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+
+  TEST_ASSERT_FALSE(tud_task());
+  TEST_ASSERT_EQUAL(2, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
+// without an RTOS a full queue refuses the stop and nothing stops; a retry once it drained is taken
+void test_usbd_task_stop_full_queue(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_FALSE(tud_task_stop());
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    TEST_ASSERT_FALSE(tud_task());
+  }
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls);
+
+  TEST_ASSERT_TRUE(tud_task_stop());
+  TEST_ASSERT_TRUE(tud_task());
+}

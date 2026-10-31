@@ -1,6 +1,8 @@
 include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
+include(${CMAKE_CURRENT_LIST_DIR}/sysview_manifest.cmake)
+sysview_record_command_line()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #set(CMAKE_C_STANDARD 11)
 
@@ -450,12 +452,106 @@ function(family_configure_common TARGET RTOS)
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
-      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES SKIP_LINTING ON)
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
+  endif ()
+
+  # SEGGER SystemView instrumentation option
+  if (SYSVIEW)
+    if (SYSVIEW STREQUAL "ON")
+      set(SYSVIEW 4)               # bare -DSYSVIEW=ON = full instrumentation
+    endif ()
+    if (NOT SYSVIEW MATCHES "^[1-4]$")
+      message(FATAL_ERROR "SYSVIEW must be 1..4 (1=ISR 2=+usbd/usbh 3=+dcd/hcd 4=+class)")
+    endif ()
+    set(SYSVIEW_SRC ${TOP}/lib/SystemView)
+    if (NOT EXISTS ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
+      message(FATAL_ERROR "SYSVIEW needs lib/SystemView: run python3 tools/get_deps.py lib/SystemView")
+    endif ()
+    if (NOT DEFINED SYSVIEW_FREERTOS_MAX_NOF_TASKS)
+      set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
+    endif ()
+    if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
+      # a family's SYSVIEW_BUFFER_SIZE_DEFAULT: RAM-rich ones set 65536, as at 4096 mimxrt1064_evk lost
+      # 96.7% of ISR exit contexts at ~109 Hz
+      if (DEFINED SYSVIEW_BUFFER_SIZE_DEFAULT)
+        set(SYSVIEW_BUFFER_SIZE ${SYSVIEW_BUFFER_SIZE_DEFAULT})
+      else ()
+        set(SYSVIEW_BUFFER_SIZE 4096)
+      endif ()
+    endif ()
+    if (NOT DEFINED SYSVIEW_RAM_BASE)
+      # a family whose SRAM is not at 0x20000000 sets SYSVIEW_RAM_BASE_DEFAULT, or SEGGER's RAM-pointer
+      # id shrink underflows and every task/mutex id comes out garbage
+      if (DEFINED SYSVIEW_RAM_BASE_DEFAULT)
+        set(SYSVIEW_RAM_BASE ${SYSVIEW_RAM_BASE_DEFAULT})
+      else ()
+        set(SYSVIEW_RAM_BASE 0x20000000)
+      endif ()
+    endif ()
+    # vendored lib/SEGGER_RTT predates SEGGER_RTT_ConfDefaults.h; bridge it. file(CONFIGURE) writes
+    # only on a content change, so this per-target call does not rebuild every TU as file(WRITE) would.
+    file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sysview_shim/SEGGER_RTT_ConfDefaults.h
+         CONTENT "#include \"SEGGER_RTT_Conf.h\"\n" @ONLY)
+    target_sources(${TARGET} PUBLIC
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
+    # RTT's portable C writer: RTT_USE_ASM picks the ARMv7-M .S from the core, which no source-list
+    # condition tracks (rp2040 sets no CMAKE_SYSTEM_CPU) and which fails to assemble on RISC-V
+    target_compile_definitions(${TARGET} PUBLIC RTT_USE_ASM=0)
+    if (NOT LOGGER STREQUAL "RTT")
+      target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
+    endif ()
+    set(SYSVIEW_INC
+      ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
+      ${CMAKE_BINARY_DIR}/sysview_shim
+      ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+    set(SYSVIEW_DEFS CFG_TUSB_SYSVIEW=${SYSVIEW}
+      SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
+    target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
+    # vendor sources are not expected to pass TinyUSB's -Werror set
+    set_source_files_properties(
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
+      ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
+      ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+      TARGET_DIRECTORY ${TARGET} PROPERTIES COMPILE_OPTIONS "-w")
+    target_compile_definitions(${TARGET} PUBLIC ${SYSVIEW_DEFS}
+      SYSVIEW_APP_NAME="${TARGET}"
+      SYSVIEW_DEVICE_NAME="${BOARD}"
+      SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
+      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
+      SYSVIEW_MANIFEST_BUILD)
+    # Gate on this example's own RTOS, not "TARGET freertos_kernel": that target is global to an
+    # examples/-level configure (the first FreeRTOS example creates it), and rp2040 never creates it.
+    if (RTOS STREQUAL "freertos")
+      target_sources(${TARGET} PUBLIC ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c)
+      # the kernel sees FreeRTOSConfig.h through freertos_config; rp2040 has no such target, as its
+      # kernel sources compile as part of ${TARGET}
+      if (TARGET freertos_config)
+        target_compile_definitions(freertos_config INTERFACE ${SYSVIEW_DEFS})
+        target_include_directories(freertos_config INTERFACE ${SYSVIEW_INC} ${SYSVIEW_SRC}/Sample/FreeRTOSV11)
+      endif ()
+    endif ()
+    if (DEFINED SYSVIEW_DISABLE_EVENTS)
+      # its only way into a manifest build (tusb.c refuses any other), so the manifest's eventMask is the filter
+      target_compile_definitions(${TARGET} PUBLIC SYSVIEW_DISABLE_EVENTS=${SYSVIEW_DISABLE_EVENTS}
+        SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+    endif ()
+    if (SYSVIEW_POST_MORTEM)
+      target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
+      # SEGGER_SYSVIEW_SYNC_PERIOD_SHIFT stays at its source default (8)
+    endif ()
+    file(RELATIVE_PATH _sv_example ${TOP}/examples ${CMAKE_CURRENT_SOURCE_DIR})
+    sysview_manifest(${TARGET} ${BOARD} ${_sv_example})
+    message(STATUS "SYSVIEW instrumentation enabled (buffer=${SYSVIEW_BUFFER_SIZE})")
+  endif ()
+
+  if ((LOGGER STREQUAL "RTT" OR SYSVIEW) AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+    # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
+    target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rtt_conf_cortexm.h\"")
   endif ()
 
   if (FAMILY STREQUAL "rp2040")

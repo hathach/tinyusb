@@ -656,8 +656,11 @@ class VariantsTest(unittest.TestCase):
                 name = argv[argv.index('--build-name') + 1] if '--build-name' in argv else board
                 ci.add((board, name, tuple(a[2:] for a in argv if a.startswith('-D')),
                         tuple(a.partition('=')[2] for a in argv if a.startswith('--cflag='))))
-            boards = [b['name'] for b in json.loads(config.read_text())['boards']]
-            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants(boards, config)}
+            roster = json.loads(config.read_text())['boards']
+            # the SystemView capture's traced leg: hil-build alone builds it, and hil_remote.py refuses --sysview-out
+            traced = {(b['name'], sv['name']) for b in roster if (sv := build.hil_report.sysview_build(b))}
+            ci = {leg for leg in ci if leg[:2] not in traced}
+            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants([b['name'] for b in roster], config)}
             self.assertEqual(ours, ci, config.name)
 
     def test_refused_without_board_and_shared_or_for_a_board_off_the_roster(self):

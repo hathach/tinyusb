@@ -148,12 +148,11 @@ not the Proxmox host.
    sudo reboot
    ```
 
-4. Confirm the controller is running it. The first check is the one
-   `test/hil/usbtest.py` gates its own battery on — anything lower and it refuses to
-   run, failing that board's `usbtest` cell:
+4. Confirm the controller is running it, after every reboot. Nothing checks it for you,
+   the battery included:
 
    ```bash
-   sudo setpci -s <bdf> 0x6c.l   # whole dword, must be >= 00202609
+   sudo setpci -s <bdf> 0x6c.l   # version is bits 23:8, must be >= 2026 (2.0.2.6); ffffffff = unreadable
    dmesg | grep 'hcc params'     # 0x014051cf = firmware loaded, 0x014050cf = ROM fallback
    ```
 
@@ -174,7 +173,7 @@ written is expected — it busy-waits over PCI config space for ~30 s.
 | Flashing                    | One tool per `Flasher` value — see below                                                                                                  |
 | Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool, pyusb (the raw MTP cases)                                         |
 | Host-side test tools        | `dfu-util`, `mtools`, `libmtp9`, `libmtp-runtime`, `alsa-utils` (apt) — the DFU, MSC, MTP and audio tests shell out to these              |
-| USB inspection and recovery | `pciutils` (the `usbtest` firmware gate), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
+| USB inspection and recovery | `pciutils` (the Renesas firmware read), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
 
 The `Flasher` column in Attached boards names a tool from the table below; only the ones your own
 boards use have to be installed. The mapping is not always guessable:
@@ -216,9 +215,11 @@ Flasher CLIs and toolchains must be reachable from *non-interactive* shells — 
 Actions runner nor `hil_remote.py` sources a login profile. Keep them in `~/.local/bin` and
 `~/bin` (symlinks are fine) and add both to the runner's `.path`.
 
-`pciutils` and passwordless sudo are hard requirements, not conveniences:
-`test/hil/usbtest.py` shells out as `sudo -n` for `setpci`, `modprobe`, `dmesg` and
-`testusb`, and exits outright if it cannot read the host controller's firmware version.
+Root is needed only by agentrc's `hil_root.py`, through `sudo -n`: loading `usbtest`, its
+pattern parameter, its kernel log lines, and Reset_TT. A rig grants its CI user sudo on its
+installed copy, `/usr/local/sbin/hil_root`, and nothing else; elsewhere passwordless sudo
+runs the checkout's copy. `testusb` never runs under sudo: the device node must be writable
+(`tools/88-tinyusb.rules`).
 
 The `usbtest` battery additionally needs `testusb` built from the kernel tools and
 `CONFIG_USB_TEST=m` available.
@@ -352,10 +353,9 @@ by the tests that shell out to them, so dropping one just fails the DFU, MSC, MT
 cells on an otherwise healthy rig. `test/hil/requirements.txt` names those at the top,
 along with `iperf` for the `device/net_lwip_*` tests, which are off in the default matrix.
 
-Only two of this page's host-controller concerns carry over. `test/hil/usbtest.py` refuses
-a DUT behind a MosChip MCS9990 (`9710:9990`) outright, and it applies the Renesas firmware
-check only when the DUT really is behind a uPD720201/02 — on a stock Intel or AMD xHCI
-there is nothing to install, and `pciutils` is only needed for that check.
+Only one of this page's host-controller concerns carries over: `test/hil/usbtest.py` refuses
+a DUT behind a MosChip MCS9990 (`9710:9990`) outright. The Renesas firmware matters only on a
+uPD720201/02, and `pciutils` only for its manual read; a stock Intel or AMD xHCI needs neither.
 
 ```bash
 cd examples && cmake --preset <board> && cmake --build --preset <board>

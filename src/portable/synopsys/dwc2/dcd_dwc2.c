@@ -44,10 +44,19 @@ typedef struct {
 static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
+// Allocated OUT packets that size the shared RX FIFO, in words
+typedef struct {
+  uint16_t largest;      // largest OUT packet of any endpoint, EP0 included
+  uint16_t bulk;         // largest bulk OUT packet
+  uint16_t periodic[2];  // 2 largest periodic (isochronous, interrupt) OUT packets
+  uint16_t periodic_sum; // sum of (packet + 1) of all periodic OUT endpoints
+} dfifo_rx_t;
+
 typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t dfifo_top;      // top free location in DFIFO in words
+  dfifo_rx_t rx;
 
   // Number of IN endpoints active
   uint8_t allocated_epin_count;
@@ -175,7 +184,8 @@ static void dma_setup_prepare(uint8_t rhport) {
       - Buffer DMA mode: 1 word per endpoint direction
       - Scatter/Gather DMA mode: 4 words per endpoint direction
   - TX FIFO: one fifo for each IN endpoint. Size is dynamic depending on packet size, starting from top with EP0 IN.
-  - Shared RX FIFO: a shared fifo for all OUT endpoints. Typically, can hold up to 2 packets of the largest EP size.
+  - Shared RX FIFO: a shared fifo for all OUT endpoints. Holds the largest packet, or the 2 largest bulk/periodic packets;
+    in high-speed Slave mode also one packet of every periodic endpoint.
 
   We allocate TX FIFOs from top to bottom (using a top pointer), this to allow the RX FIFO to grow dynamically, which is
   possible since the free space is located between the RX and TX FIFOs.
@@ -203,16 +213,56 @@ static void dma_setup_prepare(uint8_t rhport) {
     - 13 for setup packets + control words (up to 3 setup packets).
     - 1 for global NAK (not required/used here).
     - Largest-EPsize/4 + 1. (FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
-    - 2 for each used OUT endpoint.
+      and required with a high-bandwidth endpoint or multiple isochronous endpoints.
+    - 2 for each OUT endpoint of the hardware configuration including EP0, not only the active ones.
 
-    Therefore, GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
+  The core accepts an OUT packet only while the free space can hold that endpoint's max packet size, so the RX FIFO must
+  hold at least the largest packet. 2 x Largest-EPsize is not always needed: a second packet is only reserved for
+  packets that can arrive back-to-back. Periodic (isochronous, interrupt) endpoints are scheduled first in each
+  (micro)frame so 2 of them can arrive back-to-back, and an isochronous packet refused for lack of space is lost. A bulk
+  endpoint can receive back-to-back packets and counts twice for throughput. EP0 only needs to fit: control packets are
+  scheduled after periodic ones and are assumed to be drained before the next (micro)frame, i.e. the USB interrupt is
+  not blocked for that long. High-bandwidth OUT endpoints are not supported.
+
+  In high-speed Slave mode the CPU pops the RX FIFO about as fast as the bus fills it (measured on STM32U5A5: 1024 bytes
+  take ~18 us vs a ~21 us transaction), so 2 packets leave almost no margin when more periodic packets follow in the
+  same microframe: a refused periodic packet is lost (isochronous) or only retried next interval (interrupt). It
+  therefore reserves one packet of every periodic endpoint. At full speed a packet takes much longer on the bus than to
+  pop, and 2 packets leave ~50 us for the USB interrupt (measured on STM32F407 OTG_FS), enough when its priority is
+  right. With Buffer DMA, 2 packets measured as good as master.
+
+  Therefore, in words with each packet = max packet size / 4 rounded up:
+
+    GRXFSIZ = 13 + 1 + max(L + 1, (P1 + 1) + (P2 + 1), HS Slave mode ? S : 0) + 2 x EPOUTnum
+
+    - L: largest OUT packet of any endpoint, EP0 included
+    - P1, P2: the 2 largest of {B, B, I1, I2}, with B the largest bulk packet (counted twice) and I1, I2 the 2 largest
+      periodic packets
+    - S: sum of (packet + 1) over all periodic OUT endpoints
+    - EPOUTnum: OUT endpoints of the hardware configuration (ep_count)
+
+  As for TX FIFOs, each endpoint is allocated once per configuration: isochronous endpoints with alternate settings
+  preallocate their largest packet with dcd_edpt_iso_alloc() and are switched with dcd_edpt_iso_activate().
 */
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_device_grxfsiz(uint16_t largest_ep_size, uint8_t ep_count) {
-  return (uint16_t)(13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count);
+static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool sum_periodic) {
+  // 2 largest of {B, B, I1, I2}
+  uint16_t p1 = rx->bulk;
+  uint16_t p2 = rx->bulk;
+  if (rx->periodic[0] > rx->bulk) {
+    p1 = rx->periodic[0];
+    p2 = tu_max16(rx->bulk, rx->periodic[1]);
+  }
+  const uint16_t pair = (uint16_t) ((p1 != 0 ? p1 + 1 : 0) + (p2 != 0 ? p2 + 1 : 0));
+
+  uint16_t pkt_sz = tu_max16((uint16_t) (rx->largest + 1), pair);
+  if (sum_periodic) {
+    pkt_sz = tu_max16(pkt_sz, rx->periodic_sum);
+  }
+  return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
 }
 
-static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, bool is_bulk) {
+static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, uint8_t xfer_type) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   const uint8_t ep_count = dwc2_controller->ep_count;
@@ -224,13 +274,37 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, b
   uint16_t fifo_size = (uint16_t)tu_div_ceil(packet_size, 4);
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
-    const uint16_t new_sz = calc_device_grxfsiz(4 * fifo_size, ep_count);
+    dfifo_rx_t rx = _dcd_data.rx;
+    rx.largest = tu_max16(rx.largest, fifo_size);
+    if (xfer_type == TUSB_XFER_BULK) {
+      rx.bulk = tu_max16(rx.bulk, fifo_size);
+    } else if (xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) {
+      rx.periodic_sum = (uint16_t) (rx.periodic_sum + fifo_size + 1);
+      if (fifo_size > rx.periodic[0]) {
+        rx.periodic[1] = rx.periodic[0];
+        rx.periodic[0] = fifo_size;
+      } else if (fifo_size > rx.periodic[1]) {
+        rx.periodic[1] = fifo_size;
+      }
+    }
+    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+    const bool sum_periodic = !dma_device_enabled(dwc2) && dsts.enum_speed == DCFG_SPEED_HIGH;
+    const uint16_t new_sz = calc_device_grxfsiz(&rx, ep_count, sum_periodic);
 
     // If size_rx needs to be extended check if there is enough free space
     if (dwc2->grxfsiz < new_sz) {
+      if (new_sz > _dcd_data.dfifo_top) {
+        // HS Slave mode reserves a packet of every periodic OUT endpoint, Buffer DMA only the 2 largest
+        const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+        const bool dma_hint = !dma_device_enabled(dwc2) && ghwcfg2.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+        TU_LOG1("DWC2: EP %02X needs %u words of RX FIFO, only %u free%s\r\n", ep_addr, new_sz, _dcd_data.dfifo_top,
+                dma_hint ? ", try CFG_TUD_DWC2_DMA_ENABLE" : "");
+        (void) dma_hint;
+      }
       TU_ASSERT(new_sz <= _dcd_data.dfifo_top);
       dwc2->grxfsiz = new_sz; // Enlarge RX FIFO
     }
+    _dcd_data.rx = rx;
   } else {
     // Check IN endpoints concurrently active limit
     if(0 != dwc2_controller->ep_in_count) {
@@ -240,7 +314,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, b
 
     // Enable double buffering if configured, only effective for non-periodic endpoints
     // Since we queue only 1 control transfer at a time, it's only applicable for bulk IN endpoints
-    if (((_tud_cfg.bm_double_buffered & (1 << epnum)) != 0) && epnum > 0 && is_bulk) {
+    if (((_tud_cfg.bm_double_buffered & (1 << epnum)) != 0) && epnum > 0 && xfer_type == TUSB_XFER_BULK) {
       fifo_size *= 2;
     }
 
@@ -264,10 +338,12 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, b
 static void dfifo_device_init(uint8_t rhport) {
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  dwc2->grxfsiz = calc_device_grxfsiz(CFG_TUD_ENDPOINT0_SIZE, dwc2_controller->ep_count);
+  tu_memclr(&_dcd_data.rx, sizeof(_dcd_data.rx));
+  _dcd_data.rx.largest = CFG_TUD_ENDPOINT0_SIZE / 4;
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
   const bool is_dma = dma_device_enabled(dwc2);
+  dwc2->grxfsiz = calc_device_grxfsiz(&_dcd_data.rx, dwc2_controller->ep_count, false);
   _dcd_data.dfifo_top = dwc2_controller->otg_dfifo_depth;
   if (is_dma) {
     _dcd_data.dfifo_top -= 2 * dwc2_controller->ep_count;
@@ -275,7 +351,7 @@ static void dfifo_device_init(uint8_t rhport) {
   dwc2->gdfifocfg = ((uint32_t) _dcd_data.dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | _dcd_data.dfifo_top;
 
   // Allocate FIFO for EP0 IN
-  (void) dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE, false);
+  (void) dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE, TUSB_XFER_CONTROL);
 }
 
 
@@ -625,7 +701,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
   TU_ASSERT(dfifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt),
-                       desc_edpt->bmAttributes.xfer == TUSB_XFER_BULK));
+                       desc_edpt->bmAttributes.xfer));
   edpt_activate(rhport, desc_edpt);
   return true;
 }
@@ -661,7 +737,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  TU_ASSERT(dfifo_alloc(rhport, ep_addr, largest_packet_size, false));
+  TU_ASSERT(dfifo_alloc(rhport, ep_addr, largest_packet_size, TUSB_XFER_ISOCHRONOUS));
   return true;
 }
 

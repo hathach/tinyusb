@@ -475,9 +475,28 @@ static uint8_t find_vendor_itf(uint8_t ep_addr) {
 
 #if CFG_TUD_VENDOR_ALT_SETTINGS
 
-// Reserve an isochronous endpoint at open time. Ports with a dedicated iso allocator
-// (TUP_DCD_EDPT_ISO_ALLOC) reserve the FIFO here and (re)activate on altsetting selection;
-// ports with dcd_edpt_close instead open it once here (open == allocate + activate).
+// Track the isochronous endpoint of one direction over all altsettings: a single address whose
+// packet size may change per altsetting. The descriptor with the largest packet is kept so the
+// endpoint is reserved once with it (only one altsetting is active at a time).
+static inline bool vendord_iso_ep_track(const tusb_desc_endpoint_t** largest, const tusb_desc_endpoint_t* desc_ep,
+                                        uint16_t bufsize) {
+  const uint16_t mps = tu_edpt_packet_size(desc_ep);
+  TU_ASSERT(mps <= bufsize);
+  if (*largest == NULL) {
+    *largest = desc_ep;
+  } else {
+    TU_ASSERT((*largest)->bEndpointAddress == desc_ep->bEndpointAddress); // one iso endpoint per direction
+    if (mps > tu_edpt_packet_size(*largest)) {
+      *largest = desc_ep;
+    }
+  }
+  return true;
+}
+
+// Reserve an isochronous endpoint at open time, once with its largest packet over all altsettings.
+// Ports with a dedicated iso allocator (TUP_DCD_EDPT_ISO_ALLOC) reserve the FIFO here and
+// (re)activate on altsetting selection; ports with dcd_edpt_close instead open it once here
+// (open == allocate + activate).
 static inline bool vendord_iso_ep_alloc(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) {
   #ifdef TUP_DCD_EDPT_ISO_ALLOC
   return usbd_edpt_iso_alloc(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep));
@@ -666,13 +685,19 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
   // leak the slot (a retry would find no free interface until the next bus reset).
 
   // Consume every altsetting of this interface and hardware-open each endpoint exactly once
-  // (bulk/interrupt via usbd_edpt_open, isochronous FIFO-allocated; iso activation and the
-  // toggle reset happen on altsetting selection). An endpoint address that recurs in another
-  // altsetting must carry an identical configuration, since it is opened only on first sight;
-  // reconfiguring the same address per-alt is not supported and is rejected here.
+  // (bulk/interrupt via usbd_edpt_open on first sight, isochronous FIFO-allocated after the parse;
+  // iso activation and the toggle reset happen on altsetting selection). An endpoint address that
+  // recurs in another altsetting must carry the same type, and the same packet size unless it is
+  // isochronous: each direction has one isochronous endpoint, reserved with its largest packet.
   uint8_t seen_type[CFG_TUD_ENDPPOINT_MAX][2];
   uint16_t seen_mps[CFG_TUD_ENDPPOINT_MAX][2];
   tu_memclr(seen_type, sizeof(seen_type)); // 0 == TUSB_XFER_CONTROL, never used as a data ep here
+  #if CFG_TUD_VENDOR_EP_ISO_IN
+  const tusb_desc_endpoint_t* iso_in_largest = NULL;
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_OUT
+  const tusb_desc_endpoint_t* iso_out_largest = NULL;
+  #endif
   const uint8_t* p_desc = tu_desc_next(desc_itf);
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
@@ -692,8 +717,8 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, 0);
 
       if (seen_type[epnum][dir] != 0) {
-        // reused address in a later altsetting: must be an exact match (opened only once)
-        TU_ASSERT(seen_type[epnum][dir] == xfer && seen_mps[epnum][dir] == mps, 0);
+        // reused address in a later altsetting: same type, same packet size unless isochronous
+        TU_ASSERT(seen_type[epnum][dir] == xfer && (xfer == TUSB_XFER_ISOCHRONOUS || seen_mps[epnum][dir] == mps), 0);
       } else {
         switch (xfer) {
           case TUSB_XFER_BULK:
@@ -717,32 +742,38 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
             break;
   #endif
 
-  #if CFG_TUD_VENDOR_EP_ISO_IN || CFG_TUD_VENDOR_EP_ISO_OUT
-          case TUSB_XFER_ISOCHRONOUS:
-    #if CFG_TUD_VENDOR_EP_ISO_IN
-            if (dir == TUSB_DIR_IN) {
-              TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE, 0);
-              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
-            }
-    #endif
-    #if CFG_TUD_VENDOR_EP_ISO_OUT
-            if (dir == TUSB_DIR_OUT) {
-              TU_ASSERT(mps <= CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE, 0);
-              TU_ASSERT(vendord_iso_ep_alloc(rhport, desc_ep), 0);
-            }
-    #endif
-            break;
-  #endif
-
           default:
-            break; // unsupported endpoint type / direction gate disabled: ignore
+            break; // isochronous (reserved after the parse), unsupported type or direction gate disabled
         }
         seen_type[epnum][dir] = xfer;
         seen_mps[epnum][dir] = mps;
       }
+
+  #if CFG_TUD_VENDOR_EP_ISO_IN
+      if (xfer == TUSB_XFER_ISOCHRONOUS && dir == TUSB_DIR_IN) {
+        TU_ASSERT(vendord_iso_ep_track(&iso_in_largest, desc_ep, CFG_TUD_VENDOR_EP_ISO_IN_BUFSIZE), 0);
+      }
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_OUT
+      if (xfer == TUSB_XFER_ISOCHRONOUS && dir == TUSB_DIR_OUT) {
+        TU_ASSERT(vendord_iso_ep_track(&iso_out_largest, desc_ep, CFG_TUD_VENDOR_EP_ISO_OUT_BUFSIZE), 0);
+      }
+  #endif
     }
     p_desc = tu_desc_next(p_desc);
   }
+
+  // reserve each isochronous endpoint once, with its largest packet over all altsettings
+  #if CFG_TUD_VENDOR_EP_ISO_IN
+  if (iso_in_largest != NULL) {
+    TU_ASSERT(vendord_iso_ep_alloc(rhport, iso_in_largest), 0);
+  }
+  #endif
+  #if CFG_TUD_VENDOR_EP_ISO_OUT
+  if (iso_out_largest != NULL) {
+    TU_ASSERT(vendord_iso_ep_alloc(rhport, iso_out_largest), 0);
+  }
+  #endif
   // parse succeeded: commit the descriptor pointer (marks the slot occupied) before selecting alt 0
   p_vendor->p_itf_desc   = (const uint8_t*) desc_itf;
   p_vendor->itf_desc_len = (uint16_t)((uintptr_t)p_desc - (uintptr_t)desc_itf);

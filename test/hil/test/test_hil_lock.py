@@ -280,7 +280,7 @@ class RetainedLock(LockDir):
     def end_session(self):
         """The receipt as `hil_openocd_esp.py end` leaves it on exit 0, which the holder's release waits for."""
         with open(self.RECEIPT, 'w') as f:
-            json.dump({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}, f)
+            json.dump({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99', 'closed': True, 'cleanup': 'done'}, f)
 
     def end_holder(self):
         rec = hil_lock.read_record(BOARD)

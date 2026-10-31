@@ -105,7 +105,19 @@ Core API and callbacks
    * - ``tuh_task()`` / ``tuh_task_ext()``
      - Advances enumeration and transfers and dispatches callbacks.  The
        extended form selects a wait timeout; its ``in_isr`` argument is
-       currently ignored.  Never call either from an ISR.
+       currently ignored.  Never call either from an ISR.  Both return
+       ``true`` when the stack is not initialized or ``tuh_task_stop()`` was
+       called.
+   * - ``tuh_task_stop()``
+     - Makes ``tuh_task()`` return ``true`` once the events queued before the
+       call are processed, waking it if blocked, so another task can stop the
+       USB task before ``tuh_deinit()``, which must run in the USB task.
+       Attachments deferred behind an ongoing enumeration are not processed;
+       ``tuh_deinit()`` drops them.  Call it once per stop, from one other
+       task, not an ISR.  On a full queue it waits for space when the OS
+       adapter's queue send waits (FreeRTOS, ThreadX, Zephyr); otherwise (no
+       OS, RT-Thread, RTX4, Mynewt) it returns ``false`` and the caller
+       retries.  It also returns ``false`` if the stack is not initialized.
    * - ``tuh_mount_cb()`` / ``tuh_umount_cb()``
      - Announces a configured device or detachment.  Class mount callbacks
        provide the interface-specific indices used for I/O.

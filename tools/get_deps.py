@@ -96,7 +96,7 @@ deps_optional = {
                                            '4f7299d6ea746b27a9dd19e87af568e34bd65b15',
                                            'rp2040'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '675543bcc9baa8170f868ab7ba316d418dbcf41f',
+                                         'b186e36bea0f3bcc2ee94ca1fa81e7f71281443a',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -252,13 +252,13 @@ deps_optional = {
                   '083944907e7d08fcb1f614b47598ce45935b8da1',
                   'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v103': ['https://github.com/openwch/ch32v103.git',
-                            '7578cae0b21f86dd053a1f781b2fc6ab99d0ec17',
+                            'ff367d8fec5c9f40029355b2806cd059d9508e4e',
                             'ch32v10x'],
     'hw/mcu/wch/ch32v20x': ['https://github.com/openwch/ch32v20x.git',
-                            'c4c38f507e258a4e69b059ccc2dc27dde33cea1b',
+                            'b375bbbc7dfe8642d6fb7c17e6d3207ee1c3c9c1',
                             'ch32v20x'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
-                            '184f21b852cb95eed58e86e901837bc9fff68775',
+                            '8b3699d9e4eafc3102e382b74266a1165a2bb584',
                             'ch32v30x'],
     'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
@@ -307,9 +307,13 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # fetched by path, or for -D SYSVIEW=<level>: just traced builds need it
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                       '92ca7a810c5765ba64911919acd511c61b6b083f',
+                       ''],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '992c40c24398bf07ee51b48abfe442b837b5d9b6',
+                    '12d14432d35231935e9764a72c1bd19dde02c78b',
                     ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
@@ -439,7 +443,8 @@ def main():
     parser.add_argument('families', nargs='*', default=[],
                         help='Families, or optional dependency paths (e.g. tools/linkermap), to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
-    parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
+    parser.add_argument('-D', '--define', action='append', default=[],
+                        help='SYSVIEW=<level> (nonzero) also fetches lib/SystemView; others have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--build-name', default=None, help='Have no effect')
     parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
@@ -466,6 +471,9 @@ def main():
         deps.extend(deps_optional.keys())
     else:
         families = list(families)
+        # a traced build (hil_ci_set_matrix.py's sysview legs) compiles the SystemView sources
+        if any(k == 'SYSVIEW' and v not in ('', '0') for k, _, v in (d.partition('=') for d in args.define)):
+            families.append('lib/SystemView')
         if boards is not None:
             for b in boards:
                 f = find_family(b)

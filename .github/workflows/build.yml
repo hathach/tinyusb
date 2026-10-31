@@ -12,13 +12,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
+# no job writes to the repository; self-hosted rigs keep state between jobs, so none may hold a write token
+permissions:
+  contents: read
+
 jobs:
   # Check if the code changes and we need to run ci build
   # Cannot use paths filter in the on-event since we want this workflow to run even when there are no code changes, to register the commit chain
   check-paths:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       code_changed: ${{ steps.gate.outputs.code }}
       # hil-hfp-iar trusts its own selector run on this, not rerunning the suites on the rig runner
@@ -516,6 +518,10 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          # the merge commit's parents: the SystemView capture records its base and head (checkout_identity)
+          fetch-depth: 2
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -556,7 +562,12 @@ jobs:
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
-          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+          # SystemView capture of the selected roster sysview boards, before each one's final park, flashing the
+          # traced image hil-build's sysview leg uploaded. Not on re-run attempts: a re-run recaptures every board,
+          # wasting shared-rig time for no report benefit.
+          SV_ARGS=''
+          if [ "${{ github.run_attempt }}" = 1 ]; then SV_ARGS='--sysview-out sysview-out'; fi
+          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS $SV_ARGS
 
       - &hil_report_prepare
         name: Prepare HIL report
@@ -593,6 +604,19 @@ jobs:
             ${{ steps.prepare.outputs.dir }}/hil_report.attempts/
             ${{ steps.prepare.outputs.dir }}/hil_report.unprepared
             ${{ steps.prepare.outputs.dir }}/audio/
+          if-no-files-found: ignore
+          overwrite: true
+
+      - name: Upload SystemView captures
+        # records and raw captures, base-branch pushes included: sysview-report decodes them off the rig
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-${{ matrix.display }}
+          path: |
+            sysview-out/sysview-*.json
+            sysview-out/*-capture.SVDat
           if-no-files-found: ignore
           overwrite: true
 
@@ -644,6 +668,8 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -729,6 +755,8 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
         with:
+          # self-hosted: leave no GITHUB_TOKEN in .git/config for later jobs
+          persist-credentials: false
           # full history: the "HIL selection" step below needs
           # merge-base(HEAD, origin/<base_ref>) for PR-scoped selection
           fetch-depth: 0

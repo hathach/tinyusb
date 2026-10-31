@@ -370,7 +370,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 def mark_report_aborted(report_dir: Path, msg: str, fresh: bool = True) -> None:
     """Record a run that stopped before any board was tested although boards were selected
-    (a roster error, a failed usbtest registration): `aborted`, never no-boards, so the shared
+    (a roster error): `aborted`, never no-boards, so the shared
     rules read every selected board as a blocker. `fresh` as mark_report_no_boards."""
     _mark_report(report_dir, f'**HIL run aborted: {msg}.**\n', 'aborted', fresh)
 
@@ -563,6 +563,25 @@ def board_variants(board: dict) -> list:
                              f'string and defines a list of strings: {v}')
         out.append({'name': vname, 'defines': list(defines), 'flags': flags.split()})
     return out
+
+
+def sysview_build(board: dict) -> dict | None:
+    """The traced build a roster board's "sysview" entry captures, None without one: its variant's
+    defines and flags plus -DSYSVIEW=4 (and the entry's buffer), named <variant>-sysview so it never
+    replaces a test or parking image. A board with several variants raises ValueError: which one
+    the capture traces is not decided."""
+    sv = board.get('sysview')
+    if not sv:
+        return None
+    variants = board_variants(board)
+    if len(variants) != 1:
+        raise ValueError(f'board {board["name"]} has {len(variants)} variants: its sysview entry cannot '
+                         f'tell which one to trace')
+    v = variants[0]
+    defines = [*v['defines'], 'SYSVIEW=4']
+    if 'buffer' in sv:
+        defines.append(f'SYSVIEW_BUFFER_SIZE={sv["buffer"]}')
+    return {'name': f'{v["name"]}-sysview', 'example': sv['example'], 'defines': defines, 'flags': v['flags']}
 
 
 def variants_of(cfg: dict, board: str) -> list:

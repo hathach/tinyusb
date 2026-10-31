@@ -2454,8 +2454,7 @@
           "renesas/rusb2/rusb2_common.c"
         ],
         "roles": [
-          "device",
-          "host"
+          "device"
         ]
       }
     },
@@ -2465,6 +2464,26 @@
         "family_mcus": [
           "RAXXX",
           "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
+        ]
+      }
+    },
+    "ra4m2_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m2"
         ],
         "mcu": "OPT_MCU_RAXXX",
         "options": {},

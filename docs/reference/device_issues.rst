@@ -113,6 +113,20 @@ its physical port; the initialization above selects its operating speed. Use des
 for full speed. This reduces the timing pressure but does not remove the shared-register
 limitation; validate the application's endpoint mix, especially when using isochronous transfers.
 
+.. _wch-trace-timing:
+
+**3. Tracing shifts bus timing**
+
+The USBFS and USBHS device drivers both enable the ``INT_BUSY`` NAK of
+:ref:`item 2 <wch-usbhs-interrupt-starvation>`, so ISR time before the transfer flag is cleared is
+time the bus NAKs. USBFS clears the flag at the end of its ISR; USBHS clears it first for endpoints
+other than EP0. SystemView records the ISR entry inside that window at every ``SYSVIEW`` level.
+Levels 2-4 add records before an endpoint is re-armed, in task context or from the ISR (audio).
+Records or logging executed before the transfer flag is cleared widen the window further. Traced
+builds can therefore see more NAKs and lower throughput: compare WCH timings only between builds at
+the same ``SYSVIEW`` level, and measure throughput untraced.
+ch32v20x's FSDEV port (port 0) has no ``INT_BUSY``.
+
 Puya PY32F071/072
 ---------------------------------
 **Severity: Very Low**

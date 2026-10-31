@@ -594,6 +594,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
     tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    TU_VERIFY(fmt != end);
     switch (request) {
       case VIDEO_REQUEST_GET_MAX:
         frmnum = fmt->bNumFrameDescriptors;
@@ -625,6 +626,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     param->bFrameIndex = (uint8_t)frmnum;
     /* Set the parameters determined by the frame */
     tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+    TU_VERIFY(frm != end);
     uint_fast32_t frame_size;
     switch (fmt->bDescriptorSubType) {
       case VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED:
@@ -650,7 +652,9 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     TU_ASSERT(vs);
     void const *end = _end_of_streaming_descriptor(vs);
     tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
+    TU_VERIFY(fmt != end);
     tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
+    TU_VERIFY(frm != end);
 
     uint_fast32_t interval, interval_ms;
     switch (request) {
@@ -1402,7 +1406,11 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       p_desc = tu_desc_next(p_desc);
     }
     if(ep_addr > 0 && ep_size > 0) {
-      usbd_edpt_iso_alloc(rhport, ep_addr, ep_size);
+      /* An allocation failure means the ISO endpoint exceeds what the MCU provides (endpoint numbers or
+       * FIFO/packet memory): the configuration is too large for this port, so the open fails on purpose.
+       * Lower the settings that size the EP (resolution, frame rate or format, hence wMaxPacketSize)
+       * or the number of video streaming interfaces. */
+      TU_ASSERT(usbd_edpt_iso_alloc(rhport, ep_addr, ep_size), 0);
     }
 #endif
     if (0 == stm_idx && 1 == bInCollection) {
