@@ -861,9 +861,10 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
   }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  // Include deferred work; avoid masking USB interrupts when the task is idle.
-  if (!tuh_task_event_ready()) {
-    return;
+  // Include deferred work; avoid masking USB interrupts when the task is idle. A stop set at the event limit still
+  // returns
+  if (!(stoppable && _usbh_data.task_stop) && !tuh_task_event_ready()) {
+    return false;
   }
 #endif
 
