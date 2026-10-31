@@ -837,8 +837,9 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
   }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  // Avoid masking USB interrupts just to read an empty event queue; a stop set at the event limit still returns
-  if (!_usbd_task_stop && !tud_task_event_ready()) {
+  // Avoid masking USB interrupts just to read an empty event queue. No stop can be pending: only an event processed
+  // in the loop below sets it, and the next iteration returns on it before checking the limit or the queue.
+  if (!tud_task_event_ready()) {
     return false;
   }
 #endif
