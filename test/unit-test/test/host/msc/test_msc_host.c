@@ -140,7 +140,8 @@ static void reply_csw_passed(void) {
 
 // Get Max LUN STALLs (one LUN): Test Unit Ready follows
 static void get_max_lun_stalled(void) {
-  tuh_xfer_t ctrl = {.daddr = DADDR, .result = XFER_RESULT_STALLED};
+  tuh_xfer_t ctrl = ctrl_xfer;
+  ctrl.result = XFER_RESULT_STALLED;
   ctrl_xfer.complete_cb(&ctrl);
 }
 
@@ -419,4 +420,23 @@ void test_msc_host_enum_unplug_during_get_max_lun(void) {
   TEST_ASSERT_EQUAL(0, xfer_count);
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_FALSE(tuh_msc_mounted(DADDR));
+}
+
+// usbh fails a Get Max LUN still queued when its device left, even once the address is re-enumerated:
+// it belongs to the earlier open and must not touch the reopened interface or end its configuration
+void test_msc_host_enum_stale_get_max_lun_after_reopen(void) {
+  tuh_xfer_t stale = ctrl_xfer;
+  msch_close(DADDR);
+  set_config_count = 0;
+  mount_bot_interface();
+
+  stale.result = XFER_RESULT_FAILED;
+  stale.complete_cb(&stale);
+
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_maxlun(DADDR));
+
+  // the reopened interface's own Get Max LUN still enumerates it
+  enumerate();
 }
