@@ -12,13 +12,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
+# no job writes to the repository; self-hosted rigs keep state between jobs, so none may hold a write token
+permissions:
+  contents: read
+
 jobs:
   # Check if the code changes and we need to run ci build
   # Cannot use paths filter in the on-event since we want this workflow to run even when there are no code changes, to register the commit chain
   check-paths:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       code_changed: ${{ steps.gate.outputs.code }}
       # hil-hfp-iar trusts its own selector run on this, not rerunning the suites on the rig runner
@@ -461,9 +463,6 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
-    # self-hosted rigs keep state between jobs: no write token, none left in the checkout
-    permissions:
-      contents: read
     # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
@@ -630,8 +629,6 @@ jobs:
   hil-tinyusb-esp:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
-    permissions:
-      contents: read
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     # above hil_test.py's pool guard (60 min) with ~15 min for the pre-pool checkout
     # and the report upload, so its own guard still writes a report;
@@ -758,6 +755,8 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
         with:
+          # self-hosted: leave no GITHUB_TOKEN in .git/config for later jobs
+          persist-credentials: false
           # full history: the "HIL selection" step below needs
           # merge-base(HEAD, origin/<base_ref>) for PR-scoped selection
           fetch-depth: 0
