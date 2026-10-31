@@ -109,10 +109,11 @@ void USARTn_IRQHandler(void) {
 
 #ifdef TRACE_SWO
 #if !(defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx) || \
-      defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx))
-  #error "TRACE_SWO: only the RM0090 parts (STM32F405/415, F407/417, F427/437, F429/439) are covered"
+      defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx) || \
+      defined(STM32F401xC) || defined(STM32F401xE))
+  #error "TRACE_SWO: only the RM0090 parts (STM32F405/415, F407/417, F427/437, F429/439) and STM32F401 are covered"
 #endif
-// SWO on PB3 (TRACESWO, AF0): TRACE_IOEN clocks the TPIU, TRACE_MODE 00 is asynchronous (RM0090 DBGMCU_CR)
+// SWO on PB3 (TRACESWO, AF0): TRACE_IOEN clocks the TPIU, TRACE_MODE 00 is asynchronous (DBGMCU_CR in RM0090/RM0368)
 static void trace_swo_init(void) {
   GPIO_InitTypeDef gpio_init = {
     .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
