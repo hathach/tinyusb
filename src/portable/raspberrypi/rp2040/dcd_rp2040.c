@@ -65,13 +65,20 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *get_buf_ctrl(uint8_t epnum, tusb_d
   return (dir == TUSB_DIR_IN) ? &buf_ctrl->in : &buf_ctrl->out;
 }
 
+// DPRAM an endpoint takes: whole 64-byte blocks, two buffers for bulk
+static uint16_t hw_endpoint_dpram_size(uint16_t wMaxPacketSize, uint8_t transfer_type) {
+  const uint16_t size = (uint16_t)tu_round_up(wMaxPacketSize, 64);
+  return (transfer_type == TUSB_XFER_BULK) ? (uint16_t)(size * 2u) : size;
+}
+
 // Init and enable endpoint
 static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, bool ep_enabled) {
   const uint8_t    epnum = tu_edpt_number(ep_addr);
   const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
 
-  hw_endpoint_t *ep   = hw_endpoint_get(epnum, dir);
-  ep->ep_addr         = ep_addr;
+  hw_endpoint_t *ep      = hw_endpoint_get(epnum, dir);
+  const uint16_t old_mps = ep->max_packet_size;
+  ep->ep_addr            = ep_addr;
   ep->next_pid        = 0u;
   ep->max_packet_size = wMaxPacketSize;
 
@@ -85,33 +92,33 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     // Note: Only single buffer for EP since Double buffered RX can be troublesome with future data.
     ep->dpram_buf = (uint8_t *)&usb_dpram->ep0_buf_a[0];
   } else {
-    uint32_t ep_ctrl = EP_CTRL_INTERRUPT_PER_BUFFER | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB);
-
-    // round up size to multiple of 64
-    uint16_t size = (uint16_t)tu_round_up(wMaxPacketSize, 64);
+    io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
+    uint32_t       ep_ctrl = EP_CTRL_INTERRUPT_PER_BUFFER | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB);
+    const uint16_t size    = hw_endpoint_dpram_size(wMaxPacketSize, transfer_type);
 
     // double buffered Bulk endpoint
-    if (transfer_type == TUSB_XFER_BULK) {
-      size *= 2u;
   #if CFG_TUSB_RP2_ERRATA_E15
-      if (dir == TUSB_DIR_IN) {
-        ep->e15_bulk_in = true;
-      }
-  #endif
+    if (transfer_type == TUSB_XFER_BULK && dir == TUSB_DIR_IN) {
+      ep->e15_bulk_in = true;
     }
+  #endif
 
-    // assign buffer
-    ep->dpram_buf = hw_buffer_ptr;
-    hw_buffer_ptr += size;
+    // A class may open an endpoint again without closing it (video bulk on every SET_INTERFACE): keep its
+    // buffer while it fits, or each open takes new DPRAM until the check below fails
+    const uint8_t old_type = (uint8_t)((*ep_reg >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u);
+    if (ep->dpram_buf == NULL || size > hw_endpoint_dpram_size(old_mps, old_type)) {
+      ep->dpram_buf = hw_buffer_ptr;
+      hw_buffer_ptr += size;
+    }
 
     ep_ctrl |= hw_data_offset(ep->dpram_buf);
     if (ep_enabled) {
       ep_ctrl |= EP_CTRL_ENABLE_BITS;
     }
 
-    *get_ep_ctrl(epnum, dir) = ep_ctrl;
+    *ep_reg = ep_ctrl;
 
-    hard_assert(hw_buffer_ptr < usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
+    hard_assert(hw_buffer_ptr <= usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
     pico_info("  Allocated %d bytes (0x%p)\r\n", size, ep->dpram_buf);
   }
 }
