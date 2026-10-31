@@ -8,5 +8,6 @@ function(update_board TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_EXAMPLE_VIDEO_READONLY
+    LWIP_HIGH_THROUGHPUT=0
     )
 endfunction()
