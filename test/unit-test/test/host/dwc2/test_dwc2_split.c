@@ -783,8 +783,6 @@ void test_sof_never_waits_for_the_periodic_queue_to_start_a_slave_in(void) {
 }
 
 static unsigned fifo_reads;
-static uint8_t* fifo_read_dest;
-static uint16_t fifo_read_len;
 
 static void fifo_read_stub(const volatile void* fifo, uint8_t* dest, uint16_t len,
                            const tu_hwfifo_access_t* access_mode, int cmock_num_calls) {
@@ -792,8 +790,8 @@ static void fifo_read_stub(const volatile void* fifo, uint8_t* dest, uint16_t le
   (void) access_mode;
   (void) cmock_num_calls;
   fifo_reads++;
-  fifo_read_dest = dest;
-  fifo_read_len = len;
+  TEST_ASSERT_EQUAL_PTR(payload, dest); // channel 1's buffer, nothing transferred yet
+  TEST_ASSERT_EQUAL(32, len);
 }
 
 void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void) {
@@ -801,8 +799,6 @@ void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void
     setUp();
     dwc2_int_set_Ignore();
     fifo_reads = 0;
-    fifo_read_dest = NULL;
-    fifo_read_len = 0;
     tu_hwfifo_read_Stub(fifo_read_stub);
     endpoint(0, true, 64, false);
     _hcd_data.edpt[0].hcsplt_bm.split_en = split ? 1u : 0u;
@@ -825,8 +821,6 @@ void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void
     hcd_int_handler(0, true);
 
     TEST_ASSERT_EQUAL(1, fifo_reads);
-    TEST_ASSERT_EQUAL_PTR(payload, fifo_read_dest); // channel 1's buffer, nothing transferred yet
-    TEST_ASSERT_EQUAL(32, fifo_read_len);
     TEST_ASSERT_EQUAL(32, _hcd_data.xfer[1].xferred_bytes);
     TEST_ASSERT_EQUAL(32, _hcd_data.xfer[1].fifo_bytes);
     TEST_ASSERT_BITS_HIGH(GINTSTS_RXFLVL, test_regs.gintmsk);
