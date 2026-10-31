@@ -783,6 +783,7 @@ void test_sof_never_waits_for_the_periodic_queue_to_start_a_slave_in(void) {
 }
 
 static unsigned fifo_reads;
+static uint8_t pending_payload[64];
 
 static void fifo_read_stub(const volatile void* fifo, uint8_t* dest, uint16_t len,
                            const tu_hwfifo_access_t* access_mode, int cmock_num_calls) {
@@ -790,7 +791,7 @@ static void fifo_read_stub(const volatile void* fifo, uint8_t* dest, uint16_t le
   (void) access_mode;
   (void) cmock_num_calls;
   fifo_reads++;
-  TEST_ASSERT_EQUAL_PTR(payload, dest); // channel 1's buffer, nothing transferred yet
+  TEST_ASSERT_EQUAL_PTR(_hcd_data.edpt[1].buffer, dest); // channel 1's buffer, nothing transferred yet
   TEST_ASSERT_EQUAL(32, len);
 }
 
@@ -801,6 +802,7 @@ void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void
     fifo_reads = 0;
     tu_hwfifo_read_Stub(fifo_read_stub);
     endpoint(0, true, 64, false);
+    _hcd_data.edpt[0].buffer = pending_payload; // apart from channel 1's, so the read destination tells them apart
     _hcd_data.edpt[0].hcsplt_bm.split_en = split ? 1u : 0u;
     _hcd_data.edpt[0].hcchar_bm.enable = 1;
     _hcd_data.edpt[0].xfer_pending = 1;
