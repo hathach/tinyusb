@@ -56,6 +56,9 @@ and ``tud_msc_scsi_cb()``.  The other callbacks below have weak defaults.
 
 Read and write callbacks may cover only part of a logical block; honor both
 ``lba`` and ``offset`` instead of assuming one callback per block.
+A READ10/WRITE10 whose transfer length is not its block count times the block
+size from ``tud_msc_capacity_cb()`` fails before reaching them, so ``offset``
+is always less than that block size.
 Set useful sense data with ``tud_msc_set_sense()`` before returning an error
 from a command callback, such as ``tud_msc_scsi_cb()`` or read10/write10.
 For a ``TUD_MSC_RET_ERROR`` from read10/write10, TinyUSB keeps any sense still

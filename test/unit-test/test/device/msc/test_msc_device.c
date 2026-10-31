@@ -501,6 +501,62 @@ void test_msc_read10_block_size_over_16bit(void)
   tud_task();
 }
 
+// The transfer length must be block count x the LUN's block size: 1024 bytes for one 512-byte block would reach
+// tud_msc_write10_cb() with offset 512, writing past the last block of the disk
+void test_msc_write10_length_over_lun_block_size(void)
+{
+  uint32_t const total_bytes = 2 * DISK_BLOCK_SIZE;
+
+  msc_cbw_t cbw_write10 =
+  {
+    .signature = MSC_CBW_SIGNATURE,
+    .tag = 0xCAFECAFE,
+    .total_bytes = total_bytes,
+    .lun = 0,
+    .dir = 0,
+    .cmd_len = sizeof(scsi_write10_t)
+  };
+
+  scsi_write10_t cmd_write10 =
+  {
+      .cmd_code    = SCSI_CMD_WRITE_10,
+      .lba         = tu_htonl(DISK_BLOCK_NUM - 1),
+      .block_count = tu_htons(1)
+  };
+
+  memcpy(cbw_write10.command, &cmd_write10, cbw_write10.cmd_len);
+
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_write10, sizeof(msc_cbw_t));
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+
+  // case 11 (Ho > Do): no data, STALL Bulk-Out, then a failed CSW with full residue
+  msc_csw_t const csw =
+  {
+    .signature    = MSC_CSW_SIGNATURE,
+    .tag          = 0xCAFECAFE,
+    .data_residue = total_bytes,
+    .status       = MSC_CSW_STATUS_FAILED
+  };
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // READ10 Data Stage split in chunks
 //--------------------------------------------------------------------+
