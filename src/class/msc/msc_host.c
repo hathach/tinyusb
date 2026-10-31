@@ -64,6 +64,7 @@ typedef struct {
 } msch_epbuf_t;
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
+static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open, kept across close
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
@@ -438,6 +439,7 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   }
 
   p_msc->itf_num = desc_itf->bInterfaceNumber;
+  _msch_tagid[dev_addr - 1]++;
 
   return drv_len;
 }
@@ -468,7 +470,7 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
       .setup       = &request,
       .buffer      = enum_buf,
       .complete_cb = config_get_maxlun_complete,
-      .user_data    = 0
+      .user_data    = _msch_tagid[daddr - 1]
   };
   // usbh ignores set_config's result: report completion here or the enumeration never ends
   if (!tuh_control_xfer(&xfer)) {
@@ -481,8 +483,9 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
 static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
   msch_interface_t* p_msc = get_itf(daddr);
-  // unplugged: usbh closed this driver, then failed the transfer and ended the enumeration itself
-  TU_VERIFY(p_msc->configured,);
+  // unplugged: usbh closed this driver, then failed the transfer and ended the enumeration itself.
+  // A stale tagid is a request queued before the unplug that usbh fails only after the address was reopened.
+  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1],);
 
   // MAXLUN's response is minus 1 by specs, STALL means 1
   if (XFER_RESULT_SUCCESS == xfer->result) {
