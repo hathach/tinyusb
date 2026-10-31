@@ -245,32 +245,25 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
         keep_sof_alive = true;
         hw_endpoint_lock_update(ep, 1);
 
-        if (ep->state == EPSTATE_PENDING) {
-          ep->state = EPSTATE_ACTIVE;
+        // Arm only the buffers whose completion has been handled (e15_idle): a buffer the controller has sent but whose
+        // BUFF_STATUS is still pending also reads idle in buffer control, and arming it would hand that completion the
+        // new data. The other buffer, if still in flight, is re-armed by its own completion.
+        const uint8_t idle = ep->e15_idle;
+        if (ep->state == EPSTATE_PENDING && idle) {
+          ep->state    = EPSTATE_ACTIVE;
+          ep->e15_idle = 0;
 
           io_rw_32 *buf_reg32 = get_buf_ctrl(i, TUSB_DIR_IN);
-          io_rw_16 *buf_reg16 = (io_rw_16 *)buf_reg32;
-
-          // Check each buffer half: idle when both FULL and AVAIL are clear.
-          // Use 16-bit writes to avoid clobbering the other half (DPSRAM concurrent access).
-          enum {
-            BUSY_MASK = USB_BUF_CTRL_FULL | USB_BUF_CTRL_AVAIL
-          };
-
-          const bool buf0_idle = !(buf_reg16[0] & BUSY_MASK);
-          const bool buf1_idle = !(buf_reg16[1] & BUSY_MASK);
-
-          if (buf0_idle && buf1_idle) {
+          if (idle == 3) {
             // both are idle, start fresh
             // this also resets the buffer selector for a deferred ZLP
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
             rp2usb_buffer_start(ep, ep_reg, buf_reg32, false);
-          } else if (buf0_idle) {
-            uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
-            bufctrl_write16(buf_reg16, buf0);
-          } else if (buf1_idle && ep->remaining_len > 0) {
-            uint16_t buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
-            bufctrl_write16(buf_reg16 + 1, buf1);
+          } else {
+            // Use 16-bit writes to avoid clobbering the other half (DPSRAM concurrent access).
+            const uint8_t buf_id = idle >> 1;
+            uint16_t buf_ctrl16 = bufctrl_prepare16(ep, ep->dpram_buf + 64 * buf_id, false);
+            bufctrl_write16((io_rw_16 *)buf_reg32 + buf_id, buf_ctrl16);
           }
         }
 

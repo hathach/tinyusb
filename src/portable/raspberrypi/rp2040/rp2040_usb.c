@@ -97,6 +97,9 @@ void __tusb_irq_path_func(rp2usb_reset_transfer)(hw_endpoint_t *ep) {
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   ep->is_xfer_fifo  = false;
 #endif
+#if CFG_TUSB_RP2_ERRATA_E15
+  ep->e15_idle      = 0;
+#endif
 }
 
 void __tusb_irq_path_func(bufctrl_write32)(io_rw_32 *buf_reg, uint32_t value) {
@@ -277,7 +280,8 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
 
     // skip transfer if we are in critical frame period
     if (e15_is_critical_frame_period()) {
-      ep->state = EPSTATE_PENDING;
+      ep->e15_idle = 3; // nothing armed yet
+      ep->state    = EPSTATE_PENDING;
       hw_endpoint_lock_update(ep, -1);
       return;
     }
@@ -428,11 +432,12 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   #if CFG_TUSB_RP2_ERRATA_E15
     const bool need_e15 = ep->e15_bulk_in;
     if (need_e15 && e15_is_critical_frame_period()) {
-      // mark as pending if matches E15 condition
+      // mark as pending if matches E15 condition, SOF arms this buffer
       ep->state = EPSTATE_PENDING;
+      ep->e15_idle |= (uint8_t)(1u << buf_id);
     } else if (need_e15 && ep->state == EPSTATE_PENDING) {
       // if already pending, meaning the other buf completes first, don't arm buffer, let SOF handle it
-      // do nothing
+      ep->e15_idle |= (uint8_t)(1u << buf_id);
     } else
   #endif
     {
