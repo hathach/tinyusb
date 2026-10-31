@@ -113,6 +113,11 @@ static const dhcp_config_t dhcp_config = {
 static err_t linkoutput_fn(struct netif *netif, struct pbuf *p) {
   (void) netif;
 
+  /* a frame larger than the network class can carry would overflow the bulk-IN transfer, drop it */
+  if (p->tot_len > CFG_TUD_NET_MTU) {
+    return ERR_BUF;
+  }
+
   for (;;) {
     /* if TinyUSB isn't ready, we must signal back to lwip that there is nothing we can do */
     if (!tud_ready())
