@@ -44,6 +44,7 @@ typedef enum {
 typedef struct TU_ATTR_ALIGNED(4) {
   uint8_t rhport;
   uint8_t event_id;
+  uint8_t setup_tagid; // SETUP_RECEIVED: the DCD's tag, handed back by dcd_edpt0_setup_begin()
 
   union {
     // BUS RESET
@@ -105,8 +106,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 // Deinitialize controller, unset device mode.
 bool dcd_deinit(uint8_t rhport);
 
-// Interrupt Handler
+// Interrupt Handler, also declared by usbd.h: whichever header comes first declares it
+#ifndef TUSB_USBD_H_
 void dcd_int_handler(uint8_t rhport);
+#endif
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
@@ -136,6 +139,12 @@ void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector)
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
+
+// Invoked when the stack starts processing a SETUP, with the setup_tagid its DCD put in the event.
+// A DCD can then drop EP0 arms and stalls made for a SETUP that a newer one superseded. Return false
+// if it is already superseded (newer SETUP or bus reset): the stack drops it unprocessed. True does
+// not prevent a later supersession. This API is optional.
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid);
 
 // Invoked when a control transfer's status stage is complete.
 // May help DCD to prepare for next control transfer, this API is optional.
@@ -202,11 +211,12 @@ TU_ATTR_ALWAYS_INLINE static inline  void dcd_event_bus_reset (uint8_t rhport, t
   dcd_event_handler(&event, in_isr);
 }
 
-// helper to send setup received
-TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr) {
+// helper to send setup received, tagged with setup_tagid for dcd_edpt0_setup_begin()
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received_tagid(uint8_t rhport, uint8_t const * setup, uint8_t setup_tagid, bool in_isr) {
   dcd_event_t event;
   event.rhport = rhport;
   event.event_id = DCD_EVENT_SETUP_RECEIVED;
+  event.setup_tagid = setup_tagid;
   (void) memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
   // USB wire format is little-endian. Convert multi-byte fields to host byte order
   // so the stack always sees correct values regardless of CPU endianness.
@@ -214,6 +224,11 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport
   event.setup_received.wIndex  = tu_le16toh(event.setup_received.wIndex);
   event.setup_received.wLength = tu_le16toh(event.setup_received.wLength);
   dcd_event_handler(&event, in_isr);
+}
+
+// helper to send setup received
+TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr) {
+  dcd_event_setup_received_tagid(rhport, setup, 0, in_isr);
 }
 
 // helper to send transfer complete event

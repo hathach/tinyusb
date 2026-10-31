@@ -155,6 +155,7 @@
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+#define OPT_MCU_PSE84            1801 ///< Infineon PSOC Edge E84 (PSE84)
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
@@ -178,6 +179,7 @@
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
+#define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -209,6 +211,8 @@
 
 // Geehy
 #define OPT_MCU_APM32F0XX        2800  ///< Geehy APM32F0xx
+#define OPT_MCU_APM32F103        2801  ///< Geehy APM32F103
+#define OPT_MCU_APM32F107        2802  ///< Geehy APM32F107
 
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
@@ -228,6 +232,7 @@
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
 #define OPT_OS_THREADX    9  ///< ThreadX
+#define OPT_OS_STK        10 ///< SuperTinyKernel RTOS (STK)
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -553,6 +558,15 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
+// SEGGER SystemView instrumentation level (like CFG_TUSB_DEBUG):
+//   0=off  1=USB ISR  2=+usbd/usbh functions  3=+dcd/hcd API  4=+class driver API
+// Requires lib/SystemView (python3 tools/get_deps.py) and a SYSVIEW=<level> build.
+#ifndef CFG_TUSB_SYSVIEW
+  #define CFG_TUSB_SYSVIEW 0
+#endif
+// Derived, not a setting
+#define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED || CFG_TUH_ENABLED) && CFG_TUSB_SYSVIEW)
+
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL
   #define CFG_TUH_LOG_LEVEL   2
@@ -762,6 +776,21 @@
 
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
+  #endif
+
+  // Timeout in ms for each control transfer; raise it for a device with slow control requests.
+  // A broken device that ACKs SETUP but never completes a later stage (e.g NAK forever) would
+  // otherwise stall the control pipe - and during enumeration also hub polling - forever.
+  // 5s matches Linux's USB_CTRL_GET/SET_TIMEOUT.
+  #ifndef CFG_TUH_CONTROL_TIMEOUT_MS
+    #define CFG_TUH_CONTROL_TIMEOUT_MS 5000
+  #endif
+
+  // Total enumeration attempts per attach: when the device fails an enumeration transfer, the
+  // port is reset and enumeration restarted. Some devices wedge EP0 when a bus reset arrives in
+  // their enumerated state but recover on the next reset. 1 = no retry.
+  #ifndef CFG_TUH_ENUM_ATTEMPT_MAX
+    #define CFG_TUH_ENUM_ATTEMPT_MAX 2
   #endif
 
 #endif // CFG_TUH_ENABLED

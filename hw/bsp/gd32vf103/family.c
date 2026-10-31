@@ -38,7 +38,7 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-void USBFS_IRQHandler(void) { tud_int_handler(0); }
+void USBFS_IRQHandler(void) { tusb_int_handler(0, true); }
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM

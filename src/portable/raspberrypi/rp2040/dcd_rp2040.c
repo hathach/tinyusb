@@ -196,16 +196,22 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   hw_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
+// the SDK registers this as the ISR, so it records its own span; under tud_int_handler() the depth counter keeps one
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
   const uint32_t status  = usb_hw->ints;
+  uint32_t sof_count = 0;
 
   if (status & USB_INTF_DEV_SOF_BITS) {
-    uint32_t sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
+    sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
 
   #if CFG_TUSB_RP2_ERRATA_E15
-    e15_last_sof = time_us_32();                           // timing critical
+    e15_last_sof = time_us_32();                  // timing critical: before the SystemView record below
   #endif
+  }
 
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
+
+  if (status & USB_INTF_DEV_SOF_BITS) {
     dcd_event_sof(0, sof_count, true);
   }
 
@@ -326,6 +332,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 /*------------------------------------------------------------------*/
@@ -343,8 +350,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // TU_LOG(1, "Chip Version B%u\r\n", rp2040_chip_version());
 
+  // A warm restart (SWD flash, debugger reset) keeps the previous image's pull-up: sample it before
+  // rp2usb_init() resets USBCTRL
+  const bool was_attached = (resets_hw->reset_done & RESETS_RESET_USBCTRL_BITS) &&
+                            (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS);
+
   // Reset hardware to default state
   rp2usb_init();
+
+  // hold the pull-up off 2 ms so the host sees a detach even behind a max-size full-speed packet
+  // (USB 2.0 7.1.7.3 needs undriven SE0)
+  if (was_attached) {
+    busy_wait_us(2000);
+  }
 
   #if FORCE_VBUS_DETECT
   // Force VBUS detect so the device thinks it is plugged into a host

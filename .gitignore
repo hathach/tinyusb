@@ -2,6 +2,8 @@ html
 latex
 hil_report.md
 hil_report.json
+hil_report.attempts/
+.hil_report.lock
 .hil-remote/
 *.json.failed
 *.a
@@ -68,10 +70,14 @@ docs/examples/
 .claude/worktrees/
 .claude/skills/update-sponsor/state.json
 cmake-metrics/
+cmake-size-diff/
+cmake-code-size/
 # Directories fetched by tools/get_deps.py - not to be committed
 lib/CMSIS_5
 lib/CMSIS_6
 lib/FreeRTOS-Kernel
+lib/SystemView
+lib/agentrc
 lib/fatfs
 lib/lwip
 lib/sct_neopixel

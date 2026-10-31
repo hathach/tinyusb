@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -20,15 +21,12 @@ deps_mandatory = {
     'lib/threadx': ['https://github.com/eclipse-threadx/threadx.git',
                     '4b6e8100d932a3a67b34c6eb17f84f3bffb9e2ae',
                     'all'],
-    'tools/linkermap': ['https://github.com/hathach/linkermap.git',
-                        '8e1f440fa15c567aceb5aa0d14f6d18c329cc67f',
-                        'all'],
     'tools/uf2': ['https://github.com/microsoft/uf2.git',
                   'c594542b2faa01cc33a2b97c9fbebc38549df80a',
                   'all'],
 }
 
-# Optional Dependencies per MCU
+# Optional Dependencies per family, or fetched by path
 # path, url, commit, family (Alphabet sorted by path)
 deps_optional = {
     'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
@@ -49,6 +47,9 @@ deps_optional = {
     'hw/mcu/geehy/APM32F0xx_SDK': ['https://github.com/GeehySemi/APM32F0xx_SDK.git',
                                     'cfc1fe826e1869133de86d4c6b298fc153e6bc32',
                                     'apm32f0xx'],
+    'hw/mcu/geehy/APM32F10x_SDK': ['https://github.com/GeehySemi/APM32F10x_SDK.git',
+                                    'cb084dd9ce994cc6fc449f692cdc78f34d7e2edb',
+                                    'apm32f10x'],
     'hw/mcu/infineon/mtb-xmclib-cat3': ['https://github.com/Infineon/mtb-xmclib-cat3.git',
                                         'daf5500d03cba23e68c2f241c30af79cd9d63880',
                                         'xmc4000'],
@@ -95,7 +96,7 @@ deps_optional = {
                                            '4f7299d6ea746b27a9dd19e87af568e34bd65b15',
                                            'rp2040'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '675543bcc9baa8170f868ab7ba316d418dbcf41f',
+                                         'b186e36bea0f3bcc2ee94ca1fa81e7f71281443a',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -251,13 +252,13 @@ deps_optional = {
                   '083944907e7d08fcb1f614b47598ce45935b8da1',
                   'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v103': ['https://github.com/openwch/ch32v103.git',
-                            '7578cae0b21f86dd053a1f781b2fc6ab99d0ec17',
+                            'ff367d8fec5c9f40029355b2806cd059d9508e4e',
                             'ch32v10x'],
     'hw/mcu/wch/ch32v20x': ['https://github.com/openwch/ch32v20x.git',
-                            'c4c38f507e258a4e69b059ccc2dc27dde33cea1b',
+                            'b375bbbc7dfe8642d6fb7c17e6d3207ee1c3c9c1',
                             'ch32v20x'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
-                            '184f21b852cb95eed58e86e901837bc9fff68775',
+                            '8b3699d9e4eafc3102e382b74266a1165a2bb584',
                             'ch32v30x'],
     'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
@@ -265,6 +266,9 @@ deps_optional = {
     'hw/mcu/wch/ch583': ['https://github.com/openwch/ch583.git',
                          'bd508ad7ceed48377619837051412a651952857f',
                          'ch583'],
+    'hw/mcu/wch/ch32x035': ['https://github.com/openwch/ch32x035.git',
+                            'c6253942b29ff2a3f5e2829182a874afffa45881',
+                            'ch32x035'],
     'hw/mcu/artery/at32f403a_407': ['https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git',
                                     'f2cb360c3d28fada76b374308b8c4c61d37a090b',
                                     'at32f403a_407'],
@@ -299,13 +303,25 @@ deps_optional = {
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '
                     'sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg '
-                    'tm4c '],
+                    'tm4c efm32'],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+    # fetched by path, or for -D SYSVIEW=<level>: just traced builds need it
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                       '92ca7a810c5765ba64911919acd511c61b6b083f',
+                       ''],
+    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
+    'lib/agentrc': ['https://github.com/hathach/agentrc.git',
+                    '12d14432d35231935e9764a72c1bd19dde02c78b',
+                    ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
+    # local size tooling only (tools/code_size.py, <ex>-linkermap): no family builds with it
+    'tools/linkermap': ['https://github.com/hathach/linkermap.git',
+                        '89b42dd5b6e5d1874769fb74e2d7b557a225213c',
+                        ''],
 }
 
 # Files to remove after cloning to avoid conflicts with TinyUSB's custom versions
@@ -343,8 +359,26 @@ MCU low-level peripheral drivers and external libraries for building TinyUSB exa
 """)
 
 
+def dep_head(path):
+    """The commit a dependency's checkout is detached at, read from its .git/HEAD without git;
+    None for a branch (`ref: ...`) or no readable HEAD."""
+    try:
+        head = (TOP / path / '.git' / 'HEAD').read_text().strip()
+    except OSError:
+        return None
+    return None if head.startswith('ref:') else head
+
+
+# repository-locating subset of `git rev-parse --local-env-vars`; config and transport vars stay
+GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+                'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_SHALLOW_FILE',
+                'GIT_GRAFT_FILE', 'GIT_PREFIX')
+
+
 def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     title = f'Command Error: {cmd}'
     if r.returncode != 0:
         print(title)
@@ -380,6 +414,9 @@ def get_a_dep(d):
     if commit != head:
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+    elif dep_head(d) is None:
+        # a branch at the pinned commit: detach it, as dep_head() readers expect
+        run_cmd(f"{git_cmd} checkout --detach")
 
     # Remove files that conflict with TinyUSB's custom versions
     if d in deps_remove_files:
@@ -403,9 +440,11 @@ def find_family(board):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
+    parser.add_argument('families', nargs='*', default=[],
+                        help='Families, or optional dependency paths (e.g. tools/linkermap), to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
-    parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
+    parser.add_argument('-D', '--define', action='append', default=[],
+                        help='SYSVIEW=<level> (nonzero) also fetches lib/SystemView; others have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--build-name', default=None, help='Have no effect')
     parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
@@ -414,7 +453,7 @@ def main():
     # argparse error here reds the Get Dependencies step of every scoped PR
     parser.add_argument('-e', '--example', action='append', default=[], help='Have no effect')
     parser.add_argument('--gen-doc', nargs='?', const=DEPS_RST, metavar='RST',
-                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP)}) and exit, fetching nothing')
+                        help=f'write the dependency table for the docs ({DEPS_RST.relative_to(TOP).as_posix()}) and exit, fetching nothing')
     args = parser.parse_args()
 
     if args.gen_doc:
@@ -432,19 +471,31 @@ def main():
         deps.extend(deps_optional.keys())
     else:
         families = list(families)
+        # a traced build (hil_ci_set_matrix.py's sysview legs) compiles the SystemView sources
+        if any(k == 'SYSVIEW' and v not in ('', '0') for k, _, v in (d.partition('=') for d in args.define)):
+            families.append('lib/SystemView')
         if boards is not None:
             for b in boards:
                 f = find_family(b)
                 if f is not None:
                     families.append(f)
         for f in families:
+            if '/' in f:  # a dependency path rather than a family
+                if f not in deps_all:
+                    print(f'ERROR: {f} is not in the dependency list')
+                    return 1
+                if f not in deps:
+                    deps.append(f)
+                continue
             for d in deps_optional:
                 if d not in deps and f in deps_optional[d][2].split():
                     deps.append(d)
         if len(deps) == 0:
             print('WARN: no additional dependencies found for given boards or families')
 
-    deps.extend(deps_mandatory.keys())
+    # dependency paths alone (no family, no board) fetch just those: the mandatory deps are build inputs
+    if not (families and all('/' in f for f in families) and not boards):
+        deps.extend(d for d in deps_mandatory if d not in deps)
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
     return status

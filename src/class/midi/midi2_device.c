@@ -161,7 +161,7 @@ static const uint8_t _default_gtb_desc[] = {
   0x00,                                     // nGroupTrm: first group (0)
   CFG_TUD_MIDI2_NUM_GROUPS,                 // nNumGroupTrm
   CFG_TUD_MIDI2_BLOCK_STRIDX,               // iBlockItem: string descriptor index (0 = none)
-  0x00,                                     // bMIDIProtocol: unknown/not fixed
+  CFG_TUD_MIDI2_GTB_PROTOCOL,               // bMIDIProtocol: default MIDI protocol
   0, 0,                                     // wMaxInputBandwidth: unknown
   0, 0                                      // wMaxOutputBandwidth: unknown
 };
@@ -176,9 +176,10 @@ static inline uint8_t _fb_dir_byte(uint8_t gtb_type) {
 }
 
 // Walk the GTB descriptor. Returns the number of block entries. When block
-// `idx` exists, fills its type / first group / group count.
+// `idx` exists, fills its type / first group / group count / protocol.
 static uint8_t _gtb_blocks(const uint8_t* desc, uint16_t len, uint8_t idx,
-                           uint8_t* type, uint8_t* first_group, uint8_t* num_groups) {
+                           uint8_t* type, uint8_t* first_group, uint8_t* num_groups,
+                           uint8_t* protocol) {
   uint8_t count = 0;
   uint16_t off = MIDI2_GTB_HEADER_LEN;  // skip the list header
   while (off + MIDI2_GTB_ENTRY_LEN <= len && desc[off] >= MIDI2_GTB_ENTRY_LEN) {
@@ -187,6 +188,7 @@ static uint8_t _gtb_blocks(const uint8_t* desc, uint16_t len, uint8_t idx,
         if (type)        *type = desc[off + 4];        // bGrpTrmBlkType
         if (first_group) *first_group = desc[off + 5]; // nGroupTrm
         if (num_groups)  *num_groups = desc[off + 6];  // nNumGroupTrm
+        if (protocol)    *protocol = desc[off + 8];    // bMIDIProtocol
       }
       count++;
     }
@@ -220,7 +222,27 @@ static uint8_t _gtb_block_count(midi2d_interface_t* p_midi) {
   uint16_t len = 0;
   const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &len);
   TU_ASSERT(_gtb_desc_valid(gtb, len), 0);
-  return _gtb_blocks(gtb, len, 0xFF, NULL, NULL, NULL);
+  return _gtb_blocks(gtb, len, 0xFF, NULL, NULL, NULL, NULL);
+}
+
+// The protocol in use before any Stream Configuration: the one the first
+// Group Terminal Block declares, MIDI 2.0 when that is MIDI 2.0 or unknown.
+static uint8_t _gtb_protocol(midi2d_interface_t* p_midi) {
+  uint16_t len = 0;
+  const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &len);
+  uint8_t protocol = MIDI2_GTB_PROTOCOL_UNKNOWN;
+  if (_gtb_desc_valid(gtb, len)) {
+    _gtb_blocks(gtb, len, 0, NULL, NULL, NULL, &protocol);
+  }
+  switch (protocol) {
+    case MIDI2_GTB_PROTOCOL_MIDI1_64:
+    case MIDI2_GTB_PROTOCOL_MIDI1_64_JR:
+    case MIDI2_GTB_PROTOCOL_MIDI1_128:
+    case MIDI2_GTB_PROTOCOL_MIDI1_128_JR:
+      return MIDI_PROTOCOL_MIDI1;
+    default:
+      return MIDI_PROTOCOL_MIDI2;
+  }
 }
 
 static inline bool _tx_opened(const midi2d_interface_t* p_midi) {
@@ -432,7 +454,7 @@ static void _nego_send_fb_info(midi2d_interface_t* p_midi, uint8_t fb_idx) {
   const uint8_t* gtb = tud_midi2_gtb_desc_cb(_itf_idx(p_midi), &gtb_len);
   TU_ASSERT(_gtb_desc_valid(gtb, gtb_len),);
   uint8_t type = 0x00, first_group = 0, num_groups = (uint8_t) CFG_TUD_MIDI2_NUM_GROUPS;
-  _gtb_blocks(gtb, gtb_len, fb_idx, &type, &first_group, &num_groups);
+  _gtb_blocks(gtb, gtb_len, fb_idx, &type, &first_group, &num_groups, NULL);
 
   uint32_t msg[4] = {0};
   msg[0] = ((uint32_t) MT_STREAM << 28)
@@ -845,7 +867,7 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   p_midi->rhport      = rhport;
   p_midi->itf_num     = desc_midi->bInterfaceNumber;
   p_midi->alt_setting = 0;
-  p_midi->protocol    = MIDI_PROTOCOL_MIDI2;
+  p_midi->protocol    = _gtb_protocol(p_midi);
   p_midi->negotiated  = false;
 
   p_desc = tu_desc_next(p_desc);
@@ -925,7 +947,7 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
 
       if (alt == 1) {
         p_midi->negotiated = false;
-        p_midi->protocol   = MIDI_PROTOCOL_MIDI2;
+        p_midi->protocol   = _gtb_protocol(p_midi);
       }
 
       // Re-arm RX endpoint for receiving data after alt setting change

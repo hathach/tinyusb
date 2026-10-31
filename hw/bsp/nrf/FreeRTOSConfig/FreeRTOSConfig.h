@@ -52,12 +52,8 @@
 #define configENABLE_FPU                        1
 #define configENABLE_TRUSTZONE                  0
 #define configMINIMAL_SECURE_STACK_SIZE         (1024)
-
-/* nRF54 runs entirely in Secure mode (SAU present but no SPE bootloader).
- * Tell FreeRTOS CM33 NTZ port to use Secure-compatible EXC_RETURN values. */
-#if defined(NRF54H20_XXAA) || defined(NRF54LM20A_ENGA_XXAA)
+/* These BSPs run Secure-only without a non-secure image: the CM33 NTZ port needs Secure EXC_RETURN values. */
 #define configRUN_FREERTOS_SECURE_ONLY          1
-#endif
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -105,9 +101,16 @@
 #define configTIMER_QUEUE_LENGTH               32
 #define configTIMER_TASK_STACK_DEPTH           configMINIMAL_STACK_SIZE
 
+/* SEGGER SystemView (SYSVIEW=<level> build) */
+#if defined(CFG_TUSB_SYSVIEW) && CFG_TUSB_SYSVIEW
+  #define FREERTOS_SYSVIEW_ENABLED 1
+#else
+  #define FREERTOS_SYSVIEW_ENABLED 0
+#endif
+
 /* Optional functions - most linkers will remove unused functions anyway. */
 #define INCLUDE_vTaskPrioritySet               0
-#define INCLUDE_uxTaskPriorityGet              0
+#define INCLUDE_uxTaskPriorityGet              FREERTOS_SYSVIEW_ENABLED
 #define INCLUDE_vTaskDelete                    0
 #define INCLUDE_vTaskSuspend                   1 // required for queue, semaphore, mutex to be blocked indefinitely with portMAX_DELAY
 #define INCLUDE_xResumeFromISR                 0
@@ -116,7 +119,7 @@
 #define INCLUDE_xTaskGetSchedulerState         0
 #define INCLUDE_xTaskGetCurrentTaskHandle      1
 #define INCLUDE_uxTaskGetStackHighWaterMark    0
-#define INCLUDE_xTaskGetIdleTaskHandle         0
+#define INCLUDE_xTaskGetIdleTaskHandle         FREERTOS_SYSVIEW_ENABLED
 #define INCLUDE_xTimerGetTimerDaemonTaskHandle 0
 #define INCLUDE_pcTaskGetTaskName              0
 #define INCLUDE_eTaskGetState                  0
@@ -151,5 +154,10 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+
+/* SystemView's trace hooks must be last */
+#if FREERTOS_SYSVIEW_ENABLED
+  #include "SEGGER_SYSVIEW_FreeRTOS.h"
+#endif
 
 #endif

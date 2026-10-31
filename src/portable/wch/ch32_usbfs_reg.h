@@ -168,7 +168,7 @@
   // CH58x's hardware AUTO_TOG does not stay in sync (notably across clear-stall and multi-packet
   // bulk transfers), causing data-toggle mismatch and bus resets. Drive the toggle manually in
   // the ISR instead. CH32V103/V20x/V307 keep AUTO_TOG (this macro is undefined for them).
-  #define CH32_USBFS_EP_MANUAL_TOG    1
+  #define CH32_USBFS_EP4_MANUAL_TOG   1
   // CH58x EP4 has no DMA register of its own: it overlays EP0's DMA region as
   // EP0[0:63] + EP4_OUT[64:127] + EP4_IN[128:191], so EP0 needs a 192-byte buffer.
   #define CH32_USBFS_EP4_SHARES_EP0   1
@@ -177,6 +177,13 @@
     #define NVIC_EnableIRQ(n)  PFIC_EnableIRQ(n)
     #define NVIC_DisableIRQ(n) PFIC_DisableIRQ(n)
   #endif
+#elif CFG_TUSB_MCU == OPT_MCU_CH32X035
+  #include <ch32x035.h>
+  #define USBOTG_FS USBFSD
+  #define CH32_USBFS_EP_CTRL_COMBINED 1
+  #define CH32_USBFS_EP4_MANUAL_TOG   1
+  #define CH32_USBFS_EP4_SHARES_EP0   1
+  #define USBHD_IRQn USBFS_IRQn
 #endif
 
 // CH32V20x/V30x/F20x USBFS gives endpoint 3 a 1023-byte isochronous packet (CH32FV2x_V3xRM ch23:

@@ -1,4 +1,4 @@
-"""Tests for the build skill's check_build.py: scope resolution through ci_select, the
+"""Tests for the build skill's check_build.py: scope resolution through change_impact, the
 dependency preflight, and the verdict it derives from tools/build.py's rows.
 The build itself is stubbed; a real board build is verified by running the script."""
 import importlib.util
@@ -21,44 +21,64 @@ def row(board, target, status):
     return f'| {board:30} | {target:40} | {status:16} | 1.00s |\n'
 
 
+def rec(reason, rule, effect='select', families=None, examples=None, port=None, targets=()):
+    """change_impact's build record for a reason line, its path the text before ': '."""
+    return build.change_impact.build_record(reason.split(': ', 1)[0], rule, effect, reason,
+                                        families, examples, port, targets)
+
+
+def manifest(full=False, families=(), rig=(), records=(), required=(), examples=None):
+    return {'build': {'full': full, 'families': {f: {'examples': (examples or {}).get(f, 'all')} for f in families},
+                      'required_boards': list(required), 'required_targets': [], 'dropped': {},
+                      'paths': list(records)},
+            'hil': {'boards': {b: 'all' for b in rig}}}
+
+
 class ResolveTest(unittest.TestCase):
     def test_full_matrix_uses_the_representative_pair_plus_changed_boards(self):
-        boards, how = build.boards_for({'build': {'full': True, 'families': ['all']}, 'boards': {}})
+        boards, how = build.boards_for(manifest(full=True))
         self.assertEqual((boards, how), (build.FULL_MATRIX_BOARDS, 'full matrix'))
-        boards, how = build.boards_for({'build': {'full': True, 'families': ['all']}, 'boards': {}},
-                                       ['src/tusb.c', 'hw/bsp/stm32f4/boards/stm32f411blackpill/board.h'])
+        boards, how = build.boards_for(manifest(full=True, required=['stm32f411blackpill']))
         self.assertEqual(boards, build.FULL_MATRIX_BOARDS + ['stm32f411blackpill'])
 
-    def test_base_mode_classifies_with_ci_select_base_and_keeps_changed_boards(self):
-        # ci_select --base sees dependency revision changes that a path list cannot;
-        # the diff paths serve board preservation only
-        with mock.patch.object(build, 'changed_paths', return_value=['hw/bsp/stm32f4/boards/stm32f411blackpill/board.h']), \
-             mock.patch.object(build, 'select', return_value=({'build': {'full': False, 'families': ['stm32f4']}, 'boards': {}}, [])) as sel, \
+    def test_base_mode_selects_through_change_impact_base_and_keeps_changed_boards(self):
+        # change_impact --base sees dependency revision changes that a path list cannot;
+        # the manifest's required boards keep the board the diff changed
+        m = manifest(families=['stm32f4'], required=['stm32f411blackpill'])
+        with mock.patch.object(build, 'select', return_value=m) as sel, \
              mock.patch.object(build, 'build_one', return_value={'family': 'stm32f4', 'status': 'ok'}) as b1, mock.patch('sys.stdout'):
             build.main(['--base', 'master'])
-        self.assertEqual(sel.call_args.kwargs['base'], 'master')
-        self.assertIsNone(sel.call_args.kwargs['scope'])
+        self.assertEqual(sel.call_args[0][:2], (None, 'master'))
         self.assertEqual(b1.call_args[0][0], 'stm32f411blackpill')
 
-    def test_select_base_passes_base_to_ci_select(self):
+    def test_select_forwards_each_mode_to_change_impact_manifest(self):
+        cases = ((dict(base='master'), ['--base', 'master']),
+                 (dict(base='master', worktree=True), ['--base', 'master', '--worktree']),
+                 (dict(endpoints='a..b'), ['--endpoints', 'a..b']))
+        for kw, argv in cases:
+            with mock.patch.object(build.subprocess, 'run',
+                                   return_value=mock.Mock(returncode=0, stdout='{"build": {}}', stderr='')) as run:
+                build.select(configs=['x.json', 'y.json'], **kw)
+            self.assertEqual(run.call_args[0][0][4:], ['--manifest', *argv, 'x.json', 'y.json'], kw)
         with mock.patch.object(build.subprocess, 'run',
                                return_value=mock.Mock(returncode=0, stdout='{"build": {}}', stderr='')) as run:
-            build.select(base='master')
-        self.assertEqual(run.call_args[0][0][2:4], ['--base', 'master'])
+            build.select(['src/tusb.c'])
+        self.assertEqual(run.call_args[0][0][1:3], ['-I', '-S'])
+        self.assertEqual(run.call_args[0][0][4:6], ['--manifest', '--diff-file'])
+        self.assertEqual(run.call_args[0][0][7:9], ['--deps-base', 'HEAD'])
 
     def test_no_family_resolves_to_no_board(self):
-        boards, how = build.boards_for({'build': {'full': False, 'families': []}, 'boards': {}},
-                                       ['docs/index.rst'])
+        boards, how = build.boards_for(manifest())
         self.assertEqual((boards, how), ([], 'no build family'))
 
-    def _main_scope(self, scope, built=None):
+    def _main_scope(self, scope, built=None, args=()):
         built = built or {'board': 'b', 'family': 'f', 'buildDir': 'd', 'status': 'ok', 'firstError': '',
                           'okExamples': ['cdc_msc', 'cdc_msc_hid']}
-        # the scopes below name paths that exist nowhere, to drive ci_select's reasons:
+        # the scopes below name paths that exist nowhere, to drive change_impact's records:
         # let them through the existence check as tracked deletions would be
         with mock.patch.object(build, 'build_one', return_value=built) as b1, mock.patch('sys.stdout') as out, \
              mock.patch.object(build, 'tracked', return_value=True):
-            rc = build.main(['--scope', *scope])
+            rc = build.main(['--scope', *scope, *args])
         return rc, json.loads(out.write.call_args_list[0][0][0]), b1
 
     def test_a_scope_of_only_non_code_paths_passes_with_nothing_to_build(self):
@@ -69,7 +89,7 @@ class ResolveTest(unittest.TestCase):
 
     def test_firmware_no_build_compiles_is_exit_3_with_the_reason_per_path(self):
         # a class no example enables, a lib nothing builds and a port mapping to no
-        # family are unverified firmware, in ci_select's own words
+        # family are unverified firmware, in change_impact's own words
         for scope, marker in (
             (['src/class/bth/bth_device.c'], 'enabled by no example'),
             (['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'], 'built by no example'),
@@ -102,15 +122,16 @@ class ResolveTest(unittest.TestCase):
         b1.assert_not_called()
         self.assertEqual((rc, printed['pass'], printed['nothingToBuild']), (3, False, []))
         self.assertTrue(any(r.startswith('hw/bsp/no_such_family/family.c:') for r in printed['uncovered']), printed)
-        reasons = ['hw/bsp/lpc18/family.c: bsp family lpc18',
-                   "src/portable/x/y/dcd_y.c: port x/y -> families ['lpc18']",
-                   'hw/bsp/stm32f4/family.c: bsp family stm32f4']
+        self.assertIn('no_such_family: family dir gone from tree, dropped', printed['uncovered'])
+        records = [rec('hw/bsp/lpc18/family.c: bsp family lpc18', 'bsp', families=['lpc18']),
+                   rec("src/portable/x/y/dcd_y.c: port x/y -> families ['lpc18']", 'port', families=['lpc18'], port='x/y'),
+                   rec('hw/bsp/stm32f4/family.c: bsp family stm32f4', 'bsp', families=['stm32f4'])]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        benign, gaps = build.coverage(reasons, [r.split(':')[0] for r in reasons], built)
-        self.assertEqual((benign, gaps), ([], reasons[:2]))
-        # nothing built and no reason line at all: still a gap, never a pass
-        _, gaps = build.coverage([], ['src/portable/x/y/dcd_y.c'], [])
-        self.assertEqual(gaps, ['src/portable/x/y/dcd_y.c: no build reason from ci_select'])
+        benign, gaps = build.coverage(records, built)
+        self.assertEqual((benign, gaps), ([], [r['reason'] for r in records[:2]]))
+        # nothing built: a contributing record is still a gap, never a pass
+        _, gaps = build.coverage(records[1:2], [])
+        self.assertEqual(gaps, [records[1]['reason']])
 
     def test_full_matrix_builds_a_board_for_a_port_family_the_pair_lacks(self):
         # the representative pair stands in for the matrix on core code, not on a port
@@ -132,16 +153,17 @@ class ResolveTest(unittest.TestCase):
     def test_an_example_no_built_board_wrote_an_elf_for_is_a_gap(self):
         # the family survives for the bsp path while the example is skipped on every
         # resolved board; only the elf inventory can tell
-        reasons = ['examples/host/cdc_msc_hid/src/main.c: example host/cdc_msc_hid',
-                   'hw/bsp/stm32f4/family.c: bsp family stm32f4',
-                   "src/class/cdc/cdc_host.c: class cdc -> ['host/cdc_msc_hid']"]
-        scope = [r.split(':')[0] for r in reasons]
+        records = [rec('examples/host/cdc_msc_hid/src/main.c: example host/cdc_msc_hid', 'example',
+                       examples=['host/cdc_msc_hid']),
+                   rec('hw/bsp/stm32f4/family.c: bsp family stm32f4', 'bsp', families=['stm32f4']),
+                   rec("src/class/cdc/cdc_host.c: class cdc -> ['host/cdc_msc_hid']", 'class',
+                       examples=['host/cdc_msc_hid'])]
         without = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        self.assertEqual(build.coverage(reasons, scope, without)[1], [reasons[0], reasons[2]])
+        self.assertEqual(build.coverage(records, without)[1], [records[0]['reason'], records[2]['reason']])
         with_it = [{'family': 'stm32f4', 'okExamples': ['cdc_msc_hid']}]
-        self.assertEqual(build.coverage(reasons, scope, with_it)[1], [])
+        self.assertEqual(build.coverage(records, with_it)[1], [])
         # -e or -T: the caller chose what to build, so the narrowing is theirs, not a gap
-        self.assertEqual(build.coverage(reasons, scope, without, chosen=True)[1], [])
+        self.assertEqual(build.coverage(records, without, chosen=True)[1], [])
 
     def test_espressif_verifies_only_the_example_trees_this_run_attempted(self):
         # one idf tree per example; a shared dir keeps the tree of an example skipped
@@ -160,39 +182,48 @@ class ResolveTest(unittest.TestCase):
     def test_a_green_build_of_nothing_does_not_cover_a_core_path(self):
         # `-T help` succeeds and compiles nothing; core/infra names no example, so the
         # only evidence is that some elf came out
-        r = 'src/tusb.c: core/infra -> full build matrix'
+        r = rec('src/tusb.c: core/infra -> full build matrix', 'core-infra', 'full')
         nothing = [{'family': 'stm32f4', 'okExamples': []}]
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], nothing)[1], [r])
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], nothing, chosen=True)[1], [])
-        self.assertEqual(build.coverage([r], ['src/tusb.c'], [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}])[1], [])
+        self.assertEqual(build.coverage([r], nothing)[1], [r['reason']])
+        self.assertEqual(build.coverage([r], nothing, chosen=True)[1], [])
+        self.assertEqual(build.coverage([r], [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}])[1], [])
 
     def test_a_membrowse_script_change_needs_its_own_target_not_a_default_sweep(self):
         # examples-membrowse-upload is a plain add_custom_target: `all` never runs
-        # tools/membrowse_report.py, so a green sweep is no evidence for it
-        r = 'tools/membrowse_report.py: membrowse build-time script -> full build matrix'
+        # tools/membrowse_cli.py, so a green sweep is no evidence for it
+        r = build.change_impact.classify_build(['tools/membrowse_cli.py'], str(build.ROOT))['paths'][0]
         built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        gap = (f'{r} (the default sweep builds `all`, which does not run '
+        gap = (f"{r['reason']} (the default sweep builds `all`, which does not run "
                f'examples-membrowse-upload: rerun with -T all -T examples-membrowse-upload)')
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built)[1], [gap])
+        self.assertEqual(build.coverage([r], built)[1], [gap])
         # another -e/-T does not stand in for the target
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built,
+        self.assertEqual(build.coverage([r], built,
                                         chosen=True, targets=('all',))[1], [gap])
-        self.assertEqual(build.coverage([r], ['tools/membrowse_report.py'], built, chosen=True,
+        self.assertEqual(build.coverage([r], built, chosen=True,
                                         targets=('all', 'examples-membrowse-upload'))[1], [])
 
+    def test_the_size_script_is_never_verified_by_a_local_build(self):
+        # code_size.py runs in CI's code-size step only; no target or example stands in
+        r = build.change_impact.classify_build(['tools/code_size.py'], str(build.ROOT))['paths'][0]
+        built = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
+        for kw in ({}, {'chosen': True, 'targets': ('all', 'examples-membrowse-upload')}):
+            gaps = build.coverage([r], built, **kw)[1]
+            self.assertEqual(len(gaps), 1, kw)
+            self.assertIn("CI's code-size step", gaps[0])
+
     def test_a_core_stack_path_needs_a_built_example_of_its_role(self):
-        reasons = ['src/host/usbh.c: core host stack', 'src/device/usbd.c: core device stack']
-        scope = [r.split(':')[0] for r in reasons]
+        records = build.change_impact.classify_build(['src/host/usbh.c', 'src/device/usbd.c'], str(build.ROOT))['paths']
+        scope = [r['path'] for r in records]
         device_only = [{'family': 'stm32f4', 'okExamples': ['cdc_msc']}]
-        self.assertEqual(build.coverage(reasons, scope, device_only)[1], [reasons[0]])
+        self.assertEqual(build.coverage(records, device_only)[1], [records[0]['reason']])
         both = [{'family': 'stm32f4', 'okExamples': ['cdc_msc', 'cdc_msc_hid']}]
-        self.assertEqual(build.coverage(reasons, scope, both)[1], [])
+        self.assertEqual(build.coverage(records, both)[1], [])
         dual = [{'family': 'stm32f4', 'okExamples': ['host_hid_to_device_cdc']}]
-        self.assertEqual(build.coverage(reasons, scope, dual)[1], [])
+        self.assertEqual(build.coverage(records, dual)[1], [])
 
     def test_get_deps_edit_changing_no_entry_is_nothing_to_build(self):
-        r = 'tools/get_deps.py: no dep entry changed, no contribution'
-        self.assertEqual(build.coverage([r], ['tools/get_deps.py'], []), ([r], []))
+        r = build.change_impact.classify_build(['tools/get_deps.py'], str(build.ROOT), set())['paths'][0]
+        self.assertEqual(build.coverage([r], []), ([r['reason']], []))
 
     def test_non_code_paths_beside_code_do_not_fail_the_scope(self):
         rc, printed, b1 = self._main_scope(['docs/index.rst', 'src/tusb.c'])
@@ -200,24 +231,56 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(len(printed['nothingToBuild']), 1)
 
     def test_rig_board_of_the_family_is_preferred_over_the_first_bsp_board(self):
-        sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {'stm32f407disco': 'all'}}
-        self.assertEqual(build.boards_for(sel)[0], ['stm32f407disco'])
-        sel['boards'] = {}
-        self.assertEqual(build.boards_for(sel)[0], [build.family_boards('stm32f4')[0]])
+        self.assertEqual(build.boards_for(manifest(families=['stm32f4'], rig=['stm32f407disco']))[0],
+                         ['stm32f407disco'])
+        self.assertEqual(build.boards_for(manifest(families=['stm32f4']))[0], [build.family_boards('stm32f4')[0]])
 
     def test_a_changed_board_dir_selects_that_board_over_the_rig_sample(self):
-        sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {'stm32f407disco': 'all'}}
-        boards, how = build.boards_for(sel, ['hw/bsp/stm32f4/boards/stm32f411blackpill/board.h'])
+        boards, how = build.boards_for(manifest(families=['stm32f4'], rig=['stm32f407disco'],
+                                                required=['stm32f411blackpill']))
         self.assertEqual(boards, ['stm32f411blackpill'])
         self.assertIn('changed boards', how)
 
+    def test_an_unguarded_nrf_driver_selects_each_compiling_mcu_variant(self):
+        path = 'src/portable/nordic/nrf5x/dcd_nrf5x.c'
+        records = [rec(f"{path}: port nordic/nrf5x -> families ['nrf']", 'port', families=['nrf'], port='nordic/nrf5x')]
+        boards, _ = build.boards_for(manifest(families=['nrf'], rig=['nrf52840dk'], records=records))
+        self.assertEqual(boards, ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+        boards, _ = build.boards_for(manifest(full=True, rig=['nrf52840dk'], records=records))
+        self.assertEqual(boards, build.FULL_MATRIX_BOARDS + ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+
+    def test_a_guarded_driver_does_not_add_boards_per_mcu_variant(self):
+        path = 'src/portable/synopsys/dwc2/dcd_dwc2.c'
+        records = [rec(f"{path}: port synopsys/dwc2 -> families ['stm32f4']", 'port', families=['stm32f4'],
+                       port='synopsys/dwc2')]
+        self.assertEqual(build.boards_for(manifest(families=['stm32f4'], rig=['stm32f407disco'], records=records))[0],
+                         ['stm32f407disco'])
+
+    def test_variant_selection_keeps_changed_boards_and_the_example_filter(self):
+        pool = ['nrf52840dk', 'nrf52840dongle', 'nrf52833dk', 'nrf5340dk', 'nrf54h20dk']
+        driver = 'nordic/nrf5x/dcd_nrf5x.c'
+        keep = pool[:2]
+        self.assertEqual(build.representatives(pool, None, [driver], keep), keep + ['nrf52833dk', 'nrf5340dk'])
+        with mock.patch.object(build.tools_build.build_utils, 'skip_example',
+                               side_effect=lambda e, b: b != 'nrf52833dk'):
+            self.assertEqual(build.representatives(pool, ['device/cdc_msc'], [driver], keep),
+                             keep + ['nrf52833dk'])
+        with mock.patch.object(build.tools_build.build_utils, 'skip_example', return_value=True):
+            self.assertEqual(build.representatives(pool, ['device/cdc_msc'], [driver]),
+                             ['nrf52840dk', 'nrf52833dk', 'nrf5340dk'])
+
+    def test_boards_without_mcu_variant_share_one_group(self):
+        pool = build.family_boards('rp2040')
+        self.assertEqual(build.representatives(pool, None, ['raspberrypi/rp2040/dcd_rp2040.c']), [pool[0]])
+
     def test_a_directory_scope_expands_to_its_tracked_files(self):
-        # a bare board directory matches neither ci_select's rules nor the changed-board
+        # a bare board directory matches neither change_impact's rules nor the changed-board
         # rule, and would resolve to the family's sample instead of the board edited
         files = build.expand_scope(['hw/bsp/stm32f4/boards/stm32f411blackpill'])
         self.assertIn('hw/bsp/stm32f4/boards/stm32f411blackpill/board.h', files)
-        sel = {'build': {'full': False, 'families': ['stm32f4']}, 'boards': {}}
-        self.assertEqual(build.boards_for(sel, files)[0], ['stm32f411blackpill'])
+        m = build.change_impact.manifest(files, str(build.ROOT), [], None, {})[0]
+        self.assertEqual(m['build']['required_boards'], ['stm32f411blackpill'])
+        self.assertEqual(build.boards_for(m)[0], ['stm32f411blackpill'])
 
     def test_expansion_includes_a_new_untracked_file(self):
         # scope verification covers uncommitted work: a new board or driver file is untracked
@@ -314,7 +377,7 @@ class CatalogTest(unittest.TestCase):
     def test_port_gap_is_the_preprocessed_body_of_an_instance_this_run_built(self):
         import tempfile
         driver = 'src/portable/nordic/nrf5x/dcd_nrf5x.c'
-        reason = f"{driver}: port nordic/nrf5x -> families ['nrf']"
+        reason = rec(f"{driver}: port nordic/nrf5x -> families ['nrf']", 'port', families=['nrf'], port='nordic/nrf5x')
         with tempfile.TemporaryDirectory() as d:
             src = str(build.ROOT / driver)
             entries = [{'directory': d, 'file': src, 'command': f'gcc -o {ex}/x.o -c {src}',
@@ -338,8 +401,9 @@ class CatalogTest(unittest.TestCase):
             self.assertIn('unverified: no compile database', build.port_gap(reason, [result]))
         # a family with no built board, a deleted driver, a non-port path
         self.assertIn('no board of its family built', build.port_gap(reason, [{'board': 'x', 'family': 'stm32f4', 'buildDir': '/nowhere'}]))
-        self.assertIsNone(build.port_gap("src/portable/x/y/dcd_gone.c: port x/y -> families ['nrf']", []))
-        self.assertIsNone(build.port_gap('hw/bsp/nrf/family.c: bsp family nrf', []))
+        self.assertIsNone(build.port_gap(rec("src/portable/x/y/dcd_gone.c: port x/y -> families ['nrf']", 'port',
+                                             families=['nrf'], port='x/y'), []))
+        self.assertIsNone(build.port_gap(rec('hw/bsp/nrf/family.c: bsp family nrf', 'bsp', families=['nrf']), []))
 
     def test_source_lines_counts_the_files_own_non_directive_lines(self):
         import tempfile
@@ -413,7 +477,18 @@ class VerdictTest(unittest.TestCase):
 
     def test_cmake_error_is_the_first_error_when_nothing_compiled(self):
         out = 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):\n  No SOURCES\n' + row('b', 'all', FAILED)
-        self.assertEqual(self.build(1, out)['firstError'], 'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library):')
+        self.assertEqual(self.build(1, out)['firstError'],
+                         'CMake Error at hw/bsp/nrf/family.cmake:59 (add_library): No SOURCES')
+
+    def test_a_linker_overflow_is_the_first_error_not_collect2(self):
+        out = ("FAILED: a.elf\nld: region `FLASH' overflowed by 12 bytes\n"
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], "ld: region `FLASH' overflowed by 12 bytes")
+
+    def test_a_missing_library_is_the_first_error(self):
+        out = ('FAILED: a.elf\n/opt/arm/bin/ld: cannot find -lfoo: No such file or directory\n'
+               'collect2: error: ld returned 1 exit status\n' + row('b', 'all', FAILED))
+        self.assertEqual(self.build(1, out)['firstError'], '/opt/arm/bin/ld: cannot find -lfoo: No such file or directory')
 
     def test_all_skipped_is_not_a_pass(self):
         r = self.build(0, row('stm32f407disco', 'examples (PR filter)', SKIPPED))
@@ -432,6 +507,17 @@ class VerdictTest(unittest.TestCase):
         cmd = run.call_args[0][0]
         self.assertEqual(cmd[cmd.index('-D') + 1], 'LOG=2')
         self.assertIn('--cflag=-DCFG_TUH_CDC_FTDI_LATENCY=16', cmd)
+
+    def test_build_py_options_are_what_tools_build_configures_with(self):
+        failed = mock.Mock(returncode=1)
+        with mock.patch.object(build.tools_build, 'run_cmd', return_value=failed) as run_cmd, \
+             mock.patch.object(build.tools_build, 'find_family', return_value='stm32f4'), \
+             mock.patch('sys.stdout'):
+            # main() appends TOOLCHAIN= to every board's build args
+            build.tools_build.cmake_board('stm32f407disco', ['-DTOOLCHAIN=gcc'], None, [], ['all'])
+        configure = run_cmd.call_args[0][0]
+        self.assertEqual({a[2:].partition('=')[0] for a in configure if a.startswith('-D')},
+                         set(build.BUILD_PY_OPTIONS))
 
     def test_a_define_on_a_build_owned_key_is_refused(self):
         # tools/build.py passes -DBOARD first, so a caller's would win and the artifacts
@@ -454,15 +540,44 @@ class VerdictTest(unittest.TestCase):
         finally:
             shutil.rmtree(d)
 
-    def test_a_define_on_an_espressif_board_is_refused_not_dropped(self):
+    def test_a_define_on_an_espressif_board_reaches_tools_build_py(self):
         esp = build.family_boards('espressif')[0]
-        with mock.patch.object(build, 'run') as run, mock.patch.object(sys, 'stderr') as err, mock.patch('sys.stdout'):
-            with self.assertRaises(SystemExit) as cm:
-                build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
-        self.assertEqual(cm.exception.code, 2)
-        self.assertIn('idf.py', err.write.call_args[0][0])
-        self.assertNotIn('instead', err.write.call_args[0][0])  # no non-equivalent replacement offered
-        run.assert_not_called()
+        with mock.patch.object(build, 'run', return_value=(0, row(esp, 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]):
+            build.build_one(esp, [], [], ['LOG=2'], [], False, False, False)
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[cmd.index('LOG=2') - 1], '-D')
+
+    def test_a_recorded_define_in_a_nested_idf_cache_is_stale(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (Path(root) / 'd' / build.AGENT_DEFINES).write_text('["FOO"]\n')
+            (tree / 'CMakeCache.txt').write_text('FOO:UNINITIALIZED=1\n')
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
+
+    def test_an_unrecorded_define_in_a_nested_idf_cache_is_stale_past_idf_py_own(self):
+        # a direct tools/build.py -D run writes no sidecar; idf.py's own defines are not the caller's
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            tree = Path(root) / 'd' / 'device' / 'x'
+            tree.mkdir(parents=True)
+            (tree / 'CMakeCache.txt').write_text(
+                ''.join(f'{n}:UNINITIALIZED=1\n'
+                        for n in ('CCACHE_ENABLE', 'ESP_PLATFORM', 'PYTHON', 'PYTHON_DEPS_CHECKED', 'FOO')))
+            self.assertEqual(build.stale_options('d', set()), {'FOO': '1'})
+
+    def test_membrowse_board_is_stale_only_when_it_is_not_the_dirs_own_name(self):
+        # tools/build.py passes a named build -DMEMBROWSE_BOARD=<build name>
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)):
+            d = Path(root) / 'cmake-build' / 'cmake-build-stm32f723disco-DMA'
+            d.mkdir(parents=True)
+            for value, stale in [('stm32f723disco-DMA', {}), ('stm32f723disco', {'MEMBROWSE_BOARD': 'stm32f723disco'})]:
+                with self.subTest(value=value):
+                    (d / 'CMakeCache.txt').write_text(f'MEMBROWSE_BOARD:UNINITIALIZED={value}\n')
+                    self.assertEqual(build.stale_options('cmake-build/cmake-build-stm32f723disco-DMA', set()), stale)
 
     def test_shared_uses_the_canonical_hil_dir(self):
         with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
@@ -541,8 +656,11 @@ class VariantsTest(unittest.TestCase):
                 name = argv[argv.index('--build-name') + 1] if '--build-name' in argv else board
                 ci.add((board, name, tuple(a[2:] for a in argv if a.startswith('-D')),
                         tuple(a.partition('=')[2] for a in argv if a.startswith('--cflag='))))
-            boards = [b['name'] for b in json.loads(config.read_text())['boards']]
-            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants(boards, config)}
+            roster = json.loads(config.read_text())['boards']
+            # the SystemView capture's traced leg: hil-build alone builds it, and hil_remote.py refuses --sysview-out
+            traced = {(b['name'], sv['name']) for b in roster if (sv := build.hil_report.sysview_build(b))}
+            ci = {leg for leg in ci if leg[:2] not in traced}
+            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants([b['name'] for b in roster], config)}
             self.assertEqual(ours, ci, config.name)
 
     def test_refused_without_board_and_shared_or_for_a_board_off_the_roster(self):
@@ -613,6 +731,56 @@ class DepsTest(unittest.TestCase):
              mock.patch.dict(os.environ, {'CFLAGS': '  '}):
             self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b', 'blank is unset')
 
+    # run from a hook, fixture git commands would otherwise act on the enclosing repo
+    CLEAN_ENV = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+
+    @classmethod
+    def git(cls, path, *args):
+        import subprocess
+        cmd = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false']
+        return subprocess.run(cmd + list(args), capture_output=True, text=True, check=True,
+                              env=cls.CLEAN_ENV).stdout.strip()
+
+    @classmethod
+    def repo(cls, path):
+        """A fresh repository with one commit; its HEAD."""
+        path.mkdir()
+        cls.git(path, 'init', '-q')
+        cls.git(path, 'commit', '-q', '--allow-empty', '-m', str(path))
+        return cls.git(path, 'rev-parse', 'HEAD')
+
+    @staticmethod
+    def hook_env(outer):
+        """What git exports to a hook run from a worktree, plus a foreign object store."""
+        return {'GIT_DIR': str(outer / '.git'), 'GIT_WORK_TREE': str(outer),
+                'GIT_INDEX_FILE': str(outer / '.git' / 'index'), 'GIT_COMMON_DIR': str(outer / '.git'),
+                'GIT_OBJECT_DIRECTORY': str(outer / '.git' / 'objects')}
+
+    def test_a_dep_head_is_its_own_under_a_hooks_git_dir(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            outer, dep = Path(td) / 'outer', Path(td) / 'dep'
+            outer_head, dep_head = self.repo(outer), self.repo(dep)
+            with mock.patch.dict(os.environ, self.hook_env(outer)):
+                self.assertEqual(build.tools_build.build_utils.dep_head(dep), dep_head)
+            self.assertNotEqual(dep_head, outer_head)
+
+    def test_get_a_dep_fetches_into_the_dep_under_a_hooks_git_dir(self):
+        import tempfile
+        get_deps = build.tools_build.build_utils.get_deps
+        with tempfile.TemporaryDirectory() as td:
+            outer, src = Path(td) / 'outer', Path(td) / 'src'
+            outer_head, pin = self.repo(outer), self.repo(src)
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                 mock.patch.dict(get_deps.deps_all, {'dep': [src.as_uri(), pin, '']}), \
+                 mock.patch.dict(os.environ, self.hook_env(outer)), mock.patch('sys.stdout'):
+                self.assertEqual(get_deps.get_a_dep('dep'), 0)
+            self.assertTrue((outer / 'dep' / '.git').is_dir())
+            self.assertEqual(self.git(outer / 'dep', 'rev-parse', 'HEAD'), pin)
+            self.git(outer / 'dep', 'cat-file', '-e', pin)  # the fetched objects landed in the dep's own store
+            self.assertEqual(self.git(outer, 'rev-parse', 'HEAD'), outer_head)
+            self.assertEqual(self.git(outer, 'config', '--bool', 'core.bare'), 'false')
+
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 
@@ -628,6 +796,41 @@ class MainTest(unittest.TestCase):
         results[0]['status'] = 'failed'
         with mock.patch.object(build, 'build_one', return_value=results[0]), mock.patch('sys.stdout'):
             self.assertEqual(build.main(['--board', 'b']), 1)
+
+
+class RunTest(unittest.TestCase):
+    def test_verbose_streams_each_line_before_the_child_exits(self):
+        import io, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            seen = Path(d) / 'seen'
+            # no flush in the child, and it waits for its first line to reach our stderr:
+            # held back until exit, it prints 'buffered' instead of 'second'
+            child = (f'import os, time\nprint("first")\ndeadline = time.time() + 10\n'
+                     f'while not os.path.exists({str(seen)!r}) and time.time() < deadline:\n    time.sleep(0.01)\n'
+                     f'print("second" if os.path.exists({str(seen)!r}) else "buffered")\n')
+
+            class Err(io.StringIO):
+                def write(self, s):
+                    if 'first' in s:
+                        seen.touch()
+                    return super().write(s)
+            with mock.patch('sys.stderr', Err()) as err:
+                rc, out = build.run([sys.executable, '-c', child], True)
+        self.assertEqual((rc, out), (0, 'first\nsecond\n'))
+        self.assertEqual(err.getvalue(), out)
+
+    def test_quiet_collects_the_output_and_the_exit_status(self):
+        import io
+        with mock.patch('sys.stderr', io.StringIO()) as err:
+            rc, out = build.run([sys.executable, '-c', 'import sys; print("x"); sys.stderr.write("y\\n"); sys.exit(3)'], False)
+        self.assertEqual((rc, err.getvalue()), (3, ''))
+        self.assertEqual(sorted(out.split()), ['x', 'y'])
+
+    def test_the_child_writes_utf8_whatever_its_inherited_encoding(self):
+        # a Windows child writes a pipe in the ANSI code page; latin-1 stands in for it on any host
+        with mock.patch.dict(os.environ, {'PYTHONIOENCODING': 'latin-1'}):
+            rc, out = build.run([sys.executable, '-c', 'print("\u2192 \u00f8")'], False)
+        self.assertEqual((rc, out), (0, '\u2192 \u00f8\n'))
 
 
 UTILS = Path(__file__).resolve().parents[2] / 'tools' / 'build_utils.py'

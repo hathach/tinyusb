@@ -38,6 +38,16 @@ extern "C" {
 //
 //--------------------------------------------------------------------+
 
+// USBFS without host function e.g RA2A1, RA2L2, RA4E2, RA6E2, RA6T3
+#if defined(BSP_FEATURE_USB_HAS_NOT_HOST) && BSP_FEATURE_USB_HAS_NOT_HOST
+  #define RUSB2_RA_USBFS_DEVICE_ONLY
+#endif
+
+// USBFS mini module with only pipe 4-7 and CFIFO e.g RA2A1, RA4E2, RA6E2, RA6T3
+#if defined(BSP_FEATURE_USB_HAS_PIPE04567) && BSP_FEATURE_USB_HAS_PIPE04567
+  #define RUSB2_RA_USBFS_PIPE4567_ONLY
+#endif
+
 typedef struct {
   uint32_t reg_base;
   int32_t irqnum;
@@ -99,6 +109,11 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
 
 // MCU specific PHY init
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_phy_init(void) {
+}
+
+// PIPEnCTR.ACLRM needs >= 100 ns between its 1 and 0 writes (RA4M1 UM p678, RA6M5 UM p907/p1009)
+TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
+  R_BSP_SoftwareDelay((uint32_t)1, BSP_DELAY_UNITS_MICROSECONDS);
 }
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED

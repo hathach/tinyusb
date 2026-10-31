@@ -147,6 +147,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport_, uint8_t stage, tusb_control_req
 void setUp(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_IgnoreAndReturn(true);
 
   if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
@@ -310,6 +311,43 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
 }
 
 //--------------------------------------------------------------------+
+// dcd_edpt0_setup_begin
+//--------------------------------------------------------------------+
+
+// called once per SETUP usbd processes, with the DCD's tag; a SETUP skipped for a newer one is not
+void test_usbd_setup_begin_once_per_processed_setup(void) {
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = NULL;
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 7, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 8, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 8, true);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+
+  tud_task();
+}
+
+// a SETUP the DCD reports superseded is dropped unprocessed: no data, status or stall for it, and the
+// next one is served as usual
+void test_usbd_setup_begin_rejected_is_not_processed(void) {
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 9, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 9, false);
+  tud_task();
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 10, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 10, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
 // Transfer completion dropped by full event queue
 //--------------------------------------------------------------------+
 
@@ -443,6 +481,38 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
   return true;
 }
 
+// usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
+void test_usbd_edpt_abort_releases_busy_endpoint(void) {
+  msc_out_armed();
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+// an idle endpoint: the same dcd sequence, and it stays claimable
+void test_usbd_edpt_abort_idle_endpoint(void) {
+  msc_out_armed();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+  mscd_xfer_cb_IgnoreAndReturn(true);
+  tud_task();
+  usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
 void test_usbd_out_complete_refuses_claim_until_consumed(void) {
   msc_out_armed();
   msc_out_complete(xfer_cb_claim_after_consume);
@@ -562,4 +632,143 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
   // one full packet and nothing left to send
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream wide requests
+//--------------------------------------------------------------------+
+
+// The stream API takes a uint32_t request but the fifo API is uint16_t: narrowed, 65536 becomes 0
+// and 65537 becomes 1, so the request must be clamped to UINT16_MAX first. A closed stream
+// (ep_addr 0) never claims an endpoint, so no DCD expectation is needed.
+enum { WIDE_REQ_MAX = 65537 };
+static uint8_t wide_src[WIDE_REQ_MAX];
+static uint8_t wide_dst[WIDE_REQ_MAX];
+
+static void wide_stream_setup(tu_edpt_stream_t *stream, bool overwritable, uint8_t *ff_buf) {
+  memset(stream, 0, sizeof(*stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, true, overwritable, ff_buf, 64, NULL));
+}
+
+void test_usbd_stream_wide_request(void)
+{
+  static const uint32_t sizes[] = { 65535, 65536, WIDE_REQ_MAX };
+  uint8_t ff_buf[64];
+  tu_edpt_stream_t stream;
+
+  for (uint32_t i = 0; i < WIDE_REQ_MAX; i++) {
+    wide_src[i] = (uint8_t) (i * 7u + 3u);
+  }
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(sizes); i++) {
+    // write: the fifo takes the first 64 bytes of the request
+    wide_stream_setup(&stream, false, ff_buf);
+    TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, wide_src, sizes[i]));
+    TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+    TEST_ASSERT_EQUAL_MEMORY(wide_src, ff_buf, 64);
+
+    // read: the 64 queued bytes come out and nothing past them is written
+    memset(wide_dst, 0xA5, sizeof(wide_dst));
+    TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, sizes[i]));
+    TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+    TEST_ASSERT_EQUAL_MEMORY(wide_src, wide_dst, 64);
+    TEST_ASSERT_EQUAL_UINT8(0xA5, wide_dst[64]);
+  }
+
+  // overwritable: the fifo keeps the tail of the clamped 65535-byte request, not of the whole one
+  wide_stream_setup(&stream, true, ff_buf);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, wide_src, 65536));
+  TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read(&stream, wide_dst, 64));
+  TEST_ASSERT_EQUAL_MEMORY(wide_src + 65535 - 64, wide_dst, 64);
+}
+
+//--------------------------------------------------------------------+
+// usbd_defer_func_after_queue
+//--------------------------------------------------------------------+
+static unsigned deferred_calls;
+static unsigned after_queue_runs;
+static unsigned deferred_calls_at_after_queue;
+
+static void deferred_call(void* param) {
+  (void) param;
+  deferred_calls++;
+}
+
+static void after_queue_call(void* param) {
+  (void) param;
+  after_queue_runs++;
+  deferred_calls_at_after_queue = deferred_calls;
+}
+
+// runs after every event queued before it, although the queue is full and takes more than one run
+void test_usbd_defer_func_after_queue_runs_after_queued_events(void) {
+  deferred_calls = after_queue_runs = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 2; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls_at_after_queue);
+}
+
+// one call is held at a time: the same one again is already held, a different one is refused. A
+// held call is work for tud_task() although the queue is empty.
+void test_usbd_defer_func_after_queue_holds_one_call(void) {
+  deferred_calls = after_queue_runs = 0;
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_TRUE(tud_task_event_ready());
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(deferred_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(after_queue_call, &after_queue_runs));
+
+  tud_task();
+  TEST_ASSERT_EQUAL(1, after_queue_runs);
+  TEST_ASSERT_EQUAL(0, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
+  tud_task();
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+}
+
+//--------------------------------------------------------------------+
+// tud_task_stop
+//--------------------------------------------------------------------+
+
+// events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
+void test_usbd_task_stop_after_queued_events(void) {
+  deferred_calls = 0;
+  usbd_defer_func(deferred_call, NULL, false);
+  TEST_ASSERT_TRUE(tud_task_stop());
+  usbd_defer_func(deferred_call, NULL, false);
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+
+  TEST_ASSERT_FALSE(tud_task());
+  TEST_ASSERT_EQUAL(2, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
+// without an RTOS a full queue refuses the stop and nothing stops; a retry once it drained is taken
+void test_usbd_task_stop_full_queue(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_FALSE(tud_task_stop());
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    TEST_ASSERT_FALSE(tud_task());
+  }
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls);
+
+  TEST_ASSERT_TRUE(tud_task_stop());
+  TEST_ASSERT_TRUE(tud_task());
 }

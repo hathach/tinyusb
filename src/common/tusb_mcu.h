@@ -555,6 +555,12 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_PSE84)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_IFX
+  #define TUP_DCD_ENDPOINT_MAX 9
+  #define TUP_RHPORT_HIGHSPEED 1
+
 //--------------------------------------------------------------------+
 // BridgeTek
 //--------------------------------------------------------------------+
@@ -598,6 +604,15 @@
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V103)
+  #define TUP_USBIP_WCH_USBFS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+    #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX 8
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32X035)
   #define TUP_USBIP_WCH_USBFS
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
@@ -731,6 +746,17 @@
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_APM32
   #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F103)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_APM32
+  #define CFG_TUSB_FSDEV_PMA_SIZE 512u
+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F107)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_APM32
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+  #define TUP_DCD_ENDPOINT_MAX    4
 
 #endif
 

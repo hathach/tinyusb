@@ -16,6 +16,26 @@ SUCCEEDED = "\033[32msucceeded\033[0m"
 FAILED = "\033[31mfailed\033[0m"
 SKIPPED = "\033[33mskipped\033[0m"
 
+# a compiler/linker diagnostic first; CMake's own error next; never ninja's FAILED: wrapper
+DIAGNOSTIC = re.compile(r'^\S+:\d+(?::\d+)?: (?:fatal )?error:|undefined reference to|multiple definition of'
+                        r'|will not fit in region|region \S+ overflowed by|ld: cannot find')
+CMAKE_ERROR = re.compile(r'^CMake Error')
+
+
+def first_error(out):
+    """A build output's first compiler/linker diagnostic line, else its first CMake error
+    with the indented message line under it; None when there is neither."""
+    lines = out.splitlines()
+    hit = next((l.strip() for l in lines if DIAGNOSTIC.search(l.strip())), None)
+    if hit:
+        return hit
+    for i, line in enumerate(lines):
+        if CMAKE_ERROR.match(line.strip()):
+            error = line.strip()
+            below = next((l for l in lines[i + 1:] if l.strip()), '')
+            return f'{error} {below.strip()}' if error.endswith(':') and below[:1].isspace() else error
+    return None
+
 
 # Every read here is a source file, not user text: decode it the same way on every
 # machine. Without this the reads take the locale's encoding, and one of the eight
@@ -30,6 +50,10 @@ _FAMILY_MCUS_RE = re.compile(r'set\s*\(\s*FAMILY_MCUS\s+([^)]*)\)')
 _CMAKE_SET_RE = re.compile(r'set\s*\(\s*([A-Za-z_]\w*)\s+([^)\s]+)', re.IGNORECASE)
 _CMAKE_VAR_RE = re.compile(r'\$\{([A-Za-z_]\w*)\}')
 _CMAKE_CASE_RE = re.compile(r'string\s*\(\s*(TOUPPER|TOLOWER)\s+(\S+)\s+([A-Za-z_]\w*)\s*\)')
+# IDF targets without native USB: src/common/tusb_mcu.h rejects CFG_TUD_ENABLED on them
+_ESP_NO_NATIVE_USB = frozenset({'ESP32', 'ESP32C2', 'ESP32C3', 'ESP32C5', 'ESP32C6', 'ESP32C61', 'ESP32H2'})
+_TUD_ENABLED_RE = re.compile(r'^[ \t]*#[ \t]*define[ \t]+CFG_TUD_ENABLED\b(.*)$', re.M)
+_C_COMMENT_RE = re.compile(r'/\*.*?\*/|//[^\n]*', re.S)
 
 
 
@@ -37,9 +61,9 @@ def _cwd_cache(fn):
     """lru_cache, keyed on the working directory as well as the arguments.
 
     Every cached helper below takes repo-RELATIVE paths ('hw/bsp/<fam>',
-    'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while ci_select._in_repo()
-    chdirs around each call so one process can classify more than one tree - the
-    code-size skill's base-vs-branch worktrees, a test pointing at a fixture.
+    'examples/<ex>/skip.txt', or the literal 'hw/bsp' glob), while change_impact._in_repo()
+    chdirs around each call so one process can classify more than one tree (e.g. a
+    test fixture).
     Without the cwd in the key the second tree silently gets the first tree's
     skip.txt/only.txt and FAMILY_MCUS answers. Master had no caching here, so this
     hazard arrived with it."""
@@ -285,6 +309,17 @@ def _board_mcu(board_dir, family_dir, family):
     return mcu, max3421_enabled
 
 
+def _enables_device(ex_dir):
+    """True only when the example's tusb_config.h, comments stripped, defines
+    CFG_TUD_ENABLED exactly once and as `1`. Textual: #if is not evaluated, so any
+    second definition, empty or computed value leaves the example to the build."""
+    try:
+        text = (pathlib.Path(ex_dir) / 'src' / 'tusb_config.h').read_text(**_TEXT)
+    except OSError:
+        return False
+    return [v.strip() for v in _TUD_ENABLED_RE.findall(_C_COMMENT_RE.sub('', text))] == ['1']
+
+
 @_cwd_cache
 def _filter_tokens(path):
     """skip.txt / only.txt as a token set, or None when the file does not exist."""
@@ -298,7 +333,8 @@ def skip_example(example, board, extra_defines=(), build_system='cmake'):
     The two build systems ask DIFFERENT questions and must not share an answer:
 
     'cmake' mirrors CMake's family_filter (hw/bsp/family_support.cmake:171-207),
-    including the whole FAMILY_MCUS list the family.cmake sets.
+    including the whole FAMILY_MCUS list the family.cmake sets, plus one rule it lacks:
+    Espressif targets without native USB skip examples that enable the device stack.
 
     'make' is master's original algorithm, unchanged. family.mk and family.cmake are
     not the same build: hw/bsp/lpc54/family.cmake sets FAMILY_MCUS LPC54 and wires the
@@ -384,6 +420,9 @@ def _skip_example(example, board, extra_defines, build_system):
     if mcu == "NONE":
         return True
 
+    if family == 'espressif' and mcu in _ESP_NO_NATIVE_USB and _enables_device(ex_dir):
+        return True
+
     if any(t.strip().strip('"') == "MAX3421_HOST=1" for t in extra_defines):
         max3421_enabled = True
 
@@ -423,7 +462,8 @@ def dep_head(path):
     a checkout broken partway - where the revision built is anybody's guess."""
     if not (path / '.git').exists():
         return None
-    r = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    # --git-dir, not -C: a hook's inherited GIT_DIR outranks -C and names the enclosing repo
+    r = subprocess.run(['git', '--git-dir', str(path / '.git'), 'rev-parse', 'HEAD'], capture_output=True, text=True)
     head = r.stdout.strip()
     return head if r.returncode == 0 and head else HEAD_UNKNOWN
 
@@ -521,9 +561,9 @@ def _board_files(board):
     if not hits:
         raise BoardInfoError(f'unknown board {board}')
     if len(hits) > 1:
-        raise BoardInfoError(f'{board} exists in several families: ' + ', '.join(map(str, hits)))
+        raise BoardInfoError(f'{board} exists in several families: ' + ', '.join(h.as_posix() for h in hits))
     board_dir = hits[0]
-    return board_dir, (str(board_dir / 'board.cmake'), str(board_dir.parent.parent / 'family.cmake'))
+    return board_dir, ((board_dir / 'board.cmake').as_posix(), (board_dir.parent.parent / 'family.cmake').as_posix())
 
 
 def _checked_device(value, source):
@@ -570,8 +610,8 @@ def board_jdebug(board):
     hits = sorted((board_dir / 'ozone').glob('*.jdebug'))
     if len(hits) > 1:
         raise BoardInfoError(f'{board}: several reference projects: '
-                             + ', '.join(str(h) for h in hits))
-    return str(hits[0]) if hits else None
+                             + ', '.join(h.as_posix() for h in hits))
+    return hits[0].as_posix() if hits else None
 
 
 def main(argv=None):

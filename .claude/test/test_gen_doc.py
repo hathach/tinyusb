@@ -2,14 +2,18 @@
 get_deps.py --gen-doc writes the dependency table in the shape the committed
 docs/reference/dependencies.rst has, without fetching anything; gen_doc.py
 builds boards.rst from the metadata blocks and hil_boards.md from the rosters,
-naming what it left out instead of dropping it silently."""
+naming what it left out instead of dropping it silently. get_deps.py also
+fetches an optional dependency named by its path."""
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 GET_DEPS = ROOT / 'tools' / 'get_deps.py'
@@ -35,7 +39,8 @@ def fixture(root):
     bsp = root / 'hw' / 'bsp'
     (bsp / 'acme' / 'boards' / 'acme_one').mkdir(parents=True)
     (bsp / 'acme' / 'boards' / 'acme_bare').mkdir()
-    (bsp / 'acme' / 'family.c').write_text(METADATA_FAMILY)
+    # UTF-8 beyond the metadata block, as several real family.c have: read as UTF-8 on every host
+    (bsp / 'acme' / 'family.c').write_text('// Acme \u2192 \u2714\n' + METADATA_FAMILY, encoding='utf-8')
     (bsp / 'acme' / 'boards' / 'acme_one' / 'board.h').write_text(METADATA_BOARD)
     (bsp / 'acme' / 'boards' / 'acme_bare' / 'board.h').write_text('#define BOARD_H_\n')
     (bsp / 'nometa' / 'boards' / 'nometa_x').mkdir(parents=True)
@@ -46,9 +51,9 @@ def fixture(root):
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
         {'name': 'acme_one', 'tests': {'device': True, 'host': True, 'dual': False},
          'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
-         'note': 'needs  a | jumper'},
+         'note': 'needs  a | jumper \u00f8'},
         {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
-    ]}))
+    ]}, ensure_ascii=False), encoding='utf-8')
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
 
 
@@ -63,6 +68,24 @@ class MetadataTest(unittest.TestCase):
             f.write_text('no block here\n')
             self.assertEqual(gen_doc.metadata(f), {})
             self.assertEqual(gen_doc.metadata(Path(d) / 'absent.h'), {})
+
+
+class BoardsTest(unittest.TestCase):
+    def test_families_and_boards_sort_by_name_case_sensitively_on_every_host(self):
+        # the committed boards.rst is Linux's order; paths here compare case-insensitively, as on Windows
+        with tempfile.TemporaryDirectory() as d:
+            bsp = Path(d)
+            for family in ('acme', 'Zeta'):
+                (bsp / family / 'family.c').parent.mkdir()
+                (bsp / family / 'family.c').write_text(METADATA_FAMILY)
+                for board, has_header in (('board_x', True), ('Board_Y', True), ('bare', False), ('Bare_', False)):
+                    (bsp / family / 'boards' / f'{family}_{board}').mkdir(parents=True)
+                    if has_header:
+                        (bsp / family / 'boards' / f'{family}_{board}' / 'board.h').write_text(METADATA_BOARD)
+            with mock.patch.object(type(bsp), '__lt__', lambda a, b: str(a).casefold() < str(b).casefold()):
+                vendors, skipped = gen_doc.boards(bsp)
+        self.assertEqual(list(vendors['Acme']), ['Zeta_Board_Y', 'Zeta_board_x', 'acme_Board_Y', 'acme_board_x'])
+        self.assertEqual([p.name for p in skipped], ['Zeta_Bare_', 'Zeta_bare', 'acme_Bare_', 'acme_bare'])
 
 
 class MdTableTest(unittest.TestCase):
@@ -82,8 +105,8 @@ class GenDocScriptTest(unittest.TestCase):
             fixture(root)
             r = subprocess.run([sys.executable, str(GEN_DOC), '--root', str(root)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
-            boards = (root / 'docs/reference/boards.rst').read_text()
-            hil = (root / 'docs/reference/hil_boards.md').read_text()
+            boards = (root / 'docs/reference/boards.rst').read_text(encoding='utf-8')
+            hil = (root / 'docs/reference/hil_boards.md').read_text(encoding='utf-8')
             deps = (root / 'docs/reference/dependencies.rst').read_text()
         self.assertIn('Acme\n----\n\n', boards)
         self.assertIn('acme_one  Acme One  acme      https://acme.example/one', boards)
@@ -97,8 +120,8 @@ class GenDocScriptTest(unittest.TestCase):
             '',
         ])
         self.assertTrue(hil.startswith(gen_doc.HEADER + '\n\n### ci rig\n\n2 boards, from `test/hil/tinyusb.json`.'))
-        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper |', hil)
-        self.assertIn('| acme_two | device, host |           |             |                   |', hil)
+        self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper \u00f8 |', hil)
+        self.assertIn('| acme_two | device, host |           |             |                     |', hil)
         self.assertNotIn('hfp rig', hil)
         self.assertIn('lib/fatfs', deps)
 
@@ -144,6 +167,48 @@ class GenDocTest(unittest.TestCase):
         r = subprocess.run([sys.executable, str(GET_DEPS), '--help'], capture_output=True, text=True)
         self.assertIn('docs/reference/dependencies.rst', r.stdout)
         self.assertEqual(get_deps.DEPS_RST, ROOT / 'docs/reference/dependencies.rst')
+
+
+class FetchByPathTest(unittest.TestCase):
+    def _main(self, *argv):
+        """get_deps.py main() with `argv`; returns (rc, fetched paths, stdout)."""
+        fetched = []
+
+        def get_a_dep(path):
+            fetched.append(path)
+            return 0
+        pool = mock.MagicMock()
+        pool.__enter__.return_value.map = lambda fn, deps: list(map(fn, deps))
+        with mock.patch.object(sys, 'argv', ['get_deps.py', *argv]), \
+             mock.patch.object(get_deps, 'Pool', return_value=pool), \
+             mock.patch.object(get_deps, 'get_a_dep', get_a_dep), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = get_deps.main()
+        return rc, fetched, out.getvalue()
+
+    def test_dependency_paths_alone_skip_the_mandatory_deps(self):
+        rc, fetched, _ = self._main('tools/linkermap', 'lib/agentrc')
+        self.assertEqual(rc, 0)
+        self.assertEqual(fetched, ['tools/linkermap', 'lib/agentrc'])
+
+    def test_a_mandatory_path_alone_is_fetched(self):
+        rc, fetched, _ = self._main('tools/uf2')
+        self.assertEqual((rc, fetched), (0, ['tools/uf2']))
+        rc, fetched, _ = self._main('lib/agentrc', 'lib/fatfs')
+        self.assertEqual((rc, fetched), (0, ['lib/agentrc', 'lib/fatfs']))
+
+    def test_a_path_beside_a_family_or_board_keeps_the_mandatory_deps(self):
+        for argv in (('lib/agentrc', 'nrf'), ('lib/agentrc', '-b', 'feather_nrf52840_express')):
+            with self.subTest(argv=argv):
+                rc, fetched, _ = self._main(*argv)
+                self.assertEqual(rc, 0)
+                self.assertEqual(fetched[0], 'lib/agentrc')
+                self.assertLessEqual(set(get_deps.deps_mandatory), set(fetched[1:]))
+
+    def test_an_unknown_path_fails_before_fetching(self):
+        rc, fetched, out = self._main('tools/no_such_dep')
+        self.assertEqual((rc, fetched), (1, []))
+        self.assertIn('ERROR: tools/no_such_dep is not in the dependency list', out)
 
 
 if __name__ == '__main__':

@@ -167,7 +167,7 @@ static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
     } else if (SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir)) {
       TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else if (0 == block_count) {
+    } else if (0 == block_count || (cbw->total_bytes >> 16) >= block_count) { // or block size > 16-bit, without a divide
       TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status = MSC_CSW_STATUS_FAILED;
     } else if (cbw->total_bytes / block_count == 0) {
@@ -450,9 +450,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
-  (void) event;
-
+static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t * p_cbw = &p_msc->cbw;
   msc_csw_t * p_csw = &p_msc->csw;
@@ -561,7 +559,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
-      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE); // sanity check to avoid buffer overflow
+      // sanity check to avoid buffer overflow
+      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE);
       // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, _mscd_epbuf.buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0]) {
@@ -647,6 +646,14 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   }
 
   return true;
+}
+
+bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
+  (void) event;
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  bool const ret = mscd_xfer(rhport, ep_addr, xferred_bytes);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  return ret;
 }
 
 /*------------------------------------------------------------------*/

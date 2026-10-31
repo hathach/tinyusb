@@ -3,12 +3,15 @@ the probes that validate it, the merge that writes it, and the check pre-commit 
 No cmake here: the build dirs are fixtures. The last test is the check itself over the
 real tree, which is what the pre-commit hook guarantees."""
 import contextlib
+import errno
 import io
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -113,6 +116,75 @@ class Extract(unittest.TestCase):
         args = {'directory': d, 'file': 'a.c', 'arguments': ['cc', '-D', 'A=2', '-o', 'a.o', '-c', 'a.c'], 'output': 'a.o'}
         self.assertEqual(fj.preprocess_argv(args), ['cc', '-D', 'A=2'])
         self.assertEqual(fj.defines_of(fj.preprocess_argv(args)), {'A': '2'})
+
+
+class SplitCommand(unittest.TestCase):
+    """CMake on Windows writes `command` for CreateProcess, which hands it to the compiler's C
+    runtime to split: backslashes are path separators, only quotes are special."""
+    split = staticmethod(fj.split_command)
+
+    def windows(self, cmd):
+        with mock.patch.object(fj.os, 'name', 'nt'):
+            return self.split(cmd)
+
+    def test_the_c_runtime_rules(self):
+        for args in (['C:\\Tool\\bin\\arm-none-eabi-gcc.exe', '-IE:/mcu/tinyusb/src', '-c', 'E:\\mcu\\src\\tusb.c'],
+                     ['C:\\Program Files\\gcc.exe', '-DX=a b', ''],
+                     ['-DCFG_TUD_MEM_SECTION=__attribute__((section("m_usb_global")))'],
+                     ['a\\\\b', 'trailing\\', 'quoted trailing\\', 'q\\"', '\\\\"x"', '\t']):
+            self.assertEqual(self.windows(subprocess.list2cmdline(args)), args)
+        # as lpc55's configure writes it, and the doubled quote inside quotes
+        self.assertEqual(self.windows('gcc -DS=__attribute__((section(\\"m_usb_global\\"))) "a""b"'),
+                         ['gcc', '-DS=__attribute__((section("m_usb_global")))', 'a"b'])
+
+    def test_posix_commands_stay_shell_words(self):
+        with mock.patch.object(fj.os, 'name', 'posix'):
+            self.assertEqual(fj.split_command("gcc '-DA=1 2' -DB=\\\"x\\\""), ['gcc', '-DA=1 2', '-DB="x"'])
+
+    def test_a_windows_command_preprocesses_with_its_own_compiler_and_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = str(pathlib.Path(d, 'src', 'tusb.c'))
+            e = {'directory': d, 'file': src, 'output': 'x.obj',
+                 'command': subprocess.list2cmdline(['C:\\Tool\\bin\\gcc.exe', '-DCFG_TUSB_MCU=OPT_MCU_STM32F4',
+                                                     '-o', 'dir\\x.obj', '-c', src])}
+            with mock.patch.object(fj, 'split_command', self.windows):   # pathlib stays native
+                argv = fj.preprocess_argv(e)
+        self.assertEqual(argv, ['C:\\Tool\\bin\\gcc.exe', '-DCFG_TUSB_MCU=OPT_MCU_STM32F4'])
+
+
+MSVCRT = types.SimpleNamespace(LK_UNLCK=0, LK_LOCK=1, LK_NBLCK=2)
+
+
+class WindowsLock(unittest.TestCase):
+    """_locked's msvcrt path on any host: no fcntl to import, and an msvcrt whose locking() is the test's."""
+    def rewrite(self, locking):
+        msvcrt = types.SimpleNamespace(**vars(MSVCRT), locking=locking)
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            (root / 'family.json').write_text('{}\n', encoding='utf-8')
+            with mock.patch.object(fj, 'ROOT', root), mock.patch.dict(sys.modules, {'fcntl': None, 'msvcrt': msvcrt}), \
+                    mock.patch.object(fj.time, 'sleep'):
+                return fj.rewrite(lambda data: data.update(x={}), root / 'family.json')
+
+    def test_a_writer_waits_for_the_lock_as_long_as_it_is_held(self):
+        calls = []
+
+        def locking(fd, mode, n):
+            calls.append(mode)
+            if mode == MSVCRT.LK_LOCK:   # it gives up after about 10 s, and the retry loop would spin on that
+                raise AssertionError('LK_LOCK')
+            if mode == MSVCRT.LK_UNLCK:
+                os.fstat(fd)   # EBADF once the file is closed
+            elif calls.count(mode) < 30:
+                raise OSError(errno.EACCES, 'Permission denied')
+        self.assertEqual(self.rewrite(locking), 'updated')
+        self.assertEqual(calls, [MSVCRT.LK_NBLCK] * 30 + [MSVCRT.LK_UNLCK], 'released before the close')
+
+    def test_a_lock_error_that_is_not_contention_is_raised(self):
+        def locking(fd, mode, n):
+            raise OSError(errno.EBADF, 'Bad file descriptor')
+        with self.assertRaises(OSError):
+            self.rewrite(locking)
 
 
 class Observe(unittest.TestCase):
@@ -301,6 +373,18 @@ class Check(unittest.TestCase):
         path.write_text(fj.canonical_text(data))
         return path
 
+    @unittest.skipIf(os.name == 'nt', 'a backslash separates there, so no one file has this name')
+    def test_a_backslash_portable_entry_is_refused_on_windows_even_when_posix_finds_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = fixture_root(d)
+            p = 'synopsys\\dwc2\\dcd_dwc2.c'
+            (root / 'src' / 'portable' / p).write_text('')
+            row = dict(ROW, portable=[p])
+            self.assertEqual(fj.row_violations(row, {'OPT_MCU_STM32F4'}, root), [])
+            with mock.patch.object(fj, 'os', types.SimpleNamespace(name='nt')):   # row_violations' os, as on Windows
+                self.assertEqual(fj.row_violations(row, {'OPT_MCU_STM32F4'}, root),
+                                 [f'portable entry {p!r} is not a relative path to a file under src/portable/'])
+
     def test_a_complete_catalog_passes_and_every_gap_is_named_with_its_remedy(self):
         with tempfile.TemporaryDirectory() as d:
             root = fixture_root(d)
@@ -328,6 +412,7 @@ class Check(unittest.TestCase):
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, roles=[{}])}}}, 'roles must be a sorted list'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=[str(root / 'src' / 'portable' / 'synopsys/dwc2/dcd_dwc2.c')])}}}, 'is not a relative path'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=['../portable/synopsys/dwc2/dcd_dwc2.c'])}}}, 'is not a relative path'),
+                ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, portable=['synopsys\\dwc2\\dcd_dwc2.c'])}}}, 'is not a relative path'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': dict(ROW, mcu='OPT_MCU_BOGUS')}}}, 'is not an OPT_MCU_* defined in src/tusb_option.h'),
                 ({**good, 'stm32f4': {'stm32f407disco': {'cmake': ROW, 'make': 1}}}, 'is {"cmake": ...} and nothing else'),
                 ({**good, 'nrf': {'x': {'cmake': ROW}}}, 'nrf: rows for a family dir that does not exist'),

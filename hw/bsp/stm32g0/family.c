@@ -33,6 +33,23 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+#if CFG_TUSB_SYSVIEW_ENABLED && defined(TIM2)
+// Cortex-M0/M0+ has no DWT cycle counter: SystemView's timestamp is TIM2, the only 32-bit timer,
+// free-running at 1 MHz (wraps every ~71 min). A part without TIM2 gets SystemView's link error.
+static inline void sysview_stm32_tim2_start(void) {
+  __HAL_RCC_TIM2_CLK_ENABLE();
+  TIM2->PSC = SystemCoreClock / 1000000u - 1u; // CK_CNT = fCK_PSC / (PSC + 1) = 1 MHz
+  TIM2->ARR = 0xFFFFFFFFu;                     // 32-bit counter: free-run, wrap only at full range
+  TIM2->EGR = TIM_EGR_UG;                      // latch PSC/ARR into the shadow regs, clears CNT
+  TIM2->SR  = 0;                               // drop the update flag UG just raised
+  TIM2->CR1 = TIM_CR1_CEN;
+}
+
+uint32_t SEGGER_SYSVIEW_X_GetTimestamp(void) {
+  return TIM2->CNT;
+}
+#endif
+
 #ifdef UART_ID
   #if UART_ID == 1
     #define USARTn            USART1
@@ -86,6 +103,10 @@ void board_init(void) {
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_UCPD1_2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
+#if CFG_TUSB_SYSVIEW_ENABLED && defined(TIM2)
+  sysview_stm32_tim2_start();
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;

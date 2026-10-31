@@ -3,6 +3,7 @@ mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
 mcu:CH583
+mcu:CH32X035
 mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103
@@ -13,6 +14,7 @@ mcu:SAMD11
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
 mcu:STM32L0
+mcu:APM32F103
 board:lpcxpresso11u37
 board:lpcxpresso1347
 family:broadcom_32bit

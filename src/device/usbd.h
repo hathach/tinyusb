@@ -69,13 +69,21 @@ bool tud_inited(void);
 // Task function should be called in main/rtos loop, extended version of tud_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tud_task_ext(uint32_t timeout_ms, bool in_isr);
+// Return true when the stack is not initialized or tud_task_stop() was called: leave the task loop, then
+// call tud_deinit() from this task if needed
+bool tud_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
 TU_ATTR_ALWAYS_INLINE static inline
-void tud_task (void) {
-  tud_task_ext(UINT32_MAX, false);
+bool tud_task (void) {
+  return tud_task_ext(UINT32_MAX, false);
 }
+
+// Make tud_task()/tud_task_ext() return true once the events queued before this call are processed, waking it
+// if blocked. Call once per stop from one other task (not ISR) to stop the USB task before tud_deinit().
+// On a full queue it waits for space if the OS adapter's queue send waits (FreeRTOS, ThreadX, Zephyr), else
+// returns false (no OS, RT-Thread, RTX4, Mynewt...): retry. Also returns false if not initialized
+bool tud_task_stop(void);
 
 // Check if there is pending events need processing by tud_task()
 bool tud_task_event_ready(void);
@@ -84,8 +92,14 @@ bool tud_task_event_ready(void);
 extern void dcd_int_handler(uint8_t rhport);
 #endif
 
-// Interrupt handler, name alias to DCD
-#define tud_int_handler   dcd_int_handler
+// Interrupt handler, name alias to DCD. Most BSPs call it from their vector ISR rather than
+// tusb_int_handler(), so the SystemView ISR span is recorded here.
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #define tud_int_handler(_rhport) \
+    do { TU_SYSVIEW_ISR_ENTER(); dcd_int_handler(_rhport); TU_SYSVIEW_ISR_EXIT(); } while(0)
+#else
+  #define tud_int_handler   dcd_int_handler
+#endif
 
 // Get current bus speed
 tusb_speed_t tud_speed_get(void);
@@ -598,10 +612,24 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_AUDIO20_DESC_OUTPUT_TERM(_termid, _termtype, _assocTerm, _srcid, _clkid, _ctrl, _stridx) \
   TUD_AUDIO20_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _clkid, U16_TO_U8S_LE(_ctrl), _stridx
 
+/* Mixer Unit Descriptor(4.7.2.6) */
+#define TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m) \
+  (13+(_nrinpins)+((((_n) * (_m)) % 8) != 0 ? ((_n) * (_m) / 8 + 1) : ((_n) * (_m) / 8)))
+#define TUD_AUDIO20_DESC_MIXER_UNIT_START(_unitid, _nrinpins, _n, _m, ...) \
+  TUD_AUDIO20_DESC_MIXER_UNIT_LEN(_nrinpins, _n, _m), TUSB_DESC_CS_INTERFACE, 0x04, _unitid, _nrinpins, __VA_ARGS__, _m
+#define TUD_AUDIO20_DESC_MIXER_UNIT_END(_channelcfg, _idxchannelnames, _ctrl, _stridx, ...) \
+  U32_TO_U8S_LE(_channelcfg), _idxchannelnames, __VA_ARGS__, _ctrl, _stridx
+
 /* Feature Unit Descriptor(4.7.2.8) */
 #define TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(_nchannels) (6 + ((_nchannels) + 1) * 4)
 #define TUD_AUDIO20_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
   TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__), _stridx
+
+/* Up/Down-mix Processing Unit Descriptor(4.7.2.11.1) */
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(_nrmodes)\
+  (18+4*_nrmodes)
+#define TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT(_unitid, _srcid, _nrchannels, _channelcfg, _idxchannelnames, _ctrl, _stridx, ...)\
+  TUD_AUDIO20_DESC_UP_DOWN_MIX_PROCESSING_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__)), TUSB_DESC_CS_INTERFACE, 0x08, _unitid, U16_TO_U8S_LE(0x01), 1, _srcid, _nrchannels, U32_TO_U8S_LE(_channelcfg), _idxchannelnames, U16_TO_U8S_LE(_ctrl), _stridx, TU_ARGS_NUM(__VA_ARGS__), TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__)
 
 /* Standard AC Interrupt Endpoint Descriptor(4.8.2.1) */
 #define TUD_AUDIO20_DESC_STD_AC_INT_EP_LEN 7

@@ -18,6 +18,45 @@
       }
     }
   },
+  "apm32f10x": {
+    "apm32f103_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F103"
+        ],
+        "mcu": "OPT_MCU_APM32F103",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    },
+    "apm32f107_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F107"
+        ],
+        "mcu": "OPT_MCU_APM32F107",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    }
+  },
   "at32f402_405": {
     "at_start_f402": {
       "cmake": {
@@ -309,7 +348,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }
@@ -517,6 +557,24 @@
       }
     }
   },
+  "ch32x035": {
+    "weact_ch32x035_core_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32X035"
+        ],
+        "mcu": "OPT_MCU_CH32X035",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch583": {
     "ch582m_evt": {
       "cmake": {
@@ -700,6 +758,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -725,6 +784,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -744,6 +804,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -769,6 +830,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -788,6 +850,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -857,6 +920,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -876,6 +940,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -895,6 +960,27 @@
         ],
         "roles": [
           "device",
+          "dual",
+          "host"
+        ]
+      }
+    },
+    "espressif_s31_function_core": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "ESP32S31"
+        ],
+        "mcu": "OPT_MCU_ESP32S31",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
           "host"
         ]
       }
@@ -914,6 +1000,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -933,6 +1020,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -952,6 +1040,7 @@
         ],
         "roles": [
           "device",
+          "dual",
           "host"
         ]
       }
@@ -1026,7 +1115,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }
@@ -2364,8 +2454,7 @@
           "renesas/rusb2/rusb2_common.c"
         ],
         "roles": [
-          "device",
-          "host"
+          "device"
         ]
       }
     },
@@ -2375,6 +2464,26 @@
         "family_mcus": [
           "RAXXX",
           "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
+        ]
+      }
+    },
+    "ra4m2_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m2"
         ],
         "mcu": "OPT_MCU_RAXXX",
         "options": {},
@@ -4584,7 +4693,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     },
@@ -4602,7 +4712,8 @@
           "synopsys/dwc2/hcd_dwc2.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "host"
         ]
       }
     }

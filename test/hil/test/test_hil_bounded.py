@@ -20,6 +20,7 @@
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -160,93 +161,174 @@ class UsbtestRecovery(unittest.TestCase):
         for flag in ('--recover-board', '--recover-fw'):
             self.assertIn(flag, r.stdout)
 
-    def test_the_reserve_covers_every_step_of_its_own_ladder(self):
+    def test_the_reserve_covers_the_window_one_step_and_the_checks_after_it(self):
         """Enumerated from the SIDE EFFECTS usbtest performs, so dropping a step from
-        recovery_reserve() fails here. Overrun means run_cmd's outer kill lands MID-FLASH
-        and orphans the flasher (start_new_session, so killpg misses it) on the probe.
-        """
+        recovery_reserve() fails here. Overrun means run_cmd's outer kill lands MID-STEP and
+        orphans the flasher (start_new_session, so killpg misses it) on the probe."""
         import usbtest
         from helper import hil_util as _hu
-        # each bounded step costs its timeout PLUS run_cmd's post-SIGKILL reap
-        flash = usbtest.RECOVER_FLASH_TIMEOUT + _hu.REAP_GRACE
-        reset = usbtest.RECOVER_RESET_TIMEOUT + _hu.REAP_GRACE
-        fixed = usbtest.WEDGE_CONFIRM_S + 2 * usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD
-        rp = {'name': 'openocd', 'args': '-f target/rp2040.cfg'}
-        for flasher, steps in (
-                # an RP openocd board: reset, reflash, then Rescue-DP POR + one retry
-                (rp, reset + flash + 2 * flash + fixed),
-                # openocd on a NON-RP target: rescue_openocd has no RESCUE_CFG entry for
-                # it, so its two legs are time the board can never spend
-                ({'name': 'openocd', 'args': '-f target/wch-riscv.cfg'},
-                 reset + flash + fixed),
-                # esptool: no reset primitive, and rescue refuses a
-                # non-openocd flasher, so ONE reflash is all it can ever spend
-                ({'name': 'esptool', 'args': ''}, flash + fixed),
-                # reset-only (roster "reflash": false): the reset and its settle, nothing else
-                ({'name': 'openocd', 'args': '-f interface/jlink.cfg', 'reflash': False},
-                 reset + usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_SETTLE + usbtest.RECOVER_OVERHEAD)):
-            self.assertEqual(usbtest.recovery_reserve(flasher), steps,
-                             f'{flasher} reserves time it cannot spend, or too little')
+        fixed = (usbtest.WEDGE_CONFIRM_S + _hu.REAP_GRACE + usbtest.RECOVER_SETTLE
+                 + usbtest.RECOVER_REAP + usbtest.RECOVER_OVERHEAD)
+        # a flasher with a reset primitive resets, nothing else; one without reflashes
+        self.assertEqual(usbtest.recovery_reserve({'name': 'openocd', 'args': '-f target/rp2040.cfg'}),
+                         usbtest.RECOVER_RESET_TIMEOUT + fixed)
+        self.assertEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
+                         usbtest.RECOVER_FLASH_TIMEOUT + fixed)
 
     def test_the_reserve_leaves_room_for_the_work_no_step_bounds(self):
-        """The ladder's step timeouts do not cover the two /proc walks, the roster
-        json.loads, the child's first import, or the JSON print. With zero margin any
-        env-overridable bound moving up puts the outer killpg inside the reflash."""
+        """The step timeout does not cover the roster json.loads, the child's first import,
+        or the JSON print. With zero margin any env-overridable bound moving up puts the
+        outer killpg inside the step."""
         import usbtest
         self.assertGreater(usbtest.RECOVER_OVERHEAD, 0)
-        rp = {'name': 'openocd', 'args': '-f target/rp2350.cfg'}
-        bounded = (usbtest.RECOVER_RESET_TIMEOUT + 3 * usbtest.RECOVER_FLASH_TIMEOUT)
-        self.assertGreaterEqual(usbtest.recovery_reserve(rp) - bounded,
-                                usbtest.RECOVER_OVERHEAD,
-                                'the reserve equals its own worst case with no margin')
-
-    def test_a_flasher_reserves_nothing_for_a_rescue_it_cannot_run(self):
-        """rescue_openocd returns False for anything but openocd, so reserving its two
-        legs elsewhere holds a pool worker AND a usbtest permit for 200s of dead time."""
-        import usbtest
-        self.assertLess(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
-                        usbtest.recovery_reserve({'name': 'openocd',
-                                                  'args': '-f target/rp2040.cfg'}))
-
-
-class UsbtestRunHelper(unittest.TestCase):
-    """usbtest.run() is the bounded replacement for subprocess.run: sysfs_write feeds it
-    input=, and every battery calls that before case 1."""
-
-    def setUp(self):
-        import usbtest
-        self.usbtest = usbtest
-
-    def test_input_kwarg_is_honoured(self):
-        r = self.usbtest.run(['cat'], input='payload', timeout=10)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, 'payload')
-
-    def test_capture_output_kwarg_is_accepted(self):
-        r = self.usbtest.run(['printf', 'x'], capture_output=True, timeout=10)
-        self.assertEqual(r.stdout, 'x')
-
-    def test_timeout_is_bounded_and_raises(self):
-        import subprocess
-        t0 = time.monotonic()
-        with self.assertRaises(subprocess.TimeoutExpired):
-            self.usbtest.run(['sleep', '30'], timeout=1)
-        self.assertLess(time.monotonic() - t0, 15)
+        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
 
 
 class BuildBoardContract(unittest.TestCase):
-    def test_every_return_path_is_a_pair(self):
-        """main() unpacks `_, nfail = build_board(board)`; a bare int on any path
-        (the timeout path did) raises TypeError before the pool exists."""
-        import ast
-        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
-        fn = next(n for n in ast.walk(ast.parse(src))
-                  if isinstance(n, ast.FunctionDef) and n.name == 'build_board')
-        for node in ast.walk(fn):
-            if isinstance(node, ast.Return) and node.value is not None:
-                self.assertIsInstance(node.value, ast.Tuple,
-                                      f'build_board returns a non-tuple at line {node.lineno}')
+    def build(self, rc, out):
+        from unittest import mock
+        proc = mock.Mock(returncode=rc, pid=1)
+        proc.communicate.return_value = (out, None)
+        with mock.patch.object(hil_test.subprocess, 'Popen', return_value=proc) as popen, \
+             redirect_stdout(io.StringIO()) as printed:
+            r = hil_test.build_board({'name': 'b'}, Path('rig.json'))
+        return r, popen.call_args[0][0], printed.getvalue()
 
+    def test_it_builds_every_variant_through_the_build_contract(self):
+        ok = {'pass': True, 'boards': [{'buildDir': 'cmake-build/cmake-build-b', 'status': 'ok'},
+                                       {'buildDir': 'cmake-build/cmake-build-b-DMA', 'status': 'ok'}]}
+        r, cmd, _ = self.build(0, json.dumps(ok) + '\n')
+        self.assertEqual(r, (0, True))
+        self.assertEqual(cmd[1:], [str(hil_test.CHECK_BUILD), '--board', 'b', '--shared', '--variants', 'rig.json', '-v'])
+
+    def test_failed_variants_and_refusals_count_as_failures(self):
+        bad = {'pass': False, 'boards': [{'buildDir': 'd1', 'status': 'failed', 'firstError': 'x.c:1: error: y'},
+                                         {'buildDir': 'd2', 'status': 'error', 'firstError': 'z'},
+                                         {'buildDir': 'd3', 'status': 'skipped', 'firstError': 'nothing built'}]}
+        r, _, printed = self.build(1, json.dumps(bad))
+        self.assertEqual(r, (3, True))
+        self.assertIn('d1 failed: x.c:1: error: y', printed)
+        r, _, printed = self.build(2, json.dumps({'pass': False, 'boards': [], 'error': 'was configured with CFLAGS_CLI'}))
+        self.assertEqual(r, (1, False))
+        self.assertIn('was configured with CFLAGS_CLI', printed)
+        self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
+
+    def run_main(self, cfg, prior_rows, argv, refuse, results=()):
+        """main() over a fake rig in a temp report dir: (exit code, report dir, pool, hints)."""
+        from unittest import mock
+        from helper import hil_report
+        for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
+            self.addCleanup(setattr, hil_test, g, getattr(hil_test, g))
+        self.addCleanup(setattr, hil_test.hil_util, 'verbose', hil_test.hil_util.verbose)
+        self.addCleanup(setattr, hil_flash, 'build_dir', hil_flash.build_dir)
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        d = Path(td.name)
+        (d / 'rig.json').write_text(json.dumps(cfg))
+        hil_report.write_report(d, {'rows': prior_rows, 'scope': '', 'caveat': ''})
+        (d / 'rig.json.failed').write_text('--accumulate -b stale')
+        pool = mock.MagicMock()   # main() enters it as a context manager
+        pool.imap_unordered.return_value.next.side_effect = list(results)
+        with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
+             mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
+             mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] in refuse else (0, True)), \
+             mock.patch.object(hil_test, '_start_pool', return_value=pool), \
+             mock.patch.object(hil_test, '_load_controller_hints', return_value={}), \
+             mock.patch.object(hil_test, '_save_controller_hints') as hints, \
+             mock.patch.object(hil_test, 'log_line'), \
+             redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
+            hil_test.main()
+        return exited.exception.code, d, pool, hints
+
+    def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                 for n in ('bad-a', 'bad-b', 'good')]
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, d, pool, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
+        self.assertEqual(rc, 1)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        self.assertEqual([r[0] for r in hints.call_args[0][0]], ['good'], 'a refused board never ran')
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        verdict = hil_report.summarize(cfg, ['bad', 'good'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False), (True, True)])
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad')
+
+    def all_refused(self, argv):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+                           'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+        prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
+                  for n in ('bad-a', 'bad-b', 'worse')]
+                 + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
+        rc, d, pool, _ = self.run_main(cfg, prior, argv, {'bad', 'worse'})
+        self.assertNotIn(rc, (0, None))
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        cells = {r['board']: r['cells'] for r in doc['rows']}
+        for n in ('bad-a', 'bad-b', 'worse'):
+            self.assertEqual(cells[n][hil_report.RUN_ABORTED_CELL], hil_report.BUILD_REFUSED)
+        self.assertTrue(doc['caveat'].startswith('**HIL run aborted: No boards left: check_build.py refused every '
+                                                 'build (bad, worse).**'), doc['caveat'])
+        self.assertEqual(doc['_hil']['termination'], 'aborted', 'boards were selected: never no-boards')
+        verdict = hil_report.summarize(cfg, ['bad', 'worse'], doc)
+        self.assertFalse(verdict['pass'])
+        self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False)] * 2)
+        self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad -b worse')
+        return cells
+
+    def test_an_all_refused_accumulate_run_reports_every_board_failed(self):
+        from helper import hil_report
+        cells = self.all_refused(['--accumulate'])
+        self.assertEqual(cells['bad'], {hil_report.LOCKED_CELL: 'held'}, 'an earlier lock cell is kept')
+        self.assertEqual(cells['bad-a']['device/cdc_msc'], 'pass', 'test history is kept on --accumulate')
+
+    def test_an_all_refused_fresh_run_reports_only_its_refusals(self):
+        from helper import hil_report
+        cells = self.all_refused([])
+        self.assertEqual(sorted(cells), ['bad-a', 'bad-b', 'worse'])
+        for c in cells.values():
+            self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
+
+    def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+                           'variant': [None, {'name': 'owner-a'}]},
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
+                                      (set(), [good_row], {'device/cdc_msc': 'pass'})):
+            rc, d, _, _ = self.run_main(cfg, [], ['-b', 'good'], refuse, results)
+            doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+            self.assertEqual({r['board']: r['cells'] for r in doc['rows']}, {'good': cell})
+            self.assertEqual(rc, 1 if refuse else 0)
+
+
+    def test_an_abort_banner_does_not_count_a_refused_board_as_finished(self):
+        from helper import hil_report
+        refused = ('bad', 1, [], [('bad', {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)], None)
+        good = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        with TemporaryDirectory() as td:
+            rd = Path(td)
+            hil_test._abort_report('aborted: a worker raised ValueError: x', [refused, good],
+                                   [{'name': 'good'}, {'name': 'stuck'}], rd / 'rig.json.failed',
+                                   rd, True, '')
+            caveat = json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat']
+            spec = (rd / 'rig.json.failed').read_text()
+        self.assertTrue(caveat.startswith('**HIL run aborted: a worker raised ValueError: x.** '
+                                          '1 board(s) below finished'), caveat)
+        self.assertIn('1 never reported and are NOT in the table: stuck.', caveat)
+        self.assertIn("check_build.py refused: bad", caveat)
+        self.assertEqual(spec, '--accumulate -b stuck -b bad')
 
 class RemoteStaging(unittest.TestCase):
     def test_import_closure_is_staged_to_the_rig(self):
@@ -256,8 +338,10 @@ class RemoteStaging(unittest.TestCase):
         # the rig executes and require each file in HARNESS_FILES, read by ast so this
         # suite needs nothing the wrapper imports.
         import ast
+        from helper import agentrc
         hil_dir = Path(TEST_DIR).parents[0]
-        wrapper = hil_dir.parents[1] / '.claude/skills/hil/scripts/hil_remote.py'
+        repo = hil_dir.parents[1]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
                       if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
 
@@ -276,19 +360,83 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
+        def loaded_paths(pyfile):
+            # agentrc.load('<rel>', ...) and agentrc.load_file('<rel>') bring in lib/agentrc files
+            # no import walk can see: hil_load, the one it executes and that one's FILES, the
+            # files it loads or launches by path
+            for node in ast.walk(ast.parse(pyfile.read_text())):
+                if (isinstance(node, ast.Call) and ast.unparse(node.func) in ('agentrc.load', 'agentrc.load_file')
+                        and node.args and isinstance(node.args[0], ast.Constant)):
+                    rel = node.args[0].value
+                    yield from (f'lib/agentrc/{f}' for f in (agentrc.HIL_LOAD, rel, *agentrc.files_of(rel)))
+
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
-        todo, seen = list(seeds), set()
+        todo, seen, loaded = list(seeds), set(), set()
         while todo:
             f = todo.pop()
             if f in seen or not (hil_dir / f).exists():
                 continue  # stdlib/site-packages imports have no test/hil file
             seen.add(f)
             todo += list(imported_paths(hil_dir / f))
+            loaded |= set(loaded_paths(hil_dir / f))
         for f in sorted(seen):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
+        self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
+        # FILES is the provider's by-path closure (agentrc's tests/test_hil_load.py checks it)
+        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', loaded, 'the FILES walk went vacuous')
+        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', loaded,
+                      'the FILES walk missed the openocd_esp session helper')
+        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py'):
+            self.assertIn(f'lib/agentrc/skills/hil/scripts/{f}', loaded, f'the load walk missed {f}')
+        for f in sorted(loaded):
+            self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
+        # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
+        self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
+
+    def test_the_staged_tree_runs_without_the_checkout(self):
+        # HARNESS_FILES alone, where the rig gets them: hil_test loads the flash provider from
+        # the staged lib/agentrc at import, and refuses there when a provider file is missing
+        import ast
+        repo = Path(TEST_DIR).parents[2]
+        wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
+        staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
+                      if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES')
+        code = ('import sys; sys.path.insert(0, "test/hil"); import hil_test; from helper import hil_util\n'
+                'p, e = hil_util.provider(), hil_util.openocd_esp()\n'
+                'print(p.__file__, p.hil_process.__file__, p.PYOCD_LAUNCHER, e.__file__, e.esp_session.__file__,'
+                ' hil_test.hil_tt.__file__, hil_test.usbtest.hil_usbtest.__file__, sep="\\n")\n')
+        with TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            for rel in staged:
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(repo / rel, root / rel)
+            env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            scripts = root / 'lib/agentrc/skills/hil/scripts'
+            self.assertEqual(r.stdout.splitlines()[:4], [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
+                                                         str(scripts / 'pyocd/run_pyocd.py'),
+                                                         str(scripts / 'hil_openocd_esp.py')])
+            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
+                             str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            self.assertEqual(r.stdout.splitlines()[5:], [str(scripts / 'hil_tt.py'), str(scripts / 'hil_usbtest.py')])
+            (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('has no skills/target-debug/scripts/esp_session.py', r.stderr)
+            shutil.copy(repo / 'lib/agentrc/skills/target-debug/scripts/esp_session.py',
+                        root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py')
+            (scripts / 'pyocd/user_script.py').unlink()
+            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                               capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('ImportError: lib/agentrc at', r.stderr.strip().splitlines()[-1])
+            self.assertIn('has no skills/hil/scripts/pyocd/user_script.py', r.stderr)
 
 
 class _MtpFakeRig:
@@ -406,98 +554,6 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         self.assertIsInstance(exc, AssertionError)
 
 
-class ConvoySafeFlasher(unittest.TestCase):
-    """hil_flash.convoy_safe decides whether a board gets post-HUNG recovery at all.
-
-    It must be true ONLY for flashers that can reach their probe without opening the
-    poisoned usbfs node: openocd pinned with a roster vid_pid (filters on kernel-cached
-    sysfs descriptors) and esptool (delivers to a named tty, never enumerates usbfs).
-    Anything else enumerates by opening nodes, would block in D state on the wedged one
-    and become a second stray -- JLinkExe included, whose selection is serial-only and
-    so cannot be pinned at all."""
-
-    def setUp(self):
-        import hil_flash
-        self.f = hil_flash.convoy_safe
-
-    def test_pinned_openocd_is_safe(self):
-        self.assertTrue(self.f({'name': 'openocd', 'vid_pid': '0x2e8a 0x000c'}))
-
-    def test_unpinned_openocd_is_not(self):
-        self.assertFalse(self.f({'name': 'openocd'}))
-        self.assertFalse(self.f({'name': 'openocd', 'vid_pid': ''}))
-
-    def test_esptool_is_safe_without_a_pin(self):
-        """Delivery is `-p <ttyACM>`; there is no usbfs walk to poison."""
-        self.assertTrue(self.f({'name': 'esptool'}))
-
-    def test_enumerating_flashers_are_not(self):
-        for name in ('jlink', 'stlink', 'lm4flash', 'dfu-util'):
-            self.assertFalse(self.f({'name': name, 'vid_pid': '0x1366 0x1024'}),
-                             f'{name} must not be treated as convoy-safe')
-
-    def test_missing_or_odd_name_is_not_safe(self):
-        for flasher in ({}, {'name': None}, {'name': ''}):
-            self.assertFalse(self.f(flasher))
-
-
-class UnresolvedControllerBucket(unittest.TestCase):
-    """An unresolved controller must budget in ONE bucket. Taking a permit on every slot
-    serialized the whole fleet the moment a single board could not be resolved."""
-
-    def setUp(self):
-        import threading
-        from helper import hil_lock
-        self.hil_lock = hil_lock
-        self.saved = (hil_lock.controller_map, hil_lock.controller_meta,
-                      hil_lock.controller_hints, hil_lock.log)
-        hil_lock.controller_map, hil_lock.controller_meta = {}, threading.Lock()
-        hil_lock.controller_hints, hil_lock.log = {}, lambda *a, **k: None
-
-    def tearDown(self):
-        (self.hil_lock.controller_map, self.hil_lock.controller_meta,
-         self.hil_lock.controller_hints, self.hil_lock.log) = self.saved
-
-    def _slots(self, uid, warn):
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        return self.hil_lock.controller_permit(sems, uid, warn_unknown=warn).slots
-
-    def test_unresolved_boards_share_one_slot(self):
-        for warn in (False, True):
-            slots = self._slots('NOSUCHUID', warn)
-            self.assertEqual(len(slots), 1, 'unresolved uid took more than one slot')
-            self.assertEqual(slots, self._slots('OTHERUID', warn),
-                             'unresolved boards must share the bucket, not spread over it')
-
-    def test_the_semaphore_array_is_long_enough_for_the_unknown_slot(self):
-        """UNKNOWN_SLOT indexes one PAST the real slots. An array sized to
-        CONTROLLER_SLOTS IndexErrors on the first unresolved board, inside a pool worker,
-        which map_async turns into a total loss of every board's results."""
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        self.assertGreater(len(sems), self.hil_lock.UNKNOWN_SLOT)
-
-    def test_the_unknown_bucket_never_lends_a_controller_a_second_budget(self):
-        """A private FULL budget let 2 unknown batteries join 2 resolved ones on the same
-        physical controller -- 4 where the width is 2. One at a time caps that at +1."""
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        first = self.hil_lock.controller_permit(sems, 'NOSUCHUID')
-        first.__enter__()
-        self.addCleanup(first.__exit__)
-        second = self.hil_lock.controller_permit(sems, 'OTHERUID')
-        self.assertFalse(sems[second.slots[0]].acquire(blocking=False),
-                         'a second unresolved board got in alongside the first')
-
-    def test_every_real_slot_keeps_the_full_width(self):
-        import threading
-        sems = self.hil_lock.make_permit_sems(threading.Semaphore, 2)
-        for s in sems[:self.hil_lock.CONTROLLER_SLOTS]:
-            self.assertTrue(s.acquire(blocking=False) and s.acquire(blocking=False))
-            self.assertFalse(s.acquire(blocking=False))
-
-
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the
     payload actually requested."""
@@ -516,48 +572,41 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device's cache is keyed by sysname, a bus-topology path: after a
-    renumber it can name a different cafe:4010 board, and idVendor/idProduct are identical
-    on every one of them. Only `serial` tells them apart."""
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for 0525:a4a0, reading the sysfs
+    root the harness's usb_observe names: one module, so a patched root reaches it."""
 
     def setUp(self):
         import usbtest
+        from helper import usb_observe
         self.usbtest = usbtest
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.saved_sys_usb = usbtest.SYS_USB
-        usbtest.SYS_USB = Path(self.tmp.name)
-        usbtest._DEV_CACHE.clear()
+        usbtest_harness.patch(self, usb_observe, 'SYS_USB_DEVICES', self.tmp.name)
+        cache = usbtest.hil_usbtest._DEV_CACHE
+        cache.clear()
+        self.addCleanup(cache.clear)
         self._dev('1-2', 'AAAA', devnum=2)
         self._dev('1-3', 'BBBB', devnum=3)
 
-    def tearDown(self):
-        self.usbtest.SYS_USB = self.saved_sys_usb
-        self.usbtest._DEV_CACHE.clear()
-
     def _dev(self, sysname, serial, devnum):
         d = Path(self.tmp.name) / sysname
+        shutil.rmtree(d, ignore_errors=True)   # a re-enumeration: a new sysfs node
         d.mkdir()
         for name, val in (('idVendor', self.usbtest.VID), ('idProduct', self.usbtest.PID),
                           ('serial', serial), ('busnum', '1'), ('devnum', str(devnum)),
                           ('speed', '480'), ('bcdDevice', '0104')):
             (d / name).write_text(val + '\n')
 
-    def test_cached_sysname_with_another_boards_serial_is_rejected(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-2'   # renumbered: 1-2 is board AAAA now
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual(dev['sysname'], '1-3')
-        self.assertEqual(dev['serial'], 'BBBB')
-        self.assertEqual(self.usbtest._DEV_CACHE['bbbb'], '1-3')
+    def found(self, serial='BBBB'):
+        dev = self.usbtest.find_device(serial)
+        return dev and dev.get('ambiguous') or dev and (dev['sysname'], dev['serial'], dev['node'])
 
-    def test_cached_sysname_with_the_right_serial_is_kept(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-3'
-        dev = self.usbtest.find_device('BBBB')
-        self.assertEqual((dev['sysname'], dev['serial']), ('1-3', 'BBBB'))
-
-    def test_a_cached_device_that_vanished_falls_back_to_the_scan(self):
-        self.usbtest._DEV_CACHE['bbbb'] = '1-9'   # gone from sysfs
-        self.assertEqual(self.usbtest.find_device('BBBB')['sysname'], '1-3')
+    def test_it_is_the_providers_lookup_over_the_harness_usb_observe(self):
+        # the provider's own suite owns the cache (renumber, re-enumeration, vanished device)
+        self.assertEqual(self.found(), ('1-3', 'BBBB', '/dev/bus/usb/001/003'))
+        self.assertEqual(self.usbtest.find_device('BBBB')['tier'], 4)
+        self._dev('1-4', 'bbbb', devnum=6)   # a dual-port part's stale port: reported, never resolved
+        self.assertEqual(self.found(), ['1-3', '1-4'])
 
 
 class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):
@@ -589,121 +638,97 @@ class ReRunSpecNamesOnlyWhatFailed(unittest.TestCase):
             self.assertFalse(spec.exists(), 'a stale spec would re-run last time\'s boards')
 
 
-class WedgedPidsFailsClosed(unittest.TestCase):
-    """A scan that could not SEE the holder must not report "no holder". The holder is
-    root-owned (run_case uses sudo -n when the node is not writable) and that is exactly
-    what a hidepid/ProtectProc mount hides — so an unreadable /proc reading as clear
-    clears unrecovered_hang and reports a device whose usbfs lock is still held as
-    recovered, which is the wedge the operator then has to find."""
+class _FakeProc:
+    """A killed testusb child: `reaps` says whether wait() returns or times out."""
+    def __init__(self, reaps: bool):
+        self.reaps, self.waits = reaps, []
 
-    def test_returns_a_completeness_flag_not_just_pids(self):
+    def wait(self, timeout=None):
+        self.waits.append(timeout)
+        if not self.reaps:
+            raise subprocess.TimeoutExpired('testusb', timeout)
+
+
+class RunCaseConfirmsByReap(unittest.TestCase):
+    """HUNG is 'SIGKILL not reaped in 5 s', which a finite hold on the DUT's device lock also
+    produces. The provider watches our child for WEDGE_CONFIRM_S to tell the two apart (#3944,
+    tested in agentrc); through usbtest's run_case the watch is this harness's window and a
+    HUNG case keeps the child handle main() watches after the recovery step."""
+
+    def test_a_child_still_stuck_after_the_window_is_hung_with_its_handle(self):
         import usbtest
-        got = usbtest.wedged_pids('/dev/bus/usb/999/999')
-        self.assertIsInstance(got, tuple)
-        self.assertEqual(len(got), 2, 'the caller needs (pids, complete)')
 
-    def test_a_restricted_proc_is_reported_incomplete(self):
-        import usbtest
-        self.addCleanup(setattr, usbtest.os, 'geteuid', usbtest.os.geteuid)
-        self.addCleanup(setattr, usbtest.os, 'access', usbtest.os.access)
-        usbtest.os.geteuid = lambda: 1000          # not root
-        usbtest.os.access = lambda p, m: False     # /proc/1/cmdline unreadable
-        _, complete = usbtest.wedged_pids('/dev/bus/usb/999/999')
-        self.assertFalse(complete, 'a hidden holder was reported as absent')
+        class Popen:
+            def __init__(self, cmd, **kw):
+                self.cmd = cmd
 
+            def communicate(self, timeout=None):
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
 
-class WedgeConfirmation(unittest.TestCase):
-    """A HUNG verdict is 'the kill was not reaped in 5 s', which a slow but finite in-kernel
-    wait also produces. Only a holder still on the node after WEDGE_CONFIRM_S is a wedge; a
-    holder that clears is a timeout (false wedges on stm32f746disco, #3944)."""
+            def kill(self):
+                pass
 
-    def _confirm(self, scans, budget=30):
-        import usbtest
-        self.addCleanup(setattr, usbtest, 'wedged_pids', usbtest.wedged_pids)
-        self.addCleanup(setattr, usbtest.time, 'sleep', usbtest.time.sleep)
-        self.addCleanup(setattr, usbtest.time, 'monotonic', usbtest.time.monotonic)
-        it = iter(scans)
-        last = scans[-1]
-        usbtest.wedged_pids = lambda node: next(it, last)
-        clock = [0.0]
-        usbtest.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
-        usbtest.time.monotonic = lambda: clock[0]
-        return usbtest.confirm_wedge('/dev/bus/usb/999/999', budget=budget, poll=1.0)
+            def wait(self, timeout=None):
+                self.waited = timeout
+                raise subprocess.TimeoutExpired(self.cmd, timeout)
 
-    def test_a_holder_that_clears_is_a_timeout_not_a_wedge(self):
-        stuck, complete, waited = self._confirm([([4242], True), ([4242], True), ([], True)])
-        self.assertEqual(stuck, [])
-        self.assertTrue(complete)
-        self.assertAlmostEqual(waited, 2.0)
-
-    def test_a_holder_still_there_at_the_budget_is_a_wedge(self):
-        stuck, complete, waited = self._confirm([([4242], True)], budget=30)
-        self.assertEqual(stuck, [4242])
-        self.assertTrue(complete)
-        self.assertGreaterEqual(waited, 30)
-
-    def test_an_incomplete_scan_never_reads_as_clear(self):
-        stuck, complete, waited = self._confirm([([], False)], budget=5)
-        self.assertFalse(complete, 'a hidden holder was reported as absent')
-        self.assertGreaterEqual(waited, 5, 'gave up before the budget on an incomplete scan')
-
-    def test_the_reserve_pays_for_the_confirmation_on_every_path(self):
-        """hil_test.py reserves the window on the no-recovery path too (#3944): the outer
-        bound is what keeps run_cmd's kill from landing inside the confirmation."""
-        import usbtest
-        self.assertGreater(usbtest.WEDGE_CONFIRM_S, 5, 'must outlast the 5 s reap that produced HUNG')
-        self.assertGreaterEqual(usbtest.recovery_reserve({'name': 'esptool', 'args': ''}),
-                                usbtest.WEDGE_CONFIRM_S + usbtest.RECOVER_FLASH_TIMEOUT)
+        usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen', Popen)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
+        r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
+        self.assertEqual((r['status'], r['num']), ('HUNG', 1))
+        self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
 
 
-class WedgeConfirmationOnTheMainPath(unittest.TestCase):
-    """The transitions together, through usbtest.main(): a cleared holder ends the battery as
-    a timeout FAIL with nothing written; a persistent holder is a confirmed wedge;
-    an incomplete scan is contained like a wedge but reported unverified; an exception during
-    the confirmation still reaches the finally with the hang flagged; and every recovery scan
-    re-derives the confirmation, so a stale 'confirmed' never outlives an incomplete final scan."""
+class HangRecoveryOnTheMainPath(unittest.TestCase):
+    """The transitions through usbtest.main(): a HUNG case aborts the battery; ONE recovery
+    step runs through the convoy-safe flasher (reset where it has one, else reflash); the
+    child reaping afterwards is the only thing that clears `wedged`; a late-cleared timeout
+    also aborts but is not a wedge."""
 
-    def _main(self, confirm, recover=None, scans=None, flasher_extra=None, reflash=None, reset=True):
+    def _main(self, proc=None, recover=None, reset=True, raising_reset=False, late=False):
         """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
-        records the recovery's lookups, resets, settles, scans and reflashes in order."""
+        records the recovery's lookups, resets, settles and reflashes in order."""
         import usbtest
         writes = []
         self.ladder = []
 
         def patch(obj, name, value):
             usbtest_harness.patch(self, obj, name, value)
-        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
-                                    {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
-                                     'detail': f'testusb stuck in D state after {timeout}s'})
+
+        def run_case(num, d, tu, quick, timeout):
+            if late:
+                return {'num': num, 'name': 'x', 'params': '', 'status': 'FAIL', 'late_cleared': True,
+                        'detail': 'timeout after 7s (the kill landed 3s late)'}
+            return {'num': num, 'name': 'x', 'params': '', 'status': 'HUNG',
+                    'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
+        usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        patch(usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
-        patch(usbtest, 'confirm_wedge', confirm)
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda verb, *args: writes.append((verb, *args)))
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
-        if scans is not None:
-            it = iter(scans)
-            patch(usbtest, 'wedged_pids', lambda node: self.ladder.append('scan') or next(it))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
             patch(hil_flash, 'convoy_safe', lambda f: True)
-            self.flashed = []          # every in-run reflash the ladder attempted
-            patch(hil_flash, 'flash_openocd', reflash or (lambda board, fw, **kw: self.flashed.append(fw) or
-                  self.ladder.append('flash') or types.SimpleNamespace(returncode=0, stdout=b'', stderr=b'')))
-            patch(hil_flash, 'rescue_openocd', lambda *a, **k: False)
+            self.flashed = []          # every in-run reflash attempted
+            patch(hil_flash, 'flash_openocd', lambda board, fw, **kw: self.flashed.append((fw, kw.get('timeout')))
+                  or self.ladder.append('flash') or types.SimpleNamespace(returncode=0, stdout=b'', stderr=b''))
 
             def reset_primitive(name):
                 self.ladder.append(('lookup', name))
-                # `timeout` is required: a reset called without the bound raises, and the
-                # ladder records no reset
-                return (lambda board, timeout: self.ladder.append(('reset', board['name'], timeout))) if reset else None
+                if not reset:
+                    return None
+
+                def _reset(board, timeout):
+                    self.ladder.append(('reset', board['name'], timeout))
+                    if raising_reset:
+                        raise RuntimeError('probe gone')
+                    return types.SimpleNamespace(returncode=0)
+                return _reset
             patch(hil_flash, 'reset_primitive', reset_primitive)
         usbtest_harness.argv(self, '--timeout', '7')
         if recover:
             sys.argv += ['--recover-board', json.dumps({'name': 'b', 'flasher': {
-                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(flasher_extra or {})}}),
+                'name': 'openocd', 'vid_pid': '0x1 0x2', 'args': '', **(recover if isinstance(recover, dict) else {})}}),
                          '--recover-fw', '/tmp/fw.elf']
         out, err, exc = usbtest_harness.Out(), io.StringIO(), None
         with redirect_stdout(out), redirect_stderr(err):
@@ -714,335 +739,104 @@ class WedgeConfirmationOnTheMainPath(unittest.TestCase):
         data = json.loads(out.getvalue()) if out.getvalue().strip() else None
         return data, err.getvalue(), exc, writes
 
-    def test_a_cleared_holder_is_a_timeout_fail_and_nothing_is_written(self):
-        data, err, exc, writes = self._main(lambda node: ([], True, 6.0))
+    def test_a_late_cleared_timeout_aborts_the_battery_but_is_not_a_wedge(self):
+        data, err, exc, writes = self._main(late=True)
         self.assertIsNone(exc)
         self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
-        self.assertIn('no holder observed after 6s', data['cases'][0]['detail'])
+        self.assertIn('not a wedge', err)
         self.assertNotIn('unrecovered hang', err)
-        self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
+        self.assertEqual(writes, [], 'a standalone run wrote to sysfs')
 
-    def test_a_persistent_holder_is_a_confirmed_wedge_and_nothing_is_written(self):
-        data, err, _exc, writes = self._main(lambda node: ([4242], True, 30.0))
+    def test_a_hang_without_recovery_flags_stays_wedged_and_nothing_is_written(self):
+        data, err, _exc, writes = self._main(proc=_FakeProc(reaps=True))
         self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
         self.assertEqual(data['cases'][0]['status'], 'HUNG')
-        self.assertIn('unrecovered hang: ask the operator', err)
+        self.assertNotIn('_proc', data['cases'][0])
+        self.assertIn('unrecovered hang', err)
         self.assertEqual(writes, [])
-
-    def test_an_incomplete_scan_is_contained_but_reported_unverified(self):
-        data, err, _exc, writes = self._main(lambda node: ([], False, 30.0))
-        self.assertTrue(data['wedged'], 'an unseen holder must still be contained')
-        self.assertEqual(data['wedge_confirmation'], 'unverified')
-        self.assertIn('unverified', err)
-        self.assertIn('unrecovered hang: ask the operator', err)
-        self.assertEqual(writes, [])
-
-    def test_an_exception_during_confirmation_still_reports_the_hang(self):
-        def boom(node):
-            raise RuntimeError('proc walk failed')
-        data, err, exc, writes = self._main(boom)
-        self.assertIsInstance(exc, RuntimeError)
-        self.assertIsNone(data, 'no verdict was printed')
-        self.assertIn('unrecovered hang: ask the operator', err)
-        self.assertEqual(writes, [])
-
-    def test_a_reset_only_recovery_flasher_never_reflashes_in_run(self):
-        # the holder survives the reset, so the ladder reflashes...
-        self._main(lambda node: ([4242], True, 30.0), recover=True, scans=[([4242], True), ([4242], True)])
-        self.assertEqual(self.flashed, ['/tmp/fw.elf'])
-        # ...unless the entry is reset-only
-        data, err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                         scans=[([4242], True)], flasher_extra={'reflash': False})
-        self.assertTrue(data['wedged'])
-        self.assertIn('reset-only recovery flasher', err)
-        self.assertEqual(self.flashed, [], 'a reset-only entry must never reflash in-run')
 
     def test_an_unknown_recovery_flasher_leaves_the_wedge_unrecovered(self):
-        data, err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                            flasher_extra={'name': 'nosuch'})
+        data, err, exc, writes = self._main(proc=_FakeProc(reaps=True), recover={'name': 'nosuch'})
         self.assertIsNone(exc)
         self.assertTrue(data['wedged'])
-        self.assertIn('reflash recovery unavailable', err)
-        self.assertEqual([e for e in self.ladder if e[0] in ('lookup', 'reset') or e == 'flash'], [],
-                         'an unknown flasher must not reach the reset or the reflash')
+        self.assertIn('recovery unavailable', err)
+        self.assertEqual(self.ladder, [], 'an unknown flasher must not reach the reset or the reflash')
         self.assertEqual(writes, [])
 
-    # The ladder resets first: a probe reset is non-destructive (the wedged firmware survives
-    # for autopsy), writes no flash, and cannot brick SWD the way a bad park image has
-    # (mimxrt1064_evk, max32666fthr). Each step settles before the scan that judges it.
-    def _ladder(self, scans, want, reset=True):
+    def _steps(self):
         import usbtest
-        data, _err, exc, writes = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                             scans=scans, reset=reset)
+        names = {('reset', 'b', usbtest.RECOVER_RESET_TIMEOUT): 'reset',
+                 ('sleep', usbtest.RECOVER_SETTLE): 'settle', 'flash': 'flash'}
+        return [names.get(e, e) for e in self.ladder if e[0] != 'lookup']
+
+    def test_a_reset_that_frees_the_child_clears_the_wedge(self):
+        proc = _FakeProc(reaps=True)
+        data, err, exc, _w = self._main(proc=proc, recover=True)
         self.assertIsNone(exc)
-        self.assertEqual(writes, [])
         self.assertFalse(data['wedged'])
-        lookups = [e[1] for e in self.ladder if e[0] == 'lookup']
-        self.assertTrue(lookups)
-        self.assertEqual(set(lookups), {'openocd'})
-        steps = {('reset', 'b', usbtest.RECOVER_RESET_TIMEOUT): 'reset',
-                 ('sleep', usbtest.RECOVER_SETTLE): 'settle', 'scan': 'scan', 'flash': 'flash'}
-        # any other reset, e.g. one with the wrong bound, stays in and fails the compare
-        ignored = [e for e in self.ladder if e[0] == 'lookup' or (e[0] == 'sleep' and e not in steps)]
-        self.assertEqual([steps.get(e, e) for e in self.ladder if e not in ignored], want)
+        self.assertEqual(self._steps(), ['reset', 'settle'], 'reset first, then settle, never a reflash')
+        self.assertEqual(self.flashed, [])
+        self.assertEqual(proc.waits, [__import__('usbtest').RECOVER_REAP])
+        self.assertIn('recovery freed the device', err)
+
+    def test_a_reset_that_leaves_the_child_stuck_keeps_the_wedge(self):
+        data, err, _exc, _w = self._main(proc=_FakeProc(reaps=False), recover=True)
+        self.assertTrue(data['wedged'])
+        self.assertEqual(self._steps(), ['reset', 'settle'])
+        self.assertIn('still in D state', err)
+        self.assertIn('unrecovered hang', err)
+
+    def test_no_reset_primitive_reflashes_the_firmware_under_test(self):
+        import usbtest
+        data, _err, exc, _w = self._main(proc=_FakeProc(reaps=True), recover=True, reset=False)
+        self.assertIsNone(exc)
+        self.assertFalse(data['wedged'])
+        self.assertEqual(self._steps(), ['flash', 'settle'])
+        self.assertEqual(self.flashed, [('/tmp/fw.elf', usbtest.RECOVER_FLASH_TIMEOUT)])
+
+    def test_a_step_that_raises_still_settles_and_checks_the_child(self):
+        proc = _FakeProc(reaps=True)
+        data, err, exc, _w = self._main(proc=proc, recover=True, raising_reset=True)
+        self.assertIsNone(exc)
+        self.assertIn('recovery step raised', err)
+        self.assertEqual(self._steps(), ['reset', 'settle'])
+        self.assertFalse(data['wedged'], 'the reset landed before the flasher raised')
 
     def test_the_settle_keeps_its_validated_minimum(self):
         import usbtest
         self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
 
-    def test_the_reset_is_attempted_before_the_reflash(self):
-        self._ladder([([4242], True), ([], True)], ['reset', 'settle', 'scan', 'flash', 'settle', 'scan'])
 
-    def test_a_reset_that_clears_the_wedge_skips_the_reflash(self):
-        self._ladder([([], True)], ['reset', 'settle', 'scan'])
+class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
+    """The ambiguous and unreadable-serial aborts latch `wedged` with no HUNG case, so
+    nothing is known to hold the usbfs lock: stderr names the abort, not the lock."""
 
-    def test_no_reset_primitive_goes_straight_to_the_reflash(self):
-        self._ladder([([], True)], ['flash', 'settle', 'scan'], reset=False)
+    def _stderr(self, live, stranded):
+        import usbtest
 
-    def test_recovery_scans_re_derive_the_confirmation(self):
-        # confirmed, then the reset scan and the post-reflash scan cannot see every pid:
-        # the stale 'confirmed' must not survive into the verdict
-        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                          scans=[([], False), ([], False)])
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'unverified')
-        # unverified at first, then a complete scan finds the holder after both actions
-        data, _err, _exc, _w = self._main(lambda node: ([], False, 30.0), recover=True,
-                                          scans=[([4242], True), ([4242], True)])
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
-        # confirmed, then the probe reset clears it
-        data, _err, _exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                          scans=[([], True)])
-        self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
+        def patch(obj, name, value):
+            usbtest_harness.patch(self, obj, name, value)
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout: {
+            'num': num, 'name': 'x', 'params': '', 'status': 'PASS'})
+        found = iter([dict(usbtest_harness.DEV), live])
+        patch(usbtest, 'find_device', lambda serial: next(found))
+        patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded,
+                                                           SYS_USB_DEVICES='/sys/bus/usb/devices'))
+        patch(usbtest, 'bind_usbtest', lambda d: None)
+        usbtest_harness.argv(self)
+        out, err = usbtest_harness.Out(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            usbtest.main()
+        self.assertTrue(json.loads(out.getvalue())['wedged'])
+        self.assertNotIn('usbfs lock', err.getvalue())
+        return err.getvalue()
 
-    @staticmethod
-    def _raising_reflash(board, fw, **kw):
-        raise RuntimeError('probe gone')
+    def test_an_ambiguous_serial_names_the_abort(self):
+        self.assertIn('matches more than one device', self._stderr({'ambiguous': ['1-1', '1-2']}, False))
 
-    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_kept_holder(self):
-        data, err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                        scans=[([4242], True), ([4242], True)], reflash=self._raising_reflash)
-        self.assertIsNone(exc)
-        self.assertTrue(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'confirmed')
-        self.assertEqual(data['wedge_evidence']['after'], 'reflash')
-        self.assertIn('reflash raised', err)
-
-    def test_a_reflash_that_raises_still_gets_the_rescan_on_a_cleared_holder(self):
-        data, _err, exc, _w = self._main(lambda node: ([4242], True, 30.0), recover=True,
-                                         scans=[([4242], True), ([], True)], reflash=self._raising_reflash)
-        self.assertIsNone(exc)
-        self.assertFalse(data['wedged'])
-        self.assertEqual(data['wedge_confirmation'], 'cleared')
-
-
-class WedgedMarker(unittest.TestCase):
-    """#3944: a confirmed wedge marks the board beside its flock so the next run refuses it
-    in seconds; the marker needs a reservation to write and recovery evidence to clear."""
-
-    def setUp(self):
-        from helper import hil_lock
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        self.addCleanup(setattr, hil_lock, 'BOARD_LOCK_DIR', hil_lock.BOARD_LOCK_DIR)
-        hil_lock.BOARD_LOCK_DIR = td.name
-        self.dir = Path(td.name)
-        self.hl = hil_lock
-        self.ok = {'board': 'b', 'holders': [], 'complete': True, 'identity': 'U@1-1'}
-
-    def test_a_marker_needs_a_reservation_to_be_written(self):
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, None))
-        self.assertIsNone(self.hl.read_wedged('b'))
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        info = self.hl.read_wedged('b')
-        self.assertEqual((info['board'], info['reason']), ('b', 'x'))
-        self.assertTrue(info['since'])
-        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
-
-    def test_a_marker_that_cannot_be_trusted_still_refuses_the_board(self):
-        os.symlink('/nonexistent', self.dir / 'b.wedged')
-        self.assertIn('symlink', self.hl.read_wedged('b')['reason'])
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertFalse(self.hl.write_wedged('b', {}, fh), 'never write through a symlink')
-        (self.dir / 'c.wedged').write_text('{not json')
-        self.assertIn('unreadable', self.hl.read_wedged('c')['reason'])
-        (self.dir / 'd.wedged').write_text('{}')
-        self.assertIn('malformed', self.hl.read_wedged('d')['reason'], 'an empty object admitted the board')
-        (self.dir / 'e.wedged').mkdir()
-        self.assertIn('not a regular file', self.hl.read_wedged('e')['reason'])
-        os.mkfifo(self.dir / 'f.wedged')
-        self.assertIn('not a regular file', self.hl.read_wedged('f')['reason'], 'a FIFO must not block admission')
-        self.assertIn('untrusted', self.hl.clear_wedged('f', dict(self.ok, board='f')),
-                      'no evidence verifies a marker this code did not write')
-        with self.assertRaises(ValueError):
-            self.hl.read_wedged('../etc')
-
-    def test_a_reservation_must_be_this_boards_open_lock(self):
-        other = self.hl.flock_nb('other')
-        self.addCleanup(other.close)
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, other), 'another board\'s lock is not a reservation')
-        fh = self.hl.flock_nb('b')
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=other))
-        fh.close()
-        self.assertIn('does not hold', self.hl.clear_wedged('b', self.ok, lock_fh=fh), 'a closed handle')
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-
-    def test_evidence_must_verify_this_marker(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1'}, fh)
-        fh.close()
-        for bad, why in ((dict(self.ok, board='other'), 'names board'),
-                         (dict(self.ok, uid='WRONG'), 'uid'),
-                         (dict(self.ok, uid='UID1', identity='no-busport'), 'identity'),
-                         (dict(self.ok, uid='UID1', identity='@1-1'), 'identity'),
-                         (dict(self.ok, uid='UID1', identity='U@'), 'identity'),
-                         (dict(self.ok, uid='UID1', holders=[7]), 'holder'),
-                         ('not a dict', 'JSON object')):
-            self.assertIn(why, self.hl.clear_wedged('b', bad), bad)
-        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1')), '')
-
-    def test_the_identity_must_match_the_serial_the_wedge_was_observed_on(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x', 'uid': 'UID1', 'evidence': {'serial': 'RIGHT'}}, fh)
-        fh.close()
-        self.assertIn('observed on', self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='WRONG@1-1')))
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', dict(self.ok, uid='UID1', identity='RIGHT@1-1')), '')
-
-    def test_a_short_write_keeps_the_previous_marker(self):
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'first'}, fh))
-        import resource
-        soft, hard = resource.getrlimit(resource.RLIMIT_FSIZE)
-        self.addCleanup(resource.setrlimit, resource.RLIMIT_FSIZE, (soft, hard))
-        import signal
-        prev = signal.signal(signal.SIGXFSZ, signal.SIG_IGN)   # get EFBIG, not a signal
-        self.addCleanup(signal.signal, signal.SIGXFSZ, prev)
-        resource.setrlimit(resource.RLIMIT_FSIZE, (4, hard))
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'second, much longer'}, fh))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (soft, hard))
-        self.assertEqual(self.hl.read_wedged('b')['reason'], 'first', 'a torn marker replaced the good one')
-        self.assertEqual([], [p for p in self.dir.iterdir() if p.name.endswith('.tmp')])
-
-    def test_the_temporary_file_never_follows_a_symlink(self):
-        victim = self.dir / 'victim'
-        victim.write_text('keep me')
-        os.symlink(victim, self.dir / f'b.wedged.{os.getpid()}.tmp')
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.assertFalse(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.assertEqual(victim.read_text(), 'keep me')
-        self.assertIsNone(self.hl.read_wedged('b'))
-
-    def test_clearing_needs_evidence_and_a_free_board(self):
-        fh = self.hl.flock_nb('b')
-        self.assertTrue(self.hl.write_wedged('b', {'reason': 'x'}, fh))
-        self.hl.write_record(fh, 'dev session')
-        self.assertIn('held by', self.hl.clear_wedged('b', self.ok), 'a held board is not cleared')
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        fh.close()
-        self.assertIn('evidence', self.hl.clear_wedged('b', {}))
-        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, holders=[1])))
-        self.assertIn('evidence', self.hl.clear_wedged('b', dict(self.ok, complete=False)))
-        self.assertIsNotNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', self.ok), '')
-        self.assertIsNone(self.hl.read_wedged('b'))
-        self.assertEqual(self.hl.clear_wedged('b', self.ok), 'not marked')
-
-    def test_the_holder_clears_under_its_own_reservation(self):
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        self.hl.write_wedged('b', {'reason': 'x'}, fh)
-        self.assertEqual(self.hl.clear_wedged('b', self.ok, lock_fh=fh), '')
-
-    def test_the_cli_lists_and_clears(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'x'}, fh)
-        fh.close()
-        out = io.StringIO()
-        with redirect_stdout(out):
-            self.assertEqual(self.hl.cmd_wedged('status'), 0)
-        self.assertIn('b: {', out.getvalue())
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', 'not json'), 2)
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', '{}'), 1)
-            self.assertEqual(self.hl.cmd_wedged('clear', 'b', json.dumps(self.ok)), 0)
-        self.assertIsNone(self.hl.read_wedged('b'))
-
-    def _admit(self, board_name='b'):
-        called = []
-        self.addCleanup(setattr, hil_test, '_tests_for', hil_test._tests_for)
-        hil_test._tests_for = lambda board: called.append(board) or ([], [])
-        ret = hil_test.test_board({'name': board_name, 'uid': 'U', 'flasher': {'name': 'openocd'}})
-        return ret, called
-
-    def test_admission_refuses_a_marked_board_before_any_hardware_access(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
-        fh.close()
-        (name, err, failed, rows, dur), called = self._admit()
-        self.assertEqual((name, err, failed, dur), ('b', 1, [], 0.0))
-        self.assertEqual(rows, [('b', {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED}, None)])
-        self.assertEqual(called, [], 'the board was touched despite the marker')
-        self.assertIsNone(self.hl.read_record('b') or None, 'the lock record was left behind')
-        fh2 = self.hl.flock_nb('b')   # the flock was dropped again
-        fh2.close()
-
-    def test_admission_is_checked_even_when_the_lock_is_bypassed(self):
-        fh = self.hl.flock_nb('b')
-        self.hl.write_wedged('b', {'reason': 'still wedged'}, fh)
-        fh.close()
-        self.addCleanup(os.environ.pop, 'HIL_NO_BOARD_LOCK', None)
-        os.environ['HIL_NO_BOARD_LOCK'] = '1'
-        (_n, err, _f, rows, _d), called = self._admit()
-        self.assertEqual((err, called), (1, []))
-        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
-
-    def test_admission_refuses_an_empty_object_marker(self):
-        (self.dir / 'b.wedged').write_text('{}')
-        (_n, err, _f, rows, _d), called = self._admit()
-        self.assertEqual((err, called), (1, []), 'an empty marker admitted the board')
-        self.assertEqual(rows[0][1], {hil_test.hil_report.WEDGED_CELL: hil_test.hil_report.WEDGED_REFUSED})
-
-    def test_mark_wedged_writes_marker_and_dmesg_under_a_reservation_only(self):
-        import subprocess as sp
-        self.addCleanup(setattr, hil_test.usbtest, '_sudo_soft', hil_test.usbtest._sudo_soft)
-        hil_test.usbtest._sudo_soft = lambda cmd, **kw: sp.CompletedProcess(
-            cmd, 0, stdout='\n'.join(f'line {i}' for i in range(80)), stderr='')
-        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
-        self.addCleanup(setattr, hil_test, 'board_wedge_evidence', hil_test.board_wedge_evidence)
-        hil_test.board_wedged = 'b: usbtest reports the device still wedged'
-        hil_test.board_wedge_evidence = {'node': '/dev/bus/usb/003/009', 'holders': [4242],
-                                         'complete': True, 'serial': 'UID1'}
-        board = {'name': 'b', 'uid': 'UID1', 'flasher': {'name': 'openocd'}}
-        victim = self.dir / 'victim'
-        victim.write_text('keep me')
-        os.symlink(victim, self.dir / 'b.wedge-dmesg.txt')
-        hil_test._mark_wedged(board, None)
-        self.assertIsNone(self.hl.read_wedged('b'), 'no reservation, no marker')
-        self.assertEqual(victim.read_text(), 'keep me', 'the sidecar was written without a reservation')
-        (self.dir / 'b.wedge-dmesg.txt').unlink()
-        fh = self.hl.flock_nb('b')
-        self.addCleanup(fh.close)
-        hil_test._mark_wedged(board, fh)
-        info = self.hl.read_wedged('b')
-        self.assertEqual((info['uid'], info['confirmation']), ('UID1', 'confirmed'))
-        self.assertIn('still wedged', info['reason'])
-        self.assertEqual(info['evidence']['node'], '/dev/bus/usb/003/009')
-        self.assertEqual(info['evidence']['holders'], [4242])
-        dmesg = Path(info['dmesg'])
-        self.assertEqual(dmesg.parent, self.dir, 'evidence lives with the marker, not in a checkout')
-        self.assertEqual(len(dmesg.read_text().splitlines()), 50)
+    def test_an_unreadable_serial_names_the_abort(self):
+        self.assertIn('its serial read gave up', self._stderr(None, True))
 
 
 class MtpGioOrdering(_MtpFakeRig, unittest.TestCase):
@@ -1115,9 +909,8 @@ class MtpGioFallthrough(unittest.TestCase):
 
 
 class RunWhileContract(unittest.TestCase):
-    """The read-while-we-write runner. Its child can still outlast SIGKILL -- but unlike
-    the thread it replaced, an abandoned child is a real process in its own session, so
-    the containment sweep finds it and the report names it."""
+    """The read-while-we-write runner. Its child can still outlast SIGKILL, and is then
+    abandoned with our pipe ends closed."""
 
     def setUp(self):
         from helper import hil_util
@@ -1172,119 +965,24 @@ class RunWhileContract(unittest.TestCase):
         self.assertNotEqual(pgids['child'], os.getpgid(0))
 
 
-class UsbScanIsTheOneWalk(unittest.TestCase):
-    """Three call sites each had a different subset of the three things this must get
-    right; none had all three. The expensive read is `serial` -- served under the device
-    lock a wedged usbfs ioctl holds -- so it must come LAST, only for devices the free
-    descriptor fields could not rule out, and never twice for a path that stranded."""
-
-    def setUp(self):
-        from helper import hil_util
-        self.hil_util = hil_util
-        self.td = TemporaryDirectory()
-        self.addCleanup(self.td.cleanup)
-        self.root = Path(self.td.name)
-        self.reads = []
-        real = hil_util.read_sysfs
-
-        def counting(path, *a, **k):
-            self.reads.append(path)
-            return real(path, *a, **k)
-        self.addCleanup(setattr, hil_util, 'read_sysfs', real)
-        hil_util.read_sysfs = counting
-
-    def _dev(self, name, vid, pid, serial='S1'):
-        d = self.root / name
-        d.mkdir()
-        (d / 'idVendor').write_text(vid + '\n')
-        (d / 'idProduct').write_text(pid + '\n')
-        (d / 'serial').write_text(serial + '\n')
-        return d
-
-    def _scan(self, **kw):
-        import glob as _g
-        real_glob = _g.glob
-        self.addCleanup(setattr, self.hil_util.glob, 'glob', real_glob)
-        self.hil_util.glob.glob = lambda pat: [str(p) for p in self.root.iterdir()]
-        return self.hil_util.usb_scan(**kw)
-
-    def test_a_mismatched_vid_pid_costs_no_serial_read(self):
-        """`serial` is the ONE attribute here served under the device lock, so it is the
-        one that can block on a wedged device. Filtering on the lock-free descriptor pair
-        first is what keeps a scan for our board off every other board's locked read."""
-        self._dev('1-1', '1234', '5678')
-        self._dev('1-2', 'cafe', '4010', serial='UID1')
-        devs = self._scan(vid_pid=('cafe', '4010'))
-        self.assertEqual([d['serial'] for d in devs], ['UID1'])
-        # the ruled-out device's locked attribute was never touched
-        self.assertNotIn(str(self.root / '1-1' / 'serial'), self.reads)
-
-
-class AbandonExitSurvivesAFailedFork(unittest.TestCase):
-    """Pool() forks, and after a convoy -- every stranded read holding a thread and an fd --
-    that fork is what hits EAGAIN/ENOMEM. It now runs inside the try, so the finally can
-    reach _abandon_exit with pool and mgr still None."""
-
-    def test_none_pool_and_manager_still_write_the_banner(self):
-        # a subprocess, because _abandon_exit ends in os._exit: in-process it would take
-        # the test runner with it, before any assertion could run
-        import json
-        import subprocess
-        with TemporaryDirectory() as td:
-            rd = Path(td)
-            # it takes the report DIRECTORY now and re-renders both artifacts from the
-            # sidecar, so seed the sidecar -- the markdown is output, not input
-            (rd / 'hil_report.json').write_text(json.dumps(
-                {'rows': [{'board': 'boardA', 'cells': {'cdc_msc': 'pass'},
-                           'duration': '1s'}],
-                 'banner': '', 'scope': '', 'caveat': ''}))
-            src = (
-                'import sys, types\n'
-                f'sys.path.insert(0, {str(Path(TEST_DIR).parents[0])!r})\n'
-                'st = types.ModuleType("serial")\n'
-                'st.Serial = type("Serial", (), {})\n'
-                'st.SerialException = type("SerialException", (Exception,), {})\n'
-                'st.SerialTimeoutException = type("E2", (Exception,), {})\n'
-                'sys.modules.setdefault("serial", st)\n'
-                'import hil_test\n'
-                f'hil_test._abandon_exit(None, None, True, 1, __import__("pathlib")'
-                f'.Path({str(rd)!r}))\n')
-            r = subprocess.run([sys.executable, '-c', src], capture_output=True,
-                               text=True, timeout=120)
-            self.assertEqual(r.returncode, 1, r.stderr)
-            self.assertTrue((rd / 'hil_report.md').read_text().startswith(
-                '**HIL run abandoned'), 'the abandon banner never reached the report')
-            self.assertIn('abandoned',
-                          json.loads((rd / 'hil_report.json').read_text())['caveat'])
-
-    def test_kill_pool_children_tolerates_a_pool_that_never_existed(self):
-        from helper import hil_health
-        self.assertEqual(hil_health.kill_pool_children(None), 0)
-        self.assertEqual(hil_health.kill_pool_children(None, None), 0)
-
-
 class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     """run_cmd's kill is the ONE bound, and it must carry a recovery reserve only when a
     recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
-    worker and its battery permit idle for the difference, under a usbtest width of 2."""
+    worker idle for the difference."""
 
     def _invoke(self, flasher, skip_flash=False, recover=None):
-        from contextlib import contextmanager
-        from helper import hil_lock, hil_util
+        from helper import hil_util, usb_observe
 
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
-        dev = Path(td.name) / 'dev1'
+        dev = Path(td.name) / '1-1'
         dev.mkdir()
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
 
         def patch(obj, name, value):
             self.addCleanup(setattr, obj, name, getattr(obj, name))
             setattr(obj, name, value)
-
-        def _permit(uid):
-            yield
 
         seen = {}
 
@@ -1293,10 +991,8 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
             seen['cmd'], seen['timeout'] = cmd, kw.get('timeout')
             return subprocess.CompletedProcess(cmd, 1, stdout=b'', stderr=b'stub')
 
-        from helper import hil_util as _hu
-        patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
+        patch(usb_observe, 'SYS_USB_DEVICES', str(dev.parent))
         patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
-        patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', skip_flash)
         patch(hil_test, '_current_fw', '/tmp/fw.elf')
         patch(hil_util, 'run_cmd', fake_run)
@@ -1316,19 +1012,19 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
                 + usbtest.recovery_reserve(flasher))
         self.assertEqual(seen['timeout'], want)
 
-    def test_the_reserve_follows_the_board_not_a_fleet_constant(self):
-        """Two convoy-safe openocd boards, one RP and one not: the non-RP board cannot
-        run rescue_openocd, so reserving its two legs holds a pool worker and a usbtest
-        permit for 200s of dead time."""
-        rp = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
-                           'args': '-f target/rp2040.cfg'})
-        wch = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
-                            'args': '-f target/wch-riscv.cfg'})
-        self.assertLess(wch['timeout'], rp['timeout'])
+    def test_the_reserve_follows_the_flasher_not_a_fleet_constant(self):
+        """A flasher with a reset primitive reserves the reset bound, one without (esptool)
+        the reflash bound: the difference is dead time a pool worker would otherwise hold."""
+        import usbtest
+        ocd = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
+                            'args': '-f target/rp2040.cfg'})
+        esp = self._invoke({'name': 'esptool', 'args': ''})
+        self.assertEqual(esp['timeout'] - ocd['timeout'],
+                         usbtest.RECOVER_FLASH_TIMEOUT - usbtest.RECOVER_RESET_TIMEOUT)
 
     def test_a_board_with_no_recovery_does_not_pay_for_one(self):
         import usbtest
-        seen = self._invoke({'name': 'stlink', 'uid': 'X'})   # never convoy_safe
+        seen = self._invoke({'name': 'jlink', 'uid': 'X'})   # never convoy_safe
         # It does not carry the RECOVERY reserve it cannot spend, only the window in which
         # the child watches a HUNG node before calling it a wedge (#3944): that runs on
         # every path, and an outer kill inside it loses the JSON and the verdict.
@@ -1364,9 +1060,9 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         shipped = json.loads(toks[toks.index('--recover-board') + 1])
         self.assertEqual(shipped, {'name': 'b', 'flasher': rec})
         self.assertEqual(toks[toks.index('--recover-fw') + 1], '/tmp/fw.elf')
-        # the reset step is reserved, and no Rescue-DP legs: reset_openocd exists, unlike esptool's
+        # the reset step is reserved, not a reflash: reset_openocd exists, unlike esptool's
         self.assertEqual(usbtest.recovery_reserve(rec) - usbtest.recovery_reserve({'name': 'esptool'}),
-                         usbtest.RECOVER_RESET_TIMEOUT + hil_test.hil_util.REAP_GRACE)
+                         usbtest.RECOVER_RESET_TIMEOUT - usbtest.RECOVER_FLASH_TIMEOUT)
 
     def test_skip_flash_still_bounds_the_child(self):
         """--skip-flash disables recovery, so the child must not be given a reserve it
@@ -1427,14 +1123,13 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
     thing left to unpoison the DUT where usbtest's in-band recovery is off."""
 
     def setUp(self):
-        from contextlib import contextmanager
-        from helper import hil_lock
+        from helper import usb_observe
         self.td = TemporaryDirectory()
         self.addCleanup(self.td.cleanup)
-        dev = Path(self.td.name) / 'dev1'
+        dev = Path(self.td.name) / '1-1'
         dev.mkdir()
         # a real (readable) fake sysfs node, so the bounded reads run unmodified
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
         self.dev = dev
 
@@ -1443,13 +1138,8 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
             self.addCleanup(setattr, obj, name, saved)
             setattr(obj, name, value)
 
-        from helper import hil_util as _hu
-        patch(_hu, 'glob', types.SimpleNamespace(glob=lambda p: [str(dev)]))
+        patch(usb_observe, 'SYS_USB_DEVICES', str(dev.parent))
         patch(hil_test, 'USBTEST_SETTLE', 0)   # see no_settle
-        def _permit(uid):        # a real generator: a lambda returning an iterator has
-            yield                # no .throw(), so any raise inside the `with` would
-                                 # surface as an AttributeError from contextlib instead
-        patch(hil_lock, 'usbtest_permit', contextmanager(_permit))
         patch(hil_test, 'skip_flash', True)
 
     def test_rc_124_stays_retryable(self):
@@ -1501,7 +1191,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
 
     def test_finished_rows_survive_a_guard_expiry(self):
         boards = [{'name': 'fast1'}, {'name': 'fast2'}, {'name': 'wedged'}]
-        rows = [('fast1', 0, [], [], 1.0, False), ('fast2', 0, [], [], 1.0, False)]
+        rows = [('fast1', 0, [], [], None), ('fast2', 0, [], [], None)]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual([r[0] for r in cm.exception.finished], ['fast1', 'fast2'])
@@ -1509,7 +1199,7 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
     def test_an_expired_deadline_stops_before_asking_for_more(self):
         """Left <= 0 must not be handed to it.next() as a zero/negative timeout."""
         boards = [{'name': 'a'}, {'name': 'b'}]
-        it = self._It([('a', 0, [], [], 1.0, False)])
+        it = self._It([('a', 0, [], [], None)])
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(it, boards, time.monotonic() - 1)     # already past
         self.assertEqual(cm.exception.finished, [])
@@ -1525,20 +1215,20 @@ class PoolGuardKeepsWhatFinished(unittest.TestCase):
                 return super().next(timeout)
 
         boards = [{'name': n} for n in ('a', 'b', 'c', 'd')]
-        rows = [(n, 0, [], [], 1.0, False) for n in ('a', 'b', 'c', 'd')]
+        rows = [(n, 0, [], [], None) for n in ('a', 'b', 'c', 'd')]
         with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
             hil_test.drain_pool(Slow(rows), boards, time.monotonic() + 0.3)
         self.assertTrue(cm.exception.finished, 'rows collected before the expiry were lost')
 
     def test_every_board_finishing_returns_them_all(self):
         boards = [{'name': 'a'}, {'name': 'b'}]
-        rows = [('a', 0, [], [], 1.0, False), ('b', 1, [], [], 2.0, False)]
+        rows = [('a', 0, [], [], None), ('b', 1, [], [], None)]
         got = hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
         self.assertEqual(got, rows)
 
 
 class WedgedBoardCosts(unittest.TestCase):
-    """Two decisions the containment latch makes, tested as decisions rather than through
+    """Two decisions the board_wedged latch makes, tested as decisions rather than through
     test_board's loop -- the loop-level predecessor of these tests reimplemented that loop
     and asserted on its own copy, which is how both defects survived it."""
 
@@ -1579,12 +1269,44 @@ class WedgedBoardCosts(unittest.TestCase):
         self.assertFalse(hil_test._should_park(True), '--skip-flash must still suppress it')
 
 
+class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
+    """A one-test, two-variant board repeats its PID across the boundary, whose park
+    _should_park refuses beside a pending openocd_esp cleanup: that is no missing binary."""
+
+    def test_the_next_variant_reports_cleanup_pending_not_a_boundary_failure(self):
+        from unittest import mock
+        flashed, log = [], []
+
+        def test_example(board, variant, example):
+            flashed.append((variant, example))
+            hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
+            return 0, 'pass', None
+
+        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd_esp'}, 'tests': [],
+                 'variant': [{'name': 'v1'}, {'name': 'v2'}]}
+        with mock.patch.object(hil_test, 'skip_flash', False), \
+             mock.patch.object(hil_test, 'shuffle_seed', None), \
+             mock.patch.object(hil_flash, 'cleanup_pending', {}), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
+             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
+             mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
+             mock.patch.object(hil_test, 'test_example', test_example), \
+             mock.patch.object(hil_test, 'log_line', log.append):
+            _name, err, failed, rows, _pci = hil_test.test_board(board)
+        self.assertEqual(flashed, [('v1', 'device/cdc_msc')], 'flashed beside the outstanding session')
+        cells = {vname: c for vname, c, _ in rows}
+        self.assertNotIn(hil_test.hil_report.BOUNDARY_CELL, cells['v2'], log)
+        self.assertEqual(cells['v2']['device/cdc_msc'], f'{hil_test.hil_report.REPORT_CELL["skip"]} cleanup pending')
+        self.assertIn(hil_test.hil_report.CLEANUP_PENDING_CELL, cells['b'])
+        self.assertEqual((err, failed), (1, []), 'the pending cleanup is one incident, charged once')
+
+
 class WedgeVerdictReachesTheLatch(unittest.TestCase):
     """usbtest computes `unrecovered_hang` but never reported it, so hil_test inferred the
-    latch from `not recovery and 'HUNG' in out` and missed three cases: recovery ran and
-    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), the `ambiguous`
-    abort (which sets the flag but leaves no case at status HUNG), and an unparsable JSON,
-    which is the outer-timeout kill and the case where a wedge is most likely."""
+    latch from `not recovery and 'HUNG' in out` and missed two cases: recovery ran and
+    FAILED (convoy-safe boards -- max32666fthr HUNG in the 08-14 run), and the `ambiguous`
+    abort (which sets the flag but leaves no case at status HUNG)."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
@@ -1592,7 +1314,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         no_settle(self)
 
     def _run(self, stdout, rc=0, flasher=None):
-        from helper import hil_lock, hil_util
+        from helper import hil_util, usb_observe
         class R:
             returncode = rc
             stderr = b''
@@ -1600,18 +1322,15 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
         # usbtest_enumerated is nested in test_device_usbtest, so stub what it calls
-        self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
-        hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
-                                           'pid': '4010', 'serial': 'U'}], False)
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
-        hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+        self.raised = None
         try:
             hil_test.test_device_usbtest(board)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001 - the verdict raises; tests assert the latch
+            self.raised = e
         return hil_test.board_wedged
 
     def test_a_reported_wedge_latches_even_when_recovery_ran(self):
@@ -1623,25 +1342,21 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         js = '{"serial":"U","speed":"480","tier":1,"passed":2,"failed":0,"notrun":0,'              '"wedged":false,"cases":[]}'
         self.assertFalse(self._run(js))
 
-    def test_only_a_confirmed_wedge_qualifies_for_the_marker(self):
-        for confirmation, want in (('confirmed', True), ('unverified', False), ('', False)):
-            js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
-                  f'"wedged":true,"wedge_confirmation":"{confirmation}","cases":[]}}')
-            self.assertTrue(self._run(js), confirmation)
-            self.assertIs(hil_test.board_wedge_confirmed, want, confirmation)
-
     def test_a_late_cleared_timeout_on_a_board_without_recovery_does_not_latch(self):
         """usbtest watches a HUNG node before it says wedged (#3944); the old inference
-        `not recovery and 'HUNG' in out` latched a healthy stlink board on a slow case."""
+        `not recovery and 'HUNG' in out` latched a healthy board on a slow case."""
         js = ('{"serial":"U","speed":"480","tier":1,"passed":1,"failed":1,"notrun":0,'
               '"wedged":false,"cases":[{"num":10,"status":"FAIL","detail":"timeout after 60s '
               '(the kill landed 7s late; no holder left on the node); was HUNG"}]}')
-        self.assertFalse(self._run(js, flasher={'name': 'stlink', 'uid': 'X'}),
+        self.assertFalse(self._run(js, flasher={'name': 'jlink', 'uid': 'X'}),
                          'a cleared holder latched the board as wedged')
 
-    def test_an_unparseable_battery_that_mentions_HUNG_still_latches(self):
-        """rc 124 mid-print: no JSON to read, and this is the likeliest real wedge."""
-        self.assertTrue(self._run('TEST 10 HUNG: device wedged mid-transfer', rc=124))
+    def test_an_unparseable_battery_does_not_latch(self):
+        """Only the battery's JSON verdict latches: a truncated one may describe a hang the
+        recovery already cleared, so text alone never latches."""
+        self.assertFalse(self._run('{"cases": [{"num": 10, "status": "HUNG"', rc=124))
+        self.assertIsInstance(self.raised, hil_test.TestFail)
+        self.assertIn('usbtest did not run', str(self.raised))
 
 
 class WedgedBoardCannotReportAPass(unittest.TestCase):
@@ -1659,19 +1374,15 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
 
     def _cell(self, js):
         """Returns ('pass', cell) or ('fail', message)."""
-        from helper import hil_lock, hil_util
+        from helper import hil_util, usb_observe
         class R:
             returncode = 0
             stderr = b''
         R.stdout = js.encode()
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
-        self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
-        hil_util.usb_scan = lambda **k: ([{'busport': '1-1', 'dir': '/x', 'vid': 'cafe',
-                                           'pid': '4010', 'serial': 'U'}], False)
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
-        hil_lock.usbtest_permit = contextmanager(lambda uid: iter([None]))
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1690,6 +1401,64 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
                                 '"failed":0,"notrun":0,"wedged":false,"cases":[]}')
         self.assertEqual(kind, 'pass', f'a healthy board was failed: {cell}')
         self.assertIn('30/30', cell)
+
+
+class UsbtestFailureLine(unittest.TestCase):
+    """The failure line lists case numbers per status, so a gated-off NOTRUN (a wrong binding
+    profile) reads differently from a FAIL (#4226)."""
+
+    def setUp(self):
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+
+    def line(self, statuses):
+        bad = sum(st not in ('PASS', 'BUDGET') for st in statuses)
+        notrun = statuses.count('BUDGET')
+        data = {'passed': len(statuses) - bad - notrun, 'failed': bad, 'notrun': notrun, 'wedged': False,
+                'cases': [{'num': n, 'status': st} for n, st in enumerate(statuses)]}
+        with self.assertRaises(hil_test.TestFail) as e:
+            hil_test._usbtest_verdict({'name': 'b'}, data, '', data['passed'], bad, True, {'name': 'openocd'})
+        return str(e.exception)
+
+    def test_each_status_names_its_own_cases(self):
+        self.assertIn('(FAIL: [2, 4]; HUNG: [3]; NOTRUN: [1]; BUDGET: [5, 6])',
+                      self.line(['PASS', 'NOTRUN', 'FAIL', 'HUNG', 'FAIL', 'BUDGET', 'BUDGET']))
+
+    def test_empty_groups_are_omitted(self):
+        self.assertIn(' (NOTRUN: [1, 2])', self.line(['PASS', 'NOTRUN', 'NOTRUN']))
+
+
+class WedgeMessageNamesTheCause(unittest.TestCase):
+    """The latch text sends the operator to a probe or a setting, so it must name what
+    happened: the ambiguous and unreadable-serial aborts run no recovery, and --skip-flash
+    is not the flasher's fault."""
+
+    def setUp(self):
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        self.addCleanup(setattr, hil_test, 'skip_flash', hil_test.skip_flash)
+        hil_test.skip_flash = False
+
+    def _latch(self, cases, recovery):
+        hil_test.board_wedged = ''
+        data = {'passed': 1, 'failed': 1, 'notrun': 0, 'wedged': True, 'cases': cases}
+        with self.assertRaises(hil_test.TestFail):
+            hil_test._usbtest_verdict({'name': 'b'}, data, '', 1, 1, recovery,
+                                      {'name': 'openocd'})
+        return hil_test.board_wedged
+
+    def test_a_hang_names_the_recovery_or_what_blocked_it(self):
+        hung = [{'num': 10, 'status': 'HUNG'}]
+        self.assertIn('after a recovery via openocd', self._latch(hung, True))
+        self.assertIn('openocd cannot deliver a recovery', self._latch(hung, False))
+        hil_test.skip_flash = True
+        msg = self._latch(hung, False)
+        self.assertIn('--skip-flash', msg)
+        self.assertNotIn('openocd', msg)
+
+    def test_an_abort_without_a_hang_names_no_recovery(self):
+        msg = self._latch([{'num': 10, 'status': 'FAIL'}], True)
+        self.assertIn('could no longer be identified', msg)
+        self.assertNotIn('recovery', msg)
 
 
 def _gil_stall_available() -> bool:
@@ -1808,54 +1577,16 @@ class HidEchoRunsInAChild(unittest.TestCase):
         self.assertIn('short read', self._stderr(r))
 
 
-class StrayNoteSurvivesTheTupleWidth(unittest.TestCase):
-    """_stray_note reads r[5] -- and three producers build this tuple at three widths, so
-    `len(r) > 5 and r[5]` reads a WRONG SLOT rather than raising if a field is ever
-    inserted. The live handoff in issue #3896 proposes exactly that, and the
-    report would then say "no strays" while probes and usbfs nodes stay held into the next
-    job. The index changed once already in this branch (r[6] -> r[5])."""
-
-    def test_it_names_the_board_and_the_count(self):
-        wide = ('dirty', 1, [], [], 9.0, 2)
-        clean = ('fine', 0, [], [], 8.0, 0)
-        note = hil_test._stray_note([wide, clean])
-        self.assertIn('dirty (2)', note)
-        self.assertIn('2 process(es)', note)
-        self.assertNotIn('fine', note, 'a clean board must not appear in the note')
-
-    def test_a_narrow_row_from_the_timeout_path_is_not_misread(self):
-        """The abort paths synthesise 5-field rows for boards that never reported."""
-        self.assertEqual(hil_test._stray_note([('stuck', 1, [], None, 0)]), '')
-        self.assertEqual(hil_test._stray_note([('fine', 0, [], [], 8.0, 0)]), '')
-
-    def test_the_slot_it_reads_is_the_slot_test_board_writes(self):
-        """Pins the index against the producer, so inserting a field fails HERE rather
-        than silently reporting a duration as a stray count."""
-        import ast
-        src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
-        fn = next(n for n in ast.walk(ast.parse(src))
-                  if isinstance(n, ast.FunctionDef) and n.name == 'test_board')
-        widths = sorted({len(n.value.elts) for n in ast.walk(fn)
-                         if isinstance(n, ast.Return) and isinstance(n.value, ast.Tuple)})
-        # the board-LOCKED early return is 5 wide and carries no stray count; the normal
-        # one is 6, with strays last
-        self.assertEqual(widths, [5, 6],
-                         'the result tuple changed width; _stray_note reads index 5')
-
-
 class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
-    """_abort_report hands `[(n, 1, [], None, 0) for n in stuck] + [r for r in mret ...]`
-    to both writers -- 5-field synthetic rows mixed with 6-field worker rows. Every other
-    test uses uniform widths, so replacing either `*_` unpack with a fixed-width one keeps
-    the suite green and raises only INSIDE the containment path, where a raise costs every
-    board's results."""
+    """_abort_report hands `[(n, 1, [], None, None) for n in stuck] + [r for r in mret ...]`
+    to the re-run spec: synthetic rows (rows=None) mixed with worker rows."""
 
     def _mixed(self):
-        return [('stuck', 1, [], None, 0),                       # synthetic, 5 wide
+        return [('stuck', 1, [], None, None),                    # synthetic
                 ('ran', 1, ['device/dfu'],
-                 [('ran', {'device/dfu': '❌ boom'}, '8s')], 8.0, 2)]   # worker, 6 wide
+                 [('ran', {'device/dfu': '❌ boom'}, '8s')], None)]      # worker
 
-    def test_the_rerun_spec_accepts_both_widths(self):
+    def test_the_rerun_spec_accepts_both_kinds(self):
         with TemporaryDirectory() as td:
             rd = Path(td)
             hil_test._write_failed_spec(rd / 'c.json.failed', rd, self._mixed())
@@ -1869,22 +1600,24 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
         from helper import hil_report
         real = hil_report.accumulate_report
 
-        def render(reason, secs):
+        def render(reason, cell):
             hil_report.accumulate_report = lambda *a, **k: (_ for _ in ()).throw(
                 OSError('report dir unwritable'))
             try:
                 with TemporaryDirectory() as td:
                     rd = Path(td)
+                    hil_report.start_attempt(rd, False, Path(TEST_DIR).parents[0] / 'tinyusb.json', ['boardA'])
                     hil_test._abort_report(reason, [], [{'name': 'boardA'}],
-                                           rd / 'c.failed', rd, True, '',
-                                           timeout_secs=secs)
+                                           rd / 'c.failed', rd, True, cell=cell)
                     return (rd / hil_report.REPORT_MD).read_text()
             finally:
                 hil_report.accumulate_report = real
 
-        guard = render('abandoned: worker pool timed out after 3600s', 3600)
+        guard = render('aborted: worker pool timed out after 3600s',
+                       hil_report.POOL_TIMEOUT_CELL)
         self.assertIn(hil_report.POOL_TIMEOUT_CELL, guard)
-        raised = render('aborted: a worker raised ValueError: x', None)
+        raised = render('aborted: a worker raised ValueError: x',
+                        hil_report.RUN_ABORTED_CELL)
         self.assertIn(hil_report.RUN_ABORTED_CELL, raised)
         self.assertNotIn(hil_report.POOL_TIMEOUT_CELL, raised,
                          'a run that aborted on a raise is not a pool timeout')
@@ -1892,10 +1625,30 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
         for md in (guard, raised):
             self.assertIn('boardA', md)
 
+    def test_the_report_records_how_the_run_ended(self):
+        """`_hil.termination`: timeout for the pool guard, aborted for a worker's raise, the
+        fallback writer included."""
+        from helper import hil_report
+        real = hil_report.accumulate_report
+        for cell, termination in ((hil_report.POOL_TIMEOUT_CELL, 'timeout'), (hil_report.RUN_ABORTED_CELL, 'aborted')):
+            for fallback in (False, True):
+                with self.subTest(termination=termination, fallback=fallback), TemporaryDirectory() as td:
+                    rd = Path(td)
+                    hil_report.start_attempt(rd, False, Path(TEST_DIR).parents[0] / 'tinyusb.json', ['b'])
+                    if fallback:
+                        hil_report.accumulate_report = lambda *a, **k: (_ for _ in ()).throw(OSError('x'))
+                    try:
+                        with redirect_stdout(io.StringIO()):
+                            hil_test._abort_report('aborted: x', [], [{'name': 'b'}], rd / 'c.failed', rd, True, cell=cell)
+                    finally:
+                        hil_report.accumulate_report = real
+                    meta = json.loads((rd / hil_report.REPORT_JSON).read_text())['_hil']
+                    self.assertEqual(meta['termination'], termination)
+
     def test_only_the_rerun_spec_sees_the_synthetic_rows(self):
         """accumulate_report gets `mret` alone -- worker rows, always 4th field a real
         list. Widening _abort_report to hand it the synthetic list too would crash the
-        containment path: those rows carry rows=None and render_matrix iterates it."""
+        abort path: those rows carry rows=None and render_matrix iterates it."""
         import ast
         src = (Path(TEST_DIR).parents[0] / 'hil_test.py').read_text()
         fn = next(n for n in ast.walk(ast.parse(src))
@@ -1913,86 +1666,127 @@ class MixedWidthRowsSurviveTheReportWriters(unittest.TestCase):
                       'the re-run spec must still name the boards that never reported')
 
 
+class UsbtestLearnsTopology(unittest.TestCase):
+    """The battery's enumeration wait is where the DUT is known enumerated, so its match
+    gives the board's controller for the dispatch cache; that lookup never stands between
+    the board and its battery."""
+
+    PASS = ('{"serial":"U","speed":"480","tier":1,"passed":30,"failed":0,"notrun":0,'
+            '"wedged":false,"cases":[]}')
+
+    def setUp(self):
+        from helper import hil_util, usb_observe
+        for name in ('board_wedged', 'board_pci', 'controller_of'):
+            usbtest_harness.patch(self, hil_test, name, getattr(hil_test, name))
+        hil_test.board_wedged = ''
+        hil_test.board_pci = None
+        no_settle(self)
+        self.order = []
+
+        class R:
+            returncode = 0
+            stderr = b''
+            stdout = self.PASS.encode()
+        usbtest_harness.patch(self, hil_util, 'run_cmd',
+                              lambda *a, **k: self.order.append('battery') or R())
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
+            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': '0525', 'pid': 'a4a0',
+             'serial': 'U'}])
+        self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
+
+    def test_the_controller_is_learned_before_the_battery(self):
+        hil_test.controller_of = lambda d: self.order.append(('learn', d)) or 'P'
+        hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, [('learn', '/sys/bus/usb/devices/3-1'), 'battery'])
+        self.assertEqual(hil_test.board_pci, 'P')
+
+    def test_the_first_port_seen_is_kept_across_variants(self):
+        hil_test.board_pci = 'FIRST'
+        hil_test.controller_of = lambda d: self.order.append(('learn', d)) or 'SECOND'
+        hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, ['battery'])
+        self.assertEqual(hil_test.board_pci, 'FIRST')
+
+    def test_the_resolver_takes_the_controller_above_the_device(self):
+        from unittest import mock
+        real = os.path.realpath
+
+        def realpath(p, *a, **k):
+            if p == '/sys/bus/usb/devices/3-1':
+                return '/sys/devices/pci0000:00/0000:00:1c.0/0000:02:00.0/usb3/3-1'
+            return real(p, *a, **k)
+        with mock.patch.object(hil_test.os.path, 'realpath', realpath):
+            hil_test.test_device_usbtest(self.board)
+        self.assertEqual(hil_test.board_pci, '0000:02:00.0')
+        self.assertEqual(self.order, ['battery'])
+
+    def test_an_unresolvable_device_still_runs_the_battery(self):
+        from unittest import mock
+        with mock.patch.object(hil_test.os.path, 'realpath', lambda p, *a, **k: '/gone/3-1'):
+            hil_test.test_device_usbtest(self.board)
+        self.assertEqual(self.order, ['battery'])
+        self.assertIsNone(hil_test.board_pci)
+
+
+class ControllerCacheMerge(unittest.TestCase):
+    """The cache is re-read at save time so a concurrent HIL job's entries survive, and a
+    board whose controller was not learned this run keeps its cached one."""
+
+    def setUp(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        usbtest_harness.patch(self, hil_test, 'CONTROLLER_CACHE',
+                              Path(td.name) / 'controller_cache.json')
+
+    def test_merge_keeps_other_boards_and_the_cached_pci_when_unlearned(self):
+        hil_test.CONTROLLER_CACHE.write_text(json.dumps({
+            'U1': {'name': 'a', 'pci': 'old1', 'duration': 9.0},
+            'U2': {'name': 'b', 'pci': 'old2'},
+            'U3': {'name': 'esp', 'pci': 'other-job'}}))
+        hil_test._save_controller_hints(
+            [('a', 0, [], [], 'new1'), ('b', 0, [], [], None)], {'a': 'U1', 'b': 'U2'})
+        self.assertEqual(json.loads(hil_test.CONTROLLER_CACHE.read_text()), {
+            'U1': {'name': 'a', 'pci': 'new1'},
+            'U2': {'name': 'b', 'pci': 'old2'},
+            'U3': {'name': 'esp', 'pci': 'other-job'}})
+        self.assertEqual(hil_test._load_controller_hints(),
+                         {'U1': 'new1', 'U2': 'old2', 'U3': 'other-job'})
+
+    def test_a_torn_cache_costs_only_the_order(self):
+        hil_test.CONTROLLER_CACHE.write_text('{"U1": ')
+        self.assertEqual(hil_test._load_controller_hints(), {})
+        hil_test._save_controller_hints([('a', 0, [], [], 'p')], {'a': 'U1'})
+        self.assertEqual(hil_test._load_controller_hints(), {'U1': 'p'})
+
+
 class UsbtestAbsentDeviceVerdict(unittest.TestCase):
-    """The arm that fails BEFORE usbtest_permit: an absent device must not queue on the
-    battery mutex for minutes just to have usbtest.py report "no device", and the cell
-    needs the 0/30 denominator or the row reads as a bare failure."""
+    """An absent device fails before the battery is launched, and the cell needs the 0/30
+    denominator or the row reads as a bare failure."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
         hil_test.board_wedged = ''
         no_settle(self)
-        from helper import hil_lock, hil_util
-        self.addCleanup(setattr, hil_util, 'usb_scan', hil_util.usb_scan)
-        hil_util.usb_scan = lambda **k: []          # a readable bus, no such device
+        from helper import hil_util, usb_observe
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [])   # a readable bus, no such device
         self.addCleanup(setattr, hil_test, '_enum_timeout', hil_test._enum_timeout)
         hil_test._enum_timeout = 0
-        self.addCleanup(setattr, hil_lock, 'usbtest_permit', hil_lock.usbtest_permit)
-        from contextlib import contextmanager
+        self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
 
-        def boom(uid):
-            raise AssertionError('took the battery permit for an absent device')
-            yield
-        hil_lock.usbtest_permit = contextmanager(boom)
+        def boom(*a, **k):
+            raise AssertionError('launched a battery for an absent device')
+        hil_util.run_cmd = boom
 
     def test_a_readable_bus_without_the_device_says_absent_with_a_denominator(self):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('no cafe:4010 device', str(cm.exception))
+        self.assertIn('no 0525:a4a0 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
-    def test_a_scan_that_gave_up_says_could_not_tell_instead(self):
-        """The conflation this whole path exists to avoid: an unreadable DUT is not an
-        absent one, and the bare string sends a maintainer after a firmware regression on
-        hardware that is merely wedged."""
-        from helper import hil_util
-        self.addCleanup(setattr, hil_util, '_ever_stranded', hil_util._ever_stranded)
-        hil_util._ever_stranded = True
-        with self.assertRaises(hil_test.TestFail) as cm:
-            hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
-                                          'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('could not tell', str(cm.exception))
-
-
-class UsbtestStartupDoesNotClaimAbsenceBlind(unittest.TestCase):
-    """usbtest.py's own startup lookup, the sibling of the arm above. hil_test relays its
-    stderr verbatim into the report cell, so a positive 'no cafe:4010 device' from a scan
-    that gave up is the same conflation one process further out. Structural because the
-    exit sits mid-main(), behind argparse and the testusb probe."""
-
-    def test_the_sysfs_backed_absence_claims_carry_the_note(self):
-        """Both claims that a bounded read can turn into a false absence. The printer one
-        was missed: read_sysfs folds a timed-out `serial` into None, so a wedged-but-
-        enumerated printer read as 'Printer device not found' -- an enumeration verdict for
-        hardware that is merely unreadable. The MIDI lookup is deliberately NOT here: it
-        globs /dev/snd/by-id and readlinks it, so no bounded read can blind it."""
-        import ast
-        tree = ast.parse(Path(hil_test.__file__).read_text())
-        claims = [ast.unparse(n) for n in ast.walk(tree)
-                  if isinstance(n, (ast.Assert, ast.Raise))
-                  and ('Printer device not found' in ast.unparse(n)
-                       or 'no cafe:4010 device' in ast.unparse(n))]
-        self.assertEqual(len(claims), 2, 'a sysfs-backed absence claim moved or was added')
-        for c in claims:
-            self.assertIn('strand_note', c, f'absence claimed without the note: {c[:70]}')
-
-    def test_the_absence_exit_carries_the_stranded_caveat(self):
-        import ast
-        import usbtest
-        tree = ast.parse(Path(usbtest.__file__).read_text())
-        exits = [n for n in ast.walk(tree)
-                 if isinstance(n, ast.Call) and ast.unparse(n.func) == 'sys.exit'
-                 and 'no {VID}:{PID} device' in ast.unparse(n)]
-        self.assertEqual(len(exits), 1, 'the absence exit moved; retarget this test')
-        self.assertIn('strand_note', ast.unparse(exits[0]),
-                      'usbtest claims absence without consulting sysfs_stranded()')
-
-
 class UsbtestNeverCleansUp(unittest.TestCase):
-    """main's finally writes nothing: remove_id makes the next registration wait on peers'
-    in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
-    through the uninterruptible device_lock. The id and bindings stay for every run."""
+    """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a
+    host xHCI through the uninterruptible device_lock. The bindings stay for every run."""
 
     def test_the_finally_block_writes_nothing(self):
         import ast
@@ -2003,26 +1797,9 @@ class UsbtestNeverCleansUp(unittest.TestCase):
         self.assertTrue(fins, 'main lost its finally; retarget this test')
         for fin in fins:
             body = ast.unparse(ast.Module(body=fin.finalbody, type_ignores=[]))
-            # every registry/bind write goes through sysfs_write
+            # every sysfs write goes through sysfs_write
             self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
-
-class SysfsWriteTimeoutNamesTheUncertainty(unittest.TestCase):
-    def test_a_blocked_write_is_contention_or_a_wedge_and_stays_bounded(self):
-        import usbtest
-        seen = {}
-
-        def blocked(cmd, **kw):
-            seen.update(kw)
-            raise subprocess.TimeoutExpired(cmd, kw.get('timeout'))
-        self.addCleanup(setattr, usbtest, 'sudo', usbtest.sudo)
-        usbtest.sudo = blocked
-        with self.assertRaises(SystemExit) as cm:
-            usbtest.sysfs_write('/sys/bus/usb/drivers/usbtest/new_id', 'cafe 4010 0 0525 a4a0')
-        self.assertEqual(seen.get('timeout'), 15)
-        msg = str(cm.exception)
-        self.assertIn('possible device-lock contention or a wedged device', msg)
-        self.assertNotIn('USB subsystem is wedged', msg)
 
 if __name__ == '__main__':
     unittest.main()

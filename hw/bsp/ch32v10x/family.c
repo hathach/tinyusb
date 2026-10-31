@@ -70,13 +70,12 @@ void board_init(void) {
   /* Do NOT toggle the global interrupt enable here.
    * CH32V103 startup enters U-mode (mret with mstatus.MPP=0), so:
    *  - the SDK __disable_irq()/__enable_irq() write mstatus, which faults in U-mode;
-   *  - writing CSR 0x800 (INTSYSCR) corrupts the QingKe V3 interrupt-mode config,
-   *    which made the USB interrupt vector to a bad address (PC=0) and hang.
-   * The startup already leaves interrupts correctly configured, and machine-mode
-   * interrupts are globally enabled while running in U-mode regardless of mstatus.MIE. */
+   *  - QingKe V3A has no gintenr at CSR 0x800 (QingKe V3 manual); writing it hung the
+   *    board with the USB interrupt at PC=0.
+   * The startup already leaves interrupts enabled (mstatus.MPIE=1 before its mret). */
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config(SystemCoreClock / 1000);
+  SysTick_Config(SystemCoreClock / 8 / 1000); // STK counts HCLK/8 (RM 9.5.3.1)
 #endif
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);

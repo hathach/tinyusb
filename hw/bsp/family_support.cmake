@@ -1,6 +1,8 @@
 include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
+include(${CMAKE_CURRENT_LIST_DIR}/sysview_manifest.cmake)
+sysview_record_command_line()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #set(CMAKE_C_STANDARD 11)
 
@@ -257,13 +259,6 @@ function(family_add_bloaty TARGET)
     DEPENDS ${TARGET}
     COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
     VERBATIM)
-
-  #set_property(TARGET ${TARGET}-bloaty PROPERTY FOLDER ${TARGET}-group)
-  # post build
-  #  add_custom_command(TARGET ${TARGET} POST_BUILD
-  #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
-  #    VERBATIM
-  #    )
 endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
@@ -273,22 +268,13 @@ function(family_add_linkermap TARGET)
     return()
   endif ()
 
-  set(OPTION "-j")
-  if (DEFINED LINKERMAP_OPTION)
-    string(APPEND OPTION " ${LINKERMAP_OPTION}")
-  endif ()
-  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+  separate_arguments(OPTION_LIST UNIX_COMMAND "${LINKERMAP_OPTION}")
 
   add_custom_target(${TARGET}-linkermap
     DEPENDS ${TARGET}
     COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
-
-  if (NOT TARGET examples-linkermap)
-    add_custom_target(examples-linkermap)
-  endif ()
-  add_dependencies(examples-linkermap ${TARGET}-linkermap)
 endfunction()
 
 # Add membrowse target (installed with pip install membrowse). TARGET names the
@@ -301,8 +287,12 @@ function(family_add_membrowse TARGET)
   else ()
     set(ELF_TARGET ${TARGET})
   endif ()
+  # a variant build (build.py --build-name) reports as a board of its own
+  if (NOT DEFINED MEMBROWSE_BOARD)
+    set(MEMBROWSE_BOARD ${BOARD})
+  endif ()
 
-  # For Ninja generator, tools/membrowse_report.py extracts linker scripts (with
+  # For Ninja generator, `tools/membrowse_cli.py report` extracts linker scripts (with
   # INCLUDE resolution) and --defsym symbols from the ninja build graph, then runs
   # `membrowse report` (looked up on PATH, see the script). It also handles
   # MEMBROWSE_API_KEY at build time (not here at configure time) so the key is never
@@ -313,12 +303,12 @@ function(family_add_membrowse TARGET)
     set(MEMBROWSE_ARGS
       --build-dir ${CMAKE_BINARY_DIR}
       --ninja ${CMAKE_MAKE_PROGRAM}
-      --target ${ELF_TARGET}
       --elf ${TARGET_ELF_PATH}
-      --target-name ${BOARD}/${TARGET}
+      # membrowse history is keyed on this name (pinned by test_membrowse_cli): never rename
+      --target-name ${MEMBROWSE_BOARD}/${TARGET}
       )
     if (DEFINED MEMBROWSE_OPTION)
-      list(APPEND MEMBROWSE_ARGS --option "${MEMBROWSE_OPTION}")
+      list(APPEND MEMBROWSE_ARGS "--option=${MEMBROWSE_OPTION}")
     endif ()
     if (DEFINED MEMBROWSE_LD_OVERRIDE)
       list(APPEND MEMBROWSE_ARGS --ld ${MEMBROWSE_LD_OVERRIDE})
@@ -326,16 +316,15 @@ function(family_add_membrowse TARGET)
 
     add_custom_target(${TARGET}-membrowse
       DEPENDS ${ELF_TARGET}
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS}
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS}
       VERBATIM
       )
-    #set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET}-group)
 
     # No DEPENDS on ELF_TARGET here: CI's upload path must still run (as an
     # --identical metadata-only upload) for a commit that never rebuilt this elf,
     # so this target must never force a rebuild.
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND python ${TOP}/tools/membrowse_report.py ${MEMBROWSE_ARGS} --upload
+      COMMAND python ${TOP}/tools/membrowse_cli.py report ${MEMBROWSE_ARGS} --upload
       VERBATIM
       )
 
@@ -343,8 +332,6 @@ function(family_add_membrowse TARGET)
       add_custom_target(examples-membrowse-upload)
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
-
-    #set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET}-group)
   endif ()
 endfunction()
 
@@ -439,12 +426,6 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
-  # CI_BUILD marks firmware built in CI (GitHub Actions sets CI). Examples can use
-  # it to alter behavior under test, e.g. board_test idles to park HIL boards.
-  if(DEFINED ENV{CI})
-    target_compile_definitions(${TARGET} PUBLIC CI_BUILD=1)
-  endif()
-
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
     separate_arguments(CFLAGS_CLI)
@@ -456,6 +437,14 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC TRACE_ETM)
   endif ()
 
+  # SWO Trace option: keeps the SWO pin and the trace clock for a debug probe's SWO capture
+  if (TRACE_SWO STREQUAL "1")
+    if (TRACE_ETM STREQUAL "1")
+      message(FATAL_ERROR "TRACE_SWO and TRACE_ETM select different trace port modes: choose one")
+    endif ()
+    target_compile_definitions(${TARGET} PUBLIC TRACE_SWO)
+  endif ()
+
   # LOGGER option
   if (DEFINED LOGGER)
     string(TOUPPER ${LOGGER} LOGGER)
@@ -463,12 +452,106 @@ function(family_configure_common TARGET RTOS)
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
-      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES SKIP_LINTING ON)
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
+  endif ()
+
+  # SEGGER SystemView instrumentation option
+  if (SYSVIEW)
+    if (SYSVIEW STREQUAL "ON")
+      set(SYSVIEW 4)               # bare -DSYSVIEW=ON = full instrumentation
+    endif ()
+    if (NOT SYSVIEW MATCHES "^[1-4]$")
+      message(FATAL_ERROR "SYSVIEW must be 1..4 (1=ISR 2=+usbd/usbh 3=+dcd/hcd 4=+class)")
+    endif ()
+    set(SYSVIEW_SRC ${TOP}/lib/SystemView)
+    if (NOT EXISTS ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
+      message(FATAL_ERROR "SYSVIEW needs lib/SystemView: run python3 tools/get_deps.py lib/SystemView")
+    endif ()
+    if (NOT DEFINED SYSVIEW_FREERTOS_MAX_NOF_TASKS)
+      set(SYSVIEW_FREERTOS_MAX_NOF_TASKS 16)
+    endif ()
+    if (NOT DEFINED SYSVIEW_BUFFER_SIZE)
+      # a family's SYSVIEW_BUFFER_SIZE_DEFAULT: RAM-rich ones set 65536, as at 4096 mimxrt1064_evk lost
+      # 96.7% of ISR exit contexts at ~109 Hz
+      if (DEFINED SYSVIEW_BUFFER_SIZE_DEFAULT)
+        set(SYSVIEW_BUFFER_SIZE ${SYSVIEW_BUFFER_SIZE_DEFAULT})
+      else ()
+        set(SYSVIEW_BUFFER_SIZE 4096)
+      endif ()
+    endif ()
+    if (NOT DEFINED SYSVIEW_RAM_BASE)
+      # a family whose SRAM is not at 0x20000000 sets SYSVIEW_RAM_BASE_DEFAULT, or SEGGER's RAM-pointer
+      # id shrink underflows and every task/mutex id comes out garbage
+      if (DEFINED SYSVIEW_RAM_BASE_DEFAULT)
+        set(SYSVIEW_RAM_BASE ${SYSVIEW_RAM_BASE_DEFAULT})
+      else ()
+        set(SYSVIEW_RAM_BASE 0x20000000)
+      endif ()
+    endif ()
+    # vendored lib/SEGGER_RTT predates SEGGER_RTT_ConfDefaults.h; bridge it. file(CONFIGURE) writes
+    # only on a content change, so this per-target call does not rebuild every TU as file(WRITE) would.
+    file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sysview_shim/SEGGER_RTT_ConfDefaults.h
+         CONTENT "#include \"SEGGER_RTT_Conf.h\"\n" @ONLY)
+    target_sources(${TARGET} PUBLIC
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c)
+    # RTT's portable C writer: RTT_USE_ASM picks the ARMv7-M .S from the core, which no source-list
+    # condition tracks (rp2040 sets no CMAKE_SYSTEM_CPU) and which fails to assemble on RISC-V
+    target_compile_definitions(${TARGET} PUBLIC RTT_USE_ASM=0)
+    if (NOT LOGGER STREQUAL "RTT")
+      target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
+    endif ()
+    set(SYSVIEW_INC
+      ${SYSVIEW_SRC}/SEGGER ${SYSVIEW_SRC}/SYSVIEW ${SYSVIEW_SRC}/Config
+      ${CMAKE_BINARY_DIR}/sysview_shim
+      ${TOP}/lib/SEGGER_RTT/RTT ${TOP}/lib/SEGGER_RTT/Config)
+    set(SYSVIEW_DEFS CFG_TUSB_SYSVIEW=${SYSVIEW}
+      SYSVIEW_FREERTOS_MAX_NOF_TASKS=${SYSVIEW_FREERTOS_MAX_NOF_TASKS})
+    target_include_directories(${TARGET} PUBLIC ${SYSVIEW_INC})
+    # vendor sources are not expected to pass TinyUSB's -Werror set
+    set_source_files_properties(
+      ${SYSVIEW_SRC}/SYSVIEW/SEGGER_SYSVIEW.c
+      ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c
+      ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c
+      TARGET_DIRECTORY ${TARGET} PROPERTIES COMPILE_OPTIONS "-w")
+    target_compile_definitions(${TARGET} PUBLIC ${SYSVIEW_DEFS}
+      SYSVIEW_APP_NAME="${TARGET}"
+      SYSVIEW_DEVICE_NAME="${BOARD}"
+      SYSVIEW_RAM_BASE=${SYSVIEW_RAM_BASE}
+      SEGGER_SYSVIEW_RTT_BUFFER_SIZE=${SYSVIEW_BUFFER_SIZE}
+      SYSVIEW_MANIFEST_BUILD)
+    # Gate on this example's own RTOS, not "TARGET freertos_kernel": that target is global to an
+    # examples/-level configure (the first FreeRTOS example creates it), and rp2040 never creates it.
+    if (RTOS STREQUAL "freertos")
+      target_sources(${TARGET} PUBLIC ${SYSVIEW_SRC}/Sample/FreeRTOSV11/SEGGER_SYSVIEW_FreeRTOS.c)
+      # the kernel sees FreeRTOSConfig.h through freertos_config; rp2040 has no such target, as its
+      # kernel sources compile as part of ${TARGET}
+      if (TARGET freertos_config)
+        target_compile_definitions(freertos_config INTERFACE ${SYSVIEW_DEFS})
+        target_include_directories(freertos_config INTERFACE ${SYSVIEW_INC} ${SYSVIEW_SRC}/Sample/FreeRTOSV11)
+      endif ()
+    endif ()
+    if (DEFINED SYSVIEW_DISABLE_EVENTS)
+      # its only way into a manifest build (tusb.c refuses any other), so the manifest's eventMask is the filter
+      target_compile_definitions(${TARGET} PUBLIC SYSVIEW_DISABLE_EVENTS=${SYSVIEW_DISABLE_EVENTS}
+        SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+    endif ()
+    if (SYSVIEW_POST_MORTEM)
+      target_compile_definitions(${TARGET} PUBLIC SEGGER_SYSVIEW_POST_MORTEM_MODE=1)
+      # SEGGER_SYSVIEW_SYNC_PERIOD_SHIFT stays at its source default (8)
+    endif ()
+    file(RELATIVE_PATH _sv_example ${TOP}/examples ${CMAKE_CURRENT_SOURCE_DIR})
+    sysview_manifest(${TARGET} ${BOARD} ${_sv_example})
+    message(STATUS "SYSVIEW instrumentation enabled (buffer=${SYSVIEW_BUFFER_SIZE})")
+  endif ()
+
+  if ((LOGGER STREQUAL "RTT" OR SYSVIEW) AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+    # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
+    target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rtt_conf_cortexm.h\"")
   endif ()
 
   if (FAMILY STREQUAL "rp2040")
@@ -503,19 +586,10 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (NOT RTOS STREQUAL zephyr)
-    # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
     family_add_membrowse(${TARGET})
   endif ()
-
-  # run size after build
-#  find_program(SIZE_EXE ${CMAKE_SIZE})
-#  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-#      )
-#  endif ()
 endfunction()
 
 # Add tinyusb to target
@@ -867,9 +941,8 @@ function(family_flash_rfp TARGET)
     DEPENDS ${TARGET}
     COMMAND ${CMAKE_OBJCOPY} -O srec -I elf32-rx-be-ns $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     COMMAND ${RFP_CLI} -device ${RFP_DEVICE} -tool ${RFP_TOOL} -if fine
-      -fo id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
       -auth id FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-      -auto $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
+      -a $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.mot
     VERBATIM
     )
 

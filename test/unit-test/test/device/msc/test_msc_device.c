@@ -32,6 +32,7 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
+#include "device/usbd_pvt.h"
 TEST_SOURCE_FILE("usbd_control.c")
 TEST_SOURCE_FILE("msc_device.c")
 
@@ -45,6 +46,37 @@ TEST_SOURCE_FILE("msc_device.c")
 uint32_t tusb_time_millis_api(void) {
   return 0;
 }
+
+//--------------------------------------------------------------------+
+// SystemView stubs: an open span stack checks that every CALL is closed by its own RET
+//--------------------------------------------------------------------+
+static unsigned sv_open[8];
+static unsigned sv_depth;
+static unsigned sv_calls[TU_SV_ID_COUNT];
+
+void SEGGER_SYSVIEW_RecordVoid(unsigned int Id) {
+  TEST_ASSERT_LESS_THAN_UINT(TU_ARRAY_SIZE(sv_open), sv_depth);
+  sv_open[sv_depth++] = Id;
+  sv_calls[Id - TU_SV_EVENT_BASE]++;
+}
+
+void SEGGER_SYSVIEW_RecordEndCall(unsigned int Id) {
+  TEST_ASSERT_NOT_EQUAL_UINT(0, sv_depth);
+  TEST_ASSERT_EQUAL_UINT(sv_open[--sv_depth], Id);
+}
+
+void SEGGER_SYSVIEW_RecordEnterISR(void) {}
+void SEGGER_SYSVIEW_RecordExitISR(void) {}
+void SEGGER_SYSVIEW_Init(U32 SysFreq, U32 CPUFreq, const SEGGER_SYSVIEW_OS_API *pOSAPI,
+                          SEGGER_SYSVIEW_SEND_SYS_DESC_FUNC pfSendSysDesc) {
+  (void) SysFreq; (void) CPUFreq; (void) pOSAPI; (void) pfSendSysDesc;
+}
+void SEGGER_SYSVIEW_SetRAMBase(U32 RAMBaseAddress) { (void) RAMBaseAddress; }
+void SEGGER_SYSVIEW_Start(void) {}
+void SEGGER_SYSVIEW_DisableEvents(U32 DisableMask) { (void) DisableMask; }
+void SEGGER_SYSVIEW_SendSysDesc(const char *sSysDesc) { (void) sSysDesc; }
+void SEGGER_SYSVIEW_NameResource(U32 ResourceId, const char *sName) { (void) ResourceId; (void) sName; }
+uint32_t SystemCoreClock = 48000000;
 
 enum
 {
@@ -202,6 +234,7 @@ void setUp(void)
 {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
+  dcd_edpt0_setup_begin_IgnoreAndReturn(true);
 
   if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
@@ -215,10 +248,13 @@ void setUp(void)
 
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
+
+  memset(sv_calls, 0, sizeof(sv_calls));
 }
 
 void tearDown(void)
 {
+  TEST_ASSERT_EQUAL_UINT(0, sv_depth);
 }
 
 //--------------------------------------------------------------------+
@@ -281,4 +317,136 @@ void test_msc(void)
   dcd_edpt_xfer_IgnoreArg_buffer();
 
   tud_task();
+}
+
+// A block size computed from the CBW that does not fit 16 bits must fail, not wrap (66048 / 1 would read as 512)
+void test_msc_read10_block_size_over_16bit(void)
+{
+  uint32_t const total_bytes = 65536 + 512;
+
+  msc_cbw_t cbw_read10 =
+  {
+    .signature = MSC_CBW_SIGNATURE,
+    .tag = 0xCAFECAFE,
+    .total_bytes = total_bytes,
+    .lun = 0,
+    .dir = TUSB_DIR_IN_MASK,
+    .cmd_len = sizeof(scsi_read10_t)
+  };
+
+  scsi_read10_t cmd_read10 =
+  {
+      .cmd_code    = SCSI_CMD_READ_10,
+      .lba         = tu_htonl(0),
+      .block_count = tu_htons(1)
+  };
+
+  memcpy(cbw_read10.command, &cmd_read10, cbw_read10.cmd_len);
+
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_read10, sizeof(msc_cbw_t));
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+
+  // case 4 (Hi > Dn): no data, STALL Bulk-In, then a failed CSW with full residue after the host clears it
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+
+  tud_task();
+
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = EDPT_MSC_IN,
+    .wLength       = 0
+  };
+
+  msc_csw_t const csw =
+  {
+    .signature    = MSC_CSW_SIGNATURE,
+    .tag          = 0xCAFECAFE,
+    .data_residue = total_bytes,
+    .status       = MSC_CSW_STATUS_FAILED
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// SystemView spans on the early returns
+//--------------------------------------------------------------------+
+// SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
+static void configure_msc(msc_cbw_t const* cbw) {
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) cbw, sizeof(msc_cbw_t));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+void test_msc_invalid_cbw_closes_its_span(void)
+{
+  msc_cbw_t const cbw_bad = { .signature = 0xDEADBEEF };
+  configure_msc(&cbw_bad);
+  memset(sv_calls, 0, sizeof(sv_calls));
+
+  // BOT 6.6.1: an invalid CBW stalls both endpoints, and mscd_xfer_cb() returns false
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_MSC_XFER]);
+}
+
+static unsigned deferred_count;
+static void deferred_func(void* param) {
+  (void) param;
+  deferred_count++;
+}
+
+void test_tud_task_closes_its_span_on_an_endpoint_without_driver(void)
+{
+  deferred_count = 0;
+  dcd_event_xfer_complete(rhport, 0x02, 8, XFER_RESULT_SUCCESS, true); // EP 2 is not opened
+  usbd_defer_func(deferred_func, NULL, true);
+
+  // the failed assertion stops this run with its span closed, leaving the next event queued
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_TUD_TASK]);
+  TEST_ASSERT_EQUAL_UINT(0, sv_depth);
+  TEST_ASSERT_EQUAL_UINT(0, deferred_count);
+
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(2, sv_calls[TU_SV_ID_TUD_TASK]);
+  TEST_ASSERT_EQUAL_UINT(1, deferred_count);
+}
+
+void test_tud_task_records_no_span_while_waiting_for_an_event(void)
+{
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(0, sv_calls[TU_SV_ID_TUD_TASK]);
 }
