@@ -227,6 +227,12 @@ static inline void board_vbus_sense_init(void) {
 }
 
 void ADC1_2_IRQHandler(void) {
+  // VBUS state last applied to OTG_HS, -1 until the stack enables the B-valid override.
+  // Touch OTG_HS only when that state changes: any OTG_HS register access, even a read, made while a TX FIFO holds a
+  // packet one word short of complete zeroes that endpoint's DIEPTSIZ.XFRSIZ. If this ISR preempts the stack's slave-mode
+  // FIFO push at that point, the rest of the transfer is never written and the IN endpoint NAKs forever.
+  static int8_t vbus_state = -1;
+
   if(LL_ADC_IsActiveFlag_EOC(ADC1) != 0) {
     /* Clear flag ADC group regular end of unitary conversion */
     LL_ADC_ClearFlag_EOC(ADC1);
@@ -234,12 +240,19 @@ void ADC1_2_IRQHandler(void) {
      * with R1 = 330kOhm and R2 = 50kOhm
      */
     const uint32_t threshold = 4500 * 50 / (50 + 330) * 16384 / 3300;
-    if((ADC1->DR > threshold) && (USB_OTG_HS->GOTGCTL & USB_OTG_GOTGCTL_BVALOEN)) {
-      USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
-    } else {
-      USB_OTG_HS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
-      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALOVAL;
+    const int8_t vbus_valid = (ADC1->DR > threshold) ? 1 : 0;
+    if (vbus_state < 0 && (USB_OTG_HS->GOTGCTL & USB_OTG_GOTGCTL_BVALOEN)) {
+      vbus_state = (int8_t) !vbus_valid; // override just enabled by the stack: apply the current state once
+    }
+    if (vbus_state >= 0 && vbus_valid != vbus_state) {
+      vbus_state = vbus_valid;
+      if (vbus_valid) {
+        USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+        USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
+      } else {
+        USB_OTG_HS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
+        USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALOVAL;
+      }
     }
   }
   if(LL_ADC_IsActiveFlag_OVR(ADC1) != 0) {
