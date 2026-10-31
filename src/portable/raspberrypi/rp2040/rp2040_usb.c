@@ -169,6 +169,20 @@ uint16_t __tusb_irq_path_func(bufctrl_prepare16)(hw_endpoint_t *ep, uint8_t *dpr
     buf_ctrl |= USB_BUF_CTRL_LAST;
   }
 
+  #if CFG_TUD_ENABLED
+  // Device OUT: right behind a short packet in the other buffer the host may already send the next transfer's first
+  // packet into this one. The controller stores only the armed length of it (and still ACKs), so arm a whole packet
+  // and keep it as future data; bufctrl_sync16() limits what is copied to this buffer's share of the transfer.
+  if (is_rx && !rp2usb_is_host_mode()) {
+    if (ep->remaining_len == 0) {
+      ep->rx_last_len = buflen;
+    }
+    if (ep->max_packet_size <= 64) {
+      buf_ctrl = (uint16_t)((buf_ctrl & ~USB_BUF_CTRL_LEN_MASK) | ep->max_packet_size);
+    }
+  }
+  #endif
+
   return buf_ctrl;
 }
 
@@ -240,7 +254,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   #if CFG_TUD_ENABLED
   if (!is_host && ep->future_len > 0) {
     // Device only: previous short-packet abort saved data from the other buffer
-    const uint8_t future_len = ep->future_len;
+    const uint16_t future_len = tu_min16(ep->future_len, ep->remaining_len);
     memcpy(ep->user_buf, ep->dpram_buf + (ep->future_bufid << 6), future_len);
     ep->xferred_len += future_len;
     ep->remaining_len -= future_len;
@@ -279,6 +293,7 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
 static uint16_t __tusb_irq_path_func(bufctrl_sync16)(hw_endpoint_t *ep, bool is_rx, uint16_t buf_ctrl,
                                                      uint8_t *dpram_buf) {
   const uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
+  uint16_t       accepted      = xferred_bytes; // bytes that belong to this transfer
 
   if (!is_rx) {
     // We are continuing a transfer here. If we are TX, we have successfully
@@ -288,18 +303,24 @@ static uint16_t __tusb_irq_path_func(bufctrl_sync16)(hw_endpoint_t *ep, bool is_
     // If we have received some data, so can increase the length
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
+  #if CFG_TUD_ENABLED
+    if (!rp2usb_is_host_mode()) {
+      // OUT buffers are armed for a whole packet: drop what overflows the transfer
+      accepted = tu_min16(accepted, (buf_ctrl & USB_BUF_CTRL_LAST) ? ep->rx_last_len : ep->max_packet_size);
+    }
+  #endif
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO
     if (ep->is_xfer_fifo) {
       // not in sram, may mess up timing with E15 workaround
-      tu_hwfifo_read_to_fifo(dpram_buf, ep->user_fifo, xferred_bytes, NULL);
+      tu_hwfifo_read_to_fifo(dpram_buf, ep->user_fifo, accepted, NULL);
     } else
   #endif
     {
-      unaligned_memcpy(ep->user_buf, dpram_buf, xferred_bytes);
-      ep->user_buf += xferred_bytes;
+      unaligned_memcpy(ep->user_buf, dpram_buf, accepted);
+      ep->user_buf += accepted;
     }
   }
-  ep->xferred_len += xferred_bytes;
+  ep->xferred_len += accepted;
 
   // Short packet
   if (xferred_bytes < ep->max_packet_size) {

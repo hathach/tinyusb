@@ -116,6 +116,7 @@ typedef struct hw_endpoint {
 #if CFG_TUD_ENABLED
   uint8_t future_bufid; // which buffer holds next data
   uint8_t future_len;   // next data len
+  uint16_t rx_last_len; // OUT: share of the transfer in the buffer armed LAST (the buffer itself is armed for a full packet)
 #endif
 
 #if CFG_TUSB_RP2_ERRATA_E15
