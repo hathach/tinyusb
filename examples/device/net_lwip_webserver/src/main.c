@@ -30,7 +30,7 @@ this appears as either a RNDIS or CDC-ECM USB virtual network adapter; the OS pi
 
 RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and macOS hosts
 
-The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
+The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server and web server.
 
 Link State Control:
 - Press the user button to toggle the network link state (UP/DOWN)
@@ -53,7 +53,6 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 #include "tusb.h"
 
 #include "dhserver.h"
-#include "dnserver.h"
 #include "httpd.h"
 #include "lwip/ethip6.h"
 #include "lwip/init.h"
@@ -104,8 +103,9 @@ static dhcp_entry_t entries[] = {
 static const dhcp_config_t dhcp_config = {
     .router = INIT_IP4(0, 0, 0, 0),  /* router address (if any) */
     .port = 67,                      /* listen port */
-    .dns = INIT_IP4(192, 168, 7, 1), /* dns server (if any) */
-    "usb",                           /* dns suffix */
+    /* no dns server: the host may rank this link's DNS first and stall every lookup it cannot answer */
+    .dns = INIT_IP4(0, 0, 0, 0),
+    NULL,                            /* dns suffix */
     TU_ARRAY_SIZE(entries),          /* num entry */
     entries                          /* entries */
 };
@@ -188,15 +188,6 @@ static void init_lwip(void) {
 #else
   tud_network_link_state(BOARD_TUD_RHPORT, true);
 #endif
-}
-
-/* handle any DNS requests from dns-server */
-static bool dns_query_proc(const char *name, ip4_addr_t *addr) {
-  if (0 == strcmp(name, "tiny.usb")) {
-    *addr = ipaddr;
-    return true;
-  }
-  return false;
 }
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
@@ -285,11 +276,10 @@ int main(void) {
 
   board_init_after_tusb();
 
-  /* initialize lwip, dhcp-server, dns-server, and http */
+  /* initialize lwip, dhcp-server, and http */
   init_lwip();
   while (!netif_is_up(&netif_data));
   while (dhserv_init(&dhcp_config) != ERR_OK);
-  while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK);
   httpd_init();
 
 #ifdef INCLUDE_IPERF
