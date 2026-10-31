@@ -20,6 +20,28 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
 
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif ()
+
+if (NOT DEFINED RHPORT_SPEED)
+  set(RHPORT_SPEED OPT_MODE_HIGH_SPEED OPT_MODE_HIGH_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_DEVICE_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_HOST_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+endif ()
+
+cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
+
 # XIP boot files: some devices reference RT1052's xip (see each device's xip/CMakeLists.txt)
 if (MCU_FAMILY STREQUAL "RT1064")
   set(XIP_DIR ${MCUX_DEVICES}/RT1064/MIMXRT1064/xip)
@@ -105,6 +127,13 @@ function(family_add_board BOARD_TARGET)
     endif()
   endforeach()
 
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+    BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
+    BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
+    )
+
   update_board(${BOARD_TARGET})
 endfunction()
 
@@ -134,6 +163,9 @@ function(family_configure_example TARGET RTOS)
     __START=main # required with -nostartfiles
     __STARTUP_CLEAR_BSS
     [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
+    # NonCacheable is placed in DTCM by the stock linker scripts
+    [=[CFG_TUD_UNCACHED_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
+    [=[CFG_TUH_UNCACHED_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

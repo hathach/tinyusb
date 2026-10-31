@@ -82,11 +82,11 @@ Common configuration options
      - Selects TinyUSB's synchronization backend.  Set the matching OS option
        when host APIs and ``tuh_task()`` run in different RTOS tasks.
 
-``CFG_TUH_CDC``, ``CFG_TUH_HID``, ``CFG_TUH_MIDI`` and ``CFG_TUH_MIDI2`` size a
-simultaneous interface pool.  Such a value is not a VID/PID allowlist and, for
-composite devices, may need to exceed ``CFG_TUH_DEVICE_MAX``.
-``CFG_TUH_MSC`` and ``CFG_TUH_AUDIO`` are enables, not pools; see :doc:`msc`
-and :doc:`audio`.
+``CFG_TUH_CDC``, ``CFG_TUH_HID``, ``CFG_TUH_MIDI``, ``CFG_TUH_MIDI2`` and
+``CFG_TUH_AUDIO`` size a simultaneous interface pool; ``CFG_TUH_AUDIO`` counts
+Audio Control functions (see :doc:`audio`).  Such a value is not a VID/PID
+allowlist and, for composite devices, may need to exceed ``CFG_TUH_DEVICE_MAX``.
+``CFG_TUH_MSC`` is an enable, not a pool; see :doc:`msc`.
 
 Core API and callbacks
 ======================
