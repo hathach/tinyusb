@@ -390,6 +390,10 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
   usbd_edpt_stall(p_msc->rhport, p_msc->ep_in);
   usbd_edpt_stall(p_msc->rhport, p_msc->ep_out);
 
+  // An async READ10/WRITE10 still pending is abandoned: tud_msc_async_io_done() for it now fails its check, and its
+  // completion already deferred behind this reset finds no pending I/O, so no stale data reaches Bulk-In. A completion
+  // deferred ahead of the reset ran before it, and its transfer is dropped by the stall above.
+  p_msc->pending_io  = false;
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;

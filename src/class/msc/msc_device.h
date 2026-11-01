@@ -55,6 +55,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 // Called by Application once asynchronous I/O operation is done
 // bytes_io is number of bytes in I/O op, typically the bufsize in read/write_cb() or
 // TUD_MSC_RET_ERROR (-1) for error. Note TUD_MSC_RET_BUSY (0) will be treated as error as well.
+// Returns false if no I/O is pending, e.g. a Bulk-Only Mass Storage Reset abandoned it: its completion is discarded.
 bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
 
 //--------------------------------------------------------------------+
@@ -66,7 +67,11 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
   - Address = lba * BLOCK_SIZE + offset
     - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
   - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
-    - 0 < ret < bufsize: These bytes are transferred first and callback will be invoked again for remaining data.
+    - 0 < ret < bufsize:
+      - READ10: These bytes are transferred first. If ret is a multiple of the Bulk-In max packet size, callback will
+        be invoked again for remaining data. Otherwise the chunk ends in a short packet, which ends the Data Stage:
+        Bulk-In is STALLed and the CSW reports the remaining data as residue.
+      - WRITE10: These bytes are consumed first and callback will be invoked again for remaining data.
     - TUD_MSC_RET_BUSY
         Application is buys e.g disk I/O not ready. Callback will be invoked again with the same parameters later on.
     - TUD_MSC_RET_ERROR
@@ -74,6 +79,7 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
     - TUD_MSC_RET_ASYNC
         Data I/O will be done asynchronously in a background task. Application should return immediately.
         tud_msc_async_io_done() must be called once IO/ is done to signal completion.
+        A Bulk-Only Mass Storage Reset abandons a pending async I/O: its tud_msc_async_io_done() is discarded.
 */
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);

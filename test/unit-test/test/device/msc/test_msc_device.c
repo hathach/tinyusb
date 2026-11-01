@@ -176,11 +176,18 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
 static uint32_t read10_shortfall;
 
+// tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC, for a background read completed by tud_msc_async_io_done()
+static bool read10_async;
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
   (void) lun;
+
+  if (read10_async) {
+    return TUD_MSC_RET_ASYNC;
+  }
 
   bufsize -= read10_shortfall;
   uint8_t const* addr = msc_disk[lba] + offset;
@@ -255,6 +262,7 @@ void setUp(void)
 
   memset(sv_calls, 0, sizeof(sv_calls));
   read10_shortfall = 0;
+  read10_async = false;
 }
 
 void tearDown(void)
@@ -535,6 +543,54 @@ void test_msc_bot_reset_stalls_armed_data_endpoints(void)
   dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
+}
+
+// BOT reset while an async READ10 chunk is still pending in the application
+static void bot_reset_during_async_read10(void) {
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
+static void reset_recovery_clear_halts(void) {
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// The BOT reset abandons the pending async READ10: its late completion before the clear-halts is discarded instead of
+// arming the stalled (busy) Bulk-In
+void test_msc_bot_reset_discards_late_async_read10_before_clear_halt(void)
+{
+  bot_reset_during_async_read10();
+
+  TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  tud_task(); // no Bulk-In transfer expected
+
+  reset_recovery_clear_halts();
+}
+
+// A late completion after Reset Recovery is discarded too: stale data must not go out on the cleared Bulk-In
+void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
+{
+  bot_reset_during_async_read10();
+  reset_recovery_clear_halts();
+
+  TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  tud_task(); // no Bulk-In transfer expected
 }
 
 //--------------------------------------------------------------------+
