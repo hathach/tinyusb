@@ -246,6 +246,9 @@
       - CFG_TUSB_DEBUG=0
       # real osal_none mutex, so the tests run with the class lock live
       - TUP_MCU_MULTIPLE_CORE=1
+    :test_cdc_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_CDC=1
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
