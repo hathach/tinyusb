@@ -212,10 +212,11 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
       printf("ERROR: netif input failed\n");
       pbuf_free(p);
     }
-    // Signal tinyusb that the current frame has been processed.
-    tud_network_recv_renew();
   }
 
+  // Signal tinyusb that the current frame has been processed. An empty frame (a ZLP, or an RNDIS packet that failed
+  // validation) must be renewed too: returning true without it leaves OUT un-armed and stalls the link.
+  tud_network_recv_renew();
   return true;
 }
 
