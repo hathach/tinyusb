@@ -517,6 +517,19 @@ static void clear_halt(uint8_t ep_addr) {
   dcd_edpt_clear_stall_Expect(rhport, ep_addr);
 }
 
+// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
+static void reset_recovery_clear_halts(void) {
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
 // A Reset Recovery while a READ10 chunk is still armed (the host gave up on the Data Stage): the BOT reset stalls both
 // data endpoints, which drops the stale transfer in the DCD, and the Bulk-Out clear re-arms it for the next CBW. A
 // transfer left armed would carry the next command's data or CSW (#3188)
@@ -534,15 +547,7 @@ void test_msc_bot_reset_stalls_armed_data_endpoints(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 
-  clear_halt(EDPT_MSC_IN);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-
-  clear_halt(EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
+  reset_recovery_clear_halts();
 }
 
 // BOT reset while an async READ10 chunk is still pending in the application
@@ -554,19 +559,6 @@ static void bot_reset_during_async_read10(void) {
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-}
-
-// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
-static void reset_recovery_clear_halts(void) {
-  clear_halt(EDPT_MSC_IN);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-
-  clear_halt(EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 }
