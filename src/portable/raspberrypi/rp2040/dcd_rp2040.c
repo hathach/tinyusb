@@ -76,9 +76,8 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
   const uint8_t    epnum = tu_edpt_number(ep_addr);
   const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
 
-  hw_endpoint_t *ep      = hw_endpoint_get(epnum, dir);
-  const uint16_t old_mps = ep->max_packet_size;
-  ep->ep_addr            = ep_addr;
+  hw_endpoint_t *ep   = hw_endpoint_get(epnum, dir);
+  ep->ep_addr         = ep_addr;
   ep->next_pid        = 0u;
   ep->max_packet_size = wMaxPacketSize;
 
@@ -104,10 +103,11 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
   #endif
 
     // A class may open an endpoint again without closing it (video bulk on every SET_INTERFACE): keep its
-    // buffer while it fits, or each open takes new DPRAM until the check below fails
-    const uint8_t old_type = (uint8_t)((*ep_reg >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u);
-    if (ep->dpram_buf == NULL || size > hw_endpoint_dpram_size(old_mps, old_type)) {
-      ep->dpram_buf = hw_buffer_ptr;
+    // buffer while it fits, or each open takes new DPRAM until the check below fails. Compare against what was
+    // allocated, not what the last open needed: a smaller open in between must not shrink the retained capacity.
+    if (ep->dpram_buf == NULL || size > ep->dpram_blocks * 64u) {
+      ep->dpram_buf    = hw_buffer_ptr;
+      ep->dpram_blocks = (uint8_t)(size / 64u);
       hw_buffer_ptr += size;
     }
 
@@ -573,12 +573,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
 
-    if (ep->state == EPSTATE_ACTIVE) {
+    // An E15-deferred bulk IN (PENDING) is in flight too: one buffer may still be armed while the
+    // other waits for the SOF, and the hardware buffer selector already points past the sent one.
+    if (ep->state == EPSTATE_ACTIVE || ep->state == EPSTATE_PENDING) {
       // Clear-halt on an endpoint with an in-flight transfer is used as a data-toggle reset
       // (e.g. usbtest case 29) rather than to recover from a real stall (a stall aborts the
       // transfer, leaving the endpoint IDLE). Abort and re-issue the transfer with the toggle
       // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
       // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
+      // The re-issue starts from buffer 0 with the buffer selector reset, or defers to the SOF again.
       uint8_t*       user_buf  = ep->user_buf;
       uint16_t       remaining = ep->remaining_len;
       const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
