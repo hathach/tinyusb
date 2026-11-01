@@ -115,12 +115,16 @@ never re-enables it; the only `PFIC_EnableIRQ(TMR0_IRQn)` in the file is in `dcd
 After a `tud_disconnect()` / `tud_connect()` cycle the timer therefore counts with its vector
 masked. The helper makes arming a timer whose vector is masked impossible to express.
 
-**F1 becomes one line.** `_fb_state = FB_USB3_UP` at `:553` is terminal: the TERM_PRESENT-lost
+**F1 is not one line.** `_fb_state = FB_USB3_UP` at `:553` is terminal: the TERM_PRESENT-lost
 branch at `:600-614` tears the link down and returns without touching the state, and the only
 writes back to `FB_USB3_TRAINING` are in `dcd_init` and `dcd_connect`, neither of which usbd calls
 on link loss. Replugged into a USB2-only host the board is dead until a power cycle — and this is
-the shipping default for `hydrausb3_v1`. The disconnect branch calls
-`fallback_enter(FB_USB3_TRAINING)` before its early return.
+the shipping default for `hydrausb3_v1`. Calling `fallback_enter(FB_USB3_TRAINING)` in the
+disconnect branch was tried (`d479eddac`) and reverted (`134691e54`): the ladder advances on its
+timer whether or not anything is attached, so unplugged it latches `FB_USB2_ACTIVE`, itself
+terminal, after ~2.75 s and demotes the board to 480 Mbps on any unplug, including a replug into
+the same SuperSpeed host. A fix needs an attach signal that gates the ladder, not a timer; F1
+stays open in `docs/superpowers/todo/pr3779-wch-superspeed.md` (F1).
 
 **F7 needs an explicit fix**, as no helper covers it. `usb30_hw_reinit_task()` checks
 `_fb_state` *before* `link_delay_us(30000)` and never re-checks, while the training-exhausted
@@ -132,11 +136,15 @@ claimed the port meanwhile.
 `usb30_bus_reset()` — deinit, a 30 ms busy-wait, re-init — plus a further million-iteration poll,
 entirely in the ISR, defended by a comment arguing that a host-driven reset with a spec'd ~100 ms
 window must not depend on application loop timing. But the same file already defers exactly this
-work on the TERM_PRESENT path, and 100 ms comfortably covers one task-loop turn. Move the settle
-and re-init to `usbd_defer_func`, and add the `ep_state_reset()` / `dcd_event_bus_reset()` that
-the HOT_RESET branch performs and this one omits. That missing bus-reset event is a bug
-independent of where the work runs. If the hydra shows a regression, revert to inline and keep
-only the bus-reset fix.
+work on the TERM_PRESENT path, and 100 ms comfortably covers one task-loop turn. Add the
+`ep_state_reset()` / `dcd_event_bus_reset()` that the HOT_RESET branch performs and this one
+omits; that missing bus-reset event is a bug independent of where the work runs, and is what
+shipped (`d479eddac`). The settle and re-init stay inline in `usb30_bus_reset()`: deferring them
+through `usb30_bus_reset_from_isr()`, which deinits synchronously and defers only settle and
+re-init, would leave the address-0 write and the `TX_WARM_RST` handshake that follow driving a
+torn-down controller, and the deferred re-init would then wipe them. Moving the work needs the
+handshake reordered ahead of the teardown, validated on a host that actually issues a warm reset;
+see `docs/superpowers/todo/pr3779-wch-superspeed.md` (Out of scope for PR #3779).
 
 ## Section 3 — Class C: correctness
 
