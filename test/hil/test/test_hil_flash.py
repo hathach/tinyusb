@@ -207,12 +207,18 @@ class WchFlashers(unittest.TestCase):
         hil_flash.flash_openocd(board, 'fw.elf', run=self.record)
         hil_flash.reset_openocd(board, run=self.record)
         flash, reset = self.cmds
-        self.assertIn('program fw.elf reset', flash)   # "verify": false
+        self.assertIn('program {fw.elf} reset', flash)   # "verify": false
         self.assertIn('init; reset run', reset)
         for cmd in (flash, reset):
             self.assertEqual(cmd[-6:], ['-c', 'halt', '-c', 'riscv dmi_write 0x10 0', '-c', 'shutdown'])
             self.assertNotIn('exit', ' '.join(cmd))
         self.assertEqual(self.provider.calls, [], 'args_program must not reach the provider')
+
+    def test_openocd_args_program_firmware_path_is_one_tcl_word(self):
+        board = {'name': 'b', 'flasher': dict(self.OPENOCD_WCH, verify=True)}
+        hil_flash.flash_openocd(board, '/tmp/my fw.elf', run=self.record)
+        (cmd,) = self.cmds
+        self.assertIn('program {/tmp/my fw.elf} verify reset', cmd)
 
     def test_wch_uart_loader_flash_runs_helper(self):
         board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])}

@@ -113,7 +113,8 @@ def flash_openocd(board, firmware, timeout=None, *, run=None):
     flasher = board['flasher']
     if flasher.get('args_program'):
         verify = ' verify' if flasher.get('verify', True) else ''
-        return _openocd_quiesced(flasher, f'program {firmware}{verify} reset', timeout, run)
+        # braced: one Tcl word even when the path holds a space
+        return _openocd_quiesced(flasher, f'program {{{firmware}}}{verify} reset', timeout, run)
     return hil_util.provider().flash_openocd(flasher, firmware, timeout=_bound(timeout),
                                              run=_runner(run))
 

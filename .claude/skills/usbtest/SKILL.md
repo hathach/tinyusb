@@ -166,9 +166,9 @@ Escalate in order:
    (5-field form) and run the failing case. The same failure is an erratum (document and
    quirk-skip it); a clean run puts the difference in our DCD. Nothing else closes the debate.
 6. **A flake may be value-gated, not random:** sweep one parameter at a time.
-   `testusb -D <node> -t 14 -c 4000 -s L -v $((L-1))` alternates lengths 1 and L; sweeping L
-   exposed a wLength-mod-4 gate that the stock `-s 512 -v 61` (one hot length in its 9-cycle)
-   diluted into "0.3% random".
+   `testusb -A <node> -D <node> -t 14 -c 4000 -s L -v $((L-1))` alternates lengths 1 and L;
+   sweeping L exposed a wLength-mod-4 gate that the stock `-s 512 -v 61` (one hot length in its
+   9-cycle) diluted into "0.3% random".
 
 ## Isochronous rules
 

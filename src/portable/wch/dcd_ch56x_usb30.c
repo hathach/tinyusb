@@ -302,7 +302,8 @@ static void xfer_in_arm(uint8_t ep) {
   xfer->bounce = (remaining != 0) && !ch56x_is_dma_capable(src);
   uint16_t burst_max = (uint16_t)(xfer->mps * CFG_TUD_WCH_USB30_MAX_BURST);
   if (xfer->bounce) {
-    burst_max = TU_MIN(burst_max, (uint16_t)BOUNCE_SLOT_SIZE);
+    // whole packets only: a short packet mid-transfer would end the host's read early
+    burst_max = TU_MIN(burst_max, (uint16_t)((BOUNCE_SLOT_SIZE / xfer->mps) * xfer->mps));
   }
   const uint16_t chunk = TU_MIN(remaining, burst_max);
   const uint8_t nump = (chunk == 0) ? 1 : (uint8_t)TU_DIV_CEIL(chunk, xfer->mps);

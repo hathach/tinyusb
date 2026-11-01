@@ -249,11 +249,12 @@ static void blinky_task(void *param) {
 
 static void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
-  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
-  xTaskCreateStatic(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+  TU_ASSERT(xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1,
+                              usb_device_stack, &usb_device_taskdef) != NULL, );
+  TU_ASSERT(xTaskCreateStatic(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef) != NULL, );
   #else
-  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-  xTaskCreate(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  TU_ASSERT(xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL) == pdPASS, );
+  TU_ASSERT(xTaskCreate(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL) == pdPASS, );
   #endif
 
   // only start scheduler for non-espressif mcu (espressif starts it in startup code)
