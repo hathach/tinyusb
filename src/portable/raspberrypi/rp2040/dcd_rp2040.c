@@ -123,27 +123,37 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
   }
 }
 
+// EP_ABORT makes the controller ignore the endpoint's buffer control and NAK every access; EP_ABORT_DONE reports the
+// endpoint idle, after which no transaction on it can complete. A completion before that leaves its BUFF_STATUS bit set.
+// Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
+// Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
+static void hw_endpoint_abort_begin(uint32_t abort_mask) {
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_set->abort = abort_mask;
+    while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
+  }
+}
+
+static void hw_endpoint_abort_end(uint32_t abort_mask) {
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_clear->abort_done = abort_mask;
+    usb_hw_clear->abort = abort_mask;
+  }
+}
+
 static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   // Abort any pending transfer
   const uint8_t  dir        = (uint8_t)tu_edpt_dir(ep->ep_addr);
   const uint8_t  epnum      = tu_edpt_number(ep->ep_addr);
   const uint32_t abort_mask = rp2usb_ep_bit(ep->ep_addr);
 
-  // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
-  // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
-  if (rp2040_chip_version() >= 2) {
-    usb_hw_set->abort = abort_mask;
-    while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
-  }
+  hw_endpoint_abort_begin(abort_mask);
 
   io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
   *buf_reg          = 0; // clear buffer control
   rp2usb_reset_transfer(ep);
 
-  if (rp2040_chip_version() >= 2) {
-    usb_hw_clear->abort_done = abort_mask;
-    usb_hw_clear->abort = abort_mask;
-  }
+  hw_endpoint_abort_end(abort_mask);
 }
 
 static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
@@ -572,14 +582,18 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
 
-    // Runs in task context: mask the USB IRQ on this core so neither the E15 SOF arming nor BUFF_STATUS completion
-    // changes ep state, user_buf/remaining_len or buffer control between the state check, the snapshot, the abort
-    // and the re-issue. NVIC line only, not PRIMASK: an OUT re-issue that the saved future_len completes calls
-    // dcd_event_xfer_complete(in_isr = false), a task-level queue send under an RTOS. With OS none that send
-    // re-enables the IRQ before we return, which is harmless: the transfer has already completed and its endpoint
-    // is IDLE, which the ISR leaves alone. Restore the previous enable state rather than forcing it on.
-    const bool irq_en = irq_is_enabled(USBCTRL_IRQ);
-    dcd_int_disable(rhport);
+    // Runs in task context (on the core that ran dcd_init, which owns USBCTRL_IRQ): disable all interrupts on this
+    // core so neither the E15 SOF arming nor BUFF_STATUS completion changes ep state, user_buf/remaining_len or
+    // buffer control between the state check, the abort, the drain, the snapshot and the re-issue. PRIMASK rather
+    // than the NVIC line, which would leave RTOS preemption on: a higher-priority task holding the CPU across a SOF
+    // would leave e15_last_sof stale, so the re-issue's E15 critical-period check could pass inside the real window.
+    // Nothing in the section sends an event: an ACTIVE/PENDING endpoint has future_len == 0 (rp2usb_xfer_start()
+    // consumes it before arming, rp2usb_xfer_continue() sets it only when completing the transfer), so the re-issue
+    // never completes inside rp2usb_xfer_start(); a completion drained here is reported after the section.
+    const uint32_t irq_state = save_and_disable_interrupts();
+
+    bool     xfer_done = false; // a completion drained below finished the transfer
+    uint16_t done_len  = 0;
 
     // An E15-deferred bulk IN (PENDING) is in flight too: one buffer may still be armed while the
     // other waits for the SOF, and the hardware buffer selector already points past the sent one.
@@ -588,46 +602,84 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // (e.g. usbtest case 29) rather than to recover from a real stall (a stall aborts the
       // transfer, leaving the endpoint IDLE). Abort and re-issue the transfer with the toggle
       // reset to DATA0 so it still completes and releases the usbd claim, instead of silently
-      // dropping it and starving the endpoint. Save the buffer/length before the abort clears them.
+      // dropping it and starving the endpoint.
       // The re-issue starts from buffer 0 with the buffer selector reset, or defers to the SOF again.
-      uint8_t*       user_buf  = ep->user_buf;
-      uint16_t       remaining = ep->remaining_len;
-      const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
-      io_rw_32 *ep_reg  = get_ep_ctrl(epnum, dir);
-      io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
-      // bufctrl_prepare16() subtracts each armed buffer's length from remaining_len when arming,
-      // for BOTH directions, before the host has drained (IN) or filled (OUT) it. The abort below
-      // discards those still-armed buffers, so rewind remaining_len by their lengths or the re-issue
-      // is short by 1-2 packets. IN additionally advances user_buf as packets are copied into DPRAM,
-      // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
-      const uint32_t bc = *buf_reg;
-      uint16_t staged = 0;
-      for (uint8_t i = 0; i < 2; i++) {
-        const uint16_t half = (uint16_t)(bc >> (16u * i));
-        if (half & USB_BUF_CTRL_AVAIL) {
-          // OUT buffers are armed for a whole packet, the LAST one holds only rx_last_len of the transfer
-          const bool out_last = (dir == TUSB_DIR_OUT) && (half & USB_BUF_CTRL_LAST);
-          staged = (uint16_t)(staged + (out_last ? ep->rx_last_len : (half & USB_BUF_CTRL_LEN_MASK)));
+      const uint32_t ep_bit  = rp2usb_ep_bit(ep_addr);
+      io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
+      io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
+
+      // Stop the endpoint before reading its state: with interrupts off, a buffer that completed since then (or
+      // completes before the abort takes effect) keeps its BUFF_STATUS bit pending, which the abort does not clear.
+      // Left there, the ISR would apply it to the re-issued transfer's freshly armed buffer once interrupts return.
+      // B0/B1 have no usable EP_ABORT (RP2040-E2): the drain below is best effort there, as a completion can still
+      // land between it and the buffer control reset, the same residual race the plain abort always had on B0/B1.
+      hw_endpoint_abort_begin(ep_bit);
+
+      // Account for those completions exactly as the ISR does (double-buffered re-sets the bit after a clear): count
+      // IN bytes sent, copy OUT data received. A re-armed buffer is ignored by the aborted controller and counted as
+      // staged below. A completion that finishes the transfer is latched like the ISR does (length, then reset to
+      // IDLE, so a second pending buffer hits the IDLE early return) and reported instead of re-issuing it.
+      while (usb_hw->buf_status & ep_bit) {
+        const uint8_t buf_id     = (usb_hw->buf_cpu_should_handle & ep_bit) ? 1 : 0; // before clear buf_status
+        usb_hw_clear->buf_status = ep_bit;
+        if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id, dir == TUSB_DIR_OUT)) {
+          xfer_done = true;
+          done_len  = ep->xferred_len;
+          rp2usb_reset_transfer(ep);
         }
       }
-      remaining = (uint16_t)(remaining + staged);
-      if (dir == TUSB_DIR_IN) {
-        user_buf -= staged;
+
+      if (xfer_done) {
+        // Nothing is armed after a completion; end like an IDLE endpoint's clear-halt: DATA0 for the next transfer
+        *buf_reg = 0;
+        hw_endpoint_abort_end(ep_bit);
+        ep->next_pid = 0;
+      } else {
+        // Save the buffer/length before resetting the transfer clears them.
+        uint8_t*       user_buf  = ep->user_buf;
+        uint16_t       remaining = ep->remaining_len;
+        const uint16_t xferred   = ep->xferred_len; // bytes already moved on this submission
+        // bufctrl_prepare16() subtracts each armed buffer's length from remaining_len when arming,
+        // for BOTH directions, before the host has drained (IN) or filled (OUT) it. The abort
+        // discards those still-armed buffers, so rewind remaining_len by their lengths or the re-issue
+        // is short by 1-2 packets. IN additionally advances user_buf as packets are copied into DPRAM,
+        // so its pointer must rewind too; OUT copies out only on completion, so its pointer is intact.
+        const uint32_t bc = *buf_reg;
+        uint16_t staged = 0;
+        for (uint8_t i = 0; i < 2; i++) {
+          const uint16_t half = (uint16_t)(bc >> (16u * i));
+          if (half & USB_BUF_CTRL_AVAIL) {
+            // OUT buffers are armed for a whole packet, the LAST one holds only rx_last_len of the transfer
+            const bool out_last = (dir == TUSB_DIR_OUT) && (half & USB_BUF_CTRL_LAST);
+            staged = (uint16_t)(staged + (out_last ? ep->rx_last_len : (half & USB_BUF_CTRL_LEN_MASK)));
+          }
+        }
+        remaining = (uint16_t)(remaining + staged);
+        if (dir == TUSB_DIR_IN) {
+          user_buf -= staged;
+        }
+
+        *buf_reg = 0; // clear buffer control
+        rp2usb_reset_transfer(ep);
+        hw_endpoint_abort_end(ep_bit);
+
+        ep->next_pid = 0; // DATA0
+        rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
+        // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
+        // the eventual completion reports the full length, not just the post-clear-halt remainder.
+        ep->xferred_len += xferred;
       }
-      hw_endpoint_abort_xfer(ep); // safe abort (handles RP2040-E2), resets ep transfer state
-      ep->next_pid = 0;           // DATA0
-      rp2usb_xfer_start(ep, ep_reg, buf_reg, user_buf, NULL, remaining);
-      // rp2usb_xfer_start() zeroes xferred_len; add back what the aborted transfer already moved so
-      // the eventual completion reports the full length, not just the post-clear-halt remainder.
-      ep->xferred_len += xferred;
     } else {
       ep->next_pid = 0; // reset data toggle
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
       *buf_reg          = 0; // clear the stall response
     }
 
-    if (irq_en) {
-      dcd_int_enable(rhport);
+    restore_interrupts(irq_state);
+
+    // Reported only after interrupts are restored: a task-level event send may block or toggle the USB IRQ itself.
+    if (xfer_done) {
+      dcd_event_xfer_complete(rhport, ep_addr, done_len, XFER_RESULT_SUCCESS, false);
     }
   }
 }
