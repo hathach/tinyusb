@@ -378,6 +378,11 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 }
 
 static void proc_bot_reset(mscd_interface_t* p_msc) {
+  // A transfer armed before the reset is stale: stall both data endpoints, which drops it in the DCD. Reset Recovery
+  // clears both halts next (BOT 5.3.4), and the Bulk-Out clear re-arms it for the next CBW.
+  usbd_edpt_stall(p_msc->rhport, p_msc->ep_in);
+  usbd_edpt_stall(p_msc->rhport, p_msc->ep_out);
+
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;

@@ -484,6 +484,60 @@ void test_msc_read10_short_chunk_stalls_bulk_in(void)
 }
 
 //--------------------------------------------------------------------+
+// Reset Recovery (BOT 5.3.4)
+//--------------------------------------------------------------------+
+static tusb_control_request_t const request_bot_reset =
+{
+  .bmRequestType = 0x21,
+  .bRequest      = MSC_REQ_RESET,
+  .wValue        = 0,
+  .wIndex        = ITF_NUM_MSC,
+  .wLength       = 0
+};
+
+static void clear_halt(uint8_t ep_addr) {
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
+}
+
+// A Reset Recovery while a READ10 chunk is still armed (the host gave up on the Data Stage): the BOT reset stalls both
+// data endpoints, which drops the stale transfer in the DCD, and the Bulk-Out clear re-arms it for the next CBW. A
+// transfer left armed would carry the next command's data or CSW (#3188)
+void test_msc_bot_reset_stalls_armed_data_endpoints(void)
+{
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
 // SystemView spans on the early returns
 //--------------------------------------------------------------------+
 // SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
