@@ -170,14 +170,12 @@ Set ``CFG_TUH_AUDIO`` to enable the driver.  The principal options are:
      - What it controls
    * - ``CFG_TUH_AUDIO``
      - ``0``
-     - Enables the Audio host class.  A nonzero value includes the driver.
+     - Number of Audio Control instances, i.e. the maximum number of
+       mounted AudioControl functions.  A nonzero value includes the driver.
    * - ``CFG_TUH_AUDIO_PROTOCOLS``
      - UAC1
      - Bitmask of ``TUH_AUDIO_PROTOCOL_UAC1`` and
        ``TUH_AUDIO_PROTOCOL_UAC2``.  Combine them to accept both versions.
-   * - ``CFG_TUH_AUDIO_MAX``
-     - ``1``
-     - Maximum number of mounted AudioControl functions.
    * - ``CFG_TUH_AUDIO_MAX_AS``
      - ``4``
      - Maximum number of nonzero-bandwidth alternate settings retained per
