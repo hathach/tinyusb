@@ -101,6 +101,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 // EPX
 //--------------------------------------------------------------------+
+enum {
+  EPX_DATA_SEQ_RETRY_MAX = 3 // resends of an EPX IN transfer after DATA_SEQ errors with no packet received between
+};
+
 TU_ATTR_ALWAYS_INLINE static inline void sie_stop_xfer(void) {
   uint32_t sie_ctrl = (usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK) | USB_SIE_CTRL_STOP_TRANS_BITS;
   usb_hw->sie_ctrl  = sie_ctrl;
@@ -237,6 +241,7 @@ static void __tusb_irq_path_func(epx_drop_buffers)(void) {
 // Cancel ep's transfer without completing it; if it owns EPX, stop the SIE and drop status latched for it so the
 // ISR cannot apply it to the next transfer. Caller holds the critical section and starts the next pending ep.
 static void epx_retire(hw_endpoint_t *ep) {
+  ep->data_seq_retries = 0;
   if (ep == epx && ep->state == EPSTATE_ACTIVE) {
     const bool is_setup = (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) != 0;
     sie_stop_xfer();
@@ -278,6 +283,7 @@ static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_resu
   // Mark transfer as done before we tell the tinyusb stack
   uint32_t xferred_len = ep->xferred_len;
   rp2usb_reset_transfer(ep);
+  ep->data_seq_retries = 0;
   hcd_event_xfer_complete(ep->dev_addr, ep->ep_addr, xferred_len, xfer_result, true);
 
   // Carry more transfer on epx
@@ -298,6 +304,7 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
   while (usb_hw->buf_status & BUF_STATUS_EPX) {
     const uint8_t buf_id     = (usb_hw->buf_cpu_should_handle & BUF_STATUS_EPX) ? 1 : 0;
     usb_hw_clear->buf_status = 1u; // clear
+    epx->data_seq_retries    = 0;  // a packet got through
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
@@ -423,7 +430,9 @@ static void __tusb_irq_path_func(sof_service)(void) {
 // the SDK registers this as the ISR, so it records its own span; under tuh_int_handler() the depth counter keeps one
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
-  const uint32_t status = usb_hw->ints;
+  uint32_t status = usb_hw->ints;
+  // EPX when the status was read: a STALL or SETUP completion below can start the next pending transfer on it
+  hw_endpoint_t *const status_epx = epx;
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
     uint8_t speed = dev_speed();
@@ -470,6 +479,43 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     }
   }
 
+  // A packet with the wrong DATA PID: the device repeated one whose ACK it missed, or the toggles are out of step
+  // (USB 2.0 §8.6.4: a host must survive either). The controller discards it. Handled before BUFF_STATUS, which would
+  // otherwise deliver that buffer as a success. Which endpoint received the packet is not reported: with EPX receiving
+  // it is taken to be EPX's; an interrupt endpoint the controller polls keeps its buffer armed with the PID it expects,
+  // so the device's next packet completes it.
+  // §8.6.4's answer is to discard the packet and ask again with the same PID, which the class driver never sees: give
+  // back the toggles of the buffers not received and restart the transfer. Only while no EPX buffer completion is
+  // pending (dropping it would lose a good packet) and up to EPX_DATA_SEQ_RETRY_MAX times in a row (a device that
+  // keeps repeating, or is gone); otherwise fail the transfer, as for an RX timeout, instead of panicking. A transfer
+  // started by the branches above since the status was read did not receive it.
+  if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
+    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+    pico_trace("data seq error: epx %02x buf_ctrl 0x%08lx\n", epx->ep_addr, (unsigned long)usbh_dpram->epx_buf_ctrl);
+    if (epx == status_epx && epx->state == EPSTATE_ACTIVE && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN &&
+        !(usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS)) {
+      sie_stop_xfer();
+      // Switching state latched for this attempt must not reach the transfer started next on EPX (this one again, or
+      // the next pending one, a queued SETUP included), which would be stopped and restarted as a data transfer
+  #ifdef HAS_STOP_EPX_ON_NAK
+      // a NAK stop latched with the error: the NAK branch below would act on it
+      usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+      status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
+  #else
+      // a switch request from the last SOF: the next SOF would stop the new transfer at once
+      epx_switch_request = false;
+  #endif
+      if (epx->data_seq_retries < EPX_DATA_SEQ_RETRY_MAX && !(usb_hw->buf_status & 1u)) {
+        epx->data_seq_retries++;
+        epx_save_context(epx); // PIDs of the buffers not received given back, EPX pending again
+        usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS | USB_SIE_STATUS_TRANS_COMPLETE_BITS;
+        epx_switch_ep(epx); // the same transfer again at once, as after a NAK stop
+      } else {
+        xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
+      }
+    }
+  }
+
   if (status & USB_INTS_BUFF_STATUS_BITS) {
     handle_buf_status_isr();
   }
@@ -494,11 +540,6 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
   if (status & USB_INTS_HOST_SOF_BITS) {
     sof_service();
-  }
-
-  if (status & USB_INTS_ERROR_DATA_SEQ_BITS) {
-    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-    panic("Data Seq Error \n");
   }
 
   if (TUH_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
