@@ -41,6 +41,8 @@ TEST_SOURCE_FILE("msc_device.c")
 // Mock File
 #include "mock_dcd.h"
 
+#include "msc_device_test.h"
+
 TU_VERIFY_STATIC(CFG_TUD_MSC_PAD_SHORT_REPLY == 0, "this test covers the unpadded build");
 
 //--------------------------------------------------------------------+
@@ -150,15 +152,7 @@ void tearDown(void) {
 // and the CSW carries the residue after the host clears the halt
 void test_msc_short_reply_stalls_without_padding(void) {
   uint32_t const total_bytes = 192;
-  msc_cbw_t const cbw = {
-    .signature   = MSC_CBW_SIGNATURE,
-    .tag         = 0xCAFECAFE,
-    .total_bytes = total_bytes,
-    .lun         = 0,
-    .dir         = TUSB_DIR_IN_MASK,
-    .cmd_len     = 6,
-    .command     = { SCSI_CMD_MODE_SENSE_6, 0, 0x3F, 0, (uint8_t) total_bytes, 0 }
-  };
+  msc_cbw_t const cbw = data_in_cbw(SCSI_CMD_MODE_SENSE_6, total_bytes);
 
   uint8_t const* desc_ep = tu_desc_next(tu_desc_next(data_desc_configuration));
   dcd_event_setup_received(rhport, (uint8_t const*) &request_set_configuration, false);
@@ -187,12 +181,7 @@ void test_msc_short_reply_stalls_without_padding(void) {
     .wLength       = 0
   };
 
-  msc_csw_t const csw = {
-    .signature    = MSC_CSW_SIGNATURE,
-    .tag          = 0xCAFECAFE,
-    .data_residue = total_bytes - sizeof(reply),
-    .status       = MSC_CSW_STATUS_PASSED
-  };
+  msc_csw_t const csw = csw_with_residue(total_bytes - sizeof(reply));
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
