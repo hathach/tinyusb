@@ -73,3 +73,9 @@ void test_skip_stops_at_zero_length_descriptor(void) {
   const uint8_t buf[] = { 0, TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION, 0, 0, 0, 0 };
   TEST_ASSERT_EQUAL_PTR(buf, usbd_skip_ss_ep_companion(buf, buf + sizeof(buf)));
 }
+
+void test_companion_len_ignores_truncated_body(void) {
+  const uint8_t buf[] = { EP_DESC(0x81, 2), COMP_DESC };
+  const uint8_t* end = buf + 9; // companion header inside desc_end, its body past it
+  TEST_ASSERT_EQUAL_UINT16(0, usbd_ss_ep_companion_len(buf, end, 1));
+}

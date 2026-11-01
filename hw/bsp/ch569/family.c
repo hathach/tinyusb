@@ -134,7 +134,7 @@ static bool flash_rom_wait_ready(void) {
   return timeout != 0;
 }
 
-static bool flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) {
+static bool flash_rom_command_read(uint32_t addr, uint32_t* buf, uint32_t nwords) {
   const uint32_t rom_addr = addr + 0x8000u;
   SPI_ROM_CR8 = 0;
   SPI_ROM_CR8 = 0x07;
@@ -158,9 +158,13 @@ static bool flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) 
     }
     buf[w] = SPI_ROM_DATA32;
   }
-  if (!flash_rom_wait_ready()) { return false; }
-  SPI_ROM_CR8 = 0;
-  return true;
+  return flash_rom_wait_ready();
+}
+
+static bool flash_rom_read_words(uint32_t addr, uint32_t* buf, uint32_t nwords) {
+  const bool ok = flash_rom_command_read(addr, buf, nwords);
+  SPI_ROM_CR8 = 0; // leave command mode on the timeout paths too
+  return ok;
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {

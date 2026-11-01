@@ -164,13 +164,15 @@ static void uart_flash_loader(void) {
   USART_ITConfig(USART1, USART_IT_RXNE, DISABLE); // polled from here on
   NVIC_DisableIRQ(USART1_IRQn);
   static uint8_t chunk[1024] __attribute__((aligned(4)));
+  bool flash_dirty = false; // set once erased; the image is valid again only via the CRC-pass reset
 
   for (;;) { // one iteration = one flash session attempt
     // Banner until the host opens a session. Bounded: an interrupted flash (Ctrl-C, a harness
     // timeout, a VCP hiccup) must not strand the board here with USB down and the RXNE vector
     // disabled -- the park bytes the rig uses to reset a board only take effect in the
     // application's boot window, so nothing external can recover it. After ~30 s with no
-    // session, reset back into the application.
+    // session, reset back into the application -- unless a session already touched flash: an
+    // erased or partial image has no loader hook, so staying here is the only way back in.
     int c;
     uint32_t blink = 0;
     uint32_t idle = 0;
@@ -178,7 +180,7 @@ static void uart_flash_loader(void) {
       loader_putc('L');
       board_led_write((++blink) & 1);
       c = loader_getc(5000000u); // ~0.5 s
-      if (c == -1 && ++idle >= 60u) {
+      if (c == -1 && !flash_dirty && ++idle >= 60u) {
         NVIC_SystemReset();
         for (;;) {} // NVIC->CFGR reset write takes a few cycles to land; wait it out rather than fall through
       }
@@ -195,6 +197,7 @@ static void uart_flash_loader(void) {
     }
 
     const uint32_t erase_len = (len + 8191u) & ~8191u; // FLASH_ROM_ERASE needs 8 KB granularity
+    flash_dirty = true; // before the erase: a failed one may still have cleared sectors
     if (FLASH_ROM_ERASE(UART_LOAD_BASE, erase_len) != FLASH_COMPLETE) {
       loader_putc('E');
       continue;

@@ -156,7 +156,7 @@ def flash_wch_uart_loader(board, firmware, timeout=None, *, run=None):
     # untaped USB3 cable and its PHY termination corrupts SDI. See test/hil/wch_uart_flash.py.
     flasher = board['flasher']
     script = Path(__file__).resolve().parent / 'wch_uart_flash.py'
-    return _runner(run)(f'python3 "{script}" --uid {flasher["uid"]} "{firmware}"',
+    return _runner(run)(shlex.join(['python3', str(script), '--uid', flasher['uid'], str(firmware)]),
                         timeout=timeout or 120)
 
 

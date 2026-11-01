@@ -1,9 +1,9 @@
 # usbtest 30/30 on the CH32H417 USB2 high-speed fallback
 
 Date: 2026-08-14
-Status: **RESOLVED AS A HARDWARE LIMITATION** -- high speed is now 12/12 with usbtest
-25/25 and five documented quirk skips. Literal 30/30 was not reached and does not look
-reachable on this controller; see the outcome below.
+Status: **closed with quirk `0x40`** -- strongly inferred hardware limitation, not confirmed
+(Phase B aborted). High speed is now 12/12 with usbtest 25/25 and five documented quirk
+skips. Literal 30/30 was not reached; see the outcome below.
 Branch: `claude/wch-ch569-ch32h417-usb3`
 
 ## Goal
@@ -16,7 +16,8 @@ evidence — is the deliverable instead.
 
 ## Outcome (2026-08-14)
 
-**The second was delivered: a silicon verdict with evidence.** High speed is now **12/12 with
+**Neither was fully delivered: 30/30 was not reached, and the silicon explanation is a strong
+inference, not a confirmed verdict (Phase B aborted).** High speed is now **12/12 with
 usbtest 25/25**, the five control-stress cases (9, 10, 13, 14, 21) skipped under a new quirk
 `0x40`. Literal 30/30 was not reached.
 
@@ -45,10 +46,13 @@ What the campaign did establish:
 - **Phase B was attempted and aborted** — the vendor demo bricked the board (details in
   `docs/superpowers/notes/h417-ep0-diff.md`), needing a physical cable pull to recover.
 
-Silicon-vs-driver therefore remains **undecided**, and that is the honest state. The Phase B
-retry recipe in the notes is the only remaining way to settle it.
+Silicon-vs-driver therefore remains formally **undecided**: the hardware limitation above is
+the strongest inference, not a verdict. The Phase B retry recipe in the notes is the only
+remaining way to settle it.
 
-## Current state
+## Pre-campaign baseline
+
+The starting state this plan was written against; the outcome above supersedes it.
 
 | Item                     | Value                                                  |
 | ------------------------ | ------------------------------------------------------ |
@@ -58,9 +62,10 @@ retry recipe in the notes is the only remaining way to settle it.
 | Throughput               | CDC 5.8/6.5 MB/s, MSC 25.2/10.1 MB/s                   |
 | SuperSpeed path          | untouched; the HS file compiles to nothing at `SPEED=super` + `FALLBACK=0` |
 
-Quirk flags are gated on `CFG_TUD_WCH_USBIP_USB30`, so at high speed none are advertised:
-all 30 cases run. Both existing quirks describe SuperSpeed errata (`0x10` → cases 14/21,
-`0x20` → case 13), and the HS failing set is exactly those plus 9 and 10.
+At the baseline, quirk flags were gated on `CFG_TUD_WCH_USBIP_USB30`, so at high speed none
+were advertised: all 30 cases ran. Both quirks then existing describe SuperSpeed errata
+(`0x10` → cases 14/21, `0x20` → case 13), and the HS failing set was exactly those plus 9
+and 10. The campaign added `0x40`, advertised at high speed, which skips all five.
 
 ## The blocker
 
@@ -141,7 +146,7 @@ drop rate.
 ## Verification
 
 - usbtest **30/30 on three consecutive runs, each from its own fresh flash**
-- Full HIL device suite on the nano at HS: currently 11/12, must be 12/12
+- Full HIL device suite on the nano at HS: 11/12 at the baseline, must be 12/12
 - **SuperSpeed regression**: nano SS suite (12/12 + usbtest 29/29) unchanged. Free today
   because the HS file compiles out at `SPEED=super`; **not free if a usbd core change lands**
 - **If usbd core changes**: CH569 SS and HS, plus at least one non-WCH board
