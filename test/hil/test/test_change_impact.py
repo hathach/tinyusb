@@ -1100,6 +1100,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_usbtest_verdict.py',
             'test/hil/test/test_hil_util.py',
             'test/hil/test/test_hil_wedge_sweep.py',
+            'test/hil/test/test_hs_drop_rate.py',
             'test/hil/test/test_membrowse_cli.py',
             'test/hil/test/test_membrowse_targets.py',
             'test/hil/test/test_setup_toolchain.py',
@@ -2268,6 +2269,21 @@ class TestCiSetMatrix(unittest.TestCase):
         sel = json.dumps(mf(['rp2040', 'stm32f0']))
         m = json.loads(self.run_matrix('--select', sel).stdout)
         self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f0'])
+
+    def test_family_variant_legs_follow_their_family_into_a_scoped_matrix(self):
+        hs = {'ch32h417': '-bnanoch32h417 -DSPEED=high --build-name nanoch32h417-hs',
+              'ch569': '-bhydrausb3_v1 -DSPEED=high --build-name hydrausb3_v1-hs'}
+        full = json.loads(self.run_matrix().stdout)['riscv-gcc']
+        self.assertLessEqual(set(hs.values()), set(full))
+        for fam, leg in hs.items():
+            m = json.loads(self.run_matrix('--select', json.dumps(mf([fam]))).stdout)
+            self.assertEqual(m['riscv-gcc'], [fam, leg])
+        m = json.loads(self.run_matrix('--select', json.dumps(mf(['ch32v20x']))).stdout)
+        self.assertEqual(m['riscv-gcc'], ['ch32v20x'])
+        # the pinned (size) matrix keeps the families and none of the variant legs
+        pinned = json.loads(self.run_matrix('--pinned').stdout)['riscv-gcc']
+        self.assertLessEqual(set(hs), set(pinned))
+        self.assertFalse(set(hs.values()) & set(pinned))
 
     def test_malformed_select_falls_open(self):
         base = json.loads(self.run_matrix().stdout)

@@ -412,6 +412,28 @@
       }
     }
   },
+  "ch32h417": {
+    "nanoch32h417": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "0",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH32H417"
+        ],
+        "mcu": "OPT_MCU_CH32H417",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32h417_usb30.c",
+          "wch/dcd_ch32h417_usbhs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch32v10x": {
     "ch32v103c_bluepill": {
       "cmake": {
@@ -575,6 +597,28 @@
       }
     }
   },
+  "ch569": {
+    "hydrausb3_v1": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "1",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH569"
+        ],
+        "mcu": "OPT_MCU_CH569",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch56x_usb30.c",
+          "wch/dcd_ch56x_usbhs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch583": {
     "ch582m_evt": {
       "cmake": {
@@ -634,7 +678,9 @@
   "da1469x": {
     "da14695_dk_usb": {
       "cmake": {
-        "defines": {},
+        "defines": {
+          "CFG_TUD_ENDPOINT0_SIZE": "8"
+        },
         "family_mcus": [
           "DA1469X"
         ],
@@ -2067,7 +2113,9 @@
   "msp430": {
     "msp_exp430f5529lp": {
       "cmake": {
-        "defines": {},
+        "defines": {
+          "CFG_TUD_ENDPOINT0_SIZE": "8"
+        },
         "family_mcus": [
           "MSP430x5xx"
         ],

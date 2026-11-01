@@ -37,6 +37,14 @@
 // Builds bare-metal or with FreeRTOS (CFG_TUSB_OS, always FreeRTOS on ESP-IDF).
 
 static void cdc_throughput_task(void);
+static void led_blinking_task(void);
+
+enum {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED = 1000,
+  BLINK_SUSPENDED = 2500,
+};
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
 static void freertos_init(void);
@@ -58,9 +66,40 @@ int main(void) {
 
   while (1) {
     tud_task();
+    led_blinking_task();
     cdc_throughput_task();
   }
 #endif
+}
+
+void tud_mount_cb(void) {
+  blink_interval_ms = BLINK_MOUNTED;
+}
+
+void tud_umount_cb(void) {
+  blink_interval_ms = BLINK_NOT_MOUNTED;
+}
+
+void tud_suspend_cb(bool remote_wakeup_en) {
+  (void) remote_wakeup_en;
+  blink_interval_ms = BLINK_SUSPENDED;
+}
+
+void tud_resume_cb(void) {
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
+}
+
+static void led_blinking_task(void) {
+  static uint32_t start_ms = 0;
+  static bool led_state = false;
+
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
+  start_ms += blink_interval_ms;
+
+  board_led_write(led_state);
+  led_state = !led_state;
 }
 
 //--------------------------------------------------------------------+
@@ -174,9 +213,13 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
   #define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2) * (BOARD_STACK_INSTRUMENTED ? 2 : 1)
 #endif
 
+#define BLINKY_STACK_SIZE configMINIMAL_STACK_SIZE
+
 #if configSUPPORT_STATIC_ALLOCATION
 static StackType_t  usb_device_stack[USBD_STACK_SIZE];
 static StaticTask_t usb_device_taskdef;
+static StackType_t  blinky_stack[BLINKY_STACK_SIZE];
+static StaticTask_t blinky_taskdef;
 #endif
 
 static void usb_device_task(void *param) {
@@ -195,11 +238,23 @@ static void usb_device_task(void *param) {
   }
 }
 
+// tud_task() blocks forever without events, so the LED is polled from its own low-priority task
+static void blinky_task(void *param) {
+  (void) param;
+  while (1) {
+    led_blinking_task();
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
 static void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
-  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  TU_ASSERT(xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1,
+                              usb_device_stack, &usb_device_taskdef) != NULL, );
+  TU_ASSERT(xTaskCreateStatic(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef) != NULL, );
   #else
-  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  TU_ASSERT(xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL) == pdPASS, );
+  TU_ASSERT(xTaskCreate(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL) == pdPASS, );
   #endif
 
   // only start scheduler for non-espressif mcu (espressif starts it in startup code)

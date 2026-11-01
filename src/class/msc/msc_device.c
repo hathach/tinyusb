@@ -354,7 +354,11 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_VERIFY(TUSB_CLASS_MSC    == itf_desc->bInterfaceClass &&
             MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol, 0);
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+  uint16_t drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+#if TUD_OPT_SUPER_SPEED
+  // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
+  drv_len += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), (const uint8_t*)itf_desc + max_len, 2);
+#endif
   TU_ASSERT(max_len >= drv_len, 0); // Max length must be at least 1 interface + 2 endpoints
 
   mscd_interface_t * p_msc = &_mscd_itf;
@@ -362,7 +366,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   p_msc->rhport = rhport;
 
   // Open endpoint pair
-  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), (const uint8_t*)itf_desc + max_len, 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
 
   // Prepare for Command Block Wrapper
   TU_ASSERT(prepare_cbw(p_msc), drv_len);

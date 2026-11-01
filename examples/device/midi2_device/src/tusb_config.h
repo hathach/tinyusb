@@ -75,7 +75,7 @@ extern "C" {
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE  64
+#define CFG_TUD_ENDPOINT0_SIZE   (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//
