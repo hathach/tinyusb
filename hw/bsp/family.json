@@ -678,7 +678,9 @@
   "da1469x": {
     "da14695_dk_usb": {
       "cmake": {
-        "defines": {},
+        "defines": {
+          "CFG_TUD_ENDPOINT0_SIZE": "8"
+        },
         "family_mcus": [
           "DA1469X"
         ],
@@ -2111,7 +2113,9 @@
   "msp430": {
     "msp_exp430f5529lp": {
       "cmake": {
-        "defines": {},
+        "defines": {
+          "CFG_TUD_ENDPOINT0_SIZE": "8"
+        },
         "family_mcus": [
           "MSP430x5xx"
         ],
