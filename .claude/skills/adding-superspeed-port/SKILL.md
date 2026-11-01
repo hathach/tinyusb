@@ -107,7 +107,8 @@ Work in stages; each is independently buildable and hardware-verifiable.
   `TUD_OPT_SUPER_SPEED == 0`).
 - Hardware: `dmesg` shows "new SuperSpeed USB device … 5000M"; `lsusb -t` 5000M;
   replug/suspend cycles; then data-integrity before throughput numbers.
-- Debugging aids: hub-port LTSSM state via `sudo uhubctl` (`Rx.Detect` = no terminations
-  seen, `Polling` = LFPS but not trained, `U0` = trained); raw control-transfer truth via
-  usbmon text (`sudo cat /sys/kernel/debug/usb/usbmon/<bus>u`); count link-ISR flags into
-  spare RAM when the wire view isn't enough.
+- Debugging aids: hub-port LTSSM state via `uhubctl -l <hub> -p <port>` (`Rx.Detect` = no
+  terminations seen, `Polling` = LFPS but not trained, `U0` = trained), a dev-PC status read
+  that needs root there and has no rig grant; raw control-transfer truth via the
+  `usb-kernel-debug` skill's usbmon capture, never under sudo; count link-ISR flags into spare
+  RAM when the wire view isn't enough.

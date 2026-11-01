@@ -17,6 +17,7 @@ and any device on another address were all scored as drops. The figures quoted i
 docs/superpowers/notes/h417-ep0-diff.md predate that fix and need re-taking.
 """
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -112,14 +113,18 @@ def one_run(args, tmp):
         dev = find_device(args.serial)
         if not dev:
             sys.exit(f'device with serial {args.serial} did not re-enumerate after flashing')
+        # lsusb sends live control transfers only when it can open the node; a failed open still
+        # exits 0 (usbutils 018 lsusb.c dumpdev), which would leave an enumeration-only rate
+        # passing as a hammered one
+        node = '/dev/bus/usb/' + dev.replace(':', '/')
+        if not os.access(node, os.R_OK | os.W_OK):
+            sys.exit(f'{node} is not writable: the lsusb hammer would be a no-op; '
+                     'install tools/88-tinyusb.rules')
         for n in range(args.hammer):
-            # Checked, not fire-and-forget: with stderr discarded and no return code, a refused
-            # or missing sudo made every hammer iteration a no-op while main() still printed a
-            # rate - an enumeration-only figure presented as a hammered one.
-            r = subprocess.run(['sudo', '-n', 'lsusb', '-v', '-s', dev],
+            r = subprocess.run(['lsusb', '-v', '-s', dev],
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            if r.returncode != 0:
-                sys.exit(f'hammer iteration {n + 1} failed: sudo lsusb -v -s {dev} returned '
+            if r.returncode != 0 or "Couldn't open device" in r.stderr:
+                sys.exit(f'hammer iteration {n + 1} failed: lsusb -v -s {dev} returned '
                          f'{r.returncode}: {r.stderr.strip() or "(no stderr)"}')
     finally:
         # kill after terminate: wait() raising TimeoutExpired out of a finally would leave the
