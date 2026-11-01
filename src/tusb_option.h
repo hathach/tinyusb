@@ -778,6 +778,12 @@
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
+  // Root-port delay after reset, before reading the port speed/status.
+  // Increase this for devices that need more time to become responsive.
+  #ifndef CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS
+    #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 2
+  #endif
+
   // Timeout in ms for each control transfer; raise it for a device with slow control requests.
   // A broken device that ACKs SETUP but never completes a later stage (e.g NAK forever) would
   // otherwise stall the control pipe - and during enumeration also hub polling - forever.
