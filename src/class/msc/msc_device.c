@@ -65,6 +65,7 @@ typedef struct {
   uint8_t add_sense_qualifier;
 
   bool pending_io; // pending async IO
+  uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
 }mscd_interface_t;
 
 static mscd_interface_t _mscd_itf;
@@ -364,6 +365,12 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
 
+  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  if (desc_ep->bEndpointAddress != p_msc->ep_in) {
+    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  }
+  p_msc->ep_in_mps = tu_edpt_packet_size(desc_ep);
+
   // Prepare for Command Block Wrapper
   TU_ASSERT(prepare_cbw(p_msc), drv_len);
 
@@ -569,7 +576,12 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
         if ( p_msc->xferred_len >= p_msc->total_len ) {
           // Data Stage is complete
           p_msc->stage = MSC_STAGE_STATUS;
-        }else {
+        } else if (0 != (xferred_bytes % p_msc->ep_in_mps)) {
+          // read10_cb returned a partial chunk ending in a short packet, which ends the Data Stage for the host: more
+          // data would answer its CSW read. Finish as case 5 (Hi > Di): STALL Bulk-In, then CSW with the residue.
+          TU_LOG_DRV("  READ10 short packet ends Data Stage\r\n");
+          p_msc->stage = MSC_STAGE_STATUS;
+        } else {
           proc_read10_cmd(p_msc);
         }
       } else if (SCSI_CMD_WRITE_10 == p_cbw->command[0]) {
