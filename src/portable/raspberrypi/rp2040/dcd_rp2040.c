@@ -566,12 +566,20 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport;
   const uint8_t    epnum = tu_edpt_number(ep_addr);
   const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
 
   if (epnum != 0) {
     struct hw_endpoint* ep = hw_endpoint_get(epnum, dir);
+
+    // Runs in task context: mask the USB IRQ on this core so neither the E15 SOF arming nor BUFF_STATUS completion
+    // changes ep state, user_buf/remaining_len or buffer control between the state check, the snapshot, the abort
+    // and the re-issue. NVIC line only, not PRIMASK: an OUT re-issue that the saved future_len completes calls
+    // dcd_event_xfer_complete(in_isr = false), a task-level queue send under an RTOS. With OS none that send
+    // re-enables the IRQ before we return, which is harmless: the transfer has already completed and its endpoint
+    // is IDLE, which the ISR leaves alone. Restore the previous enable state rather than forcing it on.
+    const bool irq_en = irq_is_enabled(USBCTRL_IRQ);
+    dcd_int_disable(rhport);
 
     // An E15-deferred bulk IN (PENDING) is in flight too: one buffer may still be armed while the
     // other waits for the SOF, and the hardware buffer selector already points past the sent one.
@@ -616,6 +624,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       ep->next_pid = 0; // reset data toggle
       io_rw_32 *buf_reg = get_buf_ctrl(epnum, dir);
       *buf_reg          = 0; // clear the stall response
+    }
+
+    if (irq_en) {
+      dcd_int_enable(rhport);
     }
   }
 }
