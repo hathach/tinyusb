@@ -649,6 +649,8 @@ static void configuration_reset(uint8_t rhport) {
     driver->reset(rhport);
   }
 
+  // Also clears sof_consumer, the application's tud_sof_cb_enable() included: it enables SOF again from
+  // tud_mount_cb(). Keeping it set would hide that call from a DCD that turns SOF off on bus reset (dwc2).
   tu_varclr(&_usbd_dev);
   (void)memset(_usbd_dev.itf2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   (void)memset(_usbd_dev.ep2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.ep2drv));   // invalid mapping

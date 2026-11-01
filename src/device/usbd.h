@@ -133,7 +133,9 @@ bool tud_disconnect(void);
 // Return false on unsupported MCUs
 bool tud_connect(void);
 
-// Enable or disable the Start Of Frame callback support
+// Enable or disable the Start Of Frame callback support.
+// A bus reset or a configuration change turns it off: enable it from tud_mount_cb() (and from tud_umount_cb()
+// if it is needed while unconfigured too), not once at startup.
 void tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer
@@ -191,7 +193,7 @@ void tud_resume_cb(void);
 // Invoked when there is a new usb event, which need to be processed by tud_task()/tud_task_ext()
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
-// Invoked when a new (micro) frame started
+// Invoked when a new (micro) frame started, while enabled by tud_sof_cb_enable()
 void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE
