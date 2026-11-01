@@ -1195,13 +1195,13 @@ static void switch_to_configured_one_itf(void) {
   tud_task();
 }
 
-// SET_FEATURE(FUNCTION_SUSPEND) with the remote-wake bit set in the wIndex high byte
-static void enable_function_remote_wake(uint8_t itf) {
+// SET_FEATURE(FUNCTION_SUSPEND): options is the wIndex high byte, bit 1 = remote wake enable
+static void function_suspend(uint8_t itf, uint8_t options) {
   tusb_control_request_t const req = {
     .bmRequestType = 0x01, // host-to-device, standard, interface
     .bRequest = TUSB_REQ_SET_FEATURE,
     .wValue = 0,           // FUNCTION_SUSPEND selector
-    .wIndex = (uint16_t) (0x0200 | itf), // low byte = interface, high byte bit 1 = remote wake enable
+    .wIndex = (uint16_t) ((options << 8) | itf),
     .wLength = 0
   };
   dcd_event_setup_received(rhport, (uint8_t*) &req, false);
@@ -1210,6 +1210,10 @@ static void enable_function_remote_wake(uint8_t itf) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
   tud_task();
+}
+
+static void enable_function_remote_wake(uint8_t itf) {
+  function_suspend(itf, 0x02);
 }
 
 // USB 3.2 9.4.5 Figure 9-5: interface GET_STATUS reports D0 Function Remote Wake Capable and
@@ -1353,6 +1357,18 @@ void test_usbd_function_wakeup_reported_for_every_interface_of_function(void)
   expect_itf_status(1, 1);
 }
 
+// FUNCTION_SUSPEND with Suspend Options bit 1 clear revokes the function's remote wake (§9.4.9)
+void test_usbd_function_suspend_without_wake_clears_function_wakeup(void)
+{
+  switch_to_superspeed();
+  switch_to_configured_one_itf();
+  enable_function_remote_wake(0);
+  expect_itf_status(0, 1);
+
+  function_suspend(0, 0x00);
+  expect_itf_status(0, 0);
+}
+
 // USB 3.2 Table 9-10: SetInterface resets FUNCTION REMOTE WAKEUP for that FUNCTION. Addressed to
 // the second interface it must still clear the bit the host armed on the first - keyed per
 // interface it would clear an unset bit and leave the function armed after the host revoked it.
@@ -1437,4 +1453,10 @@ void test_usbd_function_wakeup_kept_per_function(void)
 
   expect_itf_status(0, 0);
   expect_itf_status(1, 1);
+
+  // function 1 still armed: the aggregate tud_remote_wakeup() gates on must stay set
+  dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, false);
+  tud_task();
+  dcd_remote_wakeup_Expect(rhport);
+  TEST_ASSERT_TRUE(tud_remote_wakeup());
 }
