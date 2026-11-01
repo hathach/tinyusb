@@ -96,7 +96,7 @@ typedef struct {
 TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE <= UINT16_MAX, "usbd_edpt_xfer() length is 16-bit");
 // A data OUT phase of unknown length ends on a short packet, seen as a read shorter than the
 // buffer: the buffer has to be a whole number of bulk packets.
-TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64) == 0,
+TU_VERIFY_STATIC(CFG_TUD_MTP_EP_BUFSIZE % TUD_EPSIZE_BULK_MAX == 0,
                  "CFG_TUD_MTP_EP_BUFSIZE must be a multiple of the bulk max packet size");
 
 typedef struct {
