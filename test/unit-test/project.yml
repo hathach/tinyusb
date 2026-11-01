@@ -170,12 +170,15 @@
     :test_midi2_device_gtb_midi1:
       - CFG_TUD_MSC=0
       - CFG_TUD_MIDI2=1
+    # MTP suites model FS/HS bulk only; under SuperSpeed their 512-byte buffer is not a whole packet
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+      - TUD_TEST_NO_SUPER_SPEED
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+      - TUD_TEST_NO_SUPER_SPEED
     # tusb.c's SystemView body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
     # compile in when CFG_TUSB_SYSVIEW is nonzero with a stack enabled; every other test
     # leaves it at the tusb_option.h default of 0 (undefined here) so this test is fully isolated.
