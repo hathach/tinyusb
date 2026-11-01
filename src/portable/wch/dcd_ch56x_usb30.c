@@ -296,6 +296,10 @@ static void ep_state_reset(void) {
 static void xfer_in_arm(uint8_t ep) {
   xfer_ctl_t *xfer = &xfer_status[ep][TUSB_DIR_IN];
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
+  const uint8_t *src = xfer->buffer + xfer->queued_len;
+  // per burst, like the OUT side: a partial drain or an mps that is not a multiple of 16 moves
+  // the source off the 16-byte DMA alignment mid-transfer
+  xfer->bounce = (remaining != 0) && !ch56x_is_dma_capable(src);
   uint16_t burst_max = (uint16_t)(xfer->mps * CFG_TUD_WCH_USB30_MAX_BURST);
   if (xfer->bounce) {
     burst_max = TU_MIN(burst_max, (uint16_t)BOUNCE_SLOT_SIZE);
@@ -305,8 +309,7 @@ static void xfer_in_arm(uint8_t ep) {
   // length field holds the length of the last packet of the burst
   const uint16_t last_pkt = (chunk == 0) ? 0 : (uint16_t)(chunk - (nump - 1) * xfer->mps);
 
-  const uint8_t *src = xfer->buffer + xfer->queued_len;
-  if (xfer->bounce && chunk) {
+  if (xfer->bounce) {
     memcpy(xfer->slot, src, chunk);
     src = xfer->slot;
   }
@@ -1165,7 +1168,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   }
 
   if (dir == TUSB_DIR_IN) {
-    xfer->bounce = (total_bytes != 0) && !ch56x_is_dma_capable(buffer);
     xfer_in_arm(ep_num);
   } else {
     xfer_out_arm(ep_num);

@@ -213,9 +213,13 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
   #define USBD_STACK_SIZE   (3*configMINIMAL_STACK_SIZE/2) * (BOARD_STACK_INSTRUMENTED ? 2 : 1)
 #endif
 
+#define BLINKY_STACK_SIZE configMINIMAL_STACK_SIZE
+
 #if configSUPPORT_STATIC_ALLOCATION
 static StackType_t  usb_device_stack[USBD_STACK_SIZE];
 static StaticTask_t usb_device_taskdef;
+static StackType_t  blinky_stack[BLINKY_STACK_SIZE];
+static StaticTask_t blinky_taskdef;
 #endif
 
 static void usb_device_task(void *param) {
@@ -234,11 +238,22 @@ static void usb_device_task(void *param) {
   }
 }
 
+// tud_task() blocks forever without events, so the LED is polled from its own low-priority task
+static void blinky_task(void *param) {
+  (void) param;
+  while (1) {
+    led_blinking_task();
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
 static void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   #else
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  xTaskCreate(blinky_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   #endif
 
   // only start scheduler for non-espressif mcu (espressif starts it in startup code)

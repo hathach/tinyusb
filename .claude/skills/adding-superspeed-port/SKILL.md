@@ -8,8 +8,9 @@ description: Use when adding USB3 SuperSpeed device support for a new MCU to Tin
 ## Overview
 
 TinyUSB gained SuperSpeed device support with the WCH CH569 port. The work is layered so
-that a new SS MCU only writes **one dcd file + a BSP**: the core stack (usbd, types,
-templates), the class drivers and the bulk/interrupt examples are already SS-aware.
+that a new SS MCU only writes **a USB3 dcd + a BSP**, plus a USB2 high-speed dcd (ported
+or reused) for the fallback: the core stack (usbd, types, templates), the class drivers
+and the bulk/interrupt examples are already SS-aware.
 Reference implementation for everything below: `src/portable/wch/dcd_ch56x_usb30.c`
 (+ `ch56x_usb30_reg.h`, `dcd_ch56x.h`, `dcd_ch56x_usbhs.c`, `hw/bsp/ch569/`).
 

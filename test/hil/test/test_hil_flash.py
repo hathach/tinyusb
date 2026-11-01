@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -220,6 +221,13 @@ class WchFlashers(unittest.TestCase):
         self.assertIn('wch_uart_flash.py', cmd)
         self.assertIn('--uid E8E68F066EEE', cmd)
         self.assertIn('/tmp/fw.bin', cmd)
+
+    def test_wch_uart_loader_flash_quotes_each_word(self):
+        board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'], uid='X; touch /tmp/pwn')}
+        hil_flash.flash_wch_uart_loader(board, '/tmp/my fw.bin', run=self.record)
+        (cmd,) = self.cmds
+        self.assertEqual(shlex.split(cmd)[1:], [str(Path(hil_flash.__file__).resolve().parent / 'wch_uart_flash.py'),
+                                                '--uid', 'X; touch /tmp/pwn', '/tmp/my fw.bin'])
 
     def test_wch_uart_loader_reset_reports_park_result(self):
         """A park that could not be written is a board that was never reset: report it (1)

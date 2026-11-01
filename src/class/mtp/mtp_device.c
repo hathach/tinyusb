@@ -77,7 +77,7 @@ typedef struct {
   uint8_t ep_out;
 
   uint8_t ep_event;
-  uint16_t ep_sz_bulk; // bulk max packet size of the live link: 64 FS / 512 HS / 1024 SS
+  uint16_t ep_sz_in; // bulk IN max packet size of the live link: up to 64 FS / 512 HS / 1024 SS
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
   bool cmd_waiting; // the saved command waits for a data IN abandoned on Cancel to retire
@@ -421,7 +421,12 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
   TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, (const uint8_t*)itf_desc + max_len, 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
   TU_ASSERT(prepare_new_command(p_mtp), 0);
 
-  p_mtp->ep_sz_bulk = tu_edpt_packet_size(ep_desc_bulk);
+  // full-speed bulk IN and OUT may report different wMaxPacketSize; data IN ends against the IN one
+  const tusb_desc_endpoint_t* ep_desc_in = ep_desc_bulk;
+  if (tu_edpt_dir(ep_desc_in->bEndpointAddress) != TUSB_DIR_IN) {
+    ep_desc_in = (const tusb_desc_endpoint_t*) usbd_skip_ss_ep_companion(tu_desc_next(ep_desc_bulk), (const uint8_t*)itf_desc + max_len);
+  }
+  p_mtp->ep_sz_in = tu_edpt_packet_size(ep_desc_in);
 
   return mtpd_itf_size;
 }
@@ -634,7 +639,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // For OUT endpoint, threshold is endpoint buffer size, since we always queue fixed size
       uint16_t threshold;
       if (is_data_in) {
-        threshold = p_mtp->ep_sz_bulk; // the live link's bulk MPS, not a 512-byte assumption
+        threshold = p_mtp->ep_sz_in; // the live link's bulk IN MPS, not a 512-byte assumption
       } else {
         threshold = CFG_TUD_MTP_EP_BUFSIZE;
       }

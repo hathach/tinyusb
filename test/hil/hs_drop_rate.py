@@ -23,8 +23,12 @@ import sys
 import time
 from pathlib import Path
 
+from helper import hil_util
+
 SETUP_PID = '0x2d'
 ACK_PID = '0xd2'
+LSUSB_TIMEOUT = 30    # s, per lsusb -v hammer iteration
+TSHARK_TIMEOUT = 300  # s, to dissect one run's capture
 
 
 def parse_setup_outcomes(rows):
@@ -50,10 +54,14 @@ def parse_setup_outcomes(rows):
 
 
 def tshark_rows(pcap):
-    out = subprocess.run(
+    # rc 124: killed after TSHARK_TIMEOUT
+    r = hil_util.run_cmd(
         ['tshark', '-r', str(pcap), '-T', 'fields', '-e', 'frame.time_relative',
          '-e', 'usbll.pid', '-e', 'usbll.src', '-e', 'usbll.dst'],
-        capture_output=True, text=True, check=True).stdout
+        timeout=TSHARK_TIMEOUT, split_stderr=True, quiet=True)
+    if r.returncode != 0:
+        sys.exit(f'tshark -r {pcap} returned {r.returncode}: {r.stderr.strip() or "(no stderr)"}')
+    out = r.stdout
     rows = []
     for line in out.splitlines():
         parts = line.split('\t')
@@ -67,14 +75,13 @@ def find_device(serial):
 
     `serial` is served under the kernel's device_lock(), so a plain read blocks in D state on
     exactly the population this script scans: a just-reflashed, possibly wedged DUT. Every
-    sysfs consumer in test/hil goes through hil_util.read_sysfs for that reason; this one is
+    sysfs consumer in test/hil goes through usb_observe.read_sysfs for that reason; this one is
     called right after the post-flash settle, so it is the last place to make an exception.
     """
-    from helper import hil_util
-    for dev in Path('/sys/bus/usb/devices').glob('*-*'):
-        dev_serial = hil_util.read_sysfs(str(dev / 'serial'))
-        if not isinstance(dev_serial, str) or dev_serial != serial:
-            continue  # gone, mismatched, or unconfirmable (SYSFS_UNKNOWN)
+    from helper import usb_observe
+    for dev in Path(usb_observe.SYS_USB_DEVICES).glob('*-*'):
+        if usb_observe.read_sysfs(str(dev / 'serial')) != serial:
+            continue  # gone, mismatched, or unanswered (None)
         try:
             return f"{(dev / 'busnum').read_text().strip().zfill(3)}:" \
                    f"{(dev / 'devnum').read_text().strip().zfill(3)}"
@@ -121,8 +128,9 @@ def one_run(args, tmp):
             sys.exit(f'{node} is not writable: the lsusb hammer would be a no-op; '
                      'install tools/88-tinyusb.rules')
         for n in range(args.hammer):
-            r = subprocess.run(['lsusb', '-v', '-s', dev],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            # rc 124: killed after LSUSB_TIMEOUT
+            r = hil_util.run_cmd(['lsusb', '-v', '-s', dev], timeout=LSUSB_TIMEOUT,
+                                 split_stderr=True, quiet=True)
             if r.returncode != 0 or "Couldn't open device" in r.stderr:
                 sys.exit(f'hammer iteration {n + 1} failed: lsusb -v -s {dev} returned '
                          f'{r.returncode}: {r.stderr.strip() or "(no stderr)"}')

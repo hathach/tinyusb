@@ -745,6 +745,9 @@
   #ifndef CFG_TUD_WCH_USB30_MAX_BURST
     #define CFG_TUD_WCH_USB30_MAX_BURST 1
   #endif
+  #if CFG_TUD_WCH_USB30_MAX_BURST != 1
+    #error "CH32H417: CFG_TUD_WCH_USB30_MAX_BURST must be 1 (dcd arms OUT one packet per chain)"
+  #endif
 
   #define TUP_RHPORT_HIGHSPEED  1
   #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30

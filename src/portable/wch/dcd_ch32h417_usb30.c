@@ -100,6 +100,10 @@ static volatile bool link_established;
 // touching the hardware - a stale EP0 arm would linger into the next control transfer and break it.
 static volatile bool ep0_status_done;
 
+// The current request has a device-to-host data stage: a zero-length EP0 IN is then the data
+// stage's terminating ZLP (reply a multiple of 512 shorter than wLength), not the status stage.
+static volatile bool ep0_data_in;
+
 // NOTE: the vendor stack services a SETUP synchronously inside the ISR and holds USBSS_UDIF_SETUP
 // until the response is armed; usbd defers the response to task context instead. No hold is
 // needed: the controller NRDYs the host's data/status requests while EP0 is unarmed and announces
@@ -430,20 +434,15 @@ static void handle_setup(uint8_t rhport) {
   ep0_status_done = false;
   xfer_status[0][TUSB_DIR_IN].valid = false;
   xfer_status[0][TUSB_DIR_OUT].valid = false;
-  // SET_ISOCH_DELAY: usbd accepts it as a stackwide no-op, but the engine times iso DPs off
-  // LINK_ISO_DLY - the vendor stack forwards the host's value (RM 27.2.6.11: ns units, lower
-  // 3 bits ignored, reset 40 ns). Snoop it here since usbd has no DCD hook for this request.
   const tusb_control_request_t *setup = (const tusb_control_request_t *)(uintptr_t)ep0_buffer;
-  if (setup->bmRequestType == 0 && setup->bRequest == TUSB_REQ_SET_ISOCH_DELAY) {
-    USBSSD->LINK_ISO_DLY = setup->wValue;
-  }
+  ep0_data_in = (setup->bmRequestType_bit.direction == TUSB_DIR_IN) && (setup->wLength != 0);
   dcd_event_setup_received(rhport, ep0_buffer, true);
 }
 
 static void handle_ep0_in(uint8_t rhport) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(0, TUSB_DIR_IN);
-  if (!xfer->valid || xfer->total_len == 0) {
-    // A zero-length EP0 IN is completed by the UDIF_STATUS interrupt, not here - but the DP still
+  if (!xfer->valid || (xfer->total_len == 0 && !ep0_data_in)) {
+    // A zero-length status IN is completed by the UDIF_STATUS interrupt, not here - but the DP still
     // sets RB_UIF_EP0_TX_ACT, and UIF_TRANSFER is the OR of the endpoint flags, so leaving it set
     // re-enters this ISR until the host closes the transfer. Park the endpoint (the same write
     // UDIF_STATUS makes, minus the completion); the CH569 twin does this in its !active branch.
@@ -719,6 +718,15 @@ static void handle_timer_irq(uint8_t rhport) {
 // dcd API
 //--------------------------------------------------------------------+
 
+// Link latches start clean for every training run: a value left from a link torn down by
+// dcd_disconnect would report a spurious unplug/resume or an early retrain backoff.
+static void link_state_reset(void) {
+  retrain_fail = 0;
+  link_low_power = false;
+  link_suspended = false;
+  link_established = false;
+}
+
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
   (void)rh_init;
@@ -728,11 +736,9 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   ep0_rx_seq = 0;
   pending_addr_valid = false;
   ep0_status_done = false;
-  retrain_fail = 0;
+  ep0_data_in = false;
   backoff_armed = false;
-  link_low_power = false;
-  link_suspended = false;
-  link_established = false;
+  link_state_reset();
 
 #if CFG_TUD_WCH_USB30_FALLBACK
   fb_state = FB_USB3_TRAINING;
@@ -870,6 +876,10 @@ void dcd_connect(uint8_t rhport) {
   }
 #endif
   (void)rhport;
+  if (!usbss_clocks_off) {
+    return; // already connected: re-running the init would drop and retrain a live link
+  }
+  link_state_reset();
 #if CFG_TUD_WCH_USB30_FALLBACK
   fb_state = FB_USB3_TRAINING; // restart the training/fallback ladder alongside the link
   fb_fail_count = 0;
@@ -900,8 +910,12 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   // (deny) unless the matching ALLOW bit is set (RM 27.2.6.2, reset 0), so without this the link
   // refuses what usbd reports as enabled in GET_STATUS and the U1/U2 handling above is dead code.
   // Applied at the status stage, i.e. only for a request usbd actually accepted.
-  if (request->bmRequestType == 0 &&
-      (request->bRequest == TUSB_REQ_SET_FEATURE || request->bRequest == TUSB_REQ_CLEAR_FEATURE)) {
+  if (request->bmRequestType == 0 && request->bRequest == TUSB_REQ_SET_ISOCH_DELAY) {
+    // usbd treats it as a no-op, but the engine times iso DPs off LINK_ISO_DLY - the vendor stack
+    // forwards the host's value (RM 27.2.6.11: ns units, lower 3 bits ignored, reset 40 ns)
+    USBSSD->LINK_ISO_DLY = request->wValue;
+  } else if (request->bmRequestType == 0 &&
+             (request->bRequest == TUSB_REQ_SET_FEATURE || request->bRequest == TUSB_REQ_CLEAR_FEATURE)) {
     uint32_t allow = 0;
     if (request->wValue == TUSB_REQ_FEATURE_U1_ENABLE) {
       allow = LINK_U1_ALLOW;
@@ -1015,7 +1029,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   if (ep_num == 0) {
     TU_LOG2("X0: %c%u\r\n", dir == TUSB_DIR_IN ? 'I' : 'O', total_bytes);
-    if (total_bytes == 0) {
+    if (total_bytes == 0 && dir == TUSB_DIR_IN && ep0_data_in) {
+      // terminating ZLP of a control-IN data stage: a data DP on the running sequence, completed
+      // by its UIF_TRANSFER in handle_ep0_in like any other data-stage packet
+      ep0_arm_in(0);
+    } else if (total_bytes == 0) {
       // Status-stage ZLP (either direction). If the controller already ran the status stage
       // (UDIF_STATUS fired before usbd queued this - the host pipelines control transfers faster
       // than the task loop), complete immediately and touch NO hardware: a stale EP0 arm would

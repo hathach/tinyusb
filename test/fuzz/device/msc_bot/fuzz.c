@@ -22,10 +22,11 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t l
   return true;
 }
 
-bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const *desc, uint8_t count, uint8_t type,
-                         uint8_t *ep_out, uint8_t *ep_in) {
+bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const *desc, uint8_t const *desc_end, uint8_t count,
+                         uint8_t type, uint8_t *ep_out, uint8_t *ep_in) {
   (void) rhport;
   (void) desc;
+  (void) desc_end;
   (void) count;
   (void) type;
   *ep_out = 0x01;
@@ -54,9 +55,10 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_stalled[ep_addr >> 7] = false;
 }
 
-void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
+bool usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   (void) in_isr;
   func(param);
+  return true;
 }
 
 void dcd_event_handler(dcd_event_t const *event, bool in_isr) {

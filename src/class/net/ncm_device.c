@@ -925,7 +925,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const *p_desc = tu_desc_next(itf_desc);
   uint8_t const * const desc_end = (uint8_t const *) itf_desc + max_len;
-  while (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && drv_len <= max_len) {
+  while (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_len(p_desc) > 0 && drv_len <= max_len) {
     if (tu_desc_subtype(p_desc) == CDC_FUNC_DESC_NCM) {
       TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_cdc_ncm_func_t), 0);
       tusb_desc_cdc_ncm_func_t const *ncm_func = (tusb_desc_cdc_ncm_func_t const *) p_desc;

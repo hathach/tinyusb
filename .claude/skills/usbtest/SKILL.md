@@ -95,10 +95,10 @@ whose recovery flasher is not convoy-safe or has no probe reset are refused.
   without `--recover-board` leaves a HUNG device wedged. `wedged` is also set with no HUNG case
   when the serial matches two devices or cannot be read after a case; stderr names which
   (`reported wedged: ...`).
-- **Never hand-write a bare `echo "vid pid" > usbtest/new_id`.** A dynamic id without the 4-field
+- **Never hand-write a bare `echo "vid pid" > usbtest/new_id`.** A dynamic id without the 5-field
   ref form (`vid pid 0 0525 a4a0`, copying Gadget Zero's driver_info) probes with driver_info=NULL:
   a kernel NULL-deref Oops, a D-state testusb and a forced reboot. Binding a foreign device (a
-  vendor demo for an A/B) uses the same 4-field form.
+  vendor demo for an A/B) uses the same 5-field form.
 
 ## Failed case
 
@@ -163,7 +163,7 @@ Escalate in order:
 5. **Prove or refute "it's the silicon" with a vendor-stack A/B.** Build the vendor's reference
    firmware, patch in the gadget-zero 0x5b/0x5c control store (mirror its existing control-OUT
    request, ~10 lines), flash it to the same board and port, bind usbtest to the foreign VID:PID
-   (4-field form) and run the failing case. The same failure is an erratum (document and
+   (5-field form) and run the failing case. The same failure is an erratum (document and
    quirk-skip it); a clean run puts the difference in our DCD. Nothing else closes the debate.
 6. **A flake may be value-gated, not random:** sweep one parameter at a time.
    `testusb -D <node> -t 14 -c 4000 -s L -v $((L-1))` alternates lengths 1 and L; sweeping L
