@@ -1196,20 +1196,19 @@ static void switch_to_configured_one_itf(void) {
 }
 
 // SET_FEATURE(FUNCTION_SUSPEND) with the remote-wake bit set in the wIndex high byte
-static tusb_control_request_t const req_func_suspend_wake = {
-  .bmRequestType = 0x01, // host-to-device, standard, interface
-  .bRequest = TUSB_REQ_SET_FEATURE,
-  .wValue = 0,           // FUNCTION_SUSPEND selector
-  .wIndex = 0x0200,      // low byte = interface 0, high byte bit 1 = remote wake enable
-  .wLength = 0
-};
-
-static void enable_function_remote_wake(void) {
-  dcd_event_setup_received(rhport, (uint8_t*) &req_func_suspend_wake, false);
+static void enable_function_remote_wake(uint8_t itf) {
+  tusb_control_request_t const req = {
+    .bmRequestType = 0x01, // host-to-device, standard, interface
+    .bRequest = TUSB_REQ_SET_FEATURE,
+    .wValue = 0,           // FUNCTION_SUSPEND selector
+    .wIndex = (uint16_t) (0x0200 | itf), // low byte = interface, high byte bit 1 = remote wake enable
+    .wLength = 0
+  };
+  dcd_event_setup_received(rhport, (uint8_t*) &req, false);
   mscd_control_xfer_cb_IgnoreAndReturn(false);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
-  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_func_suspend_wake, 1);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
   tud_task();
 }
 
@@ -1220,7 +1219,7 @@ void test_usbd_get_status_interface_reports_function_wakeup(void)
 {
   switch_to_superspeed();
   switch_to_configured_one_itf();
-  enable_function_remote_wake();
+  enable_function_remote_wake(0);
 
   tusb_control_request_t const req_get_status_itf = {
     .bmRequestType = 0x81, // device-to-host, standard, interface
@@ -1248,7 +1247,7 @@ void test_usbd_set_address_zero_clears_function_wakeup(void)
 {
   switch_to_superspeed();
   switch_to_configured_one_itf();
-  enable_function_remote_wake();
+  enable_function_remote_wake(0);
 
   // _usbd_dev is file-static, so probe through interface GET_STATUS: D1 is the per-function
   // bit this resets, D0 (capable) stays set because the configuration still advertises it.
@@ -1301,8 +1300,9 @@ uint8_t const data_desc_config_two_itf[] =
   9, TUSB_DESC_INTERFACE, 1, 0, 0, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0
 };
 
-// One driver->open() claim covering both interfaces is exactly one function
-static void switch_to_configured_two_itf(void) {
+// claimed_len is what each driver->open() claims: 18 covers both interfaces, one function;
+// 9 claims one interface per call, two functions each with its own wake bit
+static void switch_to_configured_two_itf(uint16_t claimed_len) {
   desc_configuration = data_desc_config_two_itf;
   tusb_control_request_t const req_set_config = {
     .bmRequestType = 0x00,
@@ -1312,44 +1312,10 @@ static void switch_to_configured_two_itf(void) {
     .wLength = 0
   };
   dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
-  mscd_open_IgnoreAndReturn(18);
+  mscd_open_IgnoreAndReturn(claimed_len);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
-  tud_task();
-}
-
-// Two driver->open() claims of one interface each are two functions, each its own wake bit
-static void switch_to_configured_two_func(void) {
-  desc_configuration = data_desc_config_two_itf;
-  tusb_control_request_t const req_set_config = {
-    .bmRequestType = 0x00,
-    .bRequest = TUSB_REQ_SET_CONFIGURATION,
-    .wValue = 1,
-    .wIndex = 0,
-    .wLength = 0
-  };
-  dcd_event_setup_received(rhport, (uint8_t*) &req_set_config, false);
-  mscd_open_IgnoreAndReturn(9);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
-  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_config, 1);
-  tud_task();
-}
-
-static void enable_function_remote_wake_on(uint8_t itf) {
-  tusb_control_request_t const req = {
-    .bmRequestType = 0x01,
-    .bRequest = TUSB_REQ_SET_FEATURE,
-    .wValue = 0,
-    .wIndex = (uint16_t) (0x0200 | itf),
-    .wLength = 0
-  };
-  dcd_event_setup_received(rhport, (uint8_t*) &req, false);
-  mscd_control_xfer_cb_IgnoreAndReturn(false);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
-  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
   tud_task();
 }
 
@@ -1380,8 +1346,8 @@ static void expect_itf_status(uint8_t itf, uint8_t d1_set) {
 void test_usbd_function_wakeup_reported_for_every_interface_of_function(void)
 {
   switch_to_superspeed();
-  switch_to_configured_two_itf();
-  enable_function_remote_wake(); // FUNCTION_SUSPEND(wake) on interface 0
+  switch_to_configured_two_itf(18);
+  enable_function_remote_wake(0); // FUNCTION_SUSPEND(wake) on interface 0
 
   expect_itf_status(0, 1);
   expect_itf_status(1, 1);
@@ -1393,8 +1359,8 @@ void test_usbd_function_wakeup_reported_for_every_interface_of_function(void)
 void test_usbd_set_interface_clears_wakeup_of_whole_function(void)
 {
   switch_to_superspeed();
-  switch_to_configured_two_itf();
-  enable_function_remote_wake(); // FUNCTION_SUSPEND(wake) on interface 0
+  switch_to_configured_two_itf(18);
+  enable_function_remote_wake(0); // FUNCTION_SUSPEND(wake) on interface 0
   expect_itf_status(1, 1);
 
   tusb_control_request_t const req_set_itf = {
@@ -1421,8 +1387,8 @@ void test_usbd_set_interface_clears_wakeup_of_whole_function(void)
 void test_usbd_rejected_set_interface_keeps_function_wakeup(void)
 {
   switch_to_superspeed();
-  switch_to_configured_two_itf();
-  enable_function_remote_wake();
+  switch_to_configured_two_itf(18);
+  enable_function_remote_wake(0);
 
   tusb_control_request_t const req_set_itf_bad_alt = {
     .bmRequestType = 0x01,
@@ -1445,13 +1411,13 @@ void test_usbd_rejected_set_interface_keeps_function_wakeup(void)
 void test_usbd_function_wakeup_kept_per_function(void)
 {
   switch_to_superspeed();
-  switch_to_configured_two_func();
+  switch_to_configured_two_itf(9);
 
-  enable_function_remote_wake_on(0);
+  enable_function_remote_wake(0);
   expect_itf_status(0, 1);
   expect_itf_status(1, 0);
 
-  enable_function_remote_wake_on(1);
+  enable_function_remote_wake(1);
   expect_itf_status(0, 1);
   expect_itf_status(1, 1);
 
