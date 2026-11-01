@@ -587,6 +587,25 @@ void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
   tud_task(); // no Bulk-In transfer expected
 }
 
+// A completion accepted while the BOT reset is still queued passes the precheck in tud_msc_async_io_done(), but its
+// deferred call runs after the reset: proc_async_io_done() finds no pending I/O and drops it instead of arming Bulk-In
+void test_msc_bot_reset_drops_completion_queued_before_reset(void)
+{
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no Bulk-In transfer expected
+
+  reset_recovery_clear_halts();
+}
+
 //--------------------------------------------------------------------+
 // SystemView spans on the early returns
 //--------------------------------------------------------------------+
