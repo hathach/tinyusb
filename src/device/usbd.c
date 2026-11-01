@@ -744,7 +744,12 @@ static bool usbd_process_event(dcd_event_t* event) {
       usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
       if (0 != epnum) {
         driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-        TU_ASSERT(driver, false);
+        if (driver == NULL) {
+          // Stale: a bus reset or unplug closed the endpoint after this transfer completed. A DCD may queue the
+          // reset/unplug ahead of an endpoint interrupt latched in the same ISR run (dwc2 handles OTGINT first).
+          TU_LOG_USBD("  no driver, dropped\r\n");
+          break;
+        }
       }
 
       // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
