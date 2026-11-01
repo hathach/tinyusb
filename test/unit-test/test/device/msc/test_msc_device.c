@@ -553,12 +553,15 @@ void test_msc_bot_reset_stalls_armed_data_endpoints(void)
 }
 
 // BOT reset while an async READ10 chunk is still pending in the application
-static void bot_reset_during_async_read10(void) {
+static void bot_reset_during_async_read10(bool queue_completion) {
   read10_async = true;
   read10_2blocks_received();
   tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  if (queue_completion) {
+    TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  }
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
@@ -569,7 +572,7 @@ static void bot_reset_during_async_read10(void) {
 // arming the stalled (busy) Bulk-In
 void test_msc_bot_reset_discards_late_async_read10_before_clear_halt(void)
 {
-  bot_reset_during_async_read10();
+  bot_reset_during_async_read10(false);
 
   TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
   tud_task(); // no Bulk-In transfer expected
@@ -580,7 +583,7 @@ void test_msc_bot_reset_discards_late_async_read10_before_clear_halt(void)
 // A late completion after Reset Recovery is discarded too: stale data must not go out on the cleared Bulk-In
 void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
 {
-  bot_reset_during_async_read10();
+  bot_reset_during_async_read10(false);
   reset_recovery_clear_halts();
 
   TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
@@ -591,18 +594,7 @@ void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
 // deferred call runs after the reset: proc_async_io_done() finds no pending I/O and drops it instead of arming Bulk-In
 void test_msc_bot_reset_drops_completion_queued_before_reset(void)
 {
-  read10_async = true;
-  read10_2blocks_received();
-  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
-
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
-
-  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
-  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task(); // no Bulk-In transfer expected
-
+  bot_reset_during_async_read10(true);
   reset_recovery_clear_halts();
 }
 
