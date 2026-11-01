@@ -122,7 +122,8 @@ bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, const uint8_t* d
 TU_ATTR_ALWAYS_INLINE static inline
 const uint8_t* usbd_skip_ss_ep_companion(const uint8_t* p_desc, const uint8_t* desc_end) {
 #if TUD_OPT_SUPER_SPEED
-  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) != 0 &&
+  // bLength >= 2 keeps bDescriptorType inside desc_end (tu_desc_in_bounds alone admits bLength 1)
+  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= 2 &&
          (TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION == tu_desc_type(p_desc) ||
           TUSB_DESC_SUPERSPEED_ISO_ENDPOINT_COMPANION == tu_desc_type(p_desc))) {
     p_desc = tu_desc_next(p_desc);
@@ -141,7 +142,8 @@ TU_ATTR_ALWAYS_INLINE static inline
 uint16_t usbd_ss_ep_companion_len(const uint8_t* p_desc, const uint8_t* desc_end, uint8_t ep_count) {
 #if TUD_OPT_SUPER_SPEED
   uint16_t total = 0;
-  while (ep_count-- > 0 && tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+  while (ep_count-- > 0 && tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= 2 &&
+         TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
     const uint8_t* p_comp = tu_desc_next(p_desc);
     p_desc = usbd_skip_ss_ep_companion(p_comp, desc_end);
     total = (uint16_t) (total + (p_desc - p_comp));
