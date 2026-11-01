@@ -55,7 +55,8 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 // Called by Application once asynchronous I/O operation is done
 // bytes_io is number of bytes in I/O op, typically the bufsize in read/write_cb() or
 // TUD_MSC_RET_ERROR (-1) for error. Note TUD_MSC_RET_BUSY (0) will be treated as error as well.
-// Returns false if no I/O is pending, e.g. a Bulk-Only Mass Storage Reset abandoned it: its completion is discarded.
+// Returns false if no I/O is pending, e.g. a Bulk-Only Mass Storage Reset abandoned it: that completion is discarded
+// only until the next async READ10/WRITE10 starts, after which it would be taken as the new command's.
 bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
 
 //--------------------------------------------------------------------+
@@ -79,7 +80,9 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
     - TUD_MSC_RET_ASYNC
         Data I/O will be done asynchronously in a background task. Application should return immediately.
         tud_msc_async_io_done() must be called once IO/ is done to signal completion.
-        A Bulk-Only Mass Storage Reset abandons a pending async I/O: its tud_msc_async_io_done() is discarded.
+        A Bulk-Only Mass Storage Reset abandons a pending async I/O: its tud_msc_async_io_done() is discarded if it
+        arrives before the next async READ10/WRITE10. The buffer is shared, so the application must finish or cancel
+        the abandoned I/O before it serves the next one.
 */
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
