@@ -552,15 +552,16 @@ void test_msc_bot_reset_stalls_armed_data_endpoints(void)
   reset_recovery_clear_halts();
 }
 
-// BOT reset while an async READ10 chunk is still pending in the application
-static void bot_reset_during_async_read10(bool queue_completion) {
+// BOT reset while an async READ10 chunk is still pending in the application. With queue_failed_completion, the
+// application fails the read (TUD_MSC_RET_ERROR) after the reset is queued but before it runs
+static void bot_reset_during_async_read10(bool queue_failed_completion) {
   read10_async = true;
   read10_2blocks_received();
   tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  if (queue_completion) {
-    TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  if (queue_failed_completion) {
+    TEST_ASSERT_TRUE(tud_msc_async_io_done(TUD_MSC_RET_ERROR, false));
   }
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
@@ -591,7 +592,10 @@ void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
 }
 
 // A completion accepted while the BOT reset is still queued passes the precheck in tud_msc_async_io_done(), but its
-// deferred call runs after the reset: proc_async_io_done() finds no pending I/O and drops it instead of arming Bulk-In
+// deferred call runs after the reset: proc_async_io_done() finds no pending I/O and drops it. A failed completion is
+// used because a dropped one has no other effect, while one applied to the reset state would stall Bulk-In again
+// and leave a failed CSW for the Bulk-In clear-halt to send: either is an unexpected DCD call. A data completion
+// applied there would only fail usbd_edpt_xfer() on the busy, stalled Bulk-In, which no mock sees
 void test_msc_bot_reset_drops_completion_queued_before_reset(void)
 {
   bot_reset_during_async_read10(true);
