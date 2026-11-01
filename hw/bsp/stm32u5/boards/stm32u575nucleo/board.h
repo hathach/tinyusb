@@ -207,7 +207,9 @@ void ADC1_IRQHandler(void) {
   // endpoint's DIEPTSIZ.XFRSIZ (seen on stm32u5a5nucleo OTG_HS): if this ISR preempts the stack's slave-mode FIFO push
   // at that point, the IN endpoint NAKs forever. dcd_init() forces the override on at every (re)start, so the registers
   // are read and corrected only for the first samples after it (the host does not enumerate, so no FIFO push, within
-  // 100 ms of connect); afterwards OTG_FS is touched only when VBUS changes.
+  // 100 ms of connect); afterwards OTG_FS is touched only when VBUS changes, or while VBUS is absent: a
+  // tud_deinit()/tud_init() between two samples leaves the override forced on with no VBUS, and with no host attached
+  // there is no FIFO push to collide with.
   static uint8_t sync_samples = BOARD_VBUS_SYNC_SAMPLES;
   static bool vbus_state;
 
@@ -234,6 +236,8 @@ void ADC1_IRQHandler(void) {
     } else if (vbus_sensed != vbus_state) {
       vbus_state = vbus_sensed;
       board_vbus_override_write(vbus_state);
+    } else if (!vbus_sensed && (USB_OTG_FS->GOTGCTL & USB_OTG_GOTGCTL_BVALOVAL) != 0) {
+      board_vbus_override_write(false);
     }
   }
   if(LL_ADC_IsActiveFlag_OVR(ADC1) != 0) {
