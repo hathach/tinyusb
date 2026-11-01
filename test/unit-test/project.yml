@@ -193,6 +193,7 @@
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
+      - CFG_TUD_MSC_PAD_SHORT_REPLY=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
