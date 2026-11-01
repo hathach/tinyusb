@@ -477,7 +477,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
   if (is_hs_phy) {
     // dcfg Highspeed's mask is 0, full speed is forced on HS PHY if requested (e.g. HS-only core with UTMI)
-    if (!TUD_OPT_HIGH_SPEED || rh_init->speed == TUSB_SPEED_FULL) {
+    if (rh_init->speed == TUSB_SPEED_FULL || !TUD_OPT_HIGH_SPEED) {
       dcfg |= DCFG_DSPD_FS_HSPHY << DCFG_DSPD_Pos;
     }
 
