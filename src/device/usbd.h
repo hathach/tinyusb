@@ -134,8 +134,8 @@ bool tud_disconnect(void);
 bool tud_connect(void);
 
 // Enable or disable the Start Of Frame callback support.
-// A bus reset or a configuration change turns it off: enable it from tud_mount_cb() (and from tud_umount_cb()
-// if it is needed while unconfigured too), not once at startup.
+// A bus reset, or a SET_CONFIGURATION that leaves the current configuration, turns it off again: enable it from
+// tud_mount_cb() rather than once at startup.
 void tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer

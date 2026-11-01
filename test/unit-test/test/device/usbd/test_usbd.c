@@ -774,7 +774,7 @@ void test_usbd_task_stop_full_queue(void) {
 }
 
 //--------------------------------------------------------------------+
-// SOF callback: a bus reset or a configuration change turns it off, the application enables it again from
+// SOF callback: a bus reset or leaving a configuration turns it off, the application enables it again from
 // tud_mount_cb() (#2973)
 //--------------------------------------------------------------------+
 static unsigned sof_cb_count;
@@ -850,8 +850,8 @@ void test_usbd_sof_cb_enable_again_after_bus_reset(void) {
   tud_sof_cb_enable(false);
 }
 
-// A configuration change turns SOF off; enabling it from tud_mount_cb() turns it on again
-void test_usbd_sof_cb_enabled_from_mount_cb_after_configuration_change(void) {
+// Leaving a configuration turns SOF off; enabling it from tud_mount_cb() turns it on again
+void test_usbd_sof_cb_enabled_from_mount_cb_after_leaving_configuration(void) {
   bus_reset();
   sof_on_mount = true;
 
