@@ -65,6 +65,10 @@ typedef struct {
   uint8_t add_sense_qualifier;
 
   bool pending_io; // pending async IO
+#if CFG_TUD_MSC_PAD_SHORT_REPLY
+  bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
+#endif
+  uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
 }mscd_interface_t;
 
 static mscd_interface_t _mscd_itf;
@@ -187,7 +191,11 @@ static bool proc_stage_status(mscd_interface_t *p_msc) {
 
   // skip status if epin is currently stalled, will do it when received Clear Stall request
   if (!usbd_edpt_stalled(rhport, p_msc->ep_in)) {
-    if ((p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir)) {
+    bool short_in = (p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir);
+  #if CFG_TUD_MSC_PAD_SHORT_REPLY
+    short_in = short_in && !p_msc->data_padded;
+  #endif
+    if (short_in) {
       // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
       // TU_LOG_DRV("  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
       usbd_edpt_stall(rhport, p_msc->ep_in);
@@ -364,6 +372,12 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
 
+  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  if (desc_ep->bEndpointAddress != p_msc->ep_in) {
+    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  }
+  p_msc->ep_in_mps = tu_edpt_packet_size(desc_ep);
+
   // Prepare for Command Block Wrapper
   TU_ASSERT(prepare_cbw(p_msc), drv_len);
 
@@ -371,6 +385,17 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 }
 
 static void proc_bot_reset(mscd_interface_t* p_msc) {
+  // A transfer armed before the reset is stale: stall both data endpoints, which drops it in the DCD. Reset Recovery
+  // clears both halts next (BOT 5.3.4), and the Bulk-Out clear re-arms it for the next CBW.
+  usbd_edpt_stall(p_msc->rhport, p_msc->ep_in);
+  usbd_edpt_stall(p_msc->rhport, p_msc->ep_out);
+
+  // An async READ10/WRITE10 still pending is abandoned: until the next async command starts, tud_msc_async_io_done()
+  // for it fails its check and its completion already deferred behind this reset finds no pending I/O, so no stale data
+  // reaches Bulk-In. pending_io has no per-I/O token, so a later completion is taken as the next command's: the
+  // application must finish or cancel the abandoned I/O first. A completion deferred ahead of the reset ran before it,
+  // and its transfer is dropped by the stall above.
+  p_msc->pending_io  = false;
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;
@@ -488,6 +513,9 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
       p_msc->stage = MSC_STAGE_DATA;
       p_msc->total_len = p_cbw->total_bytes;
       p_msc->xferred_len = 0;
+#if CFG_TUD_MSC_PAD_SHORT_REPLY
+      p_msc->data_padded = false;
+#endif
 
       // Read10 or Write10
       if ((SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0])) {
@@ -549,7 +577,18 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
             } else {
               // cannot return more than host expect
               p_msc->total_len = tu_min32((uint32_t)resplen, p_cbw->total_bytes);
-              TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
+              uint16_t xfer_len = (uint16_t) p_msc->total_len;
+
+            #if CFG_TUD_MSC_PAD_SHORT_REPLY
+              if ((p_cbw->total_bytes > p_msc->total_len) && (p_cbw->total_bytes <= CFG_TUD_MSC_EP_BUFSIZE)) {
+                // 6.7.2 case 5 (Hi > Di): fill data up to the host's length instead of a STALL after the reply
+                // (CFG_TUD_MSC_PAD_SHORT_REPLY). The residue still counts only the reply.
+                tu_memclr(_mscd_epbuf.buf + p_msc->total_len, p_cbw->total_bytes - p_msc->total_len);
+                xfer_len = (uint16_t) p_cbw->total_bytes;
+                p_msc->data_padded = true;
+              }
+            #endif
+              TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, xfer_len, false));
             }
           }
         }
@@ -569,7 +608,12 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
         if ( p_msc->xferred_len >= p_msc->total_len ) {
           // Data Stage is complete
           p_msc->stage = MSC_STAGE_STATUS;
-        }else {
+        } else if (0 != (xferred_bytes % p_msc->ep_in_mps)) {
+          // read10_cb returned a partial chunk ending in a short packet, which ends the Data Stage for the host: more
+          // data would answer its CSW read. Finish as case 5 (Hi > Di): STALL Bulk-In, then CSW with the residue.
+          TU_LOG_DRV("  READ10 short packet ends Data Stage\r\n");
+          p_msc->stage = MSC_STAGE_STATUS;
+        } else {
           proc_read10_cmd(p_msc);
         }
       } else if (SCSI_CMD_WRITE_10 == p_cbw->command[0]) {
@@ -592,6 +636,9 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
 
         if ( p_msc->xferred_len >= p_msc->total_len ) {
           // Data Stage is complete
+        #if CFG_TUD_MSC_PAD_SHORT_REPLY
+          p_msc->xferred_len = p_msc->total_len; // fill data after a padded reply is not relevant data for the residue
+        #endif
           p_msc->stage = MSC_STAGE_STATUS;
         } else {
           // This scenario with command that take more than one transfer is already rejected at Command stage
