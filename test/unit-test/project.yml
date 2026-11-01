@@ -179,6 +179,11 @@
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
       - TUD_TEST_NO_SUPER_SPEED
+    # SuperSpeed MTP, with a 2048-byte buffer; not named test_mtp_device_*, which the matcher above would also match
+    :test_mtp_ss_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MTP=1
+      - CFG_TUSB_CONFIG_FILE=<tusb_config_mtp_ss.h>
     # tusb.c's SystemView body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
     # compile in when CFG_TUSB_SYSVIEW is nonzero with a stack enabled; every other test
     # leaves it at the tusb_option.h default of 0 (undefined here) so this test is fully isolated.
