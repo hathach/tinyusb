@@ -326,6 +326,9 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
+    // retire the queued IN: BK1RDY survives the stall, and once the halt is cleared the bank
+    // would send its stale BYTE_COUNT from a buffer the stack has since reused
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK1RDY;
   } else {
     ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0;
   }
