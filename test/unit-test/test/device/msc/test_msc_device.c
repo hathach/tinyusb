@@ -198,11 +198,19 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   return bufsize;
 }
 
+// times tud_msc_write10_cb() answers TUD_MSC_RET_BUSY before it writes
+static uint32_t write10_busy;
+
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
   (void) lun;
+
+  if (write10_busy > 0) {
+    write10_busy--;
+    return TUD_MSC_RET_BUSY;
+  }
 
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
@@ -266,6 +274,7 @@ void setUp(void)
   memset(msc_disk, 0, sizeof(msc_disk));
   read10_shortfall = 0;
   read10_async = false;
+  write10_busy = 0;
 }
 
 void tearDown(void)
@@ -679,6 +688,57 @@ void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   tud_task();
+}
+
+// WRITE10 of one block, LBA 0
+static msc_cbw_t const cbw_write10_1block =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = DISK_BLOCK_SIZE,
+  .lun         = 0,
+  .dir         = 0,
+  .cmd_len     = sizeof(scsi_write10_t),
+  .command     = { SCSI_CMD_WRITE_10, 0, 0, 0, 0, 0, 0, 0, 1 }
+};
+
+// tud_msc_write10_cb() answers TUD_MSC_RET_BUSY while the BOT reset is queued: the retry runs after the reset and is
+// dropped. Taken as a CBW of the wrong length, it would stall both endpoints for another Reset Recovery and fail this
+// one's clear-halts
+void test_msc_bot_reset_drops_write10_busy_retry(void)
+{
+  write10_busy = 1;
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A WRITE10 chunk the application answers TUD_MSC_RET_BUSY is offered again, and the command completes
+void test_msc_write10_busy_retries(void)
+{
+  write10_busy = 2;
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(0, write10_busy);
 }
 
 //--------------------------------------------------------------------+

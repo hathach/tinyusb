@@ -9,7 +9,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_MSC)
 
-#include "device/dcd.h"         // for faking dcd_event_xfer_complete
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -925,6 +924,24 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
   return resplen;
 }
 
+// Retry a READ10/WRITE10 chunk the application answered with TUD_MSC_RET_BUSY or, for WRITE10, consumed only in part.
+// A reset processed meanwhile ended the Data Stage: the retry is then dropped, where a faked transfer completion would
+// have been taken for the next CBW.
+static void proc_io_retry(void* left_over) {
+  mscd_interface_t* p_msc = &_mscd_itf;
+  TU_VERIFY(p_msc->stage == MSC_STAGE_DATA, );
+
+  if (SCSI_CMD_READ_10 == p_msc->cbw.command[0]) {
+    proc_read10_cmd(p_msc);
+  } else {
+    proc_write10_host_data(p_msc, (uint32_t) (uintptr_t) left_over);
+  }
+
+  if (p_msc->stage == MSC_STAGE_STATUS) {
+    proc_stage_status(p_msc);
+  }
+}
+
 static void proc_read10_cmd(mscd_interface_t* p_msc) {
   msc_cbw_t const* p_cbw = &p_msc->cbw;
   uint16_t const block_sz = rdwr10_get_blocksize(p_cbw); // already verified non-zero
@@ -971,8 +988,8 @@ static void proc_read_io_data(mscd_interface_t* p_msc, int32_t nbytes) {
         break;
 
       case TUD_MSC_RET_BUSY:
-        // not ready yet -> fake a transfer complete so that this driver callback will fire again
-        dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, XFER_RESULT_SUCCESS, false);
+        // not ready yet -> invoke the callback again later
+        usbd_defer_func(proc_io_retry, NULL, false);
         break;
 
       default: break; // nothing to do
@@ -1037,8 +1054,8 @@ static void proc_write_io_data(mscd_interface_t* p_msc, uint32_t xferred_bytes, 
         memmove(_mscd_epbuf.buf, _mscd_epbuf.buf + nbytes, left_over);
       }
 
-      // fake a transfer complete with adjusted parameters --> callback will be invoked with adjusted parameters
-      dcd_event_xfer_complete(p_msc->rhport, p_msc->ep_out, left_over, XFER_RESULT_SUCCESS, false);
+      // invoke the callback again later with the bytes left over
+      usbd_defer_func(proc_io_retry, (void*) (uintptr_t) left_over, false);
     } else {
       // Application consume all bytes in our buffer
       p_msc->xferred_len += xferred_bytes;
