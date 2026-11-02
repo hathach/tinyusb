@@ -102,6 +102,39 @@ void setUp(void) {
 
 void tearDown(void) {}
 
+static void check_open(uint8_t itf_len, uint8_t num_ep, uint8_t out_len, uint8_t in_len, uint16_t expected) {
+  struct TU_ATTR_PACKED {
+    tusb_desc_interface_t itf;
+    tusb_desc_endpoint_t  ep_out;
+    tusb_desc_endpoint_t  ep_in;
+  } const desc = {
+    .itf    = {itf_len, TUSB_DESC_INTERFACE, 0, 0, num_ep, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0},
+    .ep_out = {out_len, TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
+    .ep_in  = {in_len, TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
+  };
+  TEST_ASSERT_EQUAL(expected, msch_open(0, DADDR, &desc.itf, sizeof(desc)));
+}
+
+void test_msc_host_open_valid(void) {
+  check_open(9, 2, 7, 7, 9 + 2 * 7);
+}
+
+void test_msc_host_open_rejects_bad_num_endpoints(void) {
+  check_open(9, 1, 7, 7, 0);
+  check_open(9, 3, 7, 7, 0);
+}
+
+void test_msc_host_open_rejects_bad_interface_length(void) {
+  check_open(23, 2, 7, 7, 0);
+  check_open(8, 2, 7, 7, 0);
+}
+
+void test_msc_host_open_rejects_bad_endpoint_length(void) {
+  check_open(9, 2, 6, 7, 0);
+  check_open(9, 2, 7, 8, 0);
+  check_open(9, 2, 0, 7, 0);
+}
+
 static void start_data_in(void) {
   const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
   TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, NULL, 0));
