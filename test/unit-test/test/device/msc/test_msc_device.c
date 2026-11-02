@@ -334,8 +334,6 @@ void setUp(void)
   write10_busy = 0;
   write10_accept = 0;
   write10_calls = 0;
-  write10_last_bufsize = 0;
-  memset(write10_last_buf, 0, sizeof(write10_last_buf));
 }
 
 void tearDown(void)
