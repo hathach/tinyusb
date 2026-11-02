@@ -153,7 +153,7 @@ bool tuh_cdc_set_data_format(uint8_t idx, uint8_t stop_bits, uint8_t parity, uin
                              tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to Set Line Coding = baudrate + data format
-// Note: only implemented by ACM and CH34x, not supported by FTDI and CP210x yet
+// Note: ACM and PL2303 send one request; FTDI, CP210x and CH34x set baudrate then data format
 bool tuh_cdc_set_line_coding(uint8_t idx, const cdc_line_coding_t *line_coding, tuh_xfer_cb_t complete_cb,
                              uintptr_t user_data);
 
