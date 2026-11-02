@@ -523,6 +523,18 @@ void test_msc_read10_short_chunk_padded(void)
   tud_task();
 }
 
+//--------------------------------------------------------------------+
+// Reset Recovery (BOT 5.3.4)
+//--------------------------------------------------------------------+
+static tusb_control_request_t const request_bot_reset =
+{
+  .bmRequestType = 0x21,
+  .bRequest      = MSC_REQ_RESET,
+  .wValue        = 0,
+  .wIndex        = ITF_NUM_MSC,
+  .wLength       = 0
+};
+
 static void clear_halt(uint8_t ep_addr) {
   tusb_control_request_t const request_clear_halt =
   {
@@ -535,6 +547,83 @@ static void clear_halt(uint8_t ep_addr) {
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
   dcd_edpt_clear_stall_Expect(rhport, ep_addr);
+}
+
+// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
+static void reset_recovery_clear_halts(void) {
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+static void expect_cbw_receive(void) {
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+}
+
+// A BOT reset with neither data endpoint stalled: it aborts the transfers of both (usbd_edpt_abort(), with a DCD that
+// aborts without a stall) and re-arms the CBW receive. Then the control status
+static void expect_bot_reset(void) {
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  expect_cbw_receive();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+}
+
+// A Reset Recovery while a READ10 chunk is still armed (the host gave up on the Data Stage): the BOT reset aborts the
+// stale transfer, which Reset Recovery's clear-halts would keep, so it can't carry the next command's data or CSW
+// (#3188)
+void test_msc_bot_reset_aborts_armed_data_endpoints(void)
+{
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset();
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A Reset Recovery between commands: the CBW receive is aborted and armed again at the reset, so a host that sends no
+// clear-halts still has its next CBW received
+void test_msc_bot_reset_idle_rearms_cbw_receive(void)
+{
+  configure_msc(&cbw_read10_2blocks);
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset();
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A BOT reset keeps a stall (BOT 3.1): after an invalid CBW both endpoints stay stalled until Reset Recovery's
+// clear-halts, which receive the next CBW (BOT 6.6.1)
+void test_msc_bot_reset_keeps_stalls_after_invalid_cbw(void)
+{
+  msc_cbw_t const cbw_bad = { .signature = 0xDEADBEEF };
+  configure_msc(&cbw_bad);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  reset_recovery_clear_halts();
 }
 
 //--------------------------------------------------------------------+
