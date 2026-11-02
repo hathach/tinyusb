@@ -12,6 +12,8 @@
     TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X, OPT_MCU_SAMD51, OPT_MCU_SAME5X)
 
 #include "host/hcd.h"
+#include "host/usbh.h"
+#include "host/usbh_pvt.h"
 #include "sam.h"
 
 /*------------------------------------------------------------------*/
@@ -505,21 +507,28 @@ bool hcd_port_connect_status(uint8_t rhport)
 // complete the reset sequence.
 void hcd_port_reset(uint8_t rhport)
 {
-  hcd_int_disable(rhport);
+  (void) rhport;
+  usbh_critical_enter(false);
+  // Mask the port sources until hcd_port_reset_end(): it polls INTFLAG.RST, which the ISR would clear
+  USB->HOST.INTENCLR.reg = USB_HOST_INTENCLR_DCONN | USB_HOST_INTENCLR_DDISC | USB_HOST_INTENCLR_WAKEUP |
+                           USB_HOST_INTENCLR_RST;
   samd_free_all_pipes();
   USB->HOST.INTFLAG.reg |= USB->HOST.INTFLAG.reg; // clear pending
   USB->HOST.CTRLB.bit.BUSRESET = 1;
   fake_fnum = 0;
+  usbh_critical_exit(false);
 }
 
 // Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport)
 {
+  (void) rhport;
   while (USB->HOST.INTFLAG.bit.RST == 0)
     ;
   USB->HOST.INTFLAG.reg = USB_HOST_INTFLAG_RST;
   USB->HOST.CTRLB.bit.SOFE = 1;
-  hcd_int_enable(rhport);
+  USB->HOST.INTENSET.reg = USB_HOST_INTENSET_DCONN | USB_HOST_INTENSET_DDISC | USB_HOST_INTENSET_WAKEUP |
+                           USB_HOST_INTENSET_RST;
 }
 
 // Get port link speed

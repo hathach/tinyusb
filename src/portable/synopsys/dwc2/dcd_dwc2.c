@@ -387,9 +387,9 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
   dep->ctl = depctl.value;
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   dwc2->daintmsk |= TU_BIT(epnum + DAINT_SHIFT(dir));
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 }
 
 static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall, bool is_isr) {
@@ -419,9 +419,9 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall, bool is_is
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
     // TxFFlsh must not overlap another core's TX FIFO write (Databook v4.20a GRSTCTL.TxFFlsh)
-    usbd_spin_lock(is_isr);
+    usbd_critical_enter(is_isr);
     dfifo_flush_tx(dwc2, epnum);
-    usbd_spin_unlock(is_isr);
+    usbd_critical_exit(is_isr);
   } else {
     if (!edpt_is_enabled(dep) || epnum == 0) {
       // non-control not-enabled: stall if set
@@ -516,7 +516,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
       // Enable TXFE interrupt if there are still data to be sent
       // EP0 only sends one packet at a time, so no need to check for EP0
       if ((epnum != 0) && (xfer->total_len - xferred_bytes > 0)) {
-        // callers hold usbd_spin_lock, pairs with the clear in handle_epin_slave()
+        // callers are inside usbd_critical_enter(), pairs with the clear in handle_epin_slave()
         dwc2->diepempmsk |= (1u << epnum);
       }
     }
@@ -627,10 +627,10 @@ void dcd_remote_wakeup(uint8_t rhport) {
   dwc2->dctl |= DCTL_RWUSIG;
 
   // enable SOF to detect bus resume
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   dwc2->gintsts = GINTSTS_SOF;
   dwc2->gintmsk |= GINTMSK_SOFM;
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 
   // Per specs: remote wakeup signal bit must be clear within 1-15ms
   dwc2_remote_wakeup_delay();
@@ -683,7 +683,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   (void) rhport;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
   _dcd_data.sof_en = en;
 
   if (en) {
@@ -692,7 +692,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   } else {
     dwc2->gintmsk &= ~GINTMSK_SOFM;
   }
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 }
 
 /*------------------------------------------------------------------*/
@@ -711,7 +711,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
-  usbd_spin_lock(false);
+  usbd_critical_enter(false);
 
   _dcd_data.allocated_epin_count = 0;
 
@@ -733,7 +733,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dfifo_flush_rx(dwc2);
   dfifo_device_init(rhport); // re-init dfifo
 
-  usbd_spin_unlock(false);
+  usbd_critical_exit(false);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -755,7 +755,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  usbd_spin_lock(is_isr);
+  usbd_critical_enter(is_isr);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -775,7 +775,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     ret = true;
   }
 
-  usbd_spin_unlock(is_isr);
+  usbd_critical_exit(is_isr);
 
   return ret;
 }
@@ -791,7 +791,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  usbd_spin_lock(is_isr);
+  usbd_critical_enter(is_isr);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -807,7 +807,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     ret = true;
   }
 
-  usbd_spin_unlock(is_isr);
+  usbd_critical_exit(is_isr);
 
   return ret;
 }
@@ -1101,9 +1101,9 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   if (diepint_bm.xfer_complete) {
     if ((epnum == 0) && (0 != _dcd_data.ep0_pending[TUSB_DIR_IN])) {
       // EP0 can only handle one packet. Schedule another packet to be transmitted.
-      usbd_spin_lock(true);
+      usbd_critical_enter(true);
       edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
-      usbd_spin_unlock(true);
+      usbd_critical_exit(true);
     } else {
       dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
     }
@@ -1114,7 +1114,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
   if (diepint_bm.txfifo_empty && tu_bit_test(dwc2->diepempmsk, epnum)) {
     // No interleaving with another core's TX FIFO write (Programming Guide v4.20a 1.1.2.1); also guards tsiz vs re-arm
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     epin_write_tx_fifo(dwc2, epnum);
 
     // Turn off TXFE if all bytes are written
@@ -1122,7 +1122,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
     if (tsiz.xfer_size == 0) {
       dwc2->diepempmsk &= ~(1u << epnum);
     }
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
   }
 }
 #endif
@@ -1333,9 +1333,9 @@ void dcd_int_handler(uint8_t rhport) {
     // USBRST is start of reset.
     dwc2->gintsts = GINTSTS_USBRST;
 
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     handle_bus_reset(rhport);
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
   }
 
   if (gintsts & GINTSTS_ENUMDNE) {
@@ -1343,25 +1343,25 @@ void dcd_int_handler(uint8_t rhport) {
     dwc2->gintsts = GINTSTS_ENUMDNE;
     // There may be a pending suspend event, so we clear it first
     dwc2->gintsts = GINTSTS_USBSUSP;
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
     handle_enum_done(rhport);
   }
 
   if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if (gintsts & GINTSTS_WKUINT) {
     dwc2->gintsts = GINTSTS_WKUINT;
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
@@ -1373,9 +1373,9 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t otg_int = dwc2->gotgint;
 
     if (otg_int & GOTGINT_SEDET) {
-      usbd_spin_lock(true);
+      usbd_critical_enter(true);
       dwc2->gintmsk &= ~GINTMSK_OTGINT;
-      usbd_spin_unlock(true);
+      usbd_critical_exit(true);
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
@@ -1384,7 +1384,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(gintsts & GINTSTS_SOF && dwc2->gintmsk & GINTMSK_SOFM) {
     dwc2->gintsts = GINTSTS_SOF;
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
@@ -1392,7 +1392,7 @@ void dcd_int_handler(uint8_t rhport) {
     if (!_dcd_data.sof_en) {
       dwc2->gintmsk &= ~GINTMSK_SOFM;
     }
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
 
     dcd_event_sof(rhport, frame, true);
   }
@@ -1407,17 +1407,17 @@ void dcd_int_handler(uint8_t rhport) {
   // RxFIFO non-empty interrupt handling.
   if (gintsts & GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk &= ~GINTMSK_RXFLVLM; // disable RXFLVL interrupt while reading
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
 
     do {
       handle_rxflvl_irq(rhport); // read all packets
     } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
-    usbd_spin_lock(true);
+    usbd_critical_enter(true);
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
-    usbd_spin_unlock(true);
+    usbd_critical_exit(true);
   }
 #endif
 
