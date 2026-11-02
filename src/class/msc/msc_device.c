@@ -314,6 +314,15 @@ static void proc_async_io_done(void *bytes_io) {
   const uint8_t cmd = p_msc->cbw.command[0];
 
   p_msc->pending_io = false;
+  if (p_msc->stage == MSC_STAGE_CMD) {
+    // I/O abandoned by a reset: discard it. The buffer is free now, receive the next CBW unless Bulk-Out is still
+    // stalled (its clear-halt arms it) or not open yet after a bus reset (mscd_open() arms it)
+    if ((p_msc->ep_out != 0) && usbd_edpt_ready(p_msc->rhport, p_msc->ep_out)) {
+      TU_ASSERT(prepare_cbw(p_msc), );
+    }
+    return;
+  }
+
   switch (cmd) {
     case SCSI_CMD_READ_10:
       proc_read_io_data(p_msc, nbytes);
@@ -356,7 +365,10 @@ bool mscd_deinit(void) {
 
 void mscd_reset(uint8_t rhport) {
   (void) rhport;
+  // A bus reset abandons a pending async I/O like a Bulk-Only Mass Storage Reset does (proc_bot_reset)
+  bool const pending_io = _mscd_itf.pending_io;
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
+  _mscd_itf.pending_io = pending_io;
 }
 
 uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
@@ -380,8 +392,11 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   }
   p_msc->ep_in_mps = tu_edpt_packet_size(desc_ep);
 
-  // Prepare for Command Block Wrapper
-  TU_ASSERT(prepare_cbw(p_msc), drv_len);
+  // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
+  // completion arms it
+  if (!p_msc->pending_io) {
+    TU_ASSERT(prepare_cbw(p_msc), drv_len);
+  }
 
   return drv_len;
 }
@@ -402,6 +417,10 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
     usbd_edpt_abort(rhport, p_msc->ep_out);
   }
 
+  // An async READ10/WRITE10 still pending is abandoned: pending_io stays set in the CMD stage, where no command has I/O
+  // of its own, so proc_async_io_done() discards its completion whenever it comes. The I/O still owns the buffer, so
+  // the next CBW is received only after that completion. A completion deferred ahead of the reset ran before it, and
+  // its transfer is dropped by the abort above.
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;
@@ -409,8 +428,8 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
   p_msc->add_sense_code      = 0;
   p_msc->add_sense_qualifier = 0;
 
-  // Receive the next CBW, unless Bulk-Out is stalled: its clear-halt arms it
-  if (!out_stalled) {
+  // Receive the next CBW, unless Bulk-Out is stalled (its clear-halt arms it) or an abandoned async I/O owns the buffer
+  if (!out_stalled && !p_msc->pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), );
   }
 }
@@ -445,8 +464,8 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       } else if (ep_addr == p_msc->ep_out) {
         if (p_msc->stage == MSC_STAGE_CMD) {
           // part of reset recovery (probably due to invalid CBW) -> prepare for new command
-          // Note: skip if already queued previously
-          if (usbd_edpt_ready(rhport, p_msc->ep_out)) {
+          // Note: skip if already queued previously, or if an async I/O abandoned by the reset still owns the buffer
+          if (!p_msc->pending_io && usbd_edpt_ready(rhport, p_msc->ep_out)) {
             TU_ASSERT(prepare_cbw(p_msc));
           }
         }
