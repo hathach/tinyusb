@@ -288,6 +288,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
           desc_cb.desc_epin      = p_ep;
           ep_stream              = &p_midi->ep_stream.rx;
         }
+        // tuh_edpt_open() bounds bulk to TUH_EPSIZE_BULK_MAX, interrupt and isochronous can still exceed _midi_epbuf
+        TU_VERIFY(p_ep->bmAttributes.xfer == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX, 0);
         TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
         tu_edpt_stream_open(ep_stream, dev_addr, p_ep, tu_edpt_packet_size(p_ep));
         tu_edpt_stream_clear(ep_stream);

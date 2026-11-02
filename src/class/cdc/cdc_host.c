@@ -716,6 +716,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 //--------------------------------------------------------------------+
 
 static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t const *desc_ep) {
+  uint8_t ep_opened = 0; // first endpoint of the pair, closed if the second one is rejected
   for (size_t i = 0; i < 2; i++) {
     // pin bLength so tu_desc_next() below cannot walk the second endpoint past a caller-checked bound
     TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == desc_ep->bLength) &&
@@ -724,8 +725,21 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
-    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
+    const uint16_t    ep_bufsize = (ep_dir == TUSB_DIR_IN) ? CFG_TUH_CDC_RX_EPSIZE : CFG_TUH_CDC_TX_EPSIZE;
+    const uint16_t    mps        = tu_edpt_packet_size(desc_ep); // after tuh_edpt_open(), which can rewrite it
+    // every IN transfer is mps long and must fit the endpoint buffer: release what this pair opened and reject
+    if (ep_dir == TUSB_DIR_IN && mps > ep_bufsize) {
+      TU_LOG_DRV("  IN wMaxPacketSize %u > CFG_TUH_CDC_RX_EPSIZE\r\n", mps);
+      tuh_edpt_close(p_cdc->daddr, desc_ep->bEndpointAddress);
+      if (ep_opened != 0) {
+        tuh_edpt_close(p_cdc->daddr, ep_opened);
+      }
+      return false;
+    }
+    // clamp OUT as well: tu_edpt_stream_write_xfer() copies up to the stream mps into the TX_EPSIZE buffer
+    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_min16(mps, ep_bufsize));
     tu_edpt_stream_clear(stream);
+    ep_opened = desc_ep->bEndpointAddress;
 
     desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
   }

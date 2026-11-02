@@ -52,13 +52,21 @@ typedef struct {
 // Endpoint
 //--------------------------------------------------------------------+
 
-// Check if endpoint descriptor is valid per USB specs if debug is enabled
+// Check if endpoint descriptor is valid per USB specs. The strict compliance checks are debug only, but the spec
+// upper bound of wMaxPacketSize is always enforced: endpoint buffers are sized to it.
 #if CFG_TUSB_DEBUG
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 #else
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
-  (void)speed;
-  return tu_edpt_packet_size(desc_ep) > 0;
+  const uint16_t mps = tu_edpt_packet_size(desc_ep);
+  const bool     hs  = (speed == TUSB_SPEED_HIGH);
+  uint16_t       spec_max;
+  switch (desc_ep->bmAttributes.xfer) {
+    case TUSB_XFER_BULK:      spec_max = hs ? 512 : 64; break;
+    case TUSB_XFER_INTERRUPT: spec_max = hs ? 1024 : 64; break;
+    default:                  spec_max = hs ? 1024 : 1023; break; // isochronous
+  }
+  return mps > 0 && mps <= spec_max;
 }
 #endif
 

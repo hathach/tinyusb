@@ -25,15 +25,18 @@ enum {
 #define TEST_MIDI_HEADER_DESC                                                                  \
   7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7)
 
-// Audio-class bulk endpoint followed by its CS endpoint with one embedded jack
-#define TEST_MIDI_EP_DESC(_addr, _jack_id)                                                                      \
-  9, TUSB_DESC_ENDPOINT, _addr, TUSB_XFER_BULK, U16_TO_U8S_LE(MIDI_EP_SIZE), 0, 0, 0, 5, TUSB_DESC_CS_ENDPOINT, \
+// Audio-class endpoint followed by its CS endpoint with one embedded jack
+#define TEST_MIDI_EP_DESC_XFER(_addr, _xfer, _size, _jack_id)                                         \
+  9, TUSB_DESC_ENDPOINT, _addr, _xfer, U16_TO_U8S_LE(_size), 0, 0, 0, 5, TUSB_DESC_CS_ENDPOINT,       \
     MIDI_CS_ENDPOINT_GENERAL, 1, _jack_id
+
+#define TEST_MIDI_EP_DESC(_addr, _jack_id) TEST_MIDI_EP_DESC_XFER(_addr, TUSB_XFER_BULK, MIDI_EP_SIZE, _jack_id)
 
 static const uint8_t midi_itf_desc[] = {TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1),
                                         TEST_MIDI_EP_DESC(MIDI_EP_IN, 3)};
 
 static uint8_t *rx_ep_buf;
+static uint8_t  edpt_open_count;
 
 //--------------------------------------------------------------------+
 // Host stack functions called by midi_host.c
@@ -41,6 +44,7 @@ static uint8_t *rx_ep_buf;
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void)daddr;
   (void)desc_ep;
+  edpt_open_count++;
   return true;
 }
 
@@ -119,6 +123,20 @@ void setUp(void) {
 
 void tearDown(void) {
   midih_close(MIDI_DEV_ADDR);
+}
+
+// tuh_edpt_open() bounds only bulk to _midi_epbuf: a larger interrupt endpoint is rejected before it is opened
+void test_open_rejects_interrupt_packet_size_over_ep_buffer(void) {
+  midih_close(MIDI_DEV_ADDR);
+
+  static const uint8_t desc[] = {
+    TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC,
+    TEST_MIDI_EP_DESC_XFER(MIDI_EP_IN, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX + 1, 3),
+    TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1)};
+
+  edpt_open_count = 0;
+  TEST_ASSERT_EQUAL(0, midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, edpt_open_count);
 }
 
 // A message larger than the room left in the buffer must stay in the FIFO, not be written past bufsize

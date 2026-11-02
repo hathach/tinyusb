@@ -214,6 +214,9 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
       case TUSB_DESC_ENDPOINT: {
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
 
+        // tuh_edpt_open() bounds bulk to TUH_EPSIZE_BULK_MAX, interrupt and isochronous can still exceed _midi2_epbuf
+        TU_VERIFY(p_ep->bmAttributes.xfer == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX,
+                  NULL);
         TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep), NULL);
         if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
