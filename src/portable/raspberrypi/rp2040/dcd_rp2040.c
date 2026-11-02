@@ -156,6 +156,35 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   hw_endpoint_abort_end(abort_mask);
 }
 
+// Drop the transfer of an endpoint that isn't stalled, if it has one (dcd_edpt_abort_xfer(), or dcd_edpt_xfer() arming
+// a new one over it): abort it, and discard its buffers and any completion still pending in BUFF_STATUS. Each armed
+// buffer advanced the data toggle, so rewind it by the buffers still available once the endpoint is stopped, which the
+// host never saw: the next transfer starts with the toggle the host expects. Interrupts are off, as in
+// dcd_edpt_clear_stall(), so neither the E15 SOF arming nor the ISR touches the endpoint meanwhile.
+static void hw_endpoint_drop_xfer(struct hw_endpoint *ep, io_rw_32 *buf_reg) {
+  const uint32_t ep_bit    = rp2usb_ep_bit(ep->ep_addr);
+  const uint32_t irq_state = save_and_disable_interrupts();
+
+  if (ep->state != EPSTATE_IDLE) { // the ISR may have completed it since the caller looked
+    hw_endpoint_abort_begin(ep_bit);
+    const uint32_t buf_ctrl = *buf_reg;
+    if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
+      ep->next_pid ^= 1u;
+    }
+    if ((buf_ctrl >> 16) & USB_BUF_CTRL_AVAIL) {
+      ep->next_pid ^= 1u;
+    }
+    *buf_reg = 0;
+    while (usb_hw->buf_status & ep_bit) { // double-buffered re-sets the bit after a clear
+      usb_hw_clear->buf_status = ep_bit;
+    }
+    rp2usb_reset_transfer(ep);
+    hw_endpoint_abort_end(ep_bit);
+  }
+
+  restore_interrupts(irq_state);
+}
+
 static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
   uint32_t buf_status = usb_hw->buf_status;
   pico_trace("buf_status = 0x%08lx\r\n", buf_status);
@@ -542,6 +571,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   hw_endpoint_t *ep = hw_endpoint_get(epnum, dir);
   io_rw_32      *ep_reg  = get_ep_ctrl(epnum, dir);
   io_rw_32      *buf_reg = get_buf_ctrl(epnum, dir);
+  if (ep->state != EPSTATE_IDLE) {
+    // A clear-halt on an endpoint that isn't stalled keeps its transfer running (dcd_edpt_clear_stall()) while usbd
+    // frees the endpoint, so a class may arm the next transfer over it, e.g. MSC re-arming the CBW receive in Reset
+    // Recovery. Replace the old one, as other DCDs do: re-arming its buffers would panic in bufctrl_write32()
+    hw_endpoint_drop_xfer(ep, buf_reg);
+  }
   rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes);
   return true;
 }
@@ -557,6 +592,18 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   return true;
 }
 #endif
+
+bool dcd_edpt_abort_xfer(uint8_t rhport, uint8_t ep_addr) {
+  (void)rhport;
+  const uint8_t    epnum = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
+  hw_endpoint_t   *ep    = hw_endpoint_get(epnum, dir);
+
+  if (ep->state != EPSTATE_IDLE) {
+    hw_endpoint_drop_xfer(ep, get_buf_ctrl(epnum, dir));
+  }
+  return true;
+}
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;

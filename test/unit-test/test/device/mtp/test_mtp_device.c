@@ -402,6 +402,7 @@ void setUp(void) {
   dcd_edpt_xfer_Stub(stub_edpt_xfer);
   dcd_edpt_stall_Stub(stub_edpt_stall);
   dcd_edpt_clear_stall_Stub(stub_edpt_clear_stall);
+  dcd_edpt_abort_xfer_IgnoreAndReturn(false); // the stall + clear-stall stand-in, which the call log records
   memset(xfers, 0, sizeof(xfers));
   dcd_refuse_ep = -1;
   isr_at_int_enable = NULL;
