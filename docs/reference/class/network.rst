@@ -136,7 +136,7 @@ the NTB sizes or their ``*_NTB_N`` counts.  Keep descriptor capabilities and
 runtime responses consistent with the enabled NCM features.
 
 The :doc:`../../examples/device/net_lwip_webserver` example includes NCM and
-ECM/RNDIS descriptor sets, lwIP integration, DHCP, DNS, link-state changes, and
+ECM/RNDIS descriptor sets, lwIP integration, DHCP, link-state changes, and
 host setup notes.
 
 Specifications used: *CDC Ethernet Control Model*, Revision 1.2, and *CDC
