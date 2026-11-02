@@ -12,18 +12,11 @@
     TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X, OPT_MCU_SAMD51, OPT_MCU_SAME5X)
 
 #include "host/hcd.h"
-#include "sam.h"
+#include "samd_common.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define USB_HOST_PTYPE_DIS         0x0
-#define USB_HOST_PTYPE_CTRL        0x1
-#define USB_HOST_PTYPE_ISO         0x2
-#define USB_HOST_PTYPE_BULK        0x3
-#define USB_HOST_PTYPE_INT         0x4
-#define USB_HOST_PTYPE_EXT         0x5
-
 #define USB_HOST_PCFG_PTOKEN_SETUP 0x0
 #define USB_HOST_PCFG_PTOKEN_IN    0x1
 #define USB_HOST_PCFG_PTOKEN_OUT   0x2
@@ -407,49 +400,19 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
-#if TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
-
 // Enable USB interrupt
 void hcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
-  NVIC_EnableIRQ(USB_0_IRQn);
-  NVIC_EnableIRQ(USB_1_IRQn);
-  NVIC_EnableIRQ(USB_2_IRQn);
-  NVIC_EnableIRQ(USB_3_IRQn);
+  samd_usb_int_enable();
 }
 
 // Disable USB interrupt
 void hcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
-  NVIC_DisableIRQ(USB_3_IRQn);
-  NVIC_DisableIRQ(USB_2_IRQn);
-  NVIC_DisableIRQ(USB_1_IRQn);
-  NVIC_DisableIRQ(USB_0_IRQn);
+  samd_usb_int_disable();
 }
-
-#elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X)
-
-// Enable USB interrupt
-void hcd_int_enable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_EnableIRQ(USB_IRQn);
-}
-
-// Disable USB interrupt
-void hcd_int_disable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_DisableIRQ(USB_IRQn);
-}
-
-#else
-
-#error "No implementation available for hcd_int_enable / hcd_int_disable"
-
-#endif
 
 // Get frame number (1ms)
 uint32_t hcd_frame_number(uint8_t rhport)
