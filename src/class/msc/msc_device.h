@@ -29,6 +29,13 @@
   #error CFG_TUD_MSC_EP_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
+// Pad a Data-In reply shorter than the host's length with fill data, instead of a STALL after it (BOT 6.7.2 case 5),
+// when the host's length fits CFG_TUD_MSC_EP_BUFSIZE. Behind a hub, a STALL makes the host clear the hub's TT buffer,
+// which can cut off a token in progress on the bus: the RP2040 device controller then stops responding until bus reset.
+#ifndef CFG_TUD_MSC_PAD_SHORT_REPLY
+  #define CFG_TUD_MSC_PAD_SHORT_REPLY (TU_CHECK_MCU(OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB)
+#endif
+
 // Return value of callback functions
 enum {
   TUD_MSC_RET_BUSY = 0,   // Busy, e.g disk I/O is not ready

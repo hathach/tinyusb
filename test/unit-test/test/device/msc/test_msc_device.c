@@ -39,6 +39,8 @@ TEST_SOURCE_FILE("msc_device.c")
 // Mock File
 #include "mock_dcd.h"
 
+#include "msc_device_test.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -429,6 +431,20 @@ void test_msc_read10_block_size_over_16bit(void)
   tud_task();
 }
 
+static void clear_halt(uint8_t ep_addr) {
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
+}
+
 //--------------------------------------------------------------------+
 // read10/write10 error sense
 //--------------------------------------------------------------------+
@@ -612,6 +628,51 @@ void test_msc_invalid_cbw_closes_its_span(void)
   tud_task();
 
   TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_MSC_XFER]);
+}
+
+//--------------------------------------------------------------------+
+// Data-In reply shorter than the host's length: BOT 6.7.2 case 5 (Hi > Di)
+//--------------------------------------------------------------------+
+// The 4-byte MODE SENSE(6) reply goes out padded with fill data to the host's 192 bytes in one transfer, and Bulk-In is
+// not stalled: behind a hub a STALL makes the host clear the hub's TT buffer (#4316). The residue counts only the reply
+void test_msc_short_reply_padded_to_host_length(void)
+{
+  msc_cbw_t const cbw = data_in_cbw(SCSI_CMD_MODE_SENSE_6, 192);
+  configure_msc(&cbw);
+
+  uint8_t reply[192] = { 3, 0, 0, 0 }; // mode data length 3, writable, no block descriptor; the rest is fill data
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, reply, sizeof(reply), sizeof(reply), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(sizeof(reply) - 4);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(reply), 0, true);
+  tud_task();
+}
+
+// A host length beyond the endpoint buffer cannot be padded in one transfer: the reply goes out short, Bulk-In is
+// stalled as before, and the CSW follows the clear-halt
+void test_msc_short_reply_beyond_buffer_stalls(void)
+{
+  uint32_t const total_bytes = CFG_TUD_MSC_EP_BUFSIZE + 64;
+  msc_cbw_t const cbw = data_in_cbw(SCSI_CMD_INQUIRY, total_bytes);
+  configure_msc(&cbw);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(scsi_inquiry_resp_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(scsi_inquiry_resp_t), 0, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
+  msc_csw_t const csw = csw_with_residue(total_bytes - sizeof(scsi_inquiry_resp_t));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
 }
 
 static unsigned deferred_count;
