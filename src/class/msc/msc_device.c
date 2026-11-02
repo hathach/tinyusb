@@ -68,6 +68,7 @@ typedef struct {
   bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
 #endif
   uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
+  uint16_t write_len; // host data bytes in the buffer handed to tud_msc_write10_cb(), kept for an async completion
 }mscd_interface_t;
 
 static mscd_interface_t _mscd_itf;
@@ -326,7 +327,8 @@ static void proc_async_io_done(void *bytes_io) {
       break;
 
     case SCSI_CMD_WRITE_10:
-      proc_write_io_data(p_msc, (uint32_t) nbytes, nbytes);
+      // bytes_io is the number consumed: fewer than handed to write10_cb() leaves the rest pending for a retry
+      proc_write_io_data(p_msc, p_msc->write_len, nbytes);
       break;
 
     default: break; // nothing to do
@@ -1025,6 +1027,7 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
   uint32_t const offset = p_msc->xferred_len % block_sz;
 
+  p_msc->write_len = (uint16_t) xferred_bytes; // at most CFG_TUD_MSC_EP_BUFSIZE
   p_msc->pending_io = true;
   int32_t nbytes =  tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
   if (nbytes != TUD_MSC_RET_ASYNC) {
@@ -1052,6 +1055,8 @@ static void proc_write_io_data(mscd_interface_t* p_msc, uint32_t xferred_bytes, 
       const uint32_t left_over = xferred_bytes - (uint32_t)nbytes;
       if (nbytes > 0) {
         memmove(_mscd_epbuf.buf, _mscd_epbuf.buf + nbytes, left_over);
+        // the consumed prefix is written: the retry's lba/offset and the Data Stage length continue after it
+        p_msc->xferred_len += (uint32_t) nbytes;
       }
 
       // invoke the callback again later with the bytes left over

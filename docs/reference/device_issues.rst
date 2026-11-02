@@ -175,9 +175,16 @@ On RP2040, nothing short of a bus reset recovers the controller. Pulsing ``MAIN_
 IN buffers from being armed late in a frame, does not cover this case.
 
 Mitigation in TinyUSB: with the RP2040's native controller (not PIO USB), the MSC device class pads a short Data-In
-reply instead of stalling, by default (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall instead). That removes the most
-frequent STALLs, those during the disk probe. Any other STALL
-can still trigger the lockup, from this device or from another full-speed device on the same hub.
+reply with zeros up to the host's length instead of stalling, by default (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall
+instead):
+
+- A reply to a command other than READ10 is padded only when the host's length is at most
+  ``CFG_TUD_MSC_EP_BUFSIZE``. A longer host length still gets the STALL.
+- A READ10 chunk shorter than requested and not a multiple of the Bulk-In packet size is padded for any host length.
+  A partial chunk that is a multiple of the packet size needs no padding: the transfer continues with the next chunk.
+
+That removes the most frequent STALLs, those during the disk probe. Any other STALL can still trigger the lockup, from
+this device or from another full-speed device on the same hub.
 
 Workarounds:
 
