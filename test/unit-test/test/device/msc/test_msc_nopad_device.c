@@ -196,7 +196,7 @@ void test_msc_short_reply_stalls_without_padding(void) {
 }
 
 //--------------------------------------------------------------------+
-// READ10 partial chunk
+// READ10 partial chunk, Bulk-Only Mass Storage Reset
 //--------------------------------------------------------------------+
 static msc_cbw_t const cbw_read10_2blocks = {
   .signature   = MSC_CBW_SIGNATURE,
@@ -253,6 +253,68 @@ void test_msc_read10_short_chunk_stalls_bulk_in(void) {
   msc_csw_t const csw = csw_with_residue(512 + 1);
   clear_halt(EDPT_MSC_IN);
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+static tusb_control_request_t const request_bot_reset = {
+  .bmRequestType = 0x21,
+  .bRequest      = MSC_REQ_RESET,
+  .wValue        = 0,
+  .wIndex        = ITF_NUM_MSC,
+  .wLength       = 0
+};
+
+// A BOT reset with a READ10 chunk still armed aborts the transfers of both data endpoints (here with a DCD without
+// dcd_edpt_abort_xfer(): a stall cleared at once, nothing left stalled) and re-arms the CBW receive: Reset Recovery's
+// clear-halts keep an armed transfer, so the stale chunk would reach the host's next IN (#3188). The Bulk-Out
+// clear-halt re-arms the receive again
+void test_msc_bot_reset_aborts_armed_transfers(void) {
+  read10_2blocks_first_chunk(512);
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// A BOT reset keeps a stall (BOT 3.1): Bulk-In stalled by the short chunk (case 5) is neither aborted nor cleared, and
+// its clear-halt, now in the CMD stage, sends no CSW. Bulk-Out is aborted and re-armed for the next CBW
+void test_msc_bot_reset_keeps_bulk_in_stall(void) {
+  read10_shortfall = 1;
+  read10_2blocks_first_chunk(512 - 1);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512 - 1, 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 }

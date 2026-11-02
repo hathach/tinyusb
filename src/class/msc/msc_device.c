@@ -385,12 +385,32 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 }
 
 static void proc_bot_reset(mscd_interface_t* p_msc) {
+  uint8_t const rhport = p_msc->rhport;
+
+  // Drop a transfer still armed at the reset, a stale data or CSW transfer or the CBW receive: Reset Recovery's
+  // clear-halts (BOT 5.3.4) keep the transfer of an endpoint that isn't stalled, so its stale data would reach the
+  // host's next IN. Where the DCD has no dcd_edpt_abort_xfer(), the abort is a stall and clear-stall, which resets the
+  // data toggle as those clear-halts do. A stalled endpoint dropped its transfer when it stalled, and keeps the stall
+  // (BOT 3.1).
+  if (!usbd_edpt_stalled(rhport, p_msc->ep_in)) {
+    usbd_edpt_abort(rhport, p_msc->ep_in);
+  }
+  bool const out_stalled = usbd_edpt_stalled(rhport, p_msc->ep_out);
+  if (!out_stalled) {
+    usbd_edpt_abort(rhport, p_msc->ep_out);
+  }
+
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;
   p_msc->sense_key           = 0;
   p_msc->add_sense_code      = 0;
   p_msc->add_sense_qualifier = 0;
+
+  // Receive the next CBW, unless Bulk-Out is stalled: its clear-halt arms it
+  if (!out_stalled) {
+    TU_ASSERT(prepare_cbw(p_msc), );
+  }
 }
 
 // Invoked when a control transfer occurred on an interface of this class
