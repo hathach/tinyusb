@@ -214,6 +214,14 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 // times tud_msc_write10_cb() answers TUD_MSC_RET_BUSY before it writes
 static uint32_t write10_busy;
 
+// bytes the next tud_msc_write10_cb() handed a larger chunk accepts, once, leaving the rest for a retry (0: all)
+static uint32_t write10_accept;
+
+// calls of tud_msc_write10_cb(), with the bufsize and buffer contents of the last one
+static uint32_t write10_calls;
+static uint32_t write10_last_bufsize;
+static uint8_t write10_last_buf[CFG_TUD_MSC_EP_BUFSIZE];
+
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
@@ -222,9 +230,19 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     return io_failure(lun);
   }
 
+  write10_calls++;
+  write10_last_bufsize = bufsize;
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(sizeof(write10_last_buf), bufsize);
+  memcpy(write10_last_buf, buffer, bufsize);
+
   if (write10_busy > 0) {
     write10_busy--;
     return TUD_MSC_RET_BUSY;
+  }
+
+  if (write10_accept > 0 && write10_accept < bufsize) {
+    bufsize = write10_accept;
+    write10_accept = 0;
   }
 
   uint8_t* addr = msc_disk[lba] + offset;
@@ -314,6 +332,10 @@ void setUp(void)
   read10_shortfall = 0;
   read10_async = false;
   write10_busy = 0;
+  write10_accept = 0;
+  write10_calls = 0;
+  write10_last_bufsize = 0;
+  memset(write10_last_buf, 0, sizeof(write10_last_buf));
 }
 
 void tearDown(void)
@@ -779,6 +801,40 @@ void test_msc_write10_busy_retries(void)
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
   tud_task();
   TEST_ASSERT_EQUAL_UINT32(0, write10_busy);
+}
+
+// A WRITE10 chunk the application accepts only in part: the unaccepted bytes move to the front of the buffer and the
+// deferred retry offers exactly them
+void test_msc_write10_partial_accept_retries_left_over(void)
+{
+  uint32_t const accepted = 100;
+  write10_accept = accepted;
+
+  uint8_t payload[DISK_BLOCK_SIZE];
+  for (size_t i = 0; i < sizeof(payload); i++) {
+    payload[i] = (uint8_t) i;
+  }
+
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer(payload, sizeof(payload));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  // the retry consumes the rest, then the driver either ends the Data Stage with the CSW or arms Bulk-Out for more
+  // data: one transfer, whose endpoint and length depend on the Data Stage bookkeeping this test does not check
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 0, false, true);
+  dcd_edpt_xfer_IgnoreArg_ep_addr();
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_IgnoreArg_total_bytes();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+
+  TEST_ASSERT_EQUAL_UINT32(2, write10_calls);
+  TEST_ASSERT_EQUAL_UINT32(DISK_BLOCK_SIZE - accepted, write10_last_bufsize);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(payload + accepted, write10_last_buf, DISK_BLOCK_SIZE - accepted);
 }
 
 //--------------------------------------------------------------------+
