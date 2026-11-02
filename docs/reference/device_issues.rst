@@ -190,9 +190,11 @@ Workarounds:
 
 - Connect the RP2040 to a root port, which has no transaction translator. A multi-TT hub is not enough: the Genesys
   hub above was in multi-TT mode.
-- Detect the lockup in the application and re-enumerate with ``tud_disconnect()`` and ``tud_connect()``, as Raspberry
-  Pi's debugprobe firmware does. The sign of a lockup is that the frame counter ``SOF_RD`` stops advancing while the
-  device is connected and not suspended.
+- Detect the lockup in the application and restart the device stack with ``tud_deinit()`` followed, after a short
+  delay, by ``tud_init()``, as Raspberry Pi's debugprobe firmware does. On RP2040 ``tud_deinit()`` resets the USB
+  controller block and ``tud_init()`` sets it up again; ``tud_disconnect()`` and ``tud_connect()`` only switch the D+
+  pull-up and do not reset the controller. The sign of a lockup is that the frame counter ``SOF_RD`` stops advancing
+  while the device is connected and not suspended.
 
 Espressif ESP32-S2/S3/P4
 ------------------------
