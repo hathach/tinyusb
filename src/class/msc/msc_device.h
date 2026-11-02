@@ -30,8 +30,9 @@
 #endif
 
 // Pad a Data-In reply shorter than the host's length with fill data, instead of a STALL after it (BOT 6.7.2 case 5),
-// when the host's length fits CFG_TUD_MSC_EP_BUFSIZE. Behind a hub, a STALL makes the host clear the hub's TT buffer,
-// which can cut off a token in progress on the bus: the RP2040 device controller then stops responding until bus reset.
+// when the host's length fits CFG_TUD_MSC_EP_BUFSIZE; a READ10 ending in a partial chunk (tud_msc_read10_cb) is filled
+// up to the host's length whatever its size. Behind a hub, a STALL makes the host clear the hub's TT buffer, which can
+// cut off a token in progress on the bus: the RP2040 device controller then stops responding until bus reset.
 #ifndef CFG_TUD_MSC_PAD_SHORT_REPLY
   #define CFG_TUD_MSC_PAD_SHORT_REPLY (TU_CHECK_MCU(OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB)
 #endif
@@ -66,7 +67,12 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
   - Address = lba * BLOCK_SIZE + offset
     - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
   - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
-    - 0 < ret < bufsize: These bytes are transferred first and callback will be invoked again for remaining data.
+    - 0 < ret < bufsize:
+      - READ10: These bytes are transferred first. If ret is a multiple of the Bulk-In max packet size, callback will
+        be invoked again for remaining data. Otherwise the chunk ends in a short packet, which ends the Data Stage:
+        Bulk-In is STALLed and the CSW reports the remaining data as residue. With CFG_TUD_MSC_PAD_SHORT_REPLY the
+        rest of the host's length is sent as zero fill data instead of the STALL, with the same residue.
+      - WRITE10: These bytes are consumed first and callback will be invoked again for remaining data.
     - TUD_MSC_RET_BUSY
         Application is buys e.g disk I/O not ready. Callback will be invoked again with the same parameters later on.
     - TUD_MSC_RET_ERROR
