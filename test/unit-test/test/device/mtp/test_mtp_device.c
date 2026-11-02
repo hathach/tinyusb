@@ -115,6 +115,14 @@ static void stub_edpt_clear_stall(uint8_t rhport, uint8_t ep, int n) {
   (void) rhport; (void) n;
   log_calls[log_count++] = (dcd_call_t){ .type = DCD_CLEAR_STALL, .ep = ep };
 }
+// a dcd that supports dcd_edpt_abort_xfer(): the transfer is dropped without a stall
+static uint32_t abort_calls;
+static bool stub_edpt_abort_xfer(uint8_t rhport, uint8_t ep, int n) {
+  (void) rhport; (void) n;
+  abort_calls++;
+  xfer_of(ep)->active = false;
+  return true;
+}
 static void stub_int_enable(uint8_t rhport, int n) {
   (void) rhport; (void) n;
   fire(&isr_at_int_enable);
@@ -1396,6 +1404,28 @@ void test_device_reset_read_refused_stalls(void) {
   TEST_ASSERT_EQUAL(1, app.reset_calls);
   expect_bulk_reset();
   recover_from_error(EP_IN, EP_OUT);
+  expect_next_command_ok();
+}
+
+// a dcd that aborts a transfer: Device Reset returns both bulk endpoints to idle with no stall
+// on the wire and no clear-stall resetting their toggles
+void test_device_reset_in_data_phase_aborts_without_stall(void) {
+  dcd_edpt_abort_xfer_Stub(stub_edpt_abort_xfer);
+  abort_calls = 0;
+  open_device(TUSB_SPEED_HIGH);
+  start_data_in(1000);
+  expect_call(DCD_XFER, EP_IN, BUFSIZE); // busy, never drained by the host
+  TEST_ASSERT_EQUAL(0, host_control(&req_reset, NULL, NULL));
+  TEST_ASSERT_EQUAL(1, app.reset_calls);
+  TEST_ASSERT_EQUAL_MESSAGE(2, abort_calls, "both bulk endpoints aborted");
+  for (uint32_t i = 0; i < log_count; i++) {
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(DCD_STALL, log_calls[i].type, "Device Reset stalled an endpoint");
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(DCD_CLEAR_STALL, log_calls[i].type, "Device Reset cleared a stall");
+  }
+  expect_command_read();
+  expect_no_more_calls();
+  expect_status_ok();
+  app.data_mode = APP_NO_DATA;
   expect_next_command_ok();
 }
 
