@@ -289,6 +289,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
           ep_stream              = &p_midi->ep_stream.rx;
         }
         TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
+        // after tuh_edpt_open(), which can rewrite a bulk size: the transfer length follows it into _midi_epbuf
+        TU_VERIFY(tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX, 0);
         tu_edpt_stream_open(ep_stream, dev_addr, p_ep, tu_edpt_packet_size(p_ep));
         tu_edpt_stream_clear(ep_stream);
 

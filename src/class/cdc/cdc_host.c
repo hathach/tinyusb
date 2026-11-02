@@ -724,7 +724,11 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
-    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
+    const uint16_t    ep_bufsize = (ep_dir == TUSB_DIR_IN) ? CFG_TUH_CDC_RX_EPSIZE : CFG_TUH_CDC_TX_EPSIZE;
+    const uint16_t    mps        = tu_edpt_packet_size(desc_ep); // after tuh_edpt_open(), which can rewrite it
+    // a received packet has to fit the endpoint buffer, a sent one can be short
+    TU_VERIFY(ep_dir != TUSB_DIR_IN || mps <= ep_bufsize);
+    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_min16(mps, ep_bufsize));
     tu_edpt_stream_clear(stream);
 
     desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
