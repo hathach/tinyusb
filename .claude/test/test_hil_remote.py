@@ -88,10 +88,15 @@ REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hi
         'lib/agentrc/skills/hil/boards.json', 'lib/agentrc/skills/hil/scripts/usb_observe.py')
 REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
 
+# gamma has no inline flasher: agentrc's board registry gives it, by uid, one alpha and beta lack
+REGISTRY = json.loads((REPO / 'lib/agentrc/skills/hil/boards.json').read_text(encoding='utf-8'))['boards']
+GAMMA_UID, GAMMA_FLASHER = next((uid, b['flasher']['name']) for uid, b in REGISTRY.items()
+                                if b['flasher']['name'] not in ('jlink', 'openocd'))
 CONFIG = {'boards': [
     {'name': 'alpha', 'uid': 'A', 'flasher': {'name': 'jlink', 'uid': 'pa'}},
     {'name': 'beta', 'uid': 'B', 'flasher': {'name': 'openocd', 'uid': 'pb'},
      'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
+    {'name': 'gamma', 'uid': GAMMA_UID},
 ]}
 
 
@@ -192,7 +197,7 @@ class Refusals(Rig):
         # without -b the line names the boards the run would select
         r = self.hil_remote('--build', '--exclude-flasher', 'openocd')
         self.refused(r, '--build')
-        self.assertIn('check_build.py --board alpha --shared --variants', r.stderr)
+        self.assertIn('check_build.py --board alpha --board gamma --shared --variants', r.stderr)
 
     def test_a_systemview_capture_is_ci_only(self):
         self.build('alpha')
@@ -217,7 +222,7 @@ class Refusals(Rig):
     def test_all_boards_with_nothing_built(self):
         r = self.hil_remote()
         self.refused(r, 'nothing to test')
-        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('--board alpha --board beta --board gamma --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_the_build_line_quotes_the_config(self):
         (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
@@ -237,6 +242,14 @@ class Refusals(Rig):
     def test_a_board_the_flasher_filter_drops_satisfies_nothing(self):
         self.build('beta_one')
         self.refused(self.hil_remote('--exclude-flasher', 'openocd'), 'nothing to test')
+
+    def test_the_flasher_filter_takes_a_registered_board_flasher_from_the_registry(self):
+        r = self.hil_remote('--build', '--flasher', GAMMA_FLASHER)
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board gamma --shared --variants', r.stderr)
+        r = self.hil_remote('--build', '--exclude-flasher', GAMMA_FLASHER)
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board alpha --board beta --shared --variants', r.stderr)
 
     def test_the_preset_layout_is_not_read(self):
         self.build('alpha', root='examples')

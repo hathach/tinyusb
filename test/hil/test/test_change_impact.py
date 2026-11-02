@@ -3461,12 +3461,16 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
     def test_espressif_builds_every_example_its_rig_boards_run(self):
         # an only-list example missing from get_examples('espressif') has no binary,
         # so HIL reports it skipped rather than failing
+        on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         pool = set(self.build_py.get_examples('espressif'))
+        checked = 0
         for _, boards in real_rosters():
-            for b in boards:
-                if b.get('flasher', {}).get('name') == 'esptool':
+            for b in map(hil_boards().resolve, boards):
+                if b['flasher']['name'] == 'esptool':
+                    checked += 1
                     for t in b.get('tests', {}).get('only', []):
                         self.assertIn(t, pool, f"{b['name']}: {t}")
+        self.assertTrue(checked, 'no esptool board checked: the flasher lookup no longer resolves')
 
     def test_selections_are_what_the_espressif_only_rule_gave(self):
         # espressif's own list is the one value that ever differed from the unfiltered

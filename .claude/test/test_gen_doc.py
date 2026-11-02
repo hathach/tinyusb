@@ -50,12 +50,18 @@ def fixture(root):
     (root / 'test' / 'hil').mkdir(parents=True)
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
         {'name': 'acme_one', 'uid': 'A1', 'tests': {'device': True, 'host': True, 'dual': False},
-         'flasher': {'name': 'jlink', 'uid': 'p1'}, 'variant': [{'name': 'acme_one_hs'}],
-         'note': 'needs  a | jumper \u00f8'},
-        {'name': 'acme_two', 'uid': 'A2', 'tests': {'only': ['host/cdc_msc', 'device/hid']},
-         'flasher': {'name': 'openocd', 'uid': 'p2'}},
+         'variant': [{'name': 'acme_one_hs'}], 'note': 'needs  a | jumper \u00f8'},
+        {'name': 'acme_two', 'uid': 'A2', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
     ]}, ensure_ascii=False), encoding='utf-8')
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
+
+
+REGISTRY_FLASHERS = {'A1': {'name': 'jlink', 'uid': 'p1'}, 'A2': {'name': 'openocd', 'uid': 'p2'}}
+
+
+def registry_stub():
+    """agentrc's board registry with the fixture boards' flashers, which their roster entries do not carry."""
+    return mock.Mock(resolve=lambda entry: {**entry, 'flasher': REGISTRY_FLASHERS[entry['uid']]})
 
 
 class MetadataTest(unittest.TestCase):
@@ -104,8 +110,11 @@ class GenDocScriptTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             fixture(root)
-            r = subprocess.run([sys.executable, str(GEN_DOC), '--root', str(root)], capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
+            with mock.patch.object(sys, 'argv', ['gen_doc.py', '--root', str(root)]), \
+                 mock.patch.object(gen_doc.hil_util, 'hil_boards', registry_stub), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+                rc = gen_doc.main()
+            self.assertEqual(rc, 0, err.getvalue())
             boards = (root / 'docs/reference/boards.rst').read_text(encoding='utf-8')
             hil = (root / 'docs/reference/hil_boards.md').read_text(encoding='utf-8')
             deps = (root / 'docs/reference/dependencies.rst').read_text()
@@ -114,7 +123,7 @@ class GenDocScriptTest(unittest.TestCase):
         self.assertNotIn('acme_bare', boards)
         self.assertNotIn('nometa', boards)
         self.assertTrue(boards.endswith('=\n'))
-        self.assertEqual(r.stderr.split('\n'), [
+        self.assertEqual(err.getvalue().split('\n'), [
             'no metadata block, left out of boards.rst:',
             '  hw/bsp/acme/boards/acme_bare',
             '  hw/bsp/nometa',
