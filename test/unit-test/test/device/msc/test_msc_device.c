@@ -178,11 +178,18 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
 static uint32_t read10_shortfall;
 
+// tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC, for a background read completed by tud_msc_async_io_done()
+static bool read10_async;
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
   (void) lun;
+
+  if (read10_async) {
+    return TUD_MSC_RET_ASYNC;
+  }
 
   bufsize -= read10_shortfall;
   uint8_t const* addr = msc_disk[lba] + offset;
@@ -258,6 +265,7 @@ void setUp(void)
   memset(sv_calls, 0, sizeof(sv_calls));
   memset(msc_disk, 0, sizeof(msc_disk));
   read10_shortfall = 0;
+  read10_async = false;
 }
 
 void tearDown(void)
@@ -528,11 +536,14 @@ static void expect_cbw_receive(void) {
 }
 
 // A BOT reset with neither data endpoint stalled: it aborts the transfers of both (usbd_edpt_abort(), with a DCD that
-// aborts without a stall) and re-arms the CBW receive. Then the control status
-static void expect_bot_reset(void) {
+// aborts without a stall) and, unless an abandoned async I/O still owns the buffer, re-arms the CBW receive. Then the
+// control status
+static void expect_bot_reset(bool cbw_receive) {
   dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
   dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
-  expect_cbw_receive();
+  if (cbw_receive) {
+    expect_cbw_receive();
+  }
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 }
 
@@ -548,7 +559,7 @@ void test_msc_bot_reset_aborts_armed_data_endpoints(void)
   tud_task();
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset();
+  expect_bot_reset(true);
   tud_task();
 
   reset_recovery_clear_halts();
@@ -561,7 +572,7 @@ void test_msc_bot_reset_idle_rearms_cbw_receive(void)
   configure_msc(&cbw_read10_2blocks);
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset();
+  expect_bot_reset(true);
   tud_task();
 
   reset_recovery_clear_halts();
@@ -584,6 +595,90 @@ void test_msc_bot_reset_keeps_stalls_after_invalid_cbw(void)
   tud_task();
 
   reset_recovery_clear_halts();
+}
+
+// BOT reset while an async READ10 chunk is still pending in the application. With queue_failed_completion, the
+// application fails the read (TUD_MSC_RET_ERROR) after the reset is queued but before it runs
+static void bot_reset_during_async_read10(bool queue_failed_completion) {
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  if (queue_failed_completion) {
+    TEST_ASSERT_TRUE(tud_msc_async_io_done(TUD_MSC_RET_ERROR, false));
+  }
+  expect_bot_reset(false);
+  if (queue_failed_completion) {
+    expect_cbw_receive(); // the completion, discarded, frees the buffer for the next CBW
+  }
+  tud_task();
+}
+
+// The BOT reset abandons the pending async READ10: its late completion before the clear-halts is accepted and discarded
+// instead of sending its data on Bulk-In, and arms the CBW receive the abandoned I/O held up
+void test_msc_bot_reset_discards_late_async_read10_before_clear_halt(void)
+{
+  bot_reset_during_async_read10(false);
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  expect_cbw_receive();
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// Until the abandoned read completes, it owns the buffer: Reset Recovery's Bulk-Out clear-halt receives no CBW, and the
+// late completion then arms the CBW receive instead of sending stale data on the cleared Bulk-In (#4390)
+void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
+{
+  bot_reset_during_async_read10(false);
+
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no CBW receive armed yet
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+}
+
+// A completion accepted while the BOT reset is still queued runs after the reset: proc_async_io_done() finds the CMD
+// stage and discards it. A failed completion is used because one applied to the reset state would stall Bulk-In again
+// and leave a failed CSW for the Bulk-In clear-halt to send: either is an unexpected DCD call
+void test_msc_bot_reset_drops_completion_queued_before_reset(void)
+{
+  bot_reset_during_async_read10(true);
+  reset_recovery_clear_halts();
+}
+
+// A bus reset abandons a pending async read the same way: re-enumeration opens the endpoints but receives no CBW until
+// the late completion, which is discarded
+void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
+{
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task();
+
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
+  tud_task();
+
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no CBW receive armed yet
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
 }
 
 //--------------------------------------------------------------------+
