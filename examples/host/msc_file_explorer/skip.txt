@@ -3,3 +3,4 @@ board:atsaml21_xpro
 board:saml22_feather
 board:sensorwatch_m0
 board:ra2a1_ek
+board:stm32h7s3nucleo
