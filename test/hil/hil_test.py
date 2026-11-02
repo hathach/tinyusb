@@ -217,7 +217,7 @@ class Board(TypedDict):
     name: str
     uid: str
     tests: TestsCfg
-    flasher: FlasherCfg
+    flasher: FlasherCfg  # agentrc's board registry gives it, by uid (hil_util.hil_boards)
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -2527,8 +2527,17 @@ def main() -> None:
             print(f'ERROR: board(s) not in {config_file.name}: {", ".join(unknown)}')
             sys.exit(1)
         config_boards = [e for e in config['boards'] if e['name'] in boards]
-    config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
-                     and (not args.flasher or e['flasher']['name'] in args.flasher)]
+    # each board's flasher and flasher_recover are agentrc's, by its uid (`hil` skill, Board
+    # registry): resolved for the boards this run touches only, as the roster checks below,
+    # and refused through _config_abort, which invalidates the previous report
+    resolve_error = ''
+    try:
+        config_boards = [hil_util.hil_boards().resolve(e) for e in config_boards]
+    except (ImportError, ValueError) as e:
+        resolve_error = f'{config_file.name}: {e}'
+    if not resolve_error:
+        config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
+                         and (not args.flasher or e['flasher']['name'] in args.flasher)]
 
     # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
     # id: persistent across attempts, private to one run)
@@ -2550,6 +2559,8 @@ def main() -> None:
         hil_report.mark_report_aborted(report_dir, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
+    if resolve_error:
+        _config_abort(resolve_error)
     for e in config_boards:
         try:
             hil_report.board_variants(e)
@@ -2575,11 +2586,6 @@ def main() -> None:
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')
-    # the provider refuses each openocd command over a malformed pin; say so once, before a flash
-    bad_pin = dict.fromkeys(e['name'] for e in config_boards for f in hil_flash.flashers(e, 'openocd')
-                            if 'vid_pid' in f and not hil_flash.valid_vid_pid(f['vid_pid']))
-    if bad_pin:
-        _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
     # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
     bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
                             if (why := hil_flash.openocd_esp_entry_problem(f)))

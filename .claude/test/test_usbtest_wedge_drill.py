@@ -419,7 +419,7 @@ class Refusals(unittest.TestCase):
     def test_a_bad_halt_override(self):
         self.refused('--board', 'st', '--halt-openocd', '  ', says='not convoy-safe')
         self.refused('--board', 'st', '--halt-openocd', '-f interface/cmsis-dap.cfg', says='not convoy-safe')
-        self.refused('--board', 'st-nouid', '--halt-openocd', ST_HALT, says='no probe uid')
+        self.refused('--board', 'st-nouid', '--halt-openocd', ST_HALT, says='flasher: uid must be a non-empty string')
 
     def test_an_override_on_an_openocd_recovery_board(self):
         self.refused('--board', 'ok', '--halt-openocd', ST_HALT, says='halts through its own')

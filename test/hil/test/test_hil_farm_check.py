@@ -21,7 +21,7 @@ import hil_flash                                   # noqa: E402
 from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
-STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P', 'args': ''})
+STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
 CONTACT = 'Device ID   : 0x413\n'
 eng = hil_farm_check.load_engine()
 
@@ -315,7 +315,7 @@ class EngineWithProfile(EngineFixture):
         self.assertEqual((o['returncode'], [a['returncode'] for a in o['attempts']]), (1, [0]))
 
     def test_an_lm4flash_board_is_unsupported_and_untouched(self):
-        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''}))
+        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P'}))
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual((code, r['status'], r['coverage'], self.ran), (0, 'unsupported', 'unsupported', []))

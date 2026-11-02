@@ -421,6 +421,7 @@ class OpenocdEspRoster(unittest.TestCase):
     """The roster lint is the provider's admission: the documented shape passes, a vid_pid,
     other args or a missing uid fail, in hil_test before any board is touched."""
     SHAPE = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
+    RECOVER = {k: v for k, v in SHAPE.items() if k != 'uid'}   # a recovery entry reaches the primary's probe
 
     def test_the_documented_shape_is_admitted(self):
         self.assertEqual(hil_flash.openocd_esp_entry_problem(self.SHAPE), '')
@@ -454,7 +455,7 @@ class OpenocdEspRoster(unittest.TestCase):
     def test_hil_test_refuses_a_recovery_entry_under_a_ci_job_and_passes_an_ordinary_board(self):
         jlink = BOARDS['jlink']
         self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp is refused under a CI job',
-                      hil_test_stdout(self, {'flasher': jlink, 'flasher_recover': self.SHAPE}, GITHUB_ACTIONS='x'))
+                      hil_test_stdout(self, {'flasher': jlink, 'flasher_recover': self.RECOVER}, GITHUB_ACTIONS='x'))
         # past the openocd_esp check, refused by the next one (an RTT console the CI build lacks)
         out = hil_test_stdout(self, {'flasher': jlink, 'logger': 'rtt'}, GITHUB_ACTIONS='x')
         self.assertNotIn('openocd_esp', out)
@@ -481,8 +482,7 @@ class HilTestRefusesAMalformedPin(unittest.TestCase):
         bad = {'name': 'openocd', 'vid_pid': '0x1a86 0x8010 0x1a86', 'args': '-f interface/jlink.cfg'}
         for board in ({'flasher': {**bad, 'uid': 'S'}}, {'flasher': jlink, 'flasher_recover': bad}):
             with self.subTest(board=board):
-                self.assertIn('ERROR: an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: b',
-                              hil_test_stdout(self, board))
+                self.assertIn('vid_pid must be "0xVVVV 0xPPPP" pairs', hil_test_stdout(self, board))
 
 
 class ProviderLoading(unittest.TestCase):
@@ -705,7 +705,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
         uncovered = {}
         for name in self.PENDING:
             with open(os.path.join(REPO, 'test/hil', name)) as f:
-                boards = json.load(f)['boards']
+                boards = hil_util.hil_boards().resolve_roster(json.load(f))['boards']
             uncovered[name] = {b['name'] for b in boards if 'device/usbtest' in change_impact.board_tests(b)
                                and not hil_flash.convoy_safe(hil_flash.recover_flasher(b))}
         self.assertEqual(uncovered, self.PENDING)

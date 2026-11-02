@@ -82,13 +82,16 @@ sys.exit(int(os.environ.get('FAKE_RC', '0')))
 # the loader, the pin, hil_load, the core it loads and the notice the core loads; and, though
 # the rig never runs it, the transport core hil_remote.py loads through that checkout's loader
 REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py',
-        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-        'lib/agentrc/skills/hil/scripts/hil_report_core.py', 'lib/agentrc/skills/hil/scripts/hil_report_notice.py')
+        'test/hil/helper/hil_util.py', 'tools/get_deps.py', 'lib/agentrc/.git/HEAD',
+        'lib/agentrc/skills/hil/scripts/hil_load.py', 'lib/agentrc/skills/hil/scripts/hil_report_core.py',
+        'lib/agentrc/skills/hil/scripts/hil_report_notice.py', 'lib/agentrc/skills/hil/scripts/hil_boards.py',
+        'lib/agentrc/skills/hil/boards.json', 'lib/agentrc/skills/hil/scripts/usb_observe.py')
 REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
 
 CONFIG = {'boards': [
-    {'name': 'alpha', 'flasher': {'name': 'jlink'}},
-    {'name': 'beta', 'flasher': {'name': 'openocd'}, 'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
+    {'name': 'alpha', 'uid': 'A', 'flasher': {'name': 'jlink', 'uid': 'pa'}},
+    {'name': 'beta', 'uid': 'B', 'flasher': {'name': 'openocd', 'uid': 'pb'},
+     'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
 ]}
 
 

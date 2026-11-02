@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import hil_flash
 import change_impact
-from helper.hil_util import device_tests, dual_tests
+from helper.hil_util import device_tests, dual_tests, hil_boards
 
 
 def _read(path):
@@ -53,12 +53,13 @@ def real_rosters():
 
 def roster_flashers():
     """(roster path, board) for every board in the live rosters, `boards-skip`
-    included: a parked board's flasher name must still dispatch, so that unparking it
-    is not what discovers the name went stale."""
+    included, each with its flasher from agentrc's board registry: a parked board's
+    flasher name must still dispatch, so that unparking it is not what discovers the
+    name went stale."""
     for name in ('tinyusb.json', 'hfp.json'):
         path = os.path.join(REPO, 'test/hil', name)
         with open(path) as f:
-            cfg = json.load(f)
+            cfg = hil_boards().resolve_roster(json.load(f))
         for key in ('boards', 'boards-skip'):
             for b in cfg.get(key, []):
                 yield f'test/hil/{name}', b
@@ -2568,10 +2569,10 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         # hil-build-esp sizes and uploads every leg under its --build-name: an unnamed
         # esp-idf variant would collide with the plain board; other buckets never upload
         import tempfile
-        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink'},
+        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink', 'uid': 'p'},
                  'variant': [{'name': 'metro_m4_express', 'defines': ['MAX3421_HOST=1']}]}
         for vname, ok in (('espressif_s3_devkitm', False), ('espressif_s3_devkitm-X', True)):
-            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool'},
+            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool', 'uid': 'p'},
                    'variant': [{'name': vname, 'defines': ['X=1']}]}
             with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
                 json.dump({'boards': [esp, other]}, f)
@@ -2592,7 +2593,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
         # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
-        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
                 'sysview': {'example': 'device/cdc_msc'}}
         for examples, traced in ((['device/board_test', 'host/cdc_msc_hid'], False), (['device/board_test'], False),
                                  (['device/board_test', 'device/cdc_msc'], True),
@@ -2607,7 +2608,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
         # its own build name, so neither the test image nor the parking board_test is replaced
-        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd'},
+        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd', 'uid': 'p'},
                 'variant': [{'name': 'raspberry_pi_pico', 'flags': '-DCFG_TUH_RPI_PIO_USB=1'}],
                 'sysview': {'example': 'device/cdc_msc', 'buffer': 65536}}
         r = self._matrix_of([pico])
@@ -2618,7 +2619,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             '-DSYSVIEW_BUFFER_SIZE=65536 --cflag=-DCFG_TUH_RPI_PIO_USB=1'])
 
     def test_a_sysview_board_with_several_variants_is_refused(self):
-        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
              'variant': [{'name': 'stm32f723disco'}, {'name': 'stm32f723disco-DMA', 'flags': '-DX=1'}],
              'sysview': {'example': 'device/cdc_msc'}}
         r = self._matrix_of([b])
@@ -2627,7 +2628,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         import tempfile
-        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
+        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp', 'uid': 'p'}}
         with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
             json.dump({'boards': [p4]}, f)
             f.flush()

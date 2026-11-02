@@ -242,9 +242,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                  for n in ('bad-a', 'bad-b', 'good')]
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
@@ -263,9 +263,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def all_refused(self, argv):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                   for n in ('bad-a', 'bad-b', 'worse')]
                  + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
@@ -300,10 +300,10 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
-                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [None, {'name': 'owner-a'}]},
-                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}, 'variant': [None]}]}
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
                                       (set(), [good_row], {'device/cdc_msc': 'pass'})):

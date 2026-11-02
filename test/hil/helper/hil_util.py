@@ -121,6 +121,20 @@ def provider():
     return _provider
 
 
+_hil_boards = None
+
+
+def hil_boards():
+    """agentrc's board registry (hil_boards): each roster board's flasher and flasher_recover by
+    its uid. Loaded on first use like provider(); every reader of a board's flasher resolves
+    its roster entry through it, readers of names alone read the roster raw."""
+    global _hil_boards
+    if _hil_boards is None:
+        from . import agentrc
+        _hil_boards = agentrc.load_file('skills/hil/scripts/hil_boards.py')
+    return _hil_boards
+
+
 _openocd_esp = None
 
 

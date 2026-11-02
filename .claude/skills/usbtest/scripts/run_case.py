@@ -136,7 +136,8 @@ def kill_children(spare=()):
 
 
 def resolve(config, board_name, variant):
-    """(board, variant name) from the roster, or Refused naming the alternatives."""
+    """(board, variant name) from the roster, its flashers from agentrc's board registry, or Refused
+    naming the alternatives."""
     try:
         cfg = json.loads(Path(config).read_text())
     except (OSError, ValueError) as e:
@@ -153,10 +154,10 @@ def resolve(config, board_name, variant):
     if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
-    flasher = board.get('flasher')
-    if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
-            and isinstance(flasher.get('name'), str) and flasher['name']):
-        raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
+    try:   # its flasher and flasher_recover are agentrc's, by its uid (`hil` skill, Board registry)
+        board = hil_util.hil_boards().resolve(board)
+    except ValueError as e:
+        raise Refused(f'{config}: {e}')
     if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         raise Refused(f'{board_name}: {why}')
     try:
