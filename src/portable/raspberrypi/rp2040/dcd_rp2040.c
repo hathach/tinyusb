@@ -200,12 +200,16 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
     io_rw_32        *ep_reg  = get_ep_ctrl(epnum, dir);
     io_rw_32        *buf_reg = get_buf_ctrl(epnum, dir);
 
+    // Drop the bit from the snapshot before looking at the hardware: an earlier completion's callback (a class
+    // xfer_isr) may have aborted or replaced this endpoint's transfer, and hw_endpoint_drop_xfer() then cleared its
+    // BUFF_STATUS bit, which would otherwise stay in the snapshot forever and spin this loop.
+    buf_status &= ~bit;
+
     // Double-buffered: if both buffers completed at once, buf_status re-sets
     // immediately after clearing (datasheet Table 406). Process the second buffer too.
     while (usb_hw->buf_status & bit) {
       const uint8_t buf_id     = (usb_hw->buf_cpu_should_handle & bit) ? 1 : 0; // before clear buf_status
       usb_hw_clear->buf_status = bit;
-      buf_status &= ~bit;
 
       if (rp2usb_xfer_continue(ep, ep_reg, buf_reg, buf_id, dir == TUSB_DIR_OUT)) {
         const uint16_t xferred_len = ep->xferred_len;
