@@ -57,6 +57,7 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 #include "httpd.h"
 #include "lwip/ethip6.h"
 #include "lwip/init.h"
+#include "lwip/prot/ethernet.h"
 #include "lwip/timeouts.h"
 #include "lwip/sys.h"
 
@@ -146,7 +147,7 @@ static err_t ip6_output_fn(struct netif *netif, struct pbuf *p, const ip6_addr_t
 
 static err_t netif_init_cb(struct netif *netif) {
   LWIP_ASSERT("netif != NULL", (netif != NULL));
-  netif->mtu = CFG_TUD_NET_MTU;
+  netif->mtu = CFG_TUD_NET_MTU - SIZEOF_ETH_HDR; // lwIP mtu bounds the IP packet, CFG_TUD_NET_MTU the Ethernet frame
   netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_LINK_UP | NETIF_FLAG_UP;
   netif->state = NULL;
   netif->name[0] = 'E';
