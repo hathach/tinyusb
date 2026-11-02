@@ -30,7 +30,7 @@ CPU_CORE ?= cortex-m4
 
 # suppress following warnings from mcu driver
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
-CFLAGS += -Wno-error=shadow  -Wno-error=redundant-decls -Wno-error=missing-prototypes
+CFLAGS += -Wno-error=shadow  -Wno-error=redundant-decls
 
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 
