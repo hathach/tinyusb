@@ -204,8 +204,10 @@ static uint32_t write10_busy;
 // bytes the next tud_msc_write10_cb() handed a larger chunk accepts, once, leaving the rest for a retry (0: all)
 static uint32_t write10_accept;
 
-// calls of tud_msc_write10_cb(), with the bufsize and buffer contents of the last one
+// calls of tud_msc_write10_cb(), with the lba, offset, bufsize and buffer contents of the last one
 static uint32_t write10_calls;
+static uint32_t write10_last_lba;
+static uint32_t write10_last_offset;
 static uint32_t write10_last_bufsize;
 static uint8_t write10_last_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
@@ -216,6 +218,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   (void) lun;
 
   write10_calls++;
+  write10_last_lba = lba;
+  write10_last_offset = offset;
   write10_last_bufsize = bufsize;
   TEST_ASSERT_LESS_OR_EQUAL_UINT32(sizeof(write10_last_buf), bufsize);
   memcpy(write10_last_buf, buffer, bufsize);
@@ -762,7 +766,7 @@ void test_msc_write10_busy_retries(void)
 }
 
 // A WRITE10 chunk the application accepts only in part: the unaccepted bytes move to the front of the buffer and the
-// deferred retry offers exactly them
+// deferred retry offers exactly them, at the offset after the accepted prefix, and the command completes
 void test_msc_write10_partial_accept_retries_left_over(void)
 {
   uint32_t const accepted = 100;
@@ -781,16 +785,15 @@ void test_msc_write10_partial_accept_retries_left_over(void)
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
   tud_task();
 
-  // the retry consumes the rest, then the driver either ends the Data Stage with the CSW or arms Bulk-Out for more
-  // data: one transfer, whose endpoint and length depend on the Data Stage bookkeeping this test does not check
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 0, false, true);
-  dcd_edpt_xfer_IgnoreArg_ep_addr();
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_IgnoreArg_total_bytes();
+  // the retry consumes the rest: with the accepted prefix counted, the Data Stage is complete and the CSW follows
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
   tud_task();
 
   TEST_ASSERT_EQUAL_UINT32(2, write10_calls);
+  TEST_ASSERT_EQUAL_UINT32(0, write10_last_lba);
+  TEST_ASSERT_EQUAL_UINT32(accepted, write10_last_offset);
   TEST_ASSERT_EQUAL_UINT32(DISK_BLOCK_SIZE - accepted, write10_last_bufsize);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(payload + accepted, write10_last_buf, DISK_BLOCK_SIZE - accepted);
 }
