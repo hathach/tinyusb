@@ -192,6 +192,10 @@ typedef struct {
 TU_VERIFY_STATIC(CFG_TUH_CONTROL_TIMEOUT_MS > 0 && CFG_TUH_CONTROL_TIMEOUT_MS <= INT32_MAX,
                  "CFG_TUH_CONTROL_TIMEOUT_MS must be in 1..INT32_MAX");
 
+// usbh_defer_func_ms_async() adds 1 ms before the same int32_t deadline check
+TU_VERIFY_STATIC(CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS >= 0 && CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS < INT32_MAX,
+                 "CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS must be in 0..INT32_MAX-1");
+
 // enum_attempt is uint8_t: a larger limit would wrap it and retry forever
 TU_VERIFY_STATIC(CFG_TUH_ENUM_ATTEMPT_MAX >= 1 && CFG_TUH_ENUM_ATTEMPT_MAX <= 256,
                  "CFG_TUH_ENUM_ATTEMPT_MAX must be in 1..256");
@@ -1829,7 +1833,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
 enum {                                      // USB 2.0 specs 7.1.7 for timing
   ENUM_DEBOUNCING_DELAY_MS           = 150, // T(ATTDB)  minimum 100 ms for stable connection
   ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
-  ENUM_RESET_ROOT_POST_DELAY_MS      = 2,   // 2 ms delay after root port reset before getting speed/status
+  ENUM_RESET_ROOT_POST_DELAY_MS      = CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS, // delay after root port reset before getting speed/status
   ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
   ENUM_RESET_RECOVERY_DELAY_MS       = 10,  // T(RSTRCY) minimum 10 ms for reset recovery
   ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2,   // USB 2.0 Spec 9.2.6.3 min is 2 ms
