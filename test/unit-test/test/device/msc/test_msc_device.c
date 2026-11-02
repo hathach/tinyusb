@@ -175,6 +175,9 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
   return true;
 }
 
+// bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
+static uint32_t read10_shortfall;
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 // how read10/write10 callbacks fail: not at all, after setting MEDIUM ERROR sense, or without setting a sense
@@ -194,6 +197,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     return io_failure(lun);
   }
 
+  bufsize -= read10_shortfall;
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
 
@@ -291,6 +295,8 @@ void setUp(void)
   init_sense_cbw();
 
   memset(sv_calls, 0, sizeof(sv_calls));
+  memset(msc_disk, 0, sizeof(msc_disk));
+  read10_shortfall = 0;
 }
 
 void tearDown(void)
@@ -428,6 +434,92 @@ void test_msc_read10_block_size_over_16bit(void)
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// READ10 Data Stage split in chunks
+//--------------------------------------------------------------------+
+static msc_cbw_t const cbw_read10_2blocks =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = 2 * DISK_BLOCK_SIZE,
+  .lun         = 0,
+  .dir         = TUSB_DIR_IN_MASK,
+  .cmd_len     = sizeof(scsi_read10_t),
+  .command     = { SCSI_CMD_READ_10, 0, 0, 0, 0, 0, 0, 0, 2 } // LBA 0, 2 blocks
+};
+
+// SET_CONFIGURATION, then the CBW of a 2-block READ10
+static void read10_2blocks_received(void) {
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_read10_2blocks, sizeof(msc_cbw_t));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+}
+
+// SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
+static void configure_msc(msc_cbw_t const* cbw) {
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) cbw, sizeof(msc_cbw_t));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// A whole chunk ends in a full packet: the Data Stage goes on with the next chunk
+void test_msc_read10_full_chunk_continues(void)
+{
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+
+  tud_task();
+}
+
+// A partial chunk would end the Data Stage with its short packet: it is filled with zeros up to the host's length
+// instead (CFG_TUD_MSC_PAD_SHORT_REPLY), and the CSW follows with the residue and no STALL (#3188, #4316)
+void test_msc_read10_short_chunk_padded(void)
+{
+  read10_shortfall = 1;
+  memset(msc_disk[0], 0xA5, DISK_BLOCK_SIZE);
+  read10_2blocks_received();
+
+  uint8_t chunk[DISK_BLOCK_SIZE] = { 0 };
+  memset(chunk, 0xA5, DISK_BLOCK_SIZE - 1);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, chunk, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  uint8_t fill[DISK_BLOCK_SIZE] = { 0 };
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, fill, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(DISK_BLOCK_SIZE + 1);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
   tud_task();
 }
 
@@ -600,21 +692,6 @@ void test_msc_write10_error_default_sense(void)
 //--------------------------------------------------------------------+
 // SystemView spans on the early returns
 //--------------------------------------------------------------------+
-// SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
-static void configure_msc(msc_cbw_t const* cbw) {
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) cbw, sizeof(msc_cbw_t));
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-}
-
 void test_msc_invalid_cbw_closes_its_span(void)
 {
   msc_cbw_t const cbw_bad = { .signature = 0xDEADBEEF };
