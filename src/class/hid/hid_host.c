@@ -600,12 +600,7 @@ bool hidh_set_config(uint8_t daddr, uint8_t itf_num) {
 
 static void process_set_config(tuh_xfer_t* xfer) {
   // Stall is a valid response for SET_IDLE, sometime SET_PROTOCOL as well
-  // therefore we could ignore its result
-  if (!(xfer->setup->bRequest == HID_REQ_CONTROL_SET_IDLE ||
-        xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL)) {
-    TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS,);
-  }
-
+  // therefore we could ignore its result. Only the report descriptor request (CONFIG_COMPLETE) checks it.
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const daddr = xfer->daddr;
@@ -649,6 +644,11 @@ static void process_set_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_COMPLETE: {
+      if (xfer->result != XFER_RESULT_SUCCESS) {
+        TU_LOG_DRV("HID Get Report Descriptor failed, mount without it\r\n");
+        config_driver_mount_complete(daddr, idx, NULL, 0);
+        break;
+      }
       const uint8_t *desc_report = usbh_get_enum_buf();
       const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
 
