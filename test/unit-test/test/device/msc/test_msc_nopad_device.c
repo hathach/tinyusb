@@ -44,6 +44,7 @@ TEST_SOURCE_FILE("msc_device.c")
 #include "msc_device_test.h"
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_PAD_SHORT_REPLY == 0, "this test covers the unpadded build");
+TU_VERIFY_STATIC(TUD_OPT_HIGH_SPEED == 0, "this test runs at full speed: 64-byte Bulk-In (project.yml)");
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -97,8 +98,14 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
 static uint32_t read10_shortfall;
 
+// lba and offset of the last tud_msc_read10_cb()
+static uint32_t read10_lba;
+static uint32_t read10_offset;
+
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
-  (void) lun; (void) lba; (void) offset; (void) buffer;
+  (void) lun; (void) buffer;
+  read10_lba    = lba;
+  read10_offset = offset;
   return (int32_t) (bufsize - read10_shortfall);
 }
 
@@ -141,10 +148,12 @@ void setUp(void) {
     tusb_init(0, &dev_init);
   }
 
-  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
 
   read10_shortfall = 0;
+  read10_lba       = UINT32_MAX;
+  read10_offset    = UINT32_MAX;
 }
 
 void tearDown(void) {
@@ -254,6 +263,38 @@ void test_msc_read10_short_chunk_stalls_bulk_in(void) {
   clear_halt(EDPT_MSC_IN);
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// A partial chunk of whole packets (448 bytes, 7 full-speed packets) keeps the Data Stage open for the host: Bulk-In is
+// not stalled but armed with the next chunk, read from where the partial one ended, and the CSW carries no residue
+void test_msc_read10_packet_aligned_chunk_continues(void) {
+  read10_shortfall = 64;
+  read10_2blocks_first_chunk(512 - 64);
+  TEST_ASSERT_EQUAL_UINT32(0, read10_lba);
+  TEST_ASSERT_EQUAL_UINT32(0, read10_offset);
+
+  // the next chunk: 512 bytes from LBA 0 offset 448, read whole this time
+  read10_shortfall = 0;
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 512, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512 - 64, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(0, read10_lba);
+  TEST_ASSERT_EQUAL_UINT32(512 - 64, read10_offset);
+
+  // the last 64 bytes: LBA 1 offset 448
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 64, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, read10_lba);
+  TEST_ASSERT_EQUAL_UINT32(512 - 64, read10_offset);
+
+  // all 2 blocks sent: CSW with no residue, no stall
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 64, 0, true);
   tud_task();
 }
 
