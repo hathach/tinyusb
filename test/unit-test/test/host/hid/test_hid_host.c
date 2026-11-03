@@ -50,6 +50,9 @@ static uint16_t       mount_cb_len;
 static uint8_t config_complete_count;
 static uint8_t config_complete_itf;
 
+static bool ctrl_xfer_reject; // control requests fail to queue, as when usbh's pending queue is full
+static uint8_t enum_buf[64];
+
 //--------------------------------------------------------------------+
 // Host stack functions called by hid_host.c
 //--------------------------------------------------------------------+
@@ -66,6 +69,9 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
 }
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
+  if (ctrl_xfer_reject) {
+    return false;
+  }
   ctrl_setup       = *xfer->setup;
   ctrl_complete_cb = xfer->complete_cb;
   ctrl_user_data   = xfer->user_data;
@@ -76,6 +82,9 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
                                    uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void)daddr;
   (void)buffer;
+  if (ctrl_xfer_reject) {
+    return false;
+  }
   ctrl_setup = (tusb_control_request_t){
     .bmRequestType = 0x81, // IN, standard, interface
     .bRequest      = TUSB_REQ_GET_DESCRIPTOR,
@@ -88,7 +97,7 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
 }
 
 uint8_t *usbh_get_enum_buf(void) {
-  return NULL;
+  return enum_buf;
 }
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
@@ -174,6 +183,7 @@ void setUp(void) {
   mount_cb_len     = 0xFFFF;
   config_complete_count = 0;
   config_complete_itf   = TUSB_INDEX_INVALID_8;
+  ctrl_xfer_reject      = false;
 
   TEST_ASSERT_TRUE(hidh_init());
   TEST_ASSERT_EQUAL(sizeof(hid_itf_desc),
@@ -257,6 +267,7 @@ void test_hidh_set_config_report_desc(void) {
   complete_ctrl_xfer(XFER_RESULT_SUCCESS);
 
   TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_NOT_NULL(mount_cb_desc);
   TEST_ASSERT_EQUAL_PTR(usbh_get_enum_buf(), mount_cb_desc);
   TEST_ASSERT_EQUAL(63, mount_cb_len);
   TEST_ASSERT_EQUAL(1, config_complete_count);
@@ -280,4 +291,29 @@ void test_hidh_set_config_report_desc_failed(void) {
     mount_cb_count        = 0;
     config_complete_count = 0;
   }
+}
+
+// A request that fails to queue gets no completion callback: the interface mounts without a descriptor right away
+void test_hidh_set_config_report_desc_rejected(void) {
+  hidh_set_config(HID_DEV_ADDR, HID_ITF_NUM);
+  complete_ctrl_xfer(XFER_RESULT_STALLED); // SET_IDLE
+  TEST_ASSERT_EQUAL(HID_REQ_CONTROL_SET_PROTOCOL, ctrl_setup.bRequest);
+  ctrl_xfer_reject = true;
+  complete_ctrl_xfer(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_NULL(mount_cb_desc);
+  TEST_ASSERT_EQUAL(0, mount_cb_len);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
+void test_hidh_set_config_set_idle_rejected(void) {
+  ctrl_xfer_reject = true;
+  hidh_set_config(HID_DEV_ADDR, HID_ITF_NUM);
+
+  TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_NULL(mount_cb_desc);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
 }
