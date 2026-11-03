@@ -2322,6 +2322,20 @@ def park_bound_s() -> float:
                         + 2 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + 1)
 
 
+def _named_flasher(entry) -> str | None:
+    """The flasher name of a roster entry agentrc's registry refused: its registered probe's,
+    else its own; None when neither is known (an unregistered probe, an unreadable registry)."""
+    if not isinstance(entry, dict):
+        return None
+    probe = entry.get('probe')
+    try:
+        reg = hil_util.hil_boards().registry().get(probe) if isinstance(probe, str) else None
+    except ValueError:
+        return None
+    flasher = (reg or entry).get('flasher')
+    return flasher.get('name') if isinstance(flasher, dict) else None
+
+
 def _sysview_entry_problem(sv) -> str | None:
     """Why a roster "sysview" entry cannot be captured, None when it can."""
     if not isinstance(sv, dict):
@@ -2531,15 +2545,27 @@ def main() -> None:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
     # each board's flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board
     # registry): resolved for the boards this run touches only, as the roster checks below,
-    # and refused through _config_abort, which invalidates the previous report
-    resolve_error = ''
+    # and refused through _config_abort, which invalidates the previous report. A refused entry
+    # is this run's only when the flasher filter selects the flasher it names; one naming none
+    # (an unregistered probe) falls to the runs without --flasher.
+    def _selected(flasher_name) -> bool:
+        return flasher_name not in args.exclude_flasher and (not args.flasher or flasher_name in args.flasher)
+    resolve_errors = []
     try:
-        config_boards = [hil_util.hil_boards().resolve(e) for e in config_boards]
-    except (ImportError, ValueError) as e:
-        resolve_error = f'{config_file.name}: {e}'
-    if not resolve_error:
-        config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
-                         and (not args.flasher or e['flasher']['name'] in args.flasher)]
+        selected = []
+        for e in config_boards:
+            try:
+                resolved = hil_util.hil_boards().resolve(e)
+            except ValueError as err:
+                if _selected(_named_flasher(e)):
+                    selected.append(e)
+                    resolve_errors.append(str(err))
+            else:
+                if _selected(resolved['flasher']['name']):
+                    selected.append(resolved)
+        config_boards = selected
+    except ImportError as e:
+        resolve_errors = [str(e)]
 
     # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
     # id: persistent across attempts, private to one run)
@@ -2561,8 +2587,8 @@ def main() -> None:
         hil_report.mark_report_aborted(report_dir, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
-    if resolve_error:
-        _config_abort(resolve_error)
+    if resolve_errors:
+        _config_abort(f'{config_file.name}: {"; ".join(dict.fromkeys(resolve_errors))}')
     for e in config_boards:
         try:
             hil_report.board_variants(e)

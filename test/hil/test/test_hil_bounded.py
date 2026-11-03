@@ -298,6 +298,34 @@ class BuildBoardContract(unittest.TestCase):
         for c in cells.values():
             self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
 
+    def test_a_refused_roster_entry_aborts_only_the_legs_its_flasher_selects(self):
+        """build.yml runs one roster as an --exclude-flasher leg and a --flasher leg: an entry the
+        registry refuses aborts the leg its flasher puts it in, reporting that leg's selection."""
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'flasher': {'name': 'esptool', 'uid': 'p1'}},   # no uid
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}},
+                          {'name': 'esp', 'uid': '3', 'flasher': {'name': 'esptool', 'uid': 'p3'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['bad', 'esp']))
+        self.assertIn('bad: no uid', doc['caveat'])
+        # an unregistered probe names no flasher: the leg that takes every other flasher reports it
+        cfg['boards'][0] = {'name': 'bad', 'uid': '1', 'probe': 'hil-bounded-unregistered-probe'}
+        esp_row = ('esp', 0, [], [('esp', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool', '--skip-flash'], set(), [esp_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['esp'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
+
     def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
         from helper import hil_report
         cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'}},
