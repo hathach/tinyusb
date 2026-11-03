@@ -43,7 +43,7 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index
- * @param[in] buffer     Frame buffer. The caller must not use this buffer until the operation is completed.
+ * @param[in] buffer     Frame buffer. Do not reuse until the completion or cancellation callback.
  * @param[in] bufsize    Byte size of the frame buffer */
 bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize);
 
@@ -53,6 +53,15 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index */
 void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
+
+/** Invoked when a new COMMIT cancels a bulk frame, after its queued payload drains.
+ * The frame buffer can now be reused. The default implementation calls
+ * tud_video_frame_xfer_complete_cb() so existing applications release their buffers.
+ * This callback does not report delivery of a complete frame to the host.
+ *
+ * @param[in] ctl_idx    Destination control interface index
+ * @param[in] stm_idx    Destination streaming interface index */
+void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)

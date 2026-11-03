@@ -102,6 +102,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t max_payload_transfer_size;
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
+  bool     frame_cancelled;                              /* Drain a queued bulk payload before releasing its frame. */
 
   video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
 } videod_streaming_interface_t;
@@ -186,6 +187,11 @@ static char const* const tu_str_video_vs_control_selector[] = {
 TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   (void) ctl_idx;
   (void) stm_idx;
+}
+
+TU_ATTR_WEAK void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  // Preserve the buffer-release notification for existing applications.
+  tud_video_frame_xfer_complete_cb(ctl_idx, stm_idx);
 }
 
 TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod) {
@@ -827,6 +833,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   stm->buffer  = NULL;
   stm->bufsize = 0;
   stm->offset  = 0;
+  stm->frame_cancelled = false;
 
   /* Find a alternate interface */
   uint8_t const *beg = desc + stm->desc.beg;
@@ -1154,26 +1161,26 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
-              // A bulk host can stop reading mid-frame, then commit a new stream.
-              // Cancel the old endpoint transfer before discarding its frame state.
+              // COMMIT does not reset the bulk data toggle. Keep any queued
+              // payload and endpoint claim until its normal completion, including
+              // a completion already queued behind this control request. Retain
+              // bufsize to reject new frames until that callback releases it.
               const uint8_t *desc = _videod_itf[stm->index_vc].beg;
-              for (uint_fast8_t i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
-                if (!stm->desc.ep[i]) {
-                  break;
-                }
-                const tusb_desc_endpoint_t *ep = (const tusb_desc_endpoint_t *)(desc + stm->desc.ep[i]);
-                if (ep->bmAttributes.xfer == TUSB_XFER_BULK) {
-                  usbd_edpt_abort(rhport, ep->bEndpointAddress);
-                }
+              const tusb_desc_endpoint_t *ep =
+                stm->desc.ep[0] ? (const tusb_desc_endpoint_t *)(desc + stm->desc.ep[0]) : NULL;
+              stm->state = VS_STATE_COMMITTED;
+              if (ep && ep->bmAttributes.xfer == TUSB_XFER_BULK && stm->bufsize) {
+                stm->frame_cancelled = true;
+              } else {
+                stm->buffer          = NULL;
+                stm->bufsize         = 0;
+                stm->offset          = 0;
+                stm->frame_cancelled = false;
+                /* initialize payload header only when no bulk payload owns it */
+                tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t *)stm_epbuf->buf;
+                hdr->bHeaderLength               = sizeof(*hdr);
+                hdr->bmHeaderInfo                = 0;
               }
-              stm->state   = VS_STATE_COMMITTED;
-              stm->buffer  = NULL;
-              stm->bufsize = 0;
-              stm->offset  = 0;
-              /* initialize payload header */
-              tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm_epbuf->buf;
-              hdr->bHeaderLength = sizeof(*hdr);
-              hdr->bmHeaderInfo  = 0;
             }
           } else {
             // nothing to do
@@ -1514,7 +1521,13 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   TU_ASSERT(itf < CFG_TUD_VIDEO_STREAMING);
   videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[itf];
 
-  if (stm->offset < stm->bufsize) {
+  if (stm->frame_cancelled) {
+    stm->buffer          = NULL;
+    stm->bufsize         = 0;
+    stm->offset          = 0;
+    stm->frame_cancelled = false;
+    tud_video_frame_xfer_cancelled_cb(stm->index_vc, stm->index_vs);
+  } else if (stm->offset < stm->bufsize) {
     /* Claim the endpoint */
     TU_VERIFY(usbd_edpt_claim(rhport, ep_addr), 0);
     uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
