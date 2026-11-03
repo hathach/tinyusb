@@ -88,15 +88,15 @@ REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hi
         'lib/agentrc/skills/hil/boards.json', 'lib/agentrc/skills/hil/scripts/usb_observe.py')
 REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
 
-# gamma has no inline flasher: agentrc's board registry gives it, by uid, one alpha and beta lack
+# gamma has no inline flasher: agentrc's board registry gives it, by probe, one alpha and beta lack
 REGISTRY = json.loads((REPO / 'lib/agentrc/skills/hil/boards.json').read_text(encoding='utf-8'))['boards']
-GAMMA_UID, GAMMA_FLASHER = next((uid, b['flasher']['name']) for uid, b in REGISTRY.items()
+GAMMA_PROBE, GAMMA_FLASHER = next((probe, b['flasher']['name']) for probe, b in REGISTRY.items()
                                 if b['flasher']['name'] not in ('jlink', 'openocd'))
 CONFIG = {'boards': [
     {'name': 'alpha', 'uid': 'A', 'flasher': {'name': 'jlink', 'uid': 'pa'}},
     {'name': 'beta', 'uid': 'B', 'flasher': {'name': 'openocd', 'uid': 'pb'},
      'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
-    {'name': 'gamma', 'uid': GAMMA_UID},
+    {'name': 'gamma', 'uid': 'G', 'probe': GAMMA_PROBE},
 ]}
 
 

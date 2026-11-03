@@ -3,6 +3,7 @@
         {
             "name": "frdm_k64f",
             "uid": "FFFF1A00FFFFFFFF1031454E0F000280",
+            "probe": "000621000000",
             "tests": {
                 "device": false,
                 "host": true,
@@ -28,6 +29,7 @@
         {
             "name": "ek_tm4c123gxl",
             "uid": "010105186C60A110",
+            "probe": "0E205D19",
             "tests": {
                 "device": true,
                 "host": false,
@@ -37,6 +39,7 @@
         {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
+            "probe": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
             "variant": [
                 { "name": "espressif_p4_function_ev", "flags": "" },
                 { "name": "espressif_p4_function_ev-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -74,6 +77,7 @@
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
+            "probe": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "variant": [
                 { "name": "espressif_s3_devkitm", "flags": "" },
                 { "name": "espressif_s3_devkitm-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -112,6 +116,7 @@
         {
             "name": "nrf52840dk",
             "uid": "2D4F0E6E23EB6724",
+            "probe": "683944004",
             "tests": {
                 "device": true,
                 "host": false,
@@ -121,6 +126,7 @@
         {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
+            "probe": "E6614C311B597D32",
             "tests": {
                 "device": true,
                 "host": false,
@@ -130,6 +136,7 @@
         {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
+            "probe": "000063728691",
             "variant": [
                 {
                     "name": "metro_m4_express",
@@ -156,6 +163,7 @@
         {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
+            "probe": "000724441579",
             "tests": {
                 "device": true,
                 "host": false,
@@ -165,6 +173,7 @@
         {
             "name": "ea4088_quickstart",
             "uid": "22150C0C1508595343E1857B060000F5",
+            "probe": "611000000",
             "note": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
             "logger": "rtt",
             "variant": [
@@ -196,6 +205,7 @@
         {
             "name": "lpcxpresso55s69",
             "uid": "E059C3E208F9B955B3BA4C5CC7F3D13D",
+            "probe": "000727648789",
             "tests": {
                 "device": true,
                 "host": false,
@@ -205,6 +215,7 @@
         {
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
+            "probe": "000831174392",
             "tests": {
                 "device": true,
                 "host": false,
@@ -214,6 +225,7 @@
         {
             "name": "ra6m5_ek",
             "uid": "8419032D32363657364EF4622D294B4E",
+            "probe": "000831915224",
             "tests": {
                 "device": true,
                 "host": false,
@@ -223,6 +235,7 @@
         {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
+            "probe": "E6614103E72C1D2F",
             "variant": [
                 { "name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1" }
             ],
@@ -258,6 +271,7 @@
         {
             "name": "raspberry_pi_pico_w",
             "uid": "E6614864D35DAE36",
+            "probe": "E6633861A3819D38",
             "tests": {
                 "device": false,
                 "host": true,
@@ -283,6 +297,7 @@
         {
             "name": "raspberry_pi_pico2",
             "uid": "560AE75E1C7152C9",
+            "probe": "E6633861A3978538",
             "tests": {
                 "device": false,
                 "host": true,
@@ -302,6 +317,7 @@
         {
             "name": "adafruit_fruit_jam",
             "uid": "2B0DC7A45781189E",
+            "probe": "E663AC91D3359B38",
             "tests": {
                 "device": true,
                 "host": true,
@@ -326,6 +342,7 @@
         {
             "name": "stm32f072disco",
             "uid": "3A001A001357364230353532",
+            "probe": "779541626",
             "tests": {
                 "device": true,
                 "host": false,
@@ -336,6 +353,7 @@
         {
             "name": "stm32f407disco",
             "uid": "30001A000647313332353735",
+            "probe": "000773661813",
             "tests": {
                 "device": true,
                 "host": false,
@@ -352,6 +370,7 @@
         {
             "name": "stm32f723disco",
             "uid": "460029001951373031313335",
+            "probe": "000776606156",
             "variant": [
                 { "name": "stm32f723disco", "flags": "" },
                 { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -382,6 +401,7 @@
         {
             "name": "stm32h743nucleo",
             "uid": "110018000951383432343236",
+            "probe": "004C00343137510F39383538",
             "variant": [
                 { "name": "stm32h743nucleo", "flags": "" },
                 { "name": "stm32h743nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -395,6 +415,7 @@
         {
             "name": "stm32g0b1nucleo",
             "uid": "4D0038000450434E37343120",
+            "probe": "066FFF495087534867063844",
             "tests": {
                 "device": true,
                 "host": false,
@@ -405,6 +426,7 @@
         {
             "name": "stm32l476disco",
             "uid": "3C0050001150334258343920",
+            "probe": "777632258",
             "tests": {
                 "device": true,
                 "host": false,
@@ -414,6 +436,7 @@
         {
             "name": "stm32u083nucleo",
             "uid": "300044000D5036394E373620",
+            "probe": "0668FF575457657187061314",
             "tests": {
                 "device": true,
                 "host": false,
@@ -423,6 +446,7 @@
         {
             "name": "nanoch32v203",
             "uid": "CDAB277B0FBC03E339E339E3",
+            "probe": "A76D8F062C2A",
             "toolchain": "riscv-gcc",
             "variant": [
                 {"name": "nanoch32v203-fsdev", "defines": ["RHPORT_DEVICE=0"]},
@@ -437,6 +461,7 @@
         {
             "name": "ch32v103r_r1_1v0",
             "uid": "CDAB3E8749BC54EF0F410025",
+            "probe": "BC4954081051",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,
@@ -447,6 +472,7 @@
         {
             "name": "ch32v307v_r1_1v0",
             "uid": "DE6B3E263B3857CAFFFFFFFF",
+            "probe": "BC5DA47360D0",
             "toolchain": "riscv-gcc",
             "variant": [
                 {"name": "ch32v307v_r1_1v0-usbhs", "defines": ["SPEED=high"]},
@@ -461,6 +487,7 @@
         {
             "name": "ch582m_evt",
             "uid": "D443627B5450",
+            "probe": "57468F06DC03",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,
@@ -471,6 +498,7 @@
         {
             "name": "mimxrt1064_evk",
             "uid": "BAE96FB95AFA6DBB8F00005002001200",
+            "probe": "000725299165",
             "tests": {
                 "device": true,
                 "host": true,
@@ -495,6 +523,7 @@
         {
             "name": "nrf54lm20dk",
             "uid": "899C3DE5B0F4D5CA",
+            "probe": "1051856258",
             "tests": {
                 "device": true,
                 "host": false,
@@ -506,6 +535,7 @@
         {
             "name": "nrf5340dk",
             "uid": "78E60E166B5F88BE",
+            "probe": "1050076405",
             "tests": {
                 "device": true,
                 "host": false,
@@ -517,6 +547,7 @@
         {
             "name": "ra8m1_ek",
             "uid": "797D142D36345030364E1737922E4B4E",
+            "probe": "001083115236",
             "note": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
             "tests": {
                 "device": true,
@@ -527,6 +558,7 @@
         {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",
+            "probe": "000778170924",
             "variant": [
                 { "name": "stm32f769disco", "flags": "" },
                 { "name": "stm32f769disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }

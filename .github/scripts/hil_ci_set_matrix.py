@@ -90,7 +90,7 @@ def main():
             if selected is not None and board['name'] not in selected:
                 continue
             name = board['name']
-            try:   # the board's flasher is agentrc's, by its uid
+            try:   # the board's flasher is agentrc's, by its probe
                 flasher = hil_util.hil_boards().resolve(board)['flasher']
             except (ImportError, ValueError) as e:
                 raise SystemExit(f'{config_file}: {e}')

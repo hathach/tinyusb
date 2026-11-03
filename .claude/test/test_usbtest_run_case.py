@@ -153,7 +153,7 @@ class Refusals(unittest.TestCase):
                 (['--board', 'notlisted'], 'notlisted does not run device/usbtest'),
                 (['--board', 'untested'], 'untested does not run device/usbtest'),
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
-                (['--board', 'noflasher'], "noflasher: board UID9 is not in agentrc's board registry"),
+                (['--board', 'noflasher'], 'noflasher: board UID9 names neither a registered probe nor a flasher'),
                 (['--board', 'nouid'], 'nouid: no uid'),
                 (['--board', 'esp'], 'esp: openocd_esp is refused to a caller that does not declare'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),

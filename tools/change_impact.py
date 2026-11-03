@@ -1235,7 +1235,7 @@ def main():
     for c in a.configs:
         with open(c, encoding='utf-8', errors='replace') as f:
             boards = json.load(f)['boards']
-        try:   # each board's flasher is agentrc's, by its uid (lib/agentrc: tools/get_deps.py)
+        try:   # each board's flasher is agentrc's, by its probe (lib/agentrc: tools/get_deps.py)
             rosters.append((c, [hil_boards().resolve(b) for b in boards]))
         except (ImportError, ValueError) as e:
             print(f'change_impact: {c}: {e}', file=sys.stderr)

@@ -126,7 +126,7 @@ _hil_boards = None
 
 def hil_boards():
     """agentrc's board registry (hil_boards): each roster board's flasher and flasher_recover by
-    its uid. Loaded on first use like provider(); every reader of a board's flasher resolves
+    its probe. Loaded on first use like provider(); every reader of a board's flasher resolves
     its roster entry through it, readers of names alone read the roster raw."""
     global _hil_boards
     if _hil_boards is None:

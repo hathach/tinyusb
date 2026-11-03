@@ -217,7 +217,8 @@ class Board(TypedDict):
     name: str
     uid: str
     tests: TestsCfg
-    flasher: FlasherCfg  # agentrc's board registry gives it, by uid (hil_util.hil_boards)
+    probe: NotRequired[str]  # the board's debug probe serial, its key in agentrc's board registry
+    flasher: FlasherCfg  # agentrc's board registry gives it, by probe (hil_util.hil_boards)
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -2527,7 +2528,7 @@ def main() -> None:
             print(f'ERROR: board(s) not in {config_file.name}: {", ".join(unknown)}')
             sys.exit(1)
         config_boards = [e for e in config['boards'] if e['name'] in boards]
-    # each board's flasher and flasher_recover are agentrc's, by its uid (`hil` skill, Board
+    # each board's flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board
     # registry): resolved for the boards this run touches only, as the roster checks below,
     # and refused through _config_abort, which invalidates the previous report
     resolve_error = ''

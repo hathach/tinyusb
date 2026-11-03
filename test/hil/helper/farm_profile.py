@@ -35,7 +35,7 @@ def roster(host: str, config, args) -> dict:
     if not path.exists():
         path = REPO_ROOT / 'test' / 'hil' / name
     with path.open() as f:
-        cfg = hil_util.hil_boards().resolve_roster(json.load(f))   # each probe is agentrc's, by board uid
+        cfg = hil_util.hil_boards().resolve_roster(json.load(f))   # each flasher is agentrc's, by probe
     # boards-skip is parked hardware: checked only when -b names it
     return {'path': str(path), 'boards': list(cfg['boards']), 'named_only': list(cfg.get('boards-skip', []))}
 

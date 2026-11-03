@@ -154,7 +154,7 @@ def resolve(config, board_name, variant):
     if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
-    try:   # its flasher and flasher_recover are agentrc's, by its uid (`hil` skill, Board registry)
+    try:   # its flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board registry)
         board = hil_util.hil_boards().resolve(board)
     except ValueError as e:
         raise Refused(f'{config}: {e}')
