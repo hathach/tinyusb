@@ -17,6 +17,7 @@ Only Device part of TinyUSB stack is supported. For Host mode, please refer to [
 | :--- | :--- | :--- | :--- |
 | [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.1`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.1) | `0.21.0~1` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.1) |
 | [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.2`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.2) | `0.21.0~2` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.2) |
+| [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.3`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.3) | `0.21.0~3` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.3) |
 
 TinyUSB has not yet reached its first stable release (v1.0.0), so breaking changes may still occur in any version. In practice, the API remains relatively stable, and when incompatible changes arise, we aim to preserve backward compatibility where feasible.
 
@@ -37,12 +38,12 @@ To use [Espressif TinyUSB additions](https://github.com/espressif/esp-usb/tree/m
 ```yaml
 ## IDF Component Manager Manifest File
 dependencies:
-  esp_tinyusb: "^2.0.0" # Automatically update minor releases
+  esp_tinyusb: "^3.0.0" # Automatically update minor releases
 ```
 
 Or simply run:
 ```sh
-idf.py add-dependency "esp_tinyusb^2.0.0"
+idf.py add-dependency "esp_tinyusb^3.0.0"
 ```
 
 ### 2. Using standalone TinyUSB
