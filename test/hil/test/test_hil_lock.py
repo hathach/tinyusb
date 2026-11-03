@@ -267,6 +267,18 @@ class InstalledDependency(unittest.TestCase):
                 self.assertIn('ERROR: cannot read board roster', out)
         self.assertEqual(self.cli('status'), (0, 'no locks\n'))
 
+    def test_hold_all_refuses_a_malformed_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        for cfg in ({'boards': None}, ['hil-lock-selftest'], {'boards': ['hil-lock-selftest']}):
+            with self.subTest(cfg=cfg):
+                with open(os.path.join(self.root, 'bad.json'), 'w') as f:
+                    json.dump(cfg, f)
+                rc, out = self.cli('hold', '--all', '--config', 'bad.json', '--reason', 'selftest')
+                self.assertEqual(rc, 1)
+                self.assertRegex(out, r'ERROR: cannot (read board roster|name the board locks of) bad\.json')
+                self.assertNotIn('Traceback', out)
+        self.assertEqual(self.cli('status'), (0, 'no locks\n'))
+
     def test_a_provider_without_hil_process_beside_it_is_refused(self):
         self.provide(os.path.join(self.root, 'locks'), process=False)
         rc, out = self.cli('status')

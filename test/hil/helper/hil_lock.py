@@ -38,13 +38,13 @@ def boards_from_config(config: str) -> list:
         with open(config) as f:
             cfg = json.load(f)
         entries = cfg['boards'] + cfg.get('boards-skip', [])
-    except (OSError, ValueError, KeyError) as e:
+    except (OSError, ValueError, KeyError, TypeError) as e:
         print(f'ERROR: cannot read board roster {config}: {e}', file=sys.stderr)
         sys.exit(1)
     lock_name = agentrc.load_file('skills/hil/scripts/hil_boards.py').lock_name
     try:
         return [lock_name(b) for b in entries]
-    except (ValueError, KeyError) as e:   # agentrc's registry refused an entry, or it has no name
+    except (ValueError, KeyError, TypeError) as e:   # agentrc's registry refused an entry, or one is not a named object
         print(f'ERROR: cannot name the board locks of {config}: {e}', file=sys.stderr)
         sys.exit(1)
 
