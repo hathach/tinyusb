@@ -10,7 +10,7 @@ TEST_SOURCE_FILE("hid_host.c")
 
 enum {
   HID_DEV_ADDR = 1,
-  HID_ITF_NUM  = 0,
+  HID_ITF_NUM  = 2, // nonzero, so it differs from the interface index (0)
   HID_EP_IN    = 0x81,
   HID_EP_SIZE  = 8,
 };
