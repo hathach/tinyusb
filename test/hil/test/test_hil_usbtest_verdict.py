@@ -243,6 +243,9 @@ class Adapters(unittest.TestCase):
         usbtest.bind_usbtest(usbtest_harness.DEV)
         node = usbtest_harness.DEV['node']
         self.assertEqual(seen, [('compat', (node,)), ('bind', ('1-1:1.0', node))])
+        seen.clear()
+        usbtest.bind_usbtest({**usbtest_harness.DEV, 'sysname': '2-3'})
+        self.assertEqual(seen, [('bind', ('2-3:1.0', node))])
 
 
 if __name__ == '__main__':
