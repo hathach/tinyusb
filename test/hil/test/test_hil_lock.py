@@ -273,13 +273,14 @@ class RetainedLock(LockDir):
         self.board = {'name': BOARD, 'uid': 'ABC123', 'tests': {'only': ['device/cdc_msc']},
                       'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                   'args': '-f board/esp32p4-builtin.cfg'}}
+        self.lock = BOARD
         self.addCleanup(self.end_holder)
 
     def provider(self, outcome, security_cleanup='done', security_receipts=()):
         """hil_util.openocd_esp() whose flash records the lock record it ran under, then
         returns or raises `outcome`; its security read ends with `security_cleanup`."""
         def flash(flasher, segments, **kw):
-            self.flashes.append(hil_lock.read_record(BOARD))
+            self.flashes.append(hil_lock.read_record(self.lock))
             if isinstance(outcome, BaseException):
                 raise outcome
             return outcome
@@ -302,20 +303,20 @@ class RetainedLock(LockDir):
             json.dump({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99', 'closed': True, 'cleanup': 'done'}, f)
 
     def end_holder(self):
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(self.lock)
         if hil_lock.is_cleanup_holder(rec):
             self.end_session()
             hil_lock.release_token(rec['token'])
 
     def assert_retained(self):
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(self.lock)
         self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
         self.assertIn(self.RECEIPT, rec['detail'])
         self.assertEqual(rec['retained'], [self.RECEIPT])
-        self.assertEqual((rec['protected'], rec['locks']), (True, [BOARD]))
+        self.assertEqual((rec['protected'], rec['locks']), (True, [self.lock]))
         with self.assertRaises(hil_lock.BoardLocked):         # the holder keeps the flock itself
-            hil_lock.take_board_lock(BOARD, 'peer')
-        self.assertIsNone(hil_lock.journal_state(BOARD))      # handed over, not taken over
+            hil_lock.take_board_lock(self.lock, 'peer')
+        self.assertIsNone(hil_lock.journal_state(self.lock))  # handed over, not taken over
         return rec
 
     def run_board(self):
@@ -328,7 +329,8 @@ class RetainedLock(LockDir):
         sleep.assert_not_called()   # never the 0.5 s retry wait
         self.assertEqual((name, err, failed), (BOARD, 2, []))   # the test's flash and the blocker
         self.assertEqual(len(self.flashes), 1, 'retried or parked beside an outstanding session')
-        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [BOARD]), self.flashes[0])
+        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [self.lock]),
+                         self.flashes[0])
         rec = self.assert_retained()
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
@@ -347,6 +349,17 @@ class RetainedLock(LockDir):
         self.end_session()
         hil_lock.release_token(token)
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
+
+    def test_a_registered_boards_pending_hands_over_its_registry_lock(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        board = hil_util.hil_boards().resolve({'name': BOARD, 'uid': 'ABC123', 'probe': probe,
+                                               'tests': {'only': ['device/cdc_msc']}})
+        self.board = {**board, 'flasher': self.board['flasher']}
+        self.lock = reg['name']
+        self.provider(self.op('pending', rc=124))
+        self.run_board()
+        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.RECEIPT,)})
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'absent')  # never the roster name's lock
 
     def test_pending_on_an_exception_hands_it_over_too(self):
         err = RuntimeError('Tcl connection lost')

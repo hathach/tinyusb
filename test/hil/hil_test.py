@@ -2567,6 +2567,7 @@ def main() -> None:
         config_boards = selected
     except (ImportError, ValueError) as e:
         resolve_errors = [str(e)]
+        config_boards = [b for b in config_boards if isinstance(b, dict) and isinstance(b.get('name'), str)]
 
     # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
     # id: persistent across attempts, private to one run)

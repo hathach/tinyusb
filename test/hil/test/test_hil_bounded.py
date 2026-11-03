@@ -342,6 +342,19 @@ class BuildBoardContract(unittest.TestCase):
                 self.assertEqual(doc['_hil']['termination'], 'aborted', argv)
                 self.assertIn(why, doc['caveat'])
 
+    def test_an_unreadable_registry_aborts_a_roster_with_a_nameless_entry(self):
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'p0'}, {'name': 'good', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn(why, doc['caveat'])
+
     def test_a_refused_entry_without_a_name_reaches_the_abort(self):
         from helper import hil_report
         cfg = {'boards': ['oops', {'probe': 'hil-bounded-unregistered-probe'},
