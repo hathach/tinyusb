@@ -166,7 +166,8 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   uint8_t alt_count = 0;
 
   uint16_t drv_len = 0;
-  TU_VERIFY(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS && itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU, 0);
+  TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_APPLICATION_SPECIFIC &&
+            itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS && itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU, 0);
 
   while(itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS && itf_desc->bInterfaceProtocol == DFU_PROTOCOL_DFU) {
     TU_ASSERT(max_len > drv_len, 0);
