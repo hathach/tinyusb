@@ -78,7 +78,7 @@ repos:
   # scripts under test import.
   - id: hil-test
     name: hil-test
-    files: ^(test/hil/|examples/device/mtp/src/|\.claude/skills/hil-contract/scripts/hil_remote\.py$)
+    files: ^(test/hil/|examples/device/mtp/src/|\.claude/skills/hil-contract/scripts/hil_remote\.py$|\.github/workflows/pr_comment\.yml$)
     entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: python
