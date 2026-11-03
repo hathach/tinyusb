@@ -527,7 +527,13 @@ class CleanupHolderTeardown(unittest.TestCase):
              'import signal, time; '
              '[signal.signal(s, signal.SIG_IGN) for s in '
              '(signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]; time.sleep(60)'])
-        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+
+        def kill_and_reap():
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+
+        self.addCleanup(kill_and_reap)
         start = hil_lock.proc_start(proc.pid)
         rec = {'role': hil_lock.CLEANUP_ROLE, 'pid': proc.pid, 'start': start, 'token': 'test'}
         fake = types.SimpleNamespace(
@@ -535,6 +541,7 @@ class CleanupHolderTeardown(unittest.TestCase):
             read_record=lambda board: rec,
             is_cleanup_holder=hil_lock.is_cleanup_holder,
             proc_start=hil_lock.proc_start,
+            _pidfd_signal=hil_lock._pidfd_signal,
             release_token=lambda token: (_ for _ in ()).throw(hil_lock.ReleaseRefused('slow holder')))
         finished = []
 
