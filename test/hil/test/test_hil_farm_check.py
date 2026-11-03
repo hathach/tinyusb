@@ -16,7 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
+from usbtest_harness import end_cleanup_holder, patch  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
 from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
@@ -424,12 +424,11 @@ class EngineOpenocdEsp(EngineFixture):
         self.real = real
 
     def end_holder(self):
-        rec = hil_lock.read_record('b')
-        if hil_lock.is_cleanup_holder(rec):
+        def end_session():
             # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
             Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99',
                                                       'closed': True, 'cleanup': 'done'}))
-            hil_lock.release_token(rec['token'])
+        end_cleanup_holder(hil_lock, 'b', end_session)
 
     def test_a_done_session_is_ok_and_released(self):
         code, doc = self.run_engine()
