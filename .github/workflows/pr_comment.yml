@@ -96,7 +96,7 @@ jobs:
             exit 0
           fi
           mkdir "hil-reports/$names"
-          find hil-reports -mindepth 1 -maxdepth 1 ! -name "$names" -exec mv -t "hil-reports/$names" {} +
+          find hil-reports -mindepth 1 -maxdepth 1 ! -name "$names" -exec mv {} "hil-reports/$names/" \;
 
       - name: Download SystemView captures
         id: sv-download
