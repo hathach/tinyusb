@@ -4,6 +4,7 @@
 # wiring to agentrc's engine, with the bus, the flasher and the tracked runner faked and the
 # engine's lock dir in a temp dir: no board, no ssh. Run directly:
 #   python3 test/hil/test/test_hil_farm_check.py
+import io
 import json
 import os
 import runpy
@@ -12,6 +13,7 @@ import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -85,8 +87,10 @@ def capture(fn):
 
 
 def runpy_helper():
-    """helper/hil_lock.py's own namespace: imported, the module is agentrc's primitive."""
-    return types.SimpleNamespace(**runpy.run_path(str(hil_util.TINYUSB_ROOT / 'test/hil/helper/hil_lock.py')))
+    """helper/hil_lock.py's own namespace: imported, the module is agentrc's primitive. Run inside
+    the helper package, whose agentrc it then imports: no helper/ on sys.path, no second agentrc."""
+    return types.SimpleNamespace(**runpy.run_path(str(hil_util.TINYUSB_ROOT / 'test/hil/helper/hil_lock.py'),
+                                                  run_name='helper._hil_lock_cli'))
 
 
 class Roster(unittest.TestCase):
@@ -120,8 +124,19 @@ class Roster(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td, 'r.json')
             cfg.write_text(json.dumps({'boards': [BOARD], 'boards-skip': [entry]}))
+            path, modules = list(sys.path), set(sys.modules)
             helper = runpy_helper()
+            self.assertEqual((sys.path, set(sys.modules) - modules), (path, set()), 'the helper run leaked')
             self.assertEqual(helper.boards_from_config(str(cfg)), [BOARD['name'], reg['name']])
+
+    def test_hold_all_reports_a_registry_refusal_as_one(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [{'name': 'x', 'uid': 'U', 'probe': 'farm-check-unregistered'}]}))
+            with redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+                runpy_helper().boards_from_config(str(cfg))
+        self.assertIn(f"cannot name the board locks of {cfg}: x: probe 'farm-check-unregistered' is not in agentrc",
+                      err.getvalue())
 
 
 class Probe(unittest.TestCase):
