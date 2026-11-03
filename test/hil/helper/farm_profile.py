@@ -22,18 +22,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the 
 import hil_flash
 from helper import hil_util, usb_observe
 
-REPO_ROOT = hil_util.TINYUSB_ROOT
-CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
-
 
 # --- roster -----------------------------------------------------------------------------------
 def roster(host: str, config, args) -> dict:
-    name = config or CONFIG_BY_HOST.get(host)
-    if name is None:
-        raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
-    path = Path(name)
-    if not path.exists():
-        path = REPO_ROOT / 'test' / 'hil' / name
+    path = hil_util.roster_path(host, config)
     with path.open() as f:
         cfg = hil_util.hil_boards().resolve_roster(json.load(f))   # each flasher is agentrc's, by probe
     # boards-skip is parked hardware: checked only when -b names it

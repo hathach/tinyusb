@@ -175,5 +175,21 @@ class RampGaps(unittest.TestCase):
         self.assertEqual(hil_util.ramp_gaps([5, 0, 1, 2, 9], 1), [(4, 6)])
 
 
+class RosterPath(unittest.TestCase):
+    """The one hostname -> roster map, for the farm check and `hil_lock.py hold --all`."""
+    HIL = hil_util.TINYUSB_ROOT / 'test' / 'hil'
+
+    def test_the_hfp_rig_gets_its_own_roster(self):
+        # from test/hil the bare name resolves against the cwd first: the same file either way
+        self.assertEqual(hil_util.roster_path('tusb').resolve(), self.HIL / 'hfp.json')
+
+    def test_an_explicit_roster_wins_on_any_host(self):
+        for host in ('ci', 'htpc'):
+            with self.subTest(host=host):
+                self.assertEqual(hil_util.roster_path(host, __file__), Path(__file__))
+                # a name found nowhere else is test/hil's, and its open fails in the caller
+                self.assertEqual(hil_util.roster_path(host, 'no-such.json'), self.HIL / 'no-such.json')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -104,6 +104,20 @@ def is_dut_id(vidpid: str) -> bool:
     return vidpid.startswith('cafe:') or vidpid == ':'.join(USBTEST_ID)
 
 
+# each rig host's roster under test/hil; any other host names its own (a dev PC: test/hil/local.json)
+CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
+
+
+def roster_path(host: str, config: str | None = None) -> Path:
+    """The roster `config` names (as given, else under test/hil), else `host`'s; LookupError for
+    a host with none. The file is the caller's to open: a missing one fails there."""
+    name = config or CONFIG_BY_HOST.get(host)
+    if name is None:
+        raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
+    path = Path(name)
+    return path if path.exists() else TINYUSB_ROOT / 'test' / 'hil' / name
+
+
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
 # `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
 # a bare checkout before CI fetches agentrc.
