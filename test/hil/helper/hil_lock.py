@@ -55,11 +55,12 @@ def main():
         ap = argparse.ArgumentParser(usage='hil_lock.py hold --all [--config CONFIG.json] --reason TEXT')
         ap.add_argument('boards', nargs='*', help='ignored: --all takes the roster')
         ap.add_argument('--all', action='store_true')
-        ap.add_argument('--config', help="board roster JSON (default: this host's, hil_util.CONFIG_BY_HOST)")
+        ap.add_argument('--config', help="board roster JSON (default: this host's, hil_util.CONFIG_BY_HOST, "
+                        "else test/hil/local.json)")
         ap.add_argument('--reason', required=True)
         a = ap.parse_args(sys.argv[2:])
         try:
-            config = hil_util.roster_path(socket.gethostname(), a.config)
+            config = hil_util.roster_path(socket.gethostname(), a.config, local_fallback=True)
         except LookupError as e:
             ap.error(str(e))
         sys.argv[1:] = ['hold', *boards_from_config(config), '--reason', a.reason]

@@ -108,15 +108,18 @@ def is_dut_id(vidpid: str) -> bool:
 CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
 
 
-def roster_path(host: str, config: str | None = None) -> Path:
+def roster_path(host: str, config: str | None = None, local_fallback: bool = False) -> Path:
     """The roster `config` names (as given, else under test/hil), else `host`'s under test/hil
-    only, so a same-named file in the cwd never replaces the rig's; LookupError for a host with
-    none. The file is the caller's to open: a missing one fails there."""
+    only, so a same-named file in the cwd never replaces the rig's; with `local_fallback`, an
+    existing test/hil/local.json for any other host; LookupError for a host with none. The file
+    is the caller's to open: a missing one fails there."""
     hil_dir = TINYUSB_ROOT / 'test' / 'hil'
     if config:
         path = Path(config)
         return path if path.exists() else hil_dir / config
     if host not in CONFIG_BY_HOST:
+        if local_fallback and (hil_dir / 'local.json').exists():
+            return hil_dir / 'local.json'
         raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
     return hil_dir / CONFIG_BY_HOST[host]
 

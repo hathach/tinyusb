@@ -238,10 +238,18 @@ class InstalledDependency(unittest.TestCase):
         self.assertEqual(self.cli('hold', '--all', '--reason', 'selftest', host='tusb'),
                          (0, 'held: hil-lock-selftest-tusb\n'))
 
-    def test_hold_all_on_an_unknown_host_needs_a_named_roster(self):
+    def test_hold_all_on_an_unknown_host_takes_local_json(self):
         self.provide(os.path.join(self.root, 'locks'))
         self.roster('test/hil/tinyusb.json', 'hil-lock-selftest-ci')
-        self.roster('local.json', 'hil-lock-selftest-local')
+        self.roster('test/hil/local.json', 'hil-lock-selftest-local')
+        self.addCleanup(self.cli, 'release', '--all')
+        self.assertEqual(self.cli('hold', '--all', '--reason', 'selftest', host='htpc'),
+                         (0, 'held: hil-lock-selftest-local\n'))
+
+    def test_hold_all_on_an_unknown_host_without_local_json_needs_a_named_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        self.roster('test/hil/tinyusb.json', 'hil-lock-selftest-ci')
+        self.roster('local.json', 'hil-lock-selftest-local')   # in the cwd, not test/hil: never the default
         self.addCleanup(self.cli, 'release', '--all')
         rc, out = self.cli('hold', '--all', '--reason', 'selftest', host='htpc')
         self.assertEqual(rc, 2)

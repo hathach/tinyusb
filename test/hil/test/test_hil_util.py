@@ -197,6 +197,18 @@ class RosterPath(unittest.TestCase):
         with self.assertRaises(LookupError):
             hil_util.roster_path('htpc')
 
+    def test_local_fallback_takes_local_json_only_when_it_exists(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(hil_util, 'TINYUSB_ROOT', Path(d)):
+            hil = Path(d, 'test', 'hil')
+            hil.mkdir(parents=True)
+            with self.assertRaises(LookupError):
+                hil_util.roster_path('htpc', local_fallback=True)
+            (hil / 'local.json').write_text('{}')
+            self.assertEqual(hil_util.roster_path('htpc', local_fallback=True), hil / 'local.json')
+            self.assertEqual(hil_util.roster_path('ci', local_fallback=True), hil / 'tinyusb.json')
+            with self.assertRaises(LookupError):   # the farm check's call: no fallback
+                hil_util.roster_path('htpc')
+
     def test_an_explicit_roster_wins_on_any_host(self):
         for host in ('ci', 'htpc'):
             with self.subTest(host=host):
