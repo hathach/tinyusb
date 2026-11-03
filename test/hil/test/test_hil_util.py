@@ -7,6 +7,7 @@
 #   python3 test/hil/test/test_hil_util.py
 import os
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -180,8 +181,21 @@ class RosterPath(unittest.TestCase):
     HIL = hil_util.TINYUSB_ROOT / 'test' / 'hil'
 
     def test_the_hfp_rig_gets_its_own_roster(self):
-        # from test/hil the bare name resolves against the cwd first: the same file either way
-        self.assertEqual(hil_util.roster_path('tusb').resolve(), self.HIL / 'hfp.json')
+        self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+
+    def test_a_cwd_file_does_not_shadow_the_host_roster(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'hfp.json').write_text('{}')
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+            finally:
+                os.chdir(cwd)
+
+    def test_a_host_without_a_roster_must_name_one(self):
+        with self.assertRaises(LookupError):
+            hil_util.roster_path('htpc')
 
     def test_an_explicit_roster_wins_on_any_host(self):
         for host in ('ci', 'htpc'):

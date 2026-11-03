@@ -109,13 +109,16 @@ CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
 
 
 def roster_path(host: str, config: str | None = None) -> Path:
-    """The roster `config` names (as given, else under test/hil), else `host`'s; LookupError for
-    a host with none. The file is the caller's to open: a missing one fails there."""
-    name = config or CONFIG_BY_HOST.get(host)
-    if name is None:
+    """The roster `config` names (as given, else under test/hil), else `host`'s under test/hil
+    only, so a same-named file in the cwd never replaces the rig's; LookupError for a host with
+    none. The file is the caller's to open: a missing one fails there."""
+    hil_dir = TINYUSB_ROOT / 'test' / 'hil'
+    if config:
+        path = Path(config)
+        return path if path.exists() else hil_dir / config
+    if host not in CONFIG_BY_HOST:
         raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
-    path = Path(name)
-    return path if path.exists() else TINYUSB_ROOT / 'test' / 'hil' / name
+    return hil_dir / CONFIG_BY_HOST[host]
 
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
