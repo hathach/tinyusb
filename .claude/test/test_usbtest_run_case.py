@@ -247,8 +247,7 @@ class Chain(unittest.TestCase):
         probe, reg = next((p, r) for p, r in run_case.hil_util.hil_boards().registry().items()
                           if r['flasher']['name'] == 'jlink')
         rig = Rig(self)
-        roster = json.loads(json.dumps(ROSTER))
-        roster['boards'].append({'name': 'aliased', 'uid': 'UIDP', 'probe': probe, 'tests': {'device': True}})
+        roster = {'boards': [{'name': 'aliased', 'uid': 'UIDP', 'probe': probe, 'tests': {'device': True}}]}
         rig.config.write_text(json.dumps(roster))
         rc, _, err = rig.run('--board', 'aliased', '--tests', '29', '--after', 'leave')
         self.assertEqual(rc, 0, err)
