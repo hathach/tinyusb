@@ -32,11 +32,20 @@
  extern "C" {
 #endif
 
+#include "common/tusb_common.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "esp_intr_alloc.h"
 #include "soc/periph_defs.h"
+
+#if CFG_TUD_DWC2_DMA_ENABLE
+// Invoked from tud_task() when DWC2 detects an EP0 SETUP DMA address underflow.
+// More than three back-to-back SETUP packets, with at least one malformed packet
+// shorter than 5 bytes, can rewind DOEPDMA0. This indicates a defective or malicious USB host.
+void tud_dwc2_setup_dma_error_cb(uint8_t rhport);
+#endif
 
 // ESP32-S31 does not have USB_WRAP peripheral (HS-only with UTMI PHY)
 #if !TU_CHECK_MCU(OPT_MCU_ESP32S31)
