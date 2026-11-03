@@ -1154,6 +1154,18 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
+              // A bulk host can stop reading mid-frame, then commit a new stream.
+              // Cancel the old endpoint transfer before discarding its frame state.
+              const uint8_t *desc = _videod_itf[stm->index_vc].beg;
+              for (uint_fast8_t i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
+                if (!stm->desc.ep[i]) {
+                  break;
+                }
+                const tusb_desc_endpoint_t *ep = (const tusb_desc_endpoint_t *)(desc + stm->desc.ep[i]);
+                if (ep->bmAttributes.xfer == TUSB_XFER_BULK) {
+                  usbd_edpt_abort(rhport, ep->bEndpointAddress);
+                }
+              }
               stm->state   = VS_STATE_COMMITTED;
               stm->buffer  = NULL;
               stm->bufsize = 0;
