@@ -102,11 +102,22 @@ static uint32_t read10_shortfall;
 static uint32_t read10_lba;
 static uint32_t read10_offset;
 
+// fill data with the len bytes tud_msc_read10_cb() returns for lba at offset: a pattern of both, so a chunk sent from
+// the wrong place or buffer shows on Bulk-In
+static void read10_pattern(uint8_t* data, uint32_t lba, uint32_t offset, uint32_t len) {
+  for (uint32_t i = 0; i < len; i++) {
+    data[i] = (uint8_t) (lba * 512 + offset + i);
+  }
+}
+
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
-  (void) lun; (void) buffer;
+  (void) lun;
   read10_lba    = lba;
   read10_offset = offset;
-  return (int32_t) (bufsize - read10_shortfall);
+
+  uint32_t const nbytes = bufsize - read10_shortfall;
+  read10_pattern((uint8_t*) buffer, lba, offset, nbytes);
+  return (int32_t) nbytes;
 }
 
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
@@ -275,17 +286,18 @@ void test_msc_read10_packet_aligned_chunk_continues(void) {
   TEST_ASSERT_EQUAL_UINT32(0, read10_offset);
 
   // the next chunk: 512 bytes from LBA 0 offset 448, read whole this time
+  uint8_t expected[512];
   read10_shortfall = 0;
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 512, false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  read10_pattern(expected, 0, 512 - 64, 512);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, expected, 512, 512, false, true);
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512 - 64, 0, true);
   tud_task();
   TEST_ASSERT_EQUAL_UINT32(0, read10_lba);
   TEST_ASSERT_EQUAL_UINT32(512 - 64, read10_offset);
 
   // the last 64 bytes: LBA 1 offset 448
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, 64, false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  read10_pattern(expected, 1, 512 - 64, 64);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, expected, 64, 64, false, true);
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, 512, 0, true);
   tud_task();
   TEST_ASSERT_EQUAL_UINT32(1, read10_lba);
