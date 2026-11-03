@@ -80,8 +80,8 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
 
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void *buffer,
                                    uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void)daddr;
-  (void)buffer;
+  TEST_ASSERT_EQUAL(HID_DEV_ADDR, daddr);
+  TEST_ASSERT_EQUAL_PTR(usbh_get_enum_buf(), buffer);
   if (ctrl_xfer_reject) {
     return false;
   }
@@ -300,6 +300,19 @@ void test_hidh_set_config_report_desc_rejected(void) {
   TEST_ASSERT_EQUAL(HID_REQ_CONTROL_SET_PROTOCOL, ctrl_setup.bRequest);
   ctrl_xfer_reject = true;
   complete_ctrl_xfer(XFER_RESULT_SUCCESS);
+
+  TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_NULL(mount_cb_desc);
+  TEST_ASSERT_EQUAL(0, mount_cb_len);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
+void test_hidh_set_config_set_protocol_rejected(void) {
+  hidh_set_config(HID_DEV_ADDR, HID_ITF_NUM);
+  TEST_ASSERT_EQUAL(HID_REQ_CONTROL_SET_IDLE, ctrl_setup.bRequest);
+  ctrl_xfer_reject = true;
+  complete_ctrl_xfer(XFER_RESULT_STALLED); // SET_IDLE completes, SET_PROTOCOL fails to queue
 
   TEST_ASSERT_EQUAL(1, mount_cb_count);
   TEST_ASSERT_NULL(mount_cb_desc);
