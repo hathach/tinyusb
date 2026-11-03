@@ -30,6 +30,7 @@ typedef struct {
    bool (*const init)(void);
    bool (*const deinit)(void);
    uint16_t (*const open)(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
+   // Return value is ignored: completion, success or failure, is reported only by usbh_driver_set_config_complete()
    bool (*const set_config)(uint8_t dev_addr, uint8_t itf_num);
    bool (*const xfer_cb)(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
    void (*const close)(uint8_t dev_addr);
@@ -40,7 +41,10 @@ typedef struct {
 // Note: The drivers array must be accessible at all time when stack is active
 usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count);
 
-// Call by class driver to tell USBH that it has complete the enumeration
+// Call by class driver to tell USBH that it has complete the enumeration. Must be called exactly once per set_config(),
+// on every path including handled failures, possibly from within set_config(). USBH then calls set_config() for the
+// next bound interface after itf_num, so a driver that configured several interfaces at once may pass the last of them.
+// Until it is called (or the device detaches) the device is not mounted and no other device can enumerate.
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
 uint8_t usbh_get_rhport(uint8_t daddr);
