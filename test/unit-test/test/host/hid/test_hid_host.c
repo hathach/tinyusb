@@ -81,6 +81,8 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void *buffer,
                                    uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TEST_ASSERT_EQUAL(HID_DEV_ADDR, daddr);
+  TEST_ASSERT_EQUAL(HID_ITF_NUM, itf_num);
+  TEST_ASSERT_EQUAL(0, index);
   TEST_ASSERT_EQUAL_PTR(usbh_get_enum_buf(), buffer);
   if (ctrl_xfer_reject) {
     return false;
