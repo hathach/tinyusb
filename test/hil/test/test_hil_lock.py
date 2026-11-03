@@ -352,11 +352,10 @@ class RetainedLock(LockDir):
     def handed(self):
         """hand_to_cleanup_holder's calls, each refused as the real one refuses nothing here: a
         fake tracked receipt would never recheck done, so a real holder could never be ended."""
-        handed, self.handed_locks = [], []
+        handed = []
 
         def hand(handles, reason, **kw):
-            handed.append(kw)
-            self.handed_locks.append(list(handles))
+            handed.append({'handles': list(handles), **kw})
             raise ValueError('cleanup holder handoff refused in this test')
         patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
         return handed
@@ -398,7 +397,7 @@ class RetainedLock(LockDir):
         fh = hil_lock.take_board_lock(LOCK, 'hil_test.py', protected=True)
         cell = hil_test.retain_board_lock(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
         (kw,) = handed
-        self.assertEqual(self.handed_locks, [[LOCK]])
+        self.assertEqual(kw['handles'], [LOCK])
         self.assertEqual(hil_lock.read_record(LOCK)['locks'], [LOCK])
         self.assertEqual(kw['receipts'], [self.TRACKED])
         for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
