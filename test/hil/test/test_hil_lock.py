@@ -31,6 +31,7 @@ import hil_test          # noqa: E402
 from helper import agentrc, hil_lock, hil_util   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
+LOCK = 'hil-lock-selftest-lock'     # a lock named apart from its roster board
 PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
 PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
 LOADER = 'lib/agentrc/skills/hil/scripts/hil_load.py'
@@ -351,10 +352,11 @@ class RetainedLock(LockDir):
     def handed(self):
         """hand_to_cleanup_holder's calls, each refused as the real one refuses nothing here: a
         fake tracked receipt would never recheck done, so a real holder could never be ended."""
-        handed = []
+        handed, self.handed_locks = [], []
 
         def hand(handles, reason, **kw):
             handed.append(kw)
+            self.handed_locks.append(list(handles))
             raise ValueError('cleanup holder handoff refused in this test')
         patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
         return handed
@@ -393,9 +395,11 @@ class RetainedLock(LockDir):
                   'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
         hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
         handed = self.handed()
-        fh = hil_lock.take_board_lock(BOARD, 'hil_test.py', protected=True)
-        cell = hil_test.retain_board_lock(BOARD, BOARD, fh, hil_test.cleanup_pending(BOARD))
+        fh = hil_lock.take_board_lock(LOCK, 'hil_test.py', protected=True)
+        cell = hil_test.retain_board_lock(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
         (kw,) = handed
+        self.assertEqual(self.handed_locks, [[LOCK]])
+        self.assertEqual(hil_lock.read_record(LOCK)['locks'], [LOCK])
         self.assertEqual(kw['receipts'], [self.TRACKED])
         for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
                      'esptool child, record /s/hil_op_t0k.json', self.RECEIPT):
@@ -478,16 +482,16 @@ class RetainedLock(LockDir):
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def assert_blocker(self, cell, why):
+    def assert_blocker(self, cell, why, lock=BOARD):
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
         self.assertIn(why, cell)
         self.assertIn('the protected record is the recovery blocker', cell)
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(lock)
         self.assertFalse(hil_lock.is_cleanup_holder(rec), rec)
         self.assertEqual((rec['protected'], rec['locks'], rec['detail']),
-                         (True, [BOARD], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
+                         (True, [lock], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
         with self.assertRaises(hil_lock.RecoveryBlocked):
-            hil_lock.take_board_lock(BOARD, 'peer')
+            hil_lock.take_board_lock(lock, 'peer')
 
     def test_an_unacknowledged_hand_over_leaves_the_protected_record_as_the_blocker(self):
         self.provider(self.op('pending'))
@@ -500,10 +504,10 @@ class RetainedLock(LockDir):
     def test_a_refused_hand_over_protects_the_record_as_the_blocker(self):
         # an unprotected handle: hand_to_cleanup_holder refuses, changing nothing, and the board
         # is protected here instead of released
-        fh = hil_lock.take_board_lock(BOARD, hil_lock.CI_REASON)
-        cell = '❌ ' + hil_test.retain_board_lock(BOARD, BOARD, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
+        fh = hil_lock.take_board_lock(LOCK, hil_lock.CI_REASON)
+        cell = '❌ ' + hil_test.retain_board_lock(BOARD, LOCK, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
         self.assertTrue(fh.closed)
-        self.assert_blocker(cell, 'cleanup holder handoff refused')
+        self.assert_blocker(cell, 'cleanup holder handoff refused', lock=LOCK)
 
 
 if __name__ == '__main__':

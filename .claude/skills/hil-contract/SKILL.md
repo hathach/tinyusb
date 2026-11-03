@@ -194,11 +194,11 @@ Before the flash, `test/hil/hil_flash.py` takes the build's segments and the chi
 
 - `hil_test.py` self-locks each board for its flash+test (holder reason `hil_test.py`). A locked board fails immediately (`<board>  Failed: board locked: {holder info}`) without flashing — in CI, re-run the failed job later. A board refused by a recovery blocker (`hil` Board locks) fails the same way but gets a `recovery-blocker` cell naming the holder instead of `board-locked`, and is returned as a blocker, never re-run.
 - For usbtest bring-up or case diagnosis, load the `usbtest` skill before a manual case run; its `run_case.py` takes and releases the lock itself. This contract still supplies the lock helper, the lock names and rig selection.
-- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup:
+- For hardware work outside `hil_test.py` (JLink/GDB, manual flashing, `usbtest.py`, serial poking), hold the lock first and release it when done — release is mandatory cleanup. Proceed only when the lookup and the hold both succeeded; on a failure stop, with no hardware work and no `release` (it would end another session's holder):
 
 ```bash
-LOCK=$(python3 lib/agentrc/skills/hil/scripts/hil_boards.py lock "$CONFIG" BOARD)
-python3 test/hil/helper/hil_lock.py hold "$LOCK" --reason "why"
+LOCK=$(python3 lib/agentrc/skills/hil/scripts/hil_boards.py lock "$CONFIG" BOARD) &&
+  python3 test/hil/helper/hil_lock.py hold "$LOCK" --reason "why"
 # ... hardware work ...
 python3 test/hil/helper/hil_lock.py release "$LOCK"
 ```
