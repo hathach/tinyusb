@@ -2324,14 +2324,11 @@ def park_bound_s() -> float:
 
 def _named_flasher(entry) -> str | None:
     """The flasher name of a roster entry agentrc's registry refused: its registered probe's,
-    else its own; None when neither is known (an unregistered probe, an unreadable registry)."""
+    else its own; None when neither is known (an unregistered probe)."""
     if not isinstance(entry, dict):
         return None
     probe = entry.get('probe')
-    try:
-        reg = hil_util.hil_boards().registry().get(probe) if isinstance(probe, str) else None
-    except ValueError:
-        return None
+    reg = hil_util.hil_boards().registry().get(probe) if isinstance(probe, str) else None
     flasher = (reg or entry).get('flasher')
     return flasher.get('name') if isinstance(flasher, dict) else None
 
@@ -2552,19 +2549,23 @@ def main() -> None:
         return flasher_name not in args.exclude_flasher and (not args.flasher or flasher_name in args.flasher)
     resolve_errors = []
     try:
+        # an unreadable registry names no probe board's flasher: abort every leg on it, not filter them out
+        hil_util.hil_boards().registry()
         selected = []
         for e in config_boards:
             try:
                 resolved = hil_util.hil_boards().resolve(e)
             except ValueError as err:
                 if _selected(_named_flasher(e)):
-                    selected.append(e)
                     resolve_errors.append(str(err))
+                    # the report's selection is by name: a nameless entry is in the refusal only
+                    if isinstance(e, dict) and isinstance(e.get('name'), str):
+                        selected.append(e)
             else:
                 if _selected(resolved['flasher']['name']):
                     selected.append(resolved)
         config_boards = selected
-    except ImportError as e:
+    except (ImportError, ValueError) as e:
         resolve_errors = [str(e)]
 
     # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run

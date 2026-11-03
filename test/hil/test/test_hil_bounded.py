@@ -326,6 +326,34 @@ class BuildBoardContract(unittest.TestCase):
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
 
+    def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
+        """Without the registry no probe board names its flasher: a --flasher leg must not drop them
+        all and report 'No boards left' instead of the registry's problem."""
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'a', 'uid': '1', 'probe': 'p1'}, {'name': 'b', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            for argv in (['--flasher', 'esptool', '--flasher', 'openocd_esp'], ['--exclude-flasher', 'esptool']):
+                rc, d, pool, _ = self.run_main(cfg, [], argv, set())
+                self.assertEqual(rc, 1)
+                pool.imap_unordered.assert_not_called()
+                doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['_hil']['termination'], 'aborted', argv)
+                self.assertIn(why, doc['caveat'])
+
+    def test_a_refused_entry_without_a_name_reaches_the_abort(self):
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'hil-bounded-unregistered-probe'},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn('<unnamed>: not an object', doc['caveat'])
+        self.assertIn('<unnamed>: no uid', doc['caveat'])
+
     def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
         from helper import hil_report
         cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'}},
