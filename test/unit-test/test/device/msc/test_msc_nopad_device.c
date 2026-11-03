@@ -103,10 +103,10 @@ static uint32_t read10_lba;
 static uint32_t read10_offset;
 
 // fill data with the len bytes tud_msc_read10_cb() returns for lba at offset: a pattern of both, so a chunk sent from
-// the wrong place or buffer shows on Bulk-In
+// the wrong place or buffer shows on Bulk-In. The lba term is not a multiple of 256, so it survives the uint8_t cast
 static void read10_pattern(uint8_t* data, uint32_t lba, uint32_t offset, uint32_t len) {
   for (uint32_t i = 0; i < len; i++) {
-    data[i] = (uint8_t) (lba * 512 + offset + i);
+    data[i] = (uint8_t) (lba * 0x11 + offset + i);
   }
 }
 
@@ -240,8 +240,10 @@ static void read10_2blocks_first_chunk(uint16_t chunk_len) {
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, chunk_len, false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  // the chunk: chunk_len bytes from LBA 0 offset 0
+  uint8_t expected[512];
+  read10_pattern(expected, 0, 0, chunk_len);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, expected, chunk_len, chunk_len, false, true);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
   tud_task();
 }
