@@ -218,7 +218,7 @@ class Board(TypedDict):
     uid: str
     tests: TestsCfg
     probe: NotRequired[str]  # the board's debug probe serial, its key in agentrc's board registry
-    flasher: FlasherCfg  # agentrc's board registry gives it, by probe (hil_util.hil_boards)
+    flasher: NotRequired[FlasherCfg]  # an unregistered board's own; a probe's is agentrc's (hil_util.hil_boards)
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -1588,8 +1588,8 @@ def test_device_usbtest(board):
     # (own session) on the probe. Never under --skip-flash, and only when this flasher can
     # DELIVER past a poisoned node (hil_flash.convoy_safe): otherwise the delivery adds a
     # SECOND stray and the board reserves budget for a path that cannot fire. The RECOVERY
-    # flasher may be the roster's optional `flasher_recover`: a board can name an openocd
-    # entry that reaches the same probe convoy-safely.
+    # flasher may be the board's optional `flasher_recover` (agentrc's registry entry for a
+    # probe board, else the roster's): an openocd entry that reaches the same probe convoy-safely.
     _rec_flasher = hil_flash.recover_flasher(board)
     recovery = bool(_current_fw and not skip_flash and hil_flash.convoy_safe(_rec_flasher))
     # ONE bound: run_cmd's kill below. It carries the recovery reserve only when a
@@ -1656,7 +1656,7 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
     global board_wedged
     # The battery's OWN verdict, not 'HUNG' in its output: `recovery` only says the flags
     # were passed, and a HUNG case whose kill landed late is a timeout, not a wedge (#3944).
-    # rec_flasher, not board['flasher']: the two diverge on a roster with `flasher_recover`,
+    # rec_flasher, not board['flasher']: the two diverge on a board with `flasher_recover`,
     # and naming the wrong one sends the operator to the wrong probe.
     # No HUNG case: usbtest aborted on an ambiguous or unreadable serial, before any recovery.
     if data.get('wedged'):
