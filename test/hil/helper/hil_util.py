@@ -135,6 +135,12 @@ def hil_boards():
     return _hil_boards
 
 
+def lock_name(board: dict) -> str:
+    """The board's lock: its registered board's name in agentrc's registry, whatever this roster
+    calls it, else its roster name (`hil` skill, Board locks)."""
+    return hil_boards().lock_name(board)
+
+
 _openocd_esp = None
 
 

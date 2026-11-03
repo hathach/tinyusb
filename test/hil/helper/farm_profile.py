@@ -41,7 +41,7 @@ def roster(host: str, config, args) -> dict:
 
 
 def lock_name(board: dict) -> str:
-    return board['name']
+    return hil_util.lock_name(board)
 
 
 def probe_name(board: dict) -> str:

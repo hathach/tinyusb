@@ -34,6 +34,8 @@ BOARD = 'hil-lock-selftest-board'
 PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
 PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
 LOADER = 'lib/agentrc/skills/hil/scripts/hil_load.py'
+REGISTRY = ('lib/agentrc/skills/hil/scripts/hil_boards.py', 'lib/agentrc/skills/hil/boards.json',
+            'lib/agentrc/skills/hil/scripts/usb_observe.py')
 
 
 class LockDir(unittest.TestCase):
@@ -179,6 +181,9 @@ class PinnedDependency(unittest.TestCase):
         shutil.copy(os.path.join(REPO, LOADER), os.path.join(self.root, LOADER))
         if process:   # the release predicate and the cleanup hand-over load it beside hil_lock
             shutil.copy(os.path.join(REPO, PROCESS), os.path.join(self.root, PROCESS))
+        for rel in REGISTRY:   # hold --all names each registered board's lock by agentrc's registry
+            os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
+            shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
         with open(os.path.join(REPO, PROVIDER)) as f:
             text = f.read()
         moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
@@ -389,7 +394,7 @@ class RetainedLock(LockDir):
         hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
         handed = self.handed()
         fh = hil_lock.take_board_lock(BOARD, 'hil_test.py', protected=True)
-        cell = hil_test.retain_board_lock(BOARD, fh, hil_test.cleanup_pending(BOARD))
+        cell = hil_test.retain_board_lock(BOARD, BOARD, fh, hil_test.cleanup_pending(BOARD))
         (kw,) = handed
         self.assertEqual(kw['receipts'], [self.TRACKED])
         for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
@@ -496,7 +501,7 @@ class RetainedLock(LockDir):
         # an unprotected handle: hand_to_cleanup_holder refuses, changing nothing, and the board
         # is protected here instead of released
         fh = hil_lock.take_board_lock(BOARD, hil_lock.CI_REASON)
-        cell = '❌ ' + hil_test.retain_board_lock(BOARD, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
+        cell = '❌ ' + hil_test.retain_board_lock(BOARD, BOARD, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
         self.assertTrue(fh.closed)
         self.assert_blocker(cell, 'cleanup holder handoff refused')
 

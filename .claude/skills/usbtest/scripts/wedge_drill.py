@@ -476,7 +476,7 @@ def main():
             if not args.allow_concurrent:
                 run_case.check_peers()
             try:
-                lock = hil_lock.acquire_board_lock(board['name'], reason='wedge_drill.py')
+                lock = hil_lock.acquire_board_lock(hil_util.lock_name(board), reason='wedge_drill.py')
             except RuntimeError as e:
                 raise Refused(f'{board["name"]}: {e}')
             if lock is None:

@@ -338,7 +338,7 @@ def lock_and_run(args, tests, report, finish):
         if not args.allow_concurrent:
             check_peers()
         try:
-            lock = hil_lock.acquire_board_lock(board['name'], reason=f'run_case.py usbtest {args.tests}')
+            lock = hil_lock.acquire_board_lock(hil_util.lock_name(board), reason=f'run_case.py usbtest {args.tests}')
         except RuntimeError as e:
             raise Refused(f'{board["name"]}: {e}')
         if lock is None:

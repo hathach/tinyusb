@@ -1989,7 +1989,7 @@ def cleanup_pending(name: str) -> str:
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
-def retain_board_lock(name: str, fh, pending: str) -> str:
+def retain_board_lock(name: str, lock: str, fh, pending: str) -> str:
     """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
 
     hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
@@ -2003,19 +2003,19 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
     retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
     try:
-        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+        token = hil_lock.hand_to_cleanup_holder({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
                                                 retained=retained)
     except ValueError as e:
         why = str(e)
         try:
             hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  retained=retained, locks=[name])
+                                  retained=retained, locks=[lock])
         except OSError as e2:
             why += f' (record not rewritten: {e2})'
     except hil_lock.LockUnavailable as e:
         why = str(e)
     else:
-        rec = hil_lock.read_record(name)
+        rec = hil_lock.read_record(lock)
         pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
         return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
                 f'`hil_lock.py release --token {token}` after recovery')
@@ -2027,6 +2027,7 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
 def test_board(board: Board) -> tuple:
     # (name, err_count, failed_tests, rows, pci)
     name = board['name']
+    lock = hil_util.lock_name(board)
     flasher = board['flasher']
 
     global board_wedged, board_pci
@@ -2037,7 +2038,7 @@ def test_board(board: Board) -> tuple:
         # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
         # pending hands the lock to a cleanup holder (retain_board_lock)
         protected = flasher['name'].lower() == 'openocd_esp'
-        _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
+        _lock_fh = hil_lock.acquire_board_lock(lock, protected=protected)
     except hil_lock.LockUnavailable as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # icon-prefixed like every failing metric cell, so the table tallies it as a failure
@@ -2191,7 +2192,7 @@ def test_board(board: Board) -> tuple:
         if pending:
             log_line(f'{name:25} BLOCKER: {pending}')
             fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
-            detail = retain_board_lock(name, fh, pending) if fh else f'{pending}; no board lock held'
+            detail = retain_board_lock(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
             log_line(f'{name:25} {detail}')
             rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
             err_count += 1
@@ -2203,7 +2204,7 @@ def test_board(board: Board) -> tuple:
         unwinding = sys.exc_info()[1]
         if _lock_fh and (pending := cleanup_pending(name)):
             # raised past the hand-over above: the lock still never frees on its own
-            log_line(f'{name:25} {retain_board_lock(name, _lock_fh, pending)}')
+            log_line(f'{name:25} {retain_board_lock(name, lock, _lock_fh, pending)}')
         elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
             # an interrupt may land after the provider returned a pending session but before
             # hil_flash stored its receipt: keep the protected record as the recovery blocker

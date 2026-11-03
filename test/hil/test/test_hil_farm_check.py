@@ -6,6 +6,7 @@
 #   python3 test/hil/test/test_hil_farm_check.py
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -83,6 +84,11 @@ def capture(fn):
         return code, out.read().decode(), err.read().decode()
 
 
+def runpy_helper():
+    """helper/hil_lock.py's own namespace: imported, the module is agentrc's primitive."""
+    return types.SimpleNamespace(**runpy.run_path(str(hil_util.TINYUSB_ROOT / 'test/hil/helper/hil_lock.py')))
+
+
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())
@@ -106,6 +112,16 @@ class Roster(unittest.TestCase):
 
     def test_the_probe_is_named_by_its_flasher(self):
         self.assertEqual(farm_profile.probe_name(BOARD), 'openocd')
+
+    def test_a_registered_board_locks_as_agentrcs_name_for_it_and_hold_all_takes_that(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        entry = {'name': 'this-repos-name', 'uid': 'U', 'probe': probe}
+        self.assertEqual((farm_profile.lock_name(entry), farm_profile.lock_name(BOARD)), (reg['name'], BOARD['name']))
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [BOARD], 'boards-skip': [entry]}))
+            helper = runpy_helper()
+            self.assertEqual(helper.boards_from_config(str(cfg)), [BOARD['name'], reg['name']])
 
 
 class Probe(unittest.TestCase):
