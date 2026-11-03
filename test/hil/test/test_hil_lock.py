@@ -89,6 +89,19 @@ class RunnerRefusesBeforeFlash(LockDir):
         self.assertEqual(err, 1)
         self.assertEqual(rows[0][1], {hil_test.hil_report.LOCKED_CELL: 'fail'})
 
+    def test_a_registered_board_is_locked_by_its_registry_name(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        board = hil_util.hil_boards().resolve({'name': BOARD, 'uid': 'ABC123', 'probe': probe,
+                                               'tests': {'only': ['device/cdc_msc']}})
+        locked = []
+
+        def held(name, **kw):
+            locked.append(name)
+            raise RuntimeError('board locked: {"pid": 1}')
+        patch(self, hil_lock, 'acquire_board_lock', held)
+        self.assertEqual(hil_test.test_board(board)[0], BOARD)
+        self.assertEqual(locked, [reg['name']])
+
 
 class RecoveryBlockerIsNotContention(LockDir):
     """A board refused by a recovery blocker (`hil` Board locks) gets a recovery-blocker cell naming

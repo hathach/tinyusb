@@ -243,6 +243,17 @@ class Chain(unittest.TestCase):
         self.assertEqual(os.getcwd(), cwd)
         self.assertTrue(all(c != cwd and not os.path.exists(c) for c in rig.cwds))   # temp cwd, removed
 
+    def test_a_registered_board_is_locked_by_its_registry_name(self):
+        probe, reg = next((p, r) for p, r in run_case.hil_util.hil_boards().registry().items()
+                          if r['flasher']['name'] == 'jlink')
+        rig = Rig(self)
+        roster = json.loads(json.dumps(ROSTER))
+        roster['boards'].append({'name': 'aliased', 'uid': 'UIDP', 'probe': probe, 'tests': {'device': True}})
+        rig.config.write_text(json.dumps(roster))
+        rc, _, err = rig.run('--board', 'aliased', '--tests', '29', '--after', 'leave')
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(rig.calls[0], ('lock', reg['name']))
+
     def test_leave_keeps_usbtest_running(self):
         rig = Rig(self)
         rc, report, _ = rig.run('--board', 'duo', '--variant', 'duo-b', '--tests', '13,29', '--after', 'leave')
