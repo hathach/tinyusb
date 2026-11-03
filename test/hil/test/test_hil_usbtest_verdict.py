@@ -180,6 +180,18 @@ class Selection(unittest.TestCase):
     def battery(self, tier):
         return [n for t in range(1, tier + 1) for n in usbtest.TIER_CASES[t]]
 
+    def test_each_tier_holds_the_documented_cases(self):
+        # examples/device/usbtest/README.md's Tiers table; it fixes membership, not run order
+        documented = {
+            1: {0, 9, 10, *range(1, 9), 11, 12, 24, 13, 29, *range(17, 21), 27, 28},
+            2: {14, 21},
+            3: {25, 26},
+            4: {15, 16, 22, 23},
+        }
+        self.assertEqual({t: set(c) for t, c in usbtest.TIER_CASES.items()}, documented)
+        for tier, cases in usbtest.TIER_CASES.items():
+            self.assertEqual(len(cases), len(set(cases)), tier)
+
     def test_the_device_tier_selects_every_case_up_to_it_in_order(self):
         for tier in usbtest.TIER_CASES:
             calls, error = self.main(tier=tier)
