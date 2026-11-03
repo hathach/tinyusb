@@ -144,10 +144,105 @@ class ExitStatus(unittest.TestCase):
             self.assertEqual((rc, data['failed']), (2, 2))
             self.assertEqual(err.count('usbtest skill'), 1, status)
 
-    def test_duplicate_case_numbers_are_refused(self):
-        with self.assertRaises(SystemExit) as e:
-            self.main('--tests', '0,1,0')
-        self.assertIn('case 0 is listed twice', str(e.exception.code))
+
+class Selection(unittest.TestCase):
+    """The battery main() picks (device tier, --tier, --tests) and the order it touches the
+    device in: host check, bind, pattern, then each case. Every device access is stubbed."""
+
+    def main(self, *args, tier=1, compat=None, bind=None):
+        calls = []
+
+        def step(name, fail=None):
+            def call(arg):
+                calls.append((name, arg))
+                if fail:
+                    sys.exit(fail)
+            return call
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
+                                    calls.append(('case', num)) or
+                                    {'num': num, 'name': 'x', 'params': '', 'status': 'PASS', 'secs': 0.1})
+        usbtest_harness.patch(self, usbtest, 'find_device', lambda serial: {**usbtest_harness.DEV, 'tier': tier})
+        usbtest_harness.patch(self, usbtest, 'check_host_compat', step('compat', compat))
+        usbtest_harness.patch(self, usbtest, 'bind_usbtest', step('bind', bind))
+        usbtest_harness.patch(self, usbtest, 'set_pattern', step('pattern'))
+        usbtest_harness.patch(self, usbtest, '_tt', lambda: types.SimpleNamespace(reset_tt=lambda *a, **kw: True))
+        usbtest_harness.patch(self, sys, 'argv', ['usbtest.py', '--json', '--testusb', sys.executable, *args])
+        with redirect_stdout(usbtest_harness.Out()), redirect_stderr(io.StringIO()):
+            try:
+                usbtest.main()
+            except SystemExit as e:
+                return calls, e.code
+        return calls, None
+
+    def cases(self, calls):
+        return [arg for name, arg in calls if name == 'case']
+
+    def battery(self, tier):
+        return [n for t in range(1, tier + 1) for n in usbtest.TIER_CASES[t]]
+
+    def test_the_device_tier_selects_every_case_up_to_it_in_order(self):
+        for tier in usbtest.TIER_CASES:
+            calls, error = self.main(tier=tier)
+            self.assertIsNone(error, tier)
+            self.assertEqual(self.cases(calls), self.battery(tier), tier)
+
+    def test_tier_overrides_the_device_tier(self):
+        self.assertEqual(self.cases(self.main('--tier', '3', tier=1)[0]), self.battery(3))
+        self.assertEqual(self.cases(self.main('--tier', '1', tier=3)[0]), self.battery(1))
+
+    def test_tests_overrides_the_tier_and_keeps_its_order(self):
+        calls, error = self.main('--tier', '3', '--tests', '27, 5,0', tier=4)
+        self.assertIsNone(error)
+        self.assertEqual(self.cases(calls), [27, 5, 0])
+
+    def test_a_tier_outside_the_battery_is_refused_before_the_device_is_touched(self):
+        for tier in (0, max(usbtest.TIER_CASES) + 1):
+            calls, error = self.main(tier=tier)
+            self.assertIn('refusing to run an unknown/empty battery', error, tier)
+            self.assertEqual(calls, [], tier)
+        calls, error = self.main('--tier', str(max(usbtest.TIER_CASES) + 1))
+        self.assertEqual((calls, error), ([], 2))   # argparse's choices
+
+    def test_an_unknown_case_is_refused_before_the_device_is_touched(self):
+        for tests in ('99', 'x', '-1', '0,', '²'):   # superscript 2: isdigit() but no int()
+            calls, error = self.main('--tests', tests)
+            self.assertIn('is not a known case number', error, tests)
+            self.assertEqual(calls, [], tests)
+
+    def test_a_duplicate_case_is_refused_before_the_device_is_touched(self):
+        for tests in ('0, 0', '0,1,0'):
+            calls, error = self.main('--tests', tests)
+            self.assertIn('case 0 is listed twice', error, tests)
+            self.assertEqual(calls, [], tests)
+
+    def test_an_incompatible_host_is_refused_before_any_bind(self):
+        calls, error = self.main('--tests', '0', compat='incompatible host controller')
+        self.assertEqual(error, 'incompatible host controller')
+        self.assertEqual(calls, [('compat', usbtest_harness.DEV)])
+
+    def test_a_failed_bind_runs_no_case(self):
+        calls, error = self.main('--tests', '0', bind='cannot bind')
+        self.assertEqual(error, 'cannot bind')
+        self.assertEqual([name for name, _ in calls], ['compat', 'bind'])
+
+    def test_the_pattern_is_set_after_the_bind_and_before_any_case(self):
+        calls, error = self.main('--tests', '0,1')
+        self.assertIsNone(error)
+        self.assertEqual(calls, [('compat', usbtest_harness.DEV), ('bind', usbtest_harness.DEV), ('pattern', 0),
+                                 ('case', 0), ('case', 1)])
+
+
+class Adapters(unittest.TestCase):
+    """The thin calls into agentrc's hil_usbtest get the device's node and interface."""
+
+    def test_host_check_and_bind_name_the_devices_node_and_interface_0(self):
+        seen = []
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'check_host_compat', lambda *a: seen.append(('compat', a)))
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'ensure_usbtest_bound', lambda *a: seen.append(('bind', a)))
+        usbtest.check_host_compat(usbtest_harness.DEV)
+        usbtest.bind_usbtest(usbtest_harness.DEV)
+        node = usbtest_harness.DEV['node']
+        self.assertEqual(seen, [('compat', (node,)), ('bind', ('1-1:1.0', node))])
 
 
 if __name__ == '__main__':
