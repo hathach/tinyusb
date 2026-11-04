@@ -189,10 +189,7 @@ def halt_board(board, rec_board, halt_args):
     if halt_args is None:
         raise Refused(f'{name}: the drill halts through openocd and this board recovers through '
                       f'{rec_board["flasher"]["name"]}; name the openocd halt with --halt-openocd')
-    uid = board['flasher'].get('uid')
-    if not uid:
-        raise Refused(f'{name}: no probe uid for openocd\'s adapter serial')
-    halt = {'name': 'openocd', 'uid': uid, 'args': halt_args}
+    halt = {'name': 'openocd', 'uid': board['flasher']['uid'], 'args': halt_args}
     if not hil_flash.convoy_safe(halt):
         raise Refused(f'{name}: --halt-openocd {halt_args!r} is not convoy-safe')
     return {'name': name, 'flasher': halt}
@@ -479,7 +476,7 @@ def main():
             if not args.allow_concurrent:
                 run_case.check_peers()
             try:
-                lock = hil_lock.acquire_board_lock(board['name'], reason='wedge_drill.py')
+                lock = hil_lock.acquire_board_lock(hil_util.lock_name(board), reason='wedge_drill.py')
             except RuntimeError as e:
                 raise Refused(f'{board["name"]}: {e}')
             if lock is None:

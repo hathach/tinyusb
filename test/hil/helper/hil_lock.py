@@ -29,15 +29,21 @@ if __name__ != '__main__':
 
 
 def boards_from_config(config: str) -> list:
-    """All board names, INCLUDING boards-skip: `hold --all` guards rig-wide
+    """All board lock names (agentrc's registry names for registered boards), INCLUDING boards-skip: `hold --all` guards rig-wide
     operations, and parked boards can still be touched (a farm check -b names them
     explicitly), so a rig-wide hold that skipped them would leave a gap."""
     try:
         with open(config) as f:
             cfg = json.load(f)
-            return [b['name'] for b in cfg['boards'] + cfg.get('boards-skip', [])]
+        entries = cfg['boards'] + cfg.get('boards-skip', [])
     except (OSError, ValueError, KeyError) as e:
         print(f'ERROR: cannot read board roster {config}: {e}', file=sys.stderr)
+        sys.exit(1)
+    lock_name = agentrc.load_file('skills/hil/scripts/hil_boards.py').lock_name
+    try:
+        return [lock_name(b) for b in entries]
+    except (ValueError, KeyError) as e:   # agentrc's registry refused an entry, or it has no name
+        print(f'ERROR: cannot name the board locks of {config}: {e}', file=sys.stderr)
         sys.exit(1)
 
 

@@ -4,7 +4,9 @@
 (build = board families and their examples, HIL = rig boards and their tests).
 
 Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
-hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
+hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Its rosters'
+flashers come from agentrc's board registry, so a run with configs needs lib/agentrc
+(`python3 tools/get_deps.py lib/agentrc`). Fail-open:
 a path no rule classifies forces the full matrix when it sits in a build-input location
 (_BUILD_SCOPE_RE) and contributes nothing anywhere else.
 
@@ -70,7 +72,7 @@ import sys
 # at the helper/ move).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'test', 'hil'))  # for `from helper...`
-from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, host_test
+from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, hil_boards, host_test
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/, for build helpers
 import build_utils
@@ -1232,7 +1234,12 @@ def main():
     rosters = []
     for c in a.configs:
         with open(c, encoding='utf-8', errors='replace') as f:
-            rosters.append((c, json.load(f)['boards']))
+            boards = json.load(f)['boards']
+        try:   # each board's flasher is agentrc's, by its probe (lib/agentrc: tools/get_deps.py)
+            rosters.append((c, [hil_boards().resolve(b) for b in boards]))
+        except (ImportError, ValueError) as e:
+            print(f'change_impact: {c}: {e}', file=sys.stderr)
+            sys.exit(2)
 
     try:
         files, gd, inp = select_input(repo_root, a.base, a.endpoints, a.worktree, a.diff_file, a.deps_base)

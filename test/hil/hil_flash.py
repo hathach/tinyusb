@@ -120,7 +120,8 @@ def flashers(board: dict, name: str) -> list:
 def recover_flasher(board: dict) -> dict:
     """The flasher that delivers RECOVERY for this board.
 
-    Optional roster key `flasher_recover`, else the primary. It exists because delivery and
+    Optional key `flasher_recover` (from agentrc's board registry for a board with a probe, else
+    the roster's), else the primary. It exists because delivery and
     normal flashing have different requirements: a board flashed by jlink/lm4flash
     cannot reach its probe past a poisoned usbfs node, but the same probe driven by openocd
     often can (see convoy_safe). Keeping it a separate key rather than a list means the

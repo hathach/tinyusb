@@ -242,9 +242,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                  for n in ('bad-a', 'bad-b', 'good')]
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
@@ -263,9 +263,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def all_refused(self, argv):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                   for n in ('bad-a', 'bad-b', 'worse')]
                  + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
@@ -298,12 +298,81 @@ class BuildBoardContract(unittest.TestCase):
         for c in cells.values():
             self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
 
+    def test_a_refused_roster_entry_aborts_only_the_legs_its_flasher_selects(self):
+        """build.yml runs one roster as an --exclude-flasher leg and a --flasher leg: an entry the
+        registry refuses aborts the leg its flasher puts it in, reporting that leg's selection."""
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'flasher': {'name': 'esptool', 'uid': 'p1'}},   # no uid
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}},
+                          {'name': 'esp', 'uid': '3', 'flasher': {'name': 'esptool', 'uid': 'p3'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['bad', 'esp']))
+        self.assertIn('bad: no uid', doc['caveat'])
+        # an unregistered probe names no flasher: the leg that takes every other flasher reports it
+        cfg['boards'][0] = {'name': 'bad', 'uid': '1', 'probe': 'hil-bounded-unregistered-probe'}
+        esp_row = ('esp', 0, [], [('esp', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool', '--skip-flash'], set(), [esp_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['esp'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
+
+    def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
+        """Without the registry no probe board names its flasher: a --flasher leg must not drop them
+        all and report 'No boards left' instead of the registry's problem."""
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'a', 'uid': '1', 'probe': 'p1'}, {'name': 'b', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            for argv in (['--flasher', 'esptool', '--flasher', 'openocd_esp'], ['--exclude-flasher', 'esptool']):
+                rc, d, pool, _ = self.run_main(cfg, [], argv, set())
+                self.assertEqual(rc, 1)
+                pool.imap_unordered.assert_not_called()
+                doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['_hil']['termination'], 'aborted', argv)
+                self.assertIn(why, doc['caveat'])
+
+    def test_an_unreadable_registry_aborts_a_roster_with_a_nameless_entry(self):
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'p0'}, {'name': 'good', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn(why, doc['caveat'])
+
+    def test_a_refused_entry_without_a_name_reaches_the_abort(self):
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'hil-bounded-unregistered-probe'},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn('<unnamed>: not an object', doc['caveat'])
+        self.assertIn('<unnamed>: no uid', doc['caveat'])
+
     def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
-                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [None, {'name': 'owner-a'}]},
-                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}, 'variant': [None]}]}
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
                                       (set(), [good_row], {'device/cdc_msc': 'pass'})):

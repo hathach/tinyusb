@@ -1407,6 +1407,17 @@ class EveryAttemptIsKept(unittest.TestCase):
         seq = hil_report.sequence(self.cfg, ['alpha'], self.rd)
         self.assertEqual(seq['current']['rows'][0]['verdict'], 'blocker', 'never not-run: boards were selected')
 
+    def test_a_board_the_registry_refuses_aborts_over_a_passing_report(self):
+        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
+            {'rows': [{'board': 'alpha', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}))
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': 'A', 'probe': 'not-in-the-registry'}]}))
+        r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                           capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['alpha']))
+        self.assertIn("probe 'not-in-the-registry' is not in agentrc's board registry", doc['caveat'])
+
     def test_an_incomplete_sysview_entry_aborts_before_a_flash(self):
         """capture_result reads example, workload and duration_s unchecked: a gap would lose the board's record."""
         good = {'example': 'device/cdc_msc', 'workload': 'cdc_burst', 'duration_s': 15}

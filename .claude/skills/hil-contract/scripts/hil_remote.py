@@ -87,6 +87,8 @@ HARNESS_FILES = (
     'test/hil/pyocd/README.md',
     'tools/get_deps.py',
     'lib/agentrc/.git/HEAD',
+    'lib/agentrc/skills/hil/boards.json',
+    'lib/agentrc/skills/hil/scripts/hil_boards.py',
     'lib/agentrc/skills/hil/scripts/hil_flash.py',
     'lib/agentrc/skills/hil/scripts/hil_load.py',
     'lib/agentrc/skills/hil/scripts/hil_openocd_esp.py',
@@ -137,8 +139,12 @@ def select_boards(config, args):
         fail(f'not in the config: {" ".join(unknown)} (-b takes board names, not variant names)')
     selected = boards or list(roster)
     if args.flasher or args.exclude_flasher:
-        selected = [n for n in selected if roster[n]['flasher']['name'] not in args.exclude_flasher
-                    and (not args.flasher or roster[n]['flasher']['name'] in args.flasher)]
+        try:   # each board's flasher is agentrc's (its board registry), as hil_test.py resolves it
+            kind = {n: helper('hil_util').hil_boards().resolve(roster[n])['flasher']['name'] for n in selected}
+        except ValueError as e:
+            fail(f'config: {e}')
+        selected = [n for n in selected if kind[n] not in args.exclude_flasher
+                    and (not args.flasher or kind[n] in args.flasher)]
         if not selected:
             fail(f'no board left after the flasher filter (--flasher {args.flasher or "-"}, '
                  f'--exclude-flasher {args.exclude_flasher or "-"})')

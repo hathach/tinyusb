@@ -27,6 +27,8 @@ jobs:
             rm -f "$SELECT_FILE"
             if [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
               git fetch --no-tags origin master || true
+              # the selector reads each roster board's flasher from agentrc's board registry
+              python3 tools/get_deps.py lib/agentrc
               # the suites gate the selector: test_change_impact.py owns the rules,
               # test_build_select.py the check_build contract, and test_ci_metrics.py the
               # config2 sentinel contract this job rewrites

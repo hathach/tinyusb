@@ -419,7 +419,7 @@ class Refusals(unittest.TestCase):
     def test_a_bad_halt_override(self):
         self.refused('--board', 'st', '--halt-openocd', '  ', says='not convoy-safe')
         self.refused('--board', 'st', '--halt-openocd', '-f interface/cmsis-dap.cfg', says='not convoy-safe')
-        self.refused('--board', 'st-nouid', '--halt-openocd', ST_HALT, says='no probe uid')
+        self.refused('--board', 'st-nouid', '--halt-openocd', ST_HALT, says='flasher: uid must be a non-empty string')
 
     def test_an_override_on_an_openocd_recovery_board(self):
         self.refused('--board', 'ok', '--halt-openocd', ST_HALT, says='halts through its own')
@@ -602,6 +602,33 @@ class RecoveryReport(unittest.TestCase):
 
     def test_a_good_reset_carries_no_log(self):
         self.assertNotIn('log', wedge_drill.recovery_from(RECOVERED))
+
+
+class LockName(unittest.TestCase):
+    def test_a_registered_board_is_locked_by_its_registry_name(self):
+        """A probe board the drill admits, named apart from its registered board."""
+        boards = run_case.hil_util.hil_boards()
+        for probe, reg in boards.registry().items():
+            board = boards.resolve({'name': 'aliased', 'uid': 'UIDP', 'probe': probe})
+            try:
+                wedge_drill.halt_board(board, wedge_drill.recovery_board(board), None)
+                break
+            except wedge_drill.Refused:
+                continue
+        else:
+            self.fail('no registered board the drill admits without --halt-openocd')
+        rig = Rig(self)
+        rig.config.write_text(json.dumps({'boards': [{'name': 'aliased', 'uid': 'UIDP', 'probe': probe,
+                                                      'tests': {'device': True}}]}))
+        locked = []
+
+        def acquire(name, reason):
+            locked.append(name)
+            raise RuntimeError('board locked')
+        with mock.patch.object(run_case.hil_lock, 'acquire_board_lock', acquire):
+            rc, r = rig.run('--board', 'aliased', '--delay', '0')
+        self.assertEqual(rc, 2, r)
+        self.assertEqual(locked, [reg['name']])
 
 
 if __name__ == '__main__':

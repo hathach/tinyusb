@@ -193,8 +193,9 @@ def recover_hang(board_json, fw, proc, dev):
               f'opening usbfs nodes, and this DUT has a D-state holder on '
               f'its own node): skipping the recovery rather than adding a '
               f'second stray. Give the board a flasher_recover entry (openocd '
-              f'pinned with vid_pid or over a VID-filtered interface cfg) to '
-              f'enable recovery for it.',
+              f'pinned with vid_pid or over a VID-filtered interface cfg), in '
+              f'agentrc\'s board registry for a board with a probe, to enable '
+              f'recovery for it.',
               file=sys.stderr)
         return False
     reset_fn = hil_flash.reset_primitive(fname)
