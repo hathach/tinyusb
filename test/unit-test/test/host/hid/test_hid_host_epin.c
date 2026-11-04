@@ -19,6 +19,7 @@ enum {
 
 static uint8_t epin_open_count;
 static uint8_t epout_open_count;
+static uint16_t xfer_total_bytes;
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
@@ -30,7 +31,7 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   return true;
 }
 
-// opening an interface touches nothing below; the rest of the driver links against these
+// only opening an interface and receiving a report touch usbh; the rest of the driver links against these
 bool tuh_control_xfer(tuh_xfer_t *xfer) { (void) xfer; TEST_FAIL(); return false; }
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) { (void) daddr; (void) ep_addr; TEST_FAIL(); return false; }
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void *buffer,
@@ -42,14 +43,14 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
 }
 uint8_t *usbh_get_enum_buf(void) { TEST_FAIL(); return NULL; }
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) { (void) dev_addr; (void) itf_num; TEST_FAIL(); }
-bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }
+bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; return true; }
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void) dev_addr; (void) ep_addr; (void) buffer; (void) total_bytes; (void) complete_cb; (void) user_data;
-  TEST_FAIL();
-  return false;
+  (void) dev_addr; (void) ep_addr; (void) buffer; (void) complete_cb; (void) user_data;
+  xfer_total_bytes = total_bytes;
+  return true;
 }
 
 typedef struct TU_ATTR_PACKED {
@@ -79,6 +80,7 @@ void setUp(void) {
   hidh_init();
   epin_open_count  = 0;
   epout_open_count = 0;
+  xfer_total_bytes = 0;
 }
 
 void tearDown(void) {
@@ -91,7 +93,7 @@ void test_hid_host_skips_in_mps_over_bufsize(void) {
   TEST_ASSERT_EQUAL(1, epout_open_count);
   TEST_ASSERT_EQUAL(1, tuh_hid_itf_get_count(DADDR));
 
-  // the unopened IN endpoint is refused before reaching usbh (its stubs fail the test)
+  // the unopened IN endpoint is refused before reaching usbh
   TEST_ASSERT_FALSE(tuh_hid_receive_report(DADDR, 0));
   TEST_ASSERT_FALSE(tuh_hid_receive_ready(DADDR, 0));
   TEST_ASSERT_FALSE(tuh_hid_receive_abort(DADDR, 0));
@@ -103,4 +105,13 @@ void test_hid_host_opens_in_mps_at_bufsize(void) {
   TEST_ASSERT_EQUAL(1, epin_open_count);
   TEST_ASSERT_EQUAL(1, epout_open_count);
   TEST_ASSERT_EQUAL(1, tuh_hid_itf_get_count(DADDR));
+}
+
+void test_hid_host_receives_in_mps(void) {
+  const hid_desc_t desc = make_desc(0, 8);
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(1, epin_open_count);
+
+  TEST_ASSERT_TRUE(tuh_hid_receive_report(DADDR, 0));
+  TEST_ASSERT_EQUAL(8, xfer_total_bytes);
 }
