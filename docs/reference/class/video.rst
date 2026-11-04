@@ -70,9 +70,15 @@ Frame flow
        for a control/stream pair.
    * - ``tud_video_n_frame_xfer()``
      - Queues one non-empty frame.  ``false`` means no active endpoint, probe is
-       in progress, or another frame is still owned by the driver.
+       in progress, another frame is still owned by the driver, or the endpoint
+       could not accept the first payload.  No callback follows a refused frame.
    * - ``tud_video_frame_xfer_complete_cb()``
-     - Releases the queued frame after all of its UVC payloads complete.
+     - Releases the queued frame after all of its UVC payloads complete.  The
+       default cancellation callback also forwards here for legacy applications.
+   * - ``tud_video_frame_xfer_cancelled_cb()``
+     - Releases an accepted frame cancelled by COMMIT, endpoint halt, or transfer
+       failure.  This does not report delivery of a complete frame.  Its default
+       weak implementation calls ``tud_video_frame_xfer_complete_cb()``.
    * - ``tud_video_commit_cb()``
      - Validates and applies the host's committed format, frame index, and
        interval; return a ``video_error_code_t`` value.
@@ -87,7 +93,12 @@ Frame flow
 
 Wait for ``tud_video_n_streaming(ctl_idx, stm_idx)`` before submitting a frame.
 Queue it with ``tud_video_n_frame_xfer()`` and do not modify or reuse the buffer
-until ``tud_video_frame_xfer_complete_cb()``.
+until ``tud_video_frame_xfer_complete_cb()`` or
+``tud_video_frame_xfer_cancelled_cb()``.  Override the latter to distinguish
+cancellation from full-frame completion.  A bulk COMMIT keeps the queued payload
+and buffer ownership until that payload drains; if it was the final payload and
+succeeds, the frame completes normally.  An endpoint halt or refused continuation
+releases the frame without waiting for a completion that will not arrive.
 
 Implement ``tud_video_commit_cb()`` to inspect and adopt the format, frame, and
 interval committed by the host.  Generate frames at the negotiated interval;

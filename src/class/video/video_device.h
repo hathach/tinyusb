@@ -48,16 +48,18 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize);
 
 /*------------- Optional callbacks -------------*/
-/** Invoked when compeletion of a frame transfer
+/** Invoked on completion of a frame transfer
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index */
 void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
-/** Invoked when a new COMMIT cancels a bulk frame, after its queued payload drains.
+/** Invoked when an accepted frame is cancelled by COMMIT, endpoint halt or transfer failure.
+ * For a bulk COMMIT, the queued payload drains before this callback runs.
  * The frame buffer can now be reused. The default implementation calls
  * tud_video_frame_xfer_complete_cb() so existing applications release their buffers.
  * This callback does not report delivery of a complete frame to the host.
+ * A refused initial tud_video_n_frame_xfer() returns false without a callback.
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index */
