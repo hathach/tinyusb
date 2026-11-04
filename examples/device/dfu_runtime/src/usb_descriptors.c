@@ -84,7 +84,7 @@ uint8_t const desc_configuration[] = {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, attributes, detach timeout, transfer size */
-  TUD_DFU_RT_DESCRIPTOR(ITF_NUM_DFU_RT, 4, 0x0d, 1000, 4096),
+  TUD_DFU_RT_DESCRIPTOR(ITF_NUM_DFU_RT, 4, DFU_ATTR_CAN_DOWNLOAD | DFU_ATTR_MANIFESTATION_TOLERANT, 1000, 4096),
 };
 
 
