@@ -434,14 +434,10 @@ void test_tud_task_closes_its_span_on_an_endpoint_without_driver(void)
   dcd_event_xfer_complete(rhport, 0x02, 8, XFER_RESULT_SUCCESS, true); // EP 2 is not opened
   usbd_defer_func(deferred_func, NULL, true);
 
-  // the failed assertion stops this run with its span closed, leaving the next event queued
-  tud_task();
-  TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_TUD_TASK]);
-  TEST_ASSERT_EQUAL_UINT(0, sv_depth);
-  TEST_ASSERT_EQUAL_UINT(0, deferred_count);
-
+  // the stale completion is dropped with its span closed, and the run goes on to the next event
   tud_task();
   TEST_ASSERT_EQUAL_UINT(2, sv_calls[TU_SV_ID_TUD_TASK]);
+  TEST_ASSERT_EQUAL_UINT(0, sv_depth);
   TEST_ASSERT_EQUAL_UINT(1, deferred_count);
 }
 
