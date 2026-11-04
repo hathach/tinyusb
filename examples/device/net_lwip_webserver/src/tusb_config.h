@@ -103,7 +103,8 @@ extern "C" {
       TU_CHECK_MCU(OPT_MCU_STM32F2,  OPT_MCU_STM32F4,  OPT_MCU_STM32F7) || \
       TU_CHECK_MCU(OPT_MCU_STM32H5,  OPT_MCU_STM32H7,  OPT_MCU_STM32H7RS) || \
       TU_CHECK_MCU(OPT_MCU_STM32C5,  OPT_MCU_STM32U5,  OPT_MCU_STM32N6) || \
-      TU_CHECK_MCU(OPT_MCU_RP2040,   OPT_MCU_CH32V307) || \
+      TU_CHECK_MCU(OPT_MCU_RP2040,   OPT_MCU_CH32V307, OPT_MCU_CH569) || \
+      TU_CHECK_MCU(OPT_MCU_CH32H417) || \
       TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX) || \
       TU_CHECK_MCU(OPT_MCU_NRF5X)
     #define LWIP_HIGH_THROUGHPUT 1
@@ -114,6 +115,17 @@ extern "C" {
 
 #if LWIP_HIGH_THROUGHPUT && !defined(INCLUDE_IPERF)
   #define INCLUDE_IPERF
+#endif
+
+// WCH CH56x: this example uses 3 endpoint directions; shrink the USB3 dcd bounce pool
+// and limit the USB2 (fallback) dcd to endpoints 1-3 so everything (lwIP memory included,
+// see arch/cc.h) fits the 32 KB RAMX. Gated on the MCU, not on CFG_TUD_WCH_USBIP_*: this
+// file is included (tusb_option.h) before tusb_mcu.h supplies those macros' defaults, so
+// the gate would only hold as long as the BSP happens to pass them on the command line.
+// Both macros are consumed exclusively by the ch56x dcds, so defining both is harmless.
+#if TU_CHECK_MCU(OPT_MCU_CH569)
+  #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (3 * 1024)
+  #define CFG_TUD_WCH_USBHS_EP_MAX 4
 #endif
 
 //--------------------------------------------------------------------
@@ -143,7 +155,7 @@ extern "C" {
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE 64
+  #define CFG_TUD_ENDPOINT0_SIZE (TUD_OPT_SUPER_SPEED ? 512 : 64) // SuperSpeed EP0 is fixed at 512
 #endif
 
 //------------- CLASS -------------//

@@ -40,6 +40,7 @@ typedef struct {
   // TODO since configuration descriptor may not be long-lived memory, we should
   // keep a copy of endpoint attribute instead
   uint8_t const * ecm_desc_epdata;
+  uint8_t const * ecm_desc_end; // end of this driver's descriptors, bounds the deferred open
 } netd_interface_t;
 
 typedef struct ecm_notify_struct {
@@ -130,6 +131,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
   uint16_t drv_len = sizeof(tusb_desc_interface_t);
   uint8_t const * p_desc = tu_desc_next( itf_desc );
+  uint8_t const * const desc_end = (uint8_t const *) itf_desc + max_len;
 
   // Communication Functional Descriptors
   while (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len) {
@@ -143,8 +145,10 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
     _netd_itf.ep_notif = ((tusb_desc_endpoint_t const*)p_desc)->bEndpointAddress;
 
-    drv_len += tu_desc_len(p_desc);
-    p_desc = tu_desc_next(p_desc);
+    // SuperSpeed: the endpoint's companion descriptor(s) follow it
+    const uint16_t comp_len = usbd_ss_ep_companion_len(p_desc, desc_end, 1);
+    drv_len += (uint16_t) (tu_desc_len(p_desc) + comp_len);
+    p_desc = tu_desc_next(p_desc) + comp_len;
   }
 
   //------------- Data Interface -------------//
@@ -169,12 +173,13 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   _netd_itf.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
 
   if (_netd_itf.ecm_mode) {
-    // ECM by default is in-active, save the endpoint attribute
-    // to open later when received setInterface
+    // ECM by default is in-active, save the endpoint attribute (and the real end of this
+    // driver's descriptors) to open later when received setInterface
     _netd_itf.ecm_desc_epdata = p_desc;
+    _netd_itf.ecm_desc_end = desc_end;
   } else {
     // Open endpoint pair for RNDIS
-    TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in), 0);
+    TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_end, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &_netd_itf.ep_in), 0);
 
     // we are ready to transmit a packet
     can_xmit = true;
@@ -183,7 +188,8 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
     tud_network_recv_renew();
   }
 
-  drv_len += 2*sizeof(tusb_desc_endpoint_t);
+  // SuperSpeed: each bulk endpoint is followed by its companion descriptor(s)
+  drv_len += 2*sizeof(tusb_desc_endpoint_t) + usbd_ss_ep_companion_len(p_desc, desc_end, 2);
 
   return drv_len;
 }
@@ -198,7 +204,10 @@ static void ecm_report(bool nc) {
     },
   };
 
-  const uint32_t link_bps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
+  // the notification field is 32-bit bits/s: 5 Gbps exceeds UINT32_MAX, report the cap
+  const tusb_speed_t speed = tud_speed_get();
+  const uint32_t link_bps = (speed == TUSB_SPEED_SUPER) ? UINT32_MAX
+                          : (speed == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
   const ecm_notify_t ecm_notify_csc = {
     .header = {
       .bmRequestType = 0xA1,
@@ -248,7 +257,8 @@ bool netd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
               if (_netd_itf.ep_in == 0 && _netd_itf.ep_out == 0) {
                 TU_ASSERT(_netd_itf.ecm_desc_epdata);
                 TU_ASSERT(
-                  usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, 2, TUSB_XFER_BULK, &_netd_itf.ep_out, &
+                  usbd_open_edpt_pair(rhport, _netd_itf.ecm_desc_epdata, _netd_itf.ecm_desc_end,
+                                      2, TUSB_XFER_BULK, &_netd_itf.ep_out, &
                     _netd_itf.ep_in));
 
                 // TODO should be merge with RNDIS's after endpoint opened
