@@ -174,7 +174,22 @@ static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
       TU_LOG_DRV(" Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     } else {
-      // nothing to do
+      // lba and offset passed to read10/write10 callbacks are in the LUN's block size, the transfer length
+      // must be exactly block_count of those blocks or offset runs past the end of the block
+      uint32_t lun_block_count = 0;
+      uint16_t lun_block_size  = 0;
+      tud_msc_capacity_cb(cbw->lun, &lun_block_count, &lun_block_size);
+      uint32_t const lun_bytes = (uint32_t) block_count * lun_block_size;
+
+      if (cbw->total_bytes > lun_bytes) {
+        TU_LOG_DRV("  SCSI case 5 Hi > Di (READ10) or case 11 Ho > Do (WRITE10)\r\n");
+        status = MSC_CSW_STATUS_FAILED;
+      } else if (cbw->total_bytes < lun_bytes) {
+        TU_LOG_DRV("  SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRITE10)\r\n");
+        status = MSC_CSW_STATUS_PHASE_ERROR;
+      } else {
+        // nothing to do
+      }
     }
   }
 

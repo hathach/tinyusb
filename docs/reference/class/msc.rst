@@ -55,6 +55,9 @@ and ``tud_msc_scsi_cb()``.  The other callbacks below have weak defaults.
 
 Read and write callbacks may cover only part of a logical block; honor both
 ``lba`` and ``offset`` instead of assuming one callback per block.
+A READ10/WRITE10 whose transfer length is not its block count times the block
+size from ``tud_msc_capacity_cb()`` fails before reaching them, so ``offset``
+is always less than that block size.
 ``TUD_MSC_RET_ERROR`` from read10/write10 overwrites the stored sense with
 NOT READY / MEDIUM NOT PRESENT.  For other command callbacks, such as
 ``tud_msc_scsi_cb()``, set useful sense data with ``tud_msc_set_sense()``
