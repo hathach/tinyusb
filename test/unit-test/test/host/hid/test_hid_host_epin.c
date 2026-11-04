@@ -17,12 +17,16 @@ enum {
   EP_OUT = 0x02,
 };
 
-static uint8_t edpt_open_count;
+static uint8_t epin_open_count;
+static uint8_t epout_open_count;
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
-  (void) desc_ep;
-  edpt_open_count++;
+  if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+    epin_open_count++;
+  } else {
+    epout_open_count++;
+  }
   return true;
 }
 
@@ -73,25 +77,30 @@ static hid_desc_t make_desc(uint8_t itf_num, uint16_t in_mps) {
 
 void setUp(void) {
   hidh_init();
-  edpt_open_count = 0;
+  epin_open_count  = 0;
+  epout_open_count = 0;
 }
 
 void tearDown(void) {
 }
 
-void test_hid_host_rejects_in_mps_over_bufsize(void) {
-  for (uint8_t i = 0; i < CFG_TUH_HID; i++) {
-    const hid_desc_t desc = make_desc(i, CFG_TUH_HID_EPIN_BUFSIZE + 1);
-    TEST_ASSERT_EQUAL(0, hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
-  }
-  TEST_ASSERT_EQUAL(0, edpt_open_count);
-  TEST_ASSERT_EQUAL(0, tuh_hid_itf_get_count(DADDR));
+void test_hid_host_skips_in_mps_over_bufsize(void) {
+  const hid_desc_t desc = make_desc(0, CFG_TUH_HID_EPIN_BUFSIZE + 1);
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, epin_open_count);
+  TEST_ASSERT_EQUAL(1, epout_open_count);
+  TEST_ASSERT_EQUAL(1, tuh_hid_itf_get_count(DADDR));
 
-  // the rejected opens did not take a slot: every slot is still free
-  for (uint8_t i = 0; i < CFG_TUH_HID; i++) {
-    const hid_desc_t desc = make_desc(i, CFG_TUH_HID_EPIN_BUFSIZE);
-    TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
-  }
-  TEST_ASSERT_EQUAL(2 * CFG_TUH_HID, edpt_open_count);
-  TEST_ASSERT_EQUAL(CFG_TUH_HID, tuh_hid_itf_get_count(DADDR));
+  // the unopened IN endpoint is refused before reaching usbh (its stubs fail the test)
+  TEST_ASSERT_FALSE(tuh_hid_receive_report(DADDR, 0));
+  TEST_ASSERT_FALSE(tuh_hid_receive_ready(DADDR, 0));
+  TEST_ASSERT_FALSE(tuh_hid_receive_abort(DADDR, 0));
+}
+
+void test_hid_host_opens_in_mps_at_bufsize(void) {
+  const hid_desc_t desc = make_desc(0, CFG_TUH_HID_EPIN_BUFSIZE);
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(1, epin_open_count);
+  TEST_ASSERT_EQUAL(1, epout_open_count);
+  TEST_ASSERT_EQUAL(1, tuh_hid_itf_get_count(DADDR));
 }
