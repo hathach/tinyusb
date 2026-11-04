@@ -374,13 +374,13 @@ static bool hidh_set_idle(uint8_t daddr, uint8_t itf_num, uint16_t idle_rate,
 // Check if HID interface is ready to receive report
 bool tuh_hid_receive_ready(uint8_t dev_addr, uint8_t idx) {
   hidh_interface_t* p_hid = get_hid_itf(dev_addr, idx);
-  TU_VERIFY(p_hid);
+  TU_VERIFY(p_hid && p_hid->ep_in);
   return !usbh_edpt_busy(dev_addr, p_hid->ep_in);
 }
 
 bool tuh_hid_receive_report(uint8_t daddr, uint8_t idx) {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
-  TU_VERIFY(p_hid);
+  TU_VERIFY(p_hid && p_hid->ep_in); // no IN endpoint, or it was not opened
   hidh_epbuf_t* epbuf = get_hid_epbuf(idx);
 
   // claim endpoint
@@ -395,7 +395,7 @@ bool tuh_hid_receive_report(uint8_t daddr, uint8_t idx) {
 }
 bool tuh_hid_receive_abort(uint8_t dev_addr, uint8_t idx) {
   hidh_interface_t* p_hid = get_hid_itf(dev_addr, idx);
-  TU_VERIFY(p_hid);
+  TU_VERIFY(p_hid && p_hid->ep_in);
   return tuh_edpt_abort_xfer(dev_addr, p_hid->ep_in);
 }
 
@@ -534,14 +534,21 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
   for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
-    TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
+    const uint16_t mps = tu_edpt_packet_size(desc_ep);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      p_hid->ep_in = desc_ep->bEndpointAddress;
-      p_hid->epin_size = tu_edpt_packet_size(desc_ep);
+      // every IN transfer is wMaxPacketSize long: leave an endpoint the buffer cannot hold unopened
+      if (mps > CFG_TUH_HID_EPIN_BUFSIZE) {
+        TU_LOG_DRV("  skip IN wMaxPacketSize %u > CFG_TUH_HID_EPIN_BUFSIZE\r\n", mps);
+      } else {
+        TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
+        p_hid->ep_in = desc_ep->bEndpointAddress;
+        p_hid->epin_size = mps;
+      }
     } else {
+      TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
       p_hid->ep_out = desc_ep->bEndpointAddress;
-      p_hid->epout_size = tu_edpt_packet_size(desc_ep);
+      p_hid->epout_size = mps;
     }
 
     p_desc = tu_desc_next(p_desc);
