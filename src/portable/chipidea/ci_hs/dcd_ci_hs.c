@@ -697,6 +697,24 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
 }
 
+static void process_edpt_complete(uint8_t rhport) {
+  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
+
+  const uint32_t edpt_complete = dcd_reg->ENDPTCOMPLETE;
+  dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge
+
+  if (edpt_complete) {
+    for (uint8_t epnum = 0; epnum < TUP_DCD_ENDPOINT_MAX; epnum++) {
+      if (tu_bit_test(edpt_complete, epnum)) {
+        process_edpt_complete_isr(rhport, epnum, TUSB_DIR_OUT);
+      }
+      if (tu_bit_test(edpt_complete, epnum + 16)) {
+        process_edpt_complete_isr(rhport, epnum, TUSB_DIR_IN);
+      }
+    }
+  }
+}
+
 void dcd_int_handler(uint8_t rhport) {
   ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
 
@@ -720,6 +738,10 @@ void dcd_int_handler(uint8_t rhport) {
   // and BUS_RESET_START fires now; BUS_RESET_END, with the final speed, is triggered later by PCI.
   if (int_status & INTR_RESET) {
     _port_change_reason[rhport] = PORT_CHANGE_REASON_RESET;
+    // Report dTDs that retired before the reset (e.g. a control status stage) ahead of it: the cleanup
+    // clears ENDPTCOMPLETE and frees the dTDs, so the INTR_USB pass below would find nothing.
+    dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+    process_edpt_complete(rhport);
     bus_reset_begin(rhport);
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
   }
@@ -750,23 +772,10 @@ void dcd_int_handler(uint8_t rhport) {
     // Make sure we read the latest version of _dcd_data.
     dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
-    const uint32_t edpt_complete = dcd_reg->ENDPTCOMPLETE;
-    dcd_reg->ENDPTCOMPLETE       = edpt_complete; // acknowledge
-
     // 42.5.6.6.4 Transfer Completion (p.2413): a failed dTD also sets ENDPTCOMPLETE
     // nothing to do, we will submit xfer as error to usbd
     // if (int_status & INTR_ERROR) { }
-
-    if (edpt_complete) {
-      for (uint8_t epnum = 0; epnum < TUP_DCD_ENDPOINT_MAX; epnum++) {
-        if (tu_bit_test(edpt_complete, epnum)) {
-          process_edpt_complete_isr(rhport, epnum, TUSB_DIR_OUT);
-        }
-        if (tu_bit_test(edpt_complete, epnum + 16)) {
-          process_edpt_complete_isr(rhport, epnum, TUSB_DIR_IN);
-        }
-      }
-    }
+    process_edpt_complete(rhport);
 
     // Set up Received
     // 42.5.6.4.2 Control Endpoint Operation Model (p.2403)
