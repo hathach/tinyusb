@@ -121,6 +121,26 @@ def provider():
     return _provider
 
 
+_hil_boards = None
+
+
+def hil_boards():
+    """agentrc's board registry (hil_boards): each roster board's flasher and flasher_recover by
+    its probe. Loaded on first use like provider(); every reader of a board's flasher resolves
+    its roster entry through it, readers of names alone read the roster raw."""
+    global _hil_boards
+    if _hil_boards is None:
+        from . import agentrc
+        _hil_boards = agentrc.load_file('skills/hil/scripts/hil_boards.py')
+    return _hil_boards
+
+
+def lock_name(board: dict) -> str:
+    """The board's lock: its registered board's name in agentrc's registry, whatever this roster
+    calls it, else its roster name (`hil` skill, Board locks)."""
+    return hil_boards().lock_name(board)
+
+
 _openocd_esp = None
 
 
