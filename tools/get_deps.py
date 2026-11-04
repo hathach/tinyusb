@@ -313,7 +313,7 @@ deps_optional = {
                        ''],
     # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
     'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '4bc89fb154de3049ea895913753a6ae67eca5c8a',
+                    'd8bd86a0efb5272d3234e09074ff09e88f877e63',
                     ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',

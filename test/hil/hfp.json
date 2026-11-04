@@ -3,29 +3,44 @@
         {
             "name": "stm32l412nucleo",
             "uid": "41003B000E504E5457323020",
-            "probe": "0673FF575051717867034946",
             "tests": {
                 "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "stlink",
+                "uid": "0673FF575051717867034946"
             }
         },
         {
             "name": "stm32f746disco",
             "uid": "210041000C51343237303334",
-            "probe": "0670FF515448787067122222",
             "variant": [
                 { "name": "stm32f746disco", "flags": "" },
                 { "name": "stm32f746disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
             ],
             "tests": {
                 "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "stlink",
+                "uid": "0670FF515448787067122222"
             }
         },
         {
             "name": "lpcxpresso43s67",
             "uid": "0C60020145401EAA0E4B6C64C40700F5",
-            "probe": "728973776",
             "tests": {
                 "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "728973776",
+                "args": "-device LPC43S67_M4"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc4357.cfg -c \"adapter speed 4000\"",
+                "verify": false
             }
         }
     ]
