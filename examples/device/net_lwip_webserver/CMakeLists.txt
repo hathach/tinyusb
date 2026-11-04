@@ -41,7 +41,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 # lib/networking sources
 target_sources(${PROJECT_NAME} PUBLIC
   ${TOP}/lib/networking/dhserver.c
-  ${TOP}/lib/networking/dnserver.c
   ${TOP}/lib/networking/rndis_reports.c
   )
 

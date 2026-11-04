@@ -976,6 +976,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);
     }
     ncm_interface.recv_tinyusb_ntb = NULL;
+    // re-arm with a free NTB (if any) before the glue logic processes this one, so reception overlaps processing
+    recv_try_to_start_new_reception(rhport);
     tud_network_recv_renew_r(rhport);
   } else if (ep_addr == ncm_interface.ep_in) {
     // transmission of an NTB finished

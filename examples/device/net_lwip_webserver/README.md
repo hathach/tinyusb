@@ -1,11 +1,11 @@
 # Network Web Server (lwIP)
 
-A USB virtual network adapter that runs a small lwIP stack on the device, serving DHCP, DNS, and a web page over USB.
+A USB virtual network adapter that runs a small lwIP stack on the device, serving DHCP and a web page over USB.
 
 ## What it does
 
 - Brings up a USB network interface. Depending on the target MCU the build is either CDC-NCM (the default for most MCUs) or a dual RNDIS + CDC-ECM device that offers two configurations and lets the host pick its preferred one (Windows uses RNDIS, macOS uses CDC-ECM, Linux works with either). The NCM build also ships a BOS / Microsoft OS 2.0 descriptor so Windows auto-loads its NCM driver.
-- The device takes IP address 192.168.7.1 and runs a DHCP server (handing out 192.168.7.2–192.168.7.4), a DNS server (resolves `tiny.usb`), and an HTTP server.
+- The device takes IP address 192.168.7.1 and runs a DHCP server (handing out 192.168.7.2–192.168.7.4) and an HTTP server.
 - Pressing the board button toggles the network link state (up/down) to simulate an Ethernet cable being unplugged/plugged.
 - On higher-RAM MCUs it also starts an iperf TCP server for throughput testing.
 - Blinks the board LED to indicate USB state (not mounted / mounted / suspended).
@@ -33,8 +33,8 @@ Notable `tusb_config.h` settings:
 // NCM tuning (see ncm.h for performance notes)
 #define CFG_TUD_NCM_IN_NTB_MAX_SIZE  2048
 #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 4096        // 2048 on low-RAM MCUs
-#define CFG_TUD_NCM_OUT_NTB_N        1
-#define CFG_TUD_NCM_IN_NTB_N         1
+#define CFG_TUD_NCM_OUT_NTB_N        2           // 1 on low-RAM MCUs
+#define CFG_TUD_NCM_IN_NTB_N         2           // 1 on low-RAM MCUs
 ```
 
 ## Building

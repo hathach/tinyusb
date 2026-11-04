@@ -62,6 +62,11 @@
   #define PBUF_POOL_SIZE                8
   // Must grow in step with TCP_SND_BUF (default MEMP_NUM_TCP_SEG=16 caps TCP_SND_BUF at 4*MSS).
   #define MEMP_NUM_TCP_SEG              16
+  // TCP TX segments are allocated from the heap: the 1600 default cannot hold one full MSS segment
+  // next to lwiperf's state, so iperf as client sends its header and then stalls.
+  #define MEM_SIZE                      (TCP_SND_BUF + 2 * TCP_MSS)
+  // 32-bit word checksum, the default 16-bit one costs about a quarter of the CPU at HS throughput
+  #define LWIP_CHKSUM_ALGORITHM         3
 #else
   #define TCP_WND                       (4 * TCP_MSS)
   #define PBUF_POOL_SIZE                4
