@@ -138,6 +138,64 @@ shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 
 This is much lower than the max ISO ep size of 1024 for high EP numbers.
 Place large isochronous endpoints on EP1 and size descriptors accordingly.
 
+Raspberry Pi RP2040
+-------------------
+**Severity: Medium** for a full-speed device behind a high-speed hub
+
+Reference: RP2040-E15 in the `RP2040 Datasheet`_; section 12.7.2.2.4 of the `RP2350 Datasheet`_ describes the cause
+and its fix in RP2350.
+
+.. _RP2040 Datasheet: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+.. _RP2350 Datasheet: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+
+When a hub cuts off a token on the device's port with a bit-stuffing error, the device controller can lock up. It
+then answers no token, SETUP included, until the host resets the port. The core keeps running, and the only trace is
+``SIE_STATUS.BIT_STUFF_ERROR``.
+
+The erratum describes the Raspberry Pi 4's VL805 hub at the end of a frame, but an ordinary high-speed hub does it too.
+When a full-speed bulk or control endpoint behind the hub returns STALL, the host clears the hub's TT buffer for that
+endpoint. On a Genesys 05e3:0610 hub, such a STALL can put a malformed packet on the hub's full-speed ports, the
+stalled device's and the others alike. This happens even in multi-TT mode, where each port has its own transaction
+translator.
+
+The host recovers by resetting the port, so the device re-enumerates and loses its class state. A host that recovers
+more slowly sees longer outages. This was measured on a Linux host with that hub in multi-TT mode and a second
+full-speed device on another port:
+
+- An RP2040 ``cdc_msc`` device was reset about 4 times per enumeration, once per MSC STALL during the disk probe, while
+  the other device streamed HID.
+- An STM32 (FSDEV) device in the same place was reset 3 times in 41 enumerations.
+- An RP2040 streaming HID locked up in 38 of 100 disk probes of an STM32 ``cdc_msc`` device on another port, and in
+  none of 60 when that device padded its short replies instead of stalling.
+
+RP2350 is not affected: its controller has the fix (``LINESTATE_TUNING.SIE_RX_BITSTUFF_FIX``, set at reset).
+
+On RP2040, nothing short of a bus reset recovers the controller. Pulsing ``MAIN_CTRL.CONTROLLER_EN`` or
+``SIE_CTRL.TRANSCEIVER_PD`` from the bit-stuff error interrupt did not help. TinyUSB's E15 workaround, which keeps bulk
+IN buffers from being armed late in a frame, does not cover this case.
+
+Mitigation in TinyUSB: with the RP2040's native controller (not PIO USB), the MSC device class pads a short Data-In
+reply with zeros up to the host's length instead of stalling, by default (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall
+instead):
+
+- A reply to a command other than READ10 is padded only when the host's length is at most
+  ``CFG_TUD_MSC_EP_BUFSIZE``. A longer host length still gets the STALL.
+- A READ10 chunk shorter than requested and not a multiple of the Bulk-In packet size is padded for any host length.
+  A partial chunk that is a multiple of the packet size needs no padding: the transfer continues with the next chunk.
+
+That removes the most frequent STALLs, those during the disk probe. Any other STALL can still trigger the lockup, from
+this device or from another full-speed device on the same hub.
+
+Workarounds:
+
+- Connect the RP2040 to a root port, which has no transaction translator. A multi-TT hub is not enough: the Genesys
+  hub above was in multi-TT mode.
+- Detect the lockup in the application and restart the device stack with ``tud_deinit()`` followed, after a short
+  delay, by ``tud_init()``, as Raspberry Pi's debugprobe firmware does. On RP2040 ``tud_deinit()`` resets the USB
+  controller block and ``tud_init()`` sets it up again; ``tud_disconnect()`` and ``tud_connect()`` only switch the D+
+  pull-up and do not reset the controller. The sign of a lockup is that the frame counter ``SOF_RD`` stops advancing
+  while the device is connected and not suspended.
+
 Espressif ESP32-S2/S3/P4
 ------------------------
 **Severity: High** for a full-speed host with a low-speed device behind a full-speed hub

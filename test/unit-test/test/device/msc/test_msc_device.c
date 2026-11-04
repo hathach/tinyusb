@@ -39,6 +39,8 @@ TEST_SOURCE_FILE("msc_device.c")
 // Mock File
 #include "mock_dcd.h"
 
+#include "msc_device_test.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -173,23 +175,64 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
   return true;
 }
 
+// bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
+static uint32_t read10_shortfall;
+
+// tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC, for a background read completed by tud_msc_async_io_done()
+static bool read10_async;
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
   (void) lun;
 
+  if (read10_async) {
+    return TUD_MSC_RET_ASYNC;
+  }
+
+  bufsize -= read10_shortfall;
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
 
   return bufsize;
 }
 
+// times tud_msc_write10_cb() answers TUD_MSC_RET_BUSY before it writes
+static uint32_t write10_busy;
+
+// bytes the next tud_msc_write10_cb() handed a larger chunk accepts, once, leaving the rest for a retry (0: all)
+static uint32_t write10_accept;
+
+// calls of tud_msc_write10_cb(), with the lba, offset, bufsize and buffer contents of the last one
+static uint32_t write10_calls;
+static uint32_t write10_last_lba;
+static uint32_t write10_last_offset;
+static uint32_t write10_last_bufsize;
+static uint8_t write10_last_buf[CFG_TUD_MSC_EP_BUFSIZE];
+
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
   (void) lun;
+
+  write10_calls++;
+  write10_last_lba = lba;
+  write10_last_offset = offset;
+  write10_last_bufsize = bufsize;
+  TEST_ASSERT_LESS_OR_EQUAL_UINT32(sizeof(write10_last_buf), bufsize);
+  memcpy(write10_last_buf, buffer, bufsize);
+
+  if (write10_busy > 0) {
+    write10_busy--;
+    return TUD_MSC_RET_BUSY;
+  }
+
+  if (write10_accept > 0 && write10_accept < bufsize) {
+    bufsize = write10_accept;
+    write10_accept = 0;
+  }
 
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
@@ -250,6 +293,12 @@ void setUp(void)
   tud_task();
 
   memset(sv_calls, 0, sizeof(sv_calls));
+  memset(msc_disk, 0, sizeof(msc_disk));
+  read10_shortfall = 0;
+  read10_async = false;
+  write10_busy = 0;
+  write10_accept = 0;
+  write10_calls = 0;
 }
 
 void tearDown(void)
@@ -390,8 +439,34 @@ void test_msc_read10_block_size_over_16bit(void)
 }
 
 //--------------------------------------------------------------------+
-// SystemView spans on the early returns
+// READ10 Data Stage split in chunks
 //--------------------------------------------------------------------+
+static msc_cbw_t const cbw_read10_2blocks =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = 2 * DISK_BLOCK_SIZE,
+  .lun         = 0,
+  .dir         = TUSB_DIR_IN_MASK,
+  .cmd_len     = sizeof(scsi_read10_t),
+  .command     = { SCSI_CMD_READ_10, 0, 0, 0, 0, 0, 0, 0, 2 } // LBA 0, 2 blocks
+};
+
+// SET_CONFIGURATION, then the CBW of a 2-block READ10
+static void read10_2blocks_received(void) {
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_read10_2blocks, sizeof(msc_cbw_t));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+}
+
 // SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
 static void configure_msc(msc_cbw_t const* cbw) {
   desc_configuration = data_desc_configuration;
@@ -407,6 +482,325 @@ static void configure_msc(msc_cbw_t const* cbw) {
   tud_task();
 }
 
+// A whole chunk ends in a full packet: the Data Stage goes on with the next chunk
+void test_msc_read10_full_chunk_continues(void)
+{
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+
+  tud_task();
+}
+
+// A partial chunk would end the Data Stage with its short packet: it is filled with zeros up to the host's length
+// instead (CFG_TUD_MSC_PAD_SHORT_REPLY), and the CSW follows with the residue and no STALL (#3188, #4316)
+void test_msc_read10_short_chunk_padded(void)
+{
+  read10_shortfall = 1;
+  memset(msc_disk[0], 0xA5, DISK_BLOCK_SIZE);
+  read10_2blocks_received();
+
+  uint8_t chunk[DISK_BLOCK_SIZE] = { 0 };
+  memset(chunk, 0xA5, DISK_BLOCK_SIZE - 1);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, chunk, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+
+  uint8_t fill[DISK_BLOCK_SIZE] = { 0 };
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, fill, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(DISK_BLOCK_SIZE + 1);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Reset Recovery (BOT 5.3.4)
+//--------------------------------------------------------------------+
+static tusb_control_request_t const request_bot_reset =
+{
+  .bmRequestType = 0x21,
+  .bRequest      = MSC_REQ_RESET,
+  .wValue        = 0,
+  .wIndex        = ITF_NUM_MSC,
+  .wLength       = 0
+};
+
+static void clear_halt(uint8_t ep_addr) {
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
+}
+
+// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
+static void reset_recovery_clear_halts(void) {
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+static void expect_cbw_receive(void) {
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+}
+
+// A BOT reset with neither data endpoint stalled: it aborts the transfers of both (usbd_edpt_abort(), with a DCD that
+// aborts without a stall) and, unless an abandoned async I/O still owns the buffer, re-arms the CBW receive. Then the
+// control status
+static void expect_bot_reset(bool cbw_receive) {
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  if (cbw_receive) {
+    expect_cbw_receive();
+  }
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+}
+
+// A Reset Recovery while a READ10 chunk is still armed (the host gave up on the Data Stage): the BOT reset aborts the
+// stale transfer, which Reset Recovery's clear-halts would keep, so it can't carry the next command's data or CSW
+// (#3188)
+void test_msc_bot_reset_aborts_armed_data_endpoints(void)
+{
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A Reset Recovery between commands: the CBW receive is aborted and armed again at the reset, so a host that sends no
+// clear-halts still has its next CBW received
+void test_msc_bot_reset_idle_rearms_cbw_receive(void)
+{
+  configure_msc(&cbw_read10_2blocks);
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A BOT reset keeps a stall (BOT 3.1): after an invalid CBW both endpoints stay stalled until Reset Recovery's
+// clear-halts, which receive the next CBW (BOT 6.6.1)
+void test_msc_bot_reset_keeps_stalls_after_invalid_cbw(void)
+{
+  msc_cbw_t const cbw_bad = { .signature = 0xDEADBEEF };
+  configure_msc(&cbw_bad);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// BOT reset while an async READ10 chunk is still pending in the application. With queue_failed_completion, the
+// application fails the read (TUD_MSC_RET_ERROR) after the reset is queued but before it runs
+static void bot_reset_during_async_read10(bool queue_failed_completion) {
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  if (queue_failed_completion) {
+    TEST_ASSERT_TRUE(tud_msc_async_io_done(TUD_MSC_RET_ERROR, false));
+  }
+  expect_bot_reset(false);
+  if (queue_failed_completion) {
+    expect_cbw_receive(); // the completion, discarded, frees the buffer for the next CBW
+  }
+  tud_task();
+}
+
+// The BOT reset abandons the pending async READ10: its late completion before the clear-halts is accepted and discarded
+// instead of sending its data on Bulk-In, and arms the CBW receive the abandoned I/O held up
+void test_msc_bot_reset_discards_late_async_read10_before_clear_halt(void)
+{
+  bot_reset_during_async_read10(false);
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  expect_cbw_receive();
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// Until the abandoned read completes, it owns the buffer: Reset Recovery's Bulk-Out clear-halt receives no CBW, and the
+// late completion then arms the CBW receive instead of sending stale data on the cleared Bulk-In (#4390)
+void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
+{
+  bot_reset_during_async_read10(false);
+
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no CBW receive armed yet
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+}
+
+// A completion accepted while the BOT reset is still queued runs after the reset: proc_async_io_done() finds the CMD
+// stage and discards it. A failed completion is used because one applied to the reset state would stall Bulk-In again
+// and leave a failed CSW for the Bulk-In clear-halt to send: either is an unexpected DCD call
+void test_msc_bot_reset_drops_completion_queued_before_reset(void)
+{
+  bot_reset_during_async_read10(true);
+  reset_recovery_clear_halts();
+}
+
+// A bus reset abandons a pending async read the same way: re-enumeration opens the endpoints but receives no CBW until
+// the late completion, which is discarded
+void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
+{
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task();
+
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
+  tud_task();
+
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no CBW receive armed yet
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+}
+
+// WRITE10 of one block, LBA 0
+static msc_cbw_t const cbw_write10_1block =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = DISK_BLOCK_SIZE,
+  .lun         = 0,
+  .dir         = 0,
+  .cmd_len     = sizeof(scsi_write10_t),
+  .command     = { SCSI_CMD_WRITE_10, 0, 0, 0, 0, 0, 0, 0, 1 }
+};
+
+// tud_msc_write10_cb() answers TUD_MSC_RET_BUSY while the BOT reset is queued: the retry runs after the reset and is
+// dropped. Taken as a CBW of the wrong length, it would stall both endpoints for another Reset Recovery and fail this
+// one's clear-halts
+void test_msc_bot_reset_drops_write10_busy_retry(void)
+{
+  write10_busy = 1;
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A WRITE10 chunk the application answers TUD_MSC_RET_BUSY is offered again, and the command completes
+void test_msc_write10_busy_retries(void)
+{
+  write10_busy = 2;
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(0, write10_busy);
+}
+
+// A WRITE10 chunk the application accepts only in part: the unaccepted bytes move to the front of the buffer and the
+// deferred retry offers exactly them, at the offset after the accepted prefix, and the command completes
+void test_msc_write10_partial_accept_retries_left_over(void)
+{
+  uint32_t const accepted = 100;
+  write10_accept = accepted;
+
+  uint8_t payload[DISK_BLOCK_SIZE];
+  for (size_t i = 0; i < sizeof(payload); i++) {
+    payload[i] = (uint8_t) i;
+  }
+
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer(payload, sizeof(payload));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  // the retry consumes the rest: with the accepted prefix counted, the Data Stage is complete and the CSW follows
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+
+  TEST_ASSERT_EQUAL_UINT32(2, write10_calls);
+  TEST_ASSERT_EQUAL_UINT32(0, write10_last_lba);
+  TEST_ASSERT_EQUAL_UINT32(accepted, write10_last_offset);
+  TEST_ASSERT_EQUAL_UINT32(DISK_BLOCK_SIZE - accepted, write10_last_bufsize);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(payload + accepted, write10_last_buf, DISK_BLOCK_SIZE - accepted);
+}
+
+//--------------------------------------------------------------------+
+// SystemView spans on the early returns
+//--------------------------------------------------------------------+
 void test_msc_invalid_cbw_closes_its_span(void)
 {
   msc_cbw_t const cbw_bad = { .signature = 0xDEADBEEF };
@@ -420,6 +814,51 @@ void test_msc_invalid_cbw_closes_its_span(void)
   tud_task();
 
   TEST_ASSERT_EQUAL_UINT(1, sv_calls[TU_SV_ID_MSC_XFER]);
+}
+
+//--------------------------------------------------------------------+
+// Data-In reply shorter than the host's length: BOT 6.7.2 case 5 (Hi > Di)
+//--------------------------------------------------------------------+
+// The 4-byte MODE SENSE(6) reply goes out padded with fill data to the host's 192 bytes in one transfer, and Bulk-In is
+// not stalled: behind a hub a STALL makes the host clear the hub's TT buffer (#4316). The residue counts only the reply
+void test_msc_short_reply_padded_to_host_length(void)
+{
+  msc_cbw_t const cbw = data_in_cbw(SCSI_CMD_MODE_SENSE_6, 192);
+  configure_msc(&cbw);
+
+  uint8_t reply[192] = { 3, 0, 0, 0 }; // mode data length 3, writable, no block descriptor; the rest is fill data
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, reply, sizeof(reply), sizeof(reply), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(sizeof(reply) - 4);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(reply), 0, true);
+  tud_task();
+}
+
+// A host length beyond the endpoint buffer cannot be padded in one transfer: the reply goes out short, Bulk-In is
+// stalled as before, and the CSW follows the clear-halt
+void test_msc_short_reply_beyond_buffer_stalls(void)
+{
+  uint32_t const total_bytes = CFG_TUD_MSC_EP_BUFSIZE + 64;
+  msc_cbw_t const cbw = data_in_cbw(SCSI_CMD_INQUIRY, total_bytes);
+  configure_msc(&cbw);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, NULL, sizeof(scsi_inquiry_resp_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(scsi_inquiry_resp_t), 0, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
+  msc_csw_t const csw = csw_with_residue(total_bytes - sizeof(scsi_inquiry_resp_t));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
 }
 
 static unsigned deferred_count;

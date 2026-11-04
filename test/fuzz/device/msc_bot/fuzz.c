@@ -59,12 +59,6 @@ void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   func(param);
 }
 
-void dcd_event_handler(dcd_event_t const *event, bool in_isr) {
-  (void) in_isr;
-  mscd_xfer_cb(event->rhport, event->xfer_complete.ep_addr,
-              (xfer_result_t) event->xfer_complete.result, event->xfer_complete.len);
-}
-
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const *request) {
   (void) rhport;
   (void) request;
@@ -124,6 +118,7 @@ int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   _mscd_itf.rhport = 0;
   _mscd_itf.ep_out = 0x01;
   _mscd_itf.ep_in = 0x81;
+  _mscd_itf.ep_in_mps = 64; // FS bulk size: stands in for what mscd_open() takes from the Bulk-In descriptor
   prepare_cbw(&_mscd_itf);
 
   msc_cbw_t cbw;
