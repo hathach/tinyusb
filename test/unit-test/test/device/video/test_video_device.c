@@ -281,7 +281,6 @@ void test_video_set_interface_drops_queued_frame_once(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   set_interface(0);
   unsigned const released = completed + cancelled;
-  TEST_ASSERT_LESS_OR_EQUAL(1, released);
   TEST_ASSERT_EQUAL_MESSAGE(0, released, "current behaviour: SET_INTERFACE drops the frame with no callback (#4428)");
 
   // A completion queued before SET_INTERFACE neither continues nor releases the dropped frame.
