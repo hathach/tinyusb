@@ -130,8 +130,9 @@ static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMIN
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
- * COMMIT, halt and transfer-completion handlers in the usbd task. Never held while a frame
- * callback runs. */
+ * COMMIT, halt and transfer-completion handlers in the usbd task. The complete and cancelled
+ * callbacks run after it is released; tud_video_prepare_payload_cb() runs under it on the submit
+ * path. SET_INTERFACE and bus reset clear the frame without taking it. */
 #if OSAL_MUTEX_REQUIRED
 static osal_mutex_def_t _videod_mutexdef;
 static osal_mutex_t     _videod_mutex;
@@ -1379,7 +1380,7 @@ static bool _submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buff
   stm->buffer     = (uint8_t*)buffer;
   stm->bufsize    = bufsize;
   uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-  if (!usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t)pkt_len, false)) {
+  if (!usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false)) {
     /* No payload was sent and no completion follows, so ownership stays with the caller and the
      * next frame reuses this FID. usbd drops the claim when the DCD refuses; a halt that lands
      * after the claim keeps it until CLEAR_FEATURE(HALT). */
@@ -1638,7 +1639,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       return false;
     }
     uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-    if (!usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t)pkt_len, false)) {
+    if (!usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false)) {
       _finish_frame(stm, true);
       return false;
     }

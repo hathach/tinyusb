@@ -56,7 +56,8 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx
 
 /** Invoked when an accepted frame is cancelled by COMMIT, endpoint halt or transfer failure.
  * For a COMMIT, the queued payload drains before this callback runs; if it was the frame's
- * final payload, tud_video_frame_xfer_complete_cb() runs instead.
+ * final payload, tud_video_frame_xfer_complete_cb() runs instead. If that payload's completion
+ * was lost, the COMMIT runs this callback at once.
  * The frame buffer can now be reused. The default implementation calls
  * tud_video_frame_xfer_complete_cb() so existing applications release their buffers.
  * This callback does not report delivery of a complete frame to the host.
