@@ -77,11 +77,11 @@ Frame flow
      - Releases the queued frame after all of its UVC payloads complete.  The
        default cancellation callback also forwards here for legacy applications.
    * - ``tud_video_frame_xfer_cancelled_cb()``
-     - Releases an accepted frame cancelled by COMMIT, endpoint halt, or transfer
-       failure.  This does not report delivery of a complete frame.  Its default
-       weak implementation calls ``tud_video_frame_xfer_complete_cb()``.
-       SET_INTERFACE, bus reset and unconfiguration drop a queued frame with no
-       callback.
+     - Releases an accepted frame cancelled by COMMIT, endpoint halt, or
+       transfer failure.  This does not report delivery of a complete frame.
+       Its default weak implementation calls
+       ``tud_video_frame_xfer_complete_cb()``.  SET_INTERFACE, bus reset and
+       unconfiguration drop a queued frame with no callback.
    * - ``tud_video_commit_cb()``
      - Validates and applies the host's committed format, frame index, and
        interval; return a ``video_error_code_t`` value.
@@ -99,13 +99,23 @@ Wait for ``tud_video_n_streaming(ctl_idx, stm_idx)`` before submitting a frame.
 Queue it with ``tud_video_n_frame_xfer()`` and do not modify or reuse the buffer
 until ``tud_video_frame_xfer_complete_cb()`` or
 ``tud_video_frame_xfer_cancelled_cb()``.  Override the latter to distinguish
-cancellation from full-frame completion.  A COMMIT, bulk or isochronous, keeps the
-queued payload and buffer ownership until that payload drains; if it was the final
-payload and succeeds, the frame completes normally.  An endpoint halt, refused
-continuation, or a COMMIT after the payload completion was lost releases the frame
-without waiting for a completion that will not arrive.  SET_INTERFACE, bus reset
-and unconfiguration release the frame without a callback, so also reset the
-application's frame state when ``tud_video_n_streaming()`` turns false.
+cancellation from full-frame completion.  A COMMIT keeps the queued payload and
+buffer ownership until that payload drains; if it was the final payload and
+succeeds, the frame completes normally.  An endpoint halt, refused continuation,
+or a COMMIT after the payload completion was lost releases the frame without
+waiting for a completion that will not arrive.
+
+``tud_video_n_streaming()`` turning false does not release a queued frame:
+during PROBE, and on some ports after an isochronous COMMIT, the driver still
+owns it and may keep sending it.  Bus reset and unconfiguration drop a queued
+frame with no callback; the host configures the device again before streaming
+resumes, so reset the application's frame state in ``tud_mount_cb()``.
+SET_INTERFACE also drops a queued frame with no callback, and on a bulk
+interface or a switch between non-zero alternate settings
+``tud_video_n_streaming()`` stays true.  Until `#4428
+<https://github.com/hathach/tinyusb/issues/4428>`_ is fixed, do not wait for a
+release callback after SET_INTERFACE; recover the application's frame state by
+other means, such as a timeout.
 
 Implement ``tud_video_commit_cb()`` to inspect and adopt the format, frame, and
 interval committed by the host.  Generate frames at the negotiated interval;
