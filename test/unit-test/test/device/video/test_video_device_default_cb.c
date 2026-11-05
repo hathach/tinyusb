@@ -15,7 +15,7 @@ void setUp(void) {
   video_test_setup();
 }
 void tearDown(void) {
-  videod_reset(0);
+  video_test_teardown();
 }
 
 void test_video_default_cancel_on_halt_completes_once(void) {

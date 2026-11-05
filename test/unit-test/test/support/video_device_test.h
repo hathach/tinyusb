@@ -5,6 +5,9 @@
 #ifndef TUSB_VIDEO_DEVICE_TEST_H_
 #define TUSB_VIDEO_DEVICE_TEST_H_
 
+#include <signal.h>
+#include <unistd.h>
+
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "class/video/video_device.h"
@@ -114,7 +117,7 @@ static uint8_t *resubmit_frame;
 static size_t   resubmit_size;
 static bool     resubmitted;
 
-static void resubmit_from_callback(void) {
+static inline void resubmit_from_callback(void) {
   if (resubmit_frame) {
     resubmitted    = tud_video_n_frame_xfer(0, 0, resubmit_frame, resubmit_size);
     resubmit_frame = NULL;
@@ -210,7 +213,7 @@ int tud_video_commit_cb(uint_fast8_t ctl, uint_fast8_t stream, const video_probe
 }
 
 // The driver derives the payload size from the interval: 8 bytes at 100 ms, 3 bytes at 1 s.
-static void commit_interval(uint32_t frame_interval) {
+static inline void commit_interval(uint32_t frame_interval) {
   in_commit                      = true;
   tusb_control_request_t request = {.bmRequestType = 0x21,
                                     .bRequest      = VIDEO_REQUEST_SET_CUR,
@@ -228,12 +231,12 @@ static void commit_interval(uint32_t frame_interval) {
   in_commit = false;
 }
 
-static void commit(void) {
+static inline void commit(void) {
   commit_interval(1000000);
 }
 
 // Returns what the class reports for a standard SET/CLEAR_FEATURE(ENDPOINT_HALT).
-static bool endpoint_request(bool halt, uint8_t ep_addr) {
+static inline bool endpoint_request(bool halt, uint8_t ep_addr) {
   tusb_control_request_t request = {.bmRequestType = 0x02,
                                     .bRequest      = halt ? TUSB_REQ_SET_FEATURE : TUSB_REQ_CLEAR_FEATURE,
                                     .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
@@ -252,11 +255,11 @@ static bool endpoint_request(bool halt, uint8_t ep_addr) {
   return videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request);
 }
 
-static void endpoint_halt(bool halt) {
+static inline void endpoint_halt(bool halt) {
   (void)endpoint_request(halt, 0x81);
 }
 
-static void set_interface(uint8_t alt) {
+static inline void set_interface(uint8_t alt) {
   tusb_control_request_t request = {.bmRequestType = 0x01,
                                     .bRequest      = TUSB_REQ_SET_INTERFACE,
                                     .wValue        = alt,
@@ -265,7 +268,7 @@ static void set_interface(uint8_t alt) {
 }
 
 // Completes queued payloads until the frame completes.
-static void deliver_frame(void) {
+static inline void deliver_frame(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   unsigned const done = completed;
   for (unsigned i = 0; i <= sizeof(frame) && completed == done; ++i) {
@@ -278,7 +281,7 @@ static void deliver_frame(void) {
 // Replaces the bulk stream by the isochronous one, streams once on alternate setting 1, then
 // stops and commits again on setting 0. The driver parses COMMIT against the VS header of the
 // current setting, which only setting 0 has; ISO_ALLOC keeps the stream's endpoint after the stop.
-static void open_iso_stream(void) {
+static inline void open_iso_stream(void) {
   videod_reset(0);
   memcpy(iso_descriptor.head, &descriptor, sizeof(iso_descriptor.head));
   ((tusb_desc_interface_t *)(iso_descriptor.head + offsetof(video_fixture_t, vs)))->bNumEndpoints = 0;
@@ -286,6 +289,8 @@ static void open_iso_stream(void) {
   iso_descriptor.vs_alt1.bAlternateSetting = 1;
   iso_descriptor.ep                        = descriptor.ep;
   iso_descriptor.ep.bmAttributes.xfer      = TUSB_XFER_ISOCHRONOUS;
+  iso_descriptor.ep.bmAttributes.sync      = 1; // asynchronous, UVC 1.5 Table 3-20
+  iso_descriptor.ep.bInterval              = 1;
   TEST_ASSERT_EQUAL(sizeof(iso_descriptor), videod_open(0, (tusb_desc_interface_t const *)&iso_descriptor,
                                                         sizeof(iso_descriptor)));
   set_interface(0);
@@ -295,7 +300,18 @@ static void open_iso_stream(void) {
   commit();
 }
 
-static void video_test_setup(void) {
+// osal_none's mutex spins forever when it is taken twice. Fail the running test instead of hanging
+// the binary when a callback runs under the class lock or a path returns with it held.
+static void lock_watchdog(int sig) {
+  (void)sig;
+  TEST_FAIL_MESSAGE("video class lock still held: a callback ran under it or a path leaked it");
+}
+
+static inline void video_test_setup(void) {
+  // SA_NODEFER: Unity leaves the handler by longjmp, which would keep SIGALRM blocked.
+  struct sigaction watchdog = {.sa_handler = lock_watchdog, .sa_flags = SA_NODEFER};
+  TEST_ASSERT_EQUAL(0, sigaction(SIGALRM, &watchdog, NULL));
+  alarm(5);
   claimed       = false;
   accept_commit = true;
   in_commit = stalled = refuse_claim = refuse_xfer = false;
@@ -303,10 +319,23 @@ static void video_test_setup(void) {
   payload                           = NULL;
   resubmit_frame                    = NULL;
   resubmitted                       = false;
-  memset(frame, 0xa5, sizeof(frame));
+  // Distinct bytes, so a payload taken from a stale offset does not match.
+  for (size_t i = 0; i < sizeof(frame); ++i) {
+    frame[i] = (uint8_t)i;
+  }
   videod_init();
   TEST_ASSERT_EQUAL(sizeof(descriptor), videod_open(0, &descriptor.vc, sizeof(descriptor)));
   commit();
+}
+
+static inline void video_test_teardown(void) {
+  // Takes and returns the class lock, so a test that leaked it fails here. Skipped after a failure,
+  // which may have aborted with the lock held.
+  if (!Unity.CurrentTestFailed) {
+    TEST_ASSERT_FALSE(tud_video_n_frame_xfer(0, 0, frame, 0));
+  }
+  alarm(0);
+  videod_reset(0);
 }
 
 #endif // VIDEO_DEVICE_TEST_FIXTURE

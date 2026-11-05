@@ -20,7 +20,7 @@ void setUp(void) {
   video_test_setup();
 }
 void tearDown(void) {
-  videod_reset(0);
+  video_test_teardown();
 }
 
 void test_video_idle_recommit_does_not_notify_or_touch_endpoint(void) {
@@ -209,11 +209,12 @@ void test_video_rejected_commit_keeps_payload_size(void) {
   TEST_ASSERT_NOT_EQUAL(committed_length, payload_length);
 }
 
-void test_video_endpoint_requests_report_ownership(void) {
+// Only SET_FEATURE(ENDPOINT_HALT) reports ownership; usbd ignores the class result for CLEAR_FEATURE.
+void test_video_set_halt_reports_endpoint_ownership(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   // A halt of an endpoint no stream owns is not handled and cancels nothing.
   TEST_ASSERT_FALSE(endpoint_request(true, 0x82));
-  TEST_ASSERT_FALSE(endpoint_request(false, 0x82));
+  (void)endpoint_request(false, 0x82);
   TEST_ASSERT_EQUAL(0, cancelled);
   TEST_ASSERT_EQUAL(0, completed);
   claimed = false;
@@ -222,7 +223,7 @@ void test_video_endpoint_requests_report_ownership(void) {
 
   TEST_ASSERT_TRUE(endpoint_request(true, 0x81));
   TEST_ASSERT_EQUAL(1, cancelled);
-  TEST_ASSERT_FALSE(endpoint_request(false, 0x81));
+  (void)endpoint_request(false, 0x81);
   TEST_ASSERT_EQUAL(1, cancelled);
   TEST_ASSERT_EQUAL(0, completed);
 }
@@ -254,8 +255,12 @@ void test_video_recommit_releases_frame_whose_completion_was_dropped(void) {
   TEST_ASSERT_NOT_EQUAL(fid, payload[1] & 1);
 }
 
-void test_video_iso_recommit_drains_payload_before_releasing_frame(void) {
+// COMMIT is parsed only on setting 0 (see open_iso_stream()), where ISO_ALLOC keeps the endpoint
+// but tud_video_n_streaming() is false. tud_video_n_frame_xfer() still accepts a frame there, which
+// a compliant application does not queue; this pins only that COMMIT drains such a frame.
+void test_video_iso_recommit_on_setting_0_drains_payload_before_releasing_frame(void) {
   open_iso_stream();
+  TEST_ASSERT_FALSE(tud_video_n_streaming(0, 0));
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   uint8_t queued[64];
   memcpy(queued, payload, payload_length);
@@ -272,7 +277,23 @@ void test_video_iso_recommit_drains_payload_before_releasing_frame(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
 }
 
-// Built with a real mutex (TUP_MCU_MULTIPLE_CORE): a release callback run under the class lock hangs here.
+void test_video_set_interface_drops_queued_frame_once(void) {
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  set_interface(0);
+  unsigned const released = completed + cancelled;
+  TEST_ASSERT_LESS_OR_EQUAL(1, released);
+  TEST_ASSERT_EQUAL_MESSAGE(0, released, "current behaviour: SET_INTERFACE drops the frame with no callback (#4428)");
+
+  // A completion queued before SET_INTERFACE neither continues nor releases the dropped frame.
+  claimed = false;
+  TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x81, XFER_RESULT_SUCCESS, payload_length));
+  TEST_ASSERT_EQUAL(released, completed + cancelled);
+  TEST_ASSERT_EQUAL(1, submitted);
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+}
+
+// Built with a real mutex (TUP_MCU_MULTIPLE_CORE): a release callback run under the class lock
+// spins on it until the fixture's lock watchdog fails the test.
 void test_video_release_callbacks_may_submit_next_frame(void) {
   static uint8_t next[2] = {0x11, 0x22};
   resubmit_frame         = next;
@@ -294,4 +315,25 @@ void test_video_release_callbacks_may_submit_next_frame(void) {
   TEST_ASSERT_TRUE(resubmitted);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(frame, &payload[hdr_len], payload_length - hdr_len);
   TEST_ASSERT_FALSE(payload[1] & 2);
+}
+
+void test_video_halt_cancel_callback_may_submit(void) {
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  resubmit_frame = frame;
+  resubmit_size  = sizeof(frame);
+  endpoint_halt(true);
+  TEST_ASSERT_EQUAL(1, cancelled);
+  TEST_ASSERT_NULL(resubmit_frame);
+  TEST_ASSERT_FALSE(resubmitted); // refused while the endpoint is halted
+}
+
+void test_video_recommit_cancel_callback_may_submit(void) {
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  claimed        = false; // the completion was dropped
+  resubmit_frame = frame;
+  resubmit_size  = sizeof(frame);
+  commit();
+  TEST_ASSERT_EQUAL(1, cancelled);
+  TEST_ASSERT_TRUE(resubmitted);
+  TEST_ASSERT_EQUAL(2, submitted);
 }
