@@ -2381,6 +2381,9 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   usbh_device_t* dev = get_device(dev_addr);
   TU_ASSERT(dev != NULL,);
+  // Drivers complete after the application's mount callback, which may run tuh_task() and remove the device (#4425).
+  // Rejects a removed or unconfigured device or another address, but not a same-address replacement already configured.
+  TU_VERIFY(dev->configured && dev_addr == _usbh_data.enumerating_daddr,);
 
   for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++) {
     // continue with next valid interface
