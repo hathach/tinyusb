@@ -92,7 +92,8 @@ Frame flow
      - Fills payload bytes on demand when the frame was queued with a null data
        pointer; honor the requested offset and maximum length.  The first call
        runs inside ``tud_video_n_frame_xfer()`` in the caller's context, later
-       ones from ``tud_task()``.
+       ones from ``tud_task()``.  Do not call ``tud_video_n_frame_xfer()`` from
+       it: the submit path holds the class lock while calling it.
 
 Wait for ``tud_video_n_streaming(ctl_idx, stm_idx)`` before submitting a frame.
 Queue it with ``tud_video_n_frame_xfer()`` and do not modify or reuse the buffer

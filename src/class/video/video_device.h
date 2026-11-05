@@ -88,6 +88,7 @@ int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
                                      video_probe_and_commit_control_t const *parameters);
 
 /** Invoked if buffer is set to NULL (allows bufferless on the fly data generation)
+ *  Must not call tud_video_n_frame_xfer(): it runs with the class lock held on the submit path.
  *
  * @param[in]   ctl_idx       Destination control interface index
  * @param[in]   stm_idx       Destination streaming interface index
