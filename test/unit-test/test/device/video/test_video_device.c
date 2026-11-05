@@ -36,6 +36,9 @@ static void submit_from_prepare(void) {
 static void halt_during_prepare(void) {
   endpoint_halt(true);
 }
+static void commit_during_prepare(void) {
+  commit();
+}
 
 void setUp(void) {
   prepare_hook  = NULL;
@@ -316,7 +319,7 @@ void test_video_halt_during_prepare_cb_refuses_frame_without_callback(void) {
 }
 
 void test_video_commit_during_prepare_cb_drains_payload_before_release(void) {
-  prepare_hook = commit;
+  prepare_hook = commit_during_prepare;
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
   TEST_ASSERT_EQUAL(1, submitted);
   TEST_ASSERT_EQUAL(0, cancelled);
