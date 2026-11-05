@@ -189,6 +189,14 @@ class Bootstrap(unittest.TestCase):
                      'AGENTRC_DIR')
         self.assertFalse(marker.exists())
 
+    def test_an_agentrc_whose_api_is_no_literal_is_refused_without_a_traceback(self):
+        for i, api in enumerate(("int('1')", '{[]: 1}')):
+            with self.subTest(api):
+                other = self.checkout(f'other{i}', {agentrc.SOURCE: f'API = {api}\n'})
+                r = self.bootstrap('check', agentrc_dir=other)
+                self.refused(r, 'no usable agentrc at', 'AGENTRC_DIR')
+                self.assertNotIn('Traceback', r.stderr)
+
     def test_no_agentrc_at_all_names_the_install(self):
         self.refused(self.bootstrap('check', agentrc_dir=self.tmp / 'nowhere'), 'no usable agentrc at',
                      'install.py install')

@@ -116,10 +116,11 @@ def _api(root, remedy):
     path = root / SOURCE
     try:
         tree = ast.parse(path.read_text(encoding='utf-8'))
-    except (OSError, SyntaxError, ValueError) as e:
+        found = next((ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                      and any(getattr(t, 'id', None) == 'API' for t in n.targets)), None)
+    # what ast.parse and literal_eval document raising on malformed input
+    except (OSError, SyntaxError, ValueError, TypeError, MemoryError, RecursionError) as e:
         raise ImportError(f'no usable agentrc at {root}: {path}: {e} ({remedy})') from None
-    found = next((ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
-                  and any(getattr(t, 'id', None) == 'API' for t in n.targets)), None)
     if found != API:
         raise ImportError(f'agentrc at {root} speaks agentrc_source API {found}, this checkout needs {API}: '
                           f'use an agentrc that does ({remedy})')
