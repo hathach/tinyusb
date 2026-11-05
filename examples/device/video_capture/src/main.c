@@ -230,6 +230,12 @@ static void video_send_frame(void) {
 
   if (!already_sent) {
     already_sent = 1;
+#if !defined(CFG_EXAMPLE_VIDEO_BUFFERLESS) && !defined(CFG_EXAMPLE_VIDEO_READONLY)
+    // no callback yet: the driver still owns this buffer (PROBE) or dropped it (bus reset, SET_INTERFACE)
+    if (!tx_busy) {
+      fill_color_bar(frame_buffer, frame_num);
+    }
+#endif
     tx_busy = 1;
     start_ms = tusb_time_millis_api();
 #if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
@@ -242,7 +248,6 @@ static void video_send_frame(void) {
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
     #endif
 #else
-    fill_color_bar(frame_buffer, frame_num);
     tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #endif
   }

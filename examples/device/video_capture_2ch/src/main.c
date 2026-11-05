@@ -180,15 +180,18 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 }
 #endif
 
-static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
+static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, bool refill, void **fb) {
   uint32_t idx = ctl_idx + stm_idx;
 
   if (idx == 0) {
     // stream 0 use uncompressed YUY2 frame
     #if defined(CFG_EXAMPLE_VIDEO_READONLY)
+    (void) refill;
     *fb = (void*)(uintptr_t ) &framebuf_yuy2_readonly[(fnum % (FRAME_WIDTH / 2)) * 4];
     #else
-    fill_color_bar(framebuf_yuy2, frame_num[idx]);
+    if (refill) {
+      fill_color_bar(framebuf_yuy2, frame_num[idx]);
+    }
     *fb = framebuf_yuy2;
     #endif
 
@@ -220,10 +223,11 @@ static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
 
   if (!(already_sent & (1u << idx))) {
     already_sent |= 1u << idx;
-    tx_busy |= 1u << idx;
     start_ms[idx] = tusb_time_millis_api();
 
-    fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
+    // no callback yet: the driver still owns this buffer (PROBE) or dropped it (bus reset, SET_INTERFACE)
+    fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], !(tx_busy & (1u << idx)), &fp);
+    tx_busy |= 1u << idx;
     tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
   }
 
@@ -233,7 +237,7 @@ static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   start_ms[idx] += interval_ms[idx];
   tx_busy |= 1u << idx;
 
-  fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
+  fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], true, &fp);
   tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
 }
 
