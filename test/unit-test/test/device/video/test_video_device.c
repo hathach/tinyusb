@@ -9,6 +9,12 @@ TEST_SOURCE_FILE("video_device.c")
 #define VIDEO_DEVICE_TEST_FIXTURE
 #include "video_device_test.h"
 
+void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl, uint_fast8_t stream) {
+  (void)ctl;
+  (void)stream;
+  cancelled++;
+}
+
 void setUp(void) {
   video_test_setup();
 }

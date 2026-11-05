@@ -11,8 +11,7 @@
 
 // The usbd stubs and fixture shared by the video device tests. Each test file defines
 // VIDEO_DEVICE_TEST_FIXTURE before including this header; the generated runner includes it
-// without and gets only the declarations above. Also define VIDEO_DEVICE_TEST_DEFAULT_CANCELLED_CB
-// to keep the weak tud_video_frame_xfer_cancelled_cb().
+// without and gets only the declarations above.
 #ifdef VIDEO_DEVICE_TEST_FIXTURE
 
 // One 16x16 YUY2 bulk stream, with no alternate interface. The small frame
@@ -191,13 +190,6 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl, uint_fast8_t stream) {
   (void)stream;
   completed++;
 }
-#ifndef VIDEO_DEVICE_TEST_DEFAULT_CANCELLED_CB
-void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl, uint_fast8_t stream) {
-  (void)ctl;
-  (void)stream;
-  cancelled++;
-}
-#endif
 int tud_video_commit_cb(uint_fast8_t ctl, uint_fast8_t stream, const video_probe_and_commit_control_t *parameters) {
   (void)ctl;
   (void)stream;

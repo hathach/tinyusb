@@ -9,7 +9,6 @@
 TEST_SOURCE_FILE("video_device.c")
 
 #define VIDEO_DEVICE_TEST_FIXTURE
-#define VIDEO_DEVICE_TEST_DEFAULT_CANCELLED_CB
 #include "video_device_test.h"
 
 void setUp(void) {
