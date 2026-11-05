@@ -13,6 +13,7 @@ void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl, uint_fast8_t stream) {
   (void)ctl;
   (void)stream;
   cancelled++;
+  resubmit_from_callback();
 }
 
 void setUp(void) {
@@ -269,4 +270,28 @@ void test_video_iso_recommit_drains_payload_before_releasing_frame(void) {
   TEST_ASSERT_EQUAL(0, completed);
   TEST_ASSERT_EQUAL(1, submitted);
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+}
+
+// Built with a real mutex (TUP_MCU_MULTIPLE_CORE): a release callback run under the class lock hangs here.
+void test_video_release_callbacks_may_submit_next_frame(void) {
+  static uint8_t next[2] = {0x11, 0x22};
+  resubmit_frame         = next;
+  resubmit_size          = sizeof(next);
+  deliver_frame();
+  // The shorter frame starts from its own first byte, not the finished frame's offset.
+  TEST_ASSERT_TRUE(resubmitted);
+  uint8_t const hdr_len = payload[0];
+  TEST_ASSERT_EQUAL(hdr_len + sizeof(next), payload_length);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(next, &payload[hdr_len], sizeof(next));
+  TEST_ASSERT_TRUE(payload[1] & 2);
+
+  resubmit_frame = frame;
+  resubmit_size  = sizeof(frame);
+  resubmitted    = false;
+  claimed        = false;
+  TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x81, XFER_RESULT_FAILED, 0));
+  TEST_ASSERT_EQUAL(1, cancelled);
+  TEST_ASSERT_TRUE(resubmitted);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(frame, &payload[hdr_len], payload_length - hdr_len);
+  TEST_ASSERT_FALSE(payload[1] & 2);
 }

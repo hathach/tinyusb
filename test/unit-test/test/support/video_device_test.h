@@ -109,6 +109,17 @@ static uint8_t *payload;
 static uint16_t payload_length;
 static void    *control_buffer;
 static uint8_t  frame[512];
+// A frame the next release callback submits, as an application refilling from that callback does.
+static uint8_t *resubmit_frame;
+static size_t   resubmit_size;
+static bool     resubmitted;
+
+static void resubmit_from_callback(void) {
+  if (resubmit_frame) {
+    resubmitted    = tud_video_n_frame_xfer(0, 0, resubmit_frame, resubmit_size);
+    resubmit_frame = NULL;
+  }
+}
 
 bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t *request, void *buffer, uint16_t length) {
   (void)rhport;
@@ -189,6 +200,7 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl, uint_fast8_t stream) {
   (void)ctl;
   (void)stream;
   completed++;
+  resubmit_from_callback();
 }
 int tud_video_commit_cb(uint_fast8_t ctl, uint_fast8_t stream, const video_probe_and_commit_control_t *parameters) {
   (void)ctl;
@@ -289,6 +301,8 @@ static void video_test_setup(void) {
   in_commit = stalled = refuse_claim = refuse_xfer = false;
   completed = cancelled = submitted = 0;
   payload                           = NULL;
+  resubmit_frame                    = NULL;
+  resubmitted                       = false;
   memset(frame, 0xa5, sizeof(frame));
   videod_init();
   TEST_ASSERT_EQUAL(sizeof(descriptor), videod_open(0, &descriptor.vc, sizeof(descriptor)));

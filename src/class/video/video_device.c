@@ -130,7 +130,8 @@ static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMIN
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
- * COMMIT and halt handlers in the usbd task. Never held while a frame callback runs. */
+ * COMMIT, halt and transfer-completion handlers in the usbd task. Never held while a frame
+ * callback runs. */
 #if OSAL_MUTEX_REQUIRED
 static osal_mutex_def_t _videod_mutexdef;
 static osal_mutex_t     _videod_mutex;
@@ -212,7 +213,10 @@ static void _clear_frame(videod_streaming_interface_t *stm) {
 
 /* Release an accepted frame only after its payload completes or is aborted. */
 static void _finish_frame(videod_streaming_interface_t *stm, bool cancelled) {
+  /* A submitter that sees bufsize cleared must also see the rest of the frame state reset. */
+  (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   _clear_frame(stm);
+  (void)osal_mutex_unlock(_videod_mutex);
   if (cancelled) {
     tud_video_frame_xfer_cancelled_cb(stm->index_vc, stm->index_vs);
   } else {
