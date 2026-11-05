@@ -5,6 +5,11 @@
 #ifndef TUSB_VIDEO_DEVICE_TEST_H_
 #define TUSB_VIDEO_DEVICE_TEST_H_
 
+#ifdef VIDEO_DEVICE_TEST_FIXTURE
+#include <signal.h>
+#include <unistd.h>
+#endif
+
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "class/video/video_device.h"
@@ -13,9 +18,6 @@
 // VIDEO_DEVICE_TEST_FIXTURE before including this header; the generated runner includes it
 // without and gets only the declarations above.
 #ifdef VIDEO_DEVICE_TEST_FIXTURE
-
-#include <signal.h>
-#include <unistd.h>
 
 // One 16x16 YUY2 bulk stream, with no alternate interface. The small frame
 // still needs multiple payloads, so a COMMIT can interrupt a real frame.
