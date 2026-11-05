@@ -4,8 +4,8 @@
 
 Board locks are kernel flocks in BOARD_LOCK_DIR arbitrating hardware access
 between dev sessions and CI's hil_test.py (never stop the actions-runner). The
-mechanics are agentrc's shared board-lock primitive, lib/agentrc at the commit
-tools/get_deps.py pins (`python3 tools/get_deps.py lib/agentrc`); this adapter
+mechanics are agentrc's shared board-lock primitive, from the agentrc helper/agentrc.py
+selects (the installed one; CI's pin, test/hil/agentrc.json); this adapter
 is the module and CLI (hold/release/status) every caller uses, and adds
 `hold --all [--config CONFIG.json]` over tinyusb's roster. Imported, callers get the provider
 module itself (this name is registered as it), so a monkeypatched hil_lock.BOARD_LOCK_DIR

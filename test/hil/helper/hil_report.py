@@ -7,15 +7,15 @@ a table can never contain something the JSON does not. This module owns tinyusb'
 that document: the cell vocabulary, the one classifier both artifacts share, rendering, the
 writers, and the fold to one machine-readable verdict per board. Publication, the `_hil`
 metadata beside the native fields and the per-attempt records under hil_report.attempts/ are
-agentrc's hil_report_core (the `hil` skill's report document), loaded from lib/agentrc at
-the pin on first use.
+agentrc's hil_report_core (the `hil` skill's report document), loaded from the agentrc
+helper/agentrc.py selects on first use.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Results section, .claude/skills/hil-contract/SKILL.md). A
 script run puts test/hil/helper on sys.path rather than test/hil, so this module imports no
 sibling helper at module level and loads its agentrc loader by path. The same property makes
 it the home of board_variants(), the roster reading the builders (check_build.py, the CI
-matrix) import by path without lib/agentrc.
+matrix) import by path without agentrc.
 """
 import argparse
 import importlib.util
@@ -88,7 +88,7 @@ def _agentrc():
 
 
 def core():
-    """agentrc's hil_report_core at the pin, loaded on first use: importing this module for
+    """agentrc's hil_report_core, loaded on first use: importing this module for
     board_variants() loads no provider."""
     global _core
     if _core is None:
@@ -896,7 +896,7 @@ def main(argv: list | None = None) -> int:
         if argv[:1] == ['sequence']:
             return _sequence(argv[1:])
         return _summarize(argv)
-    except (ImportError, OSError) as e:   # ImportError: lib/agentrc off its pin, the message names the fetch
+    except (ImportError, OSError) as e:   # ImportError: no usable agentrc, the message names the remedy
         print(f'error: {e}', file=sys.stderr)
     except Exception as e:  # noqa: BLE001 - only the core's refusal, which names its stage
         if _core is None or not isinstance(e, _core.ReportError):

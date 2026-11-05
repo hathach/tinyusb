@@ -21,7 +21,7 @@ import usbtest_harness  # noqa: E402 - stubs serial before hil_test is imported
 import hil_flash  # noqa: E402
 import hil_test  # noqa: E402
 import usbtest  # noqa: E402
-from helper import hil_tt, hil_util  # noqa: E402
+from helper import agentrc, hil_tt, hil_util  # noqa: E402
 
 
 class Battery(unittest.TestCase):
@@ -79,7 +79,8 @@ class Battery(unittest.TestCase):
         _, data, _ = self.main('11', tt=hil_tt)
         (cmd, kw), = spawned
         self.assertEqual(cmd[cmd.index('-I'):], ['-I', hil_tt.hil_root.__file__, 'reset-tt', '5-1.2'])
-        self.assertIn(os.path.join('lib', 'agentrc', ''), hil_tt.__file__)
+        self.assertEqual(Path(hil_tt.__file__).resolve(),
+                         (Path(agentrc.identity()['root']) / 'skills/hil/scripts/hil_tt.py').resolve())
         self.assertEqual(kw, {'timeout': hil_tt.HELPER_TIMEOUT, 'quiet': True})
         self.assertEqual(data['cases'][0]['status'], 'FAIL')   # a timed-out helper is unconfirmed
 

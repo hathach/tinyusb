@@ -125,16 +125,19 @@ jobs:
           TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
           # the engine is agentrc's at the pin; the ESP-IDF container sees it through the mount
-          python tools/get_deps.py lib/agentrc
+          python test/hil/helper/agentrc.py fetch
           if [ "$TOOLCHAIN" != esp-idf ]; then
             python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS
             exit
           fi
           # in the build's image: membrowse reads the /project link commands and linker scripts.
           # The command is constant (PR-derived values arrive as env), and the container's root
-          # does not own the runner's checkout, which git refuses without safe.directory.
-          docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME -v "$PWD:/project" -w /project \
+          # does not own the runner's checkout, which git refuses without safe.directory; CI and
+          # GITHUB_ACTIONS select the pin, whose checkout the launcher checks with git there too.
+          docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME -e CI -e GITHUB_ACTIONS \
+            -v "$PWD:/project" -w /project \
             espressif/idf:tinyusb bash -c 'git config --global --add safe.directory /project &&
+              git config --global --add safe.directory /project/lib/agentrc &&
               pip install --only-binary :all: membrowse==1.2.12 >/dev/null &&
               python tools/code_size.py snapshot --symbols --build-outcome "$BUILD_OUTCOME" -o code-size $ARG $EX_ARGS'
         shell: bash

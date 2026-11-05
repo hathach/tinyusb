@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
-from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
+from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
 STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
@@ -252,8 +252,8 @@ class RunPlumbing(unittest.TestCase):
 
 
 class Launcher(unittest.TestCase):
-    def test_the_engine_comes_from_lib_agentrc_at_the_pin(self):
-        self.assertEqual(Path(eng.__file__), hil_util.TINYUSB_ROOT / 'lib/agentrc/skills/hil/scripts/hil_farm_check.py')
+    def test_the_engine_is_the_loaded_agentrcs(self):
+        self.assertEqual(Path(eng.__file__), Path(agentrc.identity()['root']) / 'skills/hil/scripts/hil_farm_check.py')
         self.assertEqual(eng.REASON, 'farm_check')
         self.assertIsNone(eng._lock_api_problem(hil_lock))
 
@@ -268,11 +268,11 @@ class Launcher(unittest.TestCase):
 
     def test_an_engine_that_cannot_load_refuses(self):
         def missing():
-            raise ImportError('lib/agentrc must be at X')
+            raise ImportError('no usable agentrc at X')
         patch(self, hil_farm_check, 'load_engine', missing)
         code, out, err = capture(lambda: hil_farm_check.main([]))
         self.assertEqual((code, out), (2, ''))
-        self.assertIn('lib/agentrc must be at X', err)
+        self.assertIn('no usable agentrc at X', err)
 
 
 class EngineFixture(unittest.TestCase):

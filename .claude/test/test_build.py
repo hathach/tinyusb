@@ -646,7 +646,8 @@ class VariantsTest(unittest.TestCase):
     def test_variants_match_the_ci_matrix_builds_of_every_rig_roster(self):
         import shlex
         import subprocess
-        for config in sorted((build.ROOT / 'test' / 'hil').glob('*.json')):
+        # test/hil/agentrc.json is CI's agentrc pin, not a roster
+        for config in sorted(p for p in (build.ROOT / 'test' / 'hil').glob('*.json') if p.name != 'agentrc.json'):
             out = subprocess.run([sys.executable, str(build.ROOT / '.github/scripts/hil_ci_set_matrix.py'), str(config)],
                                  capture_output=True, text=True, check=True).stdout
             ci = set()
