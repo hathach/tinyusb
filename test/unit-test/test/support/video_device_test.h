@@ -5,9 +5,6 @@
 #ifndef TUSB_VIDEO_DEVICE_TEST_H_
 #define TUSB_VIDEO_DEVICE_TEST_H_
 
-#include <signal.h>
-#include <unistd.h>
-
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "class/video/video_device.h"
@@ -16,6 +13,9 @@
 // VIDEO_DEVICE_TEST_FIXTURE before including this header; the generated runner includes it
 // without and gets only the declarations above.
 #ifdef VIDEO_DEVICE_TEST_FIXTURE
+
+#include <signal.h>
+#include <unistd.h>
 
 // One 16x16 YUY2 bulk stream, with no alternate interface. The small frame
 // still needs multiple payloads, so a COMMIT can interrupt a real frame.
@@ -310,6 +310,7 @@ static void lock_watchdog(int sig) {
 static inline void video_test_setup(void) {
   // SA_NODEFER: Unity leaves the handler by longjmp, which would keep SIGALRM blocked.
   struct sigaction watchdog = {.sa_handler = lock_watchdog, .sa_flags = SA_NODEFER};
+  TEST_ASSERT_EQUAL(0, sigemptyset(&watchdog.sa_mask));
   TEST_ASSERT_EQUAL(0, sigaction(SIGALRM, &watchdog, NULL));
   alarm(5);
   claimed       = false;
@@ -319,9 +320,9 @@ static inline void video_test_setup(void) {
   payload                           = NULL;
   resubmit_frame                    = NULL;
   resubmitted                       = false;
-  // Distinct bytes, so a payload taken from a stale offset does not match.
+  // No two-byte run repeats, so a payload taken from a stale offset does not match.
   for (size_t i = 0; i < sizeof(frame); ++i) {
-    frame[i] = (uint8_t)i;
+    frame[i] = (uint8_t)(i ^ (i >> 8));
   }
   videod_init();
   TEST_ASSERT_EQUAL(sizeof(descriptor), videod_open(0, &descriptor.vc, sizeof(descriptor)));
@@ -329,8 +330,8 @@ static inline void video_test_setup(void) {
 }
 
 static inline void video_test_teardown(void) {
-  // Takes and returns the class lock, so a test that leaked it fails here. Skipped after a failure,
-  // which may have aborted with the lock held.
+  // Takes and returns the class lock, so a path that returned with the lock still held fails here.
+  // Skipped after a failure, which may have aborted with the lock held.
   if (!Unity.CurrentTestFailed) {
     TEST_ASSERT_FALSE(tud_video_n_frame_xfer(0, 0, frame, 0));
   }

@@ -209,7 +209,8 @@ void test_video_rejected_commit_keeps_payload_size(void) {
   TEST_ASSERT_NOT_EQUAL(committed_length, payload_length);
 }
 
-// Only SET_FEATURE(ENDPOINT_HALT) reports ownership; usbd ignores the class result for CLEAR_FEATURE.
+// usbd ignores the class result for both SET and CLEAR_FEATURE(ENDPOINT_HALT); only the SET_FEATURE
+// return shows endpoint ownership.
 void test_video_set_halt_reports_endpoint_ownership(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   // A halt of an endpoint no stream owns is not handled and cancels nothing.
