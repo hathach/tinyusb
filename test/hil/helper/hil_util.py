@@ -106,13 +106,13 @@ def is_dut_id(vidpid: str) -> bool:
 
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
 # `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
-# a bare checkout before CI fetches lib/agentrc.
+# a bare checkout before CI fetches agentrc.
 _provider = None
 
 
 def provider():
-    """agentrc's hil_flash; ImportError, before any tool runs, when lib/agentrc is missing,
-    off the pin, or lacks a file the provider loads or launches (a staged tree included)."""
+    """agentrc's hil_flash; ImportError, before any tool runs, when agentrc is missing,
+    off CI's pin, or lacks a file the provider loads or launches (a staged tree included)."""
     global _provider
     if _provider is None:
         from . import agentrc

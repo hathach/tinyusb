@@ -407,7 +407,6 @@ class RemoteStaging(unittest.TestCase):
         # the rig executes and require each file in HARNESS_FILES, read by ast so this
         # suite needs nothing the wrapper imports.
         import ast
-        from helper import agentrc
         hil_dir = Path(TEST_DIR).parents[0]
         repo = hil_dir.parents[1]
         wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
@@ -429,46 +428,82 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
-        def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ...) and agentrc.load_file('<rel>') bring in lib/agentrc files
-            # no import walk can see: hil_load, the one it executes and that one's FILES, the
-            # files it loads or launches by path
-            for node in ast.walk(ast.parse(pyfile.read_text())):
-                if (isinstance(node, ast.Call) and ast.unparse(node.func) in ('agentrc.load', 'agentrc.load_file')
-                        and node.args and isinstance(node.args[0], ast.Constant)):
-                    rel = node.args[0].value
-                    yield from (f'lib/agentrc/{f}' for f in (agentrc.HIL_LOAD, rel, *agentrc.files_of(rel)))
-
         seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
-        todo, seen, loaded = list(seeds), set(), set()
+        todo, seen = list(seeds), set()
         while todo:
             f = todo.pop()
             if f in seen or not (hil_dir / f).exists():
                 continue  # stdlib/site-packages imports have no test/hil file
             seen.add(f)
             todo += list(imported_paths(hil_dir / f))
-            loaded |= set(loaded_paths(hil_dir / f))
         for f in sorted(seen):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
-        self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
-        # FILES is the provider's by-path closure (agentrc's tests/test_hil_load.py checks it)
-        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', loaded, 'the FILES walk went vacuous')
-        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', loaded,
-                      'the FILES walk missed the openocd_esp session helper')
-        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py'):
-            self.assertIn(f'lib/agentrc/skills/hil/scripts/{f}', loaded, f'the load walk missed {f}')
-        for f in sorted(loaded):
-            self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
+        # agentrc reaches the rig as the staged closure of the bootstrap's SCRIPTS, not by HARNESS_FILES
+        self.assertIn('test/hil/helper/agentrc.py', staged)
+        self.assertFalse([f for f in staged if f.startswith(('lib/', '.agentrc/'))], 'agentrc is staged as .agentrc/')
         # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
         self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
 
-    def test_the_staged_tree_runs_without_the_checkout(self):
-        # HARNESS_FILES alone, where the rig gets them: hil_test loads the flash provider from
-        # the staged lib/agentrc at import, and refuses there when a provider file is missing
+    def test_every_agentrc_file_a_script_loads_is_in_the_closure_of_scripts(self):
+        # agentrc.load/load_file/path_of('<rel>') bring in agentrc files no import walk can see: each target must
+        # be one of the bootstrap's SCRIPTS, whose closure (their FILES, transitively) is the identity a receipt
+        # binds and the rig gets staged; a target elsewhere loads on a dev PC and is refused there
         import ast
+        from helper import agentrc
+        repo = Path(TEST_DIR).parents[2]
+        env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+        tracked = subprocess.run(['git', '-C', str(repo), 'ls-files', '*.py'], capture_output=True, text=True,
+                                 env=env, check=True).stdout.split()
+
+        def value(node, consts):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                return node.value
+            if isinstance(node, ast.Name):
+                return consts.get(node.id)
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                a, b = value(node.left, consts), value(node.right, consts)
+                return a + b if a is not None and b is not None else None
+            return None
+
+        targets = {}
+        for rel in tracked:
+            if rel.startswith(('lib/', 'hw/', 'test/hil/test/', '.claude/test/')):
+                continue   # vendored code, and tests, which stub these calls
+            tree = ast.parse((repo / rel).read_text(encoding='utf-8'))
+            consts = {t.id: n.value.value for n in tree.body if isinstance(n, ast.Assign)
+                      and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)
+                      for t in n.targets if isinstance(t, ast.Name)}
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ('load', 'load_file', 'path_of') and node.args
+                        and ast.unparse(node.func.value) in ('agentrc', "helper('agentrc')")):
+                    target = value(node.args[0], consts)
+                    self.assertIsNotNone(target, f'{rel}:{node.lineno}: {ast.unparse(node)} names no literal path')
+                    targets.setdefault(target, rel)
+        self.assertIn('skills/target-debug/scripts/sysview_record.py', targets, 'the SCRIPTS + "..." walk went vacuous')
+        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py', 'hil_remote_core.py'):
+            self.assertIn(f'skills/hil/scripts/{f}', targets, f'the load walk missed {f}')
+        for target, rel in sorted(targets.items()):
+            self.assertIn(target, agentrc.SCRIPTS, f'{rel} loads {target}, which is not in helper/agentrc.py SCRIPTS')
+        ident = agentrc.identity()
+        # FILES is a script's by-path closure (agentrc's tests/test_hil_load.py checks it)
+        for f in ('skills/hil/scripts/pyocd/user_script.py', 'skills/target-debug/scripts/esp_session.py',
+                  agentrc.HIL_LOAD, agentrc.SOURCE):
+            self.assertIn(f, ident['files'], f'the closure missed {f}')
+        with TemporaryDirectory() as td:
+            agentrc.helper().stage(ident, td)
+            self.assertEqual(agentrc.helper().read_staged(Path(td) / '.agentrc', agentrc.SCRIPTS)['files'],
+                             ident['files'], 'the staged closure is the identity\'s')
+
+    def test_the_staged_tree_runs_without_the_checkout(self):
+        # HARNESS_FILES and the staged .agentrc alone, where the rig gets them: hil_test loads the flash
+        # provider from the staged copy at import, whatever CI or AGENTRC_DIR say, and a staged copy that is
+        # not its manifest's refuses there, never falling back to another agentrc
+        import ast
+        from helper import agentrc
         repo = Path(TEST_DIR).parents[2]
         wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
@@ -482,30 +517,34 @@ class RemoteStaging(unittest.TestCase):
             for rel in staged:
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(repo / rel, root / rel)
+            agentrc.helper().stage(agentrc.identity(), root)
             env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            env.update(CI='true', AGENTRC_DIR=str(root / 'no-agentrc'))
+
+            def run():
+                return subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                                      capture_output=True, text=True, timeout=60)
+            r = run()
             self.assertEqual(r.returncode, 0, r.stderr)
-            scripts = root / 'lib/agentrc/skills/hil/scripts'
+            scripts = root / '.agentrc/skills/hil/scripts'
             self.assertEqual(r.stdout.splitlines()[:4], [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
                                                          str(scripts / 'pyocd/run_pyocd.py'),
                                                          str(scripts / 'hil_openocd_esp.py')])
-            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
-                             str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            esp_session = root / '.agentrc/skills/target-debug/scripts/esp_session.py'
+            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]), str(esp_session))
             self.assertEqual(r.stdout.splitlines()[5:], [str(scripts / 'hil_tt.py'), str(scripts / 'hil_usbtest.py')])
-            (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            saved = esp_session.read_bytes()
+            esp_session.unlink()
+            r = run()
             self.assertNotEqual(r.returncode, 0)
-            self.assertIn('has no skills/target-debug/scripts/esp_session.py', r.stderr)
-            shutil.copy(repo / 'lib/agentrc/skills/target-debug/scripts/esp_session.py',
-                        root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py')
-            (scripts / 'pyocd/user_script.py').unlink()
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            self.assertIn('ImportError: staged agentrc skills/target-debug/scripts/esp_session.py is missing',
+                          r.stderr.strip().splitlines()[-1])
+            esp_session.write_bytes(saved + b'\n')
+            r = run()
             self.assertNotEqual(r.returncode, 0)
-            self.assertIn('ImportError: lib/agentrc at', r.stderr.strip().splitlines()[-1])
-            self.assertIn('has no skills/hil/scripts/pyocd/user_script.py', r.stderr)
+            self.assertIn('differ from their manifest: skills/target-debug/scripts/esp_session.py',
+                          r.stderr.strip().splitlines()[-1])
+            self.assertIn('stage the run again', r.stderr.strip().splitlines()[-1])
 
 
 class _MtpFakeRig:

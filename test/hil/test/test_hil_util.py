@@ -3,7 +3,7 @@
 # Unit tests for hil_util: its wrappers over agentrc's runner, the bottom-layer invariants and
 # helpers -- real subprocesses, no hardware. Stdlib + hil_util (stdlib-only) + the agentrc
 # providers it and helper/usb_observe.py hand out, so the pre-commit hil-test hook can run
-# this on GitHub's bare runner once lib/agentrc is fetched at the pin. Run directly:
+# this on GitHub's bare runner once agentrc is fetched at the pin. Run directly:
 #   python3 test/hil/test/test_hil_util.py
 import os
 import sys
@@ -149,13 +149,13 @@ class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
                          'child stderr leaked into the payload stream')
 
 
-class UsbObserveIsThePinnedModule(unittest.TestCase):
+class UsbObserveIsTheLoadedModule(unittest.TestCase):
     """helper/usb_observe.py hands callers agentrc's module itself: one strand memo per
     process, and a patched root reaches every function that reads it."""
 
-    def test_callers_get_the_pinned_provider(self):
-        from helper import usb_observe
-        provider = Path(hil_util.TINYUSB_ROOT) / 'lib/agentrc/skills/hil/scripts/usb_observe.py'
+    def test_callers_get_the_loaded_agentrcs_provider(self):
+        from helper import agentrc, usb_observe
+        provider = Path(agentrc.identity()['root']) / 'skills/hil/scripts/usb_observe.py'
         self.assertEqual(Path(usb_observe.__file__).resolve(), provider.resolve())
         self.assertIs(sys.modules['helper.usb_observe'], usb_observe)
 

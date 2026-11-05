@@ -9,7 +9,7 @@
 # is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
 # both) and the roster-dispatch tests need its flash_* table; never import hil_test,
 # which pulls pyserial. Nothing here may call into agentrc's flash provider either:
-# build.yml's selector gate runs this suite without lib/agentrc, so tests that do live
+# build.yml's selector gate may run this suite without agentrc, so tests that do live
 # in test_hil_flash.py.
 import contextlib
 import glob
@@ -1642,6 +1642,27 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
                          set(tokens.split()))
 
 
+class TestAgentrcPinRule(unittest.TestCase):
+    """Rule 2f: the agentrc pin and its bootstrap pick the shared HIL harness scripts and the code-size engine
+    every build leg's snapshot step runs (rule 2d), so either is full on both axes."""
+
+    PIN = ('test/hil/agentrc.json', 'test/hil/helper/agentrc.py')
+
+    def test_the_pin_or_its_bootstrap_selects_full_hil_and_the_full_build(self):
+        for path in self.PIN:
+            with self.subTest(path):
+                self.assertTrue(change_impact.classify([path], REPO, ROSTERS)['full'])
+                b = change_impact.classify_build([path], REPO)
+                self.assertTrue(b['full'])
+                self.assertEqual([r['rule'] for r in b['paths']], ['agentrc'])
+
+    def test_the_rest_of_the_harness_is_still_rule_2(self):
+        self.assertTrue(change_impact.classify(['test/hil/helper/hil_util.py'], REPO, ROSTERS)['full'])
+        b = change_impact.classify_build(['test/hil/helper/hil_util.py', 'test/hil/agentrc.jsonx'], REPO)
+        self.assertFalse(b['full'])
+        self.assertEqual({r['rule'] for r in b['paths']}, {'hil-harness'})
+
+
 class TestGetDepsRule(unittest.TestCase):
     """tools/get_deps.py: the changed dep entries' families, or full when unknowable."""
 
@@ -1671,30 +1692,16 @@ class TestGetDepsRule(unittest.TestCase):
     def test_hil_without_a_base_is_full(self):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
-    def test_a_hil_harness_dep_selects_full_hil_and_the_full_build(self):
-        # lib/agentrc also holds the code-size engine each build leg's snapshot step runs (rule 2d)
-        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families={'lib/agentrc'})
-        self.assertTrue(s['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'lib/agentrc'})
-        self.assertTrue(b['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'stm32f4'})
-        self.assertEqual(b['families'], ['stm32f4'])
-
-    def test_the_real_agentrc_pin_is_a_hil_harness_dep(self):
+    def test_a_dep_bump_selects_only_its_families(self):
         with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
             real = f.read()
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
-        commit = get_deps.deps_optional['lib/agentrc'][1]
-        bumped = real.replace(commit, '0' * len(commit))
-        # lib/agentrc has no family token, so without its path a pin bump would select nothing
-        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
-        self.assertEqual(gd, {'lib/agentrc'})
-        self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, gd)['full'])
+        self.assertNotIn('lib/agentrc', get_deps.deps_all, 'the agentrc pin is test/hil/agentrc.json (rule 2f)')
         nrfx = get_deps.deps_optional['hw/mcu/nordic/nrfx'][1]
-        both = bumped.replace(nrfx, '1' * len(nrfx))
-        self.assertEqual(change_impact.get_deps_changed_families(real, both, REPO),
-                         {'lib/agentrc', *get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()})
+        bumped = real.replace(nrfx, '1' * len(nrfx))
+        self.assertEqual(change_impact.get_deps_changed_families(real, bumped, REPO),
+                         set(get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()))
 
     def test_hil_no_dep_entry_changed_selects_nothing(self):
         s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
@@ -3545,7 +3552,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
 
 class TestNoLockDependency(unittest.TestCase):
     def test_the_selector_never_loads_hil_lock(self):
-        # build.yml's check-paths gate selects on a checkout that never fetched lib/agentrc,
+        # build.yml's check-paths gate may select on a checkout whose agentrc fetch failed,
         # which helper/agentrc.py refuses to load hil_lock or the RTT console without
         code = ('import sys; sys.path.insert(0, "tools"); import change_impact; '
                 'print(sorted(m for m in sys.modules if "hil_lock" in m or "rtt" in m))')

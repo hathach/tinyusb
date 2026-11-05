@@ -307,14 +307,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     return f.read().splitlines()
             log = run('-b espressif_s3_devkitm $(touch pwned) ;id')
             self.assertFalse(os.path.exists(os.path.join(d, 'pwned')))
-            # the engine is lib/agentrc's, fetched on the runner before anything sizes
-            fetch = 'python [tools/get_deps.py] [lib/agentrc]'
+            # the engine is agentrc's at the pin, fetched on the runner before anything sizes
+            fetch = 'python [test/hil/helper/agentrc.py] [fetch]'
             self.assertEqual(log.pop(0), fetch)
+            # the container selects the pin as the runner does (CI), and its git may read the pin's checkout
             self.assertTrue(log[0].startswith('docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME '
-                                              f'-v {d}:/project -w /project espressif/idf:tinyusb bash -c'))
-            self.assertEqual(log[1:3], ['git config --global --add safe.directory /project',
+                                              f'-e CI -e GITHUB_ACTIONS -v {d}:/project -w /project '
+                                              'espressif/idf:tinyusb bash -c'))
+            self.assertEqual(log[1:4], ['git config --global --add safe.directory /project',
+                                        'git config --global --add safe.directory /project/lib/agentrc',
                                         'pip install --only-binary :all: membrowse==1.2.12'])
-            self.assertEqual(log[3], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+            self.assertEqual(log[4], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                                      '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
                              [fetch, 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '

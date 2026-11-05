@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
-# pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
+# The hil_lock adapter: callers get agentrc's board-lock primitive from the agentrc helper/agentrc.py
+# selects (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
 # whose lock is unavailable before flashing, a recovery blocker refuses the board as a blocker
 # rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running passes the
-# board's lock to a cleanup holder (RetainedLock), `hold --all` takes the roster, and a missing
-# lib/agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
+# board's lock to a cleanup holder (RetainedLock), `hold --all` takes the roster, and an
+# incomplete agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
 import io
@@ -29,14 +29,12 @@ from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_tes
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
 from helper import agentrc, hil_lock, hil_util   # noqa: E402
+from test_hil_agentrc import scratch_agentrc, scratch_env   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
 LOCK = 'hil-lock-selftest-lock'     # a lock named apart from its roster board
-PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
-PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
-LOADER = 'lib/agentrc/skills/hil/scripts/hil_load.py'
-REGISTRY = ('lib/agentrc/skills/hil/scripts/hil_boards.py', 'lib/agentrc/skills/hil/boards.json',
-            'lib/agentrc/skills/hil/scripts/usb_observe.py')
+PROVIDER = 'skills/hil/scripts/hil_lock.py'
+PROCESS = 'skills/hil/scripts/hil_process.py'
 
 
 class LockDir(unittest.TestCase):
@@ -168,55 +166,47 @@ class RecoveryBlockerIsNotContention(LockDir):
 
 
 class Adapter(LockDir):
-    def test_callers_get_the_pinned_provider(self):
-        self.assertEqual(os.path.realpath(hil_lock.__file__), os.path.realpath(os.path.join(REPO, PROVIDER)))
+    def test_callers_get_the_loaded_agentrcs_provider(self):
+        self.assertEqual(os.path.realpath(hil_lock.__file__),
+                         os.path.realpath(os.path.join(agentrc.identity()['root'], PROVIDER)))
         self.assertIs(hil_test.hil_lock, hil_lock)
 
     def test_a_patched_lock_dir_reaches_the_provider(self):
         self.assertEqual(hil_lock.lock_path(BOARD), os.path.join(self.dir, f'{BOARD}.lock'))
 
 
-class PinnedDependency(unittest.TestCase):
-    """The adapter's CLI in a scratch tree with lib/agentrc at the pin, against a lock dir
-    of its own."""
+class InstalledDependency(unittest.TestCase):
+    """The adapter's CLI in a scratch tree whose installed agentrc (AGENTRC_DIR) is a checkout of
+    the closure this process loaded, against a lock dir of its own."""
 
     def setUp(self):
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         self.root = td.name
         for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/agentrc.py', 'test/hil/helper/hil_lock.py',
-                    'tools/get_deps.py'):
+                    'test/hil/agentrc.json'):
             os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
-        self.pin = agentrc.PIN
+        self.install = os.path.join(self.root, 'agentrc')
 
-    def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks', process=True):
-        os.makedirs(os.path.join(self.root, os.path.dirname(PROVIDER)), exist_ok=True)
-        shutil.copy(os.path.join(REPO, LOADER), os.path.join(self.root, LOADER))
-        if process:   # the release predicate and the cleanup hand-over load it beside hil_lock
-            shutil.copy(os.path.join(REPO, PROCESS), os.path.join(self.root, PROCESS))
-        for rel in REGISTRY:   # hold --all names each registered board's lock by agentrc's registry
-            os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
-            shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
-        with open(os.path.join(REPO, PROVIDER)) as f:
+    def provide(self, lock_dir='/tmp/tinyusb-hil-locks', process=True):
+        """The install, its hil_lock's BOARD_LOCK_DIR at lock_dir; without hil_process unless `process` (the
+        release predicate and the cleanup hand-over load it beside hil_lock)."""
+        with open(os.path.join(agentrc.identity()['root'], PROVIDER)) as f:
             text = f.read()
         moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
         self.assertTrue(lock_dir == '/tmp/tinyusb-hil-locks' or moved != text, 'BOARD_LOCK_DIR line moved')
-        with open(os.path.join(self.root, PROVIDER), 'w') as f:
-            f.write(moved)
-        os.makedirs(os.path.join(self.root, 'lib/agentrc/.git'), exist_ok=True)
-        with open(os.path.join(self.root, 'lib/agentrc/.git/HEAD'), 'w') as f:
-            f.write(head + '\n')
+        scratch_agentrc(self.install, {PROVIDER: moved}, () if process else (PROCESS,))
 
     def cli(self, *argv):
         # -P: the script must find helper/agentrc.py without the script-dir sys.path entry
         r = subprocess.run([sys.executable, '-P', 'test/hil/helper/hil_lock.py', *argv], cwd=self.root,
-                           capture_output=True, text=True, timeout=30)
+                           env=scratch_env(self.install), capture_output=True, text=True, timeout=30)
         return r.returncode, r.stdout + r.stderr
 
     def test_hold_all_takes_the_roster_with_boards_skip(self):
         lock_dir = os.path.join(self.root, 'locks')
-        self.provide(self.pin, lock_dir)
+        self.provide(lock_dir)
         names = [f'hil-lock-selftest-{n}' for n in ('a', 'b', 'parked', 'other')]
         with open(os.path.join(self.root, 'test/hil/tinyusb.json'), 'w') as f:
             json.dump({'boards': [{'name': names[0]}, {'name': names[1]}], 'boards-skip': [{'name': names[2]}]}, f)
@@ -234,10 +224,10 @@ class PinnedDependency(unittest.TestCase):
         self.assertEqual(self.cli('status'), (0, 'no locks\n'))
 
     def test_a_provider_without_hil_process_beside_it_is_refused(self):
-        self.provide(self.pin, os.path.join(self.root, 'locks'), process=False)
+        self.provide(os.path.join(self.root, 'locks'), process=False)
         rc, out = self.cli('status')
         self.assertNotEqual(rc, 0)
-        self.assertIn('has no skills/hil/scripts/hil_process.py', out)
+        self.assertIn('lacks skills/hil/scripts/hil_process.py', out)
 
 
 def _board_in_worker(board):

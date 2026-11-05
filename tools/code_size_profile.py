@@ -15,6 +15,7 @@ from membrowse_cli import IDF_LD_SCRIPTS, extract_defsyms, extract_ld_scripts, l
 
 engine = None  # the code-size engine; its main() sets it before any hook runs
 
+PROFILE_API = 1   # the engine's PROFILE_API this profile follows; the engine's main() checks it
 NAME = 'TinyUSB'
 # resolved like filters(), so a symlinked checkout still matches its filter
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))

@@ -70,7 +70,7 @@ from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
 rtt = agentrc.load_file('skills/rtt/scripts/rtt.py')
 # The flash provider and its runner, likewise once before the Pool so every worker shares them;
-# refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
+# refused here, before any board, when agentrc lacks a file the provider loads or launches.
 hil_util.provider()
 hil_util.openocd_esp()
 
