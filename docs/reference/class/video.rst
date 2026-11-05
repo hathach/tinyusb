@@ -105,17 +105,21 @@ succeeds, the frame completes normally.  An endpoint halt, refused continuation,
 or a COMMIT after the payload completion was lost releases the frame without
 waiting for a completion that will not arrive.
 
-``tud_video_n_streaming()`` turning false does not release a queued frame:
-during PROBE, and on some ports after an isochronous COMMIT, the driver still
-owns it and may keep sending it.  Bus reset and unconfiguration drop a queued
-frame with no callback; the host configures the device again before streaming
-resumes, so reset the application's frame state in ``tud_mount_cb()``.
+``tud_video_n_streaming()`` turning false during PROBE does not release a
+queued frame: the driver still owns it and keeps sending it.  Bus reset and
+unconfiguration drop a queued frame with no callback; the host configures the
+device again before streaming resumes, so reset the application's frame state in
+``tud_mount_cb()``.
+
 SET_INTERFACE also drops a queued frame with no callback, and on a bulk
 interface or a switch between non-zero alternate settings
-``tud_video_n_streaming()`` stays true.  Until `#4428
-<https://github.com/hathach/tinyusb/issues/4428>`_ is fixed, do not wait for a
-release callback after SET_INTERFACE; recover the application's frame state by
-other means, such as a timeout.
+``tud_video_n_streaming()`` stays true.  The application cannot tell this from a
+slow host, so do not rewrite a buffer the driver may still own, for example on a
+timeout.  ``tud_video_n_frame_xfer()`` refuses a frame while the driver owns
+one, so once it accepts a new frame the previous buffer is free.  On some ports
+(`#4428 <https://github.com/hathach/tinyusb/issues/4428>`_, e.g. rp2040) the
+endpoint stays busy and every submit is refused until a bus reset or
+SET_CONFIGURATION; recover in ``tud_mount_cb()``.
 
 Implement ``tud_video_commit_cb()`` to inspect and adopt the format, frame, and
 interval committed by the host.  Generate frames at the negotiated interval;
