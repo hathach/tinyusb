@@ -118,8 +118,9 @@ slow host, so do not rewrite a buffer the driver may still own, for example on a
 timeout.  ``tud_video_n_frame_xfer()`` refuses a frame while the driver owns
 one, so once it accepts a new frame the previous buffer is free.  On some ports
 (`#4428 <https://github.com/hathach/tinyusb/issues/4428>`_, e.g. rp2040) the
-endpoint stays busy and every submit is refused until a bus reset or
-SET_CONFIGURATION; recover in ``tud_mount_cb()``.
+endpoint stays busy and every submit is refused until a bus reset or a change
+of configuration (a repeated SET_CONFIGURATION with the same value is ignored);
+recover in ``tud_mount_cb()``.
 
 Implement ``tud_video_commit_cb()`` to inspect and adopt the format, frame, and
 interval committed by the host.  Generate frames at the negotiated interval;
