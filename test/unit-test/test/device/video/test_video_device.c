@@ -15,7 +15,34 @@ void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl, uint_fast8_t stream) {
   cancelled++;
 }
 
+// Runs inside the first tud_video_prepare_payload_cb(), as another task or the callback itself would.
+static void (*prepare_hook)(void);
+static bool nested_submit;
+
+void tud_video_prepare_payload_cb(uint_fast8_t ctl, uint_fast8_t stream, tud_video_payload_request_t *request) {
+  (void)ctl;
+  (void)stream;
+  memset(request->buf, 0x5a, request->length);
+  if (prepare_hook) {
+    void (*const hook)(void) = prepare_hook;
+    prepare_hook             = NULL;
+    hook();
+  }
+}
+
+static void submit_from_prepare(void) {
+  nested_submit = tud_video_n_frame_xfer(0, 0, frame, sizeof(frame));
+}
+static void halt_during_prepare(void) {
+  endpoint_halt(true);
+}
+static void commit_during_prepare(void) {
+  commit();
+}
+
 void setUp(void) {
+  prepare_hook  = NULL;
+  nested_submit = true;
   video_test_setup();
 }
 void tearDown(void) {
@@ -269,4 +296,37 @@ void test_video_iso_recommit_drains_payload_before_releasing_frame(void) {
   TEST_ASSERT_EQUAL(0, completed);
   TEST_ASSERT_EQUAL(1, submitted);
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+}
+
+void test_video_prepare_cb_may_submit_while_frame_is_owned(void) {
+  prepare_hook = submit_from_prepare;
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
+  TEST_ASSERT_FALSE(nested_submit);
+  TEST_ASSERT_EQUAL(1, submitted);
+  TEST_ASSERT_EQUAL(0, cancelled);
+}
+
+void test_video_halt_during_prepare_cb_refuses_frame_without_callback(void) {
+  prepare_hook = halt_during_prepare;
+  TEST_ASSERT_FALSE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
+  TEST_ASSERT_EQUAL(0, submitted);
+  TEST_ASSERT_EQUAL(0, cancelled);
+  TEST_ASSERT_EQUAL(0, completed);
+  endpoint_halt(false);
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
+  TEST_ASSERT_EQUAL(1, submitted);
+  TEST_ASSERT_EQUAL(0, cancelled);
+}
+
+void test_video_commit_during_prepare_cb_drains_payload_before_release(void) {
+  prepare_hook = commit_during_prepare;
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
+  TEST_ASSERT_EQUAL(1, submitted);
+  TEST_ASSERT_EQUAL(0, cancelled);
+  claimed = false;
+  TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x81, XFER_RESULT_SUCCESS, payload_length));
+  TEST_ASSERT_EQUAL(1, cancelled);
+  TEST_ASSERT_EQUAL(0, completed);
+  TEST_ASSERT_EQUAL(1, submitted);
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, NULL, sizeof(frame)));
 }

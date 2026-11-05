@@ -103,6 +103,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
   bool     frame_cancelled;                              /* Drain a queued bulk payload before releasing its frame. */
+  bool     preparing;                                    /* The submit runs the prepare callback unlocked. */
 
   video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
 } videod_streaming_interface_t;
@@ -130,7 +131,7 @@ static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMIN
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
- * COMMIT and halt handlers in the usbd task. Never held while a frame callback runs. */
+ * COMMIT and halt handlers in the usbd task. Never held while an application callback runs. */
 #if OSAL_MUTEX_REQUIRED
 static osal_mutex_def_t _videod_mutexdef;
 static osal_mutex_t     _videod_mutex;
@@ -901,8 +902,8 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   return true;
 }
 
-/** Prepare the next packet payload. */
-static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint8_t* ep_buf) {
+/** Prepare the next packet payload. locked: the caller holds _videod_mutex. */
+static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint8_t* ep_buf, bool locked) {
   uint_fast16_t remaining = stm->bufsize - stm->offset;
   uint_fast16_t hdr_len   = ep_buf[0];
   uint_fast16_t pkt_len   = stm->max_payload_transfer_size;
@@ -919,7 +920,16 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
       .length = data_len,
       .offset = stm->offset
     };
+    /* Unlocked so the callback may submit a frame; COMMIT and halt keep the frame meanwhile. */
+    if (locked) {
+      stm->preparing = true;
+      (void)osal_mutex_unlock(_videod_mutex);
+    }
     tud_video_prepare_payload_cb(stm->index_vc, stm->index_vs, &rqst);
+    if (locked) {
+      (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+      stm->preparing = false;
+    }
   }
   stm->offset += data_len;
   remaining -= data_len;
@@ -1090,6 +1100,9 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage,
 static bool _payload_pending(uint8_t rhport, videod_streaming_interface_t const *stm) {
   if (!stm->bufsize || !stm->desc.ep[0]) {
     return false;
+  }
+  if (stm->preparing) {
+    return true;
   }
   uint8_t const ep_addr = _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0]);
   if (!usbd_edpt_claim(rhport, ep_addr)) {
@@ -1374,8 +1387,9 @@ static bool _submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buff
   /* update the packet data */
   stm->buffer     = (uint8_t*)buffer;
   stm->bufsize    = bufsize;
-  uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-  if (!usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t)pkt_len, false)) {
+  uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf, true);
+  /* A halt during the prepare callback left the frame to this refusal. */
+  if (usbd_edpt_stalled(0, ep_addr) || !usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t)pkt_len, false)) {
     /* No payload was sent and no completion follows, so ownership stays with the caller and the
      * next frame reuses this FID. usbd drops the claim when the DCD refuses; a halt that lands
      * after the claim keeps it until CLEAR_FEATURE(HALT). */
@@ -1538,7 +1552,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
       uint8_t const *desc = _videod_itf[stm->index_vc].beg;
       if (ep_addr == _desc_ep_addr(desc + stm->desc.ep[0])) {
         (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-        bool const owned = stm->bufsize != 0;
+        bool const owned = stm->bufsize != 0 && !stm->preparing;
         if (owned) {
           _clear_frame(stm);
         }
@@ -1633,7 +1647,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       _finish_frame(stm, true);
       return false;
     }
-    uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
+    uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf, false);
     if (!usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t)pkt_len, false)) {
       _finish_frame(stm, true);
       return false;
