@@ -7,6 +7,7 @@
 #   python3 test/hil/test/test_hil_util.py
 import os
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -173,6 +174,47 @@ class RampGaps(unittest.TestCase):
 
     def test_gaps_before_start_are_ignored(self):
         self.assertEqual(hil_util.ramp_gaps([5, 0, 1, 2, 9], 1), [(4, 6)])
+
+
+class RosterPath(unittest.TestCase):
+    """The one hostname -> roster map, for the farm check and `hil_lock.py hold --all`."""
+    HIL = hil_util.TINYUSB_ROOT / 'test' / 'hil'
+
+    def test_the_hfp_rig_gets_its_own_roster(self):
+        self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+
+    def test_a_cwd_file_does_not_shadow_the_host_roster(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'hfp.json').write_text('{}')
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+            finally:
+                os.chdir(cwd)
+
+    def test_a_host_without_a_roster_must_name_one(self):
+        with self.assertRaises(LookupError):
+            hil_util.roster_path('htpc')
+
+    def test_local_fallback_takes_local_json_only_when_it_exists(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(hil_util, 'TINYUSB_ROOT', Path(d)):
+            hil = Path(d, 'test', 'hil')
+            hil.mkdir(parents=True)
+            with self.assertRaises(LookupError):
+                hil_util.roster_path('htpc', local_fallback=True)
+            (hil / 'local.json').write_text('{}')
+            self.assertEqual(hil_util.roster_path('htpc', local_fallback=True), hil / 'local.json')
+            self.assertEqual(hil_util.roster_path('ci', local_fallback=True), hil / 'tinyusb.json')
+            with self.assertRaises(LookupError):   # the farm check's call: no fallback
+                hil_util.roster_path('htpc')
+
+    def test_an_explicit_roster_wins_on_any_host(self):
+        for host in ('ci', 'htpc'):
+            with self.subTest(host=host):
+                self.assertEqual(hil_util.roster_path(host, __file__), Path(__file__))
+                # a name found nowhere else is test/hil's, and its open fails in the caller
+                self.assertEqual(hil_util.roster_path(host, 'no-such.json'), self.HIL / 'no-such.json')
 
 
 if __name__ == '__main__':

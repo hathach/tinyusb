@@ -631,6 +631,27 @@ class VariantsTest(unittest.TestCase):
             ('ch', ['LOG=2', 'RHPORT_DEVICE=1'], ['-DU=1'], 'ch-hs'),
         ])
 
+    def test_a_named_parked_board_builds_all_its_variants(self):
+        roster = {**self.ROSTER, 'boards-skip': [
+            {'name': 'parked', 'variant': [{'name': 'parked', 'flags': ''},
+                                           {'name': 'parked-DMA', 'flags': '-DDMA=1'}]}]}
+        self.config.write_text(json.dumps(roster))
+        rc, calls = self.main('--board', 'parked', '--board', 'pico', '--shared', '--variants', str(self.config))
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [('parked', [], [], 'parked'), ('parked', [], ['-DDMA=1'], 'parked-DMA'),
+                                 ('pico', [], ['-DA=1', '-DB=2'], 'pico')])
+
+    def test_a_board_named_twice_in_the_roster_is_refused(self):
+        for roster in [{'boards': [{'name': 'b'}], 'boards-skip': [{'name': 'b', 'variant': [{'name': 'b-x'}]}]},
+                       {'boards': [{'name': 'b'}, {'name': 'b', 'variant': [{'name': 'b-x'}]}]}]:
+            self.config.write_text(json.dumps(roster))
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout'), \
+                 mock.patch.object(sys, 'stderr') as err, self.assertRaises(SystemExit) as cm:
+                build.main(['--board', 'b', '--shared', '--variants', str(self.config)])
+            self.assertEqual(cm.exception.code, 2, roster)
+            self.assertIn('more than once', err.write.call_args[0][0])
+            b1.assert_not_called()
+
     def test_a_malformed_variant_is_a_resolution_error(self):
         for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
                         [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5]:

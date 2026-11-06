@@ -551,6 +551,23 @@ def open_printer_dev(id: str, vendor_str, product_str, ifnum: int) -> str:
 # -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
+MOUNT_NOTICE_RE = re.compile(r'(?:un)?mounted device \d+\r?\n')
+DEV_INFO_RE = re.compile(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)')
+
+
+def parse_dev_info_records(text: str) -> list[tuple[str, str]]:
+    """(line, 'vid_pid_serial') for each terminated 'ID vid:pid SN serial' line of host_info_to_device_cdc.
+    tuh_mount_cb can print between 'SN ' and the serial (#4374), so complete mount notices are dropped
+    first; an unterminated tail may hold a notice or serial still in flight and is left for the next read."""
+    text = MOUNT_NOTICE_RE.sub('', text)
+    records = []
+    for line in text[:text.rfind('\n') + 1].splitlines():
+        m = DEV_INFO_RE.search(line)
+        if m:
+            records.append((line, f'{m.group(1)}_{m.group(2)}_{m.group(3)}'))
+    return records
+
+
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
@@ -559,17 +576,14 @@ def test_dual_host_info_to_device_cdc(board):
     ser.timeout = 0.1
 
     data = b''
+    records = []
     timeout = enum_timeout()
     while timeout > 0:
         new_data = ser.read(ser.in_waiting or 1)
         if new_data:
             data += new_data
-        enum_dev_sn = []
-        for l in data.decode('utf-8', errors='ignore').splitlines():
-            vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-            if vid_pid_sn:
-                enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-        if set(declared_devs).issubset(set(enum_dev_sn)):
+        records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
+        if set(declared_devs).issubset({dev for _, dev in records}):
             break
         time.sleep(0.1)
         timeout -= 0.1
@@ -577,18 +591,15 @@ def test_dual_host_info_to_device_cdc(board):
 
     if len(data) == 0:
         assert False, 'No data from device'
-    lines = data.decode('utf-8', errors='ignore').splitlines()
 
     enum_dev_sn = []
-    for l in lines:
-        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-        if vid_pid_sn:
-            print(f'\r\n  {l} ', end='')
-            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+    for l, dev in records:
+        print(f'\r\n  {l} ', end='')
+        enum_dev_sn.append(dev)
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
-        print('\n'.join(lines))
+        print('\n'.join(data.decode('utf-8', errors='ignore').splitlines()))
         assert False, failed_msg
     return 0
 
@@ -613,7 +624,7 @@ def test_host_device_info(board):
                 data += new_data
             enum_dev_sn = []
             for l in data.decode('utf-8', errors='ignore').splitlines():
-                vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+                vid_pid_sn = DEV_INFO_RE.search(l)
                 if vid_pid_sn:
                     enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
             if set(declared_devs).issubset(set(enum_dev_sn)):
@@ -636,7 +647,7 @@ def test_host_device_info(board):
 
     enum_dev_sn = []
     for l in lines:
-        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+        vid_pid_sn = DEV_INFO_RE.search(l)
         if vid_pid_sn:
             print(f'\r\n  {l} ', end='')
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')

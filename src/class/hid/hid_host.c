@@ -600,12 +600,7 @@ bool hidh_set_config(uint8_t daddr, uint8_t itf_num) {
 
 static void process_set_config(tuh_xfer_t* xfer) {
   // Stall is a valid response for SET_IDLE, sometime SET_PROTOCOL as well
-  // therefore we could ignore its result
-  if (!(xfer->setup->bRequest == HID_REQ_CONTROL_SET_IDLE ||
-        xfer->setup->bRequest == HID_REQ_CONTROL_SET_PROTOCOL)) {
-    TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS,);
-  }
-
+  // therefore we could ignore its result. Only the report descriptor request (CONFIG_COMPLETE) checks it.
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const daddr = xfer->daddr;
@@ -614,19 +609,21 @@ static void process_set_config(tuh_xfer_t* xfer) {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid,);
 
+  bool queued = true;
   switch (state) {
     case CONFG_SET_IDLE: {
       // Idle rate = 0 mean only report when there are changes
       const uint16_t idle_rate = 0;
       const uintptr_t next_state = (p_hid->itf_protocol != HID_ITF_PROTOCOL_NONE)
                                    ? CONFIG_SET_PROTOCOL : CONFIG_GET_REPORT_DESC;
-      hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
+      queued = hidh_set_idle(daddr, itf_num, idle_rate, process_set_config, next_state);
       break;
     }
 
     case CONFIG_SET_PROTOCOL:
   #if CFG_TUH_HID_SET_PROTOCOL_ON_ENUM
-      hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
+      queued = hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config,
+                                 CONFIG_GET_REPORT_DESC);
       break;
   #else
       TU_ATTR_FALLTHROUGH;
@@ -642,13 +639,18 @@ static void process_set_config(tuh_xfer_t* xfer) {
         TU_LOG_DRV("HID Skip Report Descriptor since it is too large %u bytes\r\n", p_hid->report_desc_len);
         config_driver_mount_complete(daddr, idx, NULL, 0);
       } else {
-        tuh_descriptor_get_hid_report(daddr, itf_num, p_hid->report_desc_type, 0,
-                                      usbh_get_enum_buf(), p_hid->report_desc_len,
-                                      process_set_config, CONFIG_COMPLETE);
+        queued = tuh_descriptor_get_hid_report(daddr, itf_num, p_hid->report_desc_type, 0,
+                                               usbh_get_enum_buf(), p_hid->report_desc_len,
+                                               process_set_config, CONFIG_COMPLETE);
       }
       break;
 
     case CONFIG_COMPLETE: {
+      if (xfer->result != XFER_RESULT_SUCCESS) {
+        TU_LOG_DRV("HID Get Report Descriptor failed, mount without it\r\n");
+        config_driver_mount_complete(daddr, idx, NULL, 0);
+        break;
+      }
       const uint8_t *desc_report = usbh_get_enum_buf();
       const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
 
@@ -658,6 +660,12 @@ static void process_set_config(tuh_xfer_t* xfer) {
 
     default:
       break;
+  }
+
+  // a request that failed to queue never calls back: mount without the descriptor so enumeration continues.
+  // No disconnect check: usbh closes class drivers before clearing the device, and get_hid_itf() fails after close.
+  if (!queued) {
+    config_driver_mount_complete(daddr, idx, NULL, 0);
   }
 }
 

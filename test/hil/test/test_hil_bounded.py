@@ -1033,23 +1033,29 @@ class RunWhileContract(unittest.TestCase):
             self.hil_util.run_alongside(['sh', '-c', 'printf X'], boom, 5)
 
     def test_the_child_is_reaped_even_when_work_raises(self):
-        seen = {}
+        """Checked on our own child, never by a machine-wide pgrep: an identical child of
+        another run (parallel pre-commit in another worktree) read as our leak."""
+        argv = ['sleep', '20']
+        stranger = subprocess.Popen(argv)
+        self.addCleanup(stranger.wait)
+        self.addCleanup(stranger.kill)
+        children = []
+        real_popen = subprocess.Popen
+
+        def spy(a, **kw):
+            children.append(real_popen(a, **kw))
+            return children[-1]
 
         def boom():
             raise AssertionError('x')
-        # a duration no other process would plausibly pick: `pgrep -f` searches the WHOLE
-        # machine, so a bare `sleep 20` matched an unrelated background job -- another
-        # agent session's retry loop, in the case that exposed this -- and failed a test
-        # about our own child. Observed failing 3/3 in isolation while that loop ran.
-        sentinel = '20.0451'
+        usbtest_harness.patch(self, subprocess, 'Popen', spy)
         with self.assertRaises(AssertionError):
-            self.hil_util.run_alongside(['sleep', sentinel], boom, 1)
-        # nothing of ours is left running: the reap ran on the error path too
-        import subprocess
-        out = subprocess.run(['pgrep', '-f', f'^sleep {sentinel}'],
-                             capture_output=True, text=True)
-        seen['strays'] = [p for p in out.stdout.split() if p]
-        self.assertEqual(seen['strays'], [], 'work() raising leaked the child')
+            self.hil_util.run_alongside(argv, boom, 1)
+        (child,) = children
+        # read before any poll()/wait() of ours, which would reap a leaked child itself
+        self.assertIsNotNone(child.returncode, 'work() raising leaked the child')
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(child.pid, os.WNOHANG)
 
     def test_an_abandoned_child_is_in_its_own_session(self):
         """killpg on it reaps whatever it spawned, and it cannot take our group with it."""

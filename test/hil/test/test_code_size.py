@@ -437,6 +437,42 @@ class BaselineRun(unittest.TestCase):
         ci.lookup_sha.assert_called_once_with('o/r', 'a' * 40, 'yours')
 
 
+class SkipExample(unittest.TestCase):
+    """The snapshot's examples are build.py's: these read this checkout's examples and hw/bsp."""
+
+    def test_an_espressif_board_skips_an_example_without_an_idf_component(self):
+        self.assertTrue(prof.skip_example('device/cdc_dual_ports', 'espressif_s3_devkitc'))
+        self.assertFalse(prof.skip_example('device/cdc_msc_freertos', 'espressif_s3_devkitc'))
+
+    def test_another_board_keeps_it(self):
+        self.assertFalse(prof.skip_example('device/cdc_dual_ports', 'raspberry_pi_pico'))
+
+    def test_the_legs_defines_can_enable_an_example(self):
+        self.assertTrue(prof.skip_example('host/device_info', 'feather_nrf52840_express'))
+        self.assertFalse(prof.skip_example('host/device_info', 'feather_nrf52840_express', ('MAX3421_HOST=1',)))
+
+    def test_an_example_absent_here_is_not_skipped(self):
+        # the snapshot then reports it as a failure instead of dropping it unseen
+        self.assertFalse(prof.skip_example('device/nope', 'raspberry_pi_pico'))
+
+    def test_the_answer_does_not_depend_on_the_cwd(self):
+        with contextlib.chdir(os.path.join(REPO, 'tools')):
+            self.assertFalse(prof.skip_example('device/cdc_dual_ports', 'raspberry_pi_pico'))
+            self.assertTrue(prof.skip_example('device/cdc_dual_ports', 'espressif_s3_devkitc'))
+
+    def test_a_board_snapshot_sizes_only_the_examples_the_espressif_board_builds(self):
+        sized = []
+
+        def generate_sizes(build_dir, filters, example):
+            sized.append(example)
+            return {}, []
+        with tempfile.TemporaryDirectory() as tmp, bound(), mock.patch.object(sd, 'generate_sizes', generate_sizes):
+            _, failures = sd.board_snapshot('espressif_s3_devkitc', tmp,
+                                            ['device/cdc_dual_ports', 'device/cdc_msc_freertos'], prof.filters(REPO))
+        self.assertEqual(sized, ['device/cdc_msc_freertos'])
+        self.assertEqual(failures, [])
+
+
 class BoardAndExampleNames(unittest.TestCase):
     def _refused(self, argv):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(prof, 'OUT_DIR', tmp), \
