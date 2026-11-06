@@ -225,6 +225,31 @@ void test_iso_out_end_starts_the_interrupt_split_held_behind_it(void) {
   TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[1].hcchar);
 }
 
+void test_iso_out_end_leaves_a_held_slave_in_split_to_sof_while_the_queue_is_full(void) {
+  endpoint(0, false, 400, true);
+  endpoint(1, true, 64, false);
+  _hcd_data.xfer[1].allocated = false; // its transfer has no channel yet
+  enable(0);
+  TEST_ASSERT_FALSE(channel_txfifo_write(&test_regs, 0, true));
+  TEST_ASSERT_TRUE(edpt_xfer_kickoff(&test_regs, 1));
+  TEST_ASSERT_TRUE(_hcd_data.edpt[1].split_held);
+  test_regs.gintmsk = 0;
+
+  // The END filled the periodic queue: waiting for room in the ISR could need the RxFIFO service behind it
+  set_ptx_queue(0);
+  split_iso_out_close(&test_regs, 0);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].iso_open);
+  TEST_ASSERT_FALSE(_hcd_split_kicked);
+  TEST_ASSERT_TRUE(_hcd_data.edpt[1].xfer_pending);
+  TEST_ASSERT_TRUE(_hcd_data.edpt[1].split_held);
+  TEST_ASSERT_EQUAL(0, _hcd_data.edpt[1].uframe_countdown);
+  TEST_ASSERT_BITS_HIGH(GINTSTS_SOF, test_regs.gintmsk);
+  for (uint8_t ch = 1; ch < 16; ch++) {
+    TEST_ASSERT_FALSE(_hcd_data.xfer[ch].allocated);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[ch].hcchar);
+  }
+}
+
 static void pending_csplit(uint8_t ch, bool in, uint16_t ss_frame, uint8_t next) {
   endpoint(ch, in, 64, false);
   test_regs.channel[ch].hcsplt |= HCSPLT_COMPLSPLT;

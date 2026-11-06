@@ -2212,6 +2212,13 @@ static void split_iso_out_close(dwc2_regs_t* dwc2, uint8_t ch_id) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
     if (edpt->split_held && edpt->xfer_pending && edpt->closing == 0 && edpt->uframe_countdown == 0 &&
         split_tt_same(edpt, iso) && !split_iso_out_open(dwc2, edpt)) {
+      // A slave IN start waiting here for a periodic request-queue entry could need the RxFIFO service behind this
+      // interrupt to free one (Programming Guide Table 1-2): leave it held for SOF, as handle_sof_irq() does.
+      if (CFG_TUH_DWC2_SLAVE_ENABLE && edpt->hcchar_bm.ep_dir == TUSB_DIR_IN && !dma_host_enabled(dwc2) &&
+          0 == req_queue_avail(dwc2, true)) {
+        periodic_xfer_defer(dwc2, edpt, false);
+        continue;
+      }
       (void) edpt_xfer_kickoff(dwc2, ep_id);
       _hcd_split_kicked = true;
     }
