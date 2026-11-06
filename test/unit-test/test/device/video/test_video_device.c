@@ -84,12 +84,7 @@ void test_video_recommit_with_final_payload_completes_normally(void) {
 }
 
 void test_video_normal_frame_still_completes_once(void) {
-  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
-  for (unsigned i = 0; i <= sizeof(frame) && !completed; ++i) {
-    claimed = false;
-    TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x81, XFER_RESULT_SUCCESS, payload_length));
-  }
-  TEST_ASSERT_EQUAL(1, completed);
+  deliver_frame();
   TEST_ASSERT_EQUAL(0, aborted);
   TEST_ASSERT_GREATER_THAN(1, submitted);
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));

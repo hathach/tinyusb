@@ -206,18 +206,22 @@ TU_ATTR_WEAK void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8
 }
 
 static void _clear_frame(videod_streaming_interface_t *stm) {
-  stm->buffer          = NULL;
-  stm->bufsize         = 0;
-  stm->offset          = 0;
+  stm->buffer              = NULL;
+  stm->bufsize             = 0;
+  stm->offset              = 0;
   stm->frame_abort_pending = false;
 }
 
-/* Release an accepted frame only after its payload completes or is aborted. */
+/* Release the accepted frame, if any, only after its payload completes or is aborted. */
 static void _finish_frame(videod_streaming_interface_t *stm, bool aborted) {
   /* A submitter that sees bufsize cleared must also see the rest of the frame state reset. */
   (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  bool const owned = stm->bufsize != 0;
   _clear_frame(stm);
   (void)osal_mutex_unlock(_videod_mutex);
+  if (!owned) {
+    return;
+  }
   if (aborted) {
     tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
   } else {
@@ -861,10 +865,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
 #endif
 
   /* clear transfer management information */
-  stm->buffer  = NULL;
-  stm->bufsize = 0;
-  stm->offset  = 0;
-  stm->frame_abort_pending = false;
+  _clear_frame(stm);
 
   /* Find a alternate interface */
   uint8_t const *beg = desc + stm->desc.beg;
@@ -1090,8 +1091,21 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage,
   }
 }
 
+/* Index of the streaming interface whose endpoint is ep_addr, CFG_TUD_VIDEO_STREAMING if none. */
+static uint_fast8_t _find_stm_by_ep(uint8_t ep_addr) {
+  for (uint_fast8_t itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
+    videod_streaming_interface_t const *stm = &_videod_streaming_itf[itf];
+    if (stm->desc.ep[0] && ep_addr == _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0])) {
+      return itf;
+    }
+  }
+  return CFG_TUD_VIDEO_STREAMING;
+}
+
 /* True while a completion is still due for the accepted frame's last payload. When the event
- * queue drops a completion, usbd frees the endpoint without calling videod_xfer_cb(). */
+ * queue drops a completion, usbd frees the endpoint without calling videod_xfer_cb().
+ * Probe with a claim, not usbd_edpt_busy(): CLEAR_FEATURE on a non-halted endpoint clears BUSY
+ * but keeps CLAIMED while its payload is still queued. */
 static bool _payload_pending(uint8_t rhport, videod_streaming_interface_t const *stm) {
   if (!stm->bufsize || !stm->desc.ep[0]) {
     return false;
@@ -1528,33 +1542,13 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_ENDPOINT) {
     TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_FEATURE &&
               request->wValue == TUSB_REQ_FEATURE_EDPT_HALT);
-    if (stage != CONTROL_STAGE_SETUP) {
-      return true;
-    }
     /* The core has already stalled the endpoint and aborted its transfer.
      * There will be no completion to release the frame. Do not do this for
      * CLEAR_FEATURE: a non-halted endpoint may still have a queued payload. */
-    uint8_t const ep_addr = tu_u16_low(request->wIndex);
-    for (uint_fast8_t itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
-      videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
-      if (!stm->desc.ep[0]) {
-        continue;
-      }
-      uint8_t const *desc = _videod_itf[stm->index_vc].beg;
-      if (ep_addr == _desc_ep_addr(desc + stm->desc.ep[0])) {
-        (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-        bool const owned = stm->bufsize != 0;
-        if (owned) {
-          _clear_frame(stm);
-        }
-        (void)osal_mutex_unlock(_videod_mutex);
-        if (owned) {
-          tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
-        }
-        return true;
-      }
-    }
-    return false;
+    uint_fast8_t const itf = _find_stm_by_ep(tu_u16_low(request->wIndex));
+    TU_VERIFY(itf < CFG_TUD_VIDEO_STREAMING);
+    _finish_frame(&_videod_streaming_itf[itf], true);
+    return true;
   }
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
   uint_fast8_t itfnum = tu_u16_low(request->wIndex);
@@ -1607,23 +1601,9 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
 bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void)xferred_bytes;
 
-  /* find streaming handle */
-  uint_fast8_t itf;
-  videod_interface_t *ctl;
-  videod_streaming_interface_t *stm;
-  for (itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
-    stm = &_videod_streaming_itf[itf];
-    uint_fast16_t const ep_ofs = stm->desc.ep[0];
-    if (0 == ep_ofs) {
-      continue;
-    }
-    ctl = &_videod_itf[stm->index_vc];
-    uint8_t const *desc = ctl->beg;
-    if (ep_addr == _desc_ep_addr(desc + ep_ofs)) {
-      break;
-    }
-  }
+  uint_fast8_t const itf = _find_stm_by_ep(ep_addr);
   TU_ASSERT(itf < CFG_TUD_VIDEO_STREAMING);
+  videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
   videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[itf];
 
   if (!stm->bufsize) {
@@ -1633,13 +1613,12 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   if (result != XFER_RESULT_SUCCESS || stm->frame_abort_pending) {
     _finish_frame(stm, true);
   } else if (stm->offset < stm->bufsize) {
-    /* Claim the endpoint */
-    if (!usbd_edpt_claim(rhport, ep_addr)) {
-      _finish_frame(stm, true);
-      return false;
+    bool queued = usbd_edpt_claim(rhport, ep_addr);
+    if (queued) {
+      uint_fast16_t const pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
+      queued = usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false);
     }
-    uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-    if (!usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false)) {
+    if (!queued) {
       _finish_frame(stm, true);
       return false;
     }
