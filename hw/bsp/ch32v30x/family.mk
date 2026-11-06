@@ -43,6 +43,7 @@ LDFLAGS += \
 SRC_C += \
 	src/portable/wch/dcd_ch32_usbhs.c \
 	src/portable/wch/dcd_ch32_usbfs.c \
+	src/portable/wch/hcd_ch32_usbfs.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \
 	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_gpio.c \
 	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_misc.c \

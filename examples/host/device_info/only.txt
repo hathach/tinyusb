@@ -7,6 +7,7 @@ family:samd2x_l2x
 family:samd5x_e5x
 family:xmc4000
 mcu:CH32V20X
+mcu:CH32V307
 mcu:KINETIS_KL
 mcu:KINETIS_K
 mcu:LPC175X_6X
