@@ -138,11 +138,23 @@ static void reply_csw_passed(void) {
   reply_csw(MSC_CSW_STATUS_PASSED);
 }
 
-// Get Max LUN STALLs (one LUN): Test Unit Ready follows
-static void get_max_lun_stalled(void) {
+// msch_set_config() queues Get Max LUN; complete it with a chosen response byte / result. Test Unit Ready follows.
+static void complete_get_maxlun(uint8_t resp_byte, xfer_result_t result) {
+  enum_buf[0] = resp_byte;
   tuh_xfer_t ctrl = ctrl_xfer;
-  ctrl.result = XFER_RESULT_STALLED;
+  ctrl.result = result;
   ctrl_xfer.complete_cb(&ctrl);
+}
+
+// Get Max LUN STALLs (one LUN)
+static void get_max_lun_stalled(void) {
+  complete_get_maxlun(0x00, XFER_RESULT_STALLED);
+}
+
+// Get Max LUN reports one LUN; drop the Test Unit Ready that follows
+static void get_max_lun_one(void) {
+  complete_get_maxlun(0x00, XFER_RESULT_SUCCESS);
+  xfer_count = 0;
 }
 
 // run Get Max LUN, Test Unit Ready and Read Capacity 10 to completion
@@ -230,6 +242,7 @@ static void start_no_data_cb(tuh_msc_complete_cb_t complete_cb) {
 // usbh_edpt_xfer() takes a 16-bit length, so a data stage of 64 KiB or more must be split into
 // packet-aligned transfers rather than narrowed (98304 would otherwise become 32768).
 void test_msc_host_data_stage_over_64k(void) {
+  get_max_lun_one();
   start_data_in();
   TEST_ASSERT_EQUAL(2, xfer_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
@@ -253,6 +266,7 @@ void test_msc_host_data_stage_over_64k(void) {
 
 // A short transfer ends the data stage early: go straight to the CSW
 void test_msc_host_data_stage_short_ends_early(void) {
+  get_max_lun_one();
   start_data_in();
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
 
@@ -260,33 +274,82 @@ void test_msc_host_data_stage_short_ends_early(void) {
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
 }
 
-// msch_set_config() (run in setUp) queues GET_MAX_LUN with config_get_maxlun_complete as its
-// completion; drive that callback with a chosen GET_MAX_LUN response byte / result.
-static void complete_get_maxlun(uint8_t resp_byte, xfer_result_t result) {
-  enum_buf[0] = resp_byte;
-  ctrl_xfer.result = result;
-  TEST_ASSERT_NOT_NULL(ctrl_xfer.complete_cb);
-  ctrl_xfer.complete_cb(&ctrl_xfer);
+// The LUN count is the GET_MAX_LUN response plus one, clamped to CFG_TUH_MSC_MAXLUN; a STALL means one LUN
+void test_msc_host_max_lun_count(void) {
+  const struct {
+    uint8_t       resp;
+    xfer_result_t result;
+    uint8_t       count;
+  } cases[] = {
+    {0x00, XFER_RESULT_SUCCESS, 1},
+    {0x0A, XFER_RESULT_SUCCESS, CFG_TUH_MSC_MAXLUN},
+    {0x00, XFER_RESULT_STALLED, 1},
+  };
+  for (size_t i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    msch_close(DADDR);
+    mount_bot_interface();
+    complete_get_maxlun(cases[i].resp, cases[i].result);
+    TEST_ASSERT_EQUAL(cases[i].count, tuh_msc_get_maxlun(DADDR));
+  }
 }
 
-// GET_MAX_LUN count is device-controlled: it is one more than the response byte, clamped to the
-// capacity[CFG_TUH_MSC_MAXLUN] storage, and a STALL (failure) reports a single LUN.
-void test_msc_host_maxlun_clamped_to_capacity(void) {
-  // single LUN: response 0 -> count 1
-  complete_get_maxlun(0x00, XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
-
-  // a count above the limit is capped to CFG_TUH_MSC_MAXLUN
-  complete_get_maxlun(0x0A, XFER_RESULT_SUCCESS);
+// A device reporting more LUNs than CFG_TUH_MSC_MAXLUN is clamped, and LUNs past it are refused
+void test_msc_host_max_lun_clamped(void) {
+  complete_get_maxlun(255, XFER_RESULT_SUCCESS); // 256 LUNs, wraps to 0 in a uint8_t count
   TEST_ASSERT_EQUAL(CFG_TUH_MSC_MAXLUN, tuh_msc_get_maxlun(DADDR));
 
-  // 0xFF would wrap the uint8_t count to 0 without the clamp
-  complete_get_maxlun(0xFF, XFER_RESULT_SUCCESS);
-  TEST_ASSERT_EQUAL(CFG_TUH_MSC_MAXLUN, tuh_msc_get_maxlun(DADDR));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_count(DADDR, CFG_TUH_MSC_MAXLUN));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_size(DADDR, CFG_TUH_MSC_MAXLUN));
+  xfer_count = 0;
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .lun = CFG_TUH_MSC_MAXLUN};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+}
 
-  // STALL / failed request -> 1 LUN per the BOT spec
-  complete_get_maxlun(0x00, XFER_RESULT_STALLED);
+void test_msc_host_lun_past_reported_count_refused(void) {
+  get_max_lun_one();
   TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .lun = 1};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+}
+
+// Drives the enumeration's TEST UNIT READY and READ CAPACITY. The READ CAPACITY CBW is patched to `lun` so its
+// geometry lands in that capacity[] slot, which enumeration (LUN 0 only) cannot otherwise reach.
+static void complete_enumeration_capacity_as_lun(uint8_t lun, uint32_t block_count, uint32_t block_size) {
+  get_max_lun_one();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t))); // TUR CBW
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[1]);
+  ((msc_cbw_t*) xfer_buf[1])->lun = lun;
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+
+  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
+  resp->last_lba   = tu_htonl(block_count - 1);
+  resp->block_size = tu_htonl(block_size);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(scsi_read_capacity10_resp_t)));
+  reply_csw_passed();
+  TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
+}
+
+void test_msc_host_geometry_of_lun_0(void) {
+  complete_enumeration_capacity_as_lun(0, 1000, 512);
+  TEST_ASSERT_EQUAL(1000, tuh_msc_get_block_count(DADDR, 0));
+  TEST_ASSERT_EQUAL(512, tuh_msc_get_block_size(DADDR, 0));
+}
+
+// capacity[1] holds geometry, but LUN 1 is past the one LUN the device reported
+void test_msc_host_geometry_past_reported_count_is_zero(void) {
+  complete_enumeration_capacity_as_lun(1, 1000, 512);
+  TEST_ASSERT_EQUAL(1, tuh_msc_get_maxlun(DADDR));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_count(DADDR, 1));
+  TEST_ASSERT_EQUAL(0, tuh_msc_get_block_size(DADDR, 1));
+
+  xfer_count = 0;
+  TEST_ASSERT_FALSE(tuh_msc_read10(DADDR, 1, data, 0, 1, NULL, 0));
+  TEST_ASSERT_FALSE(tuh_msc_write10(DADDR, 1, data, 0, 1, NULL, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
 }
 
 // refused from the completion callback and afterwards, with nothing submitted
