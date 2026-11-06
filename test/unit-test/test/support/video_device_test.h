@@ -109,7 +109,7 @@ static video_iso_fixture_t iso_descriptor;
 
 // `claimed` stands for the core's BUSY|CLAIMED bits of the stream endpoint.
 static bool     claimed, accept_commit, in_commit, stalled, refuse_claim, refuse_xfer;
-static unsigned completed, cancelled, submitted;
+static unsigned completed, aborted, submitted;
 static uint8_t *payload;
 static uint16_t payload_length;
 static void    *control_buffer;
@@ -318,7 +318,7 @@ static inline void video_test_setup(void) {
   claimed       = false;
   accept_commit = true;
   in_commit = stalled = refuse_claim = refuse_xfer = false;
-  completed = cancelled = submitted = 0;
+  completed = aborted = submitted = 0;
   payload                           = NULL;
   resubmit_frame                    = NULL;
   resubmitted                       = false;

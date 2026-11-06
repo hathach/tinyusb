@@ -308,9 +308,7 @@ void video_task(void* param) {
   }
 }
 
-void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
-  (void) ctl_idx;
-  (void) stm_idx;
+static void video_frame_released(bool delivered) {
   frame_lock();
   if (tx_requeue) {
     // may be the old frame's late callback; queued here in the usbd task, only this frame's callback can follow
@@ -319,10 +317,23 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx
     }
   } else {
     tx_busy = 0;
-    /* flip buffer */
-    ++frame_num;
+    if (delivered) {
+      ++frame_num;
+    }
   }
   frame_unlock();
+}
+
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  (void) ctl_idx;
+  (void) stm_idx;
+  video_frame_released(true);
+}
+
+void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  (void) ctl_idx;
+  (void) stm_idx;
+  video_frame_released(false);
 }
 
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,

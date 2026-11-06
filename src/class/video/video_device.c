@@ -102,7 +102,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t max_payload_transfer_size;
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
-  bool     frame_cancelled;                              /* Drain a queued bulk payload before releasing its frame. */
+  bool     frame_abort_pending;                              /* Drain a queued bulk payload before releasing its frame. */
 
   video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
 } videod_streaming_interface_t;
@@ -130,7 +130,7 @@ static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMIN
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
- * COMMIT, halt and transfer-completion handlers in the usbd task. The complete and cancelled
+ * COMMIT, halt and transfer-completion handlers in the usbd task. The complete and abort
  * callbacks run after it is released; tud_video_prepare_payload_cb() runs under it on the submit
  * path. SET_INTERFACE and bus reset clear the frame without taking it. */
 #if OSAL_MUTEX_REQUIRED
@@ -200,7 +200,7 @@ TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fa
   (void) stm_idx;
 }
 
-TU_ATTR_WEAK void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+TU_ATTR_WEAK void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   /* Preserve the buffer-release notification for existing applications. */
   tud_video_frame_xfer_complete_cb(ctl_idx, stm_idx);
 }
@@ -209,17 +209,17 @@ static void _clear_frame(videod_streaming_interface_t *stm) {
   stm->buffer          = NULL;
   stm->bufsize         = 0;
   stm->offset          = 0;
-  stm->frame_cancelled = false;
+  stm->frame_abort_pending = false;
 }
 
 /* Release an accepted frame only after its payload completes or is aborted. */
-static void _finish_frame(videod_streaming_interface_t *stm, bool cancelled) {
+static void _finish_frame(videod_streaming_interface_t *stm, bool aborted) {
   /* A submitter that sees bufsize cleared must also see the rest of the frame state reset. */
   (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   _clear_frame(stm);
   (void)osal_mutex_unlock(_videod_mutex);
-  if (cancelled) {
-    tud_video_frame_xfer_cancelled_cb(stm->index_vc, stm->index_vs);
+  if (aborted) {
+    tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
   } else {
     tud_video_frame_xfer_complete_cb(stm->index_vc, stm->index_vs);
   }
@@ -864,7 +864,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   stm->buffer  = NULL;
   stm->bufsize = 0;
   stm->offset  = 0;
-  stm->frame_cancelled = false;
+  stm->frame_abort_pending = false;
 
   /* Find a alternate interface */
   uint8_t const *beg = desc + stm->desc.beg;
@@ -1215,7 +1215,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
                * bufsize to reject new frames until that callback releases it. */
               if (_payload_pending(rhport, stm)) {
                 /* A successful final payload still completes the whole frame. */
-                stm->frame_cancelled = stm->offset < stm->bufsize;
+                stm->frame_abort_pending = stm->offset < stm->bufsize;
               } else if (stm->bufsize) {
                 /* Its completion was dropped; keep the header so the next frame toggles FID. */
                 _clear_frame(stm);
@@ -1228,7 +1228,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
               }
               (void)osal_mutex_unlock(_videod_mutex);
               if (dropped) {
-                tud_video_frame_xfer_cancelled_cb(stm->index_vc, stm->index_vs);
+                tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
               }
             }
             return ret;
@@ -1549,7 +1549,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
         }
         (void)osal_mutex_unlock(_videod_mutex);
         if (owned) {
-          tud_video_frame_xfer_cancelled_cb(stm->index_vc, stm->index_vs);
+          tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
         }
         return true;
       }
@@ -1630,7 +1630,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     /* A completion queued before ENDPOINT_HALT or SET_INTERFACE may arrive after the frame was dropped. */
     return true;
   }
-  if (result != XFER_RESULT_SUCCESS || stm->frame_cancelled) {
+  if (result != XFER_RESULT_SUCCESS || stm->frame_abort_pending) {
     _finish_frame(stm, true);
   } else if (stm->offset < stm->bufsize) {
     /* Claim the endpoint */

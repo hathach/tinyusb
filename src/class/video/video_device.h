@@ -43,7 +43,7 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index
- * @param[in] buffer     Frame buffer. Do not reuse until the completion or cancellation callback.
+ * @param[in] buffer     Frame buffer. Do not reuse until the complete or abort callback.
  * @param[in] bufsize    Byte size of the frame buffer */
 bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize);
 
@@ -54,10 +54,10 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
  * @param[in] stm_idx    Destination streaming interface index */
 void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
-/** Invoked when an accepted frame is cancelled by COMMIT, endpoint halt or transfer failure.
+/** Invoked when an accepted frame is aborted by COMMIT, endpoint halt or transfer failure.
  * For a COMMIT, the queued payload drains before this callback runs; if it was the frame's
- * final payload, tud_video_frame_xfer_complete_cb() runs instead. If that payload's completion
- * was lost, the COMMIT runs this callback at once.
+ * final payload and succeeds, tud_video_frame_xfer_complete_cb() runs instead. If that
+ * payload's completion was lost, the COMMIT runs this callback at once.
  * The frame buffer can now be reused. The default implementation calls
  * tud_video_frame_xfer_complete_cb() so existing applications release their buffers.
  * This callback does not report delivery of a complete frame to the host.
@@ -66,7 +66,7 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index */
-void tud_video_frame_xfer_cancelled_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
+void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)

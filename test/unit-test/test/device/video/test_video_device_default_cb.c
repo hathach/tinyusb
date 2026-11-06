@@ -2,8 +2,8 @@
  * SPDX-FileCopyrightText: Copyright (c) 2026 Adafruit Industries
  * SPDX-License-Identifier: MIT
  */
-// No tud_video_frame_xfer_cancelled_cb() override: the weak default must forward each
-// cancellation to tud_video_frame_xfer_complete_cb() exactly once.
+// No tud_video_frame_xfer_abort_cb() override: the weak default must forward each
+// abort to tud_video_frame_xfer_complete_cb() exactly once.
 #include "unity.h"
 
 TEST_SOURCE_FILE("video_device.c")
@@ -18,7 +18,7 @@ void tearDown(void) {
   video_test_teardown();
 }
 
-void test_video_default_cancel_on_halt_completes_once(void) {
+void test_video_default_abort_on_halt_completes_once(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   endpoint_halt(true);
   TEST_ASSERT_EQUAL(1, completed);
@@ -28,7 +28,7 @@ void test_video_default_cancel_on_halt_completes_once(void) {
   TEST_ASSERT_EQUAL(1, completed);
 }
 
-void test_video_default_cancel_on_recommit_completes_once(void) {
+void test_video_default_abort_on_recommit_completes_once(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   commit();
   TEST_ASSERT_EQUAL(0, completed);

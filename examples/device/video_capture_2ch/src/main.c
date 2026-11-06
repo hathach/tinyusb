@@ -288,7 +288,7 @@ void video_task(void* param) {
   }
 }
 
-void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+static void video_frame_released(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, bool delivered) {
   uint32_t idx = ctl_idx + stm_idx;
   frame_lock();
   if (tx_requeue & (1u << idx)) {
@@ -298,10 +298,19 @@ void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx
     }
   } else {
     tx_busy &= ~(1u << idx);
-    /* flip buffer */
-    ++frame_num[idx];
+    if (delivered) {
+      ++frame_num[idx];
+    }
   }
   frame_unlock();
+}
+
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  video_frame_released(ctl_idx, stm_idx, true);
+}
+
+void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  video_frame_released(ctl_idx, stm_idx, false);
 }
 
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,

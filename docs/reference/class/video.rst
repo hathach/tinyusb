@@ -75,9 +75,9 @@ Frame flow
        refused frame.
    * - ``tud_video_frame_xfer_complete_cb()``
      - Releases the queued frame after all of its UVC payloads complete.  The
-       default cancellation callback also forwards here for legacy applications.
-   * - ``tud_video_frame_xfer_cancelled_cb()``
-     - Releases an accepted frame cancelled by COMMIT, endpoint halt, or
+       default abort callback also forwards here for legacy applications.
+   * - ``tud_video_frame_xfer_abort_cb()``
+     - Releases an accepted frame aborted by COMMIT, endpoint halt, or
        transfer failure.  This does not report delivery of a complete frame.
        Its default weak implementation calls
        ``tud_video_frame_xfer_complete_cb()``.  SET_INTERFACE, bus reset and
@@ -98,8 +98,8 @@ Frame flow
 Wait for ``tud_video_n_streaming(ctl_idx, stm_idx)`` before submitting a frame.
 Queue it with ``tud_video_n_frame_xfer()`` and do not modify or reuse the buffer
 until ``tud_video_frame_xfer_complete_cb()`` or
-``tud_video_frame_xfer_cancelled_cb()``.  Override the latter to distinguish
-cancellation from full-frame completion.  A COMMIT keeps the queued payload and
+``tud_video_frame_xfer_abort_cb()``.  Override the latter to distinguish
+an abort from full-frame completion.  A COMMIT keeps the queued payload and
 buffer ownership until that payload drains; if it was the final payload and
 succeeds, the frame completes normally.  An endpoint halt, refused continuation,
 or a COMMIT after the payload completion was lost releases the frame without
