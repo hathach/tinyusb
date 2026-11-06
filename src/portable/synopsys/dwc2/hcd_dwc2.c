@@ -84,7 +84,7 @@ typedef struct {
     uint32_t next_pid        : 2; // PID for next transfer
     uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     uint32_t closing         : 1; // endpoint is closing
-    uint32_t aborting        : 1; // periodic DMA channel is waiting for its automatic halt
+    uint32_t aborting        : 1; // aborted DMA channel is waiting for its halt
     uint32_t periodic_phase  : 1; // periodic transfer phase is established
     uint32_t xfer_pending    : 1; // periodic transfer waiting for its service interval
     // uint32_t : 4;
@@ -113,7 +113,7 @@ typedef struct {
                            // be composed of multiple channel_xfer_start() (retry with NAK/NYET)
   uint16_t fifo_bytes;     // bytes written/read from/to FIFO (may not be transferred on USB bus).
   uint8_t  retry_disabled; // 1: channel was disabled to throttle a split retry (NAK in / XactErr out); re-arm on its halt
-  volatile bool aborting;  // periodic DMA abort waiting for the channel's automatic halt
+  volatile bool aborting;  // DMA abort waiting for the channel's halt (automatic, or from channel disable)
 #if DWC2_LS_ONE_XACT_PER_FRAME
   uint8_t  ls_defer;       // channel is programmed but waiting for a free low-speed frame, see ls_defer_kind_t
 #endif
@@ -1191,6 +1191,33 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       edpt->aborting = 1;
       xfer->aborting = true;
       hcd_int_enable(rhport);
+      return true;
+    }
+  }
+
+  // A non-periodic DMA channel (control/bulk) is halted with channel disable. Its halt usually arrives with NAK set,
+  // which handle_channel_in_dma() would retry: the aborted transfer would keep polling and later complete with the
+  // device's next data. Mark it aborting so handle_channel_irq() retires the channel at the halt instead, with no
+  // completion event, as for periodic channels above.
+  if (dma_host_enabled(dwc2)) {
+    const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
+    if (ch_id < 16) {
+      hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+      edpt->aborting = 1;
+      xfer->aborting = true;
+      channel_disable(dwc2, &dwc2->channel[ch_id]);
+      hcd_int_enable(rhport);
+
+      // Wait for the halt, so the endpoint can take a new transfer and the controller has stopped writing to the
+      // aborted transfer's buffer. It normally comes within a (micro)frame. The wait is bounded (~8 frame-counter
+      // ticks) because the halt is handled by the ISR, which may not run if this is called with the interrupt
+      // masked. If it times out, the halt has been requested but not confirmed: the controller may still write to
+      // the buffer until it halts. edpt->aborting stays set, so the endpoint refuses new transfers until the halt
+      // retires the channel, as for periodic channels above. The return value keeps its hcd.h meaning: true, a
+      // transfer was aborted.
+      const uint32_t start = dwc2->hfnum & HFNUM_FRNUM_Msk;
+      while (xfer->aborting && (((dwc2->hfnum & HFNUM_FRNUM_Msk) - start) & HCD_FRAME_NUMBER_MASK) < 8) {
+      }
       return true;
     }
   }
