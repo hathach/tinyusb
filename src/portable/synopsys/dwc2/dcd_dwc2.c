@@ -262,6 +262,12 @@ static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool
   return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
 }
 
+// TX FIFO number is the endpoint number: only IN endpoints below ep_in_count (0 = not limited) have one
+TU_ATTR_ALWAYS_INLINE static inline bool edpt_in_has_txfifo(uint8_t rhport, uint8_t epnum) {
+  const uint8_t ep_in_count = _dwc2_controller[rhport].ep_in_count;
+  return ep_in_count == 0 || epnum < ep_in_count;
+}
+
 static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, uint8_t xfer_type) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
@@ -306,10 +312,16 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
     }
     _dcd_data.rx = rx;
   } else {
+    if (!edpt_in_has_txfifo(rhport, epnum)) {
+      // Only interrupt IN may open without one, e.g. arduino-esp32's never-sent CDC notification 0x85 on ESP32-S2/S3;
+      // a bulk/iso data endpoint would accept bytes it can never send
+      TU_ASSERT(xfer_type == TUSB_XFER_INTERRUPT);
+      TU_LOG1("DWC2: EP %02X has no TX FIFO, transfers will be refused\r\n", ep_addr);
+      return true;
+    }
+
     // Check IN endpoints concurrently active limit
     if(0 != dwc2_controller->ep_in_count) {
-      // TX FIFO number is the endpoint number, which must be one of the ep_in_count implemented TX FIFOs
-      TU_ASSERT(epnum < dwc2_controller->ep_in_count);
       TU_ASSERT(_dcd_data.allocated_epin_count < dwc2_controller->ep_in_count);
       _dcd_data.allocated_epin_count++;
     }
@@ -759,8 +771,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   usbd_spin_lock(is_isr);
 
-  if (xfer->max_size == 0) {
-    ret = false;  // Endpoint is closed
+  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !edpt_in_has_txfifo(rhport, epnum))) {
+    ret = false;  // Endpoint is closed or has no TX FIFO
   } else {
     xfer->buffer = buffer;
     xfer->ff = NULL;
@@ -795,8 +807,8 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 
   usbd_spin_lock(is_isr);
 
-  if (xfer->max_size == 0) {
-    ret = false;  // Endpoint is closed
+  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !edpt_in_has_txfifo(rhport, epnum))) {
+    ret = false;  // Endpoint is closed or has no TX FIFO
   } else {
     xfer->buffer = NULL;
     xfer->ff = ff;
