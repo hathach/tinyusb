@@ -313,7 +313,9 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
     _dcd_data.rx = rx;
   } else {
     if (!edpt_in_has_txfifo(rhport, epnum)) {
-      // e.g. arduino-esp32's never-sent CDC notification 0x85 on ESP32-S2/S3
+      // Only interrupt IN may open without one, e.g. arduino-esp32's never-sent CDC notification 0x85 on ESP32-S2/S3;
+      // a bulk/iso data endpoint would accept bytes it can never send
+      TU_ASSERT(xfer_type == TUSB_XFER_INTERRUPT);
       TU_LOG1("DWC2: EP %02X has no TX FIFO, transfers will be refused\r\n", ep_addr);
       return true;
     }
