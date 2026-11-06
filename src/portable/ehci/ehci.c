@@ -868,7 +868,7 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
 
   // protect qhd_pool since 'used' and 'removing' can be changed in isr
   ehci_qhd_t *result = NULL;
-  usbh_spin_lock(false);
+  usbh_critical_enter(false);
   for (uint32_t i = 0; i < QHD_MAX; i++) {
     if ((qhd_pool[i].dev_addr == dev_addr) &&
         ep_addr == qhd_ep_addr(&qhd_pool[i]) &&
@@ -877,7 +877,7 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
       break;
     }
   }
-  usbh_spin_unlock(false);
+  usbh_critical_exit(false);
 
   return result;
 }

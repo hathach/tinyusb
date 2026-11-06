@@ -12,6 +12,7 @@
 
 #include "msp430.h"
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -210,24 +211,26 @@ void dcd_remote_wakeup(uint8_t rhport)
 
 void dcd_connect(uint8_t rhport)
 {
-  dcd_int_disable(rhport);
+  (void) rhport;
+  usbd_critical_enter(false);
 
   USBKEYPID = USBKEY;
   USBCNF |= PUR_EN; // Enable pullup.
   USBKEYPID = 0;
 
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 void dcd_disconnect(uint8_t rhport)
 {
-  dcd_int_disable(rhport);
+  (void) rhport;
+  usbd_critical_enter(false);
 
   USBKEYPID = USBKEY;
   USBCNF &= ~PUR_EN; // Disable pullup.
   USBKEYPID = 0;
 
-  dcd_int_enable(rhport);
+  usbd_critical_exit(false);
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)

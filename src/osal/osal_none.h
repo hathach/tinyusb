@@ -64,9 +64,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bo
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  if (ctx->nested_count == 0) {
-    return; // spin is not locked to begin with
-  }
+  TU_ASSERT(ctx->nested_count > 0, ); // unlock without a matching lock
 
   ctx->nested_count--;
 
