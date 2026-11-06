@@ -1209,7 +1209,11 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       hcd_int_enable(rhport);
 
       // Wait for the halt, so the endpoint can take a new transfer and the controller no longer writes to the aborted
-      // transfer's buffer when this returns. It comes within a (micro)frame; give up after ~8 frame-counter ticks.
+      // transfer's buffer when this returns. It comes within a (micro)frame. The wait is bounded (~8 frame-counter
+      // ticks) because the halt is handled by the ISR, which may not run if this is called with the interrupt
+      // masked. If it times out, the channel is still disabled and edpt->aborting stays set, so the endpoint refuses
+      // new transfers until the halt retires the channel, as for periodic channels above. The return value keeps
+      // its hcd.h meaning: true, a transfer was aborted.
       const uint32_t start = dwc2->hfnum & HFNUM_FRNUM_Msk;
       while (xfer->aborting && (((dwc2->hfnum & HFNUM_FRNUM_Msk) - start) & HCD_FRAME_NUMBER_MASK) < 8) {
       }
