@@ -514,13 +514,13 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     const dwc2_dsts_t dsts = {.value = dwc2->dsts};
     uint32_t odd_next = (dsts.frame_number + 1u) & 1u; // the (micro)frame after the current one
     if (dir == TUSB_DIR_OUT && xfer->iso_out_frame != ISO_OUT_FRAME_NONE) {
-      // ISO OUT re-armed after a packet received in P: arm for P + interval while that (micro)frame has not passed.
-      // A re-arm that runs late into P+1 then still receives P+1's packet if it has not come yet, instead of
-      // waiting for P+2 and losing it.
+      // ISO OUT with an interval of one (micro)frame, re-armed after a packet received in P: arm for P+1 while that
+      // (micro)frame has not passed. A re-arm that runs late into P+1 then still receives P+1's packet if it has not
+      // come yet, instead of waiting for P+2 and losing it.
       const uint32_t rx_frame = xfer->iso_out_frame;
       xfer->iso_out_frame = ISO_OUT_FRAME_NONE;
-      if (((dsts.frame_number - rx_frame) & dsts_frame_mask(dsts)) <= xfer->interval) {
-        odd_next = (rx_frame + xfer->interval) & 1u;
+      if (xfer->interval == 1 && ((dsts.frame_number - rx_frame) & dsts_frame_mask(dsts)) <= 1) {
+        odd_next = (rx_frame + 1) & 1u;
       }
     }
     if (odd_next != 0) {
