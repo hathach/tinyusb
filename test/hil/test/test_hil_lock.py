@@ -11,6 +11,7 @@
 import io
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -25,7 +26,7 @@ HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(HIL_DIR))
 sys.path.insert(0, HIL_DIR)
 
-from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_test imports it
+from usbtest_harness import end_cleanup_holder, patch   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
 from helper import agentrc, hil_lock, hil_util   # noqa: E402
@@ -349,10 +350,7 @@ class RetainedLock(LockDir):
             json.dump({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99', 'closed': True, 'cleanup': 'done'}, f)
 
     def end_holder(self):
-        rec = hil_lock.read_record(self.lock)
-        if hil_lock.is_cleanup_holder(rec):
-            self.end_session()
-            hil_lock.release_token(rec['token'])
+        end_cleanup_holder(hil_lock, self.lock, self.end_session)
 
     def assert_retained(self):
         rec = hil_lock.read_record(self.lock)
@@ -579,6 +577,58 @@ class RetainedLock(LockDir):
         cell = '❌ ' + hil_test.retain_board_lock(BOARD, LOCK, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
         self.assertTrue(fh.closed)
         self.assert_blocker(cell, 'cleanup holder handoff refused', lock=LOCK)
+
+
+class CleanupHolderTeardown(unittest.TestCase):
+    def test_a_refused_release_uses_sigkill_only_for_the_recorded_process(self):
+        alive = [True]
+        rec = {'role': hil_lock.CLEANUP_ROLE, 'pid': 1234, 'start': 'start', 'token': 'test'}
+        fake = types.SimpleNamespace(
+            ReleaseRefused=hil_lock.ReleaseRefused,
+            read_record=lambda board: rec,
+            is_cleanup_holder=hil_lock.is_cleanup_holder,
+            proc_start=lambda pid: rec['start'] if alive[0] else None,
+            release_token=lambda token: (_ for _ in ()).throw(hil_lock.ReleaseRefused('slow holder')),
+            _pidfd_signal=lambda pid, start, sig, valid: kill(pid, sig) if valid() else None)
+        killed = []
+
+        def kill(pid, sig):
+            killed.append((pid, sig))
+            alive[0] = False
+
+        end_cleanup_holder(fake, BOARD, lambda: None, wait=0)
+
+        self.assertEqual(killed, [(rec['pid'], signal.SIGKILL)])
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'cleanup holders require Linux')
+    def test_a_refused_release_kills_and_reaps_the_recorded_holder(self):
+        proc = subprocess.Popen(
+            [sys.executable, '-c',
+             'import signal, time; '
+             '[signal.signal(s, signal.SIG_IGN) for s in '
+             '(signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]; time.sleep(60)'])
+
+        def kill_and_reap():
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+
+        self.addCleanup(kill_and_reap)
+        start = hil_lock.proc_start(proc.pid)
+        rec = {'role': hil_lock.CLEANUP_ROLE, 'pid': proc.pid, 'start': start, 'token': 'test'}
+        fake = types.SimpleNamespace(
+            ReleaseRefused=hil_lock.ReleaseRefused,
+            read_record=lambda board: rec,
+            is_cleanup_holder=hil_lock.is_cleanup_holder,
+            proc_start=hil_lock.proc_start,
+            _pidfd_signal=hil_lock._pidfd_signal,
+            release_token=lambda token: (_ for _ in ()).throw(hil_lock.ReleaseRefused('slow holder')))
+        finished = []
+
+        end_cleanup_holder(fake, BOARD, lambda: finished.append(True), wait=0.5)
+
+        self.assertEqual(finished, [True])
+        self.assertIsNotNone(proc.poll())
 
 
 if __name__ == '__main__':

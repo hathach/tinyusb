@@ -3,7 +3,10 @@
 needs, a stdout that survives main's reconfigure, and the collaborators that would touch
 sysfs, dmesg or a device, stubbed. Import before hil_test."""
 import io
+import os
+import signal
 import sys
+import time
 import types
 
 # hil_test imports pyserial, which the bare pre-commit runner lacks; no test opens a port
@@ -24,6 +27,56 @@ class Out(io.StringIO):
 def patch(test, obj, name, value):
     test.addCleanup(setattr, obj, name, getattr(obj, name))
     setattr(obj, name, value)
+
+
+def end_cleanup_holder(hil_lock, board, finish, wait=1.0):
+    """Finish a retained session and leave no cleanup-holder process behind.
+
+    A loaded host can make release_token() time out after it has signalled the
+    holder.  Test teardown must still wait for that exact process to exit, or
+    kill it before TemporaryDirectory removes its lock record and receipt.
+    """
+    rec = hil_lock.read_record(board)
+    if not hil_lock.is_cleanup_holder(rec):
+        return
+
+    finish()
+    pid, start = rec['pid'], rec['start']
+    try:
+        hil_lock.release_token(rec['token'])
+    except hil_lock.ReleaseRefused:
+        pass
+
+    deadline = time.monotonic() + wait
+    while hil_lock.proc_start(pid) == start and time.monotonic() < deadline:
+        try:
+            reaped, _ = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            reaped = 0
+        if reaped == pid:
+            return
+        time.sleep(0.01)
+
+    if hil_lock.proc_start(pid) == start:
+        try:
+            hil_lock._pidfd_signal(  # Test teardown needs the provider's PID-reuse guard.
+                pid, start, signal.SIGKILL, lambda: hil_lock.proc_start(pid) == start)
+        except hil_lock.ReleaseRefused:
+            if hil_lock.proc_start(pid) != start:
+                return
+            raise
+
+        deadline = time.monotonic() + wait
+        while hil_lock.proc_start(pid) == start and time.monotonic() < deadline:
+            try:
+                reaped, _ = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                reaped = 0
+            if reaped == pid:
+                return
+            time.sleep(0.01)
+        if hil_lock.proc_start(pid) == start:
+            raise RuntimeError(f'cleanup holder pid {pid} survived SIGKILL')
 
 
 def stub_device(test, usbtest, run_case):
