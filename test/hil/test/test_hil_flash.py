@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# hil_flash's board-shaped adapters over agentrc's flash provider (lib/agentrc at the pin,
-# hil_util.provider()), and the rosters checked by the provider's rules. The provider's own
+# hil_flash's board-shaped adapters over agentrc's flash provider (the agentrc helper/agentrc.py
+# selects, hil_util.provider()), and the rosters checked by the provider's rules. The provider's own
 # commands, scripts, retries and refusals are agentrc's tests (tests/test_hil_flash.py); these
 # pin what tinyusb hands it (routing, bounds, runner and its own settings) and that a missing,
-# off-pin or incomplete provider is refused before any tool runs. Run directly:
+# unfetched or incomplete provider is refused before any tool runs. Run directly:
 #   python3 test/hil/test/test_hil_flash.py
 import io
 import json
@@ -129,7 +129,7 @@ class Adapters(unittest.TestCase):
     def test_a_broken_esptool_refuses_the_run_once_unless_it_flashes_nothing(self):
         # board c's RTT console is refused by the next check, which --skip-flash reaches
         rtt = {'name': 'c', 'uid': 'Y', 'tests': {'device': True}, 'flasher': BOARDS['jlink'], 'logger': 'rtt'}
-        env = {'PATH': '/nonexistent', 'GITHUB_ACTIONS': 'x'}
+        env = {'PATH': '/nonexistent', 'GITHUB_ACTIONS': 'true'}
         self.assertIn('ERROR: esptool refused: esptool is not on PATH',
                       hil_test_stdout(self, {'flasher': BOARDS['esptool']}, rtt, **env))
         out = hil_test_stdout(self, {'flasher': BOARDS['esptool']}, rtt, argv=['--skip-flash'], **env)
@@ -179,14 +179,32 @@ class Adapters(unittest.TestCase):
         self.assertEqual(kw, {'timeout': hil_util.CMD_TIMEOUT, 'run': hil_util.run_cmd})
 
 
+_RIG_TREE = tempfile.TemporaryDirectory()
+
+
+def rig_tree():
+    """hil_remote.py's HARNESS_FILES with the agentrc this process loads staged as .agentrc/, as a rig gets them:
+    its hil_test.py loads that copy whatever a CI job's variables, which these tests set, would select."""
+    root = Path(_RIG_TREE.name)
+    if not (root / '.agentrc').is_dir():
+        import ast
+        wrapper = Path(REPO, '.claude/skills/hil-contract/scripts/hil_remote.py')
+        for rel in next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
+                        if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == 'HARNESS_FILES'):
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(Path(REPO, rel), root / rel)
+        agentrc.helper().stage(agentrc.identity(), root)
+    return root
+
+
 def hil_test_stdout(case, board: dict, *more: dict, argv=(), **env) -> str:
     """hil_test.py's stdout for a config, board `b` then `more`, it must refuse (exit 1) before
-    any board access."""
+    any board access; run from rig_tree()."""
     with tempfile.TemporaryDirectory() as td:
         cfg = Path(td) / 'c.json'
         boards = [{'name': 'b', 'uid': 'X', 'tests': {'device': True}, **board}, *more]
         cfg.write_text(json.dumps({'boards': boards}))
-        r = subprocess.run([sys.executable, str(HIL_DIR / 'hil_test.py'), *argv, str(cfg)],
+        r = subprocess.run([sys.executable, str(rig_tree() / 'test/hil/hil_test.py'), *argv, str(cfg)],
                            env={**os.environ, 'HIL_REPORT_DIR': td, **env}, capture_output=True, text=True, timeout=60)
     case.assertEqual(r.returncode, 1, r.stderr)
     return r.stdout
@@ -421,6 +439,7 @@ class OpenocdEspRoster(unittest.TestCase):
     """The roster lint is the provider's admission: the documented shape passes, a vid_pid,
     other args or a missing uid fail, in hil_test before any board is touched."""
     SHAPE = {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}
+    RECOVER = {k: v for k, v in SHAPE.items() if k != 'uid'}   # a recovery entry reaches the primary's probe
 
     def test_the_documented_shape_is_admitted(self):
         self.assertEqual(hil_flash.openocd_esp_entry_problem(self.SHAPE), '')
@@ -449,14 +468,14 @@ class OpenocdEspRoster(unittest.TestCase):
         for var in hil_util.openocd_esp().CI_JOB_ENV:
             with self.subTest(var=var):
                 self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp is refused under a CI job',
-                              hil_test_stdout(self, {'flasher': self.SHAPE}, **{var: 'x'}))
+                              hil_test_stdout(self, {'flasher': self.SHAPE}, **{var: 'true'}))
 
     def test_hil_test_refuses_a_recovery_entry_under_a_ci_job_and_passes_an_ordinary_board(self):
         jlink = BOARDS['jlink']
         self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp is refused under a CI job',
-                      hil_test_stdout(self, {'flasher': jlink, 'flasher_recover': self.SHAPE}, GITHUB_ACTIONS='x'))
+                      hil_test_stdout(self, {'flasher': jlink, 'flasher_recover': self.RECOVER}, GITHUB_ACTIONS='true'))
         # past the openocd_esp check, refused by the next one (an RTT console the CI build lacks)
-        out = hil_test_stdout(self, {'flasher': jlink, 'logger': 'rtt'}, GITHUB_ACTIONS='x')
+        out = hil_test_stdout(self, {'flasher': jlink, 'logger': 'rtt'}, GITHUB_ACTIONS='true')
         self.assertNotIn('openocd_esp', out)
         self.assertIn('ERROR: "logger": "rtt" board has a variant without LOGGER=rtt', out)
 
@@ -481,18 +500,17 @@ class HilTestRefusesAMalformedPin(unittest.TestCase):
         bad = {'name': 'openocd', 'vid_pid': '0x1a86 0x8010 0x1a86', 'args': '-f interface/jlink.cfg'}
         for board in ({'flasher': {**bad, 'uid': 'S'}}, {'flasher': jlink, 'flasher_recover': bad}):
             with self.subTest(board=board):
-                self.assertIn('ERROR: an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: b',
-                              hil_test_stdout(self, board))
+                self.assertIn('vid_pid must be "0xVVVV 0xPPPP" pairs', hil_test_stdout(self, board))
 
 
 class ProviderLoading(unittest.TestCase):
     """hil_util.provider() loads agentrc's hil_flash once per process, with its runner as
     `.hil_process`, and only on first use."""
 
-    def test_one_pinned_instance_whose_runner_hil_util_wraps(self):
+    def test_one_instance_whose_runner_hil_util_wraps(self):
         p = hil_util.provider()
         self.assertIs(hil_util.provider(), p)
-        scripts = Path(REPO) / agentrc.DEP / 'skills/hil/scripts'
+        scripts = Path(agentrc.identity()['root']) / 'skills/hil/scripts'
         self.assertEqual(Path(p.__file__).resolve(), (scripts / 'hil_flash.py').resolve())
         self.assertEqual(Path(p.hil_process.__file__).resolve(), (scripts / 'hil_process.py').resolve())
         seen = []
@@ -500,36 +518,36 @@ class ProviderLoading(unittest.TestCase):
             hil_util.run_cmd('true')
         self.assertEqual(seen, ['true'])
 
-    def scratch(self, provider_files):
-        """A tree holding the selector, the harness's bottom layer and hil_flash, and lib/agentrc
-        at the pin with `provider_files` (None: no lib/agentrc at all)."""
+    def scratch(self, missing=None):
+        """A tree holding the selector, the harness's bottom layer and hil_flash, and the agentrc this process
+        loads staged as .agentrc/ without `missing` (None: nothing staged)."""
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         root = Path(td.name)
         for rel in [*(f'tools/{p.name}' for p in Path(REPO, 'tools').glob('*.py')),
                     *(f'test/hil/helper/{p.name}' for p in (HIL_DIR / 'helper').glob('*.py')),
-                    'test/hil/hil_flash.py']:
+                    'test/hil/hil_flash.py', 'test/hil/agentrc.json']:
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(Path(REPO, rel), root / rel)
-        if provider_files is not None:
-            for f in provider_files:
-                rel = Path(agentrc.DEP, f)
-                (root / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(Path(REPO, rel), root / rel)
-            (root / agentrc.DEP / '.git').mkdir(parents=True)
-            (root / agentrc.DEP / '.git/HEAD').write_text(agentrc.PIN + '\n')
+        if missing is not None:
+            agentrc.helper().stage(agentrc.identity(), root)
+            if missing:
+                (root / agentrc.STAGED / missing).unlink()
         return root
 
-    def python(self, root, code):
+    def python(self, root, code, **env):
+        """code in root, on a dev PC whose AGENTRC_DIR holds no agentrc unless env says otherwise."""
+        env = {**{k: v for k, v in os.environ.items() if k not in ('CI', 'GITHUB_ACTIONS')},
+               'AGENTRC_DIR': str(root / 'no-agentrc'), **env}
         return subprocess.run([sys.executable, '-c', 'import sys; sys.path[:0] = ["test/hil", "tools"]\n' + code],
-                              cwd=root, capture_output=True, text=True, timeout=60)
+                              cwd=root, env=env, capture_output=True, text=True, timeout=60)
 
     def test_selection_imports_where_os_has_no_getuid(self):
         # Windows: the openocd_esp work dir names the uid only when that backend runs
         r = self.python(self.scratch(None), 'import os\ndel os.getuid\nimport hil_flash\nprint("ok")\n')
         self.assertEqual((r.returncode, r.stdout), (0, 'ok\n'), r.stderr)
 
-    def test_selection_runs_without_lib_agentrc(self):
+    def test_selection_runs_without_agentrc(self):
         r = self.python(self.scratch(None), (
             'import change_impact, hil_flash\n'
             'assert hil_flash.flash_primitive("JLink") is hil_flash.flash_jlink\n'
@@ -538,7 +556,7 @@ class ProviderLoading(unittest.TestCase):
             'print(sorted(m for m in sys.modules if "provider" in m or m.startswith("agentrc")))\n'))
         self.assertEqual((r.returncode, r.stdout), (0, '[]\n'), r.stderr)
 
-    def test_a_missing_off_pin_or_incomplete_provider_refuses_before_any_tool_runs(self):
+    def test_a_missing_unfetched_or_incomplete_provider_refuses_before_any_tool_runs(self):
         code = ('import hil_flash\n'
                 'from helper import hil_util\n'
                 'for call in (hil_util.provider, lambda: hil_util.run_cmd("touch ran"),\n'
@@ -547,26 +565,28 @@ class ProviderLoading(unittest.TestCase):
                 '        call()\n'
                 '    except ImportError as e:\n'
                 '        print(e)\n')
-        cases = [(None, f'must be at {agentrc.PIN} (found nothing)')]
-        for missing in PROVIDER_FILES:
-            cases.append(([f for f in PROVIDER_FILES if f != missing], f'has no {missing}'))
-        off_pin = self.scratch(PROVIDER_FILES)
-        (off_pin / agentrc.DEP / '.git/HEAD').write_text('0' * 40 + '\n')
-        for root, why in [(self.scratch(files), why) for files, why in cases] + [
-                (off_pin, f'must be at {agentrc.PIN} (found {"0" * 40})')]:
+        cases = [(self.scratch(), {}, ('no usable agentrc at', agentrc.INSTALL)),
+                 (self.scratch(), {'CI': 'true'}, (f'no usable agentrc at', agentrc.DEP, agentrc.FETCH))]
+        # the bootstrap runs hil_load before agentrc_source checks the staged manifest
+        cases += [(self.scratch(missing), {}, ('no usable agentrc at' if missing == agentrc.HIL_LOAD
+                                               else f'staged agentrc {missing} is missing', 'stage the run again'))
+                  for missing in PROVIDER_FILES]
+        for root, env, why in cases:
             with self.subTest(why=why):
-                r = self.python(root, code)
+                r = self.python(root, code, **env)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 lines = r.stdout.splitlines()
                 self.assertEqual(len(lines), 3, r.stdout)
                 for line in lines:
-                    self.assertIn(why, line)
-                    self.assertIn(agentrc.FETCH, line)
+                    for text in why:
+                        self.assertIn(text, line)
                 self.assertFalse((root / 'ran').exists())
 
-    def test_a_complete_provider_at_the_pin_loads(self):
-        r = self.python(self.scratch(PROVIDER_FILES), 'from helper import hil_util\nprint(hil_util.run_cmd("printf ok").stdout)\n')
-        self.assertEqual((r.returncode, r.stdout), (0, 'ok\n'), r.stderr)
+    def test_a_complete_provider_loads(self):
+        for root, env in ((self.scratch(''), {'CI': 'true'}), (self.scratch(), {'AGENTRC_DIR': agentrc.identity()['root']})):
+            with self.subTest(env=env):
+                r = self.python(root, 'from helper import hil_util\nprint(hil_util.run_cmd("printf ok").stdout)\n', **env)
+                self.assertEqual((r.returncode, r.stdout), (0, 'ok\n'), r.stderr)
 
 
 class Rosters(unittest.TestCase):
@@ -705,7 +725,7 @@ class TestUsbtestRecoveryCoverage(unittest.TestCase):
         uncovered = {}
         for name in self.PENDING:
             with open(os.path.join(REPO, 'test/hil', name)) as f:
-                boards = json.load(f)['boards']
+                boards = hil_util.hil_boards().resolve_roster(json.load(f))['boards']
             uncovered[name] = {b['name'] for b in boards if 'device/usbtest' in change_impact.board_tests(b)
                                and not hil_flash.convoy_safe(hil_flash.recover_flasher(b))}
         self.assertEqual(uncovered, self.PENDING)

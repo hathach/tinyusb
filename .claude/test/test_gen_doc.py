@@ -49,12 +49,19 @@ def fixture(root):
     (root / 'docs' / 'reference').mkdir(parents=True)
     (root / 'test' / 'hil').mkdir(parents=True)
     (root / 'test' / 'hil' / 'tinyusb.json').write_text(json.dumps({'boards': [
-        {'name': 'acme_one', 'tests': {'device': True, 'host': True, 'dual': False},
-         'flasher': {'name': 'jlink'}, 'variant': [{'name': 'acme_one_hs'}],
-         'note': 'needs  a | jumper \u00f8'},
-        {'name': 'acme_two', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
+        {'name': 'acme_one', 'uid': 'A1', 'probe': 'p1', 'tests': {'device': True, 'host': True, 'dual': False},
+         'variant': [{'name': 'acme_one_hs'}], 'note': 'needs  a | jumper \u00f8'},
+        {'name': 'acme_two', 'uid': 'A2', 'probe': 'p2', 'tests': {'only': ['host/cdc_msc', 'device/hid']}},
     ]}, ensure_ascii=False), encoding='utf-8')
     (root / 'test' / 'hil' / 'hfp.json').write_text(json.dumps({'boards': []}))
+
+
+REGISTRY_FLASHERS = {'p1': {'name': 'jlink', 'uid': 'p1'}, 'p2': {'name': 'openocd', 'uid': 'p2'}}
+
+
+def registry_stub():
+    """agentrc's board registry with the fixture boards' flashers, which their roster entries do not carry."""
+    return mock.Mock(resolve=lambda entry: {**entry, 'flasher': REGISTRY_FLASHERS[entry['probe']]})
 
 
 class MetadataTest(unittest.TestCase):
@@ -103,8 +110,11 @@ class GenDocScriptTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             fixture(root)
-            r = subprocess.run([sys.executable, str(GEN_DOC), '--root', str(root)], capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, r.stderr)
+            with mock.patch.object(sys, 'argv', ['gen_doc.py', '--root', str(root)]), \
+                 mock.patch.object(gen_doc.hil_util, 'hil_boards', registry_stub), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+                rc = gen_doc.main()
+            self.assertEqual(rc, 0, err.getvalue())
             boards = (root / 'docs/reference/boards.rst').read_text(encoding='utf-8')
             hil = (root / 'docs/reference/hil_boards.md').read_text(encoding='utf-8')
             deps = (root / 'docs/reference/dependencies.rst').read_text()
@@ -113,7 +123,7 @@ class GenDocScriptTest(unittest.TestCase):
         self.assertNotIn('acme_bare', boards)
         self.assertNotIn('nometa', boards)
         self.assertTrue(boards.endswith('=\n'))
-        self.assertEqual(r.stderr.split('\n'), [
+        self.assertEqual(err.getvalue().split('\n'), [
             'no metadata block, left out of boards.rst:',
             '  hw/bsp/acme/boards/acme_bare',
             '  hw/bsp/nometa',
@@ -121,7 +131,7 @@ class GenDocScriptTest(unittest.TestCase):
         ])
         self.assertTrue(hil.startswith(gen_doc.HEADER + '\n\n### ci rig\n\n2 boards, from `test/hil/tinyusb.json`.'))
         self.assertIn('| acme_one | device, host | jlink     | acme_one_hs | needs a \\| jumper \u00f8 |', hil)
-        self.assertIn('| acme_two | device, host |           |             |                     |', hil)
+        self.assertIn('| acme_two | device, host | openocd   |             |                     |', hil)
         self.assertNotIn('hfp rig', hil)
         self.assertIn('lib/fatfs', deps)
 
@@ -187,22 +197,22 @@ class FetchByPathTest(unittest.TestCase):
         return rc, fetched, out.getvalue()
 
     def test_dependency_paths_alone_skip_the_mandatory_deps(self):
-        rc, fetched, _ = self._main('tools/linkermap', 'lib/agentrc')
+        rc, fetched, _ = self._main('tools/linkermap', 'lib/SystemView')
         self.assertEqual(rc, 0)
-        self.assertEqual(fetched, ['tools/linkermap', 'lib/agentrc'])
+        self.assertEqual(fetched, ['tools/linkermap', 'lib/SystemView'])
 
     def test_a_mandatory_path_alone_is_fetched(self):
         rc, fetched, _ = self._main('tools/uf2')
         self.assertEqual((rc, fetched), (0, ['tools/uf2']))
-        rc, fetched, _ = self._main('lib/agentrc', 'lib/fatfs')
-        self.assertEqual((rc, fetched), (0, ['lib/agentrc', 'lib/fatfs']))
+        rc, fetched, _ = self._main('lib/SystemView', 'lib/fatfs')
+        self.assertEqual((rc, fetched), (0, ['lib/SystemView', 'lib/fatfs']))
 
     def test_a_path_beside_a_family_or_board_keeps_the_mandatory_deps(self):
-        for argv in (('lib/agentrc', 'nrf'), ('lib/agentrc', '-b', 'feather_nrf52840_express')):
+        for argv in (('lib/SystemView', 'nrf'), ('lib/SystemView', '-b', 'feather_nrf52840_express')):
             with self.subTest(argv=argv):
                 rc, fetched, _ = self._main(*argv)
                 self.assertEqual(rc, 0)
-                self.assertEqual(fetched[0], 'lib/agentrc')
+                self.assertEqual(fetched[0], 'lib/SystemView')
                 self.assertLessEqual(set(get_deps.deps_mandatory), set(fetched[1:]))
 
     def test_an_unknown_path_fails_before_fetching(self):

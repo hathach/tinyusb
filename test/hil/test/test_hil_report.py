@@ -21,7 +21,8 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 HIL_DIR = os.path.dirname(TEST_DIR)
 sys.path.insert(0, HIL_DIR)
 
-from helper import hil_report
+from helper import agentrc, hil_report
+from test_hil_agentrc import scratch_agentrc, scratch_env   # noqa: E402
 
 CAVEAT = '**HIL run aborted: worker pool timed out after 3600s.**\n'
 ROSTER = Path(HIL_DIR) / 'tinyusb.json'
@@ -1245,8 +1246,9 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
 
 
 REPO = Path(HIL_DIR).parents[1]
-# tinyusb 2c992c002's render_report() of each document, recorded by agentrc's report-core tests
-GOLDEN_DIR = REPO / 'lib/agentrc/tests/data/hil_report_core'
+# tinyusb 2c992c002's render_report() of each document, recorded by agentrc's report-core tests: in the checkout
+# the agentrc loaded comes from, which a staged copy is not
+GOLDEN_DIR = Path(agentrc.identity()['root']) / 'tests/data/hil_report_core'
 
 
 def _cli(*argv, cwd=None, env=None):
@@ -1267,6 +1269,8 @@ class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.rd = Path(td.name)
 
+    @unittest.skipUnless((GOLDEN_DIR.parents[1]).is_dir(),
+                         f'{agentrc.identity()["source"]} agentrc at {GOLDEN_DIR.parents[2]} has no tests/')
     def test_the_native_rendering_is_byte_for_byte_the_golden_one(self):
         inputs = json.loads((GOLDEN_DIR / 'inputs.json').read_text(encoding='utf-8'))['tinyusb_docs']
         golden = json.loads((GOLDEN_DIR / 'golden.json').read_text(encoding='utf-8'))['tinyusb_render_report']
@@ -1407,6 +1411,17 @@ class EveryAttemptIsKept(unittest.TestCase):
         seq = hil_report.sequence(self.cfg, ['alpha'], self.rd)
         self.assertEqual(seq['current']['rows'][0]['verdict'], 'blocker', 'never not-run: boards were selected')
 
+    def test_a_board_the_registry_refuses_aborts_over_a_passing_report(self):
+        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
+            {'rows': [{'board': 'alpha', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}))
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': 'A', 'probe': 'not-in-the-registry'}]}))
+        r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                           capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['alpha']))
+        self.assertIn("probe 'not-in-the-registry' is not in agentrc's board registry", doc['caveat'])
+
     def test_an_incomplete_sysview_entry_aborts_before_a_flash(self):
         """capture_result reads example, workload and duration_s unchecked: a gap would lose the board's record."""
         good = {'example': 'device/cdc_msc', 'workload': 'cdc_burst', 'duration_s': 15}
@@ -1507,31 +1522,33 @@ class ConsumerCommands(unittest.TestCase):
         verdict = json.loads(_cli(str(cfg), '--report-dir', str(self.rd)).stdout)
         self.assertFalse(verdict['pass'])
 
-    def test_without_lib_agentrc_the_commands_refuse_and_board_variants_still_imports(self):
-        """CI's skipped legs run these on a checkout that may lack lib/agentrc; check_build.py
-        and the CI matrix import board_variants() from a bare runner."""
+    def test_without_agentrc_the_commands_refuse_and_board_variants_still_imports(self):
+        """CI's skipped legs run these on a checkout whose agentrc fetch may have failed, a dev PC may have no
+        agentrc installed; check_build.py and the CI matrix import board_variants() from a bare runner."""
         clean = self.rd / 'checkout'
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py'):
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json'):
             (clean / rel).parent.mkdir(parents=True, exist_ok=True)
             (clean / rel).write_bytes((REPO / rel).read_bytes())
         (clean / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
         script = str(clean / 'test/hil/helper/hil_report.py')
-        env = {**os.environ, 'PYTHONSAFEPATH': '1'}
         (clean / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
+        for ci, remedy in ((None, agentrc.INSTALL), ('true', agentrc.FETCH)):
+            with self.subTest(ci=ci):
+                env = scratch_env(clean / 'no-agentrc', PYTHONSAFEPATH='1', **({'CI': ci} if ci else {}))
 
-        def run(*argv):
-            return subprocess.run([sys.executable, script, *argv, '--report-dir', str(clean)], capture_output=True,
-                                  text=True, timeout=60, env=env)
-        r = run('no-selection', str(clean / 'cfg.json'), 'skipped')
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
-        self.assertFalse((clean / hil_report.REPORT_JSON).exists())
-        r = run('prepare')
-        self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-        self.assertIn('nor write its unavailable notice', r.stderr)
-        self.assertEqual(r.stderr.count('python3 tools/get_deps.py lib/agentrc'), 2, r.stderr)
-        self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
-                         'without lib/agentrc there is no notice writer either')
+                def run(*argv):
+                    return subprocess.run([sys.executable, script, *argv, '--report-dir', str(clean)],
+                                          capture_output=True, text=True, timeout=60, env=env)
+                r = run('no-selection', str(clean / 'cfg.json'), 'skipped')
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(remedy, r.stderr)
+                self.assertFalse((clean / hil_report.REPORT_JSON).exists())
+                r = run('prepare')
+                self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
+                self.assertIn('nor write its unavailable notice', r.stderr)
+                self.assertEqual(r.stderr.count(remedy), 2, r.stderr)
+                self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
+                                 'without agentrc there is no notice writer either')
         r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil/helper"); import hil_report; '
                             'print(hil_report.board_variants({"name": "b"})[0]["name"])'],
                            capture_output=True, text=True, timeout=60, cwd=clean)
@@ -1541,18 +1558,18 @@ class ConsumerCommands(unittest.TestCase):
         """agentrc's hil_report_notice is loaded apart from the core: prepare's fallback when
         the core is what failed."""
         clean = self.rd / 'checkout'
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
-                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py'):
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json'):
             (clean / rel).parent.mkdir(parents=True, exist_ok=True)
             (clean / rel).write_bytes((REPO / rel).read_bytes())
+        broken = scratch_agentrc(self.rd / 'agentrc',
+                                 {'skills/hil/scripts/hil_report_core.py': 'raise RuntimeError("the core is broken")\n'})
         md = clean / hil_report.REPORT_MD
         md.write_text('| b | ✅ |\n', encoding='utf-8')
 
         def prepare():
             return subprocess.run([sys.executable, str(clean / 'test/hil/helper/hil_report.py'), 'prepare',
                                    '--report-dir', str(clean)], capture_output=True, text=True, timeout=60,
-                                  env={**os.environ, 'PYTHONSAFEPATH': '1'})
+                                  env=scratch_env(broken, PYTHONSAFEPATH='1'))
         if os.name != 'nt':
             import fcntl
             with open(clean / '.hil_report.lock', 'a') as held:
@@ -1565,7 +1582,7 @@ class ConsumerCommands(unittest.TestCase):
         for _ in range(2):
             r = prepare()
             self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-            self.assertIn('has no skills/hil/scripts/hil_report_core.py', r.stderr)
+            self.assertIn('the core is broken', r.stderr)
             text = md.read_text(encoding='utf-8')
             self.assertTrue(text.startswith('**HIL report unavailable: hil_report.md could not be prepared'), text)
             self.assertEqual(text.count('**HIL report unavailable'), 1, 'an earlier notice is never nested')
@@ -1885,7 +1902,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
 
 class TheCiLegsUploadAPreparedReport(unittest.TestCase):
     """build.yml's HIL legs: a leg the PR selection skips writes its report with
-    hil_report.py, after lib/agentrc is fetched, and every leg prepares the pair before the
+    hil_report.py, after agentrc is fetched, and every leg prepares the pair before the
     upload takes the JSON and the attempt records with it. The skip branch and the prepare
     step run here as the workflow has them, against a sandbox checkout."""
 
@@ -1910,17 +1927,16 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         root = Path(td.name)
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
-                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_core.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json',
                     'test/hil/tinyusb.json', 'test/hil/hfp.json'):
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_bytes((REPO / rel).read_bytes())
-        # get_deps.py would fetch: the sandbox holds lib/agentrc at the pin already
+        # the fetch would clone the pin: the sandbox holds the agentrc this process loads, staged, which wins over it
+        agentrc.helper().stage(agentrc.identity(), root)
         shim = root / 'bin' / 'python3'
         shim.parent.mkdir()
-        shim.write_text(f'#!/bin/sh\n[ "$1" = tools/get_deps.py ] && exit 0\nexec {sys.executable} "$@"\n')
+        shim.write_text(f'#!/bin/sh\n[ "$1 $2" = "test/hil/helper/agentrc.py fetch" ] && exit 0\n'
+                        f'exec {sys.executable} "$@"\n')
         shim.chmod(0o755)
         return root
 
@@ -1964,7 +1980,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
 
     @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
     def test_an_unprepared_report_uploads_only_its_failure_and_the_comment_says_so(self):
-        """With lib/agentrc missing or off its pin, prepare loads neither the core nor the notice
+        """With CI's agentrc missing or off its pin, prepare loads neither the core nor the notice
         writer; with no checkout at all it does not even start. The report dir persists across a run's attempts, so it can hold an earlier attempt's
         green report: the upload takes a fresh dir holding only the failure, and the PR comment
         shows that, never the earlier table."""
@@ -1981,16 +1997,15 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                     stale = {hil_report.REPORT_MD: '| b | ✅ |\n', hil_report.REPORT_JSON: '{"rows": []}\n'}
                     for f, text in stale.items():
                         (report_dir / f).write_text(text, encoding='utf-8')
-                    if provider == 'missing':
-                        shutil.rmtree(root / 'lib/agentrc')
-                    elif provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
+                    shutil.rmtree(root / agentrc.STAGED)   # CI's own agentrc is the pin
+                    if provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
                         shutil.rmtree(root / 'test')
-                        shutil.rmtree(root / 'lib')
-                    else:
-                        (root / 'lib/agentrc/.git/HEAD').write_text('0' * 40 + '\n')
+                    elif provider == 'off-pin':
+                        scratch_agentrc(root / agentrc.DEP)
                     steps = job['steps']
                     prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
-                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir)}, rc=1)
+                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir), 'CI': 'true'},
+                                      rc=1)
                     if provider != 'no-checkout':
                         self.assertIn('nor write its unavailable notice', r.stderr)
                     for f, text in stale.items():
@@ -2013,12 +2028,13 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 steps = job['steps']
                 test = next(st for st in steps if 'hil_report.py no-selection' in st.get('run', ''))
                 run = test['run']
-                if 'tools/get_deps.py lib/agentrc' in run:
-                    self.assertLess(run.index('tools/get_deps.py lib/agentrc'), run.index('if [ "$SEL_RUN" = "false" ]'),
-                                    'the skip branch needs lib/agentrc')
+                fetch = 'python3 test/hil/helper/agentrc.py fetch'
+                if fetch in run:
+                    self.assertLess(run.index(fetch), run.index('if [ "$SEL_RUN" = "false" ]'),
+                                    'the skip branch needs agentrc')
                 else:
-                    deps = next(st for st in steps if st.get('name') == 'Get Dependencies')
-                    self.assertNotIn('if', deps, 'a skipped leg needs lib/agentrc too')
+                    deps = next(st for st in steps if st.get('run', '').strip() == fetch)
+                    self.assertNotIn('if', deps, 'a skipped leg needs agentrc too')
                     self.assertLess(steps.index(deps), steps.index(test))
                 root = self.sandbox()
                 report_dir = root / 'report' if name != 'hil-hfp-iar' else root

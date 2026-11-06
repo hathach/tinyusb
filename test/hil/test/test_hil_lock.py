@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# The hil_lock adapter: callers get agentrc's board-lock primitive at the commit tools/get_deps.py
-# pins (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
+# The hil_lock adapter: callers get agentrc's board-lock primitive from the agentrc helper/agentrc.py
+# selects (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
 # whose lock is unavailable before flashing, a recovery blocker refuses the board as a blocker
 # rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running passes the
-# board's lock to a cleanup holder (RetainedLock), `hold --all` takes the roster, and a missing
-# lib/agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
+# board's lock to a cleanup holder (RetainedLock), `hold --all` takes this host's roster, and an
+# incomplete agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
 import io
@@ -29,11 +29,12 @@ from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_tes
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
 from helper import agentrc, hil_lock, hil_util   # noqa: E402
+from test_hil_agentrc import scratch_agentrc, scratch_env   # noqa: E402
 
 BOARD = 'hil-lock-selftest-board'
-PROVIDER = 'lib/agentrc/skills/hil/scripts/hil_lock.py'
-PROCESS = 'lib/agentrc/skills/hil/scripts/hil_process.py'
-LOADER = 'lib/agentrc/skills/hil/scripts/hil_load.py'
+LOCK = 'hil-lock-selftest-lock'     # a lock named apart from its roster board
+PROVIDER = 'skills/hil/scripts/hil_lock.py'
+PROCESS = 'skills/hil/scripts/hil_process.py'
 
 
 class LockDir(unittest.TestCase):
@@ -85,6 +86,19 @@ class RunnerRefusesBeforeFlash(LockDir):
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 1)
         self.assertEqual(rows[0][1], {hil_test.hil_report.LOCKED_CELL: 'fail'})
+
+    def test_a_registered_board_is_locked_by_its_registry_name(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        board = hil_util.hil_boards().resolve({'name': BOARD, 'uid': 'ABC123', 'probe': probe,
+                                               'tests': {'only': ['device/cdc_msc']}})
+        locked = []
+
+        def held(name, **kw):
+            locked.append(name)
+            raise RuntimeError('board locked: {"pid": 1}')
+        patch(self, hil_lock, 'acquire_board_lock', held)
+        self.assertEqual(hil_test.test_board(board)[0], BOARD)
+        self.assertEqual(locked, [reg['name']])
 
 
 class RecoveryBlockerIsNotContention(LockDir):
@@ -152,52 +166,54 @@ class RecoveryBlockerIsNotContention(LockDir):
 
 
 class Adapter(LockDir):
-    def test_callers_get_the_pinned_provider(self):
-        self.assertEqual(os.path.realpath(hil_lock.__file__), os.path.realpath(os.path.join(REPO, PROVIDER)))
+    def test_callers_get_the_loaded_agentrcs_provider(self):
+        self.assertEqual(os.path.realpath(hil_lock.__file__),
+                         os.path.realpath(os.path.join(agentrc.identity()['root'], PROVIDER)))
         self.assertIs(hil_test.hil_lock, hil_lock)
 
     def test_a_patched_lock_dir_reaches_the_provider(self):
         self.assertEqual(hil_lock.lock_path(BOARD), os.path.join(self.dir, f'{BOARD}.lock'))
 
 
-class PinnedDependency(unittest.TestCase):
-    """The adapter's CLI in a scratch tree with lib/agentrc at the pin, against a lock dir
-    of its own."""
+class InstalledDependency(unittest.TestCase):
+    """The adapter's CLI in a scratch tree whose installed agentrc (AGENTRC_DIR) is a checkout of
+    the closure this process loaded, against a lock dir of its own."""
 
     def setUp(self):
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         self.root = td.name
         for rel in ('test/hil/helper/__init__.py', 'test/hil/helper/agentrc.py', 'test/hil/helper/hil_lock.py',
-                    'tools/get_deps.py'):
+                    'test/hil/helper/hil_util.py', 'test/hil/agentrc.json'):
             os.makedirs(os.path.join(self.root, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(os.path.join(REPO, rel), os.path.join(self.root, rel))
-        self.pin = agentrc.PIN
+        self.install = os.path.join(self.root, 'agentrc')
 
-    def provide(self, head, lock_dir='/tmp/tinyusb-hil-locks', process=True):
-        os.makedirs(os.path.join(self.root, os.path.dirname(PROVIDER)), exist_ok=True)
-        shutil.copy(os.path.join(REPO, LOADER), os.path.join(self.root, LOADER))
-        if process:   # the release predicate and the cleanup hand-over load it beside hil_lock
-            shutil.copy(os.path.join(REPO, PROCESS), os.path.join(self.root, PROCESS))
-        with open(os.path.join(REPO, PROVIDER)) as f:
+    def provide(self, lock_dir='/tmp/tinyusb-hil-locks', process=True):
+        """The install, its hil_lock's BOARD_LOCK_DIR at lock_dir; without hil_process unless `process` (the
+        release predicate and the cleanup hand-over load it beside hil_lock)."""
+        with open(os.path.join(agentrc.identity()['root'], PROVIDER)) as f:
             text = f.read()
         moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
         self.assertTrue(lock_dir == '/tmp/tinyusb-hil-locks' or moved != text, 'BOARD_LOCK_DIR line moved')
-        with open(os.path.join(self.root, PROVIDER), 'w') as f:
-            f.write(moved)
-        os.makedirs(os.path.join(self.root, 'lib/agentrc/.git'), exist_ok=True)
-        with open(os.path.join(self.root, 'lib/agentrc/.git/HEAD'), 'w') as f:
-            f.write(head + '\n')
+        scratch_agentrc(self.install, {PROVIDER: moved}, () if process else (PROCESS,))
 
-    def cli(self, *argv):
-        # -P: the script must find helper/agentrc.py without the script-dir sys.path entry
-        r = subprocess.run([sys.executable, '-P', 'test/hil/helper/hil_lock.py', *argv], cwd=self.root,
-                           capture_output=True, text=True, timeout=30)
+    def cli(self, *argv, host='ci'):
+        # -P: the script must find helper/agentrc.py without the script-dir sys.path entry; the
+        # script runs as __main__ on a machine whose hostname is `host`
+        run = ('import runpy, socket, sys; host = sys.argv.pop(2); socket.gethostname = lambda: host; '
+               "sys.argv.pop(0); runpy.run_path(sys.argv[0], run_name='__main__')")
+        r = subprocess.run([sys.executable, '-P', '-c', run, 'test/hil/helper/hil_lock.py', host, *argv],
+                           cwd=self.root, env=scratch_env(self.install), capture_output=True, text=True, timeout=30)
         return r.returncode, r.stdout + r.stderr
+
+    def roster(self, rel, *names):
+        with open(os.path.join(self.root, rel), 'w') as f:
+            json.dump({'boards': [{'name': n} for n in names]}, f)
 
     def test_hold_all_takes_the_roster_with_boards_skip(self):
         lock_dir = os.path.join(self.root, 'locks')
-        self.provide(self.pin, lock_dir)
+        self.provide(lock_dir)
         names = [f'hil-lock-selftest-{n}' for n in ('a', 'b', 'parked', 'other')]
         with open(os.path.join(self.root, 'test/hil/tinyusb.json'), 'w') as f:
             json.dump({'boards': [{'name': names[0]}, {'name': names[1]}], 'boards-skip': [{'name': names[2]}]}, f)
@@ -214,11 +230,60 @@ class PinnedDependency(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(self.cli('status'), (0, 'no locks\n'))
 
+    def test_hold_all_takes_this_hosts_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        self.roster('test/hil/tinyusb.json', 'hil-lock-selftest-ci')
+        self.roster('test/hil/hfp.json', 'hil-lock-selftest-tusb')
+        self.addCleanup(self.cli, 'release', '--all')
+        self.assertEqual(self.cli('hold', '--all', '--reason', 'selftest', host='tusb'),
+                         (0, 'held: hil-lock-selftest-tusb\n'))
+
+    def test_hold_all_on_an_unknown_host_takes_local_json(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        self.roster('test/hil/tinyusb.json', 'hil-lock-selftest-ci')
+        self.roster('test/hil/local.json', 'hil-lock-selftest-local')
+        self.addCleanup(self.cli, 'release', '--all')
+        self.assertEqual(self.cli('hold', '--all', '--reason', 'selftest', host='htpc'),
+                         (0, 'held: hil-lock-selftest-local\n'))
+
+    def test_hold_all_on_an_unknown_host_without_local_json_needs_a_named_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        self.roster('test/hil/tinyusb.json', 'hil-lock-selftest-ci')
+        self.roster('local.json', 'hil-lock-selftest-local')   # in the cwd, not test/hil: never the default
+        self.addCleanup(self.cli, 'release', '--all')
+        rc, out = self.cli('hold', '--all', '--reason', 'selftest', host='htpc')
+        self.assertEqual(rc, 2)
+        self.assertIn('host htpc has no roster here', out)
+        self.assertEqual(self.cli('status'), (0, 'no locks\n'))
+        self.assertEqual(self.cli('hold', '--all', '--config', 'local.json', '--reason', 'selftest', host='htpc'),
+                         (0, 'held: hil-lock-selftest-local\n'))
+
+    def test_hold_all_refuses_a_missing_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        for host, argv in (('tusb', ()), ('ci', ('--config', 'missing.json'))):   # no hfp.json in this tree
+            with self.subTest(host=host):
+                rc, out = self.cli('hold', '--all', *argv, '--reason', 'selftest', host=host)
+                self.assertEqual(rc, 1)
+                self.assertIn('ERROR: cannot read board roster', out)
+        self.assertEqual(self.cli('status'), (0, 'no locks\n'))
+
+    def test_hold_all_refuses_a_malformed_roster(self):
+        self.provide(os.path.join(self.root, 'locks'))
+        for cfg in ({'boards': None}, ['hil-lock-selftest'], {'boards': ['hil-lock-selftest']}):
+            with self.subTest(cfg=cfg):
+                with open(os.path.join(self.root, 'bad.json'), 'w') as f:
+                    json.dump(cfg, f)
+                rc, out = self.cli('hold', '--all', '--config', 'bad.json', '--reason', 'selftest')
+                self.assertEqual(rc, 1)
+                self.assertRegex(out, r'ERROR: cannot (read board roster|name the board locks of) bad\.json')
+                self.assertNotIn('Traceback', out)
+        self.assertEqual(self.cli('status'), (0, 'no locks\n'))
+
     def test_a_provider_without_hil_process_beside_it_is_refused(self):
-        self.provide(self.pin, os.path.join(self.root, 'locks'), process=False)
+        self.provide(os.path.join(self.root, 'locks'), process=False)
         rc, out = self.cli('status')
         self.assertNotEqual(rc, 0)
-        self.assertIn('has no skills/hil/scripts/hil_process.py', out)
+        self.assertIn('lacks skills/hil/scripts/hil_process.py', out)
 
 
 def _board_in_worker(board):
@@ -254,13 +319,14 @@ class RetainedLock(LockDir):
         self.board = {'name': BOARD, 'uid': 'ABC123', 'tests': {'only': ['device/cdc_msc']},
                       'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                   'args': '-f board/esp32p4-builtin.cfg'}}
+        self.lock = BOARD
         self.addCleanup(self.end_holder)
 
     def provider(self, outcome, security_cleanup='done', security_receipts=()):
         """hil_util.openocd_esp() whose flash records the lock record it ran under, then
         returns or raises `outcome`; its security read ends with `security_cleanup`."""
         def flash(flasher, segments, **kw):
-            self.flashes.append(hil_lock.read_record(BOARD))
+            self.flashes.append(hil_lock.read_record(self.lock))
             if isinstance(outcome, BaseException):
                 raise outcome
             return outcome
@@ -283,20 +349,20 @@ class RetainedLock(LockDir):
             json.dump({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99', 'closed': True, 'cleanup': 'done'}, f)
 
     def end_holder(self):
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(self.lock)
         if hil_lock.is_cleanup_holder(rec):
             self.end_session()
             hil_lock.release_token(rec['token'])
 
     def assert_retained(self):
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(self.lock)
         self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
         self.assertIn(self.RECEIPT, rec['detail'])
         self.assertEqual(rec['retained'], [self.RECEIPT])
-        self.assertEqual((rec['protected'], rec['locks']), (True, [BOARD]))
+        self.assertEqual((rec['protected'], rec['locks']), (True, [self.lock]))
         with self.assertRaises(hil_lock.BoardLocked):         # the holder keeps the flock itself
-            hil_lock.take_board_lock(BOARD, 'peer')
-        self.assertIsNone(hil_lock.journal_state(BOARD))      # handed over, not taken over
+            hil_lock.take_board_lock(self.lock, 'peer')
+        self.assertIsNone(hil_lock.journal_state(self.lock))  # handed over, not taken over
         return rec
 
     def run_board(self):
@@ -309,7 +375,8 @@ class RetainedLock(LockDir):
         sleep.assert_not_called()   # never the 0.5 s retry wait
         self.assertEqual((name, err, failed), (BOARD, 2, []))   # the test's flash and the blocker
         self.assertEqual(len(self.flashes), 1, 'retried or parked beside an outstanding session')
-        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [BOARD]), self.flashes[0])
+        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [self.lock]),
+                         self.flashes[0])
         rec = self.assert_retained()
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
@@ -328,6 +395,17 @@ class RetainedLock(LockDir):
         self.end_session()
         hil_lock.release_token(token)
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
+
+    def test_a_registered_boards_pending_hands_over_its_registry_lock(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        board = hil_util.hil_boards().resolve({'name': BOARD, 'uid': 'ABC123', 'probe': probe,
+                                               'tests': {'only': ['device/cdc_msc']}})
+        self.board = {**board, 'flasher': self.board['flasher']}
+        self.lock = reg['name']
+        self.provider(self.op('pending', rc=124))
+        self.run_board()
+        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.RECEIPT,)})
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'absent')  # never the roster name's lock
 
     def test_pending_on_an_exception_hands_it_over_too(self):
         err = RuntimeError('Tcl connection lost')
@@ -349,7 +427,7 @@ class RetainedLock(LockDir):
         handed = []
 
         def hand(handles, reason, **kw):
-            handed.append(kw)
+            handed.append({'handles': list(handles), **kw})
             raise ValueError('cleanup holder handoff refused in this test')
         patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
         return handed
@@ -388,9 +466,11 @@ class RetainedLock(LockDir):
                   'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
         hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
         handed = self.handed()
-        fh = hil_lock.take_board_lock(BOARD, 'hil_test.py', protected=True)
-        cell = hil_test.retain_board_lock(BOARD, fh, hil_test.cleanup_pending(BOARD))
+        fh = hil_lock.take_board_lock(LOCK, 'hil_test.py', protected=True)
+        cell = hil_test.retain_board_lock(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
         (kw,) = handed
+        self.assertEqual(kw['handles'], [LOCK])
+        self.assertEqual(hil_lock.read_record(LOCK)['locks'], [LOCK])
         self.assertEqual(kw['receipts'], [self.TRACKED])
         for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
                      'esptool child, record /s/hil_op_t0k.json', self.RECEIPT):
@@ -473,16 +553,16 @@ class RetainedLock(LockDir):
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def assert_blocker(self, cell, why):
+    def assert_blocker(self, cell, why, lock=BOARD):
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
         self.assertIn(why, cell)
         self.assertIn('the protected record is the recovery blocker', cell)
-        rec = hil_lock.read_record(BOARD)
+        rec = hil_lock.read_record(lock)
         self.assertFalse(hil_lock.is_cleanup_holder(rec), rec)
         self.assertEqual((rec['protected'], rec['locks'], rec['detail']),
-                         (True, [BOARD], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
+                         (True, [lock], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
         with self.assertRaises(hil_lock.RecoveryBlocked):
-            hil_lock.take_board_lock(BOARD, 'peer')
+            hil_lock.take_board_lock(lock, 'peer')
 
     def test_an_unacknowledged_hand_over_leaves_the_protected_record_as_the_blocker(self):
         self.provider(self.op('pending'))
@@ -495,10 +575,10 @@ class RetainedLock(LockDir):
     def test_a_refused_hand_over_protects_the_record_as_the_blocker(self):
         # an unprotected handle: hand_to_cleanup_holder refuses, changing nothing, and the board
         # is protected here instead of released
-        fh = hil_lock.take_board_lock(BOARD, hil_lock.CI_REASON)
-        cell = '❌ ' + hil_test.retain_board_lock(BOARD, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
+        fh = hil_lock.take_board_lock(LOCK, hil_lock.CI_REASON)
+        cell = '❌ ' + hil_test.retain_board_lock(BOARD, LOCK, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
         self.assertTrue(fh.closed)
-        self.assert_blocker(cell, 'cleanup holder handoff refused')
+        self.assert_blocker(cell, 'cleanup holder handoff refused', lock=LOCK)
 
 
 if __name__ == '__main__':

@@ -311,10 +311,6 @@ deps_optional = {
     'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
                        '92ca7a810c5765ba64911919acd511c61b6b083f',
                        ''],
-    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
-    'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '12d14432d35231935e9764a72c1bd19dde02c78b',
-                    ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],

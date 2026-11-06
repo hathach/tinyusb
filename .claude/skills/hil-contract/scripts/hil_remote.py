@@ -8,23 +8,24 @@ layout), runs it there, and copies the report pair, its attempt records and the
 <config>.failed re-run spec back to the checkout root.
 
 The transport -- the leased, wiped tree, the guarded staging, run and fetch, the run records
--- is agentrc's hil_remote_core, from the tested checkout's lib/agentrc at its pin, the one
-copy of agentrc the process loads (hil_load); the report document is helper/hil_report.py over
-agentrc's hil_report_core.
+-- is agentrc's hil_remote_core, from the agentrc the tested checkout's helper/agentrc.py
+selects (the installed one on a dev PC), the one copy of agentrc the process loads (hil_load);
+the report document is helper/hil_report.py over agentrc's hil_report_core. The rig gets that
+agentrc's closure as .agentrc/ at its tree's root, which its helper/agentrc.py loads instead.
 
 `--run-id ID` records the run under <checkout>/.hil-remote/: ID.started.json, locked for as
 long as the run lives, then the done record ID.done.json (exit status, the report files it
 copied back). `wait ID` blocks until then, at most --timeout seconds, and prints one JSON
 status line.
 
-`receipt --out FILE --head SHA [-b BOARD]...` writes a build receipt: HEAD, the roster's digest
-and the digest of every file a run of those boards would stage, refusing an unbuilt variant, a
-stale example's firmware left in a variant dir, a tree that is not clean or a HEAD other than
-SHA, the one the build began at; the build skill's check_build.py --receipt runs it right after
-its build.
-`--receipt FILE` on a run refuses to stage unless HEAD, the roster and every staged file still
-match it, stages the snapshot of the firmware it checked, and runs nothing when HEAD, the roster
-or a tracked file moved while it staged.
+`receipt --out FILE --head SHA [-b BOARD]...` writes a build receipt: HEAD, the roster's digest,
+the digest of every file a run of those boards would stage and the agentrc it loads (its commit
+and closure digests), refusing an unbuilt variant, a stale example's firmware left in a variant
+dir, a tree that is not clean, an agentrc edited since load or a HEAD other than SHA, the one the
+build began at; the build skill's check_build.py --receipt runs it right after its build.
+`--receipt FILE` on a run refuses to stage unless HEAD, the roster, the agentrc and every staged
+file still match it, stages the snapshot of the firmware it checked, and runs nothing when HEAD,
+the roster or a tracked file moved while it staged.
 
 Env overrides: REMOTE (ssh host), REMOTE_DIR (rm -rf'd and recreated each run, under a lock
 on <REMOTE_DIR>.lock that refuses a second run sharing it), CONFIG (HIL config json), ROOT_DIR
@@ -52,10 +53,10 @@ def helper(name):
     return importlib.import_module(f'helper.{name}')
 
 
-# through ROOT's loader, as its harness helpers load theirs: hil_load refuses a second lib/agentrc
+# through ROOT's loader, as its harness helpers load theirs: one agentrc identity per process
 try:
     core = helper('agentrc').load_file('skills/hil/scripts/hil_remote_core.py')
-except ImportError as e:   # lib/agentrc off its pin: the message names the fetch
+except ImportError as e:   # no usable agentrc: the message names the remedy
     sys.exit(f'error: {e}')
 fail = core.fail
 
@@ -64,10 +65,9 @@ fail = core.fail
 # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist: its README keeps it staged.
 # helper/agentrc.py loads agentrc's shared scripts (the board-lock primitive, the USB
 # observation, the RTT console, the flash provider, the TT reset, the usbtest mechanics) through
-# agentrc's hil_load after checking lib/agentrc/.git/HEAD against the commit tools/get_deps.py
-# pins: the lib/agentrc and tools/ entries let the rig's tree pass the same check, and
-# RemoteStaging requires hil_load and each agentrc.load target with its FILES, the files it
-# loads or launches by path. helper/hil_report.py loads the report core.
+# agentrc's hil_load, on the rig from the .agentrc/ stage_agentrc() writes: the closure of its
+# SCRIPTS, which RemoteStaging requires to hold every agentrc.load target; the rig never reads
+# the CI pin, test/hil/agentrc.json. helper/hil_report.py loads the report core.
 HARNESS_FILES = (
     'test/hil/hil_test.py',
     'test/hil/hil_flash.py',
@@ -85,25 +85,6 @@ HARNESS_FILES = (
     'test/hil/helper/hil_util.py',
     'test/hil/helper/usb_observe.py',
     'test/hil/pyocd/README.md',
-    'tools/get_deps.py',
-    'lib/agentrc/.git/HEAD',
-    'lib/agentrc/skills/hil/scripts/hil_flash.py',
-    'lib/agentrc/skills/hil/scripts/hil_load.py',
-    'lib/agentrc/skills/hil/scripts/hil_openocd_esp.py',
-    'lib/agentrc/skills/hil/scripts/hil_openocd_esp_receipt.py',
-    'lib/agentrc/skills/hil/scripts/esptool_session.py',
-    'lib/agentrc/skills/hil/scripts/hil_process.py',
-    'lib/agentrc/skills/hil/scripts/pyocd/run_pyocd.py',
-    'lib/agentrc/skills/hil/scripts/pyocd/user_script.py',
-    'lib/agentrc/skills/hil/scripts/hil_lock.py',
-    'lib/agentrc/skills/hil/scripts/hil_report_core.py',
-    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
-    'lib/agentrc/skills/hil/scripts/hil_root.py',
-    'lib/agentrc/skills/hil/scripts/hil_tt.py',
-    'lib/agentrc/skills/hil/scripts/hil_usbtest.py',
-    'lib/agentrc/skills/hil/scripts/usb_observe.py',
-    'lib/agentrc/skills/rtt/scripts/rtt.py',
-    'lib/agentrc/skills/target-debug/scripts/esp_session.py',
 )
 
 STAGED_SUFFIXES = ('.elf', '.bin', '.hex')
@@ -137,8 +118,12 @@ def select_boards(config, args):
         fail(f'not in the config: {" ".join(unknown)} (-b takes board names, not variant names)')
     selected = boards or list(roster)
     if args.flasher or args.exclude_flasher:
-        selected = [n for n in selected if roster[n]['flasher']['name'] not in args.exclude_flasher
-                    and (not args.flasher or roster[n]['flasher']['name'] in args.flasher)]
+        try:   # each board's flasher is agentrc's (its board registry), as hil_test.py resolves it
+            kind = {n: helper('hil_util').hil_boards().resolve(roster[n])['flasher']['name'] for n in selected}
+        except ValueError as e:
+            fail(f'config: {e}')
+        selected = [n for n in selected if kind[n] not in args.exclude_flasher
+                    and (not args.flasher or kind[n] in args.flasher)]
         if not selected:
             fail(f'no board left after the flasher filter (--flasher {args.flasher or "-"}, '
                  f'--exclude-flasher {args.exclude_flasher or "-"})')
@@ -273,6 +258,17 @@ def parse_run(argv):
     return args, config, config_path
 
 
+def stage_agentrc(into):
+    """The agentrc closure this process loaded, copied to <into>/.agentrc with its manifest, each copy
+    checked against the digest taken at load: {tree-relative path: sha256}."""
+    ag = helper('agentrc')
+    source = ag.helper()
+    try:
+        return source.stage(ag.identity(), into)
+    except source.SourceError as e:
+        fail(str(e))
+
+
 def write_receipt(argv):
     out, argv = core.pop_option(argv, '--out')
     if not out:
@@ -302,10 +298,17 @@ def write_receipt(argv):
     if head != built_head:
         fail(f'HEAD is {head[:12]}, not {built_head[:12]} the build began at: a commit landed during the build, '
              f'so its firmware is not of HEAD; build again')
-    receipt = {'head': head, 'configDigest': core.digest(config_path), 'boards': boards, 'files': files}
+    ag = helper('agentrc')
+    identity = ag.identity()
+    try:
+        bound = ag.helper().binding(identity)
+    except ag.helper().SourceError as e:
+        fail(f'{e}; write the receipt again')
+    receipt = {'head': head, 'configDigest': core.digest(config_path), 'boards': boards, 'files': files,
+               'agentrc': bound}
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     core.write_json(Path(out), receipt)
-    print(json.dumps({**receipt, 'files': len(receipt['files'])}))
+    print(json.dumps({**receipt, 'files': len(receipt['files']), 'agentrc': identity['commit']}))
     return 0
 
 
@@ -321,9 +324,11 @@ def check_receipt(path, config_path, boards, dirs, staged):
         fail(f'unusable build receipt {path}: {e!r}')
     unbuilt = [b for b in boards if b not in built]
     differ = core.differing(pinned, staged, [f'{d.relative_to(ROOT).as_posix()}/' for d in dirs])
+    ag = helper('agentrc')
     why = [*checkout_drift((head, config_digest), config_path),
            unbuilt and f'it does not cover {", ".join(unbuilt)}',
-           differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}']
+           differ and f'{len(differ)} staged file(s) differ from it, first {", ".join(differ[:5])}',
+           ag.helper().mismatch(receipt.get('agentrc'), ag.identity())]
     if any(why):
         fail(f'the build receipt {path} does not match: {"; ".join(filter(None, why))}; rebuild and write a new receipt')
     return head, config_digest
@@ -353,9 +358,9 @@ def run(argv, receipt=None):
     core.check_remote_dir(remote_dir)
     args, config, config_path = parse_run(argv)
     try:
-        helper('hil_lock')   # the rig refuses an off-pin lib/agentrc too, but only after the wipe
+        helper('hil_lock')   # the rig refuses an unusable agentrc too, but only after the wipe
     except ImportError as e:
-        if e.name != 'fcntl':   # Windows: agentrc.load() passed the pin check before the POSIX-only lock ran
+        if e.name != 'fcntl':   # Windows: agentrc.load() passed its checks before the POSIX-only lock ran
             fail(e)
     if args.sysview_out:
         fail('--sysview-out is CI-only: hil-build alone builds the traced image and this run stages none; '
@@ -368,7 +373,8 @@ def run(argv, receipt=None):
     if os.name == 'nt':   # in the checkout, where local_operand() can name it to rsync
         snap_parent = ROOT / RUNS_DIR
         snap_parent.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='hil-remote-', dir=snap_parent) as snap:
+    with tempfile.TemporaryDirectory(prefix='hil-remote-', dir=snap_parent) as snap, \
+            tempfile.TemporaryDirectory(prefix='hil-agentrc-', dir=snap_parent) as agentrc_dir:
         pinned = None
         if receipt is not None:
             firmware = snapshot(firmware, Path(snap))
@@ -376,7 +382,8 @@ def run(argv, receipt=None):
             pinned = check_receipt(receipt, config_path, boards,
                                    [d for b in boards for d in variant_dirs(config, args.build_dir, b)],
                                    staged_files(firmware, Path(snap)))
-        for p in (config_path, *firmware):
+        agentrc = (Path(agentrc_dir), stage_agentrc(agentrc_dir))
+        for p in (config_path, *firmware, agentrc[0]):
             core.local_operand(ROOT, p)   # Windows: refuse one rsync cannot name now, not after the lease wiped the rig's tree
         core.check_relative(f'{config_path.name}.failed', 'the re-run spec the copy-back fetches')
         try:
@@ -385,11 +392,13 @@ def run(argv, receipt=None):
             fail(e)
 
         print(f'==> Setting up remote {remote}:{remote_dir}')
-        with core.remote_lease(remote, remote_dir, ROOT, ('test/hil/helper', 'tools', args.build_dir)) as tree:
-            return stage_and_run(tree, argv, args, config, config_path, firmware, receipt, pinned)
+        with core.remote_lease(remote, remote_dir, ROOT, ('test/hil/helper', args.build_dir)) as tree:
+            return stage_and_run(tree, argv, args, config, config_path, firmware, agentrc, receipt, pinned)
 
 
-def stage_and_run(tree, argv, args, config, config_path, firmware, receipt=None, pinned=None):
+def stage_and_run(tree, argv, args, config, config_path, firmware, agentrc, receipt=None, pinned=None):
+    """Stage the harness, the agentrc closure (agentrc: stage_agentrc()'s dir and digests), the config and the
+    firmware into tree, run hil_test.py there and copy its report back: (its exit status, the files copied back)."""
     upload = []
     if args.accumulate:
         report = helper('hil_report')
@@ -408,6 +417,10 @@ def stage_and_run(tree, argv, args, config, config_path, firmware, receipt=None,
 
     print('==> Copying the harness and config')
     core.stage_files(tree, [*HARNESS_FILES, *upload])
+    core.stage_tree(tree, agentrc[0])
+    bad = core.verify_remote(tree, agentrc[1])
+    if bad:
+        fail(f'the staged agentrc differs on {tree.host}: {", ".join(bad[:5])}')
     if core.rsync(tree, '-q', config_path, f'{tree.spec("test/hil")}/', staging=True) != 0:
         fail('could not stage the config')
     print(f'==> Copying firmware from {len(firmware)} build dir(s) under {args.build_dir}/')

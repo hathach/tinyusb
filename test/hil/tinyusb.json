@@ -3,6 +3,7 @@
         {
             "name": "frdm_k64f",
             "uid": "FFFF1A00FFFFFFFF1031454E0F000280",
+            "probe": "000621000000",
             "tests": {
                 "device": false,
                 "host": true,
@@ -23,38 +24,22 @@
                         "msc_inquiry": "Lexar    USB Flash Drive  PMAP"
                     }
                 ]
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000621000000",
-                "args": "-device MK64FN1M0xxx12"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/k60.cfg -c \"adapter speed 4000\""
             }
         },
         {
             "name": "ek_tm4c123gxl",
             "uid": "010105186C60A110",
+            "probe": "0E205D19",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "lm4flash",
-                "uid": "0E205D19",
-                "args": "-v"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/ti-icdi.cfg -c \"transport select jtag\" -c \"set WORKAREASIZE 0x8000\" -c \"set CHIPNAME tm4c123gh6pm\" -f target/ti/stellaris.cfg -c \"reset_config none\" -c \"tm4c123gh6pm.cpu configure -event reset-assert-post {sleep 100}\""
             }
         },
         {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
+            "probe": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
             "variant": [
                 { "name": "espressif_p4_function_ev", "flags": "" },
                 { "name": "espressif_p4_function_ev-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -87,17 +72,12 @@
                     }
                 ]
             },
-            "flasher": {
-                "name": "esptool",
-                "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
-                "args": "-b 1500000",
-                "note": "use --force for ESP32-P4 v0.1"
-            },
             "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
+            "probe": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "variant": [
                 { "name": "espressif_s3_devkitm", "flags": "" },
                 { "name": "espressif_s3_devkitm-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -131,50 +111,32 @@
                     }
                 ]
             },
-            "flasher": {
-                "name": "esptool",
-                "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
-                "args": "-b 1500000"
-            },
             "note": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "nrf52840dk",
             "uid": "2D4F0E6E23EB6724",
+            "probe": "683944004",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "683944004",
-                "args": "-device nrf52840_xxaa"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/nrf52.cfg"
             }
         },
         {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
+            "probe": "E6614C311B597D32",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "E6614C311B597D32",
-                "vid_pid": "0x2e8a 0x000c",
-                "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg",
-                "verify": true
             }
         },
         {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
+            "probe": "000063728691",
             "variant": [
                 {
                     "name": "metro_m4_express",
@@ -196,39 +158,22 @@
                     }
                 ],
                 "note": "pl23x; audio_test_freertos skipped: samd51 iso-IN capture fails (arecord EIO)"
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "123456",
-                "args": "-device ATSAMD51J19"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 4000\" -f target/atsame5x.cfg"
             }
         },
         {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
+            "probe": "000724441579",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000724441579",
-                "args": "-device LPC11U37/401"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc11xx.cfg -c \"adapter speed 4000\"",
-                "verify": false
             }
         },
         {
             "name": "ea4088_quickstart",
             "uid": "22150C0C1508595343E1857B060000F5",
+            "probe": "611000000",
             "note": "console is the LPC-Link2's RTT channel: this probe has no VCOM (rtt skill)",
             "logger": "rtt",
             "variant": [
@@ -255,75 +200,42 @@
                         "note": "USB Disk 2.0 thumbdrive behind the same hub"
                     }
                 ]
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "611000000",
-                "args": "-device LPC4088"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/lpc40xx.cfg -c \"adapter speed 4000\"",
-                "verify": false
             }
         },
         {
             "name": "lpcxpresso55s69",
             "uid": "E059C3E208F9B955B3BA4C5CC7F3D13D",
+            "probe": "000727648789",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000727648789",
-                "args": "-device LPC55S69_M33_0"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap lpc55s69 cpu -expected-id 0x6ba02477\" -c \"dap create lpc55s69.dap -chain-position lpc55s69.cpu\" -c \"target create lpc55s69.cpu cortex_m -dap lpc55s69.dap -ap-num 0\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
+            "probe": "000831174392",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000831174392",
-                "args": "-device R7FA4M1AB"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra4m1 cpu -expected-id 0\" -c \"dap create ra4m1.dap -chain-position ra4m1.cpu\" -c \"target create ra4m1.cpu cortex_m -dap ra4m1.dap\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
             "name": "ra6m5_ek",
             "uid": "8419032D32363657364EF4622D294B4E",
+            "probe": "000831915224",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000831915224",
-                "args": "-device R7FA6M5BH"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra6m5 cpu -expected-id 0\" -c \"dap create ra6m5.dap -chain-position ra6m5.cpu\" -c \"target create ra6m5.cpu cortex_m -dap ra6m5.dap\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
+            "probe": "E6614103E72C1D2F",
             "variant": [
                 { "name": "raspberry_pi_pico", "flags": "-DCFG_TUH_RPI_PIO_USB=1" }
             ],
@@ -349,13 +261,6 @@
                     }
                 ]
             },
-            "flasher": {
-                "name": "openocd",
-                "uid": "E6614103E72C1D2F",
-                "vid_pid": "0x2e8a 0x000c",
-                "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
-                "verify": true
-            },
             "sysview": {
                 "example": "device/cdc_msc",
                 "workload": "cdc_burst",
@@ -366,6 +271,7 @@
         {
             "name": "raspberry_pi_pico_w",
             "uid": "E6614864D35DAE36",
+            "probe": "E6633861A3819D38",
             "tests": {
                 "device": false,
                 "host": true,
@@ -386,18 +292,12 @@
                     }
                 ]
             },
-            "flasher": {
-                "name": "openocd",
-                "uid": "E6633861A3819D38",
-                "vid_pid": "0x2e8a 0x000c",
-                "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
-                "verify": true
-            },
             "note": "Test native host"
         },
         {
             "name": "raspberry_pi_pico2",
             "uid": "560AE75E1C7152C9",
+            "probe": "E6633861A3978538",
             "tests": {
                 "device": false,
                 "host": true,
@@ -412,18 +312,12 @@
                         "msc_inquiry": "Kingston DataTraveler 2.0 1.00"
                     }
                 ]
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "E6633861A3978538",
-                "vid_pid": "0x2e8a 0x000c",
-                "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
-                "verify": true
             }
         },
         {
             "name": "adafruit_fruit_jam",
             "uid": "2B0DC7A45781189E",
+            "probe": "E663AC91D3359B38",
             "tests": {
                 "device": true,
                 "host": true,
@@ -443,50 +337,27 @@
                         "msc_inquiry": "Generic  Flash Disk       8.07"
                     }
                 ]
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "E663AC91D3359B38",
-                "vid_pid": "0x2e8a 0x000c",
-                "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
-                "verify": true
             }
         },
         {
             "name": "stm32f072disco",
             "uid": "3A001A001357364230353532",
+            "probe": "779541626",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "779541626",
-                "args": "-device stm32f072rb"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f0x.cfg -c \"stm32f0x.cpu configure -event reset-init {}\""
             },
             "note": "2x16 access scheme with 1KB USB SRAM"
         },
         {
             "name": "stm32f407disco",
             "uid": "30001A000647313332353735",
+            "probe": "000773661813",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000773661813",
-                "args": "-device stm32f407vg"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f4x.cfg -c \"stm32f4x.cpu configure -event reset-init {}\""
             },
             "sysview": {
                 "example": "device/cdc_msc",
@@ -499,6 +370,7 @@
         {
             "name": "stm32f723disco",
             "uid": "460029001951373031313335",
+            "probe": "000776606156",
             "variant": [
                 { "name": "stm32f723disco", "flags": "" },
                 { "name": "stm32f723disco-DMA", "flags": "-DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -524,20 +396,12 @@
                     }
                 ]
             },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000776606156",
-                "args": "-device stm32f723ie"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32f7x.cfg -c \"stm32f7x.cpu configure -event reset-init {}\""
-            },
             "note": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
         {
             "name": "stm32h743nucleo",
             "uid": "110018000951383432343236",
+            "probe": "004C00343137510F39383538",
             "variant": [
                 { "name": "stm32h743nucleo", "flags": "" },
                 { "name": "stm32h743nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -546,74 +410,43 @@
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "stlink",
-                "uid": "004C00343137510F39383538",
-                "verify": true
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg"
             }
         },
         {
             "name": "stm32g0b1nucleo",
             "uid": "4D0038000450434E37343120",
+            "probe": "066FFF495087534867063844",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "stlink",
-                "uid": "066FFF495087534867063844",
-                "verify": true
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
             },
             "note": "32-bit scheme, 2KB USB SRAM"
         },
         {
             "name": "stm32l476disco",
             "uid": "3C0050001150334258343920",
+            "probe": "777632258",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "777632258",
-                "args": "-device STM32L476VG"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/stm32l4x.cfg -c \"stm32l4x.cpu configure -event reset-init {}\""
             }
         },
         {
             "name": "stm32u083nucleo",
             "uid": "300044000D5036394E373620",
+            "probe": "0668FF575457657187061314",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "stlink",
-                "uid": "0668FF575457657187061314"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/stlink.cfg -f target/stm32u0x.cfg"
             }
         },
         {
             "name": "nanoch32v203",
             "uid": "CDAB277B0FBC03E339E339E3",
+            "probe": "A76D8F062C2A",
             "toolchain": "riscv-gcc",
             "variant": [
                 {"name": "nanoch32v203-fsdev", "defines": ["RHPORT_DEVICE=0"]},
@@ -623,34 +456,23 @@
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "A76D8F062C2A",
-                "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
             "name": "ch32v103r_r1_1v0",
             "uid": "CDAB3E8749BC54EF0F410025",
+            "probe": "BC4954081051",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "BC4954081051",
-                "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
             }
         },
         {
             "name": "ch32v307v_r1_1v0",
             "uid": "DE6B3E263B3857CAFFFFFFFF",
+            "probe": "BC5DA47360D0",
             "toolchain": "riscv-gcc",
             "variant": [
                 {"name": "ch32v307v_r1_1v0-usbhs", "defines": ["SPEED=high"]},
@@ -660,34 +482,23 @@
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "BC5DA47360D0",
-                "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg"
             }
         },
         {
             "name": "ch582m_evt",
             "uid": "D443627B5450",
+            "probe": "57468F06DC03",
             "toolchain": "riscv-gcc",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "openocd",
-                "uid": "57468F06DC03",
-                "vid_pid": "0x1a86 0x8010",
-                "args": "-f target/wch-riscv.cfg",
-                "verify": false
             }
         },
         {
             "name": "mimxrt1064_evk",
             "uid": "BAE96FB95AFA6DBB8F00005002001200",
+            "probe": "000725299165",
             "tests": {
                 "device": true,
                 "host": true,
@@ -707,53 +518,28 @@
                         "msc_inquiry": "Lexar    USB Flash Drive  PMAP"
                     }
                 ]
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000725299165",
-                "args": "-device MIMXRT1064xxx6A"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap rt1064 cpu -expected-id 0\" -c \"dap create rt1064.dap -chain-position rt1064.cpu\" -c \"target create rt1064.cpu cortex_m -dap rt1064.dap\" -c \"cortex_m reset_config sysresetreq\""
             }
         },
         {
             "name": "nrf54lm20dk",
             "uid": "899C3DE5B0F4D5CA",
+            "probe": "1051856258",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false,
                 "skip": ["device/audio_test_freertos"],
                 "note": "board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately"
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "1051856258",
-                "args": "-device NRF54LM20A_M33"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf54l.cfg -c \"adapter speed 4000\""
             }
         },
         {
             "name": "nrf5340dk",
             "uid": "78E60E166B5F88BE",
+            "probe": "1050076405",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "1050076405",
-                "args": "-device nrf5340_xxaa_app"
-            },
-            "flasher_recover": {
-                "name": "openocd",
-                "args": "-f interface/jlink.cfg -c \"transport select swd\" -f target/nordic/nrf53.cfg -c \"adapter speed 4000\""
             }
         }
     ],
@@ -761,21 +547,18 @@
         {
             "name": "ra8m1_ek",
             "uid": "797D142D36345030364E1737922E4B4E",
+            "probe": "001083115236",
             "note": "USBHS bring-up pending (HS chirp completes digitally but terminations never switch; FS-forced build passed usbtest 30/30). Parked until fixed",
             "tests": {
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "001083115236",
-                "args": "-device R7FA8M1AH"
             }
         },
         {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",
+            "probe": "000778170924",
             "variant": [
                 { "name": "stm32f769disco", "flags": "" },
                 { "name": "stm32f769disco-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
@@ -784,11 +567,6 @@
                 "device": true,
                 "host": false,
                 "dual": false
-            },
-            "flasher": {
-                "name": "jlink",
-                "uid": "000778170924",
-                "args": "-device stm32f769ni"
             }
         }
     ]

@@ -4,7 +4,9 @@
 (build = board families and their examples, HIL = rig boards and their tests).
 
 Stdlib-only (runs on bare CI runners; imports hil_util for the example rosters, never
-hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Fail-open:
+hil_test/pyserial — test_hil_util.BottomLayer enforces the stdlib closure). Its rosters'
+flashers come from agentrc's board registry, so a run with configs needs the agentrc
+test/hil/helper/agentrc.py selects (CI: `python3 test/hil/helper/agentrc.py fetch`). Fail-open:
 a path no rule classifies forces the full matrix when it sits in a build-input location
 (_BUILD_SCOPE_RE) and contributes nothing anywhere else.
 
@@ -30,6 +32,7 @@ can actually build.
 | 2c | `.github/ci-pinned-boards.json` | `ALL` | `ALL` | — (CI board data; no rig board's behaviour depends on it) |
 | 2d | `tools/membrowse_cli.py`, `tools/code_size.py`, `tools/code_size_profile.py` | `ALL` | `ALL` | — (size scripts the pinned build legs run; no rig board runs them) |
 | 2e | `.claude/skills/build/scripts/check_build.py` (ahead of rule 1) | `ALL` | `ALL` | all boards → all tests (the selection contract CI and agents call) |
+| 2f | `test/hil/agentrc.json`, `test/hil/helper/agentrc.py` (ahead of rule 2) | `ALL` | `ALL` | all boards → all tests (the agentrc CI loads: the shared HIL harness scripts and the code-size engine every build leg's snapshot step runs) |
 | 3 | `src/portable/<port>/dcd_*`, `*_device.[ch]` | `FAM` | `DEV`+`DUAL` | `FAM`'s device-role boards → device+dual tests |
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
@@ -47,7 +50,7 @@ can actually build.
 | 15 | `examples/build_system/**`, `examples/CMakeLists.txt`, `examples/<role>/CMakeLists.txt` | `ALL` | `ALL` | all boards → all tests |
 | 16 | `src/common/`, `src/osal/`, `src/tusb.[ch]`, `src/tusb_option.h`, `tools/{build,build_utils,change_impact,family_json}.py`, `src/CMakeLists.txt`, `src/tinyusb.mk`, `hw/bsp/{family_support.{cmake,mk},sysview_manifest.cmake,family_rules.mk,zephyr_board_aliases.cmake,board.c,board_api.h,ansi_escape.h}`, `.github/{workflows/build*.yml,actions/**,scripts/**}`, `.circleci/**` | `ALL` | `ALL` | all boards → all tests |
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
-| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed; `ALL` for a `lib/agentrc` pin change (CI's code-size engine) | `ALL` | those families' boards → all tests; a `lib/agentrc` (shared HIL harness scripts) pin change → all boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
+| 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 16c | `lib/SystemView/**`, its `tools/get_deps.py` pin; `lib/SEGGER_RTT/**` too (also rule 16a) | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these: hil-build's traced leg for the selected boards) |
 | 16d | `hw/bsp/rtt_conf_cortexm.h` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` (rules 16a, 16c): every SYSVIEW and LOGGER=rtt configure force-includes it |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
@@ -70,7 +73,7 @@ import sys
 # at the helper/ move).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, 'test', 'hil'))  # for `from helper...`
-from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, host_test
+from helper.hil_util import ESP_IDF_FLASHERS, device_tests, dual_tests, hil_boards, host_test
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tools/, for build helpers
 import build_utils
@@ -386,10 +389,9 @@ def mcu_families(path: str, repo_root: str) -> set:
 
 GET_DEPS_PATH = 'tools/get_deps.py'
 _DEPS_DICTS = ('deps_mandatory', 'deps_optional')
-# Dep paths the HIL harness itself loads (helper/hil_lock.py, hil_util's RTT console), not a family build:
-# a pin change is a harness change, rule 2's HIL answer, and a size-script change, rule 2d's build answer
-# (lib/agentrc holds the code-size engine every build leg's snapshot step runs).
-_HIL_HARNESS_DEPS = frozenset({'lib/agentrc'})
+# The agentrc pin and the bootstrap that selects it (rule 2f): the scripts the HIL harness loads (helper/hil_lock.py,
+# hil_util's RTT console), as rule 2, and the code-size engine every build leg's snapshot step runs, as rule 2d.
+_AGENTRC_RE = re.compile(r'^test/hil/(agentrc\.json|helper/agentrc\.py)$')
 
 
 def _deps_split(text: str):
@@ -439,7 +441,7 @@ def _select_sysview_capture(s, why, roster_boards):
 
 def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
     """Families whose tools/get_deps.py dep entries changed between two versions of
-    the file, plus the path of each changed _HIL_HARNESS_DEPS or lib/SystemView entry, or None meaning
+    the file, plus the path of a changed lib/SystemView entry, or None meaning
     'cannot tell - use the full matrix'.
 
     None on: anything outside deps_mandatory/deps_optional differing (a logic change
@@ -465,7 +467,7 @@ def get_deps_changed_families(base_text: str, head_text: str, repo_root: str):
         for key in set(base_x) | set(head_x):
             if base_x.get(key) == head_x.get(key):
                 continue
-            if key in _HIL_HARNESS_DEPS or key == _SYSVIEW_DEP:
+            if key == _SYSVIEW_DEP:
                 harness.add(key)
             for entry in (base_x.get(key), head_x.get(key)):
                 if entry and len(entry) > 2:
@@ -741,6 +743,9 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if _MEMBROWSE_SCRIPT_RE.match(path) or _SIZE_SCRIPT_RE.match(path):    # rule 2d
         s.reasons.append(f'{path}: CI size script, no HIL contribution')
         return
+    if _AGENTRC_RE.match(path):                                   # rule 2f
+        s.force_full(f'{path}: the agentrc pin (shared HIL harness scripts) -> full matrix')
+        return
     if _FULL_RE.match(path):
         s.force_full(f'{path}: core/infra -> full matrix')
         return
@@ -748,9 +753,6 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
     if path == GET_DEPS_PATH:
         if get_deps_families is None:
             s.force_full(f'{path}: dep changes not resolvable -> full matrix')
-            return
-        if get_deps_families & _HIL_HARNESS_DEPS:
-            s.force_full(f'{path}: a HIL harness dep changed -> full matrix')
             return
         fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         if _SYSVIEW_DEP in get_deps_families:
@@ -1232,7 +1234,12 @@ def main():
     rosters = []
     for c in a.configs:
         with open(c, encoding='utf-8', errors='replace') as f:
-            rosters.append((c, json.load(f)['boards']))
+            boards = json.load(f)['boards']
+        try:   # each board's flasher is agentrc's, by its probe (helper/agentrc.py's selection)
+            rosters.append((c, [hil_boards().resolve(b) for b in boards]))
+        except (ImportError, ValueError) as e:
+            print(f'change_impact: {c}: {e}', file=sys.stderr)
+            sys.exit(2)
 
     try:
         files, gd, inp = select_input(repo_root, a.base, a.endpoints, a.worktree, a.diff_file, a.deps_base)
@@ -1366,15 +1373,15 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
     if _NONCODE_RE.match(path) or _META_RE.match(path):           # rules 1, 1b
         s.note(path, 'noncode', 'none', f'{path}: non-code, no build contribution')
         return
+    if _AGENTRC_RE.match(path):                                   # rule 2f
+        s.force_full(path, 'agentrc', f'{path}: the agentrc pin holds the CI size engine -> full build matrix')
+        return
     if re.match(r'test/hil/', path):                              # rule 2
         s.note(path, 'hil-harness', 'none', f'{path}: HIL harness, no build contribution')
         return
     if path == GET_DEPS_PATH:                                     # rule 16b
         if get_deps_families is None:
             s.force_full(path, 'get-deps', f'{path}: dep changes not resolvable -> full build matrix')
-            return
-        if get_deps_families & _HIL_HARNESS_DEPS:
-            s.force_full(path, 'get-deps', f'{path}: lib/agentrc holds the CI size engine -> full build matrix')
             return
         fams = sorted(get_deps_families - {_SYSVIEW_DEP})
         if not fams:

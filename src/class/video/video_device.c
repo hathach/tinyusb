@@ -102,6 +102,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t max_payload_transfer_size;
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
+  bool     frame_abort_pending;                              /* Drain a queued bulk payload before releasing its frame. */
 
   video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
 } videod_streaming_interface_t;
@@ -127,6 +128,17 @@ static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
 
 static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
+
+/* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
+ * COMMIT, halt and transfer-completion handlers in the usbd task. The complete and abort
+ * callbacks run after it is released; tud_video_prepare_payload_cb() runs under it on the submit
+ * path. SET_INTERFACE and bus reset clear the frame without taking it. */
+#if OSAL_MUTEX_REQUIRED
+static osal_mutex_def_t _videod_mutexdef;
+static osal_mutex_t     _videod_mutex;
+#else
+  #define _videod_mutex NULL
+#endif
 
 static uint8_t const _cap_get     = 0x1u; /* support for GET */
 static uint8_t const _cap_get_set = 0x3u; /* support for GET and SET */
@@ -186,6 +198,35 @@ static char const* const tu_str_video_vs_control_selector[] = {
 TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   (void) ctl_idx;
   (void) stm_idx;
+}
+
+TU_ATTR_WEAK void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  /* Preserve the buffer-release notification for existing applications. */
+  tud_video_frame_xfer_complete_cb(ctl_idx, stm_idx);
+}
+
+static void _clear_frame(videod_streaming_interface_t *stm) {
+  stm->buffer              = NULL;
+  stm->bufsize             = 0;
+  stm->offset              = 0;
+  stm->frame_abort_pending = false;
+}
+
+/* Release the accepted frame, if any, only after its payload completes or is aborted. */
+static void _finish_frame(videod_streaming_interface_t *stm, bool aborted) {
+  /* A submitter that sees bufsize cleared must also see the rest of the frame state reset. */
+  (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  bool const owned = stm->bufsize != 0;
+  _clear_frame(stm);
+  (void)osal_mutex_unlock(_videod_mutex);
+  if (!owned) {
+    return;
+  }
+  if (aborted) {
+    tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
+  } else {
+    tud_video_frame_xfer_complete_cb(stm->index_vc, stm->index_vs);
+  }
 }
 
 TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod) {
@@ -824,9 +865,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
 #endif
 
   /* clear transfer management information */
-  stm->buffer  = NULL;
-  stm->bufsize = 0;
-  stm->offset  = 0;
+  _clear_frame(stm);
 
   /* Find a alternate interface */
   uint8_t const *beg = desc + stm->desc.beg;
@@ -1052,6 +1091,33 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage,
   }
 }
 
+/* Index of the streaming interface whose endpoint is ep_addr, CFG_TUD_VIDEO_STREAMING if none. */
+static uint_fast8_t _find_stm_by_ep(uint8_t ep_addr) {
+  for (uint_fast8_t itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
+    videod_streaming_interface_t const *stm = &_videod_streaming_itf[itf];
+    if (stm->desc.ep[0] && ep_addr == _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0])) {
+      return itf;
+    }
+  }
+  return CFG_TUD_VIDEO_STREAMING;
+}
+
+/* True while a completion is still due for the accepted frame's last payload. When the event
+ * queue drops a completion, usbd frees the endpoint without calling videod_xfer_cb().
+ * Probe with a claim, not usbd_edpt_busy(): CLEAR_FEATURE on a non-halted endpoint clears BUSY
+ * but keeps CLAIMED while its payload is still queued. */
+static bool _payload_pending(uint8_t rhport, videod_streaming_interface_t const *stm) {
+  if (!stm->bufsize || !stm->desc.ep[0]) {
+    return false;
+  }
+  uint8_t const ep_addr = _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0]);
+  if (!usbd_edpt_claim(rhport, ep_addr)) {
+    return true;
+  }
+  (void)usbd_edpt_release(rhport, ep_addr);
+  return false;
+}
+
 static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
                                    tusb_control_request_t const *request,
                                    uint_fast8_t stm_idx) {
@@ -1151,18 +1217,35 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < param->dwMaxPayloadTransferSize) {
               param->dwMaxPayloadTransferSize = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
             }
-            stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
-              stm->state   = VS_STATE_COMMITTED;
-              stm->buffer  = NULL;
-              stm->bufsize = 0;
-              stm->offset  = 0;
-              /* initialize payload header */
-              tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm_epbuf->buf;
-              hdr->bHeaderLength = sizeof(*hdr);
-              hdr->bmHeaderInfo  = 0;
+              bool dropped = false;
+              (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+              stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
+              stm->state = VS_STATE_COMMITTED;
+              /* COMMIT does not reset the endpoint or the bulk data toggle. Keep any
+               * queued payload and endpoint claim until its normal completion, including
+               * a completion already queued behind this control request. Retain
+               * bufsize to reject new frames until that callback releases it. */
+              if (_payload_pending(rhport, stm)) {
+                /* A successful final payload still completes the whole frame. */
+                stm->frame_abort_pending = stm->offset < stm->bufsize;
+              } else if (stm->bufsize) {
+                /* Its completion was dropped; keep the header so the next frame toggles FID. */
+                _clear_frame(stm);
+                dropped = true;
+              } else {
+                /* initialize payload header only when no payload owns it */
+                tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm_epbuf->buf;
+                hdr->bHeaderLength = sizeof(*hdr);
+                hdr->bmHeaderInfo  = 0;
+              }
+              (void)osal_mutex_unlock(_videod_mutex);
+              if (dropped) {
+                tud_video_frame_xfer_abort_cb(stm->index_vc, stm->index_vs);
+              }
             }
+            return ret;
           } else {
             // nothing to do
           }
@@ -1267,7 +1350,7 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
   return true;
 }
 
-bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize) {
+static bool _submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize) {
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
   TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
 
@@ -1300,6 +1383,8 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
     return false;
   }
 
+  /* A completion queued before a halt clears BUSY but not STALLED, so the claim alone does not refuse it. */
+  TU_VERIFY(!usbd_edpt_stalled(0, ep_addr));
   TU_VERIFY(usbd_edpt_claim(0, ep_addr));
   /* update the packet header */
   tusb_video_payload_header_t *hdr = (tusb_video_payload_header_t*)stm_epbuf->buf;
@@ -1309,8 +1394,22 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   stm->buffer     = (uint8_t*)buffer;
   stm->bufsize    = bufsize;
   uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-  TU_ASSERT( usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false), 0);
+  if (!usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false)) {
+    /* No payload was sent and no completion follows, so ownership stays with the caller and the
+     * next frame reuses this FID. usbd drops the claim when the DCD refuses; a halt that lands
+     * after the claim keeps it until CLEAR_FEATURE(HALT). */
+    hdr->FrameID ^= 1;
+    _clear_frame(stm);
+    return false;
+  }
   return true;
+}
+
+bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buffer, size_t bufsize) {
+  (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  bool const ret = _submit_frame(ctl_idx, stm_idx, buffer, bufsize);
+  (void)osal_mutex_unlock(_videod_mutex);
+  return ret;
 }
 
 //--------------------------------------------------------------------+
@@ -1325,9 +1424,17 @@ void videod_init(void) {
     videod_streaming_interface_t *stm = &_videod_streaming_itf[i];
     tu_memclr(stm, sizeof(videod_streaming_interface_t));
   }
+#if OSAL_MUTEX_REQUIRED
+  _videod_mutex = osal_mutex_create(&_videod_mutexdef);
+  TU_ASSERT(_videod_mutex, );
+#endif
 }
 
 bool videod_deinit(void) {
+#if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(_videod_mutex);
+  _videod_mutex = NULL;
+#endif
   return true;
 }
 
@@ -1432,6 +1539,17 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 // return false to stall control endpoint (e.g unsupported request)
 bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
   int err;
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_ENDPOINT) {
+    TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_FEATURE &&
+              request->wValue == TUSB_REQ_FEATURE_EDPT_HALT);
+    /* The core has already stalled the endpoint and aborted its transfer.
+     * There will be no completion to release the frame. Do not do this for
+     * CLEAR_FEATURE: a non-halted endpoint may still have a queued payload. */
+    uint_fast8_t const itf = _find_stm_by_ep(tu_u16_low(request->wIndex));
+    TU_VERIFY(itf < CFG_TUD_VIDEO_STREAMING);
+    _finish_frame(&_videod_streaming_itf[itf], true);
+    return true;
+  }
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
   uint_fast8_t itfnum = tu_u16_low(request->wIndex);
   /* Identify which control interface to use */
@@ -1481,37 +1599,31 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
 }
 
 bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
-  (void)result; (void)xferred_bytes;
+  (void)xferred_bytes;
 
-  /* find streaming handle */
-  uint_fast8_t itf;
-  videod_interface_t *ctl;
-  videod_streaming_interface_t *stm;
-  for (itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
-    stm = &_videod_streaming_itf[itf];
-    uint_fast16_t const ep_ofs = stm->desc.ep[0];
-    if (0 == ep_ofs) {
-      continue;
-    }
-    ctl = &_videod_itf[stm->index_vc];
-    uint8_t const *desc = ctl->beg;
-    if (ep_addr == _desc_ep_addr(desc + ep_ofs)) {
-      break;
-    }
-  }
+  uint_fast8_t const itf = _find_stm_by_ep(ep_addr);
   TU_ASSERT(itf < CFG_TUD_VIDEO_STREAMING);
+  videod_streaming_interface_t *stm = &_videod_streaming_itf[itf];
   videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[itf];
 
-  if (stm->offset < stm->bufsize) {
-    /* Claim the endpoint */
-    TU_VERIFY(usbd_edpt_claim(rhport, ep_addr), 0);
-    uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-    TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false), 0);
+  if (!stm->bufsize) {
+    /* A completion queued before ENDPOINT_HALT or SET_INTERFACE may arrive after the frame was dropped. */
+    return true;
+  }
+  if (result != XFER_RESULT_SUCCESS || stm->frame_abort_pending) {
+    _finish_frame(stm, true);
+  } else if (stm->offset < stm->bufsize) {
+    bool queued = usbd_edpt_claim(rhport, ep_addr);
+    if (queued) {
+      uint_fast16_t const pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
+      queued = usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false);
+    }
+    if (!queued) {
+      _finish_frame(stm, true);
+      return false;
+    }
   } else {
-    stm->buffer  = NULL;
-    stm->bufsize = 0;
-    stm->offset  = 0;
-    tud_video_frame_xfer_complete_cb(stm->index_vc, stm->index_vs);
+    _finish_frame(stm, false);
   }
   return true;
 }

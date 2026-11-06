@@ -104,21 +104,61 @@ def is_dut_id(vidpid: str) -> bool:
     return vidpid.startswith('cafe:') or vidpid == ':'.join(USBTEST_ID)
 
 
+# each rig host's roster under test/hil; any other host names its own (a dev PC: test/hil/local.json)
+CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
+
+
+def roster_path(host: str, config: str | None = None, local_fallback: bool = False) -> Path:
+    """The roster `config` names (as given, else under test/hil), else `host`'s under test/hil
+    only, so a same-named file in the cwd never replaces the rig's; with `local_fallback`, an
+    existing test/hil/local.json for any other host; LookupError for a host with none. The file
+    is the caller's to open: a missing one fails there."""
+    hil_dir = TINYUSB_ROOT / 'test' / 'hil'
+    if config:
+        path = Path(config)
+        return path if path.exists() else hil_dir / config
+    if host not in CONFIG_BY_HOST:
+        if local_fallback and (hil_dir / 'local.json').exists():
+            return hil_dir / 'local.json'
+        raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
+    return hil_dir / CONFIG_BY_HOST[host]
+
+
 # agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
 # `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
-# a bare checkout before CI fetches lib/agentrc.
+# a bare checkout before CI fetches agentrc.
 _provider = None
 
 
 def provider():
-    """agentrc's hil_flash; ImportError, before any tool runs, when lib/agentrc is missing,
-    off the pin, or lacks a file the provider loads or launches (a staged tree included)."""
+    """agentrc's hil_flash; ImportError, before any tool runs, when agentrc is missing,
+    off CI's pin, or lacks a file the provider loads or launches (a staged tree included)."""
     global _provider
     if _provider is None:
         from . import agentrc
         # a literal path: RemoteStaging reads it and its FILES to check the rig gets each one
         _provider = agentrc.load_file('skills/hil/scripts/hil_flash.py')
     return _provider
+
+
+_hil_boards = None
+
+
+def hil_boards():
+    """agentrc's board registry (hil_boards): each roster board's flasher and flasher_recover by
+    its probe. Loaded on first use like provider(); every reader of a board's flasher resolves
+    its roster entry through it, readers of names alone read the roster raw."""
+    global _hil_boards
+    if _hil_boards is None:
+        from . import agentrc
+        _hil_boards = agentrc.load_file('skills/hil/scripts/hil_boards.py')
+    return _hil_boards
+
+
+def lock_name(board: dict) -> str:
+    """The board's lock: its registered board's name in agentrc's registry, whatever this roster
+    calls it, else its roster name (`hil` skill, Board locks)."""
+    return hil_boards().lock_name(board)
 
 
 _openocd_esp = None

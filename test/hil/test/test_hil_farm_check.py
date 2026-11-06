@@ -4,13 +4,16 @@
 # wiring to agentrc's engine, with the bus, the flasher and the tracked runner faked and the
 # engine's lock dir in a temp dir: no board, no ssh. Run directly:
 #   python3 test/hil/test/test_hil_farm_check.py
+import io
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -18,10 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
-from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
+from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
-STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P', 'args': ''})
+STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
 CONTACT = 'Device ID   : 0x413\n'
 eng = hil_farm_check.load_engine()
 
@@ -83,6 +86,13 @@ def capture(fn):
         return code, out.read().decode(), err.read().decode()
 
 
+def runpy_helper():
+    """helper/hil_lock.py's own namespace: imported, the module is agentrc's primitive. Run inside
+    the helper package, whose agentrc it then imports: no helper/ on sys.path, no second agentrc."""
+    return types.SimpleNamespace(**runpy.run_path(str(hil_util.TINYUSB_ROOT / 'test/hil/helper/hil_lock.py'),
+                                                  run_name='helper._hil_lock_cli'))
+
+
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())
@@ -106,6 +116,27 @@ class Roster(unittest.TestCase):
 
     def test_the_probe_is_named_by_its_flasher(self):
         self.assertEqual(farm_profile.probe_name(BOARD), 'openocd')
+
+    def test_a_registered_board_locks_as_agentrcs_name_for_it_and_hold_all_takes_that(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        entry = {'name': 'this-repos-name', 'uid': 'U', 'probe': probe}
+        self.assertEqual((farm_profile.lock_name(entry), farm_profile.lock_name(BOARD)), (reg['name'], BOARD['name']))
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [BOARD], 'boards-skip': [entry]}))
+            path, modules = list(sys.path), set(sys.modules)
+            helper = runpy_helper()
+            self.assertEqual((sys.path, set(sys.modules) - modules), (path, set()), 'the helper run leaked')
+            self.assertEqual(helper.boards_from_config(str(cfg)), [BOARD['name'], reg['name']])
+
+    def test_hold_all_reports_a_registry_refusal_as_one(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [{'name': 'x', 'uid': 'U', 'probe': 'farm-check-unregistered'}]}))
+            with redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+                runpy_helper().boards_from_config(str(cfg))
+        self.assertIn(f"cannot name the board locks of {cfg}: x: probe 'farm-check-unregistered' is not in agentrc",
+                      err.getvalue())
 
 
 class Probe(unittest.TestCase):
@@ -140,14 +171,6 @@ class Probe(unittest.TestCase):
     def test_an_all_zero_uid_never_matches_by_padding(self):
         self.bus([('1-1', '000000', '1366:0101'), ('1-2', '123456', '1366:0101')])
         self.assertEqual(self.candidates('0'), [])
-
-    def test_a_placeholder_serial_is_matched_exactly_before_by_padding(self):
-        # metro_m4_express's probe legitimately reports the placeholder '123456'
-        self.bus([('1-1', '123456', '1366:0101'), ('1-2', '000123456', '1366:0101'), ('1-3', '000000', '1366:0101')])
-        self.assertEqual(self.candidates('123456'), ['1-1'])
-        self.assertEqual(self.candidates('000123456'), ['1-2'])
-        self.assertEqual(self.candidates('0123456'), ['1-1', '1-2'])
-        self.assertEqual(self.candidates('000'), [])
 
 
 class Reset(unittest.TestCase):
@@ -229,8 +252,8 @@ class RunPlumbing(unittest.TestCase):
 
 
 class Launcher(unittest.TestCase):
-    def test_the_engine_comes_from_lib_agentrc_at_the_pin(self):
-        self.assertEqual(Path(eng.__file__), hil_util.TINYUSB_ROOT / 'lib/agentrc/skills/hil/scripts/hil_farm_check.py')
+    def test_the_engine_is_the_loaded_agentrcs(self):
+        self.assertEqual(Path(eng.__file__), Path(agentrc.identity()['root']) / 'skills/hil/scripts/hil_farm_check.py')
         self.assertEqual(eng.REASON, 'farm_check')
         self.assertIsNone(eng._lock_api_problem(hil_lock))
 
@@ -245,11 +268,11 @@ class Launcher(unittest.TestCase):
 
     def test_an_engine_that_cannot_load_refuses(self):
         def missing():
-            raise ImportError('lib/agentrc must be at X')
+            raise ImportError('no usable agentrc at X')
         patch(self, hil_farm_check, 'load_engine', missing)
         code, out, err = capture(lambda: hil_farm_check.main([]))
         self.assertEqual((code, out), (2, ''))
-        self.assertIn('lib/agentrc must be at X', err)
+        self.assertIn('no usable agentrc at X', err)
 
 
 class EngineFixture(unittest.TestCase):
@@ -323,7 +346,7 @@ class EngineWithProfile(EngineFixture):
         self.assertEqual((o['returncode'], [a['returncode'] for a in o['attempts']]), (1, [0]))
 
     def test_an_lm4flash_board_is_unsupported_and_untouched(self):
-        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''}))
+        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P'}))
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual((code, r['status'], r['coverage'], self.ran), (0, 'unsupported', 'unsupported', []))

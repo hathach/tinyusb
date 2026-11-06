@@ -70,7 +70,7 @@ from helper.hil_util import device_tests, dual_tests, host_test
 # Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
 rtt = agentrc.load_file('skills/rtt/scripts/rtt.py')
 # The flash provider and its runner, likewise once before the Pool so every worker shares them;
-# refused here, before any board, when lib/agentrc lacks a file the provider loads or launches.
+# refused here, before any board, when agentrc lacks a file the provider loads or launches.
 hil_util.provider()
 hil_util.openocd_esp()
 
@@ -217,7 +217,8 @@ class Board(TypedDict):
     name: str
     uid: str
     tests: TestsCfg
-    flasher: FlasherCfg
+    probe: NotRequired[str]  # the board's debug probe serial, its key in agentrc's board registry
+    flasher: NotRequired[FlasherCfg]  # an unregistered board's own; a probe's is agentrc's (hil_util.hil_boards)
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -550,6 +551,23 @@ def open_printer_dev(id: str, vendor_str, product_str, ifnum: int) -> str:
 # -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
+MOUNT_NOTICE_RE = re.compile(r'(?:un)?mounted device \d+\r?\n')
+DEV_INFO_RE = re.compile(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)')
+
+
+def parse_dev_info_records(text: str) -> list[tuple[str, str]]:
+    """(line, 'vid_pid_serial') for each terminated 'ID vid:pid SN serial' line of host_info_to_device_cdc.
+    tuh_mount_cb can print between 'SN ' and the serial (#4374), so complete mount notices are dropped
+    first; an unterminated tail may hold a notice or serial still in flight and is left for the next read."""
+    text = MOUNT_NOTICE_RE.sub('', text)
+    records = []
+    for line in text[:text.rfind('\n') + 1].splitlines():
+        m = DEV_INFO_RE.search(line)
+        if m:
+            records.append((line, f'{m.group(1)}_{m.group(2)}_{m.group(3)}'))
+    return records
+
+
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
@@ -558,17 +576,14 @@ def test_dual_host_info_to_device_cdc(board):
     ser.timeout = 0.1
 
     data = b''
+    records = []
     timeout = enum_timeout()
     while timeout > 0:
         new_data = ser.read(ser.in_waiting or 1)
         if new_data:
             data += new_data
-        enum_dev_sn = []
-        for l in data.decode('utf-8', errors='ignore').splitlines():
-            vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-            if vid_pid_sn:
-                enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-        if set(declared_devs).issubset(set(enum_dev_sn)):
+        records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
+        if set(declared_devs).issubset({dev for _, dev in records}):
             break
         time.sleep(0.1)
         timeout -= 0.1
@@ -576,18 +591,15 @@ def test_dual_host_info_to_device_cdc(board):
 
     if len(data) == 0:
         assert False, 'No data from device'
-    lines = data.decode('utf-8', errors='ignore').splitlines()
 
     enum_dev_sn = []
-    for l in lines:
-        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-        if vid_pid_sn:
-            print(f'\r\n  {l} ', end='')
-            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+    for l, dev in records:
+        print(f'\r\n  {l} ', end='')
+        enum_dev_sn.append(dev)
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
-        print('\n'.join(lines))
+        print('\n'.join(data.decode('utf-8', errors='ignore').splitlines()))
         assert False, failed_msg
     return 0
 
@@ -612,7 +624,7 @@ def test_host_device_info(board):
                 data += new_data
             enum_dev_sn = []
             for l in data.decode('utf-8', errors='ignore').splitlines():
-                vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+                vid_pid_sn = DEV_INFO_RE.search(l)
                 if vid_pid_sn:
                     enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
             if set(declared_devs).issubset(set(enum_dev_sn)):
@@ -635,7 +647,7 @@ def test_host_device_info(board):
 
     enum_dev_sn = []
     for l in lines:
-        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+        vid_pid_sn = DEV_INFO_RE.search(l)
         if vid_pid_sn:
             print(f'\r\n  {l} ', end='')
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
@@ -1587,8 +1599,8 @@ def test_device_usbtest(board):
     # (own session) on the probe. Never under --skip-flash, and only when this flasher can
     # DELIVER past a poisoned node (hil_flash.convoy_safe): otherwise the delivery adds a
     # SECOND stray and the board reserves budget for a path that cannot fire. The RECOVERY
-    # flasher may be the roster's optional `flasher_recover`: a board can name an openocd
-    # entry that reaches the same probe convoy-safely.
+    # flasher may be the board's optional `flasher_recover` (agentrc's registry entry for a
+    # probe board, else the roster's): an openocd entry that reaches the same probe convoy-safely.
     _rec_flasher = hil_flash.recover_flasher(board)
     recovery = bool(_current_fw and not skip_flash and hil_flash.convoy_safe(_rec_flasher))
     # ONE bound: run_cmd's kill below. It carries the recovery reserve only when a
@@ -1655,7 +1667,7 @@ def _usbtest_verdict(board: Board, data: dict, out: str, passed: int, failed: in
     global board_wedged
     # The battery's OWN verdict, not 'HUNG' in its output: `recovery` only says the flags
     # were passed, and a HUNG case whose kill landed late is a timeout, not a wedge (#3944).
-    # rec_flasher, not board['flasher']: the two diverge on a roster with `flasher_recover`,
+    # rec_flasher, not board['flasher']: the two diverge on a board with `flasher_recover`,
     # and naming the wrong one sends the operator to the wrong probe.
     # No HUNG case: usbtest aborted on an ambiguous or unreadable serial, before any recovery.
     if data.get('wedged'):
@@ -1988,7 +2000,7 @@ def cleanup_pending(name: str) -> str:
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
-def retain_board_lock(name: str, fh, pending: str) -> str:
+def retain_board_lock(name: str, lock: str, fh, pending: str) -> str:
     """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
 
     hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
@@ -2002,19 +2014,19 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
     tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
     retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
     try:
-        token = hil_lock.hand_to_cleanup_holder({name: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+        token = hil_lock.hand_to_cleanup_holder({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
                                                 retained=retained)
     except ValueError as e:
         why = str(e)
         try:
             hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  retained=retained, locks=[name])
+                                  retained=retained, locks=[lock])
         except OSError as e2:
             why += f' (record not rewritten: {e2})'
     except hil_lock.LockUnavailable as e:
         why = str(e)
     else:
-        rec = hil_lock.read_record(name)
+        rec = hil_lock.read_record(lock)
         pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
         return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
                 f'`hil_lock.py release --token {token}` after recovery')
@@ -2026,6 +2038,7 @@ def retain_board_lock(name: str, fh, pending: str) -> str:
 def test_board(board: Board) -> tuple:
     # (name, err_count, failed_tests, rows, pci)
     name = board['name']
+    lock = hil_util.lock_name(board)
     flasher = board['flasher']
 
     global board_wedged, board_pci
@@ -2036,7 +2049,7 @@ def test_board(board: Board) -> tuple:
         # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
         # pending hands the lock to a cleanup holder (retain_board_lock)
         protected = flasher['name'].lower() == 'openocd_esp'
-        _lock_fh = hil_lock.acquire_board_lock(name, protected=protected)
+        _lock_fh = hil_lock.acquire_board_lock(lock, protected=protected)
     except hil_lock.LockUnavailable as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
         # icon-prefixed like every failing metric cell, so the table tallies it as a failure
@@ -2190,7 +2203,7 @@ def test_board(board: Board) -> tuple:
         if pending:
             log_line(f'{name:25} BLOCKER: {pending}')
             fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
-            detail = retain_board_lock(name, fh, pending) if fh else f'{pending}; no board lock held'
+            detail = retain_board_lock(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
             log_line(f'{name:25} {detail}')
             rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
             err_count += 1
@@ -2202,7 +2215,7 @@ def test_board(board: Board) -> tuple:
         unwinding = sys.exc_info()[1]
         if _lock_fh and (pending := cleanup_pending(name)):
             # raised past the hand-over above: the lock still never frees on its own
-            log_line(f'{name:25} {retain_board_lock(name, _lock_fh, pending)}')
+            log_line(f'{name:25} {retain_board_lock(name, lock, _lock_fh, pending)}')
         elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
             # an interrupt may land after the provider returned a pending session but before
             # hil_flash stored its receipt: keep the protected record as the recovery blocker
@@ -2318,6 +2331,17 @@ def park_bound_s() -> float:
     the flash and its DAP rescue, each at its timeout plus the REAP_GRACE spent when killed, and the retry sleep."""
     return max_retry * (hil_tt.HELPER_TIMEOUT + hil_util.REAP_GRACE
                         + 2 * (hil_util.CMD_TIMEOUT + hil_util.REAP_GRACE) + 1)
+
+
+def _named_flasher(entry) -> str | None:
+    """The flasher name of a roster entry agentrc's registry refused: its registered probe's,
+    else its own; None when neither is known (an unregistered probe)."""
+    if not isinstance(entry, dict):
+        return None
+    probe = entry.get('probe')
+    reg = hil_util.hil_boards().registry().get(probe) if isinstance(probe, str) else None
+    flasher = (reg or entry).get('flasher')
+    return flasher.get('name') if isinstance(flasher, dict) else None
 
 
 def _sysview_entry_problem(sv) -> str | None:
@@ -2527,8 +2551,34 @@ def main() -> None:
             print(f'ERROR: board(s) not in {config_file.name}: {", ".join(unknown)}')
             sys.exit(1)
         config_boards = [e for e in config['boards'] if e['name'] in boards]
-    config_boards = [e for e in config_boards if e['flasher']['name'] not in args.exclude_flasher
-                     and (not args.flasher or e['flasher']['name'] in args.flasher)]
+    # each board's flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board
+    # registry): resolved for the boards this run touches only, as the roster checks below,
+    # and refused through _config_abort, which invalidates the previous report. A refused entry
+    # is this run's only when the flasher filter selects the flasher it names; one naming none
+    # (an unregistered probe) falls to the runs without --flasher.
+    def _selected(flasher_name) -> bool:
+        return flasher_name not in args.exclude_flasher and (not args.flasher or flasher_name in args.flasher)
+    resolve_errors = []
+    try:
+        # an unreadable registry names no probe board's flasher: abort every leg on it, not filter them out
+        hil_util.hil_boards().registry()
+        selected = []
+        for e in config_boards:
+            try:
+                resolved = hil_util.hil_boards().resolve(e)
+            except ValueError as err:
+                if _selected(_named_flasher(e)):
+                    resolve_errors.append(str(err))
+                    # the report's selection is by name: a nameless entry is in the refusal only
+                    if isinstance(e, dict) and isinstance(e.get('name'), str):
+                        selected.append(e)
+            else:
+                if _selected(resolved['flasher']['name']):
+                    selected.append(resolved)
+        config_boards = selected
+    except (ImportError, ValueError) as e:
+        resolve_errors = [str(e)]
+        config_boards = [b for b in config_boards if isinstance(b, dict) and isinstance(b.get('name'), str)]
 
     # The report sidecar and the .failed re-run spec live in report_dir (CI keys it by run
     # id: persistent across attempts, private to one run)
@@ -2550,6 +2600,8 @@ def main() -> None:
         hil_report.mark_report_aborted(report_dir, f'config error: {msg}', fresh=not args.accumulate)
         sys.exit(1)
 
+    if resolve_errors:
+        _config_abort(f'{config_file.name}: {"; ".join(dict.fromkeys(resolve_errors))}')
     for e in config_boards:
         try:
             hil_report.board_variants(e)
@@ -2575,11 +2627,6 @@ def main() -> None:
     if bad_pyocd:
         _config_abort(f'a pyocd flasher needs a uid and one "vid_pid" pair (e.g. "0x1fc9 0x0090"): '
                       f'{", ".join(bad_pyocd)}')
-    # the provider refuses each openocd command over a malformed pin; say so once, before a flash
-    bad_pin = dict.fromkeys(e['name'] for e in config_boards for f in hil_flash.flashers(e, 'openocd')
-                            if 'vid_pid' in f and not hil_flash.valid_vid_pid(f['vid_pid']))
-    if bad_pin:
-        _config_abort(f'an openocd "vid_pid" must be complete "0xVVVV 0xPPPP" pairs: {", ".join(bad_pin)}')
     # the provider's admission (uid, args, no vid_pid), so a bad entry fails here, not mid-run
     bad_esp = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards for f in hil_flash.flashers(e, 'openocd_esp')
                             if (why := hil_flash.openocd_esp_entry_problem(f)))

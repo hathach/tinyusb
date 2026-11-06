@@ -10,7 +10,7 @@ description: Use when bringing up examples/device/usbtest (0525:a4a0) on a new M
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
 is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the driver loading and
 binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
-agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
+agentrc's `hil` provider, loaded from the agentrc `test/hil/helper/agentrc.py` selects.
 
 **The battery tests the DCD, not the firmware.** A failed case points at the DCD path it
 exercises (map below). Reproduce that one case, root-cause it on hardware before changing

@@ -120,7 +120,7 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   // Abort any pending transfer
   const uint8_t  dir        = (uint8_t)tu_edpt_dir(ep->ep_addr);
   const uint8_t  epnum      = tu_edpt_number(ep->ep_addr);
-  const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
+  const uint32_t abort_mask = rp2usb_ep_bit(ep->ep_addr);
 
   // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
   // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
@@ -258,16 +258,17 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           };
 
           const bool buf0_idle = !(buf_reg16[0] & BUSY_MASK);
-          const bool buf1_idle = (ep->remaining_len > 0) && !(buf_reg16[1] & BUSY_MASK);
+          const bool buf1_idle = !(buf_reg16[1] & BUSY_MASK);
 
           if (buf0_idle && buf1_idle) {
             // both are idle, start fresh
+            // this also resets the buffer selector for a deferred ZLP
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
             rp2usb_buffer_start(ep, ep_reg, buf_reg32, false);
           } else if (buf0_idle) {
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
-          } else if (buf1_idle) {
+          } else if (buf1_idle && ep->remaining_len > 0) {
             uint16_t buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
             bufctrl_write16(buf_reg16 + 1, buf1);
           }

@@ -72,12 +72,14 @@ docs/examples/
 cmake-metrics/
 cmake-size-diff/
 cmake-code-size/
+# agentrc: CI's pin checkout (test/hil/helper/agentrc.py fetch) and the copy hil_remote.py stages on a rig
+lib/agentrc
+/.agentrc/
 # Directories fetched by tools/get_deps.py - not to be committed
 lib/CMSIS_5
 lib/CMSIS_6
 lib/FreeRTOS-Kernel
 lib/SystemView
-lib/agentrc
 lib/fatfs
 lib/lwip
 lib/sct_neopixel

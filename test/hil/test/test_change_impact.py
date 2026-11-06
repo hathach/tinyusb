@@ -9,7 +9,7 @@
 # is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
 # both) and the roster-dispatch tests need its flash_* table; never import hil_test,
 # which pulls pyserial. Nothing here may call into agentrc's flash provider either:
-# build.yml's selector gate runs this suite without lib/agentrc, so tests that do live
+# build.yml's selector gate may run this suite without agentrc, so tests that do live
 # in test_hil_flash.py.
 import contextlib
 import glob
@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import hil_flash
 import change_impact
-from helper.hil_util import device_tests, dual_tests
+from helper.hil_util import device_tests, dual_tests, hil_boards
 
 
 def _read(path):
@@ -53,12 +53,13 @@ def real_rosters():
 
 def roster_flashers():
     """(roster path, board) for every board in the live rosters, `boards-skip`
-    included: a parked board's flasher name must still dispatch, so that unparking it
-    is not what discovers the name went stale."""
+    included, each with its flasher from agentrc's board registry: a parked board's
+    flasher name must still dispatch, so that unparking it is not what discovers the
+    name went stale."""
     for name in ('tinyusb.json', 'hfp.json'):
         path = os.path.join(REPO, 'test/hil', name)
         with open(path) as f:
-            cfg = json.load(f)
+            cfg = hil_boards().resolve_roster(json.load(f))
         for key in ('boards', 'boards-skip'):
             for b in cfg.get(key, []):
                 yield f'test/hil/{name}', b
@@ -1081,10 +1082,12 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_agentrc.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_dual_parse.py',
             'test/hil/test/test_hil_farm_check.py',
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
+            'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
@@ -1641,6 +1644,27 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
                          set(tokens.split()))
 
 
+class TestAgentrcPinRule(unittest.TestCase):
+    """Rule 2f: the agentrc pin and its bootstrap pick the shared HIL harness scripts and the code-size engine
+    every build leg's snapshot step runs (rule 2d), so either is full on both axes."""
+
+    PIN = ('test/hil/agentrc.json', 'test/hil/helper/agentrc.py')
+
+    def test_the_pin_or_its_bootstrap_selects_full_hil_and_the_full_build(self):
+        for path in self.PIN:
+            with self.subTest(path):
+                self.assertTrue(change_impact.classify([path], REPO, ROSTERS)['full'])
+                b = change_impact.classify_build([path], REPO)
+                self.assertTrue(b['full'])
+                self.assertEqual([r['rule'] for r in b['paths']], ['agentrc'])
+
+    def test_the_rest_of_the_harness_is_still_rule_2(self):
+        self.assertTrue(change_impact.classify(['test/hil/helper/hil_util.py'], REPO, ROSTERS)['full'])
+        b = change_impact.classify_build(['test/hil/helper/hil_util.py', 'test/hil/agentrc.jsonx'], REPO)
+        self.assertFalse(b['full'])
+        self.assertEqual({r['rule'] for r in b['paths']}, {'hil-harness'})
+
+
 class TestGetDepsRule(unittest.TestCase):
     """tools/get_deps.py: the changed dep entries' families, or full when unknowable."""
 
@@ -1670,30 +1694,16 @@ class TestGetDepsRule(unittest.TestCase):
     def test_hil_without_a_base_is_full(self):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
-    def test_a_hil_harness_dep_selects_full_hil_and_the_full_build(self):
-        # lib/agentrc also holds the code-size engine each build leg's snapshot step runs (rule 2d)
-        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families={'lib/agentrc'})
-        self.assertTrue(s['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'lib/agentrc'})
-        self.assertTrue(b['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'stm32f4'})
-        self.assertEqual(b['families'], ['stm32f4'])
-
-    def test_the_real_agentrc_pin_is_a_hil_harness_dep(self):
+    def test_a_dep_bump_selects_only_its_families(self):
         with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
             real = f.read()
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
-        commit = get_deps.deps_optional['lib/agentrc'][1]
-        bumped = real.replace(commit, '0' * len(commit))
-        # lib/agentrc has no family token, so without its path a pin bump would select nothing
-        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
-        self.assertEqual(gd, {'lib/agentrc'})
-        self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, gd)['full'])
+        self.assertNotIn('lib/agentrc', get_deps.deps_all, 'the agentrc pin is test/hil/agentrc.json (rule 2f)')
         nrfx = get_deps.deps_optional['hw/mcu/nordic/nrfx'][1]
-        both = bumped.replace(nrfx, '1' * len(nrfx))
-        self.assertEqual(change_impact.get_deps_changed_families(real, both, REPO),
-                         {'lib/agentrc', *get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()})
+        bumped = real.replace(nrfx, '1' * len(nrfx))
+        self.assertEqual(change_impact.get_deps_changed_families(real, bumped, REPO),
+                         set(get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()))
 
     def test_hil_no_dep_entry_changed_selects_nothing(self):
         s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
@@ -2568,10 +2578,10 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         # hil-build-esp sizes and uploads every leg under its --build-name: an unnamed
         # esp-idf variant would collide with the plain board; other buckets never upload
         import tempfile
-        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink'},
+        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink', 'uid': 'p'},
                  'variant': [{'name': 'metro_m4_express', 'defines': ['MAX3421_HOST=1']}]}
         for vname, ok in (('espressif_s3_devkitm', False), ('espressif_s3_devkitm-X', True)):
-            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool'},
+            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool', 'uid': 'p'},
                    'variant': [{'name': vname, 'defines': ['X=1']}]}
             with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
                 json.dump({'boards': [esp, other]}, f)
@@ -2592,7 +2602,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
         # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
-        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
                 'sysview': {'example': 'device/cdc_msc'}}
         for examples, traced in ((['device/board_test', 'host/cdc_msc_hid'], False), (['device/board_test'], False),
                                  (['device/board_test', 'device/cdc_msc'], True),
@@ -2607,7 +2617,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
         # its own build name, so neither the test image nor the parking board_test is replaced
-        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd'},
+        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd', 'uid': 'p'},
                 'variant': [{'name': 'raspberry_pi_pico', 'flags': '-DCFG_TUH_RPI_PIO_USB=1'}],
                 'sysview': {'example': 'device/cdc_msc', 'buffer': 65536}}
         r = self._matrix_of([pico])
@@ -2618,7 +2628,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             '-DSYSVIEW_BUFFER_SIZE=65536 --cflag=-DCFG_TUH_RPI_PIO_USB=1'])
 
     def test_a_sysview_board_with_several_variants_is_refused(self):
-        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink'},
+        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
              'variant': [{'name': 'stm32f723disco'}, {'name': 'stm32f723disco-DMA', 'flags': '-DX=1'}],
              'sysview': {'example': 'device/cdc_msc'}}
         r = self._matrix_of([b])
@@ -2627,7 +2637,7 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
 
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         import tempfile
-        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
+        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp', 'uid': 'p'}}
         with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
             json.dump({'boards': [p4]}, f)
             f.flush()
@@ -3460,12 +3470,16 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
     def test_espressif_builds_every_example_its_rig_boards_run(self):
         # an only-list example missing from get_examples('espressif') has no binary,
         # so HIL reports it skipped rather than failing
+        on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         pool = set(self.build_py.get_examples('espressif'))
+        checked = 0
         for _, boards in real_rosters():
-            for b in boards:
-                if b.get('flasher', {}).get('name') == 'esptool':
+            for b in map(hil_boards().resolve, boards):
+                if b['flasher']['name'] == 'esptool':
+                    checked += 1
                     for t in b.get('tests', {}).get('only', []):
                         self.assertIn(t, pool, f"{b['name']}: {t}")
+        self.assertTrue(checked, 'no esptool board checked: the flasher lookup no longer resolves')
 
     def test_selections_are_what_the_espressif_only_rule_gave(self):
         # espressif's own list is the one value that ever differed from the unfiltered
@@ -3540,7 +3554,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
 
 class TestNoLockDependency(unittest.TestCase):
     def test_the_selector_never_loads_hil_lock(self):
-        # build.yml's check-paths gate selects on a checkout that never fetched lib/agentrc,
+        # build.yml's check-paths gate may select on a checkout whose agentrc fetch failed,
         # which helper/agentrc.py refuses to load hil_lock or the RTT console without
         code = ('import sys; sys.path.insert(0, "tools"); import change_impact; '
                 'print(sorted(m for m in sys.modules if "hil_lock" in m or "rtt" in m))')
