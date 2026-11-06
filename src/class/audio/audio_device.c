@@ -451,8 +451,11 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
-  // Data currently is in linear buffer, copy into EP OUT FIFO
-  TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
+  // Data currently is in linear buffer, copy into EP OUT FIFO. A zero-length packet has no data, but the endpoint
+  // must still be re-armed.
+  if (n_bytes_received > 0) {
+    TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
+  }
 
   // Schedule for next receive
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true));
