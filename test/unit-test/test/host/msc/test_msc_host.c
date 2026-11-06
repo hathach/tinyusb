@@ -486,6 +486,33 @@ void test_msc_host_enum_request_sense_submit_fail(void) {
   assert_enum_ended_unmounted(4);
 }
 
+// Test Unit Ready fails and its Request Sense passes: enumeration retries Test Unit Ready (5 transfers before it)
+static void enum_tur_failed_request_sense_passed(void) {
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw(MSC_CSW_STATUS_FAILED);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 18));
+  reply_csw_passed();
+}
+
+void test_msc_host_enum_request_sense_passed_retries_tur(void) {
+  enum_tur_failed_request_sense_passed();
+
+  TEST_ASSERT_EQUAL(6, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[5]);
+  TEST_ASSERT_EQUAL(sizeof(msc_cbw_t), xfer_len[5]);
+  TEST_ASSERT_EQUAL_HEX8(SCSI_CMD_TEST_UNIT_READY, ((msc_cbw_t*) xfer_buf[5])->command[0]);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+}
+
+void test_msc_host_enum_request_sense_passed_tur_submit_fail(void) {
+  xfer_fail_index = 5; // TUR, Request Sense, then the retried TUR CBW fails
+  enum_tur_failed_request_sense_passed();
+
+  assert_enum_ended_unmounted(6);
+}
+
 void test_msc_host_enum_read_capacity_submit_fail(void) {
   xfer_fail_index = 3; // TUR CBW and CSW, Read Capacity CBW, then its data stage fails
   get_max_lun_stalled();
