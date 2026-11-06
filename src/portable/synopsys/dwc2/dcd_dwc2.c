@@ -38,7 +38,10 @@ typedef struct {
   uint16_t max_size;
   uint8_t interval;
   uint8_t iso_retry; // ISO retry counter
+  uint16_t iso_out_frame; // ISO OUT: (micro)frame the last packet was received in, ISO_OUT_FRAME_NONE once used
 } xfer_ctl_t;
+
+#define ISO_OUT_FRAME_NONE 0xFFFFu // above any DSTS.FNSOF value
 
 // This variable is modified from ISR context, so it must be protected by critical section
 static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
@@ -95,6 +98,24 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline bool edpt_is_enabled(dwc2_dep_t* dep) {
   return (dep->ctl & EPCTL_EPENA) != 0;
+}
+
+// DSTS.FNSOF counts microframes (14 bits) at high speed, and holds the SOF's 11-bit frame number at full speed
+TU_ATTR_ALWAYS_INLINE static inline uint32_t dsts_frame_mask(dwc2_dsts_t dsts) {
+  return (dsts.enum_speed == DCFG_SPEED_HIGH) ? 0x3FFFu : 0x7FFu;
+}
+
+// ISO OUT transfer complete: note the (micro)frame P the packet was received in, for the re-arm. The core receives an
+// isochronous OUT packet only in a (micro)frame whose parity is DOEPCTL.EONUM, and the completion is handled in P or
+// P+1, so P = fn - ((fn ^ EONUM) & 1).
+static void iso_out_note_frame(dwc2_regs_t* dwc2, uint8_t epnum) {
+  const dwc2_depctl_t depctl = {.value = dwc2->epout[epnum].doepctl};
+  if (epnum != 0 && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
+    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+    const uint32_t fn = dsts.frame_number;
+    xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+    xfer->iso_out_frame = (uint16_t) ((fn - ((fn ^ depctl.dpid_iso_odd) & 1u)) & dsts_frame_mask(dsts));
+  }
 }
 
   #if CFG_TUD_DWC2_SLAVE_ENABLE
@@ -374,6 +395,7 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
   } else {
     xfer->interval =  p_endpoint_desc->bInterval;
   }
+  xfer->iso_out_frame = ISO_OUT_FRAME_NONE;
 
   // Endpoint control
   dwc2_depctl_t depctl = {.value = 0};
@@ -490,11 +512,21 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   depctl.enable = 1;
   if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
     const dwc2_dsts_t dsts = {.value = dwc2->dsts};
-    const uint32_t odd_now = dsts.frame_number & 1u;
-    if (odd_now != 0) {
-      depctl.set_data0_iso_even = 1;
-    } else {
+    uint32_t odd_next = (dsts.frame_number + 1u) & 1u; // the (micro)frame after the current one
+    if (dir == TUSB_DIR_OUT && xfer->iso_out_frame != ISO_OUT_FRAME_NONE) {
+      // ISO OUT re-armed after a packet received in P: arm for P + interval while that (micro)frame has not passed.
+      // A re-arm that runs late into P+1 then still receives P+1's packet if it has not come yet, instead of
+      // waiting for P+2 and losing it.
+      const uint32_t rx_frame = xfer->iso_out_frame;
+      xfer->iso_out_frame = ISO_OUT_FRAME_NONE;
+      if (((dsts.frame_number - rx_frame) & dsts_frame_mask(dsts)) <= xfer->interval) {
+        odd_next = (rx_frame + xfer->interval) & 1u;
+      }
+    }
+    if (odd_next != 0) {
       depctl.set_data1_iso_odd = 1;
+    } else {
+      depctl.set_data0_iso_even = 1;
     }
   }
 
@@ -1086,6 +1118,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         // EP0 can only handle one packet, schedule another packet to be received.
         edpt_schedule_packets(rhport, 0, TUSB_DIR_OUT);
       } else {
+        iso_out_note_frame(dwc2, epnum);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
       break;
@@ -1206,6 +1239,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         }
 
         dcd_dcache_invalidate(xfer->buffer, inval_len);
+        iso_out_note_frame(dwc2, epnum);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
