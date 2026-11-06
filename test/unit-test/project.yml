@@ -201,6 +201,15 @@
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1
       - CFG_TUD_DFU_XFER_BUFSIZE=64
+    # keys match by substring, so this also configures test_video_device_default_cb
+    :test_video_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_VIDEO=1
+      - CFG_TUD_VIDEO_STREAMING=1
+      - CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE=64
+      - CFG_TUSB_DEBUG=0
+      # real osal_none mutex, so the tests run with the class lock live
+      - TUP_MCU_MULTIPLE_CORE=1
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
