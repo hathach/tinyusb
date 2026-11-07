@@ -35,6 +35,8 @@
 // the hub's TT buffer, which can cut off a token in progress on any of the hub's full-speed ports: an RP2040 device
 // controller there then stops responding until bus reset (docs/reference/device_issues.rst). On by default at full
 // speed, so the device neither locks up itself nor knocks out an RP2040 next to it; a high-speed STALL clears no TT.
+// The default follows the build's speed capability (TUD_OPT_HIGH_SPEED), not the negotiated speed: a high-speed
+// capable build that may run at full speed behind a hub should set it to 1 (padding is harmless at high speed).
 #ifndef CFG_TUD_MSC_PAD_SHORT_REPLY
   #define CFG_TUD_MSC_PAD_SHORT_REPLY (!TUD_OPT_HIGH_SPEED)
 #endif
