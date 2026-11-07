@@ -223,7 +223,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* d
 
 static uint32_t _ls_frame_end = 0; // last frame used by a low-speed transaction
 static uint8_t _ls_busy_ch = TUSB_INDEX_INVALID_8; // preamble channel in flight: claimed, not yet halted
-static uint8_t _ls_last_ch = TUSB_INDEX_INVALID_8; // preamble channel that held the bus last
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ls_frame_now(const dwc2_regs_t* dwc2) {
   return dwc2->hfnum & DWC2_LS_FRAME_MASK;
@@ -273,18 +272,6 @@ static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
     return false;
   }
 
-  // Take turns: the channel that had the bus last waits while another one is parked. Otherwise a channel re-armed
-  // from its own halt, such as a NAKing bInterval=1 IN or a control stage retried on NAK, would keep the bus for good.
-  // Not while it still holds the bus: a multi-packet IN re-arms on each ACK without halting, and turning it away then
-  // would leave it holding the bus that the parked channel waits for.
-  if (ch_id == _ls_last_ch && _ls_busy_ch != ch_id) {
-    for (uint8_t i = 0; i < DWC2_CHANNEL_COUNT_MAX; i++) {
-      if (i != ch_id && _hcd_data.xfer[i].allocated && _hcd_data.xfer[i].ls_defer != LS_DEFER_NONE) {
-        return false;
-      }
-    }
-  }
-
   const uint32_t offset = channel_is_periodic(channel->hcchar) ? 1u : 0u;
   if (!ls_frame_free(dwc2, offset)) {
     return false;
@@ -298,7 +285,6 @@ static bool ls_frame_claim(const dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
 TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2, uint8_t ch_id) {
   if (_ls_busy_ch == ch_id) {
     _ls_busy_ch = TUSB_INDEX_INVALID_8;
-    _ls_last_ch = ch_id;
     const uint32_t now = ls_frame_now(dwc2);
     if (ls_frame_diff(now, _ls_frame_end) > 0) {
       _ls_frame_end = now;
@@ -395,7 +381,6 @@ static void channel_cleanup_on_disconnect(dwc2_regs_t *dwc2) {
     _hcd_data.xfer[ch_id].ls_defer = LS_DEFER_NONE;
   }
   _ls_busy_ch = TUSB_INDEX_INVALID_8;
-  _ls_last_ch = TUSB_INDEX_INVALID_8;
   _ls_frame_end = (ls_frame_now(dwc2) - 1u) & DWC2_LS_FRAME_MASK;
 #endif
 
@@ -861,7 +846,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
       if (bus_info.speed == TUSB_SPEED_HIGH) {
         edpt->uframe_interval = 1u << (desc_ep->bInterval - 1);
       } else {
-        edpt->uframe_interval = desc_ep->bInterval << 3;
+        // USB 2.0 §5.7.4 / §9.6.6: a low-speed interrupt bInterval is 10..255 frames. Mice and
+        // keyboards ship 1, which re-arms from its own NAK halt and holds the preamble bus. The
+        // host may poll slower than the endpoint asks, so raise a short interval to the minimum.
+        uint8_t binterval = desc_ep->bInterval;
+        if (bus_info.speed == TUSB_SPEED_LOW && binterval < 10) {
+          binterval = 10;
+        }
+        edpt->uframe_interval = (uint32_t) binterval << 3;
       }
       break;
 
