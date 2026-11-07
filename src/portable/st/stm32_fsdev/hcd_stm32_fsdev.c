@@ -270,7 +270,9 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
     }
   } else {
     // IN/RX direction
-    uint16_t const rx_count = channel_get_rx_count(ch_id);
+    // The PMA buffer holds a whole packet (max_packet_size for the first one, 2/32-byte blocks after that), so a
+    // device answering with more bytes than the transfer has room for would be copied past the buffer.
+    uint16_t const rx_count = tu_min16(channel_get_rx_count(ch_id), (uint16_t) (edpt->buflen - edpt->queued_len));
     uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
     tu_hwfifo_read(PMA_BUF_AT(pma_addr), edpt->buffer + edpt->queued_len, rx_count, NULL);
     edpt->queued_len += rx_count;
