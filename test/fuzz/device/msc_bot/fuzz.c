@@ -84,12 +84,72 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t *block_count, uint16_t *block_siz
   *block_size = 512;
 }
 
+// READ10/WRITE10 callback results chosen by fuzz input: each callback takes two control bytes (op, arg) from cb_ctl
+// and, once those run out, transfers everything. usbd_defer_func() above runs a BUSY or partial-write retry at once,
+// nested in the callback's caller, so cb_retries bounds that recursion. An ASYNC result is completed by the main loop.
+static uint8_t const *cb_ctl;
+static size_t cb_ctl_len;
+static unsigned cb_retries;
+static bool async_pending;
+static int32_t async_result;
+
+enum {
+  CB_ALL = 0,
+  CB_PARTIAL,
+  CB_BUSY,
+  CB_ERROR,
+  CB_ASYNC,
+  CB_OP_COUNT
+};
+
+static int32_t cb_result(uint32_t bufsize, bool is_write) {
+  if (cb_ctl_len < 2 || bufsize == 0) {
+    return (int32_t) bufsize;
+  }
+  uint8_t const op = cb_ctl[0] % CB_OP_COUNT;
+  uint8_t const arg = cb_ctl[1];
+  cb_ctl += 2;
+  cb_ctl_len -= 2;
+
+  // 1..bufsize bytes; a write retries what it did not consume
+  int32_t const partial = (int32_t) (1u + arg % bufsize);
+  switch (op) {
+    case CB_PARTIAL:
+      if (is_write) {
+        if (cb_retries == 0) {
+          return (int32_t) bufsize;
+        }
+        cb_retries--;
+      }
+      return partial;
+
+    case CB_BUSY:
+      if (cb_retries == 0) {
+        return (int32_t) bufsize;
+      }
+      cb_retries--;
+      return TUD_MSC_RET_BUSY;
+
+    case CB_ERROR:
+      return TUD_MSC_RET_ERROR;
+
+    case CB_ASYNC:
+      // completed with everything, a partial count (arg bit 7) or an error (arg 0)
+      async_result = (arg == 0) ? TUD_MSC_RET_ERROR : ((arg & 0x80u) ? partial : (int32_t) bufsize);
+      async_pending = true;
+      return TUD_MSC_RET_ASYNC;
+
+    default:
+      return (int32_t) bufsize;
+  }
+}
+
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
   (void) lun;
   (void) lba;
   (void) offset;
   memset(buffer, 0, bufsize);
-  return (int32_t) bufsize;
+  return cb_result(bufsize, false);
 }
 
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset,
@@ -98,7 +158,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset,
   (void) lba;
   (void) offset;
   (void) buffer;
-  return (int32_t) bufsize;
+  return cb_result(bufsize, true);
 }
 
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const command[16], void *buffer, uint16_t bufsize) {
@@ -109,10 +169,22 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const command[16], void *buffer, ui
   return -1;
 }
 
+// Input: the CBW, a count n, n callback control bytes (cb_result()), then the Bulk-Out data
 int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   if (size < sizeof(msc_cbw_t)) return 0;
 
   ep_stalled[0] = ep_stalled[1] = false;
+
+  size_t offset = sizeof(msc_cbw_t);
+  cb_ctl_len = 0;
+  if (offset < size) {
+    cb_ctl_len = data[offset++];
+    if (cb_ctl_len > size - offset) cb_ctl_len = size - offset;
+  }
+  cb_ctl = data + offset;
+  offset += cb_ctl_len;
+  cb_retries = 16;
+  async_pending = false;
 
   mscd_init();
   _mscd_itf.rhport = 0;
@@ -128,17 +200,22 @@ int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   queued_length = 0;  // don't re-complete the CBW if nothing new was queued
   mscd_xfer_cb(0, 0x01, XFER_RESULT_SUCCESS, sizeof(cbw));
 
-  size_t offset = sizeof(cbw);
-
   // Allow enough steps for multi-block READ10/WRITE10 commands to reach their
-  // CSW (one CFG_TUD_MSC_EP_BUFSIZE chunk per step), with a hard cap to bound
-  // run time for fuzz-controlled total_bytes. The driver ends the loop by
-  // itself once the stage is back to MSC_STAGE_CMD or MSC_STAGE_NEED_RESET.
-  unsigned max_steps = cbw.total_bytes / CFG_TUD_MSC_EP_BUFSIZE + 4;
+  // CSW (one CFG_TUD_MSC_EP_BUFSIZE chunk per step, or less after a partial
+  // read or write, plus async completions), with a hard cap to bound run time
+  // for fuzz-controlled total_bytes. The driver ends the loop by itself once
+  // the stage is back to MSC_STAGE_CMD or MSC_STAGE_NEED_RESET.
+  unsigned max_steps = cbw.total_bytes / CFG_TUD_MSC_EP_BUFSIZE + 4 + (unsigned) cb_ctl_len;
   if (max_steps > 1024) max_steps = 1024;
 
   for (unsigned step = 0; step < max_steps && _mscd_itf.stage != MSC_STAGE_CMD &&
                           _mscd_itf.stage != MSC_STAGE_NEED_RESET; ++step) {
+    if (async_pending) {
+      // the application finishes the I/O its callback answered TUD_MSC_RET_ASYNC
+      async_pending = false;
+      (void) tud_msc_async_io_done(async_result, false);
+      continue;
+    }
     uint8_t ep = queued_ep;
     uint16_t length = queued_length;
     if (length == 0 || length > CFG_TUD_MSC_EP_BUFSIZE) break;
