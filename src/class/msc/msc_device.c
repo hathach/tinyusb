@@ -79,10 +79,6 @@ CFG_TUD_MEM_SECTION static struct {
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE >= 64, "CFG_TUD_MSC_EP_BUFSIZE must be at least 64");
 
-// A full READ10 chunk must end on a packet boundary: one ending in a short packet ends the Data Stage (mscd_xfer())
-TU_VERIFY_STATIC((CFG_TUD_MSC_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64)) == 0,
-                 "CFG_TUD_MSC_EP_BUFSIZE must be a multiple of the bulk packet size (512 high speed, 64 full speed)");
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -384,18 +380,23 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   uint16_t const drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
   TU_ASSERT(max_len >= drv_len, 0); // Max length must be at least 1 interface + 2 endpoints
 
+  // A full READ10 chunk must end on a packet boundary of the Bulk-In endpoint this configuration opens: one ending in a
+  // short packet ends the Data Stage (mscd_xfer()). Checked before the endpoints are opened, so a failure leaves nothing
+  // opened, like the checks above
+  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  if (tu_edpt_dir(desc_ep->bEndpointAddress) != TUSB_DIR_IN) {
+    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  }
+  uint16_t const ep_in_mps = tu_edpt_packet_size(desc_ep);
+  TU_ASSERT(ep_in_mps > 0 && (CFG_TUD_MSC_EP_BUFSIZE % ep_in_mps) == 0, 0);
+
   mscd_interface_t * p_msc = &_mscd_itf;
   p_msc->itf_num = itf_desc->bInterfaceNumber;
   p_msc->rhport = rhport;
 
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
-
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
-  if (desc_ep->bEndpointAddress != p_msc->ep_in) {
-    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
-  }
-  p_msc->ep_in_mps = tu_edpt_packet_size(desc_ep);
+  p_msc->ep_in_mps = ep_in_mps;
 
   // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
   // completion arms it
