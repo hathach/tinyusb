@@ -666,6 +666,11 @@ static void clear_halt(uint8_t ep_addr) {
   dcd_edpt_clear_stall_Expect(rhport, ep_addr);
 }
 
+static void expect_cbw_receive(void) {
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+}
+
 // The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
 static void reset_recovery_clear_halts(void) {
   clear_halt(EDPT_MSC_IN);
@@ -673,15 +678,9 @@ static void reset_recovery_clear_halts(void) {
   tud_task();
 
   clear_halt(EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_cbw_receive();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
-}
-
-static void expect_cbw_receive(void) {
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
 }
 
 // A BOT reset with neither data endpoint stalled: it aborts the transfers of both (usbd_edpt_abort(), with a DCD that
@@ -792,8 +791,7 @@ void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
   tud_task(); // no CBW receive armed yet
 
   TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_cbw_receive();
   tud_task();
 }
 
@@ -806,14 +804,9 @@ void test_msc_bot_reset_drops_completion_queued_before_reset(void)
   reset_recovery_clear_halts();
 }
 
-// A bus reset abandons a pending async read the same way: re-enumeration opens the endpoints but receives no CBW until
-// the late completion, which is discarded
-void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
-{
-  read10_async = true;
-  read10_2blocks_received();
-  tud_task();
-
+// A bus reset while an async I/O is still pending in the application, then re-enumeration: SET_CONFIGURATION opens the
+// endpoints but, with the abandoned I/O still owning the buffer, receives no CBW
+static void bus_reset_reconfigure_without_cbw(void) {
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
   tud_task();
 
@@ -823,10 +816,20 @@ void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task(); // no CBW receive armed yet
+}
+
+// A bus reset abandons a pending async read the same way: re-enumeration opens the endpoints but receives no CBW until
+// the late completion, which is discarded
+void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
+{
+  read10_async = true;
+  read10_2blocks_received();
+  tud_task();
+
+  bus_reset_reconfigure_without_cbw();
 
   TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_cbw_receive();
   tud_task();
 }
 
@@ -1000,15 +1003,7 @@ void test_msc_bus_reset_waits_for_abandoned_async_write10(void)
 {
   write10_1block_async_pending(NULL);
 
-  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
-  tud_task();
-
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task(); // no CBW receive armed yet
+  bus_reset_reconfigure_without_cbw();
 
   TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
   expect_cbw_receive();
