@@ -178,8 +178,15 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // bytes tud_msc_read10_cb() leaves out of each chunk, for partial reads
 static uint32_t read10_shortfall;
 
-// tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC, for a background read completed by tud_msc_async_io_done()
+// tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC, for a background read completed by tud_msc_async_io_done(). The
+// data (less read10_shortfall) is already in the buffer, as a DMA read in progress would put it there
 static bool read10_async;
+
+// times tud_msc_read10_cb() answers TUD_MSC_RET_BUSY before it reads
+static uint32_t read10_busy;
+
+// calls of tud_msc_read10_cb()
+static uint32_t read10_calls;
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
@@ -200,13 +207,19 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     return io_failure(lun);
   }
 
-  if (read10_async) {
-    return TUD_MSC_RET_ASYNC;
+  read10_calls++;
+  if (read10_busy > 0) {
+    read10_busy--;
+    return TUD_MSC_RET_BUSY;
   }
 
   bufsize -= read10_shortfall;
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
+
+  if (read10_async) {
+    return TUD_MSC_RET_ASYNC;
+  }
 
   return bufsize;
 }
@@ -216,6 +229,9 @@ static uint32_t write10_busy;
 
 // bytes the next tud_msc_write10_cb() handed a larger chunk accepts, once, leaving the rest for a retry (0: all)
 static uint32_t write10_accept;
+
+// tud_msc_write10_cb() answers TUD_MSC_RET_ASYNC, for a background write completed by tud_msc_async_io_done()
+static bool write10_async;
 
 // calls of tud_msc_write10_cb(), with the lba, offset, bufsize and buffer contents of the last one
 static uint32_t write10_calls;
@@ -242,6 +258,10 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   if (write10_busy > 0) {
     write10_busy--;
     return TUD_MSC_RET_BUSY;
+  }
+
+  if (write10_async) {
+    return TUD_MSC_RET_ASYNC;
   }
 
   if (write10_accept > 0 && write10_accept < bufsize) {
@@ -335,7 +355,10 @@ void setUp(void)
   memset(msc_disk, 0, sizeof(msc_disk));
   read10_shortfall = 0;
   read10_async = false;
+  read10_busy = 0;
+  read10_calls = 0;
   write10_busy = 0;
+  write10_async = false;
   write10_accept = 0;
   write10_calls = 0;
 }
@@ -564,6 +587,59 @@ void test_msc_read10_short_chunk_padded(void)
   tud_task();
 }
 
+// A READ10 chunk the application answers TUD_MSC_RET_BUSY is read again by the deferred retry (proc_io_retry()),
+// from the same place, and the command completes with no residue
+void test_msc_read10_busy_retries(void)
+{
+  read10_busy = 2;
+  memset(msc_disk[0], 0x5A, DISK_BLOCK_SIZE);
+  memset(msc_disk[1], 0xC3, DISK_BLOCK_SIZE);
+  read10_2blocks_received();
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, msc_disk[0], DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(0, read10_busy);
+  TEST_ASSERT_EQUAL_UINT32(3, read10_calls);
+
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, msc_disk[1], DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(4, read10_calls);
+}
+
+// An async READ10 chunk completed short by tud_msc_async_io_done() takes the padded path like a synchronous one: the
+// chunk is filled with zeros, fill data follows up to the host's length, and the CSW carries the residue, no STALL
+void test_msc_read10_async_short_completion_padded(void)
+{
+  read10_async = true;
+  read10_shortfall = 1;
+  memset(msc_disk[0], 0xA5, DISK_BLOCK_SIZE);
+  read10_2blocks_received();
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  uint8_t chunk[DISK_BLOCK_SIZE] = { 0 };
+  memset(chunk, 0xA5, DISK_BLOCK_SIZE - 1);
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE - 1, false));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, chunk, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  tud_task();
+
+  uint8_t fill[DISK_BLOCK_SIZE] = { 0 };
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, fill, DISK_BLOCK_SIZE, DISK_BLOCK_SIZE, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+
+  msc_csw_t const csw = csw_with_residue(DISK_BLOCK_SIZE + 1);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, read10_calls);
+}
+
 //--------------------------------------------------------------------+
 // Reset Recovery (BOT 5.3.4)
 //--------------------------------------------------------------------+
@@ -754,6 +830,23 @@ void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
   tud_task();
 }
 
+// tud_msc_read10_cb() answers TUD_MSC_RET_BUSY while the BOT reset is queued: the retry runs after the reset and is
+// dropped, so no stale chunk is read or armed on Bulk-In after Reset Recovery
+void test_msc_bot_reset_drops_read10_busy_retry(void)
+{
+  read10_busy = 1;
+  configure_msc(&cbw_read10_2blocks);
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, read10_calls);
+
+  reset_recovery_clear_halts();
+  TEST_ASSERT_EQUAL_UINT32(1, read10_calls);
+}
+
 // WRITE10 of one block, LBA 0
 static msc_cbw_t const cbw_write10_1block =
 {
@@ -836,6 +929,91 @@ void test_msc_write10_partial_accept_retries_left_over(void)
   TEST_ASSERT_EQUAL_UINT32(accepted, write10_last_offset);
   TEST_ASSERT_EQUAL_UINT32(DISK_BLOCK_SIZE - accepted, write10_last_bufsize);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(payload + accepted, write10_last_buf, DISK_BLOCK_SIZE - accepted);
+}
+
+// SET_CONFIGURATION, the CBW of a 1-block WRITE10 and its host data (payload, if not NULL): tud_msc_write10_cb()
+// answers TUD_MSC_RET_ASYNC, the write stays pending in the application
+static void write10_1block_async_pending(uint8_t* payload) {
+  write10_async = true;
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  if (payload != NULL) {
+    dcd_edpt_xfer_ReturnMemThruPtr_buffer(payload, DISK_BLOCK_SIZE);
+  }
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, write10_calls);
+}
+
+// An async WRITE10 completed by tud_msc_async_io_done() with fewer bytes than handed over: the rest moves to the
+// front of the buffer and the deferred retry offers exactly it, at the offset after the written prefix, and the
+// command completes
+void test_msc_write10_async_partial_completion_retries_left_over(void)
+{
+  uint32_t const written = 100;
+  uint8_t payload[DISK_BLOCK_SIZE];
+  for (size_t i = 0; i < sizeof(payload); i++) {
+    payload[i] = (uint8_t) (i + 7);
+  }
+
+  write10_1block_async_pending(payload);
+
+  write10_async = false; // the retry writes at once
+  TEST_ASSERT_TRUE(tud_msc_async_io_done((int32_t) written, false));
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  tud_task();
+
+  TEST_ASSERT_EQUAL_UINT32(2, write10_calls);
+  TEST_ASSERT_EQUAL_UINT32(0, write10_last_lba);
+  TEST_ASSERT_EQUAL_UINT32(written, write10_last_offset);
+  TEST_ASSERT_EQUAL_UINT32(DISK_BLOCK_SIZE - written, write10_last_bufsize);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(payload + written, write10_last_buf, DISK_BLOCK_SIZE - written);
+}
+
+// The BOT reset abandons a pending async WRITE10 as it does a READ10: no CBW is received until its late completion,
+// which is discarded (no retry, no CSW) and arms the CBW receive
+void test_msc_bot_reset_discards_late_async_write10(void)
+{
+  write10_1block_async_pending(NULL);
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(false);
+  tud_task();
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE / 2, false));
+  expect_cbw_receive();
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, write10_calls);
+
+  reset_recovery_clear_halts();
+}
+
+// A bus reset abandons a pending async WRITE10 the same way: re-enumeration opens the endpoints but receives no CBW
+// until the late completion, which is discarded
+void test_msc_bus_reset_waits_for_abandoned_async_write10(void)
+{
+  write10_1block_async_pending(NULL);
+
+  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
+  tud_task();
+
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task(); // no CBW receive armed yet
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
+  expect_cbw_receive();
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(1, write10_calls);
 }
 
 //--------------------------------------------------------------------+
