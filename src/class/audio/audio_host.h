@@ -67,7 +67,7 @@ extern "C" {
 
 // Depth in bytes of the per-stream data FIFO. The FIFO decouples the
 // application's read/write calls from the endpoint's isochronous polling cadence
-// and absorbs rate differences. Capture overwrites the oldest frames when full.
+// and absorbs rate differences. Capture drops the oldest frames to fit a new packet.
 // 1024 bytes hold 4 default (256 B) packets.
 #ifndef CFG_TUH_AUDIO_STREAM_BUFSIZE
   #define CFG_TUH_AUDIO_STREAM_BUFSIZE 1024
@@ -327,8 +327,10 @@ void tuh_audio_mount_cb(uint8_t idx);
 // Invoked when device with Audio interface is un-mounted
 void tuh_audio_umount_cb(uint8_t idx);
 
-// Invoked when an isochronous IN transfer completes successfully: the
-// received data is already queued into the stream's capture FIFO.
+// Invoked when an isochronous IN transfer completes successfully: the packet's
+// whole frames are already queued into the stream's capture FIFO, after
+// dropping the oldest unread frames if it lacked room. xferred_bytes is the
+// received length.
 void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes);
 
 // Invoked after a successful isochronous OUT transfer, before the next packet
