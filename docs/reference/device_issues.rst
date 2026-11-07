@@ -92,6 +92,9 @@ Partial workaround:
   before the next one completes.
 - Keep the configuration simple, e.g. a single isochronous endpoint, to shorten the processing
   time of each transfer.
+- Run ``tud_task()`` often enough to handle each isochronous transfer within one (micro)frame:
+  125 us at high speed, 1 ms at full speed. On USBHS a later completion can find its OUT packet
+  overwritten by the next one, since isochronous OUT cannot be NAKed.
 
 .. _wch-usbhs-interrupt-starvation:
 
