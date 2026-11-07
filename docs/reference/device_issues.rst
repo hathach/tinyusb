@@ -173,6 +173,13 @@ dead until replugged; ``cdc_acm`` keeps clearing the TT buffer, about twice per 
 off the hub's other full-speed devices. Toggling ``MAIN_CTRL.CONTROLLER_EN`` or ``SIE_CTRL.TRANSCEIVER_PD`` does not
 recover the controller, and TinyUSB's E15 workaround (no bulk IN armed late in a frame) does not cover this case.
 
+Mitigation in TinyUSB: by default in a build without high-speed support, on every MCU, the MSC device class pads a short
+Data-In reply with zeros instead of stalling (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall): a reply to a command other
+than READ10 when the host's length is at most ``CFG_TUD_MSC_EP_BUFSIZE``, and a short READ10 chunk that is not a
+multiple of the packet size. This removes the frequent STALLs of the disk probe and the kernel's periodic MODE SENSE: an
+RP2040 next to an STM32 mass storage device locked up in none of 60 disk probes, against 38 of 100 without padding. Any
+other STALL on the hub can still trigger it.
+
 Workarounds:
 
 - Connect the RP2040 to a root port, or to a hub that is not affected.
