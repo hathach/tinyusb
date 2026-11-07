@@ -85,7 +85,8 @@ causing data corruption. Other transfer types are not affected.
 
 Partial workaround:
 
-- Keep the USB interrupt at the highest interrupt priority.
+- Give the USB interrupt the highest priority allowed for an ISR that calls the RTOS (e.g.
+  ``configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`` with FreeRTOS), or the highest priority without an RTOS.
 - Force full speed (``dev_init.speed = TUSB_SPEED_FULL`` in ``tusb_init()``, see
   :ref:`item 2 <wch-usbhs-interrupt-starvation>`) to give software more time to process a transfer
   before the next one completes.
