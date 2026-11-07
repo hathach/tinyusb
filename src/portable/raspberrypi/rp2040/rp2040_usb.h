@@ -116,10 +116,13 @@ typedef struct hw_endpoint {
 #if CFG_TUD_ENABLED
   uint8_t future_bufid; // which buffer holds next data
   uint8_t future_len;   // next data len
+  uint8_t dpram_blocks; // 64-byte blocks allocated at dpram_buf, kept when the endpoint is opened again
+  uint16_t rx_last_len; // OUT: share of the transfer in the buffer armed LAST (the buffer itself is armed for a full packet)
 #endif
 
 #if CFG_TUSB_RP2_ERRATA_E15
   bool e15_bulk_in; // Errata15 device bulk in
+  uint8_t e15_idle; // while pending: buffers (bit 0/1) whose completion is handled, for the SOF to arm
 #endif
 
 #if CFG_TUH_ENABLED
