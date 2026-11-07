@@ -626,7 +626,6 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
   // v20x support both port0 FSDEV (USBD) and port1 USBFS
   #define TUP_USBIP_WCH_USBFS
-  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUH_WCH_USBIP_USBFS
     #define CFG_TUH_WCH_USBIP_USBFS 1
@@ -635,6 +634,11 @@
   // default to FSDEV for device
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
+  #endif
+
+  // only the USBFS device port needs completions deferred to task, FSDEV keeps xfer_isr
+  #if CFG_TUD_WCH_USBIP_USBFS
+    #define TUP_USBD_XFER_ISR 0
   #endif
 
   #if !defined(CFG_TUD_WCH_USBIP_FSDEV)
