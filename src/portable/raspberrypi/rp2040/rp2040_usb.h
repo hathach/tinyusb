@@ -130,6 +130,7 @@ typedef struct hw_endpoint {
     uint8_t need_pre      : 1; // preamble for low-speed device behind full speed hub
     uint8_t abort_frame   : 5; // SOF_RD (modulo 32) when an interrupt endpoint abort stopped polling
   };
+  uint8_t data_seq_retries; // EPX IN resends after DATA_SEQ errors with none of this transfer's packets between
 #endif
 
   uint16_t max_packet_size; // max packet size also indicates configured
