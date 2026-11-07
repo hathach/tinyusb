@@ -846,7 +846,14 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
       if (bus_info.speed == TUSB_SPEED_HIGH) {
         edpt->uframe_interval = 1u << (desc_ep->bInterval - 1);
       } else {
-        edpt->uframe_interval = desc_ep->bInterval << 3;
+        // USB 2.0 §5.7.4 / §9.6.6: a low-speed interrupt bInterval is 10..255 frames. Mice and
+        // keyboards ship 1, which re-arms from its own NAK halt and holds the preamble bus. The
+        // host may poll slower than the endpoint asks, so raise a short interval to the minimum.
+        uint8_t binterval = desc_ep->bInterval;
+        if (bus_info.speed == TUSB_SPEED_LOW && binterval < 10) {
+          binterval = 10;
+        }
+        edpt->uframe_interval = (uint32_t) binterval << 3;
       }
       break;
 
