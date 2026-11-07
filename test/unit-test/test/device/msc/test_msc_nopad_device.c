@@ -320,38 +320,58 @@ static tusb_control_request_t const request_bot_reset = {
   .wLength       = 0
 };
 
-// A BOT reset with a READ10 chunk still armed aborts the transfers of both data endpoints (here with a DCD without
-// dcd_edpt_abort_xfer(): a stall cleared at once, nothing left stalled) and re-arms the CBW receive: Reset Recovery's
-// clear-halts keep an armed transfer, so the stale chunk would reach the host's next IN (#3188). The Bulk-Out
-// clear-halt re-arms the receive again
-void test_msc_bot_reset_aborts_armed_transfers(void) {
+static void expect_cbw_receive(void) {
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+}
+
+// The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
+static void reset_recovery_clear_halts(void) {
+  clear_halt(EDPT_MSC_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  expect_cbw_receive();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// A BOT reset with a READ10 chunk still armed aborts that stale transfer on Bulk-In, here with a DCD whose
+// dcd_edpt_abort_xfer() drops it without a stall, and arms the CBW receive: Reset Recovery's clear-halts keep an armed
+// transfer, so the stale chunk would reach the host's next IN (#3188). Bulk-Out, idle since the CBW, is not touched,
+// and nothing is stalled
+void test_msc_bot_reset_aborts_armed_data_in(void) {
+  read10_2blocks_first_chunk(512);
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
+  expect_cbw_receive();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// The same reset with a DCD without dcd_edpt_abort_xfer(): usbd_edpt_abort() drops the stale chunk with a stall
+// cleared at once, on Bulk-In only, leaving nothing stalled. Bulk-Out is still not touched
+void test_msc_bot_reset_aborts_armed_data_in_by_stall_without_dcd_abort(void) {
   read10_2blocks_first_chunk(512);
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
   dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
-  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
-  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_cbw_receive();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 
-  clear_halt(EDPT_MSC_IN);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-
-  clear_halt(EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
+  reset_recovery_clear_halts();
 }
 
 // A BOT reset keeps a stall (BOT 3.1): Bulk-In stalled by the short chunk (case 5) is neither aborted nor cleared, and
-// its clear-halt, now in the CMD stage, sends no CSW. Bulk-Out is aborted and re-armed for the next CBW
+// its clear-halt, now in the CMD stage, sends no CSW. Bulk-Out, idle since the CBW, is not aborted, and is armed for
+// the next CBW
 void test_msc_bot_reset_keeps_bulk_in_stall(void) {
   read10_shortfall = 1;
   read10_2blocks_first_chunk(512 - 1);
@@ -361,15 +381,93 @@ void test_msc_bot_reset_keeps_bulk_in_stall(void) {
   tud_task();
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
-  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
+  expect_cbw_receive();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 
   clear_halt(EDPT_MSC_IN);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// SET_CONFIGURATION, with the first CBW receive armed to receive cbw
+static void configure_msc(msc_cbw_t const* cbw) {
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(data_desc_configuration));
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep), true);
+  expect_cbw_receive();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+// A BOT reset while a WRITE10 Data-Out receive is still armed: that stale receive is aborted, so the host's next CBW
+// is not taken as WRITE10 data, and the reset arms the CBW receive in its place. Bulk-In, idle, is not touched, and
+// nothing is stalled
+void test_msc_bot_reset_aborts_armed_data_out(void) {
+  msc_cbw_t const cbw_write10 = {
+    .signature   = MSC_CBW_SIGNATURE,
+    .tag         = 0xCAFECAFE,
+    .total_bytes = 512,
+    .lun         = 0,
+    .dir         = 0,
+    .cmd_len     = sizeof(scsi_write10_t),
+    .command     = { SCSI_CMD_WRITE_10, 0, 0, 0, 0, 0, 0, 0, 1 } // LBA 0, 1 block
+  };
+  configure_msc(&cbw_write10);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, 512, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  expect_cbw_receive();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  reset_recovery_clear_halts();
+}
+
+// A BOT reset between commands, with the CBW receive armed again after the last CSW: neither endpoint holds a stale
+// transfer, so neither is aborted, stalled or cleared, keeping both data toggles (BOT 3.1), and the CBW receive is not
+// armed a second time. The host's next CBW lands in the receive still armed, with no clear-halts needed
+void test_msc_bot_reset_idle_keeps_cbw_receive(void) {
+  msc_cbw_t const cbw_tur = {
+    .signature   = MSC_CBW_SIGNATURE,
+    .tag         = 0xCAFECAFE,
+    .total_bytes = 0,
+    .lun         = 0,
+    .dir         = 0,
+    .cmd_len     = sizeof(scsi_test_unit_ready_t),
+    .command     = { SCSI_CMD_TEST_UNIT_READY }
+  };
+  static msc_cbw_t cbw_next;
+  cbw_next = cbw_tur;
+  cbw_next.tag = 0x12345678;
+
+  configure_msc(&cbw_tur);
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  // the CSW is sent: the CBW receive is armed again, and the host's next CBW will land in it
+  expect_cbw_receive();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_next, sizeof(msc_cbw_t));
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+
+  msc_csw_t csw_next = csw_with_residue(0);
+  csw_next.tag = cbw_next.tag;
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw_next, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
   tud_task();
 }

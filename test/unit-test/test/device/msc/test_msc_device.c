@@ -671,6 +671,13 @@ static void expect_cbw_receive(void) {
   dcd_edpt_xfer_IgnoreArg_buffer();
 }
 
+// The CBW receive, into which the host's next CBW lands
+static void expect_cbw_xfer(msc_cbw_t const* cbw)
+{
+  expect_cbw_receive();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
+}
+
 // The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
 static void reset_recovery_clear_halts(void) {
   clear_halt(EDPT_MSC_IN);
@@ -683,12 +690,34 @@ static void reset_recovery_clear_halts(void) {
   tud_task();
 }
 
-// A BOT reset with neither data endpoint stalled: it aborts the transfers of both (usbd_edpt_abort(), with a DCD that
-// aborts without a stall) and, unless an abandoned async I/O still owns the buffer, re-arms the CBW receive. Then the
-// control status
-static void expect_bot_reset(bool cbw_receive) {
-  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
-  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+// WRITE10 of one block, LBA 0
+static msc_cbw_t const cbw_write10_1block =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = DISK_BLOCK_SIZE,
+  .lun         = 0,
+  .dir         = 0,
+  .cmd_len     = sizeof(scsi_write10_t),
+  .command     = { SCSI_CMD_WRITE_10, 0, 0, 0, 0, 0, 0, 0, 1 }
+};
+
+// Which data endpoints a BOT reset finds with a transfer armed for the abandoned command: it aborts each of them
+// (usbd_edpt_abort(), with a DCD that aborts without a stall) and no other. Unless an abandoned async I/O still owns the
+// buffer, it then arms the CBW receive. Then the control status
+enum {
+  ABORT_NONE = 0,
+  ABORT_IN   = 1,
+  ABORT_OUT  = 2,
+};
+
+static void expect_bot_reset(unsigned aborts, bool cbw_receive) {
+  if (aborts & ABORT_IN) {
+    dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_IN, true);
+  }
+  if (aborts & ABORT_OUT) {
+    dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  }
   if (cbw_receive) {
     expect_cbw_receive();
   }
@@ -697,8 +726,8 @@ static void expect_bot_reset(bool cbw_receive) {
 
 // A Reset Recovery while a READ10 chunk is still armed (the host gave up on the Data Stage): the BOT reset aborts the
 // stale transfer, which Reset Recovery's clear-halts would keep, so it can't carry the next command's data or CSW
-// (#3188)
-void test_msc_bot_reset_aborts_armed_data_endpoints(void)
+// (#3188). Bulk-Out, idle since the CBW, is not touched; the reset arms the CBW receive on it. Nothing is stalled
+void test_msc_bot_reset_aborts_armed_data_in(void)
 {
   read10_2blocks_received();
 
@@ -707,23 +736,92 @@ void test_msc_bot_reset_aborts_armed_data_endpoints(void)
   tud_task();
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(true);
+  expect_bot_reset(ABORT_IN, true);
   tud_task();
 
   reset_recovery_clear_halts();
 }
 
-// A Reset Recovery between commands: the CBW receive is aborted and armed again at the reset, so a host that sends no
-// clear-halts still has its next CBW received
-void test_msc_bot_reset_idle_rearms_cbw_receive(void)
+// A BOT reset while a WRITE10 Data-Out receive is still armed: that stale receive is aborted, so the host's next CBW
+// is not taken as WRITE10 data, and the reset arms the CBW receive in its place. Bulk-In, idle, is not touched, and
+// nothing is stalled
+void test_msc_bot_reset_aborts_armed_data_out(void)
 {
-  configure_msc(&cbw_read10_2blocks);
+  configure_msc(&cbw_write10_1block);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, DISK_BLOCK_SIZE, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(true);
+  expect_bot_reset(ABORT_OUT, true);
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT32(0, write10_calls);
+
+  reset_recovery_clear_halts();
+}
+
+// TEST UNIT READY: no Data Stage, a CSW with tag 0xCAFECAFE
+static msc_cbw_t const cbw_test_unit_ready =
+{
+  .signature   = MSC_CBW_SIGNATURE,
+  .tag         = 0xCAFECAFE,
+  .total_bytes = 0,
+  .lun         = 0,
+  .dir         = 0,
+  .cmd_len     = sizeof(scsi_test_unit_ready_t),
+  .command     = { SCSI_CMD_TEST_UNIT_READY }
+};
+
+// A BOT reset while the CSW of the abandoned command is still armed on Bulk-In: the stale CSW is aborted, so it can't
+// answer the next command's status read, and the reset arms the CBW receive, which the CSW still held up
+void test_msc_bot_reset_aborts_armed_csw(void)
+{
+  configure_msc(&cbw_test_unit_ready);
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(ABORT_IN, true);
   tud_task();
 
   reset_recovery_clear_halts();
+}
+
+// A BOT reset between commands, with the CBW receive armed again after the last CSW: neither endpoint holds a stale
+// transfer, so neither is aborted, stalled or cleared, keeping both data toggles (BOT 3.1), and the CBW receive is not
+// armed a second time. The host's next CBW lands in the receive still armed, with no clear-halts needed
+void test_msc_bot_reset_idle_keeps_cbw_receive(void)
+{
+  static msc_cbw_t cbw_next;
+  cbw_next = cbw_test_unit_ready;
+  cbw_next.tag = 0x12345678;
+
+  configure_msc(&cbw_test_unit_ready);
+
+  msc_csw_t const csw = csw_with_residue(0);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
+
+  // the CSW is sent: the CBW receive is armed again, and the host's next CBW will land in it
+  expect_cbw_xfer(&cbw_next);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  tud_task();
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(ABORT_NONE, false);
+  tud_task();
+
+  msc_csw_t csw_next = csw_with_residue(0);
+  csw_next.tag = cbw_next.tag;
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw_next, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+  tud_task();
 }
 
 // A BOT reset keeps a stall (BOT 3.1): after an invalid CBW both endpoints stay stalled until Reset Recovery's
@@ -756,7 +854,7 @@ static void bot_reset_during_async_read10(bool queue_failed_completion) {
   if (queue_failed_completion) {
     TEST_ASSERT_TRUE(tud_msc_async_io_done(TUD_MSC_RET_ERROR, false));
   }
-  expect_bot_reset(false);
+  expect_bot_reset(ABORT_NONE, false); // nothing armed on either endpoint
   if (queue_failed_completion) {
     expect_cbw_receive(); // the completion, discarded, frees the buffer for the next CBW
   }
@@ -842,25 +940,13 @@ void test_msc_bot_reset_drops_read10_busy_retry(void)
 
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(true);
+  expect_bot_reset(ABORT_NONE, true); // the CBW is consumed and the busy chunk armed nothing
   tud_task();
   TEST_ASSERT_EQUAL_UINT32(1, read10_calls);
 
   reset_recovery_clear_halts();
   TEST_ASSERT_EQUAL_UINT32(1, read10_calls);
 }
-
-// WRITE10 of one block, LBA 0
-static msc_cbw_t const cbw_write10_1block =
-{
-  .signature   = MSC_CBW_SIGNATURE,
-  .tag         = 0xCAFECAFE,
-  .total_bytes = DISK_BLOCK_SIZE,
-  .lun         = 0,
-  .dir         = 0,
-  .cmd_len     = sizeof(scsi_write10_t),
-  .command     = { SCSI_CMD_WRITE_10, 0, 0, 0, 0, 0, 0, 0, 1 }
-};
 
 // tud_msc_write10_cb() answers TUD_MSC_RET_BUSY while the BOT reset is queued: the retry runs after the reset and is
 // dropped. Taken as a CBW of the wrong length, it would stall both endpoints for another Reset Recovery and fail this
@@ -877,7 +963,7 @@ void test_msc_bot_reset_drops_write10_busy_retry(void)
 
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, DISK_BLOCK_SIZE, 0, true);
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(true);
+  expect_bot_reset(ABORT_NONE, true); // the CBW and the host data are consumed: nothing armed
   tud_task();
 
   reset_recovery_clear_halts();
@@ -986,7 +1072,7 @@ void test_msc_bot_reset_discards_late_async_write10(void)
   write10_1block_async_pending(NULL);
 
   dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(false);
+  expect_bot_reset(ABORT_NONE, false); // the host data is consumed: nothing armed
   tud_task();
 
   TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE / 2, false));
@@ -1014,27 +1100,6 @@ void test_msc_bus_reset_waits_for_abandoned_async_write10(void)
 //--------------------------------------------------------------------+
 // read10/write10 error sense
 //--------------------------------------------------------------------+
-static void expect_cbw_xfer(msc_cbw_t const* cbw)
-{
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
-}
-
-static void host_clear_halt(uint8_t ep_addr)
-{
-  tusb_control_request_t const request_clear_halt =
-  {
-    .bmRequestType = 0x02,
-    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
-    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
-    .wIndex        = ep_addr,
-    .wLength       = 0
-  };
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
-  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
-}
-
 // SET_CONFIGURATION, then the host sends a one-block READ10 or WRITE10 of LBA 0
 static void configure_and_send_io_cbw(uint8_t cmd_code)
 {
@@ -1102,7 +1167,7 @@ static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t asc
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   tud_task();
 
-  host_clear_halt(EDPT_MSC_IN);
+  clear_halt(EDPT_MSC_IN);
   expect_failed_io_csw();
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
@@ -1130,7 +1195,7 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t as
   dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
   tud_task();
 
-  host_clear_halt(EDPT_MSC_OUT);
+  clear_halt(EDPT_MSC_OUT);
   expect_cbw_xfer(&cbw_sense);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   host_request_sense(sense_key, asc, ascq);

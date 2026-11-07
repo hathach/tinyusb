@@ -410,16 +410,20 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 static void proc_bot_reset(mscd_interface_t* p_msc) {
   uint8_t const rhport = p_msc->rhport;
 
-  // Drop a transfer still armed at the reset, a stale data or CSW transfer or the CBW receive: Reset Recovery's
-  // clear-halts (BOT 5.3.4) keep the transfer of an endpoint that isn't stalled, so its stale data would reach the
-  // host's next IN. Where the DCD has no dcd_edpt_abort_xfer(), the abort is a stall and clear-stall, which resets the
-  // data toggle as those clear-halts do. A stalled endpoint dropped its transfer when it stalled, and keeps the stall
-  // (BOT 3.1).
-  if (!usbd_edpt_stalled(rhport, p_msc->ep_in)) {
+  // Drop only a transfer the abandoned command left armed: a Data Stage chunk or a CSW on Bulk-In, or a Data-Out
+  // receive on Bulk-Out. Reset Recovery's clear-halts (BOT 5.3.4) keep the transfer of an endpoint that isn't stalled,
+  // so stale data would reach the host's next IN. Where the DCD has no dcd_edpt_abort_xfer(), the abort is a stall and
+  // clear-stall, which also resets the data toggle. An idle endpoint, and the CBW receive armed on Bulk-Out between
+  // commands (the only transfer armed in the CMD stage), are left alone: BOT 3.1 preserves the data toggles and the
+  // reset readies the device for that next CBW. A stalled endpoint dropped its transfer when it stalled, and keeps the
+  // stall (BOT 3.1).
+  if (usbd_edpt_busy(rhport, p_msc->ep_in) && !usbd_edpt_stalled(rhport, p_msc->ep_in)) {
     usbd_edpt_abort(rhport, p_msc->ep_in);
   }
   bool const out_stalled = usbd_edpt_stalled(rhport, p_msc->ep_out);
-  if (!out_stalled) {
+  bool const out_armed   = !out_stalled && usbd_edpt_busy(rhport, p_msc->ep_out);
+  bool const cbw_armed   = out_armed && (p_msc->stage == MSC_STAGE_CMD);
+  if (out_armed && !cbw_armed) {
     usbd_edpt_abort(rhport, p_msc->ep_out);
   }
 
@@ -434,8 +438,9 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
   p_msc->add_sense_code      = 0;
   p_msc->add_sense_qualifier = 0;
 
-  // Receive the next CBW, unless Bulk-Out is stalled (its clear-halt arms it) or an abandoned async I/O owns the buffer
-  if (!out_stalled && !p_msc->pending_io) {
+  // Receive the next CBW, unless it is still armed, Bulk-Out is stalled (its clear-halt arms it) or an abandoned async
+  // I/O owns the buffer
+  if (!out_stalled && !cbw_armed && !p_msc->pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), );
   }
 }
