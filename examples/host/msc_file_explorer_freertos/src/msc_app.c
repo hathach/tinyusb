@@ -198,7 +198,7 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
   const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
   printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
-    block_count, block_size, block_count / ((1024 * 1024) / block_size));
+    block_count, block_size, (uint32_t) (((uint64_t) block_count * block_size) >> 20));
 
   // For simplicity: we only mount 1 LUN per device
   const uint8_t drive_num     = dev_addr - 1;
@@ -271,8 +271,17 @@ DSTATUS disk_status(BYTE pdrv /* Physical drive nmuber to identify the drive */
 
 DSTATUS disk_initialize(BYTE pdrv /* Physical drive nmuber to identify the drive */
 ) {
-  (void)pdrv;
-  return 0;                       // nothing to do
+  const uint8_t dev_addr = pdrv + 1;
+  const uint8_t lun      = 0;
+
+  // FatFS moves whole sectors through FF_MAX_SS-byte buffers and, when FF_MIN_SS == FF_MAX_SS,
+  // never asks for the device's sector size: refuse one outside the range it was built for
+  const uint32_t block_size = tuh_msc_get_block_size(dev_addr, lun);
+  if (block_size < FF_MIN_SS || block_size > FF_MAX_SS) {
+    return STA_NOINIT;
+  }
+
+  return 0;
 }
 
 DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive */
@@ -436,6 +445,10 @@ void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
   const uint8_t  lun         = 0;
   const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, lun);
   const uint32_t block_count = tuh_msc_get_block_count(dev_addr, lun);
+  if (block_size == 0 || block_size > sizeof(rw_buf)) {
+    printf("dd: unsupported block size %" PRIu32 "\r\n", block_size);
+    return;
+  }
   if (count > block_count) {
     count = block_count;
   }
