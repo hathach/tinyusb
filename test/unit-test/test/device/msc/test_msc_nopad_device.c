@@ -228,17 +228,26 @@ static msc_cbw_t const cbw_read10_2blocks = {
   .command     = { SCSI_CMD_READ_10, 0, 0, 0, 0, 0, 0, 0, 2 } // LBA 0, 2 blocks
 };
 
-// SET_CONFIGURATION, then the CBW of a 2-block READ10, whose first chunk is armed on Bulk-In with chunk_len bytes
-static void read10_2blocks_first_chunk(uint16_t chunk_len) {
+static void expect_cbw_receive(void) {
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+}
+
+// SET_CONFIGURATION, with the first CBW receive armed to receive cbw
+static void configure_msc(msc_cbw_t const* cbw) {
   uint8_t const* desc_ep = tu_desc_next(tu_desc_next(data_desc_configuration));
   dcd_event_setup_received(rhport, (uint8_t const*) &request_set_configuration, false);
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) desc_ep, true);
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_read10_2blocks, sizeof(msc_cbw_t));
+  expect_cbw_receive();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
+}
+
+// SET_CONFIGURATION, then the CBW of a 2-block READ10, whose first chunk is armed on Bulk-In with chunk_len bytes
+static void read10_2blocks_first_chunk(uint16_t chunk_len) {
+  configure_msc(&cbw_read10_2blocks);
 
   // the chunk: chunk_len bytes from LBA 0 offset 0
   uint8_t expected[512];
@@ -320,11 +329,6 @@ static tusb_control_request_t const request_bot_reset = {
   .wLength       = 0
 };
 
-static void expect_cbw_receive(void) {
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-}
-
 // The clear-halts of Reset Recovery: the Bulk-Out one re-arms it for the next CBW
 static void reset_recovery_clear_halts(void) {
   clear_halt(EDPT_MSC_IN);
@@ -386,18 +390,6 @@ void test_msc_bot_reset_keeps_bulk_in_stall(void) {
   tud_task();
 
   clear_halt(EDPT_MSC_IN);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
-}
-
-// SET_CONFIGURATION, with the first CBW receive armed to receive cbw
-static void configure_msc(msc_cbw_t const* cbw) {
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(data_desc_configuration));
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep), true);
-  expect_cbw_receive();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
 }
