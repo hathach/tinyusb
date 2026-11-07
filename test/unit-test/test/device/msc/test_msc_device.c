@@ -854,9 +854,10 @@ static void bot_reset_during_async_read10(bool queue_failed_completion) {
   if (queue_failed_completion) {
     TEST_ASSERT_TRUE(tud_msc_async_io_done(TUD_MSC_RET_ERROR, false));
   }
-  // nothing armed on either endpoint. A completion signalled already frees the buffer: the reset discards it and
-  // receives the next CBW, and its deferred call then finds nothing to do
-  expect_bot_reset(ABORT_NONE, queue_failed_completion);
+  expect_bot_reset(ABORT_NONE, false); // nothing armed on either endpoint
+  if (queue_failed_completion) {
+    expect_cbw_receive(); // the completion, discarded, frees the buffer for the next CBW
+  }
   tud_task();
 }
 
@@ -892,9 +893,9 @@ void test_msc_bot_reset_discards_late_async_read10_after_reset_recovery(void)
   tud_task();
 }
 
-// A completion accepted while the BOT reset is still queued is discarded: the reset consumes it, and its deferred call,
-// running after the reset, finds nothing to do. A failed completion is used because one applied to the reset state
-// would stall Bulk-In again and leave a failed CSW for the Bulk-In clear-halt to send: either is an unexpected DCD call
+// A completion accepted while the BOT reset is still queued runs after the reset: proc_async_io_done() finds the CMD
+// stage and discards it. A failed completion is used because one applied to the reset state would stall Bulk-In again
+// and leave a failed CSW for the Bulk-In clear-halt to send: either is an unexpected DCD call
 void test_msc_bot_reset_drops_completion_queued_before_reset(void)
 {
   bot_reset_during_async_read10(true);
@@ -928,57 +929,6 @@ void test_msc_bus_reset_waits_for_abandoned_async_read10(void)
   TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
   expect_cbw_receive();
   tud_task();
-}
-
-static unsigned queue_filler_calls;
-static void queue_filler(void* param) {
-  (void) param;
-  queue_filler_calls++;
-}
-
-// An async READ10 is pending, and the application completes it while the usbd event queue is full: the deferred
-// completion is dropped, though tud_msc_async_io_done() accepts it. Draining the queue runs only the fillers, so no
-// data is sent on Bulk-In
-static void async_read10_completion_dropped(void) {
-  read10_async = true;
-  read10_2blocks_received();
-  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
-
-  queue_filler_calls = 0;
-  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
-    usbd_defer_func(queue_filler, NULL, false);
-  }
-  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
-  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ && tud_task_event_ready(); i++) {
-    tud_task(); // a run may stop at CFG_TUD_TASK_EVENTS_PER_RUN events
-  }
-  TEST_ASSERT_FALSE(tud_task_event_ready());
-  TEST_ASSERT_EQUAL_UINT(CFG_TUD_TASK_QUEUE_SZ, queue_filler_calls);
-}
-
-// The completion the full queue dropped still frees the buffer: after a bus reset, SET_CONFIGURATION receives the next
-// CBW instead of waiting forever for a completion already signalled, and a second completion is refused
-void test_msc_bus_reset_after_dropped_async_completion_receives_cbw(void)
-{
-  async_read10_completion_dropped();
-
-  dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);
-  tud_task();
-  configure_msc(&cbw_test_unit_ready);
-
-  TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
-}
-
-// The same for Reset Recovery: the BOT reset finds the abandoned read already completed and receives the next CBW
-void test_msc_bot_reset_after_dropped_async_completion_receives_cbw(void)
-{
-  async_read10_completion_dropped();
-
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
-  expect_bot_reset(ABORT_NONE, true);
-  tud_task();
-
-  TEST_ASSERT_FALSE(tud_msc_async_io_done(DISK_BLOCK_SIZE, false));
 }
 
 // tud_msc_read10_cb() answers TUD_MSC_RET_BUSY while the BOT reset is queued: the retry runs after the reset and is

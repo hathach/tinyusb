@@ -72,19 +72,9 @@ typedef struct {
 
 static mscd_interface_t _mscd_itf;
 
-// State of the READ10/WRITE10 I/O handed to tud_msc_read10_cb()/tud_msc_write10_cb(), pending from that call until its
-// result is consumed. Each transition is one store
-enum {
-  MSC_IO_IDLE = 0, // result consumed: tud_msc_async_io_done() accepts no result until the next I/O starts
-  MSC_IO_PENDING, // waiting for tud_msc_async_io_done()
-  MSC_IO_DONE     // _mscd_io_result signalled, not consumed yet by the USB task
-};
-
-// tud_msc_async_io_done() reads and writes it from any context. Kept out of _mscd_itf, which a bus reset clears, so an
-// I/O abandoned by that reset stays pending. The result is kept apart from the deferred call, which a full usbd event
-// queue drops: a reset that abandoned the I/O consumes it itself (abandoned_io_owns_buffer())
-static volatile uint8_t _mscd_io_state;
-static volatile int32_t _mscd_io_result;
+// An async READ10/WRITE10 is pending; tud_msc_async_io_done() reads it from any context. Kept out of _mscd_itf,
+// which a bus reset clears, so no store makes it read false while an I/O abandoned by that reset is outstanding
+static bool _mscd_pending_io;
 
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_MSC_EP_BUFSIZE);
@@ -102,17 +92,6 @@ static void proc_write10_cmd(mscd_interface_t* p_msc);
 static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_bytes);
 static void proc_write_io_data(mscd_interface_t* p_msc, uint32_t xferred_bytes, int32_t nbytes);
 static bool proc_stage_status(mscd_interface_t* p_msc);
-
-// In the CMD stage, a pending async I/O is one a reset abandoned. Once its result is signalled the buffer is free, even
-// if the deferred proc_async_io_done() was dropped by a full usbd event queue or has not run yet: consume the result
-// here (that call then finds nothing left to do). Returns whether the abandoned I/O still owns the buffer
-static bool abandoned_io_owns_buffer(void) {
-  uint8_t const state = _mscd_io_state; // one read: tud_msc_async_io_done() may signal it meanwhile
-  if (state == MSC_IO_DONE) {
-    _mscd_io_state = MSC_IO_IDLE;
-  }
-  return state == MSC_IO_PENDING;
-}
 
 TU_ATTR_ALWAYS_INLINE static inline bool is_data_in(uint8_t dir) {
   return tu_bit_test(dir, 7);
@@ -331,15 +310,13 @@ TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lu
   }
 }
 
-static void proc_async_io_done(void *param) {
-  (void) param;
+static void proc_async_io_done(void *bytes_io) {
   mscd_interface_t *p_msc = &_mscd_itf;
-  // Nothing to do for a result consumed already, by a reset that abandoned its I/O (abandoned_io_owns_buffer())
-  TU_VERIFY(_mscd_io_state == MSC_IO_DONE, );
-  const int32_t nbytes = _mscd_io_result;
+  TU_VERIFY(_mscd_pending_io, );
+  const int32_t nbytes = (int32_t) (intptr_t) bytes_io;
   const uint8_t cmd = p_msc->cbw.command[0];
 
-  _mscd_io_state = MSC_IO_IDLE;
+  _mscd_pending_io = false;
   if (p_msc->stage == MSC_STAGE_CMD) {
     // I/O abandoned by a reset: discard it. The buffer is free now, receive the next CBW unless Bulk-Out is still
     // stalled (its clear-halt arms it) or not open yet after a bus reset (mscd_open() arms it)
@@ -369,16 +346,12 @@ static void proc_async_io_done(void *param) {
 }
 
 bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr) {
-  // One result per pending I/O: a second one is refused instead of queueing another RW done callback
-  TU_VERIFY(_mscd_io_state == MSC_IO_PENDING);
+  // Precheck to avoid queueing multiple RW done callback
+  TU_VERIFY(_mscd_pending_io);
   if (bytes_io == 0) {
     bytes_io = TUD_MSC_RET_ERROR; // 0 is treated as error, no reason to call this with BUSY here
   }
-  // Recorded before it is deferred: a full usbd event queue drops the deferred call, but not the result, which a reset
-  // that abandoned the I/O then consumes
-  _mscd_io_result = bytes_io;
-  _mscd_io_state = MSC_IO_DONE; // after the result it signals
-  usbd_defer_func(proc_async_io_done, NULL, in_isr);
+  usbd_defer_func(proc_async_io_done, (void *) (intptr_t) bytes_io, in_isr);
   return true;
 }
 
@@ -388,8 +361,7 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr) {
 void mscd_init(void) {
   TU_LOG_INT(CFG_TUD_MSC_LOG_LEVEL, sizeof(mscd_interface_t));
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
-  _mscd_io_state = MSC_IO_IDLE;
-  _mscd_io_result = 0;
+  _mscd_pending_io = false;
 }
 
 bool mscd_deinit(void) {
@@ -399,7 +371,7 @@ bool mscd_deinit(void) {
 void mscd_reset(uint8_t rhport) {
   (void) rhport;
   // A bus reset abandons a pending async I/O like a Bulk-Only Mass Storage Reset does (proc_bot_reset): the clear
-  // leaves _mscd_io_state pending, so its completion is still accepted and discarded
+  // leaves _mscd_pending_io set, so its completion is still accepted and discarded
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
@@ -431,7 +403,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
   // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
   // completion arms it
-  if (!abandoned_io_owns_buffer()) {
+  if (!_mscd_pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), drv_len);
   }
 
@@ -458,10 +430,9 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
     usbd_edpt_abort(rhport, p_msc->ep_out);
   }
 
-  // An async READ10/WRITE10 still pending is abandoned: _mscd_io_state stays pending in the CMD stage, where no command
+  // An async READ10/WRITE10 still pending is abandoned: _mscd_pending_io stays set in the CMD stage, where no command
   // has I/O of its own, so proc_async_io_done() discards its completion whenever it comes. The I/O still owns the
-  // buffer, so the next CBW is received only after that completion, or here when it was signalled already and its
-  // deferred call has not run or was dropped (abandoned_io_owns_buffer()). A completion deferred ahead of the reset ran
+  // buffer, so the next CBW is received only after that completion. A completion deferred ahead of the reset ran
   // before it, and its transfer is dropped by the abort above.
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
@@ -472,7 +443,7 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
 
   // Receive the next CBW, unless it is still armed, Bulk-Out is stalled (its clear-halt arms it) or an abandoned async
   // I/O owns the buffer
-  if (!out_stalled && !cbw_armed && !abandoned_io_owns_buffer()) {
+  if (!out_stalled && !cbw_armed && !_mscd_pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), );
   }
 }
@@ -508,7 +479,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if (p_msc->stage == MSC_STAGE_CMD) {
           // part of reset recovery (probably due to invalid CBW) -> prepare for new command
           // Note: skip if already queued previously, or if an async I/O abandoned by the reset still owns the buffer
-          if (!abandoned_io_owns_buffer() && usbd_edpt_ready(rhport, p_msc->ep_out)) {
+          if (!_mscd_pending_io && usbd_edpt_ready(rhport, p_msc->ep_out)) {
             TU_ASSERT(prepare_cbw(p_msc));
           }
         }
@@ -989,10 +960,10 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t)tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_cbw->total_bytes - p_msc->xferred_len);
 
-  _mscd_io_state = MSC_IO_PENDING;
+  _mscd_pending_io = true;
   nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, (uint32_t)nbytes);
   if (nbytes != TUD_MSC_RET_ASYNC) {
-    _mscd_io_state = MSC_IO_IDLE;
+    _mscd_pending_io = false;
     proc_read_io_data(p_msc, nbytes);
   }
 }
@@ -1062,10 +1033,10 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
   uint32_t const offset = p_msc->xferred_len % block_sz;
 
   p_msc->write_len = (uint16_t) xferred_bytes; // at most CFG_TUD_MSC_EP_BUFSIZE
-  _mscd_io_state = MSC_IO_PENDING;
+  _mscd_pending_io = true;
   int32_t nbytes =  tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
   if (nbytes != TUD_MSC_RET_ASYNC) {
-    _mscd_io_state = MSC_IO_IDLE;
+    _mscd_pending_io = false;
     proc_write_io_data(p_msc, xferred_bytes, nbytes);
   }
 }
