@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-// MSC device with CFG_TUD_MSC_PAD_SHORT_REPLY=0, the default on every MCU but RP2040. test_msc_device.c covers the
+// MSC device with CFG_TUD_MSC_PAD_SHORT_REPLY=0, the default at high speed. test_msc_device.c covers the
 // padded build; the file name must not contain "test_msc_device", or project.yml's matcher for it applies here too.
 
 #include "unity.h"

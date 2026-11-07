@@ -31,10 +31,12 @@
 
 // Pad a Data-In reply shorter than the host's length with fill data, instead of a STALL after it (BOT 6.7.2 case 5),
 // when the host's length fits CFG_TUD_MSC_EP_BUFSIZE; a READ10 ending in a partial chunk (tud_msc_read10_cb) is filled
-// up to the host's length whatever its size. Behind a hub, a STALL makes the host clear the hub's TT buffer, which can
-// cut off a token in progress on the bus: the RP2040 device controller then stops responding until bus reset.
+// up to the host's length whatever its size. Behind a high-speed hub, a full-speed device's STALL makes the host clear
+// the hub's TT buffer, which can cut off a token in progress on any of the hub's full-speed ports: an RP2040 device
+// controller there then stops responding until bus reset (docs/reference/device_issues.rst). On by default at full
+// speed, so the device neither locks up itself nor knocks out an RP2040 next to it; a high-speed STALL clears no TT.
 #ifndef CFG_TUD_MSC_PAD_SHORT_REPLY
-  #define CFG_TUD_MSC_PAD_SHORT_REPLY (TU_CHECK_MCU(OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB)
+  #define CFG_TUD_MSC_PAD_SHORT_REPLY (!TUD_OPT_HIGH_SPEED)
 #endif
 
 // Return value of callback functions
