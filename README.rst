@@ -267,7 +267,9 @@ Supported CPUs
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
 | Puya         | PY32F071, PY32F072          | ✅     | ❌   | ❌        | musb                   | 1-dir ep [6]_      |
 +--------------+-----------------------------+--------+------+-----------+------------------------+--------------------+
-| Raspberry Pi | RP2040, RP2350              | ✅     | ✅   | ❌        | rp2040, pio_usb        |                    |
+| Raspberry Pi | RP2040                      | ✅     | ✅   | ❌        | rp2040, pio_usb        | Hub TT lockup [7]_ |
+|              +-----------------------------+--------+------+-----------+------------------------+--------------------+
+|              | RP2350                      | ✅     | ✅   | ❌        | rp2040, pio_usb        |                    |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+--------------------+
 | Renesas      | RX  | 63N, 65N, 72N         | ✅     | ✅   | ❌        | rusb2                  |                    |
 |              +-----+-----------------------+--------+------+-----------+------------------------+--------------------+
@@ -338,6 +340,7 @@ Table Legend
 .. [4] Endpoint conflict on affected RT10xx parts and silicon revisions, see `NXP i.MX RT ERR050101 <docs/reference/device_issues.rst#nxp-i-mx-rt1015-rt1020-rt1024-rt1050-rt1060-rt1064>`_
 .. [5] Speed detection and ISO IN limitations on LPC55S2x/LPC552x, see `NXP LPC55S2x/LPC552x issues <docs/reference/device_issues.rst#nxp-lpc55s2x-lpc552x>`_
 .. [6] Shared endpoint FIFOs and packet-size limits, see `Puya PY32F071/072 limitations <docs/reference/device_issues.rst#puya-py32f071-072>`_
+.. [7] Device controller lockup behind a high-speed hub, see `Raspberry Pi RP2040 lockup <docs/reference/device_issues.rst#raspberry-pi-rp2040>`_
 
 Development Tools
 -----------------
