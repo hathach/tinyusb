@@ -143,71 +143,36 @@ Raspberry Pi RP2040
 **Severity: High** for a full-speed device behind a high-speed hub
 
 Reference: RP2040-E15 in the `RP2040 Datasheet`_; section 12.7.2.2.4 of the `RP2350 Datasheet`_ describes the cause
-and its fix in RP2350.
+and its fix in RP2350 (``LINESTATE_TUNING.SIE_RX_BITSTUFF_FIX``, set at reset), which is not affected.
 
 .. _RP2040 Datasheet: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 .. _RP2350 Datasheet: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
 
-When a hub cuts off a token on the device's port with a bit-stuffing error, the device controller can lock up. It
-then answers no token, SETUP included, until the host resets the port. The core keeps running, and the only trace is
-``SIE_STATUS.BIT_STUFF_ERROR``.
+When a hub cuts off a token on the device's port with a bit-stuffing error, the device controller locks up and answers
+nothing, SETUP included, until a bus reset; only ``SIE_STATUS.BIT_STUFF_ERROR`` shows it. Besides the VL805 case of the
+erratum, a Genesys 05e3:0610 hub does this even in multi-TT mode: when a full-speed device on any of its ports returns
+STALL, the host's Clear_TT_Buffer request can cut off the RP2040's transaction in progress. A WCH 1a86:8091 hub was not
+affected.
 
-The erratum describes the Raspberry Pi 4's VL805 hub at the end of a frame, but an ordinary high-speed hub does it too.
-When a full-speed bulk or control endpoint behind the hub returns STALL, the host clears the hub's TT buffer for that
-endpoint (Clear_TT_Buffer). On a Genesys 05e3:0610 hub, this can cut off the packet in progress on any of the hub's
-full-speed ports, the stalled device's and the others alike. This happens even in multi-TT mode, where each port has
-its own transaction translator. A capture of the hub's high-speed link showed an RP2040 going silent from the
-transaction it had in progress while the hub handled a Clear_TT_Buffer for another port. Any full-speed device's STALL
-can trigger it: a mass storage device that stalls the kernel's 192-byte MODE SENSE, about every 25 s during disk
-traffic, is enough. A WCH 1a86:8091 hub in multi-TT mode, with the same devices and the same Clear_TT_Buffer requests,
-left the RP2040 unaffected in 7 of 7 runs.
+The hub then answers STALL for the locked device, so recovery depends on the host's class driver. On Linux,
+``usb-storage`` resets the port and the device re-enumerates; ``snd-usb-audio`` never does, so an audio device stays
+dead until replugged; ``cdc_acm`` keeps clearing the TT buffer, about twice per millisecond, which in turn keeps cutting
+off the hub's other full-speed devices. Toggling ``MAIN_CTRL.CONTROLLER_EN`` or ``SIE_CTRL.TRANSCEIVER_PD`` does not
+recover the controller, and TinyUSB's E15 workaround (no bulk IN armed late in a frame) does not cover this case.
 
-The hub then answers for the silent device: STALL to its control and bulk transactions, an error to its periodic ones.
-To the host the locked device seems to stall every control request, and how it recovers depends on the class driver.
-On a Linux host:
-
-- Mass storage: ``usb-storage`` times out and resets the port, so the device re-enumerates and loses its class state.
-- Audio: ``snd-usb-audio`` never resets the port, so the device stays dead until it is unplugged. A ``uac2_headset``
-  locked up in 5 of 10 one-minute runs next to a stalling mass storage device.
-- CDC: each stalled bulk transfer makes the host clear the hub's TT buffer again, as long as the tty is open: about 2
-  Clear_TT_Buffer requests per millisecond, which keep cutting off the other full-speed devices on the hub. An STM32
-  mass storage device on another port was reset 115 to 168 times a minute, with I/O errors, in 5 of 5 runs.
-
-This was also measured on a Linux host with that hub in multi-TT mode and a second full-speed device on another port:
-
-- An RP2040 ``cdc_msc`` device was reset about 4 times per enumeration, once per MSC STALL during the disk probe, while
-  the other device streamed HID.
-- An STM32 (FSDEV) device in the same place was reset 3 times in 41 enumerations.
-- An RP2040 streaming HID locked up in 38 of 100 disk probes of an STM32 ``cdc_msc`` device on another port, and in
-  none of 60 when that device padded its short replies instead of stalling.
-
-RP2350 is not affected: its controller has the fix (``LINESTATE_TUNING.SIE_RX_BITSTUFF_FIX``, set at reset).
-
-On RP2040, nothing short of a bus reset recovers the controller. Pulsing ``MAIN_CTRL.CONTROLLER_EN`` or
-``SIE_CTRL.TRANSCEIVER_PD`` from the bit-stuff error interrupt did not help. TinyUSB's E15 workaround, which keeps bulk
-IN buffers from being armed late in a frame, does not cover this case.
-
-Mitigation in TinyUSB: at full speed, the MSC device class pads a short Data-In reply with zeros up to the host's
-length instead of stalling, by default on every MCU (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall instead), so a
-TinyUSB mass storage device triggers no lockup in itself or in an RP2040 on the same hub:
-
-- A reply to a command other than READ10 is padded only when the host's length is at most
-  ``CFG_TUD_MSC_EP_BUFSIZE``. A longer host length still gets the STALL.
-- A READ10 chunk shorter than requested and not a multiple of the Bulk-In packet size is padded for any host length.
-  A partial chunk that is a multiple of the packet size needs no padding: the transfer continues with the next chunk.
-
-That removes the most frequent STALLs, those during the disk probe and the kernel's periodic MODE SENSE. Any other
-STALL can still trigger the lockup, from this device or from another full-speed device on the same hub.
+Mitigation in TinyUSB: at full speed, on every MCU, the MSC device class pads a short Data-In reply with zeros instead
+of stalling (``CFG_TUD_MSC_PAD_SHORT_REPLY``, 0 to stall): a reply to a command other than READ10 when the host's length
+is at most ``CFG_TUD_MSC_EP_BUFSIZE``, and a short READ10 chunk that is not a multiple of the packet size. This removes
+the frequent STALLs of the disk probe and the kernel's periodic MODE SENSE: an RP2040 next to an STM32 mass storage
+device locked up in none of 60 disk probes, against 38 of 100 without padding. Any other STALL on the hub can still
+trigger it.
 
 Workarounds:
 
-- Connect the RP2040 to a root port, which has no transaction translator. A multi-TT hub is not enough: the Genesys
-  hub above was in multi-TT mode.
-- Detect the lockup in the application and restart the device stack with ``tud_deinit()`` followed, after a short
-  delay, by ``tud_init()``, as Raspberry Pi's debugprobe firmware does. On RP2040 ``tud_deinit()`` resets the USB
-  controller block and ``tud_init()`` sets it up again; ``tud_disconnect()`` and ``tud_connect()`` only switch the D+
-  pull-up and do not reset the controller. The sign of a lockup is that the frame counter ``SOF_RD`` stops advancing
-  while the device is connected and not suspended.
+- Connect the RP2040 to a root port, or to a hub that is not affected.
+- Detect the lockup (``SOF_RD`` stops advancing while connected and not suspended) and restart the stack with
+  ``tud_deinit()`` and, after a short delay, ``tud_init()``, as Raspberry Pi's debugprobe firmware does.
+  ``tud_disconnect()`` and ``tud_connect()`` only switch the D+ pull-up and do not reset the controller.
 
 Espressif ESP32-S2/S3/P4
 ------------------------
