@@ -233,7 +233,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_power_of_two(uint32_t value) {
 }
 
 //------------- Unaligned Access -------------//
-#if TUP_ARCH_STRICT_ALIGN
+// Cores that access unaligned memory natively (TUP_ARCH_STRICT_ALIGN = 0, e.g. Cortex-M3/M4/M7/M33) also use the
+// packed structs: dereferencing a misaligned uint32_t* or uint16_t* is undefined behavior in C, and the compiler may
+// then emit LDRD/LDM/STRD/STM or merge accesses, which fault on Cortex-M. A packed access still compiles to a single
+// unaligned LDR/STR(H) on those cores.
+#if TUP_ARCH_STRICT_ALIGN || !TUP_MCU_STRICT_ALIGN
 
 // Rely on compiler to generate correct code for unaligned access
 typedef struct { uint16_t val; } TU_ATTR_PACKED tu_unaligned_uint16_t;
@@ -287,25 +291,6 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u16_low(value);
   buf8[1] = tu_u16_high(value);
-}
-
-#else
-
-// MCU that could access unaligned memory natively
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void *mem) {
-  return *((uint32_t const *) mem);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void *mem) {
-  return *((uint16_t const *) mem);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void *mem, uint32_t value) {
-  *((uint32_t *) mem) = value;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_t value) {
-  *((uint16_t *) mem) = value;
 }
 
 #endif
