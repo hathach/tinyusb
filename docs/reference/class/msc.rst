@@ -17,10 +17,11 @@ callback argument.
 ``CFG_TUD_MSC_EP_BUFSIZE`` has no default and is required when MSC is enabled.
 It is the class transfer-buffer size, not the media capacity.  Using at least
 one logical block is efficient; larger values improve large transfers at the
-cost of static RAM.  It must be at least 64 and below 65535 bytes, and should be
-a multiple of the bulk endpoint's maximum packet size (512 at high speed) so
-that READ10/WRITE10 data is split only on packet boundaries.  Keep it
-consistent with controller/DMA constraints.
+cost of static RAM.  It must be at least 64 and below 65535 bytes, and a
+multiple of the Bulk-In endpoint's maximum packet size (64 at full speed, 512
+at high speed), so that a full READ10 chunk ends on a packet boundary: the
+interface fails to open otherwise.  Keep it consistent with controller/DMA
+constraints.
 
 The application must implement ``tud_msc_test_unit_ready_cb()``,
 ``tud_msc_capacity_cb()``, ``tud_msc_read10_cb()``, ``tud_msc_write10_cb()``
