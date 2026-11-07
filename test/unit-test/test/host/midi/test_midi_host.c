@@ -121,6 +121,20 @@ void tearDown(void) {
   midih_close(MIDI_DEV_ADDR);
 }
 
+// wMaxPacketSize sizes the transfers into the endpoint buffer, a device must not be able to exceed it
+void test_open_rejects_packet_size_over_ep_buffer(void) {
+  midih_close(MIDI_DEV_ADDR);
+
+  uint8_t desc[sizeof(midi_itf_desc)];
+  memcpy(desc, midi_itf_desc, sizeof(desc));
+  const uint16_t mps = TUH_EPSIZE_BULK_MAX + 1;
+  // IN endpoint is the 2nd to last descriptor, followed by its 5-byte CS endpoint
+  desc[sizeof(desc) - 5 - 9 + 4] = TU_U16_LOW(mps);
+  desc[sizeof(desc) - 5 - 9 + 5] = TU_U16_HIGH(mps);
+
+  TEST_ASSERT_EQUAL(0, midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)desc, sizeof(desc)));
+}
+
 // A message larger than the room left in the buffer must stay in the FIFO, not be written past bufsize
 void test_stream_read_stays_within_bufsize(void) {
   const uint8_t packets[] = {

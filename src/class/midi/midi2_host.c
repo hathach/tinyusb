@@ -215,6 +215,8 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
 
         TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep), NULL);
+        // after tuh_edpt_open(), which can rewrite a bulk size: the transfer length follows it into _midi2_epbuf
+        TU_VERIFY(tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX, NULL);
         if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
           tu_edpt_stream_clear(&p_midi->ep_stream.rx);
