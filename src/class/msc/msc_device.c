@@ -79,6 +79,10 @@ CFG_TUD_MEM_SECTION static struct {
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE >= 64, "CFG_TUD_MSC_EP_BUFSIZE must be at least 64");
 
+// A full READ10 chunk must end on a packet boundary: one ending in a short packet ends the Data Stage (mscd_xfer())
+TU_VERIFY_STATIC((CFG_TUD_MSC_EP_BUFSIZE % (TUD_OPT_HIGH_SPEED ? 512 : 64)) == 0,
+                 "CFG_TUD_MSC_EP_BUFSIZE must be a multiple of the bulk packet size (512 high speed, 64 full speed)");
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
