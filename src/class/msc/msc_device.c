@@ -63,7 +63,6 @@ typedef struct {
   uint8_t add_sense_code;
   uint8_t add_sense_qualifier;
 
-  bool pending_io; // pending async IO
 #if CFG_TUD_MSC_PAD_SHORT_REPLY
   bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
 #endif
@@ -72,6 +71,10 @@ typedef struct {
 }mscd_interface_t;
 
 static mscd_interface_t _mscd_itf;
+
+// An async READ10/WRITE10 is pending; tud_msc_async_io_done() reads it from any context. Kept out of _mscd_itf,
+// which a bus reset clears, so no store makes it read false while an I/O abandoned by that reset is outstanding
+static bool _mscd_pending_io;
 
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_MSC_EP_BUFSIZE);
@@ -309,11 +312,11 @@ TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lu
 
 static void proc_async_io_done(void *bytes_io) {
   mscd_interface_t *p_msc = &_mscd_itf;
-  TU_VERIFY(p_msc->pending_io, );
+  TU_VERIFY(_mscd_pending_io, );
   const int32_t nbytes = (int32_t) (intptr_t) bytes_io;
   const uint8_t cmd = p_msc->cbw.command[0];
 
-  p_msc->pending_io = false;
+  _mscd_pending_io = false;
   if (p_msc->stage == MSC_STAGE_CMD) {
     // I/O abandoned by a reset: discard it. The buffer is free now, receive the next CBW unless Bulk-Out is still
     // stalled (its clear-halt arms it) or not open yet after a bus reset (mscd_open() arms it)
@@ -344,7 +347,7 @@ static void proc_async_io_done(void *bytes_io) {
 
 bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr) {
   // Precheck to avoid queueing multiple RW done callback
-  TU_VERIFY(_mscd_itf.pending_io);
+  TU_VERIFY(_mscd_pending_io);
   if (bytes_io == 0) {
     bytes_io = TUD_MSC_RET_ERROR; // 0 is treated as error, no reason to call this with BUSY here
   }
@@ -358,6 +361,7 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr) {
 void mscd_init(void) {
   TU_LOG_INT(CFG_TUD_MSC_LOG_LEVEL, sizeof(mscd_interface_t));
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
+  _mscd_pending_io = false;
 }
 
 bool mscd_deinit(void) {
@@ -366,10 +370,9 @@ bool mscd_deinit(void) {
 
 void mscd_reset(uint8_t rhport) {
   (void) rhport;
-  // A bus reset abandons a pending async I/O like a Bulk-Only Mass Storage Reset does (proc_bot_reset)
-  bool const pending_io = _mscd_itf.pending_io;
+  // A bus reset abandons a pending async I/O like a Bulk-Only Mass Storage Reset does (proc_bot_reset): the clear
+  // leaves _mscd_pending_io set, so its completion is still accepted and discarded
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
-  _mscd_itf.pending_io = pending_io;
 }
 
 uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
@@ -400,7 +403,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
 
   // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
   // completion arms it
-  if (!p_msc->pending_io) {
+  if (!_mscd_pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), drv_len);
   }
 
@@ -427,10 +430,10 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
     usbd_edpt_abort(rhport, p_msc->ep_out);
   }
 
-  // An async READ10/WRITE10 still pending is abandoned: pending_io stays set in the CMD stage, where no command has I/O
-  // of its own, so proc_async_io_done() discards its completion whenever it comes. The I/O still owns the buffer, so
-  // the next CBW is received only after that completion. A completion deferred ahead of the reset ran before it, and
-  // its transfer is dropped by the abort above.
+  // An async READ10/WRITE10 still pending is abandoned: _mscd_pending_io stays set in the CMD stage, where no command
+  // has I/O of its own, so proc_async_io_done() discards its completion whenever it comes. The I/O still owns the
+  // buffer, so the next CBW is received only after that completion. A completion deferred ahead of the reset ran
+  // before it, and its transfer is dropped by the abort above.
   p_msc->stage       = MSC_STAGE_CMD;
   p_msc->total_len   = 0;
   p_msc->xferred_len = 0;
@@ -440,7 +443,7 @@ static void proc_bot_reset(mscd_interface_t* p_msc) {
 
   // Receive the next CBW, unless it is still armed, Bulk-Out is stalled (its clear-halt arms it) or an abandoned async
   // I/O owns the buffer
-  if (!out_stalled && !cbw_armed && !p_msc->pending_io) {
+  if (!out_stalled && !cbw_armed && !_mscd_pending_io) {
     TU_ASSERT(prepare_cbw(p_msc), );
   }
 }
@@ -476,7 +479,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         if (p_msc->stage == MSC_STAGE_CMD) {
           // part of reset recovery (probably due to invalid CBW) -> prepare for new command
           // Note: skip if already queued previously, or if an async I/O abandoned by the reset still owns the buffer
-          if (!p_msc->pending_io && usbd_edpt_ready(rhport, p_msc->ep_out)) {
+          if (!_mscd_pending_io && usbd_edpt_ready(rhport, p_msc->ep_out)) {
             TU_ASSERT(prepare_cbw(p_msc));
           }
         }
@@ -957,10 +960,10 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t)tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_cbw->total_bytes - p_msc->xferred_len);
 
-  p_msc->pending_io = true;
+  _mscd_pending_io = true;
   nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, (uint32_t)nbytes);
   if (nbytes != TUD_MSC_RET_ASYNC) {
-    p_msc->pending_io = false;
+    _mscd_pending_io = false;
     proc_read_io_data(p_msc, nbytes);
   }
 }
@@ -1030,10 +1033,10 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
   uint32_t const offset = p_msc->xferred_len % block_sz;
 
   p_msc->write_len = (uint16_t) xferred_bytes; // at most CFG_TUD_MSC_EP_BUFSIZE
-  p_msc->pending_io = true;
+  _mscd_pending_io = true;
   int32_t nbytes =  tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
   if (nbytes != TUD_MSC_RET_ASYNC) {
-    p_msc->pending_io = false;
+    _mscd_pending_io = false;
     proc_write_io_data(p_msc, xferred_bytes, nbytes);
   }
 }
