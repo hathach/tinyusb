@@ -47,6 +47,10 @@ TU_ATTR_WEAK uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t 
   return NULL;
 }
 
+TU_ATTR_WEAK void tud_address_cb(uint8_t address) {
+  (void) address;
+}
+
 TU_ATTR_WEAK void tud_mount_cb(void) {
 }
 
@@ -110,6 +114,7 @@ typedef struct {
 typedef struct {
   usbd_control_xfer_t ctrl_xfer;
 
+  uint8_t address;
   // Note: these may share an enum state
   volatile uint8_t connected;
   volatile uint8_t addressed;
@@ -678,6 +683,10 @@ static bool run_after_queue_call(void) {
   return true;
 }
 
+uint8_t tud_address_get(void) {
+  return _usbd_dev.address;
+}
+
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
@@ -1060,7 +1069,9 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       // Depending on mcu, status phase could be sent either before or after changing device address,
       // or even require stack to not response with status at all
       // Therefore DCD must take full responsibility to response and include zlp status packet if needed.
-      dcd_set_address(rhport, (uint8_t) p_request->wValue);
+      _usbd_dev.address = (uint8_t) p_request->wValue;
+      dcd_set_address(rhport, _usbd_dev.address);
+      tud_address_cb(_usbd_dev.address);
       _usbd_dev.addressed = 1;
       return true;
 

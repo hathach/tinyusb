@@ -144,6 +144,9 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
 
+// Get the assigned USB device address
+uint8_t tud_address_get(void);
+
 //--------------------------------------------------------------------+
 // Application Callbacks
 //--------------------------------------------------------------------+
@@ -174,6 +177,9 @@ uint8_t const* tud_descriptor_device_qualifier_cb(void);
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 // Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index);
+
+// Invoked on USB device address set
+void tud_address_cb(uint8_t dev_addr);
 
 // Invoked when device is mounted (configured)
 void tud_mount_cb(void);
