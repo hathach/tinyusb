@@ -258,8 +258,14 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
       } else {
-        // Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 || max_packet_size == 64);
+        // Bulk fullspeed can only be 8, 16, 32, 64. Some non-compliant devices report 4 (e.g. USB-MIDI, the size of
+        // one event packet): accept it with a warning as Linux does, keeping the reported size so the host never sends
+        // the device a packet larger than it can take
+        if (max_packet_size == 4) {
+          TU_LOG1("  WARN: EP %02X bulk fullspeed max packet size 4 is non-compliant\r\n", desc_ep->bEndpointAddress);
+        } else {
+          TU_ASSERT(max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 || max_packet_size == 64);
+        }
       }
       break;
 
