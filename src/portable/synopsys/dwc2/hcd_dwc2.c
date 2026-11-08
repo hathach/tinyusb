@@ -1203,9 +1203,15 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
     if (ch_id < 16) {
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+      dwc2_channel_t* channel = &dwc2->channel[ch_id];
+      const dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
       edpt->aborting = 1;
       xfer->aborting = true;
-      channel_disable(dwc2, &dwc2->channel[ch_id]);
+      // A split channel halts by itself after every start/complete-split and must not be disabled at random
+      // (Programming Guide 3.5, 5.1.3)
+      if (!hcsplt.split_en) {
+        channel_disable(dwc2, channel);
+      }
       hcd_int_enable(rhport);
 
       // Wait for the halt, so the endpoint can take a new transfer and the controller has stopped writing to the
@@ -1862,6 +1868,22 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 
       // Retire closing/aborted DMA channels before retry handling can re-arm them (Programming Guide 3.5, p73).
       if (is_dma && (xfer->aborting || xfer->closing) && (hcint & HCINT_HALTED)) {
+        // An aborted bulk/control split the hub TT has taken (start-split ACK, complete-split NYET) runs on to its
+        // complete-split result, which frees the TT buffer; left busy, the next start-split on this endpoint would be
+        // taken as its retry (USB 2.0 11.17.3, 11.17.5).
+        dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
+        if (!xfer->closing && hcsplt.split_en && !channel_is_periodic(hcchar.value) &&
+            (hcint & (hcsplt.split_compl ? HCINT_NYET : HCINT_ACK))) {
+          hcsplt.split_compl = 1;
+          channel->hcsplt = hcsplt.value;
+          if (hcchar.ep_dir == TUSB_DIR_IN) {
+            channel_send_in_token(dwc2, channel, false);
+          } else {
+            channel->hcchar |= HCCHAR_CHENA;
+          }
+          continue;
+        }
+
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
         const bool closing = xfer->closing;
         // channel_xfer_start() predicts the PID after all requested packets;
