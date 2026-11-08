@@ -139,6 +139,15 @@ typedef struct {
 static hcd_data_t _hcd_data;
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 
+#if CFG_TUH_DWC2_DMA_ENABLE
+// Receives the complete-splits an aborted split IN still runs: the caller may have its buffer back by then.
+// Sized for the full/low-speed bulk/control max packet; the core writes no more than HCCHAR.MPS (PG 3.8.1).
+typedef struct {
+  TUH_EPBUF_DEF(buf, TUSB_EPSIZE_BULK_FS);
+} hcd_abort_rx_t;
+CFG_TUH_MEM_SECTION static hcd_abort_rx_t _hcd_abort_rx;
+#endif
+
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
@@ -1218,7 +1227,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       // aborted transfer's buffer. It normally comes within a (micro)frame. The wait is bounded (~8 frame-counter
       // ticks, or at least 8 ms when the frame counter stops without SOF, e.g. port disabled or suspended) because
       // the halt is handled by the ISR, which may not run if this is called with the interrupt masked.
-      // If it times out, the halt is not confirmed: the controller may still write to the buffer until it halts.
+      // If it times out, the halt is not confirmed: the transaction in flight may still write to the buffer until it
+      // halts. Complete-splits an aborted split runs after that receive into _hcd_abort_rx instead.
       // edpt->aborting stays set, so the endpoint refuses new transfers until the halt retires the channel, as for
       // periodic channels above. The return value keeps its hcd.h meaning: true, a transfer was aborted.
       const uint32_t start = dwc2->hfnum & HFNUM_FRNUM_Msk;
@@ -1851,6 +1861,40 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 
   return is_done;
 }
+
+// An aborted bulk/control split the hub TT has taken runs on to its complete-split result, which frees the TT buffer;
+// left busy, the next start-split on this endpoint would be taken as its retry (USB 2.0 11.17.1, 11.17.3).
+// Returns true if the halted channel was re-armed for a complete-split.
+static bool channel_abort_split_rearm(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
+  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
+  dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
+  if (xfer->closing || !hcsplt.split_en || channel_is_periodic(hcchar.value)) {
+    return false;
+  }
+  if (hcchar.ep_dir == TUSB_DIR_IN && hcchar.ep_size > sizeof(_hcd_abort_rx.buf)) {
+    return false; // non-compliant max packet would overrun the scratch buffer
+  }
+
+  if (!hcsplt.split_compl) {
+    if (!(hcint & HCINT_ACK)) {
+      return false;
+    }
+  } else if (!(hcint & HCINT_NYET)) {
+    return false;
+  }
+
+  hcsplt.split_compl = 1;
+  channel->hcsplt = hcsplt.value;
+  if (hcchar.ep_dir == TUSB_DIR_IN) {
+    channel->hcdma = (uintptr_t) _hcd_abort_rx.buf;
+    channel_send_in_token(dwc2, channel, false);
+  } else {
+    channel->hcchar |= HCCHAR_CHENA;
+  }
+  return true;
+}
 #endif
 
 static void handle_channel_irq(uint8_t rhport, bool in_isr) {
@@ -1880,21 +1924,11 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 
       // Retire closing/aborted DMA channels before retry handling can re-arm them (Programming Guide 3.5, p73).
       if (is_dma && (xfer->aborting || xfer->closing) && (hcint & HCINT_HALTED)) {
-        // An aborted bulk/control split the hub TT has taken (start-split ACK, complete-split NYET) runs on to its
-        // complete-split result, which frees the TT buffer; left busy, the next start-split on this endpoint would be
-        // taken as its retry (USB 2.0 11.17.3, 11.17.5).
-        dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
-        if (!xfer->closing && hcsplt.split_en && !channel_is_periodic(hcchar.value) &&
-            (hcint & (hcsplt.split_compl ? HCINT_NYET : HCINT_ACK))) {
-          hcsplt.split_compl = 1;
-          channel->hcsplt = hcsplt.value;
-          if (hcchar.ep_dir == TUSB_DIR_IN) {
-            channel_send_in_token(dwc2, channel, false);
-          } else {
-            channel->hcchar |= HCCHAR_CHENA;
-          }
+#if CFG_TUH_DWC2_DMA_ENABLE
+        if (channel_abort_split_rearm(dwc2, ch_id, hcint)) {
           continue;
         }
+#endif
 
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
         const bool closing = xfer->closing;
