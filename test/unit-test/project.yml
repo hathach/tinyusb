@@ -206,6 +206,9 @@
       - CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ=256
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=0
       - CFG_TUSB_DEBUG=0
+    # keys match by substring: test_audio_device above configures this one too, this adds the WCH CH32 path
+    :test_audio_device_deferred:
+      - TUP_USBD_XFER_ISR=0
     :test_dfu_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1
