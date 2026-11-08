@@ -23,7 +23,7 @@ class InterfaceSelection(unittest.TestCase):
             other = Path(tmp) / '1-3'
             (target / '1-2:1.0/net/usb7').mkdir(parents=True)
             (other / '1-3:1.0/net/enx0202846a9600').mkdir(parents=True)
-            with patch.object(net.hil_util, 'usb_scan', return_value=[{'dir': str(target)}]) as scan:
+            with patch.object(net.usb_observe, 'usb_scan', return_value=[{'dir': str(target)}]) as scan:
                 self.assertEqual(net.interfaces_for_uid('ABC123'), ['usb7'])
                 scan.assert_called_once_with(vid='cafe', serial='ABC123')
 
@@ -129,7 +129,7 @@ class NamespaceLifetime(unittest.TestCase):
     def test_readiness_timeout_cleans_up_without_reported_pid(self):
         net.select.select.return_value = ([], [], [])
         self.proc.poll.return_value = None
-        with patch.object(net.hil_health, 'child_procs', return_value={1234: [(4321, 1)]}), \
+        with patch.object(net, 'descendants', return_value=[4321]), \
                 patch.object(net.os, 'kill') as kill:
             with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
                 net.check_device('ABC123')
@@ -139,7 +139,7 @@ class NamespaceLifetime(unittest.TestCase):
         self.proc.communicate.assert_called_once_with(timeout=5)
 
     def test_root_child_is_left_for_sudo_to_signal(self):
-        with patch.object(net.hil_health, 'child_procs', return_value={1234: [(4321, 1)]}), \
+        with patch.object(net, 'descendants', return_value=[4321]), \
                 patch.object(net.os, 'kill', side_effect=PermissionError()):
             net.stop_client(self.proc, None)
         self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
@@ -183,7 +183,7 @@ time.sleep(60)
                     os.kill(child, net.signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            net.hil_util._close_pipes(proc)
+            net.close_pipes(proc)
 
 
 class HttpVerification(unittest.TestCase):

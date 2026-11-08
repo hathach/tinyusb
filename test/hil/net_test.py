@@ -20,7 +20,7 @@ import time
 import select
 import subprocess
 
-from helper import hil_health, hil_util
+from helper import hil_util, usb_observe
 
 DEVICE_IP = '192.168.7.1'
 # Default assets in the pinned lwIP dependency's src/apps/http/fsdata.c. Verify
@@ -40,7 +40,7 @@ def command(argv, timeout=5):
 
 def interfaces_for_uid(uid):
     matches = []
-    for dev in hil_util.usb_scan(vid='cafe', serial=uid):
+    for dev in usb_observe.usb_scan(vid='cafe', serial=uid):
         matches.extend(p.name for p in Path(dev['dir']).glob('*:*/net/*'))
     return sorted(set(matches))
 
@@ -66,6 +66,37 @@ def wait_interface(uid, timeout=30):
                        f'found {matches}; {detail}')
 
 
+def descendants(root):
+    """[pid, ...] of every descendant of `root`, parents before children, from one /proc walk."""
+    by_parent = {}
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / 'stat').read_bytes()
+            # comm (field 2) may contain spaces and ')': split only after the last ')'
+            ppid = int(stat[stat.rindex(b')') + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue  # exited mid-walk, unreadable or truncated
+        by_parent.setdefault(ppid, []).append(int(entry.name))
+    out, todo = [], list(by_parent.get(root, []))
+    while todo:
+        pid = todo.pop(0)
+        out.append(pid)
+        todo += by_parent.get(pid, [])
+    return out
+
+
+def close_pipes(proc):
+    """Close our ends of a child's pipes. Never raises."""
+    for pipe in (proc.stdout, proc.stderr, proc.stdin):
+        try:
+            if pipe is not None:
+                pipe.close()
+        except OSError:
+            pass
+
+
 def privileged(argv):
     return (['sudo', '-n'] if os.geteuid() != 0 else []) + argv
 
@@ -78,8 +109,7 @@ def stop_client(proc, pid, grace=5):
             # Startup can fail before Python reports its PID. Walk only this
             # Popen child's descendants, leaves first, then signal the wrapper.
             # Never killpg: these processes share the HIL caller's group.
-            children = hil_health.child_procs([proc.pid]).get(proc.pid, [])
-            for child, _pgid in reversed(children):
+            for child in reversed(descendants(proc.pid)):
                 try:
                     os.kill(child, sig)
                 except (ProcessLookupError, PermissionError):
@@ -97,7 +127,7 @@ def stop_client(proc, pid, grace=5):
             return
         except subprocess.TimeoutExpired:
             pass
-    hil_util._close_pipes(proc)
+    close_pipes(proc)
     raise RuntimeError('network client did not exit after SIGKILL')
 
 
@@ -144,7 +174,7 @@ def check_device(uid):
         if proc.poll() is None:
             stop_client(proc, pid)
         else:
-            hil_util._close_pipes(proc)
+            close_pipes(proc)
 
 
 def check_http():
