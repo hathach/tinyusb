@@ -1881,8 +1881,16 @@ static bool channel_abort_split_rearm(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t
     if (!(hcint & HCINT_ACK)) {
       return false;
     }
+    xfer->err_count = 0;
   } else if (!(hcint & HCINT_NYET)) {
-    return false;
+    // A complete-split lost on the high-speed bus is retried at once, three strikes (USB 2.0 Figure 11-49, 11-51)
+    if (!(hcint & HCINT_XACT_ERR)) {
+      return false;
+    }
+    xfer->err_count++;
+    if (xfer->err_count >= HCD_XFER_ERROR_MAX) {
+      return false;
+    }
   }
 
   hcsplt.split_compl = 1;
