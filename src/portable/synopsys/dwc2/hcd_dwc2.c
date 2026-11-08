@@ -1216,13 +1216,15 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
       // Wait for the halt, so the endpoint can take a new transfer and the controller has stopped writing to the
       // aborted transfer's buffer. It normally comes within a (micro)frame. The wait is bounded (~8 frame-counter
-      // ticks) because the halt is handled by the ISR, which may not run if this is called with the interrupt
-      // masked. If it times out, the halt has been requested but not confirmed: the controller may still write to
-      // the buffer until it halts. edpt->aborting stays set, so the endpoint refuses new transfers until the halt
-      // retires the channel, as for periodic channels above. The return value keeps its hcd.h meaning: true, a
-      // transfer was aborted.
+      // ticks or 8 ms, whichever ends first: the frame counter stops without SOF, e.g. port disabled or suspended)
+      // because the halt is handled by the ISR, which may not run if this is called with the interrupt masked.
+      // If it times out, the halt is not confirmed: the controller may still write to the buffer until it halts.
+      // edpt->aborting stays set, so the endpoint refuses new transfers until the halt retires the channel, as for
+      // periodic channels above. The return value keeps its hcd.h meaning: true, a transfer was aborted.
       const uint32_t start = dwc2->hfnum & HFNUM_FRNUM_Msk;
-      while (xfer->aborting && (((dwc2->hfnum & HFNUM_FRNUM_Msk) - start) & HCD_FRAME_NUMBER_MASK) < 8) {
+      const uint32_t start_ms = tusb_time_millis_api();
+      while (xfer->aborting && (((dwc2->hfnum & HFNUM_FRNUM_Msk) - start) & HCD_FRAME_NUMBER_MASK) < 8 &&
+             (tusb_time_millis_api() - start_ms) < 8) {
       }
       return true;
     }
