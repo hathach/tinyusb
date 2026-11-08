@@ -58,9 +58,6 @@ typedef struct {
   uint16_t dfifo_top;      // top free location in DFIFO in words
   dfifo_rx_t rx;
 
-  // Number of IN endpoints active
-  uint8_t allocated_epin_count;
-
   // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
   bool sof_en;
 } dcd_data_t;
@@ -262,10 +259,10 @@ static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool
   return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
 }
 
-// TX FIFO number is the endpoint number: only IN endpoints below ep_in_count (0 = not limited) have one
-TU_ATTR_ALWAYS_INLINE static inline bool edpt_in_has_txfifo(uint8_t rhport, uint8_t epnum) {
+// TX FIFO number is the IN endpoint number; ep_in_count == 0 means not limited
+TU_ATTR_ALWAYS_INLINE static inline bool dfifo_tx_exists(uint8_t rhport, uint8_t fnum) {
   const uint8_t ep_in_count = _dwc2_controller[rhport].ep_in_count;
-  return ep_in_count == 0 || epnum < ep_in_count;
+  return ep_in_count == 0 || fnum < ep_in_count;
 }
 
 static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, uint8_t xfer_type) {
@@ -312,18 +309,12 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
     }
     _dcd_data.rx = rx;
   } else {
-    if (!edpt_in_has_txfifo(rhport, epnum)) {
+    if (!dfifo_tx_exists(rhport, epnum)) {
       // Only interrupt IN may open without one, e.g. arduino-esp32's never-sent CDC notification 0x85 on ESP32-S2/S3;
       // a bulk/iso data endpoint would accept bytes it can never send
       TU_ASSERT(xfer_type == TUSB_XFER_INTERRUPT);
       TU_LOG1("DWC2: EP %02X has no TX FIFO, transfers will be refused\r\n", ep_addr);
       return true;
-    }
-
-    // Check IN endpoints concurrently active limit
-    if(0 != dwc2_controller->ep_in_count) {
-      TU_ASSERT(_dcd_data.allocated_epin_count < dwc2_controller->ep_in_count);
-      _dcd_data.allocated_epin_count++;
     }
 
     // Enable double buffering if configured, only effective for non-periodic endpoints
@@ -727,8 +718,6 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   usbd_spin_lock(false);
 
-  _dcd_data.allocated_epin_count = 0;
-
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
   dwc2->diepempmsk = 0;
@@ -771,7 +760,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   usbd_spin_lock(is_isr);
 
-  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !edpt_in_has_txfifo(rhport, epnum))) {
+  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !dfifo_tx_exists(rhport, epnum))) {
     ret = false;  // Endpoint is closed or has no TX FIFO
   } else {
     xfer->buffer = buffer;
@@ -807,7 +796,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 
   usbd_spin_lock(is_isr);
 
-  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !edpt_in_has_txfifo(rhport, epnum))) {
+  if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !dfifo_tx_exists(rhport, epnum))) {
     ret = false;  // Endpoint is closed or has no TX FIFO
   } else {
     xfer->buffer = NULL;
@@ -865,7 +854,6 @@ static void handle_bus_reset(uint8_t rhport) {
   _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
   _dcd_data.ep0_pending[TUSB_DIR_IN] = 0;
   _dcd_data.sof_en = false;
-  _dcd_data.allocated_epin_count = 0;
 
   // 1. NAK for all OUT endpoints
   for (uint8_t n = 0; n < ep_count; n++) {
