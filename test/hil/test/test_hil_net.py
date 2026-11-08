@@ -171,9 +171,14 @@ time.sleep(60)
                 net.stop_client(proc, None, grace=0.1)
             killpg.assert_not_called()
             self.assertIsNotNone(proc.poll())
-            stat = Path('/proc') / str(child) / 'stat'
-            if stat.exists():
-                self.assertEqual(stat.read_text().rsplit(')', 1)[1].split()[0], 'Z')
+            # Dead: a zombie (Z), being reaped (X), or already gone once init reaped
+            # it after its parent died; read once and treat absence as reaped.
+            try:
+                stat = (Path('/proc') / str(child) / 'stat').read_text()
+            except (FileNotFoundError, ProcessLookupError):
+                stat = None
+            if stat is not None:
+                self.assertIn(stat.rsplit(')', 1)[1].split()[0], ('Z', 'X'))
         finally:
             if proc.poll() is None:
                 proc.kill()
