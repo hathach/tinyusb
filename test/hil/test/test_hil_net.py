@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
@@ -13,6 +14,47 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import net_test as net
+
+SCRIPT = str(Path(net.__file__).resolve())
+
+
+def clean_env(tmp):
+    """A fresh interpreter's env as the sudo'd client may get it: no agentrc to find."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ('GITHUB_ACTIONS', 'CI') and not k.startswith('PYTHON')}
+    env.update(PYTHONSAFEPATH='1', AGENTRC_DIR=tmp, HOME=tmp, USERPROFILE=tmp)
+    return env
+
+
+class Startup(unittest.TestCase):
+    # hil_test.py starts net_test.py in a fresh interpreter, and the --http child under
+    # sudo; the in-process tests above add test/hil to sys.path and would hide both.
+    def test_safe_path_startup_finds_helper(self):
+        with TemporaryDirectory() as tmp:
+            ret = subprocess.run([sys.executable, SCRIPT, '--help'], cwd=tmp, env=clean_env(tmp),
+                                 capture_output=True, text=True, timeout=30)
+        self.assertNotIn('ModuleNotFoundError', ret.stderr)
+        self.assertEqual(ret.returncode, 0, ret.stderr)
+
+    @unittest.skipUnless(os.name == 'posix', 'the --http client arms SIGALRM')
+    def test_http_client_does_not_load_agentrc(self):
+        # runpy does not put the script's folder on sys.path: its own append must.
+        code = '''import io, runpy, signal, sys
+sys.argv = [sys.argv[1], '--http']
+sys.stdin = io.StringIO('')
+try:
+    runpy.run_path(sys.argv[0], run_name='__main__')
+except RuntimeError as e:
+    print('stopped:', e)
+signal.alarm(0)
+print('loaded:', sorted(m for m in sys.modules if 'agentrc' in m or 'usb_observe' in m))
+'''
+        with TemporaryDirectory() as tmp:
+            ret = subprocess.run([sys.executable, '-c', code, SCRIPT], cwd=tmp, env=clean_env(tmp),
+                                 capture_output=True, text=True, timeout=30)
+        self.assertEqual(ret.returncode, 0, ret.stderr)
+        self.assertIn('stopped: network setup owner exited before starting HTTP', ret.stdout)
+        self.assertIn('loaded: []', ret.stdout)
 
 
 class InterfaceSelection(unittest.TestCase):
@@ -23,7 +65,7 @@ class InterfaceSelection(unittest.TestCase):
             other = Path(tmp) / '1-3'
             (target / '1-2:1.0/net/usb7').mkdir(parents=True)
             (other / '1-3:1.0/net/enx0202846a9600').mkdir(parents=True)
-            with patch.object(net.usb_observe, 'usb_scan', return_value=[{'dir': str(target)}]) as scan:
+            with patch('helper.usb_observe.usb_scan', return_value=[{'dir': str(target)}]) as scan:
                 self.assertEqual(net.interfaces_for_uid('ABC123'), ['usb7'])
                 scan.assert_called_once_with(vid='cafe', serial='ABC123')
 
@@ -64,13 +106,18 @@ class NamespaceLifetime(unittest.TestCase):
         self.proc.poll.return_value = 0
         self.proc.communicate.return_value = ('HTTP verified\n', '')
 
+        self.moved_ifindex = 7
+
         def command(argv):
             self.calls.append(argv)
             if '-j' in argv:
-                return json.dumps([{'ifname': 'lo'}, {'ifname': 'renamed0'}])
+                return json.dumps([{'ifname': 'lo', 'ifindex': 1},
+                                   {'ifname': 'renamed0', 'ifindex': self.moved_ifindex}])
             return ''
 
         for name, value in [('wait_interface', Mock(return_value='usb7')),
+                            ('interface_index', Mock(return_value=7)),
+                            ('interfaces_for_uid', Mock(return_value=['usb7'])),
                             ('command', Mock(side_effect=command))]:
             p = patch.object(net, name, value)
             p.start()
@@ -95,6 +142,23 @@ class NamespaceLifetime(unittest.TestCase):
         self.assertTrue(any('renamed0' in c for c in self.calls))
         self.assertFalse(any(c[:4] == ['sudo', '-n', 'ip', 'netns'] for c in self.calls))
         self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
+
+    def test_peer_interface_moved_under_reused_name_fails(self):
+        # The requested board left and a peer took its name before the move.
+        self.moved_ifindex = 8
+        self.proc.poll.return_value = None
+        with patch.object(net.os, 'kill') as kill:
+            with self.assertRaisesRegex(RuntimeError, 'ifindex 7.*renamed0.*8'):
+                net.check_device('ABC123')
+        self.assertFalse(any('addr' in c for c in self.calls))
+        kill.assert_called_once_with(4321, net.signal.SIGTERM)
+
+    def test_name_lost_before_move_is_not_moved(self):
+        net.interfaces_for_uid.return_value = []
+        with self.assertRaisesRegex(RuntimeError, 'changed before the namespace move'):
+            net.check_device('ABC123')
+        net.subprocess.Popen.assert_not_called()
+        net.command.assert_not_called()
 
     def test_interrupt_terminates_client_and_reaps_sudo(self):
         net.command.side_effect = KeyboardInterrupt()
@@ -146,7 +210,7 @@ class NamespaceLifetime(unittest.TestCase):
         self.proc.communicate.assert_called_once_with(timeout=5)
 
 
-@unittest.skipUnless(os.name == 'posix', 'Linux process-tree cleanup')
+@unittest.skipUnless(sys.platform == 'linux', 'Linux process-tree cleanup')
 class UnreportedClient(unittest.TestCase):
     def test_live_wrapper_and_descendant_without_pid_are_reaped(self):
         # Both ignore TERM so this also exercises the KILL pass. They inherit our
@@ -209,6 +273,24 @@ class HttpVerification(unittest.TestCase):
         net.check_http()
         self.assertEqual(self.conn.request.call_count, 3)
         self.assertEqual(self.conn.close.call_count, 3)
+
+    def test_every_asset_is_requested_each_round(self):
+        # Each asset is its own fixture, one of them binary: a loop over ASSETS[:1]
+        # would skip the image on hardware while a single-asset test still passed.
+        payloads = {'/page.html': b'<html>ok</html>', '/img/bin.gif': b'GIF89a\x00\xff\r\n\x01'}
+        requested = []
+
+        def request(method, path, headers=None):
+            requested.append(path)
+            self.response.read.return_value = payloads[path]
+
+        self.conn.request.side_effect = request
+        with patch.object(net, 'ASSETS', [(path, len(data), hashlib.sha256(data).hexdigest())
+                                          for path, data in payloads.items()]):
+            net.check_http()
+        self.assertEqual({path: requested.count(path) for path in payloads},
+                         {path: 3 for path in payloads})
+        self.assertEqual(len(requested), 6)
 
     def test_corruption_is_not_retried(self):
         self.response.read.return_value = b'x' * len(self.payload)

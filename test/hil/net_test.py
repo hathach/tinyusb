@@ -20,7 +20,10 @@ import time
 import select
 import subprocess
 
-from helper import hil_util, usb_observe
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
+# hil_util is stdlib-only at import. usb_observe loads agentrc, which the --http child
+# must not need: sudo may drop AGENTRC_DIR/CI and replace HOME before it reports its PID.
+from helper import hil_util  # noqa: E402
 
 DEVICE_IP = '192.168.7.1'
 # Default assets in the pinned lwIP dependency's src/apps/http/fsdata.c. Verify
@@ -39,6 +42,7 @@ def command(argv, timeout=5):
 
 
 def interfaces_for_uid(uid):
+    from helper import usb_observe  # the --uid parent only; see the import note above
     matches = []
     for dev in usb_observe.usb_scan(vid='cafe', serial=uid):
         matches.extend(p.name for p in Path(dev['dir']).glob('*:*/net/*'))
@@ -64,6 +68,11 @@ def wait_interface(uid, timeout=30):
         time.sleep(0.2)
     raise RuntimeError(f'USB serial {uid}: expected one initialized network interface within {timeout}s; '
                        f'found {matches}; {detail}')
+
+
+def interface_index(iface):
+    """The kernel ifindex of `iface` in our namespace; it survives a move into a fresh one."""
+    return int(Path('/sys/class/net', iface, 'ifindex').read_text())
 
 
 def descendants(root):
@@ -133,7 +142,12 @@ def stop_client(proc, pid, grace=5):
 
 def check_device(uid):
     iface = wait_interface(uid)
-    print(f'USB serial {uid}: interface {iface}', flush=True)
+    # Bind the move to this device, not to a name a peer could take over: read the
+    # index, then confirm the serial still owns that name, and check it after the move.
+    ifindex = interface_index(iface)
+    if interfaces_for_uid(uid) != [iface]:
+        raise RuntimeError(f'USB serial {uid}: interface {iface} changed before the namespace move')
+    print(f'USB serial {uid}: interface {iface} (ifindex {ifindex})', flush=True)
     # Anonymous namespace: its last process exiting releases the USB interface,
     # even on SIGKILL. unshare drops to the caller's UID/GID BEFORE executing any
     # checkout-controlled Python. Only trusted system tools run with elevation.
@@ -155,11 +169,12 @@ def check_device(uid):
         ns = f'/proc/{pid}/ns/net'
         command(privileged(['ip', 'link', 'set', 'dev', iface, 'netns', str(pid)]))
         ip = privileged(['nsenter', '--net=' + ns, 'ip'])
-        links = json.loads(command(ip + ['-j', 'link', 'show']))
-        names = [link['ifname'] for link in links if link['ifname'] != 'lo']
-        if len(names) != 1:
-            raise RuntimeError(f'{ns}: expected one network interface, found {names}')
-        iface = names[0]
+        links = [link for link in json.loads(command(ip + ['-j', 'link', 'show']))
+                 if link['ifname'] != 'lo']
+        if len(links) != 1 or links[0].get('ifindex') != ifindex:
+            found = [(link['ifname'], link.get('ifindex')) for link in links]
+            raise RuntimeError(f'{ns}: expected one network interface with ifindex {ifindex}, found {found}')
+        iface = links[0]['ifname']
         command(ip + ['addr', 'flush', 'dev', iface])
         command(ip + ['addr', 'add', '192.168.7.2/24', 'dev', iface])
         command(ip + ['link', 'set', 'dev', iface, 'up'])
