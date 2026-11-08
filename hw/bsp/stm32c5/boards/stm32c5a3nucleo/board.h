@@ -48,7 +48,7 @@
 #define UART_TX_PIN           HAL_GPIO_PIN_2
 #define UART_RX_PIN           HAL_GPIO_PIN_3
 
-# if CFG_TUSB_MCU == OPT_MCU_STM32C5
+#if CFG_TUSB_MCU == OPT_MCU_STM32C5
 static inline void board_clock_init(void) {
   HAL_RCC_HSE_Enable(HAL_RCC_HSE_ON);
 
@@ -81,5 +81,5 @@ static inline void board_clock_init(void) {
   HAL_RCC_PSIDIV3_Enable();
   HAL_RCC_CK48_SetKernelClkSource(HAL_RCC_CK48_CLK_SRC_PSIDIV3);
 }
-# endif
+#endif
 #endif /* BOARD_H_ */
