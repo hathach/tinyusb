@@ -388,6 +388,28 @@ TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
 }
 
   #ifndef HAS_STOP_EPX_ON_NAK
+enum {
+  EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
+  LINE_IDLE_US         = 3   // longer than the bus turnaround between a token and the device's reply
+};
+
+// Whether STOP_TRANS can be issued now without meeting a transaction on the wire. The SIE sends a retry that came due
+// in the end-of-frame guard window right after SOF, where this ISR runs; STOP_TRANS on it while the device returns
+// data makes the host ACK the packet without writing its buffer status (#3964). So wait out that slot, then sample
+// the bus: idle (J) throughout means no transaction is under way. Busy-waits only on frames the round-robin switches.
+static bool __tusb_irq_path_func(epx_bus_idle_after_sof)(void) {
+  busy_wait_us_32(EPX_POST_SOF_SLOT_US);
+  // J is D+ high at full speed (1), D- high at low speed (2); a low-speed device behind a hub runs at full speed here
+  const uint32_t line_j = (dev_speed() == SIE_CTRL_SPEED_LOW) ? 2u : 1u;
+  const uint32_t t0     = time_us_32();
+  do {
+    if (((usb_hw->sie_status & USB_SIE_STATUS_LINE_STATE_BITS) >> USB_SIE_STATUS_LINE_STATE_LSB) != line_j) {
+      return false;
+    }
+  } while (time_us_32() - t0 <= LINE_IDLE_US);
+  return true;
+}
+
 // RP2040: on SOF, switch EPX if another endpoint is pending.
 // First SOF sets epx_switch_request. If a transfer completes before next SOF, the flag is
 // cleared (data is flowing, no need to force-switch). Second SOF with flag still set means
@@ -404,7 +426,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
 
   if (epx->state == EPSTATE_ACTIVE) {
     if (epx_switch_request) {
-      // Second SOF with no transfer completion: endpoint is NAK-retrying, safe to switch.
+      // Second SOF with no transfer completion: endpoint is NAK-retrying, switch it out unless a packet is under way
+      // (its completion drops the request; otherwise the next SOF tries again)
+      if (!epx_bus_idle_after_sof()) {
+        return true;
+      }
       epx_switch_request = false;
       sie_stop_xfer();
       epx_save_context(epx);
