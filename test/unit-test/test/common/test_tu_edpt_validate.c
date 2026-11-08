@@ -15,7 +15,6 @@
 #include "common/tusb_private.h"
 #include "usbd.h"
 TEST_SOURCE_FILE("tusb.c")
-TEST_SOURCE_FILE("usbd_control.c")
 
 // tusb.c links the device stack (and its default MSC class) against these
 #include "mock_dcd.h"
