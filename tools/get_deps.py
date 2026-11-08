@@ -371,14 +371,22 @@ GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMO
                 'GIT_GRAFT_FILE', 'GIT_PREFIX')
 
 
+def print_safe(text):
+    # a strict narrow stdout (cp1252 when piped on Windows) cannot take U+FFFD or a path's
+    # characters: replace what it cannot represent rather than lose the git result
+    enc = getattr(sys.stdout, 'encoding', None)
+    enc = enc if isinstance(enc, str) and enc else 'utf-8'
+    print(text.encode(enc, errors='replace').decode(enc))
+
+
 def run_cmd(cmd):
     # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
     env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
     title = f'Command Error: {subprocess.list2cmdline([str(arg) for arg in cmd])}'
     if r.returncode != 0:
-        print(title)
-        print(r.stdout.decode("utf-8", errors="replace"))
+        print_safe(title)
+        print_safe(r.stdout.decode("utf-8", errors="replace"))
     return r
 
 
@@ -418,8 +426,9 @@ def get_a_dep(d):
                 run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
             return 1
         result = run_cmd([*git_cmd, "rev-parse", "--verify", "HEAD"])
-        heads = result.stdout.decode("utf-8").splitlines()
-        head = heads[0] if result.returncode == 0 and heads else None
+        # a failed verify (unborn HEAD) takes the fetch path; its diagnostic is never decoded
+        heads = result.stdout.decode("utf-8", errors="replace").splitlines() if result.returncode == 0 else []
+        head = heads[0] if heads else None
         if head is not None and run_cmd([*git_cmd, "reset", "--hard"]).returncode != 0:
             return 1
 

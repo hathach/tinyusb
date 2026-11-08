@@ -3565,7 +3565,7 @@ class TestNoLockDependency(unittest.TestCase):
 
 class TestGetDepsExistingDirectory(unittest.TestCase):
     def run_get_dep(self, fail=None, create_git=True, initialized=False, valid=True, unborn=False,
-                    origin=True, pinned=False):
+                    origin=True, pinned=False, unborn_output=b''):
         from tempfile import TemporaryDirectory
         from unittest import mock
         import get_deps
@@ -3590,7 +3590,7 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
                     returncode, output = ((0, b'https://example.invalid/dep.git\n') if origin else (1, b''))
                 elif command[-1] == 'HEAD':
                     if unborn:
-                        returncode, output = 1, b''
+                        returncode, output = 1, unborn_output
                     elif pinned:
                         output = b'0123456789abcdef\n'
                 if fail and command[-1].endswith(fail):
@@ -3644,6 +3644,34 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
             [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
             [*git, 'checkout', 'FETCH_HEAD'],
         ])
+
+    def test_unborn_repository_with_non_utf8_diagnostic_retries_fetch(self):
+        # a non-UTF-8 locale's message for the failed verify must not abort the fetch retry
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True,
+                                                 unborn_output=b'fatal: \xff\xfe HEAD\n')
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands[-3:], [
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_failed_command_output_survives_a_strict_narrow_stdout(self):
+        # piped on Windows, stdout is cp1252 strict: U+FFFD from b'\xff' must not raise
+        from unittest import mock
+        import get_deps
+        buf = io.BytesIO()
+        out = io.TextIOWrapper(buf, encoding='cp1252', errors='strict')
+        child = 'import sys; sys.stdout.buffer.write(b"\\xff"); sys.exit(1)'
+        with mock.patch('sys.stdout', out):
+            r = get_deps.run_cmd([sys.executable, '-c', child])
+            out.flush()
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(r.stdout, b'\xff')
+        lines = buf.getvalue().splitlines()
+        self.assertTrue(lines[0].startswith(b'Command Error:'), lines)
+        self.assertEqual(lines[-1], b'?')
 
     def test_pinned_branch_is_detached_and_failure_propagates(self):
         for fail, expected in [(None, 0), ('--detach', 1)]:
