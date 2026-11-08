@@ -176,21 +176,11 @@ recover the controller, and TinyUSB's E15 workaround (no bulk IN armed late in a
 Workarounds:
 
 - Connect the RP2040 to a root port, or to a hub that is not affected.
-- Detect the lockup and restart the stack. A bus reset also stops SOFs, for 10-20 ms from a hub port and at least 50 ms
-  from a root port (USB 2.0 section 7.1.7.5), so count it as a lockup only when ``SOF_RD`` stays unchanged over a window
-  well beyond a reset, a few hundred milliseconds, sampled only while ``tud_connected()`` is true and
-  ``tud_suspended()`` false, and start the window over whenever either check fails. ``tud_connected()`` stays true
-  until ``tud_task()`` handles the reset and is set again by the next SETUP; a shorter window can restart the stack
-  while the reset event is still queued, and discard it.
-
-  Restart from the task that runs ``tud_task()``, since ``tud_deinit()`` and ``tusb_init()`` must run there under an
-  RTOS: the watchdog task calls ``tud_task_stop()``, ``tud_task()`` returns true, and the USB task leaves its loop,
-  calls ``tud_deinit()``, waits at least 2 ms with the pull-up off so the hub sees an undriven SE0 even behind a
-  max-size full-speed packet (as ``dcd_init()`` does on a warm restart), calls ``tusb_init()`` and resumes its loop
-  (``examples/dual/dynamic_switch`` uses the same stop sequence). Without an RTOS, do it from the main loop between
-  ``tud_task()`` calls. Raspberry Pi's debugprobe firmware uses this workaround but calls ``tud_deinit()`` and
-  ``tud_init()`` from its watchdog task, which TinyUSB does not support (on FreeRTOS ``tud_deinit()`` deletes the queue
-  the USB task blocks on), after three ``SOF_RD`` samples 5 ms apart and a 50 µs delay, both shorter than above.
+- Detect the lockup and restart the stack. Count it as a lockup only when ``SOF_RD`` stays unchanged for a few
+  hundred milliseconds while ``tud_connected()`` is true and ``tud_suspended()`` false: a bus reset also stops
+  SOFs. Restart from the task running ``tud_task()`` (``tud_task_stop()`` makes it return true): ``tud_deinit()``,
+  at least 2 ms with the pull-up off so the hub sees the disconnect, then ``tusb_init()``. Raspberry Pi's
+  debugprobe firmware restarts from a watchdog task instead, which TinyUSB does not support under an RTOS.
   ``tud_disconnect()`` and ``tud_connect()`` only switch the D+ pull-up and do not reset the controller.
 
 Espressif ESP32-S2/S3/P4
