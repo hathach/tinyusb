@@ -378,7 +378,7 @@ def run_cmd(cmd):
     title = f'Command Error: {subprocess.list2cmdline([str(arg) for arg in cmd])}'
     if r.returncode != 0:
         print(title)
-        print(r.stdout.decode("utf-8"))
+        print(r.stdout.decode("utf-8", errors="replace"))
     return r
 
 
@@ -408,7 +408,7 @@ def get_a_dep(d):
         # an empty or broken .git lets git -C walk up to TinyUSB's repository as well:
         # touch only a checkout whose own top level is this dependency
         result = run_cmd([*git_cmd, "rev-parse", "--show-toplevel"])
-        lines = result.stdout.decode("utf-8").splitlines() if result.returncode == 0 else []
+        lines = os.fsdecode(result.stdout).splitlines() if result.returncode == 0 else []
         top = lines[-1].strip() if lines else ''
         if not top or os.path.normcase(os.path.realpath(top)) != os.path.normcase(os.path.realpath(p)):
             print(f'{d}: {p} is not a git checkout of its own (git resolves {top or "no repository"}); '
