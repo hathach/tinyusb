@@ -100,7 +100,8 @@ enum {
   EPSTATE_PENDING,
   EPSTATE_PENDING_SETUP,
   EPSTATE_ABORTING,        // host interrupt endpoint: abort waits for a poll already on the wire
-  EPSTATE_ABORTING_PENDING // as ABORTING, with the next transfer queued in user_buf/remaining_len
+  EPSTATE_ABORTING_PENDING, // as ABORTING, with the next transfer queued in user_buf/remaining_len
+  EPSTATE_CLOSING           // host interrupt endpoint closed: its slot is freed once no poll can still complete
 };
 
 // Hardware information per endpoint

@@ -71,7 +71,7 @@ static hw_endpoint_t *edpt_alloc(void) {
 static hw_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   for (uint32_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
-    if ((ep->dev_addr == daddr) && (ep->max_packet_size > 0) &&
+    if ((ep->dev_addr == daddr) && (ep->max_packet_size > 0) && (ep->state != EPSTATE_CLOSING) &&
         (ep->ep_addr == ep_addr || (tu_edpt_number(ep_addr) == 0 && tu_edpt_number(ep->ep_addr) == 0))) {
       return ep;
     }
@@ -212,7 +212,7 @@ enum {
 };
 
 TU_ATTR_ALWAYS_INLINE static inline bool int_edpt_is_aborting(const hw_endpoint_t *ep) {
-  return ep->state == EPSTATE_ABORTING || ep->state == EPSTATE_ABORTING_PENDING;
+  return ep->state == EPSTATE_ABORTING || ep->state == EPSTATE_ABORTING_PENDING || ep->state == EPSTATE_CLOSING;
 }
 
 // BUFF_STATUS bit of an interrupt endpoint slot: 2n for IN, 2n+1 for OUT
@@ -378,6 +378,15 @@ TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
 
   io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
   *buf_reg          = 0;
+  if (ep->state == EPSTATE_CLOSING) {
+    // closed: free the slot and the pool entry now that no poll of it can complete
+    usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
+    *dpram_int_ep_ctrl(ep->interrupt_num)           = 0;
+    rp2usb_reset_transfer(ep);
+    ep->interrupt_num   = 0;
+    ep->max_packet_size = 0;
+    return;
+  }
   if (ep->state == EPSTATE_ABORTING_PENDING) {
     ep->state = EPSTATE_ACTIVE;
     rp2usb_buffer_start(ep, dpram_int_ep_ctrl(ep->interrupt_num), buf_reg, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN);
@@ -684,6 +693,21 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 }
 
 // Close all opened endpoint belong to this device
+// Release an endpoint; caller holds the critical section and starts the next pending EPX transfer. An interrupt
+// endpoint stops polling now, but its slot stays reserved until sof_service() sees that a poll already on the wire
+// has ended (int_edpt_reclaim()): freed at once, a late completion would reach the endpoint the slot goes to next.
+static void edpt_close(hw_endpoint_t *ep) {
+  if (ep->interrupt_num == 0) {
+    epx_retire(ep);
+    ep->max_packet_size = 0; // mark as unused
+  } else if (ep->state != EPSTATE_CLOSING) {
+    usb_hw_clear->int_ep_ctrl = TU_BIT(ep->interrupt_num);
+    ep->state                 = EPSTATE_CLOSING; // drops a transfer queued behind an abort, too
+    ep->abort_frame           = usb_hw->sof_rd & ABORT_FRAME_MASK;
+    usb_hw_set->inte          = USB_INTE_HOST_SOF_BITS;
+  }
+}
+
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
 
@@ -696,22 +720,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
     if (ep->dev_addr == dev_addr && ep->max_packet_size > 0) {
-      if (ep->interrupt_num == 0) {
-        epx_retire(ep);
-      } else {
-        ep->state = EPSTATE_IDLE;
-        // disable interrupt endpoint
-        usb_hw_clear->int_ep_ctrl                       = TU_BIT(ep->interrupt_num);
-        usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
-
-        io_rw_32 *ep_reg  = dpram_int_ep_ctrl(ep->interrupt_num);
-        io_rw_32 *buf_reg = dpram_int_ep_buffer_ctrl(ep->interrupt_num);
-        *buf_reg          = 0;
-        *ep_reg           = 0;
-        ep->interrupt_num = 0; // the slot may go to another endpoint
-      }
-
-      ep->max_packet_size = 0; // mark as unused
+      edpt_close(ep);
     }
   }
   epx_start_next_pending();
@@ -763,7 +772,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   ep->next_pid        = 0u;
 
   if (ep->transfer_type != TUSB_XFER_INTERRUPT) {
-    ep->dpram_buf = usbh_dpram->epx_data;
+    ep->dpram_buf     = usbh_dpram->epx_data;
+    ep->interrupt_num = 0;
   } else {
     // from 15 interrupt endpoints pool; not from INT_EP_CTRL, which an abort clears while it keeps the slot
     uint32_t used = 0;
@@ -808,9 +818,16 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void)rhport;
-  (void)daddr;
-  (void)ep_addr;
-  return false; // TODO not implemented yet
+  TU_VERIFY(tu_edpt_number(ep_addr) != 0); // EP0 is closed with the device
+  hw_endpoint_t *ep = edpt_find(daddr, ep_addr);
+  TU_VERIFY(ep != NULL);
+
+  rp2usb_critical_enter();
+  edpt_close(ep);
+  epx_start_next_pending();
+  rp2usb_critical_exit();
+
+  return true;
 }
 
 // Clearing the slot's INT_EP_CTRL bit stops polling, but one poll may still complete. sof_service() reclaims the buffer
@@ -964,13 +981,14 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   return true;
 }
 
+// After the device's CLEAR_FEATURE(ENDPOINT_HALT), whose control transfer the class sends: the endpoint's data toggle
+// restarts at DATA0 (USB 2.0 §9.4.5)
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)rhport;
-  (void)dev_addr;
-  (void)ep_addr;
-
-  panic("hcd_clear_stall");
-  // return true;
+  hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
+  TU_VERIFY(ep != NULL);
+  ep->next_pid = 0;
+  return true;
 }
 
 #endif
