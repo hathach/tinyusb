@@ -3583,8 +3583,9 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
                 if command[-1] == 'init' and fail != 'init' and create_git:
                     (dep / '.git').mkdir()
                 returncode, output = 0, b'parent-head\n'
-                if command[-1] == '--is-inside-work-tree':
-                    returncode, output = (0, b'true\n') if valid else (1, b'not a repository\n')
+                if command[-1] == '--show-toplevel':
+                    # an invalid .git makes git answer with the enclosing repository's top level
+                    output = f'{dep if valid else top}\n'.encode()
                 elif command[-3:] == ['remote', 'get-url', 'origin']:
                     returncode, output = ((0, b'https://example.invalid/dep.git\n') if origin else (1, b''))
                 elif command[-1] == 'HEAD':
@@ -3636,7 +3637,7 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
         git = ['git', '-C', str(dep)]
         self.assertEqual(status, 0)
         self.assertEqual(commands, [
-            [*git, 'rev-parse', '--is-inside-work-tree'],
+            [*git, 'rev-parse', '--show-toplevel'],
             [*git, 'remote', 'get-url', 'origin'],
             [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
             [*git, 'rev-parse', '--verify', 'HEAD'],
@@ -3655,7 +3656,41 @@ class TestGetDepsExistingDirectory(unittest.TestCase):
     def test_invalid_git_metadata_stops_setup(self):
         dep, commands, status = self.run_get_dep(initialized=True, valid=False)
         self.assertEqual(status, 1)
-        self.assertEqual(commands, [['git', '-C', str(dep), 'rev-parse', '--is-inside-work-tree']])
+        self.assertEqual(commands, [['git', '-C', str(dep), 'rev-parse', '--show-toplevel']])
+
+    def test_an_empty_git_directory_leaves_the_enclosing_checkout_alone(self):
+        # real git: it ignores an empty .git and walks up, which a mocked rev-parse cannot show
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+        env = {k: v for k, v in os.environ.items() if k not in get_deps.GIT_REPO_ENV}
+
+        def git(path, *args):
+            return subprocess.run(['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t',
+                                   '-c', 'commit.gpgsign=false', *args],
+                                  capture_output=True, text=True, check=True, env=env).stdout.strip()
+
+        with TemporaryDirectory() as td:
+            outer = pathlib.Path(td, 'outer')
+            outer.mkdir()
+            git(outer, 'init', '-q')
+            (outer / 'work.txt').write_text('committed\n')
+            git(outer, 'add', 'work.txt')
+            git(outer, 'commit', '-q', '-m', 'outer')
+            head = git(outer, 'rev-parse', 'HEAD')
+            (outer / 'work.txt').write_text('uncommitted\n')
+            (outer / 'lib' / 'dep' / '.git').mkdir(parents=True)
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch('sys.stdout'):
+                status = get_deps.get_a_dep('lib/dep')
+            self.assertEqual(status, 1)
+            self.assertEqual((outer / 'work.txt').read_text(), 'uncommitted\n')
+            self.assertEqual(git(outer, 'rev-parse', 'HEAD'), head)
+            self.assertEqual(git(outer, 'remote'), '')
 
 
 if __name__ == '__main__':

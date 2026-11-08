@@ -405,8 +405,14 @@ def get_a_dep(d):
             return 1
         head = None
     else:
-        result = run_cmd([*git_cmd, "rev-parse", "--is-inside-work-tree"])
-        if result.returncode != 0 or result.stdout.strip() != b"true":
+        # an empty or broken .git lets git -C walk up to TinyUSB's repository as well:
+        # touch only a checkout whose own top level is this dependency
+        result = run_cmd([*git_cmd, "rev-parse", "--show-toplevel"])
+        lines = result.stdout.decode("utf-8").splitlines() if result.returncode == 0 else []
+        top = lines[-1].strip() if lines else ''
+        if not top or os.path.normcase(os.path.realpath(top)) != os.path.normcase(os.path.realpath(p)):
+            print(f'{d}: {p} is not a git checkout of its own (git resolves {top or "no repository"}); '
+                  'remove it and rerun')
             return 1
         if run_cmd([*git_cmd, "remote", "get-url", "origin"]).returncode != 0 and \
                 run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
