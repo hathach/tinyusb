@@ -1174,16 +1174,20 @@ void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) 
 }
 
 void test_abort_waits_for_the_halt_of_a_native_bulk_channel_only_while_the_port_sends_sof(void) {
-  // the port suspended or disabled, so HFNUM stands still: the abort returns at once, the endpoint refusing a
-  // replacement until the halt retires the channel; or the halt arrives while the abort runs
-  for (unsigned c = 0; c < 3; c++) {
+  // the port suspended, disabled, resuming or in reset, so HFNUM stands still: the abort returns at once, the
+  // endpoint refusing a replacement until the halt retires the channel; or the halt arrives while the abort runs
+  for (unsigned c = 0; c < 5; c++) {
     variant_setup(c);
     const uint8_t ep_addr = abort_bulk_endpoint(true, true, false);
-    const bool    halts   = c == 2;
+    const bool    halts   = c == 4;
     if (c == 0) {
       test_regs.hprt |= HPRT_SUSPEND;
     } else if (c == 1) {
       test_regs.hprt &= ~HPRT_ENABLE;
+    } else if (c == 2) {
+      test_regs.hprt |= HPRT_RESUME;
+    } else if (c == 3) {
+      test_regs.hprt |= HPRT_RESET;
     } else {
       on_int_enable = isr_halts_aborted_dma_channel;
     }

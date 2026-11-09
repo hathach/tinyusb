@@ -2163,11 +2163,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   // Wait for the halt of an aborted control/bulk channel, so that the endpoint takes a new transfer and the controller
   // no longer writes the aborted buffer. Bounded, as the ISR that retires the channel may not run with it masked.
   if (halting != NULL) {
-    // HFNUM counts SOFs, which stop on a disabled or suspended port; 2 ms of (micro)frames whatever the speed, so that
-    // a split behind a high-speed hub has time to drain
-    const uint32_t ticks = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 16u : 2u;
-    const uint32_t start = dwc2->hfnum & HCD_FRAME_NUMBER_MASK;
-    while (halting->aborting && (dwc2->hprt & (HPRT_ENABLE | HPRT_SUSPEND)) == HPRT_ENABLE &&
+    // HFNUM counts SOFs, which stop on a port disabled, suspended, resuming or in reset; 2 ms of (micro)frames
+    // whatever the speed, so that a split behind a high-speed hub has time to drain
+    const uint32_t ticks    = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 16u : 2u;
+    const uint32_t start    = dwc2->hfnum & HCD_FRAME_NUMBER_MASK;
+    const uint32_t sof_mask = HPRT_ENABLE | HPRT_SUSPEND | HPRT_RESUME | HPRT_RESET;
+    while (halting->aborting && (dwc2->hprt & sof_mask) == HPRT_ENABLE &&
            (((dwc2->hfnum & HCD_FRAME_NUMBER_MASK) - start) & HCD_FRAME_NUMBER_MASK) < ticks) {}
   }
   return true;
