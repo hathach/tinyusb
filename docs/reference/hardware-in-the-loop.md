@@ -297,7 +297,10 @@ Both files are the source of truth — this table is generated from them.
    affect — and each board's build to the examples its tests need — falling open to the
    full matrix when it cannot tell. The same pass scopes the build matrix.
 4. Each board is arbitrated by a kernel flock in `/tmp/tinyusb-hil-locks/`, so interactive
-   work and CI can share the rig without colliding.
+   work and CI can share the rig without colliding. A task releases its lock when it ends, including when cleanup
+   is unproven: the harness logs that failure and its receipts in `<lock>.cleanup.jsonl` and reports a
+   `cleanup-pending` blocker. A later run reports earlier open failures in `previous-cleanup-failure`, excluded
+   from test counts. A successful park resolves only failures whose own cleanup evidence is proven ended.
 5. Each rig job uploads its report as an artifact; `pr_comment.yml` downloads them and
    posts the combined tables onto the pull request.
 

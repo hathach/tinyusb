@@ -41,10 +41,8 @@ LOCKED_CELL = 'board-locked'
 # flash like LOCKED_CELL, but rig-side, not contention a re-admission waits out. Its value is
 # '❌ <the error>'.
 LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
-# refused by a recovery blocker (`hil` Board locks: a cleanup holder, live or dead, a protected
-# record left on a free flock, a takeover journal): refused before any flash like LOCKED_CELL,
-# but it never frees on its own, so a blocker, never waited out. Its value is '❌ <the refusal,
-# naming the holder>'.
+# a live cleanup holder from an older helper: refused before any flash, never waited out.
+# Its value is '❌ <the refusal, naming the holder>'.
 RECOVERY_BLOCKER_CELL = 'recovery-blocker'
 # the cells of a board refused its lock, one per row
 _REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL)
@@ -59,10 +57,11 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # shape, different cause, and naming the cause is the whole point of the column -- a board
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
-# a board whose openocd_esp session the provider left running: its lock went to a cleanup holder
-# (hil_test.retain_board_lock), and its value is '❌ <receipt, then holder and token, or the
-# protected record left as the recovery blocker>'
+# an unproven cleanup: the task released its lock and logged the failure and receipts.
+# Its value is '❌ <receipt, cleanup log path and any log error>'.
 CLEANUP_PENDING_CELL = 'cleanup-pending'
+# earlier open failures observed at the take, informational rather than test results
+PREVIOUS_CLEANUP_CELL = 'previous-cleanup-failure'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
 BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
@@ -230,7 +229,7 @@ def render_matrix(rows_all: list) -> str:
     # tally run cells (not-run cells are absent from the dicts). A cell is a bare status or
     # a metric string carrying its own icon ("❌ 29/30"), so classify by the leading icon --
     # through cell_state, the same call the per-board verdict makes.
-    kinds = [cell_state(v) for _, cells, _ in rows_all for v in cells.values()]
+    kinds = [cell_state(v) for _, cells, _ in rows_all for k, v in cells.items() if k != PREVIOUS_CLEANUP_CELL]
     failed = kinds.count('fail')
     skipped = kinds.count('skip')
     passed = kinds.count('pass')
@@ -448,6 +447,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                     stale[0].pop(k, None)
                 stale[0].pop(WEDGED_CELL, None)
                 stale[0].pop(CLEANUP_PENDING_CELL, None)
+                stale[0].pop(PREVIOUS_CLEANUP_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.
@@ -591,8 +591,8 @@ def variants_of(cfg: dict, board: str) -> list:
     return [board]
 
 
-# cells that say why a board did not run, never a test's result
-_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL)
+# board-level information, never a test's result
+_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL, PREVIOUS_CLEANUP_CELL)
 
 
 def _board_rows(report: dict) -> dict:
@@ -716,10 +716,14 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         elif bad:
             detail = '; '.join(bad) + (f'; skipped: {", ".join(skipped)}' if skipped else '')
         else:
-            cells_ok = sum(len(c) for c in mine.values()) - len(skipped)
-            detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
+            cells_ok = sum(k != PREVIOUS_CLEANUP_CELL for c in mine.values() for k in c) - len(skipped)
+            variants = sum(set(c) != {PREVIOUS_CLEANUP_CELL} for c in mine.values())
+            detail = f'{variants} variant(s), {cells_ok} cell(s) ok'
             if skipped:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
+        previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
+        if previous:
+            detail += '; previous cleanup failure: ' + '; '.join(previous)
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
         results.append(({'board': board, 'ran': not unbuilt, 'pass': ok,
@@ -743,7 +747,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
 def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
     """`boards`' rows of `report` in the shared rules' shape ({board, verdict, detail, evidence},
     the `hil` skill's Verdicts), folded from summarize()'s: wedged, never heard back from
-    (pool-timeout, run-aborted), left to a cleanup holder or refused by a recovery blocker is a
+    (pool-timeout, run-aborted), left with a logged cleanup failure or refused by a legacy cleanup holder is a
     blocker; locked, build refused, unbuilt or skipped is not-run. A configured board without
     a report row gets no row, which apply_run_rules makes a blocker. Unlike the snapshot, a
     board passes only with a passing test cell."""

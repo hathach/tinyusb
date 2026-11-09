@@ -73,6 +73,58 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
                              f' meant to be the one source')
 
 
+class CleanupReports(unittest.TestCase):
+    def test_current_failure_is_a_blocker_even_though_the_lock_was_released(self):
+        cell = '❌ cleanup pending; board lock released; cleanup failure log: /locks/b.cleanup.jsonl'
+        rows = [('b', {'test': 'pass', hil_report.CLEANUP_PENDING_CELL: cell}, None)]
+        doc = {'rows': [{'board': n, 'cells': c, 'duration': d} for n, c, d in rows]}
+        cfg = {'boards': [{'name': 'b'}]}
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((result['pass'], result['locked'], result['wedged']), (False, False, False))
+        self.assertIn(cell, result['detail'])
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'blocker')
+        self.assertIn('✅ 1 passed · ❌ 1 failed', hil_report.render_matrix(rows))
+
+    def test_previous_failures_are_visible_without_counting_as_results(self):
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc; still open'}
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            md = hil_report.accumulate_report(
+                [('b', 0, [], [('v1', {'test': 'pass'}, '1s'), ('b', previous, None)], None)], rd, True)
+            doc, _ = hil_report._load(rd)
+        self.assertIn('old failure id abc', md)
+        self.assertIn('✅ 1 passed · ❌ 0 failed · ⚪ 0 skipped', md)
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertTrue(result['pass'])
+        self.assertIn('1 variant(s), 1 cell(s) ok', result['detail'])
+        self.assertIn('old failure id abc', result['detail'])
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'pass')
+        doc['rows'] = [r for r in doc['rows'] if r['board'] == 'b']
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'not-run')
+
+    def test_a_later_attempt_refreshes_previous_failures_and_keeps_the_history(self):
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            for previous in ('old failure id abc', 'new failure id def', None):
+                begin(rd)
+                rows = [('v1', {'test': 'pass'}, '1s')]
+                if previous:
+                    rows.append(('b', {hil_report.PREVIOUS_CLEANUP_CELL: previous}, None))
+                hil_report.accumulate_report([('b', 0, [], rows, None)], rd, False)
+                doc, _ = hil_report._load(rd)
+                result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+                self.assertTrue(result['pass'])
+                if previous:
+                    self.assertIn(previous, result['detail'])
+                else:
+                    self.assertNotIn('previous cleanup failure', result['detail'])
+            self.assertEqual(result['history']['b'], [
+                {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc'},
+                {hil_report.PREVIOUS_CLEANUP_CELL: 'new failure id def'}])
+
+
 class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
     def test_a_board_without_a_list_builds_as_itself(self):
         self.assertEqual(hil_report.board_variants({'name': 'b'}),
@@ -1788,7 +1840,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         got = self.verdicts(['a', 'c'])
         self.assertEqual(got, {'a': ('fail', False), 'c': ('not-run', False)})
 
-    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board b: stale record {"protected": true} (recovery blocker: ...)'}
+    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board locked: {"role": "cleanup-holder"} (recovery blocker: ...)'}
 
     def test_a_recovery_blocker_stands_and_bars_the_retry(self):
         self.attempt(False, {'a': self.FAIL_A, 'b': {'b': self.BLOCKED}})
@@ -1801,6 +1853,11 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         self.attempt(True, {'b': {'b': {'t': '✅'}}})
         self.assertEqual(self.verdicts(['a', 'b']), {'a': ('fail', False), 'b': ('blocker', False)},
                          'a later pass never clears it, and its run was no eligible retry of a\'s fail')
+
+    def test_a_logged_cleanup_failure_stays_a_blocker_after_a_later_pass(self):
+        self.attempt(False, {'b': {'b': {'t': '✅', hil_report.CLEANUP_PENDING_CELL: '❌ logged; released'}}})
+        self.attempt(True, {'b': {'b': {'t': '✅', hil_report.PREVIOUS_CLEANUP_CELL: 'earlier cleanup failed'}}})
+        self.assertEqual(self.verdicts(['b'])['b'], ('blocker', False))
 
     def test_a_usbtest_batterys_fail_is_final(self):
         self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 28/29'}}})

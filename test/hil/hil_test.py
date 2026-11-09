@@ -1993,46 +1993,27 @@ def _tests_for(board: Board) -> tuple:
 
 def cleanup_pending(name: str) -> str:
     """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running, or an esptool child not proven ended (hil_flash.cleanup_pending), whose board lock
-    passes to a cleanup holder."""
+    running, or an esptool child not proven ended (hil_flash.cleanup_pending), logged when the
+    board's task ends and releases its lock."""
     receipts = hil_flash.cleanup_pending.get(name)
     return '' if receipts is None else \
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
-def retain_board_lock(name: str, lock: str, fh, pending: str) -> str:
-    """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
-
-    hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
-    group, to a fresh holder and returns the token `hil_lock.py release --token` ends it with
-    after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
-    one that fails leaves its protected record. Either way the handle is closed uncleared: the
-    record on the free flock is the recovery blocker, and the board is never released."""
-    # the holder's release waits for a tracked esptool child's recheck to answer `done`, and for a
-    # retained openocd_esp session's receipt to read ended; a native record never does
+def end_failed_cleanup(name: str, lock: str, fh, pending: str) -> str:
+    """Log the unproven cleanup and end this task's lock, naming the log and any write error."""
     receipts = hil_flash.cleanup_pending.get(name, ())
     tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
     retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
-    try:
-        token = hil_lock.hand_to_cleanup_holder({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
-                                                retained=retained)
-    except ValueError as e:
-        why = str(e)
-        try:
-            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  retained=retained, locks=[lock])
-        except OSError as e2:
-            why += f' (record not rewritten: {e2})'
-    except hil_lock.LockUnavailable as e:
-        why = str(e)
-    else:
-        rec = hil_lock.read_record(lock)
-        pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
-        return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
-                f'`hil_lock.py release --token {token}` after recovery')
-    finally:
-        fh.close()
-    return f'{pending}; {why}; the protected record is the recovery blocker'
+    if not receipts:
+        tracked = [{'unrecheckable': pending}]
+    errors = hil_lock.end_failed({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+                                 retained=retained)
+    log = Path(hil_lock.BOARD_LOCK_DIR) / f'{lock}{hil_lock.CLEANUP_LOG}'
+    detail = f'{pending}; board lock released; cleanup failure log: {log}'
+    if errors.get(lock):
+        detail += '; ' + '; '.join(errors[lock])
+    return detail
 
 
 def test_board(board: Board) -> tuple:
@@ -2045,9 +2026,7 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        # protected, its group (this board alone) declared at acquisition: a run killed with an
-        # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
-        # pending hands the lock to a cleanup holder (retain_board_lock)
+        # cleanupOwed records a killed openocd_esp task for the next taker to log.
         protected = flasher['name'].lower() == 'openocd_esp'
         _lock_fh = hil_lock.acquire_board_lock(lock, protected=protected)
     except hil_lock.LockUnavailable as e:
@@ -2057,13 +2036,17 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        if isinstance(e, hil_lock.RecoveryBlocked):   # the helper's: a cleanup holder or a takeover journal
+        if isinstance(e, hil_lock.RecoveryBlocked):   # a live cleanup holder from an older helper
             cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
             return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
     try:
+        failures = _lock_fh.cleanup_failures if _lock_fh else []
+        previous_cleanup = '; '.join(hil_lock.failure_text(f) for f in failures)
+        if previous_cleanup:
+            log_line(f'{name:25} {len(failures)} open cleanup failure(s): {previous_cleanup}')
         test_list, skipped = _tests_for(board)
         for skip in skipped:
             log_line(f'{name:25} {skip:30} ... Skip')
@@ -2168,6 +2151,7 @@ def test_board(board: Board) -> tuple:
             dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
             rows.append((vname, cells, dur))
 
+        restored = False
         sv_capture = None   # (capture, error, flashed)
         try:
             if sysview_out and 'sysview' in board and \
@@ -2184,6 +2168,7 @@ def test_board(board: Board) -> tuple:
             park_error = None
             if _should_park(skip_flash):
                 park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
+                restored = park_ec == 0 and park_status == 'pass'
                 park_error = ('park flash failed' if park_ec else
                               'no park (device/board_test) firmware' if park_status == 'skip' else None)
             elif sv_capture and sv_capture[2]:
@@ -2202,24 +2187,38 @@ def test_board(board: Board) -> tuple:
         pending = cleanup_pending(name)
         if pending:
             log_line(f'{name:25} BLOCKER: {pending}')
-            fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
-            detail = retain_board_lock(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
+            fh, _lock_fh = _lock_fh, None     # end_failed releases even when interrupted
+            detail = end_failed_cleanup(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
             log_line(f'{name:25} {detail}')
             rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
             err_count += 1
             board_wide_fail = True
+        elif restored and failures:
+            try:
+                notes = hil_lock.resolve_restored(lock, failures, evidence='device/board_test park succeeded')
+            except Exception as e:
+                notes = [f'restorations not logged: {e}']
+            if notes:
+                previous_cleanup += '; ' + '; '.join(notes)
+        if previous_cleanup:
+            for label, cells, _ in rows:
+                if label == name:
+                    cells[hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
+                    break
+            else:
+                rows.append((name, {hil_report.PREVIOUS_CLEANUP_CELL: previous_cleanup}, None))
 
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
     finally:
         unwinding = sys.exc_info()[1]
         if _lock_fh and (pending := cleanup_pending(name)):
-            # raised past the hand-over above: the lock still never frees on its own
-            log_line(f'{name:25} {retain_board_lock(name, lock, _lock_fh, pending)}')
+            log_line(f'{name:25} {end_failed_cleanup(name, lock, _lock_fh, pending)}')
         elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
             # an interrupt may land after the provider returned a pending session but before
-            # hil_flash stored its receipt: keep the protected record as the recovery blocker
-            _lock_fh.close()
+            # hil_flash stored its receipt: log the missing evidence rather than claim cleanup.
+            detail = end_failed_cleanup(name, lock, _lock_fh, 'openocd_esp interrupted; cleanup unproven, receipt missing')
+            log_line(f'{name:25} {detail}')
         elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's

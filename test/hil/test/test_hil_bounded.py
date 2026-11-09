@@ -1401,8 +1401,8 @@ class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
         with mock.patch.object(hil_test, 'skip_flash', False), \
              mock.patch.object(hil_test, 'shuffle_seed', None), \
              mock.patch.object(hil_flash, 'cleanup_pending', {}), \
-             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
-             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=mock.Mock(cleanup_failures=[])), \
+             mock.patch.object(hil_test, 'end_failed_cleanup', return_value='logged'), \
              mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
              mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
              mock.patch.object(hil_test, 'test_example', test_example), \

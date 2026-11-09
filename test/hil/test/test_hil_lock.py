@@ -3,8 +3,8 @@
 # The hil_lock adapter: callers get agentrc's board-lock primitive from the agentrc helper/agentrc.py
 # selects (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
 # whose lock is unavailable before flashing, a recovery blocker refuses the board as a blocker
-# rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running passes the
-# board's lock to a cleanup holder (RetainedLock), `hold --all` takes this host's roster, and an
+# rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running is
+# logged before the board's lock is released (FailedCleanup), `hold --all` takes this host's roster, and an
 # incomplete agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
@@ -19,6 +19,7 @@ import time
 import types
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -136,26 +137,11 @@ class RecoveryBlockerIsNotContention(LockDir):
         self.hold('hil_test.py: openocd_esp cleanup pending', role=hil_lock.CLEANUP_ROLE, token='t0k')
         self.assert_blocker('board locked: ', '"role": "cleanup-holder"', '"token": "t0k"', hil_lock.RECOVERY_BLOCKER)
 
-    def test_a_dead_cleanup_holder(self):
-        self.hold('hil_test.py: openocd_esp cleanup pending', role=hil_lock.CLEANUP_ROLE, token='t0k').close()
-        self.assert_blocker('stale record', '"role": "cleanup-holder"', '"token": "t0k"')
-
-    def test_a_protected_record_left_on_a_free_flock(self):
-        self.hold(hil_lock.CI_REASON, protected=True).close()
-        self.assert_blocker('stale record', '"protected": true', f'"reason": "{hil_lock.CI_REASON}"')
-
-    def test_a_takeover_journal(self):
-        with open(os.path.join(self.dir, BOARD + hil_lock.JOURNAL), 'w') as f:
-            json.dump({'pid': 1, 'predecessor': '{}'}, f)
-        self.assert_blocker('takeover journal', '"pid": 1')
-
-    def test_a_takeover_journal_on_a_held_flock(self):
-        # take_over holds the flock and journals before it rewrites the protected predecessor record
+    def test_a_takeover_journal_on_a_held_flock_stays_contention(self):
         self.hold(hil_lock.CI_REASON, protected=True)
         with open(os.path.join(self.dir, BOARD + hil_lock.JOURNAL), 'w') as f:
             json.dump({'token': 't0k', 'pid': 1, 'locks': [BOARD], 'predecessor': '{}'}, f)
-        self.assert_blocker('board locked: ', '"protected": true', 'takeover journal', '"token": "t0k"',
-                            hil_lock.RECOVERY_BLOCKER)
+        self.assertEqual(self.refusal(), {hil_test.hil_report.LOCKED_CELL: 'fail'})
 
     def test_another_sessions_hold_stays_contention(self):
         for extra in ({}, {'protected': True}):   # a live protected record is a run, not a blocker
@@ -191,7 +177,7 @@ class InstalledDependency(unittest.TestCase):
 
     def provide(self, lock_dir='/tmp/tinyusb-hil-locks', process=True):
         """The install, its hil_lock's BOARD_LOCK_DIR at lock_dir; without hil_process unless `process` (the
-        release predicate and the cleanup hand-over load it beside hil_lock)."""
+        release predicate and end_failed load it beside hil_lock)."""
         with open(os.path.join(agentrc.identity()['root'], PROVIDER)) as f:
             text = f.read()
         moved = text.replace("BOARD_LOCK_DIR = '/tmp/tinyusb-hil-locks'", f'BOARD_LOCK_DIR = {lock_dir!r}')
@@ -294,10 +280,10 @@ def _next_task(x):
     return x
 
 
-class RetainedLock(LockDir):
+class FailedCleanup(LockDir):
     """An openocd_esp session the provider left running (cleanup 'pending', on the returned
     operation or an exception's `.operation`) stops the board: no retry, no further test, no
-    park, and its lock passes to an acknowledged cleanup holder instead of being released."""
+    park, and its receipts are logged before the task releases its lock."""
 
     def setUp(self):
         super().setUp()
@@ -320,7 +306,6 @@ class RetainedLock(LockDir):
                       'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
                                   'args': '-f board/esp32p4-builtin.cfg'}}
         self.lock = BOARD
-        self.addCleanup(self.end_holder)
 
     def provider(self, outcome, security_cleanup='done', security_receipts=()):
         """hil_util.openocd_esp() whose flash records the lock record it ran under, then
@@ -344,29 +329,29 @@ class RetainedLock(LockDir):
                        session={'failure': 'init failed', 'log': '/x/openocd.log', 'dir': '/nonexistent'})
 
     def end_session(self):
-        """The receipt as `hil_openocd_esp.py end` leaves it on exit 0, which the holder's release waits for."""
+        """The receipt as `hil_openocd_esp.py end` leaves it on exit 0."""
         with open(self.RECEIPT, 'w') as f:
             json.dump({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99', 'closed': True, 'cleanup': 'done'}, f)
 
-    def end_holder(self):
-        rec = hil_lock.read_record(self.lock)
-        if hil_lock.is_cleanup_holder(rec):
-            self.end_session()
-            hil_lock.release_token(rec['token'])
+    def assert_released(self, lock=None):
+        lock = lock or self.lock
+        self.assertEqual(hil_lock.record_state(lock)[0], 'empty')
+        fh = hil_lock.take_board_lock(lock, 'peer')
+        try:
+            self.assertTrue(fh.cleanup_failures)
+            return fh.cleanup_failures[-1]
+        finally:
+            hil_lock.release_board_lock(fh)
 
-    def assert_retained(self):
-        rec = hil_lock.read_record(self.lock)
-        self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
-        self.assertIn(self.RECEIPT, rec['detail'])
-        self.assertEqual(rec['retained'], [self.RECEIPT])
-        self.assertEqual((rec['protected'], rec['locks']), (True, [self.lock]))
-        with self.assertRaises(hil_lock.BoardLocked):         # the holder keeps the flock itself
-            hil_lock.take_board_lock(self.lock, 'peer')
-        self.assertIsNone(hil_lock.journal_state(self.lock))  # handed over, not taken over
-        return rec
+    def assert_logged(self):
+        failure = self.assert_released()
+        self.assertIn(self.RECEIPT, failure['detail'])
+        self.assertEqual(failure['retained'], [self.RECEIPT])
+        self.assertEqual((failure['task']['cleanupOwed'], failure['task']['locks']), (True, [self.lock]))
+        return failure
 
     def run_board(self):
-        # only hil_test's own sleeps, not the provider's in the lock hand-over
+        # no retry wait beside an outstanding session
         sleep = mock.Mock()
         fake_time = types.ModuleType('time')
         fake_time.__dict__.update(vars(time), sleep=sleep)
@@ -375,28 +360,28 @@ class RetainedLock(LockDir):
         sleep.assert_not_called()   # never the 0.5 s retry wait
         self.assertEqual((name, err, failed), (BOARD, 2, []))   # the test's flash and the blocker
         self.assertEqual(len(self.flashes), 1, 'retried or parked beside an outstanding session')
-        self.assertEqual((self.flashes[0]['protected'], self.flashes[0]['locks']), (True, [self.lock]),
+        self.assertEqual((self.flashes[0]['cleanupOwed'], self.flashes[0]['locks']), (True, [self.lock]),
                          self.flashes[0])
-        rec = self.assert_retained()
+        self.assert_logged()
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
         self.assertIn(self.RECEIPT, cell)
-        self.assertIn(f'release --token {rec["token"]}', cell)
+        self.assertIn('board lock released', cell)
+        self.assertIn(str(Path(self.dir) / f'{self.lock}.cleanup.jsonl'), cell)
         return rows
 
-    def test_pending_on_return_hands_the_lock_to_a_cleanup_holder(self):
+    def test_pending_on_return_logs_the_failure_and_releases_the_lock(self):
         self.provider(self.op('pending', rc=124))
         self.run_board()
         self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.RECEIPT,)})
-        # the token ends the holder only once recovery ended the session, and only then is the board free again
-        token = hil_lock.read_record(BOARD)['token']
-        with self.assertRaisesRegex(hil_lock.ReleaseRefused, 'retained sessions are not proven ended'):
-            hil_lock.release_token(token)
+        failures = hil_lock.open_cleanup_failures(BOARD)
+        self.assertTrue(hil_lock.resolve_restored(BOARD, failures, evidence='parked'))
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), failures)
         self.end_session()
-        hil_lock.release_token(token)
-        hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
+        self.assertEqual(hil_lock.resolve_restored(BOARD, failures, evidence='parked'), [])
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [])
 
-    def test_a_registered_boards_pending_hands_over_its_registry_lock(self):
+    def test_a_registered_boards_failure_is_logged_under_its_registry_lock(self):
         probe, reg = next(iter(hil_util.hil_boards().registry().items()))
         board = hil_util.hil_boards().resolve({'name': BOARD, 'uid': 'ABC123', 'probe': probe,
                                                'tests': {'only': ['device/cdc_msc']}})
@@ -407,7 +392,7 @@ class RetainedLock(LockDir):
         self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.RECEIPT,)})
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'absent')  # never the roster name's lock
 
-    def test_pending_on_an_exception_hands_it_over_too(self):
+    def test_pending_on_an_exception_logs_and_releases_too(self):
         err = RuntimeError('Tcl connection lost')
         err.operation = self.op('pending', rc=None)
         self.provider(err)
@@ -421,60 +406,39 @@ class RetainedLock(LockDir):
     TRACKED = {'token': 't0k', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/hil_op_t0k.lock',
                'record': '/s/hil_op_t0k.json', 'log': '/s/hil_op_t0k.log', 'survivors': None}
 
-    def handed(self):
-        """hand_to_cleanup_holder's calls, each refused as the real one refuses nothing here: a
-        fake tracked receipt would never recheck done, so a real holder could never be ended."""
-        handed = []
-
-        def hand(handles, reason, **kw):
-            handed.append({'handles': list(handles), **kw})
-            raise ValueError('cleanup holder handoff refused in this test')
-        patch(self, hil_lock, 'hand_to_cleanup_holder', hand)
-        return handed
-
-    def test_a_security_read_left_running_stops_before_the_flash_and_holds_its_receipt(self):
-        tracked = self.TRACKED
-        self.provider(self.op('done', rc=0), security_cleanup='pending', security_receipts=(tracked,))
-        handed = self.handed()
+    def test_a_security_read_left_running_stops_before_the_flash_and_logs_its_receipt(self):
+        self.provider(self.op('done', rc=0), security_cleanup='pending', security_receipts=(self.TRACKED,))
         name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((name, err, failed), (BOARD, 2, []))
         self.assertEqual(self.flashes, [], 'an openocd session started beside the esptool child')
-        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (tracked,)})
-        (kw,) = handed
-        self.assertEqual(kw['receipts'], [tracked])
-        self.assertIn('esptool child, record /s/hil_op_t0k.json', kw['detail'])
-        rec = hil_lock.read_record(BOARD)                      # the refused hand-over's blocker carries it too
-        self.assertEqual((rec['protected'], rec['receipts'], rec['locks']), (True, [tracked], [BOARD]))
+        self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.TRACKED,)})
+        failure = self.assert_released()
+        self.assertEqual((failure['receipts'], failure['retained']), ([self.TRACKED], []))
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertIn('esptool child, record /s/hil_op_t0k.json', cell)
-        self.assertIn('the protected record is the recovery blocker', cell)
+        self.assertIn('board lock released', cell)
 
-    def test_a_security_read_of_unknown_cleanup_is_read_once_latched_and_handed_over(self):
-        # its supervisor did not report: no proof the child ended, so no retry, park or release
+    def test_a_security_read_of_unknown_cleanup_is_read_once_latched_and_logged(self):
         self.provider(self.op('done', rc=0), security_cleanup='unknown', security_receipts=(self.TRACKED,))
-        handed = self.handed()
-        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        hil_test.test_board(self.board)
         self.assertEqual((len(self.reads), self.flashes), (1, []))
         self.assertEqual(hil_flash.cleanup_pending, {BOARD: (self.TRACKED,)})
-        (kw,) = handed
-        self.assertEqual(kw['receipts'], [self.TRACKED])
-        rec = hil_lock.read_record(BOARD)
-        self.assertEqual((rec['protected'], rec['receipts']), (True, [self.TRACKED]))
+        self.assertEqual(self.assert_released()['receipts'], [self.TRACKED])
 
-    def test_only_tracked_receipts_reach_the_holders_recheck(self):
-        # a session whose receipt file could not be written leaves its native record: `end`'s, never a recheck's
+    def test_tracked_and_retained_receipts_are_logged_separately(self):
         native = {'pid': 4242, 'startTime': '99', 'argv': ['openocd'], 'ports': [None, None, 6666], 'token': 'x',
                   'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
         hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
-        handed = self.handed()
         fh = hil_lock.take_board_lock(LOCK, 'hil_test.py', protected=True)
-        cell = hil_test.retain_board_lock(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
-        (kw,) = handed
-        self.assertEqual(kw['handles'], [LOCK])
-        self.assertEqual(hil_lock.read_record(LOCK)['locks'], [LOCK])
-        self.assertEqual(kw['receipts'], [self.TRACKED])
+        cell = hil_test.end_failed_cleanup(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
+        self.assertTrue(fh.closed)
+        failure = self.assert_released(LOCK)
+        self.assertEqual(failure['task']['locks'], [LOCK])
+        self.assertEqual(failure['receipts'], [self.TRACKED])
+        self.assertEqual(failure['retained'], [native, self.RECEIPT])
         for text in ('openocd_esp session pid 4242 start 99, receipt file unwritten, log /w/openocd.log',
                      'esptool child, record /s/hil_op_t0k.json', self.RECEIPT):
-            self.assertIn(text, kw['detail'])
+            self.assertIn(text, failure['detail'])
             self.assertIn(text, cell)
 
     def run_failing_test(self):
@@ -493,16 +457,16 @@ class RetainedLock(LockDir):
         patch(self, hil_test, 'max_retry', 1)
         self.run_failing_test()
 
-    def test_pending_on_an_interrupt_is_handed_over_on_the_way_out(self):
+    def test_pending_on_an_interrupt_is_logged_and_released_on_the_way_out(self):
         err = KeyboardInterrupt()
         err.operation = self.op('pending', rc=None)
         self.provider(err)
         with self.assertRaises(KeyboardInterrupt):
             hil_test.test_board(self.board)
-        self.assert_retained()
-        self.assertIn('lock held by cleanup holder', self.log[-1])
+        self.assert_logged()
+        self.assertIn('board lock released', self.log[-1])
 
-    def test_an_interrupt_before_the_receipt_is_stored_keeps_the_board_blocked(self):
+    def test_an_interrupt_before_the_receipt_is_stored_logs_unrecheckable_evidence(self):
         # the provider returned its pending operation, then the interrupt lands before the store
         class Interrupted(dict):
             def __setitem__(self, key, value):
@@ -512,10 +476,9 @@ class RetainedLock(LockDir):
         with self.assertRaises(KeyboardInterrupt):
             hil_test.test_board(self.board)
         self.assertEqual(len(self.flashes), 1)
-        rec = hil_lock.read_record(BOARD)
-        self.assertTrue(hil_lock.is_recovery_blocker(rec), rec)
-        with self.assertRaises(hil_lock.RecoveryBlocked):
-            hil_lock.take_board_lock(BOARD, 'peer')
+        failure = self.assert_released()
+        self.assertIn('receipt missing', failure['receipts'][0]['unrecheckable'])
+        self.assertTrue(hil_lock.resolve_restored(BOARD, [failure], evidence='parked'))
 
     def test_no_later_session_starts_on_the_board(self):
         self.provider(self.op('pending'))
@@ -525,15 +488,14 @@ class RetainedLock(LockDir):
             hil_flash.flash_openocd_esp(self.board, '/fw/cdc_msc.bin')
         self.assertEqual(len(self.flashes), 1)
 
-    def test_the_workers_next_task_runs_while_the_holder_lives(self):
-        # hil_test's Pool replaces a worker per board: a holder keeping the worker's
-        # multiprocessing descriptors would stall the next board until it exits
+    def test_the_workers_next_task_runs_after_the_failed_cleanup(self):
+        # The failed board must not strand a pool worker or its next task.
         self.provider(self.op('pending'))
         pool = hil_test._mp.Pool(1, maxtasksperchild=1)
         self.addCleanup(pool.terminate)
         self.assertEqual(pool.apply_async(_board_in_worker, (self.board,)).get(timeout=60), 2)
         self.assertEqual(pool.apply_async(_next_task, (7,)).get(timeout=20), 7)
-        self.assert_retained()
+        self.assert_logged()
 
     def test_under_a_ci_job_the_route_is_refused_before_the_provider(self):
         job_env = hil_util.openocd_esp().CI_JOB_ENV
@@ -553,32 +515,93 @@ class RetainedLock(LockDir):
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def assert_blocker(self, cell, why, lock=BOARD):
-        self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
-        self.assertIn(why, cell)
-        self.assertIn('the protected record is the recovery blocker', cell)
-        rec = hil_lock.read_record(lock)
-        self.assertFalse(hil_lock.is_cleanup_holder(rec), rec)
-        self.assertEqual((rec['protected'], rec['locks'], rec['detail']),
-                         (True, [lock], f'openocd_esp cleanup pending, receipt {self.RECEIPT}'))
-        with self.assertRaises(hil_lock.RecoveryBlocked):
-            hil_lock.take_board_lock(lock, 'peer')
-
-    def test_an_unacknowledged_hand_over_leaves_the_protected_record_as_the_blocker(self):
+    def test_a_log_write_failure_still_releases_and_reports_the_error(self):
         self.provider(self.op('pending'))
-        # a holder that exits before reporting readiness
-        patch(self, hil_lock, '_holder_argv', lambda job: [sys.executable, '-c', 'pass'])
-        _, err, _, rows, _ = hil_test.test_board(self.board)
+        with mock.patch.object(hil_lock, 'log_cleanup_failure', side_effect=OSError('log is read-only')):
+            _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 2)
-        self.assert_blocker(rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL], 'cleanup holder handoff failed')
+        cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn('cleanup log not written', cell)
+        self.assertIn('log is read-only', cell)
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
+        hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def test_a_refused_hand_over_protects_the_record_as_the_blocker(self):
-        # an unprotected handle: hand_to_cleanup_holder refuses, changing nothing, and the board
-        # is protected here instead of released
-        fh = hil_lock.take_board_lock(LOCK, hil_lock.CI_REASON)
-        cell = '❌ ' + hil_test.retain_board_lock(BOARD, LOCK, fh, f'openocd_esp cleanup pending, receipt {self.RECEIPT}')
-        self.assertTrue(fh.closed)
-        self.assert_blocker(cell, 'cleanup holder handoff refused', lock=LOCK)
+    def test_a_later_run_reports_all_open_failures_and_keeps_unproven_ones(self):
+        first = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        second = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old child', receipts=[self.TRACKED])
+        self.provider(self.op('done', rc=0))
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        cell = rows[-1][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL]
+        for failure in (first, second):
+            self.assertIn(failure['id'], cell)
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [first, second])
+        self.assertIn('2 open cleanup failure(s)', self.log[0])
+
+    def test_a_successful_park_resolves_only_the_failures_with_ended_evidence(self):
+        self.end_session()
+        ended = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        pending = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old child', receipts=[self.TRACKED])
+        self.provider(self.op('done', rc=0))
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertIn(ended['id'], rows[-1][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL])
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [pending])
+
+    def test_skip_flash_does_not_claim_an_earlier_cleanup_restored(self):
+        self.end_session()
+        failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        patch(self, hil_test, 'skip_flash', True)
+        self.provider(self.op('done', rc=0))
+        self.assertEqual(hil_test.test_board(self.board)[1], 0)
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
+
+    def test_an_unproven_park_does_not_resolve_an_earlier_failure(self):
+        self.end_session()
+        failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        for outcome in ((1, 'fail', None), (0, 'skip', None)):
+            with self.subTest(outcome=outcome):
+                def example(board, variant, test):
+                    return outcome if test == 'device/board_test' else (0, 'pass', None)
+                with mock.patch.object(hil_test, 'test_example', example):
+                    hil_test.test_board(self.board)
+                self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
+
+    def test_previous_failures_do_not_erase_a_current_wedge_on_the_same_row(self):
+        hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        patch(self, hil_test.usbtest, 'strays_on', lambda uid: ['stray'])
+        patch(self, hil_test.usbtest, 'recover_strays', lambda board, strays: 'still wedged')
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = hil_test.hil_report
+            report.accumulate_report([(BOARD, err, [], rows, None)], Path(tmp), True)
+            doc, _ = report._load(Path(tmp))
+        result = report.normalised_rows({'boards': [self.board]}, [BOARD], doc)[0]
+        self.assertEqual(result['verdict'], 'blocker')
+        self.assertIn('wedged', result['detail'])
+        self.assertIn('old session', result['detail'])
+
+    def test_a_free_legacy_record_is_logged_and_admitted(self):
+        self.provider(self.op('done', rc=0))
+        for extra in ({'role': hil_lock.CLEANUP_ROLE, 'token': 'old'}, {'protected': True}, {'cleanupOwed': True}):
+            with self.subTest(extra=extra):
+                fh = hil_lock.flock_nb(BOARD)
+                hil_lock.write_record(fh, 'old task', **extra)
+                fh.close()
+                _, err, _, rows, _ = hil_test.test_board(self.board)
+                self.assertEqual(err, 0)
+                self.assertIn('old task', rows[-1][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL])
+
+    def test_a_free_takeover_journal_is_logged_and_admitted(self):
+        journal = {'pid': 1, 'predecessor': '{}'}
+        Path(self.dir, BOARD + hil_lock.JOURNAL).write_text(json.dumps(journal))
+        self.provider(self.op('done', rc=0))
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertIn(hil_test.hil_report.PREVIOUS_CLEANUP_CELL, rows[-1][1])
+        failure, = [e for e in hil_lock.cleanup_events(BOARD) if e['event'] == 'failed']
+        self.assertEqual(failure['journal'], journal)
 
 
 if __name__ == '__main__':
