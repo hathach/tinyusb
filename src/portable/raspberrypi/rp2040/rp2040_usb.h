@@ -101,7 +101,8 @@ enum {
   EPSTATE_PENDING_SETUP,
   EPSTATE_ABORTING,        // host interrupt endpoint: abort waits for a poll already on the wire
   EPSTATE_ABORTING_PENDING, // as ABORTING, with the next transfer queued in user_buf/remaining_len
-  EPSTATE_CLOSING           // host interrupt endpoint closed: its slot is freed once no poll can still complete
+  EPSTATE_CLOSING,          // host interrupt endpoint closed: its slot is freed once no poll can still complete
+  EPSTATE_WAITING           // host interrupt endpoint polled on EPX: transfer queued until its next interval is due
 };
 
 // Hardware information per endpoint
@@ -132,6 +133,8 @@ typedef struct hw_endpoint {
     uint8_t abort_frame   : 5; // SOF_RD (modulo 32) when an interrupt endpoint abort stopped polling
   };
   uint8_t data_seq_retries; // EPX IN resends after DATA_SEQ errors with none of this transfer's packets between
+  uint8_t  interval;  // interrupt endpoint polled on EPX: bInterval in frames
+  uint16_t last_poll; // interrupt endpoint polled on EPX: SOF_RD when its last poll was due
 #endif
 
   uint16_t max_packet_size; // max packet size also indicates configured
