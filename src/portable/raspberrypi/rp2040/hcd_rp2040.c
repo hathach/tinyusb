@@ -20,6 +20,9 @@
     // On EPX that timeout is an ordinary RX timeout of the poll itself. Stop-on-NAK ends a poll the device NAKs.
     #define EPX_POLLS_INTERRUPT_EP
   #endif
+  // RP2040 keeps the hardware poller for interrupt IN endpoints, but an interrupt OUT goes on EPX like a bulk one: when the
+  // hardware poller sends an interrupt OUT, the EPX transaction that follows in the frame gets a zero-length FULL|LAST
+  // status written into its armed buffer, the packet the device sent ACKed and lost (and the DATA PIDs out of step).
 
 // port 0 is native USB port, other is counted as software PIO
   #define RHPORT_NATIVE 0
@@ -184,12 +187,12 @@ static void __tusb_irq_path_func(sie_start_xfer)(bool send_setup, bool is_rx, bo
 
 // prepare epx_ctrl register for new endpoint
 TU_ATTR_ALWAYS_INLINE static inline void epx_ctrl_prepare(uint8_t transfer_type) {
-  #ifdef EPX_POLLS_INTERRUPT_EP
-  // An interrupt-type EPX ends a poll the device NAKs with a zero-length buffer completion; as bulk, the NAK stops EPX
+  // An interrupt endpoint on EPX is programmed as bulk: an interrupt-type EPX ends a poll the device NAKs with a
+  // zero-length buffer completion (RP2350), while as bulk a NAK stops EPX (RP2350) or is retried until the round-robin
+  // switches it out (RP2040)
   if (transfer_type == TUSB_XFER_INTERRUPT) {
     transfer_type = TUSB_XFER_BULK;
   }
-  #endif
   usbh_dpram->epx_ctrl = EPX_CTRL_DEFAULT | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB);
 }
 
@@ -282,9 +285,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool int_edpt_is_aborting(const hw_endpoint_
   return ep->state == EPSTATE_ABORTING || ep->state == EPSTATE_ABORTING_PENDING || ep->state == EPSTATE_CLOSING;
 }
 
-// BUFF_STATUS bit of an interrupt endpoint slot: 2n for IN, 2n+1 for OUT
+// BUFF_STATUS bit of interrupt endpoint slot n: 2n. An interrupt OUT slot completes on that bit as well (measured on
+// RP2040), not on 2n+1; no interrupt OUT uses a slot any more (see the top of this file).
 TU_ATTR_ALWAYS_INLINE static inline uint32_t int_edpt_status_bit(const hw_endpoint_t *ep) {
-  return TU_BIT(2u * ep->interrupt_num + (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT ? 1u : 0u));
+  return TU_BIT(2u * ep->interrupt_num);
 }
 
 // Round-robin find next pending ep after current epx
@@ -486,10 +490,8 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     usb_hw_clear->buf_status = bit;
     buf_status &= ~bit;
 
-    // IN transfer for even i, OUT transfer for odd i
-    // EPX  is bit 0. Bit 1 is not used
-    // IEP1 IN/OUT is bit 2, 3
-    // IEP2 IN/OUT is bit 4, 5 etc
+    // EPX is bit 0; interrupt endpoint slot n completes on bit 2n (see int_edpt_status_bit()), any other bit is taken
+    // to be slot idx / 2's as well
     const uint8_t epnum = idx >> 1u;
     for (size_t e = 0; e < TU_ARRAY_SIZE(ep_pool); e++) {
       hw_endpoint_t *ep = &ep_pool[e];
@@ -1036,7 +1038,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   #ifdef EPX_POLLS_INTERRUPT_EP
   const bool on_epx = true;
   #else
-  const bool on_epx = (ep->transfer_type != TUSB_XFER_INTERRUPT);
+  const bool on_epx = (ep->transfer_type != TUSB_XFER_INTERRUPT) || (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT);
   #endif
   if (on_epx) {
     ep->dpram_buf     = usbh_dpram->epx_data;
