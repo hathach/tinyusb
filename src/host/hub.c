@@ -276,7 +276,9 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
   if (xfer->result != XFER_RESULT_SUCCESS) {
-    get_hub_itf(xfer->daddr)->mtt = false; // SET_INTERFACE failed: the hub stays single-TT in alternate setting 0
+    // after a transport error the hub may have applied SET_INTERFACE: its TT layout is unknown
+    TU_ASSERT(xfer->result == XFER_RESULT_STALLED, );
+    get_hub_itf(xfer->daddr)->mtt = false; // SET_INTERFACE stalled: the hub stays single-TT in alternate setting 0
   }
 
   // Get Hub Descriptor
@@ -516,9 +518,9 @@ bool hub_tt_multi(uint8_t hub_addr) {
 // bus-time admission, interrupt reservations or frame-spanning splits.
 bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
   uint8_t const count = (uint8_t) ((packet_size + 187u) / 188u);
-  uint8_t const last = (dir == TUSB_DIR_IN ? 4u : 6u) - count;
+  uint8_t const last = (uint8_t) ((dir == TUSB_DIR_IN ? 4u : 6u) - count);
   for (uint8_t i = 0; i <= last; i++) {
-    uint8_t const start = dir == TUSB_DIR_IN ? last - i : i;
+    uint8_t const start = (uint8_t) (dir == TUSB_DIR_IN ? last - i : i);
     uint8_t const mask = (uint8_t) (((1u << count) - 1u) << start);
     if (!(used & mask)) {
       *slot = start;
