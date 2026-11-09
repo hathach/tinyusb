@@ -976,8 +976,9 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
   // the request queue has room before the HFNUM sample that selects the microframe
   const bool is_in = (channel->hcchar & HCCHAR_EPDIR) != 0;
-  if (is_in && !dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, true)) {
-    // an IN at the queue head waits for RxFIFO space only the RxFIFO service frees (Programming Guide Table 1-2)
+  if (!dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, true)) {
+    // The enable queues it, a zero-data OUT one too (Databook HPTXSTS.PTxQTop CSPLIT). An IN at the queue head waits
+    // for RxFIFO space only the RxFIFO service frees (Programming Guide Table 1-2).
     _hcd_csplit_behind = true;
     channel_csplit_wait(dwc2, xfer);
     return true;

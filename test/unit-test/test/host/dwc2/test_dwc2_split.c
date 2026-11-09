@@ -505,23 +505,27 @@ void test_late_complete_split_in_the_microframe_tail_goes_in_the_next(void) {
 }
 
 void test_slave_complete_split_never_spins_on_a_full_periodic_queue(void) {
-  // An IN at the head of a full queue waits for RxFIFO space, which the RxFIFO service after SOF in the ISR frees
-  pending_csplit(0, true, 8, 2);
-  _hcd_data.xfer[0].csplit_wait = 0;
-  test_regs.hfnum = (3500u << 16) | 10u; // its first complete-split is due now
-  set_ptx_queue(0);
-  TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
-  TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
-  TEST_ASSERT_TRUE(_hcd_data.xfer[0].csplit_wait);
-  TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);
+  // The enable of an IN or a zero-data OUT complete-split queues it. An IN at the head of a full queue waits for
+  // RxFIFO space, which the RxFIFO service after SOF in the ISR frees.
+  for (unsigned in = 0; in < 2; in++) {
+    variant_setup(in);
+    pending_csplit(0, in != 0, 8, 2);
+    _hcd_data.xfer[0].csplit_wait = 0;
+    test_regs.hfnum = (3500u << 16) | 10u; // its first complete-split is due now
+    set_ptx_queue(0);
+    TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_TRUE(_hcd_data.xfer[0].csplit_wait);
+    TEST_ASSERT_BITS_HIGH(GINTMSK_SOFM, test_regs.gintmsk);
 
-  // the ISR tail retries it once the RxFIFO service has freed an entry
-  set_ptx_queue(1);
-  test_regs.gintsts = 0;
-  hcd_int_handler(0, true);
-  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
-  TEST_ASSERT_FALSE(_hcd_data.xfer[0].csplit_wait);
-  TEST_ASSERT_EQUAL(3, _hcd_data.xfer[0].csplit_next);
+    // the ISR tail retries it once the queue has a free entry
+    set_ptx_queue(1);
+    test_regs.gintsts = 0;
+    hcd_int_handler(0, true);
+    TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].csplit_wait);
+    TEST_ASSERT_EQUAL(3, _hcd_data.xfer[0].csplit_next);
+  }
 }
 
 void test_iso_out_piece_for_a_microframe_the_core_no_longer_serves_fails_the_packet(void) {
