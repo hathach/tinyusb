@@ -99,9 +99,6 @@ enum {
   EPSTATE_ACTIVE,
   EPSTATE_PENDING,
   EPSTATE_PENDING_SETUP,
-  EPSTATE_ABORTING,        // host interrupt endpoint: abort waits for a poll already on the wire
-  EPSTATE_ABORTING_PENDING, // as ABORTING, with the next transfer queued in user_buf/remaining_len
-  EPSTATE_CLOSING,          // host interrupt endpoint closed: its slot is freed once no poll can still complete
   EPSTATE_WAITING,          // host interrupt endpoint polled on EPX: transfer queued until its next interval is due
   EPSTATE_EPX_ABORTING,     // host EPX transfer aborted: still on EPX until the transaction under way has ended
   EPSTATE_EPX_ABORTING_PENDING // as EPX_ABORTING, with the next transfer queued in user_buf/remaining_len
@@ -128,11 +125,9 @@ typedef struct hw_endpoint {
 
 #if CFG_TUH_ENABLED
   uint8_t dev_addr;
-  uint8_t interrupt_num; // 1-15 for interrupt endpoints
   struct TU_ATTR_PACKED {
     uint8_t transfer_type : 2;
     uint8_t need_pre      : 1; // preamble for low-speed device behind full speed hub
-    uint8_t abort_frame   : 5; // SOF_RD (modulo 32) when an interrupt endpoint abort stopped polling
   };
   uint8_t data_seq_retries; // EPX IN resends after DATA_SEQ errors with none of this transfer's packets between
   uint8_t  interval;  // interrupt endpoint polled on EPX: bInterval in frames
