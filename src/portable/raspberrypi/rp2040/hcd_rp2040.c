@@ -639,16 +639,23 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   #ifdef HAS_STOP_EPX_ON_NAK
   if (status & USB_INTS_EPX_STOPPED_ON_NAK_BITS) {
     usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
-    // epx may have been retired above (RX timeout) in the same interrupt: never restart or re-queue it
-    if (epx->state == EPSTATE_ACTIVE) {
+    // a buffer that completed after the status was read is taken first: the context save below drops the buffers
+    if (usb_hw->buf_status & 1u) {
+      handle_buf_status_isr();
+    }
+    // Only for the transfer that stopped: one retired above (RX timeout) is never restarted or re-queued, and one
+    // started above since (after a completion) is running.
+    if (epx == status_epx && epx->state == EPSTATE_ACTIVE) {
       hw_endpoint_t *next_ep = epx_next_pending(epx);
-      if (next_ep != NULL) {
-        epx_save_context(epx);
-        epx_switch_ep(next_ep);
-      } else {
+      if (next_ep == NULL) {
         usb_hw_clear->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
-        sie_start_xfer(false, TUSB_DIR_IN == tu_edpt_dir(epx->ep_addr), epx->need_pre);
+        next_ep                = epx;
       }
+      // Resuming takes a context save and a fresh start, as a switch does: START_TRANS resumes on buffer 0, not on the
+      // buffer the stop left next, so a double-buffered transfer would expect the other DATA PID (IN: DATA_SEQ, the
+      // device's packet lost) or send its buffers out of order (OUT)
+      epx_save_context(epx);
+      epx_switch_ep(next_ep);
     }
   }
   #endif
