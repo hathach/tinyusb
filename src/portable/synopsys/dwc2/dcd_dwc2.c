@@ -730,7 +730,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
       if (edpt_is_enabled(dep)) {
         dep->ctl |= EPCTL_SNAK | EPCTL_EPDIS;
       } else if (d == 0 && !dfifo_tx_exists(rhport, n)) {
-        // Never enabled, so deactivate now: a stale one would exceed e.g. ESP32-S2/S3's 5 concurrently active IN EPs
+        // No TX FIFO, so never enabled and never disabled above; deactivate it as edpt_disable() does
         dep->ctl &= ~EPCTL_USBAEP;
       }
       xfer_status[n][1-d].max_size = 0;
