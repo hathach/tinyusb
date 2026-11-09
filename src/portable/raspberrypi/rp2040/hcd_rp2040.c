@@ -41,8 +41,17 @@ static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 static bool hcd_running = false;
 
   #ifndef HAS_STOP_EPX_ON_NAK
+// Set by the SOF round-robin for the transfer active on EPX at that SOF; any EPX completion or start clears it
 static volatile bool epx_switch_request = false;
   #endif
+
+// A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
+// a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
+TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
+  #ifndef HAS_STOP_EPX_ON_NAK
+  epx_switch_request = false;
+  #endif
+}
 
 enum {
   SIE_CTRL_SPEED_DISCONNECT = 0,
@@ -185,6 +194,7 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
 
   epx       = ep; // switch pointer
   ep->state = EPSTATE_ACTIVE;
+  epx_xfer_started();
 
   if (is_setup) {
     // panic("new setup \n");
@@ -402,11 +412,11 @@ enum {
   LINE_IDLE_US         = 3   // longer than the bus turnaround between a token and the device's reply
 };
 
-// Whether STOP_TRANS can be issued now without meeting a transaction on the wire. The SIE sends a retry that came due
-// in the end-of-frame guard window right after SOF, where this ISR runs; STOP_TRANS on it while the device returns
-// data makes the host ACK the packet without writing its buffer status (#3964). So wait out that slot, then sample
-// the bus: idle (J) throughout means no transaction is under way. Busy-waits only on frames the round-robin switches.
-static bool __tusb_irq_path_func(epx_bus_idle_after_sof)(void) {
+// Whether the round-robin can stop EPX now. The SIE sends a retry that came due in the end-of-frame guard window right
+// after SOF, where this ISR runs; STOP_TRANS on it while the device returns data makes the host ACK the packet without
+// writing its buffer status (#3964). So wait out that slot, then sample the bus: idle (J) throughout means no
+// transaction is under way. Busy-waits only on frames the round-robin switches.
+static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
   busy_wait_us_32(EPX_POST_SOF_SLOT_US);
   // J is D+ high at full speed (1), D- high at low speed (2); a low-speed device behind a hub runs at full speed here
   const uint32_t line_j = (dev_speed() == SIE_CTRL_SPEED_LOW) ? 2u : 1u;
@@ -416,7 +426,9 @@ static bool __tusb_irq_path_func(epx_bus_idle_after_sof)(void) {
       return false;
     }
   } while (time_us_32() - t0 <= LINE_IDLE_US);
-  return true;
+  // The retry can also complete within the wait (a zero-length packet takes a few us): its status is latched for the
+  // ISR, which would apply it to the transfer switched in ("buf_ctrl already available"); the ISR takes it next
+  return !(usb_hw->buf_status & 1u) && !(usb_hw->sie_status & USB_SIE_STATUS_TRANS_COMPLETE_BITS);
 }
 
 // RP2040: on SOF, switch EPX if another endpoint is pending.
@@ -435,9 +447,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
 
   if (epx->state == EPSTATE_ACTIVE) {
     if (epx_switch_request) {
-      // Second SOF with no transfer completion: endpoint is NAK-retrying, switch it out unless a packet is under way
-      // (its completion drops the request; otherwise the next SOF tries again)
-      if (!epx_bus_idle_after_sof()) {
+      // Second SOF with no transfer completion: endpoint is NAK-retrying, switch it out unless a packet is under way or
+      // has just completed (its completion drops the request; otherwise the next SOF tries again)
+      if (!epx_can_stop_after_sof()) {
         return true;
       }
       epx_switch_request = false;
@@ -931,6 +943,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
 
       epx = ep;
+      epx_xfer_started();
 
       epx_ctrl_prepare(ep->transfer_type);
       rp2usb_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, buflen); // prepare bufctrl
@@ -972,6 +985,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   } else {
     epx       = ep;
     ep->state = EPSTATE_ACTIVE;
+    epx_xfer_started();
 
     usb_hw->dev_addr_ctrl = ep->dev_addr;
     sie_start_xfer(true, tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN, ep->need_pre);
