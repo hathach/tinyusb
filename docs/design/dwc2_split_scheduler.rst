@@ -452,8 +452,10 @@ index.
 **R04 -- Cancellation and hotplug (integration).** Closing, aborting, device
 removal, hub removal, reset, suspend/resume, and alternate-setting changes must
 invalidate future actions and release TT/ISO/bounce reservations exactly once.
-Ignore late events belonging to an old transaction generation. Do not issue
-further SS/CS after cancellation or report a transfer twice.
+Ignore late events belonging to an old transaction generation. Issue no new SS
+after cancellation, and no CS except those that drain a control/bulk
+transaction the TT already accepted: the endpoint stays owned and reports
+nothing until they end. Never report a transfer twice.
 
 **R05 -- ISO OUT ownership (observation/policy).** Model one contiguous ISO OUT
 packet's reserved SS sequence on its TT. The current implementation holds

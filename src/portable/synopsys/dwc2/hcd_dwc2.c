@@ -2175,13 +2175,15 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   // the channel may not run when this is called with the interrupt masked; the endpoint then refuses new transfers
   // until the halt comes. The return value keeps its hcd.h meaning.
   if (halting != NULL) {
-    // 8 frame-counter ticks, or 8 ms as HFNUM stops without SOF (port suspended or disabled). The milliseconds count
-    // from the first step of tusb_time_millis_api(): a coarse RTOS tick moves it by a whole tick at once.
+    // 8 frame-counter ticks. HFNUM counts only while the port sends SOF, so stop once it is disabled or suspended:
+    // tusb_time_millis_api() may itself stand still when this runs with interrupts masked. 8 ms also ends the wait;
+    // they count from its first step, as a coarse RTOS tick moves it by a whole tick at once.
     const uint32_t start    = dwc2->hfnum & HCD_FRAME_NUMBER_MASK;
     const uint32_t call_ms  = tusb_time_millis_api();
     uint32_t       start_ms = call_ms;
     bool           stepped  = false;
-    while (halting->aborting && (((dwc2->hfnum & HCD_FRAME_NUMBER_MASK) - start) & HCD_FRAME_NUMBER_MASK) < 8u) {
+    while (halting->aborting && (dwc2->hprt & (HPRT_ENABLE | HPRT_SUSPEND)) == HPRT_ENABLE &&
+           (((dwc2->hfnum & HCD_FRAME_NUMBER_MASK) - start) & HCD_FRAME_NUMBER_MASK) < 8u) {
       const uint32_t now_ms = tusb_time_millis_api();
       if (!stepped) {
         stepped  = now_ms != call_ms;

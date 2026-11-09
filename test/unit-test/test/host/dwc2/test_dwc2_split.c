@@ -1136,6 +1136,7 @@ static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
     test_regs.ghwcfg2 = hw.value;
   }
   bulk_nak_endpoint(in, split);
+  test_regs.hprt |= HPRT_ENABLE; // the port sends SOF, so a halt wait has a frame counter to go by
   isr_runs = 0;
   return in ? 0x81 : 0x01;
 }
@@ -1182,17 +1183,27 @@ void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) 
 }
 
 void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void) {
-  // the halt arrives while the abort waits, or never (interrupt masked, port suspended): either way the abort returns
-  for (unsigned halts = 0; halts < 2; halts++) {
-    variant_setup(halts);
+  // the halt never arrives (interrupt masked), arrives while the abort waits, or cannot come soon as the port is
+  // suspended and its frame counter stands still: either way the abort returns
+  for (unsigned c = 0; c < 3; c++) {
+    variant_setup(c);
     const uint8_t ep_addr = abort_bulk_endpoint(true, true, false);
+    const bool    halts   = c == 1;
+    const bool    suspend = c == 2;
     on_millis             = halts ? isr_halts_aborted_dma_channel : NULL;
     millis_isr_at         = 3; // past the read that only starts the timeout
+    if (suspend) {
+      test_regs.hprt |= HPRT_SUSPEND;
+    }
 
     TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
     if (!halts) {
-      // timed out, the halt unconfirmed: the endpoint takes no replacement until the halt retires the channel
-      TEST_ASSERT_GREATER_THAN_UINT32(millis_isr_at, millis_ticks);
+      // the halt unconfirmed: the endpoint takes no replacement until the halt retires the channel
+      if (suspend) {
+        TEST_ASSERT_LESS_OR_EQUAL_UINT32(1, millis_ticks); // no wait at all
+      } else {
+        TEST_ASSERT_GREATER_THAN_UINT32(millis_isr_at, millis_ticks);
+      }
       TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
       isr_halts_aborted_dma_channel();
     }
