@@ -2566,8 +2566,8 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // In packet received, pop this entry --> ACK interrupt
       const uint16_t byte_count = grxstsp.byte_count;
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-      if (!xfer->allocated) {
-        // Discard data for a channel retired by disconnect.
+      if (!xfer->allocated || xfer->aborting) {
+        // Discard data for a channel retired by disconnect, or aborted: its owner may have the buffer back already.
         for (uint16_t count = 0; count < byte_count; count += sizeof(uint32_t)) {
           (void) dwc2->fifo[0][0];
         }

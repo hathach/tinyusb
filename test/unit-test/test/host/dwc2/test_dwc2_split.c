@@ -1212,6 +1212,26 @@ void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void)
   }
 }
 
+void test_slave_abort_discards_in_data_the_rxfifo_still_holds(void) {
+  // the bounded wait returned before the ISR ran; the packet then popped must not reach the released buffer
+  // (tu_hwfifo_read() has no expectation: a read into it fails the test)
+  const uint8_t ep_addr = abort_bulk_endpoint(false, true, false);
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
+
+  dwc2_grxstsp_t rx = {.value = 0};
+  rx.ep_ch_num      = 0;
+  rx.byte_count     = 64;
+  rx.packet_status  = GRXSTS_PKTSTS_RX_DATA;
+  test_regs.grxstsp = rx.value;
+  handle_rxflvl_irq(0);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].xferred_bytes);
+
+  isr_halts_aborted_slave_channel();
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+}
+
 static bool payload_holds(uint32_t addr) {
   const uint32_t base = (uint32_t) (uintptr_t) payload;
   return addr - base < sizeof(payload);
