@@ -3209,6 +3209,13 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       }
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
+#if HCD_SPLIT
+      // an isochronous OUT start-split has no complete-split (USB 2.0 11.18.4 rule 3a): its ACK ends the piece
+      // (Programming Guide 5.3.4)
+      if (hcsplt.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+        return !channel_iso_out_next(dwc2, ch_id);
+      }
+#endif
       if (hcsplt.split_en && !hcsplt.split_compl) {
         // start split is ACK --> do complete split
         hcsplt.split_compl = 1;

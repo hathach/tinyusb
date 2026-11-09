@@ -998,6 +998,28 @@ void test_slave_out_start_restores_only_an_interrupt_mask_it_set(void) {
   }
 }
 
+void test_dma_iso_out_start_split_ack_sends_the_next_piece_without_a_complete_split(void) {
+  // an isochronous OUT start-split has no complete-split (USB 2.0 11.18.4 rule 3a): its halt with ACK, with or without
+  // XferCompl, ends the piece (Programming Guide 5.3.4)
+  const uint32_t acks[] = {HCINT_ACK, HCINT_ACK | HCINT_XFER_COMPLETE};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(acks); i++) {
+    variant_setup(i);
+    set_dma();
+    endpoint(0, false, 400, true);
+    _hcd_data.xfer[0].split_uframe = 9;
+    _hcd_data.xfer[0].iso_open     = 1;
+    test_regs.hfnum                = (3500u << 16) | 10u;
+    test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+    TEST_ASSERT_FALSE(handle_channel_out_dma(&test_regs, 0, HCINT_HALTED | acks[i]));
+    const dwc2_channel_split_t hcsplt = {.value = test_regs.channel[0].hcsplt};
+    TEST_ASSERT_FALSE(hcsplt.split_compl);
+    TEST_ASSERT_EQUAL(HCD_SPLIT_XACTPOS_MID, hcsplt.xact_pos);
+    TEST_ASSERT_EQUAL(188, _hcd_data.xfer[0].xferred_bytes);
+    TEST_ASSERT_EQUAL_HEX32((uintptr_t) (payload + 188), test_regs.channel[0].hcdma);
+    TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  }
+}
+
 void test_parked_bulk_channel_closes_only_the_microframe_it_parked_in(void) {
   // an isochronous OUT MID due in the microframe the bulk channel parked in by max_nak, in a later one, and in a later
   // one with the channel still enabled, as a slave IN parked between packets is
