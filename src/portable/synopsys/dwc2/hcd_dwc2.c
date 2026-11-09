@@ -2371,7 +2371,9 @@ static bool channel_split_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
 // A complete-split of an isochronous split IN packet returned data. Its MDATA PID continues the packet: arm the next
 // complete-split for the rest. Return false when the packet is complete, with xfer->result failed if DATA0 did not come
-// before its last complete-split (USB 2.0 Figure 11-89).
+// before its last complete-split (USB 2.0 Figure 11-89), or the buffer filled before DATA0 with more or less than MPS.
+// A buffer of exactly MPS filled by MDATA completes without the terminal complete-split, so an ERR there (a full-speed
+// CRC failure, USB 2.0 11.21.4) is not seen: the DWC2 documents do not cover a complete-split with no buffer left.
 static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*                xfer    = &_hcd_data.xfer[ch_id];
   const hcd_endpoint_t*      edpt    = &_hcd_data.edpt[xfer->ep_id];
@@ -2382,9 +2384,9 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
     return false;
   }
   if (xfer->xferred_bytes >= edpt->buflen) {
-    // A buffer of MPS holds the whole packet: the TT can return all of it as MDATA, then a zero-length DATA0 (USB 2.0
-    // 11.21.4). A smaller one may not, and more data than it takes is babble for a non-split packet.
-    xfer->result = (edpt->buflen >= edpt->hcchar_bm.ep_size) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
+    // MPS bytes are the whole packet: the TT can return all of it as MDATA, then a zero-length DATA0 (USB 2.0 11.21.4).
+    // A smaller buffer may not hold it, and more than MPS is babble.
+    xfer->result = (edpt->buflen == edpt->hcchar_bm.ep_size) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
     return false;
   }
 

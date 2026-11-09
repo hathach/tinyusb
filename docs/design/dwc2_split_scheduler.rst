@@ -522,6 +522,11 @@ These choices are **not** protocol requirements merely because they exist in
    * - MDATA continuation helper only for ISO IN
      - The retained interrupt-IN MDATA failure predates the reviewed PR. A
        complete rewrite must address U15, not preserve that limitation as truth.
+   * - ISO IN whose MDATA fills a buffer of exactly MPS completes at once
+     - Departs from U15: the terminal CS is not issued, so its ERR (FS CRC
+       failure, USB 11.21.4) is not seen and the packet is reported good. A
+       larger buffer keeps the check. The DWC2 documents do not cover a CS with
+       no buffer left; **open** until hardware shows how the core handles it.
    * - DMA SS sequence assigned at enable
      - Ordering proof remains open because the guide describes arbiter
        admission.

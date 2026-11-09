@@ -1029,19 +1029,24 @@ void test_split_out_refuses_what_it_cannot_send_one_packet_at_a_time(void) {
   }
 }
 
-void test_iso_in_split_packet_filling_a_buffer_of_mps_completes(void) {
-  // all of it returned as MDATA, its zero-length DATA0 still to come
-  for (unsigned small = 0; small < 2; small++) {
-    variant_setup(small);
+void test_iso_in_split_packet_filling_a_buffer_completes_only_at_mps(void) {
+  // all of it returned as MDATA, its zero-length DATA0 still to come: complete for a buffer of MPS; a smaller one may
+  // not hold the packet, and more than MPS is babble
+  const struct {
+    uint16_t      buflen;
+    xfer_result_t result;
+  } cases[] = {{100, XFER_RESULT_FAILED}, {188, XFER_RESULT_SUCCESS}, {376, XFER_RESULT_FAILED}};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    variant_setup(i);
     endpoint(0, true, 188, true);
-    _hcd_data.edpt[0].buflen    = small ? 100 : 188;
-    _hcd_data.xfer[0].xferred_bytes = _hcd_data.edpt[0].buflen;
-    _hcd_data.xfer[0].result    = XFER_RESULT_INVALID;
-    dwc2_channel_tsize_t ts     = {.value = 0};
-    ts.pid                      = HCTSIZ_PID_MDATA;
-    test_regs.channel[0].hctsiz = ts.value;
+    _hcd_data.edpt[0].buflen        = cases[i].buflen;
+    _hcd_data.xfer[0].xferred_bytes = cases[i].buflen;
+    _hcd_data.xfer[0].result        = XFER_RESULT_INVALID;
+    dwc2_channel_tsize_t ts         = {.value = 0};
+    ts.pid                          = HCTSIZ_PID_MDATA;
+    test_regs.channel[0].hctsiz     = ts.value;
     TEST_ASSERT_FALSE(channel_iso_in_more(&test_regs, 0));
-    TEST_ASSERT_EQUAL(small ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+    TEST_ASSERT_EQUAL(cases[i].result, _hcd_data.xfer[0].result);
   }
 }
 
