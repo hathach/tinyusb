@@ -450,3 +450,47 @@ void test_recovery_hub_status_clears_change(void) {
   TEST_ASSERT_EQUAL(polls + 1, poll_count);
   TEST_ASSERT_EQUAL(0, event_count);
 }
+
+//--------------------------------------------------------------------+
+// Split ISO slot allocation
+//--------------------------------------------------------------------+
+enum {
+  NO_SLOT = 0xff
+};
+
+static uint8_t iso_slot(uint8_t used, uint16_t packet_size, uint8_t dir) {
+  uint8_t slot = NO_SLOT;
+  const bool ok = hub_iso_split_slot(used, packet_size, dir, &slot);
+  TEST_ASSERT_EQUAL(ok, slot != NO_SLOT);
+  return slot;
+}
+
+void test_iso_split_slot_out_grows_from_slot0(void) {
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 1, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x01, 188, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(5, iso_slot(0x1f, 188, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 189, TUSB_DIR_OUT)); // 2 slots
+  TEST_ASSERT_EQUAL(2, iso_slot(0x02, 376, TUSB_DIR_OUT)); // first free 2-slot window
+  TEST_ASSERT_EQUAL(3, iso_slot(0x04, 564, TUSB_DIR_OUT)); // 3 slots
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 1023, TUSB_DIR_OUT)); // 6 slots: 0..5
+  TEST_ASSERT_EQUAL(0, iso_slot(0xc0, 1023, TUSB_DIR_OUT)); // slots 6, 7 are not used
+}
+
+void test_iso_split_slot_in_grows_from_slot3(void) {
+  TEST_ASSERT_EQUAL(3, iso_slot(0x00, 1, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(2, iso_slot(0x08, 188, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(2, iso_slot(0x00, 189, TUSB_DIR_IN)); // 2 slots: 2..3
+  TEST_ASSERT_EQUAL(1, iso_slot(0x08, 376, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x00, 564, TUSB_DIR_IN)); // 3 slots: 1..3
+  TEST_ASSERT_EQUAL(0, iso_slot(0x08, 564, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x30, 564, TUSB_DIR_IN)); // slots 4, 5 are not used
+}
+
+void test_iso_split_slot_full_window_fails(void) {
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x3f, 1, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x20, 1023, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x15, 189, TUSB_DIR_OUT)); // no two adjacent free slots in 0..5
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x0f, 1, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x05, 376, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x02, 564, TUSB_DIR_IN));
+}
