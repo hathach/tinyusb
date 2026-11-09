@@ -20,7 +20,6 @@ enum {
 static bool     hcd_abort_result;
 static uint8_t  hcd_abort_count;
 static uint8_t  hcd_abort_ep;
-static bool     hcd_abort_after_close;
 static uint8_t  hcd_close_count;
 static uint8_t  xfer_cb_count;
 static uint32_t xfer_cb_len;
@@ -92,6 +91,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
   (void) daddr;
   (void) ep_addr;
+  TEST_ASSERT_EQUAL(1, hcd_abort_count); // the abort must have reached the HCD before the close
   hcd_close_count++;
   return true;
 }
@@ -110,8 +110,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
   (void) daddr;
   hcd_abort_count++;
-  hcd_abort_ep          = ep_addr;
-  hcd_abort_after_close = (hcd_close_count != 0);
+  hcd_abort_ep = ep_addr;
   return hcd_abort_result;
 }
 
@@ -158,13 +157,12 @@ void setUp(void) {
   _app_driver       = &fake_driver;
   _app_driver_count = 1;
 
-  hcd_abort_result      = true;
-  hcd_abort_count       = 0;
-  hcd_abort_ep          = 0;
-  hcd_abort_after_close = false;
-  hcd_close_count       = 0;
-  xfer_cb_count         = 0;
-  xfer_cb_len           = 0;
+  hcd_abort_result = true;
+  hcd_abort_count  = 0;
+  hcd_abort_ep     = 0;
+  hcd_close_count  = 0;
+  xfer_cb_count    = 0;
+  xfer_cb_len      = 0;
 
   usbh_device_t *dev   = get_device(DADDR);
   dev->bus_info.rhport = RHPORT;
@@ -228,7 +226,6 @@ void test_close_releases_endpoint_without_transfer_to_abort(void) {
 
   TEST_ASSERT_EQUAL(1, hcd_abort_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, hcd_abort_ep);
-  TEST_ASSERT_FALSE(hcd_abort_after_close);
   TEST_ASSERT_EQUAL(1, hcd_close_count);
   TEST_ASSERT_EQUAL_HEX8(0, *ep_in_status());
 }
