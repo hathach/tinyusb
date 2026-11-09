@@ -20,7 +20,7 @@ NAME = 'TinyUSB'
 # resolved like filters(), so a symlinked checkout still matches its filter
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 OUT_DIR = os.path.join(ROOT, 'cmake-code-size')
-BASE_BRANCH = 'master'
+BASE_BRANCH = 'origin/master'
 DEFAULT_ENGINE = 'membrowse'
 BASELINE_REPO = 'hathach/tinyusb'
 CI_PINNED_BOARDS = os.path.join(ROOT, '.github', 'ci-pinned-boards.json')
