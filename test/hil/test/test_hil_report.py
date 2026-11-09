@@ -85,7 +85,7 @@ class CleanupReports(unittest.TestCase):
         self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'blocker')
         self.assertIn('✅ 1 passed · ❌ 1 failed', hil_report.render_matrix(rows))
 
-    def test_previous_failures_are_visible_without_counting_as_results(self):
+    def test_existing_marker_only_rows_remain_readable_without_counting_as_results(self):
         previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc; still open'}
         cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}
         with TemporaryDirectory() as tmp:
@@ -97,11 +97,39 @@ class CleanupReports(unittest.TestCase):
         self.assertIn('✅ 1 passed · ❌ 0 failed · ⚪ 0 skipped', md)
         result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertTrue(result['pass'])
-        self.assertIn('1 variant(s), 1 cell(s) ok', result['detail'])
+        self.assertIn('1 cell(s) ok', result['detail'])
         self.assertIn('old failure id abc', result['detail'])
         self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'pass')
         doc['rows'] = [r for r in doc['rows'] if r['board'] == 'b']
         self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'not-run')
+
+    def test_a_refreshed_variant_clears_its_previous_cleanup_notice(self):
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'different-variant'}]}]}
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc', 'test': 'pass'}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            hil_report.accumulate_report(
+                [('b', 0, [], [('different-variant', previous, '1s')], None)], rd, True)
+            begin(rd)
+            md = hil_report.accumulate_report(
+                [('b', 0, [], [('different-variant', {'test': 'pass'}, '1s')], None)], rd, False)
+            doc, _ = hil_report._load(rd)
+        self.assertNotIn('old failure id abc', md)
+        self.assertNotIn(hil_report.PREVIOUS_CLEANUP_CELL, doc['rows'][0]['cells'])
+        self.assertEqual(doc['rows'][0]['history'], [previous])
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual(result['detail'], '1 variant(s), 1 cell(s) ok')
+        self.assertTrue(result['pass'])
+
+    def test_the_first_rows_notice_survives_a_later_cleanup_row(self):
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc', 'test': 'fail'}
+        cleanup = {hil_report.CLEANUP_PENDING_CELL: '❌ cleanup pending'}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            hil_report.accumulate_report(
+                [('b', 2, [], [('b', previous, '1s'), ('b', cleanup, None)], None)], rd, True)
+            doc, _ = hil_report._load(rd)
+        self.assertEqual(doc['rows'][0]['cells'], {**previous, **cleanup})
 
     def test_a_later_attempt_refreshes_previous_failures_and_keeps_the_history(self):
         cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}

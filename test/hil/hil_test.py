@@ -1968,7 +1968,7 @@ def _tests_for(board: Board) -> tuple:
     Three sources, most specific first: an explicit -bt list for this board, a global -t
     list filtered against what the board can actually do, or the roster's own capability
     flags. The -t filter is not cosmetic -- without it a device-only board runs host/dual
-    tests whose `dev_attached` roster entry does not exist.
+    tests when the board has no attached-device inventory in agentrc's board registry.
     """
     name = board['name']
     if name in board_test:
@@ -2050,9 +2050,13 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
     try:
         failures = _lock_fh.cleanup_failures if _lock_fh else []
-        previous_cleanup = '; '.join(hil_lock.failure_text(f) for f in failures)
-        if previous_cleanup:
-            log_line(f'{name:25} {len(failures)} open cleanup failure(s): {previous_cleanup}')
+        previous_cleanup = ''
+        if found := hil_lock.failure_report(failures):
+            previous_cleanup = hil_lock.failure_text(found['previousCleanupFailure'])
+            if found.get('openCleanupFailures', 1) > 1:
+                previous_cleanup += f' (+{found["openCleanupFailures"] - 1} more open)'
+            log_line(f'{name:25} {len(failures)} open cleanup failure(s): ' +
+                     '; '.join(hil_lock.failure_text(f) for f in failures))
         test_list, skipped = _tests_for(board)
         for skip in skipped:
             log_line(f'{name:25} {skip:30} ... Skip')
@@ -2203,16 +2207,13 @@ def test_board(board: Board) -> tuple:
             try:
                 notes = hil_lock.resolve_restored(lock, failures, evidence='device/board_test park succeeded')
             except Exception as e:
-                notes = [f'restorations not logged: {e}']
-            if notes:
-                previous_cleanup += '; ' + '; '.join(notes)
-        if previous_cleanup:
-            for label, cells, _ in rows:
-                if label == name:
-                    cells[hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
-                    break
+                previous_cleanup += f'; restorations not logged: {e}'
             else:
-                rows.append((name, {hil_report.PREVIOUS_CLEANUP_CELL: previous_cleanup}, None))
+                if notes:
+                    previous_cleanup += f'; {len(notes)} still open'
+                    log_line(f'{name:25} ' + '; '.join(notes))
+        if previous_cleanup and rows:
+            rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
 
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
@@ -2223,7 +2224,8 @@ def test_board(board: Board) -> tuple:
         elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
             # an interrupt may land after the provider returned a pending session but before
             # hil_flash stored its receipt: log the missing evidence rather than claim cleanup.
-            detail = end_failed_cleanup(name, lock, _lock_fh, 'openocd_esp interrupted; cleanup unproven, receipt missing')
+            detail = end_failed_cleanup(name, lock, _lock_fh,
+                                        'openocd_esp interrupted; cleanup unproven, receipt missing')
             log_line(f'{name:25} {detail}')
         elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process

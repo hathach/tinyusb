@@ -229,7 +229,8 @@ def render_matrix(rows_all: list) -> str:
     # tally run cells (not-run cells are absent from the dicts). A cell is a bare status or
     # a metric string carrying its own icon ("❌ 29/30"), so classify by the leading icon --
     # through cell_state, the same call the per-board verdict makes.
-    kinds = [cell_state(v) for _, cells, _ in rows_all for k, v in cells.items() if k != PREVIOUS_CLEANUP_CELL]
+    kinds = [cell_state(v) for _, cells, _ in rows_all
+             for v in _result_cells(cells, include_board_state=True).values()]
     failed = kinds.count('fail')
     skipped = kinds.count('skip')
     passed = kinds.count('pass')
@@ -471,6 +472,8 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
+            if PREVIOUS_CLEANUP_CELL not in ran[row_label]:
+                row[0].pop(PREVIOUS_CLEANUP_CELL, None)
             # nor wedged: this attempt's row says so or it does not
             if WEDGED_CELL not in cells:
                 row[0].pop(WEDGED_CELL, None)
@@ -595,6 +598,12 @@ def variants_of(cfg: dict, board: str) -> list:
 _MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL, PREVIOUS_CLEANUP_CELL)
 
 
+def _result_cells(cells: dict, *, include_board_state=False) -> dict:
+    """Test cells; the table also counts board refusals and wedges, never informational notices."""
+    return {k: v for k, v in cells.items()
+            if k not in _MARKER_CELLS or (include_board_state and k != PREVIOUS_CLEANUP_CELL)}
+
+
 def _board_rows(report: dict) -> dict:
     # .get, not a subscript: this is the one reader an agent's verdict depends on, and a
     # row without 'board' used to kill the CLI with a traceback and no results at all --
@@ -699,9 +708,7 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         bad = []
         skipped = []
         for vname, cells in sorted(mine.items()):
-            for test, val in sorted(cells.items()):
-                if test in _MARKER_CELLS:
-                    continue
+            for test, val in sorted(_result_cells(cells).items()):
                 state = cell_state(val)
                 if state == 'fail':
                     bad.append(f'{vname} {test}: {val}')
@@ -716,9 +723,8 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         elif bad:
             detail = '; '.join(bad) + (f'; skipped: {", ".join(skipped)}' if skipped else '')
         else:
-            cells_ok = sum(k != PREVIOUS_CLEANUP_CELL for c in mine.values() for k in c) - len(skipped)
-            variants = sum(set(c) != {PREVIOUS_CLEANUP_CELL} for c in mine.values())
-            detail = f'{variants} variant(s), {cells_ok} cell(s) ok'
+            cells_ok = sum(len(_result_cells(c, include_board_state=True)) for c in mine.values()) - len(skipped)
+            detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
             if skipped:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
         previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
@@ -755,7 +761,7 @@ def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
 
 
 def _normalised(r: dict, cells: dict) -> dict:
-    tests = [v for c in cells.values() for t, v in c.items() if t not in _MARKER_CELLS]
+    tests = [v for c in cells.values() for v in _result_cells(c).values()]
     unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c or RECOVERY_BLOCKER_CELL in c
                      or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
     failed = any(cell_state(v) == 'fail' for v in tests)

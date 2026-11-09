@@ -526,17 +526,20 @@ class FailedCleanup(LockDir):
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
         hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
 
-    def test_a_later_run_reports_all_open_failures_and_keeps_unproven_ones(self):
+    def test_a_later_run_reports_the_latest_failure_and_counts_other_open_ones(self):
         first = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
         second = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old child', receipts=[self.TRACKED])
         self.provider(self.op('done', rc=0))
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 0)
         cell = rows[-1][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL]
-        for failure in (first, second):
-            self.assertIn(failure['id'], cell)
+        self.assertEqual(cell, hil_lock.failure_text(second) + ' (+1 more open); 2 still open')
+        self.assertNotIn(first['id'], cell)
         self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [first, second])
         self.assertIn('2 open cleanup failure(s)', self.log[0])
+        for failure in (first, second):
+            self.assertIn(failure['id'], self.log[0])
+        self.assertIn('stays open:', self.log[-1])
 
     def test_a_successful_park_resolves_only_the_failures_with_ended_evidence(self):
         self.end_session()
@@ -545,8 +548,29 @@ class FailedCleanup(LockDir):
         self.provider(self.op('done', rc=0))
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 0)
-        self.assertIn(ended['id'], rows[-1][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL])
+        self.assertEqual(rows[0][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL],
+                         hil_lock.failure_text(pending) + ' (+1 more open); 1 still open')
         self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [pending])
+
+    def test_a_single_previous_failure_is_attached_to_the_first_variant_row(self):
+        failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        self.board['variant'] = [{'name': 'different-variant'}]
+        self.provider(self.op('done', rc=0))
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], 'different-variant')
+        self.assertEqual(rows[0][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL],
+                         hil_lock.failure_text(failure) + '; 1 still open')
+
+    def test_a_restoration_exception_keeps_its_diagnostic_in_the_notice(self):
+        failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
+        self.provider(self.op('done', rc=0))
+        with mock.patch.object(hil_lock, 'resolve_restored', side_effect=OSError('log inaccessible')):
+            _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertEqual(rows[0][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL],
+                         hil_lock.failure_text(failure) + '; restorations not logged: log inaccessible')
 
     def test_skip_flash_does_not_claim_an_earlier_cleanup_restored(self):
         self.end_session()
