@@ -99,8 +99,8 @@ enum {
 #endif
 
 // A channel can be parked for the SOF interrupt to start: one whose low-speed frame is busy, or a control/bulk transfer
-// whose NAKs the CPU retries (slave mode, or a split) that has had max_nak of them in this frame (tuh_configure_dwc2_t),
-// see channel_park() and channel_nak_hold()
+// whose NAKs the CPU retries (slave mode, or a split) that has had max_nak of them in this frame
+// (tuh_configure_dwc2_t), see channel_park() and channel_nak_hold()
 #if DWC2_LS_ONE_XACT_PER_FRAME || HCD_SPLIT || CFG_TUH_DWC2_SLAVE_ENABLE
   #define HCD_CHANNEL_PARK 1
 #else
@@ -108,13 +108,13 @@ enum {
 #endif
 
 enum {
-  HCD_SPLIT_SLOT_COUNT   = 4, // slots 0..3 for interrupt endpoints
-  HCD_SPLIT_CSPLIT_FIRST = 2, // first complete-split, in microframes after the start-split
-  HCD_SPLIT_CSPLIT_LAST  = 4, // last interrupt complete-split
-  HCD_SPLIT_TAIL_SHIFT   = 3, // microframe tail, 1/8 of it, where a complete-split is not enabled for the current one
-  HCD_SPLIT_SETUP_BUSY_MAX = 255, // SETUP start-split XactErrs per transfer taken as a busy TT's NAK
-  HCD_SPLIT_SLOT_LATE    = 0xfe, // start-split held behind an isochronous OUT packet: any start-split microframe
-  HCD_SPLIT_SLOT_NONE    = 0xff
+  HCD_SPLIT_SLOT_COUNT     = 4,    // slots 0..3 for interrupt endpoints
+  HCD_SPLIT_CSPLIT_FIRST   = 2,    // first complete-split, in microframes after the start-split
+  HCD_SPLIT_CSPLIT_LAST    = 4,    // last interrupt complete-split
+  HCD_SPLIT_TAIL_SHIFT     = 3,    // microframe tail, 1/8 of it, where no complete-split is enabled for the current one
+  HCD_SPLIT_SETUP_BUSY_MAX = 255,  // SETUP start-split XactErrs per transfer taken as a busy TT's NAK
+  HCD_SPLIT_SLOT_LATE      = 0xfe, // start-split held behind an isochronous OUT packet: any start-split microframe
+  HCD_SPLIT_SLOT_NONE      = 0xff
 };
 
 /* An isochronous split endpoint reserves the slots of its maximum packet on its TT when opened, one per 188 bytes
@@ -230,8 +230,8 @@ typedef struct {
 // request-queue space, and an OUT has to write its FIFO.
 typedef enum {
   PARK_NONE = 0,
-  PARK_IN_TOKEN,           // channel_send_in_token(.., next_periodic_frame = false)
-  PARK_IN_TOKEN_PERIODIC,  // channel_send_in_token(.., next_periodic_frame = true)
+  PARK_IN_TOKEN,            // channel_send_in_token(.., next_periodic_frame = false)
+  PARK_IN_TOKEN_PERIODIC,   // channel_send_in_token(.., next_periodic_frame = true)
   PARK_XFER_START,          // channel_xfer_start(.., defer_periodic_out = false)
   PARK_XFER_START_PERIODIC, // channel_xfer_start(.., defer_periodic_out = true)
   PARK_CSPLIT_OUT,          // enable a split control/bulk OUT complete-split, which carries no data
@@ -2001,7 +2001,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     edpt->hcchar_bm.ep_dir = ep_dir;
   }
 
-
   if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
     // Started in its start-split microframe: from here when that is the next one, otherwise by the SOF interrupt, or
     // after the END of an isochronous OUT packet that holds it
@@ -2174,7 +2173,7 @@ static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
   #endif
     channel_dealloc(dwc2, ch_id);
   } else {
-    channel_xfer_start(dwc2, ch_id, false);
+    TU_ASSERT(channel_xfer_start(dwc2, ch_id, false),);
   }
 }
 
@@ -2829,8 +2828,6 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
         dwc2_channel_tsize_t hctsiz_cs = {.value = channel->hctsiz};
         hctsiz_cs.xfer_size = 0;
         channel->hctsiz = hctsiz_cs.value;
-#endif
-#if HCD_SPLIT
         if (!channel_is_periodic(channel->hcchar)) {
           split_csplit_park(dwc2, channel);
         } else {
@@ -3270,7 +3267,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
           #endif
           if (invalidate) {
             // hcdma is increased by word --> need to align4
-            hcd_dcache_invalidate((void*) tu_align4(channel->hcdma - xfer->xferred_bytes), xfer->xferred_bytes);
+            hcd_dcache_invalidate((void*) (uintptr_t) tu_align4(channel->hcdma - xfer->xferred_bytes),
+                                xfer->xferred_bytes);
           }
         }
         #endif
