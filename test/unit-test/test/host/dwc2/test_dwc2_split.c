@@ -968,3 +968,77 @@ void test_parked_bulk_channel_closes_only_the_microframe_it_parked_in(void) {
     TEST_ASSERT_EQUAL(i == 1, channel_iso_out_next(&test_regs, 1));
   }
 }
+
+void test_split_out_refuses_what_it_cannot_send_one_packet_at_a_time(void) {
+  // An isochronous OUT longer than its MPS, and in DMA mode a multi-packet transfer whose later packets would start at
+  // a misaligned HCDMA
+  const struct {
+    bool     dma, iso;
+    uint16_t mps, len;
+    bool     ok;
+  } cases[] = {
+    {false, true, 188, 189, false}, {false, true, 188, 188, true}, {true, false, 7, 14, false},
+    {true, false, 7, 7, true},      {true, false, 8, 16, true},    {false, false, 7, 14, true},
+  };
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    setUp();
+    hcd_dcache_clean_IgnoreAndReturn(true);
+    if (cases[i].dma) {
+      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
+      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
+      test_regs.ghwcfg2 = hw.value;
+    }
+    endpoint(0, false, 0, cases[i].iso);
+    _hcd_data.edpt[0].hcchar_bm.ep_size = cases[i].mps;
+    _hcd_data.edpt[0].hcchar_bm.enable  = 1;
+    _hcd_data.xfer[0].allocated         = false;
+    TEST_ASSERT_EQUAL(cases[i].ok, hcd_edpt_xfer(0, 1, 0x01, payload, cases[i].len));
+  }
+}
+
+void test_iso_in_split_packet_filling_a_buffer_of_mps_completes(void) {
+  // all of it returned as MDATA, its zero-length DATA0 still to come
+  for (unsigned small = 0; small < 2; small++) {
+    setUp();
+    endpoint(0, true, 188, true);
+    _hcd_data.edpt[0].buflen    = small ? 100 : 188;
+    _hcd_data.xfer[0].xferred_bytes = _hcd_data.edpt[0].buflen;
+    _hcd_data.xfer[0].result    = XFER_RESULT_INVALID;
+    dwc2_channel_tsize_t ts     = {.value = 0};
+    ts.pid                      = HCTSIZ_PID_MDATA;
+    test_regs.channel[0].hctsiz = ts.value;
+    TEST_ASSERT_FALSE(channel_iso_in_more(&test_regs, 0));
+    TEST_ASSERT_EQUAL(small ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+  }
+}
+
+void test_sof_starts_a_held_split_in_a_late_slot_once_its_packet_has_ended(void) {
+  // held behind an isochronous OUT packet that ended before the hold was pending again: no END kicked it
+  endpoint(0, true, 64, false);
+  _hcd_data.xfer[0].allocated        = false;
+  _hcd_data.edpt[0].hcchar_bm.enable = 1;
+  _hcd_data.edpt[0].split_held       = 1;
+  _hcd_data.edpt[0].xfer_pending     = 1;
+  test_regs.hfnum                    = (3500u << 16) | (8u * 20u + 1u); // next microframe 2, slot 0 starts in 7
+  (void) handle_sof_irq(0, true);
+  TEST_ASSERT_FALSE(_hcd_data.edpt[0].xfer_pending);
+  TEST_ASSERT_FALSE(_hcd_data.edpt[0].split_held);
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+}
+
+void test_late_split_out_disable_waits_for_a_request_queue_entry_in_its_fifo_empty_interrupt(void) {
+  // an interrupt split OUT whose start-split microframe passed before its packet was written
+  endpoint(0, false, 64, false);
+  test_regs.channel[0].hcchar |= HCCHAR_CHENA;
+  _hcd_data.xfer[0].split_uframe = 5; // HFNUM is in microframe 6
+  set_ptx_queue(0);
+  TEST_ASSERT_TRUE(handle_txfifo_empty(&test_regs, true));
+  TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+  TEST_ASSERT_EQUAL(0, fifo_writes);
+
+  set_ptx_queue(1);
+  TEST_ASSERT_FALSE(handle_txfifo_empty(&test_regs, true));
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHDIS | HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  TEST_ASSERT_EQUAL(0, fifo_writes);
+}

@@ -660,6 +660,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t split_ss_uframe(const hcd_endpoint_t
   return (uint8_t) ((edpt->split_slot + 7u) & 7u);
 }
 
+// A periodic start-split may be enabled for microframe uframe: that of its slot, or for a held one
+// (HCD_SPLIT_SLOT_LATE) that of slot 0 through 5, where an isochronous OUT packet ends at the latest
+TU_ATTR_ALWAYS_INLINE static inline bool split_ss_slot_ok(uint32_t uframe, uint8_t split_ss) {
+  return (split_ss == HCD_SPLIT_SLOT_LATE) ? (((uframe + 1u) & 7u) <= 5u) : ((uframe & 7u) == split_ss);
+}
+
 #if HCD_SPLIT
 // Number an admitted periodic start-split after those already issued for its microframe.
 // In slave mode a nonempty OUT enters the request queue at its packet's final FIFO DWORD,
@@ -819,13 +825,11 @@ static bool split_ss_hold(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt) {
   return hold;
 }
 
-// A periodic start-split on channel ch_id may be enabled for microframe uframe: that of its slot, or for a held one
-// (HCD_SPLIT_SLOT_LATE) that of slot 0 through 5, where an isochronous OUT packet ends at the latest; and not while an
+// A periodic start-split on channel ch_id may be enabled for microframe uframe (split_ss_slot_ok()), and not while an
 // isochronous OUT packet is open on its TT for an interrupt one. Checked on the HFNUM sample of its CHENA with the
 // interrupt masked, so that no ISR opens a packet in between.
 static bool split_ss_start_ok(dwc2_regs_t* dwc2, uint8_t ch_id, uint16_t uframe, uint8_t split_ss) {
-  const bool slot_ok = (split_ss == HCD_SPLIT_SLOT_LATE) ? (((uframe + 1u) & 7u) <= 5u) : ((uframe & 7u) == split_ss);
-  return slot_ok && !split_ss_hold(dwc2, &_hcd_data.edpt[_hcd_data.xfer[ch_id].ep_id]);
+  return split_ss_slot_ok(uframe, split_ss) && !split_ss_hold(dwc2, &_hcd_data.edpt[_hcd_data.xfer[ch_id].ep_id]);
 }
 
 // The start-split of channel a went out before that of channel b, both periodic splits: by microframe, then by the
@@ -1703,6 +1707,14 @@ static void split_iso_out_close(dwc2_regs_t* dwc2, uint8_t ch_id);
 #endif
 static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, bool next_interval);
 
+// The ISR read-modify-writes both registers too, and hcd_edpt_xfer() reaches here from task context
+static void channel_int_unmask(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  const uint32_t gahbcfg = gint_mask(dwc2);
+  dwc2->gintmsk |= GINTSTS_HCINT;
+  dwc2->haintmsk |= TU_BIT(ch_id);
+  gint_restore(dwc2, gahbcfg);
+}
+
 static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_periodic_out) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
@@ -1776,11 +1788,10 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
 
   channel->hcsplt = hcsplt;
   channel->hcint = 0xFFFFFFFFU; // clear all channel interrupts
-  dwc2->gintmsk |= GINTSTS_HCINT;
 
   if (dma_host_enabled(dwc2)) {
     channel->hcintmsk = HCINT_HALTED;
-    dwc2->haintmsk |= TU_BIT(ch_id);
+    channel_int_unmask(dwc2, ch_id);
 
     channel->hcdma = (uintptr_t) dma_buf;
 
@@ -1822,7 +1833,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
       }
     }
     channel->hcintmsk = hcintmsk;
-    dwc2->haintmsk |= TU_BIT(ch_id);
+    channel_int_unmask(dwc2, ch_id);
 
     // enable channel for slave mode:
     // - OUT: it will enable corresponding FIFO channel
@@ -1914,7 +1925,7 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
     }
   }
   gint_restore(dwc2, gahbcfg);
-  TU_ASSERT(ch_id < 16); // all channel are in used
+  TU_VERIFY(ch_id < DWC2_CHANNEL_COUNT_MAX); // all channels in use: a periodic or split caller retries from SOF
 
   if (!channel_xfer_start(dwc2, ch_id, true)) {
     gahbcfg = gint_mask(dwc2);
@@ -1966,6 +1977,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   TU_VERIFY(edpt->closing == 0 && edpt->aborting == 0); // skip if endpoint is closing or aborting
+#if HCD_SPLIT
+  if (edpt->hcsplt_bm.split_en && ep_dir == TUSB_DIR_OUT) {
+    const uint16_t mps = edpt->hcchar_bm.ep_size;
+    if (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
+      TU_VERIFY(buflen <= mps); // one packet, in the microframes reserved for its MPS at open
+    } else if (dma_host_enabled(dwc2) && (mps & 3u)) {
+      // each packet is a channel start at buffer + n * MPS, and HCDMA must be DWORD aligned (Databook HCDMAi)
+      TU_VERIFY(buflen <= mps);
+    }
+  }
+#endif
 
   edpt->buffer = buffer;
   edpt->buflen = buflen;
@@ -2017,7 +2039,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     }
   }
 
-  return edpt_xfer_kickoff(dwc2, ep_id);
+  TU_ASSERT(edpt_xfer_kickoff(dwc2, ep_id)); // all channels in use
+  return true;
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -2226,8 +2249,9 @@ static void split_iso_out_close(dwc2_regs_t* dwc2, uint8_t ch_id) {
         periodic_xfer_defer(dwc2, edpt, false);
         continue;
       }
-      (void) edpt_xfer_kickoff(dwc2, ep_id);
-      _hcd_split_kicked = true;
+      if (edpt_xfer_kickoff(dwc2, ep_id)) {
+        _hcd_split_kicked = true;
+      }
     }
   }
 }
@@ -2299,7 +2323,7 @@ static bool channel_iso_out_next(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
   #if CFG_TUH_DWC2_SLAVE_ENABLE
 // A piece of a split isochronous OUT packet still to be written to the FIFO must go out in its own microframe. Once
-// that has passed, fail the packet: its halt completes it. Return true when failed.
+// that has passed, fail the packet: its halt completes it. Return true when late, failed or not.
 static bool channel_iso_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*               xfer    = &_hcd_data.xfer[ch_id];
   const hcd_endpoint_t*     edpt    = &_hcd_data.edpt[xfer->ep_id];
@@ -2312,6 +2336,9 @@ static bool channel_iso_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
   if (!split_iso_out_missed(dwc2, (uint16_t) (xfer->split_uframe + xfer->xferred_bytes / HCD_SPLIT_ISO_PAYLOAD))) {
     return false;
   }
+  if (!channel_disable_ready(dwc2, channel)) {
+    return true; // see handle_txfifo_empty()
+  }
   xfer->result     = XFER_RESULT_FAILED;
   channel_out_expect_posted(dwc2, ch_id); // its piece is not in the FIFO
   xfer->fifo_bytes = 0;
@@ -2322,7 +2349,7 @@ static bool channel_iso_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
 // Slave mode: an interrupt split OUT whose start-split packet is not yet written when its microframe has passed would
 // go out late, its complete-splits timed from that microframe. Disable it instead (nothing of it is queued); its halt
-// restarts the transfer in the next service interval, see channel_xfer_out_restart().
+// restarts the transfer in the next service interval, see channel_xfer_out_restart(). Return true when late.
 static bool channel_split_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
   const hcd_xfer_t*         xfer    = &_hcd_data.xfer[ch_id];
   dwc2_channel_t*           channel = &dwc2->channel[ch_id];
@@ -2331,6 +2358,9 @@ static bool channel_split_out_late(dwc2_regs_t* dwc2, uint8_t ch_id) {
       hcchar.ep_type != HCCHAR_EPTYPE_INTERRUPT || xfer->split_issued ||
       uframe_ahead(xfer->split_uframe, dwc2->hfnum) >= 0) {
     return false;
+  }
+  if (!channel_disable_ready(dwc2, channel)) {
+    return true; // see handle_txfifo_empty()
   }
   const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
   _hcd_data.edpt[xfer->ep_id].next_pid = hctsiz.pid; // the packet did not go out: it keeps its data toggle
@@ -2353,7 +2383,9 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
     return false;
   }
   if (xfer->xferred_bytes >= edpt->buflen) {
-    xfer->result = XFER_RESULT_FAILED; // more data than the buffer takes, babble for a non-split packet
+    // A buffer of MPS holds the whole packet: the TT can return all of it as MDATA, then a zero-length DATA0 (USB 2.0
+    // 11.21.4). A smaller one may not, and more data than it takes is babble for a non-split packet.
+    xfer->result = (edpt->buflen >= edpt->hcchar_bm.ep_size) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
     return false;
   }
 
@@ -2490,6 +2522,7 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   const uint8_t max_channel = dwc2_channel_count(dwc2);
 #if HCD_SPLIT
   _hcd_split_kicked = false;
+  bool disable_wait = false;
 #endif
   // Periodic: the interrupt channels before the isochronous ones (second pass), so that an interrupt start-split
   // written here keeps its place ahead of an isochronous BEGIN
@@ -2510,6 +2543,9 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
         (passes == 1u || (hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) == (i >= max_channel))) {
 #if HCD_SPLIT
       if (is_periodic && (channel_iso_out_late(dwc2, ch_id) || channel_split_out_late(dwc2, ch_id))) {
+        // its disable needs a request-queue entry: not waited for here, but in the next PTxFEmp, which asserts only
+        // with one free (Databook GINTSTS.PTxFEmp)
+        disable_wait = disable_wait || 0 == (channel->hcintmsk & HCINT_HALTED);
         continue;
       }
 #endif
@@ -2525,7 +2561,7 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   }
 
 #if HCD_SPLIT
-  return _hcd_split_kicked; // a start-split begun here may still have its FIFO write to do
+  return _hcd_split_kicked || disable_wait; // a start-split begun here may still have its FIFO write to do
 #else
   return false;
 #endif
@@ -3294,8 +3330,12 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
         if (edpt->uframe_countdown > 0) {
           edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
         }
+        // A held start-split goes in any late slot: the END it waits for may have come before it was pending again,
+        // which split_iso_out_close() skips
         if (HCD_SPLIT && edpt->uframe_countdown == 0 && edpt->hcsplt_bm.split_en &&
-            (((dwc2->hfnum + 1u) & 7u) != split_ss_uframe(edpt) || split_ss_hold(dwc2, edpt))) {
+            (!split_ss_slot_ok(dwc2->hfnum + 1u, edpt->split_held ? (uint8_t) HCD_SPLIT_SLOT_LATE
+                                                                   : split_ss_uframe(edpt)) ||
+             split_ss_hold(dwc2, edpt))) {
           more_isr = true; // start-split waits for its microframe, or for the END of an isochronous OUT packet
           continue;
         }
