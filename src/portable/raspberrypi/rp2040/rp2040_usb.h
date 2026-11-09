@@ -102,7 +102,9 @@ enum {
   EPSTATE_ABORTING,        // host interrupt endpoint: abort waits for a poll already on the wire
   EPSTATE_ABORTING_PENDING, // as ABORTING, with the next transfer queued in user_buf/remaining_len
   EPSTATE_CLOSING,          // host interrupt endpoint closed: its slot is freed once no poll can still complete
-  EPSTATE_WAITING           // host interrupt endpoint polled on EPX: transfer queued until its next interval is due
+  EPSTATE_WAITING,          // host interrupt endpoint polled on EPX: transfer queued until its next interval is due
+  EPSTATE_EPX_ABORTING,     // host EPX transfer aborted: still on EPX until the transaction under way has ended
+  EPSTATE_EPX_ABORTING_PENDING // as EPX_ABORTING, with the next transfer queued in user_buf/remaining_len
 };
 
 // Hardware information per endpoint

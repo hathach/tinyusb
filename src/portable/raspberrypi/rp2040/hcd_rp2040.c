@@ -198,7 +198,8 @@ TU_ATTR_ALWAYS_INLINE static inline void epx_ctrl_prepare(uint8_t transfer_type)
 //   OUT completed: FULL cleared to 0 in STATUS phase (was 1 when armed)
 //   IN  completed: FULL set to 1 in STATUS phase (was 0 when armed)
 // So undo when: AVAIL=1 (never started), or (OUT: FULL=1) or (IN: FULL=0)
-static void __tusb_irq_path_func(epx_undo_unsent)(hw_endpoint_t *ep) {
+// pid_only: give back the toggles alone, for an aborted transfer whose user_buf/remaining_len may already hold the next
+static void __tusb_irq_path_func(epx_undo_unsent_ex)(hw_endpoint_t *ep, bool pid_only) {
   uint32_t   buf_ctrl = usbh_dpram->epx_buf_ctrl;
   const bool is_out   = (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT);
 
@@ -209,10 +210,12 @@ static void __tusb_irq_path_func(epx_undo_unsent)(hw_endpoint_t *ep) {
       const bool full  = (bc16 & USB_BUF_CTRL_FULL);
       if (avail || (is_out ? full : !full)) {
         const uint16_t buf_len = bc16 & USB_BUF_CTRL_LEN_MASK;
-        ep->remaining_len += buf_len;
         ep->next_pid ^= 1u;
-        if (is_out) {
-          ep->user_buf -= buf_len;
+        if (!pid_only) {
+          ep->remaining_len += buf_len;
+          if (is_out) {
+            ep->user_buf -= buf_len;
+          }
         }
       }
     }
@@ -223,6 +226,10 @@ static void __tusb_irq_path_func(epx_undo_unsent)(hw_endpoint_t *ep) {
       buf_ctrl = 0;
     }
   } while (buf_ctrl > 0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void epx_undo_unsent(hw_endpoint_t *ep) {
+  epx_undo_unsent_ex(ep, false);
 }
 
 // Save buffer context for EPX preemption (called after STOP_TRANS)
@@ -306,11 +313,20 @@ static void __tusb_irq_path_func(epx_drop_buffers)(void) {
   }
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool epx_is_aborting(const hw_endpoint_t *ep) {
+  return ep->state == EPSTATE_EPX_ABORTING || ep->state == EPSTATE_EPX_ABORTING_PENDING;
+}
+
+// EPX has a transfer on it: active, or aborted and waiting for the transaction under way to end
+TU_ATTR_ALWAYS_INLINE static inline bool epx_busy(void) {
+  return epx->state == EPSTATE_ACTIVE || epx_is_aborting(epx);
+}
+
 // Cancel ep's transfer without completing it; if it owns EPX, stop the SIE and drop status latched for it so the
 // ISR cannot apply it to the next transfer. Caller holds the critical section and starts the next pending ep.
 static void epx_retire(hw_endpoint_t *ep) {
   ep->data_seq_retries = 0;
-  if (ep == epx && ep->state == EPSTATE_ACTIVE) {
+  if (ep == epx && (ep->state == EPSTATE_ACTIVE || epx_is_aborting(ep))) {
     const bool is_setup = (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) != 0;
     sie_stop_xfer();
     if (!is_setup) {
@@ -331,7 +347,7 @@ static void epx_retire(hw_endpoint_t *ep) {
 }
 
 static void __tusb_irq_path_func(epx_start_next_pending)(void) {
-  if (epx->state != EPSTATE_ACTIVE && !epx_held()) {
+  if (!epx_busy() && !epx_held()) {
     hw_endpoint_t *next_ep = epx_next_pending(epx);
     if (next_ep != NULL) {
       epx_switch_ep(next_ep);
@@ -342,15 +358,55 @@ static void __tusb_irq_path_func(epx_start_next_pending)(void) {
 // A new transfer must queue when EPX is busy, held after an RX timeout, or idle with transfers the hold left pending:
 // those go first, in turn with it, so a device that keeps timing out cannot hold them off by retrying
 static bool epx_must_queue(void) {
-  return epx->state == EPSTATE_ACTIVE || epx_held() || epx_next_pending(epx) != NULL;
+  return epx_busy() || epx_held() || epx_next_pending(epx) != NULL;
 }
 
 // A transfer was queued as pending: with EPX idle, start the next one now, or have sof_service() do it after a hold
 static void epx_queued(void) {
-  if (epx->state != EPSTATE_ACTIVE) {
+  if (!epx_busy()) {
     usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
     epx_start_next_pending();
   }
+}
+
+// Abort the transfer on EPX without stopping the SIE under a transaction: STOP_TRANS there loses the packet the device
+// is sending or has just taken, and the toggle given back no longer matches the device's (IN: DATA_SEQ on the next
+// packet; OUT: the device drops the next packet as a repeat). EPX keeps the transfer, its completions unreported, until
+// the transaction under way has ended: a buffer completion with no other buffer armed, a NAK stop (RP2350), an RX
+// timeout, a STALL, or a SOF where the bus is idle (RP2040, as the round-robin stops).
+static void epx_abort_start(void) {
+  epx->state            = EPSTATE_EPX_ABORTING;
+  epx->data_seq_retries = 0;
+  #ifdef HAS_STOP_EPX_ON_NAK
+  usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
+  #else
+  epx_switch_request = false;
+  usb_hw_set->inte   = USB_INTE_HOST_SOF_BITS;
+  #endif
+}
+
+// The aborted transfer's transaction has ended: stop EPX, give back the toggles of the buffers that never went out (a
+// packet that completed keeps its toggle, as the device saw it), and start the transfer queued meanwhile, if any
+static void __tusb_irq_path_func(epx_abort_finish)(void) {
+  hw_endpoint_t *ep = epx;
+  sie_stop_xfer();
+  epx_undo_unsent_ex(ep, true); // user_buf/remaining_len may be the queued transfer's already
+  epx_drop_buffers();
+  usb_hw_clear->sie_status =
+    USB_SIE_STATUS_RX_TIMEOUT_BITS | USB_SIE_STATUS_TRANS_COMPLETE_BITS | USB_SIE_STATUS_STALL_REC_BITS;
+  #ifdef HAS_STOP_EPX_ON_NAK
+  usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+  #else
+  epx_switch_request = false;
+  epx_stop_deferred  = false;
+  #endif
+  ep->data_seq_retries = 0;
+  if (ep->state == EPSTATE_EPX_ABORTING_PENDING) {
+    ep->state = EPSTATE_PENDING;
+  } else {
+    rp2usb_reset_transfer(ep);
+  }
+  epx_start_next_pending();
 }
 
 
@@ -398,6 +454,16 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     usb_hw_clear->buf_status = 1u; // clear
     epx->data_seq_retries    = 0;  // a packet got through
     epx_rx_timeouts          = 0;
+
+    if (epx_is_aborting(epx)) {
+      // the aborted transfer's packet went through and keeps its toggle; finish once no other buffer is armed
+      const uint32_t bc    = usbh_dpram->epx_buf_ctrl;
+      const uint16_t other = (uint16_t)(buf_id ? bc : (bc >> 16));
+      if (!(other & USB_BUF_CTRL_AVAIL)) {
+        epx_abort_finish();
+      }
+      continue;
+    }
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
@@ -517,6 +583,26 @@ static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
 TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
   hw_endpoint_t *next_ep = epx_next_pending(epx);
 
+  if (epx_is_aborting(epx)) {
+    // an aborted transfer still on EPX (NAK-retrying): stop it the way a switch stops, then finish the abort
+    if (epx_stop_deferred) {
+      if (!epx_completion_latched()) {
+        epx_abort_finish(); // the transaction seen at last SOF's stop has ended
+      }
+      return true;
+    }
+    if (!epx_can_stop_after_sof()) {
+      return true;
+    }
+    sie_stop_xfer();
+    if (!bus_idle_for(EPX_STOP_SETTLE_US)) {
+      epx_stop_deferred = true;
+      return true;
+    }
+    epx_abort_finish();
+    return true;
+  }
+
   if (epx_stop_deferred && epx->state == EPSTATE_ACTIVE) {
     // stopped last SOF with a transaction on the wire, which has ended since (its status, if any, taken by the ISR):
     // switch now, or restart the transfer if nothing is pending any more
@@ -586,7 +672,7 @@ static void __tusb_irq_path_func(sof_service)(void) {
   #endif
 
   // EPX idle with transfers pending (left by a hold after an RX timeout, or a due interrupt poll): start them
-  if (epx->state != EPSTATE_ACTIVE && epx_next_pending(epx) != NULL) {
+  if (!epx_busy() && epx_next_pending(epx) != NULL) {
     if (epx_held()) {
       sof_needed = true;
     } else {
@@ -636,7 +722,11 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
   if (status & USB_INTS_STALL_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
-    xfer_complete_isr(epx, XFER_RESULT_STALLED, true);
+    if (epx_is_aborting(epx)) {
+      epx_abort_finish();
+    } else {
+      xfer_complete_isr(epx, XFER_RESULT_STALLED, true);
+    }
   }
 
   if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
@@ -655,11 +745,15 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
       // Even if STOP_TRANS bit is clear, controller maybe in middle of retrying and may re-raise timeout once extra
       // time. Only handle if epx is active, don't carry more epx transfer since STOP_TRANS is raced and not safe.
-      if (epx->state == EPSTATE_ACTIVE) {
-        xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
+      if (epx->state == EPSTATE_ACTIVE || epx_is_aborting(epx)) {
         epx_hold         = true; // see epx_held()
         epx_hold_start   = time_us_32();
         usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+        if (epx_is_aborting(epx)) {
+          epx_abort_finish(); // its queued transfer, if any, starts after the hold
+        } else {
+          xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
+        }
       }
     }
   }
@@ -709,6 +803,8 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
       } else {
         xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
       }
+    } else if (epx == status_epx && epx_is_aborting(epx)) {
+      epx_abort_finish(); // the transaction under way has ended, its packet discarded
     }
   }
 
@@ -726,7 +822,9 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     }
     // Only for the transfer that stopped: one retired above (RX timeout) is never restarted or re-queued, and one
     // started above since (after a completion) is running.
-    if (epx == status_epx && epx->state == EPSTATE_ACTIVE) {
+    if (epx == status_epx && epx_is_aborting(epx)) {
+      epx_abort_finish(); // stopped on a NAK: nothing is on the wire
+    } else if (epx == status_epx && epx->state == EPSTATE_ACTIVE) {
       hw_endpoint_t *next_ep = epx_next_pending(epx);
     #ifdef EPX_POLLS_INTERRUPT_EP
       if (epx->transfer_type == TUSB_XFER_INTERRUPT) {
@@ -1037,12 +1135,22 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     return int_edpt_abort(ep);
   }
 
+  bool ret = true;
+
   rp2usb_critical_enter();
-  epx_retire(ep);
-  epx_start_next_pending();
+  if (ep == epx && ep->state == EPSTATE_ACTIVE && tu_edpt_number(ep_addr) != 0) {
+    epx_abort_start(); // finished from the ISR once the transaction under way has ended (EP0 sets its PIDs per stage)
+  } else if (ep->state == EPSTATE_EPX_ABORTING_PENDING) {
+    ep->state = EPSTATE_EPX_ABORTING; // the transfer queued behind the abort never started
+  } else if (ep->state == EPSTATE_IDLE || ep->state == EPSTATE_EPX_ABORTING) {
+    ret = false; // nothing to abort: already completed (its event is queued) or already aborted
+  } else {
+    epx_retire(ep);
+    epx_start_next_pending();
+  }
   rp2usb_critical_exit();
 
-  return true;
+  return ret;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
@@ -1078,8 +1186,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     ep->user_buf      = buffer;
     ep->remaining_len = buflen;
     ep->xferred_len   = 0;
-    ep->state         = EPSTATE_WAITING;
-    usb_hw_set->inte  = USB_INTE_HOST_SOF_BITS;
+    if (epx_is_aborting(ep)) {
+      ep->state = EPSTATE_EPX_ABORTING_PENDING; // pending once the abort has finished
+    } else {
+      ep->state        = EPSTATE_WAITING;
+      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+    }
     rp2usb_critical_exit();
     return true;
   }
@@ -1099,7 +1211,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
 
     // If EPX is busy with another transfer, held, or idle with transfers pending, mark as pending
     rp2usb_critical_enter();
-    if (epx_must_queue()) {
+    if (epx_is_aborting(ep)) {
+      // this endpoint's aborted transfer is still on EPX: epx_abort_finish() makes this one pending
+      ep->user_buf      = buffer;
+      ep->remaining_len = buflen;
+      ep->xferred_len   = 0;
+      ep->state         = EPSTATE_EPX_ABORTING_PENDING;
+    } else if (epx_must_queue()) {
       ep->user_buf      = buffer;
       ep->remaining_len = buflen;
       ep->state         = EPSTATE_PENDING;
