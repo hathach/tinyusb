@@ -28,8 +28,9 @@
 #       libmtp9     pymtp ctypes load (device/mtp); Debian 13 uses libmtp9t64
 #       libmtp-runtime  mtp-probe and the completed-device /dev/libmtp-* marker
 #       alsa-utils  arecord (device/audio_test_freertos)
-#       iproute2    isolated USB network test (root or passwordless sudo)
-#       util-linux  unshare/nsenter for per-process network namespaces
+#       iproute2    isolated USB network test, run inside its own namespace
+#       util-linux  unshare/nsenter for per-process user and network namespaces; the one root
+#                   step, moving the interface in, is agentrc's hil_root netns (sudo)
 #       udev        udevadm wait (systemd >= 251) for USB network initialization
 #       openocd     unified openocd from https://github.com/hathach/openocd (branch tinyusb) for wch, rp2040/rp2350, analog max32
 #   - device/usbtest: usbtest kernel module + testusb binary (kernel tools/usb/testusb.c) on PATH,

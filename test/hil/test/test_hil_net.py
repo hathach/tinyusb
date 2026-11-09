@@ -19,7 +19,7 @@ SCRIPT = str(Path(net.__file__).resolve())
 
 
 def clean_env(tmp):
-    """A fresh interpreter's env as the sudo'd client may get it: no agentrc to find."""
+    """A fresh interpreter's env with no agentrc to find: the --http client needs none."""
     env = {k: v for k, v in os.environ.items()
            if k not in ('GITHUB_ACTIONS', 'CI') and not k.startswith('PYTHON')}
     env.update(PYTHONSAFEPATH='1', AGENTRC_DIR=tmp, HOME=tmp, USERPROFILE=tmp)
@@ -28,7 +28,7 @@ def clean_env(tmp):
 
 class Startup(unittest.TestCase):
     # hil_test.py starts net_test.py in a fresh interpreter, and the --http child under
-    # sudo; the in-process tests above add test/hil to sys.path and would hide both.
+    # unshare; the in-process tests above add test/hil to sys.path and would hide both.
     def test_safe_path_startup_finds_helper(self):
         with TemporaryDirectory() as tmp:
             ret = subprocess.run([sys.executable, SCRIPT, '--help'], cwd=tmp, env=clean_env(tmp),
@@ -69,6 +69,15 @@ class InterfaceSelection(unittest.TestCase):
                 self.assertEqual(net.interfaces_for_uid('ABC123'), ['usb7'])
                 scan.assert_called_once_with(vid='cafe', serial='ABC123')
 
+    def test_busport_is_the_one_device_with_the_serial(self):
+        with patch('helper.usb_observe.usb_scan', return_value=[{'dir': '/sys/bus/usb/devices/1-2.3'}]) as scan:
+            self.assertEqual(net.busport_for_uid('ABC123'), '1-2.3')
+            scan.assert_called_once_with(vid='cafe', serial='ABC123')
+        for found in ([], [{'dir': '/x/1-2'}, {'dir': '/x/1-3'}]):
+            with self.subTest(found=len(found)), patch('helper.usb_observe.usb_scan', return_value=found):
+                with self.assertRaisesRegex(RuntimeError, f'expected one device, found {len(found)}'):
+                    net.busport_for_uid('ABC123')
+
     def test_waits_for_driver_interface(self):
         with patch.object(net, 'interfaces_for_uid', side_effect=[[], ['usb7'], ['usb7']]), \
                 patch.object(net.hil_util, 'run_cmd', return_value=Mock(returncode=0, stderr='')), \
@@ -107,82 +116,82 @@ class NamespaceLifetime(unittest.TestCase):
         self.proc.communicate.return_value = ('HTTP verified\n', '')
 
         self.moved_ifindex = 7
+        self.printed_ifindex = 7
 
-        def command(argv):
+        def command(argv, timeout=5):
             self.calls.append(argv)
+            if argv[:2] == ['hil_root', 'netns']:
+                return f'{self.printed_ifindex} usb7\n'
             if '-j' in argv:
                 return json.dumps([{'ifname': 'lo', 'ifindex': 1},
                                    {'ifname': 'renamed0', 'ifindex': self.moved_ifindex}])
             return ''
 
+        hil_root = Mock()
+        hil_root.argv.side_effect = lambda verb, *args: ['hil_root', verb, *args]
         for name, value in [('wait_interface', Mock(return_value='usb7')),
                             ('interface_index', Mock(return_value=7)),
-                            ('interfaces_for_uid', Mock(return_value=['usb7'])),
+                            ('busport_for_uid', Mock(return_value='1-2')),
+                            ('hil_root', Mock(return_value=hil_root)),
                             ('command', Mock(side_effect=command))]:
             p = patch.object(net, name, value)
             p.start()
             self.addCleanup(p.stop)
         for p in [patch.object(net.subprocess, 'Popen', return_value=self.proc),
                   patch.object(net.select, 'select', return_value=([self.proc.stdout], [], [])),
-                  patch.object(net.os, 'geteuid', return_value=1000, create=True),
-                  patch.object(net.os, 'getuid', return_value=1000, create=True),
-                  patch.object(net.os, 'getgid', return_value=1000, create=True),
                   patch.object(net.signal, 'SIGKILL', 9, create=True),
                   patch('sys.stdout', new_callable=io.StringIO)]:
             p.start()
             self.addCleanup(p.stop)
 
-    def test_python_runs_as_caller_in_anonymous_namespace(self):
+    def test_client_runs_unprivileged_and_hil_root_moves_the_interface(self):
         net.check_device('ABC123')
         argv = net.subprocess.Popen.call_args.args[0]
-        self.assertEqual(argv[:7], ['sudo', '-n', 'unshare', '--net', '--setgid', '1000', '--setuid'])
-        self.assertEqual(argv[7], '1000')
+        self.assertEqual(argv, ['unshare', '--user', '--map-root-user', '--net', sys.executable, SCRIPT, '--http'])
         self.assertNotIn('start_new_session', net.subprocess.Popen.call_args.kwargs)
-        self.assertIn(['sudo', '-n', 'ip', 'link', 'set', 'dev', 'usb7', 'netns', '4321'], self.calls)
+        self.assertEqual(self.calls[0], ['hil_root', 'netns', '1-2', '4321'])
+        self.assertFalse(any('sudo' in c for c in self.calls[1:]))
+        nsenter = ['nsenter', '--preserve-credentials', '--target=4321', '--user', '--net', 'ip']
+        self.assertTrue(all(c[:6] == nsenter for c in self.calls[1:]))
         self.assertTrue(any('renamed0' in c for c in self.calls))
-        self.assertFalse(any(c[:4] == ['sudo', '-n', 'ip', 'netns'] for c in self.calls))
         self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
 
-    def test_peer_interface_moved_under_reused_name_fails(self):
-        # The requested board left and a peer took its name before the move.
+    def test_namespace_holding_another_ifindex_fails(self):
         self.moved_ifindex = 8
         self.proc.poll.return_value = None
-        with patch.object(net.os, 'kill') as kill:
-            with self.assertRaisesRegex(RuntimeError, 'ifindex 7.*renamed0.*8'):
-                net.check_device('ABC123')
-        self.assertFalse(any('addr' in c for c in self.calls))
-        kill.assert_called_once_with(4321, net.signal.SIGTERM)
-
-    def test_name_lost_before_move_is_not_moved(self):
-        net.interfaces_for_uid.return_value = []
-        with self.assertRaisesRegex(RuntimeError, 'changed before the namespace move'):
+        with self.assertRaisesRegex(RuntimeError, 'ifindex 7.*renamed0.*8'):
             net.check_device('ABC123')
-        net.subprocess.Popen.assert_not_called()
-        net.command.assert_not_called()
+        self.assertFalse(any('addr' in c for c in self.calls))
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
 
-    def test_interrupt_terminates_client_and_reaps_sudo(self):
+    def test_hil_root_moving_another_index_fails_before_setup(self):
+        self.printed_ifindex = 9
+        self.proc.poll.return_value = None
+        with self.assertRaisesRegex(RuntimeError, r"moved \['9', 'usb7'\], expected ifindex 7"):
+            net.check_device('ABC123')
+        self.assertEqual(len(self.calls), 1)
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
+
+    def test_interrupt_terminates_client(self):
         net.command.side_effect = KeyboardInterrupt()
         self.proc.poll.return_value = None
-        with patch.object(net.os, 'kill') as kill:
-            with self.assertRaises(KeyboardInterrupt):
-                net.check_device('ABC123')
-        kill.assert_called_once_with(4321, net.signal.SIGTERM)
+        with self.assertRaises(KeyboardInterrupt):
+            net.check_device('ABC123')
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
         self.proc.communicate.assert_called_once_with(timeout=5)
 
     def test_setup_failure_releases_namespace_owner(self):
         net.command.side_effect = RuntimeError('move failed')
         self.proc.poll.return_value = None
-        with patch.object(net.os, 'kill') as kill:
-            with self.assertRaisesRegex(RuntimeError, 'move failed'):
-                net.check_device('ABC123')
-        kill.assert_called_once_with(4321, net.signal.SIGTERM)
+        with self.assertRaisesRegex(RuntimeError, 'move failed'):
+            net.check_device('ABC123')
+        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
 
     def test_stalled_client_escalates_after_cleanup_grace(self):
         self.proc.communicate.side_effect = [net.subprocess.TimeoutExpired('client', 5), ('', '')]
-        with patch.object(net.os, 'kill') as kill:
-            net.stop_client(self.proc, 4321)
-        self.assertEqual([c.args for c in kill.call_args_list],
-                         [(4321, net.signal.SIGTERM), (4321, net.signal.SIGKILL)])
+        net.stop_client(self.proc)
+        self.assertEqual([c.args for c in self.proc.send_signal.call_args_list],
+                         [(net.signal.SIGTERM,), (net.signal.SIGKILL,)])
 
     def test_http_failure_is_reported(self):
         self.proc.returncode = 1
@@ -190,69 +199,14 @@ class NamespaceLifetime(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'corrupt data'):
             net.check_device('ABC123')
 
-    def test_readiness_timeout_cleans_up_without_reported_pid(self):
+    def test_readiness_timeout_stops_the_client(self):
         net.select.select.return_value = ([], [], [])
         self.proc.poll.return_value = None
-        with patch.object(net, 'descendants', return_value=[4321]), \
-                patch.object(net.os, 'kill') as kill:
-            with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
-                net.check_device('ABC123')
+        with self.assertRaisesRegex(RuntimeError, 'did not become ready'):
+            net.check_device('ABC123')
         net.command.assert_not_called()
-        kill.assert_called_once_with(4321, net.signal.SIGTERM)
         self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
         self.proc.communicate.assert_called_once_with(timeout=5)
-
-    def test_root_child_is_left_for_sudo_to_signal(self):
-        with patch.object(net, 'descendants', return_value=[4321]), \
-                patch.object(net.os, 'kill', side_effect=PermissionError()):
-            net.stop_client(self.proc, None)
-        self.proc.send_signal.assert_called_once_with(net.signal.SIGTERM)
-        self.proc.communicate.assert_called_once_with(timeout=5)
-
-
-@unittest.skipUnless(sys.platform == 'linux', 'Linux process-tree cleanup')
-class UnreportedClient(unittest.TestCase):
-    def test_live_wrapper_and_descendant_without_pid_are_reaped(self):
-        # Both ignore TERM so this also exercises the KILL pass. They inherit our
-        # process group; cleanup must not signal the test runner or its siblings.
-        code = '''import os, signal, subprocess, sys, time
-signal.signal(signal.SIGTERM, signal.SIG_IGN)
-child = subprocess.Popen([sys.executable, '-c',
-    'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print("ready",flush=True); time.sleep(60)'],
-    stdout=subprocess.PIPE, text=True)
-child.stdout.readline()
-print(child.pid, flush=True)
-time.sleep(60)
-'''
-        proc = net.subprocess.Popen([sys.executable, '-c', code], stdout=net.subprocess.PIPE,
-                                    stderr=net.subprocess.PIPE, text=True)
-        child = None
-        try:
-            self.assertTrue(net.select.select([proc.stdout], [], [], 5)[0])
-            # The test knows the descendant PID; stop_client deliberately does not.
-            child = int(proc.stdout.readline())
-            with patch.object(net.os, 'killpg') as killpg:
-                net.stop_client(proc, None, grace=0.1)
-            killpg.assert_not_called()
-            self.assertIsNotNone(proc.poll())
-            # Dead: a zombie (Z), being reaped (X), or already gone once init reaped
-            # it after its parent died; read once and treat absence as reaped.
-            try:
-                stat = (Path('/proc') / str(child) / 'stat').read_text()
-            except (FileNotFoundError, ProcessLookupError):
-                stat = None
-            if stat is not None:
-                self.assertIn(stat.rsplit(')', 1)[1].split()[0], ('Z', 'X'))
-        finally:
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait(timeout=5)
-            if child is not None:
-                try:
-                    os.kill(child, net.signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            net.close_pipes(proc)
 
 
 class HttpVerification(unittest.TestCase):

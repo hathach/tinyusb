@@ -5,7 +5,8 @@
 Invoked by hil_test.py while it holds the board lock. Only the USB network interface
 whose parent has the requested serial is moved. Each board gets its own namespace:
 the example deliberately shares its MAC and 192.168.7.1 with every other board.
-Requires iproute2, util-linux, udevadm wait, and root (or passwordless sudo).
+Requires iproute2, util-linux, udevadm wait, unprivileged user namespaces and sudo on
+hil_root (agentrc), whose netns verb is the one root step; run it as a user other than root.
 No persistent host configuration.
 """
 import argparse
@@ -21,8 +22,8 @@ import select
 import subprocess
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
-# hil_util is stdlib-only at import. usb_observe loads agentrc, which the --http child
-# must not need: sudo may drop AGENTRC_DIR/CI and replace HOME before it reports its PID.
+# hil_util is stdlib-only at import. usb_observe and hil_root load agentrc, which only the
+# --uid parent uses: the --http client stays stdlib-only.
 from helper import hil_util  # noqa: E402
 
 DEVICE_IP = '192.168.7.1'
@@ -47,6 +48,19 @@ def interfaces_for_uid(uid):
     for dev in usb_observe.usb_scan(vid='cafe', serial=uid):
         matches.extend(p.name for p in Path(dev['dir']).glob('*:*/net/*'))
     return sorted(set(matches))
+
+
+def busport_for_uid(uid):
+    from helper import usb_observe  # the --uid parent only; see the import note above
+    devs = usb_observe.usb_scan(vid='cafe', serial=uid)
+    if len(devs) != 1:
+        raise RuntimeError(f'USB serial {uid}: expected one device, found {len(devs)}')
+    return Path(devs[0]['dir']).name
+
+
+def hil_root():
+    from helper import agentrc  # the --uid parent only; see the import note above
+    return agentrc.load_file('skills/hil/scripts/hil_root.py')
 
 
 def wait_interface(uid, timeout=30):
@@ -75,27 +89,6 @@ def interface_index(iface):
     return int(Path('/sys/class/net', iface, 'ifindex').read_text())
 
 
-def descendants(root):
-    """[pid, ...] of every descendant of `root`, parents before children, from one /proc walk."""
-    by_parent = {}
-    for entry in Path('/proc').iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            stat = (entry / 'stat').read_bytes()
-            # comm (field 2) may contain spaces and ')': split only after the last ')'
-            ppid = int(stat[stat.rindex(b')') + 2:].split()[1])
-        except (OSError, ValueError, IndexError):
-            continue  # exited mid-walk, unreadable or truncated
-        by_parent.setdefault(ppid, []).append(int(entry.name))
-    out, todo = [], list(by_parent.get(root, []))
-    while todo:
-        pid = todo.pop(0)
-        out.append(pid)
-        todo += by_parent.get(pid, [])
-    return out
-
-
 def close_pipes(proc):
     """Close our ends of a child's pipes. Never raises."""
     for pipe in (proc.stdout, proc.stderr, proc.stdin):
@@ -106,31 +99,11 @@ def close_pipes(proc):
             pass
 
 
-def privileged(argv):
-    return (['sudo', '-n'] if os.geteuid() != 0 else []) + argv
-
-
-def stop_client(proc, pid, grace=5):
-    # The unshare child runs as us, even when its sudo wrapper belongs to root.
-    # Terminate that child directly so sudo can reap it and return normally.
+def stop_client(proc, grace=5):
+    # unshare execs the client, so proc is the client itself. Never killpg: it shares
+    # the HIL caller's group.
     for sig in (signal.SIGTERM, signal.SIGKILL):
-        if pid is None:
-            # Startup can fail before Python reports its PID. Walk only this
-            # Popen child's descendants, leaves first, then signal the wrapper.
-            # Never killpg: these processes share the HIL caller's group.
-            for child in reversed(descendants(proc.pid)):
-                try:
-                    os.kill(child, sig)
-                except (ProcessLookupError, PermissionError):
-                    # sudo relays SIGTERM to a child still running as root before
-                    # unshare drops privileges; the caller can signal sudo itself.
-                    pass
-            proc.send_signal(sig)
-        else:
-            try:
-                os.kill(pid, sig)
-            except ProcessLookupError:
-                pass
+        proc.send_signal(sig)
         try:
             proc.communicate(timeout=grace)
             return
@@ -142,23 +115,20 @@ def stop_client(proc, pid, grace=5):
 
 def check_device(uid):
     iface = wait_interface(uid)
-    # Bind the move to this device, not to a name a peer could take over: read the
-    # index, then confirm the serial still owns that name, and check it after the move.
+    # Bind the move to this device: hil_root moves the one interface at its busport and
+    # prints that interface's index, which must be the one read here.
     ifindex = interface_index(iface)
-    if interfaces_for_uid(uid) != [iface]:
-        raise RuntimeError(f'USB serial {uid}: interface {iface} changed before the namespace move')
-    print(f'USB serial {uid}: interface {iface} (ifindex {ifindex})', flush=True)
-    # Anonymous namespace: its last process exiting releases the USB interface,
-    # even on SIGKILL. unshare drops to the caller's UID/GID BEFORE executing any
-    # checkout-controlled Python. Only trusted system tools run with elevation.
-    argv = privileged(['unshare', '--net', '--setgid', str(os.getgid()),
-                       '--setuid', str(os.getuid()), sys.executable,
-                       str(Path(__file__).resolve()), '--http'])
+    busport = busport_for_uid(uid)
+    print(f'USB serial {uid}: interface {iface} (ifindex {ifindex}) at {busport}', flush=True)
+    # Anonymous user and network namespace, ours: its last process exiting releases the
+    # USB interface, even on SIGKILL. hil_root moves the interface in only for a namespace
+    # a user other than root (the sudo caller) created.
+    argv = ['unshare', '--user', '--map-root-user', '--net', sys.executable,
+            str(Path(__file__).resolve()), '--http']
     # Keep the child in our process group: hil_test's interruption sweep can kill
     # the whole group without stranding a detached namespace owner.
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True)
-    pid = None
     try:
         if not select.select([proc.stdout], [], [], 5)[0]:
             raise RuntimeError('network namespace client did not become ready')
@@ -166,14 +136,15 @@ def check_device(uid):
         if not ready.isdecimal():
             raise RuntimeError(f'network namespace client failed to start: {ready!r}')
         pid = int(ready)
-        ns = f'/proc/{pid}/ns/net'
-        command(privileged(['ip', 'link', 'set', 'dev', iface, 'netns', str(pid)]))
-        ip = privileged(['nsenter', '--net=' + ns, 'ip'])
+        moved = command(hil_root().argv('netns', busport, str(pid)), timeout=30).split()
+        if moved[:1] != [str(ifindex)]:
+            raise RuntimeError(f'hil_root netns {busport}: moved {moved}, expected ifindex {ifindex}')
+        ip = ['nsenter', '--preserve-credentials', f'--target={pid}', '--user', '--net', 'ip']
         links = [link for link in json.loads(command(ip + ['-j', 'link', 'show']))
                  if link['ifname'] != 'lo']
         if len(links) != 1 or links[0].get('ifindex') != ifindex:
             found = [(link['ifname'], link.get('ifindex')) for link in links]
-            raise RuntimeError(f'{ns}: expected one network interface with ifindex {ifindex}, found {found}')
+            raise RuntimeError(f'pid {pid}: expected one network interface with ifindex {ifindex}, found {found}')
         iface = links[0]['ifname']
         command(ip + ['addr', 'flush', 'dev', iface])
         command(ip + ['addr', 'add', '192.168.7.2/24', 'dev', iface])
@@ -187,7 +158,7 @@ def check_device(uid):
         print(stdout, end='', flush=True)
     finally:
         if proc.poll() is None:
-            stop_client(proc, pid)
+            stop_client(proc)
         else:
             close_pipes(proc)
 
@@ -233,7 +204,7 @@ def main():
     mode.add_argument('--uid')
     mode.add_argument('--http', action='store_true', help=argparse.SUPPRESS)
     args = ap.parse_args()
-    # A root-owned helper must bound itself even if its unprivileged caller dies.
+    # Each side bounds itself even if the other, or its caller, dies.
     signal.signal(signal.SIGALRM, interrupted)
     signal.signal(signal.SIGTERM, interrupted)
     signal.alarm(75)
@@ -241,7 +212,6 @@ def main():
         print(os.getpid(), flush=True)
         if sys.stdin.readline().strip() != 'go':
             raise RuntimeError('network setup owner exited before starting HTTP')
-        print(f'network client uid/gid: {os.getuid()}/{os.getgid()}', flush=True)
         check_http()
     else:
         check_device(args.uid)
