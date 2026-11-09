@@ -304,12 +304,18 @@
                 "dual": false,
                 "dev_attached": [
                     {
-                        "vid_pid": "0951_1603",
-                        "serial": "820000000000000045B46338",
+                        "vid_pid": "abcd_1234",
+                        "serial": "\u0409",
                         "is_msc": true,
                         "block_size": 512,
-                        "block_count": 3987456,
-                        "msc_inquiry": "Kingston DataTraveler 2.0 1.00"
+                        "block_count": 1966080,
+                        "msc_inquiry": "General  UDisk            5.00",
+                        "note": "General UDisk reports iSerialNumber=U+0409"
+                    },
+                    {
+                        "vid_pid": "1a86_7523",
+                        "serial": "0",
+                        "note": "CH340 USB-serial, loopback unverified: listed so device_info's exact match holds"
                     }
                 ]
             }
