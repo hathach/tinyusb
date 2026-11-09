@@ -18,6 +18,9 @@ static void (*on_int_enable)(void);
 static unsigned fifo_writes;
 static uint32_t gahbcfg_at_fifo_write;
 static bool     fifo_write_unmasks; // models another core ending its own masked region meanwhile
+static uint32_t millis_ticks;       // fake clock of tusb_time_millis_api(), one ms per read
+static uint32_t millis_isr_at;
+static void (*on_millis)(void);
 
 void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
                      const tu_hwfifo_access_t* access_mode) {
@@ -53,6 +56,8 @@ void setUp(void) {
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
   _hcd_nonperiodic_uframe = 0;
   on_int_enable = NULL;
+  on_millis = NULL;
+  millis_ticks = millis_isr_at = 0;
   _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
   fifo_write_unmasks = false;
@@ -1108,6 +1113,18 @@ void test_late_split_out_disable_waits_for_a_request_queue_entry_in_its_fifo_emp
 // Abort of a running control/bulk transfer (#4405)
 //--------------------------------------------------------------------+
 
+// Lets a bounded halt wait in hcd_edpt_abort_xfer() end: the RAM frame counter never moves on its own, as HFNUM
+// stops without SOF. on_millis models an interrupt that arrives while the wait runs, at the millis_isr_at-th clock read.
+uint32_t tusb_time_millis_api(void) {
+  TEST_ASSERT_LESS_THAN_UINT32(1000, millis_ticks); // a wait that never ends fails here instead of hanging
+  if (on_millis && millis_ticks == millis_isr_at) {
+    void (*isr)(void) = on_millis;
+    on_millis         = NULL;
+    isr();
+  }
+  return millis_ticks++;
+}
+
 // Channel 0 running a bulk transfer of EP1 (split or native) on the device at address 1; return its endpoint address
 static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
   dwc2_int_set_Stub(int_set_stub);
@@ -1159,6 +1176,26 @@ void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) 
     // retired at its halt, with no completion event (hcd_event_handler is not expected), and the endpoint takes the
     // next transfer as soon as the abort returns
     TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+  }
+}
+
+void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void) {
+  // the halt arrives while the abort waits, or never (interrupt masked, port suspended): either way the abort returns
+  for (unsigned halts = 0; halts < 2; halts++) {
+    variant_setup(halts);
+    const uint8_t ep_addr = abort_bulk_endpoint(true, true, false);
+    on_millis             = halts ? isr_halts_aborted_dma_channel : NULL;
+    millis_isr_at         = 3; // past the read that only starts the timeout
+
+    TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+    if (!halts) {
+      // timed out, the halt unconfirmed: the endpoint takes no replacement until the halt retires the channel
+      TEST_ASSERT_GREATER_THAN_UINT32(millis_isr_at, millis_ticks);
+      TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+      isr_halts_aborted_dma_channel();
+    }
     TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
     TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
   }
