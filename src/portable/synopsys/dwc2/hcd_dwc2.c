@@ -163,7 +163,7 @@ typedef struct {
     uint32_t next_pid        : 2; // PID for next transfer
     uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     uint32_t closing         : 1; // endpoint is closing
-    uint32_t aborting        : 1; // periodic transfer abort is waiting for its channel's halt
+    uint32_t aborting        : 1; // transfer abort is waiting for its channel's halt
     uint32_t periodic_phase  : 1; // periodic transfer phase is established
     uint32_t xfer_pending    : 1; // periodic transfer waiting for its service interval
     uint32_t split_slot      : 3; // periodic split: microframe its transaction is budgeted in
@@ -208,7 +208,7 @@ typedef struct {
     uint8_t csplit_next    : 3; // periodic split: earliest microframe of the next complete-split, after split_uframe
     uint8_t split_seq      : 4; // periodic split: request order of its start-split in the same microframe
   };
-  volatile bool aborting;  // periodic abort waiting for the channel's halt
+  volatile bool aborting;  // abort waiting for the channel's halt
 #if HCD_SPLIT
   uint16_t split_uframe;   // periodic split: microframe number of the start-split
   uint8_t  setup_busy;     // SETUP start-split errors retried as a TT's NAK, see handle_channel_out_slave()
@@ -1114,7 +1114,9 @@ typedef enum {
 // reallocate it in between. A channel with nothing posted (parked, or a complete-split waiting on a halted channel) is
 // retired now, which also covers DMA mode where a periodic channel cannot be disabled. Otherwise it is marked and
 // disabled, with no FIFO write between channel_out_expect_posted() and the disable. An aborted periodic transfer keeps
-// its endpoint from a replacement until its halt: a started transaction still completes (Programming Guide 3.5).
+// its endpoint from a replacement until its halt: a started transaction still completes (Programming Guide 3.5). So
+// does an aborted transfer in DMA mode, whose halt would otherwise be taken as a NAK and retried; an aborted DMA split
+// channel is not disabled, it halts by itself after its start-split or complete-split (see channel_disable()).
 static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, bool closing) {
   hcd_xfer_t*     xfer    = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
@@ -1136,14 +1138,17 @@ static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, boo
   if (!channel_disable_ready(dwc2, channel)) {
     return CHANNEL_TEARDOWN_WAIT;
   }
+  const bool is_dma = dma_host_enabled(dwc2);
   if (closing) {
     xfer->closing = 1;
-  } else if (channel_is_periodic(channel->hcchar)) {
+  } else if (is_dma || channel_is_periodic(channel->hcchar)) {
     edpt->aborting = 1;
     xfer->aborting = true;
   }
   channel_out_expect_posted(dwc2, ch_id);
-  channel_disable(dwc2, channel);
+  if (closing || !is_dma || 0 == (channel->hcsplt & HCSPLT_SPLITEN)) {
+    channel_disable(dwc2, channel);
+  }
   return CHANNEL_TEARDOWN_HALTING;
 }
 
@@ -2060,6 +2065,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
+  const hcd_xfer_t* halting = NULL;
   while (1) {
     hcd_int_disable(rhport);
     if (edpt->xfer_pending) {
@@ -2069,7 +2075,14 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
       break;
     }
     const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
-    if (ch_id >= DWC2_CHANNEL_COUNT_MAX || channel_teardown(dwc2, ch_id, false) != CHANNEL_TEARDOWN_WAIT) {
+    if (ch_id >= DWC2_CHANNEL_COUNT_MAX) {
+      break;
+    }
+    const channel_teardown_t teardown = channel_teardown(dwc2, ch_id, false);
+    if (teardown != CHANNEL_TEARDOWN_WAIT) {
+      if (teardown == CHANNEL_TEARDOWN_HALTING && !channel_is_periodic(dwc2->channel[ch_id].hcchar)) {
+        halting = &_hcd_data.xfer[ch_id];
+      }
       break;
     }
     hcd_int_enable(rhport);
@@ -2077,6 +2090,17 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   hcd_int_enable(rhport);
+
+  // Wait for the halt of an aborted control/bulk channel, normally within a (micro)frame, so that the endpoint takes a
+  // new transfer and the controller no longer writes the aborted transfer's buffer. Bounded, as the ISR that retires
+  // the channel may not run when this is called with the interrupt masked; the endpoint then refuses new transfers
+  // until the halt comes. The return value keeps its hcd.h meaning.
+  if (halting != NULL) {
+    const uint32_t start = dwc2->hfnum & HCD_FRAME_NUMBER_MASK;
+    while (halting->aborting && (((dwc2->hfnum & HCD_FRAME_NUMBER_MASK) - start) & HCD_FRAME_NUMBER_MASK) < 8u) {
+      // the ISR clears aborting when it retires the channel
+    }
+  }
   return true;
 }
 
