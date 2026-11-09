@@ -16,8 +16,9 @@ flags or lines do not establish correctness, lower ISR cost, or lower jitter.
 The labels below distinguish **USB** requirements, **DWC2** programming rules,
 **integration** requirements, **observations** from this review, and proposed
 **policy**. An observation is not promoted to a universal hardware guarantee.
-Open questions remain explicit, labelled **open**. The inventory covers periodic splits and the
-nonperiodic/host-stack interfaces with which they share resources.
+Open questions remain explicit, labelled **open**. The inventory covers periodic
+splits and the nonperiodic/host-stack interfaces with which they share
+resources.
 
 Terms and ownership
 -------------------
@@ -40,9 +41,11 @@ Terms and ownership
   A channel owns hardware execution and must not outlive its transaction.
 * USB ordering is per TT. DWC2 periodic-queue ordering is per controller,
   including native-HS periodic traffic and traffic for different TTs.
-* **H1 / H2:** the two CS ordering defects corrected during review of the baseline. H1: a current CS held in the
-  shared periodic request queue behind future-parity periodic work (D06). H2: SS order assigned at channel enable
-  rather than at slave-mode admission, so a deferred OUT FIFO write inverted the CS order on a TT (D03).
+* **H1 / H2:** the two CS ordering defects corrected during review of the
+  baseline. H1: a current CS held in the shared periodic request queue behind
+  future-parity periodic work (D06). H2: SS order assigned at channel enable
+  rather than at slave-mode admission, so a deferred OUT FIFO write inverted the
+  CS order on a TT (D03).
 
 USB requirements
 ----------------
@@ -337,10 +340,12 @@ and interrupt masks in the mode-specific sequence before enable. Respect
 write-one-to-clear/read-to-pop semantics; do not clear a newly generated event
 using a stale snapshot. Decode combined halt/cause bits by mode and phase.
 The split EC field controls immediate error retries and must be nonzero;
-do not confuse its meaning with nonsplit MC. MC, the per-microframe transaction count of a nonsplit periodic channel
-and the DMA packet-fetch count of a nonperiodic one, must be nonzero too: the databook reserves 0 in both meanings.
-Distinguish TT ERR from exhausted HS retries as described by the programming guide, whose DMA decode compares
-against the programmed EC. [D-REG]_ [D-HALT]_ [D-DMA]_
+do not confuse its meaning with nonsplit MC. MC, the per-microframe transaction
+count of a nonsplit periodic channel and the DMA packet-fetch count of a
+nonperiodic one, must be nonzero too: the databook reserves 0 in both meanings.
+Distinguish TT ERR from exhausted HS retries as described by the programming
+guide, whose DMA decode compares against the programmed EC. [D-REG]_ [D-HALT]_
+[D-DMA]_
 
 **D10 -- Halt and reuse (DWC2).** A posted/in-flight channel cannot be reused
 just because software no longer wants its result. Follow the halt protocol,
@@ -424,64 +429,68 @@ buffer is not itself a specification proof of safe DMA bounds. [D-XFER]_
 Runtime and lifecycle requirements
 ----------------------------------
 
-**R01 -- One time model (integration).** Use absolute/extended microframe deadlines or a
-documented modular-time abstraction. The baseline masks comparisons to 14 bits;
-signed modular comparisons are valid only inside their half-range. Long
-intervals need wider state/countdowns. Handle multiple elapsed microframes when
-SOF service is delayed rather than decrementing once per observed IRQ.
+**R01 -- One time model (integration).** Use absolute/extended microframe
+deadlines or a documented modular-time abstraction. The baseline masks
+comparisons to 14 bits; signed modular comparisons are valid only inside their
+half-range. Long intervals need wider state/countdowns. Handle multiple elapsed
+microframes when SOF service is delayed rather than decrementing once per
+observed IRQ.
 
-**R02 -- One owner for submission (integration).** SOF, RX, channel IRQ, FIFO-empty, and task
-submission paths may make a transaction ready; they must share the same legal
-admission decision. Prevent duplicate SS/CS, stale parity, simultaneous reuse,
-and recursive scheduling through transfer-complete callbacks.
+**R02 -- One owner for submission (integration).** SOF, RX, channel IRQ,
+FIFO-empty, and task submission paths may make a transaction ready; they must
+share the same legal admission decision. Prevent duplicate SS/CS, stale parity,
+simultaneous reuse, and recursive scheduling through transfer-complete
+callbacks.
 
-**R03 -- Stable transaction identity (integration).** Store TT/endpoint identity, service
-generation, phase, SS time/order, CS opportunities, byte offset, and terminal
-status explicitly. Use a wrap-safe order representation whose range is proven
-for channel reuse and all active TTs. Do not infer transaction identity solely
-from mutable channel registers or a reused channel index.
+**R03 -- Stable transaction identity (integration).** Store TT/endpoint
+identity, service generation, phase, SS time/order, CS opportunities, byte
+offset, and terminal status explicitly. Use a wrap-safe order representation
+whose range is proven for channel reuse and all active TTs. Do not infer
+transaction identity solely from mutable channel registers or a reused channel
+index.
 
-**R04 -- Cancellation and hotplug (integration).** Closing, aborting, device removal, hub
-removal, reset, suspend/resume, and alternate-setting changes must invalidate
-future actions and release TT/ISO/bounce reservations exactly once. Ignore late
-events belonging to an old transaction generation. Do not issue further SS/CS
-after cancellation or report a transfer twice.
+**R04 -- Cancellation and hotplug (integration).** Closing, aborting, device
+removal, hub removal, reset, suspend/resume, and alternate-setting changes must
+invalidate future actions and release TT/ISO/bounce reservations exactly once.
+Ignore late events belonging to an old transaction generation. Do not issue
+further SS/CS after cancellation or report a transfer twice.
 
-**R05 -- ISO OUT ownership (observation/policy).** Model one contiguous ISO OUT packet's reserved
-SS sequence on its TT. The current implementation holds interrupt SS between
-BEGIN and END. In slave mode it releases them once END is admitted, with its
-last FIFO word; in buffer DMA mode once END's channel is enabled, before the
-core admits it (an order D04 leaves unproven). Preserve that observed
-compatibility behavior unless an alternative is justified and tested. The ISO
-OUT packet itself has no CS (U13); complete-splits of other transactions on the
-TT, interrupt or isochronous IN, may occur between its pieces and were
+**R05 -- ISO OUT ownership (observation/policy).** Model one contiguous ISO OUT
+packet's reserved SS sequence on its TT. The current implementation holds
+interrupt SS between BEGIN and END. In slave mode it releases them once END is
+admitted, with its last FIFO word; in buffer DMA mode once END's channel is
+enabled, before the core admits it (an order D04 leaves unproven). Preserve that
+observed compatibility behavior unless an alternative is justified and tested.
+The ISO OUT packet itself has no CS (U13); complete-splits of other transactions
+on the TT, interrupt or isochronous IN, may occur between its pieces and were
 harmless on the tested hub. The blanket exclusion rule is retained as a hardware
-observation/policy, not asserted here as a directly quoted USB MUST.
-[EVIDENCE]_
+observation/policy, not asserted here as a directly quoted USB MUST. [EVIDENCE]_
 
-**R06 -- Failure is observable (integration).** Distinguish successful terminal completion,
-short packet, partial data with error, missed service, cancelled transfer,
-and resource/admission failure. Specify what the HCD API returns for each.
-Application sample continuity and bus scheduling success are different metrics;
-a nominally good capture does not prove sample-loss-free service.
+**R06 -- Failure is observable (integration).** Distinguish successful terminal
+completion, short packet, partial data with error, missed service, cancelled
+transfer, and resource/admission failure. Specify what the HCD API returns for
+each. Application sample continuity and bus scheduling success are different
+metrics; a nominally good capture does not prove sample-loss-free service.
 
-**R07 -- Coexistence (integration).** Enumeration/control retry storms, bulk disk traffic,
-native-HS periodic traffic, FS/LS interrupt, ISO IN/OUT, and another TT must
-coexist. FS direct-root operation, native HS, hub-disabled builds, slave-only,
-DMA-only, and dual-mode builds must retain their existing contracts. No heap
-allocation or class callbacks should be added to the deadline-critical path.
+**R07 -- Coexistence (integration).** Enumeration/control retry storms, bulk
+disk traffic, native-HS periodic traffic, FS/LS interrupt, ISO IN/OUT, and
+another TT must coexist. FS direct-root operation, native HS, hub-disabled
+builds, slave-only, DMA-only, and dual-mode builds must retain their existing
+contracts. No heap allocation or class callbacks should be added to the
+deadline-critical path.
 
-**R08 -- Integration audit (integration).** Before claiming portability, check each target's
-core revision/configuration, PHY/FRREM units, FIFO layout, memory/cache rules,
-interrupt routing and priority, SMP exclusion, and MCU errata. The P4 TRM
-documents 16 channels, 4 KB shared FIFO RAM, and four entries in each host
-request queue; these are P4 facts, not DWC2-wide constants. Section 47.5 omits
-register details. The P4 errata list no USB OTG erratum, but two concern USB as
-a DMA master (D11): MSPI-750 (unaligned 1- or 2-byte PSRAM reads can return
-stale data; align USB buffers to 4 bytes) and APM-560 (an unauthorized access
-can stall PSRAM or flash for the AHB masters, USB OTG among them). The
-retained P4 core ID is ``0x4f54400a``; the generic Synopsys documents available
-here are revision 4.20a. Do not assume exact revision equivalence. [P4]_
+**R08 -- Integration audit (integration).** Before claiming portability, check
+each target's core revision/configuration, PHY/FRREM units, FIFO layout,
+memory/cache rules, interrupt routing and priority, SMP exclusion, and MCU
+errata. The P4 TRM documents 16 channels, 4 KB shared FIFO RAM, and four entries
+in each host request queue; these are P4 facts, not DWC2-wide constants. Section
+47.5 omits register details. The P4 errata list no USB OTG erratum, but two
+concern USB as a DMA master (D11): MSPI-750 (unaligned 1- or 2-byte PSRAM reads
+can return stale data; align USB buffers to 4 bytes) and APM-560 (an
+unauthorized access can stall PSRAM or flash for the AHB masters, USB OTG among
+them). The retained P4 core ID is ``0x4f54400a``; the generic Synopsys documents
+available here are revision 4.20a. Do not assume exact revision equivalence.
+[P4]_
 
 The bounded STM32F723 audit checked RM0431 and ES0360. ES0360 Rev 5 lists no
 USB-specific limitation, but its write-through D-cache erratum remains a
@@ -515,8 +524,8 @@ These choices are **not** protocol requirements merely because they exist in
      - Timing heuristic requiring integration-specific justification.
    * - HCCHAR.EC/MC programmed 0 on every channel, split or not
      - The databook requires EC of at least 1 on a split channel; 0 is reserved
-       with undefined result (D09). The same holds for MC on nonsplit periodic channels and DMA-mode nonperiodic
-       ones. Fix it or justify it.
+       with undefined result (D09). The same holds for MC on nonsplit periodic
+       channels and DMA-mode nonperiodic ones. Fix it or justify it.
    * - Terminal interrupt CS NYET not counted as an error
      - Deliberate divergence from USB 11.18.8 case 4; decide and test the
        intended error policy instead of inheriting it invisibly.
@@ -778,8 +787,8 @@ is embedded in this repository.
    ES0360 Rev 5, PDF pp.1-7. Applicability lists revisions A/1; section 2.1.1
    describes Arm write-through-cache erratum 1259864.
 
-.. [EVIDENCE] Review artifacts for PR #4195, which PR #4265 supersedes and whose two commits begin it, and local
-   fixes, 2026-10-19:
+.. [EVIDENCE] Review artifacts for PR #4195, which PR #4265 supersedes and whose
+   two commits begin it, and local fixes, 2026-10-19:
    original H1/H2 reproductions, ISO OUT interleaving comparison,
    H1-only/H2-only isolation, RAM trace, four scoped-candidate comparisons, and
    independent commit association. Findings and evidence are specific to their
