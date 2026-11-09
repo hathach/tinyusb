@@ -1103,3 +1103,63 @@ void test_late_split_out_disable_waits_for_a_request_queue_entry_in_its_fifo_emp
   TEST_ASSERT_BITS_HIGH(HCCHAR_CHDIS | HCCHAR_CHENA, test_regs.channel[0].hcchar);
   TEST_ASSERT_EQUAL(0, fifo_writes);
 }
+
+//--------------------------------------------------------------------+
+// Abort of a running control/bulk transfer (#4405)
+//--------------------------------------------------------------------+
+
+// Channel 0 running a bulk transfer of EP1 (split or native) on the device at address 1; return its endpoint address
+static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
+  dwc2_int_set_Stub(int_set_stub);
+  hcd_dcache_clean_IgnoreAndReturn(true);
+  hcd_dcache_invalidate_IgnoreAndReturn(true);
+  if (dma) {
+    dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
+    hw.arch           = GHWCFG2_ARCH_INTERNAL_DMA;
+    test_regs.ghwcfg2 = hw.value;
+  }
+  bulk_nak_endpoint(in, split);
+  isr_runs = 0;
+  return in ? 0x81 : 0x01;
+}
+
+// One pass of handle_channel_irq() for channel 0, the channel halted by the core when hcint carries the halt
+static void channel0_irq(uint32_t hcint) {
+  if (hcint & HCINT_HALTED) {
+    test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+  }
+  test_regs.channel[0].hcint = hcint;
+  test_regs.haint            = 1u;
+  handle_channel_irq(0, true);
+  test_regs.haint = 0;
+}
+
+// The halt the abort's disable brings, with the NAK of the transaction it cut short: one cause per pass in slave mode
+static void isr_halts_aborted_dma_channel(void) {
+  channel0_irq(HCINT_HALTED | HCINT_NAK);
+}
+
+static void isr_halts_aborted_slave_channel(void) {
+  channel0_irq(HCINT_NAK);
+  channel0_irq(HCINT_HALTED);
+}
+
+void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) {
+  // DMA IN, DMA OUT, slave IN, slave OUT: a NAK halt must not re-arm the aborted transfer, which would keep polling
+  // and later complete with data meant for the endpoint's next transfer
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool    dma     = i < 2;
+    const uint8_t ep_addr = abort_bulk_endpoint(dma, (i & 1u) == 0, false);
+    on_int_enable         = dma ? isr_halts_aborted_dma_channel : isr_halts_aborted_slave_channel;
+
+    TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+    TEST_ASSERT_EQUAL(1, isr_runs);
+
+    // retired at its halt, with no completion event (hcd_event_handler is not expected), and the endpoint takes the
+    // next transfer as soon as the abort returns
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+  }
+}

@@ -1113,10 +1113,11 @@ typedef enum {
 // Tear down the channel of a closing or aborted transfer, with the interrupt masked so that the ISR does not retire or
 // reallocate it in between. A channel with nothing posted (parked, or a complete-split waiting on a halted channel) is
 // retired now, which also covers DMA mode where a periodic channel cannot be disabled. Otherwise it is marked and
-// disabled, with no FIFO write between channel_out_expect_posted() and the disable. An aborted periodic transfer keeps
-// its endpoint from a replacement until its halt: a started transaction still completes (Programming Guide 3.5). So
-// does an aborted transfer in DMA mode, whose halt would otherwise be taken as a NAK and retried; an aborted DMA split
-// channel is not disabled, it halts by itself after its start-split or complete-split (see channel_disable()).
+// disabled, with no FIFO write between channel_out_expect_posted() and the disable. An aborted transfer keeps its
+// endpoint from a replacement until its halt, which retires the channel: a started transaction still completes
+// (Programming Guide 3.5), and the halt of a control/bulk channel, which often comes with a NAK, would otherwise be
+// retried. An aborted DMA split channel is not disabled, it halts by itself after its start-split or complete-split
+// (see channel_disable()).
 static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, bool closing) {
   hcd_xfer_t*     xfer    = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
@@ -1141,7 +1142,7 @@ static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, boo
   const bool is_dma = dma_host_enabled(dwc2);
   if (closing) {
     xfer->closing = 1;
-  } else if (is_dma || channel_is_periodic(channel->hcchar)) {
+  } else {
     edpt->aborting = 1;
     xfer->aborting = true;
   }
