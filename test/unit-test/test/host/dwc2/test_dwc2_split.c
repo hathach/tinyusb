@@ -1201,6 +1201,94 @@ void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void)
   }
 }
 
+static bool payload_holds(uint32_t addr) {
+  const uint32_t base = (uint32_t) (uintptr_t) payload;
+  return addr - base < sizeof(payload);
+}
+
+// The aborted split must still send its complete-split: the TT holds the transaction once it ACKed the start-split
+// (11.17.1). It goes out on channel 0 within a frame, without touching the aborted transfer's buffer, which its owner
+// may have freed. Until the channel is retired, the endpoint takes no replacement transfer.
+static void assert_abort_csplit_sent(uint8_t ep_addr) {
+  TEST_ASSERT_BITS_HIGH(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
+  for (unsigned n = 0; n < 8 && 0 == (test_regs.channel[0].hcchar & HCCHAR_CHENA); n++) {
+    test_regs.hfnum++;
+    (void) handle_sof_irq(0, true);
+  }
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+    TEST_ASSERT_FALSE(payload_holds(test_regs.channel[0].hcdma));
+  }
+  TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+}
+
+// DMA split bulk transfer on channel 0 aborted with no ISR running, with its start-split in flight or, parked_first,
+// after its start-split ACK parked the complete-split. Ends with the complete-split enabled; return the endpoint address.
+static uint8_t dma_split_abort(bool in, bool parked_first) {
+  const uint8_t ep_addr = abort_bulk_endpoint(true, in, true);
+  test_regs.channel[0].hcdma = (uint32_t) (uintptr_t) payload;
+  test_regs.hfnum            = (3500u << 16) | (8u * 20u + 3u);
+  memset(payload, 0xA5, sizeof(payload));
+  if (parked_first) {
+    channel0_irq(HCINT_HALTED | HCINT_ACK);
+    TEST_ASSERT_BITS_HIGH_MESSAGE(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt, "precondition: CS parked");
+    TEST_ASSERT_BITS_LOW_MESSAGE(HCCHAR_CHENA, test_regs.channel[0].hcchar, "precondition: CS parked");
+  }
+
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  // a split channel halts by itself after each start/complete-split and is not disabled at random in DMA mode
+  // (Programming Guide 3.5)
+  TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+  TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+  if (!parked_first) {
+    channel0_irq(HCINT_HALTED | HCINT_ACK);
+  }
+  assert_abort_csplit_sent(ep_addr);
+  return ep_addr;
+}
+
+// After the aborted split's channel is retired: nothing copied into its buffer, and the endpoint takes a new transfer
+static void assert_abort_split_retired(uint8_t ep_addr) {
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, payload, sizeof(payload));
+  TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+}
+
+void test_dma_split_abort_runs_its_complete_split_before_retiring_the_channel(void) {
+  // IN and OUT, aborted with the start-split in flight or with the complete-split parked
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool    in      = (i & 1u) == 0;
+    const uint8_t ep_addr = dma_split_abort(in, i >= 2);
+
+    // a NYET keeps the complete-split going; its result retires the channel, with no completion event
+    channel0_irq(HCINT_HALTED | HCINT_NYET);
+    assert_abort_csplit_sent(ep_addr);
+    // a full packet received, so a copy of it toward the aborted transfer's buffer would show in the sentinel
+    dwc2_channel_tsize_t ts     = {.value = test_regs.channel[0].hctsiz};
+    ts.xfer_size                = 0;
+    ts.packet_count             = 0;
+    test_regs.channel[0].hctsiz = ts.value;
+    channel0_irq(HCINT_HALTED | HCINT_ACK | HCINT_XFER_COMPLETE);
+    assert_abort_split_retired(ep_addr);
+  }
+}
+
+void test_dma_split_abort_retries_a_lost_complete_split_three_times(void) {
+  // a complete-split lost on the high-speed bus is retried, three strikes (USB 2.0 Figure 11-51)
+  for (unsigned i = 0; i < 2; i++) {
+    variant_setup(i);
+    const bool    in      = i == 0;
+    const uint8_t ep_addr = dma_split_abort(in, false);
+    for (unsigned n = 1; n < HCD_XFER_ERROR_MAX; n++) {
+      channel0_irq(HCINT_HALTED | HCINT_XACT_ERR);
+      assert_abort_csplit_sent(ep_addr);
+    }
+    channel0_irq(HCINT_HALTED | HCINT_XACT_ERR);
+    assert_abort_split_retired(ep_addr);
+  }
+}
+
 void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
   // the halt retire stores the PID the aborted transfer reached: a SETUP PID or a clear-stall's DATA0 set before it
   // would be overwritten, so both are refused until the halt, then take effect on the wire

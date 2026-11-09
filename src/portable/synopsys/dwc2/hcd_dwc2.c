@@ -277,6 +277,15 @@ typedef struct {
 CFG_TUH_MEM_SECTION static hcd_split_bounce_t _hcd_split_bounce[HCD_SPLIT_ISO_BOUNCE_COUNT];
 #endif
 
+#if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
+// Receives the complete-splits of an aborted split IN, see abort_csplit_ok()
+typedef struct {
+  TUH_EPBUF_DEF(buf, TUSB_EPSIZE_BULK_FS);
+} hcd_abort_rx_t;
+
+CFG_TUH_MEM_SECTION static hcd_abort_rx_t _hcd_abort_rx;
+#endif
+
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED, .max_nak = HCD_XFER_NAK_DEFAULT};
 
 //--------------------------------------------------------------------
@@ -546,6 +555,66 @@ static void split_csplit_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
   xfer->uframe_hold = 1;
   const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
   channel_park(dwc2, channel, hcchar.ep_dir == TUSB_DIR_IN ? PARK_CSPLIT_IN : PARK_CSPLIT_OUT);
+}
+#endif
+
+#if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
+// An aborted control/bulk split in DMA mode whose start-split the TT took runs its complete-split to a result before
+// the channel retires: the TT buffer stays busy until then, and would take the endpoint's next start-split as its
+// retry. Not for a closing channel, nor an IN one whose MPS _hcd_abort_rx cannot take.
+static bool abort_csplit_ok(const dwc2_regs_t* dwc2, uint8_t ch_id) {
+  const dwc2_channel_t*     channel = &dwc2->channel[ch_id];
+  const dwc2_channel_char_t hcchar  = {.value = channel->hcchar};
+  if (!dma_host_enabled(dwc2) || _hcd_data.xfer[ch_id].closing || 0 == (channel->hcsplt & HCSPLT_SPLITEN) ||
+      channel_is_periodic(hcchar.value)) {
+    return false;
+  }
+  return hcchar.ep_dir != TUSB_DIR_IN || hcchar.ep_size <= sizeof(_hcd_abort_rx.buf);
+}
+
+// Park the complete-split of an aborted split for the next microframe. An IN one receives into _hcd_abort_rx: the
+// caller may have its buffer back by then.
+static void abort_csplit_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel) {
+  dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
+  hcsplt.split_compl          = 1;
+  channel->hcsplt             = hcsplt.value;
+  if (channel->hcchar & HCCHAR_EPDIR) {
+    channel->hcdma = (uintptr_t) _hcd_abort_rx.buf;
+  }
+  split_csplit_park(dwc2, channel);
+}
+
+// The halt of an aborted split, see abort_csplit_ok(): its complete-split goes again after the start-split ACK or a
+// complete-split NYET, and after a complete-split XactErr until HCD_XFER_ERROR_MAX of them. Any other result retires
+// the channel. Return true if the complete-split was parked again.
+static bool abort_csplit_rearm(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  if (!abort_csplit_ok(dwc2, ch_id)) {
+    return false;
+  }
+  if (0 == (dwc2->channel[ch_id].hcsplt & HCSPLT_COMPLSPLT)) {
+    if (0 == (hcint & HCINT_ACK)) {
+      return false;
+    }
+    xfer->err_count = 0;
+  } else if (0 == (hcint & HCINT_NYET)) {
+    if (0 == (hcint & HCINT_XACT_ERR)) {
+      return false;
+    }
+    xfer->err_count++;
+    if (xfer->err_count >= HCD_XFER_ERROR_MAX) {
+      return false;
+    }
+  }
+  abort_csplit_park(dwc2, &dwc2->channel[ch_id]);
+  return true;
+}
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool abort_csplit_rearm(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
+  (void) dwc2;
+  (void) ch_id;
+  (void) hcint;
+  return false;
 }
 #endif
 
@@ -1122,6 +1191,15 @@ static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, boo
   hcd_xfer_t*     xfer    = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
+#if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
+  // an aborted split parked for its complete-split keeps it, and its result retires the channel
+  if (!closing && (xfer->park == PARK_CSPLIT_IN || xfer->park == PARK_CSPLIT_OUT) && abort_csplit_ok(dwc2, ch_id)) {
+    edpt->aborting = 1;
+    xfer->aborting = true;
+    abort_csplit_park(dwc2, channel);
+    return CHANNEL_TEARDOWN_HALTING;
+  }
+#endif
 #if HCD_CHANNEL_PARK
   if (channel_park_retire(dwc2, ch_id)) {
     return CHANNEL_TEARDOWN_RETIRED;
@@ -3275,12 +3353,16 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 #endif
 
       // Retire closing/aborted DMA channels and aborted slave channels before retry handling can re-arm them
-      // (Programming Guide 3.5, p73). An aborted slave channel ignores other causes until its requested halt.
+      // (Programming Guide 3.5, p73). An aborted slave channel ignores other causes until its requested halt; an
+      // aborted DMA split runs its complete-split first, see abort_csplit_ok().
       const bool retire = xfer->aborting || (is_dma && xfer->closing);
       if (retire && !is_dma && !(hcint & HCINT_HALTED)) {
         continue;
       }
       if (retire && (hcint & HCINT_HALTED)) {
+        if (is_dma && abort_csplit_rearm(dwc2, ch_id, hcint)) {
+          continue;
+        }
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
         const bool closing = xfer->closing;
         // channel_xfer_start() predicts the PID after all requested packets;
@@ -3414,7 +3496,9 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       continue;
     }
     hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
-    if (xfer->closing || edpt->closing || edpt->aborting) {
+    // an aborted split's complete-split still goes out, see abort_csplit_ok()
+    const bool abort_csplit = xfer->aborting && (xfer->park == PARK_CSPLIT_IN || xfer->park == PARK_CSPLIT_OUT);
+    if (xfer->closing || edpt->closing || (edpt->aborting && !abort_csplit)) {
       // Teardown is under way. A channel that never reached the bus gets no halt to finish it, so retire it here; one
       // parked between the packets of its transfer is still enabled and finishes through its halt.
       const bool closing = xfer->closing || edpt->closing;
