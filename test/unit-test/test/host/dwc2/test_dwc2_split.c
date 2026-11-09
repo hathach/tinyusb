@@ -1200,3 +1200,38 @@ void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void)
     TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
   }
 }
+
+void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
+  // the halt retire stores the PID the aborted transfer reached: a SETUP PID or a clear-stall's DATA0 set before it
+  // would be overwritten, so both are refused until the halt, then take effect on the wire
+  static const uint8_t setup[8] = {0};
+  for (unsigned clear_stall = 0; clear_stall < 2; clear_stall++) {
+    variant_setup(clear_stall);
+    uint8_t ep_addr = abort_bulk_endpoint(true, true, false);
+    if (!clear_stall) {
+      hcd_endpoint_t* ep          = &_hcd_data.edpt[0];
+      ep->hcchar_bm.ep_type       = HCCHAR_EPTYPE_CONTROL;
+      ep->hcchar_bm.ep_num        = 0;
+      test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+      ep_addr                     = 0x80;
+    }
+    dwc2_channel_tsize_t ts     = {.value = test_regs.channel[0].hctsiz};
+    ts.pid                      = HCTSIZ_PID_DATA1;
+    test_regs.channel[0].hctsiz = ts.value;
+
+    TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr)); // no halt: the abort times out
+    _hcd_data.edpt[0].next_pid = HCTSIZ_PID_DATA1;
+    TEST_ASSERT_FALSE(clear_stall ? hcd_edpt_clear_stall(0, 1, ep_addr) : hcd_setup_send(0, 1, setup));
+    TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid); // refused before it changes anything
+    isr_halts_aborted_dma_channel();
+
+    if (clear_stall) {
+      TEST_ASSERT_TRUE(hcd_edpt_clear_stall(0, 1, ep_addr));
+      TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+    } else {
+      TEST_ASSERT_TRUE(hcd_setup_send(0, 1, setup));
+    }
+    ts.value = test_regs.channel[0].hctsiz;
+    TEST_ASSERT_EQUAL(clear_stall ? HCTSIZ_PID_DATA0 : HCTSIZ_PID_SETUP, ts.pid);
+  }
+}

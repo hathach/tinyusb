@@ -2121,6 +2121,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   uint8_t ep_id = edpt_find_opened(dev_addr, 0, TUSB_DIR_OUT, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX); // endpoint can close asynchronously on disconnect
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+  TU_VERIFY(edpt->aborting == 0); // the abort's halt ISR still writes next_pid and aborting in this word
   edpt->next_pid = HCTSIZ_PID_SETUP;
 
   return hcd_edpt_xfer(rhport, dev_addr, 0, (uint8_t*)(uintptr_t) setup_packet, 8);
@@ -2134,6 +2135,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+  TU_VERIFY(edpt->aborting == 0); // the abort's halt ISR still writes next_pid and aborting in this word
 
   edpt->next_pid = HCTSIZ_PID_DATA0;
 
