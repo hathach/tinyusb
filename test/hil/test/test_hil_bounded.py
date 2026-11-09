@@ -326,6 +326,21 @@ class BuildBoardContract(unittest.TestCase):
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
 
+    def test_a_roster_copy_of_dev_attached_aborts_the_leg_selecting_it(self):
+        """The attached devices are agentrc's board registry's now: a roster's tests.dev_attached left
+        on a selected board aborts its leg rather than being silently ignored."""
+        from helper import hil_report
+        stale = {'dev_attached': [{'vid_pid': '1a86_55d4', 'serial': 'X'}]}
+        cfg = {'boards': [{'name': 'old', 'uid': '1', 'flasher': {'name': 'esptool', 'uid': 'p1'}, 'tests': stale},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        self.assertIn('old: tests.dev_attached is now', json.loads((d / hil_report.REPORT_JSON).read_text())['caveat'])
+
     def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
         """Without the registry no probe board names its flasher: a --flasher leg must not drop them
         all and report 'No boards left' instead of the registry's problem."""

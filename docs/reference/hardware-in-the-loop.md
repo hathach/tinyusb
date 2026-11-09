@@ -246,9 +246,10 @@ One box: boards, their probes, and the two leaf hubs serving them.
 
 Boards that run **host** or **dual** tests additionally need a USB peripheral plugged
 into the board's *own* USB port — a USB-serial adapter and/or a flash drive for the host
-stack to enumerate. Ten `ci` boards have these, recorded as `dev_attached` in the rig
-config and matched by exact VID:PID and serial, so a substitute part means updating the
-config. The two Espressif
+stack to enumerate. Eleven `ci` boards have these, recorded as `dev_attached` in agentrc's
+board registry (`skills/hil/boards.json`, beside each board's flasher) and matched by exact
+VID:PID and serial, so a substitute part means an agentrc commit and a bump of
+`test/hil/agentrc.json`. The two Espressif
 boards also use a TS3USB30 mux to drive device and host tests through one connector.
 
 Why the rule matters:

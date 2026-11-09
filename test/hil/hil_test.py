@@ -190,8 +190,8 @@ class FlasherCfg(TypedDict):
 
 
 class AttachedDevCfg(TypedDict, total=False):
-    vid_pid: str
-    serial: str
+    vid_pid: str   # "vvvv:pppp"
+    serial: str    # absent: no serial recorded, which the host examples print as "0"
     is_cdc: bool
     is_msc: bool
     block_count: int
@@ -204,7 +204,6 @@ class TestsCfg(TypedDict, total=False):
     host: bool
     only: list[str]
     skip: list[str]
-    dev_attached: list[AttachedDevCfg]
 
 
 class VariantCfg(TypedDict, total=False):
@@ -219,6 +218,7 @@ class Board(TypedDict):
     tests: TestsCfg
     probe: NotRequired[str]  # the board's debug probe serial, its key in agentrc's board registry
     flasher: NotRequired[FlasherCfg]  # an unregistered board's own; a probe's is agentrc's (hil_util.hil_boards)
+    dev_attached: NotRequired[list[AttachedDevCfg]]  # wired to its USB host port: agentrc's, by probe, like flasher
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -568,9 +568,15 @@ def parse_dev_info_records(text: str) -> list[tuple[str, str]]:
     return records
 
 
+def declared_devs(board) -> list:
+    """The board's attached devices as the host examples print them: VID_PID_SERIAL, "0" for no serial."""
+    assert board.get('dev_attached'), "no dev_attached for this board (agentrc's board registry, by its probe)"
+    return [f'{d["vid_pid"].replace(":", "_")}_{d.get("serial", "0")}' for d in board['dev_attached']]
+
+
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+    declared = declared_devs(board)
     port = hil_util.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
@@ -583,7 +589,7 @@ def test_dual_host_info_to_device_cdc(board):
         if new_data:
             data += new_data
         records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
-        if set(declared_devs).issubset({dev for _, dev in records}):
+        if set(declared).issubset({dev for _, dev in records}):
             break
         time.sleep(0.1)
         timeout -= 0.1
@@ -597,8 +603,8 @@ def test_dual_host_info_to_device_cdc(board):
         print(f'\r\n  {l} ', end='')
         enum_dev_sn.append(dev)
 
-    if set(declared_devs) != set(enum_dev_sn):
-        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+    if set(declared) != set(enum_dev_sn):
+        failed_msg = f'Expected {declared}, Enumerated {enum_dev_sn}'
         print('\n'.join(data.decode('utf-8', errors='ignore').splitlines()))
         assert False, failed_msg
     return 0
@@ -608,7 +614,7 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+    declared = declared_devs(board)
 
     ser = open_console_reset(board)
     try:
@@ -627,7 +633,7 @@ def test_host_device_info(board):
                 vid_pid_sn = DEV_INFO_RE.search(l)
                 if vid_pid_sn:
                     enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-            if set(declared_devs).issubset(set(enum_dev_sn)):
+            if set(declared).issubset(set(enum_dev_sn)):
                 break
             time.sleep(0.1)
             timeout -= 0.1
@@ -652,8 +658,8 @@ def test_host_device_info(board):
             print(f'\r\n  {l} ', end='')
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
 
-    if set(declared_devs) != set(enum_dev_sn):
-        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+    if set(declared) != set(enum_dev_sn):
+        failed_msg = f'Expected {declared}, Enumerated {enum_dev_sn}'
         print('\n'.join(lines))
         assert False, failed_msg
     return 0
@@ -686,7 +692,7 @@ def check_msc_info(lines, msc_devs):
 
 
 def test_host_cdc_msc_hid(board):
-    dev_attached = board['tests'].get('dev_attached', [])
+    dev_attached = board.get('dev_attached', [])
     cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
     msc_devs = [d for d in dev_attached if d.get('is_msc')]
     if not cdc_devs and not msc_devs:
@@ -716,11 +722,11 @@ def test_host_cdc_msc_hid(board):
             timeout -= 0.1
 
         vid_pid_name = {
-            '0403_6001': 'FTDI', '0403_6010': 'FTDI', '0403_6011': 'FTDI', '0403_6014': 'FTDI',
-            '10c4_ea60': 'CP210x', '10c4_ea70': 'CP210x',
-            '067b_2303': 'PL2303', '067b_23a3': 'PL2303',
-            '1a86_7523': 'CH340', '1a86_7522': 'CH340',
-            '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
+            '0403:6001': 'FTDI', '0403:6010': 'FTDI', '0403:6011': 'FTDI', '0403:6014': 'FTDI',
+            '10c4:ea60': 'CP210x', '10c4:ea70': 'CP210x',
+            '067b:2303': 'PL2303', '067b:23a3': 'PL2303',
+            '1a86:7523': 'CH340', '1a86:7522': 'CH340',
+            '1a86:55d3': 'CH9102', '1a86:55d4': 'CH9102',
         }
 
         lines = data.decode('utf-8', errors='ignore').splitlines()
@@ -774,7 +780,7 @@ def test_host_cdc_msc_hid(board):
 
 
 def test_host_msc_file_explorer(board):
-    msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
+    msc_devs = [d for d in board.get('dev_attached', []) if d.get('is_msc')]
     if not msc_devs:
         return 'skipped'
 
@@ -2573,6 +2579,9 @@ def main() -> None:
                         selected.append(e)
             else:
                 if _selected(resolved['flasher']['name']):
+                    if 'dev_attached' in resolved.get('tests', {}):
+                        resolve_errors.append(f'{resolved["name"]}: tests.dev_attached is now the entry\'s top-level '
+                                              f'dev_attached, agentrc\'s board registry\'s for a registered board')
                     selected.append(resolved)
         config_boards = selected
     except (ImportError, ValueError) as e:
