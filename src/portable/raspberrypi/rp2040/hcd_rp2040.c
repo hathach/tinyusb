@@ -43,6 +43,8 @@ static bool hcd_running = false;
   #ifndef HAS_STOP_EPX_ON_NAK
 // Set by the SOF round-robin for the transfer active on EPX at that SOF; any EPX completion or start clears it
 static volatile bool epx_switch_request = false;
+// The round-robin stopped EPX with a transaction still on the wire: it saves and switches at the next SOF
+static bool epx_stop_deferred = false;
   #endif
 
 // An RX timeout fails the EPX transfer without starting the next pending one: the SIE can still make one more attempt
@@ -55,6 +57,7 @@ static uint8_t epx_resume_sofs = 0;
 TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
   #ifndef HAS_STOP_EPX_ON_NAK
   epx_switch_request = false;
+  epx_stop_deferred  = false;
   #endif
   epx_resume_sofs = 0;
 }
@@ -415,15 +418,12 @@ TU_ATTR_ALWAYS_INLINE static inline void int_edpt_reclaim(hw_endpoint_t *ep) {
   #ifndef HAS_STOP_EPX_ON_NAK
 enum {
   EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
-  LINE_IDLE_US         = 3   // longer than the bus turnaround between a token and the device's reply
+  LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
+  EPX_STOP_SETTLE_US   = 2   // after STOP_TRANS: a token sent meanwhile is on the wire by then
 };
 
-// Whether the round-robin can stop EPX now. The SIE sends a retry that came due in the end-of-frame guard window right
-// after SOF, where this ISR runs; STOP_TRANS on it while the device returns data makes the host ACK the packet without
-// writing its buffer status (#3964). So wait out that slot, then sample the bus: idle (J) throughout means no
-// transaction is under way. Busy-waits only on frames the round-robin switches.
-static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
-  busy_wait_us_32(EPX_POST_SOF_SLOT_US);
+// Whether the bus stays idle (J) for at least us microseconds
+static bool __tusb_irq_path_func(bus_idle_for)(uint32_t us) {
   // J is D+ high at full speed (1), D- high at low speed (2); a low-speed device behind a hub runs at full speed here
   const uint32_t line_j = (dev_speed() == SIE_CTRL_SPEED_LOW) ? 2u : 1u;
   const uint32_t t0     = time_us_32();
@@ -431,10 +431,24 @@ static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
     if (((usb_hw->sie_status & USB_SIE_STATUS_LINE_STATE_BITS) >> USB_SIE_STATUS_LINE_STATE_LSB) != line_j) {
       return false;
     }
-  } while (time_us_32() - t0 <= LINE_IDLE_US);
-  // The retry can also complete within the wait (a zero-length packet takes a few us): its status is latched for the
-  // ISR, which would apply it to the transfer switched in ("buf_ctrl already available"); the ISR takes it next
-  return !(usb_hw->buf_status & 1u) && !(usb_hw->sie_status & USB_SIE_STATUS_TRANS_COMPLETE_BITS);
+  } while (time_us_32() - t0 <= us);
+  return true;
+}
+
+// An EPX completion the ISR has not taken yet: switching EPX now would apply it to the transfer switched in
+// ("buf_ctrl already available", or an early completion of that transfer with this one's length)
+TU_ATTR_ALWAYS_INLINE static inline bool epx_completion_latched(void) {
+  return (usb_hw->buf_status & 1u) || (usb_hw->sie_status & USB_SIE_STATUS_TRANS_COMPLETE_BITS);
+}
+
+// Whether the round-robin can stop EPX now. The SIE sends a retry that came due in the end-of-frame guard window right
+// after SOF, where this ISR runs; STOP_TRANS on it while the device returns data makes the host ACK the packet without
+// writing its buffer status (#3964). So wait out that slot, then sample the bus: idle (J) throughout means no
+// transaction is under way. The retry can also complete within the wait (a zero-length packet takes a few us); the ISR
+// takes its status next. Busy-waits only on frames the round-robin switches.
+static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
+  busy_wait_us_32(EPX_POST_SOF_SLOT_US);
+  return bus_idle_for(LINE_IDLE_US) && !epx_completion_latched();
 }
 
 // RP2040: on SOF, switch EPX if another endpoint is pending.
@@ -445,6 +459,19 @@ static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
 // Return true while an endpoint is pending.
 TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
   hw_endpoint_t *next_ep = epx_next_pending(epx);
+
+  if (epx_stop_deferred && epx->state == EPSTATE_ACTIVE) {
+    // stopped last SOF with a transaction on the wire, which has ended since (its status, if any, taken by the ISR):
+    // switch now, or restart the transfer if nothing is pending any more
+    if (epx_completion_latched()) {
+      return true;
+    }
+    epx_save_context(epx);
+    epx_switch_ep(next_ep != NULL ? next_ep : epx);
+    return true;
+  }
+  epx_stop_deferred = false; // that transfer ended meanwhile
+
   if (next_ep == NULL) {
     usb_hw->nak_poll   = USB_NAK_POLL_RESET;
     epx_switch_request = false;
@@ -460,6 +487,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
       }
       epx_switch_request = false;
       sie_stop_xfer();
+      // A retry can start between the bus check and STOP_TRANS: the SIE then finishes it and writes its status into
+      // the buffer control, which must not be the next transfer's by then. Leave the switch to the next SOF.
+      if (!bus_idle_for(EPX_STOP_SETTLE_US)) {
+        epx_stop_deferred = true;
+        return true;
+      }
       epx_save_context(epx);
       epx_switch_ep(next_ep);
     } else {
