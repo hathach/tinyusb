@@ -118,7 +118,7 @@ enum {
 };
 
 /* An isochronous split endpoint reserves the slots of its maximum packet on its TT when opened, one per 188 bytes
- * (hub_iso_split_slot(), shared with other host drivers): OUT from slot 0 upwards, start-splits in consecutive
+ * (split_iso_slot_pick()): OUT from slot 0 upwards, start-splits in consecutive
  * microframes (all, or begin/mid/end, rule 2a); IN early enough for one complete-split per 188 bytes plus two (rule
  * 3c) within the frame, MDATA continuing a packet and DATA0 ending it. A packet that misses its microframes fails, as
  * isochronous data is not retried (section 5.6). In buffer DMA mode an IN packet is received through a bounce buffer:
@@ -460,6 +460,14 @@ TU_ATTR_ALWAYS_INLINE static inline void ls_bus_release(const dwc2_regs_t* dwc2,
 
 #endif
 
+// Turn on the SOF interrupt, dropping an SOF that went by while it was off
+TU_ATTR_ALWAYS_INLINE static inline void sof_irq_arm(dwc2_regs_t* dwc2) {
+  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
+    dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_SOFM;
+  }
+}
+
 #if HCD_CHANNEL_PARK
 #define DWC2_LS_PARKED 0xFFFFu // channel_send_in_token() parked the channel, never a frame number
 
@@ -471,10 +479,7 @@ static void channel_park(dwc2_regs_t* dwc2, dwc2_channel_t* channel, channel_par
     _hcd_nonperiodic_uframe = nonperiodic_uframe_tag(dwc2->hfnum); // its NAKed tokens may have run in this microframe
   }
 #endif
-  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
-    dwc2->gintsts = GINTSTS_SOF;
-    dwc2->gintmsk |= GINTMSK_SOFM;
-  }
+  sof_irq_arm(dwc2);
 }
 #endif
 
@@ -890,19 +895,19 @@ static bool split_ss_start_ok(dwc2_regs_t* dwc2, uint8_t ch_id, uint16_t uframe,
   return split_ss_slot_ok(uframe, split_ss) && !split_ss_hold(dwc2, &_hcd_data.edpt[_hcd_data.xfer[ch_id].ep_id]);
 }
 
+// Microframes from the current one (hfnum) to uframe, negative when past
+TU_ATTR_ALWAYS_INLINE static inline int16_t uframe_ahead(uint16_t uframe, uint32_t hfnum) {
+  const uint16_t d = (uint16_t) ((uframe - hfnum) & HCD_FRAME_NUMBER_MASK);
+  return (int16_t) ((d < HCD_FRAME_COUNT / 2) ? d : (int32_t) d - HCD_FRAME_COUNT);
+}
+
 // The start-split of channel a went out before that of channel b, both periodic splits: by microframe, then by the
 // request order recorded at their admission point
 static bool split_xfer_before(uint8_t a, uint8_t b) {
   const hcd_xfer_t* xa = &_hcd_data.xfer[a];
   const hcd_xfer_t* xb = &_hcd_data.xfer[b];
-  const uint16_t    d  = (uint16_t) ((xb->split_uframe - xa->split_uframe) & HCD_FRAME_NUMBER_MASK);
-  return (d != 0) ? (d < HCD_FRAME_COUNT / 2) : (xa->split_seq < xb->split_seq);
-}
-
-// Microframes from the current one (hfnum) to uframe, negative when past
-TU_ATTR_ALWAYS_INLINE static inline int16_t uframe_ahead(uint16_t uframe, uint32_t hfnum) {
-  const uint16_t d = (uint16_t) ((uframe - hfnum) & HCD_FRAME_NUMBER_MASK);
-  return (int16_t) ((d < HCD_FRAME_COUNT / 2) ? d : (int32_t) d - HCD_FRAME_COUNT);
+  const int16_t     d  = uframe_ahead(xb->split_uframe, xa->split_uframe);
+  return (d != 0) ? (d > 0) : (xa->split_seq < xb->split_seq);
 }
 
 // An older periodic split on the TT of channel ch_id may still send a complete-split not yet in the request queue in
@@ -914,7 +919,11 @@ static bool split_csplit_older(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hfnum,
   const bool            is_dma      = dma_host_enabled(dwc2);
   const uint8_t         max_channel = dwc2_channel_count(dwc2);
   for (uint8_t i = 0; i < max_channel; i++) {
-    const hcd_xfer_t*         other   = &_hcd_data.xfer[i];
+    const hcd_xfer_t* other = &_hcd_data.xfer[i];
+    if (i == ch_id || !other->allocated || !split_tt_same(edpt, &_hcd_data.edpt[other->ep_id]) ||
+        !split_xfer_before(i, ch_id)) {
+      continue;
+    }
     const dwc2_channel_t*     channel = &dwc2->channel[i];
     const dwc2_channel_char_t hcchar  = {.value = channel->hcchar};
     // in its complete-split phase, or about to be: a split start-split with complete-splits (an isochronous OUT has
@@ -924,8 +933,7 @@ static bool split_csplit_older(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hfnum,
     const bool ss_acked = !csplit && (channel->hcsplt & HCSPLT_SPLITEN) && (channel->hcint & HCINT_ACK) &&
                           !(hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS && hcchar.ep_dir == TUSB_DIR_OUT);
     const bool halting  = !is_dma && (channel->hcintmsk & HCINT_HALTED) && !other->halted_nyet;
-    if (i == ch_id || !other->allocated || !(csplit || ss_acked) || halting || !channel_is_periodic(channel->hcchar) ||
-        !split_tt_same(edpt, &_hcd_data.edpt[other->ep_id]) || !split_xfer_before(i, ch_id)) {
+    if (!(csplit || ss_acked) || halting || !channel_is_periodic(hcchar.value)) {
       continue;
     }
     // its next complete-split, or a retry of the enabled one
@@ -1009,10 +1017,7 @@ static bool split_iso_out_missed(dwc2_regs_t* dwc2, uint16_t uframe) {
 // Let the SOF interrupt enable the next complete-split
 static void channel_csplit_wait(dwc2_regs_t* dwc2, hcd_xfer_t* xfer) {
   xfer->csplit_wait = 1;
-  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
-    dwc2->gintsts = GINTSTS_SOF;
-    dwc2->gintmsk |= GINTMSK_SOFM;
-  }
+  sof_irq_arm(dwc2);
 }
 
 // Enable the next complete-split of a periodic split transaction, xfer->csplit_next microframes after its start-split
@@ -1346,14 +1351,33 @@ static uint8_t split_slot_pick(uint8_t ep_id) {
   return slot;
 }
 
-// Microframes reserved by the isochronous endpoints on the TT of a newly opened one, as hub_iso_split_slot() expects
+// Best-effort isochronous split window on one TT: every port of a single-TT hub, or one port of a multi-TT hub. Slot s
+// is the microframe Y(s) a 188-byte piece is budgeted in, its start-split going out in Y(s-1) as in an EHCI H-frame.
+// `used` holds the slots of every open endpoint on the TT, idle ones included. OUT grows from slot 0; IN grows from
+// the end, leaving two complete retries. Requires 1..564 bytes for IN or 1..1023 for OUT. No bus-time admission,
+// interrupt reservations or frame-spanning splits.
+static bool split_iso_slot_pick(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
+  const uint8_t count = (uint8_t) tu_div_ceil(packet_size, HCD_SPLIT_ISO_PAYLOAD);
+  const uint8_t last  = (uint8_t) ((dir == TUSB_DIR_IN ? 4u : 6u) - count);
+  for (uint8_t i = 0; i <= last; i++) {
+    const uint8_t start = (uint8_t) (dir == TUSB_DIR_IN ? last - i : i);
+    const uint8_t mask  = (uint8_t) TU_GENMASK(start + count - 1u, start);
+    if (!(used & mask)) {
+      *slot = start;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Microframes reserved by the isochronous endpoints on the TT of a newly opened one, as split_iso_slot_pick() expects
 static uint8_t split_iso_used(uint8_t ep_id) {
   const hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
   uint8_t used = 0;
   for (uint8_t i = 0; i < CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     const hcd_endpoint_t* other = &_hcd_data.edpt[i];
     if (split_periodic_peer(edpt, other) && other->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
-      used |= (uint8_t) (((1u << split_iso_count(other)) - 1u) << other->split_slot);
+      used |= (uint8_t) TU_GENMASK(other->split_slot + split_iso_count(other) - 1u, other->split_slot);
     }
   }
   return used;
@@ -1715,7 +1739,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
 #if HCD_SPLIT
     if (split_iso) {
       uint8_t slot;
-      if (!hub_iso_split_slot(split_iso_used(ep_id), hcchar_bm->ep_size, hcchar_bm->ep_dir, &slot)) {
+      if (!split_iso_slot_pick(split_iso_used(ep_id), hcchar_bm->ep_size, hcchar_bm->ep_dir, &slot)) {
         edpt_dealloc(edpt);
         return false; // no window left on this TT
       }
@@ -2039,10 +2063,7 @@ static uint32_t periodic_xfer_countdown(dwc2_regs_t* dwc2, hcd_endpoint_t const*
 static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, bool next_interval) {
   const uint32_t gahbcfg = gint_mask(dwc2);
 
-  if (0 == (dwc2->gintmsk & GINTMSK_SOFM)) {
-    dwc2->gintsts = GINTSTS_SOF;
-    dwc2->gintmsk |= GINTMSK_SOFM;
-  }
+  sof_irq_arm(dwc2);
 
   edpt->uframe_countdown = next_interval ? periodic_xfer_countdown(dwc2, edpt) : 0;
   edpt->xfer_pending = 1;

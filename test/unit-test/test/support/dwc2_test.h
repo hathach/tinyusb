@@ -24,7 +24,6 @@ void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8_t fnum);
 void dfifo_flush_rx(dwc2_regs_t* dwc2);
 bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info);
 bool hub_tt_multi(uint8_t hub_addr);
-bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot);
 bool hcd_dcache_clean(const void* addr, uint32_t data_size);
 bool hcd_dcache_invalidate(const void* addr, uint32_t data_size);
 void hcd_event_handler(hcd_event_t const* event, bool in_isr);

@@ -85,6 +85,12 @@ static void variant_setup(unsigned variant) {
   test_variant = (int) variant;
 }
 
+static void set_dma(void) {
+  dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
+  hw.arch           = GHWCFG2_ARCH_INTERNAL_DMA;
+  test_regs.ghwcfg2 = hw.value;
+}
+
 static void set_ptx_queue(uint8_t available) {
   dwc2_hptxsts_t tx = {.value = test_regs.hptxsts};
   tx.req_queue_available = available;
@@ -184,9 +190,7 @@ void test_immediate_out_zlp_and_dma_keep_their_order(void) {
     variant_setup(i);
     const bool dma = i == 3;
     if (dma) {
-      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
-      test_regs.ghwcfg2 = hw.value;
+      set_dma();
     }
     endpoint(0, false, lengths[i], false);
     endpoint(1, true, 64, false);
@@ -459,9 +463,7 @@ void test_pending_work_keeps_current_iso_and_masked_status_behavior(void) {
   for (unsigned variant = 0; variant < 8; variant++) {
     variant_setup(variant);
     if (variant & 1u) {
-      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
-      test_regs.ghwcfg2 = hw.value;
+      set_dma();
     }
     const bool iso = (variant & 2u) != 0;
     const bool current = (variant & 4u) != 0;
@@ -677,9 +679,7 @@ void test_max_nak_holds_cpu_retries_until_the_next_frame(void) {
     dwc2_int_set_Ignore();
     hcd_dcache_clean_IgnoreAndReturn(true);
     if (cases[i].dma) {
-      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
-      test_regs.ghwcfg2 = hw.value;
+      set_dma();
     }
     bulk_nak_endpoint(cases[i].in, cases[i].split);
     test_regs.hfnum = (3500u << 16) | (8u * 20u + 1u); // microframe 1 of frame 20
@@ -938,9 +938,7 @@ void test_bulk_complete_split_waits_for_the_next_microframe(void) {
     const bool dma = i >= 2;
     const bool in  = (i & 1u) == 0;
     if (dma) {
-      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
-      test_regs.ghwcfg2 = hw.value;
+      set_dma();
     }
     bulk_nak_endpoint(in, true);
     const channel_park_t kind = in ? PARK_CSPLIT_IN : PARK_CSPLIT_OUT;
@@ -1040,9 +1038,7 @@ void test_split_out_refuses_what_it_cannot_send_one_packet_at_a_time(void) {
     variant_setup(i);
     hcd_dcache_clean_IgnoreAndReturn(true);
     if (cases[i].dma) {
-      dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-      hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
-      test_regs.ghwcfg2 = hw.value;
+      set_dma();
     }
     endpoint(0, false, 0, cases[i].iso);
     _hcd_data.edpt[0].hcchar_bm.ep_size = cases[i].mps;
@@ -1114,9 +1110,7 @@ static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
   hcd_dcache_clean_IgnoreAndReturn(true);
   hcd_dcache_invalidate_IgnoreAndReturn(true);
   if (dma) {
-    dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
-    hw.arch           = GHWCFG2_ARCH_INTERNAL_DMA;
-    test_regs.ghwcfg2 = hw.value;
+    set_dma();
   }
   bulk_nak_endpoint(in, split);
   test_regs.hprt |= HPRT_ENABLE; // the port sends SOF, so a halt wait has a frame counter to go by
@@ -1352,4 +1346,48 @@ void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
     ts.value = test_regs.channel[0].hctsiz;
     TEST_ASSERT_EQUAL(clear_stall ? HCTSIZ_PID_DATA0 : HCTSIZ_PID_SETUP, ts.pid);
   }
+}
+
+//--------------------------------------------------------------------+
+// Split ISO slot allocation
+//--------------------------------------------------------------------+
+enum {
+  NO_SLOT = 0xff
+};
+
+static uint8_t iso_slot(uint8_t used, uint16_t packet_size, uint8_t dir) {
+  uint8_t slot = NO_SLOT;
+  const bool ok = split_iso_slot_pick(used, packet_size, dir, &slot);
+  TEST_ASSERT_EQUAL(ok, slot != NO_SLOT);
+  return slot;
+}
+
+void test_iso_split_slot_out_grows_from_slot0(void) {
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 1, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x01, 188, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(5, iso_slot(0x1f, 188, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 189, TUSB_DIR_OUT)); // 2 slots
+  TEST_ASSERT_EQUAL(2, iso_slot(0x02, 376, TUSB_DIR_OUT)); // first free 2-slot window
+  TEST_ASSERT_EQUAL(3, iso_slot(0x04, 564, TUSB_DIR_OUT)); // 3 slots
+  TEST_ASSERT_EQUAL(0, iso_slot(0x00, 1023, TUSB_DIR_OUT)); // 6 slots: 0..5
+  TEST_ASSERT_EQUAL(0, iso_slot(0xc0, 1023, TUSB_DIR_OUT)); // slots 6, 7 are not used
+}
+
+void test_iso_split_slot_in_grows_from_slot3(void) {
+  TEST_ASSERT_EQUAL(3, iso_slot(0x00, 1, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(2, iso_slot(0x08, 188, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(2, iso_slot(0x00, 189, TUSB_DIR_IN)); // 2 slots: 2..3
+  TEST_ASSERT_EQUAL(1, iso_slot(0x08, 376, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x00, 564, TUSB_DIR_IN)); // 3 slots: 1..3
+  TEST_ASSERT_EQUAL(0, iso_slot(0x08, 564, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(1, iso_slot(0x30, 564, TUSB_DIR_IN)); // slots 4, 5 are not used
+}
+
+void test_iso_split_slot_full_window_fails(void) {
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x3f, 1, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x20, 1023, TUSB_DIR_OUT));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x15, 189, TUSB_DIR_OUT)); // no two adjacent free slots in 0..5
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x0f, 1, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x05, 376, TUSB_DIR_IN));
+  TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x02, 564, TUSB_DIR_IN));
 }
