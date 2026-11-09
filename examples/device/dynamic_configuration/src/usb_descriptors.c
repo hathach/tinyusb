@@ -150,28 +150,118 @@ enum
   #define EPNUM_1_MSC_IN      0x81
 #endif
 
-uint8_t const desc_configuration_0[] =
+// full speed configurations
+uint8_t const desc_fs_configuration_0[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_0_NUM_TOTAL, 0, CONFIG_0_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_0_NUM_CDC, 0, EPNUM_0_CDC_NOTIF, 8, EPNUM_0_CDC_OUT, EPNUM_0_CDC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_CDC_DESCRIPTOR(ITF_0_NUM_CDC, 0, EPNUM_0_CDC_NOTIF, 8, EPNUM_0_CDC_OUT, EPNUM_0_CDC_IN, 64),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MIDI_DESCRIPTOR(ITF_0_NUM_MIDI, 0, EPNUM_0_MIDI_OUT, EPNUM_0_MIDI_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_MIDI_DESCRIPTOR(ITF_0_NUM_MIDI, 0, EPNUM_0_MIDI_OUT, EPNUM_0_MIDI_IN, 64),
 };
 
-
-uint8_t const desc_configuration_1[] =
+uint8_t const desc_fs_configuration_1[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_1_NUM_TOTAL, 0, CONFIG_1_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_1_NUM_MSC, 0, EPNUM_1_MSC_OUT, EPNUM_1_MSC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_MSC_DESCRIPTOR(ITF_1_NUM_MSC, 0, EPNUM_1_MSC_OUT, EPNUM_1_MSC_IN, 64),
 };
 
+#if TUD_OPT_HIGH_SPEED
+// Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
+
+// high speed configurations
+uint8_t const desc_hs_configuration_0[] =
+{
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_0_NUM_TOTAL, 0, CONFIG_0_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_0_NUM_CDC, 0, EPNUM_0_CDC_NOTIF, 8, EPNUM_0_CDC_OUT, EPNUM_0_CDC_IN, 512),
+
+  // Interface number, string index, EP Out & EP In address, EP size
+  TUD_MIDI_DESCRIPTOR(ITF_0_NUM_MIDI, 0, EPNUM_0_MIDI_OUT, EPNUM_0_MIDI_IN, 512),
+};
+
+uint8_t const desc_hs_configuration_1[] =
+{
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_1_NUM_TOTAL, 0, CONFIG_1_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, EP Out & EP In address, EP size
+  TUD_MSC_DESCRIPTOR(ITF_1_NUM_MSC, 0, EPNUM_1_MSC_OUT, EPNUM_1_MSC_IN, 512),
+};
+
+// other speed configuration, large enough for either mode
+static uint8_t desc_other_speed_config[TU_MAX(CONFIG_0_TOTAL_LEN, CONFIG_1_TOTAL_LEN)];
+
+// device qualifiers mirror the device descriptor of each mode
+static tusb_desc_device_qualifier_t const desc_device_qualifier_0 =
+{
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = 0x0200,
+
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+static tusb_desc_device_qualifier_t const desc_device_qualifier_1 =
+{
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = 0x0200,
+
+  .bDeviceClass       = 0,
+  .bDeviceSubClass    = 0,
+  .bDeviceProtocol    = 0,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const * tud_descriptor_device_qualifier_cb(void)
+{
+  return (uint8_t const*) (mode ? &desc_device_qualifier_1 : &desc_device_qualifier_0);
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const * tud_descriptor_other_speed_configuration_cb(uint8_t index)
+{
+  (void) index; // for multiple configurations
+
+  // if link speed is high return fullspeed config, and vice versa
+  // Note: the descriptor type is OTHER_SPEED_CONFIG instead of CONFIG
+  bool const is_hs = (tud_speed_get() == TUSB_SPEED_HIGH);
+  if (mode) {
+    memcpy(desc_other_speed_config, is_hs ? desc_fs_configuration_1 : desc_hs_configuration_1, CONFIG_1_TOTAL_LEN);
+  } else {
+    memcpy(desc_other_speed_config, is_hs ? desc_fs_configuration_0 : desc_hs_configuration_0, CONFIG_0_TOTAL_LEN);
+  }
+
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  return desc_other_speed_config;
+}
+
+#endif // highspeed
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -179,7 +269,15 @@ uint8_t const desc_configuration_1[] =
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
-  return mode ? desc_configuration_1 : desc_configuration_0;
+
+#if TUD_OPT_HIGH_SPEED
+  // Although we are highspeed, host may be fullspeed.
+  if (tud_speed_get() == TUSB_SPEED_HIGH) {
+    return mode ? desc_hs_configuration_1 : desc_hs_configuration_0;
+  }
+#endif
+
+  return mode ? desc_fs_configuration_1 : desc_fs_configuration_0;
 }
 
 //--------------------------------------------------------------------+

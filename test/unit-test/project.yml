@@ -208,6 +208,18 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUSB_SYSVIEW=1
       - CFG_TUD_MSC=0
+    # the linear-buffer path of the audio class, as on a DCD without a dedicated hardware FIFO
+    :test_audio_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_AUDIO=1
+      - CFG_TUD_AUDIO_ENABLE_EP_OUT=1
+      - CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX=64
+      - CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ=256
+      - CFG_TUD_EDPT_DEDICATED_HWFIFO=0
+      - CFG_TUSB_DEBUG=0
+    # keys match by substring: test_audio_device above configures this one too, this adds the WCH CH32 path
+    :test_audio_device_deferred:
+      - TUP_USBD_XFER_ISR=0
     :test_dfu_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1
