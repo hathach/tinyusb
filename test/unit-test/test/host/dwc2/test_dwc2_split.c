@@ -18,9 +18,6 @@ static void (*on_int_enable)(void);
 static unsigned fifo_writes;
 static uint32_t gahbcfg_at_fifo_write;
 static bool     fifo_write_unmasks; // models another core ending its own masked region meanwhile
-static uint32_t millis_ticks;       // fake clock of tusb_time_millis_api(), one ms per read
-static uint32_t millis_isr_at;
-static void (*on_millis)(void);
 
 void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
                      const tu_hwfifo_access_t* access_mode) {
@@ -56,8 +53,6 @@ void setUp(void) {
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
   _hcd_nonperiodic_uframe = 0;
   on_int_enable = NULL;
-  on_millis = NULL;
-  millis_ticks = millis_isr_at = 0;
   _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
   fifo_write_unmasks = false;
@@ -1113,18 +1108,6 @@ void test_late_split_out_disable_waits_for_a_request_queue_entry_in_its_fifo_emp
 // Abort of a running control/bulk transfer (#4405)
 //--------------------------------------------------------------------+
 
-// Lets a bounded halt wait in hcd_edpt_abort_xfer() end: the RAM frame counter never moves on its own, as HFNUM
-// stops without SOF. on_millis models an interrupt that arrives while the wait runs, at the millis_isr_at-th clock read.
-uint32_t tusb_time_millis_api(void) {
-  TEST_ASSERT_LESS_THAN_UINT32(1000, millis_ticks); // a wait that never ends fails here instead of hanging
-  if (on_millis && millis_ticks == millis_isr_at) {
-    void (*isr)(void) = on_millis;
-    on_millis         = NULL;
-    isr();
-  }
-  return millis_ticks++;
-}
-
 // Channel 0 running a bulk transfer of EP1 (split or native) on the device at address 1; return its endpoint address
 static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
   dwc2_int_set_Stub(int_set_stub);
@@ -1139,6 +1122,14 @@ static uint8_t abort_bulk_endpoint(bool dma, bool in, bool split) {
   test_regs.hprt |= HPRT_ENABLE; // the port sends SOF, so a halt wait has a frame counter to go by
   isr_runs = 0;
   return in ? 0x81 : 0x01;
+}
+
+// Abort with no halt before it returns. The RAM frame counter never moves, so the halt wait ends only as it does on a
+// suspended port, which sends no SOF.
+static void abort_unhalted(uint8_t ep_addr) {
+  test_regs.hprt |= HPRT_SUSPEND;
+  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  test_regs.hprt &= ~HPRT_SUSPEND;
 }
 
 // One pass of handle_channel_irq() for channel 0, the channel halted by the core when hcint carries the halt
@@ -1182,28 +1173,24 @@ void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) 
   }
 }
 
-void test_abort_waits_a_bounded_time_for_the_halt_of_a_native_bulk_channel(void) {
-  // the halt never arrives (interrupt masked), arrives while the abort waits, or cannot come soon as the port is
-  // suspended and its frame counter stands still: either way the abort returns
+void test_abort_waits_for_the_halt_of_a_native_bulk_channel_only_while_the_port_sends_sof(void) {
+  // the port suspended or disabled, so HFNUM stands still: the abort returns at once, the endpoint refusing a
+  // replacement until the halt retires the channel; or the halt arrives while the abort runs
   for (unsigned c = 0; c < 3; c++) {
     variant_setup(c);
     const uint8_t ep_addr = abort_bulk_endpoint(true, true, false);
-    const bool    halts   = c == 1;
-    const bool    suspend = c == 2;
-    on_millis             = halts ? isr_halts_aborted_dma_channel : NULL;
-    millis_isr_at         = 3; // past the read that only starts the timeout
-    if (suspend) {
+    const bool    halts   = c == 2;
+    if (c == 0) {
       test_regs.hprt |= HPRT_SUSPEND;
+    } else if (c == 1) {
+      test_regs.hprt &= ~HPRT_ENABLE;
+    } else {
+      on_int_enable = isr_halts_aborted_dma_channel;
     }
 
     TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
     if (!halts) {
-      // the halt unconfirmed: the endpoint takes no replacement until the halt retires the channel
-      if (suspend) {
-        TEST_ASSERT_LESS_OR_EQUAL_UINT32(1, millis_ticks); // no wait at all
-      } else {
-        TEST_ASSERT_GREATER_THAN_UINT32(millis_isr_at, millis_ticks);
-      }
+      TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
       TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
       isr_halts_aborted_dma_channel();
     }
@@ -1216,7 +1203,7 @@ void test_slave_abort_discards_in_data_the_rxfifo_still_holds(void) {
   // the bounded wait returned before the ISR ran; the packet then popped must not reach the released buffer
   // (tu_hwfifo_read() has no expectation: a read into it fails the test)
   const uint8_t ep_addr = abort_bulk_endpoint(false, true, false);
-  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  abort_unhalted(ep_addr);
   TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
 
   dwc2_grxstsp_t rx = {.value = 0};
@@ -1265,11 +1252,19 @@ static uint8_t dma_split_abort(bool in, bool parked_first) {
     TEST_ASSERT_BITS_HIGH_MESSAGE(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt, "precondition: CS parked");
     TEST_ASSERT_BITS_LOW_MESSAGE(HCCHAR_CHENA, test_regs.channel[0].hcchar, "precondition: CS parked");
   }
+  const hcd_xfer_t parked = _hcd_data.xfer[0];
+  test_regs.hfnum++; // a complete-split parked again would take this microframe
 
-  TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  abort_unhalted(ep_addr);
   // a split channel halts by itself after each start/complete-split and is not disabled at random in DMA mode
   // (Programming Guide 3.5)
   TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+  if (parked_first) {
+    // the parked complete-split keeps its microframe
+    TEST_ASSERT_EQUAL(parked.park, _hcd_data.xfer[0].park);
+    TEST_ASSERT_EQUAL(parked.park_uframe, _hcd_data.xfer[0].park_uframe);
+    TEST_ASSERT_EQUAL(parked.uframe_hold, _hcd_data.xfer[0].uframe_hold);
+  }
   TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
   if (!parked_first) {
     channel0_irq(HCINT_HALTED | HCINT_ACK);
@@ -1338,7 +1333,7 @@ void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
     ts.pid                      = HCTSIZ_PID_DATA1;
     test_regs.channel[0].hctsiz = ts.value;
 
-    TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr)); // no halt: the abort times out
+    abort_unhalted(ep_addr);
     _hcd_data.edpt[0].next_pid = HCTSIZ_PID_DATA1;
     TEST_ASSERT_FALSE(clear_stall ? hcd_edpt_clear_stall(0, 1, ep_addr) : hcd_setup_send(0, 1, setup));
     TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid); // refused before it changes anything
