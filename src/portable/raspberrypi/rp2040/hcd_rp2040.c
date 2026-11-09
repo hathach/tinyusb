@@ -45,12 +45,18 @@ static bool hcd_running = false;
 static volatile bool epx_switch_request = false;
   #endif
 
+// An RX timeout fails the EPX transfer without starting the next pending one: the SIE can still make one more attempt
+// after STOP_TRANS, whose timeout would fail that transfer. Unless an EPX start comes first, sof_service() starts it
+// on the second SOF after (at least a frame later); this counts those SOFs.
+static uint8_t epx_resume_sofs = 0;
+
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
 // a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
 TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
   #ifndef HAS_STOP_EPX_ON_NAK
   epx_switch_request = false;
   #endif
+  epx_resume_sofs = 0;
 }
 
 enum {
@@ -464,14 +470,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
 }
   #endif
 
-// HOST_SOF is enabled while an EPX endpoint is pending (RP2040) or an interrupt endpoint is aborting. A SOF hidden by
-// another SOF_RD read only delays the reclaim, which counts frames.
+// HOST_SOF is enabled while an EPX endpoint is pending (RP2040), an RX timeout left EPX idle with transfers pending, or
+// an interrupt endpoint is aborting. A SOF hidden by another SOF_RD read only delays the reclaim, which counts frames.
 static void __tusb_irq_path_func(sof_service)(void) {
   const uint32_t frame      = usb_hw->sof_rd; // also acknowledges HOST_SOF
   bool           sof_needed = false;
   #ifndef HAS_STOP_EPX_ON_NAK
   sof_needed = epx_sof_round_robin(); // first, as close to SOF as possible: its STOP_TRANS relies on it
   #endif
+
+  if (epx_resume_sofs > 0) {
+    if (--epx_resume_sofs == 0) {
+      epx_start_next_pending(); // the transfers an RX timeout left pending, no EPX start having come since
+    } else {
+      sof_needed = true;
+    }
+  }
 
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
@@ -529,6 +543,10 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     // Only handle if epx is active, don't carry more epx transfer since STOP_TRANS is raced and not safe.
     if (epx->state == EPSTATE_ACTIVE) {
       xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
+      if (epx_next_pending(epx) != NULL) {
+        epx_resume_sofs  = 2; // see sof_service()
+        usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+      }
     }
   }
 
@@ -924,9 +942,10 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       ep->next_pid = 1;
     }
 
-    // If EPX is busy with another transfer, mark as pending
+    // If EPX is busy with another transfer, or idle with transfers an RX timeout left pending (which go first, in turn
+    // with this one: a device that keeps timing out must not hold them off by retrying), mark as pending
     rp2usb_critical_enter();
-    if (epx->state == EPSTATE_ACTIVE) {
+    if (epx->state == EPSTATE_ACTIVE || epx_next_pending(epx) != NULL) {
       ep->user_buf      = buffer;
       ep->remaining_len = buflen;
       ep->state         = EPSTATE_PENDING;
@@ -938,6 +957,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
       usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
       usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
+      epx_start_next_pending();
     } else {
       io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
       io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
@@ -973,8 +993,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   ep->remaining_len = 8;
   ep->xferred_len   = 0;
 
-  // If EPX is busy, mark as pending setup (DPRAM already has the packet)
-  if (epx->state == EPSTATE_ACTIVE) {
+  // If EPX is busy, or idle with transfers pending (see hcd_edpt_xfer()), mark as pending setup (DPRAM already has the
+  // packet)
+  if (epx->state == EPSTATE_ACTIVE || epx_next_pending(epx) != NULL) {
     ep->state = EPSTATE_PENDING_SETUP;
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
@@ -982,6 +1003,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
     usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
     usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
+    epx_start_next_pending();
   } else {
     epx       = ep;
     ep->state = EPSTATE_ACTIVE;
