@@ -19,6 +19,8 @@ enum {
 
 static bool     hcd_abort_result;
 static uint8_t  hcd_abort_count;
+static uint8_t  hcd_abort_ep;
+static bool     hcd_abort_after_close;
 static uint8_t  hcd_close_count;
 static uint8_t  xfer_cb_count;
 static uint32_t xfer_cb_len;
@@ -107,8 +109,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
   (void) daddr;
-  (void) ep_addr;
   hcd_abort_count++;
+  hcd_abort_ep          = ep_addr;
+  hcd_abort_after_close = (hcd_close_count != 0);
   return hcd_abort_result;
 }
 
@@ -155,11 +158,13 @@ void setUp(void) {
   _app_driver       = &fake_driver;
   _app_driver_count = 1;
 
-  hcd_abort_result = true;
-  hcd_abort_count  = 0;
-  hcd_close_count  = 0;
-  xfer_cb_count    = 0;
-  xfer_cb_len      = 0;
+  hcd_abort_result      = true;
+  hcd_abort_count       = 0;
+  hcd_abort_ep          = 0;
+  hcd_abort_after_close = false;
+  hcd_close_count       = 0;
+  xfer_cb_count         = 0;
+  xfer_cb_len           = 0;
 
   usbh_device_t *dev   = get_device(DADDR);
   dev->bus_info.rhport = RHPORT;
@@ -183,6 +188,7 @@ void test_abort_pending_transfer_releases_endpoint(void) {
   TEST_ASSERT_TRUE(tuh_edpt_abort_xfer(DADDR, EP_IN));
 
   TEST_ASSERT_EQUAL(1, hcd_abort_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, hcd_abort_ep);
   TEST_ASSERT_EQUAL_HEX8(0, *ep_in_status());
   TEST_ASSERT_TRUE(usbh_edpt_claim(DADDR, EP_IN));
 }
@@ -193,6 +199,8 @@ void test_abort_completed_transfer_leaves_endpoint_to_its_event(void) {
   hcd_abort_result = false;
 
   TEST_ASSERT_FALSE(tuh_edpt_abort_xfer(DADDR, EP_IN));
+  TEST_ASSERT_EQUAL(1, hcd_abort_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, hcd_abort_ep);
   TEST_ASSERT_EQUAL_HEX8(TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_BUSY, *ep_in_status());
   TEST_ASSERT_FALSE(usbh_edpt_claim(DADDR, EP_IN));
 
@@ -211,13 +219,16 @@ void test_abort_idle_endpoint_returns_false(void) {
   TEST_ASSERT_EQUAL(0, hcd_abort_count);
 }
 
-// Closing releases the endpoint even when the HCD had no transfer to abort.
+// Closing releases the endpoint even when the HCD had no transfer to abort. The abort must reach the HCD before the
+// close: MAX3421 clears the endpoint record in close, after which its abort no longer finds the endpoint.
 void test_close_releases_endpoint_without_transfer_to_abort(void) {
   hcd_abort_result = false;
 
   TEST_ASSERT_TRUE(tuh_edpt_close(DADDR, EP_IN));
 
   TEST_ASSERT_EQUAL(1, hcd_abort_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, hcd_abort_ep);
+  TEST_ASSERT_FALSE(hcd_abort_after_close);
   TEST_ASSERT_EQUAL(1, hcd_close_count);
   TEST_ASSERT_EQUAL_HEX8(0, *ep_in_status());
 }
