@@ -608,54 +608,29 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
-
+    # HIL scratch for PR #4265: device_info is replaced by the bulk IN abort test
     ser = open_console_reset(board)
+    data = b''
+    deadline = time.monotonic() + 240
     try:
-        data = b''
-        timeout = enum_timeout()
-        while timeout > 0:
-            # infra death is not a board failure: without this a dead JLinkExe/probe
-            # would burn the whole timeout and report as 'No data from device'
-            assert not getattr(ser, 'eof', False), \
-                'RTT console died (its server exited or the probe dropped off USB)'
+        while time.monotonic() < deadline:
             new_data = ser.read(ser.in_waiting or 1)
             if new_data:
                 data += new_data
-            enum_dev_sn = []
-            for l in data.decode('utf-8', errors='ignore').splitlines():
-                vid_pid_sn = DEV_INFO_RE.search(l)
-                if vid_pid_sn:
-                    enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-            if set(declared_devs).issubset(set(enum_dev_sn)):
+            if b'ABORT_TEST PASS' in data or b'ABORT_TEST FAIL' in data:
+                time.sleep(0.3)
+                data += ser.read(ser.in_waiting)
                 break
-            time.sleep(0.1)
-            timeout -= 0.1
     finally:
         ser.close()
-
-    lines = data.decode('utf-8', errors='ignore').splitlines()
-    if board.get('logger') == 'rtt':
-        # JLinkExe's telnet banner is delivered at connect, whether or not it ever
-        # finds the control block, so len(data) alone cannot tell "board said nothing"
-        # from "console never attached to the ring" -- drop the banner first
-        target_lines = rtt.strip_banner(data).splitlines()
-        assert target_lines, ('No data from device: the RTT console attached but the target '
-                              'produced nothing -- firmware built without LOGGER=rtt, or SWD lost')
-    elif len(data) == 0:
-        assert False, 'No data from device'
-
-    enum_dev_sn = []
-    for l in lines:
-        vid_pid_sn = DEV_INFO_RE.search(l)
-        if vid_pid_sn:
-            print(f'\r\n  {l} ', end='')
-            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-
-    if set(declared_devs) != set(enum_dev_sn):
-        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
-        print('\n'.join(lines))
-        assert False, failed_msg
+    text = data.decode('utf-8', errors='ignore')
+    print('\n' + text)
+    log_dir = os.environ.get('HIL_ABORT_LOG', '/tmp/hil-abort-logs')
+    os.makedirs(log_dir, exist_ok=True)
+    with open(os.path.join(log_dir, f"{board['name']}-{_current_variant}.log"), 'w') as f:
+        f.write(text)
+    verdict = [l for l in text.splitlines() if 'ABORT_TEST' in l or l.startswith(('M1', 'M2', 'S1', 'dev ', 'msc '))]
+    assert 'ABORT_TEST PASS' in text, ' | '.join(verdict)[-1500:] or 'no output'
     return 0
 
 
