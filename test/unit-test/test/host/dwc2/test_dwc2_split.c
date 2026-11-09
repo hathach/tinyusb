@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <signal.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "unity.h"
 #include "mock_dwc2_test.h"
 
@@ -29,7 +33,21 @@ void tu_hwfifo_write(volatile void* fifo, const uint8_t* src, uint16_t len,
   }
 }
 
+// The driver spins on a full request queue, which nothing in the RAM register model drains: fail the running test
+// instead of hanging the binary when a path reaches such a wait.
+static void spin_watchdog(int sig) {
+  (void) sig;
+  TEST_FAIL_MESSAGE("driver spun on a register the RAM model never changes");
+}
+
+static int test_variant = -1;
+
 void setUp(void) {
+  // SA_NODEFER: Unity leaves the handler by longjmp, which would keep SIGALRM blocked.
+  struct sigaction watchdog = {.sa_handler = spin_watchdog, .sa_flags = SA_NODEFER};
+  TEST_ASSERT_EQUAL(0, sigemptyset(&watchdog.sa_mask));
+  TEST_ASSERT_EQUAL(0, sigaction(SIGALRM, &watchdog, NULL));
+  alarm(5);
   memset(&test_regs, 0, sizeof(test_regs));
   memset(&_hcd_data, 0, sizeof(_hcd_data));
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
@@ -39,7 +57,7 @@ void setUp(void) {
   fifo_writes = 0;
   fifo_write_unmasks = false;
   dwc2_ghwcfg2_t hw = {.value = 0};
-  hw.num_host_ch = 15;
+  hw.num_host_ch = TU_ARRAY_SIZE(_hcd_data.xfer) - 1;
   test_regs.ghwcfg2 = hw.value;
   dwc2_hptxsts_t tx = {.value = 0};
   tx.req_queue_available = 8;
@@ -50,6 +68,21 @@ void setUp(void) {
 }
 
 void tearDown(void) {
+  alarm(0);
+  if (Unity.CurrentTestFailed && test_variant >= 0) {
+    UnityPrint(" (variant ");
+    UnityPrintNumberUnsigned((UNITY_UINT) test_variant);
+    UnityPrint(")");
+  }
+  test_variant = -1;
+}
+
+// A looped variant starts as a test does, its mocks included, and a failure names it
+static void variant_setup(unsigned variant) {
+  mock_dwc2_test_Destroy();
+  mock_dwc2_test_Init();
+  setUp();
+  test_variant = (int) variant;
 }
 
 static void set_ptx_queue(uint8_t available) {
@@ -98,7 +131,7 @@ static void complete_pair(uint8_t first, uint8_t second) {
     _hcd_data.xfer[ch].csplit_next = 2;
     _hcd_data.xfer[ch].csplit_wait = 1;
   }
-  test_regs.hfnum = (_hcd_data.xfer[first].split_uframe + 1u) & HCD_FRAME_NUMBER_MASK;
+  test_regs.hfnum = (3500u << 16) | ((_hcd_data.xfer[first].split_uframe + 1u) & HCD_FRAME_NUMBER_MASK);
   TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, second));
   TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[second].hcchar);
   TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, first));
@@ -107,7 +140,7 @@ static void complete_pair(uint8_t first, uint8_t second) {
   TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[second].hcchar);
 
   // NYET retries must retain the original SS order.
-  test_regs.hfnum = (_hcd_data.xfer[first].split_uframe + 2u) & HCD_FRAME_NUMBER_MASK;
+  test_regs.hfnum = (3500u << 16) | ((_hcd_data.xfer[first].split_uframe + 2u) & HCD_FRAME_NUMBER_MASK);
   test_regs.channel[first].hcchar &= ~HCCHAR_CHENA;
   test_regs.channel[second].hcchar &= ~HCCHAR_CHENA;
   TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, second));
@@ -119,7 +152,7 @@ static void complete_pair(uint8_t first, uint8_t second) {
 void test_deferred_out_complete_split_follows_the_in_that_entered_first(void) {
   // Both channel orders, FIFO shortage and request-queue shortage, frame rollover.
   for (unsigned variant = 0; variant < 8; variant++) {
-    setUp();
+    variant_setup(variant);
     const uint8_t out = variant & 1u;
     const uint8_t in = 1u - out;
     endpoint(out, false, 64, false);
@@ -148,7 +181,7 @@ void test_deferred_out_complete_split_follows_the_in_that_entered_first(void) {
 void test_immediate_out_zlp_and_dma_keep_their_order(void) {
   const uint16_t lengths[] = {64, 7, 0, 64};
   for (unsigned i = 0; i < TU_ARRAY_SIZE(lengths); i++) {
-    setUp();
+    variant_setup(i);
     const bool dma = i == 3;
     if (dma) {
       dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
@@ -172,11 +205,11 @@ void test_immediate_out_zlp_and_dma_keep_their_order(void) {
 
 void test_unissued_channels_at_frame_zero_do_not_take_order_numbers(void) {
   test_regs.hfnum = (3500u << 16) | HCD_FRAME_NUMBER_MASK;
-  for (uint8_t ch = 0; ch < 16; ch++) {
+  for (uint8_t ch = 0; ch < TU_ARRAY_SIZE(_hcd_data.xfer); ch++) {
     endpoint(ch, true, 8, false);
     _hcd_data.edpt[ch].split_slot = 1;
   }
-  for (uint8_t ch = 0; ch < 16; ch++) {
+  for (uint8_t ch = 0; ch < TU_ARRAY_SIZE(_hcd_data.xfer); ch++) {
     enable(ch);
     TEST_ASSERT_EQUAL(ch, _hcd_data.xfer[ch].split_seq);
   }
@@ -244,7 +277,7 @@ void test_iso_out_end_leaves_a_held_slave_in_split_to_sof_while_the_queue_is_ful
   TEST_ASSERT_TRUE(_hcd_data.edpt[1].split_held);
   TEST_ASSERT_EQUAL(0, _hcd_data.edpt[1].uframe_countdown);
   TEST_ASSERT_BITS_HIGH(GINTSTS_SOF, test_regs.gintmsk);
-  for (uint8_t ch = 1; ch < 16; ch++) {
+  for (uint8_t ch = 1; ch < TU_ARRAY_SIZE(_hcd_data.xfer); ch++) {
     TEST_ASSERT_FALSE(_hcd_data.xfer[ch].allocated);
     TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[ch].hcchar);
   }
@@ -263,7 +296,7 @@ static void pending_csplit(uint8_t ch, bool in, uint16_t ss_frame, uint8_t next)
 void test_pending_receive_or_channel_work_precedes_future_complete_split(void) {
   const uint32_t causes[] = {GINTSTS_RXFLVL, GINTSTS_HCINT, GINTSTS_RXFLVL | GINTSTS_HCINT};
   for (unsigned variant = 0; variant < 12; variant++) {
-    setUp();
+    variant_setup(variant);
     const uint8_t a = variant & 1u;
     const uint8_t b = 1u - a;
     const uint16_t now = (variant & 2u) ? 0 : 10;
@@ -332,7 +365,7 @@ void test_unrelated_pending_work_does_not_delay_iso_in_continuation(void) {
   const uint32_t causes[] = {GINTSTS_RXFLVL, GINTSTS_HCINT, GINTSTS_RXFLVL | GINTSTS_HCINT};
   for (unsigned cause = 0; cause < TU_ARRAY_SIZE(causes); cause++) {
     for (unsigned other = 0; other < 10; other++) {
-      setUp();
+      variant_setup(cause * 10u + other);
       pending_csplit(0, true, 8, 3);
       _hcd_data.edpt[0].hcchar_bm.ep_type = HCCHAR_EPTYPE_ISOCHRONOUS;
       test_regs.channel[0].hcchar = _hcd_data.edpt[0].hcchar;
@@ -376,7 +409,7 @@ void test_unrelated_pending_work_does_not_delay_iso_in_continuation(void) {
 
 void test_pending_start_ack_or_iso_payload_preserves_current_split_priority(void) {
   for (unsigned variant = 0; variant < 8; variant++) {
-    setUp();
+    variant_setup(variant);
     const uint16_t now = (variant & 1u) ? 0 : 10;
     const bool start_ack = (variant & 2u) != 0;
     pending_csplit(0, false, (uint16_t) (now - 1u), 2);
@@ -424,7 +457,7 @@ void test_pending_start_ack_or_iso_payload_preserves_current_split_priority(void
 
 void test_pending_work_keeps_current_iso_and_masked_status_behavior(void) {
   for (unsigned variant = 0; variant < 8; variant++) {
-    setUp();
+    variant_setup(variant);
     if (variant & 1u) {
       dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
       hw.arch = GHWCFG2_ARCH_INTERNAL_DMA;
@@ -461,7 +494,7 @@ void test_pending_work_keeps_current_iso_and_masked_status_behavior(void) {
 
 void test_late_complete_split_in_the_microframe_tail_goes_in_the_next(void) {
   for (unsigned tail = 0; tail < 2; tail++) {
-    setUp();
+    variant_setup(tail);
     pending_csplit(0, true, 8, 2);
     test_regs.hfnum = ((tail ? 900u : 1000u) << 16) | 10u; // its first complete-split is due now
     TEST_ASSERT_TRUE(channel_csplit_arm(&test_regs, 0));
@@ -506,7 +539,7 @@ void test_iso_out_piece_for_a_microframe_the_core_no_longer_serves_fails_the_pac
     {3500, 11, false, true},  // its microframe passed
   };
   for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
-    setUp();
+    variant_setup(i);
     endpoint(0, false, 400, true);
     _hcd_data.xfer[0].split_uframe = 9;
     _hcd_data.xfer[0].iso_open = 1;
@@ -636,7 +669,7 @@ void test_max_nak_holds_cpu_retries_until_the_next_frame(void) {
   } cases[] = {{false, true, true}, {false, true, false}, {false, false, true},
                {false, false, false}, {true, true, true}, {true, false, true}};
   for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
-    setUp();
+    variant_setup(i);
     dwc2_int_set_Ignore();
     hcd_dcache_clean_IgnoreAndReturn(true);
     if (cases[i].dma) {
@@ -721,7 +754,7 @@ void test_slave_setup_start_split_xact_error_is_the_tt_nak(void) {
   // times per transfer, then counted. XactErr with NAK on a SETUP start-split, an XactErr of its complete-split, or of
   // a bulk start-split, counts at once.
   for (unsigned variant = 0; variant < 4; variant++) {
-    setUp();
+    variant_setup(variant);
     dwc2_int_set_Ignore();
     _tuh_cfg.max_nak = 0; // every retry re-arms at once, none parked
     if (variant == 0 || variant == 3) {
@@ -785,7 +818,7 @@ void test_sof_never_waits_for_the_periodic_queue_to_start_a_slave_in(void) {
   // a due interrupt IN, split and native: SOF leaves it pending on a full queue, which the RxFIFO service after it in
   // the ISR may be needed to drain
   for (unsigned split = 0; split < 2; split++) {
-    setUp();
+    variant_setup(split);
     dwc2_int_set_Ignore();
     endpoint(0, true, 64, false);
     _hcd_data.edpt[0].hcsplt_bm.split_en = split ? 1u : 0u;
@@ -821,7 +854,7 @@ static void fifo_read_stub(const volatile void* fifo, uint8_t* dest, uint16_t le
 
 void test_isr_drains_the_rxfifo_after_an_sof_that_leaves_a_slave_in_pending(void) {
   for (unsigned split = 0; split < 2; split++) {
-    setUp();
+    variant_setup(split);
     dwc2_int_set_Ignore();
     fifo_reads = 0;
     tu_hwfifo_read_Stub(fifo_read_stub);
@@ -877,7 +910,7 @@ static void bulk_split_event(bool dma, bool in, uint32_t hcint) {
 void test_bulk_complete_split_waits_for_the_next_microframe(void) {
   // slave IN, slave OUT, DMA IN, DMA OUT
   for (unsigned i = 0; i < 4; i++) {
-    setUp();
+    variant_setup(i);
     dwc2_int_set_Ignore();
     const bool dma = i >= 2;
     const bool in  = (i & 1u) == 0;
@@ -926,7 +959,7 @@ void test_slave_out_start_restores_only_an_interrupt_mask_it_set(void) {
   // region's, on a multi-core MCU possibly one on the other core that unmasks first: restoring the 0 read here would
   // leave the interrupt masked for good.
   for (unsigned found_masked = 0; found_masked < 2; found_masked++) {
-    setUp();
+    variant_setup(found_masked);
     dwc2_int_set_Ignore();
     bulk_nak_endpoint(false, false);
     _hcd_data.xfer[0].allocated = false;
@@ -948,7 +981,7 @@ void test_parked_bulk_channel_closes_only_the_microframe_it_parked_in(void) {
   // an isochronous OUT MID due in the microframe the bulk channel parked in by max_nak, in a later one, and in a later
   // one with the channel still enabled, as a slave IN parked between packets is
   for (unsigned i = 0; i < 3; i++) {
-    setUp();
+    variant_setup(i);
     dwc2_int_set_Ignore();
     bulk_nak_endpoint(true, true);
     _tuh_cfg.max_nak = 1;
@@ -981,7 +1014,7 @@ void test_split_out_refuses_what_it_cannot_send_one_packet_at_a_time(void) {
     {true, false, 7, 7, true},      {true, false, 8, 16, true},    {false, false, 7, 14, true},
   };
   for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
-    setUp();
+    variant_setup(i);
     hcd_dcache_clean_IgnoreAndReturn(true);
     if (cases[i].dma) {
       dwc2_ghwcfg2_t hw = {.value = test_regs.ghwcfg2};
@@ -999,7 +1032,7 @@ void test_split_out_refuses_what_it_cannot_send_one_packet_at_a_time(void) {
 void test_iso_in_split_packet_filling_a_buffer_of_mps_completes(void) {
   // all of it returned as MDATA, its zero-length DATA0 still to come
   for (unsigned small = 0; small < 2; small++) {
-    setUp();
+    variant_setup(small);
     endpoint(0, true, 188, true);
     _hcd_data.edpt[0].buflen    = small ? 100 : 188;
     _hcd_data.xfer[0].xferred_bytes = _hcd_data.edpt[0].buflen;
