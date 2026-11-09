@@ -217,6 +217,7 @@ void test_close_releases_endpoint_without_transfer_to_abort(void) {
 
   TEST_ASSERT_TRUE(tuh_edpt_close(DADDR, EP_IN));
 
+  TEST_ASSERT_EQUAL(1, hcd_abort_count);
   TEST_ASSERT_EQUAL(1, hcd_close_count);
   TEST_ASSERT_EQUAL_HEX8(0, *ep_in_status());
 }
