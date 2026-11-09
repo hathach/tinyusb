@@ -52,10 +52,10 @@ static void idle_ms(uint32_t ms) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   vTaskDelay(pdMS_TO_TICKS(ms ? ms : 1));
 #else
-  const uint32_t t0 = board_millis();
+  const uint32_t t0 = tusb_time_millis_api();
   do {
     tuh_task();
-  } while (board_millis() - t0 < ms);
+  } while (tusb_time_millis_api() - t0 < ms);
 #endif
 }
 
@@ -76,9 +76,9 @@ static bool bulk_submit(uint8_t daddr, uint8_t ep, uint8_t* buf, uint16_t len, x
 }
 
 static bool wait_done(xfer_state_t* s, uint32_t ms) {
-  const uint32_t t0 = board_millis();
+  const uint32_t t0 = tusb_time_millis_api();
   while (!s->done) {
-    if (board_millis() - t0 > ms) {
+    if (tusb_time_millis_api() - t0 > ms) {
       return false;
     }
     idle_ms(1);
@@ -419,11 +419,11 @@ void tuh_umount_cb(uint8_t daddr) {
 
 static void run_tests(void) {
   // let every device on the hub enumerate
-  uint32_t quiet = board_millis();
-  while (board_millis() - quiet < 3000) {
+  uint32_t quiet = tusb_time_millis_api();
+  while (tusb_time_millis_api() - quiet < 3000) {
     if (enum_dirty) {
       enum_dirty = false;
-      quiet      = board_millis();
+      quiet      = tusb_time_millis_api();
     }
     idle_ms(10);
   }
@@ -445,11 +445,11 @@ static void run_tests(void) {
     printf("WARN: lba 0 and 1 are identical, stale-data check is weaker\r\n");
   }
 
-  const uint32_t t0 = board_millis();
+  const uint32_t t0 = tusb_time_millis_api();
   for (uint32_t r = 0; r < ROUNDS; r++) {
     test_msc_nak_abort(r);
   }
-  printf("M1 msc NAK abort: %u rounds ok (%lu ms)\r\n", ROUNDS, (unsigned long) (board_millis() - t0));
+  printf("M1 msc NAK abort: %u rounds ok (%lu ms)\r\n", ROUNDS, (unsigned long) (tusb_time_millis_api() - t0));
 
   for (uint32_t r = 0; r < ROUNDS; r++) {
     test_msc_race_abort(r);
