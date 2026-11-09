@@ -64,6 +64,19 @@ static bool __tusb_irq_path_func(epx_held)(void) {
   return epx_hold;
 }
 
+// The SIE retries a transaction that timed out by itself. Like host controllers' error counters, the transfer fails only
+// on the EPX_RX_TIMEOUT_MAX-th timeout in a row: a low-speed device behind a hub misses one now and then (#4414).
+// RX_TIMEOUT does not say which endpoint timed out: an interrupt endpoint polled between EPX transactions (of a device
+// unplugged behind a hub, until the hub reports it) raises it too. The SIE retries an EPX transaction at once (the next
+// timeout follows within ~50 us at full speed), an interrupt endpoint only at its next poll (1 ms or more), so only
+// timeouts EPX_RX_TIMEOUT_GAP_US or less apart count as in a row.
+enum {
+  EPX_RX_TIMEOUT_MAX    = 3,
+  EPX_RX_TIMEOUT_GAP_US = 500
+};
+static uint8_t  epx_rx_timeouts = 0;
+static uint32_t epx_rx_timeout_last;
+
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
 // a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
 TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
@@ -71,6 +84,7 @@ TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
   epx_switch_request = false;
   epx_stop_deferred  = false;
   #endif
+  epx_rx_timeouts = 0;
 }
 
 enum {
@@ -366,6 +380,7 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     const uint8_t buf_id     = (usb_hw->buf_cpu_should_handle & BUF_STATUS_EPX) ? 1 : 0;
     usb_hw_clear->buf_status = 1u; // clear
     epx->data_seq_retries    = 0;  // a packet got through
+    epx_rx_timeouts          = 0;
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
@@ -594,17 +609,25 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
   if (status & USB_INTS_ERROR_RX_TIMEOUT_BITS) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
 
-    const uint32_t sie_ctrl = (usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK) | USB_SIE_CTRL_STOP_TRANS_BITS;
-    usb_hw->sie_ctrl        = sie_ctrl;
-    // while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
+    // a timeout short of EPX_RX_TIMEOUT_MAX in a row: the SIE retries the transaction
+    const uint32_t now = time_us_32();
+    if (now - epx_rx_timeout_last > EPX_RX_TIMEOUT_GAP_US) {
+      epx_rx_timeouts = 0; // not in a row with the previous one (see EPX_RX_TIMEOUT_GAP_US)
+    }
+    epx_rx_timeout_last = now;
+    if (epx->state != EPSTATE_ACTIVE || ++epx_rx_timeouts >= EPX_RX_TIMEOUT_MAX) {
+      const uint32_t sie_ctrl = (usb_hw->sie_ctrl & SIE_CTRL_BASE_MASK) | USB_SIE_CTRL_STOP_TRANS_BITS;
+      usb_hw->sie_ctrl        = sie_ctrl;
+      // while (usb_hw->sie_ctrl & USB_SIE_CTRL_STOP_TRANS_BITS) {}
 
-    // Even if STOP_TRANS bit is clear, controller maybe in middle of retrying and may re-raise timeout once extra time
-    // Only handle if epx is active, don't carry more epx transfer since STOP_TRANS is raced and not safe.
-    if (epx->state == EPSTATE_ACTIVE) {
-      xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
-      epx_hold         = true; // see epx_held()
-      epx_hold_start   = time_us_32();
-      usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+      // Even if STOP_TRANS bit is clear, controller maybe in middle of retrying and may re-raise timeout once extra
+      // time. Only handle if epx is active, don't carry more epx transfer since STOP_TRANS is raced and not safe.
+      if (epx->state == EPSTATE_ACTIVE) {
+        xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
+        epx_hold         = true; // see epx_held()
+        epx_hold_start   = time_us_32();
+        usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+      }
     }
   }
 
