@@ -424,9 +424,11 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall, bool is_is
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
     // TxFFlsh must not overlap another core's TX FIFO write (Databook v4.20a GRSTCTL.TxFFlsh)
-    usbd_spin_lock(is_isr);
-    dfifo_flush_tx(dwc2, epnum);
-    usbd_spin_unlock(is_isr);
+    if (dfifo_tx_exists(rhport, epnum)) {
+      usbd_spin_lock(is_isr);
+      dfifo_flush_tx(dwc2, epnum);
+      usbd_spin_unlock(is_isr);
+    }
   } else {
     if (!edpt_is_enabled(dep) || epnum == 0) {
       // non-control not-enabled: stall if set
