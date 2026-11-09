@@ -276,7 +276,8 @@ bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const * desc_ep);
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
+// Return true if a queued transfer is aborted, false if there is no transfer to abort. A transfer that has completed
+// but whose completion is not processed yet is not aborted: it still completes, and the endpoint stays busy until then.
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr);
 
 // Set Address (control transfer)

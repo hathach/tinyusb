@@ -1321,6 +1321,11 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
   return true;
 }
 
+static void edpt_release_busy(usbh_device_t* dev, uint8_t epnum, uint8_t dir) {
+  dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
+  tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+}
+
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
   TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
   const uint8_t epnum = tu_edpt_number(ep_addr);
@@ -1340,10 +1345,11 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(dev);
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
-    // abort then mark as ready and release endpoint
-    hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
-    dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
-    tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+    // Abort, then mark as ready and release the endpoint. A transfer the HCD no longer has (completed, its event still
+    // queued) is not aborted: that event releases the endpoint. Released here, a new transfer could start into the
+    // same buffer, and the stale event would complete it with whatever that buffer holds by then.
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr));
+    edpt_release_busy(dev, epnum, dir);
   }
 
   return true;
@@ -1488,8 +1494,16 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
 }
 
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
-  TU_VERIFY(0 != tu_edpt_number(ep_addr)); // cannot close EP0
-  tuh_edpt_abort_xfer(daddr, ep_addr); // abort any pending transfer
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  const uint8_t dir   = tu_edpt_dir(ep_addr);
+  TU_VERIFY(0 != epnum); // cannot close EP0
+  if (!tuh_edpt_abort_xfer(daddr, ep_addr)) { // abort any pending transfer
+    // the HCD had none to abort, but the endpoint is closing: release it all the same
+    usbh_device_t* dev = get_device(daddr);
+    if (dev != NULL && (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY)) {
+      edpt_release_busy(dev, epnum, dir);
+    }
+  }
   return hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
 }
 
