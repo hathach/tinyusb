@@ -1327,7 +1327,7 @@ static void edpt_release_busy(usbh_device_t* dev, uint8_t epnum, uint8_t dir) {
 }
 
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
-  TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
+  TU_LOG_USBH("[%u] Abort requested on EP %02X\r\n", daddr, ep_addr);
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir   = tu_edpt_dir(ep_addr);
 
