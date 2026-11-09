@@ -136,6 +136,11 @@
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
       - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    :test_cdc_host_ftdi:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_CDC=1
+      - CFG_TUH_CDC_FTDI=1
+      - CFG_TUSB_DEBUG=0
     :test_audio_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_AUDIO=1
