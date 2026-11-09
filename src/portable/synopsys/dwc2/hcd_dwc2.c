@@ -1404,7 +1404,14 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   TU_VERIFY(cfg_id == TUH_CFGID_DWC2 && cfg_param != NULL);
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
   _tuh_cfg = cfg->dwc2;
-  _tuh_cfg.max_nak = tu_min8(_tuh_cfg.max_nak, HCD_XFER_NAK_MAX);
+  // 0 is a caller that left max_nak out (it came after use_hs_phy): the default. Internally 0 is unlimited.
+  if (_tuh_cfg.max_nak == 0) {
+    _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
+  } else if (_tuh_cfg.max_nak == UINT8_MAX) {
+    _tuh_cfg.max_nak = 0;
+  } else {
+    _tuh_cfg.max_nak = tu_min8(_tuh_cfg.max_nak, HCD_XFER_NAK_MAX);
+  }
   return true;
 }
 

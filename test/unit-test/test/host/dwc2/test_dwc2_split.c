@@ -704,6 +704,25 @@ void test_max_nak_holds_cpu_retries_until_the_next_frame(void) {
   }
 }
 
+void test_configure_max_nak_zero_keeps_the_default(void) {
+  // internal 0 is unlimited
+  const tuh_configure_dwc2_t saved = _tuh_cfg;
+  const struct {
+    uint8_t in, out;
+  } cases[] = {{0, HCD_XFER_NAK_DEFAULT}, {1, 1}, {HCD_XFER_NAK_MAX, HCD_XFER_NAK_MAX},
+               {HCD_XFER_NAK_MAX + 1, HCD_XFER_NAK_MAX}, {UINT8_MAX, 0}};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    const tuh_configure_param_t cfg = {.dwc2 = {.use_hs_phy = (i & 1u) != 0, .max_nak = cases[i].in}};
+    TEST_ASSERT_TRUE(hcd_configure(0, TUH_CFGID_DWC2, &cfg));
+    TEST_ASSERT_EQUAL(cases[i].out, _tuh_cfg.max_nak);
+    TEST_ASSERT_EQUAL((i & 1u) != 0, _tuh_cfg.use_hs_phy);
+  }
+  const tuh_configure_param_t hs_phy_only = {.dwc2 = {.use_hs_phy = true}};
+  TEST_ASSERT_TRUE(hcd_configure(0, TUH_CFGID_DWC2, &hs_phy_only));
+  TEST_ASSERT_EQUAL(HCD_XFER_NAK_DEFAULT, _tuh_cfg.max_nak);
+  _tuh_cfg = saved;
+}
+
 void test_max_nak_zero_never_holds_and_abort_retires_a_held_channel(void) {
   dwc2_int_set_Ignore();
   bulk_nak_endpoint(true, true);
