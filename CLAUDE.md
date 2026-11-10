@@ -24,7 +24,7 @@
 
 - Build contract: `.claude/skills/build/SKILL.md`. Its script resolves a change to boards and builds them; `--shared` writes `cmake-build/cmake-build-<board>`, or with `--variants <hil config>` one `cmake-build/cmake-build-<variant>` per roster variant, the dirs HIL flashes from, so preserve them. Flash with `ninja -C cmake-build/cmake-build-<board|variant> <example>-jlink` or `-openocd`, naming the variant for a `--variants` build; for routine rig tests use the HIL harness, whose roster pins the probe.
 - HIL contract: `.claude/skills/hil-contract/SKILL.md`. It owns taking and releasing a rig board, names the HIL config json for the host you are on, and names the launcher of the `hil` skill's farm (board/probe health) check.
-- Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); after authorization `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
+- Validation: CI supplies the PR software checks (selected builds, pre-commit with the unit tests, code-size reporting, static analysis where enabled); once babysitting starts `pr-babysit` watches them and coordinates repairs. Hardware is separate: `hil-operator` under the HIL contract, on the boards the task names, only when the task needs hardware evidence; the PR's HIL matrix is CI's.
 - ESP-IDF: `. "$IDF_PATH/export.sh"` before anything Espressif; verification still goes through the build contract, with `idf.py -DBOARD=<board> flash monitor` in the example reserved for interactive flash and monitor.
 - Before submitting, and again after a rebase: `pre-commit run --all-files` (includes unit tests).
 - For code changes: build the full example set for boards that exercise the changed modules. Add fuzz/HIL coverage for parsers or protocol state machines.
@@ -35,7 +35,7 @@
 ## PRs and Follow-ups
 
 - Before opening or updating a PR, follow Build and Validate. HIL is not part of it.
-- After opening a non-draft PR on the human's request, launch one headless `chief` in the PR worktree to babysit it through `pr-babysit` with `autoPush: true` and `markSonar: true`, unless the human declined babysitting: the request to open the PR is the grant, under agentrc's user-wide Pull requests rule and README headless PR publishing recipe. Launch it through agentrc's `headless-chief` skill (`chief_run.py`), never a bare `claude -p`, and relay its exit as that skill directs. Leave the checkout to chief until it exits. TinyUSB `pr-babysit` args:
+- PR babysitting follows agentrc's user-wide Pull requests rule and README headless PR publishing recipe. TinyUSB `pr-babysit` args:
   `{"pr": <num>, "protected": "^test/hil/[^/]+\\.json$"}`; reviewers are agentrc's default.
   (`protected` excludes the HIL rig rosters from automated fixes).
 - The follow-up label is `follow-up`.
