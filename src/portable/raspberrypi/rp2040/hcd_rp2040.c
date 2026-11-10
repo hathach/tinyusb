@@ -101,7 +101,7 @@ static bool epx_poll_due = false;
 // The transfer on EPX left a completed buffer unarmed to yield (epx_yield()): its next buffer completion stops it
 static bool epx_yielding = false;
 // The transfer that yielded to due polls (epx_yield()): once they have run it goes on before the others' turn, so a
-// poll only comes in between its packets (epx_next_pending())
+// poll only comes in between its packets (epx_next_pending()). Cleared when it resumes, or is aborted or closed.
 static hw_endpoint_t *epx_yielded = NULL;
 
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
@@ -368,6 +368,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_busy(void) {
 // ISR cannot apply it to the next transfer. Caller holds the critical section and starts the next pending ep.
 static void epx_retire(hw_endpoint_t *ep) {
   ep->data_seq_retries = 0;
+  if (ep == epx_yielded) {
+    epx_yielded = NULL; // a transfer queued on it next must not inherit the priority
+  }
   if (ep == epx && epx_busy()) {
     const bool is_setup = (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) != 0;
     sie_stop_xfer();
@@ -1004,6 +1007,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   memset(&ep_pool, 0, sizeof(ep_pool));
   epx         = &ep_pool[0];
   epx_closing = NULL;
+  epx_yielded = NULL;
   hcd_running = true;
 
   // Enable in host mode with SOF / Keep alive on
@@ -1033,6 +1037,7 @@ bool hcd_deinit(uint8_t rhport) {
   memset(&ep_pool, 0, sizeof(ep_pool));
   epx         = &ep_pool[0];
   epx_closing = NULL;
+  epx_yielded = NULL;
   rp2usb_critical_exit();
 
   // Release allocated resources
