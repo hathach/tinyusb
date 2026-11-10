@@ -527,7 +527,10 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     }
   #ifndef HAS_STOP_EPX_ON_NAK
     else {
-      epx_poll_len = (uint16_t)(usbh_dpram->epx_buf_ctrl & USB_BUF_CTRL_LEN_MASK); // the next packet's, re-armed
+      // the next packet's, which rp2usb_xfer_continue() re-armed in buf_id's half: buffer 1 under RP2040-E4, even
+      // single-buffered
+      const uint32_t bc = usbh_dpram->epx_buf_ctrl;
+      epx_poll_len      = (uint16_t)((buf_id ? (bc >> 16) : bc) & USB_BUF_CTRL_LEN_MASK);
     }
   #endif
   }
