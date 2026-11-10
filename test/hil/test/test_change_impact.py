@@ -1086,6 +1086,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
+            'test/hil/test/test_hil_net.py',
             'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
@@ -1456,12 +1457,13 @@ class TestLibRule(unittest.TestCase):
         self.assertNotIn('stm32f407disco', s['boards'])
         self.assertNotIn('espressif_s3_devkitm', s['boards'])
 
-    def test_hil_lib_used_only_by_a_disabled_test_selects_nothing(self):
-        # device/net_lwip_webserver is commented out of hil_util.device_tests, so the
-        # intersection with the HIL universe is empty
-        s = sel(['lib/networking/dhserver.c'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
+    def test_hil_network_changes_select_webserver(self):
+        for path in ('lib/networking/dhserver.c', 'src/class/net/ncm_device.c'):
+            with self.subTest(path=path):
+                s = sel([path])
+                self.assertFalse(s['full'])
+                self.assertEqual(set(s['boards']['stm32f407disco']),
+                                 {'device/net_lwip_webserver'})
 
     def test_hil_lib_nobody_builds_selects_nothing(self):
         s = sel(['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'])
