@@ -514,6 +514,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
   TU_ASSERT(ep_num < EP_MAX, );
 
+  // a completion ISR between the valid check and the re-arm would re-arm a finished transfer with ACK
+  usbd_spin_lock(false);
   if (dir == TUSB_DIR_OUT) {
     ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
@@ -541,6 +543,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       EP_TX_CTRL(ep_num) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
     }
   }
+  usbd_spin_unlock(false);
 }
 
 
