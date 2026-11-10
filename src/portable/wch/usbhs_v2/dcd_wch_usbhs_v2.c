@@ -113,8 +113,8 @@ static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
 // land without carrying over stale status bits. EP0 has no hardware auto-toggle
 // (R16_UEP_R_TOG_AUTO covers EP1..EP7 only), so the expected toggle comes from ep0_rx_tog.
 // NOTE: being a full-byte write this clears RB_UEP_R_DONE, so it must never run while an
-// unserviced RX completion is pending. Both call sites are clear of that: update_out() re-arms for
-// the next packet of a multi-packet control-OUT, having just had that packet's DONE cleared by the
+// unserviced RX completion is pending. Every call site is clear of that: update_out() and the ISR's
+// toggle-mismatch drop re-arm for the host's next packet, having just had DONE cleared by the
 // scan, and edpt_xfer() runs with EP0 NAKing, since usbd submits a stage only once the previous
 // one has completed, so no transaction is in flight to raise DONE underneath it.
 static void arm_ep0_out(void) {
@@ -638,16 +638,19 @@ void dcd_int_handler(uint8_t rhport) {
           dcd_event_setup_received_tagid(rhport, ep0_buffer, setup_rcv_tagid, true);
         } else {
           // A packet whose PID does not match the endpoint's expected toggle is a host retransmission
-          // after a lost ACK: the SIE stores it and raises this interrupt anyway. RM 22.2.1.35
-          // RB_UEP_R_TOG_MATCH (RO, bit 4 of UEPn_RX_CTRL): 1 = synchronized, 0 = not synchronized -
+          // after a lost ACK: the SIE stores it and raises this interrupt anyway. RM 22.2.1.32/35
+          // RB_UEP_R_TOG_MATCH (RO, bit 4 of UEPx_RX_CTRL): 1 = synchronized, 0 = not synchronized -
           // consuming an unsynchronized packet would inject it into the transfer twice. Dropping it
-          // leaves the endpoint armed (DMA address and RES untouched) for the host's next attempt.
-          // Only data endpoints are gated: their expected toggle is programmed on every arm, while
-          // EP0 derives it from the control stages and iso endpoints run without handshake or toggle.
+          // leaves a data endpoint armed (DMA address and RES untouched) for the host's next attempt.
+          // EP0's expected toggle is programmed on every arm too (arm_ep0_out), but its SIE ACKs the
+          // mismatched packet and drops RES to NAK (measured: RX_CTRL 0x80), so EP0 is re-armed, as
+          // the WCH demo does. Iso endpoints run without handshake or toggle.
           const uint8_t rx_ctrl = EP_RX_CTRL(ep_num);
           EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~USBHSV2_UEP_R_DONE);
-          if ((ep_num == 0) || xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & USBHSV2_UEP_R_TOG_MATCH)) {
+          if (xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & USBHSV2_UEP_R_TOG_MATCH)) {
             update_out(rhport, ep_num, EP_RX_LEN(ep_num));
+          } else if ((ep_num == 0) && xfer_status[0][TUSB_DIR_OUT].valid) {
+            arm_ep0_out();
           }
         }
       }
