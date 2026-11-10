@@ -173,7 +173,8 @@ void test_write_overwritable_single_byte(void) {
 void test_write_overwritable_mixed(void) {
   tu_fifo_set_overwritable(ff, true);
 
-  // deterministic mix of single and bulk writes (each below depth, so double overflows are not masked by whole-buffer rewrites) checked against the last FIFO_SIZE bytes
+  // deterministic mix of single and bulk writes, checked against the last FIFO_SIZE bytes.
+  // Each write is below depth so double overflows are not masked by whole-buffer rewrites.
   uint8_t  stream[4 * FIFO_SIZE * 64];
   uint32_t total = 0;
   uint32_t seed  = 12345;
