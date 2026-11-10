@@ -332,7 +332,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_busy(void) {
 // ISR cannot apply it to the next transfer. Caller holds the critical section and starts the next pending ep.
 static void epx_retire(hw_endpoint_t *ep) {
   ep->data_seq_retries = 0;
-  if (ep == epx && (ep->state == EPSTATE_ACTIVE || epx_is_aborting(ep))) {
+  if (ep == epx && epx_busy()) {
     const bool is_setup = (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) != 0;
     sie_stop_xfer();
     if (!is_setup) {
@@ -723,8 +723,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
 
   #ifndef HAS_STOP_EPX_ON_NAK
-    if (epx->transfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN &&
-        (epx->state == EPSTATE_ACTIVE || epx_is_aborting(epx))) {
+    if (epx->transfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN && epx_busy()) {
       // an interrupt poll is not retried: it ends with a zero-length completion, a poll without data to epx_poll_nak(),
       // and is sent again at its next interval (a device that is gone until the hub reports it)
       epx_poll_timeout = true;
@@ -744,7 +743,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
         // Even if STOP_TRANS bit is clear, controller maybe in middle of retrying and may re-raise timeout once extra
         // time. Only handle if epx is active, don't carry more epx transfer since STOP_TRANS is raced and not safe.
-        if (epx->state == EPSTATE_ACTIVE || epx_is_aborting(epx)) {
+        if (epx_busy()) {
           epx_hold         = true; // see epx_held()
           epx_hold_start   = time_us_32();
           usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
