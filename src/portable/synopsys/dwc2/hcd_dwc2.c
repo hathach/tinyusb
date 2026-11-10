@@ -1827,6 +1827,9 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       const uint32_t hcint_clear = (!is_dma && (hcint & ~HCINT_HALTED)) ? (hcint & ~HCINT_HALTED) : hcint;
       channel->hcint = hcint_clear;
 
+      // hcd_edpt_abort_xfer() on another core updates this channel and its endpoint
+      usbh_critical_enter(in_isr);
+
 #if DWC2_LS_ONE_XACT_PER_FRAME
       // ahead of the handlers below, which re-arm through ls_frame_claim()
       if (hcint & HCINT_HALTED) {
@@ -1851,6 +1854,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
         } else {
           edpt->aborting = 0;
         }
+        usbh_critical_exit(in_isr);
         continue;
       }
 
@@ -1877,15 +1881,24 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
   #endif
       }
 
+      bool notify = false;
+      const uint16_t xferred_bytes = xfer->xferred_bytes;
+      const xfer_result_t result = (xfer_result_t) xfer->result;
       if (is_done) {
         if (xfer->closing == 1) {
           hcd_endpoint_t *edpt = &_hcd_data.edpt[xfer->ep_id];
           edpt_dealloc(edpt);
         } else {
-          const uint8_t ep_addr = tu_edpt_addr(hcchar.ep_num, hcchar.ep_dir);
-          hcd_event_xfer_complete(hcchar.dev_addr, ep_addr, xfer->xferred_bytes, (xfer_result_t)xfer->result, in_isr);
+          notify = true;
         }
         channel_dealloc(dwc2, ch_id);
+      }
+
+      usbh_critical_exit(in_isr);
+
+      if (notify) {
+        const uint8_t ep_addr = tu_edpt_addr(hcchar.ep_num, hcchar.ep_dir);
+        hcd_event_xfer_complete(hcchar.dev_addr, ep_addr, xferred_bytes, result, in_isr);
       }
     }
   }
@@ -1893,7 +1906,6 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 
 // SOF is enabled for scheduled periodic transfer
 static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
-  (void) in_isr;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   dwc2->gintsts = GINTSTS_SOF; // Clear the SOF interrupt flag
 
@@ -1904,6 +1916,8 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 
   for(uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
     hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
+    // hcd_edpt_abort_xfer() on another core may clear xfer_pending: check and kick off in one go
+    usbh_critical_enter(in_isr);
     if (edpt->closing == 0) {
       if (edpt->hcchar_bm.enable && channel_is_periodic(edpt->hcchar) && edpt->xfer_pending) {
         if (edpt->uframe_countdown > 0) {
@@ -1918,6 +1932,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
         more_isr = more_isr || edpt->xfer_pending;
       }
     }
+    usbh_critical_exit(in_isr);
   }
 
 #if DWC2_LS_ONE_XACT_PER_FRAME
@@ -1925,6 +1940,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   // edpt_xfer_kickoff(), but a control transfer has no schedule of its own, so this is the only thing
   // that gets it going again. Each replay parks itself if the frame is still taken.
   const uint8_t max_channel = dwc2_channel_count(dwc2);
+  usbh_critical_enter(in_isr); // against ls_park_retire() in hcd_edpt_abort_xfer() on another core
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
     if (!xfer->allocated || xfer->ls_defer == LS_DEFER_NONE) {
@@ -1964,6 +1980,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
     }
     more_isr = true;
   }
+  usbh_critical_exit(in_isr);
 #endif
 
   return more_isr;
