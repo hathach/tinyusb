@@ -92,6 +92,10 @@ enum {
 static uint8_t  epx_rx_timeouts = 0;
 static uint32_t epx_rx_timeout_last;
 
+// The endpoint on EPX that hcd_edpt_close() closed during its abort: epx_abort_finish() releases it once the
+// transaction under way has ended. Until then it stays allocated (max_packet_size), and edpt_find() skips it.
+static hw_endpoint_t *epx_closing = NULL;
+
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
 // a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
 TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
@@ -129,7 +133,7 @@ static hw_endpoint_t *edpt_alloc(void) {
 static hw_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   for (uint32_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
-    if ((ep->dev_addr == daddr) && (ep->max_packet_size > 0) &&
+    if ((ep->dev_addr == daddr) && (ep->max_packet_size > 0) && (ep != epx_closing) &&
         (ep->ep_addr == ep_addr || (tu_edpt_number(ep_addr) == 0 && tu_edpt_number(ep->ep_addr) == 0))) {
       return ep;
     }
@@ -403,7 +407,11 @@ static void __tusb_irq_path_func(epx_abort_finish)(void) {
   epx_stop_deferred  = false;
   #endif
   ep->data_seq_retries = 0;
-  if (ep->state == EPSTATE_EPX_ABORTING_PENDING) {
+  if (ep == epx_closing) {
+    epx_closing = NULL;
+    rp2usb_reset_transfer(ep);
+    ep->max_packet_size = 0; // released: hcd_edpt_close() left it to this
+  } else if (ep->state == EPSTATE_EPX_ABORTING_PENDING) {
     ep->state = EPSTATE_PENDING;
   } else {
     rp2usb_reset_transfer(ep);
@@ -872,6 +880,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // clear epx and interrupt eps
   memset(&ep_pool, 0, sizeof(ep_pool));
   epx         = &ep_pool[0];
+  epx_closing = NULL;
   hcd_running = true;
 
   // Enable in host mode with SOF / Keep alive on
@@ -899,7 +908,8 @@ bool hcd_deinit(uint8_t rhport) {
   rp2usb_critical_enter();
   hcd_running = false;
   memset(&ep_pool, 0, sizeof(ep_pool));
-  epx = &ep_pool[0];
+  epx         = &ep_pool[0];
+  epx_closing = NULL;
   rp2usb_critical_exit();
 
   // Release allocated resources
@@ -941,6 +951,9 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 
 // Release an endpoint; caller holds the critical section and starts the next pending EPX transfer
 static void edpt_close(hw_endpoint_t *ep) {
+  if (ep == epx_closing) {
+    epx_closing = NULL; // closed with its device: released at once
+  }
   epx_retire(ep);
   ep->max_packet_size = 0; // mark as unused
 }
@@ -1021,8 +1034,19 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   TU_VERIFY(ep != NULL);
 
   rp2usb_critical_enter();
-  edpt_close(ep);
-  epx_start_next_pending();
+  if (ep == epx && ep->state == EPSTATE_ACTIVE) {
+    epx_abort_start(); // tuh_edpt_close() aborts first, so normally under way already
+  }
+  if (ep == epx && epx_is_aborting(ep)) {
+    // A transaction may be under way: STOP_TRANS would lose its packet, and the status it writes would land in the
+    // next transfer's buffers. epx_abort_finish() releases the endpoint once it has ended; a transfer queued behind
+    // the abort is dropped with it.
+    ep->state   = EPSTATE_EPX_ABORTING;
+    epx_closing = ep;
+  } else {
+    edpt_close(ep);
+    epx_start_next_pending();
+  }
   rp2usb_critical_exit();
 
   return true;
