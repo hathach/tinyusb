@@ -488,12 +488,18 @@ static bool __tusb_irq_path_func(epx_poll_waiting)(void) {
 // The bulk transfer on EPX completed a buffer and left it unarmed for a waiting poll. Once its other buffer is not
 // armed either, the SIE waits for a buffer with nothing on the wire, so STOP_TRANS cannot cut a packet: the transfer is
 // saved as pending, resumed in turn where it stopped, and the poll starts.
+// Double-buffered, the other buffer stays the controller's until its own completion is taken, unless an earlier
+// completion left it unarmed here (epx_yielding): both buffers can complete before the ISR takes the first, and a
+// completed buffer reads not AVAILABLE, as one left unarmed does. Switching before its BUFF_STATUS is taken would apply
+// it to the poll and lose its packet.
 static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
   const uint32_t buf_ctrl = usbh_dpram->epx_buf_ctrl;
   const uint16_t other    = (uint16_t)(buf_id ? buf_ctrl : (buf_ctrl >> 16));
-  if (other & USB_BUF_CTRL_AVAIL) {
-    // its packet may be under way: yield when it completes, even if the poll has gone meanwhile, as the SIE would wait
-    // for this unarmed buffer
+  if ((other & USB_BUF_CTRL_AVAIL) ||
+      (!epx_yielding && (usbh_dpram->epx_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS))) {
+    // its packet may be under way, or its completion not yet taken: yield when that completes (taken against this
+    // transfer; a short or last packet ends it), even if the poll has gone meanwhile, as the SIE would wait for this
+    // unarmed buffer
     epx_yielding = true;
     return;
   }
