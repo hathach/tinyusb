@@ -636,13 +636,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
       sie_stop_xfer();
       // A retry can start between the bus check and STOP_TRANS: the SIE then finishes it and writes its status into
       // the buffer control, which must not be the next transfer's by then. Leave the switch to the next SOF.
-      if (!bus_idle_for(EPX_STOP_SETTLE_US)) {
-        epx_stop_deferred = true;
-        return true;
-      }
       // An IRQ preempting this one between the check above and STOP_TRANS gives a retry time to complete. With the SIE
       // stopped and settled the check is conclusive: keep this transfer, the ISR takes its status, the next SOF switches.
-      if (epx_completion_latched()) {
+      if (!bus_idle_for(EPX_STOP_SETTLE_US) || epx_completion_latched()) {
         epx_stop_deferred = true;
         return true;
       }
