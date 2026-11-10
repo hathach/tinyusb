@@ -19,6 +19,7 @@ Only Device part of TinyUSB stack is supported. For Host mode, please refer to [
 | [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.2`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.2) | `0.21.0~2` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.2) |
 | [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.3`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.3) | `0.21.0~3` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.3) |
 | [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.4`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.4) | `0.21.0~4` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.4) |
+| [`0.21.0`](https://github.com/hathach/tinyusb/releases/tag/0.21.0) | [`v0.21.0.5`](https://github.com/espressif/tinyusb/releases/tag/v0.21.0.5) | `0.21.0~5` | [compare](https://github.com/espressif/tinyusb/compare/hathach:tinyusb:0.21.0...v0.21.0.5) |
 
 TinyUSB has not yet reached its first stable release (v1.0.0), so breaking changes may still occur in any version. In practice, the API remains relatively stable, and when incompatible changes arise, we aim to preserve backward compatibility where feasible.
 
