@@ -91,6 +91,9 @@ typedef struct {
 
 typedef struct {
   bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even when working at full-speed
+  uint8_t max_nak; // max NAK per endpoint per frame of a control/bulk transfer the CPU retries (slave mode, split),
+                   // to save CPU usage: 0 = default (3), at most 15, UINT8_MAX = unlimited. Unlike fsdev/max3421, 0
+                   // is not unlimited, so a caller setting only use_hs_phy keeps the pacing.
 } tuh_configure_dwc2_t;
 
 typedef union {
