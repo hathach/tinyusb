@@ -155,14 +155,14 @@ class NamespaceLifetime(unittest.TestCase):
         nsenter = ['nsenter', '--preserve-credentials', '--target=4321', '--user', '--net', 'ip']
         self.assertTrue(all(c[:6] == nsenter for c in self.calls[1:]))
         self.assertTrue(any('renamed0' in c for c in self.calls))
-        self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
+        self.proc.communicate.assert_called_once_with(input='go\n', timeout=45)
 
     def test_fallback_tunnels_next_to_the_moved_interface_are_ignored(self):
         self.extra_links = [{'ifname': 'tunl0', 'ifindex': 2}, {'ifname': 'sit0', 'ifindex': 3}]
         net.check_device('ABC123')
         self.assertIn(['set', 'dev', 'renamed0', 'up'], [c[-4:] for c in self.calls])
         self.assertFalse(any('tunl0' in c or 'sit0' in c for c in self.calls))
-        self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
+        self.proc.communicate.assert_called_once_with(input='go\n', timeout=45)
 
     def test_namespace_holding_another_ifindex_fails(self):
         self.moved_ifindex = 8
@@ -289,6 +289,83 @@ class HttpVerification(unittest.TestCase):
     def test_command_reaps_a_stalled_client(self):
         with self.assertRaisesRegex(RuntimeError, 'rc=124'):
             net.command([sys.executable, '-c', 'import time; time.sleep(60)'], timeout=0.1)
+
+
+class IperfVerification(unittest.TestCase):
+    # Observed iperf 2.2.1 output against lwiperf: a 3 s host-to-device run, and a tradeoff
+    # run whose reverse leg failed yet exited 0.
+    GOOD = '20261110074851,192.168.7.2,38608,192.168.7.1,5001,1,0.0-3.3,1441856,3538660\n'
+    BROKEN = ('[  1] tcp write failed\n[  1] shutdown failed: Transport endpoint is not connected\n'
+              '20261110074852,192.168.7.2,38616,192.168.7.1,5001,1,0.0-0.0,75920,47917948\n'
+              'ERROR: expected reverse connect did not occur\n')
+
+    def setUp(self):
+        self.run = Mock(return_value=subprocess.CompletedProcess([], 0, self.GOOD, ''))
+        self.connect = Mock()
+        for p in [patch.object(net.subprocess, 'run', self.run),
+                  patch.object(net.socket, 'create_connection', self.connect),
+                  patch('sys.stdout', new_callable=io.StringIO)]:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_rate_from_one_whole_report(self):
+        net.check_iperf()
+        self.assertIn('iperf: 3.5 Mbit/s host to device', sys.stdout.getvalue())
+        argv = self.run.call_args.args[0]
+        self.assertEqual(argv[:3], ['iperf', '-c', net.DEVICE_IP])
+        self.assertIn('-y', argv)
+
+    def test_refused_port_is_reported_not_failed(self):
+        self.connect.side_effect = ConnectionRefusedError()
+        net.check_iperf()
+        self.assertIn('iperf: port 5001 refused, no server', sys.stdout.getvalue())
+        self.run.assert_not_called()
+
+    def test_broken_or_refused_run_exiting_zero_fails(self):
+        refused = '[  1] tcp connect to 192.168.7.1 port 5001 failed (Connection refused)\n'
+        for out, err in ((self.BROKEN, ''), (refused, ''), ('', ''), (self.GOOD, 'warning\n')):
+            with self.subTest(out=out, err=err):
+                self.run.return_value = subprocess.CompletedProcess([], 0, out, err)
+                with self.assertRaisesRegex(RuntimeError, 'iperf failed'):
+                    net.check_iperf()
+
+    def test_short_or_empty_run_fails(self):
+        for old, new in (('0.0-3.3', '0.0-0.4'), (',1441856,', ',0,')):
+            with self.subTest(new=new):
+                self.run.return_value = subprocess.CompletedProcess([], 0, self.GOOD.replace(old, new), '')
+                with self.assertRaisesRegex(RuntimeError, 'ended early'):
+                    net.check_iperf()
+
+    def test_hung_run_fails_with_its_bound(self):
+        self.run.side_effect = subprocess.TimeoutExpired(['iperf'], 18)
+        with self.assertRaisesRegex(RuntimeError, 'iperf timed out after 18s'):
+            net.check_iperf()
+
+    def test_unreachable_port_is_not_read_as_missing_server(self):
+        self.connect.side_effect = TimeoutError()
+        with self.assertRaises(TimeoutError):
+            net.check_iperf()
+        self.run.assert_not_called()
+
+
+class ReportCell(unittest.TestCase):
+    def setUp(self):
+        import usbtest_harness  # noqa: F401 - stubs serial before hil_test is imported
+        import hil_test
+        self.hil_test = hil_test
+
+    def cell(self, stdout):
+        ret = subprocess.CompletedProcess([], 0, stdout, '')
+        with patch.object(self.hil_test.hil_util, 'run_cmd', return_value=ret), \
+                patch('sys.stdout', new_callable=io.StringIO):
+            return self.hil_test.test_device_net_lwip_webserver({'uid': 'ABC123'})
+
+    def test_iperf_rate_is_the_cell(self):
+        self.assertEqual(self.cell('HTTP: 6 responses verified, 7425 bytes\niperf: 3.5 Mbit/s host to device\n'),
+                         '\u2705 3.5 Mbit/s')
+
+    def test_no_iperf_server_keeps_the_plain_cell(self):
+        self.assertIsNone(self.cell('HTTP: 6 responses verified, 7425 bytes\niperf: port 5001 refused, no server\n'))
 
 
 if __name__ == '__main__':

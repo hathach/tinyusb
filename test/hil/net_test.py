@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Exercise the webserver on one USB device, independent of host DHCP and routing.
+"""Exercise the webserver and iperf server on one USB device, independent of host DHCP and routing.
 
 Invoked by hil_test.py while it holds the board lock. Only the USB network interface
 whose parent has the requested serial is moved. Each board gets its own namespace:
 the example deliberately shares its MAC and 192.168.7.1 with every other board.
-Requires iproute2, util-linux, udevadm wait, unprivileged user namespaces and sudo on
-hil_root (agentrc), whose netns verb is the one root step; run it as a user other than root.
+Requires iproute2, util-linux, iperf (2.x), udevadm wait, unprivileged user namespaces and sudo
+on hil_root (agentrc), whose netns verb is the one root step; run it as a user other than root.
 No persistent host configuration.
 """
 import argparse
@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import sys
 import time
 import select
@@ -27,6 +28,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH dr
 from helper import hil_util  # noqa: E402
 
 DEVICE_IP = '192.168.7.1'
+IPERF_PORT = 5001  # lwiperf's LWIPERF_TCP_PORT_DEFAULT
+IPERF_SECONDS = 3
 # Default assets in the pinned lwIP dependency's src/apps/http/fsdata.c. Verify
 # complete responses, including the binary image, rather than just TCP connect/200.
 ASSETS = (
@@ -151,11 +154,11 @@ def check_device(uid):
         command(ip + ['addr', 'add', '192.168.7.2/24', 'dev', iface])
         command(ip + ['link', 'set', 'dev', iface, 'up'])
         try:
-            stdout, stderr = proc.communicate(input='go\n', timeout=30)
+            stdout, stderr = proc.communicate(input='go\n', timeout=45)
         except subprocess.TimeoutExpired as exc:
-            raise RuntimeError('network HTTP client timed out after 30s') from exc
+            raise RuntimeError('network client timed out after 45s') from exc
         if proc.returncode:
-            raise RuntimeError(f'network HTTP client failed (rc={proc.returncode}): {stdout} {stderr}')
+            raise RuntimeError(f'network client failed (rc={proc.returncode}): {stdout} {stderr}')
         print(stdout, end='', flush=True)
     finally:
         if proc.poll() is None:
@@ -165,8 +168,7 @@ def check_device(uid):
 
 
 def check_http():
-    # HTTP is present on every SRAM tier; INCLUDE_IPERF is deliberately absent on
-    # smaller parts. Direct connections also ignore the host's HTTP proxy settings.
+    # Direct connections also ignore the host's HTTP proxy settings.
     total = 0
     for _ in range(3):
         for path, size, digest in ASSETS:
@@ -195,6 +197,33 @@ def check_http():
     print(f'HTTP: {3 * len(ASSETS)} responses verified, {total} bytes', flush=True)
 
 
+def check_iperf():
+    # lwiperf runs only on the high-throughput SRAM tier (INCLUDE_IPERF), so a refused port is
+    # reported, not failed: it cannot tell a build without lwiperf from one whose server failed
+    # to start. Its tradeoff (-r) and dual (-d) tests fail against iperf 2.2, so only host to
+    # device is measured.
+    try:
+        socket.create_connection((DEVICE_IP, IPERF_PORT), timeout=3).close()
+    except ConnectionRefusedError:
+        print(f'iperf: port {IPERF_PORT} refused, no server', flush=True)
+        return
+    try:
+        ret = subprocess.run(['iperf', '-c', DEVICE_IP, '-p', str(IPERF_PORT), '-t', str(IPERF_SECONDS), '-y', 'C'],
+                             capture_output=True, text=True, timeout=IPERF_SECONDS + 15)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f'iperf timed out after {exc.timeout}s') from exc
+    # iperf 2 exits 0 even on a refused or broken connection: only one whole CSV report counts.
+    lines = ret.stdout.splitlines()
+    fields = lines[0].split(',') if len(lines) == 1 else []
+    if ret.returncode or ret.stderr.strip() or len(fields) != 9:
+        raise RuntimeError(f'iperf failed (rc={ret.returncode}): {ret.stdout} {ret.stderr}')
+    *_, interval, nbytes, bps = fields
+    start, end = map(float, interval.split('-'))
+    if end - start < IPERF_SECONDS - 0.5 or int(nbytes) <= 0:
+        raise RuntimeError(f'iperf ended early: {lines[0]}')
+    print(f'iperf: {int(bps) / 1e6:.1f} Mbit/s host to device', flush=True)
+
+
 def interrupted(signum, _frame):
     raise TimeoutError(f'network test interrupted (signal {signum})')
 
@@ -208,12 +237,13 @@ def main():
     # Each side bounds itself even if the other, or its caller, dies.
     signal.signal(signal.SIGALRM, interrupted)
     signal.signal(signal.SIGTERM, interrupted)
-    signal.alarm(75)
+    signal.alarm(90)
     if args.http:
         print(os.getpid(), flush=True)
         if sys.stdin.readline().strip() != 'go':
             raise RuntimeError('network setup owner exited before starting HTTP')
         check_http()
+        check_iperf()
     else:
         check_device(args.uid)
     signal.alarm(0)
