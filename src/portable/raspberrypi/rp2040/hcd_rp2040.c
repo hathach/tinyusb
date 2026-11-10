@@ -100,8 +100,9 @@ static hw_endpoint_t *epx_closing = NULL;
 static bool epx_poll_due = false;
 // The transfer on EPX left a completed buffer unarmed to yield (epx_yield()): its next buffer completion stops it
 static bool epx_yielding = false;
-// The transfer that yielded to due polls (epx_yield()): once they have run it goes on before the others' turn, so a
-// poll only comes in between its packets (epx_next_pending()). Cleared when it resumes, or is aborted or closed.
+// The transfer that yielded to due polls (epx_yield()): once they have run it goes on before the others' turn (RP2040:
+// after a pending control stage), so a poll only comes in between its packets (epx_next_pending()). Cleared when it
+// resumes, or is aborted or closed.
 static hw_endpoint_t *epx_yielded = NULL;
 
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
@@ -316,6 +317,19 @@ TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(size_t first
   return NULL;
 }
 
+  #ifndef HAS_STOP_EPX_ON_NAK
+// First control transfer stage (EP0 of any device) pending on EPX, or NULL
+TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_ctrl(void) {
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (ep->transfer_type == TUSB_XFER_CONTROL && epx_is_pending(ep)) {
+      return ep;
+    }
+  }
+  return NULL;
+}
+  #endif
+
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
   const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
@@ -326,19 +340,32 @@ static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_
     // RP2040: only a poll after this one in ep_pool, so each runs once before that transfer's next packet. An interrupt
     // OUT the round-robin switches out while it NAK-retries is pending again at once: with a poll due every frame, the
     // two would otherwise take turns on EPX for good. (RP2350 stops a poll at its NAK.)
+    // RP2040: once the pass is over, a pending control stage goes before that transfer, which resumes after it (below).
+    // Such an OUT keeps a poll due, so the transfer yields every packet or two and would keep EPX until it ends, each
+    // pass taking about two frames per NAKing OUT: a queued SETUP could otherwise wait past usbh's control timeout.
   #ifdef HAS_STOP_EPX_ON_NAK
-    hw_endpoint_t *poll_ep = epx_pending_poll(0);
+    hw_endpoint_t *next_ep = epx_pending_poll(0);
   #else
-    hw_endpoint_t *poll_ep = epx_pending_poll(cur_idx + 1);
+    hw_endpoint_t *next_ep = epx_pending_poll(cur_idx + 1);
+    if (next_ep == NULL) {
+      next_ep = epx_pending_ctrl();
+    }
   #endif
-    if (poll_ep != NULL) {
-      return poll_ep;
+    if (next_ep != NULL) {
+      return next_ep;
     }
     if (epx_is_pending(epx_yielded)) {
       return epx_yielded;
     }
     epx_yielded = NULL;
   }
+  #ifndef HAS_STOP_EPX_ON_NAK
+  if (epx_yielded != NULL && cur_ep->transfer_type == TUSB_XFER_CONTROL && epx_is_pending(epx_yielded)) {
+    // after the control stage let in at the end of a pass: the transfer resumes, and yields again to the next pass, so
+    // the round-robin order (a NAKing CDC IN) cannot take EPX from it here either
+    return epx_yielded;
+  }
+  #endif
   for (uint i = cur_idx + 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
     if (epx_is_pending(&ep_pool[i])) {
       return &ep_pool[i];
