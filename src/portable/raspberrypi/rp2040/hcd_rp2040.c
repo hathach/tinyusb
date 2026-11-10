@@ -640,6 +640,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
         epx_stop_deferred = true;
         return true;
       }
+      // An IRQ preempting this one between the check above and STOP_TRANS gives a retry time to complete. With the SIE
+      // stopped and settled the check is conclusive: keep this transfer, the ISR takes its status, the next SOF switches.
+      if (epx_completion_latched()) {
+        epx_stop_deferred = true;
+        return true;
+      }
       epx_save_context(epx);
       epx_switch_ep(next_ep);
     } else {
