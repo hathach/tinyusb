@@ -117,13 +117,14 @@ class NamespaceLifetime(unittest.TestCase):
 
         self.moved_ifindex = 7
         self.printed_ifindex = 7
+        self.extra_links = []
 
         def command(argv, timeout=5):
             self.calls.append(argv)
             if argv[:2] == ['hil_root', 'netns']:
                 return f'{self.printed_ifindex} usb7\n'
             if '-j' in argv:
-                return json.dumps([{'ifname': 'lo', 'ifindex': 1},
+                return json.dumps([{'ifname': 'lo', 'ifindex': 1}, *self.extra_links,
                                    {'ifname': 'renamed0', 'ifindex': self.moved_ifindex}])
             return ''
 
@@ -154,6 +155,13 @@ class NamespaceLifetime(unittest.TestCase):
         nsenter = ['nsenter', '--preserve-credentials', '--target=4321', '--user', '--net', 'ip']
         self.assertTrue(all(c[:6] == nsenter for c in self.calls[1:]))
         self.assertTrue(any('renamed0' in c for c in self.calls))
+        self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
+
+    def test_fallback_tunnels_next_to_the_moved_interface_are_ignored(self):
+        self.extra_links = [{'ifname': 'tunl0', 'ifindex': 2}, {'ifname': 'sit0', 'ifindex': 3}]
+        net.check_device('ABC123')
+        self.assertIn(['set', 'dev', 'renamed0', 'up'], [c[-4:] for c in self.calls])
+        self.assertFalse(any('tunl0' in c or 'sit0' in c for c in self.calls))
         self.proc.communicate.assert_called_once_with(input='go\n', timeout=30)
 
     def test_namespace_holding_another_ifindex_fails(self):

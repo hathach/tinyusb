@@ -140,12 +140,13 @@ def check_device(uid):
         if moved[:1] != [str(ifindex)]:
             raise RuntimeError(f'hil_root netns {busport}: moved {moved}, expected ifindex {ifindex}')
         ip = ['nsenter', '--preserve-credentials', f'--target={pid}', '--user', '--net', 'ip']
-        links = [link for link in json.loads(command(ip + ['-j', 'link', 'show']))
-                 if link['ifname'] != 'lo']
-        if len(links) != 1 or links[0].get('ifindex') != ifindex:
+        # A fresh netns may also hold fallback tunnels (tunl0, sit0, ...) of loaded modules.
+        links = json.loads(command(ip + ['-j', 'link', 'show']))
+        moved_links = [link for link in links if link.get('ifindex') == ifindex]
+        if len(moved_links) != 1:
             found = [(link['ifname'], link.get('ifindex')) for link in links]
             raise RuntimeError(f'pid {pid}: expected one network interface with ifindex {ifindex}, found {found}')
-        iface = links[0]['ifname']
+        iface = moved_links[0]['ifname']
         command(ip + ['addr', 'flush', 'dev', iface])
         command(ip + ['addr', 'add', '192.168.7.2/24', 'dev', iface])
         command(ip + ['link', 'set', 'dev', iface, 'up'])
