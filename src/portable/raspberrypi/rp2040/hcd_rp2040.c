@@ -337,9 +337,10 @@ static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_
     // after a poll: the next due poll, else the transfer that yielded to them, unless it has ended or was closed. In
     // turn, a transfer that NAKs (a CDC IN with no data) would hold EPX until the round-robin switches it out (RP2040:
     // two SOFs), so a stream yielding every frame would lose most of the bus to it.
-    // RP2040: only a poll after this one in ep_pool, so each runs once before that transfer's next packet. An interrupt
-    // OUT the round-robin switches out while it NAK-retries is pending again at once: with a poll due every frame, the
-    // two would otherwise take turns on EPX for good. (RP2350 stops a poll at its NAK.)
+    // RP2040: only a pending poll after this one in ep_pool, so a pass runs each poll at most once, in ascending order,
+    // before that transfer resumes; one that becomes due mid-pass below the current one waits for the transfer's next
+    // yield. An interrupt OUT the round-robin switches out while it NAK-retries is pending again at once: with a poll
+    // due every frame, the two would otherwise take turns on EPX for good. (RP2350 stops a poll at its NAK.)
     // RP2040: once the pass is over, a pending control stage goes before that transfer, which resumes after it (below).
     // Such an OUT keeps a poll due, so the transfer yields every packet or two and would keep EPX until it ends, each
     // pass taking about two frames per NAKing OUT: a queued SETUP could otherwise wait past usbh's control timeout.
