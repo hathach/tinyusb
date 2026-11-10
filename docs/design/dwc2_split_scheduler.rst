@@ -310,7 +310,8 @@ ten, 4.7 us apart, for a 64-byte full-speed packet), an interrupt each. Retried
 at once, an idle bulk IN behind a hub took 155k-398k interrupts per second and
 starved the P4's main loop, in slave and DMA mode alike. Allow ``max_nak`` NAKs
 per transfer per frame (``tuh_configure_dwc2_t``, default 3 also for 0, so a
-caller that sets only ``use_hs_phy`` keeps it; ``UINT8_MAX`` for no limit) and
+caller that sets only ``use_hs_phy`` keeps it; ``UINT8_MAX`` for no limit; any
+other value clamped to 15, ``HCD_XFER_NAK_MAX``, so 100 parks after 15) and
 park the retry for the SOF interrupt to start in the next frame. The count
 restarts with each transfer (``channel_alloc()`` clears it), so it bounds an
 endpoint that keeps NAKing one transfer, not back-to-back transfers: 17-18k
