@@ -96,6 +96,11 @@ static uint32_t epx_rx_timeout_last;
 // transaction under way has ended. Until then it stays allocated (max_packet_size), and edpt_find() skips it.
 static hw_endpoint_t *epx_closing = NULL;
 
+// sof_service() made an interrupt poll pending: a bulk transfer streaming on EPX yields to it (epx_poll_waiting())
+static bool epx_poll_due = false;
+// The transfer on EPX left a completed buffer unarmed to yield (epx_yield()): its next buffer completion stops it
+static bool epx_yielding = false;
+
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
 // a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
 TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
@@ -104,6 +109,7 @@ TU_ATTR_ALWAYS_INLINE static inline void epx_xfer_started(void) {
   epx_stop_deferred  = false;
   #endif
   epx_rx_timeouts = 0;
+  epx_yielding    = false;
 }
 
 enum {
@@ -454,6 +460,59 @@ static bool __tusb_irq_path_func(epx_poll_nak)(uint8_t buf_id) {
 }
   #endif
 
+// A due interrupt poll would wait while a bulk transfer keeps EPX streaming data: on RP2040 each packet clears the
+// round-robin's switch request, and on RP2350 the transfer gives way only at a NAK. So that transfer yields to the
+// poll at a packet boundary (epx_yield()). Not EP0, whose stages are short, and not a poll itself.
+static bool __tusb_irq_path_func(epx_poll_waiting)(void) {
+  if (!epx_poll_due || epx->transfer_type == TUSB_XFER_INTERRUPT || tu_edpt_number(epx->ep_addr) == 0) {
+    return false;
+  }
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    if (ep_pool[i].state == EPSTATE_PENDING && ep_pool[i].transfer_type == TUSB_XFER_INTERRUPT) {
+      return true;
+    }
+  }
+  epx_poll_due = false; // every due poll has started
+  return false;
+}
+
+// The bulk transfer on EPX completed a buffer and left it unarmed for a waiting poll. Once its other buffer is not
+// armed either, the SIE waits for a buffer with nothing on the wire, so STOP_TRANS cannot cut a packet: the transfer is
+// saved as pending, resumed in turn where it stopped, and the poll starts.
+static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
+  const uint32_t buf_ctrl = usbh_dpram->epx_buf_ctrl;
+  const uint16_t other    = (uint16_t)(buf_id ? buf_ctrl : (buf_ctrl >> 16));
+  if (other & USB_BUF_CTRL_AVAIL) {
+    // its packet may be under way: yield when it completes, even if the poll has gone meanwhile, as the SIE would wait
+    // for this unarmed buffer
+    epx_yielding = true;
+    return;
+  }
+  sie_stop_xfer();
+  epx_save_context(epx); // no buffer is armed: nothing to give back
+  if (!epx_held()) {
+    for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+      hw_endpoint_t *ep = &ep_pool[i];
+      if (ep->state == EPSTATE_PENDING && ep->transfer_type == TUSB_XFER_INTERRUPT) {
+        epx_switch_ep(ep);
+        return;
+      }
+    }
+  }
+  epx_start_next_pending(); // the poll has gone: the next pending transfer, this one last
+}
+
+// An interrupt transfer on EPX takes one packet per poll: a full packet with more to come leaves the endpoint waiting
+// for its next interval (USB 2.0: one transaction per service interval). Single-buffered, its packet is never re-armed
+// in buffer 1, which the controller would not read (RP2040-E4).
+static void __tusb_irq_path_func(epx_poll_next_interval)(void) {
+  sie_stop_xfer(); // nothing is armed: the SIE waits for a buffer
+  usbh_dpram->epx_buf_ctrl = 0;
+  epx->state               = EPSTATE_WAITING;
+  usb_hw_set->inte         = USB_INTE_HOST_SOF_BITS;
+  epx_start_next_pending();
+}
+
 //--------------------------------------------------------------------+
 // Interrupt handlers
 //--------------------------------------------------------------------+
@@ -522,17 +581,18 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     // Clear switch request so the 2-SOF fallback only fires for NAK-retrying endpoints.
     epx_switch_request = false;
   #endif
-    if (rp2usb_xfer_continue(epx, ep_reg, buf_reg, buf_id, tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN)) {
+    const bool is_poll = (epx->transfer_type == TUSB_XFER_INTERRUPT);
+    const bool yield   = !is_poll && (epx_yielding || epx_poll_waiting());
+    if (rp2usb_xfer_continue_ex(epx, ep_reg, buf_reg, buf_id, tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN,
+                                !(is_poll || yield))) {
       xfer_complete_isr(epx, XFER_RESULT_SUCCESS, true);
+    } else if (epx->state == EPSTATE_ACTIVE) { // more to come, not a status left behind by a transfer that has ended
+      if (is_poll) {
+        epx_poll_next_interval();
+      } else if (yield) {
+        epx_yield(buf_id);
+      }
     }
-  #ifndef HAS_STOP_EPX_ON_NAK
-    else {
-      // the next packet's, which rp2usb_xfer_continue() re-armed in buf_id's half: buffer 1 under RP2040-E4, even
-      // single-buffered
-      const uint32_t bc = usbh_dpram->epx_buf_ctrl;
-      epx_poll_len      = (uint16_t)((buf_id ? (bc >> 16) : bc) & USB_BUF_CTRL_LEN_MASK);
-    }
-  #endif
   }
 
   // Only EPX is used: drop any other bit, which would keep the BUFF_STATUS interrupt raised
@@ -668,6 +728,7 @@ static void __tusb_irq_path_func(sof_service)(void) {
       if (ep->last_poll == UINT16_MAX || ((frame - ep->last_poll) & 0x7ffu) >= ep->interval) {
         ep->last_poll = (uint16_t)(frame & 0x7ffu);
         ep->state     = EPSTATE_PENDING;
+        epx_poll_due  = true;
   #ifdef HAS_STOP_EPX_ON_NAK
         usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS; // a transfer on EPX gives way at its next NAK
   #endif // RP2040: the SOF round-robin switches a transfer NAK-retrying on EPX out for it

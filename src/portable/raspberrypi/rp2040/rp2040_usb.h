@@ -179,7 +179,13 @@ TU_ATTR_ALWAYS_INLINE static inline void rp2usb_critical_exit(void) {
 //--------------------------------------------------------------------+
 void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                        uint16_t total_len);
-bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id, bool is_rx);
+// rearm: arm the completed buffer with the next packet (ping-pong); false leaves the buffer unarmed for the caller
+bool rp2usb_xfer_continue_ex(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id, bool is_rx,
+                             bool rearm);
+TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_xfer_continue(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg,
+                                                            uint8_t buf_id, bool is_rx) {
+  return rp2usb_xfer_continue_ex(ep, ep_reg, buf_reg, buf_id, is_rx, true);
+}
 void rp2usb_buffer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, bool is_rx);
 void rp2usb_reset_transfer(hw_endpoint_t *ep);
 
