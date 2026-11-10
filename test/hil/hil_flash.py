@@ -127,25 +127,36 @@ def reset_openocd(board, timeout=None, *, run=None):
     return hil_util.provider().reset_openocd(flasher, timeout=_bound(timeout), run=_runner(run))
 
 
-def _wch_uart_park(flasher, run=None):
+# The park magic goes out in a child the runner bounds, never in-process: a VCP that stops
+# accepting blocks open/write, and close waits on the tty drain (closing_wait, 30 s by default).
+# O_NOCTTY: the runner makes the child a session leader, which would adopt the VCP as its tty.
+_WCH_PARK_WRITE = ("import os, sys\n"
+                   "fd = os.open(sys.argv[1], os.O_WRONLY | os.O_NOCTTY)\n"
+                   "n = os.write(fd, b'\\x55\\xaaFP')\n"
+                   "os.close(fd)\n"
+                   "sys.exit(n != 4)\n")
+WCH_PARK_ENTRY = 1.5  # s, reboot + park entry after the magic
+
+
+def _wch_uart_park(flasher, deadline, run=None):
     # Reboot the running firmware by writing the park magic to the WCH-LinkE VCP; the ch32h417
     # BSP catches {0x55,0xAA,'F','P'} on USART1 and reboots (~10 s park window). Harmless on
     # firmware without the hook. Not a wlink operation -- a raw VCP write. Returns True iff the
-    # magic was written, so callers can report a genuine failure instead of a silent no-op.
+    # magic was written before `deadline` (time.monotonic()), so callers can report a genuine
+    # failure instead of a silent no-op.
     uid = flasher.get('uid', '')
     if not uid:
         return False
     # if01 is the WCH-LinkE VCP; if00 is the debug interface -- write only to the VCP
     for tty in glob.glob('/dev/serial/by-id/*'):
         if uid in tty and tty.endswith('if01'):
+            def bounded(cmd, cap=None):
+                left = deadline - time.monotonic()
+                return left > 0 and _runner(run)(cmd, timeout=min(cap or left, left)).returncode == 0
             try:
                 # a failing stty (VCP gone/busy) means the write below cannot be trusted either
-                if _runner(run)(['stty', '-F', tty, '115200', 'raw', '-echo'], timeout=5).returncode != 0:
-                    return False
-                with open(tty, 'wb', buffering=0) as f:
-                    f.write(b'\x55\xaaFP')
-                time.sleep(1.5)  # reboot + park entry
-                return True
+                return (bounded(['stty', '-F', tty, '115200', 'raw', '-echo'], cap=5)
+                        and bounded([sys.executable, '-I', '-c', _WCH_PARK_WRITE, tty]))
             except (OSError, subprocess.SubprocessError):
                 return False
     return False
@@ -176,9 +187,11 @@ def reset_wch_uart_loader(board, timeout=None, *, run=None):
     #
     # Sit out the park window before returning: a caller that waits for re-enumeration starts the
     # moment reset_* returns, and would read the park itself as a dead board.
-    ok = _wch_uart_park(board['flasher'], run)
+    # One bound covers the write and the wait: usbtest budgets this reset as RECOVER_RESET_TIMEOUT.
+    deadline = time.monotonic() + _bound(timeout)
+    ok = _wch_uart_park(board['flasher'], deadline, run)
     if ok:
-        time.sleep(WCH_PARK_WINDOW)
+        time.sleep(max(0, min(WCH_PARK_ENTRY + WCH_PARK_WINDOW, deadline - time.monotonic())))
     return subprocess.CompletedProcess(args='park', returncode=0 if ok else 1)
 
 

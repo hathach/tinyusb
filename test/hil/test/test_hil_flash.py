@@ -244,20 +244,56 @@ class WchFlashers(unittest.TestCase):
         with mock.patch.object(hil_flash, '_wch_uart_park', return_value=True), \
              mock.patch.object(hil_flash.time, 'sleep') as slept:
             self.assertEqual(0, hil_flash.reset_wch_uart_loader(board, run=self.record).returncode)
-        slept.assert_called_once_with(hil_flash.WCH_PARK_WINDOW)
+        (wait,), _ = slept.call_args
+        self.assertAlmostEqual(wait, hil_flash.WCH_PARK_ENTRY + hil_flash.WCH_PARK_WINDOW, delta=1)
         self.assertEqual([], self.cmds, 'park is a VCP write, never a shell command')
 
-    def test_wch_uart_park_runs_stty_through_the_callers_runner(self):
-        """The farm check's runner tracks every subprocess for its cleanup: stty must go through
-        it, then the park magic goes to the probe's VCP (if01)."""
+    def park_on_tty(self, run, timeout):
         with tempfile.TemporaryDirectory() as tmp:
             tty = os.path.join(tmp, 'usb-WCH_WCH-Link_E8E68F066EEE-if01')
             Path(tty).touch()
+            board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])}
             with mock.patch.object(hil_flash.glob, 'glob', return_value=[tty]), \
-                 mock.patch.object(hil_flash.time, 'sleep'):
-                self.assertTrue(hil_flash._wch_uart_park(dict(BOARDS['wch_uart_loader']), run=self.record))
-            self.assertEqual(self.cmds, [['stty', '-F', tty, '115200', 'raw', '-echo']])
-            self.assertEqual(Path(tty).read_bytes(), b'\x55\xaaFP')
+                 mock.patch.object(hil_flash.time, 'sleep') as slept:
+                rc = hil_flash.reset_wch_uart_loader(board, timeout=timeout, run=run).returncode
+            return rc, tty, Path(tty).read_bytes(), slept
+
+    def test_wch_uart_park_runs_stty_and_the_write_through_the_callers_runner(self):
+        """The farm check's runner tracks every subprocess for its cleanup: stty and the park
+        magic's write to the probe's VCP (if01) both go through it, never in-process."""
+        def run(cmd, **kw):
+            self.record(cmd)
+            return subprocess.run(cmd) if cmd[0] == sys.executable else subprocess.CompletedProcess(cmd, 0)
+        rc, tty, written, _ = self.park_on_tty(run, timeout=30)
+        self.assertEqual(rc, 0)
+        stty, write = self.cmds
+        self.assertEqual(stty, ['stty', '-F', tty, '115200', 'raw', '-echo'])
+        self.assertEqual(write[-1], tty)
+        self.assertEqual(written, b'\x55\xaaFP')
+
+    def test_wch_uart_reset_bounds_the_park_by_the_callers_timeout(self):
+        """usbtest budgets this reset as RECOVER_RESET_TIMEOUT: a VCP that stops accepting must
+        not hold it past that bound, and the park wait only gets what the write left over."""
+        bounds = []
+
+        def run(cmd, timeout, **kw):
+            bounds.append(timeout)
+            return subprocess.CompletedProcess(cmd, 124 if cmd[0] == sys.executable else 0)
+        rc, _, _, slept = self.park_on_tty(run, timeout=3)
+        self.assertEqual(rc, 1, 'a write the runner had to kill is no reset')
+        slept.assert_not_called()
+        self.assertEqual(len(bounds), 2)
+        self.assertTrue(all(0 < b <= 3 for b in bounds), bounds)
+
+        def accepted(cmd, timeout, **kw):
+            bounds.append(timeout)
+            return self.record(cmd)
+        bounds.clear()
+        rc, _, _, slept = self.park_on_tty(accepted, timeout=4)
+        self.assertEqual(rc, 0)
+        (wait,), _ = slept.call_args
+        self.assertLessEqual(wait, 4)
+        self.assertLessEqual(bounds[0], 4)
 
     def test_find_firmware_hands_the_uart_loader_its_bin(self):
         """FLASHER_SUFFIX decides which extension a flasher is handed: the UART loader takes
