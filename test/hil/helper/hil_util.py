@@ -37,7 +37,7 @@ device_tests = [
     'device/midi_test',
     'device/mtp',
     'device/usbtest',  # 0525:a4a0 (Gadget Zero, usbtest's static id); runs the Linux testusb tier-4 battery via usbtest.py
-    # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
+    'device/net_lwip_webserver',
 ]
 
 dual_tests = [

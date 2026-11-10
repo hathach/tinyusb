@@ -885,10 +885,9 @@ class TestOrphanInvariant(unittest.TestCase):
 
     # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
     # gets no compile coverage (ci_set_matrix treats a selection that intersects
-    # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
-    # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
-    # toolchain, since hil-build-esp builds its boards by name.
-    UNBUILT_FAMILIES = {'cxd56', 'pic32mz', 'py32f0'}
+    # family_list to nothing as unusable -> full matrix). espressif is NOT here: it is
+    # in family_list with no toolchain, since hil-build-esp builds its boards by name.
+    UNBUILT_FAMILIES = {'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -1087,6 +1086,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
+            'test/hil/test/test_hil_net.py',
             'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
@@ -1457,12 +1457,13 @@ class TestLibRule(unittest.TestCase):
         self.assertNotIn('stm32f407disco', s['boards'])
         self.assertNotIn('espressif_s3_devkitm', s['boards'])
 
-    def test_hil_lib_used_only_by_a_disabled_test_selects_nothing(self):
-        # device/net_lwip_webserver is commented out of hil_util.device_tests, so the
-        # intersection with the HIL universe is empty
-        s = sel(['lib/networking/dhserver.c'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
+    def test_hil_network_changes_select_webserver(self):
+        for path in ('lib/networking/dhserver.c', 'src/class/net/ncm_device.c'):
+            with self.subTest(path=path):
+                s = sel([path])
+                self.assertFalse(s['full'])
+                self.assertEqual(set(s['boards']['stm32f407disco']),
+                                 {'device/net_lwip_webserver'})
 
     def test_hil_lib_nobody_builds_selects_nothing(self):
         s = sel(['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'])

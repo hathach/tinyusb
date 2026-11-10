@@ -463,8 +463,7 @@ class OpenocdEspRoster(unittest.TestCase):
                       hil_test_stdout(self, {'flasher': {**self.SHAPE, 'vid_pid': '0x303a 0x1001'}}))
 
     def test_hil_test_refuses_the_route_under_a_ci_job(self):
-        # the runner kills processes carrying the job's tracking id at job end: neither the
-        # provider's openocd server nor the cleanup holder is known to survive it
+        # The provider still refuses a CI job, whose end kills its tracked processes.
         for var in hil_util.openocd_esp().CI_JOB_ENV:
             with self.subTest(var=var):
                 self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp is refused under a CI job',

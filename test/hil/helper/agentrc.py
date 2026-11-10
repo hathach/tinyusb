@@ -44,6 +44,7 @@ SCRIPTS = (
     'skills/hil/scripts/hil_remote_core.py',
     'skills/hil/scripts/hil_report_core.py',
     'skills/hil/scripts/hil_report_notice.py',
+    'skills/hil/scripts/hil_root.py',
     'skills/hil/scripts/hil_tt.py',
     'skills/hil/scripts/hil_usbtest.py',
     'skills/hil/scripts/usb_observe.py',
