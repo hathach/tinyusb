@@ -39,7 +39,8 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, const tuh_msc_complete_d
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface is currently ready or busy transferring data
+// Check if the interface can accept a new command: false while busy, and until re-enumeration once fenced
+// after a failed stage submit (see tuh_msc_scsi_command)
 bool tuh_msc_ready(uint8_t dev_addr);
 
 // Get the LUN count the device reported, clamped to CFG_TUH_MSC_MAXLUN
