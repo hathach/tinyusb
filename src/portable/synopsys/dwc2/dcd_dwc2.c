@@ -1336,8 +1336,11 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
-    dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
-    dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+    // A pending suspend interrupt can outlive the bus suspend condition.
+    if (dwc2->dsts & DSTS_SUSPSTS) {
+      dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
+      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+    }
   }
 
   if (gintsts & GINTSTS_WKUINT) {
