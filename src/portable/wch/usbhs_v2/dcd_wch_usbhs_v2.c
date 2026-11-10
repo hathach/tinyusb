@@ -216,7 +216,10 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
     ep0_rx_tog = !ep0_rx_tog;
   }
 
-  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size)) {
+  // the next packet's RX DMA address must be 4-byte aligned (CH32V407RM 22.2.1.23), so end the transfer here
+  const bool next_rx_dma_unaligned = (ep_num != 0) && ((xfer->queued_len & 3u) != 0);
+
+  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size) || next_rx_dma_unaligned) {
     // Leave the endpoint idle before reporting: with TUP_USBD_XFER_ISR a class callback runs inside
     // dcd_event_xfer_complete() and may queue the next transfer, which nothing here may overwrite.
     // RES=NAK is documented as "respond with NAK or busy": with no xfer queued this must reject
@@ -473,9 +476,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     usbd_spin_unlock(is_isr);
   } else {
     // UEPn_TX_DMA/RX_DMA must be 4-byte aligned (CH32V407RM 22.2.1.23-24), at every packet start
-    const uint16_t mps = XFER_CTL_BASE(ep_num, dir)->max_size;
     TU_ASSERT(((uintptr_t)buffer & 3u) == 0);
-    TU_ASSERT(total_bytes <= mps || (mps & 3u) == 0);
+    // IN would program buffer+mps after a full first packet; OUT ends early there instead (update_out)
+    const uint16_t mps = XFER_CTL_BASE(ep_num, dir)->max_size;
+    TU_VERIFY(dir == TUSB_DIR_OUT || total_bytes <= mps || (mps & 3u) == 0);
     edpt_xfer_start(ep_num, dir, buffer, total_bytes);
   }
 
