@@ -100,7 +100,7 @@ enum {
 
 // A channel can be parked for the SOF interrupt to start: one whose low-speed frame is busy, or a control/bulk transfer
 // whose NAKs the CPU retries (slave mode, or a split) that has had max_nak of them in this frame
-// (tuh_configure_dwc2_t), see channel_park() and channel_nak_hold()
+// (tuh_configure_dwc2_t, counted per transfer), see channel_park() and channel_nak_hold()
 #if DWC2_LS_ONE_XACT_PER_FRAME || HCD_SPLIT || CFG_TUH_DWC2_SLAVE_ENABLE
   #define HCD_CHANNEL_PARK 1
 #else
@@ -530,7 +530,8 @@ static uint8_t channel_nak_frame(dwc2_regs_t* dwc2) {
 #if HCD_CHANNEL_PARK && (CFG_TUH_DWC2_SLAVE_ENABLE || HCD_SPLIT)
 // A NAK ended a transaction of a control or bulk transfer whose retry is up to the CPU: in slave mode, or a split one
 // (the core repeats a non-split NAKed token itself only in DMA mode). Count it in the current frame and return true
-// when the endpoint has had max_nak of them there (tuh_configure_dwc2_t): its retry then waits for the next frame.
+// when the transfer has had max_nak of them there (tuh_configure_dwc2_t): its retry then waits for the next frame.
+// The count restarts with each transfer (channel_alloc() clears it), so back-to-back transfers are not bounded.
 // Each retry is an interrupt or more (a split one: a start-split and complete-splits answered NYET until the hub's
 // transaction ends, an interrupt each), so an endpoint the device keeps NAKing, such as an idle bulk IN, would
 // otherwise retry as fast as the CPU can service them and leave it no time for anything else.

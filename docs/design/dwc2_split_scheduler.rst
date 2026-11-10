@@ -309,9 +309,11 @@ and a split retry is a start-split plus complete-splits answered NYET (about
 ten, 4.7 us apart, for a 64-byte full-speed packet), an interrupt each. Retried
 at once, an idle bulk IN behind a hub took 155k-398k interrupts per second and
 starved the P4's main loop, in slave and DMA mode alike. Allow ``max_nak`` NAKs
-per endpoint per frame (``tuh_configure_dwc2_t``, default 3 also for 0, so a
+per transfer per frame (``tuh_configure_dwc2_t``, default 3 also for 0, so a
 caller that sets only ``use_hs_phy`` keeps it; ``UINT8_MAX`` for no limit) and
-park the retry for the SOF interrupt to start in the next frame: 17-18k
+park the retry for the SOF interrupt to start in the next frame. The count
+restarts with each transfer (``channel_alloc()`` clears it), so it bounds an
+endpoint that keeps NAKing one transfer, not back-to-back transfers: 17-18k
 interrupts per second, 11-12% load. A transaction that is moving data
 costs the same NYETs while the hub forwards it. Its complete-split waits for
 the next microframe, after the start-split ACK and after each NYET, from the
@@ -486,9 +488,13 @@ each target's core revision/configuration, PHY/FRREM units, FIFO layout,
 memory/cache rules, interrupt routing and priority, SMP exclusion, and MCU
 errata. The P4 TRM documents 16 channels, 4 KB shared FIFO RAM, and four entries
 in each host request queue; these are P4 facts, not DWC2-wide constants. Section
-47.5 omits register details. The P4 errata list no USB OTG erratum, but two
+47.5 omits register details. The P4 errata list no USB OTG erratum, but three
 concern USB as a DMA master (D11): MSPI-750 (unaligned 1- or 2-byte PSRAM reads
-can return stale data; align USB buffers to 4 bytes) and APM-560 (an
+can return stale data; align USB buffers to 4 bytes), MSPI-751 (on v3.0 a DMA
+or cache read of PSRAM after a write to the same range can return old data when
+the AXI/MSPI-core clock ratio is unsafe; the system clock configuration must
+keep 3 x freq_core >= freq_axi with AXI concatenation, freq_core >= freq_axi
+without, assuming poor timing; not addressable in the driver) and APM-560 (an
 unauthorized access can stall PSRAM or flash for the AHB masters, USB OTG among
 them). The retained P4 core ID is ``0x4f54400a``; the generic Synopsys documents
 available here are revision 4.20a. Do not assume exact revision equivalence.
@@ -780,7 +786,7 @@ is embedded in this repository.
    are verified against sections 47.3.3 and 47.4.3.1. Final-DWORD admission
    and the register-detail limitation were checked on pp.2442-2443.
    *ESP32-P4 Series SoC Errata*, Rev 1.4, pp.6-14: summary table, MSPI-750
-   (pp.9-10) and APM-560 (p.14).
+   (pp.9-10), MSPI-751 (pp.10-11) and APM-560 (p.14).
 
 .. [F7] STMicroelectronics, *STM32F72xxx and STM32F73xxx reference manual*,
    RM0431 Rev 4, PDF pp.1243-1248, 1251, 1309-1311, 1315-1317. Host
