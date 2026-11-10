@@ -87,10 +87,6 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ep0_buf[EP0_MPS];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ramx_pool[CFG_TUD_WCH_USB30_RAMX_POOL_SIZE];
 static uint16_t _pool_brk;
-// A bus reset retired the configuration's slots. The next dcd_edpt_open releases them in task
-// context: clearing them in the ISR would hand a NULL slot to a transfer usbd queues before it
-// processes the reset.
-static volatile bool _pool_retired;
 
 static volatile uint8_t _pending_addr;    // 0x80 | address while SET_ADDRESS status is pending
 static volatile uint8_t _ep0_seq;         // EP0 IN packet sequence within a data stage
@@ -285,7 +281,6 @@ static void ep_state_reset(void) {
     xfer_status[ep][0].stalled = false;
     xfer_status[ep][1].stalled = false;
   }
-  _pool_retired = true; // usbd's bus reset never calls dcd_edpt_close_all()
   _pending_addr = 0;
   _ep0_seq = 0;
   _ep0_rx_seq = 0;
@@ -935,6 +930,15 @@ void dcd_int_disable(uint8_t rhport) {
 #endif
 }
 
+// Task context only: the allocation in dcd_edpt_open must never race it
+static void pool_release(void) {
+  for (uint8_t ep = 1; ep < EP_MAX; ep++) {
+    xfer_status[ep][0].slot = NULL;
+    xfer_status[ep][1].slot = NULL;
+  }
+  _pool_brk = 0;
+}
+
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (_fb_state == FB_USB2_ACTIVE) {
@@ -945,6 +949,10 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   }
 #endif
   (void)rhport;
+  // usbd's bus reset never calls dcd_edpt_close_all(), and the host must SET_ADDRESS after every
+  // reset before it configures: the previous configuration's slots are released here, after usbd
+  // has processed the reset and before any endpoint of the next configuration opens
+  pool_release();
   // Applied at the status stage (handle_ep0_rx); respond with the status transaction
   _pending_addr = 0x80u | dev_addr;
   _ep0_status_dir = TUSB_DIR_IN;
@@ -1052,18 +1060,9 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   xfer->active = false;
   xfer->stalled = false; // (re)configuring the endpoint clears any prior halt (USB 2.0 §9.4.5)
 
-  if (_pool_retired) {
-    _pool_retired = false;
-    for (uint8_t ep = 1; ep < EP_MAX; ep++) {
-      xfer_status[ep][0].slot = NULL;
-      xfer_status[ep][1].slot = NULL;
-    }
-    _pool_brk = 0;
-  }
-
   // Allocate a RAMX bounce slot once per endpoint direction (reused on re-open; released by
-  // dcd_edpt_close_all and after a bus reset). Composites needing more than the default 6
-  // directions must raise CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (RAMX is 32 KB total).
+  // dcd_edpt_close_all and at SET_ADDRESS). Composites needing more than the default 6 directions
+  // must raise CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (RAMX is 32 KB total).
   if (xfer->slot == NULL) {
     TU_ASSERT(_pool_brk + BOUNCE_SLOT_SIZE <= CFG_TUD_WCH_USB30_RAMX_POOL_SIZE);
     xfer->slot = &_ramx_pool[_pool_brk];
@@ -1124,11 +1123,9 @@ void dcd_edpt_close_all(uint8_t rhport) {
     xfer_status[ep][1].active = false;
     xfer_status[ep][0].stalled = false;
     xfer_status[ep][1].stalled = false;
-    xfer_status[ep][0].slot = NULL;
-    xfer_status[ep][1].slot = NULL;
   }
   USBSS->UEP_CFG = USBSS_EP_R_EN(0) | USBSS_EP_T_EN(0);
-  _pool_brk = 0;
+  pool_release();
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
