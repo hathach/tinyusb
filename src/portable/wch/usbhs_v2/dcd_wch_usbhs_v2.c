@@ -472,6 +472,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // a superseded stage is dropped, not refused: the newer SETUP resets EP0 in usbd
     usbd_spin_unlock(is_isr);
   } else {
+    // UEPn_TX_DMA/RX_DMA must be 4-byte aligned (CH32V407RM 22.2.1.23-24), at every packet start
+    const uint16_t mps = XFER_CTL_BASE(ep_num, dir)->max_size;
+    TU_ASSERT(((uintptr_t)buffer & 3u) == 0);
+    TU_ASSERT(total_bytes <= mps || (mps & 3u) == 0);
     edpt_xfer_start(ep_num, dir, buffer, total_bytes);
   }
 
