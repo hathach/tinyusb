@@ -11,6 +11,8 @@
 #ifndef SYSTEM_CH32V4X7_H_
 #define SYSTEM_CH32V4X7_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "common/tusb_compiler.h"
+
 // Device register block of the WCH USBHS v2 controller (CH32H417, CH32V4x7, CH32V205, CH32X3x5,
 // CH584-587). Layout and bits from CH32V407RM Rev 1.3 section 22.2.1; SDK-independent because
 // vendor SDKs name this block differently per chip (USBHSD_TypeDef vs R8_USB2_* on CH585).

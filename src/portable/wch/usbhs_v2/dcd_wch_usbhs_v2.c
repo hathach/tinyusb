@@ -15,6 +15,7 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS_V2)
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h" // for usbd_spin_lock()
 #include "wch_usbhs_v2_reg.h"
 
 #if TU_CHECK_MCU(OPT_MCU_CH32V407)
@@ -71,6 +72,12 @@ static volatile bool bus_suspended; // last suspend state reported to usbd (see 
 static volatile bool bus_reset_pending; // bus reset seen, event held until the speed is known
 static volatile bool ep_data_tog[EP_MAX][2];
 
+// Tag bumped by every SETUP and bus reset, and the tag of the SETUP usbd is serving
+// (dcd_edpt0_setup_begin()). While they differ, EP0 arms and stalls belong to a superseded request
+// and are dropped. uint8_t wrap (256 SETUPs while one is served) is accepted.
+static volatile uint8_t setup_rcv_tagid;
+static uint8_t setup_served_tagid;
+
 //--------------------------------------------------------------------+
 // Endpoint helpers
 //--------------------------------------------------------------------+
@@ -112,6 +119,13 @@ static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
 // one has completed, so no transaction is in flight to raise DONE underneath it.
 static void arm_ep0_out(void) {
   EP_RX_CTRL(0) = (uint8_t)((ep0_rx_tog ? USBHSV2_UEP_R_TOG_DATA1 : USBHSV2_UEP_R_TOG_DATA0) | USBHSV2_UEP_R_RES_ACK);
+}
+
+// Also true for a SETUP latched but not yet serviced by the ISR (R_DONE with SETUP_IS, the test the
+// ISR uses): an EP0 IN arm would memcpy over it in ep0_buffer. Caller excludes the USB ISR.
+static bool ep0_superseded(void) {
+  const uint8_t setup_latched = USBHSV2_UEP_R_DONE | USBHSV2_UEP_R_SETUP_IS;
+  return (setup_served_tagid != setup_rcv_tagid) || ((EP_RX_CTRL(0) & setup_latched) == setup_latched);
 }
 
 static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
@@ -420,12 +434,13 @@ void dcd_edpt_close_all(uint8_t rhport) {
   usbhs->UEP_R_ISO = 0;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
   (void)rhport;
-  (void)is_isr;
-  const uint8_t ep_num = tu_edpt_number(ep_addr);
-  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+  setup_served_tagid = setup_tagid;
+  return !ep0_superseded();
+}
 
+static void edpt_xfer_start(uint8_t ep_num, tusb_dir_t dir, uint8_t *buffer, uint16_t total_bytes) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
@@ -436,16 +451,43 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     // Data or status OUT stage: ep0_rx_tog holds DATA1 right after a SETUP and is advanced per
     // received packet, so a multi-chunk control-write stays synchronized with the host.
     arm_ep0_out();
-    return true;
-  }
-
-  if (dir == TUSB_DIR_IN) {
+  } else if (dir == TUSB_DIR_IN) {
     queue_in_packet(ep_num, xfer);
   } else {
     queue_out_packet(ep_num, xfer);
   }
+}
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
+  (void)rhport;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir = tu_edpt_dir(ep_addr);
+
+  if (ep_num == 0) {
+    // the SETUP ISR must not land between the check and the arm
+    usbd_spin_lock(is_isr);
+    if (!ep0_superseded()) {
+      edpt_xfer_start(ep_num, dir, buffer, total_bytes);
+    }
+    // a superseded stage is dropped, not refused: the newer SETUP resets EP0 in usbd
+    usbd_spin_unlock(is_isr);
+  } else {
+    edpt_xfer_start(ep_num, dir, buffer, total_bytes);
+  }
 
   return true;
+}
+
+// A halt cancels the transfer, as usbd_edpt_abort() relies on: invalidate it before stalling so the
+// ISR cannot re-arm the endpoint with ACK over the STALL, and clear-halt cannot resume it.
+static void edpt_halt(uint8_t ep_num, tusb_dir_t dir) {
+  XFER_CTL_BASE(ep_num, dir)->valid = false;
+  if (dir == TUSB_DIR_OUT) {
+    set_rx_res(ep_num, USBHSV2_UEP_R_RES_STALL);
+  } else {
+    EP_TX_LEN(ep_num) = 0;
+    set_tx_res(ep_num, USBHSV2_UEP_T_RES_STALL);
+  }
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -454,11 +496,15 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
   TU_ASSERT(ep_num < EP_MAX, );
 
-  if (dir == TUSB_DIR_OUT) {
-    set_rx_res(ep_num, USBHSV2_UEP_R_RES_STALL);
+  if (ep_num == 0) {
+    // a stall for an abandoned control transfer must not stall the newer one
+    usbd_spin_lock(false);
+    if (!ep0_superseded()) {
+      edpt_halt(ep_num, dir);
+    }
+    usbd_spin_unlock(false);
   } else {
-    EP_TX_LEN(ep_num) = 0;
-    set_tx_res(ep_num, USBHSV2_UEP_T_RES_STALL);
+    edpt_halt(ep_num, dir);
   }
 }
 
@@ -472,8 +518,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
     if (xfer->valid) {
-      // A receive is still armed; re-queue it instead of leaving it NAKing (usbtest case 29
-      // clears the halt on an armed bulk-OUT pipe).
+      // Not halted (a halt cancels the transfer): a toggle reset on an armed pipe, as usbtest case
+      // 29 issues on bulk-OUT. Re-arm the receive with DATA0.
       queue_out_packet(ep_num, xfer);
     } else {
       EP_RX_CTRL(ep_num) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
@@ -482,11 +528,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     ep_data_tog[ep_num][TUSB_DIR_IN] = false; // clear-halt resets the toggle to DATA0
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
     if (xfer->valid) {
-      // A transmit is still armed (the class driver considers it submitted and won't re-arm it);
-      // re-queue it instead of leaving it NAKing (usbtest halt test 13 clears the halt on an armed
-      // bulk-IN pipe). queued_len tracks ARMED bytes and edpt_stall (EP_TX_LEN=0) discarded exactly
-      // the one armed packet: rewind only that packet, so a mid-transfer halt-clear does not
-      // retransmit packets the host already ACKed.
+      // Not halted (a halt cancels the transfer): a toggle reset on an armed pipe. queued_len
+      // tracks ARMED bytes: rewind only the armed packet and re-arm it with DATA0, so packets the
+      // host already ACKed are not retransmitted.
       uint16_t rearm = (uint16_t)(xfer->queued_len % xfer->max_size);
       if (rearm == 0 && xfer->queued_len != 0) {
         rearm = xfer->max_size;
@@ -561,12 +605,15 @@ void dcd_int_handler(uint8_t rhport) {
           // would arrive as stale descriptor bytes. A host may legally abort a control-IN with a
           // new SETUP (USB 2.0 8.5.3), e.g. cutting a GET_DESCRIPTOR short, so this is reachable.
           // An abandoned transfer has no completion worth reporting; the pipe reset below drops it.
+          // A finished data-stage chunk is still delivered: the next chunk or status stage usbd
+          // arms for it is dropped by the tag bumped below, so it cannot disturb ep0_tog.
           const xfer_ctl_t *ep0_in = XFER_CTL_BASE(0, TUSB_DIR_IN);
           if ((EP_TX_CTRL(0) & USBHSV2_UEP_T_DONE) && ep0_in->valid &&
               (ep0_in->total_len <= ep0_in->queued_len)) {
             EP_TX_CTRL(0) &= (uint8_t)~USBHSV2_UEP_T_DONE;
             update_in(rhport, 0);
           }
+          setup_rcv_tagid++;
           ep0_tog = true;
           ep0_rx_tog = true;
           // A SETUP resets the control pipe: drop any stage still armed from a transfer the host
@@ -577,7 +624,7 @@ void dcd_int_handler(uint8_t rhport) {
           EP_TX_CTRL(0) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA1;
           EP_RX_CTRL(0) = (uint8_t)(((setup->wLength == 0) ? USBHSV2_UEP_R_RES_ACK : USBHSV2_UEP_R_RES_NAK) |
                                     USBHSV2_UEP_R_TOG_DATA1);
-          dcd_event_setup_received(rhport, ep0_buffer, true);
+          dcd_event_setup_received_tagid(rhport, ep0_buffer, setup_rcv_tagid, true);
         } else {
           // A packet whose PID does not match the endpoint's expected toggle is a host retransmission
           // after a lost ACK: the SIE stores it and raises this interrupt anyway. RM 22.2.1.35
@@ -616,6 +663,7 @@ void dcd_int_handler(uint8_t rhport) {
   } else if (intflag & USBHSV2_UDIF_BUS_RST) {
     bus_suspended = false;
     bus_reset_pending = true;
+    setup_rcv_tagid++; // a reset supersedes any control transfer usbd is still on
     usbhs->DEV_AD = 0;
     // usbd closes endpoints only on a configuration change: drop every transfer the reset aborted,
     // or a later clear-halt would re-arm a pre-reset buffer
