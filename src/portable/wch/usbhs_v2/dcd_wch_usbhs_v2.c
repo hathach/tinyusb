@@ -65,13 +65,6 @@ typedef struct {
 static xfer_ctl_t xfer_status[EP_MAX][2];
 
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[EP0_MAX_SIZE];
-
-// UEPn_TX_DMA/RX_DMA must be 4-byte aligned (CH32V407RM 22.2.1.23-24). A packet at an unaligned offset,
-// which a wMaxPacketSize that is not a multiple of 4 produces after the first one, is staged here,
-// one buffer per direction. 64 covers every full-speed interrupt endpoint.
-#define EP_BOUNCE_SIZE 64
-TU_ATTR_ALIGNED(4) static uint8_t ep_bounce[EP_MAX - 1][2][EP_BOUNCE_SIZE];
-
 static volatile bool ep0_tog;    // EP0 expected IN toggle
 static volatile bool ep0_rx_tog; // EP0 expected OUT toggle
 static volatile bool sof_enabled; // usbd asked for SOF (see the RX_SOF branch in the ISR)
@@ -135,25 +128,14 @@ static bool ep0_superseded(void) {
   return (setup_served_tagid != setup_rcv_tagid) || ((EP_RX_CTRL(0) & setup_latched) == setup_latched);
 }
 
-// Buffer the controller DMAs the packet at xfer_buf to or from: EP0's own, a bounce if unaligned, else in place
-static uint8_t *packet_dma_buf(uint8_t ep_num, tusb_dir_t dir, uint8_t *xfer_buf) {
-  if (ep_num == 0) {
-    return ep0_buffer;
-  }
-  return ((uintptr_t)xfer_buf & 3u) ? ep_bounce[ep_num - 1][dir] : xfer_buf;
-}
-
 static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   uint16_t tx_len = TU_MIN(remaining, xfer->max_size);
 
-  uint8_t *src = &xfer->buffer[xfer->queued_len];
-  uint8_t *dma_buf = packet_dma_buf(ep_num, TUSB_DIR_IN, src);
-  if (dma_buf != src) {
-    memcpy(dma_buf, src, tx_len);
-  }
-  if (ep_num != 0) {
-    EP_TX_DMA(ep_num) = (uint32_t)(uintptr_t)dma_buf;
+  if (ep_num == 0) {
+    memcpy(ep0_buffer, &xfer->buffer[xfer->queued_len], tx_len);
+  } else {
+    EP_TX_DMA(ep_num) = (uint32_t)(uintptr_t)&xfer->buffer[xfer->queued_len];
   }
 
   EP_TX_LEN(ep_num) = tx_len;
@@ -175,7 +157,7 @@ static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   uint16_t rx_len = TU_MIN(remaining, xfer->max_size);
 
   if (ep_num > 0) {
-    EP_RX_DMA(ep_num) = (uint32_t)(uintptr_t)packet_dma_buf(ep_num, TUSB_DIR_OUT, &xfer->buffer[xfer->queued_len]);
+    EP_RX_DMA(ep_num) = (uint32_t)(uintptr_t)&xfer->buffer[xfer->queued_len];
     EP_MAX_LEN(ep_num) = rx_len;
   }
 
@@ -217,10 +199,8 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   uint16_t len = TU_MIN(rx_len, TU_MIN(remaining, xfer->max_size));
 
-  uint8_t *dst = &xfer->buffer[xfer->queued_len];
-  const uint8_t *dma_buf = packet_dma_buf(ep_num, TUSB_DIR_OUT, dst);
-  if (dma_buf != dst) {
-    memcpy(dst, dma_buf, len);
+  if (ep_num == 0) {
+    memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, len);
   }
 
   xfer->queued_len += len;
@@ -236,7 +216,10 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
     ep0_rx_tog = !ep0_rx_tog;
   }
 
-  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size)) {
+  // the next packet's RX DMA address must be 4-byte aligned (CH32V407RM 22.2.1.23), so end the transfer here
+  const bool next_rx_dma_unaligned = (ep_num != 0) && ((xfer->queued_len & 3u) != 0);
+
+  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size) || next_rx_dma_unaligned) {
     // Leave the endpoint idle before reporting: with TUP_USBD_XFER_ISR a class callback runs inside
     // dcd_event_xfer_complete() and may queue the next transfer, which nothing here may overwrite.
     // RES=NAK is documented as "respond with NAK or busy": with no xfer queued this must reject
@@ -494,9 +477,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   } else {
     // UEPn_TX_DMA/RX_DMA must be 4-byte aligned (CH32V407RM 22.2.1.23-24), at every packet start
     TU_ASSERT(((uintptr_t)buffer & 3u) == 0);
-    // later packets of a non-word-multiple mps start unaligned and go through ep_bounce
+    // IN would program buffer+mps after a full first packet; OUT ends early there instead (update_out)
     const uint16_t mps = XFER_CTL_BASE(ep_num, dir)->max_size;
-    TU_VERIFY(total_bytes <= mps || (mps & 3u) == 0 || mps <= EP_BOUNCE_SIZE);
+    TU_VERIFY(dir == TUSB_DIR_OUT || total_bytes <= mps || (mps & 3u) == 0);
     edpt_xfer_start(ep_num, dir, buffer, total_bytes);
   }
 
