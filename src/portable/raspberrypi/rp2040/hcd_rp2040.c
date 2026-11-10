@@ -305,9 +305,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_is_pending(const hw_endpoint_t *ep)
   return ep->state == EPSTATE_PENDING || ep->state == EPSTATE_PENDING_SETUP;
 }
 
-// First interrupt endpoint whose poll is pending, or NULL
-TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(void) {
-  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+// First interrupt endpoint at or after ep_pool[first] whose poll is pending, or NULL
+TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(size_t first) {
+  for (size_t i = first; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hw_endpoint_t *ep = &ep_pool[i];
     if (ep->state == EPSTATE_PENDING && ep->transfer_type == TUSB_XFER_INTERRUPT) {
       return ep;
@@ -318,11 +318,19 @@ TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(void) {
 
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
+  const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
   if (epx_yielded != NULL && cur_ep->transfer_type == TUSB_XFER_INTERRUPT) {
     // after a poll: the next due poll, else the transfer that yielded to them, unless it has ended or was closed. In
     // turn, a transfer that NAKs (a CDC IN with no data) would hold EPX until the round-robin switches it out (RP2040:
-    // two SOFs), so a stream yielding every frame would lose most of the bus to it
-    hw_endpoint_t *poll_ep = epx_pending_poll();
+    // two SOFs), so a stream yielding every frame would lose most of the bus to it.
+    // RP2040: only a poll after this one in ep_pool, so each runs once before that transfer's next packet. An interrupt
+    // OUT the round-robin switches out while it NAK-retries is pending again at once: with a poll due every frame, the
+    // two would otherwise take turns on EPX for good. (RP2350 stops a poll at its NAK.)
+  #ifdef HAS_STOP_EPX_ON_NAK
+    hw_endpoint_t *poll_ep = epx_pending_poll(0);
+  #else
+    hw_endpoint_t *poll_ep = epx_pending_poll(cur_idx + 1);
+  #endif
     if (poll_ep != NULL) {
       return poll_ep;
     }
@@ -331,7 +339,6 @@ static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_
     }
     epx_yielded = NULL;
   }
-  const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
   for (uint i = cur_idx + 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
     if (epx_is_pending(&ep_pool[i])) {
       return &ep_pool[i];
@@ -500,7 +507,7 @@ static bool __tusb_irq_path_func(epx_poll_waiting)(void) {
   if (!epx_poll_due || epx->transfer_type == TUSB_XFER_INTERRUPT || tu_edpt_number(epx->ep_addr) == 0) {
     return false;
   }
-  if (epx_pending_poll() != NULL) {
+  if (epx_pending_poll(0) != NULL) {
     return true;
   }
   epx_poll_due = false; // every due poll has started
@@ -567,7 +574,7 @@ static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
   sie_stop_xfer();
   epx_save_context(epx); // no buffer is armed: nothing to give back
   if (!epx_held()) {
-    hw_endpoint_t *poll_ep = epx_pending_poll();
+    hw_endpoint_t *poll_ep = epx_pending_poll(0);
     if (poll_ep != NULL) {
       epx_yielded = epx;
       epx_switch_ep(poll_ep);
