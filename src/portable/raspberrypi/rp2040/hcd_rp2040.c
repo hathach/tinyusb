@@ -100,6 +100,9 @@ static hw_endpoint_t *epx_closing = NULL;
 static bool epx_poll_due = false;
 // The transfer on EPX left a completed buffer unarmed to yield (epx_yield()): its next buffer completion stops it
 static bool epx_yielding = false;
+// The transfer that yielded to due polls (epx_yield()): once they have run it goes on before the others' turn, so a
+// poll only comes in between its packets (epx_next_pending())
+static hw_endpoint_t *epx_yielded = NULL;
 
 // A transfer starts on EPX: on RP2040 it gets its own two-SOF window. A request left by a transfer that ended without
 // a buffer completion (RX timeout, STALL) would otherwise stop it at its first SOF, even right after it completed.
@@ -262,6 +265,9 @@ static void __tusb_irq_path_func(epx_save_context)(hw_endpoint_t *ep) {
 // switch epx to new endpoint and start the transfer
 static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
   const bool is_setup = (ep->state == EPSTATE_PENDING_SETUP);
+  if (ep == epx_yielded) {
+    epx_yielded = NULL;
+  }
 
   epx       = ep; // switch pointer
   ep->state = EPSTATE_ACTIVE;
@@ -299,8 +305,32 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_is_pending(const hw_endpoint_t *ep)
   return ep->state == EPSTATE_PENDING || ep->state == EPSTATE_PENDING_SETUP;
 }
 
+// First interrupt endpoint whose poll is pending, or NULL
+TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(void) {
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (ep->state == EPSTATE_PENDING && ep->transfer_type == TUSB_XFER_INTERRUPT) {
+      return ep;
+    }
+  }
+  return NULL;
+}
+
 // Round-robin find next pending ep after current epx
 static hw_endpoint_t *__tusb_irq_path_func(epx_next_pending)(hw_endpoint_t *cur_ep) {
+  if (epx_yielded != NULL && cur_ep->transfer_type == TUSB_XFER_INTERRUPT) {
+    // after a poll: the next due poll, else the transfer that yielded to them, unless it has ended or was closed. In
+    // turn, a transfer that NAKs (a CDC IN with no data) would hold EPX until the round-robin switches it out (RP2040:
+    // two SOFs), so a stream yielding every frame would lose most of the bus to it
+    hw_endpoint_t *poll_ep = epx_pending_poll();
+    if (poll_ep != NULL) {
+      return poll_ep;
+    }
+    if (epx_is_pending(epx_yielded)) {
+      return epx_yielded;
+    }
+    epx_yielded = NULL;
+  }
   const uint cur_idx = (uint)(cur_ep - &ep_pool[0]);
   for (uint i = cur_idx + 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
     if (epx_is_pending(&ep_pool[i])) {
@@ -460,17 +490,6 @@ static bool __tusb_irq_path_func(epx_poll_nak)(uint8_t buf_id) {
 }
   #endif
 
-// First interrupt endpoint whose poll is pending, or NULL
-TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *epx_pending_poll(void) {
-  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    hw_endpoint_t *ep = &ep_pool[i];
-    if (ep->state == EPSTATE_PENDING && ep->transfer_type == TUSB_XFER_INTERRUPT) {
-      return ep;
-    }
-  }
-  return NULL;
-}
-
 // A due interrupt poll would wait while a bulk transfer keeps EPX streaming data: on RP2040 each packet clears the
 // round-robin's switch request, and on RP2350 the transfer gives way only at a NAK. So that transfer yields to the
 // poll at a packet boundary (epx_yield()). Not EP0, whose stages are short, and not a poll itself.
@@ -508,6 +527,7 @@ static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
   if (!epx_held()) {
     hw_endpoint_t *poll_ep = epx_pending_poll();
     if (poll_ep != NULL) {
+      epx_yielded = epx;
       epx_switch_ep(poll_ep);
       return;
     }
