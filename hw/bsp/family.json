@@ -557,6 +557,24 @@
       }
     }
   },
+  "ch32v4x7": {
+    "ch32v407-evt-r0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32V407"
+        ],
+        "mcu": "OPT_MCU_CH32V407",
+        "options": {},
+        "portable": [
+          "wch/usbhs_v2/dcd_wch_usbhs_v2.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch32x035": {
     "weact_ch32x035_core_board": {
       "cmake": {
