@@ -504,6 +504,41 @@ static bool __tusb_irq_path_func(epx_poll_waiting)(void) {
   return false;
 }
 
+  #ifndef HAS_STOP_EPX_ON_NAK
+enum {
+  EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
+  LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
+  EPX_STOP_SETTLE_US   = 2   // after STOP_TRANS: a token sent meanwhile is on the wire by then
+};
+
+// Whether the bus stays idle (J) for at least us microseconds
+static bool __tusb_irq_path_func(bus_idle_for)(uint32_t us) {
+  // J is D+ high at full speed (1), D- high at low speed (2); a low-speed device behind a hub runs at full speed here
+  const uint32_t line_j = (dev_speed() == SIE_CTRL_SPEED_LOW) ? 2u : 1u;
+  const uint32_t t0     = time_us_32();
+  do {
+    if (((usb_hw->sie_status & USB_SIE_STATUS_LINE_STATE_BITS) >> USB_SIE_STATUS_LINE_STATE_LSB) != line_j) {
+      return false;
+    }
+  } while (time_us_32() - t0 <= us);
+  return true;
+}
+
+// RP2040: the buffer completion that leads to a yield can be taken while the SIE still sends the packet's ACK, and
+// STOP_TRANS on that handshake makes the device miss it and repeat the packet (a DATA_SEQ error the host recovers
+// from, see #3964). So the yield stops EPX only once the bus has been idle for a turnaround, waiting at most one
+// post-SOF slot; nothing is armed, so nothing new starts meanwhile.
+static bool __tusb_irq_path_func(epx_yield_bus_settled)(void) {
+  const uint32_t t0 = time_us_32();
+  do {
+    if (bus_idle_for(LINE_IDLE_US)) {
+      return true;
+    }
+  } while (time_us_32() - t0 <= EPX_POST_SOF_SLOT_US);
+  return false;
+}
+  #endif
+
 // The bulk transfer on EPX completed a buffer and left it unarmed for a waiting poll. Once its other buffer is not
 // armed either, the SIE waits for a buffer with nothing on the wire, so STOP_TRANS cannot cut a packet: the transfer is
 // saved as pending, resumed in turn where it stopped, and the poll starts.
@@ -522,6 +557,11 @@ static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
     epx_yielding = true;
     return;
   }
+  #ifndef HAS_STOP_EPX_ON_NAK
+  if (!epx_yield_bus_settled()) {
+    return; // nothing is armed: the SOF round-robin switches the poll in, with its own bus check
+  }
+  #endif
   sie_stop_xfer();
   epx_save_context(epx); // no buffer is armed: nothing to give back
   if (!epx_held()) {
@@ -636,25 +676,6 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
 }
 
   #ifndef HAS_STOP_EPX_ON_NAK
-enum {
-  EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
-  LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
-  EPX_STOP_SETTLE_US   = 2   // after STOP_TRANS: a token sent meanwhile is on the wire by then
-};
-
-// Whether the bus stays idle (J) for at least us microseconds
-static bool __tusb_irq_path_func(bus_idle_for)(uint32_t us) {
-  // J is D+ high at full speed (1), D- high at low speed (2); a low-speed device behind a hub runs at full speed here
-  const uint32_t line_j = (dev_speed() == SIE_CTRL_SPEED_LOW) ? 2u : 1u;
-  const uint32_t t0     = time_us_32();
-  do {
-    if (((usb_hw->sie_status & USB_SIE_STATUS_LINE_STATE_BITS) >> USB_SIE_STATUS_LINE_STATE_LSB) != line_j) {
-      return false;
-    }
-  } while (time_us_32() - t0 <= us);
-  return true;
-}
-
 // An EPX completion the ISR has not taken yet: switching EPX now would apply it to the transfer switched in
 // ("buf_ctrl already available", or an early completion of that transfer with this one's length)
 TU_ATTR_ALWAYS_INLINE static inline bool epx_completion_latched(void) {
