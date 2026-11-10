@@ -234,8 +234,8 @@ def _openocd_esp_session(board, operation):
         raise RuntimeError(why)
     if name in cleanup_pending:
         held = ', '.join(map(receipt_text, cleanup_pending[name]))
-        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until its cleanup '
-                           f'holder is recovered')
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until the logged '
+                           f'cleanup failure is recovered')
     op = None
     try:
         op = operation(provider)
