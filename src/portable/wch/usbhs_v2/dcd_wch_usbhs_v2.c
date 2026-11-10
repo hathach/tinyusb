@@ -640,17 +640,21 @@ void dcd_int_handler(uint8_t rhport) {
           // A packet whose PID does not match the endpoint's expected toggle is a host retransmission
           // after a lost ACK: the SIE stores it and raises this interrupt anyway. RM 22.2.1.32/35
           // RB_UEP_R_TOG_MATCH (RO, bit 4 of UEPx_RX_CTRL): 1 = synchronized, 0 = not synchronized -
-          // consuming an unsynchronized packet would inject it into the transfer twice. Dropping it
-          // leaves a data endpoint armed (DMA address and RES untouched) for the host's next attempt.
-          // EP0's expected toggle is programmed on every arm too (arm_ep0_out), but its SIE ACKs the
-          // mismatched packet and drops RES to NAK (measured: RX_CTRL 0x80), so EP0 is re-armed, as
-          // the WCH demo does. Iso endpoints run without handshake or toggle.
+          // consuming an unsynchronized packet would inject it into the transfer twice, so it is
+          // dropped. The SIE ACKs it but, as after any received packet, sets RES to NAK (measured:
+          // RX_CTRL 0x80 on EP0, 0xC0 on bulk OUT; the RM is silent), so the endpoint is re-armed
+          // unchanged for the host's next packet; left NAKing, the transfer stalls until the host
+          // times out. Iso endpoints run without handshake or toggle.
           const uint8_t rx_ctrl = EP_RX_CTRL(ep_num);
           EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~USBHSV2_UEP_R_DONE);
           if (xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & USBHSV2_UEP_R_TOG_MATCH)) {
             update_out(rhport, ep_num, EP_RX_LEN(ep_num));
-          } else if ((ep_num == 0) && xfer_status[0][TUSB_DIR_OUT].valid) {
-            arm_ep0_out();
+          } else if (xfer_status[ep_num][TUSB_DIR_OUT].valid) {
+            if (ep_num == 0) {
+              arm_ep0_out();
+            } else {
+              queue_out_packet(ep_num, XFER_CTL_BASE(ep_num, TUSB_DIR_OUT));
+            }
           }
         }
       }
