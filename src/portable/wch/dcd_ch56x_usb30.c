@@ -878,7 +878,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   xfer_status[0][TUSB_DIR_OUT].mps = EP0_MPS;
   xfer_status[0][TUSB_DIR_IN].mps = EP0_MPS;
 
-_hw_reinit_deferred = false; // cancel any reinit queued before this re-init
+  _hw_reinit_deferred = false; // cancel any reinit queued before this re-init
 #if CFG_TUD_WCH_USB30_FALLBACK
   ch56x_usb2_deinit(); // keep the USB2 controller quiescent while SS trains
   fallback_enter(FB_USB3_TRAINING);
