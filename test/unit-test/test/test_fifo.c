@@ -150,8 +150,60 @@ void test_write_double_overflowed(void) {
 
   TEST_ASSERT_EQUAL_MEMORY(buf - 16, rd_buf + FIFO_SIZE - 16, 16);
 
-  // TODO whole buffer should match, but we deliberately not implement it
-  // TEST_ASSERT_EQUAL_MEMORY(buf-FIFO_SIZE, rd_buf, FIFO_SIZE);
+  // whole buffer holds the last FIFO_SIZE bytes written, in order
+  TEST_ASSERT_EQUAL_MEMORY(buf - FIFO_SIZE, rd_buf, FIFO_SIZE);
+}
+
+void test_write_overwritable_single_byte(void) {
+  tu_fifo_set_overwritable(ff, true);
+
+  // keep writing one byte at a time, never reading: the fifo must stay full across several index wraps
+  for (uint16_t i = 0; i < 3 * FIFO_SIZE + 5; i++) {
+    TEST_ASSERT_TRUE(tu_fifo_write(ff, &test_data[i]));
+    TEST_ASSERT_EQUAL(tu_min16(i + 1, FIFO_SIZE), tu_fifo_count(ff));
+  }
+
+  // oldest bytes are gone, the last FIFO_SIZE bytes are read back in order
+  uint8_t rd[FIFO_SIZE] = {0};
+  TEST_ASSERT_EQUAL(FIFO_SIZE, tu_fifo_read_n(ff, rd, FIFO_SIZE));
+  TEST_ASSERT_EQUAL_MEMORY(test_data + 2 * FIFO_SIZE + 5, rd, FIFO_SIZE);
+  TEST_ASSERT_TRUE(tu_fifo_empty(ff));
+}
+
+void test_write_overwritable_mixed(void) {
+  tu_fifo_set_overwritable(ff, true);
+
+  // deterministic mix of single and bulk writes (each below depth, so double overflows are not masked by whole-buffer rewrites) checked against the last FIFO_SIZE bytes
+  uint8_t  stream[4 * FIFO_SIZE * 64];
+  uint32_t total = 0;
+  uint32_t seed  = 12345;
+
+  for (int iter = 0; iter < 2000; iter++) {
+    seed       = seed * 1103515245u + 12345u;
+    uint16_t n = (seed >> 16) % FIFO_SIZE;
+    for (uint16_t i = 0; i < n; i++) {
+      stream[total + i] = (uint8_t)(seed >> (i % 16)) ^ (uint8_t)i;
+    }
+    if (n == 1) {
+      tu_fifo_write(ff, &stream[total]);
+    } else {
+      tu_fifo_write_n(ff, &stream[total], n);
+    }
+    total += n;
+
+    const uint16_t expected = tu_min16(total, FIFO_SIZE);
+    TEST_ASSERT_EQUAL(expected, tu_fifo_count(ff));
+
+    if (iter % 5 == 0) {
+      uint8_t rd[FIFO_SIZE] = {0};
+      TEST_ASSERT_EQUAL(expected, tu_fifo_peek_n(ff, rd, FIFO_SIZE));
+      TEST_ASSERT_EQUAL_MEMORY(stream + total - expected, rd, expected);
+    }
+
+    if (total + FIFO_SIZE > sizeof(stream)) {
+      break;
+    }
+  }
 }
 
 static uint16_t help_write(uint16_t total, uint16_t n) {
