@@ -180,8 +180,8 @@ def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.Com
 # -------------------------------------------------------------
 # board name -> receipts of what an openocd_esp operation left not proven ended: a session the
 # provider left running (cleanup 'pending'), or a tracked esptool child 'pending' or 'unknown'
-# with its receipt. No later session starts on that board, and hil_test hands its lock to a
-# cleanup holder instead of releasing it.
+# with its receipt. No later session starts on that board in this run; hil_test logs the
+# unproven cleanup and releases the lock when its task ends.
 cleanup_pending = {}
 OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
 
@@ -211,7 +211,7 @@ def receipt_text(receipt) -> str:
 def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
     """Why an entry point refuses this board's openocd_esp flasher, or '' (none, or admitted):
     the provider's refusal, under a CI job or to a caller that does not keep the board lock
-    through a session left running (`retains_lock`). Checked before any board access."""
+    until its task logs a session left running (`retains_lock`). Checked before any board access."""
     if not flashers(board, 'openocd_esp'):
         return ''
     return hil_util.openocd_esp().refusal(retains_lock=retains_lock)
@@ -234,8 +234,8 @@ def _openocd_esp_session(board, operation):
         raise RuntimeError(why)
     if name in cleanup_pending:
         held = ', '.join(map(receipt_text, cleanup_pending[name]))
-        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until its cleanup '
-                           f'holder is recovered')
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until the logged '
+                           f'cleanup failure is recovered')
     op = None
     try:
         op = operation(provider)

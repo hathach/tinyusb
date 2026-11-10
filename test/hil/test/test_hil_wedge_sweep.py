@@ -142,7 +142,12 @@ class TestBoardSweep(unittest.TestCase):
         p(hil_test, 'test_only', [])
         p(hil_test, 'board_test', {})
         p(hil_test, 'log_line', lambda msg: None)
-        p(hil_lock, 'acquire_board_lock', lambda name, **kw: open(os.devnull))
+
+        def acquire(name, **kw):
+            fh = open(os.devnull)
+            fh.cleanup_failures = []
+            return fh
+        p(hil_lock, 'acquire_board_lock', acquire)
         p(hil_lock, 'clear_record', lambda fh: None)
         self.ran = []
         p(hil_test, 'test_example', lambda board, v, ex: self.ran.append(ex) or (0, 'pass', None))

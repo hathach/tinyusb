@@ -194,8 +194,8 @@ class FlasherCfg(TypedDict):
 
 
 class AttachedDevCfg(TypedDict, total=False):
-    vid_pid: str
-    serial: str
+    vid_pid: str   # "vvvv:pppp"
+    serial: str    # absent: no serial recorded, which the host examples print as "0"
     is_cdc: bool
     is_msc: bool
     block_count: int
@@ -208,7 +208,6 @@ class TestsCfg(TypedDict, total=False):
     host: bool
     only: list[str]
     skip: list[str]
-    dev_attached: list[AttachedDevCfg]
 
 
 class VariantCfg(TypedDict, total=False):
@@ -223,6 +222,7 @@ class Board(TypedDict):
     tests: TestsCfg
     probe: NotRequired[str]  # the board's debug probe serial, its key in agentrc's board registry
     flasher: NotRequired[FlasherCfg]  # an unregistered board's own; a probe's is agentrc's (hil_util.hil_boards)
+    dev_attached: NotRequired[list[AttachedDevCfg]]  # wired to its USB host port: agentrc's, by probe, like flasher
     # every build knob lives here, including a board's always-on defines: a board that
     # needs one carries a single variant named after itself (metro_m4_express /
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
@@ -572,9 +572,15 @@ def parse_dev_info_records(text: str) -> list[tuple[str, str]]:
     return records
 
 
+def declared_devs(board) -> list:
+    """The board's attached devices as the host examples print them: VID_PID_SERIAL, "0" for no serial."""
+    assert board.get('dev_attached'), "no dev_attached for this board (agentrc's board registry, by its probe)"
+    return [f'{d["vid_pid"].replace(":", "_")}_{d.get("serial", "0")}' for d in board['dev_attached']]
+
+
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+    declared = declared_devs(board)
     port = hil_util.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
     ser.timeout = 0.1
@@ -587,7 +593,7 @@ def test_dual_host_info_to_device_cdc(board):
         if new_data:
             data += new_data
         records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
-        if set(declared_devs).issubset({dev for _, dev in records}):
+        if set(declared).issubset({dev for _, dev in records}):
             break
         time.sleep(0.1)
         timeout -= 0.1
@@ -601,8 +607,8 @@ def test_dual_host_info_to_device_cdc(board):
         print(f'\r\n  {l} ', end='')
         enum_dev_sn.append(dev)
 
-    if set(declared_devs) != set(enum_dev_sn):
-        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+    if set(declared) != set(enum_dev_sn):
+        failed_msg = f'Expected {declared}, Enumerated {enum_dev_sn}'
         print('\n'.join(data.decode('utf-8', errors='ignore').splitlines()))
         assert False, failed_msg
     return 0
@@ -612,7 +618,7 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+    declared = declared_devs(board)
 
     ser = open_console_reset(board)
     try:
@@ -631,7 +637,7 @@ def test_host_device_info(board):
                 vid_pid_sn = DEV_INFO_RE.search(l)
                 if vid_pid_sn:
                     enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-            if set(declared_devs).issubset(set(enum_dev_sn)):
+            if set(declared).issubset(set(enum_dev_sn)):
                 break
             time.sleep(0.1)
             timeout -= 0.1
@@ -656,8 +662,8 @@ def test_host_device_info(board):
             print(f'\r\n  {l} ', end='')
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
 
-    if set(declared_devs) != set(enum_dev_sn):
-        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+    if set(declared) != set(enum_dev_sn):
+        failed_msg = f'Expected {declared}, Enumerated {enum_dev_sn}'
         print('\n'.join(lines))
         assert False, failed_msg
     return 0
@@ -690,7 +696,7 @@ def check_msc_info(lines, msc_devs):
 
 
 def test_host_cdc_msc_hid(board):
-    dev_attached = board['tests'].get('dev_attached', [])
+    dev_attached = board.get('dev_attached', [])
     cdc_devs = [d for d in dev_attached if d.get('is_cdc')]
     msc_devs = [d for d in dev_attached if d.get('is_msc')]
     if not cdc_devs and not msc_devs:
@@ -720,11 +726,11 @@ def test_host_cdc_msc_hid(board):
             timeout -= 0.1
 
         vid_pid_name = {
-            '0403_6001': 'FTDI', '0403_6010': 'FTDI', '0403_6011': 'FTDI', '0403_6014': 'FTDI',
-            '10c4_ea60': 'CP210x', '10c4_ea70': 'CP210x',
-            '067b_2303': 'PL2303', '067b_23a3': 'PL2303',
-            '1a86_7523': 'CH340', '1a86_7522': 'CH340',
-            '1a86_55d3': 'CH9102', '1a86_55d4': 'CH9102',
+            '0403:6001': 'FTDI', '0403:6010': 'FTDI', '0403:6011': 'FTDI', '0403:6014': 'FTDI',
+            '10c4:ea60': 'CP210x', '10c4:ea70': 'CP210x',
+            '067b:2303': 'PL2303', '067b:23a3': 'PL2303',
+            '1a86:7523': 'CH340', '1a86:7522': 'CH340',
+            '1a86:55d3': 'CH9102', '1a86:55d4': 'CH9102',
         }
 
         lines = data.decode('utf-8', errors='ignore').splitlines()
@@ -778,7 +784,7 @@ def test_host_cdc_msc_hid(board):
 
 
 def test_host_msc_file_explorer(board):
-    msc_devs = [d for d in board['tests'].get('dev_attached', []) if d.get('is_msc')]
+    msc_devs = [d for d in board.get('dev_attached', []) if d.get('is_msc')]
     if not msc_devs:
         return 'skipped'
 
@@ -1920,7 +1926,7 @@ def _tests_for(board: Board) -> tuple:
     Three sources, most specific first: an explicit -bt list for this board, a global -t
     list filtered against what the board can actually do, or the roster's own capability
     flags. The -t filter is not cosmetic -- without it a device-only board runs host/dual
-    tests whose `dev_attached` roster entry does not exist.
+    tests when the board has no attached-device inventory in agentrc's board registry.
     """
     name = board['name']
     if name in board_test:
@@ -1951,46 +1957,27 @@ def _tests_for(board: Board) -> tuple:
 
 def cleanup_pending(name: str) -> str:
     """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running, or an esptool child not proven ended (hil_flash.cleanup_pending), whose board lock
-    passes to a cleanup holder."""
+    running, or an esptool child not proven ended (hil_flash.cleanup_pending), logged when the
+    board's task ends and releases its lock."""
     receipts = hil_flash.cleanup_pending.get(name)
     return '' if receipts is None else \
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
-def retain_board_lock(name: str, lock: str, fh, pending: str) -> str:
-    """Hand the board's lock to a cleanup holder instead of releasing it, and say where it went.
-
-    hil_lock.hand_to_cleanup_holder passes the flock, taken protected with this board as its
-    group, to a fresh holder and returns the token `hil_lock.py release --token` ends it with
-    after the contract's recovery. A hand-over it refuses, changing nothing, is protected here;
-    one that fails leaves its protected record. Either way the handle is closed uncleared: the
-    record on the free flock is the recovery blocker, and the board is never released."""
-    # the holder's release waits for a tracked esptool child's recheck to answer `done`, and for a
-    # retained openocd_esp session's receipt to read ended; a native record never does
+def end_failed_cleanup(name: str, lock: str, fh, pending: str) -> str:
+    """Log the unproven cleanup and end this task's lock, naming the log and any write error."""
     receipts = hil_flash.cleanup_pending.get(name, ())
     tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
     retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
-    try:
-        token = hil_lock.hand_to_cleanup_holder({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
-                                                retained=retained)
-    except ValueError as e:
-        why = str(e)
-        try:
-            hil_lock.write_record(fh, hil_lock.CI_REASON, protected=True, detail=pending, receipts=tracked,
-                                  retained=retained, locks=[lock])
-        except OSError as e2:
-            why += f' (record not rewritten: {e2})'
-    except hil_lock.LockUnavailable as e:
-        why = str(e)
-    else:
-        rec = hil_lock.read_record(lock)
-        pid = rec.get('pid') if isinstance(rec, dict) and rec.get('token') == token else None
-        return (f'{pending}; lock held by cleanup holder{f" pid {pid}" if pid else ""} until '
-                f'`hil_lock.py release --token {token}` after recovery')
-    finally:
-        fh.close()
-    return f'{pending}; {why}; the protected record is the recovery blocker'
+    if not receipts:
+        tracked = [{'unrecheckable': pending}]
+    errors = hil_lock.end_failed({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
+                                 retained=retained)
+    log = Path(hil_lock.BOARD_LOCK_DIR) / f'{lock}{hil_lock.CLEANUP_LOG}'
+    detail = f'{pending}; board lock released; cleanup failure log: {log}'
+    if errors.get(lock):
+        detail += '; ' + '; '.join(errors[lock])
+    return detail
 
 
 def test_board(board: Board) -> tuple:
@@ -2003,9 +1990,7 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     try:
-        # protected, its group (this board alone) declared at acquisition: a run killed with an
-        # openocd_esp session outstanding leaves a recovery blocker, and one that ends with it
-        # pending hands the lock to a cleanup holder (retain_board_lock)
+        # cleanupOwed records a killed openocd_esp task for the next taker to log.
         protected = flasher['name'].lower() == 'openocd_esp'
         _lock_fh = hil_lock.acquire_board_lock(lock, protected=protected)
     except hil_lock.LockUnavailable as e:
@@ -2015,13 +2000,21 @@ def test_board(board: Board) -> tuple:
         return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
     except RuntimeError as e:
         log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        if isinstance(e, hil_lock.RecoveryBlocked):   # the helper's: a cleanup holder or a takeover journal
+        if isinstance(e, hil_lock.RecoveryBlocked):   # a live cleanup holder from an older helper
             cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
             return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
         # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
         # re-run repeats the whole board (no bogus -bt filter)
         return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
     try:
+        failures = _lock_fh.cleanup_failures if _lock_fh else []
+        previous_cleanup = ''
+        if found := hil_lock.failure_report(failures):
+            previous_cleanup = hil_lock.failure_text(found['previousCleanupFailure'])
+            if found.get('openCleanupFailures', 1) > 1:
+                previous_cleanup += f' (+{found["openCleanupFailures"] - 1} more open)'
+            log_line(f'{name:25} {len(failures)} open cleanup failure(s): ' +
+                     '; '.join(hil_lock.failure_text(f) for f in failures))
         test_list, skipped = _tests_for(board)
         for skip in skipped:
             log_line(f'{name:25} {skip:30} ... Skip')
@@ -2126,6 +2119,7 @@ def test_board(board: Board) -> tuple:
             dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
             rows.append((vname, cells, dur))
 
+        restored = False
         sv_capture = None   # (capture, error, flashed)
         try:
             if sysview_out and 'sysview' in board and \
@@ -2142,6 +2136,7 @@ def test_board(board: Board) -> tuple:
             park_error = None
             if _should_park(skip_flash):
                 park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
+                restored = park_ec == 0 and park_status == 'pass'
                 park_error = ('park flash failed' if park_ec else
                               'no park (device/board_test) firmware' if park_status == 'skip' else None)
             elif sv_capture and sv_capture[2]:
@@ -2160,24 +2155,36 @@ def test_board(board: Board) -> tuple:
         pending = cleanup_pending(name)
         if pending:
             log_line(f'{name:25} BLOCKER: {pending}')
-            fh, _lock_fh = _lock_fh, None     # handed over even if the hand-over raises
-            detail = retain_board_lock(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
+            fh, _lock_fh = _lock_fh, None     # end_failed releases even when interrupted
+            detail = end_failed_cleanup(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
             log_line(f'{name:25} {detail}')
             rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
             err_count += 1
             board_wide_fail = True
+        elif restored and failures:
+            try:
+                notes = hil_lock.resolve_restored(lock, failures, evidence='device/board_test park succeeded')
+            except Exception as e:
+                previous_cleanup += f'; restorations not logged: {e}'
+            else:
+                if notes:
+                    previous_cleanup += f'; {len(notes)} still open'
+                    log_line(f'{name:25} ' + '; '.join(notes))
+        if previous_cleanup and rows:
+            rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
 
         return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
                 rows, board_pci)
     finally:
         unwinding = sys.exc_info()[1]
         if _lock_fh and (pending := cleanup_pending(name)):
-            # raised past the hand-over above: the lock still never frees on its own
-            log_line(f'{name:25} {retain_board_lock(name, lock, _lock_fh, pending)}')
+            log_line(f'{name:25} {end_failed_cleanup(name, lock, _lock_fh, pending)}')
         elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
             # an interrupt may land after the provider returned a pending session but before
-            # hil_flash stored its receipt: keep the protected record as the recovery blocker
-            _lock_fh.close()
+            # hil_flash stored its receipt: log the missing evidence rather than claim cleanup.
+            detail = end_failed_cleanup(name, lock, _lock_fh,
+                                        'openocd_esp interrupted; cleanup unproven, receipt missing')
+            log_line(f'{name:25} {detail}')
         elif _lock_fh:
             # clear our pid record before dropping the flock: this worker process
             # lives on (pool reuse), so a stale record would make hil_lock's
@@ -2532,6 +2539,9 @@ def main() -> None:
                         selected.append(e)
             else:
                 if _selected(resolved['flasher']['name']):
+                    if 'dev_attached' in resolved.get('tests', {}):
+                        resolve_errors.append(f'{resolved["name"]}: tests.dev_attached is now the entry\'s top-level '
+                                              f'dev_attached, agentrc\'s board registry\'s for a registered board')
                     selected.append(resolved)
         config_boards = selected
     except (ImportError, ValueError) as e:
