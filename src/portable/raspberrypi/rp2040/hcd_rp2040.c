@@ -800,6 +800,11 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
         xfer_complete_isr(epx, XFER_RESULT_FAILED, true);
       }
     } else if (epx == status_epx && epx_is_aborting(epx)) {
+  #ifdef HAS_STOP_EPX_ON_NAK
+      // epx_abort_finish() clears a NAK stop latched with the error, and can restart this endpoint with the transfer
+      // queued behind the abort: the NAK branch below must not save that one
+      status &= ~(uint32_t)USB_INTS_EPX_STOPPED_ON_NAK_BITS;
+  #endif
       epx_abort_finish(); // the transaction under way has ended, its packet discarded
     }
   }
