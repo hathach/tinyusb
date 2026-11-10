@@ -93,7 +93,8 @@ Data path
    * - ``tud_audio_write()``
      - Copies microphone bytes into the IN software FIFO and returns the number
        written.  When the FIFO is full the oldest unsent bytes are overwritten,
-       so pace writes to the stream.
+       so pace writes to the stream.  An overwrite can tear bytes the endpoint
+       is copying out at that moment (partly old, partly new data).
    * - ``tud_audio_clear_ep_*_ff()``
      - Discards queued samples in the selected endpoint FIFO, useful when a
        streaming alternate setting closes.
