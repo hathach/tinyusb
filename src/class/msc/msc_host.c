@@ -418,6 +418,7 @@ static void config_abort(uint8_t daddr) {
 
 uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
+  TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, 0); // per-device arrays have no slot for hub addresses
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
 
   // msc driver length is fixed: bulk-in and bulk-out endpoints
