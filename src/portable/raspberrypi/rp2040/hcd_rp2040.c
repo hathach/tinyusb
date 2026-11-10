@@ -526,16 +526,17 @@ static bool __tusb_irq_path_func(bus_idle_for)(uint32_t us) {
 
 // RP2040: the buffer completion that leads to a yield can be taken while the SIE still sends the packet's ACK, and
 // STOP_TRANS on that handshake makes the device miss it and repeat the packet (a DATA_SEQ error the host recovers
-// from, see #3964). So the yield stops EPX only once the bus has been idle for a turnaround, waiting at most one
-// post-SOF slot; nothing is armed, so nothing new starts meanwhile.
-static bool __tusb_irq_path_func(epx_yield_bus_settled)(void) {
+// from, see #3964). So the yield stops EPX once the bus has been idle for a turnaround, or after one post-SOF slot at
+// most: that bound is the guard. A yield is on a bulk transfer, so at full speed, where the host's ACK follows the data
+// packet within 7.5 bit times and lasts about 1.6 us (USB 2.0 7.1.18.1, 8.4.5); a bus still busy at the end of the wait
+// carries something else, such as a SOF. Nothing is armed, so the SIE sends no token of this transfer meanwhile.
+static void __tusb_irq_path_func(epx_yield_wait_bus_settled)(void) {
   const uint32_t t0 = time_us_32();
   do {
     if (bus_idle_for(LINE_IDLE_US)) {
-      return true;
+      return;
     }
   } while (time_us_32() - t0 <= EPX_POST_SOF_SLOT_US);
-  return false;
 }
   #endif
 
@@ -558,9 +559,7 @@ static void __tusb_irq_path_func(epx_yield)(uint8_t buf_id) {
     return;
   }
   #ifndef HAS_STOP_EPX_ON_NAK
-  if (!epx_yield_bus_settled()) {
-    return; // nothing is armed: the SOF round-robin switches the poll in, with its own bus check
-  }
+  epx_yield_wait_bus_settled(); // then stop in any case: left unarmed, this transfer would hang once the poll is gone
   #endif
   sie_stop_xfer();
   epx_save_context(epx); // no buffer is armed: nothing to give back
