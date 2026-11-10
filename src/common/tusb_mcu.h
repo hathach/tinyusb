@@ -697,6 +697,7 @@
   // falls back to USB2 at runtime when the SuperSpeed link does not train.
   #define TUP_USBIP_WCH_USB30
   #define TUP_USBIP_WCH_USBHS_CH56X
+  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUD_WCH_USBIP_USBHS
     #define CFG_TUD_WCH_USBIP_USBHS 0
@@ -733,6 +734,7 @@
   // runtime when the SuperSpeed link does not train.
   #define TUP_USBIP_WCH_USB30_H417
   #define TUP_USBIP_WCH_USBHS_H417
+  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUD_WCH_USBIP_USBHS
     #define CFG_TUD_WCH_USBIP_USBHS 0
