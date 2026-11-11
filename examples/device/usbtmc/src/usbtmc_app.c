@@ -113,9 +113,18 @@ bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
   return true;
 }
 
+// Forget a reply in progress: the host aborted or cleared it, or sent a new command instead of reading the rest
+static void reply_reset(void)
+{
+  queryState = 0;
+  bulkInStarted = 0;
+  buffer_tx_ix = 0;
+}
+
 bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
   (void)msgHeader;
+  reply_reset();
   buffer_len = 0;
   if(msgHeader->TransferSize > sizeof(buffer))
   {
@@ -185,7 +194,7 @@ bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * reque
 #ifdef xDEBUG
   uart_tx_str_sync("MSG_IN_DATA: Requested!\r\n");
 #endif
-  if(queryState == 0 || (buffer_tx_ix == 0))
+  if(queryState == 0 || (buffer_tx_ix == 0) || (buffer_tx_ix >= buffer_len))
   {
     TU_ASSERT(bulkInStarted == 0);
     bulkInStarted = 1;
@@ -268,7 +277,7 @@ bool tud_usbtmc_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp)
 }
 bool tud_usbtmc_initiate_abort_bulk_in_cb(uint8_t *tmcResult)
 {
-  bulkInStarted = 0;
+  reply_reset();
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 }
@@ -294,6 +303,8 @@ bool tud_usbtmc_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 
 void tud_usbtmc_bulkIn_clearFeature_cb(void)
 {
+  // The driver dropped the reply in flight and re-arms Bulk-OUT itself
+  reply_reset();
 }
 void tud_usbtmc_bulkOut_clearFeature_cb(void)
 {
