@@ -27,6 +27,7 @@ sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
+import wch_uart_flash  # noqa: E402
 from helper import agentrc, hil_util  # noqa: E402
 from test_change_impact import flasher_names, roster_flashers  # noqa: E402
 
@@ -307,6 +308,97 @@ class WchFlashers(unittest.TestCase):
                 for flasher, ext in (('wch_uart_loader', '.bin'), ('openocd', '.elf')):
                     fw = hil_flash.find_firmware('synth', 'device/cdc_msc', flasher=flasher)
                     self.assertEqual(ext, fw.suffix, flasher)
+
+
+class FakeWchLoader:
+    """CH32H417 on the WCH-LinkE VCP, on a fake fd and clock: deaf until `listen_at` (s), then a
+    running image whose hook enters the loader on the magic; the loader ignores every byte but 'H'
+    and answers the session as hw/bsp/ch32h417/family.c's uart_flash_loader does."""
+
+    def __init__(self, listen_at=0.0):
+        self.now = 0.0
+        self.listen_at = listen_at
+        self.in_loader = False
+        self.rx = bytearray()    # host -> device, not yet consumed
+        self.tx = bytearray()    # device -> host
+        self.sent = bytearray()  # everything the host wrote
+        self.entries = 0         # loader entries (resets the magic caused)
+        self.length = self.done = 0
+
+    def monotonic(self):
+        return self.now
+
+    def write(self, _fd, data):
+        data = bytes(data)
+        self.sent += data
+        if self.now >= self.listen_at:  # before: previous loader draining / image booting
+            self.rx += data
+            self._step()
+        return len(data)
+
+    def read(self, _fd, n):
+        if not self.tx:
+            self.now += 0.1  # VTIME=1 read timeout
+            return b''
+        out, self.tx = bytes(self.tx[:n]), self.tx[n:]
+        return out
+
+    def _step(self):
+        magic = wch_uart_flash.MAGIC
+        chunk = wch_uart_flash.CHUNK
+        while True:
+            if not self.in_loader:
+                i = self.rx.find(magic)
+                if i < 0:
+                    return
+                del self.rx[:i + len(magic)]
+                self.entries += 1
+                self.in_loader = True
+                self.tx += b'L'
+            elif self.rx.startswith(magic):
+                del self.rx[:len(magic)]
+            elif self.rx[:1] == b'H' and len(self.rx) >= 9:
+                self.length = int.from_bytes(self.rx[1:5], 'little')
+                del self.rx[:9]
+                self.tx += b'A'
+            elif self.rx[:1] == b'C' and len(self.rx) >= 3 + chunk:
+                del self.rx[:3 + chunk]
+                self.done += chunk
+                self.tx += b'KD' if self.done == self.length else b'K'
+            else:
+                return
+
+
+class WchUartFlashMagicResend(unittest.TestCase):
+    """A back-to-back flash's first magic can land while the previous loader drains its 'D' and
+    resets; the magic is resent until the banner shows, within the same 8 s wait."""
+
+    @staticmethod
+    def flash(board):
+        with mock.patch.object(wch_uart_flash.time, 'monotonic', board.monotonic), \
+             mock.patch.object(wch_uart_flash.os, 'read', board.read), \
+             mock.patch.object(wch_uart_flash.os, 'write', board.write), \
+             mock.patch.object(wch_uart_flash.termios, 'tcflush', lambda *_: None), \
+             mock.patch('sys.stderr', io.StringIO()):
+            return wch_uart_flash.flash(-1, b'\x01' * 100)
+
+    def test_first_magic_lost_then_resent(self):
+        board = FakeWchLoader(listen_at=0.3)
+        self.assertTrue(self.flash(board))
+        self.assertGreaterEqual(board.sent.count(wch_uart_flash.MAGIC), 2)
+        self.assertEqual(1, board.entries)
+
+    def test_no_resend_after_banner(self):
+        board = FakeWchLoader()
+        self.assertTrue(self.flash(board))
+        self.assertTrue(board.sent.startswith(wch_uart_flash.MAGIC + b'H'))
+        self.assertEqual(1, board.sent.count(wch_uart_flash.MAGIC))
+
+    def test_dead_board_gives_up_at_deadline(self):
+        board = FakeWchLoader(listen_at=float('inf'))
+        self.assertFalse(self.flash(board))
+        self.assertLess(board.now, 8.5)
+        self.assertLessEqual(board.sent.count(wch_uart_flash.MAGIC), 8.0 / wch_uart_flash.MAGIC_RESEND + 1)
 
 
 _RIG_TREE = tempfile.TemporaryDirectory()

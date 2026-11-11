@@ -20,6 +20,7 @@ import termios
 import time
 
 MAGIC = b"\x55\xaaFL"
+MAGIC_RESEND = 0.5  # s
 CHUNK = 1024
 
 
@@ -71,16 +72,19 @@ def flash(fd: int, image: bytes) -> bool:
     padded = image + b"\xff" * (-len(image) % CHUNK)
     crc = binascii.crc32(padded) & 0xFFFFFFFF
 
-    # Ask running firmware to reboot into the loader (harmless if already there)
-    write_all(fd, MAGIC)
-    time.sleep(0.2)
-
-    # Sync on the loader banner (device resets + boots: allow a few seconds). The dying
-    # firmware may emit arbitrary debug-UART bytes during the transition: ignore everything
-    # that is not the banner rather than failing fast.
+    # Ask running firmware to reboot into the loader, then sync on its banner (device resets +
+    # boots: allow a few seconds). The magic is resent until the banner shows: right after a
+    # previous flash, the old loader is still draining its 'D' before resetting, so the first
+    # magic can land with nothing listening. Harmless if already there: the loader ignores every
+    # byte but 'H'. The dying firmware may emit arbitrary debug-UART bytes during the transition:
+    # ignore everything that is not the banner rather than failing fast.
     deadline = time.monotonic() + 8.0
+    next_magic = 0.0
     seen = False
-    while time.monotonic() < deadline:
+    while (now := time.monotonic()) < deadline:
+        if now >= next_magic:
+            write_all(fd, MAGIC)
+            next_magic = now + MAGIC_RESEND
         b = os.read(fd, 1)
         if b == b"L":
             seen = True
