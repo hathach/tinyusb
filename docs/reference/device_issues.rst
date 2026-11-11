@@ -240,9 +240,12 @@ start before SOF, so those transfers are stopped after checking that the bus is 
 ``NAK_POLL`` delay. An OUT cut that way is sent again with the same DATA PID, which the device drops
 as a repeat; a low-speed IN can still lose a packet. A bulk transfer that gives way to a due
 interrupt poll is stopped only with both buffers unarmed and the bus idle (waiting at most 10 us),
-so its ``STOP_TRANS`` cannot meet the host's ACK of its last packet either. A higher-priority
-interrupt that delays the USB interrupt between a NAK and ``STOP_TRANS`` by more than 8 us can also
-lose a packet: TinyUSB restarts the transfer on the DATA_SEQ error, but that packet's data is gone.
+so its ``STOP_TRANS`` cannot meet the host's ACK of its last packet either. Each look for the NAK,
+or the bus check, and the ``STOP_TRANS`` after it run with interrupts masked (under a microsecond,
+or 3 us for the bus check), and a NAK seen after a higher-priority interrupt held the wait is not
+trusted: the next one is waited for. An aborted OUT whose retry a stop meets and the device ACKs
+(``SIE_STATUS.ACK_REC`` with no buffer status) keeps that packet's DATA PID, so the first packet of
+the transfer queued behind the abort is not dropped as a repeat.
 
 On a Raspberry Pi Pico host with a hub, a flash drive and a CDC device replugged every 1.5 s, a stop
 after a bus-idle check (with a 300 us ``NAK_POLL`` delay) lost 2 packets in 12 boots; the stop after

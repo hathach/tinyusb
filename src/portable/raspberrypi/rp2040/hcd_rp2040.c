@@ -52,6 +52,8 @@ static bool hcd_running = false;
 static volatile bool epx_switch_request = false;
 // The round-robin stopped EPX with a transaction still on the wire: it saves and switches at the next SOF
 static bool epx_stop_deferred = false;
+// The ISR took a buffer completion since that stop: the ACK it met is that buffer's (epx_abort_keep_acked_out())
+static bool epx_stop_completed = false;
 // Length armed for the interrupt IN poll on EPX, given back when the poll gets no data (epx_poll_nak())
 static uint16_t epx_poll_len = 0;
 // The interrupt IN poll on EPX timed out: the RX timeout handler clears RX_TIMEOUT before epx_poll_nak() sees the poll's
@@ -576,7 +578,8 @@ enum {
   EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
   LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
   EPX_STOP_SETTLE_US   = 2,  // after STOP_TRANS: a token sent meanwhile is on the wire by then
-  EPX_NAK_WAIT_US      = 15  // the round-robin's wait for a NAK of the full-speed IN it stops (epx_stop_on_nak())
+  EPX_NAK_WAIT_US      = 15, // the round-robin's wait for a NAK of the full-speed IN it stops (epx_stop_on_nak())
+  EPX_NAK_FRESH_US     = 2   // a NAK seen this soon after the last look leaves the next retry >= 5 us away
 };
 
 // Whether the bus stays idle (J) for at least us microseconds
@@ -699,6 +702,9 @@ static void __tusb_irq_path_func(handle_buf_status_isr)(void) {
     epx_rx_timeouts          = 0;
 
   #ifndef HAS_STOP_EPX_ON_NAK
+    if (epx_stop_deferred) {
+      epx_stop_completed = true; // the transaction the stop met wrote its status: its buffer keeps its toggle
+    }
     if (epx_poll_nak(buf_id)) {
       continue;
     }
@@ -751,41 +757,74 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_completion_latched(void) {
 
 // Whether the round-robin can stop EPX now. The SIE sends a retry that came due in the end-of-frame guard window right
 // after SOF, where this ISR runs; STOP_TRANS on it while the device returns data makes the host ACK the packet without
-// writing its buffer status (#3964). So wait out that slot, then sample the bus: idle (J) throughout means no
-// transaction is under way. The retry can also complete within the wait (a zero-length packet takes a few us); the ISR
-// takes its status next. Busy-waits only on frames the round-robin switches.
-static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
-  busy_wait_us_32(EPX_POST_SOF_SLOT_US);
+// writing its buffer status (#3964). So wait out that slot (busy_wait_us_32(EPX_POST_SOF_SLOT_US) first), then sample
+// the bus: idle (J) throughout means no transaction is under way. The retry can also complete within the wait (a
+// zero-length packet takes a few us); the ISR takes its status next. Busy-waits only on frames the round-robin switches.
+static bool __tusb_irq_path_func(epx_bus_idle_after_sof)(void) {
   return bus_idle_for(LINE_IDLE_US) && !epx_completion_latched();
+}
+
+// Stop the full-speed IN on EPX right after one of its NAKs, while the SIE waits NAK_POLL's delay
+// (EPX_NAK_RETRY_FAST_US) before the next retry. Each look at NAK_REC, and the STOP_TRANS after it, runs with interrupts
+// masked. A NAK seen after an interrupt held this loop for longer than EPX_NAK_FRESH_US may be old, its next retry
+// already under way: it waits for the next one. Waits at most EPX_NAK_WAIT_US; false when a packet came or no fresh NAK.
+static bool __tusb_irq_path_func(epx_stop_after_nak)(void) {
+  usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
+  const uint32_t t0        = time_us_32();
+  uint32_t       last      = t0;
+  for (;;) {
+    const uint32_t irq_state = save_and_disable_interrupts();
+    const uint32_t now       = time_us_32();
+    if (usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) {
+      if (now - last <= EPX_NAK_FRESH_US) {
+        sie_stop_xfer();
+        restore_interrupts(irq_state);
+        return true;
+      }
+      usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
+    }
+    restore_interrupts(irq_state);
+    if (epx_completion_latched() || now - t0 > EPX_NAK_WAIT_US) {
+      return false;
+    }
+    last = now;
+  }
 }
 
 // Stop the transfer NAK-retrying on EPX, for the round-robin. A retry can start right after any check of the bus, and
 // STOP_TRANS on an IN retry makes the host ACK the device's packet without writing its buffer status (#3964): the packet
-// is lost and the device's next one is a DATA_SEQ error. So a full-speed IN is stopped right after one of its NAKs, when
-// the SIE waits NAK_POLL's delay (EPX_NAK_RETRY_FAST_US) before the next retry. Waits at most EPX_NAK_WAIT_US, one
-// retry period; without a NAK by then (a packet came) the next SOF tries again. Other transfers stop after a bus check
-// (epx_stops_after_nak()), an interrupt IN poll among them, whose NAK_REC epx_poll_nak() reads. Returns whether
-// STOP_TRANS was issued.
+// is lost and the device's next one is a DATA_SEQ error. So a full-speed IN is stopped right after one of its NAKs
+// (epx_stop_after_nak()); without a fresh NAK within EPX_NAK_WAIT_US (a packet came) the next SOF tries again. Other
+// transfers stop after a bus check (epx_stops_after_nak()), an interrupt IN poll among them, whose NAK_REC
+// epx_poll_nak() reads: the check and STOP_TRANS run with interrupts masked (LINE_IDLE_US), so no interrupt taken in
+// between lets a retry start first. ACK_REC is cleared first, so that only a transaction this stop meets can set it.
+// Returns whether STOP_TRANS was issued.
 static bool __tusb_irq_path_func(epx_stop_on_nak)(void) {
-  if (!epx_stops_after_nak(epx)) {
-    if (!epx_can_stop_after_sof()) {
-      return false;
-    }
-    sie_stop_xfer();
-    return true;
+  usb_hw_clear->sie_status = USB_SIE_STATUS_ACK_REC_BITS;
+  epx_stop_completed       = false;
+  if (epx_stops_after_nak(epx)) {
+    return epx_stop_after_nak();
   }
-  usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
-  const uint32_t t0        = time_us_32();
-  do {
-    if (usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) {
-      sie_stop_xfer();
-      return true;
-    }
-    if (epx_completion_latched()) {
-      return false;
-    }
-  } while (time_us_32() - t0 <= EPX_NAK_WAIT_US);
-  return false;
+  busy_wait_us_32(EPX_POST_SOF_SLOT_US); // see epx_bus_idle_after_sof()
+  const uint32_t irq_state = save_and_disable_interrupts();
+  const bool     stop      = epx_bus_idle_after_sof();
+  if (stop) {
+    sie_stop_xfer();
+  }
+  restore_interrupts(irq_state);
+  return stop;
+}
+
+// Before epx_abort_finish() after a round-robin stop of an aborted OUT. A packet the device ACKed at that stop gets no
+// buffer status, and the undo would give its PID back: the transfer queued behind the abort would then start with that
+// PID and the device drop its first packet as a repeat. It went through: keep its toggle. ACK_REC set since the stop
+// marks it, unless that ACK came with a completion, latched or taken (epx_stop_completed), whose buffer keeps its own
+// toggle.
+static void __tusb_irq_path_func(epx_abort_keep_acked_out)(void) {
+  if (tu_edpt_dir(epx->ep_addr) == TUSB_DIR_OUT && !epx_stop_completed && !epx_completion_latched() &&
+      (usb_hw->sie_status & USB_SIE_STATUS_ACK_REC_BITS)) {
+    epx->next_pid ^= 1u;
+  }
 }
 
 // RP2040: on SOF, switch EPX if another endpoint is pending.
@@ -800,18 +839,13 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
   if (epx_is_aborting(epx)) {
     // an aborted transfer still on EPX (NAK-retrying): stop it the way a switch stops, then finish the abort
     if (epx_stop_deferred) {
+      // the stop of an earlier SOF met a transaction (this abort's, or the round-robin's before the abort began)
       if (!epx_completion_latched()) {
-        // the transaction seen at last SOF's stop has ended. An OUT packet the device ACKed there got no buffer
-        // status, and the undo would give its PID back: the transfer queued behind the abort would then start with
-        // that PID and the device drop its first packet as a repeat. It went through: keep its toggle.
-        if (tu_edpt_dir(epx->ep_addr) == TUSB_DIR_OUT && (usb_hw->sie_status & USB_SIE_STATUS_ACK_REC_BITS)) {
-          epx->next_pid ^= 1u;
-        }
+        epx_abort_keep_acked_out(); // that transaction has ended
         epx_abort_finish();
       }
       return true;
     }
-    usb_hw_clear->sie_status = USB_SIE_STATUS_ACK_REC_BITS; // only a transaction this stop meets can set it now
     if (!epx_stop_on_nak()) {
       return true;
     }
@@ -819,6 +853,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
       epx_stop_deferred = true;
       return true;
     }
+    epx_abort_keep_acked_out();
     epx_abort_finish();
     return true;
   }
@@ -849,7 +884,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
         return true;
       }
       epx_switch_request = false;
-      // A retry can still start before STOP_TRANS, when an IRQ preempts this one between the NAK and STOP_TRANS: the
+      // A retry can still start right before STOP_TRANS (after the bus check of a transfer stopped without a NAK): the
       // SIE then finishes it and writes its status into the buffer control, which must not be the next transfer's by
       // then. With the SIE stopped and settled the check is conclusive: keep this transfer, the ISR takes its status,
       // the next SOF switches.
