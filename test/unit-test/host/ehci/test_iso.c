@@ -628,9 +628,14 @@ static void test_close_frees_qtd(void) {
     regs.command_bm.async_adv_doorbell = 0;
     hcd_device_close(0, 1);
     assert(regs.command_bm.async_adv_doorbell);
-    assert(!intr_qtd->used && bulk_qtd->used); // async qTD waits for the async advance
+    assert(intr_qtd->used && bulk_qtd->used); // async waits for the async advance, periodic for a frame
     async_advance_isr(0);
-    assert(!bulk_qtd->used);
+    assert(intr_qtd->used && !bulk_qtd->used);
+    // Allocation reclaims the periodic qTD only once FRINDEX is past a whole frame.
+    regs.frame_index += 8;
+    assert(qtd_find_free() != NULL && intr_qtd->used);
+    regs.frame_index += 1;
+    assert(qtd_find_free() != NULL && !intr_qtd->used);
   }
 
   // Endpoint close of a bulk endpoint rings the doorbell to free its QH and qTD.
@@ -643,17 +648,18 @@ static void test_close_frees_qtd(void) {
   async_advance_isr(0);
   assert(!qhd->used && !qtd->used);
 
-  // A removed periodic QH outlives the async advance; it and its qTD are freed
-  // only once the controller is past a frame (here: halted).
+  // A closed interrupt endpoint outlives the async advance, and stays reserved
+  // while FRINDEX does not advance on a running controller; halted, it is freed.
   assert(hcd_edpt_open(0, 1, &intr_desc) && hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
   qhd = edpt_find(1, 0x81).qhd;
   qtd = qhd->attached_qtd;
-  assert(list_remove_qhd_by_addr(list_get_period_head(0, qhd->interval_ms), 1, 0x81));
+  assert(hcd_edpt_close(0, 1, 0x81));
   assert(qhd->removing && edpt_find(1, 0x81).qhd == NULL);
   async_advance_isr(0);
+  assert(qhd_find_free() != NULL && qtd_find_free() != NULL);
   assert(qhd->used && qhd->removing && qtd->used);
   regs.status_bm.hc_halted = 1;
-  period_reclaim();
+  assert(qhd_find_free() != NULL);
   regs.status_bm.hc_halted = 0;
   assert(!qhd->used && !qhd->removing && !qtd->used);
   assert(events == 0);
