@@ -167,11 +167,16 @@ static inline void cbw_init(msc_cbw_t* cbw, uint8_t lun) {
 bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
                           tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_VERIFY(p_msc->configured && !p_msc->desync);
+  TU_VERIFY(p_msc->configured);
   TU_VERIFY(cbw->lun < p_msc->max_lun);
 
-  // claim endpoint
+  // checked under the claim: a recovery may have just failed, and usbh drops the claim once the CBW is sent, so a
+  // command may still be in its data or status stage
   TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
+  if (p_msc->stage != MSC_STAGE_IDLE || p_msc->desync) {
+    (void) usbh_edpt_release(daddr, p_msc->ep_out);
+    return false;
+  }
   msch_epbuf_t* epbuf = get_epbuf(daddr);
 
   epbuf->cbw = *cbw;

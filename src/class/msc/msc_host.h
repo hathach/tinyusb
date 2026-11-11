@@ -105,6 +105,9 @@ bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_r
 // return false, with no callback and the fence unchanged, if it cannot start. Once started, complete_cb reports the
 // result: on success the fence is lifted, on any failure (including a host controller whose hcd_edpt_clear_stall()
 // cannot reset the toggle) the interface stays fenced, even if it was not before. Not called on unplug.
+// Issue commands and tuh_msc_reset() for one interface from the task running tuh_task() (completion callbacks
+// included), or from another task that waits for each call's completion callback before the next one: admission is
+// checked under the Bulk-Out claim, which does not synchronize with completion processing.
 bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg);
 
 //------------- Application Callback -------------//

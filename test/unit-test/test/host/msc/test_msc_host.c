@@ -312,7 +312,7 @@ static void start_no_data_cb(tuh_msc_complete_cb_t complete_cb) {
 // usbh_edpt_xfer() takes a 16-bit length, so a data stage of 64 KiB or more must be split into
 // packet-aligned transfers rather than narrowed (98304 would otherwise become 32768).
 void test_msc_host_data_stage_over_64k(void) {
-  get_max_lun_one();
+  enumerate();
   start_data_in();
   TEST_ASSERT_EQUAL(2, xfer_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
@@ -336,7 +336,7 @@ void test_msc_host_data_stage_over_64k(void) {
 
 // A short transfer ends the data stage early: go straight to the CSW
 void test_msc_host_data_stage_short_ends_early(void) {
-  get_max_lun_one();
+  enumerate();
   start_data_in();
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
 
@@ -1053,6 +1053,38 @@ void test_msc_host_reset_preempts_reset_admission(void) {
   complete_recovery();
   TEST_ASSERT_EQUAL(1, reset_cb_count);
   TEST_ASSERT_TRUE(reset_success);
+  assert_unfenced();
+}
+
+static void preempt_failing_reset(void) {
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  complete_ctrl(XFER_RESULT_STALLED);
+}
+
+void test_msc_host_failed_reset_preempts_command_admission(void) {
+  enumerate();
+  reset_counters();
+
+  claim_preempt = preempt_failing_reset;
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(0, claimed_ep);
+  assert_reset_failed();
+}
+
+// usbh drops the Bulk-Out claim once the CBW is sent: a second command must still wait for the first to complete
+void test_msc_host_command_refused_while_another_runs(void) {
+  enumerate();
+  reset_counters();
+  start_data_in();
+  TEST_ASSERT_EQUAL(0, claimed_ep);
+
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(0, claimed_ep);
+  TEST_ASSERT_EQUAL(2, xfer_count);
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(1, complete_count);
   assert_unfenced();
 }
 
