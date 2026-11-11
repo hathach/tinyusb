@@ -269,6 +269,8 @@ void test_open_failed_does_not_leave_mtt(void) {
   uint8_t desc[2 * sizeof(desc_hub_itf)];
   memcpy(desc, &desc_hub_itf, sizeof(desc_hub_itf));
   memcpy(desc + sizeof(desc_hub_itf), &desc_hub_itf, sizeof(desc_hub_itf));
+  tusb_desc_interface_t *alt0 = (tusb_desc_interface_t *) desc;
+  alt0->bInterfaceProtocol    = HUB_PROTOCOL_HIGH_SPEED_STT; // USB 2.0 11.23.1: protocol 1 then 2
   tusb_desc_interface_t *alt1 = (tusb_desc_interface_t *) (desc + sizeof(desc_hub_itf));
   alt1->bAlternateSetting     = 1;
   alt1->bInterfaceProtocol    = HUB_PROTOCOL_HIGH_SPEED_MTT;
