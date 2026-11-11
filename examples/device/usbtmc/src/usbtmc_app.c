@@ -119,6 +119,7 @@ static void reply_reset(void)
   queryState = 0;
   bulkInStarted = 0;
   buffer_tx_ix = 0;
+  status &= (uint8_t)~(IEEE4882_STB_MAV); // no message available any more
 }
 
 bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader)
