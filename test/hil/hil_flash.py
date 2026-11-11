@@ -15,6 +15,7 @@ from __future__ import annotations
 import copy
 import functools
 import json
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -141,17 +142,33 @@ class ProbeCheckFailed(RuntimeError):
     """probe_busy could not rule out a user of the board's probe."""
 
 
+def other_stlink_session(cmd: str, uid: str) -> bool:
+    """Whether a probe user's command line is an STM32_Programmer_CLI selecting only ST-LINKs
+    other than `uid` by `sn=`, with no `-script` (whose file may name any probe) and no word
+    naming `uid`. The provider counts every running STM32_Programmer_CLI as a user of every
+    `stlink` probe, which refuses a board while the same run flashes a sibling's ST-LINK; the
+    rig has always flashed ST-LINK boards concurrently."""
+    argv, uid = shlex.split(cmd), uid.casefold()
+    if not argv or os.path.basename(argv[0]) != 'STM32_Programmer_CLI':
+        return False
+    words = [w.casefold() for w in argv[1:]]
+    return (any(w.startswith('sn=') for w in words) and '-script' not in words
+            and not any(uid in w for w in words))
+
+
 def probe_busy(board: dict) -> list:
     """The board_task busy check of every HIL entry point and the farm check: the provider's
     probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
     another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
     inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError,
     wch_uart_loader); any other exception propagates. Probe users only: a DUT-side process (a
-    stray testusb) is the run's recovery, never a refusal."""
+    stray testusb) is the run's recovery, never a refusal, and for an `stlink` entry neither is
+    another ST-LINK's STM32_Programmer_CLI session (other_stlink_session)."""
     provider, users = hil_util.provider(), {}
     try:
         for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
-            users.update((u['pid'], u) for u in provider.probe_users(f))
+            users.update((u['pid'], u) for u in provider.probe_users(f)
+                         if not (f['name'] == 'stlink' and other_stlink_session(u['cmd'], f.get('uid') or '')))
     except (provider.ProbeCheckInconclusive, ValueError) as e:
         raise ProbeCheckFailed(f'{type(e).__name__}: {e}') from e
     return sorted(users.values(), key=lambda u: u['pid'])
