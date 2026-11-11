@@ -513,11 +513,13 @@ bool hub_tt_multi(uint8_t hub_addr) {
 // Split ISO Slot Allocation
 //--------------------------------------------------------------------+
 
-// Best-effort ISO split windows for one MTT hub port. Callers reserve the
-// maximum packet size of every open endpoint in used, including idle endpoints.
-// OUT grows from slot 0; IN grows from the end, leaving two complete retries.
-// Requires 1..564 bytes for IN or 1..1023 for OUT. No bus-time admission,
-// interrupt reservations, frame-spanning splits, or single-TT hub accounting.
+// Best-effort ISO split windows on one transaction translator: every port of a
+// single-TT hub, or one port of a multi-TT hub. Slot s is the microframe Y(s)
+// a 188-byte piece is budgeted in, its start-split going out in Y(s-1) as in an
+// EHCI H-frame. `used` holds the slots of every open endpoint on the TT, idle
+// ones included. OUT grows from slot 0; IN grows from the end, leaving two
+// complete retries. Requires 1..564 bytes for IN or 1..1023 for OUT. No
+// bus-time admission, interrupt reservations or frame-spanning splits.
 bool hub_iso_split_slot(uint8_t used, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
   TU_VERIFY(packet_size >= 1 && packet_size <= (dir == TUSB_DIR_IN ? 564u : 1023u));
   uint8_t const count = (uint8_t) ((packet_size + 187u) / 188u);

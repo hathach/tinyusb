@@ -9,7 +9,7 @@
 #define CFG_TUH_DEVICE_MAX 4
 #define CFG_TUH_ENDPOINT_MAX (CFG_TUH_HUB ? 8 : 9) // Keep multiple pool bitmap words without a hub.
 #ifndef CFG_TUH_HUB
-#define CFG_TUH_HUB 1
+#define CFG_TUH_HUB 2 // HS hubs at addresses DEVICE_MAX + 1 and + 2
 #endif
 #define TUP_USBIP_EHCI
 // Simulated DMA memory is coherent; descriptors need no cache maintenance.

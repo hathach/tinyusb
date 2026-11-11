@@ -99,10 +99,11 @@
  *   cannot be on it (iso_td_idle), without stopping the periodic schedule;
  *   close falls back to a bounded schedule stop. Missed packets are not retried.
  *
- * FS behind a HS hub uses best-effort MTT windows per (hub, port), reserved by
+ * FS behind a HS hub uses best-effort windows per transaction translator (each
+ * port of a multi-TT hub, or all ports of a single-TT hub), reserved by
  * maximum packet size: OUT from H0 upwards, IN from the end with two
  * complete-split retries before H7 ends. No bus-time admission, interrupt
- * reservations, single-TT accounting or frame-spanning splits; IN is limited
+ * reservations or frame-spanning splits; IN is limited
  * to 564 bytes and OUT to 1023. Direct FS uses the embedded TT, which ignores
  * the S-mask/C-mask (left zero) and allows 1023 bytes in either direction.
  *
@@ -833,14 +834,16 @@ static void iso_ep_free(iso_ep_t* ep) {
   ehci_data.qtd_is_iso[qtd_index / 32] &= ~TU_BIT(qtd_index % 32);
 }
 
-// Reserve by resolved upstream HS hub/port, assuming a multi-TT hub.
+// Reserve on the upstream HS hub's transaction translator: one per port of a
+// multi-TT hub, one shared by all ports of a single-TT hub.
 #if CFG_TUH_HUB
 static bool iso_split_slot(uint8_t hub_addr, uint8_t hub_port, uint16_t packet_size, uint8_t dir, uint8_t* slot) {
+  bool const multi = hub_tt_multi(hub_addr);
   uint8_t used = 0;
   for (size_t i = iso_ep_next(0); i < QTD_MAX; i = iso_ep_next(i + 1)) {
     iso_ep_t const* ep = &ehci_data.qtd_pool[i].iso;
     ehci_sitd_t const* td = &ep->td->sitd;
-    if (ep->speed == TUSB_SPEED_FULL && td->hub_addr == hub_addr && td->port_number == hub_port) {
+    if (ep->speed == TUSB_SPEED_FULL && td->hub_addr == hub_addr && (!multi || td->port_number == hub_port)) {
       uint8_t const count = (uint8_t) ((ep->max_xfer_bytes + 187u) / 188u);
       used |= ((1u << count) - 1u) << ep->split_slot;
     }
