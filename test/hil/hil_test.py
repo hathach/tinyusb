@@ -2040,8 +2040,9 @@ def previous_cleanup_text(name: str, failures: list) -> str:
 
 
 def admission_refused(name: str, task, e: Exception) -> tuple:
-    """test_board's result for a board refused before any hardware access: one refusal cell,
-    failed-tests empty so a re-run repeats the whole board (no bogus -bt filter)."""
+    """test_board's result for a board refused before any hardware access: one refusal cell, beside
+    the cleanup blocker when its lock did not end as asked, failed-tests empty so a re-run repeats the
+    whole board (no bogus -bt filter)."""
     log_line(f'{name:25} {STATUS_FAILED}: {e}')
     fail = hil_report.REPORT_CELL['fail']   # icon-prefixed, so the table tallies it as a failure
     if busy := hil_flash.busy_refusal(e):
@@ -2054,6 +2055,10 @@ def admission_refused(name: str, task, e: Exception) -> tuple:
         cells = {hil_report.LOCKED_CELL: 'fail'}
     else:   # no refusal: an error of the take or the check, which aborts the run
         raise e
+    if not task.ended_cleanly:   # the admitted path's blocker: the refusal's lock did not end as asked
+        blocker = f'board task ended with errors; {task.describe()}'
+        log_line(f'{name:25} BLOCKER: {blocker}')
+        cells[hil_report.CLEANUP_PENDING_CELL] = f'{fail} {blocker}'
     if previous := previous_cleanup_text(name, task.cleanup_failures):
         cells[hil_report.PREVIOUS_CLEANUP_CELL] = previous
     return name, 1, [], [(name, cells, None)], None

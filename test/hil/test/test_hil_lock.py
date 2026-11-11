@@ -696,6 +696,18 @@ class Admission(LockDir):
         self.assertEqual(cells[hil_test.hil_report.PREVIOUS_CLEANUP_CELL], hil_lock.failure_text(failure))
         self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
 
+    def test_a_refusal_whose_lock_did_not_end_is_a_blocker(self):
+        self.users = [{'pid': 1, 'cmd': 'openocd'}]
+        with mock.patch.object(hil_lock, 'clear_record', return_value=False):
+            _, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((err, failed), (1, []))
+        cells = rows[0][1]
+        self.assertIn(hil_test.hil_report.PROBE_BUSY_CELL, cells)
+        cell = cells[hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn(f'board task ended with errors; {BOARD}: lock released', cell)
+        self.assertIn('record not cleared', cell)
+        self.assertTrue(any('BLOCKER: board task ended with errors' in line for line in self.log), self.log)
+
     def test_the_bypass_still_runs_the_busy_check(self):
         os.environ['HIL_NO_BOARD_LOCK'] = '1'
         self.users = [{'pid': 1, 'cmd': 'openocd'}]
