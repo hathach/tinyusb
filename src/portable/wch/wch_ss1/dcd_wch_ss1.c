@@ -45,7 +45,7 @@
     (CFG_TUD_WCH_USBIP_USB30 == 1)
 
 #include "device/dcd.h"
-#include "device/usbd_pvt.h" // usbd_defer_func
+#include "device/usbd_pvt.h" // usbd_defer_func, usbd_spin_lock
 #include "portable/wch/dcd_ch56x.h"
 #include "wch_ss1_reg.h"
 
@@ -102,6 +102,15 @@ static volatile uint16_t _ep0_early_len;   // OUT data stage received before usb
 static volatile bool _ep0_data_in;         // current request has a device-to-host data stage
 static volatile bool _lmp_pending;        // send LMP PORT_CAPABILITY at next link-ready
 static volatile bool _link_suspended;     // set on GO_U3: only a U3 exit is a USB resume (U1/U2 are link low-power)
+// Tag bumped by every SETUP and bus reset, and the tag of the SETUP usbd is serving
+// (dcd_edpt0_setup_begin()). While they differ, EP0 arms and stalls belong to a superseded request
+// and are dropped; the caller excludes the USB ISR. uint8_t wrap is accepted.
+static volatile uint8_t _setup_rcv_tagid;
+static uint8_t _setup_served_tagid;
+
+TU_ATTR_ALWAYS_INLINE static inline bool ep0_superseded(void) {
+  return _setup_served_tagid != _setup_rcv_tagid;
+}
 
 #if CFG_TUD_WCH_USB30_FALLBACK
 // Runtime USB2 high-speed fallback (WCH reference pattern): a ~0.5 s timer (TMR0) counts down
@@ -277,6 +286,7 @@ static void ep_state_reset(void) {
     xfer_status[ep][0].stalled = false;
     xfer_status[ep][1].stalled = false;
   }
+  _setup_rcv_tagid++; // a reset supersedes any control transfer usbd is still on
   _pending_addr = 0;
   _ep0_seq = 0;
   _ep0_rx_seq = 0;
@@ -461,7 +471,8 @@ static void handle_ep0_rx(uint8_t rhport) {
       (void)USBSS->UEP0_RX_CTRL;
       usbss_send_erdy(0, false, 1);
     }
-    dcd_event_setup_received(rhport, setup_pkt, true);
+    _setup_rcv_tagid++;
+    dcd_event_setup_received_tagid(rhport, setup_pkt, _setup_rcv_tagid, true);
     return;
   }
 
@@ -939,9 +950,13 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   // has processed the reset and before any endpoint of the next configuration opens
   pool_release();
   // Applied at the status stage (handle_ep0_rx); respond with the status transaction
-  _pending_addr = 0x80u | dev_addr;
-  _ep0_status_dir = TUSB_DIR_IN;
-  ep0_arm_status();
+  usbd_spin_lock(false);
+  if (!ep0_superseded()) {
+    _pending_addr = 0x80u | dev_addr;
+    _ep0_status_dir = TUSB_DIR_IN;
+    ep0_arm_status();
+  }
+  usbd_spin_unlock(false);
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
@@ -953,6 +968,17 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 #endif
   (void)rhport;
   (void)request; // address is applied in the status-stage event
+}
+
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+#if CFG_TUD_WCH_USB30_FALLBACK
+  if (_fb_state == FB_USB2_ACTIVE) {
+    return ch56x_usb2_edpt0_setup_begin(rhport, setup_tagid);
+  }
+#endif
+  (void)rhport;
+  _setup_served_tagid = setup_tagid;
+  return !ep0_superseded();
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
@@ -1124,6 +1150,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
+  if (ep_num == 0) {
+    // the SETUP ISR must not land between the check and the arm; a superseded stage is dropped, not
+    // refused: the newer SETUP resets EP0 in usbd
+    usbd_spin_lock(is_isr);
+    if (ep0_superseded()) {
+      usbd_spin_unlock(is_isr);
+      return true;
+    }
+  }
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
@@ -1154,13 +1189,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
         _ep0_early_len = 0;
         memcpy(buffer, _ep0_buf, len);
         xfer->active = false;
-        // this branch runs synchronously from dcd_edpt_xfer (task context, not the ISR)
+        // this branch runs synchronously from dcd_edpt_xfer (task context, not the ISR). Posted
+        // under the lock, as the last step: a SETUP queued ahead of it would take this completion.
         dcd_event_xfer_complete(rhport, 0x00, len, XFER_RESULT_SUCCESS, is_isr);
       } else {
         ep0_rx_arm(USBSS_UEP0_RX_ARM);
         usbss_send_erdy(0, false, 1);
       }
     }
+    usbd_spin_unlock(is_isr);
     return true;
   }
 
@@ -1184,10 +1221,15 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
   if (ep_num == 0) {
-    // cleared automatically at the next SETUP
-    USBSS->UEP0_TX_CTRL = USBSS_UEP0_STALL;
-    USBSS->UEP0_RX_CTRL = USBSS_UEP0_STALL;
-    usbss_send_erdy(0, dir == TUSB_DIR_IN, 1);
+    // cleared automatically at the next SETUP; a stall for an abandoned control transfer must not
+    // stall the newer one
+    usbd_spin_lock(false);
+    if (!ep0_superseded()) {
+      USBSS->UEP0_TX_CTRL = USBSS_UEP0_STALL;
+      USBSS->UEP0_RX_CTRL = USBSS_UEP0_STALL;
+      usbss_send_erdy(0, dir == TUSB_DIR_IN, 1);
+    }
+    usbd_spin_unlock(false);
     return;
   }
 

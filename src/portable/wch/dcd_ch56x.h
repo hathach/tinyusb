@@ -38,6 +38,7 @@ void ch56x_usb2_int_enable(void);
 void ch56x_usb2_int_disable(void);
 void ch56x_usb2_int_handler(uint8_t rhport);
 void ch56x_usb2_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request);
+bool ch56x_usb2_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid);
 bool ch56x_usb2_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt);
 void ch56x_usb2_edpt_close(uint8_t rhport, uint8_t ep_addr);
 void ch56x_usb2_edpt_close_all(uint8_t rhport);

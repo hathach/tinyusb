@@ -18,6 +18,7 @@
     ((CFG_TUD_WCH_USBIP_USBHS == 1) || ((CFG_TUD_WCH_USBIP_USB30 == 1) && CFG_TUD_WCH_USB30_FALLBACK))
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h" // usbd_spin_lock()
 #include "dcd_ch56x.h"
 
 #pragma GCC diagnostic push
@@ -101,6 +102,18 @@ static volatile bool ep0_tog;
 // fresh state. A plain write sourced from this flag is race-free.
 static volatile bool ep0_rx_tog;
 static volatile bool ep_data_tog[EP_MAX][2];
+
+// Tag bumped by every SETUP and bus reset, and the tag of the SETUP usbd is serving
+// (dcd_edpt0_setup_begin()). While they differ, EP0 arms and stalls belong to a superseded request
+// and are dropped. uint8_t wrap (256 SETUPs while one is served) is accepted.
+static volatile uint8_t setup_rcv_tagid;
+static uint8_t setup_served_tagid;
+
+// Also true for a SETUP latched but not yet serviced by the ISR (RB_USB_IF_SETUOACT, RW1): an EP0
+// IN arm would memcpy over it in ep0_buffer. Caller excludes the USB ISR.
+static bool ep0_superseded(void) {
+  return (setup_served_tagid != setup_rcv_tagid) || ((R8_USB_INT_FG & RB_USB_IF_SETUOACT) != 0);
+}
 
 static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
   if (ep_dir == TUSB_DIR_IN) {
@@ -215,17 +228,18 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
     xfer->valid = false;
     if (ep_num == 0) {
       EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~(RB_UEP_RRES_MASK)) | UEP_R_RES_NAK;
+    } else if (xfer->is_iso) {
+      // RB_UEP_RRES_NO makes the SIE ignore RES and keep receiving (CH569DS1 R8_UEPn_RX_CTRL), so
+      // park the DMA on the bounce slot, bounded by MAX_LEN: a further packet must not overwrite
+      // the completed buffer before the class consumes it. The next arm retargets it.
+      EP_RX_DMA_ADDR(ep_num) = (uint32_t)(uintptr_t)bounce_buffer[ep_num - 1][TUSB_DIR_OUT];
+      EP_MAX_LEN(ep_num) = TU_MIN(xfer->max_size, BOUNCE_BUF_SIZE);
+    } else {
+      EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(RB_UEP_RRES_NO | RB_UEP_RRES_MASK)) | UEP_R_RES_NAK;
     }
     dcd_event_xfer_complete(rhport, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-  }
-
-  if (ep_num != 0) {
-    if (xfer->valid) {
-      queue_out_packet(ep_num, xfer);
-    } else {
-      uint8_t rx_res = xfer->is_iso ? (RB_UEP_RRES_NO | UEP_R_RES_ACK) : UEP_R_RES_NAK;
-      EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(RB_UEP_RRES_NO | RB_UEP_RRES_MASK)) | rx_res;
-    }
+  } else if (ep_num != 0) {
+    queue_out_packet(ep_num, xfer);
   }
 }
 
@@ -327,8 +341,19 @@ void ch56x_usb2_edpt0_status_complete(uint8_t rhport, const tusb_control_request
   (void)rhport;
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
-    R8_USB_DEV_AD = (uint8_t)request->wValue;
+    // a bus reset since this request left the device at address 0 (USB 2.0 7.1.7.5): keep it there
+    usbd_spin_lock(false);
+    if (!ep0_superseded()) {
+      R8_USB_DEV_AD = (uint8_t)request->wValue;
+    }
+    usbd_spin_unlock(false);
   }
+}
+
+bool ch56x_usb2_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+  (void)rhport;
+  setup_served_tagid = setup_tagid;
+  return !ep0_superseded();
 }
 
 bool ch56x_usb2_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
@@ -398,14 +423,19 @@ void ch56x_usb2_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   // xfer_status (both EP_MAX); usbd rejects a larger id first, so it is defence in depth
   TU_ASSERT(ep_num < EP_MAX, );
 
-  // a halt cancels the transfer (dcd.h): clear-halt must not re-arm a buffer the class reused
-  xfer_status[ep_num][dir].valid = false;
-  if (dir == TUSB_DIR_OUT) {
-    EP_RX_CTRL(ep_num) = UEP_R_RES_STALL;
-  } else {
-    EP_TX_LEN(ep_num) = 0;
-    EP_TX_CTRL(ep_num) = UEP_T_RES_STALL;
+  // a stall for an abandoned control transfer must not stall the newer one
+  usbd_spin_lock(false);
+  if (ep_num != 0 || !ep0_superseded()) {
+    // a halt cancels the transfer (dcd.h): clear-halt must not re-arm a buffer the class reused
+    xfer_status[ep_num][dir].valid = false;
+    if (dir == TUSB_DIR_OUT) {
+      EP_RX_CTRL(ep_num) = UEP_R_RES_STALL;
+    } else {
+      EP_TX_LEN(ep_num) = 0;
+      EP_TX_CTRL(ep_num) = UEP_T_RES_STALL;
+    }
   }
+  usbd_spin_unlock(false);
 }
 
 void ch56x_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -417,6 +447,8 @@ void ch56x_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   // xfer_status (both EP_MAX); usbd rejects a larger id first, so it is defence in depth
   TU_ASSERT(ep_num < EP_MAX, );
 
+  // a completion ISR between the valid check and the re-arm would re-arm a finished transfer with ACK
+  usbd_spin_lock(false);
   if (dir == TUSB_DIR_OUT) {
     ep_data_tog[ep_num][TUSB_DIR_OUT] = false; // clear-halt resets the toggle to DATA0
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
@@ -447,12 +479,10 @@ void ch56x_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       EP_TX_CTRL(ep_num) = UEP_T_RES_NAK | RB_UEP_T_TOG_0;
     }
   }
+  usbd_spin_unlock(false);
 }
 
-bool ch56x_usb2_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
-  const uint8_t    ep_num = tu_edpt_number(ep_addr);
-  const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
-
+static bool edpt_xfer_start(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir, uint8_t *buffer, uint16_t total_bytes) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
@@ -483,6 +513,25 @@ bool ch56x_usb2_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint
   }
 
   return true;
+}
+
+bool ch56x_usb2_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
+  const uint8_t    ep_num = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
+
+  if (ep_num != 0) {
+    return edpt_xfer_start(rhport, ep_num, dir, buffer, total_bytes);
+  }
+
+  // the SETUP ISR must not land between the check and the arm; a superseded stage is dropped, not
+  // refused: the newer SETUP resets EP0 in usbd
+  bool ret = true;
+  usbd_spin_lock(false);
+  if (!ep0_superseded()) {
+    ret = edpt_xfer_start(rhport, ep_num, dir, buffer, total_bytes);
+  }
+  usbd_spin_unlock(false);
+  return ret;
 }
 
 void ch56x_usb2_sof_enable(uint8_t rhport, bool en) {
@@ -525,6 +574,7 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
     R8_USB_INT_FG = RB_USB_IF_TRANSFER; /* Clear flag */
   } else if (int_flag & RB_USB_IF_SETUOACT) {
     const tusb_control_request_t *setup = (const tusb_control_request_t *)(uintptr_t)ep0_buffer;
+    setup_rcv_tagid++;
     ep0_tog = true;
     ep0_rx_tog = false; // matches the implicit TOG_0 the write below leaves in EP_RX_CTRL(0)
     // A SETUP resets the control pipe: drop any stage still armed from a transfer the host just
@@ -536,7 +586,7 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
     EP_RX_CTRL(0) = (setup->wLength == 0) ? UEP_R_RES_ACK : UEP_R_RES_NAK;
     EP_TX_CTRL(0) = UEP_T_RES_NAK;
 
-    dcd_event_setup_received(rhport, ep0_buffer, true);
+    dcd_event_setup_received_tagid(rhport, ep0_buffer, setup_rcv_tagid, true);
 
     R8_USB_INT_FG = RB_USB_IF_SETUOACT; /* Clear flag */
   } else if (int_flag & RB_USB_IF_BUSRST) {
@@ -544,8 +594,15 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
     // configured for high speed (UCST_HS), report high speed
     dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, true);
 
+    setup_rcv_tagid++; // a reset supersedes any control transfer usbd is still on
     R8_USB_DEV_AD = 0;
     memset((void *)ep_data_tog, 0, sizeof(ep_data_tog));
+    // usbd closes endpoints only on a configuration change: drop every transfer the reset aborted,
+    // or a later clear-halt would re-arm a pre-reset buffer
+    for (uint8_t ep = 0; ep < EP_MAX; ep++) {
+      xfer_status[ep][TUSB_DIR_OUT].valid = false;
+      xfer_status[ep][TUSB_DIR_IN].valid = false;
+    }
     ep0_tog = true;
     ep0_rx_tog = false;
     EP_RX_CTRL(0) = UEP_R_RES_ACK | RB_UEP_R_TOG_0;
@@ -630,6 +687,10 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
   ch56x_usb2_edpt0_status_complete(rhport, request);
+}
+
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+  return ch56x_usb2_edpt0_setup_begin(rhport, setup_tagid);
 }
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
