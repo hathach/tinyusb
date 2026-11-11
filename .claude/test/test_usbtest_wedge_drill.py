@@ -694,6 +694,19 @@ class TaskVerdicts(unittest.TestCase):
         self.assertIn('board task did not end as its verdict asked: ok: lock released, errors: record not cleared',
                       r['error'])
 
+    def test_a_signal_in_the_busy_check_reports_the_take_and_its_end(self):
+        rig = Rig(self)
+        earlier = run_case.hil_lock.log_cleanup_failure('ok', 'earlier', detail='probe left',
+                                                         receipts=[{'unrecheckable': 'probe left'}])
+        rig.lock.users = run_case.Terminated()
+        with mock.patch.object(run_case.hil_lock, 'clear_record', return_value=False):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (1, 'untouched'))
+        self.assertEqual(rig.calls, [])
+        self.assertEqual(r['previousCleanupFailure'], earlier)
+        self.assertIn('terminated before any hardware action; board task did not end as its verdict asked: '
+                      'ok: lock released', r['error'])
+
     def test_open_failures_are_reported_before_hardware_and_beside_the_result(self):
         rig = Rig(self)
         earlier = run_case.hil_lock.log_cleanup_failure('ok', 'earlier', detail='probe left',

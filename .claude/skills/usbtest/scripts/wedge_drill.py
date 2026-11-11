@@ -547,11 +547,14 @@ def main():
                 run_case.found(task)
                 code = drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report)
         except (Terminated, KeyboardInterrupt):
-            if not entered:
+            if entered:
+                report['error'] = report['error'] or 'terminated (signal) as the task ended'
+                code = code or 1   # aborted, whatever the drill and its cleanup did
+            elif task.taken or task.ended:  # inside the admission: its take's failures and end still count
+                report['error'], code = 'terminated before any hardware action', 2
+            else:
                 report['error'] = 'terminated before any hardware action'
                 return finish(2)
-            report['error'] = report['error'] or 'terminated (signal) as the task ended'
-            code = code or 1   # aborted, whatever the drill and its cleanup did
         except Exception as e:
             if entered:
                 report['error'] = report['error'] or f'{type(e).__name__}: {e}'

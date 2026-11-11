@@ -523,6 +523,19 @@ class Sigterm(unittest.TestCase):
         self.assertEqual(rig.calls, [])
         self.assertIs(signal.getsignal(signal.SIGTERM), self.previous)
 
+    def test_in_the_busy_check_reports_the_take_and_its_end(self):
+        rig = Rig(self)
+        earlier = run_case.hil_lock.log_cleanup_failure('solo', 'earlier', detail='probe left',
+                                                         receipts=[{'unrecheckable': 'probe left'}])
+        rig.lock.users = run_case.Terminated()
+        with mock.patch.object(run_case.hil_lock, 'clear_record', return_value=False):
+            rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['pass'], report['boardState']), (1, False, 'untouched'))
+        self.assertEqual(rig.calls, [('lock', 'solo')])
+        self.assertEqual(report['previousCleanupFailure'], earlier)
+        self.assertIn('terminated (SIGTERM) before any hardware action; board task did not end as its verdict asked: '
+                      'solo: lock released', report['error'])
+
     def test_handler_installed_for_the_run_then_restored(self):
         rig = Rig(self)
         during = []

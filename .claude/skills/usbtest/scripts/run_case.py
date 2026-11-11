@@ -367,11 +367,14 @@ def lock_and_run(args, tests, report, finish):
             found(task)
             code, error = run_task(task, board, fw, park_fw, tests, args, report)
     except Terminated:
-        if not entered:
+        if entered:
+            report['pass'] = False
+            report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
+            code, error = 1, 'terminated (SIGTERM)'
+        elif task.taken or task.ended:  # inside the admission: its take's failures and end still count
+            code, error = 2, 'terminated (SIGTERM) before any hardware action'
+        else:
             return finish(2, 'terminated (SIGTERM) before any hardware action')
-        report['pass'] = False
-        report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
-        code, error = 1, 'terminated (SIGTERM)'
     except Exception as e:
         if entered:   # any failure after the lock still ends with a verdict line
             code, error = 1, f'{type(e).__name__}: {e}'
