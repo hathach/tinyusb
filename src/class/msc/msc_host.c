@@ -71,7 +71,7 @@ typedef struct {
 } msch_epbuf_t;
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
-static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open, kept across close
+static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open and close
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
@@ -357,6 +357,7 @@ static void reset_recovery_end(uint8_t daddr, msch_interface_t* p_msc, bool succ
   const uintptr_t          arg = p_msc->complete_arg;
   p_msc->stage  = MSC_STAGE_IDLE;
   p_msc->desync = !success;
+  (void) usbh_edpt_release(daddr, p_msc->ep_out);
   TU_LOG_DRV("  MSCh Reset Recovery %s\r\n", success ? "done" : "failed");
   if (cb != NULL) {
     cb(daddr, success, arg);
@@ -397,8 +398,13 @@ static void reset_recovery_complete(tuh_xfer_t* xfer) {
 bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg) {
   TU_VERIFY(daddr > 0 && daddr <= CFG_TUH_DEVICE_MAX);
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_VERIFY(p_msc->mounted && p_msc->stage == MSC_STAGE_IDLE);
-  TU_VERIFY(!usbh_edpt_busy(daddr, p_msc->ep_in) && !usbh_edpt_busy(daddr, p_msc->ep_out));
+  TU_VERIFY(p_msc->mounted);
+  // held until the recovery ends: commands claim it too, so only one of them is admitted at a time
+  TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
+  if (p_msc->stage != MSC_STAGE_IDLE || usbh_edpt_busy(daddr, p_msc->ep_in)) {
+    (void) usbh_edpt_release(daddr, p_msc->ep_out);
+    return false;
+  }
 
   // fenced before submitting: the request may complete before tuh_control_xfer() returns
   const bool was_desync = p_msc->desync;
@@ -410,6 +416,7 @@ bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg)
   if (!reset_recovery_submit(daddr, p_msc)) {
     p_msc->desync = was_desync;
     p_msc->stage  = MSC_STAGE_IDLE;
+    (void) usbh_edpt_release(daddr, p_msc->ep_out);
     return false;
   }
   return true;
@@ -435,6 +442,9 @@ void msch_close(uint8_t dev_addr) {
   TU_VERIFY(p_msc->configured,);
 
   TU_LOG_DRV("  MSCh close addr = %d\r\n", dev_addr);
+
+  // drop a recovery completion that the callback could deliver by driving tuh_task()
+  _msch_tagid[dev_addr - 1]++;
 
   // invoke Application Callback
   if (p_msc->mounted) {

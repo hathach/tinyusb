@@ -84,19 +84,32 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   set_config_count++;
 }
 
+static uint8_t busy_ep;
+static uint8_t claimed_ep;              // claimed and not yet submitted or released, 0 for none
+static void (*claim_preempt)(void);     // runs once inside the next claim, as another task would
+
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
-  (void) ep_addr;
+  void (*preempt)(void) = claim_preempt;
+  claim_preempt = NULL;
+  if (preempt != NULL) {
+    preempt();
+  }
+  if (ep_addr == claimed_ep || ep_addr == busy_ep) {
+    return false;
+  }
+  claimed_ep = ep_addr;
   return true;
 }
 
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
-  (void) ep_addr;
+  if (ep_addr != claimed_ep) {
+    return false;
+  }
+  claimed_ep = 0;
   return true;
 }
-
-static uint8_t busy_ep;
 
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
@@ -109,6 +122,9 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
   (void) complete_cb;
   (void) user_data;
   TEST_ASSERT_LESS_THAN(MAX_XFERS, xfer_count);
+  if (ep_addr == claimed_ep) {
+    claimed_ep = 0; // usbh drops it once the transfer ends, which these tests drive themselves
+  }
   xfer_ep[xfer_count]  = ep_addr;
   xfer_buf[xfer_count] = buffer;
   xfer_len[xfer_count] = total_bytes;
@@ -127,6 +143,15 @@ static bool retry_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data
   (void) record_complete(daddr, cb_data);
   retry_submitted = tuh_msc_test_unit_ready(daddr, 0, record_complete, 0);
   return true;
+}
+
+static void (*umount_hook)(void);
+
+void tuh_msc_umount_cb(uint8_t dev_addr) {
+  (void) dev_addr;
+  if (umount_hook != NULL) {
+    umount_hook();
+  }
 }
 
 static void open_bot_interface(void) {
@@ -213,6 +238,9 @@ void setUp(void) {
   clear_stall_count   = 0;
   clear_stall_fail_ep = 0;
   busy_ep         = 0;
+  claimed_ep      = 0;
+  claim_preempt   = NULL;
+  umount_hook     = NULL;
   msch_init();
   mount_bot_interface();
 }
@@ -579,7 +607,7 @@ void test_msc_host_enum_get_max_lun_submit_fail(void) {
 // usbh closes the driver before failing the in-flight Get Max LUN, and has already ended the enumeration
 void test_msc_host_enum_unplug_during_get_max_lun(void) {
   msch_close(DADDR);
-  tuh_xfer_t ctrl = ctrl_xfer; // closing keeps the tagid, so only the configured check rejects it
+  tuh_xfer_t ctrl = ctrl_xfer;
   ctrl.result = XFER_RESULT_FAILED;
   ctrl.complete_cb(&ctrl);
 
@@ -648,6 +676,12 @@ static void reset_counters(void) {
 }
 
 static void enumerate_and_fence(void);
+
+// usbh closes the driver, then clears the device's endpoint states
+static void unplug(void) {
+  msch_close(DADDR);
+  claimed_ep = 0;
+}
 
 static void remount_and_fence(void) {
   msch_close(DADDR);
@@ -920,7 +954,7 @@ void test_msc_host_reset_unplug_discards(void) {
   TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
   complete_ctrl(XFER_RESULT_SUCCESS);
 
-  msch_close(DADDR);
+  unplug();
   complete_ctrl(XFER_RESULT_FAILED);
 
   TEST_ASSERT_EQUAL(0, reset_cb_count);
@@ -935,7 +969,7 @@ void test_msc_host_reset_stale_completion_after_reopen(void) {
   TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
   tuh_xfer_t stale = ctrl_xfer;
 
-  msch_close(DADDR);
+  unplug();
   set_config_count = 0;
   mount_bot_interface();
   enumerate();
@@ -951,4 +985,89 @@ void test_msc_host_reset_stale_completion_after_reopen(void) {
   TEST_ASSERT_EQUAL(1, reset_cb_count);
   TEST_ASSERT_TRUE(reset_success);
   assert_unfenced();
+}
+
+static void deliver_ctrl_success(void) {
+  complete_ctrl(XFER_RESULT_SUCCESS);
+}
+
+// an application driving tuh_task() from its umount callback delivers the recovery's queued last request: it must
+// neither call back nor let the callback start a command on the closing interface
+void test_msc_host_reset_completion_from_umount_callback_discarded(void) {
+  enumerate_and_fence();
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, reset_then_command, RESET_ARG));
+  complete_ctrl(XFER_RESULT_SUCCESS); // Bulk-Only Mass Storage Reset
+  complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-In
+
+  umount_hook = deliver_ctrl_success;
+  unplug();
+
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+  TEST_ASSERT_FALSE(retry_submitted);
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL(1, clear_stall_count);
+}
+
+// A command and a recovery are each admitted only with the Bulk-Out claim. The hooks below run inside the other
+// one's claim, as a task preempting it right after its own checks would.
+static void preempt_reset(void) {
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+}
+
+static void preempt_command(void) {
+  TEST_ASSERT_TRUE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+}
+
+static void unexpected_reset(uint8_t daddr, bool success, uintptr_t arg) {
+  (void) daddr;
+  (void) success;
+  (void) arg;
+  TEST_FAIL_MESSAGE("a refused recovery called back");
+}
+
+// the command is refused; the recovery keeps its stage and callback and lifts the fence
+void test_msc_host_reset_preempts_command_admission(void) {
+  enumerate();
+  reset_counters();
+
+  claim_preempt = preempt_reset;
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+
+  complete_recovery();
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_TRUE(reset_success);
+  TEST_ASSERT_EQUAL(0, complete_count);
+  assert_unfenced();
+}
+
+// the later recovery is refused and cannot replace the running one's callback or argument
+void test_msc_host_reset_preempts_reset_admission(void) {
+  enumerate_and_fence();
+
+  claim_preempt = preempt_reset;
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, unexpected_reset, 0));
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+
+  complete_recovery();
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_TRUE(reset_success);
+  assert_unfenced();
+}
+
+// the recovery is refused and frees the claim: the command completes, and a recovery may start after it
+void test_msc_host_command_preempts_reset_admission(void) {
+  enumerate();
+  reset_counters();
+
+  claim_preempt = preempt_command;
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, unexpected_reset, 0));
+  TEST_ASSERT_EQUAL(0, ctrl_count);
+  TEST_ASSERT_EQUAL(1, xfer_count);
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
 }
