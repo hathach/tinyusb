@@ -23,6 +23,10 @@
 #define USBSS_PHY_CFG_DAT  (*(volatile uint32_t*)0x400341FC)
 #define USBSS_PHY_MISC_REG (*(volatile uint32_t*)0x5003C018)
 
+// USB_CONTROL at device (re)init: transfer/SETUP/status interrupts, DMA and SETUP flow control
+#define USBSS_DEVICE_CTRL_INIT \
+  (USBSS_UIE_TRANSFER | USBSS_UDIE_SETUP | USBSS_UDIE_STATUS | USBSS_DMA_EN | USBSS_SETUP_FLOW)
+
 // Link Management Packet (LMP) subtype / header fields (device = upstream port)
 #define LMP_HP             0
 #define LMP_SUBTYPE_MASK   (0xFu << 5)

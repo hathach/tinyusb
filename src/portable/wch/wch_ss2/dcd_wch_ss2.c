@@ -11,8 +11,8 @@
 // chain-DMA design with hardware sequence numbers and ERDY (SEQ_AUTO / ERDY_AUTO), per-endpoint
 // persistent halt (RB_EP_TX/RX_HALT), and per-chain completion flags. Software drives the LTSSM
 // through the USBSS_LINK interrupt. The init/PHY/LINK/EP0 register sequences are transcribed from
-// the WCH EVT USBSS device demo; IN transfers ride whole multi-packet chains (see
-// queue_in_packet), OUT arms one packet at a time. Buffers may live anywhere in the shared SRAM (all DMA-reachable).
+// the WCH EVT USBSS device demo; IN transfers ride whole multi-packet chains (see arm_in_chain),
+// OUT arms one packet at a time. Buffers may live anywhere in the shared SRAM (all DMA-reachable).
 //
 // No SOF at SuperSpeed: dcd_sof_enable() is a no-op, so tud_sof_cb and the audio-class feedback
 // path get nothing even though iso endpoints are supported. The received bus interval counter is
@@ -38,12 +38,8 @@
 #endif
 #include "wch_ss2_reg.h"
 
-#define EP_MAX          8
+#define EP_MAX          TUP_DCD_ENDPOINT_MAX
 #define EP0_MAX_SIZE    512
-
-#ifndef CFG_TUD_WCH_USB30_MAX_BURST
-#define CFG_TUD_WCH_USB30_MAX_BURST 1
-#endif
 
 typedef struct {
   uint8_t *buffer;
@@ -51,9 +47,7 @@ typedef struct {
   uint16_t queued_len;
   uint16_t armed_len; // bytes in the IN chain armed last (rewind unit for clear-halt)
   uint16_t max_size;
-  bool     is_iso;
   bool     valid;
-  bool     bounce; // OUT armed into the bounce buffer (user buffer smaller than one packet)
 } xfer_ctl_t;
 
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
@@ -224,7 +218,7 @@ static void usbss_device_init(bool enable) {
 
     USBSSD->USB_CONTROL |= USBSS_FORCE_RST;
     USBSSD->USB_STATUS = USBSS_UIF_TRANSFER;
-    USBSSD->USB_CONTROL = USBSS_UIE_TRANSFER | USBSS_UDIE_SETUP | USBSS_UDIE_STATUS | USBSS_DMA_EN | USBSS_SETUP_FLOW;
+    USBSSD->USB_CONTROL = USBSS_DEVICE_CTRL_INIT;
 
     usbss_cfg_mod();
 
@@ -253,7 +247,7 @@ static void usbss_device_init(bool enable) {
 static void usbss_reset_init(void) {
   USBSSD->USB_CONTROL |= USBSS_FORCE_RST;
   USBSSD->USB_STATUS = USBSS_UIF_TRANSFER;
-  USBSSD->USB_CONTROL = USBSS_UIE_TRANSFER | USBSS_UDIE_SETUP | USBSS_UDIE_STATUS | USBSS_DMA_EN | USBSS_SETUP_FLOW;
+  USBSSD->USB_CONTROL = USBSS_DEVICE_CTRL_INIT;
   ep_chain_init();
   ep0_status_done = false;
   ep0_tx_seq = 0; // a bus reset resets the EP0 packet sequences
@@ -264,7 +258,7 @@ static void usbss_reset_init(void) {
   // would otherwise complete as stale events into usbd AFTER it wiped the ep->driver map
   // ("Xfer Complete on EP 03" straight after "Bus Reset" -> usbd assert; seen on hardware).
   // Only the in-flight flags: a class xfer_cb interrupted by this reset re-arms from task context
-  // right after, and a wiped max_size makes queue_in_packet divide by zero (TU_DIV_CEIL).
+  // right after, and a wiped max_size makes arm_in_chain divide by zero (TU_DIV_CEIL).
   for (uint8_t ep = 0; ep < EP_MAX; ep++) {
     xfer_status[ep][TUSB_DIR_OUT].valid = false;
     xfer_status[ep][TUSB_DIR_IN].valid = false;
@@ -378,9 +372,7 @@ static void handle_link_irq(uint8_t rhport) {
       retrain_fail = 0; // link trained: reset the retrain backoff
       link_established = true; // enumerated: a later DISABLE/INACTIVE is now a real disconnect
 #if CFG_TUD_WCH_USB30_FALLBACK
-      fallback_timer_start(false); // SS is up: stop the 0.5 s fallback backstop (mirrors CH569)
-#endif
-#if CFG_TUD_WCH_USB30_FALLBACK
+      fallback_timer_start(false); // SS is up: stop the 0.5 s fallback backstop
       fb_state = FB_USB3_UP;
       fb_fail_count = 0;
 #endif
@@ -427,6 +419,17 @@ static void ep0_arm_out(void) {
   // engine at all - the host sees a transaction error (usbtest ctrl_out -EPROTO above 512 bytes).
   USBSSD->UEP0_RX_CTRL = 0;
   USBSSD->UEP0_RX_CTRL = USBSS_EP0_RX_ERDY | USBSS_EP0_RX_ACK | ((uint32_t)ep0_rx_seq << 16);
+}
+
+// Status stage done: latch a pending SET_ADDRESS, then park both EP0 registers - their ACT
+// completion flags (bit 31) write-lock all later arms.
+static void ep0_status_finish(void) {
+  if (pending_addr_valid) {
+    USBSSD->USB_CONTROL = (USBSSD->USB_CONTROL & 0x00FFFFFF) | ((uint32_t)pending_addr << 24);
+    pending_addr_valid = false;
+  }
+  USBSSD->UEP0_TX_CTRL = 0;
+  USBSSD->UEP0_RX_CTRL = 0;
 }
 
 static void handle_setup(uint8_t rhport) {
@@ -499,13 +502,13 @@ static void handle_ep0_out(uint8_t rhport) {
 }
 
 //--------------------------------------------------------------------+
-// Data endpoints - single chain armed per packet (burst 1)
+// Data endpoints - IN arms multi-packet chains, OUT one packet per chain
 //--------------------------------------------------------------------+
 
 // Vendor demos arm 16-packet chains; EXP_NUMP is 8-bit but stay on silicon-proven ground.
 #define TX_CHAIN_MAX_PKTS 16
 
-static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
+static void arm_in_chain(uint8_t ep_num, xfer_ctl_t *xfer) {
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
   volatile USBSS_EP_TX_TypeDef *tx = usbss_ep_tx(ep_num);
 
@@ -547,9 +550,9 @@ static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
 static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
-  xfer->bounce = remaining < xfer->max_size; // see rx_bounce
-  rx->UEP_RX_DMA = xfer->bounce ? (uint32_t)(uintptr_t)rx_bounce[ep_num - 1]
-                                : (uint32_t)(uintptr_t)&xfer->buffer[xfer->queued_len];
+  const bool bounce = remaining < xfer->max_size; // see rx_bounce
+  rx->UEP_RX_DMA = bounce ? (uint32_t)(uintptr_t)rx_bounce[ep_num - 1]
+                          : (uint32_t)(uintptr_t)&xfer->buffer[xfer->queued_len];
   rx->UEP_RX_DMA_OFS = xfer->max_size;
   rx->UEP_RX_CHAIN_MAX_NUMP = 1; // arms the chain (latches the staged DMA/OFS into a chain slot)
   // If the host already asked while nothing was armed, the controller sent NRDY and latched
@@ -571,7 +574,7 @@ static void handle_ep_in(uint8_t rhport, uint8_t ep_num) {
     xfer->valid = false;
     dcd_event_xfer_complete(rhport, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   } else {
-    queue_in_packet(ep_num, xfer);
+    arm_in_chain(ep_num, xfer);
   }
 }
 
@@ -586,7 +589,7 @@ static void handle_ep_out(uint8_t rhport, uint8_t ep_num) {
   }
   uint16_t remaining = xfer->total_len - xfer->queued_len;
   uint16_t len = TU_MIN(rx_len, TU_MIN(remaining, xfer->max_size));
-  if (xfer->bounce) {
+  if (remaining < xfer->max_size) { // queue_out_packet's bounce test, on the same queued_len
     memcpy(&xfer->buffer[xfer->queued_len], rx_bounce[ep_num - 1], len);
   }
   xfer->queued_len += len;
@@ -613,12 +616,7 @@ static void handle_usb_irq(uint8_t rhport) {
     // Control status stage: on the H417 this is its own interrupt (SET_ADDRESS is applied here).
     TU_LOG2("ST\r\n");
     USBSSD->USB_STATUS = USBSS_UDIF_STATUS;
-    if (pending_addr_valid) {
-      USBSSD->USB_CONTROL = (USBSSD->USB_CONTROL & 0x00FFFFFF) | ((uint32_t)pending_addr << 24);
-      pending_addr_valid = false;
-    }
-    USBSSD->UEP0_TX_CTRL = 0;
-    USBSSD->UEP0_RX_CTRL = 0;
+    ep0_status_finish();
     // Complete the queued zero-length status transfer so usbd runs its status-stage callback
     // (the status ZLP does not raise a UIF_TRANSFER on this controller). If usbd has not queued
     // it yet, remember that the status stage already ran (see ep0_status_done).
@@ -738,6 +736,29 @@ static void link_state_reset(void) {
   link_established = false;
 }
 
+// Mask the USBSS/LINK/TIM12 vectors before the teardown: the aliased TIM12 IRQ would otherwise run
+// dcd_int_handler on clock-gated USBSSD registers, and a LINK event or timer expiry landing
+// mid-teardown would run the fallback ladder and bring USB2 up on a port being shut down.
+static void usbss_stop(uint8_t rhport) {
+  dcd_int_disable(rhport);
+  backoff_armed = false;
+  tim12_stop();             // stop the retrain-backoff / fallback backstop timer + mask TIM12 IRQ
+  usbss_device_init(false); // drop RX terminations, gate the clocks, disable the USBSS/LINK IRQs
+}
+
+// (Re)start SuperSpeed link training, with the training/fallback ladder restarted alongside it
+static void usbss_start(void) {
+  link_state_reset();
+#if CFG_TUD_WCH_USB30_FALLBACK
+  fb_state = FB_USB3_TRAINING;
+  fb_fail_count = 0;
+#endif
+  usbss_device_init(true);
+#if CFG_TUD_WCH_USB30_FALLBACK
+  fallback_timer_start(true);
+#endif
+}
+
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
   (void)rh_init;
@@ -749,19 +770,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   ep0_status_done = false;
   ep0_data_in = false;
   backoff_armed = false;
-  link_state_reset();
-
 #if CFG_TUD_WCH_USB30_FALLBACK
-  fb_state = FB_USB3_TRAINING;
-  fb_fail_count = 0;
   wch_hs2_deinit(rhport); // quiesce a USB2 controller a prior fallback may have left up
 #endif
-
-  usbss_device_init(true);
-
-#if CFG_TUD_WCH_USB30_FALLBACK
-  fallback_timer_start(true);
-#endif
+  usbss_start();
   return true;
 }
 
@@ -774,13 +786,7 @@ bool dcd_deinit(uint8_t rhport) {
     return true;
   }
 #endif
-  // Mask first, then tear down: a LINK DISABLE/INACTIVE event or a timer expiry taken between the
-  // state updates below still runs the fallback ladder, which would bring the USB2 controller up
-  // on a port that is being deinitialized (tud_deinit() returning with the device still attached).
-  dcd_int_disable(rhport);
-  backoff_armed = false;
-  tim12_stop();             // stop the retrain-backoff / fallback backstop timer + mask TIM12 IRQ
-  usbss_device_init(false); // gate USBSS clocks and disable the USBSS/LINK IRQs
+  usbss_stop(rhport);
   return true;
 }
 
@@ -865,15 +871,7 @@ void dcd_disconnect(uint8_t rhport) {
     return;
   }
 #endif
-  // Mask the USBSS/LINK/TIM12 vectors BEFORE gating USBSS clocks: the aliased TIM12 IRQ would
-  // otherwise fire dcd_int_handler, which reads clock-gated USBSSD registers, and a LINK event or
-  // timer expiry landing mid-teardown would run the fallback ladder and re-attach as USB2 right
-  // after the application asked to disconnect. dcd_connect re-enables them (usbss_device_init /
-  // tim12_program).
-  dcd_int_disable(rhport);
-  backoff_armed = false;
-  tim12_stop();
-  usbss_device_init(false); // drop RX terminations + gate clocks: the host sees a disconnect
+  usbss_stop(rhport); // the dropped RX terminations are what the host sees as a disconnect
 }
 
 void dcd_connect(uint8_t rhport) {
@@ -887,15 +885,7 @@ void dcd_connect(uint8_t rhport) {
   if (!usbss_clocks_off) {
     return; // already connected: re-running the init would drop and retrain a live link
   }
-  link_state_reset();
-#if CFG_TUD_WCH_USB30_FALLBACK
-  fb_state = FB_USB3_TRAINING; // restart the training/fallback ladder alongside the link
-  fb_fail_count = 0;
-#endif
-  usbss_device_init(true); // restore terminations and restart link training
-#if CFG_TUD_WCH_USB30_FALLBACK
-  fallback_timer_start(true);
-#endif
+  usbss_start(); // restore terminations and restart link training
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
@@ -964,7 +954,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
   TU_ASSERT(xfer->max_size <= 1024); // rx_bounce rows are 1024 B (SS caps wMaxPacketSize at 1024)
-  xfer->is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  const bool is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   if (dir == TUSB_DIR_IN) {
     volatile USBSS_EP_TX_TypeDef *tx = usbss_ep_tx(ep_num);
@@ -976,7 +966,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
     // endpoint). With 1 the hw auto-tags EOB on short packets and no latch is needed.
     tx->UEP_TX_CFG = USBSS_EP_TX_CHAIN_AUTO | USBSS_EP_TX_ERDY_AUTO | USBSS_EP_TX_SEQ_AUTO |
                      USBSS_EP_TX_EOB_MODE |
-                     (xfer->is_iso ? USBSS_EP_TX_ISO_MODE : 0);
+                     (is_iso ? USBSS_EP_TX_ISO_MODE : 0);
     tx->UEP_TX_CR = (uint8_t)(USBSS_EP_TX_CLR | USBSS_EP_TX_CHAIN_CLR);
     // TX ERDY window = chain depth (the vendor leaves TX_CR at its 0x10 reset). A NumP-1
     // window costs an ERDY TP per DP; with two IN endpoints streaming, that per-DP TP pressure
@@ -988,7 +978,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   } else {
     volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);
     rx->UEP_RX_CFG = USBSS_EP_RX_CHAIN_AUTO | USBSS_EP_RX_ERDY_AUTO | USBSS_EP_RX_SEQ_AUTO |
-                     (xfer->is_iso ? USBSS_EP_RX_ISO_MODE : 0);
+                     (is_iso ? USBSS_EP_RX_ISO_MODE : 0);
     rx->UEP_RX_CR = (uint8_t)(USBSS_EP_RX_CLR | USBSS_EP_RX_CHAIN_CLR);
     rx->UEP_RX_CR = CFG_TUD_WCH_USB30_MAX_BURST;
     USBSSD->UEP_RX_EN |= (uint16_t)(1u << ep_num);
@@ -1057,13 +1047,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       // leak into the next control transfer and break it.
       if (ep0_status_done) {
         ep0_status_done = false;
-        if (pending_addr_valid) { // SET_ADDRESS whose status stage already ran: latch it now
-          USBSSD->USB_CONTROL = (USBSSD->USB_CONTROL & 0x00FFFFFF) | ((uint32_t)pending_addr << 24);
-          pending_addr_valid = false;
-        }
-        // park both EP0 registers: their ACT completion flags (bit 31) write-lock all later arms
-        USBSSD->UEP0_TX_CTRL = 0;
-        USBSSD->UEP0_RX_CTRL = 0;
+        ep0_status_finish(); // a SET_ADDRESS whose status stage already ran is latched here
         xfer->valid = false;
         // synchronous completion: forward the caller's context so the FreeRTOS queue send matches
         dcd_event_xfer_complete(rhport, ep_addr, 0, XFER_RESULT_SUCCESS, is_isr);
@@ -1086,7 +1070,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       ep0_arm_out(); // control-OUT data stage
     }
   } else if (dir == TUSB_DIR_IN) {
-    queue_in_packet(ep_num, xfer);
+    arm_in_chain(ep_num, xfer);
   } else {
     queue_out_packet(ep_num, xfer);
   }
@@ -1153,13 +1137,13 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     tx->UEP_TX_CR = TX_CHAIN_MAX_PKTS;
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
     if (xfer->valid) {
-      // Rewind to the CHAIN boundary: queued_len counts ARMED bytes (queue_in_packet advances it at
+      // Rewind to the CHAIN boundary: queued_len counts ARMED bytes (arm_in_chain advances it at
       // arm time, not completion) and TX_CLR above discarded exactly the one chain still in flight.
       // Resuming from queued_len skips those bytes (hardware-proven: every usbtest bulk/int read
       // failed EREMOTEIO), while restarting from 0 replays chains the host already ACKed - up to
       // TX_CHAIN_MAX_PKTS * 1024 = 16 KB of duplicated payload on a long bulk IN.
       xfer->queued_len -= TU_MIN(xfer->armed_len, xfer->queued_len);
-      queue_in_packet(ep_num, xfer);
+      arm_in_chain(ep_num, xfer);
     }
   } else {
     volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);

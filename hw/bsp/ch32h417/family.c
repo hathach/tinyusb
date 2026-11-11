@@ -28,12 +28,14 @@
 #define CFG_BOARD_CH32H417_UART_LOADER 1
 #endif
 
-// Crash watchdog: an ~8 s IWDG armed at the end of board_init, kicked from the 1 ms SysTick and,
-// secondarily, from board_led_write(). OFF by default - it resets the chip whenever the core is
-// halted longer than the period (any GDB/breakpoint session) and the board_led_write() kick is a
-// contract no application signed up for. The HIL rig builds with -DCFG_BOARD_CH32H417_CRASH_WDT=1
-// so a crashed board reboots itself into the flash-park window (CFG_BOARD_CH32H417_UART_LOADER)
-// and stays reflashable with no hands on the hardware.
+// Crash watchdog: an ~8 s IWDG (LSI/256) armed at the end of board_init, kicked from the 1 ms
+// SysTick and, secondarily, from board_led_write(). It recovers a halted core (debug halt, ebreak
+// on a silent assert); a firmware that merely stops calling tud_task still ticks and is NOT reset.
+// OFF by default - it resets the chip whenever the core is halted longer than the period (any
+// GDB/breakpoint session: request a park first, the window runs with the watchdog unarmed) and the
+// board_led_write() kick is a contract no application signed up for. The HIL rig builds with
+// -DCFG_BOARD_CH32H417_CRASH_WDT=1 so a crashed board reboots itself into the flash-park window
+// (CFG_BOARD_CH32H417_UART_LOADER) and stays reflashable with no hands on the hardware.
 #ifndef CFG_BOARD_CH32H417_CRASH_WDT
 #define CFG_BOARD_CH32H417_CRASH_WDT 0
 #endif
@@ -56,8 +58,7 @@ void SysTick0_Handler(void);
 // Flash-park support: the HIL flasher writes {0x55,0xAA,'F','P'} to the WCH-LinkE virtual COM
 // port; the RX interrupt below stamps this flag (in a NOLOAD region that survives the soft
 // reset) and reboots. board_init then parks ~10 s before any USB init so the debug interface is
-// guaranteed reachable for an unattended reflash - the chip's only SWD/SDI pins double as the
-// USB2 D+/D- pair, and a running USB2(-fallback) image makes them undebuggable.
+// guaranteed reachable for an unattended reflash (see CFG_BOARD_CH32H417_UART_LOADER).
 __attribute__((section(".noinit"))) static volatile uint32_t flash_park_flag;
 __attribute__((section(".noinit"))) static volatile uint32_t flash_park_token;
 #define FLASH_PARK_MAGIC 0x50414B31UL // 'P','A','K','1'
@@ -103,11 +104,11 @@ __attribute__((interrupt)) void USART1_IRQHandler(void) {
 }
 
 //--------------------------------------------------------------------+
-// UART flash loader: reflash over the WCH-LinkE VCP with no debug-pin access. The chip's only
-// SWD/SDI pins (PB8/PB9) are the USB2 D+/D- pair; with an untaped cable plugged into a host,
-// the host PHY's line termination corrupts SDI beyond use, so wlink cannot flash. This loader
-// needs only USART1 (dedicated pins), and the whole image executes from RAM_CODE, so rewriting
-// flash under it is safe. Host side: test/hil/wch_uart_flash.py.
+// UART flash loader: reflash over the WCH-LinkE VCP with no debug-pin access (see
+// CFG_BOARD_CH32H417_UART_LOADER). With an untaped USB2 cable plugged into a host, the host PHY's
+// line termination on PB8/PB9 corrupts SDI beyond use, so wlink cannot flash. This loader needs
+// only USART1 (dedicated pins), and the whole image executes from RAM_CODE, so rewriting flash
+// under it is safe. Host side: test/hil/wch_uart_flash.py.
 //
 // Protocol (little-endian, image padded to a 1024-byte multiple by the host):
 //   dev : 'L' banner (~2 Hz) while waiting for a session
@@ -288,10 +289,7 @@ __attribute__((interrupt)) void SysTick0_Handler(void) {
   SysTick0->ISR &= ~(1u << 0); // clear count-reached flag
   system_ticks++;
 #if CFG_BOARD_CH32H417_CRASH_WDT
-  // Primary watchdog kick: a live tick means the core is running. A halted core (debug halt,
-  // ebreak on a silent assert) stops the tick and the IWDG reset + auto-park below recovers the
-  // board. Applications are NOT required to blink the LED (see board_init).
-  IWDG_ReloadCounter();
+  IWDG_ReloadCounter(); // primary watchdog kick (see CFG_BOARD_CH32H417_CRASH_WDT)
 #endif
 }
 
@@ -391,13 +389,11 @@ void board_init(void) {
 
 #if CFG_BOARD_CH32H417_UART_LOADER
   // Flash-park window: hold here ~10 s with USB never initialized - PB8/PB9 stay in SWD/SDI mode
-  // and no interrupt load exists, so wlink can erase/flash unattended even when the normal image
-  // would own the USB2 pins (HS fallback) or storm the core. Fast LED blink signals the window.
-  // Entered when:
+  // and no interrupt load exists, so wlink can erase/flash unattended. Fast LED blink signals the
+  // window. Entered when:
   //  - the previous run requested a park (magic over the WCH-LinkE VCP, see USART1_IRQHandler), or
-  //  - the independent watchdog reset the chip (the previous image crashed and stopped kicking,
-  //    CFG_BOARD_CH32H417_CRASH_WDT builds only): a crash-looping image thus re-opens this window
-  //    every cycle, keeping the board recoverable with no hands and no reset line.
+  //  - the independent watchdog reset the chip (CFG_BOARD_CH32H417_CRASH_WDT): a crash-looping
+  //    image thus re-opens this window every cycle.
   const bool wdg_reset = (RCC_GetFlagStatus(RCC_FLAG_IWDGRST) != RESET);
   const bool por_reset = (RCC_GetFlagStatus(RCC_FLAG_PORRST) != RESET);
   RCC_ClearFlag(); // reset flags are sticky: clear on every boot, else a cold boot's POR flag
@@ -414,9 +410,8 @@ void board_init(void) {
     board_led_write(false);
   }
 
-  // UART flash loader (requested via {0x55,0xAA,'F','L'} over the VCP): flash over USART1,
-  // for when the SWD/SDI pins are unusable (untaped USB2 cable plugged into a host). Runs
-  // before the watchdog is armed; never returns (resets after a successful flash).
+  // UART flash loader (requested via {0x55,0xAA,'F','L'} over the VCP, see uart_flash_loader).
+  // Runs before the watchdog is armed; never returns (resets after a successful flash).
   if (park_req == FLASH_LOAD_MAGIC) {
     uart_flash_loader();
   }
@@ -426,15 +421,10 @@ void board_init(void) {
   usbhs_clock_init(); // after the park window: PB8/PB9 are the HS PHY's D+/D-
 #endif
 
-  // Crash recovery (opt-in, see CFG_BOARD_CH32H417_CRASH_WDT): independent watchdog, ~8 s at
-  // LSI/256, kicked from the 1 ms SysTick (and, as a secondary, from board_led_write for OS
-  // builds that reconfigure the tick). Armed AFTER the park window above so the window itself
-  // cannot be cut short. Recovers a halted core (debug halt, ebreak); a firmware that merely
-  // stops calling tud_task still ticks and is NOT reset. NOTE: halting the core for more than
-  // the period watchdog-resets it (DBGMCU_Config(DBGMCU_IWDG_STOP) hangs when no debugger
-  // session is active - its csrw 0x7c0 faults - so the freeze-on-halt is deliberately not
-  // used); request a park first for long debug sessions, the window runs with the watchdog
-  // unarmed. Bare-metal only: the 1 ms SysTick kick above does not exist under an RTOS.
+  // Crash watchdog (see CFG_BOARD_CH32H417_CRASH_WDT), armed AFTER the park window above so the
+  // window itself cannot be cut short. No freeze-on-halt: DBGMCU_Config(DBGMCU_IWDG_STOP) hangs
+  // when no debugger session is active (its csrw 0x7c0 faults). Bare-metal only: the 1 ms SysTick
+  // kick does not exist under an RTOS.
 #if CFG_BOARD_CH32H417_CRASH_WDT && (CFG_TUSB_OS == OPT_OS_NONE)
   RCC_LSICmd(ENABLE);
   { // bounded: a dead LSI must not hang boot (the IWDG simply stays unarmed)
@@ -456,7 +446,7 @@ void board_init(void) {
 
 void board_led_write(bool state) {
 #if CFG_BOARD_CH32H417_CRASH_WDT
-  IWDG_ReloadCounter(); // secondary watchdog kick (primary is the SysTick handler, see board_init)
+  IWDG_ReloadCounter(); // secondary watchdog kick (see CFG_BOARD_CH32H417_CRASH_WDT)
 #endif
   GPIO_WriteBit(LED_PORT, LED_PIN, (state ^ (LED_STATE_ON == 0)) ? Bit_SET : Bit_RESET);
 }

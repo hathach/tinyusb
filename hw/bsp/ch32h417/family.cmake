@@ -73,13 +73,10 @@ function(family_add_board BOARD_TARGET)
     target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUD_WCH_USBIP_USBHS=1)
   endif ()
 
-  # BSP knobs of family.c, both settable with cmake -D<knob>=<value> (see family.c for details):
-  #   CFG_BOARD_CH32H417_UART_LOADER  default 1: USART1 park + UART flash loader. Keep it on unless
-  #     you can unplug the USB cable - the USB2 pins are the chip's only SWD/SDI pins, so this is
-  #     the only in-system reflash path once a USB image runs.
-  #   CFG_BOARD_CH32H417_CRASH_WDT    default 0: ~8 s IWDG kicked from SysTick and board_led_write.
-  #     The HIL rig sets 1 (a crashed board then reboots into the park window); it also resets the
-  #     chip during any core halt longer than the period, so normal builds leave it off.
+  # BSP knobs of family.c, both settable with cmake -D<knob>=<value> (rationale at each knob's
+  # #ifndef in family.c):
+  #   CFG_BOARD_CH32H417_UART_LOADER  default 1: USART1 park + UART flash loader
+  #   CFG_BOARD_CH32H417_CRASH_WDT    default 0: ~8 s crash watchdog; the HIL rig sets 1
   foreach (knob CFG_BOARD_CH32H417_UART_LOADER CFG_BOARD_CH32H417_CRASH_WDT)
     if (DEFINED ${knob})
       target_compile_definitions(${BOARD_TARGET} PUBLIC ${knob}=${${knob}})
