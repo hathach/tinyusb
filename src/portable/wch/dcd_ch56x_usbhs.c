@@ -399,6 +399,8 @@ void ch56x_usb2_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   // before it reaches here, so this is defence in depth, not a reachable hole.
   TU_ASSERT(ep_num < EP_MAX, );
 
+  // a halt cancels the transfer (dcd.h): clear-halt must not re-arm a buffer the class reused
+  xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = UEP_R_RES_STALL;
   } else {
