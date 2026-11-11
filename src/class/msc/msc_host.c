@@ -109,11 +109,13 @@ uint8_t tuh_msc_get_maxlun(uint8_t dev_addr) {
 
 uint32_t tuh_msc_get_block_count(uint8_t dev_addr, uint8_t lun) {
   msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(lun < p_msc->max_lun, 0);
   return p_msc->capacity[lun].block_count;
 }
 
 uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun) {
   msch_interface_t* p_msc = get_itf(dev_addr);
+  TU_VERIFY(lun < p_msc->max_lun, 0);
   return p_msc->capacity[lun].block_size;
 }
 
@@ -144,6 +146,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
                           tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(daddr);
   TU_VERIFY(p_msc->configured);
+  TU_VERIFY(cbw->lun < p_msc->max_lun);
 
   // claim endpoint
   TU_VERIFY(usbh_edpt_claim(daddr, p_msc->ep_out));
@@ -237,7 +240,7 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void* response,
 bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, uint16_t block_count,
                     tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && lun < p_msc->max_lun);
 
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
@@ -261,7 +264,7 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
 bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t lba, uint16_t block_count,
                      tuh_msc_complete_cb_t complete_cb, uintptr_t arg) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted);
+  TU_VERIFY(p_msc->mounted && lun < p_msc->max_lun);
 
   msc_cbw_t cbw;
   cbw_init(&cbw, lun);
@@ -393,16 +396,25 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   (void) rhport;
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
 
-  // msc driver length is fixed
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
+  // msc driver length is fixed: bulk-in and bulk-out endpoints
+  TU_VERIFY(TUH_VALIDATE_BASIC(sizeof(tusb_desc_interface_t) == desc_itf->bLength), 0);
+  TU_VERIFY(TUH_VALIDATE_BASIC(2 == desc_itf->bNumEndpoints), 0);
+  const uint16_t drv_len = (uint16_t)(sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(drv_len <= max_len, 0);
 
   msch_interface_t           *p_msc   = get_itf(dev_addr);
   const tusb_desc_endpoint_t *ep_desc = (const tusb_desc_endpoint_t *)tu_desc_next(desc_itf);
 
+  // validate both endpoints before opening either
+  const tusb_desc_endpoint_t *ep = ep_desc;
   for (uint32_t i = 0; i < 2; i++) {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType && TUSB_XFER_BULK == ep_desc->bmAttributes.xfer, 0);
+    // pin bLength so tu_desc_next() cannot move the second endpoint outside the checked window
+    TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == ep->bLength), 0);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == ep->bDescriptorType && TUSB_XFER_BULK == ep->bmAttributes.xfer, 0);
+    ep = (const tusb_desc_endpoint_t *)tu_desc_next(ep);
+  }
+
+  for (uint32_t i = 0; i < 2; i++) {
     TU_ASSERT(tuh_edpt_open(dev_addr, ep_desc), 0);
 
     if (TUSB_DIR_IN == tu_edpt_dir(ep_desc->bEndpointAddress)) {

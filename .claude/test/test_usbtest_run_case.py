@@ -27,22 +27,22 @@ ROSTER = {
     'boards': [
         {'name': 'solo', 'uid': 'UID1', 'flasher': {'name': 'jlink', 'uid': 'P1', 'args': '-device X'},
          'tests': {'device': True, 'host': False}},
-        {'name': 'duo', 'uid': 'UID2', 'flasher': {'name': 'openocd', 'uid': 'P2', 'args': ''},
+        {'name': 'duo', 'uid': 'UID2', 'flasher': {'name': 'openocd', 'uid': 'P2'},
          'variant': [{'name': 'duo-a', 'flags': ''}, {'name': 'duo-b', 'flags': ''}],
          'tests': {'only': ['device/board_test', 'device/usbtest']}},
-        {'name': 'hostonly', 'uid': 'UID4', 'flasher': {'name': 'openocd'}, 'tests': {'device': False, 'host': True}},
-        {'name': 'skips', 'uid': 'UID5', 'flasher': {'name': 'jlink'},
+        {'name': 'hostonly', 'uid': 'UID4', 'flasher': {'name': 'openocd', 'uid': 'P1x'}, 'tests': {'device': False, 'host': True}},
+        {'name': 'skips', 'uid': 'UID5', 'flasher': {'name': 'jlink', 'uid': 'P2x'},
          'tests': {'device': True, 'skip': ['device/usbtest']}},
-        {'name': 'notlisted', 'uid': 'UID6', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/cdc_msc']}},
-        {'name': 'untested', 'uid': 'UID7', 'flasher': {'name': 'jlink'}},
-        {'name': 'malformed', 'uid': 'UID8', 'flasher': {'name': 'jlink'}, 'tests': {'device': True},
+        {'name': 'notlisted', 'uid': 'UID6', 'flasher': {'name': 'jlink', 'uid': 'P3x'}, 'tests': {'only': ['device/cdc_msc']}},
+        {'name': 'untested', 'uid': 'UID7', 'flasher': {'name': 'jlink', 'uid': 'P4x'}},
+        {'name': 'malformed', 'uid': 'UID8', 'flasher': {'name': 'jlink', 'uid': 'P5x'}, 'tests': {'device': True},
          'variant': [{'name': ''}]},
         {'name': 'noflasher', 'uid': 'UID9', 'tests': {'only': ['device/usbtest']}},
-        {'name': 'nouid', 'flasher': {'name': 'jlink'}, 'tests': {'only': ['device/usbtest']}},
+        {'name': 'nouid', 'flasher': {'name': 'jlink', 'uid': 'P6x'}, 'tests': {'only': ['device/usbtest']}},
         {'name': 'esp', 'uid': 'UID10', 'tests': {'only': ['device/usbtest']},
          'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'}},
     ],
-    'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink'}}],
+    'boards-skip': [{'name': 'parked', 'uid': 'UID3', 'flasher': {'name': 'jlink', 'uid': 'P7x'}}],
 }
 PASS_JSON = {'passed': 1, 'failed': 0, 'notrun': 0, 'wedged': False,
              'cases': [{'num': 29, 'name': 'toggle clear', 'status': 'PASS'}]}
@@ -153,8 +153,8 @@ class Refusals(unittest.TestCase):
                 (['--board', 'notlisted'], 'notlisted does not run device/usbtest'),
                 (['--board', 'untested'], 'untested does not run device/usbtest'),
                 (['--board', 'malformed'], 'malformed: board malformed variant'),
-                (['--board', 'noflasher'], 'noflasher in'),
-                (['--board', 'nouid'], 'nouid in'),
+                (['--board', 'noflasher'], 'noflasher: board UID9 names neither a registered probe nor a flasher'),
+                (['--board', 'nouid'], 'nouid: no uid'),
                 (['--board', 'esp'], 'esp: openocd_esp is refused to a caller that does not declare'),
                 (['--board', 'duo'], 'duo has variants duo-a, duo-b: pass --variant'),
                 (['--board', 'duo', '--variant', 'duo-c'], 'duo has no variant duo-c'),
@@ -162,6 +162,11 @@ class Refusals(unittest.TestCase):
             rig = Rig(self)
             self.refused(rig, *argv, '--tests', '29', '--after', 'leave', says=says)
             self.assertEqual(rig.calls, [])
+
+    def test_a_registered_board_takes_its_flashers_from_agentrc(self):
+        board, variant = run_case.resolve(REPO / 'test/hil/tinyusb.json', 'ek_tm4c123gxl', None)
+        self.assertEqual((variant, board['flasher']['name'], board['flasher_recover']['name']),
+                         ('ek_tm4c123gxl', 'lm4flash', 'openocd'))
 
     def test_bad_case_lists(self):
         for tests in ('29,29', '30', 'x', '29,'):
@@ -237,6 +242,16 @@ class Chain(unittest.TestCase):
         self.released(rig)
         self.assertEqual(os.getcwd(), cwd)
         self.assertTrue(all(c != cwd and not os.path.exists(c) for c in rig.cwds))   # temp cwd, removed
+
+    def test_a_registered_board_is_locked_by_its_registry_name(self):
+        probe, reg = next((p, r) for p, r in run_case.hil_util.hil_boards().registry().items()
+                          if r['flasher']['name'] == 'jlink')
+        rig = Rig(self)
+        roster = {'boards': [{'name': 'aliased', 'uid': 'UIDP', 'probe': probe, 'tests': {'device': True}}]}
+        rig.config.write_text(json.dumps(roster))
+        rc, _, err = rig.run('--board', 'aliased', '--tests', '29', '--after', 'leave')
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(rig.calls[0], ('lock', reg['name']))
 
     def test_leave_keeps_usbtest_running(self):
         rig = Rig(self)

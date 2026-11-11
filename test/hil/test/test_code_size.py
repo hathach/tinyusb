@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for tools/code_size.py, the launcher of agentrc's code-size engine at the pin, and
+"""Unit tests for tools/code_size.py, the launcher of agentrc's code-size engine, and
 tools/code_size_profile.py, TinyUSB's profile. The engine's own tests are agentrc's
 (tests/test_code_size.py); these cover what the profile supplies: builds through tools/build.py,
 ESP-IDF, board and example checks, the CI-pinned boards, membrowse's link inputs and the base
@@ -19,6 +19,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import code_size  # noqa: E402
 import code_size_profile as prof  # noqa: E402
+from helper import agentrc  # noqa: E402 - code_size put test/hil on sys.path
 
 sd = code_size.load_engine()
 prof.engine = sd  # as the engine's main() does
@@ -43,21 +44,21 @@ def _touch(root, *rels):
 
 
 class Launcher(unittest.TestCase):
-    def test_the_engine_is_agentrcs_at_the_pin(self):
+    def test_the_engine_is_the_loaded_agentrcs(self):
         self.assertEqual(os.path.realpath(sd.__file__),
-                         os.path.realpath(os.path.join(REPO, 'lib', 'agentrc', 'skills', 'code-size', 'scripts',
-                                                       'code_size.py')))
+                         os.path.realpath(os.path.join(agentrc.identity()['root'], code_size.ENGINE)))
+        self.assertEqual(sd.PROFILE_API, prof.PROFILE_API)
 
     def test_the_engine_runs_with_the_profile(self):
         with mock.patch.object(sd, 'main', return_value=0) as main:
             self.assertEqual(code_size.main(['report', '-b', 'b']), 0)
         main.assert_called_once_with(prof, ['report', '-b', 'b'])
 
-    def test_an_engine_off_its_pin_refuses_before_anything_runs(self):
-        with mock.patch.object(code_size, 'load_engine', side_effect=ImportError('lib/agentrc must be at x')), \
+    def test_an_engine_that_cannot_load_refuses_before_anything_runs(self):
+        with mock.patch.object(code_size, 'load_engine', side_effect=ImportError('no usable agentrc at x')), \
              contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(code_size.main(['report', '-b', 'b']), 2)
-        self.assertIn('refused: lib/agentrc must be at x', err.getvalue())
+        self.assertIn('refused: no usable agentrc at x', err.getvalue())
 
     def test_the_profile_gives_every_hook_the_engine_uses(self):
         for name in sd.REQUIRED + ('link_inputs', 'linkermap_path', 'ci_boards', 'BASELINE_REPO', 'baseline_run',
@@ -434,6 +435,42 @@ class BaselineRun(unittest.TestCase):
             self.assertEqual(prof.baseline_run('o/r', 'a' * 40), {'sha': 'b' * 40})
         self.assertEqual(spec.call_args.args[1], os.path.join(REPO, '.github', 'scripts', 'code_size_ci.py'))
         ci.lookup_sha.assert_called_once_with('o/r', 'a' * 40, 'yours')
+
+
+class SkipExample(unittest.TestCase):
+    """The snapshot's examples are build.py's: these read this checkout's examples and hw/bsp."""
+
+    def test_an_espressif_board_skips_an_example_without_an_idf_component(self):
+        self.assertTrue(prof.skip_example('device/cdc_dual_ports', 'espressif_s3_devkitc'))
+        self.assertFalse(prof.skip_example('device/cdc_msc_freertos', 'espressif_s3_devkitc'))
+
+    def test_another_board_keeps_it(self):
+        self.assertFalse(prof.skip_example('device/cdc_dual_ports', 'raspberry_pi_pico'))
+
+    def test_the_legs_defines_can_enable_an_example(self):
+        self.assertTrue(prof.skip_example('host/device_info', 'feather_nrf52840_express'))
+        self.assertFalse(prof.skip_example('host/device_info', 'feather_nrf52840_express', ('MAX3421_HOST=1',)))
+
+    def test_an_example_absent_here_is_not_skipped(self):
+        # the snapshot then reports it as a failure instead of dropping it unseen
+        self.assertFalse(prof.skip_example('device/nope', 'raspberry_pi_pico'))
+
+    def test_the_answer_does_not_depend_on_the_cwd(self):
+        with contextlib.chdir(os.path.join(REPO, 'tools')):
+            self.assertFalse(prof.skip_example('device/cdc_dual_ports', 'raspberry_pi_pico'))
+            self.assertTrue(prof.skip_example('device/cdc_dual_ports', 'espressif_s3_devkitc'))
+
+    def test_a_board_snapshot_sizes_only_the_examples_the_espressif_board_builds(self):
+        sized = []
+
+        def generate_sizes(build_dir, filters, example):
+            sized.append(example)
+            return {}, []
+        with tempfile.TemporaryDirectory() as tmp, bound(), mock.patch.object(sd, 'generate_sizes', generate_sizes):
+            _, failures = sd.board_snapshot('espressif_s3_devkitc', tmp,
+                                            ['device/cdc_dual_ports', 'device/cdc_msc_freertos'], prof.filters(REPO))
+        self.assertEqual(sized, ['device/cdc_msc_freertos'])
+        self.assertEqual(failures, [])
 
 
 class BoardAndExampleNames(unittest.TestCase):

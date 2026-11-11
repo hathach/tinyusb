@@ -4,8 +4,9 @@ logging shim) reaches its server through that ssh and the tree guard, the core's
 real python3 there, and a fake python3 in that HOME's ~/.local/bin stands in for hil_test.py.
 The transport itself -- the lease and its lock, the guards, the wipe, the fetch, the run
 records, Windows rsync naming -- is agentrc's, tested with the core
-(lib/agentrc/tests/test_hil_remote_core.py); these are the adapter's board selection, staging
-list, run line, report copy-back and accumulate upload. Windows cannot exec the #! fakes, so
+(agentrc's tests/test_hil_remote_core.py); these are the adapter's board selection, staging
+list, the staged agentrc, run line, report copy-back and accumulate upload. The fake checkouts
+load the agentrc this process loads, as an installed one (AGENTRC_DIR), whatever CI says. Windows cannot exec the #! fakes, so
 there only the Refusals and Units run. Plumbing only: the real transport is proved by a run on
 ci.lan."""
 import contextlib
@@ -29,6 +30,7 @@ hil_remote = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hil_remote)
 report = hil_remote.helper('hil_report')   # this checkout's, as the fake checkouts' copy of it
 RCORE = report.core()
+AGENTRC = hil_remote.helper('agentrc').identity()
 
 REAL_RSYNC = shutil.which('rsync')
 RIG_PATH = '/usr/bin:/bin'
@@ -79,16 +81,20 @@ sys.exit(int(os.environ.get('FAKE_RC', '0')))
 '''
 
 # what a fake checkout needs real: the harness's argument parser, and the report adapter with
-# the loader, the pin, hil_load, the core it loads and the notice the core loads; and, though
-# the rig never runs it, the transport core hil_remote.py loads through that checkout's loader
+# the loader; agentrc itself is the installed one AGENTRC_DIR names
 REAL = ('test/hil/helper/hil_args.py', 'test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py',
-        'tools/get_deps.py', 'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-        'lib/agentrc/skills/hil/scripts/hil_report_core.py', 'lib/agentrc/skills/hil/scripts/hil_report_notice.py')
-REMOTE_CORE = 'lib/agentrc/skills/hil/scripts/hil_remote_core.py'
+        'test/hil/helper/hil_util.py')
+STAGED_AGENTRC = sorted([*(f'.agentrc/{f}' for f in AGENTRC['files']), '.agentrc/manifest.json'])
 
+# gamma has no inline flasher: agentrc's board registry gives it, by probe, one alpha and beta lack
+REGISTRY = json.loads((Path(AGENTRC['root']) / 'skills/hil/boards.json').read_text(encoding='utf-8'))['boards']
+GAMMA_PROBE, GAMMA_FLASHER = next((probe, b['flasher']['name']) for probe, b in REGISTRY.items()
+                                if b['flasher']['name'] not in ('jlink', 'openocd'))
 CONFIG = {'boards': [
-    {'name': 'alpha', 'flasher': {'name': 'jlink'}},
-    {'name': 'beta', 'flasher': {'name': 'openocd'}, 'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
+    {'name': 'alpha', 'uid': 'A', 'flasher': {'name': 'jlink', 'uid': 'pa'}},
+    {'name': 'beta', 'uid': 'B', 'flasher': {'name': 'openocd', 'uid': 'pb'},
+     'variant': [{'name': 'beta_one'}, {'name': 'beta_two'}]},
+    {'name': 'gamma', 'uid': 'G', 'probe': GAMMA_PROBE},
 ]}
 
 
@@ -123,7 +129,6 @@ class Rig(unittest.TestCase):
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             src = REPO / rel
             shutil.copy(src, self.root / rel) if rel in REAL else (self.root / rel).write_text('#')
-        shutil.copy(REPO / REMOTE_CORE, self.root / REMOTE_CORE)
         (self.root / 'test/hil/tinyusb.json').write_text(json.dumps(CONFIG))
         self.home = self.tmp / 'home'
         (self.home / '.local/bin').mkdir(parents=True)
@@ -144,8 +149,8 @@ class Rig(unittest.TestCase):
                 (d / f).write_text(f)
 
     def env(self):
-        e = {k: v for k, v in os.environ.items() if not k.startswith('HIL_')}
-        e.update(ROOT_DIR=str(self.root), REMOTE='rig', REMOTE_DIR=str(self.remote),
+        e = {k: v for k, v in os.environ.items() if not k.startswith('HIL_') and k not in ('CI', 'GITHUB_ACTIONS')}
+        e.update(ROOT_DIR=str(self.root), REMOTE='rig', REMOTE_DIR=str(self.remote), AGENTRC_DIR=AGENTRC['root'],
                  PATH=f'{self.bin}:{os.environ["PATH"]}', FAKE_LOG=str(self.log),
                  FAKE_HOME=str(self.home), FAKE_RUN=str(self.run_file),
                  FAKE_DEFAULT=DEFAULT_REPORT)
@@ -189,7 +194,7 @@ class Refusals(Rig):
         # without -b the line names the boards the run would select
         r = self.hil_remote('--build', '--exclude-flasher', 'openocd')
         self.refused(r, '--build')
-        self.assertIn('check_build.py --board alpha --shared --variants', r.stderr)
+        self.assertIn('check_build.py --board alpha --board gamma --shared --variants', r.stderr)
 
     def test_a_systemview_capture_is_ci_only(self):
         self.build('alpha')
@@ -214,7 +219,7 @@ class Refusals(Rig):
     def test_all_boards_with_nothing_built(self):
         r = self.hil_remote()
         self.refused(r, 'nothing to test')
-        self.assertIn('--board alpha --board beta --shared --variants test/hil/tinyusb.json', r.stderr)
+        self.assertIn('--board alpha --board beta --board gamma --shared --variants test/hil/tinyusb.json', r.stderr)
 
     def test_the_build_line_quotes_the_config(self):
         (self.root / 'test/hil/my rig.json').write_text(json.dumps(CONFIG))
@@ -234,6 +239,14 @@ class Refusals(Rig):
     def test_a_board_the_flasher_filter_drops_satisfies_nothing(self):
         self.build('beta_one')
         self.refused(self.hil_remote('--exclude-flasher', 'openocd'), 'nothing to test')
+
+    def test_the_flasher_filter_takes_a_registered_board_flasher_from_the_registry(self):
+        r = self.hil_remote('--build', '--flasher', GAMMA_FLASHER)
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board gamma --shared --variants', r.stderr)
+        r = self.hil_remote('--build', '--exclude-flasher', GAMMA_FLASHER)
+        self.refused(r, '--build')
+        self.assertIn('check_build.py --board alpha --board beta --shared --variants', r.stderr)
 
     def test_the_preset_layout_is_not_read(self):
         self.build('alpha', root='examples')
@@ -281,43 +294,33 @@ class Staging(Rig):
              [f'cmake-build/cmake-build-beta_{v}/device/cdc_msc/flash_args' for v in ('one', 'two')]
         self.assertEqual(self.remote_files(),
                          sorted([*hil_remote.HARNESS_FILES, 'test/hil/tinyusb.json', '.hil-remote-run', *fw,
+                                 *STAGED_AGENTRC,
                                  report.REPORT_JSON, report.REPORT_MD]))   # the last two the fake run's report
+        self.assertFalse([p for p in (self.remote / '.agentrc').rglob('*') if p.is_symlink()],
+                         'the rig gets regular files')
 
-    def lock_dependency(self, provided=True):
-        """The real hil_lock adapter, its loader, get_deps.py and, when provided, agentrc's files at the pin."""
-        rels = ['test/hil/helper/hil_lock.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py']
-        rels += ['lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_lock.py',
-                 'lib/agentrc/skills/hil/scripts/hil_process.py',
-                 'lib/agentrc/skills/hil/scripts/usb_observe.py',
-                 'lib/agentrc/skills/rtt/scripts/rtt.py'] if provided else []
-        for rel in rels:
-            shutil.copy(REPO / rel, self.root / rel)
-        if not provided:
-            shutil.rmtree(self.root / 'lib/agentrc')
-
-    def test_the_staged_tree_passes_the_pin_check(self):
+    def test_the_rig_loads_the_staged_agentrc_whatever_its_environment(self):
         self.build('alpha')
-        self.lock_dependency()
+        shutil.copy(REPO / 'test/hil/helper/hil_lock.py', self.root / 'test/hil/helper/hil_lock.py')
         r = self.hil_remote('-b', 'alpha')
         self.assertEqual(r.returncode, 0, r.stderr)
         probe = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil"); '
                                 'from helper import agentrc, hil_lock; print(hil_lock.__file__); '
-                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__)'],
-                               cwd=self.remote, capture_output=True, text=True, timeout=30)
+                                'print(agentrc.load("skills/rtt/scripts/rtt.py", "tinyusb_tools_rtt").__file__); '
+                                'i = agentrc.identity(); print(i["source"], i["commit"])'],
+                               cwd=self.remote, capture_output=True, text=True, timeout=30,
+                               env={**os.environ, 'CI': 'true', 'AGENTRC_DIR': str(self.tmp / 'no-agentrc')})
         self.assertEqual(probe.returncode, 0, probe.stderr)
-        self.assertEqual(probe.stdout.split(), [str(self.remote / 'lib/agentrc/skills/hil/scripts/hil_lock.py'),
-                                                str(self.remote / 'lib/agentrc/skills/rtt/scripts/rtt.py')])
+        self.assertEqual(probe.stdout.split(), [str(self.remote / '.agentrc/skills/hil/scripts/hil_lock.py'),
+                                                str(self.remote / '.agentrc/skills/rtt/scripts/rtt.py'),
+                                                'staged', AGENTRC['commit']])
 
-    def test_a_missing_lock_dependency_refuses_before_the_rig(self):
+    def test_no_usable_agentrc_refuses_before_the_rig(self):
         self.build('alpha')
-        self.lock_dependency(provided=False)
-        r = self.hil_remote('-b', 'alpha')
+        r = self.hil_remote('-b', 'alpha', AGENTRC_DIR=str(self.tmp / 'no-agentrc'))
         self.assertEqual(r.returncode, 1)
-        spec = importlib.util.spec_from_file_location('get_deps_under_test', REPO / 'tools/get_deps.py')
-        get_deps = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(get_deps)
-        self.assertIn(get_deps.deps_optional['lib/agentrc'][1], r.stderr)
-        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
+        self.assertIn(f'no usable agentrc at {self.tmp / "no-agentrc"}', r.stderr)
+        self.assertIn('AGENTRC_DIR', r.stderr)
         self.assertEqual(self.calls(), [])
 
     def test_a_missing_variant_warns(self):
@@ -578,12 +581,12 @@ class Units(unittest.TestCase):
         self.assertIn('is not on the drive of the checkout', str(e.exception.code))
         self.assertEqual(leased, [], 'refused after the lease wiped the rig tree')
 
-    def test_the_pin_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
-        # agentrc.load() checks the pin before running agentrc's hil_lock, whose fcntl Windows lacks
+    def test_the_agentrc_check_passes_where_the_lock_primitive_cannot_import_fcntl(self):
+        # agentrc.load() checks the agentrc before running its hil_lock, whose fcntl Windows lacks
         args = types.SimpleNamespace(build=True, sysview_out=None, board=['alpha'], flasher=None,
                                      exclude_flasher=None, build_dir='cmake-build')
         for error, refusal in ((ModuleNotFoundError("No module named 'fcntl'", name='fcntl'), '--build would build'),
-                               (ImportError('lib/agentrc must be at the pin'), 'lib/agentrc must be at the pin')):
+                               (ImportError('no usable agentrc at x'), 'no usable agentrc at x')):
             with self.subTest(error), mock.patch.object(hil_remote, 'helper', side_effect=error), \
                     mock.patch.object(hil_remote, 'parse_run', return_value=(args, CONFIG, hil_remote.ROOT / 'x.json')), \
                     self.assertRaises(SystemExit) as e:

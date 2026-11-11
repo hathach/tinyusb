@@ -30,6 +30,13 @@ jobs:
         with:
           fetch-depth: 0  # the selector diffs against the PR base or the push's before
 
+      - name: Get agentrc
+        # the selector and the matrix read each roster board's flasher from agentrc's board
+        # registry, at the commit test/hil/agentrc.json pins. A failed fetch fails the
+        # selector's suites, which runs everything, as every other selector failure does.
+        continue-on-error: true
+        run: python3 test/hil/helper/agentrc.py fetch
+
       - name: Selection gate
         id: gate
         env:
@@ -86,6 +93,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Get agentrc
+        continue-on-error: true   # the selection below falls back to the full matrix without it
+        run: python3 test/hil/helper/agentrc.py fetch
 
       - name: CI selection (PR only)
         id: hil-select
@@ -545,10 +556,10 @@ jobs:
             *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
             *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
           esac
-          # the board locks and the report document come from agentrc at the commit get_deps.py
-          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
-          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
-          python3 tools/get_deps.py lib/agentrc
+          # the board locks and the report document come from agentrc at the commit
+          # test/hil/agentrc.json pins, a skipped leg's report included; a failed fetch fails
+          # the step, and the prepare step's marker says the report is unavailable.
+          python3 test/hil/helper/agentrc.py fetch
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
             # a report saying so, or the combined PR comment drops the section (and leaves a
@@ -574,7 +585,7 @@ jobs:
         id: prepare
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # notice, never a table the JSON does not hold. When prepare fails (with agentrc
         # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
         # holding only its hil_report.unprepared marker, made here without the checkout's
         # scripts: the report dir can still hold an earlier attempt's report. The hfp job sets
@@ -685,10 +696,10 @@ jobs:
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
         run: |
-          # the board locks and the report document come from agentrc at the commit get_deps.py
-          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
-          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
-          python3 tools/get_deps.py lib/agentrc
+          # the board locks and the report document come from agentrc at the commit
+          # test/hil/agentrc.json pins, a skipped leg's report included; a failed fetch fails
+          # the step, and the prepare step's marker says the report is unavailable.
+          python3 test/hil/helper/agentrc.py fetch
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected esp-idf boards)"
             # a report saying so, or the combined PR comment drops the section (and leaves a
@@ -760,6 +771,11 @@ jobs:
           # full history: the "HIL selection" step below needs
           # merge-base(HEAD, origin/<base_ref>) for PR-scoped selection
           fetch-depth: 0
+
+      - name: Get agentrc
+        # hil_test.py's board locks and the report document, a run the selection skipped
+        # included, and the selector's board registry
+        run: python3 test/hil/helper/agentrc.py fetch
 
       # Computed BEFORE the build: the IAR build is four boards and up to 30 minutes on
       # a runner that hil-tinyusb (hfp.json) also needs, so an unaffected PR must release
@@ -840,9 +856,8 @@ jobs:
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
-        # lib/agentrc: hil_test.py's board locks and the report document, at the commit
-        # get_deps.py pins; a run the selection skipped writes its report with it too
-        run: python3 tools/get_deps.py lib/agentrc $BUILD_ARGS
+        if: env.SEL_RUN != 'false'
+        run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
         if: env.SEL_RUN != 'false'

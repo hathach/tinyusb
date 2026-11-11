@@ -202,7 +202,11 @@ static const usbd_class_driver_t _usbd_driver[] = {
         .open             = audiod_open,
         .control_xfer_cb  = audiod_control_xfer_cb,
         .xfer_cb          = audiod_xfer_cb,
+#if TUP_USBD_XFER_ISR
         .xfer_isr         = audiod_xfer_isr,
+#else
+        .xfer_isr         = NULL,
+#endif
         .sof              = audiod_sof_isr
     },
     #endif
@@ -649,6 +653,8 @@ static void configuration_reset(uint8_t rhport) {
     driver->reset(rhport);
   }
 
+  // Also clears sof_consumer, the application's tud_sof_cb_enable() included: it enables SOF again from
+  // tud_mount_cb(). Keeping it set would hide that call from a DCD that turns SOF off on bus reset (dwc2).
   tu_varclr(&_usbd_dev);
   (void)memset(_usbd_dev.itf2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   (void)memset(_usbd_dev.ep2drv, TUSB_INDEX_INVALID_8, sizeof(_usbd_dev.ep2drv));   // invalid mapping
@@ -1556,7 +1562,8 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
       send = true;
-      if(epnum > 0) {
+      // Ports with TUP_USBD_XFER_ISR = 0 always defer completion to xfer_cb() in task context
+      if(TUP_USBD_XFER_ISR && epnum > 0) {
         usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
 
         if (driver && driver->xfer_isr) {

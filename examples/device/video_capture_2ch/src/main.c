@@ -118,7 +118,18 @@ void tud_resume_cb(void) {
 
 static unsigned frame_num[CFG_TUD_VIDEO_STREAMING] = {1};
 static unsigned tx_busy = 0;
+static unsigned tx_requeue = 0; // per stream, set by a resend: the next callback may be the old frame's
 static unsigned interval_ms[CFG_TUD_VIDEO_STREAMING] = {1000 / FRAME_RATE};
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+// video_task and the frame callback in the usbd task test and change the frame state under this lock
+static SemaphoreHandle_t frame_mutex;
+  #define frame_lock()   ((void) xSemaphoreTake(frame_mutex, portMAX_DELAY))
+  #define frame_unlock() ((void) xSemaphoreGive(frame_mutex))
+#else
+  #define frame_lock()   ((void) 0)
+  #define frame_unlock() ((void) 0)
+#endif
 
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
 // To further reduce the size, we use MJPEG format instead of YUY2.
@@ -180,15 +191,18 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 }
 #endif
 
-static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
+static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, bool refill, void **fb) {
   uint32_t idx = ctl_idx + stm_idx;
 
   if (idx == 0) {
     // stream 0 use uncompressed YUY2 frame
     #if defined(CFG_EXAMPLE_VIDEO_READONLY)
+    (void) refill;
     *fb = (void*)(uintptr_t ) &framebuf_yuy2_readonly[(fnum % (FRAME_WIDTH / 2)) * 4];
     #else
-    fill_color_bar(framebuf_yuy2, frame_num[idx]);
+    if (refill) {
+      fill_color_bar(framebuf_yuy2, frame_num[idx]);
+    }
     *fb = framebuf_yuy2;
     #endif
 
@@ -205,6 +219,21 @@ static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fn
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+static bool video_submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, bool refill) {
+  void* fp;
+  size_t fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[ctl_idx + stm_idx], refill, &fp);
+  return tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
+}
+
+// Only with the stream's tx_busy bit clear: the driver owns no frame, so the buffer can be refilled
+static void video_send_new_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  // a refused frame gets no callback (e.g. endpoint halted), retry at the next interval
+  if (video_submit_frame(ctl_idx, stm_idx, true)) {
+    tx_busy |= 1u << (ctl_idx + stm_idx);
+  }
+}
+
+// Called with frame_lock() held
 static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   static unsigned start_ms[CFG_TUD_VIDEO_STREAMING] = {0, };
   static unsigned already_sent = 0;
@@ -215,26 +244,30 @@ static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
     frame_num[idx] = 0;
     return;
   }
-  void* fp;
-  size_t fb_size;
 
   if (!(already_sent & (1u << idx))) {
     already_sent |= 1u << idx;
-    tx_busy |= 1u << idx;
     start_ms[idx] = tusb_time_millis_api();
-
-    fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
-    tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
+    if (tx_busy & (1u << idx)) {
+      // no callback yet: the driver still owns this buffer (PROBE) or dropped it (bus reset, SET_INTERFACE).
+      // Resend it unchanged; the old frame's callback may still be on its way, so the next one queues it again.
+      tx_requeue |= 1u << idx;
+      (void) video_submit_frame(ctl_idx, stm_idx, false);
+    } else {
+      video_send_new_frame(ctl_idx, stm_idx);
+    }
   }
 
   unsigned cur = tusb_time_millis_api();
   if (cur - start_ms[idx] < interval_ms[idx]) return; // not enough time
-  if (tx_busy & (1u << idx)) return;
+  if (tx_busy & (1u << idx)) {
+    if (tx_requeue & (1u << idx)) {
+      (void) video_submit_frame(ctl_idx, stm_idx, false); // a refused resend gets no callback, retry it
+    }
+    return;
+  }
   start_ms[idx] += interval_ms[idx];
-  tx_busy |= 1u << idx;
-
-  fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
-  tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
+  video_send_new_frame(ctl_idx, stm_idx);
 }
 
 
@@ -242,8 +275,10 @@ void video_task(void* param) {
   (void) param;
 
   while(1) {
+    frame_lock();
     video_send_frame(0, 0);
     video_send_frame(1, 0);
+    frame_unlock();
 
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(interval_ms[0] / portTICK_PERIOD_MS);
@@ -253,11 +288,29 @@ void video_task(void* param) {
   }
 }
 
-void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+static void video_frame_released(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, bool delivered) {
   uint32_t idx = ctl_idx + stm_idx;
-  tx_busy &= ~(1u << idx);
-  /* flip buffer */
-  ++frame_num[idx];
+  frame_lock();
+  if (tx_requeue & (1u << idx)) {
+    // may be the old frame's late callback; queued here in the usbd task, only this frame's callback can follow
+    if (video_submit_frame(ctl_idx, stm_idx, false)) {
+      tx_requeue &= ~(1u << idx);
+    }
+  } else {
+    tx_busy &= ~(1u << idx);
+    if (delivered) {
+      ++frame_num[idx];
+    }
+  }
+  frame_unlock();
+}
+
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  video_frame_released(ctl_idx, stm_idx, true);
+}
+
+void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  video_frame_released(ctl_idx, stm_idx, false);
 }
 
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
@@ -318,6 +371,8 @@ StaticTask_t usb_device_taskdef;
 
 StackType_t  video_stack[VIDEO_STACK_SIZE];
 StaticTask_t video_taskdef;
+
+StaticSemaphore_t frame_mutexdef;
 #endif
 
 // USB Device Driver task
@@ -345,10 +400,12 @@ void usb_device_task(void *param) {
 
 void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
+  frame_mutex = xSemaphoreCreateMutexStatic(&frame_mutexdef);
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
   xTaskCreateStatic(video_task, "cdc", VIDEO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, video_stack, &video_taskdef);
   #else
+  frame_mutex = xSemaphoreCreateMutex();
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
   xTaskCreate(video_task, "video", VIDEO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);

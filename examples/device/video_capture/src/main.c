@@ -160,7 +160,19 @@ void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tu
 //--------------------------------------------------------------------+
 static unsigned frame_num = 0;
 static unsigned tx_busy = 0;
+static unsigned tx_requeue = 0; // set by a resend: the next callback may be the old frame's
 static unsigned interval_ms = 1000 / FRAME_RATE;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+// video_task and the frame callback in the usbd task test and change the frame state under this lock
+static SemaphoreHandle_t frame_mutex;
+  #define frame_lock()   ((void) xSemaphoreTake(frame_mutex, portMAX_DELAY))
+  #define frame_unlock() ((void) xSemaphoreGive(frame_mutex))
+#else
+  #define frame_lock()   ((void) 0)
+  #define frame_unlock() ((void) 0)
+#endif
+
 #ifndef CFG_EXAMPLE_VIDEO_BUFFERLESS
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
@@ -218,6 +230,30 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 
 #endif /* NDEF CFG_EXAMPLE_VIDEO_BUFFERLESS */
 
+static bool video_submit_frame(void) {
+#if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
+  return tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
+#elif defined (CFG_EXAMPLE_VIDEO_READONLY)
+  #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+  return tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
+                                FRAME_WIDTH * FRAME_HEIGHT * 16/8);
+  #else
+  return tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
+  #endif
+#else
+  return tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
+#endif
+}
+
+// Only with tx_busy clear: the driver owns no frame, so the buffer can be refilled
+static void video_send_new_frame(void) {
+#if !defined(CFG_EXAMPLE_VIDEO_BUFFERLESS) && !defined(CFG_EXAMPLE_VIDEO_READONLY)
+  fill_color_bar(frame_buffer, frame_num);
+#endif
+  tx_busy = video_submit_frame(); // a refused frame gets no callback (e.g. endpoint halted), retry at the next interval
+}
+
+// Called with frame_lock() held
 static void video_send_frame(void) {
   static unsigned start_ms = 0;
   static unsigned already_sent = 0;
@@ -230,21 +266,15 @@ static void video_send_frame(void) {
 
   if (!already_sent) {
     already_sent = 1;
-    tx_busy = 1;
     start_ms = tusb_time_millis_api();
-#if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
-    tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#elif defined (CFG_EXAMPLE_VIDEO_READONLY)
-    #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
-                           FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-    #else
-    tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-    #endif
-#else
-    fill_color_bar(frame_buffer, frame_num);
-    tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#endif
+    if (tx_busy) {
+      // no callback yet: the driver still owns this buffer (PROBE) or dropped it (bus reset, SET_INTERFACE).
+      // Resend it unchanged; the old frame's callback may still be on its way, so the next one queues it again.
+      tx_requeue = 1;
+      (void) video_submit_frame();
+    } else {
+      video_send_new_frame();
+    }
   }
 
   unsigned cur = tusb_time_millis_api();
@@ -252,24 +282,13 @@ static void video_send_frame(void) {
     return; // not enough time
   }
   if (tx_busy) {
+    if (tx_requeue) {
+      (void) video_submit_frame(); // a refused resend gets no callback, retry it
+    }
     return;
   }
   start_ms += interval_ms;
-  tx_busy = 1;
-
-#if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
-  tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#elif defined(CFG_EXAMPLE_VIDEO_READONLY)
-  #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
-                         FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-  #else
-  tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-  #endif
-#else
-  fill_color_bar(frame_buffer, frame_num);
-  tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#endif
+  video_send_new_frame();
 }
 
 
@@ -277,7 +296,9 @@ void video_task(void* param) {
   (void) param;
 
   while(1) {
+    frame_lock();
     video_send_frame();
+    frame_unlock();
 
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(interval_ms / portTICK_PERIOD_MS);
@@ -287,12 +308,32 @@ void video_task(void* param) {
   }
 }
 
+static void video_frame_released(bool delivered) {
+  frame_lock();
+  if (tx_requeue) {
+    // may be the old frame's late callback; queued here in the usbd task, only this frame's callback can follow
+    if (video_submit_frame()) {
+      tx_requeue = 0;
+    }
+  } else {
+    tx_busy = 0;
+    if (delivered) {
+      ++frame_num;
+    }
+  }
+  frame_unlock();
+}
+
 void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   (void) ctl_idx;
   (void) stm_idx;
-  tx_busy = 0;
-  /* flip buffer */
-  ++frame_num;
+  video_frame_released(true);
+}
+
+void tud_video_frame_xfer_abort_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  (void) ctl_idx;
+  (void) stm_idx;
+  video_frame_released(false);
 }
 
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
@@ -356,6 +397,8 @@ StaticTask_t usb_device_taskdef;
 
 StackType_t  video_stack[VIDEO_STACK_SIZE];
 StaticTask_t video_taskdef;
+
+StaticSemaphore_t frame_mutexdef;
 #endif
 
 // USB Device Driver task
@@ -383,10 +426,12 @@ void usb_device_task(void *param) {
 
 void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
+  frame_mutex = xSemaphoreCreateMutexStatic(&frame_mutexdef);
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
   xTaskCreateStatic(video_task, "cdc", VIDEO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, video_stack, &video_taskdef);
   #else
+  frame_mutex = xSemaphoreCreateMutex();
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
   xTaskCreate(video_task, "video", VIDEO_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);

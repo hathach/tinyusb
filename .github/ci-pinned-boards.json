@@ -24,6 +24,7 @@
     { "board": "raspberry_pi_pico2", "note": "rp2350 FS, host" },
     { "board": "same70_xplained", "note": "samx7x HS" },
     { "board": "samg55_xplained", "note": "samg FS" },
+    { "board": "spresense", "note": "cxd56 FS, NuttX SDK" },
     { "board": "stm32f303disco", "note": "fsdev 512B, 1x16-bit" },
     { "board": "stm32f407disco", "note": "dwc2 2.81a FS, host" },
     { "board": "stm32g0b1nucleo", "note": "fsdev 2KB, 32-bit, host" },
@@ -33,7 +34,6 @@
     { "board": "stm32n657nucleo", "note": "dwc2 4.11a HS, UTMI+, host" }
   ],
   "uncovered": {
-    "dcd_cxd56": "cxd56 has no CI family lane (not in ci_set_matrix.family_list), so no CI board can build it",
     "dcd_mm32f327x_otg": "mm32 unpinned - maintainer trimmed the pinned set",
     "dcd_nuc120": "nuvoton unpinned - maintainer trimmed the pinned set",
     "dcd_nuc121": "nuvoton unpinned - maintainer trimmed the pinned set",

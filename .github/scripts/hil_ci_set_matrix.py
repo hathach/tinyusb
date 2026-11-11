@@ -4,9 +4,9 @@ import shlex
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
-import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
-import hil_util  # noqa: E402  ESP_IDF_FLASHERS; agentrc loads only on first use
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil'))
+from helper import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
+from helper import hil_util  # noqa: E402  ESP_IDF_FLASHERS; hil_boards() needs agentrc (helper/agentrc.py)
 
 
 def _resolve_config_path(config_file):
@@ -90,7 +90,10 @@ def main():
             if selected is not None and board['name'] not in selected:
                 continue
             name = board['name']
-            flasher = board['flasher']
+            try:   # the board's flasher is agentrc's, by its probe
+                flasher = hil_util.hil_boards().resolve(board)['flasher']
+            except (ImportError, ValueError) as e:
+                raise SystemExit(f'{config_file}: {e}')
             # esptool and openocd_esp boards must build under esp-idf; others default
             # to arm-gcc but may opt into another bucket via an explicit "toolchain"
             # field (e.g. RISC-V boards like ch32v20x need "riscv-gcc").

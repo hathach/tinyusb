@@ -6,8 +6,8 @@ report: pure -- two directories of sysview-<board>.json in, markdown out.
 capture_one: flash the SYSVIEW image hil-build made, drive the workload, RTT-capture; hil_test.py --sysview-out runs it
 under its board lock, before its final park, and records it with capture_result.
 decode: turn each recorded capture into metrics, no hardware. Capture and decode run agentrc's rtt.py and
-target-debug sysview scripts from lib/agentrc at the get_deps.py pin (agentrc's skills/target-debug/sysview.md is
-their manual).
+target-debug sysview scripts from the agentrc helper/agentrc.py selects (agentrc's skills/target-debug/sysview.md
+is their manual).
 """
 import argparse, glob, html, json, os, re, signal, sys
 

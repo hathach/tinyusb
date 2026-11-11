@@ -49,6 +49,10 @@ static uint8_t    *poll_buf;
 static hcd_event_t events[MAX_CB];
 static uint8_t     event_count;
 
+// the device descriptor reports a multi-TT hub; SET_CONFIG completions reported to usbh
+static bool    dev_mtt;
+static uint8_t config_complete_count;
+
 //--------------------------------------------------------------------+
 // Stubs
 //--------------------------------------------------------------------+
@@ -72,23 +76,27 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
 
 bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc_device) {
   (void) daddr;
-  (void) desc_device;
-  return false;
+  desc_device->bDeviceProtocol = HUB_PROTOCOL_HIGH_SPEED_MTT;
+  return dev_mtt;
 }
 
+// queued like a control request, completed by the test
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer_cb_t complete_cb,
                        uintptr_t user_data) {
-  (void) daddr;
-  (void) itf_num;
-  (void) itf_alt;
-  (void) complete_cb;
-  (void) user_data;
-  return true;
+  const tusb_control_request_t setup = {
+    .bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE},
+    .bRequest          = TUSB_REQ_SET_INTERFACE,
+    .wValue            = itf_alt,
+    .wIndex            = itf_num,
+  };
+  tuh_xfer_t xfer = {.daddr = daddr, .setup = &setup, .complete_cb = complete_cb, .user_data = user_data};
+  return tuh_control_xfer(&xfer);
 }
 
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void) dev_addr;
   (void) itf_num;
+  config_complete_count++;
 }
 
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) {
@@ -170,6 +178,45 @@ static void open_hub(uint8_t daddr) {
   TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, daddr, &desc.itf, sizeof(desc)));
 }
 
+// a multi-TT hub: alternate setting 0 single-TT, 1 multi-TT, each with the status endpoint
+static void open_mtt_hub(uint8_t daddr) {
+  const tusb_desc_endpoint_t ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EP_IN,
+    .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
+    .wMaxPacketSize   = 1,
+    .bInterval        = 12,
+  };
+  const struct TU_ATTR_PACKED {
+    tusb_desc_interface_t itf0;
+    tusb_desc_endpoint_t  ep0;
+    tusb_desc_interface_t itf1;
+    tusb_desc_endpoint_t  ep1;
+  } desc = {
+    .itf0 = {
+      .bLength            = sizeof(tusb_desc_interface_t),
+      .bDescriptorType    = TUSB_DESC_INTERFACE,
+      .bNumEndpoints      = 1,
+      .bInterfaceClass    = TUSB_CLASS_HUB,
+      .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_STT,
+    },
+    .ep0  = ep,
+    .itf1 = {
+      .bLength            = sizeof(tusb_desc_interface_t),
+      .bDescriptorType    = TUSB_DESC_INTERFACE,
+      .bAlternateSetting  = 1,
+      .bNumEndpoints      = 1,
+      .bInterfaceClass    = TUSB_CLASS_HUB,
+      .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_MTT,
+    },
+    .ep1  = ep,
+  };
+  dev_mtt = true;
+  TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, daddr, &desc.itf0, sizeof(desc)));
+  dev_mtt = false;
+}
+
 // open, then run SET_CONFIG: hub descriptor, power every port, arm the status poll
 static void configure_hub(uint8_t daddr, uint8_t nports) {
   open_hub(daddr);
@@ -229,6 +276,8 @@ void setUp(void) {
   poll_count  = 0;
   poll_buf    = NULL;
   event_count = 0;
+  dev_mtt     = false;
+  config_complete_count = 0;
   hub_init();
 }
 
@@ -449,4 +498,42 @@ void test_recovery_hub_status_clears_change(void) {
   complete_ctrl(2, XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL(polls + 1, poll_count);
   TEST_ASSERT_EQUAL(0, event_count);
+}
+
+//--------------------------------------------------------------------+
+// Multi-TT hub configuration
+//--------------------------------------------------------------------+
+// SET_INTERFACE(1) ends with result; the rest of SET_CONFIG succeeds
+static void configure_mtt_hub(xfer_result_t result) {
+  open_mtt_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_tt_multi(HUB_A));
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(TUSB_REQ_SET_INTERFACE, ctrl_reqs[0].setup.bRequest);
+  TEST_ASSERT_EQUAL(1, ctrl_reqs[0].setup.wValue);
+  complete_ctrl(0, result);
+
+  TEST_ASSERT_EQUAL(2, ctrl_count);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_GET_DESCRIPTOR, ctrl_reqs[1].setup.bRequest);
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 2};
+  complete_ctrl_data(1, &desc_hub, sizeof(desc_hub));
+  complete_ctrl(2, XFER_RESULT_SUCCESS);
+  complete_ctrl(3, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(1, poll_count);
+}
+
+void test_mtt_hub_runs_multi_tt_after_set_interface(void) {
+  configure_mtt_hub(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_tt_multi(HUB_A));
+}
+
+// usbh holds every other enumeration until the hub completes SET_CONFIG: a failed SET_INTERFACE must not stop it
+void test_mtt_hub_failed_set_interface_completes_config_as_single_tt(void) {
+  const xfer_result_t failures[] = {XFER_RESULT_STALLED, XFER_RESULT_TIMEOUT, XFER_RESULT_FAILED};
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(failures); i++) {
+    setUp();
+    configure_mtt_hub(failures[i]);
+    TEST_ASSERT_FALSE(hub_tt_multi(HUB_A));
+  }
 }
