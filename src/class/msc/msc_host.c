@@ -29,6 +29,10 @@ enum {
   MSC_STAGE_CMD,
   MSC_STAGE_DATA,
   MSC_STAGE_STATUS,
+  // Reset Recovery (BOT 1.0 §5.3.4): the control request in flight
+  MSC_STAGE_RESET,
+  MSC_STAGE_CLEAR_HALT_IN,
+  MSC_STAGE_CLEAR_HALT_OUT,
 };
 
 typedef struct {
@@ -42,11 +46,14 @@ typedef struct {
 
   // SCSI command data
   uint8_t stage;
-  bool desync; // a stage failed to submit: the device is mid-command until re-enumerated
+  bool desync; // a stage failed to submit: the device is mid-command until Reset Recovery or re-enumeration
   void* buffer;
   uint32_t data_xferred;
   tuh_msc_complete_cb_t complete_cb;
   uintptr_t complete_arg;
+
+  tuh_msc_reset_cb_t reset_cb;
+  uintptr_t reset_arg;
 
   struct {
     uint32_t block_size;
@@ -176,6 +183,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
 
   if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
     (void) usbh_edpt_release(daddr, p_msc->ep_out);
+    p_msc->stage = MSC_STAGE_IDLE;
     return false;
   }
 
@@ -301,23 +309,109 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t
   return tuh_msc_scsi_command(dev_addr, &cbw, (void*) (uintptr_t) buffer, complete_cb, arg);
 }
 
-#if 0
-// MSC interface Reset (not used now)
-bool tuh_msc_reset(uint8_t dev_addr) {
-  tusb_control_request_t const new_request = {
-    .bmRequestType_bit = {
-      .recipient = TUSB_REQ_RCPT_INTERFACE,
-      .type      = TUSB_REQ_TYPE_CLASS,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = MSC_REQ_RESET,
-    .wValue   = 0,
-    .wIndex   = p_msc->itf_num,
-    .wLength  = 0
+//--------------------------------------------------------------------+
+// PUBLIC API: Reset Recovery
+//--------------------------------------------------------------------+
+static void reset_recovery_complete(tuh_xfer_t* xfer);
+
+// Submit the request of the current recovery stage: Bulk-Only Mass Storage Reset, then CLEAR_FEATURE(ENDPOINT_HALT)
+// to Bulk-In and Bulk-Out
+static bool reset_recovery_submit(uint8_t daddr, const msch_interface_t* p_msc) {
+  tusb_control_request_t request = {
+      .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type      = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_OUT
+      },
+      .bRequest = MSC_REQ_RESET,
+      .wValue   = 0,
+      .wIndex   = p_msc->itf_num,
+      .wLength  = 0
   };
-  TU_ASSERT( usbh_control_xfer( dev_addr, &new_request, NULL ) );
+  if (p_msc->stage != MSC_STAGE_RESET) {
+    request.bmRequestType_bit.recipient = TUSB_REQ_RCPT_ENDPOINT;
+    request.bmRequestType_bit.type      = TUSB_REQ_TYPE_STANDARD;
+    request.bRequest = TUSB_REQ_CLEAR_FEATURE;
+    request.wValue   = TUSB_REQ_FEATURE_EDPT_HALT;
+    request.wIndex   = (p_msc->stage == MSC_STAGE_CLEAR_HALT_IN) ? p_msc->ep_in : p_msc->ep_out;
+  }
+
+  tuh_xfer_t xfer = {
+      .daddr       = daddr,
+      .ep_addr     = 0,
+      .setup       = &request,
+      .buffer      = NULL,
+      .complete_cb = reset_recovery_complete,
+      .user_data   = _msch_tagid[daddr - 1]
+  };
+  return tuh_control_xfer(&xfer);
 }
-#endif
+
+// State is settled before the callback, which may start a command or another recovery
+static void reset_recovery_end(uint8_t daddr, msch_interface_t* p_msc, bool success) {
+  const tuh_msc_reset_cb_t cb  = p_msc->reset_cb;
+  const uintptr_t          arg = p_msc->reset_arg;
+  p_msc->stage    = MSC_STAGE_IDLE;
+  p_msc->desync   = !success;
+  p_msc->reset_cb = NULL;
+  TU_LOG_DRV("  MSCh Reset Recovery %s\r\n", success ? "done" : "failed");
+  if (cb != NULL) {
+    cb(daddr, success, arg);
+  }
+}
+
+static void reset_recovery_complete(tuh_xfer_t* xfer) {
+  const uint8_t daddr = xfer->daddr;
+  msch_interface_t* p_msc = get_itf(daddr);
+  // unplugged: discarded with the interface; the application learns of it from tuh_msc_umount_cb()
+  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1],);
+
+  bool ok = (xfer->result == XFER_RESULT_SUCCESS);
+  switch (p_msc->stage) {
+    case MSC_STAGE_RESET:
+      p_msc->stage = MSC_STAGE_CLEAR_HALT_IN;
+      break;
+
+    // Clear HALT resets the device's data toggle to DATA0 (USB 2.0 §9.4.5): reset the host's to match
+    case MSC_STAGE_CLEAR_HALT_IN:
+      ok = ok && usbh_edpt_clear_stall(daddr, p_msc->ep_in);
+      p_msc->stage = MSC_STAGE_CLEAR_HALT_OUT;
+      break;
+
+    case MSC_STAGE_CLEAR_HALT_OUT:
+      reset_recovery_end(daddr, p_msc, ok && usbh_edpt_clear_stall(daddr, p_msc->ep_out));
+      return;
+
+    default:
+      return;
+  }
+
+  if (!ok || !reset_recovery_submit(daddr, p_msc)) {
+    reset_recovery_end(daddr, p_msc, false);
+  }
+}
+
+bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg) {
+  TU_VERIFY(daddr > 0 && daddr <= CFG_TUH_DEVICE_MAX);
+  msch_interface_t* p_msc = get_itf(daddr);
+  TU_VERIFY(p_msc->mounted && p_msc->stage == MSC_STAGE_IDLE);
+  TU_VERIFY(!usbh_edpt_busy(daddr, p_msc->ep_in) && !usbh_edpt_busy(daddr, p_msc->ep_out));
+
+  // fenced before submitting: the request may complete before tuh_control_xfer() returns
+  const bool was_desync = p_msc->desync;
+  p_msc->desync    = true;
+  p_msc->stage     = MSC_STAGE_RESET;
+  p_msc->reset_cb  = complete_cb;
+  p_msc->reset_arg = arg;
+
+  if (!reset_recovery_submit(daddr, p_msc)) {
+    p_msc->desync   = was_desync;
+    p_msc->stage    = MSC_STAGE_IDLE;
+    p_msc->reset_cb = NULL;
+    return false;
+  }
+  return true;
+}
 
 //--------------------------------------------------------------------+
 // CLASS-USBH API

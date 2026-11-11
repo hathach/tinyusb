@@ -17,6 +17,7 @@ enum {
   EP_OUT    = 0x01,
   EP_IN     = 0x81,
   MAX_XFERS = 8,
+  MAX_CTRL  = 8,
 };
 
 static uint8_t  xfer_ep[MAX_XFERS];
@@ -43,10 +44,35 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
 }
 
 static tuh_xfer_t ctrl_xfer;
+static tusb_control_request_t ctrl_req[MAX_CTRL]; // the caller's setup is on its stack
+static uint8_t ctrl_count;                        // submissions attempted
+static uint8_t ctrl_fail_index;                   // ctrl_count value whose submission fails
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
-  ctrl_xfer = *xfer;
-  return !ctrl_xfer_fail;
+  TEST_ASSERT_LESS_THAN(MAX_CTRL, ctrl_count);
+  const uint8_t index = ctrl_count++;
+  ctrl_req[index]     = *xfer->setup;
+  ctrl_xfer           = *xfer;
+  ctrl_xfer.setup     = &ctrl_req[index];
+  return !ctrl_xfer_fail && index != ctrl_fail_index;
+}
+
+// complete the last control transfer; its callback may submit the next one
+static void complete_ctrl(xfer_result_t result) {
+  tuh_xfer_t ctrl = ctrl_xfer;
+  ctrl.result = result;
+  ctrl.complete_cb(&ctrl);
+}
+
+static uint8_t clear_stall_ep[4];
+static uint8_t clear_stall_count;
+static uint8_t clear_stall_fail_ep;
+
+bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
+  (void) dev_addr;
+  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(clear_stall_ep), clear_stall_count);
+  clear_stall_ep[clear_stall_count++] = ep_addr;
+  return ep_addr != clear_stall_fail_ep;
 }
 
 uint8_t *usbh_get_enum_buf(void) {
@@ -71,10 +97,11 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
   return true;
 }
 
+static uint8_t busy_ep;
+
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
-  (void) ep_addr;
-  return false;
+  return busy_ep != 0 && ep_addr == busy_ep;
 }
 
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
@@ -143,9 +170,7 @@ static void reply_csw_passed(void) {
 // msch_set_config() queues Get Max LUN; complete it with a chosen response byte / result. Test Unit Ready follows.
 static void complete_get_maxlun(uint8_t resp_byte, xfer_result_t result) {
   enum_buf[0] = resp_byte;
-  tuh_xfer_t ctrl = ctrl_xfer;
-  ctrl.result = result;
-  ctrl_xfer.complete_cb(&ctrl);
+  complete_ctrl(result);
 }
 
 // Get Max LUN STALLs (one LUN)
@@ -185,6 +210,11 @@ void setUp(void) {
   set_config_count = 0;
   retry_submitted = false;
   ctrl_xfer_fail  = false;
+  ctrl_count      = 0;
+  ctrl_fail_index = UINT8_MAX;
+  clear_stall_count   = 0;
+  clear_stall_fail_ep = 0;
+  busy_ep         = 0;
   msch_init();
   mount_bot_interface();
 }
@@ -577,4 +607,333 @@ void test_msc_host_enum_stale_get_max_lun_after_reopen(void) {
 
   // the reopened interface's own Get Max LUN still enumerates it
   enumerate();
+}
+
+//--------------------------------------------------------------------+
+// Reset Recovery
+//--------------------------------------------------------------------+
+enum {
+  RESET_ARG = 0x55,
+};
+
+static uint8_t reset_cb_count;
+static bool    reset_success;
+static bool    reset_retry_started;
+
+static void record_reset(uint8_t daddr, bool success, uintptr_t arg) {
+  TEST_ASSERT_EQUAL(DADDR, daddr);
+  TEST_ASSERT_EQUAL(RESET_ARG, arg);
+  reset_cb_count++;
+  reset_success = success;
+}
+
+// a command straight from the success callback
+static void reset_then_command(uint8_t daddr, bool success, uintptr_t arg) {
+  record_reset(daddr, success, arg);
+  retry_submitted = tuh_msc_test_unit_ready(daddr, 0, record_complete, 0);
+}
+
+// another attempt straight from the failure callback
+static void reset_then_retry(uint8_t daddr, bool success, uintptr_t arg) {
+  record_reset(daddr, success, arg);
+  reset_retry_started = tuh_msc_reset(daddr, record_reset, RESET_ARG);
+}
+
+static void reset_counters(void) {
+  xfer_count        = 0;
+  complete_count    = 0;
+  ctrl_count        = 0;
+  clear_stall_count = 0;
+  reset_cb_count    = 0;
+  retry_submitted   = false;
+  reset_retry_started = false;
+}
+
+static void enumerate_and_fence(void) {
+  enumerate();
+  xfer_fail_index = 1; // CBW, then the CSW fails
+  start_no_data_cb(record_complete);
+  xfer_fail_index = UINT8_MAX;
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  reset_counters();
+}
+
+static void assert_request(uint8_t index, uint8_t bm_request_type, uint8_t b_request, uint16_t w_value,
+                           uint16_t w_index) {
+  TEST_ASSERT_EQUAL_HEX8(bm_request_type, ctrl_req[index].bmRequestType);
+  TEST_ASSERT_EQUAL_HEX8(b_request, ctrl_req[index].bRequest);
+  TEST_ASSERT_EQUAL_HEX16(w_value, ctrl_req[index].wValue);
+  TEST_ASSERT_EQUAL_HEX16(w_index, ctrl_req[index].wIndex);
+  TEST_ASSERT_EQUAL(0, ctrl_req[index].wLength);
+}
+
+// the interface takes a command again and runs it from its CBW
+static void assert_unfenced(void) {
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+  const uint8_t submitted = xfer_count;
+  TEST_ASSERT_TRUE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(submitted + 1, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[submitted]);
+}
+
+static void assert_reset_failed(void) {
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_FALSE(reset_success);
+  assert_fenced(0, 0);
+}
+
+static void complete_recovery(void) {
+  complete_ctrl(XFER_RESULT_SUCCESS); // Bulk-Only Mass Storage Reset
+  complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-In
+  complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-Out
+}
+
+// BOT 1.0 §5.3.4 order, each Clear HALT followed by its host toggle reset; the fence holds until the last one
+void test_msc_host_reset_recovers_fenced_interface(void) {
+  enumerate_and_fence();
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL_PTR(NULL, ctrl_xfer.buffer);
+  assert_request(0, 0x21, MSC_REQ_RESET, 0, ITF_NUM);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+
+  complete_ctrl(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(2, ctrl_count);
+  assert_request(1, 0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, EP_IN);
+  TEST_ASSERT_EQUAL(0, clear_stall_count);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+
+  complete_ctrl(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(3, ctrl_count);
+  assert_request(2, 0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, EP_OUT);
+  TEST_ASSERT_EQUAL(1, clear_stall_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, clear_stall_ep[0]);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+
+  complete_ctrl(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(3, ctrl_count);
+  TEST_ASSERT_EQUAL(2, clear_stall_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, clear_stall_ep[1]);
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_TRUE(reset_success);
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
+  TEST_ASSERT_EQUAL(1024, tuh_msc_get_block_count(DADDR, 0));
+  assert_unfenced();
+}
+
+void test_msc_host_reset_idle_interface_then_command_from_callback(void) {
+  enumerate();
+  reset_counters();
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, reset_then_command, RESET_ARG));
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR)); // fenced while it runs
+  complete_recovery();
+
+  TEST_ASSERT_TRUE(reset_success);
+  TEST_ASSERT_TRUE(retry_submitted);
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[0]);
+}
+
+void test_msc_host_reset_without_callback(void) {
+  enumerate_and_fence();
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, NULL, 0));
+  complete_recovery();
+
+  assert_unfenced();
+}
+
+// any failed step ends the attempt fenced, with no further request
+void test_msc_host_reset_failure_keeps_fence(void) {
+  for (uint8_t step = 0; step < 3; step++) {
+    // the request completes with an error
+    const xfer_result_t results[] = {XFER_RESULT_STALLED, XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
+    for (size_t r = 0; r < TU_ARRAY_SIZE(results); r++) {
+      msch_close(DADDR);
+      set_config_count = 0;
+      mount_bot_interface();
+      enumerate_and_fence();
+      TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+      for (uint8_t i = 0; i < step; i++) {
+        complete_ctrl(XFER_RESULT_SUCCESS);
+      }
+      complete_ctrl(results[r]);
+      TEST_ASSERT_EQUAL(step + 1, ctrl_count);
+      TEST_ASSERT_EQUAL(step > 1 ? 1 : 0, clear_stall_count);
+      assert_reset_failed();
+    }
+
+    // the next request fails to submit
+    if (step > 0) {
+      msch_close(DADDR);
+      set_config_count = 0;
+      mount_bot_interface();
+      enumerate_and_fence();
+      ctrl_fail_index = step;
+      TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+      for (uint8_t i = 0; i < step; i++) {
+        complete_ctrl(XFER_RESULT_SUCCESS);
+      }
+      ctrl_fail_index = UINT8_MAX;
+      TEST_ASSERT_EQUAL(step + 1, ctrl_count);
+      assert_reset_failed();
+    }
+  }
+}
+
+// a host controller that cannot reset the toggle fails the attempt, even after the device took the request
+void test_msc_host_reset_local_toggle_reset_failure_keeps_fence(void) {
+  const uint8_t eps[] = {EP_IN, EP_OUT};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(eps); i++) {
+    msch_close(DADDR);
+    set_config_count = 0;
+    mount_bot_interface();
+    enumerate_and_fence();
+    clear_stall_fail_ep = eps[i];
+    TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+    complete_ctrl(XFER_RESULT_SUCCESS);
+    complete_ctrl(XFER_RESULT_SUCCESS);
+    if (eps[i] == EP_OUT) {
+      complete_ctrl(XFER_RESULT_SUCCESS);
+    }
+    TEST_ASSERT_EQUAL(eps[i] == EP_IN ? 2 : 3, ctrl_count);
+    assert_reset_failed();
+  }
+}
+
+// a healthy interface fenced by an accepted attempt that then fails
+void test_msc_host_reset_idle_interface_failure_fences(void) {
+  enumerate();
+  reset_counters();
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  complete_ctrl(XFER_RESULT_STALLED);
+
+  assert_reset_failed();
+}
+
+void test_msc_host_reset_first_submit_rejected_keeps_state(void) {
+  enumerate();
+  reset_counters();
+  ctrl_xfer_fail = true;
+
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+  ctrl_xfer_fail = false;
+  assert_unfenced(); // still healthy
+
+  msch_close(DADDR);
+  set_config_count = 0;
+  mount_bot_interface();
+  enumerate_and_fence();
+  ctrl_xfer_fail = true;
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  ctrl_xfer_fail = false;
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+  assert_fenced(0, 0);
+
+  // and may be retried
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  complete_recovery();
+  TEST_ASSERT_TRUE(reset_success);
+}
+
+// a failed attempt can be retried, also straight from its callback
+void test_msc_host_reset_retry_from_failure_callback(void) {
+  enumerate_and_fence();
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, reset_then_retry, RESET_ARG));
+  complete_ctrl(XFER_RESULT_STALLED);
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_FALSE(reset_success);
+  TEST_ASSERT_TRUE(reset_retry_started);
+  TEST_ASSERT_EQUAL(2, ctrl_count);
+  assert_request(1, 0x21, MSC_REQ_RESET, 0, ITF_NUM);
+
+  complete_recovery();
+  TEST_ASSERT_EQUAL(2, reset_cb_count);
+  TEST_ASSERT_TRUE(reset_success);
+  assert_unfenced();
+}
+
+void test_msc_host_reset_refused(void) {
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG)); // configured, not yet mounted
+  TEST_ASSERT_EQUAL(1, ctrl_count);                                  // Get Max LUN only
+
+  enumerate();
+  reset_counters();
+  TEST_ASSERT_FALSE(tuh_msc_reset(0, record_reset, RESET_ARG));
+  TEST_ASSERT_FALSE(tuh_msc_reset(CFG_TUH_DEVICE_MAX + 1, record_reset, RESET_ARG));
+
+  const uint8_t eps[] = {EP_IN, EP_OUT};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(eps); i++) {
+    busy_ep = eps[i];
+    TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  }
+  busy_ep = 0;
+
+  // a command in flight
+  start_no_data_cb(record_complete);
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  reply_csw_passed();
+
+  // a recovery in flight
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  TEST_ASSERT_FALSE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+}
+
+// a CBW that fails to submit leaves the interface idle, so a recovery may still start
+void test_msc_host_reset_after_cbw_submit_fail(void) {
+  enumerate();
+  reset_counters();
+  xfer_fail_index = 0;
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE};
+  TEST_ASSERT_FALSE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+  xfer_fail_index = UINT8_MAX;
+
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+}
+
+// unplugged mid-recovery: usbh fails the request after closing the driver; no callback, the umount callback reports it
+void test_msc_host_reset_unplug_discards(void) {
+  enumerate_and_fence();
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  complete_ctrl(XFER_RESULT_SUCCESS);
+
+  msch_close(DADDR);
+  complete_ctrl(XFER_RESULT_FAILED);
+
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+  TEST_ASSERT_EQUAL(2, ctrl_count);
+  TEST_ASSERT_EQUAL(0, clear_stall_count);
+}
+
+// a request of the earlier open completing after the address was re-enumerated must not advance the new
+// interface's own recovery
+void test_msc_host_reset_stale_completion_after_reopen(void) {
+  enumerate_and_fence();
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+  tuh_xfer_t stale = ctrl_xfer;
+
+  msch_close(DADDR);
+  set_config_count = 0;
+  mount_bot_interface();
+  enumerate();
+  reset_counters();
+  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
+
+  stale.result = XFER_RESULT_SUCCESS;
+  stale.complete_cb(&stale);
+  TEST_ASSERT_EQUAL(0, reset_cb_count);
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+
+  complete_recovery();
+  TEST_ASSERT_EQUAL(1, reset_cb_count);
+  TEST_ASSERT_TRUE(reset_success);
+  assert_unfenced();
 }

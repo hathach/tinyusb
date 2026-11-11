@@ -30,6 +30,7 @@ typedef struct {
 } tuh_msc_complete_data_t;
 
 typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data);
+typedef void (*tuh_msc_reset_cb_t)(uint8_t dev_addr, bool success, uintptr_t arg);
 
 //--------------------------------------------------------------------+
 // Application API
@@ -39,8 +40,8 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, const tuh_msc_complete_d
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface can accept a new command: false while busy, and until re-enumeration once fenced
-// after a failed stage submit (see tuh_msc_scsi_command)
+// Check if the interface can accept a new command: false while busy, and once fenced after a failed stage submit
+// (see tuh_msc_scsi_command) until tuh_msc_reset() succeeds or the device is re-enumerated
 bool tuh_msc_ready(uint8_t dev_addr);
 
 // Get the LUN count the device reported, clamped to CFG_TUH_MSC_MAXLUN
@@ -57,7 +58,8 @@ uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 // return true if success, false if the interface is not configured or is fenced, cbw->lun is not below
 // tuh_msc_get_maxlun(), or there is already pending operation. The commands below also return false in these cases.
 // If the data or status stage fails to submit, the callback gets a locally built CSW with MSC_CSW_STATUS_PHASE_ERROR
-// and the interface is fenced: every further command is refused until the device is re-enumerated.
+// and the interface is fenced: every further command is refused until tuh_msc_reset() succeeds or the device is
+// re-enumerated. The failed command is not retried.
 // NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, const msc_cbw_t *cbw, void *data, tuh_msc_complete_cb_t complete_cb,
                           uintptr_t arg);
@@ -96,6 +98,14 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, const void *buffer, uint32_t
 // simply call tuh_msc_get_block_count() and tuh_msc_get_block_size()
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t *response,
                            tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
+
+// Run BOT Reset Recovery on the whole interface (all LUNs): Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and
+// Bulk-Out, each followed by a host-side data toggle reset. Always asynchronous; complete_cb may be NULL.
+// Allowed on a mounted interface with no command in flight, fenced or not; mount and cached geometry are kept.
+// return false, with no callback and the fence unchanged, if it cannot start. Once started, complete_cb reports the
+// result: on success the fence is lifted, on any failure (including a host controller that cannot reset the toggle:
+// rp2040, pio-usb, WCH USBFS, MAX3421E) the interface stays fenced, even if it was not before. Not called on unplug.
+bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg);
 
 //------------- Application Callback -------------//
 

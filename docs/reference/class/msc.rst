@@ -102,7 +102,8 @@ after its CBW was sent, the driver completes the command at once with a
 locally built CSW whose status is ``MSC_CSW_STATUS_PHASE_ERROR``.  The device
 is then mid-command, so the driver refuses further commands:
 ``tuh_msc_ready()`` stays ``false`` and every command API returns ``false``
-until the device is re-enumerated.
+until ``tuh_msc_reset()`` succeeds or the device is re-enumerated.  The failed
+command is not retried: for a write, the device may have stored part of it.
 
 .. list-table::
    :header-rows: 1
@@ -130,6 +131,13 @@ until the device is re-enumerated.
    * - ``tuh_msc_scsi_command()``
      - Queues a caller-built command block wrapper for commands without a
        convenience API.
+   * - ``tuh_msc_reset()``
+     - Runs Bulk-Only Reset Recovery on an idle mounted interface: the class
+       Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and Bulk-Out
+       with a host-side data toggle reset.  Its callback reports the result;
+       only success lifts the refusal above.  Host controllers that cannot
+       reset the toggle (rp2040, pio-usb, WCH USBFS, MAX3421E) always fail it
+       and leave the interface refusing commands.
    * - ``tuh_msc_mount_cb()`` / ``tuh_msc_umount_cb()``
      - Announces cached capacity availability or invalidates all filesystem and
        media state for the address.
