@@ -112,7 +112,10 @@ void board_init(void) {
   // the USB controllers must not be touched unclocked (RM 3.3.5.2): stop here, tusb_init() follows
   if (!usbhs_clock_init()) {
     const char msg[] = "USBHS PLL failed to lock\r\n";
-    board_uart_write(msg, sizeof(msg) - 1);
+    const int len = (int) sizeof(msg) - 1;
+    for (int sent = 0; sent < len;) {
+      sent += board_uart_write(msg + sent, len - sent);
+    }
     while (1) {}
   }
 
@@ -161,9 +164,9 @@ int board_uart_read(uint8_t *buf, int len) {
 
 int board_uart_write(void const *buf, int len) {
   uint8_t const *p = (uint8_t const *) buf;
-  for (int i = 0; i < len; i++) {
-    while (USART_GetFlagStatus(UART_DEV, USART_FLAG_TXE) == RESET) {}
-    USART_SendData(UART_DEV, p[i]);
+  int count = 0;
+  while (count < len && USART_GetFlagStatus(UART_DEV, USART_FLAG_TXE) == SET) {
+    USART_SendData(UART_DEV, p[count++]);
   }
-  return len;
+  return count;
 }
