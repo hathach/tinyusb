@@ -1503,6 +1503,18 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   return (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) != 0;
 }
 
+bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
+  const usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev && dev->connected);
+
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  const uint8_t dir   = tu_edpt_dir(ep_addr);
+  TU_VERIFY(epnum > 0 && epnum < CFG_TUH_ENDPOINT_MAX);
+  TU_VERIFY((dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
+
+  return hcd_edpt_clear_stall(dev->bus_info.rhport, dev_addr, ep_addr);
+}
+
 //--------------------------------------------------------------------+
 // HCD Event Handler
 //--------------------------------------------------------------------+
