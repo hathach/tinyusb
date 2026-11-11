@@ -426,7 +426,7 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32h417_usb30.c",
-          "wch/dcd_ch32h417_usbhs.c"
+          "wch/wch_hs2/dcd_wch_hs2.c"
         ],
         "roles": [
           "device"
@@ -446,7 +446,7 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32h417_usb30.c",
-          "wch/dcd_ch32h417_usbhs.c"
+          "wch/wch_hs2/dcd_wch_hs2.c"
         ],
         "roles": [
           "device"

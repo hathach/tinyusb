@@ -22,7 +22,7 @@
 //
 // With CFG_TUD_WCH_USB30_FALLBACK this dcd owns both controllers: it counts failed SuperSpeed
 // training attempts (LINK DISABLE/INACTIVE) with a TIM12 backstop and hands rhport 0 to the USB2
-// driver (ch32h417_usb2_* in dcd_ch32h417_usbhs.c) when the host has no SuperSpeed port.
+// driver (wch_hs2_* in wch_hs2/dcd_wch_hs2.c) when the host has no SuperSpeed port.
 //
 // Hardware-verified on nanoch32h417 at 5 Gbps: 12/12 HIL examples and usbtest 29/30
 // (case 13 quirk-skipped, bcdDevice 0x20 - a halted endpoint answers exactly one STALL).
@@ -33,7 +33,9 @@
     defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30 == 1
 
 #include "device/dcd.h"
-#include "dcd_ch32h417.h"
+#if CFG_TUD_WCH_USB30_FALLBACK
+  #include "wch_hs2/dcd_wch_hs2.h"
+#endif
 #include "ch32h417_usb30_reg.h"
 
 #define EP_MAX          8
@@ -133,9 +135,11 @@ static void fallback_timer_start(bool enable);
 static void fallback_to_usb2(uint8_t rhport) {
   fallback_timer_start(false);
   usbss_device_init(false);
+  RCC_UTMIcmd(ENABLE); // usbss_device_init(false) turned the UTMI clock off; the BSP set up the rest
   fb_state = FB_USB2_ACTIVE;
-  ch32h417_usb2_init(rhport);
-  ch32h417_usb2_int_enable();
+  const tusb_rhport_init_t usb2_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_HIGH};
+  wch_hs2_init(rhport, &usb2_init);
+  wch_hs2_int_enable(rhport);
 }
 #endif
 
@@ -747,7 +751,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   fb_state = FB_USB3_TRAINING;
   fb_fail_count = 0;
-  ch32h417_usb2_deinit(); // quiesce a USB2 controller a prior fallback may have left up
+  wch_hs2_deinit(rhport); // quiesce a USB2 controller a prior fallback may have left up
 #endif
 
   usbss_device_init(true);
@@ -763,8 +767,7 @@ bool dcd_deinit(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
     // the USB2 controller took the port during fallback: tear that down instead
-    ch32h417_usb2_int_disable();
-    ch32h417_usb2_deinit();
+    wch_hs2_deinit(rhport);
     return true;
   }
 #endif
@@ -781,7 +784,7 @@ bool dcd_deinit(uint8_t rhport) {
 void dcd_int_handler(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    ch32h417_usb2_int_handler(rhport);
+    wch_hs2_int_handler(rhport);
     return;
   }
 #endif
@@ -806,7 +809,7 @@ void dcd_int_handler(uint8_t rhport) {
 
 void dcd_int_enable(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_int_enable(); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_int_enable(rhport); return; }
 #endif
   (void)rhport;
   if (usbss_clocks_off) {
@@ -819,7 +822,7 @@ void dcd_int_enable(uint8_t rhport) {
 
 void dcd_int_disable(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_int_disable(); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_int_disable(rhport); return; }
 #endif
   (void)rhport;
   NVIC_DisableIRQ(USBSS_IRQn);
@@ -831,9 +834,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)dev_addr;
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    // USB2 applies the address in ch32h417_usb2_edpt0_status_complete (called by usbd with the
-    // real request); here just arm the status ZLP on the USB2 controller.
-    ch32h417_usb2_edpt_xfer(rhport, 0x80, NULL, 0);
+    wch_hs2_set_address(rhport, dev_addr);
     return;
   }
 #endif
@@ -846,7 +847,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 void dcd_remote_wakeup(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    ch32h417_usb2_remote_wakeup(); // USB2 owns the port (USBSS clocks are gated): resume from there
+    wch_hs2_remote_wakeup(rhport); // USB2 owns the port (USBSS clocks are gated): resume from there
     return;
   }
 #endif
@@ -857,7 +858,7 @@ void dcd_remote_wakeup(uint8_t rhport) {
 void dcd_disconnect(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    ch32h417_usb2_disconnect();
+    wch_hs2_disconnect(rhport);
     return;
   }
 #endif
@@ -875,7 +876,7 @@ void dcd_disconnect(uint8_t rhport) {
 void dcd_connect(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    ch32h417_usb2_connect();
+    wch_hs2_connect(rhport);
     return;
   }
 #endif
@@ -897,7 +898,7 @@ void dcd_connect(uint8_t rhport) {
 void dcd_sof_enable(uint8_t rhport, bool en) {
 #if CFG_TUD_WCH_USB30_FALLBACK
   if (fb_state == FB_USB2_ACTIVE) {
-    ch32h417_usb2_sof_enable(rhport, en);
+    wch_hs2_sof_enable(rhport, en);
     return;
   }
 #endif
@@ -905,9 +906,18 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   (void)en; // no frame interrupt at SuperSpeed (ITP is ignored)
 }
 
+#if CFG_TUD_WCH_USB30_FALLBACK
+// HS2 drops EP0 stages of a superseded SETUP by tag, so it must see which SETUP usbd serves
+bool dcd_edpt0_setup_begin(uint8_t rhport, uint8_t setup_tagid) {
+  if (fb_state == FB_USB2_ACTIVE) { return wch_hs2_edpt0_setup_begin(rhport, setup_tagid); }
+  (void)setup_tagid;
+  return true;
+}
+#endif
+
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt0_status_complete(rhport, request); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_edpt0_status_complete(rhport, request); return; }
 #endif
   (void)rhport;
   // Track the host's U1/U2 enable in the link layer: the LTSSM answers LGO_U1/LGO_U2 with LXU
@@ -938,7 +948,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 
 bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { return ch32h417_usb2_edpt_open(rhport, desc_edpt); }
+  if (fb_state == FB_USB2_ACTIVE) { return wch_hs2_edpt_open(rhport, desc_edpt); }
 #endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(desc_edpt->bEndpointAddress);
@@ -985,7 +995,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt_close(rhport, ep_addr); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_edpt_close(rhport, ep_addr); return; }
 #endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
@@ -1005,7 +1015,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_close_all(uint8_t rhport) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt_close_all(rhport); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_edpt_close_all(rhport); return; }
 #endif
   (void)rhport;
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
@@ -1020,7 +1030,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { return ch32h417_usb2_edpt_xfer(rhport, ep_addr, buffer, total_bytes); }
+  if (fb_state == FB_USB2_ACTIVE) { return wch_hs2_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr); }
 #endif
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
@@ -1082,7 +1092,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt_stall(rhport, ep_addr); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_edpt_stall(rhport, ep_addr); return; }
 #endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);
@@ -1114,7 +1124,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 #if CFG_TUD_WCH_USB30_FALLBACK
-  if (fb_state == FB_USB2_ACTIVE) { ch32h417_usb2_edpt_clear_stall(rhport, ep_addr); return; }
+  if (fb_state == FB_USB2_ACTIVE) { wch_hs2_edpt_clear_stall(rhport, ep_addr); return; }
 #endif
   (void)rhport;
   const uint8_t ep_num = tu_edpt_number(ep_addr);

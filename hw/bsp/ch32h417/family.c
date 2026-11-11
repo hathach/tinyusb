@@ -304,6 +304,26 @@ uint32_t tusb_time_millis_api(void) {
 // Board Init
 //--------------------------------------------------------------------+
 
+#ifdef TUP_USBIP_WCH_HS2
+// 480 MHz USBHS PLL (HSE 25 MHz reference) + UTMI + peripheral clock, from the vendor
+// USBHS_RCC_Init. Without it the controller accepts register writes but the PHY never drives
+// D+/D-, and the host sees only the idle debug-probe level on PB8/PB9 as a phantom low-speed
+// device (error -71 churn). The vendor default clock tree already runs SYSPLL off this PLL.
+static void usbhs_clock_init(void) {
+  if ((RCC->PLLCFGR & RCC_SYSPLL_SEL) != RCC_SYSPLL_USBHS) {
+    RCC_USBHS_PLLCmd(DISABLE);
+    RCC_USBHSPLLCLKConfig(RCC_USBHSPLLSource_HSE);
+    RCC_USBHSPLLReferConfig(RCC_USBHSPLLRefer_25M);
+    RCC_USBHSPLLClockSourceDivConfig(RCC_USBHSPLL_IN_Div1);
+    RCC_USBHS_PLLCmd(ENABLE);
+    uint32_t timeout = 1000000; // bounded: a PLL that never locks must not hang boot
+    while (!(RCC->CTLR & RCC_USBHS_PLLRDY) && --timeout) {}
+  }
+  RCC_UTMIcmd(ENABLE);
+  RCC_HBPeriphClockCmd(RCC_HBPeriph_USBHS, ENABLE);
+}
+#endif
+
 void board_init(void) {
   SystemInit(); // clock tree: SYSCLK 400 MHz, V3F core (HCLK) 100 MHz from HSE
   SystemAndCoreClockUpdate();
@@ -401,6 +421,10 @@ void board_init(void) {
     uart_flash_loader();
   }
 #endif // CFG_BOARD_CH32H417_UART_LOADER
+
+#ifdef TUP_USBIP_WCH_HS2
+  usbhs_clock_init(); // after the park window: PB8/PB9 are the HS PHY's D+/D-
+#endif
 
   // Crash recovery (opt-in, see CFG_BOARD_CH32H417_CRASH_WDT): independent watchdog, ~8 s at
   // LSI/256, kicked from the 1 ms SysTick (and, as a secondary, from board_led_write for OS

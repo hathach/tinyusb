@@ -8,12 +8,35 @@
 // Device driver for WCH's HS2 (second-generation USBHS) USB2.0 high-speed controller:
 // per-endpoint DONE flags, a SETUP flag in UEP0_RX_CTRL, split UEP_TX_EN/UEP_RX_EN enables,
 // response encoding NAK=00 / STALL=01 / ACK=10 and manual data toggle. Not
-// register-compatible with the CH32V30x USBHS (dcd_ch32_usbhs.c). RM below means CH32V407RM.
+// register-compatible with the CH32V30x USBHS (dcd_ch32_usbhs.c). RM below means CH32V407RM; the
+// CH32H417 USBHSD is the same block (layout and bits as its SDK's USBHSD_TypeDef / USBHS_*).
 // Clock and PHY bring-up is the BSP's job; only one controller acts as device at a time.
 
 #include "tusb_option.h"
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_HS2)
+
+// a USB3 dcd owns dcd_*: build the entry points under the names dcd_wch_hs2.h declares
+#ifdef TUP_USBIP_WCH_HS2_FALLBACK
+  #define dcd_init                  wch_hs2_init
+  #define dcd_deinit                wch_hs2_deinit
+  #define dcd_int_handler           wch_hs2_int_handler
+  #define dcd_int_enable            wch_hs2_int_enable
+  #define dcd_int_disable           wch_hs2_int_disable
+  #define dcd_set_address           wch_hs2_set_address
+  #define dcd_remote_wakeup         wch_hs2_remote_wakeup
+  #define dcd_connect               wch_hs2_connect
+  #define dcd_disconnect            wch_hs2_disconnect
+  #define dcd_sof_enable            wch_hs2_sof_enable
+  #define dcd_edpt0_setup_begin     wch_hs2_edpt0_setup_begin
+  #define dcd_edpt0_status_complete wch_hs2_edpt0_status_complete
+  #define dcd_edpt_open             wch_hs2_edpt_open
+  #define dcd_edpt_close            wch_hs2_edpt_close
+  #define dcd_edpt_close_all        wch_hs2_edpt_close_all
+  #define dcd_edpt_xfer             wch_hs2_edpt_xfer
+  #define dcd_edpt_stall            wch_hs2_edpt_stall
+  #define dcd_edpt_clear_stall      wch_hs2_edpt_clear_stall
+#endif
 
 #include "device/dcd.h"
 #include "device/usbd_pvt.h" // for usbd_spin_lock()
@@ -27,6 +50,17 @@ static const struct {
 } usbhs_controllers[] = {
   {(wch_hs2_dev_t *)USBHS1D_BASE, USBHS1_IRQn},
   {(wch_hs2_dev_t *)USBHS2D_BASE, USBHS2_IRQn},
+};
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstrict-prototypes"
+  #include "ch32h417.h"
+  #pragma GCC diagnostic pop
+static const struct {
+  wch_hs2_dev_t *regs;
+  IRQn_Type irqn;
+} usbhs_controllers[] = {
+  {(wch_hs2_dev_t *)USBHSD_BASE, USBHS_IRQn},
 };
 #else
   #error "WCH HS2: MCU not supported"
@@ -48,8 +82,9 @@ static wch_hs2_dev_t *usbhs;
 // Max number of bi-directional endpoints including EP0 (EP0..EP7)
 #define EP_MAX TUP_DCD_ENDPOINT_MAX
 
-// UEP0_MAX_LEN and UEP0_RX_LEN are 7-bit (RM 22.2.1.25, 22.2.1.27)
-#define EP0_MAX_SIZE CFG_TUD_ENDPOINT0_SIZE
+// UEP0_MAX_LEN and UEP0_RX_LEN are 7-bit (RM 22.2.1.25, 22.2.1.27). A SuperSpeed build's
+// CFG_TUD_ENDPOINT0_SIZE is 512; its USB2 fallback link uses 64 (usbd's EP0 limit off SuperSpeed).
+#define EP0_MAX_SIZE TU_MIN(CFG_TUD_ENDPOINT0_SIZE, 64)
 TU_VERIFY_STATIC(EP0_MAX_SIZE == 8 || EP0_MAX_SIZE == 16 || EP0_MAX_SIZE == 32 || EP0_MAX_SIZE == 64,
                  "USB2 EP0 max packet size must be 8, 16, 32 or 64");
 
@@ -300,6 +335,9 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 }
 
 bool dcd_deinit(uint8_t rhport) {
+  TU_ASSERT(rhport < WCH_HS2_CONTROLLER_COUNT);
+  // also valid before any dcd_init(): a USB3 dcd quiesces this controller from its own init
+  usbhs = usbhs_controllers[rhport].regs;
   dcd_int_disable(rhport);
   // Mask and acknowledge before resetting the SIE: resetting it does not touch INT_EN or INT_FG,
   // so a latched flag would otherwise survive into the next init.
@@ -580,16 +618,12 @@ void dcd_int_handler(uint8_t rhport) {
   if (intflag & WCH_HS2_UDIF_TRANSFER) {
     // RB_UDIF_RTX_ACT (INT_FG bit 4) is read-only and is the wired-OR of every endpoint's DONE
     // flag - RM 22.2.1.8: "Receive cleared by RB_UEP_R_DONE; Transmit cleared by RB_UEP_T_DONE" -
-    // while INT_ST names only ONE endpoint. Servicing just that endpoint leaves the other
-    // completion pending, and the SIE then refuses new transactions: a SETUP that arrives while
-    // another endpoint still has DONE set gets no handshake at all. That is fatal, because a SETUP
-    // may not be NAKed or STALLed - the host retries three times and fails with -EPROTO
-    // (wire-confirmed: SETUP dropped 64 us after a bulk-IN on EP1 completed). So walk every
-    // endpoint and drain all pending completions before leaving the handler, instead of trusting
-    // INT_ST to name the only one that matters. RX is serviced before TX for each endpoint so that
-    // a SETUP is dispatched first: an EP0 IN completion and the next SETUP are routinely pending
-    // together, and the SETUP branch delivers that IN completion itself before resetting the
-    // control pipe (see below) rather than discarding it.
+    // while INT_ST names only ONE endpoint, so servicing just that endpoint can leave another
+    // completion pending. Walk every endpoint and drain all pending completions before leaving
+    // the handler, instead of trusting INT_ST to name the only one that matters. RX is serviced
+    // before TX for each endpoint so that a SETUP is dispatched first: an EP0 IN completion and
+    // the next SETUP are routinely pending together, and the SETUP branch delivers that IN
+    // completion itself before resetting the control pipe (see below) rather than discarding it.
     for (uint8_t ep_num = 0; ep_num < EP_MAX; ep_num++) {
       if (EP_RX_CTRL(ep_num) & WCH_HS2_UEP_R_DONE) {
         // SETUP or OUT transaction.
