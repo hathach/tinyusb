@@ -155,7 +155,7 @@
       "inherits": "default"
     },
     {
-      "name": "ch32v407-evt-r0",
+      "name": "ch32v407_r0",
       "inherits": "default"
     },
     {
@@ -1188,9 +1188,9 @@
       "configurePreset": "ch32v307v_r1_1v0"
     },
     {
-      "name": "ch32v407-evt-r0",
-      "description": "Build preset for the ch32v407-evt-r0 board",
-      "configurePreset": "ch32v407-evt-r0"
+      "name": "ch32v407_r0",
+      "description": "Build preset for the ch32v407_r0 board",
+      "configurePreset": "ch32v407_r0"
     },
     {
       "name": "ch582m_evt",
@@ -2712,15 +2712,15 @@
       ]
     },
     {
-      "name": "ch32v407-evt-r0",
+      "name": "ch32v407_r0",
       "steps": [
         {
           "type": "configure",
-          "name": "ch32v407-evt-r0"
+          "name": "ch32v407_r0"
         },
         {
           "type": "build",
-          "name": "ch32v407-evt-r0"
+          "name": "ch32v407_r0"
         }
       ]
     },

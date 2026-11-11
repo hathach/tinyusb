@@ -1,9 +1,9 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v4x7/EVT/EXAM/SRC)
+set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v407_ch32v467/EVT/EXAM/SRC)
 # system_ch32v4x7.c is a per-project file in the EVT: use the GPIO demo's (SYSCLK 400 MHz, HCLK 200 MHz
 # from the 25 MHz HSE)
-set(SDK_SYSTEM_FILE ${TOP}/hw/mcu/wch/ch32v4x7/EVT/EXAM/GPIO/GPIO_Toggle/User/system_ch32v4x7.c)
+set(SDK_SYSTEM_FILE ${TOP}/hw/mcu/wch/ch32v407_ch32v467/EVT/EXAM/GPIO/GPIO_Toggle/User/system_ch32v4x7.c)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)

@@ -389,7 +389,7 @@ ch32v203g_r0_1v0           CH32V203G-R0-1v0               ch32v20x  https://gith
 nanoch32v203               nanoCH32V203                   ch32v20x  https://github.com/wuxx/nanoCH32V203
 ch32v307v_r1_1v0           CH32V307V-R1-1v0               ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
 nanoch32v305               nanoCH32V305                   ch32v30x  https://github.com/wuxx/nanoCH32V305
-ch32v407-evt-r0            CH32V407VET6-EVT-R0            ch32v4x7  https://www.wch-ic.com/products/CH32V407.html
+ch32v407_r0                CH32V407VET6-EVT-R0            ch32v4x7  https://www.wch-ic.com/products/CH32V407.html
 weact_ch32x035_core_board  WeAct CH32X035 Core Board      ch32x035  https://github.com/WeActStudio/WeActStudio.CH32X035CoreBoard
 ch582m_evt                 CH582M-EVT evaluation board    ch583     https://www.wch-ic.com/products/CH582.html
 yd-ch582m                  yd-ch582m from vcc-gnd studio  ch583     http://vcc-gnd.com/

@@ -558,7 +558,7 @@
     }
   },
   "ch32v4x7": {
-    "ch32v407-evt-r0": {
+    "ch32v407_r0": {
       "cmake": {
         "defines": {},
         "family_mcus": [

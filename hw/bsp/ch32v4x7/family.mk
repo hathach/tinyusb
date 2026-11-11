@@ -1,10 +1,10 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
 CROSS_COMPILE ?= riscv-none-elf-
 
-SDK_DIR = hw/mcu/wch/ch32v4x7/EVT/EXAM/SRC
+SDK_DIR = hw/mcu/wch/ch32v407_ch32v467/EVT/EXAM/SRC
 # system_ch32v4x7.c is a per-project file in the EVT: use the GPIO demo's (SYSCLK 400 MHz, HCLK 200 MHz
 # from the 25 MHz HSE)
-SDK_SYSTEM_FILE = hw/mcu/wch/ch32v4x7/EVT/EXAM/GPIO/GPIO_Toggle/User/system_ch32v4x7.c
+SDK_SYSTEM_FILE = hw/mcu/wch/ch32v407_ch32v467/EVT/EXAM/GPIO/GPIO_Toggle/User/system_ch32v4x7.c
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
