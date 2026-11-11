@@ -2044,17 +2044,15 @@ def admission_refused(name: str, task, e: Exception) -> tuple:
     failed-tests empty so a re-run repeats the whole board (no bogus -bt filter)."""
     log_line(f'{name:25} {STATUS_FAILED}: {e}')
     fail = hil_report.REPORT_CELL['fail']   # icon-prefixed, so the table tallies it as a failure
-    if isinstance(e, hil_lock.BoardBusy):
-        cells = {hil_report.PROBE_BUSY_CELL: f'{fail} probe in use by {hil_flash.users_text(e.users)}'}
-    elif isinstance(e, hil_flash.ProbeCheckFailed):
-        cells = {hil_report.PROBE_BUSY_CELL: f'{fail} probe check: {e}'}
+    if busy := hil_flash.busy_refusal(e):
+        cells = {hil_report.PROBE_BUSY_CELL: f'{fail} {busy}'}
     elif isinstance(e, hil_lock.RecoveryBlocked):   # a live cleanup holder from an older helper
         cells = {hil_report.RECOVERY_BLOCKER_CELL: f'{fail} {e}'}
     elif isinstance(e, hil_lock.LockUnavailable):
         cells = {hil_report.LOCK_UNAVAILABLE_CELL: f'{fail} {e}'}
-    elif isinstance(e, RuntimeError):
+    elif isinstance(e, hil_lock.BoardLocked):
         cells = {hil_report.LOCKED_CELL: 'fail'}
-    else:
+    else:   # no refusal: an error of the take or the check, which aborts the run
         raise e
     if previous := previous_cleanup_text(name, task.cleanup_failures):
         cells[hil_report.PREVIOUS_CLEANUP_CELL] = previous
@@ -2081,9 +2079,9 @@ def test_board(board: Board) -> tuple:
             try:
                 err_count, failed_tests, board_wide_fail, rows, unrestored = _board_battery(board, parked)
             except BaseException as e:
-                _unwinding_verdict(task, board, e, parked)
+                _verdict(task, board, parked, exc=e)
                 raise
-            _verdict(task, board, unrestored)
+            _verdict(task, board, parked, unrestored)
     except BaseException as e:
         if not entered and isinstance(e, Exception):
             return admission_refused(name, task, e)
@@ -2095,20 +2093,16 @@ def test_board(board: Board) -> tuple:
         log_line(f'{name:25} ' + '; '.join(task.restore_notes))
         previous_cleanup += ('; ' + '; '.join(task.restore_notes) if task.bypassed else
                              f'; {len(task.restore_notes)} still open')
-    if task.errors and task.ended_cleanly and previous_cleanup:
-        previous_cleanup += '; board task notes: ' + '; '.join(task.errors)   # advisory, e.g. a restoration
     ending = task.describe()
-    if pending := cleanup_pending(name):
-        log_line(f'{name:25} BLOCKER: {pending}; {ending}')
-        rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {pending}; {ending}'},
+    if task.errors and task.ended_cleanly:   # advisory, e.g. a restoration not logged
+        log_line(f'{name:25} board task notes: {ending}')
+        if previous_cleanup:
+            previous_cleanup += '; board task notes: ' + '; '.join(task.errors)
+    # a lock that did not end as its verdict asked is never a passing board either
+    if blocker := cleanup_pending(name) or ('' if task.ended_cleanly else 'board task ended with errors'):
+        log_line(f'{name:25} BLOCKER: {blocker}; {ending}')
+        rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {blocker}; {ending}'},
                      None))
-        err_count += 1
-        board_wide_fail = True
-    elif not task.ended_cleanly:
-        # the lock did not end as its verdict asked: never a passing board
-        log_line(f'{name:25} BLOCKER: board task ended with errors: {ending}')
-        rows.append((name, {hil_report.CLEANUP_PENDING_CELL:
-                            f'{hil_report.REPORT_CELL["fail"]} board task ended with errors: {ending}'}, None))
         err_count += 1
         board_wide_fail = True
     elif unrestored:
@@ -2119,26 +2113,21 @@ def test_board(board: Board) -> tuple:
             rows, board_pci)
 
 
-def _unwinding_verdict(task, board: Board, e: BaseException, parked: list) -> None:
-    """The verdict of a battery that raised: a pending cleanup's evidence; restored when its final
-    park still ran and succeeded (the run itself stays aborted by `e`); for openocd_esp an
-    interrupt that may have landed after the provider returned a pending session but before
-    hil_flash stored its receipt; otherwise none, and the task ends failed naming `e`."""
+def _verdict(task, board: Board, parked: list, unrestored: str = '', exc: BaseException | None = None) -> None:
+    """The battery's cleanup verdict, its last act under the lock (the HIL contract's Reservation).
+    A battery that raised `exc` is restored when its final park still succeeded (the run itself
+    stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
+    may have landed after the provider returned a pending session but before hil_flash stored its
+    receipt, and otherwise given none, so the task ends failed naming `exc`."""
     name = board['name']
     if pending := cleanup_pending(name):
         task.failed(detail=pending, **pending_evidence(name, pending))
-    elif parked:
-        task.restored(evidence='device/board_test park succeeded')
-    elif board['flasher']['name'].lower() == 'openocd_esp' and not isinstance(e, Exception):
-        missing = 'openocd_esp interrupted; cleanup unproven, receipt missing'
-        task.failed(detail=missing, receipts=[{'unrecheckable': missing}])
-
-
-def _verdict(task, board: Board, unrestored: str) -> None:
-    """The battery's cleanup verdict, its last act under the lock (the HIL contract's Reservation)."""
-    name = board['name']
-    if pending := cleanup_pending(name):
-        task.failed(detail=pending, **pending_evidence(name, pending))
+    elif exc is not None:
+        if parked:
+            task.restored(evidence='device/board_test park succeeded')
+        elif board['flasher']['name'].lower() == 'openocd_esp' and not isinstance(exc, Exception):
+            missing = 'openocd_esp interrupted; cleanup unproven, receipt missing'
+            task.failed(detail=missing, receipts=[{'unrecheckable': missing}])
     elif unrestored:
         task.failed(detail=f'board not restored: {unrestored}')
     elif skip_flash:
@@ -2149,8 +2138,8 @@ def _verdict(task, board: Board, unrestored: str) -> None:
 
 def _board_battery(board: Board, parked: list) -> tuple:
     """The board's tests and its final park, under its task: (err_count, failed_tests,
-    board_wide_fail, rows, why the board is not restored or ''). A successful park also appends to
-    `parked`, which outlives an exception raised past it."""
+    board_wide_fail, rows, why the board is not restored or ''). A successful park appends to
+    `parked`, the one record of it, which outlives an exception raised past it."""
     name = board['name']
     global board_wedged
     test_list, skipped = _tests_for(board)
@@ -2257,7 +2246,6 @@ def _board_battery(board: Board, parked: list) -> tuple:
         dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
         rows.append((vname, cells, dur))
 
-    restored = False
     sv_capture = None   # (capture, error, flashed)
     try:
         if sysview_out and 'sysview' in board and \
@@ -2274,8 +2262,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
         park_error = None
         if _should_park(skip_flash):
             park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
-            restored = park_ec == 0 and park_status == 'pass'
-            if restored:
+            if park_ec == 0 and park_status == 'pass':
                 parked.append(True)
             park_error = ('park flash failed' if park_ec else
                           'no park (device/board_test) firmware' if park_status == 'skip' else None)
@@ -2292,7 +2279,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
         except Exception as e:
             log_line(f'{name:25} SystemView capture record not written: {type(e).__name__}: {e}')
 
-    if restored:
+    if parked:
         unrestored = ''
     elif board_wedged:   # failed whether or not this run flashed
         unrestored = park_error or f'not parked: the board is wedged: {board_wedged}'

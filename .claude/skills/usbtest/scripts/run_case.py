@@ -338,11 +338,7 @@ def main():
 def refusal(e) -> str:
     """Why a board task refused the board before any hardware action: the lock's refusal, or the
     busy check under it naming a probe user or unable to rule one out."""
-    if isinstance(e, hil_lock.BoardBusy):
-        return f'probe in use by {hil_flash.users_text(e.users)}'
-    if isinstance(e, hil_flash.ProbeCheckFailed):
-        return f'probe check: {e}'
-    return str(e) if isinstance(e, RuntimeError) else f'{type(e).__name__}: {e}'
+    return hil_flash.busy_refusal(e) or (str(e) if isinstance(e, RuntimeError) else f'{type(e).__name__}: {e}')
 
 
 def lock_and_run(args, tests, report, finish):

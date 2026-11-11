@@ -346,6 +346,34 @@ class InterruptedCleanup(unittest.TestCase):
         rc, r = rig.run('--board', 'ok', '--delay', '0')
         self.assert_unknown_with_one_verdict(rig, r, rc)
 
+    def test_an_interrupted_cleanup_logs_its_cause(self):
+        rig = Rig(self)
+        rig.case27 = ({**HUNG, 'cases': [{'num': 27, 'status': 'FAIL'}]}, '', '')
+        rig.reset_raises = run_case.Terminated()
+        rig.run('--board', 'ok', '--delay', '0')
+        failed, = rig.lock.events('failed')
+        self.assertIn('unknown, not parked: cleanup interrupted: Terminated', failed['detail'])
+        self.assertEqual(failed['receipts'], [])
+
+    def test_a_known_probe_holder_survives_an_interrupted_verdict(self):
+        rig = Rig(self)
+        rig.halt_raises = wedge_drill.ProbeHeld(777)
+        real, calls = run_case.hil_lock.BoardTask.failed, []
+
+        def failed(task, **kw):     # the interrupt lands as finish_locked gives its verdict
+            calls.append(kw)
+            if len(calls) == 1:
+                raise run_case.Terminated()
+            return real(task, **kw)
+        with mock.patch.object(run_case.hil_lock.BoardTask, 'failed', failed), \
+                mock.patch.object(run_case, 'kill_children'):
+            rc, r = rig.run('--board', 'wch', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (1, 'unknown, not parked: cleanup interrupted'))
+        event, = rig.lock.events('failed')
+        self.assertIn('cleanup interrupted: Terminated', event['detail'])
+        self.assertEqual(event['receipts'], [{'unrecheckable': 'probe process 777 may still hold the probe'}])
+        self.assertTrue(run_case.hil_lock.resolve_restored('wch', [event], evidence='parked'))   # stays open
+
     def test_a_signal_during_parking(self):
         rig = Rig(self)
         rig.flash_raises['/fw/device/board_test'] = KeyboardInterrupt()

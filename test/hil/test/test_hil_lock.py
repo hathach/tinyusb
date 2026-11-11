@@ -89,7 +89,7 @@ class RunnerRefusesBeforeFlash(LockDir):
 
     def test_contention_keeps_its_own_cell(self):
         def held(name, *a, **kw):
-            raise RuntimeError('board locked: {"pid": 1}')
+            raise hil_lock.BoardLocked('board locked: {"pid": 1}')
         patch(self, hil_lock, 'acquire_board_lock', held)
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 1)
@@ -103,7 +103,7 @@ class RunnerRefusesBeforeFlash(LockDir):
 
         def held(name, *a, **kw):
             locked.append(name)
-            raise RuntimeError('board locked: {"pid": 1}')
+            raise hil_lock.BoardLocked('board locked: {"pid": 1}')
         patch(self, hil_lock, 'acquire_board_lock', held)
         self.assertEqual(hil_test.test_board(board)[0], BOARD)
         self.assertEqual(locked, [reg['name']])
@@ -704,6 +704,14 @@ class Admission(LockDir):
         self.assertIn(hil_test.hil_report.PROBE_BUSY_CELL, rows[0][1])
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'absent')
 
+    def test_an_unrelated_error_is_no_refusal(self):
+        # e.g. the provider's bounded /proc walk failing to start its thread: the run aborts on it
+        self.users = RuntimeError("can't start new thread")
+        with self.assertRaisesRegex(RuntimeError, "can't start new thread"):
+            hil_test.test_board(self.board)
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
+        self.assertEqual(hil_lock.cleanup_events(BOARD), [])
+
     def test_a_refused_board_is_not_run_in_the_report(self):
         self.users = [{'pid': 1, 'cmd': 'openocd'}]
         _, err, _, rows, _ = hil_test.test_board(self.board)
@@ -799,7 +807,7 @@ class Verdicts(LockDir):
             _, err, failed, rows, _ = hil_test.test_board(self.board)
         self.assertEqual((err, failed), (1, []))
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
-        self.assertIn(f'board task ended with errors: {BOARD}: lock released, failure logged in', cell)
+        self.assertIn(f'board task ended with errors; {BOARD}: lock released, failure logged in', cell)
         self.assertIn('record not cleared', cell)
 
     def test_advisory_task_errors_never_fail_the_board(self):
@@ -813,7 +821,8 @@ class Verdicts(LockDir):
     def test_a_worker_releases_its_board_when_it_exits(self):
         # maxtasksperchild=1: a task left holding its flock (the __exit__-entry gap) frees it when its
         # worker ends after that one task; the record it left is logged found-left by the next take
-        pool = hil_test._start_pool('seed')
+        with mock.patch.object(os, 'cpu_count', return_value=1):
+            pool = hil_test._start_pool('seed')
         self.addCleanup(pool.terminate)
         worker = pool.apply_async(_gap_in_worker, (BOARD,)).get(timeout=30)
         self.assertNotEqual(worker, os.getpid())
