@@ -103,8 +103,8 @@ bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_r
 // Bulk-Out, each followed by a host-side data toggle reset. Always asynchronous; complete_cb may be NULL.
 // Allowed on a mounted interface with no command in flight, fenced or not; mount and cached geometry are kept.
 // return false, with no callback and the fence unchanged, if it cannot start. Once started, complete_cb reports the
-// result: on success the fence is lifted, on any failure (including a host controller that cannot reset the toggle:
-// rp2040, pio-usb, WCH USBFS, MAX3421E) the interface stays fenced, even if it was not before. Not called on unplug.
+// result: on success the fence is lifted, on any failure (including a host controller whose hcd_edpt_clear_stall()
+// cannot reset the toggle) the interface stays fenced, even if it was not before. Not called on unplug.
 bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg);
 
 //------------- Application Callback -------------//

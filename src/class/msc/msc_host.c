@@ -49,11 +49,11 @@ typedef struct {
   bool desync; // a stage failed to submit: the device is mid-command until Reset Recovery or re-enumeration
   void* buffer;
   uint32_t data_xferred;
-  tuh_msc_complete_cb_t complete_cb;
+  union { // a command and a recovery never run together
+    tuh_msc_complete_cb_t complete_cb;
+    tuh_msc_reset_cb_t reset_cb;
+  };
   uintptr_t complete_arg;
-
-  tuh_msc_reset_cb_t reset_cb;
-  uintptr_t reset_arg;
 
   struct {
     uint32_t block_size;
@@ -317,7 +317,7 @@ static void reset_recovery_complete(tuh_xfer_t* xfer);
 // Submit the request of the current recovery stage: Bulk-Only Mass Storage Reset, then CLEAR_FEATURE(ENDPOINT_HALT)
 // to Bulk-In and Bulk-Out
 static bool reset_recovery_submit(uint8_t daddr, const msch_interface_t* p_msc) {
-  tusb_control_request_t request = {
+  const tusb_control_request_t bomsr = {
       .bmRequestType_bit = {
           .recipient = TUSB_REQ_RCPT_INTERFACE,
           .type      = TUSB_REQ_TYPE_CLASS,
@@ -328,18 +328,22 @@ static bool reset_recovery_submit(uint8_t daddr, const msch_interface_t* p_msc) 
       .wIndex   = p_msc->itf_num,
       .wLength  = 0
   };
-  if (p_msc->stage != MSC_STAGE_RESET) {
-    request.bmRequestType_bit.recipient = TUSB_REQ_RCPT_ENDPOINT;
-    request.bmRequestType_bit.type      = TUSB_REQ_TYPE_STANDARD;
-    request.bRequest = TUSB_REQ_CLEAR_FEATURE;
-    request.wValue   = TUSB_REQ_FEATURE_EDPT_HALT;
-    request.wIndex   = (p_msc->stage == MSC_STAGE_CLEAR_HALT_IN) ? p_msc->ep_in : p_msc->ep_out;
-  }
+  const tusb_control_request_t clear_halt = {
+      .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_ENDPOINT,
+          .type      = TUSB_REQ_TYPE_STANDARD,
+          .direction = TUSB_DIR_OUT
+      },
+      .bRequest = TUSB_REQ_CLEAR_FEATURE,
+      .wValue   = TUSB_REQ_FEATURE_EDPT_HALT,
+      .wIndex   = (p_msc->stage == MSC_STAGE_CLEAR_HALT_IN) ? p_msc->ep_in : p_msc->ep_out,
+      .wLength  = 0
+  };
 
   tuh_xfer_t xfer = {
       .daddr       = daddr,
       .ep_addr     = 0,
-      .setup       = &request,
+      .setup       = (p_msc->stage == MSC_STAGE_RESET) ? &bomsr : &clear_halt,
       .buffer      = NULL,
       .complete_cb = reset_recovery_complete,
       .user_data   = _msch_tagid[daddr - 1]
@@ -350,10 +354,9 @@ static bool reset_recovery_submit(uint8_t daddr, const msch_interface_t* p_msc) 
 // State is settled before the callback, which may start a command or another recovery
 static void reset_recovery_end(uint8_t daddr, msch_interface_t* p_msc, bool success) {
   const tuh_msc_reset_cb_t cb  = p_msc->reset_cb;
-  const uintptr_t          arg = p_msc->reset_arg;
-  p_msc->stage    = MSC_STAGE_IDLE;
-  p_msc->desync   = !success;
-  p_msc->reset_cb = NULL;
+  const uintptr_t          arg = p_msc->complete_arg;
+  p_msc->stage  = MSC_STAGE_IDLE;
+  p_msc->desync = !success;
   TU_LOG_DRV("  MSCh Reset Recovery %s\r\n", success ? "done" : "failed");
   if (cb != NULL) {
     cb(daddr, success, arg);
@@ -399,15 +402,14 @@ bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg)
 
   // fenced before submitting: the request may complete before tuh_control_xfer() returns
   const bool was_desync = p_msc->desync;
-  p_msc->desync    = true;
-  p_msc->stage     = MSC_STAGE_RESET;
-  p_msc->reset_cb  = complete_cb;
-  p_msc->reset_arg = arg;
+  p_msc->desync       = true;
+  p_msc->stage        = MSC_STAGE_RESET;
+  p_msc->reset_cb     = complete_cb;
+  p_msc->complete_arg = arg;
 
   if (!reset_recovery_submit(daddr, p_msc)) {
-    p_msc->desync   = was_desync;
-    p_msc->stage    = MSC_STAGE_IDLE;
-    p_msc->reset_cb = NULL;
+    p_msc->desync = was_desync;
+    p_msc->stage  = MSC_STAGE_IDLE;
     return false;
   }
   return true;
