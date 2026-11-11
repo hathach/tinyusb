@@ -602,6 +602,49 @@ static void test_qtd_retirement(void) {
   assert(events == 1);
 }
 
+// Closing a device or endpoint with a transfer in flight frees its qTD.
+static void test_close_frees_qtd(void) {
+  reset(TUSB_SPEED_HIGH);
+  ehci_qhd_t* async_head = list_get_async_head(0);
+  async_head->next.address = (uint32_t) (uintptr_t) async_head | (EHCI_QTYPE_QHD << 1);
+  buses[1].speed = TUSB_SPEED_HIGH;
+  tusb_desc_endpoint_t const intr_desc = {
+    .bLength = sizeof(intr_desc), .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x81, .bmAttributes = {.xfer = TUSB_XFER_INTERRUPT},
+    .wMaxPacketSize = 64, .bInterval = 4
+  };
+  tusb_desc_endpoint_t const bulk_desc = {
+    .bLength = sizeof(bulk_desc), .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x02, .bmAttributes = {.xfer = TUSB_XFER_BULK},
+    .wMaxPacketSize = 512, .bInterval = 0
+  };
+
+  // More attach/detach cycles than there are qTDs.
+  for (size_t i = 0; i <= QTD_MAX; i++) {
+    assert(hcd_edpt_open(0, 1, &intr_desc) && hcd_edpt_open(0, 1, &bulk_desc));
+    assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64) && hcd_edpt_xfer(0, 1, 0x02, buffer + 64, 512));
+    ehci_qtd_t* intr_qtd = edpt_find(1, 0x81).qhd->attached_qtd;
+    ehci_qtd_t* bulk_qtd = edpt_find(1, 0x02).qhd->attached_qtd;
+    regs.command_bm.async_adv_doorbell = 0;
+    hcd_device_close(0, 1);
+    assert(regs.command_bm.async_adv_doorbell);
+    assert(!intr_qtd->used && bulk_qtd->used); // async qTD waits for the async advance
+    async_advance_isr(0);
+    assert(!bulk_qtd->used);
+  }
+
+  // Endpoint close of a bulk endpoint rings the doorbell to free its QH and qTD.
+  assert(hcd_edpt_open(0, 1, &bulk_desc) && hcd_edpt_xfer(0, 1, 0x02, buffer, 512));
+  ehci_qhd_t* qhd = edpt_find(1, 0x02).qhd;
+  ehci_qtd_t* qtd = qhd->attached_qtd;
+  regs.command_bm.async_adv_doorbell = 0;
+  assert(hcd_edpt_close(0, 1, 0x02));
+  assert(regs.command_bm.async_adv_doorbell && qhd->removing && qtd->used);
+  async_advance_isr(0);
+  assert(!qhd->used && !qtd->used);
+  assert(events == 0);
+}
+
 #if EHCI_ISO_ENABLED
 static void test_limits_and_late_completion(void) {
   reset(TUSB_SPEED_HIGH);
@@ -1177,6 +1220,7 @@ int main(void) {
   test_attach_debounce();
   test_endpoint_lookup();
   test_qtd_retirement();
+  test_close_frees_qtd();
 #if EHCI_ISO_ENABLED
   test_shared_pools();
   test_sparse_iso_pool();

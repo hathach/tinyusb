@@ -665,15 +665,20 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   ehci_qhd_t* qhd = ep.qhd;
   TU_VERIFY(qhd != NULL);
 
+  bool const is_period = qhd_is_periodic(qhd);
   ehci_link_t * list_head;
-  if (qhd_is_periodic(qhd)) {
+  if (is_period) {
     // interrupt endpoint
-    list_head = list_get_period_head(rhport, qhd->interval_ms);;
+    list_head = list_get_period_head(rhport, qhd->interval_ms);
   } else {
     list_head = (ehci_link_t *) list_get_async_head(rhport);
   }
 
   list_remove_qhd_by_addr(list_head, daddr, ep_addr);
+  if (!is_period) {
+    // the QH and its TD are freed once the async advance interrupt occurs
+    ehci_data.regs->command_bm.async_adv_doorbell = 1;
+  }
   return true;
 }
 
@@ -1260,6 +1265,9 @@ void async_advance_isr(uint8_t rhport) {
 #endif
     ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
     if (qhd->removing) {
+      if (qhd->attached_qtd != NULL) {
+        qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
+      }
       qhd->removing = 0;
       qhd->used = 0;
     }
@@ -1479,7 +1487,11 @@ TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_lin
   qhd->next.address = ((uint32_t) head) | (EHCI_QTYPE_QHD << 1);
 
   if (qhd_is_periodic(qhd)) {
-    // period list queue element is guarantee to be free in the next frame (1 ms)
+    // period list queue element is guarantee to be free in the next frame (1 ms).
+    // The ISR no longer reaches an unlinked QH, so free its in-flight TD here
+    if (qhd->attached_qtd != NULL) {
+      qhd_remove_qtd(qhd);
+    }
     qhd->used = 0;
   } else {
     // async list use async advance handshake. Mark as removing, will completely re-usable when async advance isr occurs
