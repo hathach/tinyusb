@@ -8,6 +8,11 @@
 #ifndef TUSB_WCH_SS2_REG_H_
 #define TUSB_WCH_SS2_REG_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
+#include "common/tusb_compiler.h"
+
 // USBSSD_TypeDef (@0x40034000), LINK_*/USBSS_* bit macros come from the SDK. The LINK-layer bit
 // names/semantics are documented in CH32H417RM-EN chapter 27 (the same LINK IP is used, less its
 // register documentation, by the CH569).

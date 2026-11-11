@@ -16,6 +16,9 @@
 #define TUSB_WCH_SS1_REG_H_
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include "common/tusb_compiler.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
