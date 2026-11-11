@@ -116,14 +116,9 @@ uint32_t board_button_read(void) {
 
 // SPI-ROM controller byte/word ports: the EVT SFR header only names the 16/32-bit views
 #define SPI_ROM_CR8    (*(volatile uint8_t*) 0x4000101A)
-#define SPI_ROM_CTRL8  (*(volatile uint8_t*) 0x40001018)
 #define SPI_ROM_DATA8  (*(volatile uint8_t*) 0x40001018)
 #define SPI_ROM_DATA32 (*(volatile uint32_t*) 0x40001014)
 
-// Read 32-bit words from the code flash / info region through the SPI-ROM command
-// interface (the memory-mapped path does not cover the info region); rom_addr = flash_addr
-// + 0x8000. Each SPI_ROM_DATA8 access strobes the next byte out of the SPI NOR: fast-read
-// needs 2 dummy strobes after the address, then 4 strobes per 32-bit word.
 // Bounded wait for the SPI-ROM controller to accept/produce a byte. Every wait here is bounded:
 // this runs inside GET_DESCRIPTOR(STRING) (board_usb_get_serial), not once at boot, and this BSP
 // arms no watchdog - so a stuck status bit would hang the core mid-control-transfer until someone
@@ -134,6 +129,10 @@ static bool flash_rom_wait_ready(void) {
   return timeout != 0;
 }
 
+// Read 32-bit words from the code flash / info region through the SPI-ROM command
+// interface (the memory-mapped path does not cover the info region); rom_addr = flash_addr
+// + 0x8000. Each SPI_ROM_DATA8 access strobes the next byte out of the SPI NOR: fast-read
+// needs 2 dummy strobes after the address, then 4 strobes per 32-bit word.
 static bool flash_rom_command_read(uint32_t addr, uint32_t* buf, uint32_t nwords) {
   const uint32_t rom_addr = addr + 0x8000u;
   SPI_ROM_CR8 = 0;
@@ -141,7 +140,7 @@ static bool flash_rom_command_read(uint32_t addr, uint32_t* buf, uint32_t nwords
   if (!flash_rom_wait_ready()) { // guard the first command byte too, not only the ones after it
     return false;
   }
-  SPI_ROM_CTRL8 = 0x0B; // SPI NOR fast read
+  SPI_ROM_DATA8 = 0x0B; // first byte of a command is the opcode: SPI NOR fast read
   const uint8_t addr_bytes[3] = {(uint8_t)(rom_addr >> 16), (uint8_t)(rom_addr >> 8), (uint8_t)rom_addr};
   for (uint32_t i = 0; i < 3; i++) {
     if (!flash_rom_wait_ready()) { return false; }

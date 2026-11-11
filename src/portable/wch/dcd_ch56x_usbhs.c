@@ -394,9 +394,8 @@ void ch56x_usb2_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
-  // Same bound edpt_open()/edpt_close() should apply: tu_edpt_number() yields 0..15, while the
-  // endpoint register window and xfer_status hold EP_MAX. usbd already rejects a larger id
-  // before it reaches here, so this is defence in depth, not a reachable hole.
+  // EP_MAX, not open/close's CFG_TUD_WCH_USBHS_EP_MAX: this only guards the register window and
+  // xfer_status (both EP_MAX); usbd rejects a larger id first, so it is defence in depth
   TU_ASSERT(ep_num < EP_MAX, );
 
   // a halt cancels the transfer (dcd.h): clear-halt must not re-arm a buffer the class reused
@@ -414,9 +413,8 @@ void ch56x_usb2_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
-  // Same bound edpt_open()/edpt_close() should apply: tu_edpt_number() yields 0..15, while the
-  // endpoint register window and xfer_status hold EP_MAX. usbd already rejects a larger id
-  // before it reaches here, so this is defence in depth, not a reachable hole.
+  // EP_MAX, not open/close's CFG_TUD_WCH_USBHS_EP_MAX: this only guards the register window and
+  // xfer_status (both EP_MAX); usbd rejects a larger id first, so it is defence in depth
   TU_ASSERT(ep_num < EP_MAX, );
 
   if (dir == TUSB_DIR_OUT) {
@@ -557,9 +555,7 @@ void ch56x_usb2_int_handler(uint8_t rhport) {
   } else if (int_flag & RB_USB_IF_SUSPEND) {
     // This single interrupt fires on both suspend and resume; the live suspend status bit
     // distinguishes them (mirror dcd_ch32_usbfs.c).
-    const dcd_event_t event = {.rhport = rhport,
-                               .event_id = (R8_USB_MIS_ST & RB_USBBUS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME};
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, (R8_USB_MIS_ST & RB_USBBUS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME, true);
 
     R8_USB_INT_FG = RB_USB_IF_SUSPEND; /* Clear flag */
   } else {

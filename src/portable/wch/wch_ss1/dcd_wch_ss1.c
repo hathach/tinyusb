@@ -66,9 +66,8 @@
   #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (6 * BOUNCE_SLOT_SIZE)
 #endif
 
-// The hardware EP0 max packet size is fixed at 512 (SuperSpeed). Applications should set
-// CFG_TUD_ENDPOINT0_SIZE to 512 (and provide SuperSpeed descriptors); ones that keep 64 still
-// compile but will not enumerate on a SuperSpeed host.
+// The hardware EP0 max packet size is fixed at 512 (SuperSpeed); tusb_option.h defaults and
+// enforces CFG_TUD_ENDPOINT0_SIZE 512 for a SuperSpeed build.
 
 typedef struct {
   uint8_t *buffer;    // transfer buffer (may be outside RAMX)
@@ -151,6 +150,14 @@ static void fallback_enter(uint8_t next) {
   }
   // FB_USB3_OFF deliberately leaves the timer running: its second expiry brings USB2 up
 }
+
+TU_ATTR_ALWAYS_INLINE static inline bool fallback_owns_port(void) {
+  return _fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE;
+}
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool fallback_owns_port(void) {
+  return false;
+}
 #endif
 
 //--------------------------------------------------------------------+
@@ -191,8 +198,7 @@ static bool usb30_hw_init(void) {
   // LINK_CTRL = GO_DISABLED, which latches LINK_IF_DISABLE, and re-arming LINK_INT_CTRL on top of
   // it replays that disable as a fresh event on the link being brought up - handle_link_irq()
   // would read it as "SuperSpeed rejected by the link partner" and hand the port to USB2 (or, with
-  // no fallback, report a bogus unplug). The deferred/tick re-init paths clear it themselves; this
-  // covers dcd_init() and dcd_connect(), which did not.
+  // no fallback, report a bogus unplug).
   USBSS->LINK_INT_FLAG = 0xFFFFFFFFu;
   USBSS->LINK_INT_CTRL = USBSS_LINK_INT_EN_INIT;
   USBSS->LINK_CTRL = 2; // U2, wait for terminations (TERM_PRESENT irq starts polling)
@@ -222,33 +228,22 @@ static void usb30_hw_reinit_task(void *param) {
   if (!_hw_reinit_deferred) {
     return; // cancelled (dcd_init re-ran while this was queued), or an earlier copy already ran it
   }
-#if CFG_TUD_WCH_USB30_FALLBACK
-  if (_fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE) {
-    _hw_reinit_deferred = false;
-    return; // the fallback ladder took the port while this was queued: USB3 must stay down
-  }
-#endif
-  link_delay_us(30000);
-#if CFG_TUD_WCH_USB30_FALLBACK
-  // Re-check after the settle, not only before it: the training-exhausted branch runs from the
-  // TMR0 ISR without consulting _hw_reinit_deferred, so it can land anywhere in this window and
-  // would otherwise have USB3 re-initialised on top of a ladder that already took the port.
-  if (_fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE) {
+  // The ladder's training-exhausted tick (TMR0 ISR) ignores _hw_reinit_deferred and can take the
+  // port before, during the settle, or inside usb30_hw_init()'s ~0.3 s BUSY poll: check at each
+  // point so USB3 never comes back up (terminations on the wire) under a ladder that owns the port.
+  if (fallback_owns_port()) {
     _hw_reinit_deferred = false;
     return;
   }
-#endif
-  usb30_hw_init();
-#if CFG_TUD_WCH_USB30_FALLBACK
-  // Once more after the init, not only after the settle: usb30_hw_init() busy-polls LINK_STATUS
-  // BUSY for up to ~0.3 s, so the training-exhausted tick can land inside it too and would leave
-  // the ladder in FB_USB3_OFF with the SuperSpeed terminations this call just re-asserted still on
-  // the wire (its own deinit ran before them). Undo the init in that case; dcd_int_enable() keeps
-  // the USBSS/LINK vectors masked while the ladder holds FB_USB3_OFF.
-  if (_fb_state == FB_USB3_OFF || _fb_state == FB_USB2_ACTIVE) {
-    usb30_hw_deinit();
+  link_delay_us(30000);
+  if (fallback_owns_port()) {
+    _hw_reinit_deferred = false;
+    return;
   }
-#endif
+  usb30_hw_init();
+  if (fallback_owns_port()) {
+    usb30_hw_deinit(); // dcd_int_enable() keeps the USBSS/LINK vectors masked in FB_USB3_OFF
+  }
   // Stay marked as deferred across the settle AND the init: the fallback tick skips its own
   // deinit/init while this flag is set, and a tick landing inside the window would re-init the
   // link underneath us - the flag clear in usb30_hw_init() would then discard the TERM_PRESENT it
@@ -429,11 +424,7 @@ static void handle_ep0_rx(uint8_t rhport) {
     // Snapshot the SETUP BEFORE re-arming RX and soliciting the data stage: a control-OUT's
     // data DP is solicited by the early ERDY below and lands in this same _ep0_buf within a
     // few microseconds - fast enough to overwrite the SETUP bytes before they are serialized
-    // into the usbd event. usbd then processed the DATA PAYLOAD as a request (for cdc-acm's
-    // SET_LINE_CODING: 80 25 00 00 00 00 08 = a bogus standard GET it silently ignored), the
-    // real request never reached the class, nothing armed the data stage, and the host timed
-    // out after 5 s. Whether the DP won that race depended on ISR code timing, which is why
-    // identical sources built green one day and 100%-broken the next.
+    // into the usbd event, which would then hand the data payload to usbd as the request.
     uint8_t setup_pkt[8];
     memcpy(setup_pkt, (const void *)_ep0_buf, 8);
     _ep0_early_len = 0;
@@ -449,8 +440,7 @@ static void handle_ep0_rx(uint8_t rhport) {
     // whose data stage never arrived (the ctrl-OUT-at-5Gbps erratum: the host gives up after
     // 5 s - cdc-acm's probe-time SET_LINE_CODING hits it) leaves the OUT xfer active, and the
     // NEXT transfer's status ZLP completes into that stale xfer: usbd desyncs and every
-    // following EP0 request goes unanswered. On a Linux host that turned one lost request into
-    // a 15 s enumeration stall (iInterface string reads timing out with the device lock held).
+    // following EP0 request goes unanswered.
     xfer_status[0][TUSB_DIR_OUT].active = false;
     xfer_status[0][TUSB_DIR_IN].active = false;
     // ... including its status stage: a status left pending here would complete into the NEXT
@@ -467,8 +457,7 @@ static void handle_ep0_rx(uint8_t rhport) {
     if (((setup_pkt[0] & 0x80u) == 0) && (setup_pkt[6] || setup_pkt[7])) {
       // Drain the posted RX arm before soliciting the data DP: the ERDY reaches the link layer
       // through a different path than the register write, and a DP arriving at a not-yet-armed
-      // EP0 is dropped - the host then waits out its 5 s control timeout (SET_LINE_CODING died
-      // this way whenever the link code layout made the stores land close together).
+      // EP0 is dropped - the host then waits out its 5 s control timeout.
       (void)USBSS->UEP0_RX_CTRL;
       usbss_send_erdy(0, false, 1);
     }
@@ -598,8 +587,7 @@ static void handle_link_irq(uint8_t rhport) {
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_UX_EXIT;
     if (_link_suspended) { // only a U3 exit pairs with the SUSPEND we reported (not U1/U2 exits)
       _link_suspended = false;
-      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_RESUME};
-      dcd_event_handler(&event, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
     }
   }
   if (flag & USBSS_LINK_IF_RDY) {
@@ -632,8 +620,7 @@ static void handle_link_irq(uint8_t rhport) {
       // was hardware-visible: unplug a trained board and replug it into the SAME SuperSpeed port
       // and it came back at 480 Mbps, because FB_USB2_ACTIVE has no exit short of dcd_init.
       // The CH32H417 twin already gates this transition on FB_USB3_TRAINING plus FB_FAIL_LIMIT.
-      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
-      dcd_event_handler(&event, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
       USBSS->LINK_INT_CTRL = 0;
       usb30_bus_reset_from_isr();
       return; // the link is torn down: the remaining flags are stale
@@ -652,8 +639,7 @@ static void handle_link_irq(uint8_t rhport) {
     return; // rhport now belongs to the USB2 controller: the remaining flags are stale USB3 state
 #else
     // No SuperSpeed host (or link lost): retry SS training (teardown now, re-init deferred)
-    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     usb30_bus_reset_from_isr();
     return; // the link is torn down: the remaining flags are stale
 #endif
@@ -681,8 +667,7 @@ static void handle_link_irq(uint8_t rhport) {
       // the same SuperSpeed host - to 480 Mbps permanently, which is worse than the case it
       // fixes. Re-arming safely needs the ladder gated on an attached partner, not on a timer.
       USBSS->LINK_INT_CTRL = 0;
-      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED};
-      dcd_event_handler(&event, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
       usb30_bus_reset_from_isr();
       return; // the link is torn down: the remaining flags are stale
     }
@@ -711,7 +696,7 @@ static void handle_link_irq(uint8_t rhport) {
     link_delay_us(2);
     // A warm reset returns the device to Default state exactly as a hot reset does, so usbd must
     // be told: without this the stack keeps its configured state and stale endpoint bookkeeping
-    // across the reset. The HOT_RESET branch below has always done both.
+    // across the reset (same as the HOT_RESET branch below).
     ep_state_reset();
     dcd_event_bus_reset(rhport, TUSB_SPEED_SUPER, true);
   }
@@ -748,8 +733,7 @@ static void handle_link_irq(uint8_t rhport) {
     link_set_power_mode(2);
     USBSS->LINK_INT_FLAG = USBSS_LINK_IF_GO_U3;
     _link_suspended = true;
-    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 }
 
