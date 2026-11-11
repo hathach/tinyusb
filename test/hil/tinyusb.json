@@ -79,7 +79,7 @@
         {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
-            "probe": "E6614C311B597D32",
+            "probe": "000063728732",
             "tests": {
                 "device": true,
                 "host": false,
