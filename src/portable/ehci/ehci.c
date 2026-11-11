@@ -295,7 +295,7 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhpo
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next (ehci_link_t const *p_link);
 TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci_link_t *entry, uint8_t type);
 TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd);
-static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr);
+static bool list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr);
 
 #if EHCI_ISO_ENABLED
 static bool iso_ep_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* desc);
@@ -348,6 +348,36 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
     regs->command_bm.periodic_enable = 1;
   } else {
     regs->command_bm.async_enable = 1;
+  }
+}
+
+// The periodic schedule has no removal handshake, and the controller may keep
+// periodic state cached for up to a frame (EHCI 4.7.2.1). Free removed periodic
+// QHs and their in-flight TDs once FRINDEX has moved past a whole frame; the wait
+// is bounded like ehci_schedule_wait().
+static void period_reclaim(void) {
+  ehci_registers_t* regs = ehci_data.regs;
+  uint32_t const start = regs->frame_index;
+  for (uint32_t guard = 0; guard < 0x100000u; guard++) {
+    if (regs->status_bm.hc_halted || ((regs->frame_index - start) & 0x3fffu) > 8u) {
+      break;
+    }
+  }
+
+  for (uint32_t i = 0; i < QHD_MAX; i++) {
+#if EHCI_ISO_ENABLED
+    if (qhd_is_iso(i)) {
+      continue;
+    }
+#endif
+    ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
+    if (qhd->removing && qhd_is_periodic(qhd)) {
+      if (qhd->attached_qtd != NULL) {
+        qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
+      }
+      qhd->removing = 0;
+      qhd->used = 0;
+    }
   }
 }
 
@@ -469,12 +499,18 @@ void hcd_device_close(uint8_t rhport, uint8_t daddr) {
   list_remove_qhd_by_addr((ehci_link_t *) list_get_async_head(rhport), daddr, TUSB_INDEX_INVALID_8);
 
   // Remove from all interval period list of this device
+  bool period_removed = false;
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
-    list_remove_qhd_by_addr((ehci_link_t *) &ehci_data.period_head_arr[i], daddr, TUSB_INDEX_INVALID_8);
+    ehci_link_t* head = (ehci_link_t*) &ehci_data.period_head_arr[i];
+    period_removed |= list_remove_qhd_by_addr(head, daddr, TUSB_INDEX_INVALID_8);
   }
 
   // Async doorbell (EHCI 4.8.2 for operational details)
   ehci_data.regs->command_bm.async_adv_doorbell = 1;
+
+  if (period_removed) {
+    period_reclaim();
+  }
 }
 
 static void init_periodic_list(uint8_t rhport) {
@@ -675,7 +711,9 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   }
 
   list_remove_qhd_by_addr(list_head, daddr, ep_addr);
-  if (!is_period) {
+  if (is_period) {
+    period_reclaim();
+  } else {
     // the QH and its TD are freed once the async advance interrupt occurs
     ehci_data.regs->command_bm.async_adv_doorbell = 1;
   }
@@ -1264,7 +1302,8 @@ void async_advance_isr(uint8_t rhport) {
     }
 #endif
     ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
-    if (qhd->removing) {
+    // the handshake covers the async schedule only: period_reclaim() frees periodic QHs
+    if (qhd->removing && !qhd_is_periodic(qhd)) {
       if (qhd->attached_qtd != NULL) {
         qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
       }
@@ -1486,23 +1525,16 @@ TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_lin
   // link the removed qhd's next to list head
   qhd->next.address = ((uint32_t) head) | (EHCI_QTYPE_QHD << 1);
 
-  if (qhd_is_periodic(qhd)) {
-    // period list queue element is guarantee to be free in the next frame (1 ms).
-    // The ISR no longer reaches an unlinked QH, so free its in-flight TD here
-    if (qhd->attached_qtd != NULL) {
-      qhd_remove_qtd(qhd);
-    }
-    qhd->used = 0;
-  } else {
-    // async list use async advance handshake. Mark as removing, will completely re-usable when async advance isr occurs
-    qhd->removing = 1;
-  }
+  // The controller may still reference the QH: keep it and its in-flight TD until async advance isr (async list) or
+  // period_reclaim() (period list) frees them. The ISR no longer reaches an unlinked QH.
+  qhd->removing = 1;
   TU_MEMORY_BARRIER();
 }
 
-// Remove queue head belong to this device address
-static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr) {
+// Remove queue head belong to this device address, return true if any is removed
+static bool list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr) {
   ehci_link_t *prev = list_head;
+  bool removed = false;
 
   while (prev && !prev->terminate) {
     ehci_qhd_t *qhd = (ehci_qhd_t *) (uintptr_t) list_next(prev);
@@ -1516,10 +1548,12 @@ static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, ui
     if (qhd->dev_addr == dev_addr &&
         (ep_addr == TUSB_INDEX_INVALID_8 || qhd_ep_addr(qhd) == ep_addr)) {
       list_remove(list_head, prev, qhd);
+      removed = true;
     } else {
       prev = list_next(prev);
     }
   }
+  return removed;
 }
 
 //--------------------------------------------------------------------+
