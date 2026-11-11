@@ -491,6 +491,11 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       break;
 
     case MSC_STAGE_STATUS:
+      // BOT 1.0 §5.3.3.1: a Phase Error needs Reset Recovery, which an unmounted interface cannot run.
+      // Once mounted, a device Phase Error is #3985.
+      if (csw->status == MSC_CSW_STATUS_PHASE_ERROR && !p_msc->mounted) {
+        p_msc->desync = true;
+      }
       scsi_command_complete(dev_addr, p_msc, cbw, csw);
       break;
 

@@ -104,6 +104,8 @@ is then mid-command, so the driver refuses further commands:
 ``tuh_msc_ready()`` stays ``false`` and every command API returns ``false``
 until ``tuh_msc_reset()`` succeeds or the device is re-enumerated.  The failed
 command is not retried: for a write, the device may have stored part of it.
+If the device answers an enumeration command with a Phase Error CSW, the
+interface stays unmounted and refuses commands until it is re-enumerated.
 
 .. list-table::
    :header-rows: 1

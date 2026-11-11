@@ -530,6 +530,12 @@ static void assert_enum_ended_unmounted(uint8_t submitted) {
   TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
 }
 
+// a device Phase Error (BOT 1.0 §5.3.3.1) leaves the unmounted interface fenced: no further CBW reaches the device
+static void assert_enum_fenced(uint8_t submitted) {
+  assert_enum_ended_unmounted(submitted);
+  assert_fenced(submitted, 0);
+}
+
 void test_msc_host_enum_tur_cbw_submit_fail(void) {
   xfer_fail_index = 0;
   get_max_lun_stalled();
@@ -543,7 +549,69 @@ void test_msc_host_enum_tur_status_submit_fail(void) {
   get_max_lun_stalled();
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
-  assert_enum_ended_unmounted(2);
+  assert_enum_fenced(2);
+}
+
+
+// Test Unit Ready fails and its Request Sense completes with `status` (5 transfers)
+static void enum_tur_failed_request_sense_status(uint8_t status) {
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw(MSC_CSW_STATUS_FAILED);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 18));
+  reply_csw(status);
+}
+
+// ... and passes: enumeration retries Test Unit Ready
+static void enum_tur_failed_request_sense_passed(void) {
+  enum_tur_failed_request_sense_status(MSC_CSW_STATUS_PASSED);
+}
+
+void test_msc_host_enum_tur_phase_error(void) {
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw(MSC_CSW_STATUS_PHASE_ERROR);
+
+  assert_enum_fenced(2); // TUR only, no Request Sense
+}
+
+void test_msc_host_enum_request_sense_phase_error(void) {
+  enum_tur_failed_request_sense_status(MSC_CSW_STATUS_PHASE_ERROR);
+
+  assert_enum_fenced(5); // no Test Unit Ready retry
+}
+
+static void enum_read_capacity_status(uint8_t status) {
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw_passed();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(scsi_read_capacity10_resp_t)));
+  reply_csw(status);
+}
+
+void test_msc_host_enum_read_capacity_phase_error(void) {
+  enum_read_capacity_status(MSC_CSW_STATUS_PHASE_ERROR);
+  assert_enum_fenced(5);
+}
+
+// Deferred to #3985, not correct BOT recovery: a device Phase Error after mount does not fence the interface yet.
+// Replace this when that issue lands.
+void test_msc_host_mounted_phase_error_not_fenced_yet(void) {
+  enumerate();
+  start_no_data_cb(record_complete);
+  reply_csw(MSC_CSW_STATUS_PHASE_ERROR);
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+}
+
+// a plain command failure is not a Phase Error: the device is in sync, so the interface is not fenced
+void test_msc_host_enum_read_capacity_failed_not_fenced(void) {
+  enum_read_capacity_status(MSC_CSW_STATUS_FAILED);
+  assert_enum_ended_unmounted(5);
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
 }
 
 void test_msc_host_enum_request_sense_submit_fail(void) {
@@ -554,16 +622,6 @@ void test_msc_host_enum_request_sense_submit_fail(void) {
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
   assert_enum_ended_unmounted(4);
-}
-
-// Test Unit Ready fails and its Request Sense passes: enumeration retries Test Unit Ready (5 transfers before it)
-static void enum_tur_failed_request_sense_passed(void) {
-  get_max_lun_stalled();
-  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
-  reply_csw(MSC_CSW_STATUS_FAILED);
-  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
-  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 18));
-  reply_csw_passed();
 }
 
 void test_msc_host_enum_request_sense_passed_retries_tur(void) {
