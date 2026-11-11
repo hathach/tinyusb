@@ -563,6 +563,17 @@ static void arm_in_chain(uint8_t ep_num, xfer_ctl_t *xfer) {
   tx->UEP_TX_ST = USBSS_EP_TX_FC_ST; // clear a latched NRDY so ERDY_AUTO announces this arm
 }
 
+// DPs the in-flight chain has sent. The per-chain registers otherwise show the slot being
+// configured (CHAIN_CR.CUR_CFG), not the one in use, and read NUMP 0 mid-chain (hardware-proven):
+// FORCE_RET with RET_SEL = CUR_USE returns the running chain's (RM 27.2.3.5, 27.2.3.9).
+static uint8_t tx_chain_sent_pkts(volatile USBSS_EP_TX_TypeDef *tx) {
+  const uint8_t cur_use = (uint8_t)((tx->UEP_TX_CHAIN_CR & USBSS_EP_TX_CUR_USE) >> 6);
+  tx->UEP_TX_CHAIN_CR = (uint8_t)(USBSS_EP_TX_FORCE_RET | cur_use);
+  const uint8_t sent = tx->UEP_TX_CHAIN_NUMP;
+  tx->UEP_TX_CHAIN_CR = 0;
+  return sent;
+}
+
 static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);
   const uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -1172,18 +1183,29 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   }
   if (dir == TUSB_DIR_IN) {
     volatile USBSS_EP_TX_TypeDef *tx = usbss_ep_tx(ep_num);
+    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
+    // the completion ISR re-arms (new armed_len and chain): keep it out until the re-arm below
+    usbd_spin_lock(false);
+    const uint8_t sent_pkts = tx_chain_sent_pkts(tx);
     tx->UEP_TX_CR = (uint8_t)(USBSS_EP_TX_CLR | USBSS_EP_TX_CHAIN_CLR);
     tx->UEP_TX_CR = TX_CHAIN_MAX_PKTS;
-    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
     if (xfer->valid) {
-      // Rewind to the CHAIN boundary: queued_len counts ARMED bytes (arm_in_chain advances it at
-      // arm time, not completion) and TX_CLR above discarded exactly the one chain still in flight.
-      // Resuming from queued_len skips those bytes (hardware-proven: every usbtest bulk/int read
-      // failed EREMOTEIO), while restarting from 0 replays chains the host already ACKed - up to
-      // TX_CHAIN_MAX_PKTS * 1024 = 16 KB of duplicated payload on a long bulk IN.
-      xfer->queued_len -= TU_MIN(xfer->armed_len, xfer->queued_len);
-      arm_in_chain(ep_num, xfer);
+      // queued_len counts ARMED bytes (arm_in_chain advances it at arm time) and TX_CLR discarded
+      // the chain in flight: rewind by its unsent DPs only. A clear on a non-halted endpoint
+      // (sequence reset, USB 3.2 9.4.5) must neither replay the DPs the host already took (a
+      // whole-chain rewind did, hardware-proven) nor skip the rest (EREMOTEIO in usbtest).
+      const uint16_t chain_pkts = xfer->armed_len ? (uint16_t)TU_DIV_CEIL(xfer->armed_len, xfer->max_size) : 1;
+      if (sent_pkts < chain_pkts) {
+        xfer->queued_len -= (uint16_t)(xfer->armed_len - sent_pkts * xfer->max_size);
+        arm_in_chain(ep_num, xfer);
+      } else if (xfer->queued_len < xfer->total_len) {
+        arm_in_chain(ep_num, xfer); // chain done, its CHAIN_IF dropped by TX_CLR: arm the next
+      } else {
+        xfer->valid = false;
+        dcd_event_xfer_complete(rhport, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, false);
+      }
     }
+    usbd_spin_unlock(false);
   } else {
     volatile USBSS_EP_RX_TypeDef *rx = usbss_ep_rx(ep_num);
     rx->UEP_RX_CR = (uint8_t)(USBSS_EP_RX_CLR | USBSS_EP_RX_CHAIN_CLR);
