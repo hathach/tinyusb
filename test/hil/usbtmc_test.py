@@ -529,7 +529,8 @@ def t_clear_out_halt_mid_reply(d):
 
 
 def t_clear_in_halt_mid_reply(d):
-    """CLEAR_FEATURE(bulk-IN) while a reply is sent drops it; bulk-OUT takes commands again."""
+    """CLEAR_FEATURE(bulk-IN) while a reply is sent drops it; bulk-OUT takes commands again, and the next
+    reply answers the next command, nothing of the dropped one."""
     need_full_speed(d)
     d.send_msg(bytes(0x40 + i % 20 for i in range(200)))
     d.request()
@@ -537,6 +538,12 @@ def t_clear_in_halt_mid_reply(d):
     d.dev.clear_halt(d.ep_in)
     r = next_write(d)
     expect(r == 'ack', f'write after CLEAR_FEATURE(bulk-IN): {r}')
+    # The probe's 'nop\n' is the new command; the example echoes it
+    tag = d.request()
+    raw = b''.join(d.read_transfer())
+    size = struct.unpack_from('<I', raw, 4)[0] if len(raw) >= 12 else -1
+    expect(raw[1:2] == bytes([tag]) and size == 4 and raw[12:16] == b'nop\n',
+           f'reply after CLEAR_FEATURE(bulk-IN): TransferSize {size}, {raw[:20].hex()}, want the 4-byte echo')
 
 
 CASES = [

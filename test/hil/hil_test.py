@@ -1337,9 +1337,30 @@ def test_device_mtp(board):
     assert r.returncode == 0, f'MTP session failed (rc {r.returncode}):\n{r.stdout}'
 
 
+def _usbtmc_survivors(script: Path, uid: str) -> list:
+    """Live processes still running usbtmc_test.py for this board after run_cmd gave up on it: a session
+    blocked in a usbfs ioctl outlives SIGKILL and keeps the device. cmdline is read bounded (usb_observe):
+    a D-state process can hold the mmap lock the read takes."""
+    uo = usbtest._uo()
+    pids = []
+    for pid in (p for p in os.listdir('/proc') if p.isdigit()):
+        argv = (uo.read_sysfs(f'/proc/{pid}/cmdline') or '').split('\0')
+        if str(script) not in argv or uid not in argv:
+            continue
+        try:
+            with open(f'/proc/{pid}/stat', errors='replace') as f:
+                state = f.read().rpartition(')')[2].split()[0]
+        except (OSError, IndexError):
+            continue    # gone meanwhile
+        if state not in ('Z', 'X'):
+            pids.append(int(pid))
+    return pids
+
+
 def test_device_usbtmc(board):
     # Raw USBTMC/USB488 requests from usbtmc_test.py, in a child for the same reason as mtp_test.py:
     # a pyusb call blocked in a usbfs ioctl cannot be bounded in-process.
+    global board_wedged
     uid = board['uid']
     script = Path(__file__).resolve().parent / 'usbtmc_test.py'
     t = enum_timeout()
@@ -1348,11 +1369,23 @@ def test_device_usbtmc(board):
         timeout=t + USBTMC_SESSION_MARGIN)
     out = hil_util.cmd_stdout_text(r.stdout)
     if r.returncode == 124:
+        # A session that outlived SIGKILL still holds the device: latch the wedge, as usbtest does, so this
+        # board gets no retry, no further flash and no park through the held node
+        survivors = _usbtmc_survivors(script, uid)
+        if survivors:
+            board_wedged = (f'{board["name"]}: USBTMC session pid {", ".join(map(str, survivors))} '
+                            f'outlived SIGKILL and holds the device')
         # run_cmd keeps what the killed child flushed: the cases that failed before the wedge
         raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
-                             f'the session process may linger unkillable in D state):\n{out[-600:]}')
-    fails = [line for line in out.splitlines() if line.startswith(('FAIL', 'device lost'))]
+                             f'{board_wedged or "the session was reaped"}):\n{out[-600:]}')
+    lines = out.splitlines()
+    fails = [line for line in lines if line.startswith(('FAIL', 'device lost'))]
     assert r.returncode == 0, f'USBTMC session failed (rc {r.returncode}):\n' + '\n'.join(fails or [out[-600:]])
+    # The multi-packet abort and clear cases skip on a high-speed endpoint: show that coverage in the cell
+    passed = sum(line.startswith('PASS') for line in lines)
+    skipped = sum(line.startswith('SKIP') for line in lines)
+    cell = f'{hil_report.REPORT_CELL["pass"]} {passed}/{passed + skipped}'
+    return f'{cell} ({skipped} skipped)' if skipped else cell
 
 
 def test_device_net_lwip_webserver(board):
