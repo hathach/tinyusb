@@ -654,9 +654,13 @@ static void tim12_program(uint16_t ticks_100us) {
   tim12_clocked = true;
   RCC_ClocksTypeDef clk;
   RCC_GetClocksFreq(&clk);
+  TIM12->CTLR1 &= (uint16_t)~TIM_CEN;
+  TIM12->DMAINTENR &= (uint16_t)~TIM_IT_Update;
   TIM12->PSC = (uint16_t)(clk.HCLK_Frequency / 10000 - 1); // 10 kHz tick
-  TIM12->ATRLR = ticks_100us - 1;
-  TIM12->CNT = 0;
+  // Use full-width accesses for TIM12's 32-bit counter and reload (RM Table 15-10).
+  TIM12->ATRLR_32 = (uint32_t)ticks_100us - 1u;
+  TIM12->CNT_32 = 0;
+  TIM12->SWEVGR = TIM_UG; // PSC is buffered until an update event (RM 15.2.4)
   TIM12->INTFR = 0;
   TIM12->DMAINTENR |= TIM_IT_Update;
   TIM12->CTLR1 |= TIM_CEN;
