@@ -843,10 +843,11 @@
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
-// Enable the ChipIdea HCD's single-transfer isochronous scheduler.
+// Enable the ChipIdea HCD's single-transfer isochronous scheduler, by default with the audio host.
 // Supports service intervals up to 4 ms (HS bInterval <= 6, FS bInterval <= 3).
+// Costs about 2.2 KB of flash and 64 bytes of RAM, 2.9 KB and 96 bytes with CFG_TUH_HUB (RT1064 audio_host, GCC -Os).
 #ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
-  #define CFG_TUH_CHIPIDEA_ISO_ENABLE 0
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE (CFG_TUH_AUDIO > 0)
 #endif
 
 //------------- CLASS -------------//
