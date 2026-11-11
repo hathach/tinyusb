@@ -2,7 +2,7 @@
 
 ### ci rig
 
-30 boards, from `test/hil/tinyusb.json`.
+31 boards, from `test/hil/tinyusb.json`.
 
 | Board                    | Roles              | Flasher   | Variants                                               | Note                                                                                                                                                                   |
 |--------------------------|--------------------|-----------|--------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -32,6 +32,7 @@
 | nanoch32v203             | device             | openocd   | nanoch32v203-fsdev, nanoch32v203-usbfs                 |                                                                                                                                                                        |
 | ch32v103r_r1_1v0         | device             | openocd   |                                                        |                                                                                                                                                                        |
 | ch32v307v_r1_1v0         | device             | openocd   | ch32v307v_r1_1v0-usbhs, ch32v307v_r1_1v0-usbfs         |                                                                                                                                                                        |
+| ch32v407_r0              | device             | openocd   |                                                        |                                                                                                                                                                        |
 | ch582m_evt               | device             | openocd   |                                                        |                                                                                                                                                                        |
 | mimxrt1064_evk           | device, host, dual | jlink     |                                                        |                                                                                                                                                                        |
 | nrf54lm20dk              | device             | jlink     |                                                        | board new to HIL: audio_test_freertos never reaches dcd_init (FreeRTOS itself runs; cdc_msc_freertos and usbtest pass) - example-level issue on nRF54L, fix separately |
