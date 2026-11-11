@@ -991,6 +991,26 @@ void test_usbd_open_edpt_pair_ss_companion(void)
   TEST_ASSERT_EQUAL_HEX8(0x82, ep_in);
 }
 
+// A second endpoint whose bLength is shorter than an endpoint descriptor must be rejected, not
+// read past desc_end: the bytes after it look like a valid bulk IN endpoint
+void test_usbd_open_edpt_pair_short_endpoint(void)
+{
+  switch_to_superspeed();
+
+  uint8_t const desc_ep_pair[] = {
+    7, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+    TUD_SS_EP_COMP_DESCRIPTOR(0, 0, 0),
+    4, TUSB_DESC_ENDPOINT, 0x82, TUSB_XFER_BULK, U16_TO_U8S_LE(1024), 0,
+  };
+  uint8_t const* desc_end = desc_ep_pair + 13 + 4;
+
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) &desc_ep_pair[0], true);
+
+  uint8_t ep_out = 0, ep_in = 0;
+  TEST_ASSERT_FALSE(usbd_open_edpt_pair(rhport, desc_ep_pair, desc_end, 2, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0, ep_in);
+}
+
 // SET_SEL (0x30): 6-byte OUT data stage, received and discarded
 void test_usbd_set_sel(void)
 {

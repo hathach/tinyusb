@@ -1920,7 +1920,7 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, const uint8_t *d
   for (int i = 0; i < ep_count; i++) {
     // SuperSpeed: skip endpoint companion descriptor(s) between endpoint descriptors
     p_desc = usbd_skip_ss_ep_companion(p_desc, desc_end);
-    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end));
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
