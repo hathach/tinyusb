@@ -231,15 +231,18 @@ seen the ACK, sends its next packet with the other DATA PID, a DATA_SEQ error. S
 a retry that has started but not yet reached the bus, so checking that the bus is idle before
 ``STOP_TRANS`` does not prevent it.
 
-Mitigation in TinyUSB: the SOF round-robin stops a transfer that has not progressed for two frames
-right after one of its NAKs (``SIE_STATUS.NAK_REC``), while the controller waits out the
-``NAK_POLL`` delay. That delay is 8 us while transfers wait for EPX, so a full-speed retry and its
-NAK come within the 15 us the SOF interrupt waits for one; without one the next SOF tries again. A
-bulk transfer that gives way to a due interrupt poll is stopped only with both buffers unarmed and
-the bus idle (waiting at most 10 us), so its ``STOP_TRANS`` cannot meet the host's ACK of its last
-packet either. A higher-priority interrupt that delays the USB interrupt between the NAK and
-``STOP_TRANS`` by more than 8 us can still lose a packet: TinyUSB restarts the transfer on the
-DATA_SEQ error, but that packet's data is gone.
+Mitigation in TinyUSB: the SOF round-robin stops a full-speed IN that has not progressed for two
+frames right after one of its NAKs (``SIE_STATUS.NAK_REC``), while the controller waits out the
+``NAK_POLL`` delay. That delay is 8 us for such a transfer while others wait for EPX, so a retry and
+its NAK come within the 15 us the SOF interrupt waits for one; without one the next SOF tries again.
+A low-speed transaction, or a full-speed OUT with data, takes longer than that window and cannot
+start before SOF, so those transfers are stopped after checking that the bus is idle, with a 300 us
+``NAK_POLL`` delay. An OUT cut that way is sent again with the same DATA PID, which the device drops
+as a repeat; a low-speed IN can still lose a packet. A bulk transfer that gives way to a due
+interrupt poll is stopped only with both buffers unarmed and the bus idle (waiting at most 10 us),
+so its ``STOP_TRANS`` cannot meet the host's ACK of its last packet either. A higher-priority
+interrupt that delays the USB interrupt between a NAK and ``STOP_TRANS`` by more than 8 us can also
+lose a packet: TinyUSB restarts the transfer on the DATA_SEQ error, but that packet's data is gone.
 
 On a Raspberry Pi Pico host with a hub, a flash drive and a CDC device replugged every 1.5 s, a stop
 after a bus-idle check (with a 300 us ``NAK_POLL`` delay) lost 2 packets in 12 boots; the stop after

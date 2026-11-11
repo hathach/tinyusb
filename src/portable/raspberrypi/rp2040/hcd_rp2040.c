@@ -166,6 +166,29 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
   return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
+  #ifndef HAS_STOP_EPX_ON_NAK
+enum {
+  EPX_NAK_RETRY_FAST_US = 8,  // a full-speed IN retry and its NAK (~6 us) then fit in the round-robin's wait for a NAK
+  EPX_NAK_RETRY_SLOW_US = 300 // otherwise: a retry then rarely meets the bus check after SOF (epx_can_stop_after_sof())
+};
+
+// RP2040: the round-robin stops a full-speed IN right after one of its NAKs (epx_stop_on_nak()). That is the stop that
+// can lose a packet (#3964), and the only retry short enough to end within the wait after SOF: a low-speed one, or a
+// full-speed OUT with data, takes longer and cannot start before SOF. Other transfers are stopped after a bus check; an
+// OUT cut there is sent again with the same DATA PID, which the device drops as a repeat. An interrupt IN poll is not
+// retried.
+TU_ATTR_ALWAYS_INLINE static inline bool epx_stops_after_nak(const hw_endpoint_t *ep) {
+  return tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN && ep->transfer_type != TUSB_XFER_INTERRUPT && !ep->need_pre &&
+         dev_speed() != SIE_CTRL_SPEED_LOW;
+}
+
+// NAK_POLL for the transfer on EPX while others wait: the SIE takes the delay at the transfer's next NAK
+static void __tusb_irq_path_func(epx_set_nak_poll)(const hw_endpoint_t *ep) {
+  const uint32_t fs = epx_stops_after_nak(ep) ? EPX_NAK_RETRY_FAST_US : EPX_NAK_RETRY_SLOW_US;
+  usb_hw->nak_poll  = (fs << USB_NAK_POLL_DELAY_FS_LSB) | (EPX_NAK_RETRY_SLOW_US << USB_NAK_POLL_DELAY_LS_LSB);
+}
+  #endif
+
 //--------------------------------------------------------------------+
 // EPX
 //--------------------------------------------------------------------+
@@ -273,6 +296,11 @@ static void __tusb_irq_path_func(epx_switch_ep)(hw_endpoint_t *ep) {
   epx       = ep; // switch pointer
   ep->state = EPSTATE_ACTIVE;
   epx_xfer_started();
+  #ifndef HAS_STOP_EPX_ON_NAK
+  if (usb_hw->nak_poll != USB_NAK_POLL_RESET) {
+    epx_set_nak_poll(ep); // transfers wait for EPX: this one's delay from its first NAK
+  }
+  #endif
   if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS; // one poll: a NAK ends it until the next interval
@@ -461,7 +489,8 @@ static void epx_abort_start(void) {
   usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
   epx_switch_request = false;
-  usb_hw_set->inte   = USB_INTE_HOST_SOF_BITS;
+  epx_set_nak_poll(epx);
+  usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
 }
 
@@ -547,10 +576,7 @@ enum {
   EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
   LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
   EPX_STOP_SETTLE_US   = 2,  // after STOP_TRANS: a token sent meanwhile is on the wire by then
-  // NAK_POLL delay while transfers wait for EPX: a full-speed retry and its NAK (~6 us) follow within EPX_NAK_WAIT_US
-  EPX_NAK_RETRY_US     = 8,
-  EPX_NAK_WAIT_US      = 15, // the round-robin's wait for a NAK of the transfer it stops (epx_stop_on_nak())
-  EPX_NAK_POLL_ARMED   = (EPX_NAK_RETRY_US << USB_NAK_POLL_DELAY_FS_LSB) | (EPX_NAK_RETRY_US << USB_NAK_POLL_DELAY_LS_LSB)
+  EPX_NAK_WAIT_US      = 15  // the round-robin's wait for a NAK of the full-speed IN it stops (epx_stop_on_nak())
 };
 
 // Whether the bus stays idle (J) for at least us microseconds
@@ -734,14 +760,14 @@ static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
 }
 
 // Stop the transfer NAK-retrying on EPX, for the round-robin. A retry can start right after any check of the bus, and
-// STOP_TRANS on it makes the host ACK the device's packet without writing its buffer status (#3964): the packet is lost
-// and the device's next one is a DATA_SEQ error. So STOP_TRANS follows one of the transfer's NAKs, when the SIE waits
-// NAK_POLL's delay (EPX_NAK_RETRY_US while transfers wait) before the next retry. Waits at most EPX_NAK_WAIT_US, a
-// full-speed retry period; without a NAK by then (a packet came, or a low-speed retry is longer) the next SOF tries
-// again. An interrupt IN poll is not retried and ends by itself, and epx_poll_nak() owns its NAK_REC: it stops as
-// before. Returns whether STOP_TRANS was issued.
+// STOP_TRANS on an IN retry makes the host ACK the device's packet without writing its buffer status (#3964): the packet
+// is lost and the device's next one is a DATA_SEQ error. So a full-speed IN is stopped right after one of its NAKs, when
+// the SIE waits NAK_POLL's delay (EPX_NAK_RETRY_FAST_US) before the next retry. Waits at most EPX_NAK_WAIT_US, one
+// retry period; without a NAK by then (a packet came) the next SOF tries again. Other transfers stop after a bus check
+// (epx_stops_after_nak()), an interrupt IN poll among them, whose NAK_REC epx_poll_nak() reads. Returns whether
+// STOP_TRANS was issued.
 static bool __tusb_irq_path_func(epx_stop_on_nak)(void) {
-  if (epx->transfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN) {
+  if (!epx_stops_after_nak(epx)) {
     if (!epx_can_stop_after_sof()) {
       return false;
     }
@@ -828,6 +854,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
       epx_switch_ep(next_ep);
     } else {
       epx_switch_request = true;
+      epx_set_nak_poll(epx); // in effect from its next NAK, before the next SOF stops it
     }
   }
   return true;
@@ -1318,8 +1345,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   #ifdef HAS_STOP_EPX_ON_NAK
       usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
-      // short NAK retries for the round-robin's stop (epx_stop_on_nak())
-      usb_hw->nak_poll = EPX_NAK_POLL_ARMED;
+      epx_set_nak_poll(epx); // for the round-robin's stop (epx_stop_on_nak())
       usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
       epx_queued();
@@ -1364,7 +1390,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
-    usb_hw->nak_poll = EPX_NAK_POLL_ARMED;
+    epx_set_nak_poll(epx);
     usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
     epx_queued();
