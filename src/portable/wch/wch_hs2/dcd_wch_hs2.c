@@ -5,8 +5,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-// Device driver for WCH's HS2 (second-generation USBHS) USB2.0 high-speed controller: per-endpoint DONE flags, a SETUP flag in UEP0_RX_CTRL, split UEP_TX_EN/UEP_RX_EN
-// enables, response encoding NAK=00 / STALL=01 / ACK=10 and manual data toggle. Not
+// Device driver for WCH's HS2 (second-generation USBHS) USB2.0 high-speed controller:
+// per-endpoint DONE flags, a SETUP flag in UEP0_RX_CTRL, split UEP_TX_EN/UEP_RX_EN enables,
+// response encoding NAK=00 / STALL=01 / ACK=10 and manual data toggle. Not
 // register-compatible with the CH32V30x USBHS (dcd_ch32_usbhs.c). RM below means CH32V407RM.
 // Clock and PHY bring-up is the BSP's job; only one controller acts as device at a time.
 
