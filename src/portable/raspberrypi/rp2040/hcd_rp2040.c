@@ -801,10 +801,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
     // an aborted transfer still on EPX (NAK-retrying): stop it the way a switch stops, then finish the abort
     if (epx_stop_deferred) {
       if (!epx_completion_latched()) {
-        epx_abort_finish(); // the transaction seen at last SOF's stop has ended
+        // the transaction seen at last SOF's stop has ended. An OUT packet the device ACKed there got no buffer
+        // status, and the undo would give its PID back: the transfer queued behind the abort would then start with
+        // that PID and the device drop its first packet as a repeat. It went through: keep its toggle.
+        if (tu_edpt_dir(epx->ep_addr) == TUSB_DIR_OUT && (usb_hw->sie_status & USB_SIE_STATUS_ACK_REC_BITS)) {
+          epx->next_pid ^= 1u;
+        }
+        epx_abort_finish();
       }
       return true;
     }
+    usb_hw_clear->sie_status = USB_SIE_STATUS_ACK_REC_BITS; // only a transaction this stop meets can set it now
     if (!epx_stop_on_nak()) {
       return true;
     }
