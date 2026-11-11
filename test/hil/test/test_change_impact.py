@@ -885,10 +885,9 @@ class TestOrphanInvariant(unittest.TestCase):
 
     # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
     # gets no compile coverage (ci_set_matrix treats a selection that intersects
-    # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
-    # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
-    # toolchain, since hil-build-esp builds its boards by name.
-    UNBUILT_FAMILIES = {'cxd56', 'pic32mz', 'py32f0'}
+    # family_list to nothing as unusable -> full matrix). espressif is NOT here: it is
+    # in family_list with no toolchain, since hil-build-esp builds its boards by name.
+    UNBUILT_FAMILIES = {'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -1087,6 +1086,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
+            'test/hil/test/test_hil_net.py',
             'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
@@ -1457,12 +1457,13 @@ class TestLibRule(unittest.TestCase):
         self.assertNotIn('stm32f407disco', s['boards'])
         self.assertNotIn('espressif_s3_devkitm', s['boards'])
 
-    def test_hil_lib_used_only_by_a_disabled_test_selects_nothing(self):
-        # device/net_lwip_webserver is commented out of hil_util.device_tests, so the
-        # intersection with the HIL universe is empty
-        s = sel(['lib/networking/dhserver.c'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
+    def test_hil_network_changes_select_webserver(self):
+        for path in ('lib/networking/dhserver.c', 'src/class/net/ncm_device.c'):
+            with self.subTest(path=path):
+                s = sel([path])
+                self.assertFalse(s['full'])
+                self.assertEqual(set(s['boards']['stm32f407disco']),
+                                 {'device/net_lwip_webserver'})
 
     def test_hil_lib_nobody_builds_selects_nothing(self):
         s = sel(['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'])
@@ -3561,6 +3562,164 @@ class TestNoLockDependency(unittest.TestCase):
         r = subprocess.run([sys.executable, '-c', code], cwd=REPO, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), '[]')
+
+
+class TestGetDepsExistingDirectory(unittest.TestCase):
+    def run_get_dep(self, fail=None, create_git=True, initialized=False, valid=True, unborn=False,
+                    origin=True, pinned=False, unborn_output=b''):
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+
+        with TemporaryDirectory(prefix='tinyusb deps ') as top:
+            dep = pathlib.Path(top, 'lib', 'dep')
+            dep.mkdir(parents=True)
+            if initialized:
+                (dep / '.git').mkdir()
+
+            commands = []
+
+            def run(command):
+                commands.append(command)
+                if command[-1] == 'init' and fail != 'init' and create_git:
+                    (dep / '.git').mkdir()
+                returncode, output = 0, b'parent-head\n'
+                if command[-1] == '--show-toplevel':
+                    # an invalid .git makes git answer with the enclosing repository's top level
+                    output = f'{dep if valid else top}\n'.encode()
+                elif command[-3:] == ['remote', 'get-url', 'origin']:
+                    returncode, output = ((0, b'https://example.invalid/dep.git\n') if origin else (1, b''))
+                elif command[-1] == 'HEAD':
+                    if unborn:
+                        returncode, output = 1, unborn_output
+                    elif pinned:
+                        output = b'0123456789abcdef\n'
+                if fail and command[-1].endswith(fail):
+                    returncode = 1
+                return subprocess.CompletedProcess([], returncode, stdout=output)
+
+            with mock.patch.object(get_deps, 'TOP', pathlib.Path(top)), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch.object(get_deps, 'run_cmd', side_effect=run):
+                status = get_deps.get_a_dep('lib/dep')
+
+        return dep, commands, status
+
+    def test_directory_without_git_metadata_is_initialized(self):
+        dep, commands, status = self.run_get_dep()
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            [*git, 'init'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+        self.assertIn(' ', str(dep))
+
+    def test_git_failures_stop_dependency_setup(self):
+        for name, suffix, count in [('init', 'init', 1), ('remote', 'dep.git', 2),
+                                    ('fetch', '0123456789abcdef', 3), ('checkout', 'FETCH_HEAD', 4)]:
+            with self.subTest(failed=name):
+                _, commands, status = self.run_get_dep(suffix)
+                self.assertEqual(status, 1)
+                self.assertEqual(len(commands), count)
+
+    def test_init_without_dependency_metadata_stops_setup(self):
+        _, commands, status = self.run_get_dep(create_git=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(len(commands), 1)
+
+    def test_unborn_repository_retries_fetch(self):
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True, origin=False)
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            [*git, 'rev-parse', '--show-toplevel'],
+            [*git, 'remote', 'get-url', 'origin'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_unborn_repository_with_non_utf8_diagnostic_retries_fetch(self):
+        # a non-UTF-8 locale's message for the failed verify must not abort the fetch retry
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True,
+                                                 unborn_output=b'fatal: \xff\xfe HEAD\n')
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands[-3:], [
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_failed_command_output_survives_a_strict_narrow_stdout(self):
+        # piped on Windows, stdout is cp1252 strict: U+FFFD from b'\xff' must not raise
+        from unittest import mock
+        import get_deps
+        buf = io.BytesIO()
+        out = io.TextIOWrapper(buf, encoding='cp1252', errors='strict')
+        child = 'import sys; sys.stdout.buffer.write(b"\\xff"); sys.exit(1)'
+        with mock.patch('sys.stdout', out):
+            r = get_deps.run_cmd([sys.executable, '-c', child])
+            out.flush()
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(r.stdout, b'\xff')
+        lines = buf.getvalue().splitlines()
+        self.assertTrue(lines[0].startswith(b'Command Error:'), lines)
+        self.assertEqual(lines[-1], b'?')
+
+    def test_pinned_branch_is_detached_and_failure_propagates(self):
+        for fail, expected in [(None, 0), ('--detach', 1)]:
+            with self.subTest(fail=fail):
+                dep, commands, status = self.run_get_dep(fail, initialized=True, pinned=True)
+                self.assertEqual(status, expected)
+                self.assertEqual(commands[-1], ['git', '-C', str(dep), 'checkout', '--detach'])
+                self.assertFalse(any('fetch' in command for command in commands))
+
+    def test_invalid_git_metadata_stops_setup(self):
+        dep, commands, status = self.run_get_dep(initialized=True, valid=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(commands, [['git', '-C', str(dep), 'rev-parse', '--show-toplevel']])
+
+    def test_an_empty_git_directory_leaves_the_enclosing_checkout_alone(self):
+        # real git: it ignores an empty .git and walks up, which a mocked rev-parse cannot show
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+        env = {k: v for k, v in os.environ.items() if k not in get_deps.GIT_REPO_ENV}
+
+        def git(path, *args):
+            return subprocess.run(['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t',
+                                   '-c', 'commit.gpgsign=false', *args],
+                                  capture_output=True, text=True, check=True, env=env).stdout.strip()
+
+        with TemporaryDirectory() as td:
+            outer = pathlib.Path(td, 'outer')
+            outer.mkdir()
+            git(outer, 'init', '-q')
+            (outer / 'work.txt').write_text('committed\n')
+            git(outer, 'add', 'work.txt')
+            git(outer, 'commit', '-q', '-m', 'outer')
+            head = git(outer, 'rev-parse', 'HEAD')
+            (outer / 'work.txt').write_text('uncommitted\n')
+            (outer / 'lib' / 'dep' / '.git').mkdir(parents=True)
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch('sys.stdout'):
+                status = get_deps.get_a_dep('lib/dep')
+            self.assertEqual(status, 1)
+            self.assertEqual((outer / 'work.txt').read_text(), 'uncommitted\n')
+            self.assertEqual(git(outer, 'rev-parse', 'HEAD'), head)
+            self.assertEqual(git(outer, 'remote'), '')
 
 
 if __name__ == '__main__':

@@ -81,7 +81,9 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 512
 
-#define CFG_TUH_HUB                 0
+#ifndef CFG_TUH_HUB
+  #define CFG_TUH_HUB               0 // 1 to reach a device behind a hub, e.g. full speed via a high-speed hub
+#endif
 #define CFG_TUH_CDC                 0
 #define CFG_TUH_HID                 0
 #define CFG_TUH_MSC                 0

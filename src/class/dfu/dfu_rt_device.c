@@ -49,8 +49,10 @@ uint16_t dfu_rtd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, ui
   (void) rhport;
   (void) max_len;
 
-  // Ensure this is DFU Runtime
-  TU_VERIFY((itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
+  // Ensure this is DFU Runtime, class must be checked too since other classes
+  // use same subclass and protocol values (e.g. Bluetooth E0/01/01)
+  TU_VERIFY((itf_desc->bInterfaceClass == TUSB_CLASS_APPLICATION_SPECIFIC) &&
+            (itf_desc->bInterfaceSubClass == TUD_DFU_APP_SUBCLASS) &&
             (itf_desc->bInterfaceProtocol == DFU_PROTOCOL_RT), 0);
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );

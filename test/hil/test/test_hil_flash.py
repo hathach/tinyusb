@@ -463,8 +463,7 @@ class OpenocdEspRoster(unittest.TestCase):
                       hil_test_stdout(self, {'flasher': {**self.SHAPE, 'vid_pid': '0x303a 0x1001'}}))
 
     def test_hil_test_refuses_the_route_under_a_ci_job(self):
-        # the runner kills processes carrying the job's tracking id at job end: neither the
-        # provider's openocd server nor the cleanup holder is known to survive it
+        # The provider still refuses a CI job, whose end kills its tracked processes.
         for var in hil_util.openocd_esp().CI_JOB_ENV:
             with self.subTest(var=var):
                 self.assertIn('ERROR: openocd_esp flasher refused: b: openocd_esp is refused under a CI job',
@@ -634,6 +633,8 @@ class Rosters(unittest.TestCase):
         (no LPC55 target cfg or flash driver in 0ce743125), its DAP pinned to DPIDR 0x6ba02477 and
         AP 0; SYSRESETREQ is a chip reset (UM11126 4.6.1) and libjaylink finds its LPCXpresso V2
         probe (PID 0x1024) from 0.4.0; 3/3 resets each re-enumerated the DUT (ci.lan 2026-10-17).
+        max32666fthr's J-Link: 3/3 resets each re-enumerated the DUT and a reflash of cdc_msc verified
+        and re-enumerated (ci.lan 2026-11-11).
         The STM32 entries empty
         their target's reset-init event: stm32f0x/f4x/f7x/l4x.cfg set `adapter speed 8000` there,
         these on-board J-Link probes cap at 4000 and fail even at 4000 (auto_probe failed, SWD
@@ -648,7 +649,7 @@ class Rosters(unittest.TestCase):
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
                         'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
-                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69'}
+                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69', 'max32666fthr'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
                                          '-c "dap create rt1064.dap -chain-position rt1064.cpu" '

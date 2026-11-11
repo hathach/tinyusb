@@ -136,6 +136,11 @@
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
       - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
+    :test_cdc_host_ftdi:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_CDC=1
+      - CFG_TUH_CDC_FTDI=1
+      - CFG_TUSB_DEBUG=0
     :test_audio_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_AUDIO=1
@@ -143,6 +148,17 @@
       - CFG_TUSB_DEBUG=0
       - CFG_TUH_AUDIO_EPIN_BUFSIZE=1024
       - CFG_TUH_AUDIO_EPOUT_BUFSIZE=1024
+    :test_dwc2_split:
+      - CFG_TUSB_MCU=OPT_MCU_NONE
+      - CFG_TUSB_RHPORT0_MODE=OPT_MODE_HOST
+      - CFG_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      - CFG_TUD_ENABLED=0
+      - CFG_TUSB_DEBUG=0
+      - TUP_USBIP_DWC2
+      - TUP_RHPORT_HIGHSPEED=1
+      - CFG_TUH_HUB=1
+      - CFG_TUH_DWC2_SLAVE_ENABLE=1
+      - CFG_TUH_DWC2_DMA_ENABLE=1
     :test_hid_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_HID=1
@@ -211,6 +227,9 @@
       - CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ=256
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=0
       - CFG_TUSB_DEBUG=0
+    # keys match by substring: test_audio_device above configures this one too, this adds the WCH CH32 path
+    :test_audio_device_deferred:
+      - TUP_USBD_XFER_ISR=0
     :test_dfu_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1

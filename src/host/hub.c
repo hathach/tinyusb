@@ -267,6 +267,7 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
     tuh_xfer_t xfer;
     xfer.daddr     = daddr;
     xfer.ep_addr   = 0;
+    xfer.result    = XFER_RESULT_SUCCESS;
     xfer.user_data = 0;
     config_get_hub_descriptor(&xfer);
   }
@@ -275,6 +276,12 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    // A STALL keeps alternate setting 0, single-TT (USB 2.0 9.4.10, 11.23.1); after a transport error the setting is
+    // unknown. Either way schedule it as single-TT: one TT budget for every port is safe for both organizations.
+    get_hub_itf(xfer->daddr)->mtt = false;
+  }
+
   // Get Hub Descriptor
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -489,6 +496,17 @@ static void process_new_status(tuh_xfer_t* xfer) {
   if (!processed) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
   }
+}
+
+//--------------------------------------------------------------------+
+// Transaction Translator
+//--------------------------------------------------------------------+
+
+// A multi-TT hub runs in its multi-TT alternate setting, with one transaction translator per downstream port. False
+// also when that setting is unknown: scheduling it as single-TT is conservative.
+bool hub_tt_multi(uint8_t hub_addr) {
+  TU_VERIFY(hub_addr > CFG_TUH_DEVICE_MAX && hub_addr <= CFG_TUH_DEVICE_MAX + CFG_TUH_HUB);
+  return get_hub_itf(hub_addr)->mtt;
 }
 
 #endif

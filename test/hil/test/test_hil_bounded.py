@@ -326,6 +326,21 @@ class BuildBoardContract(unittest.TestCase):
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
 
+    def test_a_roster_copy_of_dev_attached_aborts_the_leg_selecting_it(self):
+        """The attached devices are agentrc's board registry's now: a roster's tests.dev_attached left
+        on a selected board aborts its leg rather than being silently ignored."""
+        from helper import hil_report
+        stale = {'dev_attached': [{'vid_pid': '1a86_55d4', 'serial': 'X'}]}
+        cfg = {'boards': [{'name': 'old', 'uid': '1', 'flasher': {'name': 'esptool', 'uid': 'p1'}, 'tests': stale},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        self.assertIn('old: tests.dev_attached is now', json.loads((d / hil_report.REPORT_JSON).read_text())['caveat'])
+
     def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
         """Without the registry no probe board names its flasher: a --flasher leg must not drop them
         all and report 'No boards left' instead of the registry's problem."""
@@ -428,7 +443,7 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
-        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
+        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py', 'net_test.py', 'usbtmc_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
         todo, seen = list(seeds), set()
@@ -1401,8 +1416,8 @@ class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
         with mock.patch.object(hil_test, 'skip_flash', False), \
              mock.patch.object(hil_test, 'shuffle_seed', None), \
              mock.patch.object(hil_flash, 'cleanup_pending', {}), \
-             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
-             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=mock.Mock(cleanup_failures=[])), \
+             mock.patch.object(hil_test, 'end_failed_cleanup', return_value='logged'), \
              mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
              mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
              mock.patch.object(hil_test, 'test_example', test_example), \

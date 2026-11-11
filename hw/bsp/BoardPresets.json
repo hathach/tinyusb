@@ -155,6 +155,10 @@
       "inherits": "default"
     },
     {
+      "name": "ch32v407_r0",
+      "inherits": "default"
+    },
+    {
       "name": "ch582m_evt",
       "inherits": "default"
     },
@@ -555,6 +559,10 @@
       "inherits": "default"
     },
     {
+      "name": "ra4m2_ek",
+      "inherits": "default"
+    },
+    {
       "name": "ra4m3_ek",
       "inherits": "default"
     },
@@ -656,6 +664,10 @@
     },
     {
       "name": "stm32c542nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32c5a3nucleo",
       "inherits": "default"
     },
     {
@@ -899,6 +911,10 @@
       "inherits": "default"
     },
     {
+      "name": "weact_ch32x035_core_board",
+      "inherits": "default"
+    },
+    {
       "name": "xmc4500_relax",
       "inherits": "default"
     },
@@ -956,6 +972,10 @@
     },
     {
       "name": "espressif_s2_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s31_function_core",
       "inherits": "default single config"
     },
     {
@@ -1168,6 +1188,11 @@
       "configurePreset": "ch32v307v_r1_1v0"
     },
     {
+      "name": "ch32v407_r0",
+      "description": "Build preset for the ch32v407_r0 board",
+      "configurePreset": "ch32v407_r0"
+    },
+    {
       "name": "ch582m_evt",
       "description": "Build preset for the ch582m_evt board",
       "configurePreset": "ch582m_evt"
@@ -1271,6 +1296,11 @@
       "name": "espressif_s2_devkitc",
       "description": "Build preset for the espressif_s2_devkitc board",
       "configurePreset": "espressif_s2_devkitc"
+    },
+    {
+      "name": "espressif_s31_function_core",
+      "description": "Build preset for the espressif_s31_function_core board",
+      "configurePreset": "espressif_s31_function_core"
     },
     {
       "name": "espressif_s3_devkitc",
@@ -1713,6 +1743,11 @@
       "configurePreset": "ra4m1_ek"
     },
     {
+      "name": "ra4m2_ek",
+      "description": "Build preset for the ra4m2_ek board",
+      "configurePreset": "ra4m2_ek"
+    },
+    {
       "name": "ra4m3_ek",
       "description": "Build preset for the ra4m3_ek board",
       "configurePreset": "ra4m3_ek"
@@ -1841,6 +1876,11 @@
       "name": "stm32c542nucleo",
       "description": "Build preset for the stm32c542nucleo board",
       "configurePreset": "stm32c542nucleo"
+    },
+    {
+      "name": "stm32c5a3nucleo",
+      "description": "Build preset for the stm32c5a3nucleo board",
+      "configurePreset": "stm32c5a3nucleo"
     },
     {
       "name": "stm32f070rbnucleo",
@@ -2141,6 +2181,11 @@
       "name": "waveshare_openh743i",
       "description": "Build preset for the waveshare_openh743i board",
       "configurePreset": "waveshare_openh743i"
+    },
+    {
+      "name": "weact_ch32x035_core_board",
+      "description": "Build preset for the weact_ch32x035_core_board board",
+      "configurePreset": "weact_ch32x035_core_board"
     },
     {
       "name": "xmc4500_relax",
@@ -2667,6 +2712,19 @@
       ]
     },
     {
+      "name": "ch32v407_r0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v407_r0"
+        },
+        {
+          "type": "build",
+          "name": "ch32v407_r0"
+        }
+      ]
+    },
+    {
       "name": "ch582m_evt",
       "steps": [
         {
@@ -2936,6 +2994,19 @@
         {
           "type": "build",
           "name": "espressif_s2_devkitc"
+        }
+      ]
+    },
+    {
+      "name": "espressif_s31_function_core",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_s31_function_core"
+        },
+        {
+          "type": "build",
+          "name": "espressif_s31_function_core"
         }
       ]
     },
@@ -4084,6 +4155,19 @@
       ]
     },
     {
+      "name": "ra4m2_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra4m2_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra4m2_ek"
+        }
+      ]
+    },
+    {
       "name": "ra4m3_ek",
       "steps": [
         {
@@ -4418,6 +4502,19 @@
         {
           "type": "build",
           "name": "stm32c542nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32c5a3nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32c5a3nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32c5a3nucleo"
         }
       ]
     },
@@ -5198,6 +5295,19 @@
         {
           "type": "build",
           "name": "waveshare_openh743i"
+        }
+      ]
+    },
+    {
+      "name": "weact_ch32x035_core_board",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "weact_ch32x035_core_board"
+        },
+        {
+          "type": "build",
+          "name": "weact_ch32x035_core_board"
         }
       ]
     },

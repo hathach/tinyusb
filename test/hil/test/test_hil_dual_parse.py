@@ -95,8 +95,8 @@ class FakeSerial:
 
 
 class CellVerdict(unittest.TestCase):
-    BOARD = {'uid': 'U', 'tests': {'dev_attached': [{'vid_pid': CDC[0], 'serial': CDC[1]},
-                                                    {'vid_pid': MSC[0], 'serial': MSC[1]}]}}
+    BOARD = {'uid': 'U', 'dev_attached': [{'vid_pid': CDC[0].replace('_', ':'), 'serial': CDC[1]},
+                                          {'vid_pid': MSC[0].replace('_', ':'), 'serial': MSC[1]}]}
 
     def run_cell(self, text, size):
         data = text.encode()
@@ -108,6 +108,12 @@ class CellVerdict(unittest.TestCase):
         out = usbtest_harness.Out()
         usbtest_harness.patch(self, sys, 'stdout', out)
         return hil_test.test_dual_host_info_to_device_cdc(self.BOARD)
+
+    def test_declared_devs_print_as_the_host_examples_do(self):
+        board = {'dev_attached': [{'vid_pid': 'abcd:1234', 'serial': '\u0409'}, {'vid_pid': '1a86:7523'}]}
+        self.assertEqual(hil_test.declared_devs(board), ['abcd_1234_\u0409', '1a86_7523_0'])
+        with self.assertRaisesRegex(AssertionError, "agentrc's board registry"):
+            hil_test.declared_devs({'tests': {}})
 
     def test_issue_transcript_passes_in_any_chunking(self):
         for size in (1, 7, 43, len(ISSUE)):
