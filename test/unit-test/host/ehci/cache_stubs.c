@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "tusb_option.h"
 #include "host/usbh.h"
 #include "host/usbh_pvt.h"
@@ -31,18 +32,23 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 }
 
 #if CFG_TUH_HUB && defined(TUP_USBIP_CHIPIDEA_HS) && CFG_TUH_CHIPIDEA_ISO_ENABLE
-// Driver fixtures use the real hub allocator, but never enumerate or transfer
+// Driver fixtures use the real hub allocator and open hubs through hub_open()
+// to select single-TT or multi-TT operation, but never enumerate or transfer
 // through the hub class driver. Fail immediately if those paths are called.
+uint8_t test_hub_protocol; // bDeviceProtocol reported for the hub being opened
+
 bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_device) {
   (void) daddr;
-  (void) desc_device;
-  abort();
+  memset(desc_device, 0, sizeof(*desc_device));
+  desc_device->bDeviceClass = TUSB_CLASS_HUB;
+  desc_device->bDeviceProtocol = test_hub_protocol;
+  return true;
 }
 
 bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const* desc_ep) {
   (void) daddr;
   (void) desc_ep;
-  abort();
+  return true; // the hub status endpoint; never transferred on
 }
 
 uint8_t usbh_get_rhport(uint8_t daddr) {
