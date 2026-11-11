@@ -699,15 +699,18 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
                          if k in cells), None)
         previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
         found = '; previous cleanup failure: ' + '; '.join(previous) if previous else ''
+        # a refusal whose lock did not end as asked: the admitted path lists this cell among `bad`
+        pending = ''.join(f'; {CLEANUP_PENDING_CELL}: {c[CLEANUP_PENDING_CELL]}'
+                          for c in mine.values() if CLEANUP_PENDING_CELL in c)
         if unusable is not None and not aborted and not board_wedged:
-            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                             'wedged': False, 'skipped': [], **kept, 'detail': unusable + found}, mine, False))
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+                             'skipped': [], **kept, 'detail': unusable + pending + found}, mine, False))
             continue
         blocked = next((cells[RECOVERY_BLOCKER_CELL] for cells in mine.values()
                         if RECOVERY_BLOCKER_CELL in cells), None)
         if blocked is not None and not aborted and not board_wedged:
             results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
-                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}'},
+                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}{pending}'},
                             mine, False))
             continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())

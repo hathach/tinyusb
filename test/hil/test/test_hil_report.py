@@ -476,6 +476,15 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
                                   'skipped': [], 'detail': f'{cell}; previous cleanup failure: {previous}'})
 
+    def test_a_refusal_names_its_cleanup_blocker(self):
+        pending = '❌ board task ended with errors; alpha: lock released, errors: record not cleared'
+        for refusal, says in ((hil_report.PROBE_BUSY_CELL, '❌ probe in use by pid 7 (openocd)'),
+                              (hil_report.RECOVERY_BLOCKER_CELL, 'recovery blocker; not flashed: ❌ board locked')):
+            with self.subTest(refusal=refusal):
+                cell = says.removeprefix('recovery blocker; not flashed: ')
+                got = self._sum(['alpha'], [('alpha', {refusal: cell, hil_report.CLEANUP_PENDING_CELL: pending})])
+                self.assertEqual(got[0]['detail'], f'{says}; cleanup-pending: {pending}')
+
     def test_a_recovery_blocker_is_neither_contention_nor_a_fail(self):
         cell = '❌ board locked: {"pid": 7, "role": "cleanup-holder"} (recovery blocker: ...)'
         got = self._sum(['alpha'], [('alpha', {hil_report.RECOVERY_BLOCKER_CELL: cell})])
