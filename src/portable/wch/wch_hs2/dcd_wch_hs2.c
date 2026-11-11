@@ -353,7 +353,12 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
-    usbhs->DEV_AD = (uint8_t)request->wValue;
+    // a bus reset since this request left the device at address 0 (USB 2.0 7.1.7.5): keep it there
+    usbd_spin_lock(false);
+    if (!ep0_superseded()) {
+      usbhs->DEV_AD = (uint8_t)request->wValue;
+    }
+    usbd_spin_unlock(false);
   }
 }
 
