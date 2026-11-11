@@ -373,7 +373,7 @@ class FailedCleanup(LockDir):
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
         self.assertIn(self.RECEIPT, cell)
-        self.assertIn('board lock released', cell)
+        self.assertIn('lock released', cell)
         self.assertIn(str(Path(self.dir) / f'{self.lock}.cleanup.jsonl'), cell)
         return rows
 
@@ -423,7 +423,7 @@ class FailedCleanup(LockDir):
         self.assertEqual((failure['receipts'], failure['retained']), ([self.TRACKED], []))
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
         self.assertIn('esptool child, record /s/hil_op_t0k.json', cell)
-        self.assertIn('board lock released', cell)
+        self.assertIn('lock released', cell)
 
     def test_a_security_read_of_unknown_cleanup_is_read_once_latched_and_logged(self):
         self.provider(self.op('done', rc=0), security_cleanup='unknown', security_receipts=(self.TRACKED,))
@@ -472,7 +472,7 @@ class FailedCleanup(LockDir):
         with self.assertRaises(KeyboardInterrupt):
             hil_test.test_board(self.board)
         self.assert_logged()
-        self.assertIn('board lock released', self.log[-1])
+        self.assertIn('lock released', self.log[-1])
 
     def test_an_interrupt_before_the_receipt_is_stored_logs_unrecheckable_evidence(self):
         # the provider returned its pending operation, then the interrupt lands before the store
@@ -529,7 +529,7 @@ class FailedCleanup(LockDir):
             _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 2)
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
-        self.assertIn('cleanup failure NOT logged', cell)
+        self.assertIn('failure NOT logged', cell)
         self.assertIn('cleanup log not written', cell)
         self.assertIn('log is read-only', cell)
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
@@ -779,7 +779,7 @@ class Verdicts(LockDir):
         failure, = self.events('failed')
         self.assertEqual((failure['how'], failure['receipts']), ('ended-failed', []))
         self.assertIn('ended without a cleanup verdict: KeyboardInterrupt', failure['detail'])
-        self.assertIn('board lock released', self.log[-1])
+        self.assertIn('lock released', self.log[-1])
         self.test = (0, 'pass', None)
         _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 0)
@@ -799,7 +799,7 @@ class Verdicts(LockDir):
             _, err, failed, rows, _ = hil_test.test_board(self.board)
         self.assertEqual((err, failed), (1, []))
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
-        self.assertIn('board task ended with errors: board lock released; cleanup failure logged', cell)
+        self.assertIn(f'board task ended with errors: {BOARD}: lock released, failure logged in', cell)
         self.assertIn('record not cleared', cell)
 
     def test_advisory_task_errors_never_fail_the_board(self):

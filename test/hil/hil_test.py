@@ -2025,16 +2025,6 @@ def pending_evidence(name: str, pending: str) -> dict:
     return {'receipts': tracked if receipts else [{'unrecheckable': pending}], 'retained': retained}
 
 
-def task_ending(task, lock: str) -> str:
-    """How a board task ended, for display: its lock, whether its failure was logged, its errors."""
-    parts = ['board lock bypassed (HIL_NO_BOARD_LOCK=1)' if task.bypassed else
-             'board lock released' if task.released else 'board lock NOT released']
-    if task.failure_logged is not None:
-        log = Path(hil_lock.BOARD_LOCK_DIR) / f'{lock}{hil_lock.CLEANUP_LOG}'
-        parts.append(f'cleanup failure {"logged" if task.failure_logged else "NOT logged"}: {log}')
-    return '; '.join(parts + task.errors)
-
-
 def previous_cleanup_text(name: str, failures: list) -> str:
     """The open failures the take found, logged before any hardware access, as the
     previous-cleanup-failure cell names them ('' for none)."""
@@ -2098,24 +2088,23 @@ def test_board(board: Board) -> tuple:
         if not entered and isinstance(e, Exception):
             return admission_refused(name, task, e)
         if entered:
-            log_line(f'{name:25} ended by {type(e).__name__}: {task_ending(task, lock)}')
+            log_line(f'{name:25} ended by {type(e).__name__}: {task.describe()}')
         raise
 
     if task.restore_notes:
         log_line(f'{name:25} ' + '; '.join(task.restore_notes))
         previous_cleanup += ('; ' + '; '.join(task.restore_notes) if task.bypassed else
                              f'; {len(task.restore_notes)} still open')
-    unclean = task.taken and not task.ended_cleanly
-    if task.errors and not unclean and previous_cleanup:
+    if task.errors and task.ended_cleanly and previous_cleanup:
         previous_cleanup += '; board task notes: ' + '; '.join(task.errors)   # advisory, e.g. a restoration
-    ending = task_ending(task, lock)
+    ending = task.describe()
     if pending := cleanup_pending(name):
         log_line(f'{name:25} BLOCKER: {pending}; {ending}')
         rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {pending}; {ending}'},
                      None))
         err_count += 1
         board_wide_fail = True
-    elif unclean:
+    elif not task.ended_cleanly:
         # the lock did not end as its verdict asked: never a passing board
         log_line(f'{name:25} BLOCKER: board task ended with errors: {ending}')
         rows.append((name, {hil_report.CLEANUP_PENDING_CELL:

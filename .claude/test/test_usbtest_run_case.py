@@ -435,8 +435,9 @@ class Verdicts(unittest.TestCase):
             rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.assertNotIn('"pass"', printed[0])
         self.assertEqual((rc, report['pass']), (1, False))   # the battery passed; its lock did not end
-        self.assertIn('board task did not end as its verdict asked (lock released, failure logged): '
-                      'record not cleared', report['error'])
+        self.assertIn('board task did not end as its verdict asked: solo: lock released, failure logged in',
+                      report['error'])
+        self.assertIn('record not cleared', report['error'])
 
     def test_advisory_task_errors_never_fail_the_run(self):
         rig = Rig(self)
@@ -444,7 +445,7 @@ class Verdicts(unittest.TestCase):
         with mock.patch.object(run_case.hil_lock, '_process', return_value=broken):
             rc, report, err = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.assertEqual((rc, report['error']), (0, ''))
-        self.assertIn('board task notes: interrupt hold', err)
+        self.assertIn('board task notes: solo: lock released, errors: interrupt hold', err)
 
 class Sigterm(unittest.TestCase):
     """What `hil_lock.py release` sends the lock holder, raised in-process as on_sigterm would."""

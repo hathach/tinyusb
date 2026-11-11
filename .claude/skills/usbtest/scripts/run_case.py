@@ -388,13 +388,11 @@ def lock_and_run(args, tests, report, finish):
 def ended(task, code, error):
     """(code, error) once the task ended: a lock that did not end as its verdict asked fails the run,
     its state and errors in `error`; advisory errors of a clean end only go to stderr."""
-    if not task.taken or task.ended_cleanly:
+    if task.ended_cleanly:
         if task.errors:
-            print(f'board task notes: {"; ".join(task.errors)}', file=sys.stderr)
+            print(f'board task notes: {task.describe()}', file=sys.stderr)
         return code, error
-    logged = {None: '', True: ', failure logged', False: ', failure NOT logged'}[task.failure_logged]
-    problem = (f'board task did not end as its verdict asked (lock {"released" if task.released else "NOT released"}'
-               f'{logged}): {"; ".join(task.errors)}')
+    problem = f'board task did not end as its verdict asked: {task.describe()}'
     return code or 1, f'{error}; {problem}' if error else problem
 
 
