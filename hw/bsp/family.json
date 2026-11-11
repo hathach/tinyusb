@@ -562,9 +562,9 @@
       "cmake": {
         "defines": {},
         "family_mcus": [
-          "CH32V407"
+          "CH32V4X7"
         ],
-        "mcu": "OPT_MCU_CH32V407",
+        "mcu": "OPT_MCU_CH32V4X7",
         "options": {},
         "portable": [
           "wch/wch_hs2/dcd_wch_hs2.c"

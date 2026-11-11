@@ -12,7 +12,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS CH32V407 CACHE INTERNAL "")
+set(FAMILY_MCUS CH32V4X7 CACHE INTERNAL "")
 
 # rhport 0 = USBHS1 (PA11/PA12), rhport 1 = USBHS2 (PB6/PB7)
 if (NOT DEFINED RHPORT_DEVICE)
@@ -69,7 +69,7 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V407)
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32V4X7)
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
@@ -90,7 +90,7 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(FATAL_ERROR "Clang is not supported for CH32V407")
+    message(FATAL_ERROR "Clang is not supported for CH32V4x7")
   endif ()
 
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES

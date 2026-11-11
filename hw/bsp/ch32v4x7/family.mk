@@ -18,7 +18,7 @@ CFLAGS += \
 	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
-	-DCFG_TUSB_MCU=OPT_MCU_CH32V407 \
+	-DCFG_TUSB_MCU=OPT_MCU_CH32V4X7 \
 	-DBOARD_TUD_RHPORT=$(RHPORT_DEVICE) \
 	-Wno-error=strict-prototypes
 

@@ -19,7 +19,7 @@
 #include "device/usbd_pvt.h" // for usbd_spin_lock()
 #include "wch_hs2_reg.h"
 
-#if TU_CHECK_MCU(OPT_MCU_CH32V407)
+#if TU_CHECK_MCU(OPT_MCU_CH32V4X7)
   #include "ch32v4x7.h"
 static const struct {
   wch_hs2_dev_t *regs;
