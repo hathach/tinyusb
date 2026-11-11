@@ -55,6 +55,13 @@
 #define ETH_PAD_SIZE                    0
 #define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
+// The only link is USB, whose CRC already protects every packet, so received frames are not re-verified: that
+// checksum costs about a quarter of the CPU at HS throughput. Outgoing checksums are still generated for the host.
+#define CHECKSUM_CHECK_IP               0
+#define CHECKSUM_CHECK_UDP              0
+#define CHECKSUM_CHECK_TCP              0
+#define CHECKSUM_CHECK_ICMP             0
+
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
 #if LWIP_HIGH_THROUGHPUT
