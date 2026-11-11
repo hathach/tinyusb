@@ -382,6 +382,7 @@ WCH
 Board                      Name                           Family    URL                                                                    Note
 =========================  =============================  ========  =====================================================================  ======
 ch32f205r-r0               CH32F205r-r0                   ch32f20x  https://github.com/openwch/ch32f20x
+ch32h417_r0                CH32H417QEU6-R0 EVT            ch32h417  https://www.wch-ic.com/products/CH32H417.html
 nanoch32h417               nanoCH32H417                   ch32h417  https://github.com/wuxx/nanoCH32H417
 ch32v103c_bluepill         CH32V103C8T6-Bluepill          ch32v10x  https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
 ch32v103r_r1_1v0           CH32V103R-R1-1v1               ch32v10x  https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1

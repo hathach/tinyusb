@@ -318,7 +318,7 @@ void board_init(void) {
   NVIC_EnableIRQ(SysTick0_IRQn);
 #endif
 
-  // USART1 TX on PA9, RX on PA10 (AF7) - wired to the on-board WCH-LinkE virtual COM port
+  // USART1 TX on PA9, RX on PA10 (AF7) - wired to the WCH-LinkE virtual COM port
 #ifdef CFG_BOARD_UART_BAUDRATE
   RCC_HB2PeriphClockCmd(RCC_HB2Periph_AFIO | RCC_HB2Periph_USART1 | RCC_HB2Periph_GPIOA, ENABLE);
   GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF7);
@@ -358,6 +358,16 @@ void board_init(void) {
   };
   GPIO_Init(LED_PORT, &led_init);
   board_led_write(false);
+
+#ifdef BUTTON_PORT
+  RCC_HB2PeriphClockCmd(BUTTON_CLOCK, ENABLE);
+  GPIO_InitTypeDef button_init = {
+    .GPIO_Pin = BUTTON_PIN,
+    .GPIO_Speed = GPIO_Speed_Very_High,
+    .GPIO_Mode = GPIO_Mode_IPU,
+  };
+  GPIO_Init(BUTTON_PORT, &button_init);
+#endif
 
 #if CFG_BOARD_CH32H417_UART_LOADER
   // Flash-park window: hold here ~10 s with USB never initialized - PB8/PB9 stay in SWD/SDI mode
@@ -428,7 +438,11 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
-  return 0; // no user button on this board
+#ifdef BUTTON_PORT
+  return BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN);
+#else
+  return 0;
+#endif
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {

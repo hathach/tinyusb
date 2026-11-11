@@ -413,6 +413,26 @@
     }
   },
   "ch32h417": {
+    "ch32h417_r0": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "0",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH32H417"
+        ],
+        "mcu": "OPT_MCU_CH32H417",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch32h417_usb30.c",
+          "wch/dcd_ch32h417_usbhs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    },
     "nanoch32h417": {
       "cmake": {
         "defines": {

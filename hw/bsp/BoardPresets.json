@@ -135,6 +135,10 @@
       "inherits": "default"
     },
     {
+      "name": "ch32h417_r0",
+      "inherits": "default"
+    },
+    {
       "name": "ch32v103c_bluepill",
       "inherits": "default"
     },
@@ -1169,6 +1173,11 @@
       "name": "ch32f205r-r0",
       "description": "Build preset for the ch32f205r-r0 board",
       "configurePreset": "ch32f205r-r0"
+    },
+    {
+      "name": "ch32h417_r0",
+      "description": "Build preset for the ch32h417_r0 board",
+      "configurePreset": "ch32h417_r0"
     },
     {
       "name": "ch32v103c_bluepill",
@@ -2661,6 +2670,19 @@
         {
           "type": "build",
           "name": "ch32f205r-r0"
+        }
+      ]
+    },
+    {
+      "name": "ch32h417_r0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32h417_r0"
+        },
+        {
+          "type": "build",
+          "name": "ch32h417_r0"
         }
       ]
     },
