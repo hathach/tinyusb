@@ -621,7 +621,7 @@ void test_msc_host_enum_request_sense_submit_fail(void) {
   reply_csw(MSC_CSW_STATUS_FAILED);
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
-  assert_enum_ended_unmounted(4);
+  assert_enum_fenced(4);
 }
 
 void test_msc_host_enum_request_sense_passed_retries_tur(void) {
@@ -648,7 +648,7 @@ void test_msc_host_enum_read_capacity_submit_fail(void) {
   reply_csw_passed();
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
-  assert_enum_ended_unmounted(4);
+  assert_enum_fenced(4);
 }
 
 // usbh ignores set_config's result, so a Get Max LUN that fails to submit must end the configuration itself
