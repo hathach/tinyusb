@@ -185,19 +185,12 @@ static uint8_t const desc_ss_configuration[] = {
     TUD_MSC_SS_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, CFG_EXAMPLE_SS_BULK_MAXBURST),
 };
 
-// wSpeedsSupported: HS + Gen1 SS; the CH32H417 USB2 fallback (HS2) also runs at full speed
-#if CFG_TUSB_MCU == OPT_MCU_CH32H417 && CFG_TUD_WCH_USB30_FALLBACK
-  #define BOS_SS_SPEEDS  0x000E
-#else
-  #define BOS_SS_SPEEDS  0x000C
-#endif
-
 #define BOS_TOTAL_LEN  (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN)
 
 static uint8_t const desc_bos[] = {
     TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
     TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
-    TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, BOS_SS_SPEEDS, 2, 0x0A, 0x07FF),
+    TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, TUD_BOS_SUPERSPEED_SPEEDS, 2, 0x0A, 0x07FF),
 };
 
 uint8_t const *tud_descriptor_bos_cb(void) {

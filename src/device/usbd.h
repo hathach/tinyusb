@@ -251,6 +251,15 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   10, TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_SUPERSPEED_USB, _bmattr, \
   U16_TO_U8S_LE(_speeds_bm), _func_speed, _u1_exit_lat, U16_TO_U8S_LE(_u2_exit_lat)
 
+#if TUD_OPT_SUPER_SPEED
+// wSpeedsSupported: HS + Gen1, plus FS (USB 3.2 9.6.2.2 bit 1) for the CH32H417 HS2 fallback; CH569's USB2 is HS-only
+  #if TU_CHECK_MCU(OPT_MCU_CH32H417) && CFG_TUD_WCH_USB30_FALLBACK
+    #define TUD_BOS_SUPERSPEED_SPEEDS  0x000E
+  #else
+    #define TUD_BOS_SUPERSPEED_SPEEDS  0x000C
+  #endif
+#endif
+
 //--------------------------------------------------------------------+
 // Configuration Descriptor Templates
 //--------------------------------------------------------------------+

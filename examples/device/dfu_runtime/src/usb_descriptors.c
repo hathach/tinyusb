@@ -170,13 +170,6 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 */
 
 #if TUD_OPT_SUPER_SPEED
-// wSpeedsSupported: HS + Gen1 SS; the CH32H417 USB2 fallback (HS2) also runs at full speed
-#if CFG_TUSB_MCU == OPT_MCU_CH32H417 && CFG_TUD_WCH_USB30_FALLBACK
-  #define BOS_SS_SPEEDS  0x000E
-#else
-  #define BOS_SS_SPEEDS  0x000C
-#endif
-
 // SuperSpeed devices must carry USB 2.0 extension + SuperSpeed device capabilities
 #define BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 #define BOS_CAP_COUNT 3
@@ -196,8 +189,8 @@ const uint8_t desc_bos[] = {
 #if TUD_OPT_SUPER_SPEED
   // LPM capable
   TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
-  // no LTM, BOS_SS_SPEEDS supported, fully functional from HS, U1/U2 exit latency
-  TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, BOS_SS_SPEEDS, 2, 0x0A, 0x07FF),
+  // no LTM, TUD_BOS_SUPERSPEED_SPEEDS supported, fully functional from HS, U1/U2 exit latency
+  TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, TUD_BOS_SUPERSPEED_SPEEDS, 2, 0x0A, 0x07FF),
 #endif
 
   // Microsoft OS 2.0 descriptor
