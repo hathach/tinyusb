@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # The hil_lock adapter: callers get agentrc's board-lock primitive from the agentrc helper/agentrc.py
-# selects (agentrc's tests/test_hil_lock.py covers the primitive itself), hil_test refuses a board
-# whose lock is unavailable before flashing, a recovery blocker refuses the board as a blocker
-# rather than contention (RecoveryBlockerIsNotContention), an openocd_esp session left running is
-# logged before the board's lock is released (FailedCleanup), `hold --all` takes this host's roster, and an
+# selects (agentrc's tests/test_hil_lock.py covers the primitive and board_task itself), hil_test refuses a
+# board whose lock is unavailable or whose probe is busy before flashing, a recovery blocker refuses the board
+# as a blocker rather than contention (RecoveryBlockerIsNotContention), each board task ends on its
+# cleanup verdict (FailedCleanup, Verdicts), `hold --all` takes this host's roster, and an
 # incomplete agentrc refuses at import (test_hil_agentrc.py covers the loader). Every lock lives in a
 # temp dir under a name no rig uses. Run directly:
 #   python3 test/hil/test/test_hil_lock.py
@@ -48,6 +48,13 @@ class LockDir(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
         os.environ.pop('HIL_NO_BOARD_LOCK', None)
+        self.users = []     # what the busy check names; an exception raises from it
+        patch(self, hil_flash, 'probe_busy', self.probe_busy)
+
+    def probe_busy(self, board):
+        if isinstance(self.users, BaseException):
+            raise self.users
+        return self.users
 
     def lock_dir_is_a_file(self):
         path = os.path.join(self.dir, 'not-a-dir')
@@ -81,7 +88,7 @@ class RunnerRefusesBeforeFlash(LockDir):
         self.assertIn(f'{hil_test.STATUS_FAILED}: board lock unavailable: ', self.log[0])
 
     def test_contention_keeps_its_own_cell(self):
-        def held(name, **kw):
+        def held(name, *a, **kw):
             raise RuntimeError('board locked: {"pid": 1}')
         patch(self, hil_lock, 'acquire_board_lock', held)
         _, err, _, rows, _ = hil_test.test_board(self.board)
@@ -94,7 +101,7 @@ class RunnerRefusesBeforeFlash(LockDir):
                                                'tests': {'only': ['device/cdc_msc']}})
         locked = []
 
-        def held(name, **kw):
+        def held(name, *a, **kw):
             locked.append(name)
             raise RuntimeError('board locked: {"pid": 1}')
         patch(self, hil_lock, 'acquire_board_lock', held)
@@ -429,9 +436,10 @@ class FailedCleanup(LockDir):
         native = {'pid': 4242, 'startTime': '99', 'argv': ['openocd'], 'ports': [None, None, 6666], 'token': 'x',
                   'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
         hil_flash.cleanup_pending[BOARD] = (native, self.TRACKED, self.RECEIPT)
-        fh = hil_lock.take_board_lock(LOCK, 'hil_test.py', protected=True)
-        cell = hil_test.end_failed_cleanup(BOARD, LOCK, fh, hil_test.cleanup_pending(BOARD))
-        self.assertTrue(fh.closed)
+        cell = hil_test.cleanup_pending(BOARD)
+        with hil_lock.board_task(LOCK, 'hil_test.py', busy=list) as task:
+            task.failed(detail=cell, **hil_test.pending_evidence(BOARD, cell))
+        self.assertTrue(task.released)
         failure = self.assert_released(LOCK)
         self.assertEqual(failure['task']['locks'], [LOCK])
         self.assertEqual(failure['receipts'], [self.TRACKED])
@@ -521,6 +529,7 @@ class FailedCleanup(LockDir):
             _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 2)
         cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn('cleanup failure NOT logged', cell)
         self.assertIn('cleanup log not written', cell)
         self.assertIn('log is read-only', cell)
         self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
@@ -570,7 +579,7 @@ class FailedCleanup(LockDir):
             _, err, _, rows, _ = hil_test.test_board(self.board)
         self.assertEqual(err, 0)
         self.assertEqual(rows[0][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL],
-                         hil_lock.failure_text(failure) + '; restorations not logged: log inaccessible')
+                         hil_lock.failure_text(failure) + "; board task notes: restoration: OSError('log inaccessible')")
 
     def test_skip_flash_does_not_claim_an_earlier_cleanup_restored(self):
         self.end_session()
@@ -580,16 +589,21 @@ class FailedCleanup(LockDir):
         self.assertEqual(hil_test.test_board(self.board)[1], 0)
         self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
 
-    def test_an_unproven_park_does_not_resolve_an_earlier_failure(self):
+    def test_an_unproven_park_does_not_resolve_an_earlier_failure_and_fails_its_own_cleanup(self):
         self.end_session()
         failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
-        for outcome in ((1, 'fail', None), (0, 'skip', None)):
+        for outcome, why in (((1, 'fail', None), 'park flash failed'),
+                             ((0, 'skip', None), 'no park (device/board_test) firmware')):
             with self.subTest(outcome=outcome):
                 def example(board, variant, test):
                     return outcome if test == 'device/board_test' else (0, 'pass', None)
                 with mock.patch.object(hil_test, 'test_example', example):
-                    hil_test.test_board(self.board)
-                self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
+                    _, err, _, rows, _ = hil_test.test_board(self.board)
+                self.assertEqual(err, 0)    # the park is teardown: its failure is the next take's notice
+                opened = hil_lock.open_cleanup_failures(BOARD)
+                self.assertEqual(opened[0], failure)
+                self.assertEqual((opened[-1]['detail'], opened[-1]['receipts']), (f'board not restored: {why}', []))
+                self.assertIn('board not restored', self.log[-1])
 
     def test_previous_failures_do_not_erase_a_current_wedge_on_the_same_row(self):
         hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
@@ -626,6 +640,195 @@ class FailedCleanup(LockDir):
         self.assertIn(hil_test.hil_report.PREVIOUS_CLEANUP_CELL, rows[-1][1])
         failure, = [e for e in hil_lock.cleanup_events(BOARD) if e['event'] == 'failed']
         self.assertEqual(failure['journal'], journal)
+
+
+_HELD = []
+
+
+def _gap_in_worker(lock):
+    """A task whose interrupt landed as __exit__ was entered: its flock still held, and its handle
+    still referenced (as by a traceback), when the task returns."""
+    task = hil_lock.board_task(lock, 'hil_test.py', busy=list)
+    task.__enter__()
+    _HELD.append(task)
+    return os.getpid()
+
+
+class Admission(LockDir):
+    """The busy check runs under the taken lock before any hardware access: a named user or an
+    inconclusive check refuses the board with a probe-busy cell, releases the lock and logs nothing."""
+
+    def setUp(self):
+        super().setUp()
+        self.log = []
+        patch(self, hil_test, 'log_line', self.log.append)
+        patch(self, hil_flash, 'flash_primitive', lambda *a: self.fail('flashed'))
+        patch(self, hil_test.usbtest, 'strays_on', lambda uid: self.fail('swept'))
+        self.board = {'name': BOARD, 'uid': 'ABC123', 'flasher': {'name': 'jlink', 'uid': 'P'},
+                      'tests': {'only': ['device/cdc_msc']}}
+
+    def refusal(self):
+        events = hil_lock.cleanup_events(BOARD)
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((name, err, failed, len(rows)), (BOARD, 1, [], 1))
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
+        self.assertEqual(hil_lock.cleanup_events(BOARD), events, 'a refusal logged an event')
+        hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))   # free
+        return rows[0][1]
+
+    def test_a_live_probe_user_refuses_the_board(self):
+        self.users = [{'pid': 4242, 'cmd': 'JLinkExe -USB 000000123'}]
+        cells = self.refusal()
+        cell = cells[hil_test.hil_report.PROBE_BUSY_CELL]
+        self.assertEqual(cell, f'{hil_test.hil_report.REPORT_CELL["fail"]} probe in use by pid 4242 '
+                               f'(JLinkExe -USB 000000123)')
+        self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
+
+    def test_an_inconclusive_check_refuses_too(self):
+        self.users = hil_flash.ProbeCheckFailed('RuntimeError: /proc may hide other users\' processes')
+        cell = self.refusal()[hil_test.hil_report.PROBE_BUSY_CELL]
+        self.assertIn('probe check: RuntimeError: /proc may hide', cell)
+
+    def test_a_refusal_still_reports_the_failures_the_take_found(self):
+        failure = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session')
+        self.users = [{'pid': 1, 'cmd': 'openocd'}]
+        cells = self.refusal()
+        self.assertEqual(cells[hil_test.hil_report.PREVIOUS_CLEANUP_CELL], hil_lock.failure_text(failure))
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [failure])
+
+    def test_the_bypass_still_runs_the_busy_check(self):
+        os.environ['HIL_NO_BOARD_LOCK'] = '1'
+        self.users = [{'pid': 1, 'cmd': 'openocd'}]
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 1)
+        self.assertIn(hil_test.hil_report.PROBE_BUSY_CELL, rows[0][1])
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'absent')
+
+    def test_a_refused_board_is_not_run_in_the_report(self):
+        self.users = [{'pid': 1, 'cmd': 'openocd'}]
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        report = hil_test.hil_report
+        with tempfile.TemporaryDirectory() as tmp:
+            report.accumulate_report([(BOARD, err, [], rows, None)], Path(tmp), True)
+            doc, _ = report._load(Path(tmp))
+        result = report.normalised_rows({'boards': [self.board]}, [BOARD], doc)[0]
+        self.assertEqual(result['verdict'], 'not-run')
+        self.assertIn('probe in use by pid 1', result['detail'])
+
+
+class Verdicts(LockDir):
+    """test_board's cleanup verdict on a board with no provider session: a successful park
+    restores, --skip-flash ends clean, an unproven park or an interrupt fails the cleanup, and a
+    later park resolves that failure."""
+
+    def setUp(self):
+        super().setUp()
+        self.log = []
+        patch(self, hil_test, 'log_line', self.log.append)
+        patch(self, hil_test, 'skip_flash', False)
+        patch(self, hil_flash, 'cleanup_pending', {})
+        patch(self, hil_test.usbtest, 'strays_on', lambda uid: [])
+        self.park = (0, 'pass', None)
+        self.test = (1, 'fail', None)
+        patch(self, hil_test, 'test_example',
+              lambda board, variant, test: self.park if test == 'device/board_test' else self.result(test))
+        self.board = {'name': BOARD, 'uid': 'ABC123', 'flasher': {'name': 'jlink', 'uid': 'P'},
+                      'tests': {'only': ['device/cdc_msc']}}
+
+    def result(self, test):
+        if isinstance(self.test, BaseException):
+            raise self.test
+        return self.test
+
+    def events(self, kind):
+        return [e for e in hil_lock.cleanup_events(BOARD) if e['event'] == kind]
+
+    def test_a_failed_test_with_a_successful_park_restores(self):
+        earlier = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='killed worker')
+        _, err, failed, _, _ = hil_test.test_board(self.board)
+        self.assertEqual((err, failed), (1, ['device/cdc_msc']))
+        self.assertEqual(self.events('failed'), [earlier])
+        self.assertEqual([e['failure'] for e in self.events('restored')], [earlier['id']])
+        self.assertEqual(self.events('restored')[0]['evidence'], 'device/board_test park succeeded')
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
+
+    def test_a_wedge_fails_the_cleanup_under_skip_flash_too(self):
+        patch(self, hil_test, 'skip_flash', True)
+        self.park = None    # never parked
+
+        def wedging(test):
+            hil_test.board_wedged = 'usbtest HUNG'
+            return 1, 'fail', None
+        patch(self, self, 'result', wedging)
+        self.addCleanup(setattr, hil_test, 'board_wedged', '')
+        self.assertEqual(hil_test.test_board(self.board)[1], 1)
+        failed, = self.events('failed')
+        self.assertEqual(failed['detail'], 'board not restored: not parked: the board is wedged: usbtest HUNG')
+
+    def test_skip_flash_ends_clean(self):
+        patch(self, hil_test, 'skip_flash', True)
+        self.test = (0, 'pass', None)
+        self.park = None    # never parked
+        self.assertEqual(hil_test.test_board(self.board)[1], 0)
+        self.assertEqual(hil_lock.cleanup_events(BOARD), [])
+
+    def test_an_interrupt_fails_the_cleanup_and_a_later_park_resolves_it(self):
+        self.test = KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            hil_test.test_board(self.board)
+        failure, = self.events('failed')
+        self.assertEqual((failure['how'], failure['receipts']), ('ended-failed', []))
+        self.assertIn('ended without a cleanup verdict: KeyboardInterrupt', failure['detail'])
+        self.assertIn('board lock released', self.log[-1])
+        self.test = (0, 'pass', None)
+        _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertIn(failure['id'], rows[0][1][hil_test.hil_report.PREVIOUS_CLEANUP_CELL])
+        self.assertEqual(hil_lock.open_cleanup_failures(BOARD), [])
+
+    def test_an_exception_fails_the_cleanup_and_propagates(self):
+        self.test = RuntimeError('harness bug')
+        with self.assertRaisesRegex(RuntimeError, 'harness bug'):
+            hil_test.test_board(self.board)
+        failure, = self.events('failed')
+        self.assertIn('RuntimeError: harness bug', failure['detail'])
+
+    def test_a_finalization_error_fails_the_board(self):
+        self.test = (0, 'pass', None)
+        with mock.patch.object(hil_lock, 'clear_record', return_value=False):
+            _, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((err, failed), (1, []))
+        cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn('board task ended with errors: board lock released; cleanup failure logged', cell)
+        self.assertIn('record not cleared', cell)
+
+    def test_advisory_task_errors_never_fail_the_board(self):
+        self.test = (0, 'pass', None)
+        broken = types.SimpleNamespace(InterruptHold=mock.Mock(side_effect=OSError('no signal mask')))
+        with mock.patch.object(hil_lock, '_process', return_value=broken):
+            _, err, _, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(err, 0)
+        self.assertNotIn(hil_test.hil_report.CLEANUP_PENDING_CELL, rows[-1][1])
+
+    def test_a_worker_releases_its_board_when_it_exits(self):
+        # maxtasksperchild=1: a task left holding its flock (the __exit__-entry gap) frees it when its
+        # worker ends after that one task; the record it left is logged found-left by the next take
+        pool = hil_test._start_pool('seed')
+        self.addCleanup(pool.terminate)
+        worker = pool.apply_async(_gap_in_worker, (BOARD,)).get(timeout=30)
+        self.assertNotEqual(worker, os.getpid())
+        deadline = time.monotonic() + 20
+        while True:
+            try:
+                fh = hil_lock.take_board_lock(BOARD, 'peer')
+                break
+            except hil_lock.BoardLocked:
+                self.assertLess(time.monotonic(), deadline, 'the worker kept the flock')
+                time.sleep(0.1)
+        try:
+            self.assertEqual([f['how'] for f in fh.cleanup_failures], ['found-left'])
+        finally:
+            hil_lock.release_board_lock(fh)
 
 
 if __name__ == '__main__':

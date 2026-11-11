@@ -30,6 +30,12 @@ the case ended before the halt landed, the halt failed, or no case hung). `clean
 own reset after a non-pass and never counts as harness recovery. Exit 0 only for a pass with the
 board parked; 1 otherwise; 2 refused (a command line argparse rejects: its usage on stderr, no JSON
 line).
+
+The lock is a board_task as in run_case.py (its busy check runs under --allow-concurrent too), ended
+restored once parked, clean while untouched, failed otherwise: a halt process that may still hold the
+probe goes in as unrecheckable evidence, which only its recovery ends. The JSON line follows the lock's
+release; a lock that did not end as its verdict asked, or a signal replayed as the task ended, exits 1,
+its errors in "error".
 """
 import argparse
 import json
@@ -444,6 +450,46 @@ def finish_locked(board, rec_board, park_fw, report):
         report['error'] = f'park failed: {err}'
 
 
+def drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report):
+    """The drill and its cleanup under the board's task, then the task's verdict; 2 when a peer
+    refused it under the lock, else None."""
+    with tempfile.TemporaryDirectory(prefix='wedge_drill-', ignore_cleanup_errors=True) as workdir:
+        os.chdir(workdir)
+        try:
+            if not args.allow_concurrent:
+                run_case.check_peers()   # again: a peer may have started before the lock
+            report['drill'] = drill(board, halt_with, fw, args.delay, args.timeout, report)
+        except Refused as e:
+            report['error'] = str(e)
+            task.clean()
+            return 2
+        except (Terminated, KeyboardInterrupt):
+            report['error'] = 'terminated (signal)'
+        except Exception as e:
+            report['error'] = f'{type(e).__name__}: {e}'
+        try:
+            finish_locked(board, rec_board, park_fw, report)
+        except (Terminated, KeyboardInterrupt):
+            report['error'] = report['error'] or 'terminated (signal) during cleanup'
+            report['boardState'] = 'unknown, not parked: cleanup interrupted'
+        drill_verdict(task, report)
+    return None
+
+
+def drill_verdict(task, report):
+    """restored once parked, clean while untouched, failed otherwise: a probe process that may still
+    hold the probe as unrecheckable evidence (only its recovery ends it), any other state for a
+    later restore to resolve."""
+    state = report['boardState']
+    if state == 'parked on board_test':
+        task.restored(evidence='wedge_drill.py: parked on board_test')
+    elif state == 'untouched':
+        task.clean()
+    elif held := report['halt'].get('probeHeld'):
+        task.failed(detail=state, receipts=[{'unrecheckable': f'probe process {held} may still hold the probe'}])
+    else:
+        task.failed(detail=f'{state}; {report["error"]}' if report['error'] else state)
+
 def main():
     args = build_parser().parse_args()
     report = new_report(args)
@@ -475,42 +521,37 @@ def main():
             park_fw = run_case.firmware(variant, 'device/board_test', flasher)
             if not args.allow_concurrent:
                 run_case.check_peers()
-            try:
-                lock = hil_lock.acquire_board_lock(hil_util.lock_name(board), reason='wedge_drill.py')
-            except RuntimeError as e:
-                raise Refused(f'{board["name"]}: {e}')
-            if lock is None:
-                raise Refused(f'{board["name"]}: board lock unavailable or bypassed (HIL_NO_BOARD_LOCK)')
         except Refused as e:
             report['error'] = str(e)
             return finish(2)
         except Terminated:
             report['error'] = 'terminated before any hardware action'
             return finish(2)
+        task = hil_lock.board_task(hil_util.lock_name(board), 'wedge_drill.py',
+                                   busy=lambda: hil_flash.probe_busy(board))
+        entered, code = False, None
         try:
-            with tempfile.TemporaryDirectory(prefix='wedge_drill-', ignore_cleanup_errors=True) as workdir:
-                os.chdir(workdir)
-                try:
-                    if not args.allow_concurrent:
-                        run_case.check_peers()   # again: a peer may have started before the lock
-                    report['drill'] = drill(board, halt_with, fw, args.delay, args.timeout, report)
-                except Refused as e:
-                    report['error'] = str(e)
-                    return finish(2)
-                except (Terminated, KeyboardInterrupt):
-                    report['error'] = 'terminated (signal), e.g. by hil_lock.py release'
-                except Exception as e:
-                    report['error'] = f'{type(e).__name__}: {e}'
-                try:
-                    finish_locked(board, rec_board, park_fw, report)
-                except (Terminated, KeyboardInterrupt):
-                    report['error'] = report['error'] or 'terminated (signal) during cleanup'
-                    report['boardState'] = 'unknown, not parked: cleanup interrupted'
+            with task:
+                entered = True
+                code = drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report)
+        except (Terminated, KeyboardInterrupt):
+            if not entered:
+                report['error'] = 'terminated before any hardware action'
+                return finish(2)
+            report['error'] = report['error'] or 'terminated (signal) as the task ended'
+            code = code or 1   # aborted, whatever the drill and its cleanup did
+        except Exception as e:
+            if not entered:   # admission: the lock, or the busy check under it, refused the board
+                report['error'] = f'{board["name"]}: {run_case.refusal(e)}'
+                return finish(2)
+            report['error'] = report['error'] or f'{type(e).__name__}: {e}'
         finally:
             os.chdir(cwd)
-            run_case.release(lock)
-        parked = report['boardState'] == 'parked on board_test'
-        return finish(0 if report['drill'] == 'pass' and parked else 1)
+        if code is None:
+            code = 0 if report['drill'] == 'pass' and report['boardState'] == 'parked on board_test' else 1
+        # published once the task ended, so its finalization counts
+        code, report['error'] = run_case.ended(task, code, report['error'])
+        return finish(code)
     finally:
         for s, h in previous.items():
             signal.signal(s, h)

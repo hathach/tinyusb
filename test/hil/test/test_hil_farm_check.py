@@ -93,6 +93,21 @@ def runpy_helper():
                                                   run_name='helper._hil_lock_cli'))
 
 
+class Busy(unittest.TestCase):
+    def test_the_hook_is_the_batterys_own_busy_check(self):
+        users = [{'pid': 7, 'cmd': 'openocd -c "adapter serial P"'}]
+        seen = []
+        patch(self, hil_flash, 'probe_busy', lambda board: seen.append(board) or users)
+        self.assertIs(farm_profile.busy(BOARD), users)
+        self.assertEqual(seen, [BOARD])
+
+    def test_an_inconclusive_check_raises_through_the_hook(self):
+        def inconclusive(board):
+            raise RuntimeError('/proc may hide other users')
+        patch(self, hil_flash, 'probe_busy', inconclusive)
+        with self.assertRaisesRegex(RuntimeError, 'hide'):
+            farm_profile.busy(BOARD)
+
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())

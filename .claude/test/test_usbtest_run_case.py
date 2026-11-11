@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -22,6 +23,8 @@ SCRIPT = REPO / '.claude' / 'skills' / 'usbtest' / 'scripts' / 'run_case.py'
 spec = importlib.util.spec_from_file_location('run_case', SCRIPT)
 run_case = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_case)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from usbtest_rig_lock import RigLock  # noqa: E402
 
 ROSTER = {
     'boards': [
@@ -48,16 +51,6 @@ PASS_JSON = {'passed': 1, 'failed': 0, 'notrun': 0, 'wedged': False,
              'cases': [{'num': 29, 'name': 'toggle clear', 'status': 'PASS'}]}
 
 
-class Lock:
-    def __init__(self):
-        self.closed = False
-        self.cleared = False
-        self.sigterm = None     # the SIGTERM disposition when the lock was released
-
-    def close(self):
-        self.closed = True
-
-
 class Rig:
     """Stubs for everything run_case.py touches, recording the order of hardware actions."""
 
@@ -68,8 +61,8 @@ class Rig:
         self.enumerates = True
         self.verdict = (PASS_JSON, '')
         self.killed = ''
-        self.lock = Lock()
-        self.lock_error = None
+        self.lock = RigLock(test, run_case.hil_lock, run_case.hil_flash,
+                            on_take=lambda name: self.calls.append(('lock', name)))
         self.peers = ([], True)
         self.peer_scans = []         # per-scan live_peers results, then peers
         self.flash_rcs = []          # per-flash return codes, then flash_rc
@@ -87,18 +80,6 @@ class Rig:
                 raise rc
             return subprocess.CompletedProcess('flash', rc, 'probe says no', '')
 
-        def acquire(name, reason):
-            if isinstance(self.lock_error, BaseException):
-                raise self.lock_error
-            if self.lock_error:
-                raise RuntimeError(self.lock_error)
-            self.calls.append(('lock', name))
-            return self.lock
-
-        def clear(fh):
-            fh.cleared = True
-            fh.sigterm = signal.getsignal(signal.SIGTERM)
-
         def battery(board, fw, tests, timeout):
             self.calls.append(('battery', tuple(tests), fw))
             if isinstance(self.verdict, BaseException):
@@ -109,8 +90,6 @@ class Rig:
                 (run_case.hil_flash, 'find_firmware',
                  lambda variant, example, flasher=None: self.firmware.get(example) and Path(self.firmware[example])),
                 (run_case.hil_flash, 'flash_primitive', lambda name: flash_fn),
-                (run_case.hil_lock, 'acquire_board_lock', acquire),
-                (run_case.hil_lock, 'clear_record', clear),
                 (run_case, 'enumerated', lambda uid: self.calls.append(('enumerated', uid)) or self.enumerates),
                 (run_case, 'battery', battery),
                 (run_case, 'live_peers', lambda: self.peer_scans.pop(0) if self.peer_scans else self.peers)):
@@ -218,11 +197,24 @@ class Refusals(unittest.TestCase):
 
     def test_lock_held_or_unavailable(self):
         rig = Rig(self)
-        rig.lock_error = 'board locked: {"pid": 1, "reason": "hil_test.py"}'
+        rig.lock.error = 'board locked: {"pid": 1, "reason": "hil_test.py"}'
         self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'leave', says='board locked')
         rig = Rig(self)
-        rig.lock = None
+        rig.lock.error = run_case.hil_lock.LockUnavailable('board lock unavailable: [Errno 13] x')
         self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'leave', says='lock unavailable')
+
+    def test_a_live_probe_user_or_an_inconclusive_check_refuses_under_the_lock(self):
+        for users, says in (([{'pid': 4242, 'cmd': 'JLinkExe -USB P1'}], 'solo: probe in use by pid 4242 (JLinkExe'),
+                            (run_case.hil_flash.ProbeCheckFailed('RuntimeError: /proc may hide'),
+                             'solo: probe check: RuntimeError: /proc may hide')):
+            for extra in ((), ('--allow-concurrent',)):    # the busy check is never skipped
+                with self.subTest(says=says, extra=extra):
+                    rig = Rig(self)
+                    rig.lock.users = users
+                    self.refused(rig, '--board', 'solo', '--tests', '29', '--after', 'park', *extra, says=says)
+                    self.assertEqual(rig.calls, [('lock', 'solo')])
+                    self.assertTrue(rig.lock.cleared and rig.lock.closed)
+                    self.assertEqual(run_case.hil_lock.cleanup_events('solo'), [], 'a refusal logged an event')
 
 
 class Chain(unittest.TestCase):
@@ -369,6 +361,91 @@ class Chain(unittest.TestCase):
         self.released(rig)
 
 
+class Verdicts(unittest.TestCase):
+    """The board task's cleanup verdict: restored once parked, clean when usbtest is left running
+    as asked, failed for any state not known good, logged where the next take finds it."""
+
+    def run_solo(self, rig, after='park'):
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', after)
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
+        return rc, report
+
+    def earlier(self):
+        return run_case.hil_lock.log_cleanup_failure('solo', 'earlier', detail='killed run')
+
+    def test_a_park_restores_and_resolves_an_earlier_failure(self):
+        rig = Rig(self)
+        earlier = self.earlier()
+        self.assertEqual(self.run_solo(rig)[0], 0)
+        self.assertEqual([e['failure'] for e in rig.lock.events('restored')], [earlier['id']])
+
+    def test_a_failed_case_still_restores_once_parked(self):
+        rig = Rig(self)
+        rig.verdict = ({**PASS_JSON, 'failed': 1, 'cases': [{'num': 29, 'status': 'FAIL'}]}, '')
+        earlier = self.earlier()
+        self.assertEqual(self.run_solo(rig)[0], 1)
+        self.assertEqual([e['failure'] for e in rig.lock.events('restored')], [earlier['id']])
+
+    def test_leave_ends_clean(self):
+        rig = Rig(self)
+        earlier = self.earlier()
+        self.assertEqual(self.run_solo(rig, after='leave')[0], 0)
+        self.assertEqual(run_case.hil_lock.open_cleanup_failures('solo'), [earlier])
+
+    def test_each_unknown_state_fails_the_cleanup(self):
+        cases = (('flash', 'usbtest flash failed: flash failed (rc 1)'), ('wedge', 'usbtest reported the device wedged'),
+                 ('incomplete', 'verdict incomplete: usbtest.py printed no verdict'),
+                 ('park', 'park failed: flash failed (rc 1)'), ('raise', 'ended without a cleanup verdict: RuntimeError'),
+                 ('sigterm', 'ended without a cleanup verdict: Terminated'))
+        for how, detail in cases:
+            with self.subTest(how=how):
+                rig = Rig(self)
+                if how == 'flash':
+                    rig.flash_rc = 1
+                elif how == 'wedge':
+                    rig.verdict = ({**PASS_JSON, 'wedged': True}, '')
+                elif how == 'incomplete':
+                    rig.verdict = (None, '')
+                elif how == 'park':
+                    rig.flash_rcs = [0, 1]
+                elif how == 'raise':
+                    rig.verdict = RuntimeError('usb_scan blew up')
+                else:
+                    rig.verdict = run_case.Terminated()
+                with mock.patch.object(run_case, 'kill_children'):
+                    self.assertEqual(self.run_solo(rig)[0], 1)
+                failed, = rig.lock.events('failed')
+                self.assertIn(detail, failed['detail'])
+                self.assertEqual((failed['how'], failed['reason']), ('ended-failed', 'run_case.py usbtest 29'))
+
+    def test_a_peer_under_the_lock_ends_clean(self):
+        rig = Rig(self)
+        rig.peer_scans = [([], True), ([(4343, 'run_case.py')], True)]
+        self.assertEqual(self.run_solo(rig)[0], 2)
+        self.assertEqual(run_case.hil_lock.cleanup_events('solo'), [])
+
+    def test_the_verdict_line_follows_the_release_and_counts_its_errors(self):
+        rig = Rig(self)
+        printed = []
+
+        def clear(fh):
+            printed.append(sys.stdout.getvalue())
+            return False    # the record could not be cleared: the task ends failed
+        with mock.patch.object(run_case.hil_lock, 'clear_record', clear):
+            rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertNotIn('"pass"', printed[0])
+        self.assertEqual((rc, report['pass']), (1, False))   # the battery passed; its lock did not end
+        self.assertIn('board task did not end as its verdict asked (lock released, failure logged): '
+                      'record not cleared', report['error'])
+
+    def test_advisory_task_errors_never_fail_the_run(self):
+        rig = Rig(self)
+        broken = types.SimpleNamespace(InterruptHold=mock.Mock(side_effect=OSError('no signal mask')))
+        with mock.patch.object(run_case.hil_lock, '_process', return_value=broken):
+            rc, report, err = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['error']), (0, ''))
+        self.assertIn('board task notes: interrupt hold', err)
+
 class Sigterm(unittest.TestCase):
     """What `hil_lock.py release` sends the lock holder, raised in-process as on_sigterm would."""
 
@@ -404,7 +481,7 @@ class Sigterm(unittest.TestCase):
 
     def test_before_the_lock_is_a_refusal(self):
         rig = Rig(self)
-        rig.lock_error = run_case.Terminated()
+        rig.lock.error = run_case.Terminated()
         rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
         self.assertEqual((rc, report['boardState'], report['error']),
                          (2, 'untouched', 'terminated (SIGTERM) before any hardware action'))
@@ -419,7 +496,6 @@ class Sigterm(unittest.TestCase):
                                lambda *a: during.append(signal.getsignal(signal.SIGTERM)) or battery(*a)):
             self.assertEqual(rig.run('--board', 'solo', '--tests', '29', '--after', 'park')[0], 0)
         self.assertEqual(during, [run_case.on_sigterm])
-        self.assertIs(rig.lock.sigterm, signal.SIG_IGN)   # after the verdict line, before the release
         self.assertIs(signal.getsignal(signal.SIGTERM), self.previous)
 
     def test_a_second_sigterm_is_ignored(self):

@@ -26,6 +26,8 @@ wedge_drill = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wedge_drill)
 run_case = wedge_drill.run_case
 REAL_RESET_PRIMITIVE = run_case.hil_flash.reset_primitive
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from usbtest_rig_lock import RigLock  # noqa: E402
 
 ST_HALT = '-f interface/stlink.cfg -f target/stm32l4x.cfg'
 JLINK_REC = {'name': 'openocd', 'args': '-f interface/jlink.cfg -f target/stm32f4x.cfg'}
@@ -49,17 +51,10 @@ SMOKE_PASS = {'passed': 1, 'failed': 0, 'notrun': 0, 'wedged': False,
               'cases': [{'num': 1, 'status': 'PASS'}]}
 
 
-class Lock:
-    closed = False
-
-    def close(self):
-        self.closed = True
-
-
 class Rig:
     def __init__(self, test):
         self.calls = []
-        self.lock = Lock()
+        self.lock = RigLock(test, run_case.hil_lock, run_case.hil_flash)
         self.halt_rc = 0
         self.halt_raises = None
         self.halt_raises_after = None   # raised after the halt landed, like a broken pipe
@@ -137,8 +132,6 @@ class Rig:
             (run_case, 'enumerated', lambda uid: True),
             (run_case, 'battery', battery),
             (run_case, 'live_peers', lambda: ([], True)),
-            (run_case.hil_lock, 'acquire_board_lock', lambda name, reason: self.lock),
-            (run_case.hil_lock, 'clear_record', lambda fh: None),
             (wedge_drill, 'halt_openocd', halt),
             (wedge_drill, 'halt_held', lambda board, timeout: halt(board, timeout, 'halt-held')),
             (run_case.hil_flash, 'reset_primitive', lambda name: reset),
@@ -604,6 +597,63 @@ class RecoveryReport(unittest.TestCase):
         self.assertNotIn('log', wedge_drill.recovery_from(RECOVERED))
 
 
+class TaskVerdicts(unittest.TestCase):
+    """The board task ends restored once parked, failed otherwise; a probe process that may still
+    hold the probe is unrecheckable evidence, so no later park closes that failure."""
+
+    def test_a_parked_drill_restores_and_resolves_an_earlier_failure(self):
+        rig = Rig(self)
+        earlier = run_case.hil_lock.log_cleanup_failure('ok', 'earlier', detail='killed drill')
+        rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (0, 'parked on board_test'))
+        self.assertEqual([e['failure'] for e in rig.lock.events('restored')], [earlier['id']])
+
+    def test_an_unparked_board_fails_the_cleanup(self):
+        rig = Rig(self)
+        rig.case27 = (None, RECOVERED, 'usbtest.py killed')
+        rig.live_children = []
+        rig.left_testusb = 4242
+        rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual(rc, 1)
+        self.assertTrue(r['boardState'].startswith('unknown, not parked'), r)
+        failed, = rig.lock.events('failed')
+        self.assertIn(r['boardState'], failed['detail'])
+        self.assertEqual(failed['receipts'], [])
+
+    def test_an_interrupt_replayed_at_the_task_end_aborts_a_passed_drill(self):
+        rig = Rig(self)
+        with mock.patch.object(run_case.hil_lock, 'resolve_restored', side_effect=run_case.Terminated()):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['drill'], r['boardState']), (1, 'pass', 'parked on board_test'))
+        self.assertEqual(r['error'], 'terminated (signal) as the task ended')
+        self.assertEqual(rig.lock.events('failed'), [])   # the restored cleanup stands
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
+
+    def test_a_held_probe_is_unrecheckable_evidence(self):
+        rig = Rig(self)
+        rig.live_children = [999]
+        rig.halt_rc = 1
+        rig.run('--board', 'ok', '--delay', '0')
+        failed, = rig.lock.events('failed')
+        self.assertEqual(failed['receipts'], [{'unrecheckable': 'probe process 999 may still hold the probe'}])
+        self.assertTrue(run_case.hil_lock.resolve_restored('ok', [failed], evidence='parked'))   # stays open
+
+    def test_a_peer_under_the_lock_ends_clean(self):
+        rig = Rig(self)
+        with mock.patch.object(run_case, 'live_peers', side_effect=[([], True), ([(1, 'hil_test.py')], True)]):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (2, 'untouched'))
+        self.assertEqual(run_case.hil_lock.cleanup_events('ok'), [])
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
+
+    def test_the_busy_check_runs_under_allow_concurrent(self):
+        rig = Rig(self)
+        rig.lock.users = [{'pid': 7, 'cmd': 'JLinkExe -USB P1'}]
+        rc, r = rig.run('--board', 'ok', '--delay', '0', '--allow-concurrent')
+        self.assertEqual((rc, r['boardState']), (2, 'untouched'))
+        self.assertIn('ok: probe in use by pid 7', r['error'])
+        self.assertEqual([c for c in rig.calls if c[0] in ('flash', 'battery')], [])
+
 class LockName(unittest.TestCase):
     def test_a_registered_board_is_locked_by_its_registry_name(self):
         """A probe board the drill admits, named apart from its registered board."""
@@ -620,15 +670,11 @@ class LockName(unittest.TestCase):
         rig = Rig(self)
         rig.config.write_text(json.dumps({'boards': [{'name': 'aliased', 'uid': 'UIDP', 'probe': probe,
                                                       'tests': {'device': True}}]}))
-        locked = []
-
-        def acquire(name, reason):
-            locked.append(name)
-            raise RuntimeError('board locked')
-        with mock.patch.object(run_case.hil_lock, 'acquire_board_lock', acquire):
-            rc, r = rig.run('--board', 'aliased', '--delay', '0')
+        rig.lock.users = [{'pid': 7, 'cmd': 'openocd'}]
+        rc, r = rig.run('--board', 'aliased', '--delay', '0')
         self.assertEqual(rc, 2, r)
-        self.assertEqual(locked, [reg['name']])
+        self.assertEqual(rig.lock.name, reg['name'])
+        self.assertIn('probe in use by pid 7 (openocd)', r['error'])
 
 
 if __name__ == '__main__':

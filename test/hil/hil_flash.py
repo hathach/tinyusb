@@ -137,6 +137,30 @@ def convoy_safe(flasher: dict) -> bool:
     return hil_util.provider().convoy_safe(flasher)
 
 
+class ProbeCheckFailed(RuntimeError):
+    """probe_busy could not rule out a user of the board's probe."""
+
+
+def probe_busy(board: dict) -> list:
+    """The board_task busy check of every HIL entry point and the farm check: the provider's
+    probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
+    another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
+    inconclusive or has no lookup for the flasher (wch_uart_loader). Probe users only: a DUT-side
+    process (a stray testusb) is the run's recovery, never a refusal."""
+    users = {}
+    try:
+        for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
+            users.update((u['pid'], u) for u in hil_util.provider().probe_users(f))
+    except Exception as e:
+        raise ProbeCheckFailed(f'{type(e).__name__}: {e}') from e
+    return sorted(users.values(), key=lambda u: u['pid'])
+
+
+def users_text(users) -> str:
+    """probe_busy's users for a refusal."""
+    return ', '.join(f'pid {u["pid"]} ({u["cmd"]:.120})' for u in users)
+
+
 def _idf_target(fw_dir: Path) -> str:
     with (fw_dir / 'config.env').open() as f:
         return json.load(f)['IDF_TARGET']

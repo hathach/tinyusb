@@ -114,6 +114,29 @@ class Adapters(unittest.TestCase):
                     self.assertEqual((called, pargs[0]), (f'{verb}_{name}', BOARDS[name]))
                     self.assertEqual((kw['timeout'], kw['run']), (7, hil_util.run_cmd))
 
+    def test_probe_busy_asks_for_each_entry_of_the_probe_once(self):
+        asked = []
+        users = {'jlink': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}, {'pid': 3, 'cmd': 'gdb'}],
+                 'openocd': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}]}
+        self.provider.probe_users = lambda f: asked.append(f) or users[f['name']]
+        board = {'name': 'b', 'flasher': dict(BOARDS['jlink']), 'flasher_recover': {'name': 'openocd', 'args': ''}}
+        got = hil_flash.probe_busy(board)
+        self.assertEqual(asked, [BOARDS['jlink'], {'name': 'openocd', 'args': '', 'uid': 'S1'}])
+        self.assertEqual(got, [{'pid': 3, 'cmd': 'gdb'}, {'pid': 9, 'cmd': 'JLinkExe -USB S1'}])
+        self.assertEqual(hil_flash.users_text(got), 'pid 3 (gdb), pid 9 (JLinkExe -USB S1)')
+        asked.clear()
+        hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
+        self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
+
+    def test_every_rostered_flasher_has_a_probe_lookup(self):
+        # the busy check refuses a board whose flasher it cannot look up, so a roster must not name one
+        for name in flasher_names():
+            with self.subTest(name=name):
+                try:
+                    hil_util.provider().probe_users(BOARDS[name])
+                except hil_util.provider().ProbeCheckInconclusive:
+                    pass    # no such probe on this host
+
     def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
         self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
         hil_util.CMD_TIMEOUT = 33
