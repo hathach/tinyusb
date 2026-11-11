@@ -136,9 +136,9 @@ command is not retried: for a write, the device may have stored part of it.
        Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and Bulk-Out
        with a host-side data toggle reset.  Its callback reports the result;
        only success lifts the refusal above.  Host controllers that cannot
-       reset the toggle (rp2040, pio-usb, WCH USBFS, MAX3421E, RUSB2, and OHCI
-       on an endpoint it has not halted) fail it and leave the interface
-       refusing commands.
+       reset the toggle (rp2040, pio-usb, WCH USBFS, MAX3421E, RUSB2, OHCI on
+       an endpoint it has not halted, and SAMD when Bulk-In and Bulk-Out share
+       an endpoint number) fail it and leave the interface refusing commands.
    * - ``tuh_msc_mount_cb()`` / ``tuh_msc_umount_cb()``
      - Announces cached capacity availability or invalidates all filesystem and
        media state for the address.
