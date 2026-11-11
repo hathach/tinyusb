@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Unconfigure/reconfigure a usbtest (cafe:4010) device while bulk traffic is still on the bus, so a
+"""Unconfigure/reconfigure a usbtest (0525:a4a0) device while bulk traffic is still on the bus, so a
 configuration change can land while a device-side DMA is in flight. The raw SET_CONFIGURATION
 bypasses the kernel, which would otherwise quiesce the endpoints first. Exit 0: every iteration's
 control and bulk traffic recovered; exit 1: EP0 stopped answering or an iteration ran without bulk

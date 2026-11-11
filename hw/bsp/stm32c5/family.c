@@ -238,6 +238,36 @@ void HardFault_Handler(void) {
 extern int main(void);
 TU_ATTR_UNUSED void _start(void) {
   // called by startup code
+#ifdef __clang__
+  // CMSIS maps __PROGRAM_START to _start for Clang, skipping the __cmsis_start that initializes
+  // .data and .bss for GCC: walk the linker script's copy and zero tables here instead.
+  typedef struct {
+    uint32_t const *src;
+    uint32_t *dest;
+    uint32_t wlen;
+  } copy_table_t;
+
+  typedef struct {
+    uint32_t *dest;
+    uint32_t wlen;
+  } zero_table_t;
+
+  extern const copy_table_t __copy_table_start__, __copy_table_end__;
+  extern const zero_table_t __zero_table_start__, __zero_table_end__;
+
+  for (copy_table_t const *t = &__copy_table_start__; t < &__copy_table_end__; ++t) {
+    for (uint32_t i = 0; i < t->wlen; ++i) {
+      t->dest[i] = t->src[i];
+    }
+  }
+
+  for (zero_table_t const *t = &__zero_table_start__; t < &__zero_table_end__; ++t) {
+    for (uint32_t i = 0; i < t->wlen; ++i) {
+      t->dest[i] = 0;
+    }
+  }
+#endif
+
   main();
   while (1) {}
 }

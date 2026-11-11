@@ -67,21 +67,38 @@ int sys_read(int fhdl, char *buf, size_t count) {
 #define ITM_STIM0 (*((volatile uint8_t*)(ITM_BASE + 0)))
 #define ITM_TER *((volatile uint32_t*)(ITM_BASE + 0xE00))
 #define ITM_TCR *((volatile uint32_t*)(ITM_BASE + 0xE80))
+#define DEMCR *((volatile uint32_t*)0xE000EDFC)
 
 #define ITM_TCR_ITMENA (1 << 0)
+#define DEMCR_TRCENA (1 << 24)
 
-// Logging with SWO for ARM Cortex-M
+#define SWO_LOG_SPIN 10000 // FIFOREADY polls before the rest of a write is dropped: nothing drains a stopped TPIU
+
+// bytes not sent: ITM or stimulus port 0 disabled, or the FIFO stayed full; read it over the debug probe
+volatile uint32_t board_swo_dropped;
+
+// Logging with SWO for ARM Cortex-M: never blocks, every byte is reported written
 int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
+  size_t sent = 0;
 
-  if ((ITM_TCR & ITM_TCR_ITMENA) && (ITM_TER & 1ul)) {
-    for(size_t i=0; i < count; i++) {
-      while (!(ITM_STIM0 & 1ul)) {
-        asm("nop");
+  if ((DEMCR & DEMCR_TRCENA) && (ITM_TCR & ITM_TCR_ITMENA) && (ITM_TER & 1ul)) {
+    for (; sent < count; sent++) {
+      uint32_t n = 0;
+      while (!(ITM_STIM0 & 1ul) && ++n < SWO_LOG_SPIN) {} // FIFOREADY
+      if (n == SWO_LOG_SPIN) {
+        break;
       }
-      ITM_STIM0 = buf8[i];
+      ITM_STIM0 = buf8[sent];
     }
+  }
+  if (sent < count) {
+#if !defined(__ATOMIC_RELAXED) || (defined(__GCC_ATOMIC_LONG_LOCK_FREE) && __GCC_ATOMIC_LONG_LOCK_FREE < 2)
+    board_swo_dropped += count - sent; // not atomic, may undercount if an ISR log interleaves (no lock-free __atomic)
+#else
+    __atomic_fetch_add(&board_swo_dropped, count - sent, __ATOMIC_RELAXED); // a logger call from an ISR may interleave
+#endif
   }
 
   return (int) count;

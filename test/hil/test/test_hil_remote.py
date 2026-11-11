@@ -3,7 +3,7 @@
 # Unit tests for hil_remote.py, the adapter over agentrc's hil_remote_core: --run-id and
 # `wait` wired to the core's run records, the build receipts, check_build.py --receipt and the
 # report copy-back's wiring. No rig: run() or the core's transport is stubbed. The run records
-# themselves are the core's, tested with it (lib/agentrc/tests/test_hil_remote_core.py).
+# themselves are the core's, tested with it (agentrc's tests/test_hil_remote_core.py).
 # Run directly:
 #   python3 test/hil/test/test_hil_remote.py
 import contextlib
@@ -28,6 +28,7 @@ spec.loader.exec_module(hil_remote)
 for name in ('hil_report', 'hil_args'):
     hil_remote.helper(name)  # imported from the real checkout before a test moves ROOT
 report = hil_remote.helper('hil_report')
+agentrc = hil_remote.helper('agentrc')
 TREE = hil_remote.core.Tree('rig', '/tmp/t', '/tmp/t.lock', 'tok', Path('/nonexistent'))
 
 
@@ -277,14 +278,16 @@ class BuildReceipts(unittest.TestCase):
                              if f.suffix in hil_remote.STAGED_SUFFIXES or f.name in hil_remote.STAGED_NAMES})
             return 1  # stop the run once the firmware transfer is seen
         with mock.patch.object(hil_remote.core, 'remote_lease', lease), mock.patch.object(hil_remote.core, 'rsync', rsync), \
+                mock.patch.object(hil_remote.core, 'verify_remote', return_value=[]), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertIn('could not stage the firmware', self.refused(hil_remote.main, ['--receipt', str(self.receipt), '-b', 'b']))
         self.assertEqual(sent, pinned)
 
-    def staged_run(self, change, *argv):
+    def staged_run(self, change, *argv, bad=()):
         """A run whose lease set-up is overlapped by change(): (the SystemExit code, or None when
-        hil_test.py started; the lease ended; the snapshot dirs the firmware transfer sent)."""
-        state = {'leased': False, 'sources': []}
+        hil_test.py started; the lease ended; the snapshot dirs the firmware transfer sent). The rig
+        reports `bad` of the staged agentrc as differing; state['agentrc'] is what was staged and verified."""
+        state = {'leased': False, 'sources': [], 'agentrc': []}
 
         @contextlib.contextmanager
         def lease(remote, remote_dir, root, mkdirs=()):
@@ -300,10 +303,20 @@ class BuildReceipts(unittest.TestCase):
                 state['sources'] += [a for a in args if isinstance(a, Path)]
             return 0
 
+        def stage_tree(tree, src, dest='.'):
+            state['agentrc'].append(sorted(p.relative_to(src).as_posix() for p in Path(src).rglob('*') if p.is_file()))
+
+        def verify_remote(tree, digests, base='.'):
+            state['agentrc'].append(digests)
+            return list(bad)
+
         def run_remote(*a, **k):
             state['started'] = True
             return 0
+        self.state = state
         with mock.patch.object(hil_remote.core, 'remote_lease', lease), mock.patch.object(hil_remote.core, 'rsync', rsync), \
+                mock.patch.object(hil_remote.core, 'stage_tree', stage_tree), \
+                mock.patch.object(hil_remote.core, 'verify_remote', verify_remote), \
                 mock.patch.object(hil_remote.core, 'run_remote', run_remote), \
                 mock.patch.object(hil_remote, 'copy_back', lambda *a: ([], True)), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -340,6 +353,64 @@ class BuildReceipts(unittest.TestCase):
     def test_a_run_without_a_receipt_stages_the_checkout_as_it_is(self):
         code, _, _ = self.staged_run(lambda: (self.root / 'test/hil/hil_test.py').write_text('a CI artifact run'))
         self.assertIsNone(code)
+
+    def test_a_run_stages_the_agentrc_it_loaded_and_checks_it_on_the_rig(self):
+        ident = agentrc.identity()
+        code, _, _ = self.staged_run(lambda: None)
+        self.assertIsNone(code)
+        files, digests = self.state['agentrc']
+        self.assertEqual(files, sorted([*(f'.agentrc/{f}' for f in ident['files']), '.agentrc/manifest.json']))
+        self.assertEqual(sorted(digests), files, 'every staged file is verified where it landed')
+        self.assertEqual({k: v for k, v in digests.items() if k != '.agentrc/manifest.json'},
+                         {f'.agentrc/{f}': d for f, d in ident['sha256'].items()})
+
+    def test_a_staged_agentrc_that_differs_on_the_rig_runs_nothing(self):
+        code, _, _ = self.staged_run(lambda: None, bad=['.agentrc/skills/hil/scripts/hil_load.py'])
+        self.assertIn('the staged agentrc differs on rig: .agentrc/skills/hil/scripts/hil_load.py', code)
+
+    def test_an_agentrc_edited_since_load_is_not_staged(self):
+        ident = agentrc.identity()
+        rel = ident['files'][0]
+        edited = {**ident, 'sha256': {**ident['sha256'], rel: '0' * 64}}   # as if rel changed after the load
+        with mock.patch.object(agentrc, 'identity', return_value=edited):
+            code, leased, _ = self.staged_run(lambda: None)
+        self.assertIn('changed since this process loaded it', code)
+        self.assertFalse(leased)
+        self.assertEqual(self.state['agentrc'], [], 'refused before the lease wiped the rig')
+
+    def test_a_receipt_binds_the_agentrc_this_process_loads(self):
+        self.write('b')
+        self.assertEqual(json.loads(self.receipt.read_text())['agentrc'], agentrc.helper().portable(agentrc.identity()))
+        self.check('b')
+
+    def test_a_receipt_of_another_or_no_agentrc_is_refused(self):
+        self.write('b')
+        receipt = json.loads(self.receipt.read_text())
+        other = {**receipt['agentrc'], 'commit': '0' * 40}
+        rel = sorted(other['sha256'])[0]
+        edited = {**receipt['agentrc'], 'sha256': {**receipt['agentrc']['sha256'], rel: '0' * 64}}
+        for what, recorded, why in (('none', None, 'it binds no agentrc identity'),
+                                    ('commit', other, 'it was built with agentrc 000000000000'),
+                                    ('file', edited, f'files differ: {rel}')):
+            with self.subTest(what):
+                self.receipt.write_text(json.dumps({**receipt, 'agentrc': recorded} if recorded else
+                                                   {k: v for k, v in receipt.items() if k != 'agentrc'}))
+                why_text = self.refused(self.check, 'b')
+                self.assertIn(why, why_text)
+                self.assertIn('rebuild and write a new receipt', why_text)
+
+    def test_a_receipt_is_refused_once_the_agentrc_changed_since_load(self):
+        self.write('b')
+        rel = agentrc.identity()['files'][0]
+        with mock.patch.object(agentrc.helper(), 'drift', return_value=[rel]):
+            why = self.refused(self.check, 'b')
+        self.assertIn(f'agentrc {rel} changed since this process loaded it', why)
+
+    def test_an_agentrc_edited_since_load_gets_no_receipt(self):
+        rel = agentrc.identity()['files'][0]
+        with mock.patch.object(agentrc.helper(), 'drift', return_value=[rel]):
+            self.assertIn(f'agentrc {rel} changed since this process loaded it', self.refused(self.write, 'b'))
+        self.assertFalse(self.receipt.exists())
 
 
 class CheckBuildReceipt(unittest.TestCase):
@@ -526,12 +597,14 @@ class CopyBack(unittest.TestCase):
         for rc, came_home, want in ((0, False, 1), (0, True, 0), (3, False, 3)):
             with self.subTest(rc=rc, came_home=came_home), \
                     mock.patch.object(hil_remote.core, 'stage_files'), \
+                    mock.patch.object(hil_remote.core, 'stage_tree'), \
+                    mock.patch.object(hil_remote.core, 'verify_remote', return_value=[]), \
                     mock.patch.object(hil_remote.core, 'rsync', return_value=0), \
                     mock.patch.object(hil_remote.core, 'run_remote', return_value=rc), \
                     mock.patch.object(hil_remote, 'copy_back', return_value=(['x'], came_home)), \
                     contextlib.redirect_stdout(io.StringIO()):
                 args = types.SimpleNamespace(accumulate=False, build_dir='cmake-build')
-                got = hil_remote.stage_and_run(TREE, [], args, {}, Path('tinyusb.json'), [])
+                got = hil_remote.stage_and_run(TREE, [], args, {}, Path('tinyusb.json'), [], (Path('ag'), {}))
                 self.assertEqual(got, (want, ['x']))
 
 

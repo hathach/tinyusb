@@ -120,7 +120,8 @@ def flashers(board: dict, name: str) -> list:
 def recover_flasher(board: dict) -> dict:
     """The flasher that delivers RECOVERY for this board.
 
-    Optional roster key `flasher_recover`, else the primary. It exists because delivery and
+    Optional key `flasher_recover` (from agentrc's board registry for a board with a probe, else
+    the roster's), else the primary. It exists because delivery and
     normal flashing have different requirements: a board flashed by jlink/lm4flash
     cannot reach its probe past a poisoned usbfs node, but the same probe driven by openocd
     often can (see convoy_safe). Keeping it a separate key rather than a list means the
@@ -159,7 +160,6 @@ def flash_esptool(board: Board, firmware: str, timeout=None, *, run=None) -> sub
     port = p.esptool_port(flasher['uid'])
     fw_dir = Path(firmware).parent
     chip, flash_args = _esptool_inputs(fw_dir)
-    print(f'esptool {rt["version"]} ({rt["exe"]}) on {port}', flush=True)
     op = p.flash_esptool(flasher, chip=chip, port=port, flash_args=flash_args, cwd=str(fw_dir),
                          timeout=_bound(timeout), run=_runner(run), esptool=rt['exe'])
     return judged(op, p.esptool_problem(op))
@@ -180,8 +180,8 @@ def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.Com
 # -------------------------------------------------------------
 # board name -> receipts of what an openocd_esp operation left not proven ended: a session the
 # provider left running (cleanup 'pending'), or a tracked esptool child 'pending' or 'unknown'
-# with its receipt. No later session starts on that board, and hil_test hands its lock to a
-# cleanup holder instead of releasing it.
+# with its receipt. No later session starts on that board in this run; hil_test logs the
+# unproven cleanup and releases the lock when its task ends.
 cleanup_pending = {}
 OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
 
@@ -211,7 +211,7 @@ def receipt_text(receipt) -> str:
 def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
     """Why an entry point refuses this board's openocd_esp flasher, or '' (none, or admitted):
     the provider's refusal, under a CI job or to a caller that does not keep the board lock
-    through a session left running (`retains_lock`). Checked before any board access."""
+    until its task logs a session left running (`retains_lock`). Checked before any board access."""
     if not flashers(board, 'openocd_esp'):
         return ''
     return hil_util.openocd_esp().refusal(retains_lock=retains_lock)
@@ -234,8 +234,8 @@ def _openocd_esp_session(board, operation):
         raise RuntimeError(why)
     if name in cleanup_pending:
         held = ', '.join(map(receipt_text, cleanup_pending[name]))
-        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until its cleanup '
-                           f'holder is recovered')
+        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until the logged '
+                           f'cleanup failure is recovered')
     op = None
     try:
         op = operation(provider)

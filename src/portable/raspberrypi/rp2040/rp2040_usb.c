@@ -353,7 +353,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
   // Note: Host mode current does not save next transfer data due to shared epx --> potential issue. However, RP2040-E4
   // causes more or less of the same issue since it write to buf1 and next time it continues to transfer on buf0 (stale)
   if (is_short && is_double && is_rx && !is_last) {
-    const uint32_t abort_bit = TU_BIT(tu_edpt_number(ep->ep_addr) << 1); // abort is device only -> IN endpoint
+    const uint32_t abort_bit = rp2usb_ep_bit(ep->ep_addr); // EP_ABORT is device only, the host stops the transaction
 
     if (is_host) {
       // host stop current transfer, not safe, can be racing

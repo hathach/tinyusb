@@ -38,6 +38,16 @@ extern "C" {
 //
 //--------------------------------------------------------------------+
 
+// USBFS without host function e.g RA2A1, RA2L2, RA4E2, RA6E2, RA6T3
+#if defined(BSP_FEATURE_USB_HAS_NOT_HOST) && BSP_FEATURE_USB_HAS_NOT_HOST
+  #define RUSB2_RA_USBFS_DEVICE_ONLY
+#endif
+
+// USBFS mini module with only pipe 4-7 and CFIFO e.g RA2A1, RA4E2, RA6E2, RA6T3
+#if defined(BSP_FEATURE_USB_HAS_PIPE04567) && BSP_FEATURE_USB_HAS_PIPE04567
+  #define RUSB2_RA_USBFS_PIPE4567_ONLY
+#endif
+
 typedef struct {
   uint32_t reg_base;
   int32_t irqnum;

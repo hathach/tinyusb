@@ -4,9 +4,9 @@ import shlex
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil', 'helper'))
-import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
-import hil_util  # noqa: E402  ESP_IDF_FLASHERS; agentrc loads only on first use
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil'))
+from helper import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
+from helper import hil_util  # noqa: E402  ESP_IDF_FLASHERS; hil_boards() needs agentrc (helper/agentrc.py)
 
 
 def _resolve_config_path(config_file):
@@ -20,6 +20,15 @@ def _resolve_config_path(config_file):
         return repo_relative
 
     raise FileNotFoundError(f'Config file not found: {config_file}')
+
+
+def _variant_args(v):
+    # build_util.yml's Build step splices this string into bash source,
+    # so the quoting round-trips a spaced value into one argv item like
+    # build_board's argv path. The SAME string also reaches the get_deps
+    # env expansion and the artifact-name charset, where spaced/quoted
+    # values still fail (loudly) -- keep defines space-free
+    return ''.join(f' -D{shlex.quote(d)}' for d in v['defines']) + ''.join(f' --cflag={tok}' for tok in v['flags'])
 
 
 def main():
@@ -81,7 +90,10 @@ def main():
             if selected is not None and board['name'] not in selected:
                 continue
             name = board['name']
-            flasher = board['flasher']
+            try:   # the board's flasher is agentrc's, by its probe
+                flasher = hil_util.hil_boards().resolve(board)['flasher']
+            except (ImportError, ValueError) as e:
+                raise SystemExit(f'{config_file}: {e}')
             # esptool and openocd_esp boards must build under esp-idf; others default
             # to arm-gcc but may opt into another bucket via an explicit "toolchain"
             # field (e.g. RISC-V boards like ch32v20x need "riscv-gcc").
@@ -117,16 +129,19 @@ def main():
                 arg = build_board
                 if v['name'] != name:
                     arg += f' --build-name {v["name"]}'
-                # build_util.yml's Build step splices this string into bash source,
-                # so the quoting round-trips a spaced value into one argv item like
-                # build_board's argv path. The SAME string also reaches the get_deps
-                # env expansion and the artifact-name charset, where spaced/quoted
-                # values still fail (loudly) -- keep defines space-free
-                for d in v['defines']:
-                    arg += f' -D{shlex.quote(d)}'
-                for tok in v['flags']:
-                    arg += f' --cflag={tok}'
-                append_build_arg(toolchain, arg)
+                append_build_arg(toolchain, arg + _variant_args(v))
+
+            # the SystemView capture's traced image: a leg of its own, never the test or parking build
+            try:
+                sv = hil_report.sysview_build(board)
+            except ValueError as e:
+                raise SystemExit(f'{config_file}: {e}')
+            # hil_test.py captures only beside a device/ or dual/ test, never for the park image alone
+            captured = name not in ex_map or any(ex.startswith(('device/', 'dual/')) and ex != 'device/board_test'
+                                                 for ex in ex_map[name])
+            if sv and captured:
+                append_build_arg(toolchain, f'-b {name} --build-name {sv["name"]} -e {sv["example"]}' +
+                                 _variant_args(sv))
 
     print(json.dumps(matrix))
 

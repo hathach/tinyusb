@@ -21,7 +21,8 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 HIL_DIR = os.path.dirname(TEST_DIR)
 sys.path.insert(0, HIL_DIR)
 
-from helper import hil_report
+from helper import agentrc, hil_report
+from test_hil_agentrc import scratch_agentrc, scratch_env   # noqa: E402
 
 CAVEAT = '**HIL run aborted: worker pool timed out after 3600s.**\n'
 ROSTER = Path(HIL_DIR) / 'tinyusb.json'
@@ -70,6 +71,86 @@ class OneClassifierForBothArtifacts(unittest.TestCase):
             self.assertEqual(code.count(icon), 1,
                              f'{icon} is spelled in code more than once; REPORT_CELL is'
                              f' meant to be the one source')
+
+
+class CleanupReports(unittest.TestCase):
+    def test_current_failure_is_a_blocker_even_though_the_lock_was_released(self):
+        cell = '❌ cleanup pending; board lock released; cleanup failure log: /locks/b.cleanup.jsonl'
+        rows = [('b', {'test': 'pass', hil_report.CLEANUP_PENDING_CELL: cell}, None)]
+        doc = {'rows': [{'board': n, 'cells': c, 'duration': d} for n, c, d in rows]}
+        cfg = {'boards': [{'name': 'b'}]}
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual((result['pass'], result['locked'], result['wedged']), (False, False, False))
+        self.assertIn(cell, result['detail'])
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'blocker')
+        self.assertIn('✅ 1 passed · ❌ 1 failed', hil_report.render_matrix(rows))
+
+    def test_existing_marker_only_rows_remain_readable_without_counting_as_results(self):
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc; still open'}
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            md = hil_report.accumulate_report(
+                [('b', 0, [], [('v1', {'test': 'pass'}, '1s'), ('b', previous, None)], None)], rd, True)
+            doc, _ = hil_report._load(rd)
+        self.assertIn('old failure id abc', md)
+        self.assertIn('✅ 1 passed · ❌ 0 failed · ⚪ 0 skipped', md)
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertTrue(result['pass'])
+        self.assertIn('1 cell(s) ok', result['detail'])
+        self.assertIn('old failure id abc', result['detail'])
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'pass')
+        doc['rows'] = [r for r in doc['rows'] if r['board'] == 'b']
+        self.assertEqual(hil_report.normalised_rows(cfg, ['b'], doc)[0]['verdict'], 'not-run')
+
+    def test_a_refreshed_variant_clears_its_previous_cleanup_notice(self):
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'different-variant'}]}]}
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc', 'test': 'pass'}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            hil_report.accumulate_report(
+                [('b', 0, [], [('different-variant', previous, '1s')], None)], rd, True)
+            begin(rd)
+            md = hil_report.accumulate_report(
+                [('b', 0, [], [('different-variant', {'test': 'pass'}, '1s')], None)], rd, False)
+            doc, _ = hil_report._load(rd)
+        self.assertNotIn('old failure id abc', md)
+        self.assertNotIn(hil_report.PREVIOUS_CLEANUP_CELL, doc['rows'][0]['cells'])
+        self.assertEqual(doc['rows'][0]['history'], [previous])
+        result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+        self.assertEqual(result['detail'], '1 variant(s), 1 cell(s) ok')
+        self.assertTrue(result['pass'])
+
+    def test_the_first_rows_notice_survives_a_later_cleanup_row(self):
+        previous = {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc', 'test': 'fail'}
+        cleanup = {hil_report.CLEANUP_PENDING_CELL: '❌ cleanup pending'}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            hil_report.accumulate_report(
+                [('b', 2, [], [('b', previous, '1s'), ('b', cleanup, None)], None)], rd, True)
+            doc, _ = hil_report._load(rd)
+        self.assertEqual(doc['rows'][0]['cells'], {**previous, **cleanup})
+
+    def test_a_later_attempt_refreshes_previous_failures_and_keeps_the_history(self):
+        cfg = {'boards': [{'name': 'b', 'variant': [{'name': 'v1'}]}]}
+        with TemporaryDirectory() as tmp:
+            rd = Path(tmp)
+            for previous in ('old failure id abc', 'new failure id def', None):
+                begin(rd)
+                rows = [('v1', {'test': 'pass'}, '1s')]
+                if previous:
+                    rows.append(('b', {hil_report.PREVIOUS_CLEANUP_CELL: previous}, None))
+                hil_report.accumulate_report([('b', 0, [], rows, None)], rd, False)
+                doc, _ = hil_report._load(rd)
+                result = hil_report.summarize(cfg, ['b'], doc)['results'][0]
+                self.assertTrue(result['pass'])
+                if previous:
+                    self.assertIn(previous, result['detail'])
+                else:
+                    self.assertNotIn('previous cleanup failure', result['detail'])
+            self.assertEqual(result['history']['b'], [
+                {hil_report.PREVIOUS_CLEANUP_CELL: 'old failure id abc'},
+                {hil_report.PREVIOUS_CLEANUP_CELL: 'new failure id def'}])
 
 
 class BoardVariantsIsTheRostersOneReading(unittest.TestCase):
@@ -1245,8 +1326,9 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
 
 
 REPO = Path(HIL_DIR).parents[1]
-# tinyusb 2c992c002's render_report() of each document, recorded by agentrc's report-core tests
-GOLDEN_DIR = REPO / 'lib/agentrc/tests/data/hil_report_core'
+# tinyusb 2c992c002's render_report() of each document, recorded by agentrc's report-core tests: in the checkout
+# the agentrc loaded comes from, which a staged copy is not
+GOLDEN_DIR = Path(agentrc.identity()['root']) / 'tests/data/hil_report_core'
 
 
 def _cli(*argv, cwd=None, env=None):
@@ -1267,6 +1349,8 @@ class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.rd = Path(td.name)
 
+    @unittest.skipUnless((GOLDEN_DIR.parents[1]).is_dir(),
+                         f'{agentrc.identity()["source"]} agentrc at {GOLDEN_DIR.parents[2]} has no tests/')
     def test_the_native_rendering_is_byte_for_byte_the_golden_one(self):
         inputs = json.loads((GOLDEN_DIR / 'inputs.json').read_text(encoding='utf-8'))['tinyusb_docs']
         golden = json.loads((GOLDEN_DIR / 'golden.json').read_text(encoding='utf-8'))['tinyusb_render_report']
@@ -1407,6 +1491,53 @@ class EveryAttemptIsKept(unittest.TestCase):
         seq = hil_report.sequence(self.cfg, ['alpha'], self.rd)
         self.assertEqual(seq['current']['rows'][0]['verdict'], 'blocker', 'never not-run: boards were selected')
 
+    def test_a_board_the_registry_refuses_aborts_over_a_passing_report(self):
+        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
+            {'rows': [{'board': 'alpha', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}))
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': 'A', 'probe': 'not-in-the-registry'}]}))
+        r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                           capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['alpha']))
+        self.assertIn("probe 'not-in-the-registry' is not in agentrc's board registry", doc['caveat'])
+
+    def test_an_incomplete_sysview_entry_aborts_before_a_flash(self):
+        """capture_result reads example, workload and duration_s unchecked: a gap would lose the board's record."""
+        good = {'example': 'device/cdc_msc', 'workload': 'cdc_burst', 'duration_s': 15}
+        cases = [([good | {'workload': None}], 'alpha: "workload" None'),
+                 ([good | {'workload': 'bogus'}], 'alpha: "workload" \'bogus\''),
+                 ([good | {'workload': ['cdc_burst']}], 'alpha: "workload" [\'cdc_burst\']'),
+                 ([good | {'workload': {}}], 'alpha: "workload" {}'),
+                 ([{k: v for k, v in good.items() if k != 'duration_s'}], 'alpha: "duration_s" None'),
+                 ([good | {'example': ''}], 'alpha: no "example"'),
+                 ([good | {'example': ['device/cdc_msc']}], 'alpha: no "example"'),
+                 (['device/cdc_msc'], 'alpha: not an object'),
+                 ([good, good | {'duration_s': 0}, {'example': 'device/cdc_msc'}],
+                  'beta: "duration_s" 0 is not a finite positive number of seconds; gamma: "workload" None')]
+        cases += [([good | {'duration_s': d}], f'alpha: "duration_s" {d!r} is')
+                  for d in ('15', True, 0, -1, float('nan'), float('inf'))]
+        for entries, why in cases:
+            with self.subTest(entries=entries):
+                # json.dumps writes NaN and Infinity, as json.load reads them
+                self.cfg.write_text(json.dumps({'boards': [
+                    {'name': name, 'uid': str(i), 'sysview': sv, 'flasher': {'name': 'jlink', 'uid': f'f{i}'}}
+                    for i, (name, sv) in enumerate(zip(('alpha', 'beta', 'gamma'), entries))]}))
+                r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                                   capture_output=True, text=True, timeout=120,
+                                   env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(f'ERROR: "sysview" entry refused: {why}', r.stdout)
+                self.assertNotIn('Traceback', r.stdout + r.stderr)
+                doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['_hil']['termination'], 'aborted')
+        # a complete entry passes on to the next check
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'sysview': good, 'logger': 'bogus',
+                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+        r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
+                           capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
+        self.assertIn('ERROR: unknown "logger" value', r.stdout, r.stdout + r.stderr)
+
     def test_hil_test_refuses_to_start_over_a_report_it_cannot_read(self):
         future = json.dumps({'rows': [], 'scope': '', 'caveat': '', '_hil': {'version': 2}})
         (self.rd / hil_report.REPORT_JSON).write_text(future)
@@ -1471,31 +1602,33 @@ class ConsumerCommands(unittest.TestCase):
         verdict = json.loads(_cli(str(cfg), '--report-dir', str(self.rd)).stdout)
         self.assertFalse(verdict['pass'])
 
-    def test_without_lib_agentrc_the_commands_refuse_and_board_variants_still_imports(self):
-        """CI's skipped legs run these on a checkout that may lack lib/agentrc; check_build.py
-        and the CI matrix import board_variants() from a bare runner."""
+    def test_without_agentrc_the_commands_refuse_and_board_variants_still_imports(self):
+        """CI's skipped legs run these on a checkout whose agentrc fetch may have failed, a dev PC may have no
+        agentrc installed; check_build.py and the CI matrix import board_variants() from a bare runner."""
         clean = self.rd / 'checkout'
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py'):
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json'):
             (clean / rel).parent.mkdir(parents=True, exist_ok=True)
             (clean / rel).write_bytes((REPO / rel).read_bytes())
         (clean / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
         script = str(clean / 'test/hil/helper/hil_report.py')
-        env = {**os.environ, 'PYTHONSAFEPATH': '1'}
         (clean / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
+        for ci, remedy in ((None, agentrc.INSTALL), ('true', agentrc.FETCH)):
+            with self.subTest(ci=ci):
+                env = scratch_env(clean / 'no-agentrc', PYTHONSAFEPATH='1', **({'CI': ci} if ci else {}))
 
-        def run(*argv):
-            return subprocess.run([sys.executable, script, *argv, '--report-dir', str(clean)], capture_output=True,
-                                  text=True, timeout=60, env=env)
-        r = run('no-selection', str(clean / 'cfg.json'), 'skipped')
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn('python3 tools/get_deps.py lib/agentrc', r.stderr)
-        self.assertFalse((clean / hil_report.REPORT_JSON).exists())
-        r = run('prepare')
-        self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-        self.assertIn('nor write its unavailable notice', r.stderr)
-        self.assertEqual(r.stderr.count('python3 tools/get_deps.py lib/agentrc'), 2, r.stderr)
-        self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
-                         'without lib/agentrc there is no notice writer either')
+                def run(*argv):
+                    return subprocess.run([sys.executable, script, *argv, '--report-dir', str(clean)],
+                                          capture_output=True, text=True, timeout=60, env=env)
+                r = run('no-selection', str(clean / 'cfg.json'), 'skipped')
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(remedy, r.stderr)
+                self.assertFalse((clean / hil_report.REPORT_JSON).exists())
+                r = run('prepare')
+                self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
+                self.assertIn('nor write its unavailable notice', r.stderr)
+                self.assertEqual(r.stderr.count(remedy), 2, r.stderr)
+                self.assertEqual((clean / hil_report.REPORT_MD).read_text(encoding='utf-8'), '| b | ✅ |\n',
+                                 'without agentrc there is no notice writer either')
         r = subprocess.run([sys.executable, '-c', 'import sys; sys.path.insert(0, "test/hil/helper"); import hil_report; '
                             'print(hil_report.board_variants({"name": "b"})[0]["name"])'],
                            capture_output=True, text=True, timeout=60, cwd=clean)
@@ -1505,18 +1638,18 @@ class ConsumerCommands(unittest.TestCase):
         """agentrc's hil_report_notice is loaded apart from the core: prepare's fallback when
         the core is what failed."""
         clean = self.rd / 'checkout'
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
-                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py'):
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json'):
             (clean / rel).parent.mkdir(parents=True, exist_ok=True)
             (clean / rel).write_bytes((REPO / rel).read_bytes())
+        broken = scratch_agentrc(self.rd / 'agentrc',
+                                 {'skills/hil/scripts/hil_report_core.py': 'raise RuntimeError("the core is broken")\n'})
         md = clean / hil_report.REPORT_MD
         md.write_text('| b | ✅ |\n', encoding='utf-8')
 
         def prepare():
             return subprocess.run([sys.executable, str(clean / 'test/hil/helper/hil_report.py'), 'prepare',
                                    '--report-dir', str(clean)], capture_output=True, text=True, timeout=60,
-                                  env={**os.environ, 'PYTHONSAFEPATH': '1'})
+                                  env=scratch_env(broken, PYTHONSAFEPATH='1'))
         if os.name != 'nt':
             import fcntl
             with open(clean / '.hil_report.lock', 'a') as held:
@@ -1529,7 +1662,7 @@ class ConsumerCommands(unittest.TestCase):
         for _ in range(2):
             r = prepare()
             self.assertEqual(r.returncode, 1, 'it could not prepare the pair')
-            self.assertIn('has no skills/hil/scripts/hil_report_core.py', r.stderr)
+            self.assertIn('the core is broken', r.stderr)
             text = md.read_text(encoding='utf-8')
             self.assertTrue(text.startswith('**HIL report unavailable: hil_report.md could not be prepared'), text)
             self.assertEqual(text.count('**HIL report unavailable'), 1, 'an earlier notice is never nested')
@@ -1735,7 +1868,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         got = self.verdicts(['a', 'c'])
         self.assertEqual(got, {'a': ('fail', False), 'c': ('not-run', False)})
 
-    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board b: stale record {"protected": true} (recovery blocker: ...)'}
+    BLOCKED = {hil_report.RECOVERY_BLOCKER_CELL: '❌ board locked: {"role": "cleanup-holder"} (recovery blocker: ...)'}
 
     def test_a_recovery_blocker_stands_and_bars_the_retry(self):
         self.attempt(False, {'a': self.FAIL_A, 'b': {'b': self.BLOCKED}})
@@ -1748,6 +1881,11 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         self.attempt(True, {'b': {'b': {'t': '✅'}}})
         self.assertEqual(self.verdicts(['a', 'b']), {'a': ('fail', False), 'b': ('blocker', False)},
                          'a later pass never clears it, and its run was no eligible retry of a\'s fail')
+
+    def test_a_logged_cleanup_failure_stays_a_blocker_after_a_later_pass(self):
+        self.attempt(False, {'b': {'b': {'t': '✅', hil_report.CLEANUP_PENDING_CELL: '❌ logged; released'}}})
+        self.attempt(True, {'b': {'b': {'t': '✅', hil_report.PREVIOUS_CLEANUP_CELL: 'earlier cleanup failed'}}})
+        self.assertEqual(self.verdicts(['b'])['b'], ('blocker', False))
 
     def test_a_usbtest_batterys_fail_is_final(self):
         self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 28/29'}}})
@@ -1849,7 +1987,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
 
 class TheCiLegsUploadAPreparedReport(unittest.TestCase):
     """build.yml's HIL legs: a leg the PR selection skips writes its report with
-    hil_report.py, after lib/agentrc is fetched, and every leg prepares the pair before the
+    hil_report.py, after agentrc is fetched, and every leg prepares the pair before the
     upload takes the JSON and the attempt records with it. The skip branch and the prepare
     step run here as the workflow has them, against a sandbox checkout."""
 
@@ -1874,17 +2012,16 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         root = Path(td.name)
-        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'tools/get_deps.py',
-                    'lib/agentrc/.git/HEAD', 'lib/agentrc/skills/hil/scripts/hil_load.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_core.py',
-                    'lib/agentrc/skills/hil/scripts/hil_report_notice.py',
+        for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json',
                     'test/hil/tinyusb.json', 'test/hil/hfp.json'):
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_bytes((REPO / rel).read_bytes())
-        # get_deps.py would fetch: the sandbox holds lib/agentrc at the pin already
+        # the fetch would clone the pin: the sandbox holds the agentrc this process loads, staged, which wins over it
+        agentrc.helper().stage(agentrc.identity(), root)
         shim = root / 'bin' / 'python3'
         shim.parent.mkdir()
-        shim.write_text(f'#!/bin/sh\n[ "$1" = tools/get_deps.py ] && exit 0\nexec {sys.executable} "$@"\n')
+        shim.write_text(f'#!/bin/sh\n[ "$1 $2" = "test/hil/helper/agentrc.py fetch" ] && exit 0\n'
+                        f'exec {sys.executable} "$@"\n')
         shim.chmod(0o755)
         return root
 
@@ -1928,7 +2065,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
 
     @unittest.skipIf(os.name == 'nt', 'the shim is a POSIX shell script')
     def test_an_unprepared_report_uploads_only_its_failure_and_the_comment_says_so(self):
-        """With lib/agentrc missing or off its pin, prepare loads neither the core nor the notice
+        """With CI's agentrc missing or off its pin, prepare loads neither the core nor the notice
         writer; with no checkout at all it does not even start. The report dir persists across a run's attempts, so it can hold an earlier attempt's
         green report: the upload takes a fresh dir holding only the failure, and the PR comment
         shows that, never the earlier table."""
@@ -1945,16 +2082,15 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                     stale = {hil_report.REPORT_MD: '| b | ✅ |\n', hil_report.REPORT_JSON: '{"rows": []}\n'}
                     for f, text in stale.items():
                         (report_dir / f).write_text(text, encoding='utf-8')
-                    if provider == 'missing':
-                        shutil.rmtree(root / 'lib/agentrc')
-                    elif provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
+                    shutil.rmtree(root / agentrc.STAGED)   # CI's own agentrc is the pin
+                    if provider == 'no-checkout':     # the fallback needs none of the checkout's scripts
                         shutil.rmtree(root / 'test')
-                        shutil.rmtree(root / 'lib')
-                    else:
-                        (root / 'lib/agentrc/.git/HEAD').write_text('0' * 40 + '\n')
+                    elif provider == 'off-pin':
+                        scratch_agentrc(root / agentrc.DEP)
                     steps = job['steps']
                     prepare = next(st for st in steps if st.get('name') == 'Prepare HIL report')
-                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir)}, rc=1)
+                    r = self.run_step(root, self.script(prepare), {'HIL_REPORT_DIR': str(report_dir), 'CI': 'true'},
+                                      rc=1)
                     if provider != 'no-checkout':
                         self.assertIn('nor write its unavailable notice', r.stderr)
                     for f, text in stale.items():
@@ -1977,12 +2113,13 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
                 steps = job['steps']
                 test = next(st for st in steps if 'hil_report.py no-selection' in st.get('run', ''))
                 run = test['run']
-                if 'tools/get_deps.py lib/agentrc' in run:
-                    self.assertLess(run.index('tools/get_deps.py lib/agentrc'), run.index('if [ "$SEL_RUN" = "false" ]'),
-                                    'the skip branch needs lib/agentrc')
+                fetch = 'python3 test/hil/helper/agentrc.py fetch'
+                if fetch in run:
+                    self.assertLess(run.index(fetch), run.index('if [ "$SEL_RUN" = "false" ]'),
+                                    'the skip branch needs agentrc')
                 else:
-                    deps = next(st for st in steps if st.get('name') == 'Get Dependencies')
-                    self.assertNotIn('if', deps, 'a skipped leg needs lib/agentrc too')
+                    deps = next(st for st in steps if st.get('run', '').strip() == fetch)
+                    self.assertNotIn('if', deps, 'a skipped leg needs agentrc too')
                     self.assertLess(steps.index(deps), steps.index(test))
                 root = self.sandbox()
                 report_dir = root / 'report' if name != 'hil-hfp-iar' else root

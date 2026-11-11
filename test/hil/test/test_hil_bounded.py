@@ -242,9 +242,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                  for n in ('bad-a', 'bad-b', 'good')]
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
@@ -263,9 +263,9 @@ class BuildBoardContract(unittest.TestCase):
 
     def all_refused(self, argv):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [{'name': 'bad-a'}, {'name': 'bad-b'}]},
-                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink'}}]}
+                          {'name': 'worse', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}}]}
         prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                   for n in ('bad-a', 'bad-b', 'worse')]
                  + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
@@ -298,12 +298,96 @@ class BuildBoardContract(unittest.TestCase):
         for c in cells.values():
             self.assertEqual(c, {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED})
 
+    def test_a_refused_roster_entry_aborts_only_the_legs_its_flasher_selects(self):
+        """build.yml runs one roster as an --exclude-flasher leg and a --flasher leg: an entry the
+        registry refuses aborts the leg its flasher puts it in, reporting that leg's selection."""
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'bad', 'flasher': {'name': 'esptool', 'uid': 'p1'}},   # no uid
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}},
+                          {'name': 'esp', 'uid': '3', 'flasher': {'name': 'esptool', 'uid': 'p3'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['bad', 'esp']))
+        self.assertIn('bad: no uid', doc['caveat'])
+        # an unregistered probe names no flasher: the leg that takes every other flasher reports it
+        cfg['boards'][0] = {'name': 'bad', 'uid': '1', 'probe': 'hil-bounded-unregistered-probe'}
+        esp_row = ('esp', 0, [], [('esp', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool', '--skip-flash'], set(), [esp_row])
+        self.assertEqual(rc, 0)
+        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['esp'])
+        rc, d, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
+
+    def test_a_roster_copy_of_dev_attached_aborts_the_leg_selecting_it(self):
+        """The attached devices are agentrc's board registry's now: a roster's tests.dev_attached left
+        on a selected board aborts its leg rather than being silently ignored."""
+        from helper import hil_report
+        stale = {'dev_attached': [{'vid_pid': '1a86_55d4', 'serial': 'X'}]}
+        cfg = {'boards': [{'name': 'old', 'uid': '1', 'flasher': {'name': 'esptool', 'uid': 'p1'}, 'tests': stale},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
+        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        self.assertEqual(rc, 0)
+        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        self.assertIn('old: tests.dev_attached is now', json.loads((d / hil_report.REPORT_JSON).read_text())['caveat'])
+
+    def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
+        """Without the registry no probe board names its flasher: a --flasher leg must not drop them
+        all and report 'No boards left' instead of the registry's problem."""
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': [{'name': 'a', 'uid': '1', 'probe': 'p1'}, {'name': 'b', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            for argv in (['--flasher', 'esptool', '--flasher', 'openocd_esp'], ['--exclude-flasher', 'esptool']):
+                rc, d, pool, _ = self.run_main(cfg, [], argv, set())
+                self.assertEqual(rc, 1)
+                pool.imap_unordered.assert_not_called()
+                doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(doc['_hil']['termination'], 'aborted', argv)
+                self.assertIn(why, doc['caveat'])
+
+    def test_an_unreadable_registry_aborts_a_roster_with_a_nameless_entry(self):
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'p0'}, {'name': 'good', 'uid': '2', 'probe': 'p2'}]}
+        why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
+        with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
+            rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn(why, doc['caveat'])
+
+    def test_a_refused_entry_without_a_name_reaches_the_abort(self):
+        from helper import hil_report
+        cfg = {'boards': ['oops', {'probe': 'hil-bounded-unregistered-probe'},
+                          {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
+        rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        self.assertEqual(rc, 1)
+        pool.imap_unordered.assert_not_called()
+        doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+        self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
+        self.assertIn('<unnamed>: not an object', doc['caveat'])
+        self.assertIn('<unnamed>: no uid', doc['caveat'])
+
     def test_an_unselected_malformed_variant_does_not_crash_the_report(self):
         from helper import hil_report
-        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink'}},
-                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink'},
+        cfg = {'boards': [{'name': 'good', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'}},
+                          {'name': 'owner', 'uid': '3', 'flasher': {'name': 'jlink', 'uid': 'p'},
                            'variant': [None, {'name': 'owner-a'}]},
-                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink'}, 'variant': [None]}]}
+                          {'name': 'unselected', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p'}, 'variant': [None]}]}
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
         for refuse, results, cell in (({'good'}, [], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}),
                                       (set(), [good_row], {'device/cdc_msc': 'pass'})):
@@ -338,7 +422,6 @@ class RemoteStaging(unittest.TestCase):
         # the rig executes and require each file in HARNESS_FILES, read by ast so this
         # suite needs nothing the wrapper imports.
         import ast
-        from helper import agentrc
         hil_dir = Path(TEST_DIR).parents[0]
         repo = hil_dir.parents[1]
         wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
@@ -360,46 +443,82 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
-        def loaded_paths(pyfile):
-            # agentrc.load('<rel>', ...) and agentrc.load_file('<rel>') bring in lib/agentrc files
-            # no import walk can see: hil_load, the one it executes and that one's FILES, the
-            # files it loads or launches by path
-            for node in ast.walk(ast.parse(pyfile.read_text())):
-                if (isinstance(node, ast.Call) and ast.unparse(node.func) in ('agentrc.load', 'agentrc.load_file')
-                        and node.args and isinstance(node.args[0], ast.Constant)):
-                    rel = node.args[0].value
-                    yield from (f'lib/agentrc/{f}' for f in (agentrc.HIL_LOAD, rel, *agentrc.files_of(rel)))
-
-        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py']  # CLI + spawned helpers
+        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py', 'net_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
-        todo, seen, loaded = list(seeds), set(), set()
+        todo, seen = list(seeds), set()
         while todo:
             f = todo.pop()
             if f in seen or not (hil_dir / f).exists():
                 continue  # stdlib/site-packages imports have no test/hil file
             seen.add(f)
             todo += list(imported_paths(hil_dir / f))
-            loaded |= set(loaded_paths(hil_dir / f))
         for f in sorted(seen):
             self.assertIn(f'test/hil/{f}', staged,
                           f'{f} runs on the rig but hil_remote.py does not stage it')
-        self.assertTrue(loaded, 'no agentrc.load call seen: the walk went vacuous')
-        # FILES is the provider's by-path closure (agentrc's tests/test_hil_load.py checks it)
-        self.assertIn('lib/agentrc/skills/hil/scripts/pyocd/user_script.py', loaded, 'the FILES walk went vacuous')
-        self.assertIn('lib/agentrc/skills/target-debug/scripts/esp_session.py', loaded,
-                      'the FILES walk missed the openocd_esp session helper')
-        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py'):
-            self.assertIn(f'lib/agentrc/skills/hil/scripts/{f}', loaded, f'the load walk missed {f}')
-        for f in sorted(loaded):
-            self.assertIn(f, staged, f'{f} is loaded on the rig but hil_remote.py does not stage it')
+        # agentrc reaches the rig as the staged closure of the bootstrap's SCRIPTS, not by HARNESS_FILES
+        self.assertIn('test/hil/helper/agentrc.py', staged)
+        self.assertFalse([f for f in staged if f.startswith(('lib/', '.agentrc/'))], 'agentrc is staged as .agentrc/')
         # test/hil/pyocd/ is pyocd's project dir, which the provider requires to exist on the rig
         self.assertIn('test/hil/pyocd/README.md', staged, 'the pyocd project dir does not reach the rig')
 
-    def test_the_staged_tree_runs_without_the_checkout(self):
-        # HARNESS_FILES alone, where the rig gets them: hil_test loads the flash provider from
-        # the staged lib/agentrc at import, and refuses there when a provider file is missing
+    def test_every_agentrc_file_a_script_loads_is_in_the_closure_of_scripts(self):
+        # agentrc.load/load_file/path_of('<rel>') bring in agentrc files no import walk can see: each target must
+        # be one of the bootstrap's SCRIPTS, whose closure (their FILES, transitively) is the identity a receipt
+        # binds and the rig gets staged; a target elsewhere loads on a dev PC and is refused there
         import ast
+        from helper import agentrc
+        repo = Path(TEST_DIR).parents[2]
+        env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+        tracked = subprocess.run(['git', '-C', str(repo), 'ls-files', '*.py'], capture_output=True, text=True,
+                                 env=env, check=True).stdout.split()
+
+        def value(node, consts):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                return node.value
+            if isinstance(node, ast.Name):
+                return consts.get(node.id)
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                a, b = value(node.left, consts), value(node.right, consts)
+                return a + b if a is not None and b is not None else None
+            return None
+
+        targets = {}
+        for rel in tracked:
+            if rel.startswith(('lib/', 'hw/', 'test/hil/test/', '.claude/test/')):
+                continue   # vendored code, and tests, which stub these calls
+            tree = ast.parse((repo / rel).read_text(encoding='utf-8'))
+            consts = {t.id: n.value.value for n in tree.body if isinstance(n, ast.Assign)
+                      and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)
+                      for t in n.targets if isinstance(t, ast.Name)}
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                        and node.func.attr in ('load', 'load_file', 'path_of') and node.args
+                        and ast.unparse(node.func.value) in ('agentrc', "helper('agentrc')")):
+                    target = value(node.args[0], consts)
+                    self.assertIsNotNone(target, f'{rel}:{node.lineno}: {ast.unparse(node)} names no literal path')
+                    targets.setdefault(target, rel)
+        self.assertIn('skills/target-debug/scripts/sysview_record.py', targets, 'the SCRIPTS + "..." walk went vacuous')
+        for f in ('hil_tt.py', 'hil_usbtest.py', 'hil_lock.py', 'usb_observe.py', 'hil_remote_core.py'):
+            self.assertIn(f'skills/hil/scripts/{f}', targets, f'the load walk missed {f}')
+        for target, rel in sorted(targets.items()):
+            self.assertIn(target, agentrc.SCRIPTS, f'{rel} loads {target}, which is not in helper/agentrc.py SCRIPTS')
+        ident = agentrc.identity()
+        # FILES is a script's by-path closure (agentrc's tests/test_hil_load.py checks it)
+        for f in ('skills/hil/scripts/pyocd/user_script.py', 'skills/target-debug/scripts/esp_session.py',
+                  agentrc.HIL_LOAD, agentrc.SOURCE):
+            self.assertIn(f, ident['files'], f'the closure missed {f}')
+        with TemporaryDirectory() as td:
+            agentrc.helper().stage(ident, td)
+            self.assertEqual(agentrc.helper().read_staged(Path(td) / '.agentrc', agentrc.SCRIPTS)['files'],
+                             ident['files'], 'the staged closure is the identity\'s')
+
+    def test_the_staged_tree_runs_without_the_checkout(self):
+        # HARNESS_FILES and the staged .agentrc alone, where the rig gets them: hil_test loads the flash
+        # provider from the staged copy at import, whatever CI or AGENTRC_DIR say, and a staged copy that is
+        # not its manifest's refuses there, never falling back to another agentrc
+        import ast
+        from helper import agentrc
         repo = Path(TEST_DIR).parents[2]
         wrapper = repo / '.claude/skills/hil-contract/scripts/hil_remote.py'
         staged = next(ast.literal_eval(n.value) for n in ast.parse(wrapper.read_text()).body
@@ -413,30 +532,34 @@ class RemoteStaging(unittest.TestCase):
             for rel in staged:
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(repo / rel, root / rel)
+            agentrc.helper().stage(agentrc.identity(), root)
             env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            env.update(CI='true', AGENTRC_DIR=str(root / 'no-agentrc'))
+
+            def run():
+                return subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
+                                      capture_output=True, text=True, timeout=60)
+            r = run()
             self.assertEqual(r.returncode, 0, r.stderr)
-            scripts = root / 'lib/agentrc/skills/hil/scripts'
+            scripts = root / '.agentrc/skills/hil/scripts'
             self.assertEqual(r.stdout.splitlines()[:4], [str(scripts / 'hil_flash.py'), str(scripts / 'hil_process.py'),
                                                          str(scripts / 'pyocd/run_pyocd.py'),
                                                          str(scripts / 'hil_openocd_esp.py')])
-            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]),
-                             str(root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py'))
+            esp_session = root / '.agentrc/skills/target-debug/scripts/esp_session.py'
+            self.assertEqual(os.path.normpath(r.stdout.splitlines()[4]), str(esp_session))
             self.assertEqual(r.stdout.splitlines()[5:], [str(scripts / 'hil_tt.py'), str(scripts / 'hil_usbtest.py')])
-            (root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py').unlink()
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            saved = esp_session.read_bytes()
+            esp_session.unlink()
+            r = run()
             self.assertNotEqual(r.returncode, 0)
-            self.assertIn('has no skills/target-debug/scripts/esp_session.py', r.stderr)
-            shutil.copy(repo / 'lib/agentrc/skills/target-debug/scripts/esp_session.py',
-                        root / 'lib/agentrc/skills/target-debug/scripts/esp_session.py')
-            (scripts / 'pyocd/user_script.py').unlink()
-            r = subprocess.run([sys.executable, '-c', code], cwd=root, env=env,
-                               capture_output=True, text=True, timeout=60)
+            self.assertIn('ImportError: staged agentrc skills/target-debug/scripts/esp_session.py is missing',
+                          r.stderr.strip().splitlines()[-1])
+            esp_session.write_bytes(saved + b'\n')
+            r = run()
             self.assertNotEqual(r.returncode, 0)
-            self.assertIn('ImportError: lib/agentrc at', r.stderr.strip().splitlines()[-1])
-            self.assertIn('has no skills/hil/scripts/pyocd/user_script.py', r.stderr)
+            self.assertIn('differ from their manifest: skills/target-debug/scripts/esp_session.py',
+                          r.stderr.strip().splitlines()[-1])
+            self.assertIn('stage the run again', r.stderr.strip().splitlines()[-1])
 
 
 class _MtpFakeRig:
@@ -572,7 +695,7 @@ class ThroughputPayloadBound(unittest.TestCase):
 
 
 class FindDeviceCache(unittest.TestCase):
-    """usbtest.find_device is agentrc's hil_usbtest.find_device for cafe:4010, reading the sysfs
+    """usbtest.find_device is agentrc's hil_usbtest.find_device for 0525:a4a0, reading the sysfs
     root the harness's usb_observe names: one module, so a patched root reaches it."""
 
     def setUp(self):
@@ -674,7 +797,7 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 
         usbtest_harness.patch(self, usbtest.hil_usbtest.subprocess, 'Popen', Popen)
         usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.hil_usbtest, 'needs_sudo', lambda node: False)
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
         r = usbtest.run_case(1, dict(usbtest_harness.DEV), '/bin/true', False, 7)
         self.assertEqual((r['status'], r['num']), ('HUNG', 1))
         self.assertEqual(r['_proc'].waited, usbtest.WEDGE_CONFIRM_S)
@@ -683,8 +806,8 @@ class RunCaseConfirmsByReap(unittest.TestCase):
 class HangRecoveryOnTheMainPath(unittest.TestCase):
     """The transitions through usbtest.main(): a HUNG case aborts the battery; ONE recovery
     step runs through the convoy-safe flasher (reset where it has one, else reflash); the
-    child reaping afterwards is the only thing that clears `wedged`; an unverifiable child
-    (sudo) keeps the hang; a late-cleared timeout also aborts but is not a wedge."""
+    child reaping afterwards is the only thing that clears `wedged`; a late-cleared timeout
+    also aborts but is not a wedge."""
 
     def _main(self, proc=None, recover=None, reset=True, raising_reset=False, late=False):
         """Returns (json or None, stderr, exception or None, sysfs writes). self.ladder
@@ -704,11 +827,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
                     'detail': f'testusb stuck in D state after {timeout}s', '_proc': proc}
         usbtest_harness.stub_device(self, usbtest, run_case)
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
-        patch(usbtest.hil_usbtest, 'sysfs_write', lambda path, data, check=True: writes.append((str(path), data)))
-        td = TemporaryDirectory()
-        self.addCleanup(td.cleanup)
-        patch(usbtest.hil_usbtest, 'DRIVER', Path(td.name))          # no bound interfaces to unbind
+        patch(usbtest.hil_usbtest, 'sysfs_write', lambda verb, *args: writes.append((verb, *args)))
         patch(usbtest.time, 'sleep', lambda s: self.ladder.append(('sleep', s)))
         if recover:
             # a convoy-safe openocd board whose reset and reflash are stubs
@@ -750,7 +869,7 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertEqual(data['cases'][0]['status'], 'FAIL')
         self.assertIn('not a wedge', err)
         self.assertNotIn('unrecovered hang', err)
-        self.assertEqual(writes, [], 'a standalone run removed the id or unbound a peer')
+        self.assertEqual(writes, [], 'a standalone run wrote to sysfs')
 
     def test_a_hang_without_recovery_flags_stays_wedged_and_nothing_is_written(self):
         data, err, _exc, writes = self._main(proc=_FakeProc(reaps=True))
@@ -807,12 +926,6 @@ class HangRecoveryOnTheMainPath(unittest.TestCase):
         self.assertEqual(self._steps(), ['reset', 'settle'])
         self.assertFalse(data['wedged'], 'the reset landed before the flasher raised')
 
-    def test_under_sudo_the_hang_cannot_be_cleared(self):
-        data, err, _exc, _w = self._main(proc=None, recover=True)
-        self.assertTrue(data['wedged'])
-        self.assertEqual(self._steps(), ['reset', 'settle'], 'the step still runs; only the verdict is withheld')
-        self.assertIn('cannot confirm', err)
-
     def test_the_settle_keeps_its_validated_minimum(self):
         import usbtest
         self.assertGreaterEqual(usbtest.RECOVER_SETTLE, 5, 'validated minimum: metro_m4_express UF2 double-tap')
@@ -834,7 +947,6 @@ class UnidentifiedDeviceIsNotAHang(unittest.TestCase):
         patch(usbtest, '_uo', lambda: types.SimpleNamespace(path_stranded=lambda p: stranded,
                                                            SYS_USB_DEVICES='/sys/bus/usb/devices'))
         patch(usbtest, 'bind_usbtest', lambda d: None)
-        patch(usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.argv(self)
         out, err = usbtest_harness.Out(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
@@ -936,23 +1048,29 @@ class RunWhileContract(unittest.TestCase):
             self.hil_util.run_alongside(['sh', '-c', 'printf X'], boom, 5)
 
     def test_the_child_is_reaped_even_when_work_raises(self):
-        seen = {}
+        """Checked on our own child, never by a machine-wide pgrep: an identical child of
+        another run (parallel pre-commit in another worktree) read as our leak."""
+        argv = ['sleep', '20']
+        stranger = subprocess.Popen(argv)
+        self.addCleanup(stranger.wait)
+        self.addCleanup(stranger.kill)
+        children = []
+        real_popen = subprocess.Popen
+
+        def spy(a, **kw):
+            children.append(real_popen(a, **kw))
+            return children[-1]
 
         def boom():
             raise AssertionError('x')
-        # a duration no other process would plausibly pick: `pgrep -f` searches the WHOLE
-        # machine, so a bare `sleep 20` matched an unrelated background job -- another
-        # agent session's retry loop, in the case that exposed this -- and failed a test
-        # about our own child. Observed failing 3/3 in isolation while that loop ran.
-        sentinel = '20.0451'
+        usbtest_harness.patch(self, subprocess, 'Popen', spy)
         with self.assertRaises(AssertionError):
-            self.hil_util.run_alongside(['sleep', sentinel], boom, 1)
-        # nothing of ours is left running: the reap ran on the error path too
-        import subprocess
-        out = subprocess.run(['pgrep', '-f', f'^sleep {sentinel}'],
-                             capture_output=True, text=True)
-        seen['strays'] = [p for p in out.stdout.split() if p]
-        self.assertEqual(seen['strays'], [], 'work() raising leaked the child')
+            self.hil_util.run_alongside(argv, boom, 1)
+        (child,) = children
+        # read before any poll()/wait() of ours, which would reap a leaked child itself
+        self.assertIsNotNone(child.returncode, 'work() raising leaked the child')
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(child.pid, os.WNOHANG)
 
     def test_an_abandoned_child_is_in_its_own_session(self):
         """killpg on it reaps whatever it spawned, and it cannot take our group with it."""
@@ -988,7 +1106,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
         self.addCleanup(td.cleanup)
         dev = Path(td.name) / '1-1'
         dev.mkdir()
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
 
         def patch(obj, name, value):
@@ -1140,7 +1258,7 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
         dev = Path(self.td.name) / '1-1'
         dev.mkdir()
         # a real (readable) fake sysfs node, so the bounded reads run unmodified
-        for attr, val in (('serial', 'UID1'), ('idVendor', 'cafe'), ('idProduct', '4010')):
+        for attr, val in (('serial', 'UID1'), ('idVendor', '0525'), ('idProduct', 'a4a0')):
             (dev / attr).write_text(val + '\n')
         self.dev = dev
 
@@ -1298,8 +1416,8 @@ class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
         with mock.patch.object(hil_test, 'skip_flash', False), \
              mock.patch.object(hil_test, 'shuffle_seed', None), \
              mock.patch.object(hil_flash, 'cleanup_pending', {}), \
-             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=object()), \
-             mock.patch.object(hil_test, 'retain_board_lock', return_value='retained'), \
+             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=mock.Mock(cleanup_failures=[])), \
+             mock.patch.object(hil_test, 'end_failed_cleanup', return_value='logged'), \
              mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
              mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
              mock.patch.object(hil_test, 'test_example', test_example), \
@@ -1334,7 +1452,7 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         hil_util.run_cmd = lambda *a, **k: R()
         # usbtest_enumerated is nested in test_device_usbtest, so stub what it calls
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U',
                  'flasher': flasher or {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         self.raised = None
@@ -1393,7 +1511,7 @@ class WedgedBoardCannotReportAPass(unittest.TestCase):
         self.addCleanup(setattr, hil_util, 'run_cmd', hil_util.run_cmd)
         hil_util.run_cmd = lambda *a, **k: R()
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '1-1', 'dir': '/x', 'vid': 'cafe', 'pid': '4010', 'serial': 'U'}])
+            {'busport': '1-1', 'dir': '/x', 'vid': '0525', 'pid': 'a4a0', 'serial': 'U'}])
         board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
         try:
             return ('pass', hil_test.test_device_usbtest(board))
@@ -1701,7 +1819,7 @@ class UsbtestLearnsTopology(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'run_cmd',
                               lambda *a, **k: self.order.append('battery') or R())
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [
-            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': 'cafe', 'pid': '4010',
+            {'busport': '3-1', 'dir': '/sys/bus/usb/devices/3-1', 'vid': '0525', 'pid': 'a4a0',
              'serial': 'U'}])
         self.board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'vid_pid': '0x1 0x2'}}
 
@@ -1792,13 +1910,12 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
-        self.assertIn('no cafe:4010 device', str(cm.exception))
+        self.assertIn('no 0525:a4a0 device', str(cm.exception))
         self.assertIn('0/30', cm.exception.metric)
 
 class UsbtestNeverCleansUp(unittest.TestCase):
-    """main's finally writes nothing: remove_id makes the next registration wait on peers'
-    in-flight cases, and a driver-wide unbind cut peer batteries and has wedged a host xHCI
-    through the uninterruptible device_lock. The id and bindings stay for every run."""
+    """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a
+    host xHCI through the uninterruptible device_lock. The bindings stay for every run."""
 
     def test_the_finally_block_writes_nothing(self):
         import ast
@@ -1809,7 +1926,7 @@ class UsbtestNeverCleansUp(unittest.TestCase):
         self.assertTrue(fins, 'main lost its finally; retarget this test')
         for fin in fins:
             body = ast.unparse(ast.Module(body=fin.finalbody, type_ignores=[]))
-            # every registry/bind write goes through sysfs_write
+            # every sysfs write goes through sysfs_write
             self.assertNotIn('sysfs_write', body, "main's finally writes to sysfs")
 
 

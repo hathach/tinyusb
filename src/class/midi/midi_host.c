@@ -530,7 +530,8 @@ uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *bu
 }
 
 uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize) {
-  TU_VERIFY(idx < CFG_TUH_MIDI && p_cable_num && p_buffer && bufsize > 0);
+  // an event packet carries up to 3 MIDI bytes, only take a packet from the FIFO when there is room for it
+  TU_VERIFY(idx < CFG_TUH_MIDI && p_cable_num && p_buffer && bufsize >= 3);
   midih_interface_t *p_midi = &_midi_host[idx];
   uint32_t bytes_buffered = 0;
   uint8_t one_byte;
@@ -622,7 +623,7 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
     }
     bytes_buffered += bytes_to_add_to_stream;
     nread = 0;
-    if (tu_edpt_stream_peek(&p_midi->ep_stream.rx, &one_byte)) {
+    if (bufsize - bytes_buffered >= 3 && tu_edpt_stream_peek(&p_midi->ep_stream.rx, &one_byte)) {
       uint8_t new_cable = (one_byte >> 4) & 0xf;
       if (new_cable == *p_cable_num) {
         // still on the same cable. Continue reading the stream

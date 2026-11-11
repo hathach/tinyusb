@@ -2454,8 +2454,7 @@
           "renesas/rusb2/rusb2_common.c"
         ],
         "roles": [
-          "device",
-          "host"
+          "device"
         ]
       }
     },
@@ -2465,6 +2464,26 @@
         "family_mcus": [
           "RAXXX",
           "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
+        ]
+      }
+    },
+    "ra4m2_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m2"
         ],
         "mcu": "OPT_MCU_RAXXX",
         "options": {},
@@ -3356,6 +3375,26 @@
   },
   "stm32c5": {
     "stm32c542nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32C5"
+        ],
+        "mcu": "OPT_MCU_STM32C5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    },
+    "stm32c5a3nucleo": {
       "cmake": {
         "defines": {},
         "family_mcus": [

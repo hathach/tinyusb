@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Abandon a usbtest (cafe:4010) control request the device answers late (vendor 0x5d), then check
+"""Abandon a usbtest (0525:a4a0) control request the device answers late (vendor 0x5d), then check
 that the next requests are answered correctly: the late answer was made for a SETUP the host has
 already superseded, and must not be taken as a stage of the next one. 0x5e proves the next SETUP
 reached the device before the late answer, and that the next 0x5b went through SETUP, DATA and ACK

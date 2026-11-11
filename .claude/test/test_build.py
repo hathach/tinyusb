@@ -631,6 +631,27 @@ class VariantsTest(unittest.TestCase):
             ('ch', ['LOG=2', 'RHPORT_DEVICE=1'], ['-DU=1'], 'ch-hs'),
         ])
 
+    def test_a_named_parked_board_builds_all_its_variants(self):
+        roster = {**self.ROSTER, 'boards-skip': [
+            {'name': 'parked', 'variant': [{'name': 'parked', 'flags': ''},
+                                           {'name': 'parked-DMA', 'flags': '-DDMA=1'}]}]}
+        self.config.write_text(json.dumps(roster))
+        rc, calls = self.main('--board', 'parked', '--board', 'pico', '--shared', '--variants', str(self.config))
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [('parked', [], [], 'parked'), ('parked', [], ['-DDMA=1'], 'parked-DMA'),
+                                 ('pico', [], ['-DA=1', '-DB=2'], 'pico')])
+
+    def test_a_board_named_twice_in_the_roster_is_refused(self):
+        for roster in [{'boards': [{'name': 'b'}], 'boards-skip': [{'name': 'b', 'variant': [{'name': 'b-x'}]}]},
+                       {'boards': [{'name': 'b'}, {'name': 'b', 'variant': [{'name': 'b-x'}]}]}]:
+            self.config.write_text(json.dumps(roster))
+            with mock.patch.object(build, 'build_one') as b1, mock.patch('sys.stdout'), \
+                 mock.patch.object(sys, 'stderr') as err, self.assertRaises(SystemExit) as cm:
+                build.main(['--board', 'b', '--shared', '--variants', str(self.config)])
+            self.assertEqual(cm.exception.code, 2, roster)
+            self.assertIn('more than once', err.write.call_args[0][0])
+            b1.assert_not_called()
+
     def test_a_malformed_variant_is_a_resolution_error(self):
         for variant in [[{'name': 'v', 'flags': None}], [{'flags': '-DA=1'}], [{'name': 'v', 'defines': 'X=1'}],
                         [{'name': ''}], ['x'], [None], {'name': 'v'}, 'v', 5]:
@@ -646,7 +667,8 @@ class VariantsTest(unittest.TestCase):
     def test_variants_match_the_ci_matrix_builds_of_every_rig_roster(self):
         import shlex
         import subprocess
-        for config in sorted((build.ROOT / 'test' / 'hil').glob('*.json')):
+        # test/hil/agentrc.json is CI's agentrc pin, not a roster
+        for config in sorted(p for p in (build.ROOT / 'test' / 'hil').glob('*.json') if p.name != 'agentrc.json'):
             out = subprocess.run([sys.executable, str(build.ROOT / '.github/scripts/hil_ci_set_matrix.py'), str(config)],
                                  capture_output=True, text=True, check=True).stdout
             ci = set()
@@ -656,8 +678,11 @@ class VariantsTest(unittest.TestCase):
                 name = argv[argv.index('--build-name') + 1] if '--build-name' in argv else board
                 ci.add((board, name, tuple(a[2:] for a in argv if a.startswith('-D')),
                         tuple(a.partition('=')[2] for a in argv if a.startswith('--cflag='))))
-            boards = [b['name'] for b in json.loads(config.read_text())['boards']]
-            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants(boards, config)}
+            roster = json.loads(config.read_text())['boards']
+            # the SystemView capture's traced leg: hil-build alone builds it, and hil_remote.py refuses --sysview-out
+            traced = {(b['name'], sv['name']) for b in roster if (sv := build.hil_report.sysview_build(b))}
+            ci = {leg for leg in ci if leg[:2] not in traced}
+            ours = {(b, n, tuple(d), tuple(f)) for b, n, d, f in build.roster_variants([b['name'] for b in roster], config)}
             self.assertEqual(ours, ci, config.name)
 
     def test_refused_without_board_and_shared_or_for_a_board_off_the_roster(self):
@@ -728,27 +753,55 @@ class DepsTest(unittest.TestCase):
              mock.patch.dict(os.environ, {'CFLAGS': '  '}):
             self.assertEqual(tb.canonical_row('f', ['cmake-build/x'], []), 'family.json: updated b', 'blank is unset')
 
-    def test_a_dep_head_is_its_own_under_a_hooks_git_dir(self):
-        import subprocess
-        import tempfile
-        # run from a hook, these fixture commands would otherwise act on the enclosing repo
-        clean = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    # run from a hook, fixture git commands would otherwise act on the enclosing repo
+    CLEAN_ENV = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
 
-        def repo(path):
-            git = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false']
-            subprocess.run(['git', 'init', '-q', str(path)], check=True, env=clean)
-            subprocess.run(git + ['commit', '-q', '--allow-empty', '-m', str(path)], check=True, env=clean)
-            return subprocess.run(git + ['rev-parse', 'HEAD'], capture_output=True, text=True, check=True,
-                                  env=clean).stdout.strip()
+    @classmethod
+    def git(cls, path, *args):
+        import subprocess
+        cmd = ['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false']
+        return subprocess.run(cmd + list(args), capture_output=True, text=True, check=True,
+                              env=cls.CLEAN_ENV).stdout.strip()
+
+    @classmethod
+    def repo(cls, path):
+        """A fresh repository with one commit; its HEAD."""
+        path.mkdir()
+        cls.git(path, 'init', '-q')
+        cls.git(path, 'commit', '-q', '--allow-empty', '-m', str(path))
+        return cls.git(path, 'rev-parse', 'HEAD')
+
+    @staticmethod
+    def hook_env(outer):
+        """What git exports to a hook run from a worktree, plus a foreign object store."""
+        return {'GIT_DIR': str(outer / '.git'), 'GIT_WORK_TREE': str(outer),
+                'GIT_INDEX_FILE': str(outer / '.git' / 'index'), 'GIT_COMMON_DIR': str(outer / '.git'),
+                'GIT_OBJECT_DIRECTORY': str(outer / '.git' / 'objects')}
+
+    def test_a_dep_head_is_its_own_under_a_hooks_git_dir(self):
+        import tempfile
         with tempfile.TemporaryDirectory() as td:
             outer, dep = Path(td) / 'outer', Path(td) / 'dep'
-            outer_head, dep_head = repo(outer), repo(dep)
-            # what git exports to a pre-commit hook run from a worktree
-            hook_env = {'GIT_DIR': str(outer / '.git'), 'GIT_WORK_TREE': str(outer),
-                        'GIT_INDEX_FILE': str(outer / '.git' / 'index'), 'GIT_COMMON_DIR': str(outer / '.git')}
-            with mock.patch.dict(os.environ, hook_env):
+            outer_head, dep_head = self.repo(outer), self.repo(dep)
+            with mock.patch.dict(os.environ, self.hook_env(outer)):
                 self.assertEqual(build.tools_build.build_utils.dep_head(dep), dep_head)
             self.assertNotEqual(dep_head, outer_head)
+
+    def test_get_a_dep_fetches_into_the_dep_under_a_hooks_git_dir(self):
+        import tempfile
+        get_deps = build.tools_build.build_utils.get_deps
+        with tempfile.TemporaryDirectory() as td:
+            outer, src = Path(td) / 'outer', Path(td) / 'src'
+            outer_head, pin = self.repo(outer), self.repo(src)
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                 mock.patch.dict(get_deps.deps_all, {'dep': [src.as_uri(), pin, '']}), \
+                 mock.patch.dict(os.environ, self.hook_env(outer)), mock.patch('sys.stdout'):
+                self.assertEqual(get_deps.get_a_dep('dep'), 0)
+            self.assertTrue((outer / 'dep' / '.git').is_dir())
+            self.assertEqual(self.git(outer / 'dep', 'rev-parse', 'HEAD'), pin)
+            self.git(outer / 'dep', 'cat-file', '-e', pin)  # the fetched objects landed in the dep's own store
+            self.assertEqual(self.git(outer, 'rev-parse', 'HEAD'), outer_head)
+            self.assertEqual(self.git(outer, 'config', '--bool', 'core.bare'), 'false')
 
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])

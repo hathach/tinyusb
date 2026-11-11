@@ -7,15 +7,15 @@ a table can never contain something the JSON does not. This module owns tinyusb'
 that document: the cell vocabulary, the one classifier both artifacts share, rendering, the
 writers, and the fold to one machine-readable verdict per board. Publication, the `_hil`
 metadata beside the native fields and the per-attempt records under hil_report.attempts/ are
-agentrc's hil_report_core (the `hil` skill's report document), loaded from lib/agentrc at
-the pin on first use.
+agentrc's hil_report_core (the `hil` skill's report document), loaded from the agentrc
+helper/agentrc.py selects on first use.
 
 Dual-mode by design: imported as `helper.hil_report` by hil_test.py, and run as a script by
 the operator (the HIL contract's Results section, .claude/skills/hil-contract/SKILL.md). A
 script run puts test/hil/helper on sys.path rather than test/hil, so this module imports no
 sibling helper at module level and loads its agentrc loader by path. The same property makes
 it the home of board_variants(), the roster reading the builders (check_build.py, the CI
-matrix) import by path without lib/agentrc.
+matrix) import by path without agentrc.
 """
 import argparse
 import importlib.util
@@ -41,10 +41,8 @@ LOCKED_CELL = 'board-locked'
 # flash like LOCKED_CELL, but rig-side, not contention a re-admission waits out. Its value is
 # '❌ <the error>'.
 LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
-# refused by a recovery blocker (`hil` Board locks: a cleanup holder, live or dead, a protected
-# record left on a free flock, a takeover journal): refused before any flash like LOCKED_CELL,
-# but it never frees on its own, so a blocker, never waited out. Its value is '❌ <the refusal,
-# naming the holder>'.
+# a live cleanup holder from an older helper: refused before any flash, never waited out.
+# Its value is '❌ <the refusal, naming the holder>'.
 RECOVERY_BLOCKER_CELL = 'recovery-blocker'
 # the cells of a board refused its lock, one per row
 _REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL)
@@ -59,10 +57,11 @@ POOL_TIMEOUT_CELL = 'pool-timeout'
 # shape, different cause, and naming the cause is the whole point of the column -- a board
 # marked pool-timeout by an abort that never timed out sends the reader after the guard.
 RUN_ABORTED_CELL = 'run-aborted'
-# a board whose openocd_esp session the provider left running: its lock went to a cleanup holder
-# (hil_test.retain_board_lock), and its value is '❌ <receipt, then holder and token, or the
-# protected record left as the recovery blocker>'
+# an unproven cleanup: the task released its lock and logged the failure and receipts.
+# Its value is '❌ <receipt, cleanup log path and any log error>'.
 CLEANUP_PENDING_CELL = 'cleanup-pending'
+# earlier open failures observed at the take, informational rather than test results
+PREVIOUS_CLEANUP_CELL = 'previous-cleanup-failure'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
 BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
@@ -88,7 +87,7 @@ def _agentrc():
 
 
 def core():
-    """agentrc's hil_report_core at the pin, loaded on first use: importing this module for
+    """agentrc's hil_report_core, loaded on first use: importing this module for
     board_variants() loads no provider."""
     global _core
     if _core is None:
@@ -230,7 +229,8 @@ def render_matrix(rows_all: list) -> str:
     # tally run cells (not-run cells are absent from the dicts). A cell is a bare status or
     # a metric string carrying its own icon ("❌ 29/30"), so classify by the leading icon --
     # through cell_state, the same call the per-board verdict makes.
-    kinds = [cell_state(v) for _, cells, _ in rows_all for v in cells.values()]
+    kinds = [cell_state(v) for _, cells, _ in rows_all
+             for v in _result_cells(cells, include_board_state=True).values()]
     failed = kinds.count('fail')
     skipped = kinds.count('skip')
     passed = kinds.count('pass')
@@ -370,7 +370,7 @@ def mark_report_no_boards(report_dir: Path, msg: str, fresh: bool = True) -> Non
 
 def mark_report_aborted(report_dir: Path, msg: str, fresh: bool = True) -> None:
     """Record a run that stopped before any board was tested although boards were selected
-    (a roster error, a failed usbtest registration): `aborted`, never no-boards, so the shared
+    (a roster error): `aborted`, never no-boards, so the shared
     rules read every selected board as a blocker. `fresh` as mark_report_no_boards."""
     _mark_report(report_dir, f'**HIL run aborted: {msg}.**\n', 'aborted', fresh)
 
@@ -448,6 +448,7 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
                     stale[0].pop(k, None)
                 stale[0].pop(WEDGED_CELL, None)
                 stale[0].pop(CLEANUP_PENDING_CELL, None)
+                stale[0].pop(PREVIOUS_CLEANUP_CELL, None)
                 # and the pool-timeout mark: write_timeout_report stamps it on a board that
                 # never reported, and update() below MERGES, so without this a board that
                 # passed clean on the retry kept a red cell for ever.
@@ -471,6 +472,8 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             # a row that ran is no longer pool-timed-out, whatever it is keyed by
             row[0].pop(POOL_TIMEOUT_CELL, None)
             row[0].pop(RUN_ABORTED_CELL, None)
+            if PREVIOUS_CLEANUP_CELL not in ran[row_label]:
+                row[0].pop(PREVIOUS_CLEANUP_CELL, None)
             # nor wedged: this attempt's row says so or it does not
             if WEDGED_CELL not in cells:
                 row[0].pop(WEDGED_CELL, None)
@@ -565,6 +568,25 @@ def board_variants(board: dict) -> list:
     return out
 
 
+def sysview_build(board: dict) -> dict | None:
+    """The traced build a roster board's "sysview" entry captures, None without one: its variant's
+    defines and flags plus -DSYSVIEW=4 (and the entry's buffer), named <variant>-sysview so it never
+    replaces a test or parking image. A board with several variants raises ValueError: which one
+    the capture traces is not decided."""
+    sv = board.get('sysview')
+    if not sv:
+        return None
+    variants = board_variants(board)
+    if len(variants) != 1:
+        raise ValueError(f'board {board["name"]} has {len(variants)} variants: its sysview entry cannot '
+                         f'tell which one to trace')
+    v = variants[0]
+    defines = [*v['defines'], 'SYSVIEW=4']
+    if 'buffer' in sv:
+        defines.append(f'SYSVIEW_BUFFER_SIZE={sv["buffer"]}')
+    return {'name': f'{v["name"]}-sysview', 'example': sv['example'], 'defines': defines, 'flags': v['flags']}
+
+
 def variants_of(cfg: dict, board: str) -> list:
     for b in cfg.get('boards', []):
         if b['name'] == board:
@@ -572,8 +594,14 @@ def variants_of(cfg: dict, board: str) -> list:
     return [board]
 
 
-# cells that say why a board did not run, never a test's result
-_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL)
+# board-level information, never a test's result
+_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL, PREVIOUS_CLEANUP_CELL)
+
+
+def _result_cells(cells: dict, *, include_board_state=False) -> dict:
+    """Test cells; the table also counts board refusals and wedges, never informational notices."""
+    return {k: v for k, v in cells.items()
+            if k not in _MARKER_CELLS or (include_board_state and k != PREVIOUS_CLEANUP_CELL)}
 
 
 def _board_rows(report: dict) -> dict:
@@ -680,9 +708,7 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         bad = []
         skipped = []
         for vname, cells in sorted(mine.items()):
-            for test, val in sorted(cells.items()):
-                if test in _MARKER_CELLS:
-                    continue
+            for test, val in sorted(_result_cells(cells).items()):
                 state = cell_state(val)
                 if state == 'fail':
                     bad.append(f'{vname} {test}: {val}')
@@ -697,10 +723,13 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         elif bad:
             detail = '; '.join(bad) + (f'; skipped: {", ".join(skipped)}' if skipped else '')
         else:
-            cells_ok = sum(len(c) for c in mine.values()) - len(skipped)
+            cells_ok = sum(len(_result_cells(c, include_board_state=True)) for c in mine.values()) - len(skipped)
             detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
             if skipped:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
+        previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
+        if previous:
+            detail += '; previous cleanup failure: ' + '; '.join(previous)
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
         results.append(({'board': board, 'ran': not unbuilt, 'pass': ok,
@@ -724,7 +753,7 @@ def summarize(cfg: dict, boards: list, report: dict) -> dict:
 def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
     """`boards`' rows of `report` in the shared rules' shape ({board, verdict, detail, evidence},
     the `hil` skill's Verdicts), folded from summarize()'s: wedged, never heard back from
-    (pool-timeout, run-aborted), left to a cleanup holder or refused by a recovery blocker is a
+    (pool-timeout, run-aborted), left with a logged cleanup failure or refused by a legacy cleanup holder is a
     blocker; locked, build refused, unbuilt or skipped is not-run. A configured board without
     a report row gets no row, which apply_run_rules makes a blocker. Unlike the snapshot, a
     board passes only with a passing test cell."""
@@ -732,7 +761,7 @@ def normalised_rows(cfg: dict, boards: list, report: dict) -> list:
 
 
 def _normalised(r: dict, cells: dict) -> dict:
-    tests = [v for c in cells.values() for t, v in c.items() if t not in _MARKER_CELLS]
+    tests = [v for c in cells.values() for v in _result_cells(c).values()]
     unreported = any(POOL_TIMEOUT_CELL in c or CLEANUP_PENDING_CELL in c or RECOVERY_BLOCKER_CELL in c
                      or c.get(RUN_ABORTED_CELL, BUILD_REFUSED) != BUILD_REFUSED for c in cells.values())
     failed = any(cell_state(v) == 'fail' for v in tests)
@@ -877,7 +906,7 @@ def main(argv: list | None = None) -> int:
         if argv[:1] == ['sequence']:
             return _sequence(argv[1:])
         return _summarize(argv)
-    except (ImportError, OSError) as e:   # ImportError: lib/agentrc off its pin, the message names the fetch
+    except (ImportError, OSError) as e:   # ImportError: no usable agentrc, the message names the remedy
         print(f'error: {e}', file=sys.stderr)
     except Exception as e:  # noqa: BLE001 - only the core's refusal, which names its stage
         if _core is None or not isinstance(e, _core.ReportError):

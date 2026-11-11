@@ -19,7 +19,7 @@ another battery's load on this board's host controller does not matter for what 
 A host that is not Linux is refused first, once argparse has accepted the command line.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
---shared --variants layout), waits for cafe:4010 with the board's serial, and runs usbtest.py
+--shared --variants layout), waits for 0525:a4a0 with the board's serial, and runs usbtest.py
 with post-hang recovery when the board's recovery flasher can deliver it. --after park flashes
 device/board_test afterwards unless the device is wedged or the verdict is incomplete.
 
@@ -80,12 +80,12 @@ hil_util.provider()   # an incomplete flash provider is refused here, before any
 ENUM_TIMEOUT = 8        # hil_test.py ENUM_TIMEOUT
 SETTLE = 3              # hil_test.py USBTEST_SETTLE: enumeration can bounce once after a flash
 PEERS = ('testusb', 'usbtest.py', 'hil_test.py', 'run_case.py', 'wedge_drill.py')
-HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a sudo helper at its bound plus hil_usbtest.run()'s reap
+HELPER_S = usbtest.HELPER_TIMEOUT + 5   # a root helper at its bound plus hil_usbtest.run()'s reap
 # usbtest.py's start before case 1, its steps at their bounds: the 8 s device wait, 3 s of
-# host-compat retries, setpci, modprobe, the id-registration lock, the new_id and pattern writes
-# (sysfs_write: 15 s tee + 5 s reap) and the 3 s bind. An estimate, not a bound: the battery
+# host-compat retries, modprobe, the pattern write (15 s hil_root + 5 s reap) and
+# the usbfs CONNECT child at its bound plus the reap. An estimate, not a bound: the battery
 # budget starts before it, so a slower start costs cases (reported BUDGET), not a kill.
-SETUP_S = 8 + 3 + 2 * HELPER_S + usbtest.REGISTER_LOCK_TIMEOUT + 2 * (15 + 5) + 3
+SETUP_S = 8 + 3 + HELPER_S + (15 + 5) + (usbtest.CONNECT_TIMEOUT + 5)
 # each case: its timeout, the 5 s post-kill reap, the dmesg read, and the find_device between cases
 CASE_EXTRA_S = 5 + HELPER_S + 5
 PROC = Path('/proc')
@@ -136,7 +136,8 @@ def kill_children(spare=()):
 
 
 def resolve(config, board_name, variant):
-    """(board, variant name) from the roster, or Refused naming the alternatives."""
+    """(board, variant name) from the roster, its flashers from agentrc's board registry, or Refused
+    naming the alternatives."""
     try:
         cfg = json.loads(Path(config).read_text())
     except (OSError, ValueError) as e:
@@ -153,10 +154,10 @@ def resolve(config, board_name, variant):
     if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
-    flasher = board.get('flasher')
-    if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
-            and isinstance(flasher.get('name'), str) and flasher['name']):
-        raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
+    try:   # its flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board registry)
+        board = hil_util.hil_boards().resolve(board)
+    except ValueError as e:
+        raise Refused(f'{config}: {e}')
     if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         raise Refused(f'{board_name}: {why}')
     try:
@@ -191,8 +192,7 @@ def live_peers():
     """([(pid, name)], complete) for processes that run or drive a battery on this host."""
     found, complete = [], True
     own = lineage()
-    # hidepid hides other users' processes without an error, and testusb may run under sudo:
-    # detect the restriction itself
+    # hidepid hides other users' processes without an error: detect the restriction itself
     if os.geteuid() != 0 and not os.access(PROC / '1' / 'cmdline', os.R_OK):
         complete = False
     for d in PROC.glob('[0-9]*'):
@@ -338,7 +338,7 @@ def lock_and_run(args, tests, report, finish):
         if not args.allow_concurrent:
             check_peers()
         try:
-            lock = hil_lock.acquire_board_lock(board['name'], reason=f'run_case.py usbtest {args.tests}')
+            lock = hil_lock.acquire_board_lock(hil_util.lock_name(board), reason=f'run_case.py usbtest {args.tests}')
         except RuntimeError as e:
             raise Refused(f'{board["name"]}: {e}')
         if lock is None:

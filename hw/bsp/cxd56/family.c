@@ -53,6 +53,7 @@ void board_init(void)
   board_gpio_config(PIN_HIF_IRQ_OUT, 0, true, true, PIN_FLOAT);
 };
 
+void board_late_initialize(void);
 void board_late_initialize(void) {
 
 }

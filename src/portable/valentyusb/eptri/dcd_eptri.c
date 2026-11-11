@@ -89,7 +89,7 @@ static bool advance_tx_ep(void) {
 }
 
 #if LOG_USB
-void xfer_log_append(uint8_t ep_num, uint16_t sz) {
+static void xfer_log_append(uint8_t ep_num, uint16_t sz) {
   xfer_log[xfer_log_offset].ep_num = ep_num;
   xfer_log[xfer_log_offset].size = sz;
   xfer_log_offset++;
@@ -97,7 +97,7 @@ void xfer_log_append(uint8_t ep_num, uint16_t sz) {
     xfer_log_offset = 0;
 }
 
-void queue_log_append(uint8_t ep_num, uint16_t sz) {
+static void queue_log_append(uint8_t ep_num, uint16_t sz) {
   queue_log[queue_log_offset].ep_num = ep_num;
   queue_log[queue_log_offset].size = sz;
   queue_log_offset++;

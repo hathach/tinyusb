@@ -1986,6 +1986,8 @@ void test_audio_host_uses_exponential_full_speed_iso_interval(void) {
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   TEST_ASSERT_EQUAL_UINT32(256, tuh_audio_write(0, 0, samples, 256));
   complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS); // endpoint SET_CUR sampling frequency
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
 
   while (edpt_xfer_count < 5) {
     complete_edpt(0x01);

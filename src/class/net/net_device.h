@@ -21,6 +21,12 @@
 #define CFG_TUD_NET_MTU           1514
 #endif
 
+// Link speed in bit/s reported to the host, 0 = USB bus speed.
+// One value for both directions: Linux and Microsoft's NCM sample read the two speed fields in opposite order.
+#ifndef CFG_TUD_NET_LINK_BITRATE
+#define CFG_TUD_NET_LINK_BITRATE  0
+#endif
+
 
 // Table 4.3 Data Class Interface Protocol Codes
 typedef enum
@@ -75,7 +81,8 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg);
 
 //------------- ECM/RNDIS -------------//
 
-// client must provide this: initialize any network state back to the beginning
+// Optional: invoked once per configuration when the data endpoints open (RNDIS: on
+// SET_CONFIGURATION, ECM: first SET_INTERFACE alt 1), to reset network state
 void tud_network_init_cb(void);
 
 // client must provide this: 48-bit MAC address

@@ -99,8 +99,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 // De-initialize controller
 bool hcd_deinit(uint8_t rhport);
 
-// Interrupt Handler
+// Interrupt Handler, also declared by usbh.h: whichever header comes first declares it
+#ifndef TUSB_USBH_H_
 void hcd_int_handler(uint8_t rhport, bool in_isr);
+#endif
 
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport);

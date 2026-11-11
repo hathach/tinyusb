@@ -265,6 +265,7 @@ da1469x_dk_pro  DA1469x Development Kit Pro  da1469x   https://lpccs-docs.renesa
 portenta_c33    Arduino Portenta C33         ra        https://www.arduino.cc/pro/hardware-product-portenta-c33/
 ra2a1_ek        RA2A1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra2a1-evaluation-kit-ra2a1-mcu-group
 ra4m1_ek        RA4M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m1-evaluation-kit-ra4m1-mcu-group
+ra4m2_ek        RA4M2 EK                     ra        https://www.renesas.com/en/design-resources/boards-kits/ek-ra4m2
 ra4m3_ek        RA4M3 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m3-evaluation-kit-ra4m3-mcu-group
 ra6m1_ek        RA6M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m1-evaluation-kit-ra6m1-mcu-group
 ra6m5_ek        RA6M5 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m5-evaluation-kit-ra6m5-mcu-group
@@ -280,6 +281,7 @@ Board                Name                               Family     URL          
 ===================  =================================  =========  =================================================================  ======
 stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
 stm32c542nucleo      STM32C542 Nucleo                   stm32c5    https://www.st.com/en/evaluation-tools/nucleo-c542rc.html
+stm32c5a3nucleo      STM32C5A3 Nucleo                   stm32c5    https://www.st.com/en/evaluation-tools/nucleo-c5a3zg.html
 stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0    https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
 stm32f072disco       STM32 F072 Discovery               stm32f0    https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
 stm32f072eval        STM32 F072 Eval                    stm32f0    https://www.st.com/en/evaluation-tools/stm32072b-eval.html

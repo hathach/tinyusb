@@ -764,6 +764,11 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
 }
 
 static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
+  // the failure path clears the entry, usbh still needs the device and interface
+  const uint8_t daddr      = p_cdc->daddr;
+  const uint8_t itf_num    = p_cdc->bInterfaceNumber;
+  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
+
   if (success) {
     const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted    = true;
@@ -777,8 +782,7 @@ static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
   }
 
   // notify usbh that driver enumeration is complete
-  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-  usbh_driver_set_config_complete(p_cdc->daddr, p_cdc->bInterfaceNumber + itf_offset);
+  usbh_driver_set_config_complete(daddr, itf_num + itf_offset);
 }
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
@@ -1098,7 +1102,7 @@ static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
 #if CFG_TUH_CDC_FTDI
 
 static bool ftdi_determine_type(cdch_interface_t *p_cdc);
-static uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc);
+static bool ftdi_get_divisor(cdch_interface_t *p_cdc, uint32_t *div_value);
 
 //------------- Control Request -------------//
 
@@ -1175,8 +1179,8 @@ static bool ftdi_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete
 }
 
 static bool ftdi_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint32_t index_value = ftdi_get_divisor(p_cdc);
-  TU_VERIFY(index_value != 0);
+  uint32_t index_value;
+  TU_VERIFY(ftdi_get_divisor(p_cdc, &index_value));
   uint16_t value = (uint16_t) index_value;
   uint16_t index = (uint16_t) (index_value >> 16);
   if (p_cdc->ftdi.channel != 0) {
@@ -1418,29 +1422,29 @@ static inline uint32_t ftdi_2232h_baud_to_divisor(uint32_t baud) {
   return ftdi_2232h_baud_base_to_divisor(baud, (uint32_t) 120000000);
 }
 
-static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
+// divisor 0 is valid (3 Mbaud on 232BM-type chips, 300 baud on SIO), so success is returned separately
+static inline bool ftdi_get_divisor(cdch_interface_t *p_cdc, uint32_t *div_value) {
   uint32_t baud = p_cdc->requested_line.coding.bit_rate;
-  uint32_t div_value = 0;
   TU_VERIFY(baud != 0);
 
   switch (p_cdc->ftdi.chip_type) {
     case FTDI_UNKNOWN:
-      return 0;
+      return false;
     case FTDI_SIO:
       switch (baud) {
-        case 300: div_value = ftdi_sio_b300; break;
-        case 600: div_value = ftdi_sio_b600; break;
-        case 1200: div_value = ftdi_sio_b1200; break;
-        case 2400: div_value = ftdi_sio_b2400; break;
-        case 4800: div_value = ftdi_sio_b4800; break;
-        case 9600: div_value = ftdi_sio_b9600; break;
-        case 19200: div_value = ftdi_sio_b19200; break;
-        case 38400: div_value = ftdi_sio_b38400; break;
-        case 57600: div_value = ftdi_sio_b57600;  break;
-        case 115200: div_value = ftdi_sio_b115200; break;
+        case 300: *div_value = ftdi_sio_b300; break;
+        case 600: *div_value = ftdi_sio_b600; break;
+        case 1200: *div_value = ftdi_sio_b1200; break;
+        case 2400: *div_value = ftdi_sio_b2400; break;
+        case 4800: *div_value = ftdi_sio_b4800; break;
+        case 9600: *div_value = ftdi_sio_b9600; break;
+        case 19200: *div_value = ftdi_sio_b19200; break;
+        case 38400: *div_value = ftdi_sio_b38400; break;
+        case 57600: *div_value = ftdi_sio_b57600;  break;
+        case 115200: *div_value = ftdi_sio_b115200; break;
         default:
           // Baudrate not supported
-          return 0;
+          return false;
           break;
       }
       break;
@@ -1460,7 +1464,7 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
     case FTDI_FT232R:
     case FTDI_FTX:
       TU_VERIFY(baud <= 3000000); // else Baud rate too high!
-      div_value = ftdi_232bm_baud_to_divisor(baud);
+      *div_value = ftdi_232bm_baud_to_divisor(baud);
       break;
     case FTDI_FT232H:
     case FTDI_FT2232H:
@@ -1475,16 +1479,16 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
     default:
       TU_VERIFY(baud <= 12000000); // else Baud rate too high!
       if (baud >= 1200) {
-        div_value = ftdi_2232h_baud_to_divisor(baud);
+        *div_value = ftdi_2232h_baud_to_divisor(baud);
       } else {
-        div_value = ftdi_232bm_baud_to_divisor(baud);
+        *div_value = ftdi_232bm_baud_to_divisor(baud);
       }
       break;
   }
 
-  TU_LOG_CDC(p_cdc, "Baudrate divisor = 0x%lu", div_value);
+  TU_LOG_CDC(p_cdc, "Baudrate divisor = 0x%lu", *div_value);
 
-  return div_value;
+  return true;
 }
 
 #endif

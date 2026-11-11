@@ -3,7 +3,7 @@
 """tinyusb's profile for agentrc's farm check engine (the `hil` skill's Farm check; the engine's
 module docstring is the contract), run by helper/hil_farm_check.py.
 
-Per board: the flash probe matched by its uid (never a cafe device), then a reset through it
+Per board: the flash probe matched by its uid (never a TinyUSB DUT), then a reset through it
 with tinyusb's hil_flash (esptool: rom_reset_esptool) and the engine's tracked runner. A reset
 that exits 0 counts only when the provider's reset_problem finds none; lm4flash has no
 reset-only mode. An openocd_esp session the provider leaves running joins the engine's ledger
@@ -22,26 +22,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the 
 import hil_flash
 from helper import hil_util, usb_observe
 
-REPO_ROOT = hil_util.TINYUSB_ROOT
-CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
-
 
 # --- roster -----------------------------------------------------------------------------------
 def roster(host: str, config, args) -> dict:
-    name = config or CONFIG_BY_HOST.get(host)
-    if name is None:
-        raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
-    path = Path(name)
-    if not path.exists():
-        path = REPO_ROOT / 'test' / 'hil' / name
+    path = hil_util.roster_path(host, config)
     with path.open() as f:
-        cfg = json.load(f)
+        cfg = hil_util.hil_boards().resolve_roster(json.load(f))   # each flasher is agentrc's, by probe
     # boards-skip is parked hardware: checked only when -b names it
     return {'path': str(path), 'boards': list(cfg['boards']), 'named_only': list(cfg.get('boards-skip', []))}
 
 
 def lock_name(board: dict) -> str:
-    return board['name']
+    return hil_util.lock_name(board)
 
 
 def probe_name(board: dict) -> str:
@@ -60,10 +52,10 @@ def scan_usb() -> dict:
 def probe_candidates(board: dict) -> list:
     """Busports of every flasher probe matching the board's flasher uid, best tier only
     (usb_observe.jlink_serial_candidates: J-Link's zero padding of an all-digit serial, never
-    for an all-zero uid), excluding VID cafe (TinyUSB DUT firmware): a probe's uid can
+    for an all-zero uid), excluding TinyUSB DUT firmware (hil_util.is_dut_id): a probe's uid can
     coincidentally equal its DUT's (Espressif USB-Serial-JTAG bridges derive both from the
     same MAC), and the DUT is never the probe."""
-    probes = {bp: dev['serial'] for bp, dev in scan_usb().items() if not dev['vidpid'].startswith('cafe:')}
+    probes = {bp: dev['serial'] for bp, dev in scan_usb().items() if not hil_util.is_dut_id(dev['vidpid'])}
     return usb_observe.jlink_serial_candidates(board['flasher']['uid'], probes)
 
 

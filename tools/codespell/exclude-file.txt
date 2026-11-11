@@ -1,0 +1,1 @@
+  mxc_tmr_cfg_t cfg = {.pres = TMR_PRES_1, .mode = TMR_MODE_CONTINUOUS, .bitMode = TMR_BIT_MODE_32,

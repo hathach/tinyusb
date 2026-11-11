@@ -91,9 +91,8 @@ Application flow
        OUT ZLP.  Responding before all OUT payload arrives stalls both bulk
        endpoints and discards the queued response.
    * - ``tud_mtp_event_send()``
-     - Copies and queues one asynchronous event.  Send the next event only
-       after the previous one has gone out: a call while the event endpoint is
-       busy overwrites the event still in flight before returning ``false``.
+     - Copies and queues one asynchronous event.  Returns ``false`` while the
+       previous event is still in flight; retry later.
    * - ``tud_mtp_data_xfer_cb()``
      - Supplies or consumes the next chunk of a multi-packet data phase.  A
        negative return stalls both bulk endpoints.
