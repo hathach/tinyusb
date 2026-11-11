@@ -397,10 +397,8 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
 
   // mtp driver length is fixed
   uint16_t mtpd_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
-#if TUD_OPT_SUPER_SPEED
   // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
   mtpd_itf_size += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), (const uint8_t*)itf_desc + max_len, 3);
-#endif
 
   // Max length must be at least 1 interface + 3 endpoints
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= mtpd_itf_size);
@@ -639,7 +637,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // For OUT endpoint, threshold is endpoint buffer size, since we always queue fixed size
       uint16_t threshold;
       if (is_data_in) {
-        threshold = p_mtp->ep_sz_in; // the live link's bulk IN MPS, not a 512-byte assumption
+        threshold = p_mtp->ep_sz_in; // the live link's bulk IN MPS
       } else {
         threshold = CFG_TUD_MTP_EP_BUFSIZE;
       }

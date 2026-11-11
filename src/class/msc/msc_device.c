@@ -357,10 +357,8 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
             MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol, 0);
   uint16_t drv_len = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
-#if TUD_OPT_SUPER_SPEED
   // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
   drv_len += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), (const uint8_t*)itf_desc + max_len, 2);
-#endif
   TU_ASSERT(max_len >= drv_len, 0); // Max length must be at least 1 interface + 2 endpoints
 
   mscd_interface_t * p_msc = &_mscd_itf;

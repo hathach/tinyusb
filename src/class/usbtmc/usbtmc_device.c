@@ -61,7 +61,7 @@
 // Buffer size must be an exact multiple of the max packet size for both
 // bulk  (up to 64 bytes for FS, 512 bytes for HS, 1024 bytes for SS). In addition, this driver
 // imposes a minimum buffer size of 32 bytes.
-#define USBTMCD_BUFFER_SIZE (TUD_OPT_SUPER_SPEED ? 1024 : (TUD_OPT_HIGH_SPEED ? 512 : 64))
+#define USBTMCD_BUFFER_SIZE TUD_EPSIZE_BULK_MAX
 
 // Interrupt endpoint buffer size, default to 2 bytes as USB488 specification.
 #ifndef CFG_TUD_USBTMC_INT_EP_SIZE
@@ -307,8 +307,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const *itf_desc, 
   usbtmc_state.rhport = rhport;
 
   const uint8_t *desc_end = (const uint8_t *) itf_desc + max_len;
-  // tu_desc_in_bounds, not drv_len <= max_len: the latter still admits p_desc == desc_end, where
-  // reading bLength/bDescriptorType is already past the descriptor
+  // tu_desc_in_bounds also rejects p_desc == desc_end, where bLength/bDescriptorType are out of bounds
   while (found_endpoints < itf_desc->bNumEndpoints && tu_desc_in_bounds(p_desc, desc_end)) {
     uint16_t desc_total = tu_desc_len(p_desc);
     if (TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE]) {

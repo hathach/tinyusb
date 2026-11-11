@@ -122,10 +122,8 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
                 TUD_BT_PROTOCOL_PRIMARY_CONTROLLER == itf_desc->bInterfaceProtocol,
             0);
 
-#if TUD_OPT_SUPER_SPEED
   // SuperSpeed configuration: every endpoint descriptor is followed by a companion descriptor
   hci_itf_size += usbd_ss_ep_companion_len(tu_desc_next(itf_desc), desc_end, 3);
-#endif
 
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= hci_itf_size);
 

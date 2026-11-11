@@ -284,6 +284,16 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_SS_DESCRIPTOR_REQUIRES_CFG_TUD_MAX_SPEED_SUPER
 #endif
 
+// Bulk endpoint (wMaxPacketSize 1024) + companion
+#define TUD_SS_BULK_EP_DESCRIPTOR(_ep, _maxburst) \
+  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0, \
+  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+
+// Interrupt endpoint + companion: one packet per service interval, so wBytesPerInterval = _size
+#define TUD_SS_INTERRUPT_EP_DESCRIPTOR(_ep, _size, _interval) \
+  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_size), _interval, \
+  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _size)
+
 //--------------------------------------------------------------------+
 // CDC Descriptor Templates
 //--------------------------------------------------------------------+
@@ -335,16 +345,13 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* CDC Union */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (uint8_t)((_itfnum) + 1),\
   /* Endpoint Notification + companion */\
-  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 1,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_notif_size),\
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_ep_notif, _ep_notif_size, 1),\
   /* CDC Data Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
   /* Endpoint Out + companion */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _bulk_maxburst),\
   /* Endpoint In + companion */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _bulk_maxburst)
 
 //--------------------------------------------------------------------+
 // MSC Descriptor Templates
@@ -371,11 +378,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, _stridx,\
   /* Endpoint Out + companion */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _maxburst),\
   /* Endpoint In + companion */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _maxburst)
 
 //--------------------------------------------------------------------+
 // Printer Descriptor Templates
@@ -399,11 +404,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_PRINTER, 1, 2, _stridx,\
   /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _maxburst),\
   /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _maxburst)
 
 //--------------------------------------------------------------------+
 // MTP Descriptor Templates
@@ -431,14 +434,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 3, TUSB_CLASS_IMAGE, MTP_SUBCLASS_STILL_IMAGE, MTP_PROTOCOL_PIMA_15470, _stridx,\
   /* Endpoint Interrupt */\
-  7, TUSB_DESC_ENDPOINT, _ep_evt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_evt_size), _ep_evt_polling_interval,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_evt_size),\
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_ep_evt, _ep_evt_size, _ep_evt_polling_interval),\
   /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _bulk_maxburst),\
   /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _bulk_maxburst)
 
 
 //--------------------------------------------------------------------+
@@ -484,8 +484,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
   /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize)
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_epin, _epsize, _ep_interval)
 
 #define TUD_HID_INOUT_SS_DESC_LEN (TUD_HID_INOUT_DESC_LEN + 2 * TUD_SS_EP_COMP_DESC_LEN)
 
@@ -497,11 +496,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
   /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval, \
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize),\
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_epout, _epsize, _ep_interval),\
   /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _epsize)
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_epin, _epsize, _ep_interval)
 
 //--------------------------------------------------------------------+
 // MIDI Descriptor Templates
@@ -615,8 +612,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // SuperSpeed: endpoint companion is inserted between the standard endpoint and the CS endpoint
 #define TUD_MIDI2_DESC_ALT1_EP_SS_LEN(_numgtbs) (TUD_MIDI2_DESC_ALT1_EP_LEN(_numgtbs) + TUD_SS_EP_COMP_DESC_LEN)
 #define TUD_MIDI2_DESC_ALT1_EP_SS(_ep, _maxburst, _numgtbs, ...) \
-  7, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0, \
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0), \
+  TUD_SS_BULK_EP_DESCRIPTOR(_ep, _maxburst), \
   (uint8_t)(4 + (_numgtbs)), TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL_2_0, _numgtbs, ## __VA_ARGS__
 
 // Total length: Alt 0 (MIDI 1.0) + Alt 1 (UMP)
@@ -1028,11 +1024,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // SuperSpeed
 #define TUD_USBTMC_BULK_SS_DESCRIPTORS(_epout, _epin, _maxburst) \
   /* Endpoint Out */ \
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0u, \
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0), \
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _maxburst), \
   /* Endpoint In */ \
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0u, \
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _maxburst)
 
 #define TUD_USBTMC_BULK_SS_DESCRIPTORS_LEN (TUD_USBTMC_BULK_DESCRIPTORS_LEN + 2u * TUD_SS_EP_COMP_DESC_LEN)
 
@@ -1045,8 +1039,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
 // SuperSpeed
 #define TUD_USBTMC_INT_SS_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval) \
-  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), _int_pollingInterval, \
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_interrupt_size)
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval)
 
 #define TUD_USBTMC_INT_SS_DESCRIPTOR_LEN (TUD_USBTMC_INT_DESCRIPTOR_LEN + TUD_SS_EP_COMP_DESC_LEN)
 
@@ -1074,11 +1067,9 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
   /* Endpoint Out + companion */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _maxburst),\
   /* Endpoint In + companion */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _maxburst)
 
 //--------------------------------------------------------------------+
 // DFU Runtime Descriptor Templates
@@ -1330,18 +1321,15 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* CDC-NCM Functional Descriptor */\
   6, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_NCM, U16_TO_U8S_LE(0x0100), _capability, \
   /* Endpoint Notification + companion */\
-  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), _ep_notif_interval,\
-  TUD_SS_EP_COMP_DESCRIPTOR(0, 0, _ep_notif_size),\
+  TUD_SS_INTERRUPT_EP_DESCRIPTOR(_ep_notif, _ep_notif_size, _ep_notif_interval),\
   /* CDC Data Interface (default inactive) */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 0, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,\
   /* CDC Data Interface (alternative active) */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 1, 2, TUSB_CLASS_CDC_DATA, 0, NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK, 0,\
   /* Endpoint In + companion */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0),\
+  TUD_SS_BULK_EP_DESCRIPTOR(_epin, _bulk_maxburst),\
   /* Endpoint Out + companion */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(TUSB_EPSIZE_BULK_SS), 0,\
-  TUD_SS_EP_COMP_DESCRIPTOR(_bulk_maxburst, 0, 0)
+  TUD_SS_BULK_EP_DESCRIPTOR(_epout, _bulk_maxburst)
 
 #ifdef __cplusplus
 }
