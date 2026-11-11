@@ -12,8 +12,8 @@
 // CH32H417 (officially documented in CH32H417RM Chapter 27, whose R32_LINK_* block matches
 // the CH569 byte for byte). The endpoint engine is CH569-specific.
 
-#ifndef TUSB_CH56X_USB30_REG_H_
-#define TUSB_CH56X_USB30_REG_H_
+#ifndef TUSB_WCH_SS1_REG_H_
+#define TUSB_WCH_SS1_REG_H_
 
 #include <stddef.h>
 
@@ -176,4 +176,4 @@ TU_ATTR_ALWAYS_INLINE static inline void usbss_send_erdy(uint8_t ep, bool dir_in
 #define USBSS_LMP_TX_PORT_CAP_DATA0 0x280u
 #define USBSS_LMP_TX_PORT_CAP_DATA1 ((2u << 16) | 4u)
 
-#endif // TUSB_CH56X_USB30_REG_H_
+#endif // TUSB_WCH_SS1_REG_H_

@@ -46,7 +46,7 @@
 // Known-erratum quirk flags advertised in bcdDevice bits 4-7, read by the host script to
 // skip cases the silicon cannot pass at SuperSpeed:
 //   0x10: EP0 OUT data stages whose wLength % 4 == 1 are intermittently dropped (CH569 silicon
-//         erratum, see the dcd_ch56x_usb30.c header; WCH's own binary USB3 stack fails
+//         erratum, see the wch_ss1/dcd_wch_ss1.c header; WCH's own binary USB3 stack fails
 //         identically). Strike rate is host-timing dependent: an onboard AMD xHCI ran 15/15
 //         clean (the quirk was briefly retired on that evidence), a Renesas uPD720201 fails
 //         most ctrl_out runs (wire-confirmed: transaction error, full 489-byte residual)

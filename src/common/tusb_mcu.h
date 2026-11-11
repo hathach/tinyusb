@@ -695,7 +695,7 @@
   // the CH32V307 USBHS driver). One controller is selected at compile time (SPEED=super|high),
   // both on rhport 0. With CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both controllers and
   // falls back to USB2 at runtime when the SuperSpeed link does not train.
-  #define TUP_USBIP_WCH_USB30
+  #define TUP_USBIP_WCH_SS1
   #define TUP_USBIP_WCH_USBHS_CH56X
   #define TUP_USBD_XFER_ISR 0
 
@@ -731,7 +731,7 @@
   // full-speed USBFS/OTG (not supported). One controller is selected at compile time
   // (SPEED=super|high), both on rhport 0. With CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both
   // controllers and falls back to USB2 at runtime when the SuperSpeed link does not train.
-  #define TUP_USBIP_WCH_USB30_H417
+  #define TUP_USBIP_WCH_SS2
   #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUD_WCH_USBIP_USBHS
@@ -751,7 +751,7 @@
   #endif
   // Bulk burst size (packets per burst, 1..16); SuperSpeed descriptors advertise
   // bMaxBurst = CFG_TUD_WCH_USB30_MAX_BURST - 1. MUST match what the dcd arms on the RX side:
-  // dcd_ch32h417_usb30.c arms OUT one packet per chain (burst 1). A larger default here made
+  // wch_ss2/dcd_wch_ss2.c arms OUT one packet per chain (burst 1). A larger default here made
   // the NCM example advertise bMaxBurst=3 while the endpoint could only accept single-packet
   // bursts - the host's 4-DP bursts wedged the RX flow control permanently (OUT URBs stuck, no
   // host-side errors). Raise only together with the dcd's OUT chain arming. The TX side is

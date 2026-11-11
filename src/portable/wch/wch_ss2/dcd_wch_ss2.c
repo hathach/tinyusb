@@ -5,14 +5,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-// USB3.0 SuperSpeed device driver for the WCH CH32H417/CH32H416 USBSS controller
-// (@0x40034000), documented in CH32H417RM-EN chapter 27. The LINK layer is the same IP as the
-// CH569 (dcd_ch56x_usb30.c) but the endpoint engine is a reworked chain-DMA design with
-// hardware sequence numbers and ERDY (SEQ_AUTO / ERDY_AUTO), per-endpoint persistent halt
-// (RB_EP_TX/RX_HALT), and per-chain completion flags. Software drives the LTSSM through the
-// USBSS_LINK interrupt. The init/PHY/LINK/EP0 register sequences are transcribed from the WCH
-// EVT USBSS device demo; IN transfers ride whole multi-packet chains (see queue_in_packet), OUT
-// arms one packet at a time. Buffers may live anywhere in the shared SRAM (all DMA-reachable).
+// USB3.0 SuperSpeed device driver for WCH's SS2 (second-generation USBSS) controller, on the
+// CH32H417/CH32H416 (@0x40034000), documented in CH32H417RM-EN chapter 27. The LINK layer is the
+// same IP as the CH569 SS1 (wch_ss1/dcd_wch_ss1.c) but the endpoint engine is a reworked
+// chain-DMA design with hardware sequence numbers and ERDY (SEQ_AUTO / ERDY_AUTO), per-endpoint
+// persistent halt (RB_EP_TX/RX_HALT), and per-chain completion flags. Software drives the LTSSM
+// through the USBSS_LINK interrupt. The init/PHY/LINK/EP0 register sequences are transcribed from
+// the WCH EVT USBSS device demo; IN transfers ride whole multi-packet chains (see
+// queue_in_packet), OUT arms one packet at a time. Buffers may live anywhere in the shared SRAM (all DMA-reachable).
 //
 // No SOF at SuperSpeed: dcd_sof_enable() is a no-op, so tud_sof_cb and the audio-class feedback
 // path get nothing even though iso endpoints are supported. The received bus interval counter is
@@ -29,14 +29,14 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USB30_H417) && \
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_SS2) && \
     defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30 == 1
 
 #include "device/dcd.h"
 #if CFG_TUD_WCH_USB30_FALLBACK
-  #include "wch_hs2/dcd_wch_hs2.h"
+  #include "portable/wch/wch_hs2/dcd_wch_hs2.h"
 #endif
-#include "ch32h417_usb30_reg.h"
+#include "wch_ss2_reg.h"
 
 #define EP_MAX          8
 #define EP0_MAX_SIZE    512
@@ -738,7 +738,7 @@ static void link_state_reset(void) {
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rhport;
   (void)rh_init;
-  TU_LOG2("dcd_init: ch32h417 usb30\r\n");
+  TU_LOG2("dcd_init: wch ss2\r\n");
   memset(&xfer_status, 0, sizeof(xfer_status));
   ep0_tx_seq = 0;
   ep0_rx_seq = 0;

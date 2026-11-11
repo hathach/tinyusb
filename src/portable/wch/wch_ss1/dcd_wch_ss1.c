@@ -5,7 +5,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-// CH565/CH569 USB3.0 SuperSpeed (Gen1, 5 Gbps) device controller (USBSS @0x40008000).
+// WCH's SS1 (first-generation USBSS) USB3.0 SuperSpeed (Gen1, 5 Gbps) device controller, on the
+// CH565/CH569 (USBSS @0x40008000). Not register-compatible with SS2 (wch_ss2/dcd_wch_ss2.c).
 //
 // WCH ships USB3 support for this chip only as an undocumented binary library; this driver is a
 // fresh implementation written against the register model reverse engineered by the hydrausb3
@@ -40,13 +41,13 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USB30) && defined(CFG_TUD_WCH_USBIP_USB30) && \
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_SS1) && defined(CFG_TUD_WCH_USBIP_USB30) && \
     (CFG_TUD_WCH_USBIP_USB30 == 1)
 
 #include "device/dcd.h"
 #include "device/usbd_pvt.h" // usbd_defer_func
-#include "dcd_ch56x.h"
-#include "ch56x_usb30_reg.h"
+#include "portable/wch/dcd_ch56x.h"
+#include "wch_ss1_reg.h"
 
 #define EP_MAX        8
 #define EP0_MPS       512
@@ -415,7 +416,7 @@ static void handle_ep0_rx(uint8_t rhport) {
     } else {
       // Unsolicited status (a retransmitted STATUS TP, or one for a transfer already completed or
       // aborted): acknowledge it but leave EP0 armed. Parking it at NUMP=0 answers nothing at all
-      // (ch56x_usb30_reg.h), and nothing re-arms EP0 short of a new SETUP - which the host can no
+      // (wch_ss1_reg.h), and nothing re-arms EP0 short of a new SETUP - which the host can no
       // longer get a response to, so the device goes silent until a port reset.
       USBSS->UEP0_RX_CTRL = USBSS_UEP0_RX_ARM; // same re-arm ep0_status_complete() ends with
     }
@@ -839,7 +840,7 @@ void dcd_int_handler(uint8_t rhport) {
     // Its early returns only leave that helper: once it handed the port to USB2 or tore the link
     // down, USB_STATUS still holds whatever endpoint event was latched (it is W1C'ed only in
     // usb30_hw_init), and dispatching it would push a stale USB3 setup/xfer event into usbd and
-    // write registers that were just reset. Same guard as dcd_ch32h417_usb30.c.
+    // write registers that were just reset. Same guard as wch_ss2/dcd_wch_ss2.c.
 #if CFG_TUD_WCH_USB30_FALLBACK
     if (_fb_state == FB_USB2_ACTIVE) {
       return;

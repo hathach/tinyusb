@@ -5,8 +5,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef USB_CH32H417_USB30_REG_H
-#define USB_CH32H417_USB30_REG_H
+#ifndef TUSB_WCH_SS2_REG_H_
+#define TUSB_WCH_SS2_REG_H_
 
 // USBSSD_TypeDef (@0x40034000), LINK_*/USBSS_* bit macros come from the SDK. The LINK-layer bit
 // names/semantics are documented in CH32H417RM-EN chapter 27 (the same LINK IP is used, less its

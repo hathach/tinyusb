@@ -11,8 +11,8 @@ TinyUSB gained SuperSpeed device support with the WCH CH569 port. The work is la
 that a new SS MCU only writes **a USB3 dcd + a BSP**, plus a USB2 high-speed dcd (ported
 or reused) for the fallback: the core stack (usbd, types, templates), the class drivers
 and the bulk/interrupt examples are already SS-aware.
-Reference implementation for everything below: `src/portable/wch/dcd_ch56x_usb30.c`
-(+ `ch56x_usb30_reg.h`, `dcd_ch56x.h`, `dcd_ch56x_usbhs.c`, `hw/bsp/ch569/`).
+Reference implementation for everything below: `src/portable/wch/wch_ss1/dcd_wch_ss1.c`
+(+ `wch_ss1_reg.h`, `dcd_ch56x.h`, `dcd_ch56x_usbhs.c`, `hw/bsp/ch569/`).
 
 **Core principle:** to the stack, SuperSpeed is just another speed. The dcd hides all
 link-layer work (LTSSM, LMP, resets) and reports ordinary dcd events; usbd only needs to
@@ -49,7 +49,7 @@ Work in stages; each is independently buildable and hardware-verifiable.
    expose its internals as non-static `<mcu>_usb2_*` functions through a small private
    header so stage 4 can drive them (`dcd_ch56x.h` pattern). Get it enumerating on
    hardware before touching USB3.
-3. **USB3 dcd** (`SPEED=super`) — one file. Structure it like `dcd_ch56x_usb30.c`:
+3. **USB3 dcd** (`SPEED=super`) — one file. Structure it like `wch_ss1/dcd_wch_ss1.c`:
    - `link_*` static functions for the LTSSM/LMP work, isolated from the endpoint
      engine (this is the extraction seam if a sibling chip shares the link IP — e.g.
      CH32H417 shares the CH569 LINK block but has a different endpoint engine).
@@ -63,7 +63,7 @@ Work in stages; each is independently buildable and hardware-verifiable.
 4. **Runtime fallback** (single rhport, `SPEED=super` default) — a hardware timer bounds
    SS training; expiry tears USB3 down and brings the USB2 controller up on the same
    rhport; usbd re-inits transparently on the USB2 bus reset. See the `_fb_state`
-   machine in `dcd_ch56x_usb30.c`. Make the deadline **termination-aware**: if far-end
+   machine in `wch_ss1/dcd_wch_ss1.c`. Make the deadline **termination-aware**: if far-end
    RX terminations were ever seen, an SS host exists — retry training (fresh detect
    cycle) longer before settling for HS; no terminations = USB2-only host = fall back
    fast. Provide a `..._FALLBACK=0` build for SuperSpeed-only (train indefinitely).

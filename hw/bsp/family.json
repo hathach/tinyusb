@@ -425,8 +425,8 @@
         "mcu": "OPT_MCU_CH32H417",
         "options": {},
         "portable": [
-          "wch/dcd_ch32h417_usb30.c",
-          "wch/wch_hs2/dcd_wch_hs2.c"
+          "wch/wch_hs2/dcd_wch_hs2.c",
+          "wch/wch_ss2/dcd_wch_ss2.c"
         ],
         "roles": [
           "device"
@@ -445,8 +445,8 @@
         "mcu": "OPT_MCU_CH32H417",
         "options": {},
         "portable": [
-          "wch/dcd_ch32h417_usb30.c",
-          "wch/wch_hs2/dcd_wch_hs2.c"
+          "wch/wch_hs2/dcd_wch_hs2.c",
+          "wch/wch_ss2/dcd_wch_ss2.c"
         ],
         "roles": [
           "device"
@@ -648,8 +648,8 @@
         "mcu": "OPT_MCU_CH569",
         "options": {},
         "portable": [
-          "wch/dcd_ch56x_usb30.c",
-          "wch/dcd_ch56x_usbhs.c"
+          "wch/dcd_ch56x_usbhs.c",
+          "wch/wch_ss1/dcd_wch_ss1.c"
         ],
         "roles": [
           "device"

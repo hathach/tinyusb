@@ -37,7 +37,7 @@ LDFLAGS += \
 	--specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
-	src/portable/wch/dcd_ch56x_usb30.c \
+	src/portable/wch/wch_ss1/dcd_wch_ss1.c \
 	src/portable/wch/dcd_ch56x_usbhs.c \
 	$(SDK_DIR)/Peripheral/src/CH56x_clk.c \
 	$(SDK_DIR)/Peripheral/src/CH56x_gpio.c \

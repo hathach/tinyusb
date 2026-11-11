@@ -105,7 +105,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/wch/dcd_ch56x_usb30.c
+    ${TOP}/src/portable/wch/wch_ss1/dcd_wch_ss1.c
     ${TOP}/src/portable/wch/dcd_ch56x_usbhs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )

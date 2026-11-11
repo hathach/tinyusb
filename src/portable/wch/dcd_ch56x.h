@@ -26,7 +26,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool ch56x_is_dma_capable(const void *buf) {
 
 //--------------------------------------------------------------------+
 // USB2.0 high-speed controller internals (dcd_ch56x_usbhs.c). Exposed so the USB3.0 dcd
-// (dcd_ch56x_usb30.c) can drive the USB2 controller for runtime fallback on the same rhport
+// (wch_ss1/dcd_wch_ss1.c) can drive the USB2 controller for runtime fallback on the same rhport
 // when CFG_TUD_WCH_USB30_FALLBACK is enabled.
 //--------------------------------------------------------------------+
 bool ch56x_usb2_init(uint8_t rhport);
