@@ -1337,24 +1337,17 @@ def test_device_mtp(board):
     assert r.returncode == 0, f'MTP session failed (rc {r.returncode}):\n{r.stdout}'
 
 
-def _usbtmc_survivors(script: Path, uid: str) -> list:
-    """Live processes still running usbtmc_test.py for this board after run_cmd gave up on it: a session
-    blocked in a usbfs ioctl outlives SIGKILL and keeps the device. cmdline is read bounded (usb_observe):
-    a D-state process can hold the mmap lock the read takes."""
-    uo = usbtest._uo()
-    pids = []
-    for pid in (p for p in os.listdir('/proc') if p.isdigit()):
-        argv = (uo.read_sysfs(f'/proc/{pid}/cmdline') or '').split('\0')
-        if str(script) not in argv or uid not in argv:
-            continue
-        try:
-            with open(f'/proc/{pid}/stat', errors='replace') as f:
-                state = f.read().rpartition(')')[2].split()[0]
-        except (OSError, IndexError):
-            continue    # gone meanwhile
-        if state not in ('Z', 'X'):
-            pids.append(int(pid))
-    return pids
+def _usbtmc_session_alive(pidfile: str) -> str:
+    """After run_cmd gave up on usbtmc_test.py: which session is still alive ('pid N'), a session blocked in a
+    usbfs ioctl outlives SIGKILL and keeps the device; '' when it was reaped. Only /proc/<pid>/stat is read,
+    which a D-state process does not block. A session that never recorded itself counts as alive: nothing
+    proves it ended."""
+    try:
+        with open(pidfile) as f:
+            pid, start = f.read().split()
+    except (OSError, ValueError):
+        return 'with an unrecorded pid'
+    return f'pid {pid}' if usbtest._uo().proc_holds({'pid': int(pid), 'start': start}) else ''
 
 
 def test_device_usbtmc(board):
@@ -1364,17 +1357,22 @@ def test_device_usbtmc(board):
     uid = board['uid']
     script = Path(__file__).resolve().parent / 'usbtmc_test.py'
     t = enum_timeout()
-    r = hil_util.run_cmd(
-        f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t}',
-        timeout=t + USBTMC_SESSION_MARGIN)
+    fd, pidfile = tempfile.mkstemp(prefix='usbtmc-session-')
+    os.close(fd)
+    try:
+        r = hil_util.run_cmd(
+            f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t} '
+            f'--pidfile {shlex.quote(pidfile)}',
+            timeout=t + USBTMC_SESSION_MARGIN)
+        alive = _usbtmc_session_alive(pidfile) if r.returncode == 124 else ''
+    finally:
+        os.unlink(pidfile)
     out = hil_util.cmd_stdout_text(r.stdout)
     if r.returncode == 124:
         # A session that outlived SIGKILL still holds the device: latch the wedge, as usbtest does, so this
         # board gets no retry, no further flash and no park through the held node
-        survivors = _usbtmc_survivors(script, uid)
-        if survivors:
-            board_wedged = (f'{board["name"]}: USBTMC session pid {", ".join(map(str, survivors))} '
-                            f'outlived SIGKILL and holds the device')
+        if alive:
+            board_wedged = f'{board["name"]}: USBTMC session {alive} outlived SIGKILL and holds the device'
         # run_cmd keeps what the killed child flushed: the cases that failed before the wedge
         raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
                              f'{board_wedged or "the session was reaped"}):\n{out[-600:]}')

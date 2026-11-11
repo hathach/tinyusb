@@ -13,6 +13,7 @@
 # Exit 0 when every case passes; 1 with the failures on stdout otherwise.
 import argparse
 import errno
+import os
 import struct
 import sys
 import time
@@ -278,6 +279,26 @@ def t_trigger(d):
     n = bytes(d.dev.read(d.ep_int, 8, TMO))
     expect(n[0] == 0x87 and n[1] & 0x40, f'Status Byte after TRIGGER {n.hex()}, want SRQ')
     d.idn()
+
+
+def t_mav_cleared_with_dropped_reply(d):
+    """The example raises MAV when a reply is ready; a new command drops that unread reply, and MAV with it.
+    'delay' is a command that starts no reply, so nothing raises MAV again."""
+    if d.ep_int is None:
+        raise SkipCase('no Interrupt-IN endpoint')
+
+    def stb(btag):
+        rsp = d.itf_req(READ_STATUS_BYTE, btag, 3)
+        expect(rsp[0] == SUCCESS, f'READ_STATUS_BYTE {rsp.hex()}')
+        return bytes(d.dev.read(d.ep_int, 8, TMO))[1]
+
+    d.send_msg(b'*IDN?\n')
+    time.sleep(4 * APP_DELAY_MS / 1000)   # the example raises MAV after one delay, and holds the reply
+    s = stb(8)
+    expect(s & 0x10, f'Status Byte {s:#04x} with a reply ready, want MAV')
+    d.send_msg(f'delay {APP_DELAY_MS}\n'.encode())
+    s = stb(9)
+    expect(not s & 0x10, f'Status Byte {s:#04x} after the reply was dropped, want MAV clear')
 
 
 def _abort_in_before_reply(d, tag):
@@ -547,7 +568,7 @@ def t_clear_in_halt_mid_reply(d):
 
 
 CASES = [
-    t_idn_tag_sweep, t_echo_sizes, t_indicator_pulse, t_read_stb, t_trigger,
+    t_idn_tag_sweep, t_echo_sizes, t_indicator_pulse, t_read_stb, t_trigger, t_mav_cleared_with_dropped_reply,
     t_abort_in_high_tag, t_abort_in_low_tag, t_abort_in_then_other_request, t_abort_in_then_clear_out_halt,
     t_abort_in_mid_transfer, t_abort_out,
     t_header_errors, t_excess_data, t_short_transfer,
@@ -561,8 +582,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--uid', required=True, help='the board serial the example reports')
     ap.add_argument('--timeout', type=float, default=10, help='seconds to wait for enumeration')
+    ap.add_argument('--pidfile', help='write "<pid> <starttime>" here first, so the harness can tell whether '
+                                      'this process outlived its kill')
     ap.add_argument('cases', nargs='*', help='run only these cases (names without t_)')
     args = ap.parse_args()
+
+    if args.pidfile:
+        # starttime is proc(5) stat field 22: a recycled pid has another
+        with open('/proc/self/stat') as f:
+            start = f.read().rpartition(')')[2].split()[19]
+        with open(args.pidfile, 'w') as f:
+            f.write(f'{os.getpid()} {start}\n')
 
     d = Dut(args.uid, args.timeout)
     print(f'usbtmc {VID:04x}:{PID:04x} mps {d.mps}', flush=True)
