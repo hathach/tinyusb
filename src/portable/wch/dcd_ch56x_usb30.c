@@ -1207,6 +1207,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   xfer_status[ep_num][dir].stalled = true;
+  // a halt cancels the transfer (dcd.h): clear-halt must not re-arm a buffer the class reused
+  xfer_status[ep_num][dir].active = false;
   // The host must see the STALL: keep NUMP=1 armed and signal ERDY.
   // Silicon limitation (usbtest case 13): a halted data endpoint answers exactly ONE probe
   // with a STALL TP; further probes before CLEAR_FEATURE get no valid response (EPROTO on
@@ -1242,9 +1244,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   // CLEAR_FEATURE(ENDPOINT_HALT) resets the packet sequence: clear everything including seq.
-  // A transfer may still be armed (the class driver considers it submitted and won't resubmit):
-  // re-arm it with the fresh sequence instead of dropping it, or the endpoint never answers
-  // again after clear-halt (usbtest halt/toggle tests 13 and 29)
+  // On an endpoint that was not halted a transfer may still be armed (the class driver considers
+  // it submitted and won't resubmit): re-arm it with the fresh sequence instead of dropping it,
+  // or the endpoint never answers again after clear-halt (usbtest toggle test 29)
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
   xfer->stalled = false;
   if (dir == TUSB_DIR_IN) {
