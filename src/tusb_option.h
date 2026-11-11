@@ -517,6 +517,15 @@
 // superspeed support indicator
 #define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
 
+// Packets per SuperSpeed bulk burst (1..16) the port accepts; bMaxBurst in a companion is this - 1
+#ifndef TUP_DCD_SS_BULK_BURST_PACKETS
+  #define TUP_DCD_SS_BULK_BURST_PACKETS 1
+#endif
+#define TUD_OPT_SS_BULK_BURST_PACKETS TUP_DCD_SS_BULK_BURST_PACKETS
+#if TUD_OPT_SS_BULK_BURST_PACKETS < 1 || TUD_OPT_SS_BULK_BURST_PACKETS > 16
+  #error "SuperSpeed bulk burst must be 1..16 packets (USB 3.2 Table 9-27 bMaxBurst 0..15)"
+#endif
+
 //------------- Root hub as Host -------------//
 
 #if defined(CFG_TUSB_RHPORT0_MODE) && ((CFG_TUSB_RHPORT0_MODE) & OPT_MODE_HOST)
@@ -660,8 +669,11 @@
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE  64
+  #define CFG_TUD_ENDPOINT0_SIZE  (TUD_OPT_SUPER_SPEED ? 512 : 64) // USB 3.2 9.6.1: SuperSpeed EP0 is 512
 #endif
+
+// bMaxPacketSize0 of the USB2 (FS/HS) device and qualifier descriptors: a 512 SuperSpeed EP0 caps to 64
+#define TUD_OPT_EP0_SIZE_USB2  ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
 
 #ifndef CFG_TUD_ENDPOINT0_BUFSIZE
   #define CFG_TUD_ENDPOINT0_BUFSIZE  CFG_TUD_ENDPOINT0_SIZE

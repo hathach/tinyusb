@@ -29,10 +29,6 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x400c
 
-// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
-// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
-#define EP0_SIZE_FSHS ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
-
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -53,7 +49,7 @@ static const tusb_desc_device_t desc_device = {
   .bDeviceProtocol = 0x00,
 #endif
 
-  .bMaxPacketSize0 = EP0_SIZE_FSHS,
+  .bMaxPacketSize0 = TUD_OPT_EP0_SIZE_USB2,
 
   .idVendor = 0xCafe,
   .idProduct = USB_PID,

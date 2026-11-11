@@ -57,11 +57,7 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
-// WCH CH569 (CH56x): lwIP memory lives in the 32 KB RAMX (see arch/cc.h). The SuperSpeed build
-// reclaims the USB2-fallback bounce RAM (CFG_TUD_WCH_USBHS_EP_MAX) for a larger receive
-// window - iperf is TCP-window-bound; the plain high-speed build keeps the smaller fit.
-// Gated on the MCU (this RAMX layout is ch56x-specific) and keyed off the USBIP *value*
-// (CFG_TUD_WCH_USBIP_* is defined 0/1 for every WCH chip, so defined() would always be true).
+// CH569 lwIP in RAMX (arch/cc.h): SS reuses the USB2-fallback bounce RAM for a larger window; iperf is window-bound
 #if CFG_TUSB_MCU == OPT_MCU_CH569
   #if CFG_TUD_WCH_USBIP_USB30
     #define PBUF_POOL_SIZE                9

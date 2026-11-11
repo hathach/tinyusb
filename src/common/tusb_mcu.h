@@ -709,20 +709,16 @@
     #define CFG_TUD_WCH_USB30_FALLBACK 0
   #endif
   // Bulk burst size (packets per burst, 1..16). 4 matches the link layer's header-packet
-  // buffer count (NUM_HP_BUF) and is hardware-validated; 8 fails to configure. SuperSpeed
-  // descriptors should advertise bMaxBurst = CFG_TUD_WCH_USB30_MAX_BURST - 1.
+  // buffer count (NUM_HP_BUF) and is hardware-validated; 8 fails to configure.
   #ifndef CFG_TUD_WCH_USB30_MAX_BURST
     #define CFG_TUD_WCH_USB30_MAX_BURST 4
   #endif
+  #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
 
   #define TUP_RHPORT_HIGHSPEED  1
   #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
   #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
   #define TUP_DCD_EDPT_CLOSE_API
-
-  #if CFG_TUD_WCH_USBIP_USB30 && !defined(CFG_TUD_ENDPOINT0_SIZE)
-    #define CFG_TUD_ENDPOINT0_SIZE 512 // SuperSpeed EP0 is fixed at 512
-  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32H417)
   // CH32H416/CH32H417: USB3.0 SuperSpeed device (USBSS @0x40034000, officially documented in the
@@ -749,29 +745,19 @@
   #if CFG_TUD_WCH_USBIP_USB30 && CFG_TUD_WCH_USB30_FALLBACK
     #define TUP_USBIP_WCH_HS2_FALLBACK // the USB30 dcd owns dcd_* and drives HS2 through wch_hs2_*
   #endif
-  // Bulk burst size (packets per burst, 1..16); SuperSpeed descriptors advertise
-  // bMaxBurst = CFG_TUD_WCH_USB30_MAX_BURST - 1. MUST match what the dcd arms on the RX side:
-  // wch_ss2/dcd_wch_ss2.c arms OUT one packet per chain (burst 1). A larger default here made
-  // the NCM example advertise bMaxBurst=3 while the endpoint could only accept single-packet
-  // bursts - the host's 4-DP bursts wedged the RX flow control permanently (OUT URBs stuck, no
-  // host-side errors). Raise only together with the dcd's OUT chain arming. The TX side is
-  // independent of this: IN transfers ride multi-packet chains with a 16-deep ERDY window
-  // (TX_CHAIN_MAX_PKTS in the dcd), which is safe at any bMaxBurst since the host clamps.
+  // Bulk burst size (packets per burst); must be 1: wch_ss2 arms OUT one packet per chain
   #ifndef CFG_TUD_WCH_USB30_MAX_BURST
     #define CFG_TUD_WCH_USB30_MAX_BURST 1
   #endif
   #if CFG_TUD_WCH_USB30_MAX_BURST != 1
     #error "CH32H417: CFG_TUD_WCH_USB30_MAX_BURST must be 1 (dcd arms OUT one packet per chain)"
   #endif
+  #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
 
   #define TUP_RHPORT_HIGHSPEED  1
   #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
   #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
   #define TUP_DCD_EDPT_CLOSE_API
-
-  #if CFG_TUD_WCH_USBIP_USB30 && !defined(CFG_TUD_ENDPOINT0_SIZE)
-    #define CFG_TUD_ENDPOINT0_SIZE 512 // SuperSpeed EP0 is fixed at 512
-  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
   // Two WCH HS2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)

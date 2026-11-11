@@ -30,10 +30,6 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
-// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
-#define EP0_SIZE_FSHS   ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
-
 static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -41,12 +37,12 @@ static tusb_desc_device_t const desc_device = {
     .bDeviceClass       = 0x00, // per-interface class
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = EP0_SIZE_FSHS,
+    .bMaxPacketSize0    = TUD_OPT_EP0_SIZE_USB2,
 
     // Linux Gadget Zero: usbtest's static id table binds it with the source/sink profile on any kernel
     .idVendor           = 0x0525,
     .idProduct          = 0xA4A0,
-    .bcdDevice          = 0x0100 | USBTEST_QUIRKS | USBTEST_TIER,
+    .bcdDevice          = 0x0100 | USBTEST_TIER, // quirks are SuperSpeed-only
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -78,31 +74,14 @@ static tusb_desc_device_t const desc_device_ss = {
 };
 #endif
 
-// The compile-time USBTEST_QUIRKS is picked by which dcd was built in, which cannot see a
-// runtime USB2 fallback: a CH32H417 SuperSpeed image drives the USBHS block at 480 Mbps when
-// CFG_TUD_WCH_USB30_FALLBACK=1, and must then drop the USB3-only quirks.
-// Quirk bits are bcdDevice 4-7; the tier (bits 0-3) does not vary with speed.
-static uint16_t usbtest_quirks_for_link(void) {
-#if TU_CHECK_MCU(OPT_MCU_CH32H417)
-  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x20u : 0x00u;
-#elif TU_CHECK_MCU(OPT_MCU_CH569)
-  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x30u : 0x00u;
-#else
-  return USBTEST_QUIRKS;
-#endif
-}
-
 // Invoked when received GET DEVICE DESCRIPTOR
 uint8_t const* tud_descriptor_device_cb(void) {
-  // Copied into RAM so the quirk nibble can follow the live link speed; the sources are const.
-  static tusb_desc_device_t desc;
 #if TUD_OPT_SUPER_SPEED
-  desc = (tud_speed_get() == TUSB_SPEED_SUPER) ? desc_device_ss : desc_device;
-#else
-  desc = desc_device;
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return (uint8_t const*) &desc_device_ss;
+  }
 #endif
-  desc.bcdDevice = (uint16_t) (0x0100u | usbtest_quirks_for_link() | USBTEST_TIER);
-  return (uint8_t const*) &desc;
+  return (uint8_t const*) &desc_device;
 }
 
 //--------------------------------------------------------------------+
@@ -276,7 +255,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
 
-    .bMaxPacketSize0    = EP0_SIZE_FSHS,
+    .bMaxPacketSize0    = TUD_OPT_EP0_SIZE_USB2,
     .bNumConfigurations = 0x01,
     .bReserved          = 0x00
 };
@@ -304,14 +283,9 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 #endif // highspeed
 
 #if TUD_OPT_SUPER_SPEED
-// Bulk endpoint burst capability advertised in the endpoint companions (bMaxBurst = bursts-1).
-// Must not exceed what the dcd supports (WCH CH56x: CFG_TUD_WCH_USB30_MAX_BURST)
+// bMaxBurst of the bulk endpoint companions (bursts - 1)
 #ifndef CFG_EXAMPLE_SS_BULK_MAXBURST
-  #ifdef CFG_TUD_WCH_USB30_MAX_BURST
-    #define CFG_EXAMPLE_SS_BULK_MAXBURST (CFG_TUD_WCH_USB30_MAX_BURST - 1)
-  #else
-    #define CFG_EXAMPLE_SS_BULK_MAXBURST 0
-  #endif
+  #define CFG_EXAMPLE_SS_BULK_MAXBURST (TUD_OPT_SS_BULK_BURST_PACKETS - 1)
 #endif
 
 // superspeed configuration

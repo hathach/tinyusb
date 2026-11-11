@@ -173,21 +173,9 @@ def flash_wch_uart_loader(board, firmware, timeout=None, *, run=None):
 
 
 def reset_wch_uart_loader(board, timeout=None, *, run=None):
-    # A park request reboots the firmware (~10 s park window, then a normal boot). The WCH-LinkE
-    # VCP is always present (it is the probe, not the board), so a failure here means the probe is
-    # gone/busy -- report it (returncode 1) rather than masking a board that was never reset.
-    #
-    # A successful write is NOT proof of a reset: the park bytes only take effect in the
-    # application's boot window. A board already sitting in the UART flash loader consumes them
-    # as non-'H' noise with its RXNE vector disabled, and this function still returns 0. Before any
-    # erase that board recovers on the loader's own ~30 s inactivity reset (hw/bsp/ch32h417/family.c),
-    # not through this path -- so a caller seeing 0 here and no re-enumeration should wait out that
-    # timeout before declaring the board dead. Once an erase has run (a failed or interrupted write)
-    # the loader skips that reset and stays put until reflashed (wch_uart_flash.py still works).
-    #
-    # Sit out the park window before returning: a caller that waits for re-enumeration starts the
-    # moment reset_* returns, and would read the park itself as a dead board.
-    # One bound covers the write and the wait: usbtest budgets this reset as RECOVER_RESET_TIMEOUT.
+    # A successful write is not proof of a reset: a board already in the UART loader eats the park
+    # bytes (loader states: hw/bsp/ch32h417/family.c). The park window is waited out inside the
+    # caller's bound, so a re-enumeration wait does not read the park as a dead board.
     deadline = time.monotonic() + _bound(timeout)
     ok = _wch_uart_park(board['flasher'], deadline, run)
     if ok:

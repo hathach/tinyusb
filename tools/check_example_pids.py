@@ -21,7 +21,7 @@ RE_DERIVED = re.compile(r'\.idProduct\s*=\s*USB_PID\s*\+\s*(0x[0-9a-fA-F]+|\d+)'
 
 
 def main() -> int:
-    pids: dict[int, list[str]] = {}
+    pids: dict[int, set[str]] = {}  # sets: an SS twin descriptor repeats its file's PID
     for f in sorted(EXAMPLES.glob('*/*/src/usb_descriptors.c')):
         text = f.read_text(errors='replace')
         rel = f.relative_to(EXAMPLES.parent)
@@ -30,23 +30,20 @@ def main() -> int:
         if m:
             base = int(m.group(1), 16)
         for m in RE_LITERAL.finditer(text):
-            if str(rel) not in pids.get(int(m.group(1), 16), []):  # SS twin repeats its file's PID
-                pids.setdefault(int(m.group(1), 16), []).append(str(rel))
+            pids.setdefault(int(m.group(1), 16), set()).add(str(rel))
         for m in RE_DERIVED.finditer(text):
             if base is None:
                 print(f'{rel}: derived idProduct but no USB_PID define', file=sys.stderr)
                 return 1
-            entry = f'{rel} (USB_PID + {m.group(1)})'
-            if entry not in pids.get(base + int(m.group(1), 0), []):
-                pids.setdefault(base + int(m.group(1), 0), []).append(entry)
+            pids.setdefault(base + int(m.group(1), 0), set()).add(f'{rel} (USB_PID + {m.group(1)})')
         # examples whose descriptor uses .idProduct = USB_PID pick up the define itself
         if base is not None and re.search(r'\.idProduct\s*=\s*USB_PID\s*[,;]', text):
-            pids.setdefault(base, []).append(str(rel))
+            pids.setdefault(base, set()).add(str(rel))
 
     dups = {pid: users for pid, users in pids.items() if len(users) > 1}
     for pid, users in sorted(dups.items()):
         print(f'duplicate USB PID 0x{pid:04x}:', file=sys.stderr)
-        for u in users:
+        for u in sorted(users):
             print(f'  {u}', file=sys.stderr)
     if dups:
         return 1

@@ -32,10 +32,6 @@
 #define USB_VID   0xCafe
 #define USB_BCD   0x0200
 
-// EP0 size as reported in the FS/HS device descriptor: a SuperSpeed-capable build sets
-// CFG_TUD_ENDPOINT0_SIZE to 512, which only applies to the SS device descriptor (encoded as 2^9)
-#define EP0_SIZE_FSHS   ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
-
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -49,7 +45,7 @@ static tusb_desc_device_t const desc_device = {
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-    .bMaxPacketSize0    = EP0_SIZE_FSHS,
+    .bMaxPacketSize0    = TUD_OPT_EP0_SIZE_USB2,
 
     .idVendor           = USB_VID,
     .idProduct          = USB_PID,
@@ -202,7 +198,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier =
   .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
   .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-  .bMaxPacketSize0    = EP0_SIZE_FSHS,
+  .bMaxPacketSize0    = TUD_OPT_EP0_SIZE_USB2,
   .bNumConfigurations = 0x01,
   .bReserved          = 0x00
 };
@@ -235,14 +231,9 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 #endif // highspeed
 
 #if TUD_OPT_SUPER_SPEED
-// Bulk endpoint burst capability advertised in the endpoint companions (bMaxBurst = bursts-1).
-// Must not exceed what the dcd supports (WCH CH56x: CFG_TUD_WCH_USB30_MAX_BURST)
+// bMaxBurst of the bulk endpoint companions (bursts - 1)
 #ifndef CFG_EXAMPLE_SS_BULK_MAXBURST
-  #ifdef CFG_TUD_WCH_USB30_MAX_BURST
-    #define CFG_EXAMPLE_SS_BULK_MAXBURST (CFG_TUD_WCH_USB30_MAX_BURST - 1)
-  #else
-    #define CFG_EXAMPLE_SS_BULK_MAXBURST 0
-  #endif
+  #define CFG_EXAMPLE_SS_BULK_MAXBURST (TUD_OPT_SS_BULK_BURST_PACKETS - 1)
 #endif
 
 // Per USB specs: SuperSpeed devices must report a BOS descriptor and every endpoint

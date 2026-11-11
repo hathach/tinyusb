@@ -91,7 +91,8 @@ Work in stages; each is independently buildable and hardware-verifiable.
   pattern examples: `cdc_device.c` pointer-walk, `msc_device.c` fixed-size probe).
   Wire order is EP → companion → CS-EP descriptors.
 - **Example:** copy the canonical pattern from `examples/device/cdc_msc/src/usb_descriptors.c`:
-  EP0 clamp (`EP0_SIZE_FSHS`), `desc_device_ss` (bcdUSB 0x0320, `bMaxPacketSize0 = 9` — an
+  EP0 clamp (`TUD_OPT_EP0_SIZE_USB2`), bulk `bMaxBurst` from `TUD_OPT_SS_BULK_BURST_PACKETS - 1`
+  (the port sets `TUP_DCD_SS_BULK_BURST_PACKETS`), `desc_device_ss` (bcdUSB 0x0320, `bMaxPacketSize0 = 9` — an
   exponent), SS config array from `TUD_*_SS_DESCRIPTOR` templates, BOS
   (USB2-ext + SuperSpeed caps; extend an existing BOS rather than duplicating), and
   `tud_speed_get()` branches in the device/config/BOS callbacks. ISO-class examples

@@ -53,12 +53,6 @@ enum
 
 uint8_t const rhport = 0;
 
-// bMaxPacketSize0 is a single byte holding the full/high-speed EP0 size (64 max); SuperSpeed
-// encodes it as the exponent (9 == 512) in a separate descriptor. CFG_TUD_ENDPOINT0_SIZE is 512
-// on a SuperSpeed-capable build and would truncate to 0 in this field, so clamp it the way the
-// examples' descriptors do (EP0_SIZE_FSHS).
-#define EP0_SIZE_FSHS   ((uint8_t)(CFG_TUD_ENDPOINT0_SIZE > 64 ? 64 : CFG_TUD_ENDPOINT0_SIZE))
-
 tusb_desc_device_t const data_desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -71,7 +65,7 @@ tusb_desc_device_t const data_desc_device =
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-    .bMaxPacketSize0    = EP0_SIZE_FSHS,
+    .bMaxPacketSize0    = TUD_OPT_EP0_SIZE_USB2,
 
     .idVendor           = 0xCafe,
     .idProduct          = 0xCafe,

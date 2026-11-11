@@ -43,22 +43,10 @@
   #endif
 #endif
 
-// Known-erratum quirk flags advertised in bcdDevice bits 4-7, read by the host script to
-// skip cases the silicon cannot pass at SuperSpeed:
-//   0x10: EP0 OUT data stages whose wLength % 4 == 1 are intermittently dropped (CH569 silicon
-//         erratum, see the wch_ss1/dcd_wch_ss1.c header; WCH's own binary USB3 stack fails
-//         identically). Strike rate is host-timing dependent: an onboard AMD xHCI ran 15/15
-//         clean (the quirk was briefly retired on that evidence), a Renesas uPD720201 fails
-//         most ctrl_out runs (wire-confirmed: transaction error, full 489-byte residual)
-//   0x20: a halted endpoint answers exactly one STALL TP per halt and cannot be re-armed to
-//         repeat it (CH569, and the CH32H417 despite its RB_EP_TX/RX_HALT: the first
-//         solicitation of a halted bulk endpoint gets a clean STALL TP, every later one gets no
-//         response at all — the xHC retries, then reports a transaction error, so usbtest's
-//         verify_still_halted sees -EPROTO instead of -EPIPE). On the H417 this was traced on
-//         hardware: the halted endpoint raises no interrupt and changes no register across the
-//         whole halted window, and neither re-asserting HALT, toggling it 1->0->1, clearing
-//         FC_ST, requesting an ERDY, zeroing the endpoint sequence number, nor the vendor demo's
-//         own `UEP_TX_CR |= HALT` (armed chain left in place) re-arms it — skip the ep-halt case
+// SuperSpeed erratum quirks in bcdDevice bits 4-7, read by the host script to skip cases
+// (erratum notes: src/portable/wch/wch_ss1/dcd_wch_ss1.c header, wch_ss2/dcd_wch_ss2.c):
+//   0x10: CH569 EP0 OUT data stages with wLength % 4 == 1 are intermittently dropped
+//   0x20: a halted endpoint answers only one STALL TP per halt (CH569, CH32H417)
 #if TU_CHECK_MCU(OPT_MCU_CH569) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
   #define USBTEST_QUIRKS  0x30
 #elif TU_CHECK_MCU(OPT_MCU_CH32H417) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
@@ -99,11 +87,7 @@
 #endif
 #define USBTEST_ISO_EP_MPS_HS  512
 
-// CH32H417 USBSS: the ISO-mode TX chain engine emits fixed 1024-byte DPs regardless of the
-// armed CHAIN_LEN (hw-observed: with iso mps 512 a strict host — uPD720201 — flags every
-// serviced interval as Babble Detected with 0 bytes accepted; the vendor's only USBSS iso
-// demo, UVC, also runs mps 1024). Declare what the silicon sends. Other SS parts (CH569)
-// keep the high-speed size, which their engines respect on the wire.
+// CH32H417 USBSS iso TX always sends 1024-byte DPs whatever CHAIN_LEN is armed: declare that
 #if TU_CHECK_MCU(OPT_MCU_CH32H417)
   #define USBTEST_ISO_EP_MPS_SS  1024
 #else

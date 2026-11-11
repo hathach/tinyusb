@@ -117,12 +117,7 @@ extern "C" {
   #define INCLUDE_IPERF
 #endif
 
-// WCH CH56x: this example uses 3 endpoint directions; shrink the USB3 dcd bounce pool
-// and limit the USB2 (fallback) dcd to endpoints 1-3 so everything (lwIP memory included,
-// see arch/cc.h) fits the 32 KB RAMX. Gated on the MCU, not on CFG_TUD_WCH_USBIP_*: this
-// file is included (tusb_option.h) before tusb_mcu.h supplies those macros' defaults, so
-// the gate would only hold as long as the BSP happens to pass them on the command line.
-// Both macros are consumed exclusively by the ch56x dcds, so defining both is harmless.
+// CH569: shrink both dcds' RAMX use so lwIP fits too; MCU gate, as CFG_TUD_WCH_USBIP_* defaults come later
 #if TU_CHECK_MCU(OPT_MCU_CH569)
   #define CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (3 * 1024)
   #define CFG_TUD_WCH_USBHS_EP_MAX 4
