@@ -535,10 +535,13 @@ static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   tx->UEP_TX_DMA = (uint32_t)(uintptr_t)&xfer->buffer[xfer->queued_len];
   tx->UEP_TX_DMA_OFS = xfer->max_size;
   tx->UEP_TX_CHAIN_LEN = last_len;
-  tx->UEP_TX_CHAIN_EXP_NUMP = (uint8_t)npkt; // arms the chain (latches the staged configuration)
-  tx->UEP_TX_ST = USBSS_EP_TX_FC_ST; // clear a latched NRDY so ERDY_AUTO announces this arm
+  // Publish progress before arming: from task context the completion ISR can run right after the
+  // EXP_NUMP write, and with the old queued_len it would arm these bytes a second time.
   xfer->armed_len = (uint16_t)((uint16_t)(npkt - 1) * xfer->max_size + last_len);
   xfer->queued_len += xfer->armed_len;
+  __asm__ volatile("" ::: "memory"); // keep those stores ahead of the arming write
+  tx->UEP_TX_CHAIN_EXP_NUMP = (uint8_t)npkt; // arms the chain (latches the staged configuration)
+  tx->UEP_TX_ST = USBSS_EP_TX_FC_ST; // clear a latched NRDY so ERDY_AUTO announces this arm
 }
 
 static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
