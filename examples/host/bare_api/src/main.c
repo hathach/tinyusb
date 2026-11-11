@@ -400,8 +400,14 @@ static void print_utf16(uint16_t *buf, size_t buf_len) {
   if (utf16_len > buf_len - 1) {
     utf16_len = buf_len - 1;
   }
-  size_t const utf8_len = _convert_utf16le_to_utf8(buf + 1, utf16_len, (uint8_t *) buf, sizeof(uint16_t) * buf_len);
-  ((uint8_t *) buf)[utf8_len] = '\0';
 
-  printf("%s", (char *) buf);
+  // Convert through a separate chunk buffer: UTF-8 written back into buf would overwrite UTF-16 not read yet
+  enum { CHUNK_CHARS = 8 };
+  uint8_t utf8[3 * CHUNK_CHARS + 1];
+  for (size_t i = 0; i < utf16_len; i += CHUNK_CHARS) {
+    size_t const nchars = TU_MIN(utf16_len - i, (size_t) CHUNK_CHARS);
+    size_t const utf8_len = _convert_utf16le_to_utf8(buf + 1 + i, nchars, utf8, sizeof(utf8));
+    utf8[utf8_len] = '\0';
+    printf("%s", (char *) utf8);
+  }
 }
