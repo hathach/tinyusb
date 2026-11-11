@@ -1102,7 +1102,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     USBSSD->UEP0_RX_CTRL = 0;
     USBSSD->UEP0_TX_CTRL = USBSS_EP0_TX_STALL;
     USBSSD->UEP0_RX_CTRL = USBSS_EP0_RX_ERDY | USBSS_EP0_RX_STALL;
-  } else if (dir == TUSB_DIR_IN) {
+    return;
+  }
+  // A halt cancels the transfer (dcd.h): left valid, clear_stall would re-arm a cancelled IN
+  // whose buffer the class has since reused (MTP early_rejection then read back its own command).
+  XFER_CTL_BASE(ep_num, dir)->valid = false;
+  if (dir == TUSB_DIR_IN) {
     volatile USBSS_EP_TX_TypeDef *tx = usbss_ep_tx(ep_num);
     // Clear the armed CHAIN only - never RB_EP_TX_CLR, which resets the whole endpoint (RM
     // 27.2.3.2: "clear all configuration values and states of endpoints except UEP_CFG"). A
@@ -1119,6 +1124,13 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     // STALL TP (usbtest case 13 failed its first OUT halt this way).
     rx->UEP_RX_CR = (uint8_t)(USBSS_EP_RX_CHAIN_CLR | CFG_TUD_WCH_USB30_MAX_BURST);
     rx->UEP_RX_CR = (uint8_t)(USBSS_EP_RX_HALT | CFG_TUD_WCH_USB30_MAX_BURST);
+    // An OUT the host sent while nothing was armed got NRDY (FC_ST), and the host waits for an
+    // ERDY before retrying it; HALT alone sends none, so the retry never saw the STALL (MTP raw
+    // early_rejection timed out at 5 Gbps). The RM documents ERDY_REQ for non-ERDY_AUTO mode
+    // only; requesting it under ERDY_AUTO is an observed workaround. Pure store: FC_ST is RW1Z.
+    if (rx->UEP_RX_ST & USBSS_EP_RX_FC_ST) {
+      rx->UEP_RX_ST = USBSS_EP_RX_ERDY_REQ;
+    }
   }
 }
 
