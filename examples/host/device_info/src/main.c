@@ -196,7 +196,8 @@ static void print_one_device(uint8_t daddr, const tusb_desc_device_t *desc_devic
   printf("\r\n");
 
   printf("  iSerialNumber       %u     ", desc_device->iSerialNumber);
-  printf("%s\r\n", (char*)desc.serial); // serial is already UTF-8
+  print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
+  printf("\r\n");
   printf("  bNumConfigurations  %u\r\n", desc_device->bNumConfigurations);
 }
 

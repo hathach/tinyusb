@@ -283,7 +283,8 @@ static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_devi
   cdc_printf("\r\n");
 
   cdc_printf("  iSerialNumber       %u     "     , desc_device->iSerialNumber);
-  cdc_printf("%s \r\n", (char *)desc.serial); // serial is already to UTF-8
+  print_utf16((uint16_t *)(uintptr_t)desc.serial, sizeof(desc.serial) / 2);
+  cdc_printf(" \r\n");
   cdc_printf("  bNumConfigurations  %u\r\n"     , desc_device->bNumConfigurations);
 }
 
