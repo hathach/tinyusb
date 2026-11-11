@@ -77,6 +77,26 @@ jobs:
           pattern: hil-report-*
           path: hil-reports
         continue-on-error: true
+        timeout-minutes: 5
+
+      # download-artifact extracts a lone artifact into the path itself, losing the name the combine step and
+      # sysview_ci.py read the rig from: put it back under hil-reports/<artifact name>/
+      - name: Normalize HIL report layout
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          [ -d hil-reports ] || exit 0
+          if [ -z "$(find hil-reports -mindepth 1 -maxdepth 1 ! -name 'hil-report-*' -print -quit)" ]; then exit 0; fi
+          names=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[].name | select(startswith("hil-report-"))' | sort -u)
+          if ! [[ "$names" =~ ^hil-report-[A-Za-z0-9._-]+$ ]]; then
+            echo "::warning::cannot name the HIL report files in hil-reports/; the run's artifacts: ${names:-none}"
+            exit 0
+          fi
+          mkdir "hil-reports/$names"
+          find hil-reports -mindepth 1 -maxdepth 1 ! -name "$names" -exec mv {} "hil-reports/$names/" \;
 
       - name: Download SystemView captures
         id: sv-download
@@ -169,8 +189,8 @@ jobs:
               note: "the captures of baseline run \($run) did not download (see the job log)"}' > "$SV/baseline.json"
             rm -rf "$SV/base" && mkdir "$SV/base"
           fi
-          # the default branch's decoder (lib/agentrc at its pin); a failed fetch leaves every record undecoded
-          python3 tools/get_deps.py lib/agentrc || true
+          # the default branch's decoder (agentrc at its pin); a failed fetch leaves every record undecoded
+          python3 test/hil/helper/agentrc.py fetch || true
           python3 test/hil/sysview_ci.py decode "$SV/pr" --budget-s 300 || true
           python3 test/hil/sysview_ci.py decode "$SV/base" --budget-s 300 || true
           if python3 test/hil/sysview_ci.py report "$SV/base" "$SV/pr" --baseline-info "$SV/baseline.json" \
@@ -277,12 +297,13 @@ jobs:
       # comparison below fails and the comment says so
       - name: Get agentrc
         continue-on-error: true
-        run: python3 tools/get_deps.py lib/agentrc
+        run: python3 test/hil/helper/agentrc.py fetch
 
       # every step up to the freshness check must succeed, even with nothing to compare:
       # a failed one would skip the post and leave an earlier push's table looking current
       - name: Download code size snapshots
         continue-on-error: true
+        timeout-minutes: 5
         uses: actions/download-artifact@v5
         with:
           run-id: ${{ github.event.workflow_run.id }}
@@ -303,6 +324,7 @@ jobs:
       - name: Download baseline snapshots
         if: steps.baseline.outputs.run_id != ''
         continue-on-error: true
+        timeout-minutes: 5
         uses: actions/download-artifact@v5
         with:
           run-id: ${{ steps.baseline.outputs.run_id }}

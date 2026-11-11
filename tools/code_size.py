@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Code size of TinyUSB examples: agentrc's code-size engine, from lib/agentrc at the pin
-(`python3 tools/get_deps.py lib/agentrc`), run with tools/code_size_profile.py. `--help` for
-the commands; the engine's module docstring defines them and the profile.
+"""Code size of TinyUSB examples: agentrc's code-size engine, from the agentrc
+test/hil/helper/agentrc.py selects (the installed one; CI's pin), run with
+tools/code_size_profile.py. `--help` for the commands; the engine's module docstring defines
+them and the profile.
 
 Usage:
   python tools/code_size.py report -b raspberry_pi_pico -e device/cdc_msc --symbols
@@ -22,8 +23,12 @@ sys.path.insert(1, os.path.join(os.path.dirname(TOOLS), 'test', 'hil'))  # the h
 from helper import agentrc  # noqa: E402
 
 
+ENGINE = 'skills/code-size/scripts/code_size.py'
+
+
 def load_engine():
-    return agentrc.load_file('skills/code-size/scripts/code_size.py')
+    """The engine of the selected agentrc; ImportError when it cannot load."""
+    return agentrc.load_file(ENGINE)
 
 
 def main(argv=None):

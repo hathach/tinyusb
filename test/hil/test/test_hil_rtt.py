@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Harness-side RTT contracts — no hardware, pyserial stubbed. The console classes and the CLI
 # themselves are tested where they live, in agentrc's tests/test_rtt.py against the same
-# file, which hil_test loads from lib/agentrc through helper/agentrc.py. Run directly:
+# file, which hil_test loads from the agentrc helper/agentrc.py selects. Run directly:
 #   python3 test/hil/test/test_hil_rtt.py
 import multiprocessing
 import os
@@ -15,8 +15,9 @@ REPO = os.path.dirname(os.path.dirname(HIL_DIR))
 sys.path.insert(0, HIL_DIR)
 import usbtest_harness   # noqa: E402,F401 - stubs pyserial before hil_test imports it
 import hil_test          # noqa: E402
+from helper import agentrc   # noqa: E402
 
-RTT_PY = 'lib/agentrc/skills/rtt/scripts/rtt.py'
+RTT_PY = 'skills/rtt/scripts/rtt.py'
 
 
 def _raise_rtt_error(msg):
@@ -24,9 +25,10 @@ def _raise_rtt_error(msg):
 
 
 class RttHarnessContracts(unittest.TestCase):
-    def test_hil_test_loads_the_pinned_console_once(self):
+    def test_hil_test_loads_the_agentrc_console_once(self):
         self.assertIs(sys.modules['agentrc_rtt'], hil_test.rtt)
-        self.assertEqual(os.path.realpath(hil_test.rtt.__file__), os.path.realpath(os.path.join(REPO, RTT_PY)))
+        self.assertEqual(os.path.realpath(hil_test.rtt.__file__),
+                         os.path.realpath(os.path.join(agentrc.identity()['root'], RTT_PY)))
         self.assertIs(hil_test.RTT_BANNER_RE, hil_test.rtt.RTT_BANNER_RE)
 
     def test_rtt_error_survives_the_fork_pool(self):
@@ -40,9 +42,10 @@ class RttHarnessContracts(unittest.TestCase):
     def test_staging_and_banner_coupling(self):
         # tripwires for couplings no import-walk can see:
         # (a) hil_remote.py must stage agentrc's rtt.py -- helper/agentrc.py exec_module's it,
-        #     so an unstaged rig tree kills every harness import
+        #     so an unstaged rig tree kills every harness import; it stages the closure of SCRIPTS
         wrapper = Path(REPO) / '.claude/skills/hil-contract/scripts/hil_remote.py'
-        self.assertIn(f"    '{RTT_PY}',\n", wrapper.read_text())
+        self.assertIn('core.stage_tree(tree, agentrc[0])', wrapper.read_text())
+        self.assertIn(RTT_PY, agentrc.SCRIPTS)
         # (b) the shared RTT banner filter must drop ALL THREE J-Link banner lines,
         #     including the middle one, which is the PROBE MODEL string and in
         #     libjlinkarm carries no 'SEGGER ' prefix (J-Link OH3, J-Trace H9...)

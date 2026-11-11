@@ -67,7 +67,7 @@ static void max3421_init(void);
 #endif
 
 // UART
-#if !defined(UART_DEV) && defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART) && \
+#if !defined(UART_DEV) && defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART) && LIB_PICO_STDIO_UART && \
   defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN)
 #define UART_DEV              PICO_DEFAULT_UART
 #define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
@@ -169,7 +169,7 @@ static void stdio_rtt_init(void) {
   #endif
 #endif
 // stdio_init_all() muxes the sdk defaults even when the BSP console is elsewhere
-#if defined(LIB_PICO_STDIO_UART) && defined(PICO_DEFAULT_UART_TX_PIN) && \
+#if defined(LIB_PICO_STDIO_UART) && LIB_PICO_STDIO_UART && defined(PICO_DEFAULT_UART_TX_PIN) && \
     (TRACE_PIN_CONFLICT(PICO_DEFAULT_UART_TX_PIN) || TRACE_PIN_CONFLICT(PICO_DEFAULT_UART_RX_PIN))
   #error "TRACE_ETM: pico-sdk default UART (stdio_init_all) sits on a trace pin (GP1-5)"
 #endif

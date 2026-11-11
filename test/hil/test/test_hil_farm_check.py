@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
-from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
+from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
 STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
@@ -252,8 +252,8 @@ class RunPlumbing(unittest.TestCase):
 
 
 class Launcher(unittest.TestCase):
-    def test_the_engine_comes_from_lib_agentrc_at_the_pin(self):
-        self.assertEqual(Path(eng.__file__), hil_util.TINYUSB_ROOT / 'lib/agentrc/skills/hil/scripts/hil_farm_check.py')
+    def test_the_engine_is_the_loaded_agentrcs(self):
+        self.assertEqual(Path(eng.__file__), Path(agentrc.identity()['root']) / 'skills/hil/scripts/hil_farm_check.py')
         self.assertEqual(eng.REASON, 'farm_check')
         self.assertIsNone(eng._lock_api_problem(hil_lock))
 
@@ -268,11 +268,11 @@ class Launcher(unittest.TestCase):
 
     def test_an_engine_that_cannot_load_refuses(self):
         def missing():
-            raise ImportError('lib/agentrc must be at X')
+            raise ImportError('no usable agentrc at X')
         patch(self, hil_farm_check, 'load_engine', missing)
         code, out, err = capture(lambda: hil_farm_check.main([]))
         self.assertEqual((code, out), (2, ''))
-        self.assertIn('lib/agentrc must be at X', err)
+        self.assertIn('no usable agentrc at X', err)
 
 
 class EngineFixture(unittest.TestCase):
@@ -417,8 +417,8 @@ class Retain(unittest.TestCase):
 
 class EngineOpenocdEsp(EngineFixture):
     """An openocd_esp board through the engine: a reset session ended `done` leaves the board
-    released, and one the provider left running stops the board, whose lock the engine hands to a
-    cleanup holder naming the receipt."""
+    released, and one the provider left running stops the board, logs the receipt and releases
+    the lock with the cleanup unproven."""
 
     def setUp(self):
         super().setUp()
@@ -437,7 +437,6 @@ class EngineOpenocdEsp(EngineFixture):
         patch(self, hil_flash, 'cleanup_pending', {})
         patch(self, hil_flash, 'OPENOCD_ESP_DIR', self.d / 'openocd_esp')
         self.sessions, self.outcomes = [], []
-        self.addCleanup(self.end_holder)
 
         def reset(flasher, *, retains_lock, **kw):
             self.assertIs(retains_lock, True)
@@ -454,14 +453,6 @@ class EngineOpenocdEsp(EngineFixture):
         patch(self, hil_util, 'openocd_esp', lambda: fake)
         self.real = real
 
-    def end_holder(self):
-        rec = hil_lock.read_record('b')
-        if hil_lock.is_cleanup_holder(rec):
-            # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
-            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'pid': 4242, 'startTime': '99',
-                                                      'closed': True, 'cleanup': 'done'}))
-            hil_lock.release_token(rec['token'])
-
     def test_a_done_session_is_ok_and_released(self):
         code, doc = self.run_engine()
         r, = doc['rows']
@@ -469,30 +460,39 @@ class EngineOpenocdEsp(EngineFixture):
                          (0, 'ok', 'released', True, ['reset']))
         self.assertIsNone(hil_lock.read_record('b'))
 
-    def assert_held_by_a_cleanup_holder(self, r):
+    def assert_released_with_failure(self, r):
         self.assertEqual(self.sessions, ['reset'])
-        self.assertEqual((r['status'], r['coverage'], r['cleanup']['blocker']), ('blocked', 'blocked-after',
-                                                                                 'cleanup-holder'))
+        self.assertEqual((r['status'], r['coverage'], r['cleanup']['released']), ('blocked', 'blocked-after', True))
         self.assertTrue(any(self.RECEIPT in e for e in r['cleanup']['evidence']), r['cleanup'])
-        rec = hil_lock.read_record('b')
-        self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
-        self.assertEqual((rec['token'], rec['protected']), (r['cleanup']['token'], True))
-        self.assertIn(self.RECEIPT, rec['detail'])
-        self.assertEqual((r['cleanup']['retained'], rec['retained']), ([self.RECEIPT], [self.RECEIPT]))
+        self.assertIsNone(hil_lock.read_record('b'))
+        fh = hil_lock.take_board_lock('b', 'peer')
+        try:
+            failure, = fh.cleanup_failures
+            self.assertIn(self.RECEIPT, failure['detail'])
+            self.assertEqual((r['cleanup']['retained'], failure['retained']), ([self.RECEIPT], [self.RECEIPT]))
+        finally:
+            hil_lock.release_board_lock(fh)
 
-    def test_a_session_left_running_hands_the_lock_to_a_cleanup_holder(self):
+    def test_a_session_left_running_is_logged_and_the_lock_released(self):
         self.outcomes = ['pending']
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual((code, r['check_status']), (4, 'failed'))
-        self.assert_held_by_a_cleanup_holder(r)
+        self.assert_released_with_failure(r)
 
-    def test_one_left_running_by_a_raising_reset_is_held_the_same_way(self):
+    def test_one_left_running_by_a_raising_reset_is_logged_the_same_way(self):
         self.outcomes = [RuntimeError('interrupted mid-session')]
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual(code, 4)
-        self.assert_held_by_a_cleanup_holder(r)
+        self.assert_released_with_failure(r)
+
+    def test_the_next_check_reports_the_open_cleanup_failure(self):
+        failure = hil_lock.log_cleanup_failure('b', 'earlier', detail='old session', retained=[self.RECEIPT])
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['status']), (0, 'ok'))
+        self.assertEqual(r['previousCleanupFailure'], failure)
 
     def test_under_a_ci_job_it_is_refused_before_any_session(self):
         os.environ[self.real.CI_JOB_ENV[0]] = '1'

@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'test', 'hil'))
 from helper import hil_report  # noqa: E402  stdlib-only; board_variants() reads a roster board's builds
-from helper import hil_util  # noqa: E402  ESP_IDF_FLASHERS; hil_boards() needs lib/agentrc (get_deps.py)
+from helper import hil_util  # noqa: E402  ESP_IDF_FLASHERS; hil_boards() needs agentrc (helper/agentrc.py)
 
 
 def _resolve_config_path(config_file):

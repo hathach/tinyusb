@@ -94,13 +94,13 @@ hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.gi
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           ff367d8fec5c9f40029355b2806cd059d9508e4e  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           b375bbbc7dfe8642d6fb7c17e6d3207ee1c3c9c1  ch32v20x
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           8b3699d9e4eafc3102e382b74266a1165a2bb584  ch32v30x
+hw/mcu/wch/ch32v407_ch32v467              https://github.com/openwch/ch32v407_ch32v467.git                  17394a1f9aa484c9b2ca0c9fdfe5730ec31c06c7  ch32v4x7
 hw/mcu/wch/ch32x035                       https://github.com/openwch/ch32x035.git                           c6253942b29ff2a3f5e2829182a874afffa45881  ch32x035
 hw/mcu/wch/ch583                          https://github.com/openwch/ch583.git                              bd508ad7ceed48377619837051412a651952857f  ch583
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  kinetis_k kinetis_kl lpc54 rw61x mm32 msp432e4 nrf samd2x_l2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba sam3x samd11 samd21 samd2x_l2x samd51 samd5x_e5x same5x same7x samg tm4c efm32
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       6f0a58d01aa9bd2feba212097f9afe7acd991d52  imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   9b777ae5c5b8e9e456065a00294d1e5f5f9facf5  all
 lib/SystemView                            https://github.com/SEGGERMicro/SystemView.git                     92ca7a810c5765ba64911919acd511c61b6b083f
-lib/agentrc                               https://github.com/hathach/agentrc.git                            b14563a91d6bd688302eaf40d4f2d4c045a281ed
 lib/fatfs                                 https://github.com/abbrev/fatfs.git                               30ca13c62615df0d2e9104ab41256985b96590c1  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                            159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                      e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
