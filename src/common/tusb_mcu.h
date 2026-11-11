@@ -708,10 +708,13 @@
   #ifndef CFG_TUD_WCH_USB30_FALLBACK
     #define CFG_TUD_WCH_USB30_FALLBACK 0
   #endif
-  // Bulk burst size (packets per burst, 1..16). 4 matches the link layer's header-packet
+  // Bulk burst size (packets per burst, 1..4). 4 matches the link layer's header-packet
   // buffer count (NUM_HP_BUF) and is hardware-validated; 8 fails to configure.
   #ifndef CFG_TUD_WCH_USB30_MAX_BURST
     #define CFG_TUD_WCH_USB30_MAX_BURST 4
+  #endif
+  #if CFG_TUD_WCH_USBIP_USB30 && (CFG_TUD_WCH_USB30_MAX_BURST < 1 || CFG_TUD_WCH_USB30_MAX_BURST > 4)
+    #error "CH569: CFG_TUD_WCH_USB30_MAX_BURST must be 1..4 (hardware-validated range, 8 fails to configure)"
   #endif
   #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
 
