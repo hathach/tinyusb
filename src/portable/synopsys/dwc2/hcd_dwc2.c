@@ -2577,8 +2577,18 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
       if (byte_count > 0) {
-        tu_hwfifo_read(dwc2->fifo[0], edpt->buffer + xfer->xferred_bytes, byte_count, NULL);
-        xfer->xferred_bytes += byte_count;
+        // The core pushes the whole packet whatever xfersize has left (HCTSIZ expects an IN size that is a multiple
+        // of the packet size), so a device answering with more bytes than the transfer has room for would be copied
+        // past the buffer. Keep what fits and drain the rest of the packet.
+        const uint16_t xact_len = tu_min16(byte_count, (uint16_t) (edpt->buflen - xfer->xferred_bytes));
+        if (xact_len > 0) {
+          tu_hwfifo_read(dwc2->fifo[0], edpt->buffer + xfer->xferred_bytes, xact_len, NULL);
+        }
+        for (uint16_t count = (uint16_t) tu_round_up(xact_len, sizeof(uint32_t)); count < byte_count;
+             count += sizeof(uint32_t)) {
+          (void) dwc2->fifo[0][0];
+        }
+        xfer->xferred_bytes += xact_len;
         xfer->fifo_bytes = byte_count;
       }
       break;
