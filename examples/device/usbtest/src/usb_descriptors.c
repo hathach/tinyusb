@@ -80,13 +80,13 @@ static tusb_desc_device_t const desc_device_ss = {
 
 // The compile-time USBTEST_QUIRKS is picked by which dcd was built in, which cannot see a
 // runtime USB2 fallback: a CH32H417 SuperSpeed image drives the USBHS block at 480 Mbps when
-// CFG_TUD_WCH_USB30_FALLBACK=1, and must then advertise the USBHS erratum, not the USB3 one.
+// CFG_TUD_WCH_USB30_FALLBACK=1, and must then drop the USB3-only quirks.
 // Quirk bits are bcdDevice 4-7; the tier (bits 0-3) does not vary with speed.
 static uint16_t usbtest_quirks_for_link(void) {
 #if TU_CHECK_MCU(OPT_MCU_CH32H417)
-  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x20u : 0x40u;
+  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x20u : 0x00u;
 #elif TU_CHECK_MCU(OPT_MCU_CH569)
-  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x30u : 0x00u; // CH569 USBHS passes 30/30
+  return (tud_speed_get() == TUSB_SPEED_SUPER) ? 0x30u : 0x00u;
 #else
   return USBTEST_QUIRKS;
 #endif

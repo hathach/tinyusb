@@ -502,16 +502,12 @@ void ch32h417_usb2_int_handler(uint8_t rhport) {
   if (intflag & USBHS_UDIF_TRANSFER) {
     // RB_UDIF_RTX_ACT (INT_FG bit 4) is read-only and is the wired-OR of every endpoint's DONE
     // flag - RM 25.2.1.8: "Receive cleared by RB_UEP_R_DONE; Transmit cleared by RB_UEP_T_DONE" -
-    // while INT_ST names only ONE endpoint. Servicing just that endpoint leaves the other
-    // completion pending, and the SIE then refuses new transactions: a SETUP that arrives while
-    // another endpoint still has DONE set gets no handshake at all. That is fatal, because a SETUP
-    // may not be NAKed or STALLed - the host retries three times and fails with -EPROTO
-    // (wire-confirmed: SETUP dropped 64 us after a bulk-IN on EP1 completed). So walk every
-    // endpoint and drain all pending completions before leaving the handler, instead of trusting
-    // INT_ST to name the only one that matters. RX is serviced before TX for each endpoint so that
-    // a SETUP is dispatched first: an EP0 IN completion and the next SETUP are routinely pending
-    // together, and the SETUP branch delivers that IN completion itself before resetting the
-    // control pipe (see below) rather than discarding it.
+    // while INT_ST names only ONE endpoint, so servicing just that endpoint can leave another
+    // completion pending. Walk every endpoint and drain all pending completions before leaving
+    // the handler, instead of trusting INT_ST to name the only one that matters. RX is serviced
+    // before TX for each endpoint so that a SETUP is dispatched first: an EP0 IN completion and
+    // the next SETUP are routinely pending together, and the SETUP branch delivers that IN
+    // completion itself before resetting the control pipe (see below) rather than discarding it.
     for (uint8_t ep_num = 0; ep_num < EP_MAX; ep_num++) {
       if (EP_RX_CTRL(ep_num) & USBHS_UEP_R_DONE) {
         // SETUP or OUT transaction.

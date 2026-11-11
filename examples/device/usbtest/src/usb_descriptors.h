@@ -59,21 +59,7 @@
 //         whole halted window, and neither re-asserting HALT, toggling it 1->0->1, clearing
 //         FC_ST, requesting an ERDY, zeroing the endpoint sequence number, nor the vendor demo's
 //         own `UEP_TX_CR |= HALT` (armed chain left in place) re-arms it — skip the ep-halt case
-//   0x40: a SETUP arriving while a transfer completion is still unserviced gets no handshake at
-//         all, so the host retries three times and fails the transfer with -EPROTO. The CH32H417
-//         USBHS control register has no auto-busy bit: the CH569's USBHS has RB_USB_INT_BUSY,
-//         "automatic responding busy for device mode ... during interrupt flag UIF_TRANSFER
-//         valid" (CH56xSFR.h), which makes that same window merely NAK so the host retries
-//         successfully -- and the CH569 passes 30/30 at high speed on identical usbd. RM 25.2.1.1
-//         lists no equivalent bit for the H417 USBHS, though its USBFS block does have
-//         USBFS_UC_INT_BUSY, so the feature exists on the part but not on this controller.
-//         Wire-measured at ~34% of SETUPs dropped, rising to 63% under back-to-back control
-//         traffic, and no software change reaches it: the drop happens before the ISR can clear
-//         the completion. Ordinary class traffic survives on host retries (11/12 HIL examples
-//         pass, CDC 5.8/6.5 MB/s, MSC 25/10 MB/s); only usbtest's control-stress cases fail.
-#if TU_CHECK_MCU(OPT_MCU_CH32H417) && defined(CFG_TUD_WCH_USBIP_USBHS) && CFG_TUD_WCH_USBIP_USBHS
-  #define USBTEST_QUIRKS  0x40
-#elif TU_CHECK_MCU(OPT_MCU_CH569) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
+#if TU_CHECK_MCU(OPT_MCU_CH569) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
   #define USBTEST_QUIRKS  0x30
 #elif TU_CHECK_MCU(OPT_MCU_CH32H417) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
   #define USBTEST_QUIRKS  0x20

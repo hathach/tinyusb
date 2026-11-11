@@ -46,14 +46,6 @@ CONNECT_TIMEOUT = hil_usbtest.CONNECT_TIMEOUT
 QUIRK_SKIPS = {
     0x10: ('5000', (14, 21), 'EP0 OUT data stages with wLength % 4 == 1 intermittently dropped at 5 Gbps (silicon erratum)'),
     0x20: ('5000', (13,), 'halted EP answers a single STALL at 5 Gbps (silicon limitation)'),
-    0x40: ('480', (9, 10, 13, 14, 21),
-           'SETUP dropped while a transfer completion is unserviced: the CH32H417 USBHS control '
-           'register has no auto-busy bit (the CH569 USBHS RB_USB_INT_BUSY, "automatic responding '
-           'busy for device mode during interrupt flag UIF_TRANSFER valid"), so a token arriving '
-           'in that window gets no handshake at all. A SETUP may not be NAKed or STALLed, so the '
-           'host retries three times and fails with -EPROTO. Wire-measured ~34% of SETUPs dropped '
-           '(63% under back-to-back control traffic); ordinary class traffic survives on host '
-           'retries, only control-stress cases fail'),
 }
 RECOVER_FLASH_TIMEOUT = 90  # bound on the post-hang reflash; typical flash is 10-20s
 RECOVER_RESET_TIMEOUT = 30  # bound on the post-hang probe reset; jlink ResetTarget ~130ms, stlink --rst --go ~100ms
