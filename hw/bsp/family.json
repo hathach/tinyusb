@@ -567,7 +567,7 @@
         "mcu": "OPT_MCU_CH32V407",
         "options": {},
         "portable": [
-          "wch/usbhs_v2/dcd_wch_usbhs_v2.c"
+          "wch/wch_hs2/dcd_wch_hs2.c"
         ],
         "roles": [
           "device"

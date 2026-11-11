@@ -5,36 +5,36 @@
  * This file is part of the TinyUSB stack.
  */
 
-// Device driver for WCH's USBHS v2 USB2.0 high-speed controller: per-endpoint DONE flags, a SETUP flag in UEP0_RX_CTRL, split UEP_TX_EN/UEP_RX_EN
+// Device driver for WCH's HS2 (second-generation USBHS) USB2.0 high-speed controller: per-endpoint DONE flags, a SETUP flag in UEP0_RX_CTRL, split UEP_TX_EN/UEP_RX_EN
 // enables, response encoding NAK=00 / STALL=01 / ACK=10 and manual data toggle. Not
 // register-compatible with the CH32V30x USBHS (dcd_ch32_usbhs.c). RM below means CH32V407RM.
 // Clock and PHY bring-up is the BSP's job; only one controller acts as device at a time.
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS_V2)
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_HS2)
 
 #include "device/dcd.h"
 #include "device/usbd_pvt.h" // for usbd_spin_lock()
-#include "wch_usbhs_v2_reg.h"
+#include "wch_hs2_reg.h"
 
 #if TU_CHECK_MCU(OPT_MCU_CH32V407)
   #include "ch32v4x7.h"
 static const struct {
-  usbhsv2_dev_t *regs;
+  wch_hs2_dev_t *regs;
   IRQn_Type irqn;
 } usbhs_controllers[] = {
-  {(usbhsv2_dev_t *)USBHS1D_BASE, USBHS1_IRQn},
-  {(usbhsv2_dev_t *)USBHS2D_BASE, USBHS2_IRQn},
+  {(wch_hs2_dev_t *)USBHS1D_BASE, USBHS1_IRQn},
+  {(wch_hs2_dev_t *)USBHS2D_BASE, USBHS2_IRQn},
 };
 #else
-  #error "USBHS v2: MCU not supported"
+  #error "WCH HS2: MCU not supported"
 #endif
 
-#define USBHSV2_CONTROLLER_COUNT TU_ARRAY_SIZE(usbhs_controllers)
+#define WCH_HS2_CONTROLLER_COUNT TU_ARRAY_SIZE(usbhs_controllers)
 
 // controller selected by dcd_init(); every other entry point serves this one
-static usbhsv2_dev_t *usbhs;
+static wch_hs2_dev_t *usbhs;
 
 #define EP_TX_LEN(ep)  (usbhs->UEP_CTRL[ep].tx_len)
 #define EP_TX_CTRL(ep) (usbhs->UEP_CTRL[ep].tx_ctrl)
@@ -91,21 +91,21 @@ static uint8_t setup_served_tagid;
 // actively armed and ACKing, because a class driver may halt an endpoint with a transfer in flight
 // (usbtest case 13 does exactly that).
 static void set_tx_res(uint8_t ep_num, uint8_t res) {
-  EP_TX_CTRL(ep_num) = (uint8_t)((EP_TX_CTRL(ep_num) & ~USBHSV2_UEP_T_RES_MASK) | USBHSV2_UEP_T_DONE | res);
+  EP_TX_CTRL(ep_num) = (uint8_t)((EP_TX_CTRL(ep_num) & ~WCH_HS2_UEP_T_RES_MASK) | WCH_HS2_UEP_T_DONE | res);
 }
 
 static void set_rx_res(uint8_t ep_num, uint8_t res) {
-  EP_RX_CTRL(ep_num) = (uint8_t)((EP_RX_CTRL(ep_num) & ~USBHSV2_UEP_R_RES_MASK) | USBHSV2_UEP_R_DONE | res);
+  EP_RX_CTRL(ep_num) = (uint8_t)((EP_RX_CTRL(ep_num) & ~WCH_HS2_UEP_R_RES_MASK) | WCH_HS2_UEP_R_DONE | res);
 }
 
 static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
   if (ep_dir == TUSB_DIR_IN) {
-    EP_TX_CTRL(ep_num) = (uint8_t)((EP_TX_CTRL(ep_num) & ~USBHSV2_UEP_T_TOG_MASK) | USBHSV2_UEP_T_DONE |
-                                   (data1 ? USBHSV2_UEP_T_TOG_DATA1 : USBHSV2_UEP_T_TOG_DATA0));
+    EP_TX_CTRL(ep_num) = (uint8_t)((EP_TX_CTRL(ep_num) & ~WCH_HS2_UEP_T_TOG_MASK) | WCH_HS2_UEP_T_DONE |
+                                   (data1 ? WCH_HS2_UEP_T_TOG_DATA1 : WCH_HS2_UEP_T_TOG_DATA0));
   } else {
     // EP1-7 only: EP0 OUT is armed by arm_ep0_out()
-    EP_RX_CTRL(ep_num) = (uint8_t)((EP_RX_CTRL(ep_num) & ~USBHSV2_UEP_R_TOG_MASK) | USBHSV2_UEP_R_DONE |
-                                   (data1 ? USBHSV2_UEP_R_TOG_DATA1 : USBHSV2_UEP_R_TOG_DATA0));
+    EP_RX_CTRL(ep_num) = (uint8_t)((EP_RX_CTRL(ep_num) & ~WCH_HS2_UEP_R_TOG_MASK) | WCH_HS2_UEP_R_DONE |
+                                   (data1 ? WCH_HS2_UEP_R_TOG_DATA1 : WCH_HS2_UEP_R_TOG_DATA0));
   }
 }
 
@@ -118,13 +118,13 @@ static void set_ep_toggle(uint8_t ep_num, tusb_dir_t ep_dir, bool data1) {
 // scan, and edpt_xfer() runs with EP0 NAKing, since usbd submits a stage only once the previous
 // one has completed, so no transaction is in flight to raise DONE underneath it.
 static void arm_ep0_out(void) {
-  EP_RX_CTRL(0) = (uint8_t)((ep0_rx_tog ? USBHSV2_UEP_R_TOG_DATA1 : USBHSV2_UEP_R_TOG_DATA0) | USBHSV2_UEP_R_RES_ACK);
+  EP_RX_CTRL(0) = (uint8_t)((ep0_rx_tog ? WCH_HS2_UEP_R_TOG_DATA1 : WCH_HS2_UEP_R_TOG_DATA0) | WCH_HS2_UEP_R_RES_ACK);
 }
 
 // Also true for a SETUP latched but not yet serviced by the ISR (R_DONE with SETUP_IS, the test the
 // ISR uses): an EP0 IN arm would memcpy over it in ep0_buffer. Caller excludes the USB ISR.
 static bool ep0_superseded(void) {
-  const uint8_t setup_latched = USBHSV2_UEP_R_DONE | USBHSV2_UEP_R_SETUP_IS;
+  const uint8_t setup_latched = WCH_HS2_UEP_R_DONE | WCH_HS2_UEP_R_SETUP_IS;
   return (setup_served_tagid != setup_rcv_tagid) || ((EP_RX_CTRL(0) & setup_latched) == setup_latched);
 }
 
@@ -142,13 +142,13 @@ static void queue_in_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   xfer->queued_len += tx_len;
 
   if (ep_num == 0) {
-    EP_TX_CTRL(0) = (uint8_t)(USBHSV2_UEP_T_RES_ACK | (ep0_tog ? USBHSV2_UEP_T_TOG_DATA1 : USBHSV2_UEP_T_TOG_DATA0));
+    EP_TX_CTRL(0) = (uint8_t)(WCH_HS2_UEP_T_RES_ACK | (ep0_tog ? WCH_HS2_UEP_T_TOG_DATA1 : WCH_HS2_UEP_T_TOG_DATA0));
     ep0_tog = !ep0_tog;
   } else if (xfer->is_iso) {
-    set_tx_res(ep_num, USBHSV2_UEP_T_RES_ACK); // isochronous: no handshake
+    set_tx_res(ep_num, WCH_HS2_UEP_T_RES_ACK); // isochronous: no handshake
   } else {
     set_ep_toggle(ep_num, TUSB_DIR_IN, ep_data_tog[ep_num][TUSB_DIR_IN]);
-    set_tx_res(ep_num, USBHSV2_UEP_T_RES_ACK);
+    set_tx_res(ep_num, WCH_HS2_UEP_T_RES_ACK);
   }
 }
 
@@ -164,7 +164,7 @@ static void queue_out_packet(uint8_t ep_num, xfer_ctl_t *xfer) {
   if (ep_num != 0 && !xfer->is_iso) {
     set_ep_toggle(ep_num, TUSB_DIR_OUT, ep_data_tog[ep_num][TUSB_DIR_OUT]);
   }
-  set_rx_res(ep_num, USBHSV2_UEP_R_RES_ACK);
+  set_rx_res(ep_num, WCH_HS2_UEP_R_RES_ACK);
 }
 
 static void update_in(uint8_t rhport, uint8_t ep_num) {
@@ -182,9 +182,9 @@ static void update_in(uint8_t rhport, uint8_t ep_num) {
   } else {
     xfer->valid = false;
     if (ep_num == 0) {
-      EP_TX_CTRL(0) = (uint8_t)(USBHSV2_UEP_T_RES_NAK | (ep0_tog ? USBHSV2_UEP_T_TOG_DATA1 : USBHSV2_UEP_T_TOG_DATA0));
+      EP_TX_CTRL(0) = (uint8_t)(WCH_HS2_UEP_T_RES_NAK | (ep0_tog ? WCH_HS2_UEP_T_TOG_DATA1 : WCH_HS2_UEP_T_TOG_DATA0));
     } else {
-      set_tx_res(ep_num, USBHSV2_UEP_T_RES_NAK);
+      set_tx_res(ep_num, WCH_HS2_UEP_T_RES_NAK);
     }
     dcd_event_xfer_complete(rhport, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   }
@@ -227,7 +227,7 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
     // target (still pointing at the just-completed buffer, only queue_out_packet() moves it),
     // overwriting the completed transfer before task context delivers it.
     xfer->valid = false;
-    set_rx_res(ep_num, USBHSV2_UEP_R_RES_NAK);
+    set_rx_res(ep_num, WCH_HS2_UEP_R_RES_NAK);
     dcd_event_xfer_complete(rhport, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   } else if (ep_num == 0) {
     arm_ep0_out();
@@ -242,7 +242,7 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
 //--------------------------------------------------------------------+
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
-  TU_ASSERT(rhport < USBHSV2_CONTROLLER_COUNT);
+  TU_ASSERT(rhport < WCH_HS2_CONTROLLER_COUNT);
   TU_ASSERT(rh_init->speed == TUSB_SPEED_HIGH || rh_init->speed == TUSB_SPEED_FULL ||
             rh_init->speed == TUSB_SPEED_AUTO);
   const bool high_speed = TUD_OPT_HIGH_SPEED && (rh_init->speed != TUSB_SPEED_FULL);
@@ -255,7 +255,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   ep0_tog = true;
   ep0_rx_tog = false;
   // Reset every latch this file keeps, not just the toggles: init rewrites INT_EN below without
-  // USBHSV2_UDIE_SOF_ACT, so a sof_enabled left over from a previous life would leave the software
+  // WCH_HS2_UDIE_SOF_ACT, so a sof_enabled left over from a previous life would leave the software
   // latch on with the hardware enable off. The RX_SOF branch is reached on any interrupt that
   // leaves no transfer pending, so it would emit SOF events usbd never asked for - and usbd turns
   // an unexpected SOF into a RESUME, cancelling a genuine suspend. tud_deinit()/tud_init() runs
@@ -264,10 +264,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   bus_suspended = false;
   bus_reset_pending = false;
 
-  usbhs->CONTROL = USBHSV2_UD_RST_LINK | USBHSV2_UD_PHY_SUSPENDM;
+  usbhs->CONTROL = WCH_HS2_UD_RST_LINK | WCH_HS2_UD_PHY_SUSPENDM;
   // vendor-exact interrupt set: BUS_SLEEP/LPM_ACT are cleared-if-unhandled, LINK_RDY ends a bus reset
-  usbhs->INT_EN = USBHSV2_UDIE_BUS_RST | USBHSV2_UDIE_SUSPEND | USBHSV2_UDIE_BUS_SLEEP |
-                  USBHSV2_UDIE_LPM_ACT | USBHSV2_UDIE_TRANSFER | USBHSV2_UDIE_LINK_RDY;
+  usbhs->INT_EN = WCH_HS2_UDIE_BUS_RST | WCH_HS2_UDIE_SUSPEND | WCH_HS2_UDIE_BUS_SLEEP |
+                  WCH_HS2_UDIE_LPM_ACT | WCH_HS2_UDIE_TRANSFER | WCH_HS2_UDIE_LINK_RDY;
 
   // Only EP0 enabled at reset; data endpoints are enabled by dcd_edpt_open
   usbhs->UEP_TX_EN = 1u;
@@ -281,19 +281,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   xfer_status[0][TUSB_DIR_IN].max_size = EP0_MAX_SIZE;
 
   EP_TX_LEN(0) = 0;
-  EP_TX_CTRL(0) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
-  EP_RX_CTRL(0) = USBHSV2_UEP_R_RES_ACK | USBHSV2_UEP_R_TOG_DATA0;
+  EP_TX_CTRL(0) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
+  EP_RX_CTRL(0) = WCH_HS2_UEP_R_RES_ACK | WCH_HS2_UEP_R_TOG_DATA0;
 
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     EP_TX_LEN(ep) = 0;
-    EP_TX_CTRL(ep) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
-    EP_RX_CTRL(ep) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
+    EP_TX_CTRL(ep) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
+    EP_RX_CTRL(ep) = WCH_HS2_UEP_R_RES_NAK | WCH_HS2_UEP_R_TOG_DATA0;
     EP_MAX_LEN(ep) = 0;
   }
 
-  usbhs->BASE_MODE = high_speed ? USBHSV2_UD_SPEED_HIGH : USBHSV2_UD_SPEED_FULL;
+  usbhs->BASE_MODE = high_speed ? WCH_HS2_UD_SPEED_HIGH : WCH_HS2_UD_SPEED_FULL;
   usbhs->DEV_AD = 0;
-  usbhs->CONTROL = USBHSV2_UD_DEV_EN | USBHSV2_UD_DMA_EN | USBHSV2_UD_LPM_EN | USBHSV2_UD_PHY_SUSPENDM;
+  usbhs->CONTROL = WCH_HS2_UD_DEV_EN | WCH_HS2_UD_DMA_EN | WCH_HS2_UD_LPM_EN | WCH_HS2_UD_PHY_SUSPENDM;
 
   return true;
 }
@@ -304,7 +304,7 @@ bool dcd_deinit(uint8_t rhport) {
   // so a latched flag would otherwise survive into the next init.
   usbhs->INT_EN = 0;
   usbhs->INT_FG = 0xFF;
-  usbhs->CONTROL = USBHSV2_UD_RST_SIE | USBHSV2_UD_RST_LINK;
+  usbhs->CONTROL = WCH_HS2_UD_RST_SIE | WCH_HS2_UD_RST_LINK;
   return true;
 }
 
@@ -324,26 +324,26 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 // Resume signalling: RB_UD_REMOTE_WKUP is RW1, the hardware drives K and clears the bit itself
 void dcd_remote_wakeup(uint8_t rhport) {
   (void)rhport;
-  usbhs->WAKE_CTRL |= USBHSV2_UD_REMOTE_WKUP;
+  usbhs->WAKE_CTRL |= WCH_HS2_UD_REMOTE_WKUP;
 }
 
 void dcd_connect(uint8_t rhport) {
   (void)rhport;
-  usbhs->CONTROL |= USBHSV2_UD_DEV_EN; // attach: enable the device (pull-up on)
+  usbhs->CONTROL |= WCH_HS2_UD_DEV_EN; // attach: enable the device (pull-up on)
 }
 
 void dcd_disconnect(uint8_t rhport) {
   (void)rhport;
-  usbhs->CONTROL &= (uint8_t)~USBHSV2_UD_DEV_EN; // detach: disable the device (pull-up off)
+  usbhs->CONTROL &= (uint8_t)~WCH_HS2_UD_DEV_EN; // detach: disable the device (pull-up off)
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
   (void)rhport;
   sof_enabled = en;
   if (en) {
-    usbhs->INT_EN |= USBHSV2_UDIE_SOF_ACT;
+    usbhs->INT_EN |= WCH_HS2_UDIE_SOF_ACT;
   } else {
-    usbhs->INT_EN &= (uint8_t)~USBHSV2_UDIE_SOF_ACT;
+    usbhs->INT_EN &= (uint8_t)~WCH_HS2_UDIE_SOF_ACT;
   }
 }
 
@@ -382,14 +382,14 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
       usbhs->UEP_R_ISO |= (uint16_t)(1u << ep_num);
     }
     EP_MAX_LEN(ep_num) = xfer->max_size;
-    EP_RX_CTRL(ep_num) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
+    EP_RX_CTRL(ep_num) = WCH_HS2_UEP_R_RES_NAK | WCH_HS2_UEP_R_TOG_DATA0;
   } else {
     usbhs->UEP_TX_EN |= (uint16_t)(1u << ep_num);
     if (xfer->is_iso) {
       usbhs->UEP_T_ISO |= (uint16_t)(1u << ep_num);
     }
     EP_TX_LEN(ep_num) = 0;
-    EP_TX_CTRL(ep_num) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
+    EP_TX_CTRL(ep_num) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
   }
 
   return true;
@@ -406,12 +406,12 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   }
 
   if (dir == TUSB_DIR_OUT) {
-    EP_RX_CTRL(ep_num) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
+    EP_RX_CTRL(ep_num) = WCH_HS2_UEP_R_RES_NAK | WCH_HS2_UEP_R_TOG_DATA0;
     EP_MAX_LEN(ep_num) = 0;
     usbhs->UEP_R_ISO &= (uint16_t)~(1u << ep_num);
     usbhs->UEP_RX_EN &= (uint16_t)~(1u << ep_num);
   } else {
-    EP_TX_CTRL(ep_num) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
+    EP_TX_CTRL(ep_num) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
     EP_TX_LEN(ep_num) = 0;
     usbhs->UEP_T_ISO &= (uint16_t)~(1u << ep_num);
     usbhs->UEP_TX_EN &= (uint16_t)~(1u << ep_num);
@@ -425,8 +425,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   memset((void *)ep_data_tog, 0, sizeof(ep_data_tog));
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     EP_TX_LEN(ep) = 0;
-    EP_TX_CTRL(ep) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
-    EP_RX_CTRL(ep) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
+    EP_TX_CTRL(ep) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
+    EP_RX_CTRL(ep) = WCH_HS2_UEP_R_RES_NAK | WCH_HS2_UEP_R_TOG_DATA0;
     EP_MAX_LEN(ep) = 0;
     xfer_status[ep][0].valid = false;
     xfer_status[ep][1].valid = false;
@@ -491,10 +491,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 static void edpt_halt(uint8_t ep_num, tusb_dir_t dir) {
   XFER_CTL_BASE(ep_num, dir)->valid = false;
   if (dir == TUSB_DIR_OUT) {
-    set_rx_res(ep_num, USBHSV2_UEP_R_RES_STALL);
+    set_rx_res(ep_num, WCH_HS2_UEP_R_RES_STALL);
   } else {
     EP_TX_LEN(ep_num) = 0;
-    set_tx_res(ep_num, USBHSV2_UEP_T_RES_STALL);
+    set_tx_res(ep_num, WCH_HS2_UEP_T_RES_STALL);
   }
 }
 
@@ -532,7 +532,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // 29 issues on bulk-OUT. Re-arm the receive with DATA0.
       queue_out_packet(ep_num, xfer);
     } else {
-      EP_RX_CTRL(ep_num) = USBHSV2_UEP_R_RES_NAK | USBHSV2_UEP_R_TOG_DATA0;
+      EP_RX_CTRL(ep_num) = WCH_HS2_UEP_R_RES_NAK | WCH_HS2_UEP_R_TOG_DATA0;
     }
   } else {
     ep_data_tog[ep_num][TUSB_DIR_IN] = false; // clear-halt resets the toggle to DATA0
@@ -548,7 +548,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       xfer->queued_len -= rearm;
       queue_in_packet(ep_num, xfer);
     } else {
-      EP_TX_CTRL(ep_num) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
+      EP_TX_CTRL(ep_num) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
     }
   }
   usbd_spin_unlock(false);
@@ -564,14 +564,14 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 // the speed, is LINK_RDY with READY set, at least TRSTRCY (10 ms) before the host's first SETUP.
 static void report_bus_reset_end(uint8_t rhport) {
   bus_reset_pending = false;
-  const bool high_speed = (usbhs->MIS_ST & USBHSV2_UDMS_HS_MOD) != 0;
+  const bool high_speed = (usbhs->MIS_ST & WCH_HS2_UDMS_HS_MOD) != 0;
   dcd_event_bus_reset(rhport, high_speed ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
 }
 
 void dcd_int_handler(uint8_t rhport) {
   const uint8_t intflag = usbhs->INT_FG;
 
-  if (intflag & USBHSV2_UDIF_TRANSFER) {
+  if (intflag & WCH_HS2_UDIF_TRANSFER) {
     // RB_UDIF_RTX_ACT (INT_FG bit 4) is read-only and is the wired-OR of every endpoint's DONE
     // flag - RM 22.2.1.8: "Receive cleared by RB_UEP_R_DONE; Transmit cleared by RB_UEP_T_DONE" -
     // while INT_ST names only ONE endpoint. Servicing just that endpoint leaves the other
@@ -585,7 +585,7 @@ void dcd_int_handler(uint8_t rhport) {
     // together, and the SETUP branch delivers that IN completion itself before resetting the
     // control pipe (see below) rather than discarding it.
     for (uint8_t ep_num = 0; ep_num < EP_MAX; ep_num++) {
-      if (EP_RX_CTRL(ep_num) & USBHSV2_UEP_R_DONE) {
+      if (EP_RX_CTRL(ep_num) & WCH_HS2_UEP_R_DONE) {
         // SETUP or OUT transaction.
         // RB_UEP_R_SETUP_IS (RM 22.2.1.32) is read-only and survives a software write, but the
         // hardware DOES clear it as soon as a non-SETUP packet is received - verified on hardware:
@@ -598,7 +598,7 @@ void dcd_int_handler(uint8_t rhport) {
         //   - gating on EP_RX_LEN(0) == 8 misreads any 8-byte control-OUT data packet (an 8-byte
         //     class/vendor payload, or usbtest's ctrl_out which varies the length 1..512) as a
         //     SETUP, feeding usbd garbage and discarding the real transfer.
-        if (ep_num == 0 && (EP_RX_CTRL(0) & USBHSV2_UEP_R_SETUP_IS)) {
+        if (ep_num == 0 && (EP_RX_CTRL(0) & WCH_HS2_UEP_R_SETUP_IS)) {
           tusb_control_request_t const *setup = (tusb_control_request_t const *)ep0_buffer;
           if (bus_reset_pending) {
             // LINK_RDY missed: report the speed late. usbd discards a SETUP queued together with the
@@ -619,9 +619,9 @@ void dcd_int_handler(uint8_t rhport) {
           // A finished data-stage chunk is still delivered: the next chunk or status stage usbd
           // arms for it is dropped by the tag bumped below, so it cannot disturb ep0_tog.
           const xfer_ctl_t *ep0_in = XFER_CTL_BASE(0, TUSB_DIR_IN);
-          if ((EP_TX_CTRL(0) & USBHSV2_UEP_T_DONE) && ep0_in->valid &&
+          if ((EP_TX_CTRL(0) & WCH_HS2_UEP_T_DONE) && ep0_in->valid &&
               (ep0_in->total_len <= ep0_in->queued_len)) {
-            EP_TX_CTRL(0) &= (uint8_t)~USBHSV2_UEP_T_DONE;
+            EP_TX_CTRL(0) &= (uint8_t)~WCH_HS2_UEP_T_DONE;
             update_in(rhport, 0);
           }
           setup_rcv_tagid++;
@@ -632,9 +632,9 @@ void dcd_int_handler(uint8_t rhport) {
           xfer_status[0][TUSB_DIR_OUT].valid = false;
           xfer_status[0][TUSB_DIR_IN].valid = false;
           // Full-byte writes (DATA1) clear DONE and set the post-SETUP toggle; SETUP_IS survives them.
-          EP_TX_CTRL(0) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA1;
-          EP_RX_CTRL(0) = (uint8_t)(((setup->wLength == 0) ? USBHSV2_UEP_R_RES_ACK : USBHSV2_UEP_R_RES_NAK) |
-                                    USBHSV2_UEP_R_TOG_DATA1);
+          EP_TX_CTRL(0) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA1;
+          EP_RX_CTRL(0) = (uint8_t)(((setup->wLength == 0) ? WCH_HS2_UEP_R_RES_ACK : WCH_HS2_UEP_R_RES_NAK) |
+                                    WCH_HS2_UEP_R_TOG_DATA1);
           dcd_event_setup_received_tagid(rhport, ep0_buffer, setup_rcv_tagid, true);
         } else {
           // A packet whose PID does not match the endpoint's expected toggle is a host retransmission
@@ -646,8 +646,8 @@ void dcd_int_handler(uint8_t rhport) {
           // unchanged for the host's next packet; left NAKing, the transfer stalls until the host
           // times out. Iso endpoints run without handshake or toggle.
           const uint8_t rx_ctrl = EP_RX_CTRL(ep_num);
-          EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~USBHSV2_UEP_R_DONE);
-          if (xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & USBHSV2_UEP_R_TOG_MATCH)) {
+          EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~WCH_HS2_UEP_R_DONE);
+          if (xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & WCH_HS2_UEP_R_TOG_MATCH)) {
             update_out(rhport, ep_num, EP_RX_LEN(ep_num));
           } else if (xfer_status[ep_num][TUSB_DIR_OUT].valid) {
             if (ep_num == 0) {
@@ -659,26 +659,26 @@ void dcd_int_handler(uint8_t rhport) {
         }
       }
 
-      if (EP_TX_CTRL(ep_num) & USBHSV2_UEP_T_DONE) {
+      if (EP_TX_CTRL(ep_num) & WCH_HS2_UEP_T_DONE) {
         // IN transaction completed
-        EP_TX_CTRL(ep_num) &= (uint8_t)~USBHSV2_UEP_T_DONE;
+        EP_TX_CTRL(ep_num) &= (uint8_t)~WCH_HS2_UEP_T_DONE;
         update_in(rhport, ep_num);
       }
     }
     // The transfer interrupt is acknowledged by clearing the per-endpoint DONE bits above (matching
     // the vendor driver); do NOT also write INT_FG - RB_UDIF_RTX_ACT is read-only anyway.
-  } else if (intflag & USBHSV2_UDIF_RX_SOF) {
+  } else if (intflag & WCH_HS2_UDIF_RX_SOF) {
     // The hardware sets RB_UDIF_RX_SOF every frame whether or not the SOF interrupt is enabled, so
     // this branch is reached on ANY interrupt that leaves no transfer pending. Emitting a SOF event
     // unasked flooded usbd's event queue within one enumeration (queue_event asserts, events lost,
     // the host sees the device drop) - and because the branch also short-circuits the chain, the
     // terminal else never ran and an enabled-but-unhandled flag kept the IRQ line asserted, so the
     // ISR re-entered immediately. Always clear the flag; only report it when usbd asked for it.
-    usbhs->INT_FG = USBHSV2_UDIF_RX_SOF;
+    usbhs->INT_FG = WCH_HS2_UDIF_RX_SOF;
     if (sof_enabled) {
-      dcd_event_sof(rhport, usbhs->FRAME_NO & USBHSV2_UD_FRAME_NO, true);
+      dcd_event_sof(rhport, usbhs->FRAME_NO & WCH_HS2_UD_FRAME_NO, true);
     }
-  } else if (intflag & USBHSV2_UDIF_BUS_RST) {
+  } else if (intflag & WCH_HS2_UDIF_BUS_RST) {
     bus_suspended = false;
     bus_reset_pending = true;
     setup_rcv_tagid++; // a reset supersedes any control transfer usbd is still on
@@ -691,26 +691,26 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_sof_enable(rhport, false);
     ep0_tog = true;
     ep0_rx_tog = false;
-    EP_RX_CTRL(0) = USBHSV2_UEP_R_RES_ACK | USBHSV2_UEP_R_TOG_DATA0;
-    EP_TX_CTRL(0) = USBHSV2_UEP_T_RES_NAK | USBHSV2_UEP_T_TOG_DATA0;
-    usbhs->INT_FG = USBHSV2_UDIF_BUS_RST;
+    EP_RX_CTRL(0) = WCH_HS2_UEP_R_RES_ACK | WCH_HS2_UEP_R_TOG_DATA0;
+    EP_TX_CTRL(0) = WCH_HS2_UEP_T_RES_NAK | WCH_HS2_UEP_T_TOG_DATA0;
+    usbhs->INT_FG = WCH_HS2_UDIF_BUS_RST;
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
-  } else if (intflag & USBHSV2_UDIF_SUSPEND) {
+  } else if (intflag & WCH_HS2_UDIF_SUSPEND) {
     // This single interrupt fires on both suspend and resume; the live suspend status bit
     // distinguishes them. Clear first, then sample, like the vendor demo (CH372Device).
     // EDGE-TRIGGERED: the controller raises this constantly (measured on hardware: ~2000 times
     // during one enumeration), and queueing a usbd event each time overflows the event queue -
     // events are dropped, enumeration dies and the host sees the device disappear. usbd only
     // needs the transitions, so report a change of state and swallow the repeats.
-    usbhs->INT_FG = USBHSV2_UDIF_SUSPEND;
-    const bool now_suspended = (usbhs->MIS_ST & USBHSV2_UDMS_SUSPEND) != 0;
+    usbhs->INT_FG = WCH_HS2_UDIF_SUSPEND;
+    const bool now_suspended = (usbhs->MIS_ST & WCH_HS2_UDMS_SUSPEND) != 0;
     if (now_suspended != bus_suspended) {
       bus_suspended = now_suspended;
       dcd_event_bus_signal(rhport, now_suspended ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME, true);
     }
-  } else if (intflag & USBHSV2_UDIF_LINK_RDY) {
-    usbhs->INT_FG = USBHSV2_UDIF_LINK_RDY;
-    if (bus_reset_pending && (usbhs->MIS_ST & USBHSV2_UDMS_READY)) {
+  } else if (intflag & WCH_HS2_UDIF_LINK_RDY) {
+    usbhs->INT_FG = WCH_HS2_UDIF_LINK_RDY;
+    if (bus_reset_pending && (usbhs->MIS_ST & WCH_HS2_UDMS_READY)) {
       report_bus_reset_end(rhport);
     }
   } else {
