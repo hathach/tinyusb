@@ -67,6 +67,8 @@
   #define MEM_SIZE                      (TCP_SND_BUF + 2 * TCP_MSS)
   // 32-bit word checksum, the default 16-bit one costs about a quarter of the CPU at HS throughput
   #define LWIP_CHKSUM_ALGORITHM         3
+  // NCM hands received frames to lwIP in place (PBUF_REF custom pbufs) instead of copying them
+  #define LWIP_SUPPORT_CUSTOM_PBUF      1
 #else
   #define TCP_WND                       (4 * TCP_MSS)
   #define PBUF_POOL_SIZE                4

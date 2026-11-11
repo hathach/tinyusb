@@ -129,6 +129,13 @@ typedef struct {
 static ncm_interface_t ncm_interface;
 CFG_TUD_MEM_SECTION static ncm_epbuf_t ncm_epbuf;
 
+// Receive NTBs whose datagrams the glue logic still references after tud_network_recv_cb() (zero-copy). Kept apart
+// from ncm_interface, which netd_init() clears: a reset must not recycle an NTB the network stack still points into.
+static struct {
+  uint8_t count[RECV_NTB_N]; // tud_network_recv_hold() calls not yet released
+  bool done[RECV_NTB_N];     // all datagrams handed out: the last release returns the NTB to the free list
+} ncm_recv_hold;
+
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
@@ -512,6 +519,18 @@ static recv_ntb_t *recv_get_next_ready_ntb(void) {
 } // recv_get_next_ready_ntb
 
 /**
+ * Index of a receive NTB in ncm_epbuf.recv[], or -1.
+ */
+static int recv_ntb_index(const recv_ntb_t *ntb) {
+  for (int i = 0; i < RECV_NTB_N; ++i) {
+    if (ntb == &ncm_epbuf.recv[i].ntb) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
  * Put NTB into the receiver free list.
  */
 static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb) {
@@ -707,8 +726,13 @@ static void recv_transfer_datagram_to_glue_logic(void) {
           // -> next datagram
           ++ncm_interface.recv_glue_ntb_datagram_ndx;
         } else {
-          // end of datagrams reached
-          recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
+          // end of datagrams reached: free the NTB now, or on the last release of a held datagram
+          const int idx = recv_ntb_index(ncm_interface.recv_glue_ntb);
+          if (idx >= 0 && ncm_recv_hold.count[idx] != 0) {
+            ncm_recv_hold.done[idx] = true;
+          } else {
+            recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
+          }
           ncm_interface.recv_glue_ntb = NULL;
         }
       }
@@ -801,6 +825,53 @@ void tud_network_recv_renew(void) {
 } // tud_network_recv_renew
 
 /**
+ * Keep the NTB holding the datagram passed to tud_network_recv_cb() allocated after the callback returns, so the
+ * datagram can be used in place. Call it from tud_network_recv_cb() only.
+ *
+ * Returns NULL, and the datagram must be copied, when holding it could leave no NTB to receive into: every other NTB
+ * is already held. At least one NTB thus always returns to the free list, even while the network stack keeps
+ * datagrams (out-of-order TCP segments, IP fragments), so reception cannot deadlock. With one receive NTB it always
+ * returns NULL.
+ */
+void *tud_network_recv_hold(void) {
+  const int idx = recv_ntb_index(ncm_interface.recv_glue_ntb);
+  if (idx < 0 || ncm_recv_hold.count[idx] == UINT8_MAX) {
+    return NULL;
+  }
+
+  int held = 0;
+  for (int i = 0; i < RECV_NTB_N; ++i) {
+    if (i != idx && ncm_recv_hold.count[i] != 0) {
+      ++held;
+    }
+  }
+  if (held >= RECV_NTB_N - 1) {
+    return NULL;
+  }
+
+  ncm_recv_hold.count[idx]++;
+  return ncm_interface.recv_glue_ntb;
+} // tud_network_recv_hold
+
+/**
+ * Release a hold taken by tud_network_recv_hold(). Once all datagrams of the NTB were handed out and its last hold is
+ * released, the NTB returns to the free list. Task context only.
+ */
+void tud_network_recv_release(void *handle) {
+  const int idx = recv_ntb_index((const recv_ntb_t *) handle);
+  if (idx < 0 || ncm_recv_hold.count[idx] == 0) {
+    TU_LOG_DRV("(EE) tud_network_recv_release: not held\n");
+    return;
+  }
+
+  if (--ncm_recv_hold.count[idx] == 0 && ncm_recv_hold.done[idx]) {
+    ncm_recv_hold.done[idx] = false;
+    recv_put_ntb_into_free_list((recv_ntb_t *) handle);
+    recv_try_to_start_new_reception(ncm_interface.rhport);
+  }
+} // tud_network_recv_release
+
+/**
  * Same as tud_network_recv_renew() but knows \a rhport
  */
 static void tud_network_recv_renew_r(uint8_t rhport) {
@@ -880,8 +951,14 @@ void netd_init(void) {
   for (int i = 0; i < XMIT_NTB_N; ++i) {
     ncm_interface.xmit_free_ntb[i] = &ncm_epbuf.xmit[i].ntb;
   }
+  int nfree = 0;
   for (int i = 0; i < RECV_NTB_N; ++i) {
-    ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
+    if (ncm_recv_hold.count[i] != 0) {
+      // still referenced by the network stack: freed by its last tud_network_recv_release()
+      ncm_recv_hold.done[i] = true;
+    } else {
+      ncm_interface.recv_free_ntb[nfree++] = &ncm_epbuf.recv[i].ntb;
+    }
   }
   ncm_interface.link_is_up = tud_network_default_link_state_cb();
 } // netd_init
