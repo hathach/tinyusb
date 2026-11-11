@@ -32,10 +32,12 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
-them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken or the task's lock did not end as its verdict asked (its errors in "error"), 2 refused before any
-hardware action; a command line argparse rejects exits 2 with its usage on stderr and no JSON line. The JSON line
-follows the lock's release. A SIGTERM kills the running flasher or usbtest.py, ends the task failed and reports
+them, stderr and dmesg; with "previousCleanupFailure" and "openCleanupFailures" (hil_lock.failure_report) when
+the take found open failed cleanups, which go to stderr before any hardware action too, and "restoreNotes" for
+those a park left open. Exit 0 every case passed, 1 a case failed or the run failed after the
+lock was taken or the task's lock did not end as its verdict asked (its errors in "error"), a refusal's too, 2 refused
+before any hardware action; a command line argparse rejects exits 2 with its usage on stderr and no JSON line. The
+JSON line follows the lock's release. A SIGTERM kills the running flasher or usbtest.py, ends the task failed and reports
 boardState unknown. A signal that lands as the task's __exit__ is entered leaves the lock held until this process
 exits (hil_lock.BoardTask's limit), which follows at once.
 """
@@ -362,6 +364,7 @@ def lock_and_run(args, tests, report, finish):
     try:
         with task:
             entered = True
+            found(task)
             code, error = run_task(task, board, fw, park_fw, tests, args, report)
     except Terminated:
         if not entered:
@@ -370,26 +373,39 @@ def lock_and_run(args, tests, report, finish):
         report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
         code, error = 1, 'terminated (SIGTERM)'
     except Exception as e:
-        if not entered:   # admission: the lock, or the busy check under it, refused the board
-            return finish(2, f'{board["name"]}: {refusal(e)}')
-        code, error = 1, f'{type(e).__name__}: {e}'   # any failure after the lock still ends with a verdict line
+        if entered:   # any failure after the lock still ends with a verdict line
+            code, error = 1, f'{type(e).__name__}: {e}'
+        else:   # admission: the lock, or the busy check under it, refused the board
+            code, error = 2, f'{board["name"]}: {refusal(e)}'
     finally:
         os.chdir(cwd)
     # published once the task ended, so its finalization counts
-    code, error = ended(task, code, error)
+    code, error = ended(task, code, error, report)
     report['pass'] = report['pass'] and code == 0
     return finish(code, error)
 
 
-def ended(task, code, error):
-    """(code, error) once the task ended: a lock that did not end as its verdict asked fails the run,
-    its state and errors in `error`; advisory errors of a clean end only go to stderr."""
+def found(task):
+    """The open failed cleanups the take found, reported before any hardware access."""
+    if task.cleanup_failures:
+        print(f'{len(task.cleanup_failures)} open cleanup failure(s): '
+              + '; '.join(map(hil_lock.failure_text, task.cleanup_failures)), file=sys.stderr)
+
+
+def ended(task, code, error, report):
+    """(code, error) once the task ended, the open failed cleanups its take found and why a restore left
+    any open in `report`: a lock that did not end as its verdict asked fails the run (1), its state and
+    errors in `error`; advisory errors of a clean end only go to stderr."""
+    report.update(hil_lock.failure_report(task.cleanup_failures))
+    if task.restore_notes:
+        report['restoreNotes'] = list(task.restore_notes)
+        print(f'board task notes: {"; ".join(task.restore_notes)}', file=sys.stderr)
     if task.ended_cleanly:
         if task.errors:
             print(f'board task notes: {task.describe()}', file=sys.stderr)
         return code, error
     problem = f'board task did not end as its verdict asked: {task.describe()}'
-    return code or 1, f'{error}; {problem}' if error else problem
+    return 1, f'{error}; {problem}' if error else problem
 
 
 def run_task(task, board, fw, park_fw, tests, args, report):

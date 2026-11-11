@@ -152,6 +152,7 @@ class Rig:
         with mock.patch.object(sys, 'argv', ['wedge_drill.py', '--config', str(self.config), *argv]), \
                 redirect_stdout(out), redirect_stderr(err):
             rc = wedge_drill.main()
+        self.stderr = err.getvalue()
         lines = out.getvalue().splitlines()
         self.verdicts = [l for l in lines if l.startswith('{')]
         return rc, json.loads(lines[-1])
@@ -681,6 +682,32 @@ class TaskVerdicts(unittest.TestCase):
         self.assertEqual((rc, r['boardState']), (2, 'untouched'))
         self.assertIn('ok: probe in use by pid 7', r['error'])
         self.assertEqual([c for c in rig.calls if c[0] in ('flash', 'battery')], [])
+
+    def test_a_refusal_whose_lock_did_not_end_exits_1(self):
+        rig = Rig(self)
+        rig.lock.users = [{'pid': 7, 'cmd': 'JLinkExe -USB P1'}]
+        with mock.patch.object(run_case.hil_lock, 'clear_record', return_value=False):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (1, 'untouched'))
+        self.assertEqual(rig.calls, [])
+        self.assertIn('ok: probe in use by pid 7', r['error'])
+        self.assertIn('board task did not end as its verdict asked: ok: lock released, errors: record not cleared',
+                      r['error'])
+
+    def test_open_failures_are_reported_before_hardware_and_beside_the_result(self):
+        rig = Rig(self)
+        earlier = run_case.hil_lock.log_cleanup_failure('ok', 'earlier', detail='probe left',
+                                                         receipts=[{'unrecheckable': 'probe left'}])
+        seen, flash = [], run_case.flash
+        with mock.patch.object(run_case, 'flash', lambda board, fw: seen.append(sys.stderr.getvalue()) or flash(board, fw)):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (0, 'parked on board_test'))
+        self.assertIn(run_case.hil_lock.failure_text(earlier), seen[0])    # before the first flash
+        self.assertEqual(r['previousCleanupFailure'], earlier)
+        note, = r['restoreNotes']   # unrecheckable: the park leaves it open
+        self.assertIn(f'{earlier["id"]} stays open', note)
+        self.assertIn(note, rig.stderr)
+
 
 class LockName(unittest.TestCase):
     def test_a_registered_board_is_locked_by_its_registry_name(self):

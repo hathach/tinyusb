@@ -439,6 +439,40 @@ class Verdicts(unittest.TestCase):
                       report['error'])
         self.assertIn('record not cleared', report['error'])
 
+    def test_a_refusal_whose_lock_did_not_end_fails_the_run(self):
+        rig = Rig(self)
+        rig.lock.users = [{'pid': 7, 'cmd': 'JLinkExe -USB P1'}]
+        with mock.patch.object(run_case.hil_lock, 'clear_record', return_value=False):
+            rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['pass'], report['boardState']), (1, False, 'untouched'))
+        self.assertEqual(rig.calls, [('lock', 'solo')])
+        self.assertIn('solo: probe in use by pid 7', report['error'])
+        self.assertIn('board task did not end as its verdict asked: solo: lock released, errors: record not cleared',
+                      report['error'])
+
+    def test_open_failures_are_reported_before_hardware_and_beside_the_result(self):
+        rig = Rig(self)
+        earlier = run_case.hil_lock.log_cleanup_failure('solo', 'earlier', detail='probe left',
+                                                         receipts=[{'unrecheckable': 'probe left'}])
+        text, seen, primitive = run_case.hil_lock.failure_text(earlier), [], run_case.hil_flash.flash_primitive
+
+        def flash_primitive(name):
+            return lambda board, fw: seen.append(sys.stderr.getvalue()) or primitive(name)(board, fw)
+        with mock.patch.object(run_case.hil_flash, 'flash_primitive', flash_primitive):
+            rc, report, err = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['pass']), (0, True))
+        self.assertIn(text, seen[0])    # before the first flash
+        self.assertEqual(report['previousCleanupFailure'], earlier)
+        note, = report['restoreNotes']  # unrecheckable: the park leaves it open
+        self.assertIn(f'{earlier["id"]} stays open', note)
+        self.assertIn(note, err)
+        self.assertEqual(run_case.hil_lock.open_cleanup_failures('solo'), [earlier])
+        rig = Rig(self)     # a refusal reports them too
+        earlier = run_case.hil_lock.log_cleanup_failure('solo', 'earlier', detail='killed run')
+        rig.lock.users = [{'pid': 7, 'cmd': 'openocd'}]
+        rc, report, _ = rig.run('--board', 'solo', '--tests', '29', '--after', 'park')
+        self.assertEqual((rc, report['previousCleanupFailure']), (2, earlier))
+
     def test_advisory_task_errors_never_fail_the_run(self):
         rig = Rig(self)
         broken = types.SimpleNamespace(InterruptHold=mock.Mock(side_effect=OSError('no signal mask')))

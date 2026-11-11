@@ -27,15 +27,16 @@ stdout ends with one JSON line: {"drill", "board", "variant", "reason", "halt", 
 rc 0, testusb reaped, the serial back as one device on a new devnum, smoke case passed), "fail"
 (the harness did not recover a wedge it was given), or "inconclusive" (no wedge was produced:
 the case ended before the halt landed, the halt failed, or no case hung). `cleanup` is the drill's
-own reset after a non-pass and never counts as harness recovery. Exit 0 only for a pass with the
+own reset after a non-pass and never counts as harness recovery. The open failed cleanups the take
+found and a park's restoreNotes are reported as in run_case.py. Exit 0 only for a pass with the
 board parked; 1 otherwise; 2 refused (a command line argparse rejects: its usage on stderr, no JSON
 line).
 
 The lock is a board_task as in run_case.py (its busy check runs under --allow-concurrent too), ended
 restored once parked, clean while untouched, failed otherwise: a halt process that may still hold the
 probe goes in as unrecheckable evidence, which only its recovery ends. The JSON line follows the lock's
-release; a lock that did not end as its verdict asked, or a signal or exception raised as the task
-ended, exits 1, its errors in "error".
+release; a lock that did not end as its verdict asked, a refusal's too, or a signal or exception raised as
+the task ended, exits 1, its errors in "error".
 """
 import argparse
 import json
@@ -543,6 +544,7 @@ def main():
         try:
             with task:
                 entered = True
+                run_case.found(task)
                 code = drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report)
         except (Terminated, KeyboardInterrupt):
             if not entered:
@@ -551,15 +553,15 @@ def main():
             report['error'] = report['error'] or 'terminated (signal) as the task ended'
             code = code or 1   # aborted, whatever the drill and its cleanup did
         except Exception as e:
-            if not entered:   # admission: the lock, or the busy check under it, refused the board
-                report['error'] = f'{board["name"]}: {run_case.refusal(e)}'
-                return finish(2)
-            report['error'] = report['error'] or f'{type(e).__name__}: {e}'
-            code = code or 1
+            if entered:
+                report['error'] = report['error'] or f'{type(e).__name__}: {e}'
+                code = code or 1
+            else:   # admission: the lock, or the busy check under it, refused the board
+                report['error'], code = f'{board["name"]}: {run_case.refusal(e)}', 2
         finally:
             os.chdir(cwd)
         # published once the task ended, so its finalization counts
-        code, report['error'] = run_case.ended(task, code, report['error'])
+        code, report['error'] = run_case.ended(task, code, report['error'], report)
         return finish(code)
     finally:
         for s, h in previous.items():
