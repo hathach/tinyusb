@@ -769,12 +769,16 @@ static bool __tusb_irq_path_func(epx_bus_idle_after_sof)(void) {
 // masked. A NAK seen after an interrupt held this loop for longer than EPX_NAK_FRESH_US may be old, its next retry
 // already under way: it waits for the next one. Waits at most EPX_NAK_WAIT_US; false when a packet came or no fresh NAK.
 static bool __tusb_irq_path_func(epx_stop_after_nak)(void) {
+  // the clear and the first timestamp together: a NAK taken in between would otherwise pass as fresh
+  uint32_t irq_state       = save_and_disable_interrupts();
   usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
   const uint32_t t0        = time_us_32();
-  uint32_t       last      = t0;
-  for (;;) {
-    const uint32_t irq_state = save_and_disable_interrupts();
-    const uint32_t now       = time_us_32();
+  restore_interrupts(irq_state);
+  uint32_t last = t0;
+  uint32_t now  = t0;
+  while (now - t0 <= EPX_NAK_WAIT_US) {
+    irq_state = save_and_disable_interrupts();
+    now       = time_us_32();
     if (usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) {
       if (now - last <= EPX_NAK_FRESH_US) {
         sie_stop_xfer();
@@ -784,11 +788,12 @@ static bool __tusb_irq_path_func(epx_stop_after_nak)(void) {
       usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
     }
     restore_interrupts(irq_state);
-    if (epx_completion_latched() || now - t0 > EPX_NAK_WAIT_US) {
+    if (epx_completion_latched()) {
       return false;
     }
     last = now;
   }
+  return false;
 }
 
 // Stop the transfer NAK-retrying on EPX, for the round-robin. A retry can start right after any check of the bus, and
