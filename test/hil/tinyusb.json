@@ -341,6 +341,17 @@
             }
         },
         {
+            "name": "ch32v407_r0",
+            "uid": "763A5E1AA7107B6539E339E3",
+            "probe": "E9B38F066FBB",
+            "toolchain": "riscv-gcc",
+            "tests": {
+                "device": true,
+                "host": false,
+                "dual": false
+            }
+        },
+        {
             "name": "ch582m_evt",
             "uid": "D443627B5450",
             "probe": "57468F06DC03",

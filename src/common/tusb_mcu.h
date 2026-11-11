@@ -688,6 +688,13 @@
 
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
+  // Two WCH HS2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
+  #define TUP_USBIP_WCH_HS2
+  #define TUP_RHPORT_HIGHSPEED 1
+  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_EDPT_CLOSE_API
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
