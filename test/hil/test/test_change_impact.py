@@ -2513,6 +2513,22 @@ class TestCiSetMatrix(unittest.TestCase):
         self.assertEqual((json.loads(r.stdout), r.returncode), ({}, 0))
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
 
+    def test_example_map_keys_variant_legs_by_their_matrix_arg(self):
+        # build_util.yml and config2.yml look the filter up by the leg's whole arg
+        sys.path.insert(0, os.path.dirname(SET_MATRIX))
+        import ci_set_matrix
+        sel = mf(['ch569', 'ch32h417'])
+        sel['build']['families']['ch569']['examples'] = ['device/cdc_msc']
+        legs = json.loads(self.run_matrix('--select', json.dumps(sel)).stdout)['riscv-gcc']
+        r = self.run_matrix('--example-map', '--select', json.dumps(sel))
+        ex = json.loads(r.stdout)
+        variant = ci_set_matrix.family_variants['ch569'][0]
+        self.assertIn(variant, legs)
+        self.assertEqual(ex, {'ch569': ['device/cdc_msc'], variant: ['device/cdc_msc']})
+        for leg in ci_set_matrix.family_variants['ch32h417']:
+            self.assertIn(leg, legs)
+            self.assertNotIn(leg, ex)
+
     def test_full_with_filtered_families_falls_open(self):
         sel = mf(['stm32f4'], full=True)
         sel['build']['families']['stm32f4']['examples'] = ['device/cdc_msc']

@@ -193,10 +193,16 @@ def required_json(select):
 
 def example_map_json(select):
     """{family: [examples]} for build_util.yml/config2.yml's -e filter: a family that
-    builds every example has no entry, and an unusable selection filters nothing."""
+    builds every example has no entry, and an unusable selection filters nothing.
+    The consumers look a leg up by its whole matrix arg, so a family_variants leg is
+    keyed too, with its family's list."""
     select = usable(select)
     fams = select['build']['families'] if select else {}
-    print(json.dumps({f: v['examples'] for f, v in fams.items() if v['examples'] != 'all'}))
+    out = {}
+    for f, v in fams.items():
+        if v['examples'] != 'all':
+            out.update((leg, v['examples']) for leg in (f, *family_variants.get(f, ())))
+    print(json.dumps(out))
 
 
 def leg_key(arg):
