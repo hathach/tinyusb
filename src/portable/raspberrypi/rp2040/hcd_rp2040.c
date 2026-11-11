@@ -546,7 +546,11 @@ static bool __tusb_irq_path_func(epx_poll_waiting)(void) {
 enum {
   EPX_POST_SOF_SLOT_US = 10, // covers a retry the SIE sends right after SOF (~3 us) and its NAK
   LINE_IDLE_US         = 3,  // longer than the bus turnaround between a token and the device's reply
-  EPX_STOP_SETTLE_US   = 2   // after STOP_TRANS: a token sent meanwhile is on the wire by then
+  EPX_STOP_SETTLE_US   = 2,  // after STOP_TRANS: a token sent meanwhile is on the wire by then
+  // NAK_POLL delay while transfers wait for EPX: a full-speed retry and its NAK (~6 us) follow within EPX_NAK_WAIT_US
+  EPX_NAK_RETRY_US     = 8,
+  EPX_NAK_WAIT_US      = 15, // the round-robin's wait for a NAK of the transfer it stops (epx_stop_on_nak())
+  EPX_NAK_POLL_ARMED   = (EPX_NAK_RETRY_US << USB_NAK_POLL_DELAY_FS_LSB) | (EPX_NAK_RETRY_US << USB_NAK_POLL_DELAY_LS_LSB)
 };
 
 // Whether the bus stays idle (J) for at least us microseconds
@@ -729,10 +733,39 @@ static bool __tusb_irq_path_func(epx_can_stop_after_sof)(void) {
   return bus_idle_for(LINE_IDLE_US) && !epx_completion_latched();
 }
 
+// Stop the transfer NAK-retrying on EPX, for the round-robin. A retry can start right after any check of the bus, and
+// STOP_TRANS on it makes the host ACK the device's packet without writing its buffer status (#3964): the packet is lost
+// and the device's next one is a DATA_SEQ error. So STOP_TRANS follows one of the transfer's NAKs, when the SIE waits
+// NAK_POLL's delay (EPX_NAK_RETRY_US while transfers wait) before the next retry. Waits at most EPX_NAK_WAIT_US, a
+// full-speed retry period; without a NAK by then (a packet came, or a low-speed retry is longer) the next SOF tries
+// again. An interrupt IN poll is not retried and ends by itself, and epx_poll_nak() owns its NAK_REC: it stops as
+// before. Returns whether STOP_TRANS was issued.
+static bool __tusb_irq_path_func(epx_stop_on_nak)(void) {
+  if (epx->transfer_type == TUSB_XFER_INTERRUPT && tu_edpt_dir(epx->ep_addr) == TUSB_DIR_IN) {
+    if (!epx_can_stop_after_sof()) {
+      return false;
+    }
+    sie_stop_xfer();
+    return true;
+  }
+  usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
+  const uint32_t t0        = time_us_32();
+  do {
+    if (usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS) {
+      sie_stop_xfer();
+      return true;
+    }
+    if (epx_completion_latched()) {
+      return false;
+    }
+  } while (time_us_32() - t0 <= EPX_NAK_WAIT_US);
+  return false;
+}
+
 // RP2040: on SOF, switch EPX if another endpoint is pending.
 // First SOF sets epx_switch_request. If a transfer completes before next SOF, the flag is
 // cleared (data is flowing, no need to force-switch). Second SOF with flag still set means
-// no data exchanged (endpoint NAK-retrying): STOP_TRANS is safe and we switch.
+// no data exchanged (endpoint NAK-retrying): we stop it after one of its NAKs and switch.
 // This avoids stopping mid-data-transfer which corrupts double-buffered PID tracking.
 // Return true while an endpoint is pending.
 TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
@@ -746,10 +779,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
       }
       return true;
     }
-    if (!epx_can_stop_after_sof()) {
+    if (!epx_stop_on_nak()) {
       return true;
     }
-    sie_stop_xfer();
     if (!bus_idle_for(EPX_STOP_SETTLE_US)) {
       epx_stop_deferred = true;
       return true;
@@ -780,15 +812,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
     if (epx_switch_request) {
       // Second SOF with no transfer completion: endpoint is NAK-retrying, switch it out unless a packet is under way or
       // has just completed (its completion drops the request; otherwise the next SOF tries again)
-      if (!epx_can_stop_after_sof()) {
+      if (!epx_stop_on_nak()) {
         return true;
       }
       epx_switch_request = false;
-      sie_stop_xfer();
-      // A retry can start between the bus check and STOP_TRANS: the SIE then finishes it and writes its status into
-      // the buffer control, which must not be the next transfer's by then. Leave the switch to the next SOF.
-      // An IRQ preempting this one between the check above and STOP_TRANS gives a retry time to complete. With the SIE
-      // stopped and settled the check is conclusive: keep this transfer, the ISR takes its status, the next SOF switches.
+      // A retry can still start before STOP_TRANS, when an IRQ preempts this one between the NAK and STOP_TRANS: the
+      // SIE then finishes it and writes its status into the buffer control, which must not be the next transfer's by
+      // then. With the SIE stopped and settled the check is conclusive: keep this transfer, the ISR takes its status,
+      // the next SOF switches.
       if (!bus_idle_for(EPX_STOP_SETTLE_US) || epx_completion_latched()) {
         epx_stop_deferred = true;
         return true;
@@ -1287,8 +1318,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   #ifdef HAS_STOP_EPX_ON_NAK
       usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
-      // Only enable SOF round-robin for non-control endpoints
-      usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
+      // short NAK retries for the round-robin's stop (epx_stop_on_nak())
+      usb_hw->nak_poll = EPX_NAK_POLL_ARMED;
       usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
       epx_queued();
@@ -1333,7 +1364,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   #ifdef HAS_STOP_EPX_ON_NAK
     usb_hw_set->nak_poll = USB_NAK_POLL_STOP_EPX_ON_NAK_BITS;
   #else
-    usb_hw->nak_poll = (300 << USB_NAK_POLL_DELAY_FS_LSB) | (300 << USB_NAK_POLL_DELAY_LS_LSB);
+    usb_hw->nak_poll = EPX_NAK_POLL_ARMED;
     usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   #endif
     epx_queued();
