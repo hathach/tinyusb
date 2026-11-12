@@ -515,12 +515,16 @@ bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
   // If MIDI 2.0 detected, issue SET_INTERFACE to activate Alt Setting 1
   if (p_midi->alt_setting_current == 1) {
     TU_LOG_DRV("MIDI2 requesting SET_INTERFACE alt 1 for itf %u\r\n", itf_num);
-    TU_ASSERT(tuh_interface_set(dev_addr, itf_num, 1, midih2_set_interface_cb, 0));
-  } else {
-    // MIDI 1.0 only, complete immediately
-    midih2_set_config_complete(p_midi, idx);
+    if (tuh_interface_set(dev_addr, itf_num, 1, midih2_set_interface_cb, 0)) {
+      return true;
+    }
+    // not submitted, so no callback continues the configuration: stay on alt 0
+    TU_LOG_DRV("MIDI2 SET_INTERFACE not submitted, falling back to alt 0\r\n");
+    p_midi->alt_setting_current = 0;
   }
 
+  // Alt 0 (MIDI 1.0) needs no request, complete immediately
+  midih2_set_config_complete(p_midi, idx);
   return true;
 }
 
