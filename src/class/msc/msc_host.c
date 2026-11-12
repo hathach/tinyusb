@@ -561,8 +561,11 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   }
   TU_ASSERT(ep_in != NULL && ep_out != NULL, 0);
 
-  TU_ASSERT(tuh_edpt_open(dev_addr, ep_in), 0);
-  TU_ASSERT(tuh_edpt_open(dev_addr, ep_out), 0);
+  // open in descriptor order: OUT-first devices opened IN first stalled their first READ10 on the
+  // espressif_s3_devkitm DWC2 DMA host (#4509)
+  const tusb_desc_endpoint_t *ep_first = (const tusb_desc_endpoint_t *) tu_desc_next(desc_itf);
+  TU_ASSERT(tuh_edpt_open(dev_addr, ep_first), 0);
+  TU_ASSERT(tuh_edpt_open(dev_addr, (ep_first == ep_in) ? ep_out : ep_in), 0);
 
   msch_interface_t *p_msc = get_itf(dev_addr);
   p_msc->ep_in            = ep_in->bEndpointAddress;
