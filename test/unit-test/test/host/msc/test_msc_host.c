@@ -168,8 +168,10 @@ static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint
   return (uint16_t) (len + ep2_len);
 }
 
-// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order
+// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order.
+// Opens on a fresh device: an address that already has an interface refuses another one.
 static void open_expect_at(uint8_t daddr, uint16_t max_len, uint16_t expected) {
+  msch_close(daddr);
   opened_count = 0;
   TEST_ASSERT_EQUAL(expected, msch_open(0, daddr, (const tusb_desc_interface_t *) desc_buf, max_len));
   if (expected == 0) {
@@ -347,6 +349,56 @@ void test_msc_host_open_rejects_same_direction(void) {
 // usbh addresses a hub-class device above CFG_TUH_DEVICE_MAX and still offers its interfaces to every driver
 void test_msc_host_open_rejects_hub_address(void) {
   open_expect_at(CFG_TUH_DEVICE_MAX + 1, build_bot(9, 2, 7, EP_OUT, 7, EP_IN), 0);
+}
+
+// open without closing the address first, as usbh offers each interface of one device; returns the claimed length
+static uint16_t open_on_device(uint8_t itf_num, uint8_t ep_out, uint8_t ep_in) {
+  const uint16_t len = build_bot(9, 2, 7, ep_out, 7, ep_in);
+  ((tusb_desc_interface_t *) desc_buf)->bInterfaceNumber = itf_num;
+  opened_count = 0;
+  return msch_open(0, DADDR, (const tusb_desc_interface_t *) desc_buf, len);
+}
+
+// The state is per device (#4480): a second Bulk-Only interface is left unclaimed, opening none of its endpoints, and
+// the first one keeps its endpoints and interface number and still enumerates
+void test_msc_host_open_second_interface_refused(void) {
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  TEST_ASSERT_EQUAL(0, open_on_device(ITF_NUM + 1, 0x02, 0x82));
+  TEST_ASSERT_EQUAL(0, opened_count);
+
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
+  TEST_ASSERT_EQUAL(ITF_NUM, ctrl_req[ctrl_count - 1].wIndex); // Get Max LUN
+  enumerate();
+  // Test Unit Ready went out on the first interface's endpoints
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[0]);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
+}
+
+// usbh ignores set_config's result: an interface number the driver did not open still ends the configuration
+void test_msc_host_set_config_unopened_interface_completes(void) {
+  const uint8_t ctrl_before = ctrl_count;
+  set_config_count = 0;
+  TEST_ASSERT_FALSE(msch_set_config(DADDR, ITF_NUM + 1));
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(DADDR, set_config_daddr);
+  TEST_ASSERT_EQUAL(ITF_NUM + 1, set_config_itf);
+  TEST_ASSERT_EQUAL(ctrl_before, ctrl_count);
+
+  msch_close(DADDR);
+  set_config_count = 0;
+  TEST_ASSERT_FALSE(msch_set_config(DADDR, ITF_NUM));
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(ctrl_before, ctrl_count);
+}
+
+// a device removed between open and set config is closed too, so the next device at its address opens
+void test_msc_host_close_before_set_config_allows_reopen(void) {
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  TEST_ASSERT_EQUAL(2, opened_count);
 }
 
 static void start_data_in_cb(tuh_msc_complete_cb_t complete_cb) {

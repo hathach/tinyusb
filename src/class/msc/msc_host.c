@@ -445,7 +445,8 @@ bool msch_deinit(void) {
 void msch_close(uint8_t dev_addr) {
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX,);
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->configured,);
+  // opened, configured or not: msch_open() refuses an address whose interface was never cleared
+  TU_VERIFY(p_msc->ep_in != 0,);
 
   TU_LOG_DRV("  MSCh close addr = %d\r\n", dev_addr);
 
@@ -543,6 +544,13 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
   TU_VERIFY(2 == desc_itf->bNumEndpoints, 0);
 
+  // the state is per device: a second Bulk-Only interface would overwrite the first one's, so leave it unclaimed
+  msch_interface_t *p_msc = get_itf(dev_addr);
+  if (p_msc->ep_in != 0) {
+    TU_LOG_DRV("  MSCh interface %u skipped: one per device\r\n", desc_itf->bInterfaceNumber);
+    return 0;
+  }
+
   // one bulk IN and one bulk OUT, validated before either is opened. A descriptor longer than defined is valid and
   // its extra bytes are skipped (USB 2.0 9.5), so walk by bLength within max_len.
   const tusb_desc_endpoint_t *ep_in  = NULL;
@@ -567,7 +575,6 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   TU_ASSERT(tuh_edpt_open(dev_addr, ep_first), 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, (ep_first == ep_in) ? ep_out : ep_in), 0);
 
-  msch_interface_t *p_msc = get_itf(dev_addr);
   p_msc->ep_in            = ep_in->bEndpointAddress;
   p_msc->ep_out           = ep_out->bEndpointAddress;
   p_msc->itf_num          = desc_itf->bInterfaceNumber;
@@ -578,7 +585,12 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
 
 bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_ASSERT(p_msc->itf_num == itf_num);
+  // usbh ignores set_config's result: an interface this driver did not open must still end its configuration
+  if (p_msc->ep_in == 0 || p_msc->itf_num != itf_num) {
+    TU_LOG_DRV("  MSCh set config: interface %u not opened\r\n", itf_num);
+    usbh_driver_set_config_complete(daddr, itf_num);
+    return false;
+  }
   p_msc->configured = true;
 
   //------------- Get Max Lun -------------//
