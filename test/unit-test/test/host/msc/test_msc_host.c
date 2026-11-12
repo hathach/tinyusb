@@ -352,6 +352,42 @@ void test_msc_host_data_stage_short_ends_early(void) {
   TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
 }
 
+// A CSW transfer that fails or comes up short must not complete the command with the previous command's CSW
+static void assert_status_stage_failed(xfer_result_t result, uint32_t len) {
+  enumerate();
+  start_no_data_cb(record_complete);
+  reply_csw_passed(); // leaves a passed CSW behind in the buffer
+  TEST_ASSERT_EQUAL(1, complete_count);
+
+  start_data_in();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, result, len));
+  TEST_ASSERT_EQUAL(2, complete_count);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(sizeof(data) - 512, complete_csw.data_residue);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+}
+
+void test_msc_host_status_stage_failed_not_stale_csw(void) {
+  assert_status_stage_failed(XFER_RESULT_FAILED, 0);
+}
+
+void test_msc_host_status_stage_short_csw_fails(void) {
+  assert_status_stage_failed(XFER_RESULT_SUCCESS, sizeof(msc_csw_t) - 1);
+}
+
+// A failed CBW transfer leaves nothing pending: the command must still complete
+void test_msc_host_cbw_failed_completes(void) {
+  enumerate();
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234, .total_bytes = sizeof(data), .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, record_complete, 0));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_FAILED, 0));
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(sizeof(data), complete_csw.data_residue);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+}
+
 // The LUN count is the GET_MAX_LUN response plus one, clamped to CFG_TUH_MSC_MAXLUN; a STALL means one LUN
 void test_msc_host_max_lun_count(void) {
   const struct {
