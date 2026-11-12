@@ -87,8 +87,8 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ep0_buf[EP0_MPS];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ramx_pool[CFG_TUD_WCH_USB30_RAMX_POOL_SIZE];
 static uint16_t _pool_brk;
-// Set by a bus reset, cleared by pool_release(): while set, the slots belong only to endpoints
-// usbd has retired, so SET_ADDRESS may release them
+// Set by a bus reset; cleared by pool_claim() once a request served after that reset releases the
+// pool or opens an endpoint. While set, SET_ADDRESS releases the slots of the retired configuration.
 static volatile bool _pool_retired;
 
 static volatile uint8_t _pending_addr;    // 0x80 | address while SET_ADDRESS status is pending
@@ -933,6 +933,16 @@ void dcd_int_disable(uint8_t rhport) {
 #endif
 }
 
+// The pool now belongs to the current configuration. A request superseded by a reset (or a newer
+// SETUP) must not clear the reset's mark: its slots are already retired.
+static void pool_claim(void) {
+  usbd_spin_lock(false);
+  if (!ep0_superseded()) {
+    _pool_retired = false;
+  }
+  usbd_spin_unlock(false);
+}
+
 // Task context only: the allocation in dcd_edpt_open must never race it
 static void pool_release(void) {
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
@@ -940,7 +950,7 @@ static void pool_release(void) {
     xfer_status[ep][1].slot = NULL;
   }
   _pool_brk = 0;
-  _pool_retired = false;
+  pool_claim();
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
@@ -955,8 +965,8 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
   // usbd's bus reset never calls dcd_edpt_close_all(), and the host must SET_ADDRESS after every
   // reset before it configures: the previous configuration's slots are released here, after usbd
-  // has processed the reset and before any endpoint of the next configuration opens. A SET_ADDRESS
-  // without a reset since the last open (e.g. while configured) keeps the open endpoints' slots.
+  // has processed the reset and before any endpoint of the next configuration opens. Once a request
+  // served after the reset has released the pool or opened an endpoint, SET_ADDRESS keeps the slots.
   if (_pool_retired) {
     pool_release();
   }
@@ -1075,6 +1085,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   if (ep_num == 0) {
     return true;
   }
+  pool_claim(); // a SET_CONFIGURATION before SET_ADDRESS must not leave its slots releasable
 
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
   xfer->mps = tu_edpt_packet_size(desc_edpt);
@@ -1161,6 +1172,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
+  // slots released without a re-open (e.g. a lost bus-reset event): refuse rather than DMA via NULL
+  TU_VERIFY(ep_num == 0 || xfer->slot != NULL);
   if (ep_num == 0) {
     // the SETUP ISR must not land between the check and the arm; a superseded stage is dropped, not
     // refused: the newer SETUP resets EP0 in usbd
