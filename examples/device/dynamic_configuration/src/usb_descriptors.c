@@ -29,6 +29,12 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x400d
 
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD 0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
+#define USB_BCD 0x0200
+#endif
+
 // Configuration mode
 // 0 : enumerated as CDC/MIDI. Board button is not pressed when enumerating
 // 1 : enumerated as MSC. Board button is pressed when enumerating
@@ -41,7 +47,7 @@ tusb_desc_device_t const desc_device_0 =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    .bcdUSB             = USB_BCD,
 
     // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
@@ -65,7 +71,7 @@ tusb_desc_device_t const desc_device_1 =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    .bcdUSB             = USB_BCD,
     .bDeviceClass       = 0,
     .bDeviceSubClass    = 0,
     .bDeviceProtocol    = 0,
@@ -258,7 +264,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier_0 =
 {
   .bLength            = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
-  .bcdUSB             = 0x0200,
+  .bcdUSB             = USB_BCD,
 
   .bDeviceClass       = TUSB_CLASS_MISC,
   .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
@@ -273,7 +279,7 @@ static tusb_desc_device_qualifier_t const desc_device_qualifier_1 =
 {
   .bLength            = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
-  .bcdUSB             = 0x0200,
+  .bcdUSB             = USB_BCD,
 
   .bDeviceClass       = 0,
   .bDeviceSubClass    = 0,

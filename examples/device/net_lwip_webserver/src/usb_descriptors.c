@@ -57,7 +57,9 @@ enum {
   CONFIG_ID_COUNT
 };
 
-#if CFG_TUD_NCM
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD 0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#elif CFG_TUD_NCM
 #define USB_BCD 0x0201
 #else
 #define USB_BCD 0x0200

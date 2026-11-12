@@ -28,6 +28,12 @@
 #include "class/audio/audio.h"
 #include "class/midi/midi.h"
 
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD 0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
+#define USB_BCD 0x0200
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -35,7 +41,7 @@
 static tusb_desc_device_t const desc_device = {
   .bLength = sizeof(tusb_desc_device_t),
   .bDescriptorType = TUSB_DESC_DEVICE,
-  .bcdUSB = 0x0200,
+  .bcdUSB = USB_BCD,
   .bDeviceClass = 0x00,
   .bDeviceSubClass = 0x00,
   .bDeviceProtocol = 0x00,
@@ -220,7 +226,7 @@ static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
 static tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bLength = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
-  .bcdUSB = 0x0200,
+  .bcdUSB = USB_BCD,
 
   .bDeviceClass = 0x00,
   .bDeviceSubClass = 0x00,

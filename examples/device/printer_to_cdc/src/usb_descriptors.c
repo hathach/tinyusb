@@ -30,7 +30,11 @@
 
 #define USB_VID   0xCafe
 #define USB_PID   0x4019
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD   0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
 #define USB_BCD   0x0200
+#endif
 
 //--------------------------------------------------------------------+
 // Device Descriptors

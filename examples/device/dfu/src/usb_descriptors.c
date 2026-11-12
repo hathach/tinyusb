@@ -29,13 +29,19 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x400b
 
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD 0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
+#define USB_BCD 0x0201
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
 static const tusb_desc_device_t desc_device =
   {.bLength         = sizeof(tusb_desc_device_t),
    .bDescriptorType = TUSB_DESC_DEVICE,
-   .bcdUSB          = 0x0201,
+   .bcdUSB          = USB_BCD,
 
 #if CFG_TUD_CDC
    // Use Interface Association Descriptor (IAD) for CDC

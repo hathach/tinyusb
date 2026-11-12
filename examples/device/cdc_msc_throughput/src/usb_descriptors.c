@@ -29,7 +29,11 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x4009
 #define USB_VID           0xCafe
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD           0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
 #define USB_BCD           0x0200
+#endif
 
 static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
