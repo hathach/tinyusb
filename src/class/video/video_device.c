@@ -129,6 +129,11 @@ static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
 static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
+/* Receives the data of a COMMIT SET_CUR, which is stored only once tud_video_commit_cb() accepts
+ * it, so a rejected COMMIT keeps the committed values. Control transfers are serialized, so one
+ * buffer serves every stream. */
+static video_probe_and_commit_control_t _videod_commit_param;
+
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
  * COMMIT, halt and transfer-completion handlers in the usbd task. The complete and abort
  * callbacks run after it is released; tud_video_prepare_payload_cb() runs under it on the submit
@@ -1254,9 +1259,11 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            /* A shorter COMMIT updates only its leading fields, as it would in place. */
+            _videod_commit_param = stm->probe_commit_payload;
+            TU_VERIFY(tud_control_xfer(rhport, request, &_videod_commit_param, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
-            video_probe_and_commit_control_t *param = &stm->probe_commit_payload;
+            video_probe_and_commit_control_t *param = &_videod_commit_param;
             TU_VERIFY(_update_streaming_parameters(stm, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < param->dwMaxPayloadTransferSize) {
@@ -1265,6 +1272,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
               bool dropped = false;
+              stm->probe_commit_payload = *param;
               (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
               stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
               stm->state = VS_STATE_COMMITTED;
