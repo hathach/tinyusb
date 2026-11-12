@@ -97,6 +97,16 @@ controller until the ``tuh_msc_complete_cb_t`` callback runs.  Check
 separate USB transfer result, so it does not report transfer failures on its
 own.
 
+If a command's data or status stage cannot be queued on the host controller
+after its CBW was sent, the driver completes the command at once with a
+locally built CSW whose status is ``MSC_CSW_STATUS_PHASE_ERROR``.  The device
+is then mid-command, so the driver refuses further commands:
+``tuh_msc_ready()`` stays ``false`` and every command API returns ``false``
+until ``tuh_msc_reset()`` succeeds or the device is re-enumerated.  The failed
+command is not retried: for a write, the device may have stored part of it.
+If the device answers an enumeration command with a Phase Error CSW, the
+interface stays unmounted and refuses commands until it is re-enumerated.
+
 .. list-table::
    :header-rows: 1
    :widths: 40 60
@@ -114,14 +124,23 @@ own.
    * - ``tuh_msc_read10()`` / ``tuh_msc_write10()``
      - Queues an integral number of logical blocks and completes through the
        supplied callback.  Returns ``false`` without queuing if the device is
-       not mounted, the LUN is not below ``tuh_msc_get_maxlun()``, or
-       ``block_count`` x block size exceeds the 32-bit CBW data length.
+       not mounted or is refusing commands after a failed stage submit, the
+       LUN is not below ``tuh_msc_get_maxlun()``, or ``block_count`` x block
+       size exceeds the 32-bit CBW data length.
    * - ``tuh_msc_inquiry()`` / ``tuh_msc_request_sense()``
      - Queues standard SCSI identification or detailed-error requests into an
        application-owned response buffer.
    * - ``tuh_msc_scsi_command()``
      - Queues a caller-built command block wrapper for commands without a
        convenience API.
+   * - ``tuh_msc_reset()``
+     - Runs Bulk-Only Reset Recovery on an idle mounted interface: the class
+       Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and Bulk-Out
+       with a host-side data toggle reset.  Its callback reports the result;
+       only success lifts the refusal above.  Host controllers that cannot
+       reset the toggle (rp2040, pio-usb, WCH USBFS, MAX3421E, RUSB2, OHCI on
+       an endpoint it has not halted, and SAMD when Bulk-In and Bulk-Out share
+       an endpoint number) fail it and leave the interface refusing commands.
    * - ``tuh_msc_mount_cb()`` / ``tuh_msc_umount_cb()``
      - Announces cached capacity availability or invalidates all filesystem and
        media state for the address.
