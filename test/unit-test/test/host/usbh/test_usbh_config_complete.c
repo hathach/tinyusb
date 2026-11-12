@@ -112,6 +112,19 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return true;
 }
 
+static uint8_t clear_stall_count;
+static uint8_t clear_stall_rhport;
+static uint8_t clear_stall_ep;
+static bool    clear_stall_result;
+
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) daddr;
+  clear_stall_count++;
+  clear_stall_rhport = rhport;
+  clear_stall_ep     = ep_addr;
+  return clear_stall_result;
+}
+
 //--------------------------------------------------------------------+
 // Fake class driver: its set_config runs the hook, standing in for the application's mount callback, before it
 // reports completion as the class drivers do
@@ -168,6 +181,10 @@ void setUp(void) {
   set_config_count = 0;
   close_count      = 0;
   set_config_hook  = NULL;
+  clear_stall_count  = 0;
+  clear_stall_rhport = 0xff;
+  clear_stall_ep     = 0;
+  clear_stall_result = true;
 
   // DADDR is being enumerated and has reached the SET_CONFIGURATION stage
   usbh_device_t *dev    = get_device(DADDR);
@@ -239,4 +256,43 @@ void test_config_complete_ignored_when_not_configured(void) {
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_EQUAL(0, mount_cb_count);
   TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
+}
+
+//--------------------------------------------------------------------+
+// usbh_edpt_clear_stall
+//--------------------------------------------------------------------+
+enum {
+  EP_BULK_IN = 0x81,
+  OTHER_RHPORT = 1,
+};
+
+void test_clear_stall_reaches_hcd_on_device_rhport(void) {
+  get_device(DADDR)->bus_info.rhport = OTHER_RHPORT;
+
+  TEST_ASSERT_TRUE(usbh_edpt_clear_stall(DADDR, EP_BULK_IN));
+  TEST_ASSERT_EQUAL(1, clear_stall_count);
+  TEST_ASSERT_EQUAL(OTHER_RHPORT, clear_stall_rhport);
+  TEST_ASSERT_EQUAL_HEX8(EP_BULK_IN, clear_stall_ep);
+}
+
+void test_clear_stall_propagates_hcd_failure(void) {
+  clear_stall_result = false;
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(DADDR, EP_BULK_IN));
+  TEST_ASSERT_EQUAL(1, clear_stall_count);
+}
+
+void test_clear_stall_rejects_busy_endpoint(void) {
+  get_device(DADDR)->ep_status[1][TUSB_DIR_IN] = TU_EDPT_STATE_BUSY;
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(DADDR, EP_BULK_IN));
+  TEST_ASSERT_EQUAL(0, clear_stall_count);
+}
+
+void test_clear_stall_rejects_invalid_target(void) {
+  TEST_ASSERT_NOT_EQUAL(0, tu_edpt_number(0x80 | CFG_TUH_ENDPOINT_MAX));
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(DADDR, 0x80));                         // EP0
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(DADDR, 0x80 | CFG_TUH_ENDPOINT_MAX));  // beyond ep_status, not EP0
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(0, EP_BULK_IN));
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(TOTAL_DEVICES + 1, EP_BULK_IN));
+  TEST_ASSERT_FALSE(usbh_edpt_clear_stall(OTHER_ADDR, EP_BULK_IN));              // not connected
+  TEST_ASSERT_EQUAL(0, clear_stall_count);
 }

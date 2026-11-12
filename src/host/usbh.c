@@ -124,7 +124,7 @@ typedef struct {
     volatile uint8_t configured : 1; // After SET_CONFIG, while class drivers are still being configured
     volatile uint8_t mounted    : 1; // All drivers configured and tuh_mount_cb() invoked
     volatile uint8_t suspended  : 1; // Bus suspended
-    // volatile uint8_t removing : 1; // Physically disconnected, waiting to be processed by usbh
+    volatile uint8_t removing   : 1; // Unplugged, being torn down: tuh_connected() is false from tuh_umount_cb() on
   };
 
   // Endpoint & Interface
@@ -482,7 +482,7 @@ bool tuh_connected(uint8_t daddr) {
   } else {
     const usbh_device_t* dev = get_device(daddr);
     TU_VERIFY(dev != NULL);
-    return dev->connected;
+    return dev->connected && !dev->removing;
   }
 }
 
@@ -1503,6 +1503,18 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   return (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) != 0;
 }
 
+bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
+  const usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev && dev->connected);
+
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  const uint8_t dir   = tu_edpt_dir(ep_addr);
+  TU_VERIFY(epnum > 0 && epnum < CFG_TUH_ENDPOINT_MAX);
+  TU_VERIFY((dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
+
+  return hcd_edpt_clear_stall(dev->bus_info.rhport, dev_addr, ep_addr);
+}
+
 //--------------------------------------------------------------------+
 // HCD Event Handler
 //--------------------------------------------------------------------+
@@ -1754,12 +1766,36 @@ static void process_remove_event(hcd_event_t *event) {
   remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
 }
 
+// mark every device remove_device_tree() will visit, nested downstream hubs included: a callback that drives
+// tuh_task() may deliver a completion for any of them, which its driver must see as unplugged
+static void mark_device_tree_removing(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
+  bool marked;
+  do {
+    marked = false;
+    for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
+      usbh_device_t* dev = &_usbh_devices[dev_id];
+      if (dev->bus_info.rhport != rhport || !dev->connected || dev->removing) {
+        continue;
+      }
+      const usbh_device_t* parent = get_device(dev->bus_info.hub_addr);
+      if (((hub_addr == 0 || dev->bus_info.hub_addr == hub_addr) &&
+           (hub_port == 0 || dev->bus_info.hub_port == hub_port)) ||
+          (parent != NULL && parent->removing)) {
+        dev->removing = 1;
+        marked = true;
+      }
+    }
+  } while (marked);
+}
+
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
   #if CFG_TUH_HUB
   uint8_t removing_hubs[CFG_TUH_HUB] = { 0 };
   #endif
+
+  mark_device_tree_removing(rhport, hub_addr, hub_port);
 
   do {
     for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
