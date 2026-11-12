@@ -375,6 +375,22 @@ class InterruptedCleanup(unittest.TestCase):
         self.assertEqual(event['receipts'], [{'unrecheckable': 'probe process 777 may still hold the probe'}])
         self.assertTrue(run_case.hil_lock.resolve_restored('wch', [event], evidence='parked'))   # stays open
 
+    def test_a_signal_in_the_verdict_after_a_failed_flash_keeps_both_errors(self):
+        rig = Rig(self)
+        rig.flash_errors['/fw/device/usbtest'] = 'flash timed out'
+        real, calls = run_case.hil_lock.BoardTask.failed, []
+
+        def failed(task, **kw):     # the interrupt lands as finish_locked gives its verdict
+            calls.append(kw)
+            if len(calls) == 1:
+                raise run_case.Terminated()
+            return real(task, **kw)
+        with mock.patch.object(run_case.hil_lock.BoardTask, 'failed', failed):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual(rc, 1)
+        self.assertIn('flash timed out', r['error'])
+        self.assertEqual(r['error'].count('terminated (signal) during cleanup'), 1, r['error'])
+
     def test_a_signal_during_parking(self):
         rig = Rig(self)
         rig.flash_raises['/fw/device/board_test'] = KeyboardInterrupt()

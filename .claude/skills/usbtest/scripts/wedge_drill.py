@@ -494,7 +494,10 @@ def drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report):
         try:
             parked = finish_locked(task, board, rec_board, park_fw, report, given)
         except (Terminated, KeyboardInterrupt) as e:
-            report['error'] = report['error'] or 'terminated (signal) during cleanup'
+            interrupted = 'terminated (signal) during cleanup'
+            report['error'] = (f'{report["error"]}; {interrupted}'
+                               if report['error'] and not report['error'].startswith('terminated')
+                               else report['error'] or interrupted)
             report['boardState'] = 'unknown, not parked: cleanup interrupted'
             if not given:
                 note_probe_holder(report)   # e.g. the cleanup reset's child, past its reap
