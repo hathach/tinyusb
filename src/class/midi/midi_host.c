@@ -219,7 +219,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
       p_desc = tu_desc_next(p_desc);
       desc_itf = (const tusb_desc_interface_t *)p_desc;
     }
-    TU_VERIFY(p_desc < desc_end, 0);
+    // the loop also stops at a malformed descriptor, which is not the MIDI Streaming interface
+    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass, 0);
   }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass, 0);

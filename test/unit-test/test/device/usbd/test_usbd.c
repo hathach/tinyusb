@@ -617,6 +617,51 @@ void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
 }
 
 //--------------------------------------------------------------------+
+// Malformed configuration descriptor (#4387)
+//--------------------------------------------------------------------+
+
+// A trailing bLength 1 descriptor at wTotalLength - 1 is not walkable: its bDescriptorType would be the byte past
+// wTotalLength. Here that byte is an INTERFACE guard; reading it would hand a 1-byte "interface" to the drivers
+// (mscd_open has no expectation for it). The walk stops and SET_CONFIGURATION completes with the MSC interface.
+void test_usbd_set_config_trailing_blength1_not_walked(void) {
+  static const uint8_t desc_cfg[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN + 1, 0, 100),
+    TUD_MSC_DESCRIPTOR(0, 0, EDPT_MSC_OUT, EDPT_MSC_IN, 64),
+    1,                  // bLength 1, last byte within wTotalLength
+    TUSB_DESC_INTERFACE // guard byte past wTotalLength
+  };
+
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+
+  desc_configuration = desc_cfg;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_configuration, false);
+  mscd_open_ExpectAndReturn(rhport, (tusb_desc_interface_t const*) (desc_cfg + TUD_CONFIG_DESC_LEN),
+                            TUD_MSC_DESC_LEN + 1, TUD_MSC_DESC_LEN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
+  tud_task();
+
+  TEST_ASSERT_TRUE(tud_mounted());
+}
+
+// usbd_open_edpt_pair() must not open an endpoint whose bLength is shorter than an endpoint descriptor: usbd_edpt_open
+// would read wMaxPacketSize and bInterval past it (no dcd_edpt_open expectation)
+void test_usbd_open_edpt_pair_short_blength(void) {
+  const uint8_t desc_ep[] = {
+    6, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(64), // bLength 6, wMaxPacketSize still in the buffer
+    0                                                                 // bInterval, outside bLength
+  };
+  uint8_t ep_out = 0;
+  uint8_t ep_in  = 0;
+
+  TEST_ASSERT_FALSE(usbd_open_edpt_pair(rhport, desc_ep, 1, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0, ep_out);
+}
+
+//--------------------------------------------------------------------+
 // Endpoint stream ZLP
 //--------------------------------------------------------------------+
 

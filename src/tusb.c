@@ -290,12 +290,14 @@ bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t it
     const uint8_t desc_type = tu_desc_type(p_desc);
 
     if (desc_type == TUSB_DESC_ENDPOINT) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
       const uint8_t ep_addr  = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
       const uint8_t ep_num   = tu_edpt_number(ep_addr);
       const uint8_t ep_dir   = tu_edpt_dir(ep_addr);
       TU_ASSERT(ep_num < ep_max);
       ep2drv[ep_num][ep_dir] = driver_id;
     } else if (desc_type == TUSB_DESC_INTERFACE) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t));
       const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
       if (desc_itf->bAlternateSetting == 0) {
         TU_ASSERT(desc_itf->bInterfaceNumber < itf_max);

@@ -2364,13 +2364,6 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 
   // parse all interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {
-    if (0 == tu_desc_len(p_desc)) {
-      // A zero-length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
-      // Parsed interfaces should still be usable
-      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
-      break;
-    }
-
     // skip if not interface
     if (TUSB_DESC_INTERFACE != tu_desc_type(p_desc)) {
       p_desc = tu_desc_next(p_desc);
@@ -2409,6 +2402,12 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
                   dev->bus_info.rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass,
                   desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
     }
+  }
+
+  if (p_desc < desc_end) {
+    // A descriptor with bLength < 2 or running past wTotalLength: the device is off spec (e.g. wrong wTotalLength).
+    // Parsed interfaces should still be usable
+    TU_LOG_USBH("Encountered a malformed descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
   }
 
   return true;

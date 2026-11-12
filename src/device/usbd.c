@@ -1381,7 +1381,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
       continue;
     }
 
-    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t));
     const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
 
     // Find driver for this interface
@@ -1632,6 +1632,9 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
+    // bLength must cover the whole endpoint descriptor: usbd_edpt_open() reads wMaxPacketSize and bInterval, and a
+    // short bLength would also step the next iteration into the middle of this one
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
