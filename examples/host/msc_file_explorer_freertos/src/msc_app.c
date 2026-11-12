@@ -293,7 +293,10 @@ DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
   return RES_OK;
@@ -310,7 +313,10 @@ DRESULT disk_write(BYTE        pdrv,   /* Physical drive nmuber to identify the 
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
   return RES_OK;
