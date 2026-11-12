@@ -87,7 +87,7 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ep0_buf[EP0_MPS];
 CFG_TUD_WCH_DMA_SECTION TU_ATTR_ALIGNED(16) static uint8_t _ramx_pool[CFG_TUD_WCH_USB30_RAMX_POOL_SIZE];
 static uint16_t _pool_brk;
-// Set by a bus reset, cleared once a data endpoint opens: the slots then belong only to endpoints
+// Set by a bus reset, cleared by pool_release(): while set, the slots belong only to endpoints
 // usbd has retired, so SET_ADDRESS may release them
 static volatile bool _pool_retired;
 
@@ -1076,7 +1076,6 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
     return true;
   }
 
-  _pool_retired = false;
   xfer_ctl_t *xfer = &xfer_status[ep_num][dir];
   xfer->mps = tu_edpt_packet_size(desc_edpt);
   TU_ASSERT(xfer->mps <= BOUNCE_SLOT_SIZE); // RX chain has no length limit: an oversize mps would overrun the slot
