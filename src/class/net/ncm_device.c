@@ -859,10 +859,7 @@ void *tud_network_recv_hold(void) {
  */
 void tud_network_recv_release(void *handle) {
   const int idx = recv_ntb_index((const recv_ntb_t *) handle);
-  if (idx < 0 || ncm_recv_hold.count[idx] == 0) {
-    TU_LOG_DRV("(EE) tud_network_recv_release: not held\n");
-    return;
-  }
+  TU_ASSERT(idx >= 0 && ncm_recv_hold.count[idx] != 0,);
 
   if (--ncm_recv_hold.count[idx] == 0 && ncm_recv_hold.done[idx]) {
     ncm_recv_hold.done[idx] = false;
@@ -967,6 +964,9 @@ void netd_init(void) {
  * Deinit driver
  */
 bool netd_deinit(void) {
+  // Stop reception: a tud_network_recv_release() after tud_deinit() still returns its NTB to the free list, but must
+  // not start a transfer on the deinitialized controller. Holds are kept for netd_init().
+  ncm_interface.itf_data_alt = 0;
   return true;
 }
 

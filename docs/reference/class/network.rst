@@ -99,8 +99,9 @@ For device-to-host frames:
    Ethernet frame into ``dst`` and return its length.
 
 The drivers do not lock their state: call ``tud_network_recv_renew()``,
-``tud_network_can_xmit()`` and ``tud_network_xmit()`` from the task that runs
-``tud_task()``.
+``tud_network_recv_release()``, ``tud_network_can_xmit()`` and
+``tud_network_xmit()`` from the task that runs ``tud_task()``, not from an ISR
+or another task.
 
 Use ``tud_network_link_state()`` to notify the host when the logical or physical
 link changes.  A mounted USB device is not necessarily a link-up network
