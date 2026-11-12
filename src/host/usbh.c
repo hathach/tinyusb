@@ -222,6 +222,7 @@ typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
   uint8_t enum_attempt;       // enumeration attempts used for the current attach
   uint8_t enum_xfer_retry;    // resends used for the current enumeration request, see enum_xfer_retry()
+  uint8_t enum_gen;           // bumped when an enumeration attempt starts, carried by its requests, see enum_ud()
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   uint8_t attach_teardown;    // an attach event is tearing down what was on its port
   uint8_t root_retry_count;   // root port re-enumerations used for the current attachment
@@ -1913,6 +1914,13 @@ static bool    enum_retry(void);
 static bool    enum_xfer_retry(const tuh_xfer_t *xfer);
 static void    process_enumeration(tuh_xfer_t *xfer);
 
+// user_data of an enumeration request: the state that handles its completion, tagged with the attempt that sent it.
+// A request queued behind another device's control transfer outlives an unplug; the pending queue then completes it
+// as FAILED, and that must not count against the attempt enumerating the next device.
+TU_ATTR_ALWAYS_INLINE static inline uintptr_t enum_ud(uintptr_t state) {
+  return state | ((uintptr_t) _usbh_data.enum_gen << 8);
+}
+
 enum {
   ENUM_AFTER_DEBOUNCING_DELAY,
   ENUM_AFTER_RESET_ROOT_DELAY,
@@ -1934,7 +1942,7 @@ static void enum_delay_async(uintptr_t state) {
         // connected via hub
         TU_VERIFY(dev0_bus->hub_port != 0, );
         if (!hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
-                                 ENUM_HUB_RERSET)) {
+                                 enum_ud(ENUM_HUB_RERSET))) {
           enum_full_complete(false);
         }
       } else
@@ -1971,7 +1979,7 @@ static void enum_delay_async(uintptr_t state) {
       tuh_xfer_t xfer;
       xfer.daddr     = 0;
       xfer.result    = XFER_RESULT_SUCCESS;
-      xfer.user_data = ENUM_ADDR0_DEVICE_DESC;
+      xfer.user_data = enum_ud(ENUM_ADDR0_DEVICE_DESC);
       process_enumeration(&xfer);
       break;
 
@@ -1980,8 +1988,8 @@ static void enum_delay_async(uintptr_t state) {
     case ENUM_AFTER_RESET_HUB_DELAY_RETRY:
       // get status after reset complete to check for reset change
       if (!hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
-                               state == ENUM_AFTER_RESET_HUB_DELAY ? ENUM_HUB_CLEAR_RESET
-                                                                   : ENUM_HUB_CLEAR_RESET_RETRY)) {
+                               enum_ud(state == ENUM_AFTER_RESET_HUB_DELAY ? ENUM_HUB_CLEAR_RESET
+                                                                           : ENUM_HUB_CLEAR_RESET_RETRY))) {
         enum_full_complete(false);
       }
       break;
@@ -1996,7 +2004,7 @@ static void enum_delay_async(uintptr_t state) {
       }
       // Get first 8 bytes of device descriptor for control endpoint size
       TU_LOG_USBH("Get 8 byte of Device Descriptor\r\n");
-      if (!tuh_descriptor_get_device(0, _usbh_epbuf.ctrl, 8, process_enumeration, ENUM_SET_ADDR)) {
+      if (!tuh_descriptor_get_device(0, _usbh_epbuf.ctrl, 8, process_enumeration, enum_ud(ENUM_SET_ADDR))) {
         enum_full_complete(false);
       }
       break;
@@ -2012,7 +2020,7 @@ static void enum_delay_async(uintptr_t state) {
       }
       TU_LOG_USBH("Get Device Descriptor\r\n");
       if (!tuh_descriptor_get_device(new_addr, _usbh_epbuf.ctrl, sizeof(tusb_desc_device_t), process_enumeration,
-                                     ENUM_GET_STRING_LANGUAGE_ID_LEN)) {
+                                     enum_ud(ENUM_GET_STRING_LANGUAGE_ID_LEN))) {
         enum_full_complete(false);
       }
       break;
@@ -2028,7 +2036,7 @@ static void enum_delay_async(uintptr_t state) {
         .complete_cb = process_enumeration,
         .user_data   = saved->user_data,
       };
-      if (!tuh_control_xfer(&retry_xfer)) {
+      if (!tuh_control_xfer(&retry_xfer) && !enum_retry()) {
         enum_full_complete(false);
       }
       break;
@@ -2047,11 +2055,17 @@ static void enum_new_device(hcd_event_t *event) {
   dev0_bus->hub_port       = event->connection.hub_port;
   _usbh_data.enum_attempt  = 0;
   _usbh_data.enum_xfer_retry = 0;
+  _usbh_data.enum_gen++;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
 }
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t *xfer) {
+  if ((uint8_t) (xfer->user_data >> 8) != _usbh_data.enum_gen) {
+    TU_LOG_USBH("Drop a request of an earlier enumeration attempt\r\n");
+    return;
+  }
+
   if (XFER_RESULT_FAILED == xfer->result || XFER_RESULT_TIMEOUT == xfer->result) {
     if (!enum_xfer_retry(xfer) && !enum_retry()) {
       enum_full_complete(false);
@@ -2061,7 +2075,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
   _usbh_data.enum_xfer_retry = 0; // the device answered: the next request gets its own tries
 
   const uint8_t   daddr    = xfer->daddr;
-  const uintptr_t state    = xfer->user_data;
+  const uintptr_t state    = xfer->user_data & 0xFFu;
   usbh_device_t  *dev      = get_device(daddr);
   tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
   if (daddr > 0) {
@@ -2085,7 +2099,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         is_enum_failed = true;
       } else {
         is_enum_failed = !hub_port_reset(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration,
-                                         ENUM_HUB_RESET_COMPLETE);
+                                         enum_ud(ENUM_HUB_RESET_COMPLETE));
       }
       break;
     }
@@ -2107,7 +2121,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       if (1 == port_status.change.reset) {
         // Acknowledge Port Reset Change
         is_enum_failed = !hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration,
-                                                       ENUM_HUB_CLEAR_RESET_COMPLETE);
+                                                       enum_ud(ENUM_HUB_CLEAR_RESET_COMPLETE));
       } else if (state == ENUM_HUB_CLEAR_RESET) {
         // retry one more time if reset change not set yet
         usbh_defer_func_ms_async(ENUM_RESET_HUB_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_HUB_DELAY_RETRY);
@@ -2154,7 +2168,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       new_dev->bus_info = *dev0_bus;
       new_dev->desc_device.bMaxPacketSize0 = desc_device->bMaxPacketSize0;
 
-      is_enum_failed = !tuh_address_set(0, new_addr, process_enumeration, ENUM_GET_DEVICE_DESC);
+      is_enum_failed = !tuh_address_set(0, new_addr, process_enumeration, enum_ud(ENUM_GET_DEVICE_DESC));
       break;
     }
 
@@ -2181,14 +2195,14 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
       tuh_enum_descriptor_device_cb(daddr, desc_device); // callback
       is_enum_failed = !tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, 2,
-                                                         process_enumeration, ENUM_GET_STRING_LANGUAGE_ID);
+                                                         process_enumeration, enum_ud(ENUM_GET_STRING_LANGUAGE_ID));
       break;
     }
 
     case ENUM_GET_STRING_LANGUAGE_ID: {
       const uint8_t str_len = xfer->buffer[0];
       is_enum_failed = !tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, str_len,
-                                                         process_enumeration, ENUM_GET_STRING_MANUFACTURER_LEN);
+                                                         process_enumeration, enum_ud(ENUM_GET_STRING_MANUFACTURER_LEN));
       break;
     }
 
@@ -2199,7 +2213,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       }
       if (dev->desc_device.iManufacturer != 0) {
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iManufacturer, langid, _usbh_epbuf.ctrl, 2,
-                                                    process_enumeration, ENUM_GET_STRING_MANUFACTURER);
+                                                    process_enumeration, enum_ud(ENUM_GET_STRING_MANUFACTURER));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2210,7 +2224,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
         const uint8_t str_len = xfer->buffer[0];
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iManufacturer, langid, _usbh_epbuf.ctrl,
-                                                    str_len, process_enumeration, ENUM_GET_STRING_PRODUCT_LEN);
+                                                    str_len, process_enumeration, enum_ud(ENUM_GET_STRING_PRODUCT_LEN));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2222,7 +2236,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
           langid = tu_le16toh(xfer->setup->wIndex); // get langid from previous setup packet if not fall through
         }
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iProduct, langid, _usbh_epbuf.ctrl, 2,
-                                                    process_enumeration, ENUM_GET_STRING_PRODUCT);
+                                                    process_enumeration, enum_ud(ENUM_GET_STRING_PRODUCT));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2233,7 +2247,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
         const uint8_t str_len = xfer->buffer[0];
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iProduct, langid, _usbh_epbuf.ctrl, str_len,
-                                                    process_enumeration, ENUM_GET_STRING_SERIAL_LEN);
+                                                    process_enumeration, enum_ud(ENUM_GET_STRING_SERIAL_LEN));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2245,7 +2259,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
           langid = tu_le16toh(xfer->setup->wIndex); // get langid from previous setup packet if not fall through
         }
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iSerialNumber, langid, _usbh_epbuf.ctrl, 2,
-                                                    process_enumeration, ENUM_GET_STRING_SERIAL);
+                                                    process_enumeration, enum_ud(ENUM_GET_STRING_SERIAL));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2256,7 +2270,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
         const uint8_t str_len = xfer->buffer[0];
         is_enum_failed = !tuh_descriptor_get_string(daddr, dev->desc_device.iSerialNumber, langid, _usbh_epbuf.ctrl,
-                                                    str_len, process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC);
+                                                    str_len, process_enumeration, enum_ud(ENUM_GET_9BYTE_CONFIG_DESC));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -2267,7 +2281,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       uint8_t const config_idx = 0;
       TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
       is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
-                                                         process_enumeration, ENUM_GET_FULL_CONFIG_DESC);
+                                                         process_enumeration, enum_ud(ENUM_GET_FULL_CONFIG_DESC));
       break;
     }
 
@@ -2285,7 +2299,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       uint8_t const config_idx = (uint8_t) (tu_le16toh(xfer->setup->wValue) & 0xFF);
       TU_LOG_USBH("Get Configuration[%u] Descriptor\r\n", config_idx);
       is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, total_len,
-                                                         process_enumeration, ENUM_SET_CONFIG);
+                                                         process_enumeration, enum_ud(ENUM_SET_CONFIG));
       break;
     }
 
@@ -2306,7 +2320,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       }
 
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
-        is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, ENUM_CONFIG_DRIVER);
+        is_enum_failed = !tuh_configuration_set(daddr, desc_config->bConfigurationValue, process_enumeration, enum_ud(ENUM_CONFIG_DRIVER));
       } else {
         config_idx++;
         if (config_idx >= dev->desc_device.bNumConfigurations) {
@@ -2316,7 +2330,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
         }
         TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
         is_enum_failed = !tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
-                                                           process_enumeration, ENUM_GET_FULL_CONFIG_DESC);
+                                                           process_enumeration, enum_ud(ENUM_GET_FULL_CONFIG_DESC));
       }
       break;
     }
@@ -2561,6 +2575,7 @@ static bool enum_retry(void) {
   enum_teardown(false);
   _usbh_data.enum_attempt++;
   _usbh_data.enum_xfer_retry = 0;
+  _usbh_data.enum_gen++;
   TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n", _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
   _usbh_data.enumerating_daddr = 0;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
@@ -2579,16 +2594,16 @@ static bool enum_xfer_retry(const tuh_xfer_t *xfer) {
       _usbh_data.enum_xfer_retry + 1 >= ENUM_XFER_ATTEMPT_MAX) {
     return false;
   }
-  _usbh_data.enum_xfer_retry++;
-  TU_LOG_USBH("Enumeration request failed, try %u/%u in %u ms\r\n", _usbh_data.enum_xfer_retry + 1,
-              ENUM_XFER_ATTEMPT_MAX, ENUM_XFER_RETRY_DELAY_MS);
-
   usbh_pending_ctrl_t *saved = &_usbh_data.enum_xfer;
   saved->setup     = *xfer->setup;
   saved->buffer    = xfer->buffer;
   saved->user_data = xfer->user_data;
   saved->daddr     = xfer->daddr;
-  usbh_defer_func_ms_async(ENUM_XFER_RETRY_DELAY_MS, enum_delay_async, ENUM_AFTER_XFER_RETRY_DELAY);
+  TU_VERIFY(usbh_defer_func_ms_async(ENUM_XFER_RETRY_DELAY_MS, enum_delay_async, ENUM_AFTER_XFER_RETRY_DELAY));
+
+  _usbh_data.enum_xfer_retry++;
+  TU_LOG_USBH("Enumeration request failed, try %u/%u in %u ms\r\n", _usbh_data.enum_xfer_retry + 1,
+              ENUM_XFER_ATTEMPT_MAX, ENUM_XFER_RETRY_DELAY_MS);
   return true;
 }
 

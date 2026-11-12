@@ -382,3 +382,55 @@ void test_resend_waits_for_busy_control_slot(void) {
   TEST_ASSERT_EQUAL_MEMORY(&request, &_usbh_epbuf.request, sizeof(request));
   TEST_ASSERT_EQUAL_PTR(process_enumeration, _usbh_data.ctrl_xfer_info.complete_cb);
 }
+
+// A resend queued behind another device's transfer outlives an unplug, and the pending queue later completes it as
+// FAILED. That failure belongs to the earlier attempt: it must not count against the next device's enumeration, whose
+// own first request was queued behind it.
+void test_stale_queued_resend_does_not_affect_next_device(void) {
+  send_first_request();
+  request_fails();
+
+  // another device's transfer holds the slot: the resend is queued
+  _usbh_data.ctrl_xfer_info.stage = CONTROL_STAGE_DATA;
+  _usbh_data.ctrl_xfer_info.daddr = 1;
+  fire_delay();
+
+  port_connected = false;
+  hcd_event_device_remove(RHPORT, false);
+  process_next_event();
+  TEST_ASSERT_EQUAL_UINT8(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+
+  // the next device attaches; its first request is queued behind the stale resend
+  attach_to_reset_recovery();
+  fire_delay();
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+
+  setup_send_count                = 0;
+  _usbh_data.ctrl_xfer_info.stage = CONTROL_STAGE_IDLE;
+  control_xfer_dispatch_pending();
+
+  // the stale resend is dropped, the new device's request goes out and its attempt is untouched
+  TEST_ASSERT_EQUAL_UINT32(1, setup_send_count);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_SETUP, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_EQUAL_PTR(process_enumeration, _usbh_data.ctrl_xfer_info.complete_cb);
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.enum_attempt);
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.enum_xfer_retry);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&_usbh_pending_ctrl_q));
+}
+
+// The resend cannot even be queued (slot busy, pending queue full): the attempt falls back to a port reset
+void test_resend_not_queued_resets_port(void) {
+  send_first_request();
+  request_fails();
+
+  _usbh_data.ctrl_xfer_info.stage = CONTROL_STAGE_DATA;
+  _usbh_data.ctrl_xfer_info.daddr = 1;
+  const usbh_pending_ctrl_t filler = {.daddr = 1};
+  while (tu_fifo_write_n(&_usbh_pending_ctrl_q, &filler, sizeof(filler)) > 0) {}
+
+  fire_delay();
+  TEST_ASSERT_EQUAL(ENUM_AFTER_DEBOUNCING_DELAY, _usbh_data.call_after.arg);
+  TEST_ASSERT_EQUAL_UINT8(1, _usbh_data.enum_attempt);
+}
