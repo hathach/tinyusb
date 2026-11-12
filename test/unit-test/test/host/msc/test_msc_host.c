@@ -168,16 +168,18 @@ static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint
   return (uint16_t) (len + ep2_len);
 }
 
-// a rejected interface opens no endpoint, an accepted one opens its bulk IN and bulk OUT
+// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order
 static void open_expect_at(uint8_t daddr, uint16_t max_len, uint16_t expected) {
   opened_count = 0;
   TEST_ASSERT_EQUAL(expected, msch_open(0, daddr, (const tusb_desc_interface_t *) desc_buf, max_len));
   if (expected == 0) {
     TEST_ASSERT_EQUAL(0, opened_count);
   } else {
+    const tusb_desc_endpoint_t *ep1 = (const tusb_desc_endpoint_t *) tu_desc_next(desc_buf);
+    const tusb_desc_endpoint_t *ep2 = (const tusb_desc_endpoint_t *) tu_desc_next(ep1);
     TEST_ASSERT_EQUAL(2, opened_count);
-    TEST_ASSERT_TRUE((opened_ep[0] == EP_IN && opened_ep[1] == EP_OUT) ||
-                     (opened_ep[0] == EP_OUT && opened_ep[1] == EP_IN));
+    TEST_ASSERT_EQUAL_HEX8(ep1->bEndpointAddress, opened_ep[0]);
+    TEST_ASSERT_EQUAL_HEX8(ep2->bEndpointAddress, opened_ep[1]);
   }
 }
 
@@ -296,6 +298,12 @@ void test_msc_host_open_valid(void) {
 void test_msc_host_open_accepts_longer_descriptors(void) {
   check_open(12, 2, 7, 7, 12 + 2 * 7);
   check_open(9, 2, 9, 9, 9 + 2 * 9);
+}
+
+// check_open lists OUT first; an IN-first interface opens IN first
+void test_msc_host_open_in_first(void) {
+  open_expect(build_bot(9, 2, 7, EP_IN, 7, EP_OUT), 9 + 2 * 7);
+  open_expect(build_bot(12, 2, 9, EP_IN, 9, EP_OUT), 12 + 2 * 9);
 }
 
 void test_msc_host_open_rejects_bad_num_endpoints(void) {

@@ -127,7 +127,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     const msch_interface_t *p_msc = get_itf(TEST_DADDR);
     CHECK(tu_edpt_dir(p_msc->ep_in) == TUSB_DIR_IN);
     CHECK(tu_edpt_dir(p_msc->ep_out) == TUSB_DIR_OUT);
-    CHECK(opened_addr[0] == p_msc->ep_in && opened_addr[1] == p_msc->ep_out);
+    // opened in descriptor order, and they are the endpoints the interface records
+    const uint8_t addr1 = ((const tusb_desc_endpoint_t *) ep1)->bEndpointAddress;
+    const uint8_t addr2 = ((const tusb_desc_endpoint_t *) ep2)->bEndpointAddress;
+    CHECK(opened_addr[0] == addr1 && opened_addr[1] == addr2);
+    CHECK((addr1 == p_msc->ep_in && addr2 == p_msc->ep_out) || (addr1 == p_msc->ep_out && addr2 == p_msc->ep_in));
     CHECK(p_msc->itf_num == ((const tusb_desc_interface_t *) desc)->bInterfaceNumber);
   }
 
