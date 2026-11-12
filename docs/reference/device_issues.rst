@@ -197,3 +197,22 @@ transaction per frame did not help (9 of 10 boots still lost the port), so the E
 mitigation is not enabled for STM32. TinyUSB re-enumerates the root port after a port disable. A
 high-speed host with a high-speed hub avoids preambles altogether (the hub's transaction translator
 talks low speed).
+
+STMicroelectronics STM32F2/F4 OTG_FS host channel halt
+------------------------------------------------------
+**Severity: Low** for a host that aborts transfers
+
+Reference: "Host channel-halted interrupt not generated when the channel is disabled", section 2.14.5
+of ES0005 (STM32F20x/21x), ES0182 (F405/407/415/417) and ES0206 (F427/437/429/439).
+
+ST: when the application enables and then immediately disables a host channel before the OTG_FS core
+has begun the transfer sequence, no channel-halted interrupt is raised; the core otherwise operates
+normally. The workaround is not to disable a channel right after enabling it.
+
+``hcd_dwc2`` aborts a transfer by disabling its channel and retires the channel, and lets the
+endpoint take a new transfer, only on that channel-halted interrupt: neither the reference manual
+nor the databook supports treating a channel as disabled without it. OTG_FS has no DMA, so the
+host runs in slave mode, which re-enables a NAKed control or bulk IN after every NAK: a
+``tuh_edpt_abort_xfer()`` that lands right after such a re-enable can miss the halt. The abort then
+returns after its bounded wait and the endpoint refuses new transfers until the device is
+unplugged. Not observed on hardware (no F2/F4 host on the test rigs).
