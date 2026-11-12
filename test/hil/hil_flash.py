@@ -219,6 +219,13 @@ def convoy_safe(flasher: dict) -> bool:
     return hil_util.provider().convoy_safe(flasher)
 
 
+def probe_entry(flasher: dict) -> dict:
+    """The entry the provider's probe_users looks the flasher up by: wch_uart_loader flashes over
+    the WCH-LinkE's VCP, a USB-UART bridge, so it is looked up as esptool's tty is (the LinkE's
+    debug interface is not watched)."""
+    return {**flasher, 'name': 'esptool'} if flasher.get('name') == 'wch_uart_loader' else flasher
+
+
 class ProbeCheckFailed(RuntimeError):
     """probe_busy could not rule out a user of the board's probe."""
 
@@ -227,13 +234,13 @@ def probe_busy(board: dict) -> list:
     """The board_task busy check of every HIL entry point and the farm check: the provider's
     probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
     another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
-    inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError,
-    wch_uart_loader); any other exception propagates. Probe users only: a DUT-side process (a
+    inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError); any
+    other exception propagates. Probe users only: a DUT-side process (a
     stray testusb) is the run's recovery, never a refusal."""
     provider, users = hil_util.provider(), {}
     try:
         for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
-            users.update((u['pid'], u) for u in provider.probe_users(f))
+            users.update((u['pid'], u) for u in provider.probe_users(probe_entry(f)))
     except (provider.ProbeCheckInconclusive, ValueError) as e:
         raise ProbeCheckFailed(f'{type(e).__name__}: {e}') from e
     return sorted(users.values(), key=lambda u: u['pid'])

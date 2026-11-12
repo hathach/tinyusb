@@ -131,6 +131,10 @@ class Adapters(unittest.TestCase):
         asked.clear()
         hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
         self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
+        asked.clear()
+        users['esptool'] = []
+        hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])})
+        self.assertEqual(asked, [dict(BOARDS['wch_uart_loader'], name='esptool')], 'the LinkE VCP, as a bridge tty')
 
     def test_probe_busy_refuses_only_what_the_provider_cannot_decide(self):
         board = {'name': 'b', 'flasher': dict(BOARDS['jlink'])}
@@ -155,7 +159,7 @@ class Adapters(unittest.TestCase):
                 mock.patch.object(real, '_walk', return_value=[]):
             for name in flasher_names():
                 with self.subTest(name=name):
-                    self.assertEqual(real.probe_users(BOARDS[name]), [])
+                    self.assertEqual(real.probe_users(hil_flash.probe_entry(BOARDS[name])), [])
 
     def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
         self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
