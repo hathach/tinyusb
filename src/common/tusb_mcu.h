@@ -880,7 +880,6 @@
   #define TUP_RHPORT_HIGHSPEED 0
 #endif
 
-
 // fast function, normally mean placing function in SRAM
 #ifndef TU_ATTR_FAST_FUNC
   #define TU_ATTR_FAST_FUNC
