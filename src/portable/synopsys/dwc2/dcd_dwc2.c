@@ -56,6 +56,7 @@ typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t dfifo_top;      // top free location in DFIFO in words
+  uint8_t  tx_fifo_count;  // implemented TX FIFOs, 0 = not limited
   dfifo_rx_t rx;
 
   // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
@@ -259,10 +260,29 @@ static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool
   return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
 }
 
-// TX FIFO number is the IN endpoint number; ep_in_count == 0 means not limited
+// Number of TX FIFOs, 0 = not limited. With dedicated TX FIFOs there is one per IN endpoint of the hardware
+// configuration, GHWCFG4.INEps + 1 (DIEPTXFn exists for n = 1..INEps, Databook v4.20a), e.g. nRF54H20 has 8 IN of
+// 16 endpoints. ep_in_count overrides a register that overstates it (ESP32-S2/S3: 5 FIFOs). GD32VF103 has no usable
+// GHWCFG registers, and shared-FIFO cores (AT32F415) do not index a FIFO per endpoint.
+static uint8_t dfifo_tx_count(uint8_t rhport) {
+  uint8_t count = _dwc2_controller[rhport].ep_in_count;
+  #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  const dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  const dwc2_ghwcfg4_t ghwcfg4 = {.value = dwc2->ghwcfg4};
+  if (ghwcfg4.dedicated_fifos) {
+    const uint8_t in_eps = (uint8_t) (ghwcfg4.num_dev_in_eps + 1);
+    if (count == 0 || in_eps < count) {
+      count = in_eps;
+    }
+  }
+  #endif
+  return count;
+}
+
+// TX FIFO number is the IN endpoint number
 TU_ATTR_ALWAYS_INLINE static inline bool dfifo_tx_exists(uint8_t rhport, uint8_t fnum) {
-  const uint8_t ep_in_count = _dwc2_controller[rhport].ep_in_count;
-  return ep_in_count == 0 || fnum < ep_in_count;
+  (void) rhport;
+  return _dcd_data.tx_fifo_count == 0 || fnum < _dcd_data.tx_fifo_count;
 }
 
 static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, uint8_t xfer_type) {
@@ -345,6 +365,7 @@ static void dfifo_device_init(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   tu_memclr(&_dcd_data.rx, sizeof(_dcd_data.rx));
   _dcd_data.rx.largest = CFG_TUD_ENDPOINT0_SIZE / 4;
+  _dcd_data.tx_fifo_count = dfifo_tx_count(rhport);
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
   const bool is_dma = dma_device_enabled(dwc2);
