@@ -730,6 +730,11 @@ class Admission(LockDir):
                                f'(JLinkExe -USB 000000123)')
         self.assertEqual(hil_test.hil_report.cell_state(cell), 'fail')
 
+    def test_a_long_probe_user_list_is_bounded(self):
+        self.users = [{'pid': p, 'cmd': 'STM32_Programmer_CLI ' + 'x' * 300} for p in (1, 2, 3)]
+        cell = self.refusal()[hil_test.hil_report.PROBE_BUSY_CELL]
+        self.assertEqual(len(cell), len(f'{hil_test.hil_report.REPORT_CELL["fail"]} probe in use by ') + 500)
+
     def test_an_inconclusive_check_refuses_too(self):
         self.users = hil_flash.ProbeCheckFailed('RuntimeError: /proc may hide other users\' processes')
         cell = self.refusal()[hil_test.hil_report.PROBE_BUSY_CELL]

@@ -2073,16 +2073,15 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     # protected for every flasher: a worker killed mid-task leaves its record for the next take to log
-    parked, unrestored = [], {}   # the verdict's ledger: the final park's success, why the board is not restored
+    parked, unrestored = [], ''   # the verdict's ledger: the final park's success, why the board is not restored
     task = hil_lock.board_task(lock, hil_lock.CI_REASON, busy=lambda: hil_flash.probe_busy(board), allow_bypass=True,
-                               verdict=lambda task, exc: _give_verdict(task, board, parked, unrestored.get('why', ''),
-                                                                       exc))
+                               verdict=lambda task, exc: _give_verdict(task, board, parked, unrestored, exc))
     entered = False
     try:
         with task:
             entered = True
             previous_cleanup = previous_cleanup_text(name, task.cleanup_failures)
-            err_count, failed_tests, board_wide_fail, rows, unrestored['why'] = _board_battery(board, parked)
+            err_count, failed_tests, board_wide_fail, rows, unrestored = _board_battery(board, parked)
     except BaseException as e:
         if not entered and isinstance(e, Exception):
             return admission_refused(name, task, e)
@@ -2106,8 +2105,8 @@ def test_board(board: Board) -> tuple:
                      None))
         err_count += 1
         board_wide_fail = True
-    elif unrestored['why']:
-        log_line(f'{name:25} board not restored ({unrestored["why"]}): failed cleanup logged; {ending}')
+    elif unrestored:
+        log_line(f'{name:25} board not restored ({unrestored}): failed cleanup logged; {ending}')
     if previous_cleanup and rows:
         rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
     return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),

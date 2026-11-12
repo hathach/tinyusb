@@ -162,7 +162,7 @@ def busy_refusal(e) -> str | None:
     or None for any other refusal."""
     from helper import hil_lock   # agentrc's, loaded on first use like the provider
     if isinstance(e, hil_lock.BoardBusy):
-        return f'probe in use by {hil_lock.users_text(e.users)}'
+        return f'probe in use by {hil_lock.users_text(e.users):.500}'
     if isinstance(e, ProbeCheckFailed):
         return f'probe check: {e}'
     return None
