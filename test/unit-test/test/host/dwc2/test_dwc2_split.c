@@ -1370,6 +1370,44 @@ void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
   }
 }
 
+void test_dma_split_close_runs_its_complete_split_before_freeing_the_endpoint(void) {
+  // a class close, SET_CONFIGURATION or a removal behind a hub that stays, with the start-split in flight or with the
+  // complete-split parked: the split channel is not disabled at random (Programming Guide 3.5), its complete-split runs
+  // to a result into the scratch buffer, and that result frees the endpoint
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool    in           = (i & 1u) == 0;
+    const bool    parked_first = i >= 2;
+    const uint8_t ep_addr      = abort_bulk_endpoint(true, in, true);
+    test_regs.channel[0].hcdma = (uint32_t) (uintptr_t) payload;
+    test_regs.hfnum            = (3500u << 16) | (8u * 20u + 3u);
+    memset(payload, 0xA5, sizeof(payload));
+    if (parked_first) {
+      channel0_irq(HCINT_HALTED | HCINT_ACK);
+      TEST_ASSERT_BITS_LOW_MESSAGE(HCCHAR_CHENA, test_regs.channel[0].hcchar, "precondition: CS parked");
+    }
+    test_regs.hfnum++;
+
+    edpt_close(&test_regs, 0);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+    TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].hcchar_bm.enable); // freed by the channel's result, not now
+    if (!parked_first) {
+      channel0_irq(HCINT_HALTED | HCINT_ACK);
+    }
+    assert_abort_csplit_sent(ep_addr);
+
+    dwc2_channel_tsize_t ts     = {.value = test_regs.channel[0].hctsiz};
+    ts.xfer_size                = 0;
+    ts.packet_count             = 0;
+    test_regs.channel[0].hctsiz = ts.value;
+    channel0_irq(HCINT_HALTED | HCINT_ACK | HCINT_XFER_COMPLETE);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_EQUAL(0, _hcd_data.edpt[0].hcchar_bm.enable);
+    TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, payload, sizeof(payload));
+  }
+}
+
 //--------------------------------------------------------------------+
 // Split ISO slot allocation
 //--------------------------------------------------------------------+
