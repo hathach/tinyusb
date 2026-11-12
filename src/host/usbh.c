@@ -1766,12 +1766,36 @@ static void process_remove_event(hcd_event_t *event) {
   remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
 }
 
+// mark every device remove_device_tree() will visit, nested downstream hubs included: a callback that drives
+// tuh_task() may deliver a completion for any of them, which its driver must see as unplugged
+static void mark_device_tree_removing(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
+  bool marked;
+  do {
+    marked = false;
+    for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
+      usbh_device_t* dev = &_usbh_devices[dev_id];
+      if (dev->bus_info.rhport != rhport || !dev->connected || dev->removing) {
+        continue;
+      }
+      const usbh_device_t* parent = get_device(dev->bus_info.hub_addr);
+      if (((hub_addr == 0 || dev->bus_info.hub_addr == hub_addr) &&
+           (hub_port == 0 || dev->bus_info.hub_port == hub_port)) ||
+          (parent != NULL && parent->removing)) {
+        dev->removing = 1;
+        marked = true;
+      }
+    }
+  } while (marked);
+}
+
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
   #if CFG_TUH_HUB
   uint8_t removing_hubs[CFG_TUH_HUB] = { 0 };
   #endif
+
+  mark_device_tree_removing(rhport, hub_addr, hub_port);
 
   do {
     for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
@@ -1783,8 +1807,6 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
           (hub_addr == 0 || dev->bus_info.hub_addr == hub_addr) &&
           (hub_port == 0 || dev->bus_info.hub_port == hub_port)) {
         TU_LOG_USBH("[%u:%u:%u] unplugged address = %u\r\n", rhport, hub_addr, hub_port, daddr);
-        // before any callback: one that drives tuh_task() may deliver a completion its driver must see as unplugged
-        dev->removing = 1;
 
         #if CFG_TUH_HUB
         if (is_hub_addr(daddr)) {
