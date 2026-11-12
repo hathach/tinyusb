@@ -468,6 +468,23 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False,
                                   'wedged': False, 'skipped': [], 'detail': cell})
 
+    def test_a_busy_probe_is_not_run_not_contention(self):
+        cell = '❌ probe in use by pid 4242 (JLinkExe -USB 123)'
+        previous = 'last failed cleanup x (ended-failed, hil_test.py pid 1, id abc): killed'
+        got = self._sum(['alpha'], [('alpha', {hil_report.PROBE_BUSY_CELL: cell,
+                                               hil_report.PREVIOUS_CLEANUP_CELL: previous})])
+        self.assertEqual(got[0], {'board': 'alpha', 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+                                  'skipped': [], 'detail': f'{cell}; previous cleanup failure: {previous}'})
+
+    def test_a_refusal_names_its_cleanup_blocker(self):
+        pending = '❌ board task ended with errors; alpha: lock released, errors: record not cleared'
+        for refusal, says in ((hil_report.PROBE_BUSY_CELL, '❌ probe in use by pid 7 (openocd)'),
+                              (hil_report.RECOVERY_BLOCKER_CELL, 'recovery blocker; not flashed: ❌ board locked')):
+            with self.subTest(refusal=refusal):
+                cell = says.removeprefix('recovery blocker; not flashed: ')
+                got = self._sum(['alpha'], [('alpha', {refusal: cell, hil_report.CLEANUP_PENDING_CELL: pending})])
+                self.assertEqual(got[0]['detail'], f'{says}; cleanup-pending: {pending}')
+
     def test_a_recovery_blocker_is_neither_contention_nor_a_fail(self):
         cell = '❌ board locked: {"pid": 7, "role": "cleanup-holder"} (recovery blocker: ...)'
         got = self._sum(['alpha'], [('alpha', {hil_report.RECOVERY_BLOCKER_CELL: cell})])
@@ -981,7 +998,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         self.assertNotIn(hil_report.BOUNDARY_CELL, cells)
 
     def test_a_board_that_really_ran_drops_its_stale_lock_cell(self):
-        for key in (hil_report.LOCKED_CELL, hil_report.LOCK_UNAVAILABLE_CELL, hil_report.RECOVERY_BLOCKER_CELL):
+        for key in hil_report._REFUSAL_CELLS:
             with self.subTest(key=key):
                 td = TemporaryDirectory()
                 self.addCleanup(td.cleanup)

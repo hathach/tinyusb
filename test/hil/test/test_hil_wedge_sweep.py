@@ -142,13 +142,10 @@ class TestBoardSweep(unittest.TestCase):
         p(hil_test, 'test_only', [])
         p(hil_test, 'board_test', {})
         p(hil_test, 'log_line', lambda msg: None)
-
-        def acquire(name, **kw):
-            fh = open(os.devnull)
-            fh.cleanup_failures = []
-            return fh
-        p(hil_lock, 'acquire_board_lock', acquire)
-        p(hil_lock, 'clear_record', lambda fh: None)
+        locks = tempfile.TemporaryDirectory()
+        self.addCleanup(locks.cleanup)
+        p(hil_lock, 'BOARD_LOCK_DIR', locks.name)
+        p(hil_flash, 'probe_busy', lambda board: [])
         self.ran = []
         p(hil_test, 'test_example', lambda board, v, ex: self.ran.append(ex) or (0, 'pass', None))
         p(usbtest, 'strays_on', lambda serial: [{'pid': 1, 'start': '1', 'node': NODE}])

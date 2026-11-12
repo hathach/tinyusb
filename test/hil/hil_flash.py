@@ -137,6 +137,37 @@ def convoy_safe(flasher: dict) -> bool:
     return hil_util.provider().convoy_safe(flasher)
 
 
+class ProbeCheckFailed(RuntimeError):
+    """probe_busy could not rule out a user of the board's probe."""
+
+
+def probe_busy(board: dict) -> list:
+    """The board_task busy check of every HIL entry point and the farm check: the provider's
+    probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
+    another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
+    inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError,
+    wch_uart_loader); any other exception propagates. Probe users only: a DUT-side process (a
+    stray testusb) is the run's recovery, never a refusal."""
+    provider, users = hil_util.provider(), {}
+    try:
+        for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
+            users.update((u['pid'], u) for u in provider.probe_users(f))
+    except (provider.ProbeCheckInconclusive, ValueError) as e:
+        raise ProbeCheckFailed(f'{type(e).__name__}: {e}') from e
+    return sorted(users.values(), key=lambda u: u['pid'])
+
+
+def busy_refusal(e) -> str | None:
+    """Why a board task's busy check refused admission (hil_lock.BoardBusy or ProbeCheckFailed),
+    or None for any other refusal."""
+    from helper import hil_lock   # agentrc's, loaded on first use like the provider
+    if isinstance(e, hil_lock.BoardBusy):
+        return f'probe in use by {hil_lock.users_text(e.users):.500}'
+    if isinstance(e, ProbeCheckFailed):
+        return f'probe check: {e}'
+    return None
+
+
 def _idf_target(fw_dir: Path) -> str:
     with (fw_dir / 'config.env').open() as f:
         return json.load(f)['IDF_TARGET']

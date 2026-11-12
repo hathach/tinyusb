@@ -38,6 +38,7 @@ class SysviewCapture(unittest.TestCase):
                             ('log_line', lambda line: None)):
             patch(self, hil_test, name, value)
         patch(self, hil_test.usbtest, 'strays_on', lambda uid: [])
+        patch(self, hil_flash, 'probe_busy', lambda board: [])
         patch(self, hil_flash, 'find_firmware', lambda variant, example, flasher=None: f'{variant}/{example}.elf')
         self.events = []
         self.park = (0, 'pass', None)
@@ -153,7 +154,8 @@ class SysviewCapture(unittest.TestCase):
             with self.subTest(name), ctx:
                 self.events.clear()
                 err, rows = self.run_board()
-                self.assertEqual((err, rows[0][1]), (0, {'device/cdc_msc': 'pass'}))
+                # the failed park is logged as this task's failed cleanup, the next one's notice
+                self.assertEqual((err, rows[0][1]['device/cdc_msc']), (0, 'pass'))
                 self.assertEqual(self.events[-1], 'device/board_test')
                 r = self.result()
                 # a capture that never flashed leaves the park to the run
@@ -184,10 +186,15 @@ class SysviewCapture(unittest.TestCase):
         def interrupted():
             raise KeyboardInterrupt
         self.capture(interrupted)
+        earlier = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='killed run')
         with self.assertRaises(KeyboardInterrupt):
             hil_test.test_board(self.board)
         self.assertEqual(self.events, ['device/cdc_msc', 'capture', 'device/board_test'])
         self.assert_no_result()
+        # the park proved restoration: restored, the run still aborted by the interrupt
+        events = hil_lock.cleanup_events(BOARD)
+        self.assertEqual([e['event'] for e in events], ['failed', 'restored'])
+        self.assertEqual(events[1]['failure'], earlier['id'])
         hil_lock.take_board_lock(BOARD, 'after').close()   # the lock was released
 
     def test_a_capture_that_wedges_the_board_is_not_parked(self):
