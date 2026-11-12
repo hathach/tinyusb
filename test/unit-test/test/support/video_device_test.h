@@ -113,6 +113,7 @@ static unsigned completed, aborted, submitted;
 static uint8_t *payload;
 static uint16_t payload_length;
 static void    *control_buffer;
+static uint8_t  control_in[sizeof(video_probe_and_commit_control_t)];
 static uint8_t  frame[512];
 // A frame the next release callback submits, as an application refilling from that callback does.
 static uint8_t *resubmit_frame;
@@ -128,9 +129,11 @@ static inline void resubmit_from_callback(void) {
 
 bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t *request, void *buffer, uint16_t length) {
   (void)rhport;
-  (void)request;
-  (void)length;
   control_buffer = buffer;
+  if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
+    // The data stage of an IN request may come from the class's stack: copy it as the core does.
+    memcpy(control_in, buffer, TU_MIN(length, sizeof(control_in)));
+  }
   return true;
 }
 bool tud_control_status(uint8_t rhport, const tusb_control_request_t *request) {
@@ -214,13 +217,13 @@ int tud_video_commit_cb(uint_fast8_t ctl, uint_fast8_t stream, const video_probe
   return accept_commit ? VIDEO_ERROR_NONE : VIDEO_ERROR_WRONG_STATE;
 }
 
-// The driver derives the payload size from the interval: 8 bytes at 100 ms, 3 bytes at 1 s.
-static inline void commit_interval(uint32_t frame_interval) {
-  in_commit                      = true;
+// SET_CUR of a VS control (PROBE or COMMIT) on interface itf; returns what the class reports for
+// the data stage.
+static inline bool vs_set_cur(uint8_t itf, uint8_t selector, uint32_t frame_interval) {
   tusb_control_request_t request = {.bmRequestType = 0x21,
                                     .bRequest      = VIDEO_REQUEST_SET_CUR,
-                                    .wValue        = VIDEO_VS_CTL_COMMIT << 8,
-                                    .wIndex        = 1,
+                                    .wValue        = (uint16_t)(selector << 8),
+                                    .wIndex        = itf,
                                     .wLength       = sizeof(video_probe_and_commit_control_t)};
   TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
   video_probe_and_commit_control_t parameters = {.bFormatIndex             = 1,
@@ -228,9 +231,32 @@ static inline void commit_interval(uint32_t frame_interval) {
                                                  .dwFrameInterval          = frame_interval,
                                                  .dwMaxPayloadTransferSize = 64};
   memcpy(control_buffer, &parameters, sizeof(parameters));
+  return videod_control_xfer_cb(0, CONTROL_STAGE_DATA, &request);
+}
+
+// GET_CUR of a VS control (PROBE or COMMIT) on interface itf.
+static inline video_probe_and_commit_control_t vs_get_cur(uint8_t itf, uint8_t selector) {
+  tusb_control_request_t request = {.bmRequestType = 0xA1,
+                                    .bRequest      = VIDEO_REQUEST_GET_CUR,
+                                    .wValue        = (uint16_t)(selector << 8),
+                                    .wIndex        = itf,
+                                    .wLength       = sizeof(video_probe_and_commit_control_t)};
+  TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+  video_probe_and_commit_control_t parameters;
+  memcpy(&parameters, control_in, sizeof(parameters));
+  return parameters;
+}
+
+static inline void commit_itf(uint8_t itf, uint32_t frame_interval) {
+  in_commit = true;
   /* A rejected application COMMIT must protocol-stall, not ACK. */
-  TEST_ASSERT_EQUAL(accept_commit, videod_control_xfer_cb(0, CONTROL_STAGE_DATA, &request));
+  TEST_ASSERT_EQUAL(accept_commit, vs_set_cur(itf, VIDEO_VS_CTL_COMMIT, frame_interval));
   in_commit = false;
+}
+
+// The driver derives the payload size from the interval: 8 bytes at 100 ms, 3 bytes at 1 s.
+static inline void commit_interval(uint32_t frame_interval) {
+  commit_itf(1, frame_interval);
 }
 
 static inline void commit(void) {
