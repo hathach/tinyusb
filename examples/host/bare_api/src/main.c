@@ -364,13 +364,18 @@ void led_blinking_task(void) {
 //--------------------------------------------------------------------+
 // String Descriptor Helper
 //--------------------------------------------------------------------+
-static void _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, uint8_t *utf8, size_t utf8_len) {
-  // TODO: Check for runover.
-  (void) utf8_len;
-  // Get the UTF-16 length out of the data itself.
+// Stop before a character that would not fit in utf8_len with the terminator, return bytes written.
+static size_t _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, uint8_t *utf8, size_t utf8_len) {
+  size_t nbytes = 0;
 
   for (size_t i = 0; i < utf16_len; i++) {
     uint16_t chr = utf16[i];
+    size_t const chr_len = (chr < 0x80) ? 1u : ((chr < 0x800) ? 2u : 3u);
+    if (nbytes + chr_len >= utf8_len) {
+      break;
+    }
+    nbytes += chr_len;
+
     if (chr < 0x80) {
       *utf8++ = chr & 0xffu;
     } else if (chr < 0x800) {
@@ -384,31 +389,25 @@ static void _convert_utf16le_to_utf8(const uint16_t *utf16, size_t utf16_len, ui
     }
     // TODO: Handle UTF-16 code points that take two entries.
   }
-}
 
-// Count how many bytes a utf-16-le encoded string will take in utf-8.
-static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
-  size_t total_bytes = 0;
-  for (size_t i = 0; i < len; i++) {
-    uint16_t chr = buf[i];
-    if (chr < 0x80) {
-      total_bytes += 1;
-    } else if (chr < 0x800) {
-      total_bytes += 2;
-    } else {
-      total_bytes += 3;
-    }
-    // TODO: Handle UTF-16 code points that take two entries.
-  }
-  return (int) total_bytes;
+  return nbytes;
 }
 
 static void print_utf16(uint16_t *buf, size_t buf_len) {
-  if ((buf[0] & 0xff) == 0) return;// empty
-  size_t utf16_len = ((buf[0] & 0xff) - 2) / sizeof(uint16_t);
-  size_t utf8_len = (size_t) _count_utf8_bytes(buf + 1, utf16_len);
-  _convert_utf16le_to_utf8(buf + 1, utf16_len, (uint8_t *) buf, sizeof(uint16_t) * buf_len);
-  ((uint8_t *) buf)[utf8_len] = '\0';
+  // bLength comes from the device: below 2 it holds no character, and it may claim more than buf holds
+  size_t const desc_len = (size_t) (buf[0] & 0xffu);
+  size_t utf16_len = (desc_len >= 2) ? (desc_len - 2) / sizeof(uint16_t) : 0;
+  if (utf16_len > buf_len - 1) {
+    utf16_len = buf_len - 1;
+  }
 
-  printf("%s", (char *) buf);
+  // Convert through a separate chunk buffer: UTF-8 written back into buf would overwrite UTF-16 not read yet
+  enum { CHUNK_CHARS = 8 };
+  uint8_t utf8[3 * CHUNK_CHARS + 1];
+  for (size_t i = 0; i < utf16_len; i += CHUNK_CHARS) {
+    size_t const nchars = TU_MIN(utf16_len - i, (size_t) CHUNK_CHARS);
+    size_t const utf8_len = _convert_utf16le_to_utf8(buf + 1 + i, nchars, utf8, sizeof(utf8));
+    utf8[utf8_len] = '\0';
+    printf("%s", (char *) utf8);
+  }
 }

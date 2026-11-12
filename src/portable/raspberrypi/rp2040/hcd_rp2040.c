@@ -868,8 +868,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void)dev_addr;
   (void)ep_addr;
 
-  panic("hcd_clear_stall");
-  // return true;
+  return false; // data toggle reset not implemented
 }
 
 #endif

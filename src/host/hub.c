@@ -186,6 +186,7 @@ bool hub_deinit(void) {
 
 uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   (void)rhport;
+  TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, 0); // only a hub-class device gets a hub address
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass && 0 == itf_desc->bInterfaceSubClass, 0);
 
   const uint16_t itf_ep_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
@@ -417,7 +418,9 @@ static void process_new_status(tuh_xfer_t* xfer) {
   // usbh fails a removed hub's requests after hub_close(): nothing to re-arm
   TU_VERIFY(get_hub_itf(daddr)->ep_in != 0,);
 
-  if (xfer->result != XFER_RESULT_SUCCESS) {
+  // a reply shorter than requested (GET_STATUS: 4 bytes, CLEAR_FEATURE: none) fails, so a short status is
+  // never decoded from the previous buffer contents
+  if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len < tu_le16toh(xfer->setup->wLength)) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
     return;
   }

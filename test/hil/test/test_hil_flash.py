@@ -119,6 +119,44 @@ class Adapters(unittest.TestCase):
                     self.assertEqual((called, pargs[0]), (f'{verb}_{name}', BOARDS[name]))
                     self.assertEqual((kw['timeout'], kw['run']), (7, hil_util.run_cmd))
 
+    def test_probe_busy_asks_for_each_entry_of_the_probe_once(self):
+        asked = []
+        users = {'jlink': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}, {'pid': 3, 'cmd': 'gdb'}],
+                 'openocd': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}]}
+        self.provider.probe_users = lambda f: asked.append(f) or users[f['name']]
+        board = {'name': 'b', 'flasher': dict(BOARDS['jlink']), 'flasher_recover': {'name': 'openocd', 'args': ''}}
+        got = hil_flash.probe_busy(board)
+        self.assertEqual(asked, [BOARDS['jlink'], {'name': 'openocd', 'args': '', 'uid': 'S1'}])
+        self.assertEqual(got, [{'pid': 3, 'cmd': 'gdb'}, {'pid': 9, 'cmd': 'JLinkExe -USB S1'}])
+        asked.clear()
+        hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
+        self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
+
+    def test_probe_busy_refuses_only_what_the_provider_cannot_decide(self):
+        board = {'name': 'b', 'flasher': dict(BOARDS['jlink'])}
+        for raised in (self.provider.real.ProbeCheckInconclusive('/proc may hide'), ValueError('no probe lookup')):
+            with self.subTest(raised=raised):
+                self.provider.probe_users = mock.Mock(side_effect=raised)
+                with self.assertRaisesRegex(hil_flash.ProbeCheckFailed, f'{type(raised).__name__}: {raised}'):
+                    hil_flash.probe_busy(board)
+        self.provider.probe_users = mock.Mock(side_effect=TypeError('a harness bug'))
+        with self.assertRaisesRegex(TypeError, 'a harness bug'):   # never a refusal
+            hil_flash.probe_busy(board)
+
+    def test_every_rostered_flasher_has_a_probe_lookup(self):
+        # the busy check refuses a board whose flasher it cannot look up, so a roster must not name one;
+        # the provider's device lookup and /proc walk are stubbed: no host I/O
+        real = self.provider.real
+        usj = types.SimpleNamespace(load_file=lambda path: types.SimpleNamespace(usj_node=lambda uid: '/dev/null'))
+        with mock.patch.object(real, '_probe_nodes', return_value=set()), \
+                mock.patch.object(real, 'esptool_port', return_value='/dev/null'), \
+                mock.patch.object(real, 'hil_load', usj), \
+                mock.patch.object(real.hil_process, '_proc_hides_others', return_value=False), \
+                mock.patch.object(real, '_walk', return_value=[]):
+            for name in flasher_names():
+                with self.subTest(name=name):
+                    self.assertEqual(real.probe_users(BOARDS[name]), [])
+
     def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
         self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
         hil_util.CMD_TIMEOUT = 33

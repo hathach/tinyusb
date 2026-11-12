@@ -44,8 +44,12 @@ LOCK_UNAVAILABLE_CELL = 'lock-unavailable'
 # a live cleanup holder from an older helper: refused before any flash, never waited out.
 # Its value is '❌ <the refusal, naming the holder>'.
 RECOVERY_BLOCKER_CELL = 'recovery-blocker'
-# the cells of a board refused its lock, one per row
-_REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL)
+# the busy check under the taken lock named live users of the board's probe, or could not rule
+# them out: refused before any flash, the lock released with nothing logged. Its value is
+# '❌ probe in use by <users>' or '❌ probe check: <why it is inconclusive>'.
+PROBE_BUSY_CELL = 'probe-busy'
+# the cells of a board refused admission, one per row
+_REFUSAL_CELLS = (LOCKED_CELL, LOCK_UNAVAILABLE_CELL, RECOVERY_BLOCKER_CELL, PROBE_BUSY_CELL)
 # 'fail' when the board's usbtest battery reported the device wedged (a HUNG case its
 # recovery could not clear, or a device it could no longer identify), so the rest of the
 # board was skipped
@@ -691,17 +695,22 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
         # failure, not a first-try pass
         earlier = {n: history[n] for n in sorted(set(mine) | {board}) if n in history}
         kept = {'history': earlier} if earlier else {}
-        unusable = next((cells[LOCK_UNAVAILABLE_CELL] for cells in mine.values()
-                         if LOCK_UNAVAILABLE_CELL in cells), None)
+        unusable = next((cells[k] for cells in mine.values() for k in (LOCK_UNAVAILABLE_CELL, PROBE_BUSY_CELL)
+                         if k in cells), None)
+        previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
+        found = '; previous cleanup failure: ' + '; '.join(previous) if previous else ''
+        # a refusal whose lock did not end as asked: the admitted path lists this cell among `bad`
+        pending = ''.join(f'; {CLEANUP_PENDING_CELL}: {c[CLEANUP_PENDING_CELL]}'
+                          for c in mine.values() if CLEANUP_PENDING_CELL in c)
         if unusable is not None and not aborted and not board_wedged:
-            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False,
-                             'wedged': False, 'skipped': [], **kept, 'detail': unusable}, mine, False))
+            results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
+                             'skipped': [], **kept, 'detail': unusable + pending + found}, mine, False))
             continue
         blocked = next((cells[RECOVERY_BLOCKER_CELL] for cells in mine.values()
                         if RECOVERY_BLOCKER_CELL in cells), None)
         if blocked is not None and not aborted and not board_wedged:
             results.append(({'board': board, 'ran': False, 'pass': False, 'locked': False, 'wedged': False,
-                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}'},
+                             'skipped': [], **kept, 'detail': f'recovery blocker; not flashed: {blocked}{pending}'},
                             mine, False))
             continue
         locked = not aborted and not board_wedged and any(LOCKED_CELL in cells for cells in mine.values())
@@ -727,9 +736,7 @@ def _results(cfg: dict, boards: list, report: dict) -> list:
             detail = f'{len(mine)} variant(s), {cells_ok} cell(s) ok'
             if skipped:
                 detail += f', {len(skipped)} skipped: {", ".join(skipped)}'
-        previous = [c[PREVIOUS_CLEANUP_CELL] for c in mine.values() if PREVIOUS_CLEANUP_CELL in c]
-        if previous:
-            detail += '; previous cleanup failure: ' + '; '.join(previous)
+        detail += found
         # a build refusal never flashed this attempt, whatever test history an --accumulate
         # re-run kept in the row
         results.append(({'board': board, 'ran': not unbuilt, 'pass': ok,

@@ -233,7 +233,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_power_of_two(uint32_t value) {
 }
 
 //------------- Unaligned Access -------------//
-#if TUP_ARCH_STRICT_ALIGN
+// Packed structs are used everywhere except when the MCU forbids unaligned access on a core that allows it
+// (TUP_MCU_STRICT_ALIGN && !TUP_ARCH_STRICT_ALIGN), which falls back to byte-wise access below.
+// Unaligned-capable cores (e.g. Cortex-M3/M4/M7/M33) use them too rather than a plain uint32_t*/uint16_t* cast:
+// dereferencing a misaligned one is undefined behavior in C, and the compiler may then emit LDRD/LDM/STRD/STM or
+// merge accesses, which fault on Cortex-M. A packed access still compiles to a single unaligned LDR/STR(H) there.
+#if !TUP_MCU_STRICT_ALIGN || TUP_ARCH_STRICT_ALIGN
 
 // Rely on compiler to generate correct code for unaligned access
 typedef struct { uint16_t val; } TU_ATTR_PACKED tu_unaligned_uint16_t;
@@ -259,7 +264,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
   ua16->val = value;
 }
 
-#elif TUP_MCU_STRICT_ALIGN
+#else
 
 // MCU such as LPC_IP3511 Highspeed cannot access unaligned memory on USB_RAM although it is ARM M4.
 // We have to manually pick up bytes since tu_unaligned_uint32_t will still generate unaligned code
@@ -287,25 +292,6 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u16_low(value);
   buf8[1] = tu_u16_high(value);
-}
-
-#else
-
-// MCU that could access unaligned memory natively
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void *mem) {
-  return *((uint32_t const *) mem);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void *mem) {
-  return *((uint16_t const *) mem);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void *mem, uint32_t value) {
-  *((uint32_t *) mem) = value;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_t value) {
-  *((uint16_t *) mem) = value;
 }
 
 #endif

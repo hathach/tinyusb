@@ -93,6 +93,14 @@ def runpy_helper():
                                                   run_name='helper._hil_lock_cli'))
 
 
+class Busy(unittest.TestCase):
+    def test_the_hook_is_the_batterys_own_busy_check(self):
+        users = [{'pid': 7, 'cmd': 'openocd -c "adapter serial P"'}]
+        seen = []
+        patch(self, hil_flash, 'probe_busy', lambda board: seen.append(board) or users)
+        self.assertIs(farm_profile.busy(BOARD), users)
+        self.assertEqual(seen, [BOARD])
+
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())
@@ -290,6 +298,7 @@ class EngineFixture(unittest.TestCase):
         patch(self, hil_lock, 'BOARD_LOCK_DIR', str(self.d / 'locks'))
         patch(self, eng, 'RECHECK_WAIT', 0)
         patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': '0483:374b'}})
+        patch(self, hil_flash, 'probe_busy', lambda board: [])   # the engine's busy check: never this host's /proc
 
     def roster(self, board):
         self.cfg.write_text(json.dumps({'boards': [board]}))

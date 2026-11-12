@@ -2018,233 +2018,281 @@ def cleanup_pending(name: str) -> str:
         f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
 
 
-def end_failed_cleanup(name: str, lock: str, fh, pending: str) -> str:
-    """Log the unproven cleanup and end this task's lock, naming the log and any write error."""
+def pending_evidence(name: str, pending: str) -> dict:
+    """The failed verdict's evidence for an unproven cleanup: run_tracked child receipts, which a
+    recheck can end, apart from the provider sessions it retained; with neither, `pending` as
+    unrecheckable evidence, so no later park closes the failure."""
     receipts = hil_flash.cleanup_pending.get(name, ())
     tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
     retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
-    if not receipts:
-        tracked = [{'unrecheckable': pending}]
-    errors = hil_lock.end_failed({lock: fh}, hil_lock.CI_REASON, detail=pending, receipts=tracked,
-                                 retained=retained)
-    log = Path(hil_lock.BOARD_LOCK_DIR) / f'{lock}{hil_lock.CLEANUP_LOG}'
-    detail = f'{pending}; board lock released; cleanup failure log: {log}'
-    if errors.get(lock):
-        detail += '; ' + '; '.join(errors[lock])
-    return detail
+    return {'receipts': tracked if receipts else [{'unrecheckable': pending}], 'retained': retained}
+
+
+def previous_cleanup_text(name: str, failures: list) -> str:
+    """The open failures the take found, logged before any hardware access, as the
+    previous-cleanup-failure cell names them ('' for none)."""
+    found = hil_lock.failure_report(failures)
+    if not found:
+        return ''
+    log_line(f'{name:25} {len(failures)} open cleanup failure(s): ' +
+             '; '.join(hil_lock.failure_text(f) for f in failures))
+    text = hil_lock.failure_text(found['previousCleanupFailure'])
+    if found.get('openCleanupFailures', 1) > 1:
+        text += f' (+{found["openCleanupFailures"] - 1} more open)'
+    return text
+
+
+def admission_refused(name: str, task, e: Exception) -> tuple:
+    """test_board's result for a board refused before any hardware access: one refusal cell, beside
+    the cleanup blocker when its lock did not end as asked, failed-tests empty so a re-run repeats the
+    whole board (no bogus -bt filter)."""
+    log_line(f'{name:25} {STATUS_FAILED}: {e}')
+    fail = hil_report.REPORT_CELL['fail']   # icon-prefixed, so the table tallies it as a failure
+    if busy := hil_flash.busy_refusal(e):
+        cells = {hil_report.PROBE_BUSY_CELL: f'{fail} {busy}'}
+    elif isinstance(e, hil_lock.RecoveryBlocked):   # a live cleanup holder from an older helper
+        cells = {hil_report.RECOVERY_BLOCKER_CELL: f'{fail} {e}'}
+    elif isinstance(e, hil_lock.LockUnavailable):
+        cells = {hil_report.LOCK_UNAVAILABLE_CELL: f'{fail} {e}'}
+    elif isinstance(e, hil_lock.BoardLocked):
+        cells = {hil_report.LOCKED_CELL: 'fail'}
+    else:   # no refusal: an error of the take or the check, which aborts the run
+        raise e
+    if not task.ended_cleanly:   # the admitted path's blocker: the refusal's lock did not end as asked
+        blocker = f'board task ended with errors; {task.describe()}'
+        log_line(f'{name:25} BLOCKER: {blocker}')
+        cells[hil_report.CLEANUP_PENDING_CELL] = f'{fail} {blocker}'
+    if previous := previous_cleanup_text(name, task.cleanup_failures):
+        cells[hil_report.PREVIOUS_CLEANUP_CELL] = previous
+    return name, 1, [], [(name, cells, None)], None
 
 
 def test_board(board: Board) -> tuple:
     # (name, err_count, failed_tests, rows, pci)
     name = board['name']
     lock = hil_util.lock_name(board)
-    flasher = board['flasher']
 
     global board_wedged, board_pci
     board_wedged = ''
     board_pci = None
+    # protected for every flasher: a worker killed mid-task leaves its record for the next take to log
+    parked, unrestored = [], ''   # the verdict's ledger: the final park's success, why the board is not restored
+    task = hil_lock.board_task(lock, hil_lock.CI_REASON, busy=lambda: hil_flash.probe_busy(board), allow_bypass=True,
+                               verdict=lambda task, exc: _give_verdict(task, board, parked, unrestored, exc))
+    entered = False
     try:
-        # cleanupOwed records a killed openocd_esp task for the next taker to log.
-        protected = flasher['name'].lower() == 'openocd_esp'
-        _lock_fh = hil_lock.acquire_board_lock(lock, protected=protected)
-    except hil_lock.LockUnavailable as e:
-        log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        # icon-prefixed like every failing metric cell, so the table tallies it as a failure
-        cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
-        return name, 1, [], [(name, {hil_report.LOCK_UNAVAILABLE_CELL: cell}, None)], None
-    except RuntimeError as e:
-        log_line(f'{name:25} {STATUS_FAILED}: {e}')
-        if isinstance(e, hil_lock.RecoveryBlocked):   # a live cleanup holder from an older helper
-            cell = f'{hil_report.REPORT_CELL["fail"]} {e}'
-            return name, 1, [], [(name, {hil_report.RECOVERY_BLOCKER_CELL: cell}, None)], None
-        # visible report row so the ❌ matches the exit code; failed-tests stays empty so a
-        # re-run repeats the whole board (no bogus -bt filter)
-        return name, 1, [], [(name, {hil_report.LOCKED_CELL: 'fail'}, None)], None
-    try:
-        failures = _lock_fh.cleanup_failures if _lock_fh else []
-        previous_cleanup = ''
-        if found := hil_lock.failure_report(failures):
-            previous_cleanup = hil_lock.failure_text(found['previousCleanupFailure'])
-            if found.get('openCleanupFailures', 1) > 1:
-                previous_cleanup += f' (+{found["openCleanupFailures"] - 1} more open)'
-            log_line(f'{name:25} {len(failures)} open cleanup failure(s): ' +
-                     '; '.join(hil_lock.failure_text(f) for f in failures))
-        test_list, skipped = _tests_for(board)
-        for skip in skipped:
-            log_line(f'{name:25} {skip:30} ... Skip')
+        with task:
+            entered = True
+            previous_cleanup = previous_cleanup_text(name, task.cleanup_failures)
+            err_count, failed_tests, board_wide_fail, rows, unrestored = _board_battery(board, parked)
+    except BaseException as e:
+        if not entered and isinstance(e, Exception):
+            return admission_refused(name, task, e)
+        if entered:
+            log_line(f'{name:25} ended by {type(e).__name__}: {task.describe()}')
+        raise
 
-        err_count = 0
-        failed_tests = []
-        board_wide_fail = False  # re-run the whole board, not a subset of its tests
-        rows = []  # list of (row_label, {example: status}, duration) — one per build variant
-        # a -t/-bt filtered run times only a subset; report no duration so an accumulate
-        # re-run keeps the previous full-run value
-        partial = bool(test_only) or name in board_test
-        variants = hil_report.board_variants(board)
+    if task.restore_notes:
+        log_line(f'{name:25} ' + '; '.join(task.restore_notes))
+        previous_cleanup += ('; ' + '; '.join(task.restore_notes) if task.bypassed else
+                             f'; {len(task.restore_notes)} still open')
+    ending = task.describe()
+    if task.errors and task.ended_cleanly:   # advisory, e.g. a restoration not logged
+        log_line(f'{name:25} board task notes: {ending}')
+        if previous_cleanup:
+            previous_cleanup += '; board task notes: ' + '; '.join(task.errors)
+    # a lock that did not end as its verdict asked is never a passing board either
+    if blocker := cleanup_pending(name) or ('' if task.ended_cleanly else 'board task ended with errors'):
+        log_line(f'{name:25} BLOCKER: {blocker}; {ending}')
+        rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {blocker}; {ending}'},
+                     None))
+        err_count += 1
+        board_wide_fail = True
+    elif unrestored:
+        log_line(f'{name:25} board not restored ({unrestored}): failed cleanup logged; {ending}')
+    if previous_cleanup and rows:
+        rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
+    return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
+            rows, board_pci)
 
-        if not skip_flash:
-            # board_wedged does not outlive a cancelled or SIGKILLed run, but its D-state
-            # testusb does, and the first flash would block on it (#4126)
-            strays = usbtest.strays_on(board['uid'])
-            if strays:
-                sweep_out = io.StringIO()
-                with redirect_stdout(sweep_out):
-                    board_wedged = usbtest.recover_strays(board, strays)
-                log_line(f'{name:25} stray testusb: {compact_output(sweep_out.getvalue())}')
-                if board_wedged:
-                    # no test runs to charge it, unlike a wedge test_device_usbtest latches
-                    err_count += 1
 
-        prev_last = None  # last test of the previous variant: the variant boundary is an adjacency too
-        for v in variants:
-            vname = v['name']
-            # Shuffle each (board, variant)'s run order: spreads batteries and flash churn
-            # across the timeline instead of convoying, and surfaces order-dependent bugs.
-            # Seeded for replay (HIL_SHUFFLE_SEED). Unique per-example PIDs re-enumerate
-            # between examples; only the variant boundary can repeat one.
-            run_list = list(test_list)
-            if shuffle_seed is not None and len(run_list) > 1:
-                random.Random(f'{shuffle_seed}:{name}:{vname}').shuffle(run_list)
-                if run_list[0] == prev_last:
-                    run_list[0], run_list[-1] = run_list[-1], run_list[0]
-            cells = {}
-            # beside a pending cleanup no park may flash; the loop below skips every test instead
-            if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
-                # Same example (same PID) still repeats across the boundary (a one-test
-                # -bt run has nothing to swap with). Park on board_test first: it disables
-                # the board's USB, so the next flash must re-enumerate to be seen.
-                park_ec, park_status, _ = (
-                    test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
-                    else (0, 'skip', None))
-                if park_ec or park_status == 'skip':
-                    # Boundary not cleared: the previous variant may still be enumerated
-                    # under the same PID, so this variant's tests could pass against ITS
-                    # firmware. Skip them and record the boundary as the failure, so the
-                    # report matches the exit code instead of rendering all-green.
-                    # A 'skip' here has two very different causes: no board_test build, or
-                    # _should_park refusing to flash a WEDGED board. Reporting the latter as
-                    # a missing binary sends the operator hunting a build that exists.
-                    wedge_skip = park_status == 'skip' and bool(board_wedged)
-                    why = ('the board is wedged' if wedge_skip else
-                           'no board_test binary' if park_status == 'skip' else
-                           'park flash failed')
-                    log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why}); '
-                             f'skipping {len(run_list)} test(s) on this variant')
-                    # the wedge already charged its own error through test_device_usbtest;
-                    # charging again would double-count one incident in the exit code
-                    if not wedge_skip:
-                        err_count += 1
-                    cells[hil_report.BOUNDARY_CELL] = 'fail'
-                    # blaming run_list[0] would re-run an innocent test that then passes,
-                    # leaving the boundary unretested; re-run the whole board instead
-                    board_wide_fail = True
-                    # leave prev_last alone: the board still holds the previous variant's
-                    # firmware, so the next variant must attempt the park again
-                    run_list = []
-            if run_list:
-                prev_last = run_list[-1]
-            t_variant = time.monotonic()
-            for test in run_list:
-                if cleanup_pending(name):
-                    cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
-                    board_wide_fail = True
-                    continue
-                if board_wedged:
-                    # Do NOT flash through a poisoned node: each attempt enumerates into
-                    # it, blocks uninterruptibly and leaves another stray behind. Report
-                    # the skip so the cell is not mistaken for a pass.
-                    cells[test] = f'{hil_report.REPORT_CELL["skip"]} board wedged'
-                    # ...and re-run the WHOLE board, like the boundary-failure path above:
-                    # these tests never executed, so naming them individually in the .failed
-                    # spec is not enough -- an --accumulate re-run that fixes only the wedged
-                    # test would merge a green cell over it and leave these skips standing
-                    # from the earlier attempt, forever, under a green job.
-                    board_wide_fail = True
-                    continue
-                ec, status, metric = test_example(board, vname, test)
-                err_count += ec
-                cells[test] = metric if metric else status
-                if ec > 0:
-                    failed_tests.append(test)
+def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseException | None) -> None:
+    """The battery's cleanup verdict, the board task's collector (the HIL contract's Reservation).
+    A battery that raised `exc` is restored when its final park still succeeded (the run itself
+    stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
+    may have landed after the provider returned a pending session but before hil_flash stored its
+    receipt, and otherwise failed, the task naming `exc` after its detail."""
+    name = board['name']
+    if pending := cleanup_pending(name):
+        task.failed(detail=pending, **pending_evidence(name, pending))
+    elif exc is not None:
+        if parked:
+            task.restored(evidence='device/board_test park succeeded')
+        elif board['flasher']['name'].lower() == 'openocd_esp' and not isinstance(exc, Exception):
+            missing = 'openocd_esp interrupted; cleanup unproven, receipt missing'
+            task.failed(detail=missing, receipts=[{'unrecheckable': missing}])
+        else:
+            task.failed(detail='board battery aborted')    # board_task names `exc` after it
+    elif unrestored:
+        task.failed(detail=f'board not restored: {unrestored}')
+    elif skip_flash:
+        task.clean()    # flashed nothing, so every operation ended leaves the board as found
+    else:
+        task.restored(evidence='device/board_test park succeeded')
+
+
+def _board_battery(board: Board, parked: list) -> tuple:
+    """The board's tests and its final park, under its task: (err_count, failed_tests,
+    board_wide_fail, rows, why the board is not restored or ''). A successful park appends to
+    `parked`, the one record of it, which outlives an exception raised past it."""
+    name = board['name']
+    global board_wedged
+    test_list, skipped = _tests_for(board)
+    for skip in skipped:
+        log_line(f'{name:25} {skip:30} ... Skip')
+
+    err_count = 0
+    failed_tests = []
+    board_wide_fail = False  # re-run the whole board, not a subset of its tests
+    rows = []  # list of (row_label, {example: status}, duration) — one per build variant
+    # a -t/-bt filtered run times only a subset; report no duration so an accumulate
+    # re-run keeps the previous full-run value
+    partial = bool(test_only) or name in board_test
+    variants = hil_report.board_variants(board)
+
+    if not skip_flash:
+        # board_wedged does not outlive a cancelled or SIGKILLed run, but its D-state
+        # testusb does, and the first flash would block on it (#4126)
+        strays = usbtest.strays_on(board['uid'])
+        if strays:
+            sweep_out = io.StringIO()
+            with redirect_stdout(sweep_out):
+                board_wedged = usbtest.recover_strays(board, strays)
+            log_line(f'{name:25} stray testusb: {compact_output(sweep_out.getvalue())}')
             if board_wedged:
-                log_line(f'{vname:40} SKIPPING the rest of this board: {board_wedged}; '
-                         f'flashing through the poisoned node would add a stray per test')
-                cells[hil_report.WEDGED_CELL] = 'fail'
-            dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
-            rows.append((vname, cells, dur))
+                # no test runs to charge it, unlike a wedge test_device_usbtest latches
+                err_count += 1
 
-        restored = False
-        sv_capture = None   # (capture, error, flashed)
-        try:
-            if sysview_out and 'sysview' in board and \
-                    any(t.startswith(('device/', 'dual/')) for t in test_list):
-                try:
-                    sv_capture = _sysview_capture(board, variants[0]['name'])
-                except Exception as e:
-                    # optional: the board's tests, its park and its blocker check go on
-                    log_line(f'{name:25} SystemView capture raised {type(e).__name__}: {e}')
-                    sv_capture = None, f'{type(e).__name__}: {e}', True
-        finally:
-            # park: flash board_test last to disable the board's usb, after the capture too and when
-            # it is interrupted; teardown, not a test, so it is not recorded in the report.
-            park_error = None
-            if _should_park(skip_flash):
-                park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
-                restored = park_ec == 0 and park_status == 'pass'
-                park_error = ('park flash failed' if park_ec else
-                              'no park (device/board_test) firmware' if park_status == 'skip' else None)
-            elif sv_capture and sv_capture[2]:
-                # the capture left the board wedged or a provider cleanup pending
-                park_error = f'not parked: {_park_refusal()}'
-        if sv_capture:
-            capture, error, flashed = sv_capture
+    prev_last = None  # last test of the previous variant: the variant boundary is an adjacency too
+    for v in variants:
+        vname = v['name']
+        # Shuffle each (board, variant)'s run order: spreads batteries and flash churn
+        # across the timeline instead of convoying, and surfaces order-dependent bugs.
+        # Seeded for replay (HIL_SHUFFLE_SEED). Unique per-example PIDs re-enumerate
+        # between examples; only the variant boundary can repeat one.
+        run_list = list(test_list)
+        if shuffle_seed is not None and len(run_list) > 1:
+            random.Random(f'{shuffle_seed}:{name}:{vname}').shuffle(run_list)
+            if run_list[0] == prev_last:
+                run_list[0], run_list[-1] = run_list[-1], run_list[0]
+        cells = {}
+        # beside a pending cleanup no park may flash; the loop below skips every test instead
+        if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
+            # Same example (same PID) still repeats across the boundary (a one-test
+            # -bt run has nothing to swap with). Park on board_test first: it disables
+            # the board's USB, so the next flash must re-enumerate to be seen.
+            park_ec, park_status, _ = (
+                test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
+                else (0, 'skip', None))
+            if park_ec or park_status == 'skip':
+                # Boundary not cleared: the previous variant may still be enumerated
+                # under the same PID, so this variant's tests could pass against ITS
+                # firmware. Skip them and record the boundary as the failure, so the
+                # report matches the exit code instead of rendering all-green.
+                # A 'skip' here has two very different causes: no board_test build, or
+                # _should_park refusing to flash a WEDGED board. Reporting the latter as
+                # a missing binary sends the operator hunting a build that exists.
+                wedge_skip = park_status == 'skip' and bool(board_wedged)
+                why = ('the board is wedged' if wedge_skip else
+                       'no board_test binary' if park_status == 'skip' else
+                       'park flash failed')
+                log_line(f'{vname:40} {"same-PID boundary":30} {STATUS_FAILED}: not cleared ({why}); '
+                         f'skipping {len(run_list)} test(s) on this variant')
+                # the wedge already charged its own error through test_device_usbtest;
+                # charging again would double-count one incident in the exit code
+                if not wedge_skip:
+                    err_count += 1
+                cells[hil_report.BOUNDARY_CELL] = 'fail'
+                # blaming run_list[0] would re-run an innocent test that then passes,
+                # leaving the boundary unretested; re-run the whole board instead
+                board_wide_fail = True
+                # leave prev_last alone: the board still holds the previous variant's
+                # firmware, so the next variant must attempt the park again
+                run_list = []
+        if run_list:
+            prev_last = run_list[-1]
+        t_variant = time.monotonic()
+        for test in run_list:
+            if cleanup_pending(name):
+                cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
+                board_wide_fail = True
+                continue
+            if board_wedged:
+                # Do NOT flash through a poisoned node: each attempt enumerates into
+                # it, blocks uninterruptibly and leaves another stray behind. Report
+                # the skip so the cell is not mistaken for a pass.
+                cells[test] = f'{hil_report.REPORT_CELL["skip"]} board wedged'
+                # ...and re-run the WHOLE board, like the boundary-failure path above:
+                # these tests never executed, so naming them individually in the .failed
+                # spec is not enough -- an --accumulate re-run that fixes only the wedged
+                # test would merge a green cell over it and leave these skips standing
+                # from the earlier attempt, forever, under a green job.
+                board_wide_fail = True
+                continue
+            ec, status, metric = test_example(board, vname, test)
+            err_count += ec
+            cells[test] = metric if metric else status
+            if ec > 0:
+                failed_tests.append(test)
+        if board_wedged:
+            log_line(f'{vname:40} SKIPPING the rest of this board: {board_wedged}; '
+                     f'flashing through the poisoned node would add a stray per test')
+            cells[hil_report.WEDGED_CELL] = 'fail'
+        dur = f'{time.monotonic() - t_variant:.0f}s' if run_list and not partial else None
+        rows.append((vname, cells, dur))
+
+    sv_capture = None   # (capture, error, flashed)
+    try:
+        if sysview_out and 'sysview' in board and \
+                any(t.startswith(('device/', 'dual/')) for t in test_list):
             try:
-                # a capture that never flashed left the board as the tests did: its park is the run's own business
-                sysview_ci.write_result(sysview_out, sysview_ci.capture_result(
-                    board, sysview_commit, capture, error, park_error=park_error if flashed else None,
-                    identity=sysview_identity))
+                sv_capture = _sysview_capture(board, variants[0]['name'])
             except Exception as e:
-                log_line(f'{name:25} SystemView capture record not written: {type(e).__name__}: {e}')
-
-        pending = cleanup_pending(name)
-        if pending:
-            log_line(f'{name:25} BLOCKER: {pending}')
-            fh, _lock_fh = _lock_fh, None     # end_failed releases even when interrupted
-            detail = end_failed_cleanup(name, lock, fh, pending) if fh else f'{pending}; no board lock held'
-            log_line(f'{name:25} {detail}')
-            rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {detail}'}, None))
-            err_count += 1
-            board_wide_fail = True
-        elif restored and failures:
-            try:
-                notes = hil_lock.resolve_restored(lock, failures, evidence='device/board_test park succeeded')
-            except Exception as e:
-                previous_cleanup += f'; restorations not logged: {e}'
-            else:
-                if notes:
-                    previous_cleanup += f'; {len(notes)} still open'
-                    log_line(f'{name:25} ' + '; '.join(notes))
-        if previous_cleanup and rows:
-            rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
-
-        return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
-                rows, board_pci)
+                # optional: the board's tests, its park and its blocker check go on
+                log_line(f'{name:25} SystemView capture raised {type(e).__name__}: {e}')
+                sv_capture = None, f'{type(e).__name__}: {e}', True
     finally:
-        unwinding = sys.exc_info()[1]
-        if _lock_fh and (pending := cleanup_pending(name)):
-            log_line(f'{name:25} {end_failed_cleanup(name, lock, _lock_fh, pending)}')
-        elif _lock_fh and protected and unwinding is not None and not isinstance(unwinding, Exception):
-            # an interrupt may land after the provider returned a pending session but before
-            # hil_flash stored its receipt: log the missing evidence rather than claim cleanup.
-            detail = end_failed_cleanup(name, lock, _lock_fh,
-                                        'openocd_esp interrupted; cleanup unproven, receipt missing')
-            log_line(f'{name:25} {detail}')
-        elif _lock_fh:
-            # clear our pid record before dropping the flock: this worker process
-            # lives on (pool reuse), so a stale record would make hil_lock's
-            # pid-liveness checks report a freed board as locked for the rest of the run
-            hil_lock.clear_record(_lock_fh)
-            _lock_fh.close()
+        # park: flash board_test last to disable the board's usb, after the capture too and when
+        # it is interrupted; teardown, not a test, so it is not recorded in the report.
+        park_error = None
+        if _should_park(skip_flash):
+            park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
+            if park_ec == 0 and park_status == 'pass':
+                parked.append(True)
+            park_error = ('park flash failed' if park_ec else
+                          'no park (device/board_test) firmware' if park_status == 'skip' else None)
+        elif sv_capture and sv_capture[2]:
+            # the capture left the board wedged or a provider cleanup pending
+            park_error = f'not parked: {_park_refusal()}'
+    if sv_capture:
+        capture, error, flashed = sv_capture
+        try:
+            # a capture that never flashed left the board as the tests did: its park is the run's own business
+            sysview_ci.write_result(sysview_out, sysview_ci.capture_result(
+                board, sysview_commit, capture, error, park_error=park_error if flashed else None,
+                identity=sysview_identity))
+        except Exception as e:
+            log_line(f'{name:25} SystemView capture record not written: {type(e).__name__}: {e}')
+
+    if parked:
+        unrestored = ''
+    elif board_wedged:   # failed whether or not this run flashed
+        unrestored = park_error or f'not parked: the board is wedged: {board_wedged}'
+    elif skip_flash and not park_error:
+        unrestored = ''     # nothing flashed: no park owed
+    else:
+        unrestored = park_error or f'not parked: {_park_refusal()}'
+    return err_count, failed_tests, board_wide_fail, rows, unrestored
 
 
 # controller hints from previous runs: uid -> {'name', 'pci'}; 'pci' sets the dispatch order.
