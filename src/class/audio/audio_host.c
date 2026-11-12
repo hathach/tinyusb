@@ -510,6 +510,7 @@ static void audioh_stream_reset(tuh_audio_stream_t *s) {
   s->active_as                    = TUSB_INDEX_INVALID_8;
   s->active_rate                  = TUSB_INDEX_INVALID_8;
   s->state                        = STREAM_STATE_IDLE;
+  s->operation                    = AUDIOH_STREAM_OP_NONE;
   s->running                      = false;
   s->feature_unit_id              = 0;
   s->mute_access                  = AUDIOH_CTRL_NONE;
@@ -2197,12 +2198,17 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s && s->state == STREAM_STATE_READY && s->operation == AUDIOH_STREAM_OP_NONE && s->running, false);
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  // Preserve running state when submission fails so the caller can retry.
-  TU_VERIFY(tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s), false);
+  // Mark the stop before submitting: on an RTOS the host task may complete the
+  // request before tuh_interface_set() returns to this caller.
+  s->operation = AUDIOH_STREAM_OP_STOP;
+  if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
+    // Preserve running state when submission fails so the caller can retry.
+    s->operation = AUDIOH_STREAM_OP_NONE;
+    return false;
+  }
 
   // SET_INTERFACE stops future traffic. The current transfer drains, while its
   // data and all queued frames are discarded.
-  s->operation = AUDIOH_STREAM_OP_STOP;
   audioh_stream_stop_xfers(s);
   return true;
 }
