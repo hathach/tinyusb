@@ -221,6 +221,7 @@ TU_FIFO_DEF(_usbh_pending_ctrl_q, CFG_TUH_CONTROL_PENDING_QUEUE_SZ * sizeof(usbh
 typedef struct {
   uint8_t enumerating_daddr;  // device address of the device being enumerated
   uint8_t enum_attempt;       // enumeration attempts used for the current attach
+  uint8_t enum_xfer_retry;    // resends used for the current enumeration request, see enum_xfer_retry()
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   uint8_t attach_teardown;    // an attach event is tearing down what was on its port
   uint8_t root_retry_count;   // root port re-enumerations used for the current attachment
@@ -228,6 +229,7 @@ typedef struct {
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
+  usbh_pending_ctrl_t enum_xfer; // the failed enumeration request enum_xfer_retry() sends again
   // Per-daddr generation counter — bumped on usbh_device_close() to identify stale pending control transfer
   uint8_t daddr_gen[TOTAL_DEVICES + 1];
 #if CFG_TUSB_OS_HAS_SCHEDULER
@@ -1871,8 +1873,13 @@ enum {                                      // USB 2.0 specs 7.1.7 for timing
   ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
   ENUM_RESET_ROOT_POST_DELAY_MS      = CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS, // delay after root port reset before getting speed/status
   ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
-  ENUM_RESET_RECOVERY_DELAY_MS       = 10,  // T(RSTRCY) minimum 10 ms for reset recovery
-  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2,   // USB 2.0 Spec 9.2.6.3 min is 2 ms
+  ENUM_RESET_RECOVERY_DELAY_MS       = 50,  // T(RSTRCY) minimum 10 ms; 50 as Linux (hub_port_reset), many devices need more
+  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 10,  // USB 2.0 Spec 9.2.6.3 min is 2 ms; 10 as Linux (hub_port_init)
+  ENUM_XFER_RETRY_DELAY_MS           = 100, // gap before a failed enumeration request is sent again, as Linux
+};
+
+enum {
+  ENUM_XFER_ATTEMPT_MAX = 3, // tries of one enumeration request before a port reset, as Linux usb_get_descriptor()
 };
 
 enum {
@@ -1903,6 +1910,7 @@ static uint8_t enum_get_new_address(bool is_hub);
 static bool    enum_parse_configuration_desc(uint8_t dev_addr, const tusb_desc_configuration_t *desc_cfg);
 static void    enum_full_complete(bool success);
 static bool    enum_retry(void);
+static bool    enum_xfer_retry(const tuh_xfer_t *xfer);
 static void    process_enumeration(tuh_xfer_t *xfer);
 
 enum {
@@ -1913,6 +1921,7 @@ enum {
   ENUM_AFTER_RESET_HUB_DELAY_RETRY,
   ENUM_AFTER_RESET_RECOVERY_DELAY,
   ENUM_AFTER_SET_ADDRESS_RECOVERY_DELAY,
+  ENUM_AFTER_XFER_RETRY_DELAY,
 };
 
 // process async delay in enumeration
@@ -2009,6 +2018,22 @@ static void enum_delay_async(uintptr_t state) {
       break;
     }
 
+    case ENUM_AFTER_XFER_RETRY_DELAY: {
+      const usbh_pending_ctrl_t *saved = &_usbh_data.enum_xfer;
+      tuh_xfer_t retry_xfer = {
+        .daddr       = saved->daddr,
+        .ep_addr     = 0,
+        .setup       = &saved->setup,
+        .buffer      = saved->buffer,
+        .complete_cb = process_enumeration,
+        .user_data   = saved->user_data,
+      };
+      if (!tuh_control_xfer(&retry_xfer)) {
+        enum_full_complete(false);
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -2021,17 +2046,19 @@ static void enum_new_device(hcd_event_t *event) {
   dev0_bus->hub_addr       = event->connection.hub_addr;
   dev0_bus->hub_port       = event->connection.hub_port;
   _usbh_data.enum_attempt  = 0;
+  _usbh_data.enum_xfer_retry = 0;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
 }
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t *xfer) {
   if (XFER_RESULT_FAILED == xfer->result || XFER_RESULT_TIMEOUT == xfer->result) {
-    if (!enum_retry()) {
+    if (!enum_xfer_retry(xfer) && !enum_retry()) {
       enum_full_complete(false);
     }
     return;
   }
+  _usbh_data.enum_xfer_retry = 0; // the device answered: the next request gets its own tries
 
   const uint8_t   daddr    = xfer->daddr;
   const uintptr_t state    = xfer->user_data;
@@ -2533,6 +2560,7 @@ static bool enum_retry(void) {
   }
   enum_teardown(false);
   _usbh_data.enum_attempt++;
+  _usbh_data.enum_xfer_retry = 0;
   TU_LOG_USBH("Enumeration failed, retry attempt %u/%u\r\n", _usbh_data.enum_attempt + 1, CFG_TUH_ENUM_ATTEMPT_MAX);
   _usbh_data.enumerating_daddr = 0;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
@@ -2540,6 +2568,28 @@ static bool enum_retry(void) {
 #else
   return false;
 #endif
+}
+
+// Device failed an enumeration request (after the immediate USBH_CONTROL_RETRY_MAX resends): send it again after
+// ENUM_XFER_RETRY_DELAY_MS without a port reset, so a device still recovering from the reset gets more time; a reset
+// would restart its recovery. A timeout is not retried, the device already NAKed for CFG_TUH_CONTROL_TIMEOUT_MS.
+// False (nothing changed) when the request's tries are used up or an unplug already invalidated the device.
+static bool enum_xfer_retry(const tuh_xfer_t *xfer) {
+  if (XFER_RESULT_FAILED != xfer->result || _usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 ||
+      _usbh_data.enum_xfer_retry + 1 >= ENUM_XFER_ATTEMPT_MAX) {
+    return false;
+  }
+  _usbh_data.enum_xfer_retry++;
+  TU_LOG_USBH("Enumeration request failed, try %u/%u in %u ms\r\n", _usbh_data.enum_xfer_retry + 1,
+              ENUM_XFER_ATTEMPT_MAX, ENUM_XFER_RETRY_DELAY_MS);
+
+  usbh_pending_ctrl_t *saved = &_usbh_data.enum_xfer;
+  saved->setup     = *xfer->setup;
+  saved->buffer    = xfer->buffer;
+  saved->user_data = xfer->user_data;
+  saved->daddr     = xfer->daddr;
+  usbh_defer_func_ms_async(ENUM_XFER_RETRY_DELAY_MS, enum_delay_async, ENUM_AFTER_XFER_RETRY_DELAY);
+  return true;
 }
 
 #endif
