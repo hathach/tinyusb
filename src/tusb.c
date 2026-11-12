@@ -332,7 +332,8 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   }
   #endif
 
-  s->ep_buf = ep_buf;
+  s->ep_buf     = ep_buf;
+  s->tx_pending = 0;
 
   return true;
 }
@@ -386,43 +387,61 @@ static bool stream_release(tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1))));
+  TU_VERIFY(tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
+            (0 == (last_xferred_bytes & (s->mps - 1))));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
   return true;
 }
 
+// A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
+// a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO before the submission: the
+// FIFO is advanced first so that a completion handled before stream_xfer() returns cannot send them again. A refused
+// submission keeps them in ep_buf as tx_pending, and the next call sends them ahead of the FIFO's.
 uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
-  const uint16_t ff_count = tu_fifo_count(&s->ff);
-  TU_VERIFY(ff_count > 0, 0); // skip if no data
+  TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
   TU_VERIFY(stream_claim(s), 0);
 
-  // Pull data from FIFO -> EP buf
+  // Pull data from FIFO -> EP buf, behind any bytes a refused submission left there
   uint16_t count;
   if (s->ep_buf == NULL) {
     count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
   } else {
-    count = tu_fifo_read_n(&s->ff, s->ep_buf, s->xfer_len);
+    count = s->tx_pending;
+    if (count < s->xfer_len) {
+      count = (uint16_t) (count + tu_fifo_read_n(&s->ff, s->ep_buf + count, (uint16_t) (s->xfer_len - count)));
+    }
+    s->tx_pending = 0;
   }
 
-  if (count > 0) {
-    TU_ASSERT(stream_xfer(s, count), 0);
-    return count;
-  } else {
+  if (count == 0) {
     // Release endpoint since we don't make any transfer
     // Note: data is dropped if terminal is not connected
     stream_release(s);
     return 0;
   }
+
+  if (!stream_xfer(s, count)) {
+    // refused: usbd/usbh already released the endpoint. Keep the bytes for the next call.
+    if (s->ep_buf != NULL) {
+      s->tx_pending = count;
+    }
+    return 0;
+  }
+
+  return count;
 }
 
+// Return the bytes queued in the FIFO. Queued bytes are not lost if a transfer submission is refused, they are sent
+// by a later write, flush or transfer completion; when the endpoint can never send, writes stop queueing once the
+// FIFO is full.
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
   const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
 
-  // flush if fifo has more than packet size or
+  // flush if fifo has more than packet size, a refused transfer left bytes to resend, or
   // in rare case: fifo depth is configured too small (which never reach packet size)
-  if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
+  if ((tu_fifo_count(&s->ff) >= s->mps) || (s->tx_pending > 0) || (tu_fifo_depth(&s->ff) < s->mps)) {
     tu_edpt_stream_write_xfer(s);
   }
   return ret;

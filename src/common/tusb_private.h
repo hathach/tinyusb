@@ -41,6 +41,8 @@ typedef struct {
 
   uint16_t mps;
   uint16_t xfer_len;
+  uint16_t tx_pending; // tx: bytes left in ep_buf by a refused transfer, sent before the FIFO's (#4449)
+  // 2 bytes padding
   uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;
 
@@ -112,6 +114,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_close(tu_edpt_stream_t* 
 
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
   tu_fifo_clear(&s->ff);
+  s->tx_pending = 0;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *s) {
@@ -122,10 +125,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *
 // Stream Write
 //--------------------------------------------------------------------+
 
-// Write to stream
+// Write to stream. Return number of bytes queued in the FIFO, which are sent even if a transfer submission is refused
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize);
 
-// Start an usb transfer if endpoint is not busy. Return number of queued bytes
+// Start an usb transfer if endpoint is not busy. Return number of bytes submitted, 0 if none or the submission was
+// refused (its bytes are kept and submitted first next time)
 uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s);
 
 // Start an zero-length packet if needed
