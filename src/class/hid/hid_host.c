@@ -500,29 +500,40 @@ void hidh_close(uint8_t daddr) {
 //--------------------------------------------------------------------+
 uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
-  (void) max_len;
+  const uint8_t *desc_end = (const uint8_t *) desc_itf + max_len;
 
+  TU_VERIFY(tu_desc_in_bounds((const uint8_t *) desc_itf, desc_end) &&
+              tu_desc_len(desc_itf) >= sizeof(tusb_desc_interface_t), 0);
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
   TU_LOG_DRV("[%u] HID opening Interface %u\r\n", daddr, desc_itf->bInterfaceNumber);
 
-  // len = interface + hid + n*endpoints
-  const uint16_t drv_len = (uint16_t)(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
-                                      desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_ASSERT(drv_len <= max_len, 0);
-  const uint8_t *p_desc = (const uint8_t *)desc_itf;
-
+  // Validate the HID and endpoint descriptors before allocating. A descriptor longer than defined is valid and its
+  // extra bytes are skipped (USB 2.0 9.5), so walk by bLength within max_len.
   // HID descriptor: mostly right after interface descriptor, in some rare case it might be after endpoint descriptors
-  p_desc = tu_desc_next(p_desc);
-  const tusb_hid_descriptor_hid_t *desc_hid;
-  if (tu_desc_type(p_desc) == HID_DESC_TYPE_HID) {
+  const uint8_t                   *p_desc   = tu_desc_next(desc_itf);
+  const tusb_hid_descriptor_hid_t *desc_hid = NULL;
+  if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_hid_descriptor_hid_t) &&
+      tu_desc_type(p_desc) == HID_DESC_TYPE_HID) {
     // HID after interface
-    desc_hid = (const tusb_hid_descriptor_hid_t *)p_desc;
+    desc_hid = (const tusb_hid_descriptor_hid_t *) p_desc;
     p_desc   = tu_desc_next(p_desc);
-  } else {
-    // HID after endpoint
-    desc_hid = (const tusb_hid_descriptor_hid_t *)(p_desc + sizeof(tusb_desc_endpoint_t) * desc_itf->bNumEndpoints);
-    TU_ASSERT(tu_desc_type(desc_hid) == HID_DESC_TYPE_HID, 0);
   }
+
+  const uint8_t *desc_ep_first = p_desc;
+  for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  if (desc_hid == NULL) {
+    // HID after endpoint
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_hid_descriptor_hid_t) &&
+                tu_desc_type(p_desc) == HID_DESC_TYPE_HID, 0);
+    desc_hid = (const tusb_hid_descriptor_hid_t *) p_desc;
+    p_desc   = tu_desc_next(p_desc);
+  }
+  const uint16_t drv_len = (uint16_t) (p_desc - (const uint8_t *) desc_itf);
 
   // Allocate new interface
   hidh_interface_t *p_hid = find_new_itf();
@@ -531,9 +542,9 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
   p_hid->itf_num = desc_itf->bInterfaceNumber;
 
   // Endpoint Descriptors
+  p_desc = desc_ep_first;
   for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType, 0);
     const uint16_t mps = tu_edpt_packet_size(desc_ep);
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {

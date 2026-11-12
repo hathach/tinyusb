@@ -184,17 +184,29 @@ bool hub_deinit(void) {
   return true;
 }
 
+// interrupt status endpoint descriptor at p_desc, NULL unless it lies within desc_end
+static const tusb_desc_endpoint_t *get_status_ep_desc(const uint8_t *p_desc, const uint8_t *desc_end) {
+  TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), NULL);
+  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *) p_desc;
+  TU_VERIFY(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, NULL);
+  return desc_ep;
+}
+
 uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   (void)rhport;
+  const uint8_t *desc_end = (const uint8_t *) itf_desc + max_len;
+
   TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, 0); // only a hub-class device gets a hub address
+  TU_VERIFY(tu_desc_in_bounds((const uint8_t *) itf_desc, desc_end) &&
+              tu_desc_len(itf_desc) >= sizeof(tusb_desc_interface_t), 0);
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass && 0 == itf_desc->bInterfaceSubClass, 0);
 
-  const uint16_t itf_ep_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
-  uint16_t       drv_len    = itf_ep_len;
-  TU_ASSERT(drv_len <= max_len, 0);
-
-  hub_interface_t             *p_hub        = get_hub_itf(dev_addr);
-  const tusb_desc_interface_t *desc_itf_use = itf_desc; // interface to use for endpoint open
+  // Descriptors longer than defined are valid and their extra bytes are skipped (USB 2.0 9.5): walk by bLength
+  // within max_len. Alt setting 0 and its status endpoint
+  const uint8_t              *p_desc  = tu_desc_next(itf_desc);
+  const tusb_desc_endpoint_t *desc_ep = get_status_ep_desc(p_desc, desc_end);
+  TU_ASSERT(desc_ep != NULL, 0);
+  p_desc = tu_desc_next(p_desc);
 
   // Check device descriptor for MTT hub (bDeviceProtocol == 2)
   // MTT hub has 2 alt settings: alt 0 is STT (protocol 1), alt 1 is MTT (protocol 2)
@@ -202,27 +214,28 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   bool               mtt = false;
   tusb_desc_device_t desc_dev;
   if (tuh_descriptor_get_device_local(dev_addr, &desc_dev) && desc_dev.bDeviceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT) {
-    drv_len += itf_ep_len;
-    TU_ASSERT(drv_len <= max_len, 0);
-    const tusb_desc_interface_t *desc_alt1 = (const tusb_desc_interface_t *)((const uint8_t *)itf_desc + itf_ep_len);
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
+    const tusb_desc_interface_t *desc_alt1 = (const tusb_desc_interface_t *) p_desc;
     TU_ASSERT(desc_alt1->bDescriptorType == TUSB_DESC_INTERFACE && desc_alt1->bInterfaceClass == TUSB_CLASS_HUB &&
                 desc_alt1->bInterfaceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT,
               0);
-    mtt          = true;
-    desc_itf_use = desc_alt1;
+    p_desc  = tu_desc_next(p_desc);
+    desc_ep = get_status_ep_desc(p_desc, desc_end);
+    TU_ASSERT(desc_ep != NULL, 0);
+    p_desc = tu_desc_next(p_desc);
+    mtt    = true;
   }
 
   // Interrupt Status endpoint
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_itf_use);
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
   // set only once opened: hub_close() clears an opened hub
+  hub_interface_t *p_hub = get_hub_itf(dev_addr);
   p_hub->mtt     = mtt;
   p_hub->itf_num = itf_desc->bInterfaceNumber;
   p_hub->ep_in   = desc_ep->bEndpointAddress;
 
-  return drv_len;
+  return (uint16_t) (p_desc - (const uint8_t *) itf_desc);
 }
 
 void hub_close(uint8_t dev_addr) {

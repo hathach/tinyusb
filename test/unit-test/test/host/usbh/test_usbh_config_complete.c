@@ -144,8 +144,22 @@ static void fake_close(uint8_t dev_addr) {
   close_count++;
 }
 
+// interfaces offered to the driver; none is claimed
+static uint8_t open_count;
+static uint8_t open_itf_num;
+
+static uint16_t fake_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) max_len;
+  open_count++;
+  open_itf_num = desc_itf->bInterfaceNumber;
+  return 0;
+}
+
 static const usbh_class_driver_t fake_driver = {
   .name       = "FAKE",
+  .open       = fake_open,
   .set_config = fake_set_config,
   .close      = fake_close,
 };
@@ -180,6 +194,8 @@ void setUp(void) {
   umount_cb_count  = 0;
   set_config_count = 0;
   close_count      = 0;
+  open_count       = 0;
+  open_itf_num     = 0xff;
   set_config_hook  = NULL;
   clear_stall_count  = 0;
   clear_stall_rhport = 0xff;
@@ -256,6 +272,22 @@ void test_config_complete_ignored_when_not_configured(void) {
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_EQUAL(0, mount_cb_count);
   TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
+}
+
+//--------------------------------------------------------------------+
+// Configuration descriptor parsing
+//--------------------------------------------------------------------+
+// drivers read interface fields before checking bLength: an interface shorter than defined is skipped (#4508)
+void test_parse_config_skips_short_interface(void) {
+  const uint8_t desc[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 8 + 9), 2, 1, 0, 0x80, 50,
+    8, TUSB_DESC_INTERFACE, 0, 0, 0, 0xFF, 0, 0,
+    9, TUSB_DESC_INTERFACE, 1, 0, 0, 0xFF, 0, 0, 0,
+  };
+
+  TEST_ASSERT_TRUE(enum_parse_configuration_desc(DADDR, (const tusb_desc_configuration_t *) desc));
+  TEST_ASSERT_EQUAL(1, open_count);
+  TEST_ASSERT_EQUAL(1, open_itf_num);
 }
 
 //--------------------------------------------------------------------+

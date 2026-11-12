@@ -2369,6 +2369,12 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
       p_desc = tu_desc_next(p_desc);
       continue;
     }
+    // drivers read interface fields before any length check of their own: offer none shorter than defined
+    if (tu_desc_len(p_desc) < sizeof(tusb_desc_interface_t)) {
+      TU_LOG_USBH("Skip interface descriptor with bLength = %u\r\n", tu_desc_len(p_desc));
+      p_desc = tu_desc_next(p_desc);
+      continue;
+    }
     const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
 
     // uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, (uint16_t)
