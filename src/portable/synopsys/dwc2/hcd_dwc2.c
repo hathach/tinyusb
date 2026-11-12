@@ -1049,7 +1049,8 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
     return true;
   }
   while (is_in && 0 == req_queue_avail(dwc2, true)) {
-    // blocking wait for request queue available
+    // DMA mode: bounded. The core moves received data from the RxFIFO to memory itself, so an IN at the queue head
+    // never waits for this interrupt, and the queue drains within the (micro)frames its requests are for.
   }
   const dwc2_hfnum_t hfnum = {.value = dwc2->hfnum};
   const uint16_t     now   = (uint16_t) ((hfnum.value - xfer->split_uframe) & HCD_FRAME_NUMBER_MASK);
