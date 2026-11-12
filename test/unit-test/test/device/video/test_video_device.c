@@ -273,6 +273,40 @@ void test_video_iso_recommit_on_setting_0_drains_payload_before_releasing_frame(
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
 }
 
+// #4434: alternate setting 1 has no VS header; PROBE and COMMIT must parse the header of setting 0
+// instead of walking off the endpoint descriptor. The lock watchdog fails a hang.
+void test_video_iso_probe_and_commit_on_setting_1_return(void) {
+  open_iso_stream();
+  set_interface(1);
+  TEST_ASSERT_TRUE(tud_video_n_streaming(0, 0));
+  TEST_ASSERT_TRUE(vs_set_cur(1, VIDEO_VS_CTL_PROBE, 10000000));
+  video_probe_and_commit_control_t probe = vs_get_cur(1, VIDEO_VS_CTL_PROBE);
+  TEST_ASSERT_EQUAL_UINT8(1, probe.bFormatIndex);
+  TEST_ASSERT_EQUAL_UINT8(1, probe.bFrameIndex);
+  TEST_ASSERT_EQUAL_UINT32(10000000, probe.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(512, probe.dwMaxVideoFrameSize);
+  TEST_ASSERT_EQUAL_UINT32(3, probe.dwMaxPayloadTransferSize);
+  commit_interval(10000000);
+  TEST_ASSERT_EQUAL_UINT32(10000000, vs_get_cur(1, VIDEO_VS_CTL_COMMIT).dwFrameInterval);
+
+  // GET_INTERFACE still reports the current setting.
+  tusb_control_request_t request = {.bmRequestType = 0x81,
+                                    .bRequest      = TUSB_REQ_GET_INTERFACE,
+                                    .wIndex        = 1,
+                                    .wLength       = 1};
+  TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+  TEST_ASSERT_EQUAL_UINT8(1, control_in[0]);
+}
+
+// #4434: a descriptor with bLength 0 ends the descriptor walks instead of spinning on it.
+void test_video_zero_length_descriptor_fails_open(void) {
+  static video_fixture_t malformed;
+  videod_reset(0);
+  malformed                = descriptor;
+  malformed.format.bLength = 0;
+  TEST_ASSERT_EQUAL(0, videod_open(0, &malformed.vc, sizeof(malformed)));
+}
+
 void test_video_set_interface_drops_queued_frame_once(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   set_interface(0);
