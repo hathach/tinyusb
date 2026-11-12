@@ -484,8 +484,12 @@ static void handle_ep0_rx(uint8_t rhport) {
     const uint16_t early = (uint16_t)(rx_ctrl & USBSS_EP_RX_LEN_MASK);
     if (early) {
       _ep0_early_len = early;
+      // _ep0_buf is held until dcd_edpt_xfer() drains it: an ACK arm would let the next DP overwrite
+      // it, since the host may resume without an ERDY (USB 3.2 §8.10.1). That drain arms with ERDY.
+      ep0_rx_arm(USBSS_UEP0_RX_NRDY);
+    } else {
+      ep0_rx_arm(USBSS_UEP0_RX_ARM);
     }
-    ep0_rx_arm(USBSS_UEP0_RX_ARM);
     return;
   }
   uint16_t len = (uint16_t)(rx_ctrl & USBSS_EP_RX_LEN_MASK);
@@ -1181,17 +1185,24 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       ep0_in_arm();
     } else {
       if (_ep0_early_len) {
-        // the host already delivered the (single-packet) data stage into _ep0_buf. Latch the
+        // the host already delivered the first data stage packet into _ep0_buf. Latch the
         // volatile first: TU_MIN evaluates its argument twice, so the EP0 RX ISR could store a
         // larger length between the bound check and the copy length
         const uint16_t early = _ep0_early_len;
         uint16_t len = TU_MIN(early, total_bytes);
         _ep0_early_len = 0;
         memcpy(buffer, _ep0_buf, len);
-        xfer->active = false;
-        // this branch runs synchronously from dcd_edpt_xfer (task context, not the ISR). Posted
-        // under the lock, as the last step: a SETUP queued ahead of it would take this completion.
-        dcd_event_xfer_complete(rhport, 0x00, len, XFER_RESULT_SUCCESS, is_isr);
+        if (early == EP0_MPS && len < total_bytes) {
+          // a full packet and room for more: the ISR collects the rest of this arm
+          xfer->queued_len = len;
+          ep0_rx_arm(USBSS_UEP0_RX_ARM);
+          usbss_send_erdy(0, false, 1);
+        } else {
+          xfer->active = false;
+          // this branch runs synchronously from dcd_edpt_xfer (task context, not the ISR). Posted
+          // under the lock, as the last step: a SETUP queued ahead of it would take this completion.
+          dcd_event_xfer_complete(rhport, 0x00, len, XFER_RESULT_SUCCESS, is_isr);
+        }
       } else {
         ep0_rx_arm(USBSS_UEP0_RX_ARM);
         usbss_send_erdy(0, false, 1);
