@@ -1651,7 +1651,7 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
 }
 
 // Helper to defer an isr function
-void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
+bool usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   dcd_event_t event = {
       .rhport   = 0,
       .event_id = USBD_EVENT_FUNC_CALL,
@@ -1659,7 +1659,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   event.func_call.func  = func;
   event.func_call.param = param;
 
-  queue_event(&event, in_isr);
+  return queue_event(&event, in_isr);
 }
 
 bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {

@@ -54,9 +54,10 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_stalled[ep_addr >> 7] = false;
 }
 
-void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
+bool usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   (void) in_isr;
   func(param);
+  return true;
 }
 
 void dcd_event_handler(dcd_event_t const *event, bool in_isr) {

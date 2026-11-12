@@ -129,6 +129,14 @@ typedef struct {
 static ncm_interface_t ncm_interface;
 CFG_TUD_MEM_SECTION static ncm_epbuf_t ncm_epbuf;
 
+// Link state requested by tud_network_link_state(), applied by ncm_link_state_task() in the usbd task.
+// Kept outside ncm_interface so that netd_reset() does not drop a request whose deferred call is still queued.
+static struct {
+  volatile bool is_up;    // latest requested link state
+  volatile uint8_t rhport;
+  volatile bool pending;  // a deferred ncm_link_state_task() call is queued
+} ncm_link_req;
+
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
@@ -811,8 +819,8 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
 } // tud_network_recv_renew
 
 /**
- * usbd-task trampoline for tud_network_link_state(), packing rhport and is_up
- * into a single pointer-sized argument.
+ * usbd-task trampoline for tud_network_link_state(): applies the latest
+ * requested link state from ncm_link_req.
  *
  * Runs entirely in the usbd task context, so it cannot race the notify
  * xfer-completion callback over the notification state machine. Re-arming
@@ -823,9 +831,13 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
  * the host stuck at NO-CARRIER after a link-state change.
  */
 static void ncm_link_state_task(void *param) {
-  uintptr_t const arg = (uintptr_t) param;
-  uint8_t const rhport = (uint8_t) (arg >> 1);
-  bool const is_up = (arg & 1u) != 0;
+  (void) param;
+
+  // Clear pending before reading the request: a request stored after this
+  // point sees pending == false and queues a new call.
+  ncm_link_req.pending = false;
+  uint8_t const rhport = ncm_link_req.rhport;
+  bool const is_up = ncm_link_req.is_up;
 
   if (ncm_interface.link_is_up == is_up) {
     return; // no change in link state
@@ -853,12 +865,25 @@ static void ncm_link_state_task(void *param) {
  * Defers onto the usbd task so a caller running in a different task than
  * tud_task() cannot race the notification state machine against the notify
  * xfer-completion callback.
+ *
+ * The request is stored and a deferred call is queued only if none is
+ * pending, so repeated calls keep at most one link-state event in the usbd
+ * queue (two tasks calling at once may queue a second, which is harmless) and
+ * a caller in tud_task() context (e.g. tud_network_recv_cb()) does not fill
+ * the queue it is the only reader of. The queued call applies the latest
+ * requested state; intermediate states requested before it runs are skipped.
  */
 void tud_network_link_state(uint8_t rhport, bool is_up) {
   TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
 
-  uintptr_t const arg = ((uintptr_t) rhport << 1) | (is_up ? 1u : 0u);
-  usbd_defer_func(ncm_link_state_task, (void *) arg, false);
+  ncm_link_req.rhport = rhport;
+  ncm_link_req.is_up = is_up;
+  if (!ncm_link_req.pending) {
+    ncm_link_req.pending = true;
+    if (!usbd_defer_func(ncm_link_state_task, NULL, false)) {
+      ncm_link_req.pending = false; // not queued (OS_NONE: queue full): let the next request try again
+    }
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -884,6 +909,11 @@ void netd_init(void) {
     ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
   ncm_interface.link_is_up = tud_network_default_link_state_cb();
+
+  // tud_deinit() deletes the usbd queue with any queued link-state call: clear pending so the next
+  // request queues a call. A call still queued across a bus reset then runs once more, applying the
+  // latest request again.
+  ncm_link_req.pending = false;
 } // netd_init
 
 /**
