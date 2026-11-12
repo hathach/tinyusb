@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(tinyusb_fuzz C CXX)
 
 cmake_path(SET TOP NORMALIZE ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, msc_bot, net, net_ncm or usbh_enum; empty for all")
+set(TINYUSB_FUZZ_TARGET "" CACHE STRING "Harness to configure: cdc, msc, msc_bot, net, net_ncm, usbh_enum or msch_open; empty for all")
 
 if (NOT CMAKE_C_COMPILER_ID MATCHES "Clang" OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "fuzz harnesses need clang: configure with CC=clang CXX=clang++")
@@ -149,4 +149,17 @@ if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "usbh_enum")
   target_include_directories(usbh_enum PRIVATE ${DIR} ${TOP}/src)
   fuzz_target_common(usbh_enum)
   fuzz_add_seed_test(usbh_enum SEED ${DIR}/usbh_enum_seed_corpus.zip)
+endif ()
+
+# Host MSC msch_open() descriptor walk alone: fuzz.c #includes msc_host.c. msch_open_none rebuilds it at
+# TUSB_VALIDATION_NONE, where its bounds checks must still hold.
+if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "msch_open")
+  set(DIR ${CMAKE_CURRENT_LIST_DIR}/host/msch_open)
+  foreach (NAME msch_open msch_open_none)
+    add_executable(${NAME} ${DIR}/fuzz.c)
+    target_include_directories(${NAME} PRIVATE ${DIR} ${TOP}/src)
+    fuzz_target_common(${NAME})
+    fuzz_add_seed_test(${NAME})
+  endforeach ()
+  target_compile_definitions(msch_open_none PRIVATE CFG_TUSB_VALIDATION_LEVEL=TUSB_VALIDATION_NONE)
 endif ()
