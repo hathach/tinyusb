@@ -965,8 +965,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
   // usbd's bus reset never calls dcd_edpt_close_all(), and the host must SET_ADDRESS after every
   // reset before it configures: the previous configuration's slots are released here, after usbd
-  // has processed the reset and before any endpoint of the next configuration opens. Once a request
-  // served after the reset has released the pool or opened an endpoint, SET_ADDRESS keeps the slots.
+  // has processed the reset and before any endpoint of the next configuration opens.
   if (_pool_retired) {
     pool_release();
   }
@@ -1094,7 +1093,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   xfer->stalled = false; // (re)configuring the endpoint clears any prior halt (USB 2.0 §9.4.5)
 
   // Allocate a RAMX bounce slot once per endpoint direction (reused on re-open; released by
-  // dcd_edpt_close_all and at the first SET_ADDRESS after a bus reset). Composites needing more
+  // dcd_edpt_close_all and by SET_ADDRESS while the pool is retired). Composites needing more
   // than the default 6 directions must raise CFG_TUD_WCH_USB30_RAMX_POOL_SIZE (RAMX is 32 KB total).
   if (xfer->slot == NULL) {
     TU_ASSERT(_pool_brk + BOUNCE_SLOT_SIZE <= CFG_TUD_WCH_USB30_RAMX_POOL_SIZE);

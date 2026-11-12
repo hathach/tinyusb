@@ -235,8 +235,8 @@ def probe_busy(board: dict) -> list:
     probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
     another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
     inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError); any
-    other exception propagates. Probe users only: a DUT-side process (a
-    stray testusb) is the run's recovery, never a refusal."""
+    other exception propagates. Probe users only: a DUT-side process (a stray testusb) is the
+    run's recovery, never a refusal."""
     provider, users = hil_util.provider(), {}
     try:
         for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
