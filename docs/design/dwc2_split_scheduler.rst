@@ -535,10 +535,10 @@ These choices are **not** protocol requirements merely because they exist in
        needs a defined endpoint-open result.
    * - Fixed ``DWC2_PERIODIC_OUT_MIN_FRREM=1024``
      - Timing heuristic requiring integration-specific justification.
-   * - HCCHAR.EC/MC programmed 0 on every channel, split or not
-     - The databook requires EC of at least 1 on a split channel; 0 is reserved
-       with undefined result (D09). The same holds for MC on nonsplit periodic
-       channels and DMA-mode nonperiodic ones. Fix it or justify it.
+   * - HCCHAR.EC/MC programmed 1 on every channel
+     - Fixed: was 0, which the databook reserves (D09). 1 is one transaction per
+       (micro)frame, one immediate split retry, and one packet per DMA
+       arbitration; high-bandwidth endpoints are not supported.
    * - Terminal interrupt CS NYET not counted as an error
      - Deliberate divergence from USB 11.18.8 case 4; decide and test the
        intended error policy instead of inheriting it invisibly.
@@ -549,7 +549,11 @@ These choices are **not** protocol requirements merely because they exist in
      - Departs from U15: the terminal CS is not issued, so its ERR (FS CRC
        failure, USB 11.21.4) is not seen and the packet is reported good. A
        larger buffer keeps the check. The DWC2 documents do not cover a CS with
-       no buffer left; **open** until hardware shows how the core handles it.
+       no buffer left. Not reproducible on the bench (STM32U5A5 slave mode, WCH
+       1a86:8091 multi-TT hub, full-speed isochronous IN of exactly MPS each
+       frame, 96 to 192 bytes, about 180k packets): up to 162 bytes the TT ends
+       every packet with one DATA0 CS, beyond it the first MDATA carries about
+       159 bytes, and it never returned a whole packet as MDATA. Left as is.
    * - DMA SS sequence assigned at enable
      - Ordering proof remains open because the guide describes arbiter
        admission.
