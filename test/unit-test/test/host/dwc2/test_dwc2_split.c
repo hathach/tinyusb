@@ -1492,6 +1492,32 @@ void test_root_port_disabled_by_our_reset_is_not_a_new_attach(void) {
 }
 
 //--------------------------------------------------------------------+
+// Periodic OUT retry
+//--------------------------------------------------------------------+
+void test_nak_periodic_out_restarts_in_its_next_service_interval(void) {
+  // native and split interrupt OUT, slave mode: a NAK ends the attempt and the transfer starts over in the endpoint's
+  // next service interval (Programming Guide 4.2.3), not in the next frame, where a NAKing low-speed one would take
+  // every frame's preamble slot from the other low-speed devices
+  for (unsigned split = 0; split < 2; split++) {
+    variant_setup(split);
+    endpoint(0, false, 8, false);
+    hcd_endpoint_t* ep          = &_hcd_data.edpt[0];
+    ep->hcchar_bm.enable        = 1;
+    ep->hcsplt_bm.split_en      = split;
+    test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+    test_regs.channel[0].hcsplt = ep->hcsplt;
+    _hcd_data.xfer[0].result    = XFER_RESULT_INVALID;
+
+    TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_NAK));
+    test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+    TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_HALTED));
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_EQUAL(1, ep->xfer_pending);
+  }
+}
+
+//--------------------------------------------------------------------+
 // Split ISO slot allocation
 //--------------------------------------------------------------------+
 enum {

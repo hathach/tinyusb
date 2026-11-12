@@ -181,9 +181,7 @@ typedef struct {
   uint8_t* buffer;
   uint16_t buflen;
   uint16_t periodic_frame; // frame/microframe number of the last scheduled periodic transaction
-#if HCD_SPLIT
-  uint16_t periodic_xferred; // bytes a periodic split OUT transfer sent before its retry in a later service interval
-#endif
+  uint16_t periodic_xferred; // bytes a periodic OUT transfer sent before its retry in a later service interval
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -2039,9 +2037,7 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
     xfer->ep_id = ep_id;
     xfer->result = XFER_RESULT_INVALID;
     xfer->err_count = edpt->periodic_err; // a periodic retry keeps the errors of its transfer
-#if HCD_SPLIT
-    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes a split OUT one already sent
-#endif
+    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes an OUT one already sent
     if (is_period) {
       edpt->periodic_phase = 1;
       edpt->xfer_pending = 0;
@@ -2112,9 +2108,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   edpt->buffer = buffer;
   edpt->buflen = buflen;
   edpt->periodic_err = 0; // idle endpoint: the ISR does not write this word
-#if HCD_SPLIT
   edpt->periodic_xferred = 0;
-#endif
 
   if (ep_num == 0) {
     // update ep_dir since control endpoint can switch direction
@@ -2298,18 +2292,20 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   return false;
 }
 
-// Restart an OUT transfer after a NAK or error, channel must be halted. A periodic split starts over in its slot of
-// the next service interval, keeping the errors of its transfer.
+// Restart an OUT transfer after a NAK or error, channel must be halted. A periodic one starts over in the next service
+// interval (in its slot there for a split), keeping the errors of its transfer, as a NAKed periodic IN does (Programming
+// Guide 4.2.3: re-initialize in the next b_interval). Restarting it at once would retry a NAKing interrupt OUT every
+// frame, and a low-speed one behind a full-speed hub would win every frame's preamble slot from the others
+// (ls_frame_claim()).
 static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*     xfer = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
-  if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
+  if (channel_is_periodic(edpt->hcchar)) {
     edpt->periodic_err = xfer->err_count;
-  #if HCD_SPLIT
-    // the channel is released: keep what the packets sent so far count. An isochronous packet starts over at BEGIN.
-    edpt->periodic_xferred =
-        (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) ? 0 : xfer->xferred_bytes;
-  #endif
+    // the channel is released: keep what the packets sent so far count. An isochronous split packet starts over at
+    // BEGIN.
+    const bool iso_split = edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS && edpt->hcsplt_bm.split_en;
+    edpt->periodic_xferred = iso_split ? 0 : xfer->xferred_bytes;
     periodic_xfer_defer(dwc2, edpt, true);
   #if HCD_SPLIT
     split_iso_out_close(dwc2, ch_id);
