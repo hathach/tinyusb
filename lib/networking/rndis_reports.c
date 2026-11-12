@@ -38,11 +38,6 @@
 
 #define RNDIS_VENDOR     "TinyUSB"                      /* NIC vendor name */
 
-// USB link speed in bits/sec, reflected to host via OID_GEN_LINK_SPEED.
-static inline uint32_t rndis_link_speed_bps(void) {
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
-}
-
 static const uint8_t *const station_hwaddr = tud_network_mac_address;
 static const uint8_t *const permanent_hwaddr = tud_network_mac_address;
 
@@ -135,7 +130,7 @@ static void rndis_query(void)
     case OID_GEN_MEDIA_IN_USE:           rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, NDIS_MEDIUM_802_3); return;
     case OID_GEN_PHYSICAL_MEDIUM:        rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, NDIS_MEDIUM_802_3); return;
     case OID_GEN_HARDWARE_STATUS:        rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, 0); return;
-    case OID_GEN_LINK_SPEED:             rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, rndis_link_speed_bps() / 100U); return;
+    case OID_GEN_LINK_SPEED:             rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, tud_network_link_bitrate() / 100U); return; // 100 bit/s units
     case OID_GEN_VENDOR_ID:              rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, 0x00FFFFFF); return;
     case OID_GEN_VENDOR_DESCRIPTION:     rndis_query_cmplt(RNDIS_STATUS_SUCCESS, rndis_vendor, strlen(rndis_vendor) + 1); return;
     case OID_GEN_CURRENT_PACKET_FILTER:  rndis_query_cmplt32(RNDIS_STATUS_SUCCESS, oid_packet_filter); return;
