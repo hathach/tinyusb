@@ -322,6 +322,31 @@ void test_video_zero_length_descriptor_fails_open(void) {
   TEST_ASSERT_EQUAL(0, videod_open(0, &malformed.vc, sizeof(malformed)));
 }
 
+// #4426: with one VC carrying two VS, every payload of stream 1, the first included, is built in
+// stream 1's buffer and leaves stream 0's in-flight payload alone.
+void test_video_second_stream_of_one_vc_uses_its_own_buffer(void) {
+  open_two_streams();
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  TEST_ASSERT_EQUAL_HEX8(0x81, payload_ep);
+  uint8_t *const stream0 = payload;
+  uint8_t        queued[64];
+  uint16_t const queued_length = payload_length;
+  memcpy(queued, payload, payload_length);
+
+  claimed = false; // the stub models one endpoint claim; stream 1 has its own endpoint
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 1, frame, sizeof(frame)));
+  TEST_ASSERT_EQUAL_HEX8(0x82, payload_ep);
+  uint8_t *const first = payload;
+  TEST_ASSERT_TRUE(first != stream0);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(queued, stream0, queued_length);
+
+  claimed = false;
+  TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x82, XFER_RESULT_SUCCESS, payload_length));
+  TEST_ASSERT_EQUAL_HEX8(0x82, payload_ep);
+  TEST_ASSERT_EQUAL_PTR(first, payload);
+  TEST_ASSERT_FALSE(payload[1] & 2); // the frame is not finished yet
+}
+
 void test_video_set_interface_drops_queued_frame_once(void) {
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
   set_interface(0);

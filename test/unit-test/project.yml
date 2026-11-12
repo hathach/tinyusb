@@ -250,7 +250,8 @@
     :test_video_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_VIDEO=1
-      - CFG_TUD_VIDEO_STREAMING=1
+      # two, so one VideoControl can carry two VideoStreaming interfaces
+      - CFG_TUD_VIDEO_STREAMING=2
       - CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE=64
       - CFG_TUSB_DEBUG=0
       # real osal_none mutex, so the tests run with the class lock live

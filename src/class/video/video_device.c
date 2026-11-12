@@ -1412,11 +1412,11 @@ static bool _submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buff
   }
 
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
-  videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[ctl_idx];
-
   if (NULL == stm || 0 == stm->desc.ep[0] || stm->bufsize) {
     return false;
   }
+  /* Indexed by the stream's slot, as in the control and transfer-completion handlers. */
+  videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[_videod_itf[ctl_idx].stm[stm_idx]];
   if (stm->state == VS_STATE_PROBING) {
     return false;
   }
