@@ -204,6 +204,21 @@ void test_video_rejected_commit_keeps_payload_size(void) {
   TEST_ASSERT_NOT_EQUAL(committed_length, payload_length);
 }
 
+// #4427: the values of a COMMIT the application rejects are not stored.
+void test_video_rejected_commit_keeps_committed_values(void) {
+  accept_commit = false;
+  commit_interval(10000000);
+  video_probe_and_commit_control_t committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(1000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(8, committed.dwMaxPayloadTransferSize);
+
+  accept_commit = true;
+  commit_interval(10000000);
+  committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(10000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(3, committed.dwMaxPayloadTransferSize);
+}
+
 // usbd ignores the class result for both SET and CLEAR_FEATURE(ENDPOINT_HALT); only the SET_FEATURE
 // return shows endpoint ownership.
 void test_video_set_halt_reports_endpoint_ownership(void) {
