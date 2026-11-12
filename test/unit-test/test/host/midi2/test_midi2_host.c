@@ -75,6 +75,22 @@ static const uint8_t desc_shared[] = {
   MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0), ALT1_EP_DESC(EP_IN, TUSB_XFER_BULK, EP_SIZE, 0))
 };
 
+// Linux f_midi2: setting 1 has its own endpoints, here with an Interrupt IN
+static const uint8_t desc_own_ep[] = {
+  MIDI2_DESC(ALT1_EP_DESC(0x02, TUSB_XFER_BULK, EP_SIZE, 0), ALT1_EP_DESC(0x82, TUSB_XFER_INTERRUPT, EP_INT_SIZE, 1))
+};
+
+// USB-MIDI 2.0 Appendix B: IN 0x81 is Bulk in setting 0 and Interrupt in setting 1
+static const uint8_t desc_same_addr_int[] = {
+  MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0), ALT1_EP_DESC(EP_IN, TUSB_XFER_INTERRUPT, EP_INT_SIZE, 1))
+};
+
+// a setting 1 IN larger than the endpoint buffer
+static const uint8_t desc_oversized[] = {
+  MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0),
+             ALT1_EP_DESC(0x82, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX * 2, 1))
+};
+
 // an Audio Class function without MIDI Streaming: Audio Control + Audio Streaming
 static const uint8_t desc_audio_only[] = {
   AC_ITF_DESC,
@@ -256,6 +272,15 @@ static void enumerate(uint8_t daddr, const uint8_t *desc, uint16_t len) {
   }
 }
 
+static const opened_ep_t *find_opened(uint8_t ep_addr, uint8_t nth) {
+  for (uint8_t i = 0; i < opened_count; i++) {
+    if (opened[i].ep_addr == ep_addr && nth-- == 0) {
+      return &opened[i];
+    }
+  }
+  return NULL;
+}
+
 static void assert_ump_write_goes_to(uint8_t daddr, uint8_t ep_addr) {
   const uint32_t ump = 0x20903C7Fu; // MIDI 1.0 channel voice message, one word
   xfer_count = 0;
@@ -430,4 +455,72 @@ void test_set_interface_not_submitted_completes_on_alt0(void) {
   TEST_ASSERT_EQUAL(2, config_complete_count); // Audio Control passed through, then MIDI Streaming
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+}
+
+//--------------------------------------------------------------------+
+// Setting 1 endpoints
+//--------------------------------------------------------------------+
+
+// Setting 1 with endpoints of its own: they are opened and carry the UMP traffic
+void test_alt1_own_endpoints_are_used(void) {
+  enumerate(1, desc_own_ep, sizeof(desc_own_ep));
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
+
+  const opened_ep_t *ep_out = find_opened(0x02, 0);
+  const opened_ep_t *ep_in = find_opened(0x82, 0);
+  TEST_ASSERT_NOT_NULL(ep_out);
+  TEST_ASSERT_NOT_NULL(ep_in);
+  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_out->type);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, ep_in->type);
+  TEST_ASSERT_EQUAL(EP_INT_SIZE, ep_in->mps);
+  TEST_ASSERT_EQUAL(0, closed_count);
+
+  // RX armed on setting 1's Interrupt IN, one packet at a time
+  TEST_ASSERT_EQUAL_HEX8(0x82, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_INT_SIZE, last_xfer_len);
+
+  assert_ump_write_goes_to(1, 0x02);
+}
+
+// Setting 1 IN at setting 0's address but Interrupt: reopened with setting 1's descriptor
+void test_alt1_same_address_other_type_is_reopened(void) {
+  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
+
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[0]);
+  const opened_ep_t *ep_in = find_opened(EP_IN, 1);
+  TEST_ASSERT_NOT_NULL(ep_in);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, ep_in->type);
+  TEST_ASSERT_EQUAL(EP_INT_SIZE, ep_in->mps);
+  TEST_ASSERT_NULL(find_opened(EP_OUT, 1)); // OUT is shared
+
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_INT_SIZE, last_xfer_len);
+  assert_ump_write_goes_to(1, EP_OUT);
+}
+
+// An HCD that cannot close an endpoint keeps setting 0's
+void test_alt1_reopen_without_hcd_close_keeps_alt0_endpoint(void) {
+  close_supported = false;
+  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+  TEST_ASSERT_EQUAL(1, mount_count);
+
+  TEST_ASSERT_NULL(find_opened(EP_IN, 1));
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+// A setting 1 endpoint larger than the endpoint buffer is refused: the device stays on setting 0
+void test_alt1_oversized_endpoint_stays_on_alt0(void) {
+  enumerate(1, desc_oversized, sizeof(desc_oversized));
+
+  TEST_ASSERT_EQUAL(0, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(0, last_mount.protocol_version);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
 }
