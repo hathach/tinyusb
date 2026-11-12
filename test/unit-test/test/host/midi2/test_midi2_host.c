@@ -420,3 +420,14 @@ void test_alt1_without_alt0_slot_is_not_claimed(void) {
   enumerate(2, desc_shared, sizeof(desc_shared));
   TEST_ASSERT_EQUAL(1, mount_count);
 }
+
+// SET_INTERFACE not submitted: no callback would continue, so the configuration completes on alt 0
+void test_set_interface_not_submitted_completes_on_alt0(void) {
+  interface_set_ok = false;
+  enumerate(1, desc_shared, sizeof(desc_shared));
+
+  TEST_ASSERT_EQUAL(1, interface_set_count);
+  TEST_ASSERT_EQUAL(2, config_complete_count); // Audio Control passed through, then MIDI Streaming
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+}
