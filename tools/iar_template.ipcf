@@ -25,12 +25,9 @@
         <group name="src/class/cdc">
             <path>$TUSB_DIR$/src/class/cdc/cdc_device.c</path>
             <path>$TUSB_DIR$/src/class/cdc/cdc_host.c</path>
-            <path>$TUSB_DIR$/src/class/cdc/cdc_rndis_host.c</path>
             <path>$TUSB_DIR$/src/class/cdc/cdc.h</path>
             <path>$TUSB_DIR$/src/class/cdc/cdc_device.h</path>
             <path>$TUSB_DIR$/src/class/cdc/cdc_host.h</path>
-            <path>$TUSB_DIR$/src/class/cdc/cdc_rndis.h</path>
-            <path>$TUSB_DIR$/src/class/cdc/cdc_rndis_host.h</path>
         </group>
         <group name="src/class/dfu">
             <path>$TUSB_DIR$/src/class/dfu/dfu_device.c</path>
