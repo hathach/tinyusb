@@ -206,7 +206,7 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
 }
 
 static void open_bot_interface(void) {
-  open_expect(build_bot(9, 2, 7, EP_OUT, 7, EP_IN), 9 + 2 * 7);
+  check_open(9, 2, 7, 7, 9 + 2 * 7);
 }
 
 // usbh resumes enumeration from the interface it is told completed
