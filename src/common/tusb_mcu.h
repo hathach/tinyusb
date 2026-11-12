@@ -705,6 +705,9 @@
   #ifndef CFG_TUD_WCH_USBIP_USB30
     #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
   #endif
+  #if CFG_TUD_WCH_USBIP_USBHS && CFG_TUD_WCH_USBIP_USB30
+    #error "CH569: CFG_TUD_WCH_USBIP_USBHS and CFG_TUD_WCH_USBIP_USB30 cannot both be 1"
+  #endif
   #ifndef CFG_TUD_WCH_USB30_FALLBACK
     #define CFG_TUD_WCH_USB30_FALLBACK 0
   #endif
@@ -738,6 +741,9 @@
   #endif
   #ifndef CFG_TUD_WCH_USBIP_USB30
     #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
+  #endif
+  #if CFG_TUD_WCH_USBIP_USBHS && CFG_TUD_WCH_USBIP_USB30
+    #error "CH32H417: CFG_TUD_WCH_USBIP_USBHS and CFG_TUD_WCH_USBIP_USB30 cannot both be 1"
   #endif
   #ifndef CFG_TUD_WCH_USB30_FALLBACK
     #define CFG_TUD_WCH_USB30_FALLBACK 0

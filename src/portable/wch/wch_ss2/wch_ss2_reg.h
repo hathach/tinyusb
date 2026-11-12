@@ -11,6 +11,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tusb_option.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_CH32H417
+
 #include "common/tusb_compiler.h"
 
 // USBSSD_TypeDef (@0x40034000), LINK_*/USBSS_* bit macros come from the SDK. The LINK-layer bit
@@ -62,5 +66,7 @@ TU_ATTR_ALWAYS_INLINE static inline volatile USBSS_EP_RX_TypeDef* usbss_ep_rx(ui
 // USB_STATUS fields: which endpoint/direction raised the transfer interrupt
 #define USBSS_STATUS_EP_NUM(st) (((st) & USBSS_EP_ID_MASK) >> 8)
 #define USBSS_STATUS_EP_IN(st)  (((st) & USBSS_EP_DIR_MASK) != 0)
+
+#endif // CFG_TUSB_MCU == OPT_MCU_CH32H417
 
 #endif

@@ -15,8 +15,13 @@
 #ifndef TUSB_WCH_SS1_REG_H_
 #define TUSB_WCH_SS1_REG_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "tusb_option.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_CH569
 
 #include "common/tusb_compiler.h"
 
@@ -178,5 +183,7 @@ TU_ATTR_ALWAYS_INLINE static inline void usbss_send_erdy(uint8_t ep, bool dir_in
 // PORT_CAPABILITY sent after link ready: DATA0 = LINK_SPEED|PORT_CAP, DATA1 = UP_STREAM|NUM_HP_BUF
 #define USBSS_LMP_TX_PORT_CAP_DATA0 0x280u
 #define USBSS_LMP_TX_PORT_CAP_DATA1 ((2u << 16) | 4u)
+
+#endif // CFG_TUSB_MCU == OPT_MCU_CH569
 
 #endif // TUSB_WCH_SS1_REG_H_
