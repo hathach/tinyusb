@@ -217,6 +217,32 @@ void test_ft232b_invalid_rates_send_no_request(void) {
   TEST_ASSERT_EQUAL(0, callback_count);
 }
 
+static xfer_result_t line_coding_result;
+
+static void line_coding_complete(tuh_xfer_t *xfer) {
+  TEST_ASSERT_EQUAL_HEX32(0x5678, xfer->user_data);
+  line_coding_result = xfer->result;
+  callback_count++;
+}
+
+// the data format stage fails to queue after the baudrate stage: the caller still gets a failed completion, as
+// enumeration does when it sets the line coding on mount (#4064)
+void test_line_coding_data_format_not_queued_completes_failed(void) {
+  const uint8_t idx = open_ftdi(0x0400, 0);
+  const cdc_line_coding_t coding = {.bit_rate = 9600, .stop_bits = 0, .parity = 0, .data_bits = 5};
+  line_coding_result = XFER_RESULT_SUCCESS;
+
+  TEST_ASSERT_TRUE(tuh_cdc_set_line_coding(idx, &coding, line_coding_complete, 0x5678));
+  TEST_ASSERT_EQUAL(1, request_count);
+  TEST_ASSERT_EQUAL_HEX8(3, pending_setup.bRequest); // FTDI SET_BAUDRATE
+  complete_request();
+
+  TEST_ASSERT_FALSE(pending);
+  TEST_ASSERT_EQUAL(1, request_count);
+  TEST_ASSERT_EQUAL(1, callback_count);
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, line_coding_result);
+}
+
 void test_sio_unsupported_rate_sends_no_request(void) {
   const uint8_t idx = open_ftdi(0x0100, 0);
   TEST_ASSERT_FALSE(tuh_cdc_set_baudrate(idx, 12345, baudrate_complete, 0x1234));
