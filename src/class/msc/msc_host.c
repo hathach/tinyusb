@@ -372,8 +372,9 @@ static void reset_recovery_end(uint8_t daddr, msch_interface_t* p_msc, bool succ
 static void reset_recovery_complete(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
   msch_interface_t* p_msc = get_itf(daddr);
-  // unplugged: discarded with the interface; the application learns of it from tuh_msc_umount_cb()
-  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1],);
+  // unplugged, also while usbh runs tuh_umount_cb() ahead of msch_close(): discarded with the interface; the
+  // application learns of it from tuh_msc_umount_cb()
+  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1] && tuh_connected(daddr),);
 
   bool ok = (xfer->result == XFER_RESULT_SUCCESS);
   switch (p_msc->stage) {

@@ -74,6 +74,13 @@ bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
   return ep_addr != clear_stall_fail_ep;
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of tuh_umount_cb()
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
 uint8_t *usbh_get_enum_buf(void) {
   return enum_buf;
 }
@@ -241,6 +248,7 @@ void setUp(void) {
   claimed_ep      = 0;
   claim_preempt   = NULL;
   umount_hook     = NULL;
+  device_connected = true;
   msch_init();
   mount_bot_interface();
 }
@@ -1064,6 +1072,32 @@ void test_msc_host_reset_completion_from_umount_callback_discarded(void) {
   TEST_ASSERT_FALSE(retry_submitted);
   TEST_ASSERT_EQUAL(0, xfer_count);
   TEST_ASSERT_EQUAL(1, clear_stall_count);
+}
+
+// usbh runs tuh_umount_cb() before msch_close(), with the device already removing: an application driving tuh_task()
+// from it delivers the recovery's last request, which must neither call back nor let the callback start a command
+void test_msc_host_reset_completion_from_device_umount_callback_discarded(void) {
+  const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_TIMEOUT};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
+    device_connected = true;
+    remount_and_fence();
+    TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, reset_then_command, RESET_ARG));
+    complete_ctrl(XFER_RESULT_SUCCESS); // Bulk-Only Mass Storage Reset
+    complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-In
+
+    device_connected = false;
+    complete_ctrl(results[i]); // Clear HALT Bulk-Out, from inside tuh_umount_cb()
+
+    TEST_ASSERT_EQUAL(0, reset_cb_count);
+    TEST_ASSERT_FALSE(retry_submitted);
+    TEST_ASSERT_EQUAL(3, ctrl_count);
+    TEST_ASSERT_EQUAL(1, clear_stall_count);
+    TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+    TEST_ASSERT_EQUAL(0, xfer_count);
+
+    unplug();
+    TEST_ASSERT_EQUAL(0, reset_cb_count);
+  }
 }
 
 // A command and a recovery are each admitted only with the Bulk-Out claim. The hooks below run inside the other

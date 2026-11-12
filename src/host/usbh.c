@@ -124,7 +124,7 @@ typedef struct {
     volatile uint8_t configured : 1; // After SET_CONFIG, while class drivers are still being configured
     volatile uint8_t mounted    : 1; // All drivers configured and tuh_mount_cb() invoked
     volatile uint8_t suspended  : 1; // Bus suspended
-    // volatile uint8_t removing : 1; // Physically disconnected, waiting to be processed by usbh
+    volatile uint8_t removing   : 1; // Unplugged, being torn down: tuh_connected() is false from tuh_umount_cb() on
   };
 
   // Endpoint & Interface
@@ -482,7 +482,7 @@ bool tuh_connected(uint8_t daddr) {
   } else {
     const usbh_device_t* dev = get_device(daddr);
     TU_VERIFY(dev != NULL);
-    return dev->connected;
+    return dev->connected && !dev->removing;
   }
 }
 
@@ -1783,6 +1783,8 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
           (hub_addr == 0 || dev->bus_info.hub_addr == hub_addr) &&
           (hub_port == 0 || dev->bus_info.hub_port == hub_port)) {
         TU_LOG_USBH("[%u:%u:%u] unplugged address = %u\r\n", rhport, hub_addr, hub_port, daddr);
+        // before any callback: one that drives tuh_task() may deliver a completion its driver must see as unplugged
+        dev->removing = 1;
 
         #if CFG_TUH_HUB
         if (is_hub_addr(daddr)) {
