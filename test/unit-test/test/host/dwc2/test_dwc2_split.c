@@ -1438,6 +1438,39 @@ void test_dma_periodic_abort_is_retired_by_the_halt_at_the_end_of_its_frame(void
 }
 
 //--------------------------------------------------------------------+
+// Root port
+//--------------------------------------------------------------------+
+static hcd_event_t port_events[4];
+static unsigned    port_event_count;
+
+static void port_event_stub(hcd_event_t const* event, bool in_isr, int cmock_num_calls) {
+  (void) in_isr;
+  (void) cmock_num_calls;
+  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(port_events), port_event_count);
+  port_events[port_event_count++] = *event;
+}
+
+void test_root_port_overcurrent_is_cleared_and_reported_as_a_removal(void) {
+  // PrtOvrCurrChng is W1C and holds PrtInt (Databook v4.20a Table 7-44); overcurrent also disables the port, which
+  // must not read as a core-disabled connected port to enumerate again
+  hcd_event_handler_Stub(port_event_stub);
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_ACTIVE | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HPRT_OVER_CURRENT_CHANGE | HPRT_ENABLE_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_REMOVE, port_events[0].event_id);
+
+  // overcurrent gone with the device still connected: enumerate it again
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HPRT_OVER_CURRENT_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
+}
+
+//--------------------------------------------------------------------+
 // Split ISO slot allocation
 //--------------------------------------------------------------------+
 enum {
