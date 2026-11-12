@@ -246,6 +246,11 @@ typedef struct {
 
 static hcd_data_t _hcd_data;
 
+// hcd_port_reset() reset the root port and it has not been enabled since. On some cores (ESP32-S2/S3/P4: ESP-IDF
+// usb_dwc_hal) a reset of an enabled port disables it, which handle_hprt_irq() must not take for the core disabling a
+// connected port: re-attaching would end usbh's enumeration retry budgets and loop forever on a failing device.
+static bool _hcd_port_resetting;
+
 #if HCD_SPLIT
 // A complete-split waits behind an older one on its TT, or for the end of channel interrupt handling: enable it then
 static bool _hcd_csplit_behind;
@@ -1527,6 +1532,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_clock_init(rhport, rh_init->role);
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
+  _hcd_port_resetting = false;
 
   // Core Initialization
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -1614,6 +1620,7 @@ void hcd_port_reset(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK;
   hprt |= HPRT_RESET;
+  _hcd_port_resetting = true;
   dwc2->hprt = hprt;
 }
 
@@ -3680,9 +3687,11 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.enable == 1u) {
       // Port enable
+      _hcd_port_resetting = false;
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u && hprt_bm.over_current_active == 0u) {
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u && hprt_bm.over_current_active == 0u &&
+               !_hcd_port_resetting) {
       // The core disabled a still-connected port. Reuse attach handling
       // to tear down the stale device tree and restart enumeration.
       hcd_event_device_attach(rhport, in_isr);
@@ -3728,6 +3737,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (gintsts & GINTSTS_DISCINT) {
     dwc2->gintsts = GINTSTS_DISCINT;
+    _hcd_port_resetting = false;
     channel_cleanup_on_disconnect(dwc2);
     hcd_event_device_remove(rhport, in_isr);
 

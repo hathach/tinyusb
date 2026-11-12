@@ -52,6 +52,7 @@ void setUp(void) {
   memset(&_hcd_data, 0, sizeof(_hcd_data));
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
   _hcd_nonperiodic_uframe = 0;
+  _hcd_port_resetting = false;
   on_int_enable = NULL;
   _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
@@ -1466,6 +1467,26 @@ void test_root_port_overcurrent_is_cleared_and_reported_as_a_removal(void) {
   test_regs.hprt   = HPRT_CONN_STATUS | HPRT_OVER_CURRENT_CHANGE;
   handle_hprt_irq(0, true);
   TEST_ASSERT_BITS_HIGH(HPRT_OVER_CURRENT_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
+}
+
+void test_root_port_disabled_by_our_reset_is_not_a_new_attach(void) {
+  // ESP-IDF usb_dwc_hal: resetting an enabled port disables it. usbh's enumeration retry resets the port it is
+  // enumerating; reporting that disable as an attach would restart enumeration and its retry budgets forever
+  hcd_event_handler_Stub(port_event_stub);
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_ENABLE;
+  hcd_port_reset(0);
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_RESET | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_EQUAL(0, port_event_count);
+
+  // the reset enables the port; the core disabling the connected port later still enumerates it again
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_ENABLE | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
   TEST_ASSERT_EQUAL(1, port_event_count);
   TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
 }
