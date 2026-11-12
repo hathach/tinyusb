@@ -58,7 +58,7 @@ Used for device configuration and control commands.
 **Characteristics**:
 - Bidirectional (uses both IN and OUT)
 - Guaranteed delivery with error detection
-- Limited data size per packet: 8 bytes at Low Speed, 8-64 at Full Speed, 64 at High Speed, 512 at SuperSpeed
+- Limited data size per packet: 8 bytes at Low Speed, 8, 16, 32 or 64 at Full Speed, 64 at High Speed, 512 at SuperSpeed
 - All devices must support control transfers on endpoint 0
 
 **Usage**: Device enumeration, configuration changes, class-specific commands
