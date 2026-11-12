@@ -72,6 +72,7 @@ typedef struct {
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open and close
+static uint32_t _msch_ready_start_ms; // first Test Unit Ready of the enumeration: usbh configures one device at a time
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
@@ -647,6 +648,7 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   // TODO multiple LUN support
   TU_LOG_DRV("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
+  _msch_ready_start_ms = tusb_time_millis_api();
   if (!tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete, 0)) {
     config_abort(daddr);
   }
@@ -666,8 +668,9 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
   } else {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
     // with Request Sense to start working !!
-    // TODO limit number of retries
+    // A short response must not leave an earlier sense in place
     TU_LOG_DRV("SCSI Request Sense\r\n");
+    tu_memclr(enum_buf, sizeof(scsi_sense_fixed_resp_t));
     submitted = tuh_msc_request_sense(dev_addr, cbw->lun, enum_buf, config_request_sense_complete, 0);
   }
 
@@ -680,8 +683,30 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
 static bool config_request_sense_complete(uint8_t dev_addr, tuh_msc_complete_data_t const* cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
   msc_csw_t const* csw = cb_data->csw;
+  const scsi_sense_fixed_resp_t* sense = (const scsi_sense_fixed_resp_t*) (uintptr_t) usbh_get_enum_buf();
 
-  if (csw->status != 0 || !tuh_msc_test_unit_ready(dev_addr, cbw->lun, config_test_unit_ready_complete, 0)) {
+  if (csw->status != 0) {
+    config_abort(dev_addr);
+    return true;
+  }
+
+  TU_LOG_DRV("  Sense Key %02X, ASC %02X, ASCQ %02X\r\n", sense->sense_key, sense->add_sense_code,
+             sense->add_sense_qualifier);
+
+  // no retry makes a medium appear, e.g. in an empty card reader slot (#3898)
+  if (sense->sense_key == SCSI_SENSE_NOT_READY && sense->add_sense_code == 0x3A && sense->add_sense_qualifier == 0x00) {
+    TU_LOG_DRV("  MSCh LUN %u medium not present\r\n", cbw->lun);
+    config_abort(dev_addr);
+    return true;
+  }
+
+  if ((uint32_t) (tusb_time_millis_api() - _msch_ready_start_ms) >= CFG_TUH_MSC_READY_TIMEOUT_MS) {
+    TU_LOG_DRV("  MSCh LUN %u not ready after %u ms\r\n", cbw->lun, (unsigned) CFG_TUH_MSC_READY_TIMEOUT_MS);
+    config_abort(dev_addr);
+    return true;
+  }
+
+  if (!tuh_msc_test_unit_ready(dev_addr, cbw->lun, config_test_unit_ready_complete, 0)) {
     config_abort(dev_addr);
   }
   return true;
