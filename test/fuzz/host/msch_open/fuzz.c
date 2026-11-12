@@ -70,6 +70,16 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
   return false;
 }
 
+bool usbh_edpt_clear_stall(uint8_t daddr, uint8_t ep_addr) {
+  (void) daddr; (void) ep_addr;
+  return false;
+}
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return false;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void) dev_addr; (void) itf_num;
 }
