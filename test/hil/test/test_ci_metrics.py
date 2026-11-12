@@ -3,6 +3,7 @@
 # Unit tests for the CircleCI/GitHub Actions selection hand-off contracts.
 # Stdlib only; no builds.
 #   python3 test/hil/test/test_ci_metrics.py
+import functools
 import json
 import os
 import re
@@ -24,6 +25,24 @@ BASH = shutil.which('bash') or 'bash'
 # the CI steps below pipe through jq, which Git for Windows does not ship; CI runners have it
 NO_JQ = ('jq is not installed (Git for Windows ships none)'
          if sys.platform == 'win32' and not shutil.which('jq') else '')
+
+
+@functools.cache
+def _no_bash():
+    """Why no bash runs here, else '': on Windows `bash` may be absent, or WSL's launcher with no WSL behind it."""
+    try:
+        if subprocess.run([BASH, '-c', 'exit 0'], capture_output=True, timeout=60).returncode == 0:
+            return ''
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return f'{BASH} does not run, and the CI steps under test are bash scripts'
+
+
+def run_bash(args, **kwargs):
+    """subprocess.run of bash with `args`; skips the calling test where no bash runs."""
+    if _no_bash():
+        raise unittest.SkipTest(_no_bash())
+    return subprocess.run([BASH, *args], **kwargs)
 
 
 def _read(path):
@@ -126,7 +145,7 @@ class TestCircleCiExampleMapBudget(unittest.TestCase):
                        STUB_MATRIX=json.dumps(matrix), STUB_MAP=json.dumps(example_map))
             if fork:
                 env['CIRCLE_PR_USERNAME'] = 'contributor'
-            r = subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', block], cwd=d, env=env,
+            r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, env=env,
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             with open(os.path.join(d, '.circleci', 'config2.yml'), encoding='utf-8') as fh:
@@ -248,7 +267,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             with open(os.path.join(d, 'python3'), 'w', encoding='utf-8', newline='\n') as f:
                 f.write('#!/bin/sh\necho "$*" >> log\ncase "$*" in *bad*) exit 1 ;; esac\n')
             os.chmod(os.path.join(d, 'python3'), 0o755)
-            r = subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
+            r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
                                env={**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'],
                                     'LEGS': json.dumps(['-b bad', '-b x --build-name x-DMA --cflag=-DY=1'])})
             self.assertNotEqual(r.returncode, 0)
@@ -365,7 +384,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
         def scope(changed, owner='hathach'):
             with tempfile.TemporaryDirectory() as d:
-                subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
+                run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
                                env={**os.environ, 'TOOLCHAINS': m.group(1), 'PINNED_JSON': json.dumps(pinned),
                                     'EXAMPLE_MAP': '{"stm32f4": ["device/cdc_msc"]}', 'CODE_CHANGED': changed,
                                     'HIL_JSON': json.dumps(hil), 'OWNER': owner})
@@ -403,14 +422,14 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
             def run(arg, toolchain='esp-idf'):
                 open(env['LOG'], 'w').close()
-                r = subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True,
+                r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True,
                                    text=True, env={**env, 'ARG': arg, 'TOOLCHAIN': toolchain})
                 self.assertEqual(r.returncode, 0, r.stderr)
                 with open(env['LOG'], encoding='utf-8') as f:
                     return f.read().splitlines()
             log = run('-b espressif_s3_devkitm $(touch pwned) ;id')
             # the mount is bash's $PWD: d itself on POSIX, its /c/... spelling under Git Bash
-            pwd = subprocess.run([BASH, '-c', 'pwd'], cwd=d, capture_output=True, text=True).stdout.strip()
+            pwd = run_bash(['-c', 'pwd'], cwd=d, capture_output=True, text=True).stdout.strip()
             self.assertFalse(os.path.exists(os.path.join(d, 'pwned')))
             # the engine is agentrc's at the pin, fetched on the runner before anything sizes
             fetch = 'python [test/hil/helper/agentrc.py] [fetch]'
@@ -458,7 +477,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 json.dump({'schema': 1, 'boards': [], 'examples': None, 'build_outcome': 'success',
                            'sha': 'a' * 40, 'base_sha': 'a' * 40, 'head_sha': 'a' * 40}, f)
             for name in ('Find the baseline', 'Compare against the baseline'):
-                r = subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
+                r = run_bash(['-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
                                    capture_output=True, text=True, env=env)
                 self.assertEqual(r.returncode, 0, f'{name}: {r.stderr}')
             with open(os.path.join(d, 'out'), encoding='utf-8') as f:
@@ -485,7 +504,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         out = os.path.join(d, 'gh_output')
         open(out, 'w').close()
         env = {**os.environ, **((setup and setup(d)) or {}), 'GITHUB_OUTPUT': out}
-        r = subprocess.run([BASH, '-e', '-o', 'pipefail', '-c', block], cwd=d,
+        r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d,
                            capture_output=True, text=True, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
         with open(out, encoding='utf-8') as fh:
