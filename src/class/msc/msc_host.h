@@ -22,6 +22,13 @@ extern "C" {
   #define CFG_TUH_MSC_MAXLUN 4
 #endif
 
+// How long enumeration keeps retrying Test Unit Ready (each failure followed by Request Sense) for a unit that is not
+// ready yet, from its first Test Unit Ready. Past it the interface is left unmounted: tuh_msc_mount_cb() is not called.
+// A unit reporting NOT READY / MEDIUM NOT PRESENT (sense 02/3A/00, e.g. an empty card reader slot) is not retried.
+#ifndef CFG_TUH_MSC_READY_TIMEOUT_MS
+  #define CFG_TUH_MSC_READY_TIMEOUT_MS 10000
+#endif
+
 typedef struct {
   const msc_cbw_t *cbw;       // SCSI command
   const msc_csw_t *csw;       // SCSI status
