@@ -514,8 +514,17 @@
 // remain compiled in for the USB2 fallback link (SS bit alone must still make this true).
 #define TUD_OPT_HIGH_SPEED    (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & (OPT_MODE_HIGH_SPEED | OPT_MODE_SUPER_SPEED)) : TUP_RHPORT_HIGHSPEED)
 
+// SuperSpeed support compiled in while CFG_TUD_MAX_SPEED is left at default: the port sets the default,
+// tusb_config.h may override it. It selects no controller; pick an application's speed with CFG_TUD_MAX_SPEED
+#ifndef CFG_TUSB_SUPER_SPEED
+  #ifndef CFG_TUSB_SUPER_SPEED_DEFAULT
+    #define CFG_TUSB_SUPER_SPEED_DEFAULT 0
+  #endif
+  #define CFG_TUSB_SUPER_SPEED CFG_TUSB_SUPER_SPEED_DEFAULT
+#endif
+
 // superspeed support indicator
-#define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : TUP_RHPORT_SUPERSPEED)
+#define TUD_OPT_SUPER_SPEED   (CFG_TUD_MAX_SPEED ? (CFG_TUD_MAX_SPEED & OPT_MODE_SUPER_SPEED) : CFG_TUSB_SUPER_SPEED)
 
 // Packets per SuperSpeed bulk burst (1..16) the port accepts; bMaxBurst in a companion is this - 1
 #ifndef TUP_DCD_SS_BULK_BURST_PACKETS
@@ -997,7 +1006,7 @@
   #endif
 #elif CFG_TUD_ENABLED && TUD_OPT_SUPER_SPEED
   // USB 3.2 9.6.1: a SuperSpeed device's EP0 max packet size is fixed at 512.
-  // Only for an actual device build: TUD_OPT_SUPER_SPEED falls back to TUP_RHPORT_SUPERSPEED,
+  // Only for an actual device build: TUD_OPT_SUPER_SPEED falls back to CFG_TUSB_SUPER_SPEED,
   // which is set on SuperSpeed-capable MCUs even in a host-only configuration.
   #error SuperSpeed build requires CFG_TUD_ENDPOINT0_SIZE == 512
 #endif

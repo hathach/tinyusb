@@ -719,7 +719,7 @@
   #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
 
   #define TUP_RHPORT_HIGHSPEED  1
-  #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
+  #define CFG_TUSB_SUPER_SPEED_DEFAULT CFG_TUD_WCH_USBIP_USB30
   #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
   #define TUP_DCD_EDPT_CLOSE_API
 
@@ -758,7 +758,7 @@
   #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
 
   #define TUP_RHPORT_HIGHSPEED  1
-  #define TUP_RHPORT_SUPERSPEED CFG_TUD_WCH_USBIP_USB30
+  #define CFG_TUSB_SUPER_SPEED_DEFAULT CFG_TUD_WCH_USBIP_USB30
   #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
   #define TUP_DCD_EDPT_CLOSE_API
 
@@ -880,10 +880,6 @@
   #define TUP_RHPORT_HIGHSPEED 0
 #endif
 
-// Default to no superspeed if not defined
-#ifndef TUP_RHPORT_SUPERSPEED
-  #define TUP_RHPORT_SUPERSPEED 0
-#endif
 
 // fast function, normally mean placing function in SRAM
 #ifndef TU_ATTR_FAST_FUNC

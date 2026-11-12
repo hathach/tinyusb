@@ -24,7 +24,7 @@ know the operating speed to size EP0 transactions and pick descriptors.
 |---|---|---|
 | `OPT_MODE_SUPER_SPEED` (0x0800) | `src/tusb_option.h` | ORed into `CFG_TUD_MAX_SPEED` |
 | `TUD_OPT_SUPER_SPEED` | `src/tusb_option.h` | build-time "SS possible" switch |
-| `TUP_RHPORT_SUPERSPEED` | your block in `src/common/tusb_mcu.h` | declares port capability (default 0) |
+| `CFG_TUSB_SUPER_SPEED_DEFAULT` | your block in `src/common/tusb_mcu.h` | declares port capability (default 0); `tusb_config.h` overrides it through `CFG_TUSB_SUPER_SPEED` |
 | `TUSB_SPEED_SUPER` (=3) | `src/common/tusb_types.h` | report via `dcd_event_bus_reset` |
 | EP0 = 512 fixed | `CFG_TUD_ENDPOINT0_SIZE` must be 512 on SS builds | usbd chunks EP0 with `ep0_xact_limit()` (512 when `speed==SUPER`, else 64) |
 | Bulk mps = exactly 1024 | enforced by `tu_edpt_validate` | int/iso ≤ 1024 |
@@ -41,7 +41,7 @@ speed-switched example descriptor callbacks (`tud_speed_get()`) do the rest.
 Work in stages; each is independently buildable and hardware-verifiable.
 
 1. **Plumbing** — `OPT_MCU_*` in `tusb_option.h`; an mcu block in `tusb_mcu.h` setting
-   `TUP_USBIP_*` tokens, `TUP_RHPORT_HIGHSPEED 1`, `TUP_RHPORT_SUPERSPEED 1`,
+   `TUP_USBIP_*` tokens, `TUP_RHPORT_HIGHSPEED 1`, `CFG_TUSB_SUPER_SPEED_DEFAULT 1`,
    `TUP_DCD_ENDPOINT_MAX`, and a default `CFG_TUD_ENDPOINT0_SIZE 512`. If the chip has
    separate USB2/USB3 controllers, add selector defines (see the CH569 block:
    `CFG_TUD_WCH_USBIP_USB30` / `..._USBHS` / `..._USB30_FALLBACK`).
