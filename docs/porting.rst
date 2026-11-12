@@ -267,7 +267,8 @@ What the stack already does:
 
 * EP0 max packet size is fixed at 512 (USB 3.2 §9.6.1): ``CFG_TUD_ENDPOINT0_SIZE`` defaults to it, and a SuperSpeed
   build rejects any other value.
-* ``tu_edpt_validate()`` requires a bulk max packet size of exactly 1024.
+* With ``CFG_TUSB_DEBUG``, ``tu_edpt_validate()`` requires a bulk max packet size of exactly 1024 (512 at high
+  speed); without it the check only rejects a zero size, so a release build accepts a wrong one.
 * The class drivers that support SuperSpeed skip the endpoint companion that follows every endpoint descriptor
   (``usbd_skip_ss_ep_companion()``) and include its bytes in the length ``open()`` returns; a class driver gaining
   SuperSpeed support must do both.

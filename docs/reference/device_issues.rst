@@ -70,8 +70,9 @@ WCH CH569/CH32H417 USBSS
 **Severity: Low**
 
 Reference: observed during `PR #3779`_ with the Linux ``usbtest`` battery at 5 Gbps on a Renesas uPD720201 host. The
-``examples/device/usbtest`` firmware declares both through its bcdDevice quirk bits, so the battery skips the affected
-cases instead of failing them.
+``examples/device/usbtest`` firmware declares both through its bcdDevice quirk bits, and ``test/hil/usbtest.py`` skips
+the affected cases of its tier battery at 5 Gbps instead of failing them. Cases chosen with ``--tests``, and ``testusb``
+run directly, still run them.
 
 .. _PR #3779: https://github.com/hathach/tinyusb/pull/3779
 
