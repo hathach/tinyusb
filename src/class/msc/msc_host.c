@@ -148,7 +148,8 @@ bool tuh_msc_mounted(uint8_t dev_addr) {
 
 bool tuh_msc_ready(uint8_t dev_addr) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted && !p_msc->desync);
+  // usbh frees the endpoints before msch_xfer_cb() runs, so they can look idle in the middle of a command
+  TU_VERIFY(p_msc->mounted && !p_msc->desync && p_msc->stage == MSC_STAGE_IDLE);
   const bool epin_busy = usbh_edpt_busy(dev_addr, p_msc->ep_in);
   const bool epout_busy = usbh_edpt_busy(dev_addr, p_msc->ep_out);
   return !epin_busy && !epout_busy;
