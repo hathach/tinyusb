@@ -12,14 +12,19 @@ repos:
       (?x)^(
         hw/bsp/mcx/sdk/
       )
+  # AGENTS.md and .agents are symlinks: without core.symlinks (Windows) git checks them out as
+  # plain files holding the target, which would get a newline appended
   - id: end-of-file-fixer
     exclude: |
       (?x)^(
         .idea/|
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        AGENTS\.md$|
+        \.agents$
       )
   - id: forbid-submodules
 
+# codespell itself is excluded from tools/codespell/, whose files hold the misspellings on purpose
 - repo: https://github.com/codespell-project/codespell
   rev: v2.2.4
   hooks:
@@ -28,7 +33,8 @@ repos:
     exclude: |
       (?x)^(
         lib/|
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        tools/codespell/
       )
 
 - repo: local
@@ -75,11 +81,12 @@ repos:
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
   # and md5-checks the logo header from there as its MTP fixtures.
   # language: python so pre-commit's venv supplies pyusb and pyserial, which the rig
-  # scripts under test import.
+  # scripts under test import. language: python hooks run `python`, not `python3`:
+  # a Windows venv has no python3.exe, so python3 would be the system interpreter.
   - id: hil-test
     name: hil-test
     files: ^(test/hil/|examples/device/mtp/src/|\.claude/skills/hil-contract/scripts/hil_remote\.py$|\.github/workflows/pr_comment\.yml$)
-    entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
+    entry: python -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: python
     additional_dependencies: [pyusb, pyserial]
@@ -115,7 +122,7 @@ repos:
   - id: claude-scripts
     name: claude-scripts
     files: ^(\.claude/(skills/.*/(scripts/|SKILL\.md|[^/]*\.py$)|test/)|tools/(build_utils|family_json|get_deps)\.py$|test/hil/(agentrc\.json|helper/agentrc\.py)$)
-    entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
+    entry: python -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml]
@@ -123,7 +130,7 @@ repos:
   - id: drivers-coverage
     name: drivers-coverage
     files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/change_impact\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/code_size\.py$|tools/code_size_profile\.py$|test/hil/agentrc\.json$|test/hil/helper/agentrc\.py$|test/hil/test/test_code_size\.py$|\.github/scripts/code_size_ci\.py$|test/hil/test/test_code_size_ci\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
-    entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli"
+    entry: sh -c "cd test/hil/test && python -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli"
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml, pyelftools]

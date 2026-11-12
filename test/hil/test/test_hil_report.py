@@ -26,6 +26,11 @@ from test_hil_agentrc import scratch_agentrc, scratch_env   # noqa: E402
 
 CAVEAT = '**HIL run aborted: worker pool timed out after 3600s.**\n'
 ROSTER = Path(HIL_DIR) / 'tinyusb.json'
+# a report dir no OS can create: its parent is a regular file ('/proc/...' is a plain
+# creatable path on Windows, so a run there left a report on the drive's root)
+UNWRITABLE = Path(__file__) / 'nope'
+# hil_test.py imports agentrc's rig harness (fcntl locks, process groups) at load
+DRIVES_HIL_TEST = unittest.skipIf(sys.platform == 'win32', 'drives hil_test.py, whose rig harness is POSIX only')
 
 
 def begin(rd, accumulate=True):
@@ -244,7 +249,7 @@ class ScopeSurvivesInTheJson(unittest.TestCase):
         rd = Path(td.name)
         hil_report.accumulate_report(self._rows('boardA', 'cdc_msc'), rd, True,
                                    '-b boardA', '')
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual(doc['scope'], '-b boardA')
 
     def test_an_unscoped_run_records_an_empty_scope(self):
@@ -252,7 +257,7 @@ class ScopeSurvivesInTheJson(unittest.TestCase):
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
         hil_report.accumulate_report(self._rows('boardA', 'cdc_msc'), rd, True, '', '')
-        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text())['scope'], '')
+        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['scope'], '')
 
 
 class EveryExitPathLeavesBothArtifacts(unittest.TestCase):
@@ -265,8 +270,8 @@ class EveryExitPathLeavesBothArtifacts(unittest.TestCase):
         rd = Path(td.name)
         hil_report.write_report(rd, {'rows': [], 'scope': '',
                                    'caveat': '**HIL run selected no boards.** why\n'})
-        self.assertIn('selected no boards', (rd / hil_report.REPORT_MD).read_text())
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        self.assertIn('selected no boards', (rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual(doc['rows'], [])
         self.assertIn('selected no boards', doc['caveat'])
 
@@ -275,12 +280,12 @@ class EveryExitPathLeavesBothArtifacts(unittest.TestCase):
         write_timeout_report's warning and hil_test's fallback-of-the-fallback dead
         code -- an unwritable report dir produced no artifact and no message."""
         with self.assertRaises(hil_report.core().ReportError):
-            hil_report.write_report(Path('/proc/nonexistent/nope'),
+            hil_report.write_report(UNWRITABLE,
                                     {'rows': [], 'scope': '', 'caveat': 'x\n'})
 
     def test_the_guarded_callers_still_do_not_raise(self):
         """They run on an abort path, where a raise would replace the abort's own error."""
-        bad = Path('/proc/nonexistent/nope')
+        bad = UNWRITABLE
         hil_report.mark_report_no_boards(bad, 'filters intersected to nothing')
         import io
         from contextlib import redirect_stdout
@@ -294,8 +299,8 @@ class MarkdownIsAlwaysARenderingOfTheJson(unittest.TestCase):
     directly rather than inferred from the writers."""
 
     def _check(self, rd):
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
-        self.assertEqual((rd / hil_report.REPORT_MD).read_text(),
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
+        self.assertEqual((rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
                          hil_report.render_report(doc) + '\n')
 
     def test_normal_path(self):
@@ -341,7 +346,7 @@ class WriteTimeoutReport(unittest.TestCase):
         with TemporaryDirectory() as td:
             begin(Path(td))
             hil_report.write_timeout_report(Path(td), [{'name': 'ra6m5_ek'}], CAVEAT)
-            md = (Path(td) / hil_report.REPORT_MD).read_text()
+            md = (Path(td) / hil_report.REPORT_MD).read_text(encoding='utf-8')
         self.assertIn(CAVEAT, md)
         self.assertIn('ra6m5_ek', md)
 
@@ -356,9 +361,9 @@ class WriteTimeoutReport(unittest.TestCase):
             [('done', 0, 0, [('done', {'cdc_msc': 'OK'}, '1s')], 0)], rd, True, '', '')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual([r['board'] for r in doc['rows']], ['done', 'stuck'])
-        md = (rd / hil_report.REPORT_MD).read_text()
+        md = (rd / hil_report.REPORT_MD).read_text(encoding='utf-8')
         self.assertIn('done', md)
         self.assertIn('stuck', md)
         self.assertIn('aborted', md)
@@ -375,7 +380,7 @@ class WriteTimeoutReport(unittest.TestCase):
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'boardA'}], CAVEAT)
         self.assertTrue((rd / hil_report.REPORT_JSON).is_file())
-        self.assertIn('boardA', (rd / hil_report.REPORT_JSON).read_text())
+        self.assertIn('boardA', (rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
 
     def test_the_sidecar_keeps_a_previous_attempts_rows(self):
         """An earlier attempt's finished boards are real results and this attempt has none
@@ -385,20 +390,20 @@ class WriteTimeoutReport(unittest.TestCase):
         rd = Path(td.name)
         (rd / hil_report.REPORT_JSON).write_text(json.dumps(
             {'rows': [{'board': 'done', 'cells': {'cdc_msc': 'pass'}, 'duration': '1s'}],
-             'scope': '', 'caveat': ''}))
+             'scope': '', 'caveat': ''}), encoding='utf-8')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
-        rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
+        rows = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']
         self.assertEqual([r['board'] for r in rows], ['done', 'stuck'])
 
     def test_a_torn_sidecar_does_not_lose_the_stuck_boards(self):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        (rd / hil_report.REPORT_JSON).write_text('{ truncated mid-')
+        (rd / hil_report.REPORT_JSON).write_text('{ truncated mid-', encoding='utf-8')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
-        rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
+        rows = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']
         self.assertEqual([r['board'] for r in rows], ['stuck'])
 
     def test_a_roster_entry_without_a_name_does_not_escape(self):
@@ -409,12 +414,12 @@ class WriteTimeoutReport(unittest.TestCase):
         rd = Path(td.name)
         begin(rd)
         hil_report.write_timeout_report(rd, [{}], CAVEAT)
-        rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
+        rows = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']
         self.assertEqual([r['board'] for r in rows], ['?'])
 
     def test_unwritable_dir_does_not_raise(self):
         """The caller raises its abort right after; a raise here would replace it."""
-        hil_report.write_timeout_report(Path('/proc/nonexistent/nope'), [], CAVEAT)
+        hil_report.write_timeout_report(UNWRITABLE, [], CAVEAT)
 
 
 class SummaryFoldsReportToBoards(unittest.TestCase):
@@ -427,9 +432,9 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         self.addCleanup(td.cleanup)
         d = Path(td.name)
         (d / 'hil_report.json').write_text(json.dumps(
-            {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows]}))
+            {'rows': [{'board': b, 'cells': c, 'duration': '1s'} for b, c in rows]}), encoding='utf-8')
         cfg = d / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': cfg_boards or [{'name': b} for b in boards]}))
+        cfg.write_text(json.dumps({'boards': cfg_boards or [{'name': b} for b in boards]}), encoding='utf-8')
         args = [a for b in boards for a in ('-b', b)]
         r = subprocess.run(['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
                             str(cfg), *args, '--report-dir', str(d)],
@@ -585,7 +590,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
     def _acc(self, d, mret, fresh):
         if not fresh:
             begin(d)
-        return json.loads((d / 'hil_report.json').read_text()) if hil_report.accumulate_report(
+        return json.loads((d / 'hil_report.json').read_text(encoding='utf-8')) if hil_report.accumulate_report(
             mret, d, fresh) is not None else None
 
     def test_an_accumulated_rerun_that_ran_clears_last_attempts_wedge(self):
@@ -630,7 +635,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
                          [('b-fs', {'usbtest': 'pass'})])
         self.assertEqual([(r['board'], r['history']) for r in doc['rows'] if not r['cells']],
                          [('b', [{hil_report.LOCKED_CELL: 'fail'}])])
-        self.assertNotIn('| b ', (d / hil_report.REPORT_MD).read_text())
+        self.assertNotIn('| b ', (d / hil_report.REPORT_MD).read_text(encoding='utf-8'))
         r = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual((r['ran'], r['pass']), (True, True))
 
@@ -652,9 +657,9 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         (d / 'hil_report.json').write_text(json.dumps(
             {'rows': [{'board': 'boardA', 'cells': {'cdc_msc': 'pass'}, 'duration': '1s'}],
              'scope': '',
-             'caveat': '**HIL run aborted: the worker pool would not shut down.**\n'}))
+             'caveat': '**HIL run aborted: the worker pool would not shut down.**\n'}), encoding='utf-8')
         cfg = d / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': [{'name': 'boardA'}]}))
+        cfg.write_text(json.dumps({'boards': [{'name': 'boardA'}]}), encoding='utf-8')
         r = subprocess.run(
             ['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
              str(cfg), '-b', 'boardA', '--report-dir', str(d)],
@@ -680,7 +685,7 @@ class WriteReportFailsLoudly(unittest.TestCase):
         from contextlib import redirect_stdout
         buf = io.StringIO()
         with redirect_stdout(buf):
-            hil_report.write_timeout_report(Path('/proc/nonexistent/nope'),
+            hil_report.write_timeout_report(UNWRITABLE,
                                             [{'name': 'b1'}], CAVEAT)
         self.assertIn('warning', buf.getvalue().lower(), 'the failure was silent')
 
@@ -696,7 +701,7 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
             [('stm32f4', 0, 0, [('stm32f4', {'cdc_msc': 'OK'}, '1s')], 0)], rd, True, '', '')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stm32f4'}], CAVEAT)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         verdict = hil_report.summarize({'boards': [{'name': 'stm32f4'}]}, ['stm32f4'], doc)
         self.assertFalse(verdict['results'][0]['pass'],
                          'a board that hung the pool was published as a pass')
@@ -712,7 +717,7 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         begin(rd)
         hil_report.accumulate_report(
             [('stuck', 0, 0, [('stuck', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertNotIn('pool-timeout', doc['rows'][0]['cells'])
         verdict = hil_report.summarize({'boards': [{'name': 'stuck'}]}, ['stuck'], doc)
         self.assertTrue(verdict['results'][0]['pass'])
@@ -723,13 +728,13 @@ class PoolTimeoutCellIsHonest(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n')
-        (rd / hil_report.REPORT_JSON).write_text('{ truncated')
+        (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n', encoding='utf-8')
+        (rd / hil_report.REPORT_JSON).write_text('{ truncated', encoding='utf-8')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
-        md = (rd / hil_report.REPORT_MD).read_text()
+        md = (rd / hil_report.REPORT_MD).read_text(encoding='utf-8')
         self.assertIn('| a | OK |', md, "an earlier attempt's real results were destroyed")
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual([r['board'] for r in doc['rows']], ['stuck'])
 
 
@@ -753,7 +758,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         return self.doc()
 
     def doc(self):
-        return json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        return json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
 
     def results(self, doc, boards):
         return {r['board']: r for r in hil_report.summarize(self.CFG, boards, doc)['results']}
@@ -768,7 +773,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
                                                 {'usbtest': '❌ 28/30', 'cdc': 'pass'}])
         self.assertNotIn('history', rows['b'], 'a re-run that changed nothing gained a history')
         bare = {**doc, 'rows': [{k: v for k, v in r.items() if k != 'history'} for r in doc['rows']]}
-        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(), hil_report.render_report(bare) + '\n',
+        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'), hil_report.render_report(bare) + '\n',
                          'the history reached the markdown')
         res = self.results(doc, ['a', 'b'])
         self.assertTrue(res['a']['pass'])
@@ -807,7 +812,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         row = next(r for r in doc['rows'] if r['board'] == 'nano')
         self.assertEqual((row['cells'], row['history'], row['retired']),
                          ({}, [{hil_report.LOCKED_CELL: 'fail'}], True))
-        md = (self.rd / hil_report.REPORT_MD).read_text()
+        md = (self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8')
         self.assertNotIn('| nano ', md)
         res = self.results(doc, ['nano'])['nano']
         self.assertTrue(res['pass'])
@@ -835,7 +840,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         rows = {r['board']: r for r in doc['rows']}
         self.assertEqual((rows['b-hs']['cells'], rows['b-hs']['history']), ({}, [{boundary: 'fail'}]))
         self.assertNotIn('retired', rows['b-hs'])
-        self.assertIn('| b-hs ', (self.rd / hil_report.REPORT_MD).read_text())
+        self.assertIn('| b-hs ', (self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
         res = hil_report.summarize(cfg, ['b'], doc)['results'][0]
         self.assertEqual(res['detail'], '2 variant(s), 1 cell(s) ok')
         self.assertEqual(res['history'], {'b-hs': [{boundary: 'fail'}]})
@@ -849,7 +854,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         hil_report.write_timeout_report(self.rd, [{'name': 'nano'}], CAVEAT)
         row = next(r for r in self.doc()['rows'] if r['board'] == 'nano')
         self.assertNotIn('retired', row)
-        self.assertIn('| nano ', (self.rd / hil_report.REPORT_MD).read_text())
+        self.assertIn('| nano ', (self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
 
     def test_a_fresh_run_starts_without_history(self):
         self.attempt([('a', {'cdc': 'fail'})], fresh=True)
@@ -868,7 +873,7 @@ class AccumulateKeepsEarlierAttempts(unittest.TestCase):
         (self.rd / hil_report.REPORT_JSON).write_text(json.dumps({'rows': [
             {'board': 'a', 'cells': {'cdc': 'pass'}, 'history': [{'cdc': 'fail', 'x': 3}, 'no', None]},
             {'board': 'b', 'cells': {'cdc': 'pass'}, 'history': {'cdc': ['fail']}, 'retired': True},
-            {'board': 'c', 'cells': {}, 'retired': 'yes'}]}))
+            {'board': 'c', 'cells': {}, 'retired': 'yes'}]}), encoding='utf-8')
         doc, _ = hil_report._load(self.rd)
         self.assertEqual(doc['rows'][0]['history'], [{'cdc': 'fail'}])
         self.assertNotIn('history', doc['rows'][1])
@@ -974,10 +979,10 @@ class NoBoardsExitKeepsWhatRan(unittest.TestCase):
         begin(rd)
         hil_report.mark_report_no_boards(rd, 'No boards left after the flasher filter',
                                          fresh=False)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual([r['board'] for r in doc['rows']], ['a'])
         self.assertIn('selected no boards', doc['caveat'])
-        self.assertIn('selected no boards', (rd / hil_report.REPORT_MD).read_text())
+        self.assertIn('selected no boards', (rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
 
 
 class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
@@ -994,7 +999,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         begin(rd)
         hil_report.accumulate_report(
             [('b', 0, 0, [('b-v', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
-        cells = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows'][0]['cells']
+        cells = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows'][0]['cells']
         self.assertNotIn(hil_report.BOUNDARY_CELL, cells)
 
     def test_a_board_that_really_ran_drops_its_stale_lock_cell(self):
@@ -1008,7 +1013,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
                 begin(rd)
                 hil_report.accumulate_report(
                     [('b', 0, 0, [('b', {'cdc_msc': 'OK'}, '2s')], 0)], rd, False, '', '')
-                rows = json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']
+                rows = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']
                 self.assertEqual([r['board'] for r in rows], ['b'])
                 self.assertNotIn(key, rows[0]['cells'])
 
@@ -1024,7 +1029,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
                     begin(rd)
                     md = hil_report.accumulate_report(
                         [('b', 1, [], [('b', {key: val}, None)], None)], rd, fresh, '', '')
-                doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+                doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
                 self.assertEqual(doc['rows'][0]['cells'], {second[0]: second[1]})
                 self.assertIn('❌ 1 failed', md)
                 got = hil_report.summarize({'boards': [{'name': 'b'}]}, ['b'], doc)['results'][0]
@@ -1042,7 +1047,7 @@ class TheMergeBehavioursAreActuallyPinned(unittest.TestCase):
         hil_report.accumulate_report(
             [('b', 0, 0, [('b', {'cdc_msc': 'OK'}, None)], 0)], rd, False, '', '')
         self.assertEqual(json.loads(
-            (rd / hil_report.REPORT_JSON).read_text())['rows'][0]['duration'], '119s')
+            (rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows'][0]['duration'], '119s')
 
 
 class TheFooterCountsAreNotSwapped(unittest.TestCase):
@@ -1073,7 +1078,7 @@ class CaveatDoesNotCarryAcrossARetry(unittest.TestCase):
         begin(rd)
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': 'OK'}, '2s')], 0)],
                                      rd, False, '', '')
-        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat'], '')
+        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['caveat'], '')
 
 
 class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
@@ -1081,7 +1086,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
     reachable from outside the harness."""
 
     def _write(self, rd, doc):
-        (rd / hil_report.REPORT_JSON).write_text(json.dumps(doc))
+        (rd / hil_report.REPORT_JSON).write_text(json.dumps(doc), encoding='utf-8')
 
     def test_a_null_text_field_does_not_kill_a_successful_run(self):
         td = TemporaryDirectory()
@@ -1102,7 +1107,7 @@ class AMalformedSidecarNeverCostsTheReport(unittest.TestCase):
                          'caveat': '', 'scope': ''})
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'boardA'}], CAVEAT)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         v = hil_report.summarize({'boards': [{'name': 'boardA'}]}, ['boardA'], doc)
         self.assertFalse(v['results'][0]['pass'],
                          'a board that ate the whole pool guard was published as a pass')
@@ -1153,7 +1158,7 @@ class NoBoardsExitRespectsFreshness(unittest.TestCase):
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': 'OK'}, '1s')], 0)],
                                      rd, True, '', '')
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=True)
-        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text())['rows'], [])
+        self.assertEqual(json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows'], [])
 
     def test_an_accumulate_run_keeps_them(self):
         td = TemporaryDirectory()
@@ -1164,7 +1169,7 @@ class NoBoardsExitRespectsFreshness(unittest.TestCase):
         begin(rd)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=False)
         self.assertEqual([r['board'] for r in json.loads(
-            (rd / hil_report.REPORT_JSON).read_text())['rows']], ['a'])
+            (rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']], ['a'])
 
     def test_it_does_not_overwrite_an_abort_notice(self):
         td = TemporaryDirectory()
@@ -1177,9 +1182,10 @@ class NoBoardsExitRespectsFreshness(unittest.TestCase):
         begin(rd)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=False)
         self.assertIn('aborted',
-                      json.loads((rd / hil_report.REPORT_JSON).read_text())['caveat'])
+                      json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['caveat'])
 
 
+@DRIVES_HIL_TEST
 class TheNoBoardsCallSiteIsWired(unittest.TestCase):
     """The fresh/accumulate branches of mark_report_no_boards were tested by calling it
     DIRECTLY, so both passed while hil_test.py's one real call site never passed the flag
@@ -1192,17 +1198,17 @@ class TheNoBoardsCallSiteIsWired(unittest.TestCase):
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
         (rd / 'cfg.json').write_text(json.dumps(
-            {'boards': [{'name': 'alpha', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+            {'boards': [{'name': 'alpha', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': '2'}}]}), encoding='utf-8')
         (rd / hil_report.REPORT_JSON).write_text(json.dumps(
             {'rows': [{'board': 'earlier', 'cells': {'t': 'pass'}, 'duration': '1s'}],
-             'scope': '', 'caveat': ''}))
+             'scope': '', 'caveat': ''}), encoding='utf-8')
         r = subprocess.run(
             [sys.executable, str(Path(HIL_DIR) / 'hil_test.py'),
              '--flasher', 'nonexistent', *extra, str(rd / 'cfg.json')],
             capture_output=True, text=True, timeout=120,
             env={**os.environ, 'HIL_REPORT_DIR': str(rd)})
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        return json.loads((rd / hil_report.REPORT_JSON).read_text())
+        return json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
 
     def test_an_accumulate_run_keeps_the_accumulated_rows(self):
         doc = self._run('--accumulate')
@@ -1226,12 +1232,12 @@ class EveryWriterRendersBeforeItCommits(unittest.TestCase):
         rd = Path(td.name)
         (rd / hil_report.REPORT_JSON).write_text(json.dumps(
             {'rows': [{'board': 'boardA', 'cells': {'t': 'pass'}, 'duration': 119.0}],
-             'caveat': '', 'scope': ''}))
+             'caveat': '', 'scope': ''}), encoding='utf-8')
         begin(rd)
         hil_report.accumulate_report([('boardB', 0, 0, [('boardB', {'t': 'OK'}, '1s')], 0)],
                                      rd, False, '', '')
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
-        self.assertEqual((rd / hil_report.REPORT_MD).read_text(),
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
+        self.assertEqual((rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
                          hil_report.render_report(doc) + '\n')
 
 
@@ -1242,10 +1248,10 @@ class MissingSidecarDoesNotDestroyTheMarkdown(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n')
+        (rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n| b | OK |\n', encoding='utf-8')
         begin(rd)
         hil_report.write_timeout_report(rd, [{'name': 'stuck'}], CAVEAT)
-        self.assertIn('| a | OK |', (rd / hil_report.REPORT_MD).read_text())
+        self.assertIn('| a | OK |', (rd / hil_report.REPORT_MD).read_text(encoding='utf-8'))
 
 
 class LoadIsTheOnlyTrustBoundary(unittest.TestCase):
@@ -1254,7 +1260,7 @@ class LoadIsTheOnlyTrustBoundary(unittest.TestCase):
 
     def _seed(self, rd, raw):
         (rd / hil_report.REPORT_JSON).write_text(raw if isinstance(raw, str)
-                                                 else json.dumps(raw))
+                                                 else json.dumps(raw), encoding='utf-8')
 
     def test_a_non_list_rows_does_not_raise(self):
         td = TemporaryDirectory()
@@ -1279,7 +1285,7 @@ class LoadIsTheOnlyTrustBoundary(unittest.TestCase):
         hil_report.accumulate_report([('b', 0, 0, [('b', {'t': 'OK'}, '1s')], 0)],
                                      rd, False, '', '')
         cells = {r['board']: r['cells']
-                 for r in json.loads((rd / hil_report.REPORT_JSON).read_text())['rows']}
+                 for r in json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']}
         self.assertNotIn('t', cells['a'], 'a corrupt cell must drop, not become a pass')
         self.assertIn('u', cells['a'])
 
@@ -1288,7 +1294,7 @@ class LoadIsTheOnlyTrustBoundary(unittest.TestCase):
         td = TemporaryDirectory()
         self.addCleanup(td.cleanup)
         rd = Path(td.name)
-        (rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'a'}]}))
+        (rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'a'}]}), encoding='utf-8')
         self._seed(rd, {'rows': [{'board': 1, 'cells': 'notadict'},
                                  {'board': 'a', 'cells': {'t': 'pass'}}],
                         'caveat': '', 'scope': ''})
@@ -1310,7 +1316,7 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
         hil_report.accumulate_report([('old', 0, 0, [('old', {'t': 'OK'}, '1s')], 0)],
                                      rd, True, '3 board(s) — a, b, c')
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=True)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual(doc['rows'], [])
         self.assertEqual(doc['scope'], '', 'a stale scope note was republished')
 
@@ -1322,7 +1328,7 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
                                      rd, True, '3 board(s) — a, b, c')
         begin(rd)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=False)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual(doc['scope'], '3 board(s) — a, b, c')
         self.assertEqual([r['board'] for r in doc['rows']], ['old'])
 
@@ -1337,7 +1343,7 @@ class NoBoardsGuardOnlyAppliesWhenAccumulating(unittest.TestCase):
         begin(rd)
         hil_report.write_timeout_report(rd, [], CAVEAT)
         hil_report.mark_report_no_boards(rd, 'filters emptied', fresh=True)
-        doc = json.loads((rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual(doc['rows'], [])
         self.assertIn('selected no boards', doc['caveat'])
 
@@ -1380,7 +1386,7 @@ class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
         doc = {'rows': [{'board': 'b', 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}],
                'scope': '1 board(s) — b', 'caveat': ''}
         hil_report.write_report(self.rd, doc)
-        text = (self.rd / hil_report.REPORT_JSON).read_text()
+        text = (self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8')
         published = json.loads(text)
         meta = published.pop('_hil')
         self.assertEqual(published, doc)
@@ -1392,12 +1398,12 @@ class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
 
     def test_the_cli_output_is_that_of_the_native_document(self):
         cfg = {'boards': [{'name': 'b'}, {'name': 'c', 'variant': [{'name': 'c-x'}]}]}
-        (self.rd / 'cfg.json').write_text(json.dumps(cfg))
+        (self.rd / 'cfg.json').write_text(json.dumps(cfg), encoding='utf-8')
         doc = {'rows': [{'board': 'b', 'cells': {'t': 'pass'}, 'duration': '1s'},
                         {'board': 'c-x', 'cells': {'t': '❌ 3/30', 'u': 'skip'}, 'duration': None}],
                'scope': '', 'caveat': ''}
         out = []
-        for write in (lambda: (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(doc)),
+        for write in (lambda: (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(doc), encoding='utf-8'),
                       lambda: hil_report.write_report(self.rd, doc)):
             write()
             r = _cli(str(self.rd / 'cfg.json'), '--report-dir', str(self.rd))
@@ -1406,34 +1412,34 @@ class TheCoreAdapterKeepsTheNativeDocument(unittest.TestCase):
         self.assertEqual(out[0], out[1])
 
     def test_an_unknown_schema_or_version_is_never_read_or_replaced(self):
-        (self.rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
+        (self.rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}), encoding='utf-8')
         future = json.dumps({'rows': [{'board': 'b', 'cells': {'t': 'pass'}}], 'scope': '', 'caveat': '',
                              '_hil': {'version': 2}})
-        (self.rd / hil_report.REPORT_JSON).write_text(future)
+        (self.rd / hil_report.REPORT_JSON).write_text(future, encoding='utf-8')
         r = _cli(str(self.rd / 'cfg.json'), '--report-dir', str(self.rd))
         self.assertEqual((r.returncode, r.stdout), (1, ''))
         self.assertIn('version 2', r.stderr)
         with self.assertRaises(hil_report.core().ReportError):
             hil_report.start_attempt(self.rd, True, self.rd / 'cfg.json', ['b'])
         hil_report.mark_report_no_boards(self.rd, 'filters emptied')
-        self.assertEqual((self.rd / hil_report.REPORT_JSON).read_text(), future)
+        self.assertEqual((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'), future)
 
     def test_a_corrupt_hil_document_yields_no_rows(self):
-        (self.rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
+        (self.rd / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}), encoding='utf-8')
         (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
             {'rows': [{'board': 'b', 'cells': {'t': 'pass'}}], 'scope': '', 'caveat': '',
-             '_hil': {'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'body_version': 1}}))
+             '_hil': {'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'body_version': 1}}), encoding='utf-8')
         r = _cli(str(self.rd / 'cfg.json'), '--report-dir', str(self.rd))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['results'][0]['detail'], 'no report row for this board')
 
     def test_an_unreadable_sidecars_markdown_is_kept_as_labelled_legacy_text(self):
-        (self.rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n', encoding='utf-8')
-        (self.rd / hil_report.REPORT_JSON).write_text('{ truncated')
+        (self.rd / hil_report.REPORT_MD).write_text('| Board | t |\n| a | OK |\n', encoding='utf-8', newline='\n')
+        (self.rd / hil_report.REPORT_JSON).write_text('{ truncated', encoding='utf-8')
         begin(self.rd)
         hil_report.write_timeout_report(self.rd, [{'name': 'stuck'}], CAVEAT)
         md = (self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8')
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertTrue(md.startswith(hil_report.render_report(doc) + '\n'), 'the table first, as rendered')
         self.assertIn('_Legacy text:', md)
         self.assertTrue(md.endswith('| Board | t |\n| a | OK |\n'))
@@ -1449,14 +1455,14 @@ class EveryAttemptIsKept(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.rd = Path(td.name)
         self.cfg = self.rd / 'cfg.json'
-        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': '2'}}]}), encoding='utf-8')
 
     def run_once(self, accumulate, cell):
         hil_report.start_attempt(self.rd, accumulate, self.cfg, ['b'], invocation=['hil_test.py'])
         return hil_report.accumulate_report([('b', 0, 0, [('b', {'t': cell}, '1s')], 0)], self.rd, not accumulate)
 
     def meta(self):
-        return json.loads((self.rd / hil_report.REPORT_JSON).read_text())['_hil']
+        return json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['_hil']
 
     def test_a_fresh_run_archives_the_previous_and_an_accumulated_one_links_it(self):
         self.run_once(False, 'fail')
@@ -1468,7 +1474,7 @@ class EveryAttemptIsKept(unittest.TestCase):
         second = self.meta()
         self.assertEqual(second['previous_attempt'], first['attempt_id'])
         archived = self.rd / hil_report.REPORT_ATTEMPTS / first['attempt_id']
-        self.assertEqual(json.loads((archived / hil_report.REPORT_JSON).read_text())['_hil'], first)
+        self.assertEqual(json.loads((archived / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['_hil'], first)
         self.run_once(False, 'pass')
         self.assertIsNone(self.meta()['previous_attempt'])
         self.assertEqual(len(list((self.rd / hil_report.REPORT_ATTEMPTS).iterdir())), 2)
@@ -1481,13 +1487,14 @@ class EveryAttemptIsKept(unittest.TestCase):
         self.assertEqual(self.meta()['termination'], 'timeout')
 
     def test_a_legacy_report_is_archived_and_linked(self):
-        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps({'rows': [], 'scope': '', 'caveat': ''}))
+        (self.rd / hil_report.REPORT_JSON).write_text(json.dumps({'rows': [], 'scope': '', 'caveat': ''}), encoding='utf-8')
         self.run_once(True, 'pass')
         self.assertTrue(self.meta()['previous_attempt'].startswith('legacy-'))
 
+    @DRIVES_HIL_TEST
     def test_hil_test_begins_its_attempt_before_the_no_boards_notice(self):
         (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
-            {'rows': [{'board': 'earlier', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}))
+            {'rows': [{'board': 'earlier', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}), encoding='utf-8')
         r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), '--flasher', 'nonexistent',
                             '--accumulate', str(self.cfg)],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
@@ -1496,29 +1503,32 @@ class EveryAttemptIsKept(unittest.TestCase):
         self.assertEqual((meta['termination'], meta['selection']), ('no-boards', []))
         self.assertTrue((self.rd / hil_report.REPORT_ATTEMPTS / meta['previous_attempt']).is_dir())
 
+    @DRIVES_HIL_TEST
     def test_a_config_error_aborts_the_boards_it_selected(self):
         self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'logger': 'bogus',
-                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}), encoding='utf-8')
         r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['alpha']))
         self.assertTrue(doc['caveat'].startswith('**HIL run aborted: config error: unknown "logger" value'), doc['caveat'])
         seq = hil_report.sequence(self.cfg, ['alpha'], self.rd)
         self.assertEqual(seq['current']['rows'][0]['verdict'], 'blocker', 'never not-run: boards were selected')
 
+    @DRIVES_HIL_TEST
     def test_a_board_the_registry_refuses_aborts_over_a_passing_report(self):
         (self.rd / hil_report.REPORT_JSON).write_text(json.dumps(
-            {'rows': [{'board': 'alpha', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}))
-        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': 'A', 'probe': 'not-in-the-registry'}]}))
+            {'rows': [{'board': 'alpha', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}), encoding='utf-8')
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': 'A', 'probe': 'not-in-the-registry'}]}), encoding='utf-8')
         r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['alpha']))
         self.assertIn("probe 'not-in-the-registry' is not in agentrc's board registry", doc['caveat'])
 
+    @DRIVES_HIL_TEST
     def test_an_incomplete_sysview_entry_aborts_before_a_flash(self):
         """capture_result reads example, workload and duration_s unchecked: a gap would lose the board's record."""
         good = {'example': 'device/cdc_msc', 'workload': 'cdc_burst', 'duration_s': 15}
@@ -1539,31 +1549,32 @@ class EveryAttemptIsKept(unittest.TestCase):
                 # json.dumps writes NaN and Infinity, as json.load reads them
                 self.cfg.write_text(json.dumps({'boards': [
                     {'name': name, 'uid': str(i), 'sysview': sv, 'flasher': {'name': 'jlink', 'uid': f'f{i}'}}
-                    for i, (name, sv) in enumerate(zip(('alpha', 'beta', 'gamma'), entries))]}))
+                    for i, (name, sv) in enumerate(zip(('alpha', 'beta', 'gamma'), entries))]}), encoding='utf-8')
                 r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
                                    capture_output=True, text=True, timeout=120,
                                    env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertIn(f'ERROR: "sysview" entry refused: {why}', r.stdout)
                 self.assertNotIn('Traceback', r.stdout + r.stderr)
-                doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+                doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
                 self.assertEqual(doc['_hil']['termination'], 'aborted')
         # a complete entry passes on to the next check
         self.cfg.write_text(json.dumps({'boards': [{'name': 'alpha', 'uid': '1', 'sysview': good, 'logger': 'bogus',
-                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}))
+                                                    'flasher': {'name': 'jlink', 'uid': '2'}}]}), encoding='utf-8')
         r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), str(self.cfg)],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
         self.assertIn('ERROR: unknown "logger" value', r.stdout, r.stdout + r.stderr)
 
+    @DRIVES_HIL_TEST
     def test_hil_test_refuses_to_start_over_a_report_it_cannot_read(self):
         future = json.dumps({'rows': [], 'scope': '', 'caveat': '', '_hil': {'version': 2}})
-        (self.rd / hil_report.REPORT_JSON).write_text(future)
+        (self.rd / hil_report.REPORT_JSON).write_text(future, encoding='utf-8')
         r = subprocess.run([sys.executable, str(Path(HIL_DIR) / 'hil_test.py'), '--flasher', 'nonexistent',
                             str(self.cfg)],
                            capture_output=True, text=True, timeout=120, env={**os.environ, 'HIL_REPORT_DIR': str(self.rd)})
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn('cannot begin the report', r.stdout)
-        self.assertEqual((self.rd / hil_report.REPORT_JSON).read_text(), future)
+        self.assertEqual((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'), future)
 
 
 class ConsumerCommands(unittest.TestCase):
@@ -1578,7 +1589,7 @@ class ConsumerCommands(unittest.TestCase):
     def test_prepare_renders_a_stale_markdown_again(self):
         doc = {'rows': [{'board': 'b', 'cells': {'t': 'pass'}, 'duration': '1s'}], 'scope': '', 'caveat': ''}
         hil_report.write_report(self.rd, doc)
-        (self.rd / hil_report.REPORT_MD).write_text('an earlier table')
+        (self.rd / hil_report.REPORT_MD).write_text('an earlier table', encoding='utf-8')
         r = _cli('prepare', '--report-dir', str(self.rd))
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn('hil_report.json: valid', r.stdout)
@@ -1588,7 +1599,7 @@ class ConsumerCommands(unittest.TestCase):
     def test_prepare_leaves_the_markdown_to_an_active_writer(self):
         import fcntl
         (self.rd / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
-        with open(self.rd / '.hil_report.lock', 'a') as held:
+        with open(self.rd / '.hil_report.lock', 'a', encoding='utf-8') as held:
             fcntl.flock(held, fcntl.LOCK_EX)
             r = _cli('prepare', '--report-dir', str(self.rd))
         self.assertEqual(r.returncode, 1)
@@ -1605,7 +1616,7 @@ class ConsumerCommands(unittest.TestCase):
 
     def test_no_selection_writes_a_fresh_report_the_reader_checks(self):
         cfg = self.rd / 'tinyusb.json'
-        cfg.write_text(json.dumps({'boards': [{'name': 'b'}]}))
+        cfg.write_text(json.dumps({'boards': [{'name': 'b'}]}), encoding='utf-8')
         hil_report.write_report(self.rd, {'rows': [{'board': 'b', 'cells': {'t': 'pass'}, 'duration': '1s'}],
                                           'scope': '', 'caveat': ''})
         reason = '_Skipped by PR selection: no affected boards on this rig._'
@@ -1614,7 +1625,7 @@ class ConsumerCommands(unittest.TestCase):
         reading = hil_report.core().read_document(self.rd / hil_report.REPORT_JSON, hil_report.schema())
         self.assertEqual((reading.outcome, reading.body['caveat'], reading.meta['termination'], reading.meta['selection']),
                          ('empty', reason + '\n', 'no-boards', []))
-        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(), f'{reason}\n\nNo tests were run.\n')
+        self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'), f'{reason}\n\nNo tests were run.\n')
         self.assertEqual(len(list((self.rd / hil_report.REPORT_ATTEMPTS).iterdir())), 1, 'the earlier report is kept')
         verdict = json.loads(_cli(str(cfg), '--report-dir', str(self.rd)).stdout)
         self.assertFalse(verdict['pass'])
@@ -1626,7 +1637,7 @@ class ConsumerCommands(unittest.TestCase):
         for rel in ('test/hil/helper/hil_report.py', 'test/hil/helper/agentrc.py', 'test/hil/agentrc.json'):
             (clean / rel).parent.mkdir(parents=True, exist_ok=True)
             (clean / rel).write_bytes((REPO / rel).read_bytes())
-        (clean / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}))
+        (clean / 'cfg.json').write_text(json.dumps({'boards': [{'name': 'b'}]}), encoding='utf-8')
         script = str(clean / 'test/hil/helper/hil_report.py')
         (clean / hil_report.REPORT_MD).write_text('| b | ✅ |\n', encoding='utf-8')
         for ci, remedy in ((None, agentrc.INSTALL), ('true', agentrc.FETCH)):
@@ -1669,7 +1680,7 @@ class ConsumerCommands(unittest.TestCase):
                                   env=scratch_env(broken, PYTHONSAFEPATH='1'))
         if os.name != 'nt':
             import fcntl
-            with open(clean / '.hil_report.lock', 'a') as held:
+            with open(clean / '.hil_report.lock', 'a', encoding='utf-8') as held:
                 fcntl.flock(held, fcntl.LOCK_EX)
                 r = prepare()
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
@@ -1689,7 +1700,7 @@ class ConsumerCommands(unittest.TestCase):
 
     def test_the_cli_runs_as_a_script_under_pythonsafepath(self):
         cfg = self.rd / 'cfg.json'
-        cfg.write_text(json.dumps({'boards': [{'name': 'b'}]}))
+        cfg.write_text(json.dumps({'boards': [{'name': 'b'}]}), encoding='utf-8')
         hil_report.write_report(self.rd, {'rows': [{'board': 'b', 'cells': {'t': 'pass'}, 'duration': '1s'}],
                                           'scope': '', 'caveat': ''})
         r = _cli(str(cfg), '--report-dir', str(self.rd), env={**os.environ, 'PYTHONSAFEPATH': '1'})
@@ -1707,7 +1718,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.rd = Path(td.name)
         self.cfg = self.rd / 'cfg.json'
-        self.cfg.write_text(json.dumps({'boards': [{'name': 'a'}]}))
+        self.cfg.write_text(json.dumps({'boards': [{'name': 'a'}]}), encoding='utf-8')
         self.attempt(False, '✅')
         self.first = self.meta()['attempt_id']
         self.second = hil_report.start_attempt(self.rd, True, self.cfg, ['a']).attempt_id
@@ -1718,7 +1729,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         hil_report.accumulate_report([('a', 0, 0, [('a', {'t': cell}, '1s')], 0)], self.rd, not accumulate)
 
     def meta(self):
-        return json.loads((self.rd / hil_report.REPORT_JSON).read_text())['_hil']
+        return json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['_hil']
 
     def reading(self):
         return self.c.read_document(self.rd / hil_report.REPORT_JSON, hil_report.schema())
@@ -1746,7 +1757,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         self.abort(publish=self.refuse)
         self.attempt(True, '✅')
         self.assertEqual(self.meta()['previous_attempt'], f'withdrawn-{self.second}')
-        self.assertEqual([r['board'] for r in json.loads((self.rd / hil_report.REPORT_JSON).read_text())['rows']], ['a'])
+        self.assertEqual([r['board'] for r in json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']], ['a'])
         seq = hil_report.sequence(self.cfg, ['a'], self.rd)['sequence']
         self.assertEqual(seq['rows'][0]['verdict'], 'blocker', 'an attempt without a report blocks the sequence')
 
@@ -1755,12 +1766,12 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
 
         def markdown_fails(report_dir, schema, body, meta):
             jpath, mpath = real(report_dir, schema, body, meta)
-            mpath.write_text('a stale table')
+            mpath.write_text('a stale table', encoding='utf-8')
             raise self.c.ReportError('markdown', 'not replaced', published=(str(jpath),))
         self.abort(publish=markdown_fails)
         meta = self.meta()
         self.assertEqual((meta['attempt_id'], meta['termination']), (self.second, 'timeout'))
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
                          hil_report.render_report(doc) + '\n')
 
@@ -1770,7 +1781,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
 
         def markdown_fails(report_dir, schema, body, meta):
             jpath, mpath = real(report_dir, schema, body, meta)
-            mpath.write_text('a stale table')
+            mpath.write_text('a stale table', encoding='utf-8')
             failed.append(self.c.ReportError('markdown', 'not replaced', published=(str(jpath),)))
             raise failed[-1]
         hil_report._runs.clear()
@@ -1779,7 +1790,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
         self.assertEqual(out.getvalue().count('warning:'), 1, 'only the failed write itself: ' + out.getvalue())
         one_shot = self.meta()['attempt_id']
         self.assertNotIn(one_shot, (self.first, self.second))
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
         self.assertEqual((self.rd / hil_report.REPORT_MD).read_text(encoding='utf-8'),
                          hil_report.render_report(doc) + '\n')
         self.assertEqual(hil_report._runs, {}, 'a one-shot attempt is not this dir\'s run')
@@ -1795,7 +1806,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
             self.abort(publish=self.refuse)
         self.assertEqual(self.reading().outcome, 'withdrawn')
         self.attempt(True, '✅')
-        self.assertEqual(sorted(r['board'] for r in json.loads((self.rd / hil_report.REPORT_JSON).read_text())['rows']),
+        self.assertEqual(sorted(r['board'] for r in json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['rows']),
                          ['a', 'b'], 'the second withdrawal names the first, a sibling archive')
 
     def test_a_cycle_of_withdrawal_references_ends(self):
@@ -1804,7 +1815,7 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
             (root / aid).mkdir(parents=True)
             (root / aid / hil_report.REPORT_JSON).write_text(json.dumps({hil_report.core().WITHDRAWN: {
                 'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'attempt_id': aid[len('withdrawn-'):],
-                'archived': other, 'reason': 'r'}}))
+                'archived': other, 'reason': 'r'}}), encoding='utf-8')
         (self.rd / hil_report.REPORT_JSON).write_bytes((root / 'withdrawn-x' / hil_report.REPORT_JSON).read_bytes())
         self.assertEqual(hil_report._load(self.rd)[0]['rows'], [])
 
@@ -1813,13 +1824,13 @@ class AFailedPublishNeverLeavesThePredecessorAsThisRuns(unittest.TestCase):
                                 'rows': [{'board': 'a', 'cells': {'t': 'pass'}}], 'scope': '', 'caveat': ''})
         archived = self.rd / hil_report.REPORT_ATTEMPTS / 'withdrawn-x'
         archived.mkdir(parents=True)
-        (archived / hil_report.REPORT_JSON).write_text(malformed)
+        (archived / hil_report.REPORT_JSON).write_text(malformed, encoding='utf-8')
         through = json.dumps({hil_report.core().WITHDRAWN: {
             'version': 1, 'body_schema': hil_report.SCHEMA_NAME, 'attempt_id': 'y', 'archived': 'withdrawn-x',
             'reason': 'r'}})
         for name, current in (('current', malformed), ('through an archive', through)):
             with self.subTest(name):
-                (self.rd / hil_report.REPORT_JSON).write_text(current)
+                (self.rd / hil_report.REPORT_JSON).write_text(current, encoding='utf-8')
                 self.assertEqual(hil_report._load(self.rd), ({'rows': [], 'scope': '', 'caveat': ''}, False))
 
     def test_a_failed_no_selection_write_withdraws_before_the_upload_prepares(self):
@@ -1853,7 +1864,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         self.rd = Path(td.name)
         self.cfg = self.rd / 'cfg.json'
         self.cfg.write_text(json.dumps({'boards': [{'name': 'a', 'variant': [{'name': 'a-fs'}, {'name': 'a-hs'}]},
-                                                   {'name': 'b'}, {'name': 'c'}]}))
+                                                   {'name': 'b'}, {'name': 'c'}]}), encoding='utf-8')
 
     def attempt(self, accumulate, results):
         """results {board: {row: cells}}: one hil_test.py run selecting those boards."""
@@ -1863,7 +1874,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         return self.meta()['attempt_id']
 
     def meta(self):
-        return json.loads((self.rd / hil_report.REPORT_JSON).read_text())['_hil']
+        return json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))['_hil']
 
     def verdicts(self, boards=('a', 'b', 'c')):
         seq = hil_report.sequence(self.cfg, list(boards), self.rd)['sequence']
@@ -1889,7 +1900,7 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
 
     def test_a_recovery_blocker_stands_and_bars_the_retry(self):
         self.attempt(False, {'a': self.FAIL_A, 'b': {'b': self.BLOCKED}})
-        cfg = json.loads(self.cfg.read_text())
+        cfg = json.loads(self.cfg.read_text(encoding='utf-8'))
         doc = hil_report._load(self.rd)[0]
         self.assertEqual([r['verdict'] for r in hil_report.normalised_rows(cfg, ['b'], doc)], ['blocker'])
         self.attempt(True, {'a': self.PASS_A})
@@ -1925,13 +1936,13 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
 
     def test_another_roster_is_never_read_as_this_ones(self):
         self.attempt(False, {'b': {'b': {'t': '✅'}}})
-        self.cfg.write_text(self.cfg.read_text() + ' ')
+        self.cfg.write_text(self.cfg.read_text(encoding='utf-8') + ' ', encoding='utf-8')
         seq = hil_report.sequence(self.cfg, ['b'], self.rd)['sequence']
         self.assertEqual((seq['verdict'], [x['attempt_id'] for x in seq['broken']]),
                          ('not-run', [self.meta()['attempt_id']]), 'its rows are not read, so never a pass')
 
     def test_the_rows_fold_to_the_shared_verdicts(self):
-        cfg = json.loads(self.cfg.read_text())
+        cfg = json.loads(self.cfg.read_text(encoding='utf-8'))
         doc = {'rows': [{'board': 'a-fs', 'cells': {hil_report.WEDGED_CELL: '❌'}, 'duration': None},
                         {'board': 'b', 'cells': {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, 'duration': None},
                         {'board': 'c', 'cells': {'t': '⚪ no binary'}, 'duration': None}], 'scope': '', 'caveat': ''}
@@ -1987,8 +1998,8 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
     def test_a_row_without_a_test_cell_never_passes_the_sequence(self):
         self.attempt(False, {'b': {'b': {}}})
         self.assertEqual(self.verdicts(['b'])['b'], ('not-run', False))
-        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text())
-        self.assertTrue(hil_report.summarize(json.loads(self.cfg.read_text()), ['b'], doc)['pass'],
+        doc = json.loads((self.rd / hil_report.REPORT_JSON).read_text(encoding='utf-8'))
+        self.assertTrue(hil_report.summarize(json.loads(self.cfg.read_text(encoding='utf-8')), ['b'], doc)['pass'],
                         'the snapshot verdict keeps its old reading')
 
     def test_the_cli_prints_the_sequence_and_the_snapshot_is_unchanged(self):
@@ -2038,7 +2049,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
         shim = root / 'bin' / 'python3'
         shim.parent.mkdir()
         shim.write_text(f'#!/bin/sh\n[ "$1 $2" = "test/hil/helper/agentrc.py fetch" ] && exit 0\n'
-                        f'exec {sys.executable} "$@"\n')
+                        f'exec {sys.executable} "$@"\n', encoding='utf-8')
         shim.chmod(0o755)
         return root
 
@@ -2052,7 +2063,7 @@ class TheCiLegsUploadAPreparedReport(unittest.TestCase):
 
     @staticmethod
     def output_dir(root):
-        outputs = dict(line.split('=', 1) for line in (root / 'github_output').read_text().splitlines())
+        outputs = dict(line.split('=', 1) for line in (root / 'github_output').read_text(encoding='utf-8').splitlines())
         return Path(root, outputs['dir'])
 
     def upload(self, step, src, artifact):

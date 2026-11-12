@@ -268,7 +268,7 @@ class BuildReceipts(unittest.TestCase):
         @contextlib.contextmanager
         def lease(remote, remote_dir, root, mkdirs=()):
             self.example('b', 'device/cdc').write_text('rebuilt while the rig was set up')
-            yield TREE
+            yield TREE._replace(root=Path(root))   # the checkout rsync runs in: Windows names local files from it
 
         def rsync(tree, *args, optional=False, staging=False):
             if '--prune-empty-dirs' not in args:

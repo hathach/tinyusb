@@ -5,14 +5,17 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 ACTION = os.path.join(REPO, '.github', 'actions', 'setup_toolchain')
 FETCH = os.path.join(ACTION, 'download', 'fetch.sh')
 PAYLOAD = 'toolchain bytes\n'
 DIGEST = hashlib.sha256(PAYLOAD.encode()).hexdigest()
+BASH = shutil.which('bash')
 
 # writes CURL_PAYLOAD to the -o file and logs the call, or fails like curl -f on a 404 when CURL_FAIL is set
 CURL_STUB = '''#!/bin/sh
@@ -44,6 +47,7 @@ class Manifest(unittest.TestCase):
         self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
 
 
+@unittest.skipUnless(BASH and shutil.which('jq'), 'fetch.sh needs bash and jq')
 class Fetch(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -59,7 +63,7 @@ class Fetch(unittest.TestCase):
 
     def _write_exe(self, name, text):
         path = os.path.join(self.bin, name)
-        with open(path, 'w') as f:
+        with open(path, 'w', newline='\n') as f:   # a CRLF shebang line does not run
             f.write(text)
         os.chmod(path, 0o755)
 
@@ -68,8 +72,13 @@ class Fetch(unittest.TestCase):
             json.dump(entries, f)
 
     def fetch(self, name='tc', path=None, **env):
-        env = {'PATH': path or f'{self.bin}:{os.environ["PATH"]}', 'CURL_LOG': self.curl_log, 'CURL_PAYLOAD': PAYLOAD, **env}
-        return subprocess.run([self.fetch_sh, name, self.out], env=env, capture_output=True, text=True)
+        env = {'PATH': path or os.pathsep.join((self.bin, os.environ['PATH'])),
+               'CURL_LOG': self.curl_log, 'CURL_PAYLOAD': PAYLOAD, **env}
+        argv = [self.fetch_sh, name, self.out]
+        if sys.platform == 'win32':   # Windows runs no shebang: hand the script to bash, which needs SYSTEMROOT
+            env['SYSTEMROOT'] = os.environ['SYSTEMROOT']
+            argv.insert(0, BASH)
+        return subprocess.run(argv, env=env, capture_output=True, text=True)
 
     def curl_called(self):
         return os.path.exists(self.curl_log)
@@ -114,7 +123,8 @@ class Fetch(unittest.TestCase):
 
     def test_native_windows_jq_line_endings(self):
         # native jq.exe turns every LF it prints into CRLF; command substitution keeps the CR
-        self._write_exe('jq', f'#!/bin/bash\nset -o pipefail\n{shutil.which("jq")} "$@" | perl -pe "s/\\n/\\r\\n/"\n')
+        jq = Path(shutil.which('jq')).as_posix()   # bash would eat a Windows path's backslashes
+        self._write_exe('jq', f'#!/bin/bash\nset -o pipefail\n"{jq}" "$@" | perl -pe "s/\\n/\\r\\n/"\n')
         self._manifest(tc={'url': 'https://example.invalid/tc.tar.xz', 'sha256': DIGEST})
         r = self.fetch()
         self.assertEqual(r.returncode, 0, r.stderr)

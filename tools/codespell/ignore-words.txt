@@ -8,6 +8,7 @@ inout
 linke
 mot
 ore
+pres
 pris
 ptd
 ser

@@ -57,7 +57,7 @@ class BuildParser(unittest.TestCase):
                 hil_args.build_parser().parse_args(argv)
 
     def test_hil_test_builds_no_parser_of_its_own(self):
-        tree = ast.parse((HIL_DIR / 'hil_test.py').read_text())
+        tree = ast.parse((HIL_DIR / 'hil_test.py').read_text(encoding='utf-8'))
         calls = {ast.unparse(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
         self.assertIn('hil_args.build_parser', calls)
         self.assertNotIn('argparse.ArgumentParser', calls)

@@ -16,6 +16,9 @@ from tempfile import TemporaryDirectory
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(TEST_DIR))
+if sys.platform == 'win32':
+    raise unittest.SkipTest("usbtest imports agentrc's hil_usbtest (fcntl, Linux usbfs): POSIX only")
+
 import usbtest_harness  # noqa: E402 - stubs serial before hil_test is imported
 import usbtest  # noqa: E402
 

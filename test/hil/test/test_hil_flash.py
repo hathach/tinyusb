@@ -24,6 +24,9 @@ HIL_DIR = Path(__file__).resolve().parents[1]
 REPO = str(HIL_DIR.parents[1])
 sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
+if sys.platform == 'win32':
+    raise unittest.SkipTest("agentrc's flash provider imports hil_process (fcntl, process groups): POSIX only")
+
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
 from helper import agentrc, hil_util  # noqa: E402

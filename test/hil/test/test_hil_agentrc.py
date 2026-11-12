@@ -46,7 +46,7 @@ def scratch_agentrc(dest, changes=None, drop=()):
             shutil.copy(Path(REAL['root']) / rel, dest / rel)
     for rel, text in {'.gitignore': '__pycache__/\n', **(changes or {})}.items():   # as agentrc's own
         (dest / rel).parent.mkdir(parents=True, exist_ok=True)
-        (dest / rel).write_text(text)
+        (dest / rel).write_text(text, encoding='utf-8')
     git(dest, 'init', '-q')
     git(dest, 'add', '-A')
     git(dest, 'commit', '-qm', 'scratch agentrc')
@@ -77,7 +77,7 @@ class Bootstrap(unittest.TestCase):
 
     def pin(self, commit, url=None):
         (self.root / 'test/hil/agentrc.json').write_text(json.dumps({'url': url or self.install.as_uri(),
-                                                                      'commit': commit}))
+                                                                      'commit': commit}), encoding='utf-8')
 
     def env(self, ci=None, agentrc_dir=None):
         return scratch_env(agentrc_dir or self.install, **({} if ci is None else {'CI': ci}))
@@ -115,7 +115,7 @@ class Bootstrap(unittest.TestCase):
         self.assertEqual((ident['source'], ident['root'], ident['commit'], ident['dirty']),
                          ('installed', str(self.install), git(self.install, 'rev-parse', 'HEAD'), False))
         self.assertEqual(ident['files'], REAL['files'])
-        (self.install / RTT_PY).write_text((self.install / RTT_PY).read_text() + '\n')
+        (self.install / RTT_PY).write_text((self.install / RTT_PY).read_text(encoding='utf-8') + '\n', encoding='utf-8')
         self.assertTrue(self.check()['dirty'], 'an uncommitted closure edit is a dirty identity')
 
     def test_ci_loads_the_pin_never_the_installed_agentrc(self):
@@ -153,7 +153,7 @@ class Bootstrap(unittest.TestCase):
     def test_a_staged_tree_unlike_its_manifest_never_falls_back(self):
         self.stage()
         staged = self.root / '.agentrc'
-        (staged / RTT_PY).write_text('edited on the rig\n')
+        (staged / RTT_PY).write_text('edited on the rig\n', encoding='utf-8')
         self.refused(self.bootstrap('check'), f'differ from their manifest: {RTT_PY}', 'stage the run again')
         (staged / RTT_PY).unlink()
         self.refused(self.bootstrap('check'), f'staged agentrc {RTT_PY} is missing')
@@ -178,7 +178,7 @@ class Bootstrap(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(git(self.root / agentrc.DEP, 'rev-parse', 'HEAD'), commit)
         self.assertEqual(self.check(ci='true')['commit'], commit)
-        (self.root / agentrc.DEP / RTT_PY).write_text('edited\n')
+        (self.root / agentrc.DEP / RTT_PY).write_text('edited\n', encoding='utf-8')
         self.refused(self.bootstrap('fetch', ci='true'), 'is not a clean checkout', 'remove it and fetch again')
 
     # --- what the bootstrap refuses -------------------------------------------------------------
@@ -220,6 +220,7 @@ class Bootstrap(unittest.TestCase):
         self.refused(r, 'agentrc skills/hil/scripts/hil_process.py changed since this process loaded it')
         self.assertNotIn('DRIFT RAN', r.stderr)
 
+    @unittest.skipIf(sys.platform == 'win32', 'hil_openocd_esp imports fcntl: POSIX only')
     def test_a_dependency_behind_a_retargeted_skill_link_never_runs(self):
         # an install of skill symlinks: hil_load's ROOT is the checkout they resolve into, so the esp_session that
         # hil_openocd_esp loads itself by path is the identity's, never one a link retargeted since now leads to

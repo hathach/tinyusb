@@ -26,6 +26,7 @@ class ProjectDir(unittest.TestCase):
             self.assertFalse((hil_flash.PYOCD_PROJECT_DIR / name).exists(), name)
 
 
+@unittest.skipIf(sys.platform == 'win32', "hil_flash's provider and hil_test load agentrc's hil_process (fcntl): POSIX only")
 class Flasher(unittest.TestCase):
     FLASHER = {'name': 'pyocd', 'uid': 'GSA0CQEQ', 'vid_pid': '0x1fc9 0x0090',
                'args': '-t lpc55s28'}

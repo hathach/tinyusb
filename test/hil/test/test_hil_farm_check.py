@@ -19,6 +19,9 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("the farm check takes agentrc's fcntl board locks: POSIX only")
+
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
 from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402

@@ -19,6 +19,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,7 +47,7 @@ def real_rosters():
     rosters = []
     for name in ('tinyusb.json', 'hfp.json'):
         path = os.path.join(REPO, 'test/hil', name)
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             rosters.append((f'test/hil/{name}', json.load(f)['boards']))
     return rosters
 
@@ -58,7 +59,7 @@ def roster_flashers():
     name went stale."""
     for name in ('tinyusb.json', 'hfp.json'):
         path = os.path.join(REPO, 'test/hil', name)
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             cfg = hil_boards().resolve_roster(json.load(f))
         for key in ('boards', 'boards-skip'):
             for b in cfg.get(key, []):
@@ -993,7 +994,7 @@ class TestCachesAreKeyedOnTheTree(unittest.TestCase):
                 # the board does not exist in this tree at all -> unknown board -> skip
                 self.assertTrue(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
                                 'the empty tree was answered from the repo tree cache')
-            os.chdir(REPO)
+                os.chdir(REPO)              # Windows cannot remove the cwd
             self.assertFalse(build_utils.skip_example('host/bare_api', 'metro_m0_express'),
                              'and the repo answer must survive the excursion')
         finally:
@@ -1510,7 +1511,7 @@ class TestLibRule(unittest.TestCase):
         self.assertEqual((b['full'], b['families']), (False, []))
 
     def test_hil_the_systemview_pin_selects_the_capture_boards(self):
-        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+        with open(os.path.join(REPO, 'tools/get_deps.py'), encoding='utf-8') as f:
             real = f.read()
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
@@ -1630,7 +1631,7 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
 
 
     def test_real_get_deps_parses(self):
-        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+        with open(os.path.join(REPO, 'tools/get_deps.py'), encoding='utf-8') as f:
             real = f.read()
         self.assertEqual(change_impact.get_deps_changed_families(real, real, REPO), set())
         # a real optional entry bumped resolves to that entry's real family. The commit
@@ -1696,7 +1697,7 @@ class TestGetDepsRule(unittest.TestCase):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
     def test_a_dep_bump_selects_only_its_families(self):
-        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+        with open(os.path.join(REPO, 'tools/get_deps.py'), encoding='utf-8') as f:
             real = f.read()
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
@@ -2149,7 +2150,7 @@ class TestHilExamplesDuplicateRosters(unittest.TestCase):
 class TestCliJson(unittest.TestCase):
     def test_build_key_without_rosters(self):
         r = subprocess.run([sys.executable, os.path.join(REPO, 'tools/change_impact.py'),
-                            '--diff-file', '/dev/null'], capture_output=True, text=True)
+                            '--diff-file', os.devnull], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         j = json.loads(r.stdout)
         self.assertIn('build', j)
@@ -2214,7 +2215,7 @@ class TestCiSetMatrix(unittest.TestCase):
         pinned = _json.loads(self.run_matrix('--pinned').stdout)
         full = _json.loads(self.run_matrix().stdout)
         self.assertEqual(set(pinned), set(full))  # every toolchain key kept
-        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json')) as f:
+        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json'), encoding='utf-8') as f:
             boards = {e['board'] for e in _json.load(f)['boards']}
         fams = set().union(*pinned.values())
         for fam in fams:
@@ -2440,7 +2441,7 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_every_rp2040_board_gets_the_pico_sdk(self):
         # cmake-required hands get_deps a bare `-b <board>`: the action keys the SDK
         # checkout on the arg's spelling, so every rp2040 board must match it
-        with open(os.path.join(REPO, '.github', 'actions', 'get_deps', 'action.yml')) as f:
+        with open(os.path.join(REPO, '.github', 'actions', 'get_deps', 'action.yml'), encoding='utf-8') as f:
             text = f.read()
         cond = text[text.index('- name: Checkout pico-sdk'):text.index('uses:', text.index('- name: Checkout pico-sdk'))]
         keys = re.findall(r"contains\(inputs\.arg, '([^']+)'\)", cond)
@@ -2461,7 +2462,7 @@ class TestCiSetMatrix(unittest.TestCase):
     def test_membrowse_partition_covers_every_leg_once(self):
         full_pinned = json.loads(self.run_matrix('--pinned').stdout)
         m, esp = self.membrowse(full_pinned)
-        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json')) as f:
+        with open(os.path.join(REPO, '.github', 'ci-pinned-boards.json'), encoding='utf-8') as f:
             pinned = sorted(e['board'] for e in json.load(f)['boards'] if not e['board'].startswith('espressif'))
         self.assertEqual(m['all'], [f'-b {b}' for b in pinned] + esp)
         self.assertEqual(m['identical'], [])  # a full build measures everything
@@ -2578,16 +2579,12 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
     def test_an_esp_idf_variant_must_name_itself(self):
         # hil-build-esp sizes and uploads every leg under its --build-name: an unnamed
         # esp-idf variant would collide with the plain board; other buckets never upload
-        import tempfile
         other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink', 'uid': 'p'},
                  'variant': [{'name': 'metro_m4_express', 'defines': ['MAX3421_HOST=1']}]}
         for vname, ok in (('espressif_s3_devkitm', False), ('espressif_s3_devkitm-X', True)):
             esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool', 'uid': 'p'},
                    'variant': [{'name': vname, 'defines': ['X=1']}]}
-            with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
-                json.dump({'boards': [esp, other]}, f)
-                f.flush()
-                r = subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+            r = self._matrix_of([esp, other])
             self.assertEqual(r.returncode == 0, ok, r.stderr)
             if ok:
                 self.assertEqual(json.loads(r.stdout)['arm-gcc'], ['-b metro_m4_express -DMAX3421_HOST=1'])
@@ -2595,11 +2592,13 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
 
     def _matrix_of(self, boards, *args):
-        import tempfile
-        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+        # a closed file: Windows cannot reopen a NamedTemporaryFile the test still holds
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d)
+        path = os.path.join(d, 'roster.json')
+        with open(path, 'w', encoding='utf-8') as f:
             json.dump({'boards': boards}, f)
-            f.flush()
-            return subprocess.run([sys.executable, HIL_SET_MATRIX, *args, f.name], capture_output=True, text=True)
+        return subprocess.run([sys.executable, HIL_SET_MATRIX, *args, path], capture_output=True, text=True)
 
     def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
         # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
@@ -2637,12 +2636,8 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         self.assertIn('cannot tell which one to trace', r.stderr)
 
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
-        import tempfile
         p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp', 'uid': 'p'}}
-        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
-            json.dump({'boards': [p4]}, f)
-            f.flush()
-            r = subprocess.run([sys.executable, HIL_SET_MATRIX, f.name], capture_output=True, text=True)
+        r = self._matrix_of([p4])
         self.assertEqual(r.returncode, 0, r.stderr)
         m = json.loads(r.stdout)
         self.assertEqual((m['esp-idf'], m['arm-gcc']), (['-b espressif_p4_function_ev'], []))
