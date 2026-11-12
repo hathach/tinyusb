@@ -178,6 +178,16 @@ Mitigation in TinyUSB: ``hcd_dwc2`` lets one preamble channel own the bus at a t
 next one only in a frame after the previous one halted, which puts an SOF between them. A port
 disable re-enumerates the root port.
 
+**IN endpoints beyond the five TX FIFOs (device).** The ESP32-S2/S3 TRMs allow five IN endpoints
+active at once, EP0 included, each with its own TX FIFO. ``dcd_dwc2`` opens an interrupt IN endpoint
+numbered past the FIFOs (arduino-esp32's never-sent CDC notification ``0x85``) with ``USBActEP`` set
+and no FIFO, and refuses its transfers, so ``EPEna`` is never set. Such an endpoint answers the
+host's polls with NAK; the TRMs do not define "active" at the ``USBActEP`` level. Leaving it inactive
+instead is worse: the core then ignores IN tokens, and every poll ends in a host transaction error
+(measured on an STM32U5A5 OTG_HS limited to 4 TX FIFOs, Windows ``usbser`` polling: NAK with
+``USBActEP`` set, no handshake without). An ESP32-S3 with ``0x85`` open this way ran byte-exact CDC
+loopback on both ports in slave and DMA mode.
+
 STMicroelectronics STM32 OTG_FS/OTG_HS
 --------------------------------------
 **Severity: High** for a full-speed host with a low-speed device behind a hub
