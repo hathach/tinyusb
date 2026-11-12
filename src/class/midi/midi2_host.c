@@ -63,6 +63,9 @@ typedef struct {
   uint8_t rx_cable_count_alt1;
   uint8_t tx_cable_count_alt1;
 
+  bool mounted;
+
+  /*------------- From this point, data is set by midih2_init() and kept by close -------------*/
   struct {
     midih2_tx_t      tx;
     tu_edpt_stream_t rx;
@@ -70,9 +73,9 @@ typedef struct {
     uint8_t rx_ff_buf[CFG_TUH_MIDI2_RX_BUFSIZE];
     uint8_t tx_ff_buf[CFG_TUH_MIDI2_TX_BUFSIZE];
   } ep_stream;
-
-  bool mounted;
 } midih2_interface_t;
+
+#define ITF_MEM_RESET_SIZE offsetof(midih2_interface_t, ep_stream)
 
 static midih2_interface_t _midi2_host[CFG_TUH_MIDI2];
 
@@ -94,6 +97,17 @@ static inline uint8_t find_new_midi2_index(void) {
     }
   }
   return TUSB_INDEX_INVALID_8;
+}
+
+// Free a slot: clear the per-device fields and close the streams, keeping the FIFOs,
+// endpoint buffers and mutex that midih2_init() set up
+static void midih2_slot_clear(midih2_interface_t *p_midi) {
+  tu_memclr(p_midi, ITF_MEM_RESET_SIZE);
+  tu_edpt_stream_close(&p_midi->ep_stream.rx);
+  tu_edpt_stream_clear(&p_midi->ep_stream.rx);
+  p_midi->ep_stream.tx.ep_addr = 0;
+  p_midi->ep_stream.tx.mps = 0;
+  tu_fifo_clear(&p_midi->ep_stream.tx.ff);
 }
 
 static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
@@ -362,25 +376,6 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass, 0);
 
-  // For Alt Setting 1, reuse existing slot for same device+interface
-  uint8_t idx = TUSB_INDEX_INVALID_8;
-  if (desc_itf->bAlternateSetting > 0) {
-    for (uint8_t i = 0; i < CFG_TUH_MIDI2; i++) {
-      if (_midi2_host[i].daddr == dev_addr &&
-          _midi2_host[i].bInterfaceNumber == desc_itf->bInterfaceNumber) {
-        idx = i;
-        break;
-      }
-    }
-  }
-  if (idx == TUSB_INDEX_INVALID_8) {
-    idx = find_new_midi2_index();
-  }
-  TU_VERIFY(idx < CFG_TUH_MIDI2, 0);
-
-  midih2_interface_t *p_midi = &_midi2_host[idx];
-  p_midi->daddr = dev_addr;
-
   const uint8_t *desc_start = (const uint8_t *) desc_itf;
   const uint8_t *desc_end = desc_start + max_len;
 
@@ -409,11 +404,29 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   TU_LOG_DRV("MIDI2 opening Interface %u Alt %u (addr = %u)\r\n",
              desc_itf->bInterfaceNumber, desc_itf->bAlternateSetting, dev_addr);
 
-  // Dispatch to appropriate parser based on Alt Setting
+  // Only once the interface is confirmed MIDI Streaming does it take a slot: Alt Setting 0
+  // takes a free one, Alt Setting 1 extends the slot its Alt Setting 0 took.
   const uint8_t *p_end = NULL;
   if (desc_itf->bAlternateSetting == 0) {
+    const uint8_t idx = find_new_midi2_index();
+    TU_VERIFY(idx < CFG_TUH_MIDI2, 0);
+    midih2_interface_t *p_midi = &_midi2_host[idx];
+
+    p_midi->daddr = dev_addr;
     p_end = midih2_parse_descriptors_alt0(p_midi, desc_itf, desc_end);
+    if (p_end == NULL) {
+      midih2_slot_clear(p_midi);
+    }
   } else if (desc_itf->bAlternateSetting == 1) {
+    uint8_t idx;
+    for (idx = 0; idx < CFG_TUH_MIDI2; idx++) {
+      if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == desc_itf->bInterfaceNumber) {
+        break;
+      }
+    }
+    TU_VERIFY(idx < CFG_TUH_MIDI2, 0);
+    midih2_interface_t *p_midi = &_midi2_host[idx];
+
     p_end = midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
   }
 
@@ -516,11 +529,11 @@ void midih2_close(uint8_t dev_addr) {
     midih2_interface_t *p_midi = &_midi2_host[idx];
     if (p_midi->daddr == dev_addr) {
       TU_LOG_DRV("  MIDI2 close addr = %u index = %u\r\n", dev_addr, idx);
-      tu_edpt_stream_close(&p_midi->ep_stream.rx);
-      tu_fifo_clear(&p_midi->ep_stream.tx.ff);
-      p_midi->ep_stream.tx.ep_addr = 0;
-      tuh_midi2_umount_cb(idx);
-      tu_memclr(p_midi, sizeof(midih2_interface_t));
+      if (p_midi->mounted) {
+        tuh_midi2_umount_cb(idx);
+      }
+      // keep the stream state set up by midih2_init(), which only tuh_init() runs
+      midih2_slot_clear(p_midi);
     }
   }
 }
