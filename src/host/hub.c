@@ -269,30 +269,45 @@ static void config_set_port_power (tuh_xfer_t* xfer);
 static void config_port_power_complete (tuh_xfer_t* xfer);
 static void config_get_hub_descriptor(tuh_xfer_t* xfer);
 
+// usbh holds every later enumeration until SET_CONFIG completes, so each path of the chain ends here (#4064).
+// The status poll is armed only for a hub whose port count is known: without it the hub serves no port.
+static void config_complete(uint8_t daddr, bool arm_poll) {
+  hub_interface_t *p_hub = get_hub_itf(daddr);
+  TU_VERIFY(p_hub->ep_in != 0,); // closed meanwhile: usbh no longer waits for it
+
+  if (arm_poll && !hub_edpt_status_xfer(daddr)) {
+    TU_MESS_FAILED();
+    TU_BREAKPOINT();
+  }
+  usbh_driver_set_config_complete(daddr, p_hub->itf_num);
+}
+
 bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
   hub_interface_t* p_hub = get_hub_itf(daddr);
   TU_ASSERT(itf_num == p_hub->itf_num);
 
-  if (p_hub->mtt) {
-    // Set Alternate Setting 1 for MTT hub
-    TU_ASSERT(tuh_interface_set(daddr, itf_num, 1, config_get_hub_descriptor, 0));
-  } else {
-    tuh_xfer_t xfer;
-    xfer.daddr     = daddr;
-    xfer.ep_addr   = 0;
-    xfer.result    = XFER_RESULT_SUCCESS;
-    xfer.user_data = 0;
-    config_get_hub_descriptor(&xfer);
+  // Set Alternate Setting 1 for MTT hub
+  if (p_hub->mtt && tuh_interface_set(daddr, itf_num, 1, config_get_hub_descriptor, 0)) {
+    return true;
   }
+
+  // a SET_INTERFACE that failed to queue goes on as single-TT, like a failed one
+  tuh_xfer_t xfer;
+  xfer.daddr     = daddr;
+  xfer.ep_addr   = 0;
+  xfer.result    = p_hub->mtt ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
+  xfer.user_data = 0;
+  config_get_hub_descriptor(&xfer);
 
   return true;
 }
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
+  const uint8_t daddr = xfer->daddr;
   if (xfer->result != XFER_RESULT_SUCCESS) {
     // A STALL keeps alternate setting 0, single-TT (USB 2.0 9.4.10, 11.23.1); after a transport error the setting is
     // unknown. Either way schedule it as single-TT: one TT budget for every port is safe for both organizations.
-    get_hub_itf(xfer->daddr)->mtt = false;
+    get_hub_itf(daddr)->mtt = false;
   }
 
   // Get Hub Descriptor
@@ -309,16 +324,31 @@ static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
   };
 
   xfer->setup       = &request;
-  xfer->buffer      = get_hub_epbuf(xfer->daddr)->ctrl_buf;
+  xfer->buffer      = get_hub_epbuf(daddr)->ctrl_buf;
   xfer->complete_cb = config_set_port_power;
 
-  TU_ASSERT(tuh_control_xfer(xfer), );
+  if (!tuh_control_xfer(xfer)) {
+    config_complete(daddr, false);
+  }
+}
+
+// power the port after prev_port; once every port is done, arm the status poll and complete SET_CONFIG
+static void config_power_next_port(uint8_t daddr, uint8_t prev_port) {
+  if (prev_port < get_hub_itf(daddr)->bNbrPorts &&
+      hub_port_set_feature(daddr, (uint8_t) (prev_port + 1), HUB_FEATURE_PORT_POWER, config_port_power_complete, 0)) {
+    return;
+  }
+  config_complete(daddr, true);
 }
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
-
   uint8_t const daddr = xfer->daddr;
+  if (XFER_RESULT_SUCCESS != xfer->result) {
+    TU_LOG_DRV("HUB Get Hub Descriptor failed, addr = %u: no port is served\r\n", daddr);
+    config_complete(daddr, false);
+    return;
+  }
+
   hub_interface_t* p_hub = get_hub_itf(daddr);
   hub_epbuf_t* p_epbuf = get_hub_epbuf(daddr);
 
@@ -330,29 +360,17 @@ static void config_set_port_power (tuh_xfer_t* xfer) {
   // May need to GET_STATUS
 
   // Set Port Power to be able to detect connection, starting with port 1
-  uint8_t const hub_port = 1;
-  hub_port_set_feature(daddr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
+  config_power_next_port(daddr, 0);
 }
 
 static void config_port_power_complete (tuh_xfer_t* xfer) {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
-
-  uint8_t const daddr = xfer->daddr;
-  hub_interface_t* p_hub = get_hub_itf(daddr);
-
-  if (xfer->setup->wIndex == p_hub->bNbrPorts) {
-    // All ports are power -> queue notification status endpoint and
-    // complete the SET CONFIGURATION
-    if (!hub_edpt_status_xfer(daddr)) {
-      TU_MESS_FAILED();
-      TU_BREAKPOINT();
-    }
-    usbh_driver_set_config_complete(daddr, p_hub->itf_num);
-  } else {
-    // power next port
-    uint8_t const hub_port = (uint8_t) (xfer->setup->wIndex + 1);
-    hub_port_set_feature(daddr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
+  // A port whose power request failed may still be powered (ganged or no power switching); if not, it just never
+  // reports a connection. Carry on with the other ports.
+  const uint8_t hub_port = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  if (XFER_RESULT_SUCCESS != xfer->result) {
+    TU_LOG_DRV("HUB Set Port Power failed, addr = %u port = %u\r\n", xfer->daddr, hub_port);
   }
+  config_power_next_port(xfer->daddr, hub_port);
 }
 
 //--------------------------------------------------------------------+
