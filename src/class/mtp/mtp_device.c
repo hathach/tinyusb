@@ -82,6 +82,7 @@ typedef struct {
   uint8_t  phase;
   bool cmd_waiting; // the saved command waits for a data IN abandoned on Cancel to retire
   bool out_first;   // data OUT: the next packet starts with the container header
+  bool out_owed;    // data OUT callback running for a packet that does not end the phase
 
   uint32_t total_len;
   uint32_t xferred_len;
@@ -335,6 +336,15 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
 
   const uint32_t len = p_container->header->len;
   TU_VERIFY(len >= sizeof(mtp_container_header_t) && len <= CFG_TUD_MTP_EP_BUFSIZE);
+
+  if (p_mtp->out_owed) {
+    // Answered while the host still owes data: device-initiated cancel, the bulk endpoints are
+    // halted once the data callback returns. Queue nothing on ep_in: a DCD that kept a loaded IN
+    // packet across the stall and clear-halt would hand this response to the next command.
+    p_mtp->phase = MTP_PHASE_RESPONSE;
+    return true;
+  }
+
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
 
   // Headerless view (2nd+ data packet): its header lives in io_header and its payload starts where
@@ -695,13 +705,19 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           cb_data.io_container = headerless_packet;
           cb_data.io_container.payload_bytes = xferred_bytes;
         }
-        if (xferred_bytes > 0 && tud_mtp_data_xfer_cb(&cb_data) < 0) {
+        int32_t xfer_ret = 0;
+        if (xferred_bytes > 0) {
+          p_mtp->out_owed = !is_complete;
+          xfer_ret = tud_mtp_data_xfer_cb(&cb_data);
+          p_mtp->out_owed = false;
+        }
+        if (xfer_ret < 0) {
           p_mtp->phase = MTP_PHASE_ERROR; // application aborts: stall rather than arm another read
           break;
         }
         if (!is_complete && p_mtp->phase == MTP_PHASE_RESPONSE) {
-          // Answered before the host finished sending: device-initiated cancel. Stalling ep_in
-          // also retires the queued response.
+          // Answered before the host finished sending: device-initiated cancel. The response was
+          // not queued (tud_mtp_response_send), the halt alone ends the transaction.
           p_mtp->phase = MTP_PHASE_ERROR;
           break;
         }
