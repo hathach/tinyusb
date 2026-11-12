@@ -33,6 +33,7 @@ typedef struct {
 static ctrl_req_t ctrl_reqs[MAX_CTRL];
 static uint8_t    ctrl_count;
 static bool       ctrl_reject;
+static bool       interface_set_reject;
 
 // the status endpoint open fails in hub_open()
 static bool    edpt_open_fail;
@@ -89,6 +90,9 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc_dev
 // queued like a control request, completed by the test
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer_cb_t complete_cb,
                        uintptr_t user_data) {
+  if (interface_set_reject) {
+    return false;
+  }
   const tusb_control_request_t setup = {
     .bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_INTERFACE},
     .bRequest          = TUSB_REQ_SET_INTERFACE,
@@ -288,6 +292,7 @@ static void attach_on_port1(uint8_t daddr) {
 void setUp(void) {
   ctrl_count     = 0;
   ctrl_reject    = false;
+  interface_set_reject = false;
   edpt_open_fail = false;
   edpt_open_count    = 0;
   edpt_open_interval = 0;
@@ -682,4 +687,103 @@ void test_mtt_hub_failed_set_interface_completes_config_as_single_tt(void) {
     configure_mtt_hub(failures[i]);
     TEST_ASSERT_FALSE(hub_tt_multi(HUB_A));
   }
+}
+
+void test_mtt_hub_set_interface_rejected_completes_config_as_single_tt(void) {
+  open_mtt_hub(HUB_A);
+  interface_set_reject = true;
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  TEST_ASSERT_FALSE(hub_tt_multi(HUB_A));
+
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_GET_DESCRIPTOR, ctrl_reqs[0].setup.bRequest);
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 1};
+  complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
+  complete_ctrl(1, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(1, poll_count);
+}
+
+//--------------------------------------------------------------------+
+// SET_CONFIG failures still complete it (#4064)
+//--------------------------------------------------------------------+
+// without its port count the hub serves no port: SET_CONFIG completes, no port is powered and no poll is armed
+void test_failed_hub_descriptor_completes_config(void) {
+  const xfer_result_t failures[] = {XFER_RESULT_STALLED, XFER_RESULT_TIMEOUT, XFER_RESULT_FAILED};
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(failures); i++) {
+    setUp();
+    open_hub(HUB_A);
+    TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+    complete_ctrl(0, failures[i]);
+
+    TEST_ASSERT_EQUAL(1, ctrl_count);
+    TEST_ASSERT_EQUAL(1, config_complete_count);
+    TEST_ASSERT_EQUAL(0, poll_count);
+  }
+}
+
+void test_rejected_hub_descriptor_completes_config(void) {
+  open_hub(HUB_A);
+  ctrl_reject = true;
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(0, poll_count);
+}
+
+// a port whose power request fails may still be powered: the other ports are powered and the poll armed
+void test_failed_port_power_completes_config(void) {
+  open_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 3};
+  complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
+
+  complete_ctrl(1, XFER_RESULT_STALLED);
+  complete_ctrl(2, XFER_RESULT_TIMEOUT);
+  TEST_ASSERT_EQUAL(4, ctrl_count);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_POWER, ctrl_reqs[3].setup.wValue);
+  TEST_ASSERT_EQUAL(3, ctrl_reqs[3].setup.wIndex);
+  TEST_ASSERT_EQUAL(0, config_complete_count);
+
+  complete_ctrl(3, XFER_RESULT_FAILED);
+  TEST_ASSERT_EQUAL(4, ctrl_count);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(1, poll_count);
+}
+
+void test_rejected_port_power_completes_config(void) {
+  open_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 3};
+  ctrl_reject = true;
+  complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
+
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(1, poll_count);
+}
+
+void test_hub_without_ports_completes_config(void) {
+  open_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 0};
+  complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
+
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(1, poll_count);
+}
+
+// usbh fails a removed hub's requests after hub_close(): nothing to complete or arm
+void test_failed_config_after_close_does_nothing(void) {
+  open_hub(HUB_A);
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 2};
+  complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
+
+  hub_close(HUB_A);
+  complete_ctrl(1, XFER_RESULT_FAILED);
+
+  TEST_ASSERT_EQUAL(2, ctrl_count);
+  TEST_ASSERT_EQUAL(0, config_complete_count);
+  TEST_ASSERT_EQUAL(0, poll_count);
 }
