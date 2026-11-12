@@ -1686,7 +1686,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcchar_bm->ep_dir          = tu_edpt_dir(desc_ep->bEndpointAddress);
   hcchar_bm->low_speed_dev   = (bus_info.speed == TUSB_SPEED_LOW) ? 1 : 0;
   hcchar_bm->ep_type         = desc_ep->bmAttributes.xfer; // ep_type matches TUSB_XFER_*
-  hcchar_bm->err_multi_count = 0;
+  // EC/MC: 1 transaction per (micro)frame, or 1 immediate retry of a periodic split; 0 is reserved (Databook v4.20a
+  // HCCHARn.EC_MC). High-bandwidth endpoints are not supported.
+  hcchar_bm->err_multi_count = 1;
   hcchar_bm->dev_addr        = dev_addr;
   hcchar_bm->odd_frame       = 0;
   hcchar_bm->disable         = 0;
