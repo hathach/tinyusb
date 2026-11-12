@@ -852,7 +852,9 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   }
 
   // 2nd Interface: MIDI Streaming
-  TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
+  TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_INTERFACE == tu_desc_type(p_desc) &&
+              tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t),
+            0);
   const tusb_desc_interface_t* desc_midi = (const tusb_desc_interface_t*) p_desc;
 
   TU_VERIFY(TUSB_CLASS_AUDIO              == desc_midi->bInterfaceClass &&
@@ -881,6 +883,7 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   uint8_t found_ep = 0;
   while ((found_ep < desc_midi->bNumEndpoints) && tu_desc_in_bounds(p_desc, desc_end)) {
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
       const uint8_t ep_addr = desc_ep->bEndpointAddress;

@@ -818,7 +818,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
     }
 
     // Verify next interface is Audio Streaming (subclass 2), not MIDI Streaming (subclass 3)
-    if (p_desc_end - p_desc >= (int)sizeof(tusb_desc_interface_t)) {
+    if (tu_desc_in_bounds(p_desc, p_desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t)) {
       tusb_desc_interface_t const *next_itf = (tusb_desc_interface_t const *) p_desc;
       TU_VERIFY(next_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
                 next_itf->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING, 0);

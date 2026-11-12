@@ -354,8 +354,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
 
+// true if the descriptor at p_desc can be read and walked: it starts before desc_end, its bLength covers at least
+// bLength and bDescriptorType (so tu_desc_type() stays inside it and tu_desc_next() advances) and it ends within desc_end
 TU_ATTR_ALWAYS_INLINE static inline bool tu_desc_in_bounds(const uint8_t *p_desc, const uint8_t *desc_end) {
-  return p_desc < desc_end && tu_desc_next(p_desc) <= desc_end;
+  return (p_desc < desc_end) && (tu_desc_len(p_desc) >= 2u) && (tu_desc_len(p_desc) <= (size_t)(desc_end - p_desc));
 }
 
 // find descriptor that match byte1 (type)
