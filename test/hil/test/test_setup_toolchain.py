@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Tests for .github/actions/setup_toolchain: the toolchain manifest and fetch.sh, with curl stubbed."""
+import functools
 import hashlib
 import json
 import os
@@ -28,6 +29,23 @@ done
 exit 2
 '''
 
+
+@functools.cache
+def _bash_runs_fetch_sh():
+    """Whether BASH can read fetch.sh by the path the tests hand it.
+
+    On Windows `bash` may be WSL's launcher: with no distribution it does not run, and with one it
+    cannot open a Windows path, so presence alone does not make the Fetch tests runnable.
+    """
+    if not BASH:
+        return False
+    try:
+        return subprocess.run([BASH, '-c', 'test -r "$1"', '_', FETCH],
+                              capture_output=True, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 class Manifest(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(ACTION, 'toolchain.json'), encoding='utf-8') as f:
@@ -47,7 +65,8 @@ class Manifest(unittest.TestCase):
         self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
 
 
-@unittest.skipUnless(BASH and shutil.which('jq'), 'fetch.sh needs bash and jq')
+@unittest.skipUnless(shutil.which('jq') and _bash_runs_fetch_sh(),
+                     'fetch.sh needs jq and a bash that runs it by this path')
 class Fetch(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
