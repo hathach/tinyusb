@@ -3674,9 +3674,22 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
       // Port enable
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u) {
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u && hprt_bm.over_current_active == 0u) {
       // The core disabled a still-connected port. Reuse attach handling
       // to tear down the stale device tree and restart enumeration.
+      hcd_event_device_attach(rhport, in_isr);
+    }
+  }
+
+  if (hprt_bm.over_current_change == 1u) {
+    // PrtOvrCurrChng is W1C and keeps PrtInt asserted (Databook v4.20a Table 7-44). Overcurrent disables the port:
+    // report the device removed until it clears, then enumerate a still-connected device again.
+    hprt |= HPRT_OVER_CURRENT_CHANGE;
+    if (hprt_bm.over_current_active == 1u) {
+      TU_LOG1("DWC2: root port overcurrent\r\n");
+      channel_cleanup_on_disconnect(dwc2);
+      hcd_event_device_remove(rhport, in_isr);
+    } else if (hprt_bm.conn_status == 1u) {
       hcd_event_device_attach(rhport, in_isr);
     }
   }
