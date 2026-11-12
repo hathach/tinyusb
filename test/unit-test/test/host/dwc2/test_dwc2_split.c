@@ -1408,6 +1408,35 @@ void test_dma_split_close_runs_its_complete_split_before_freeing_the_endpoint(vo
   }
 }
 
+void test_dma_periodic_abort_is_retired_by_the_halt_at_the_end_of_its_frame(void) {
+  // native and split interrupt IN: not disabled in DMA mode (Programming Guide 3.5), the core halts it at the end of
+  // its (micro)frame. The abort waits for that halt, as for control/bulk; on a port without SOF it returns at once and
+  // the endpoint refuses a new transfer until the halt
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool      split   = (i & 1u) != 0;
+    const bool      halts   = i < 2;
+    const uint8_t   ep_addr = abort_bulk_endpoint(true, true, split);
+    hcd_endpoint_t* ep      = &_hcd_data.edpt[0];
+    ep->hcchar_bm.ep_type   = HCCHAR_EPTYPE_INTERRUPT;
+    test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+
+    if (halts) {
+      on_int_enable = isr_halts_aborted_dma_channel;
+      TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+      TEST_ASSERT_EQUAL(1, isr_runs);
+    } else {
+      abort_unhalted(ep_addr);
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+      TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
+      TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+      isr_halts_aborted_dma_channel();
+    }
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_FALSE(_hcd_data.edpt[0].aborting);
+  }
+}
+
 //--------------------------------------------------------------------+
 // Split ISO slot allocation
 //--------------------------------------------------------------------+

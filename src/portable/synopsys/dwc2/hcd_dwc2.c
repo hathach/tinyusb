@@ -2179,7 +2179,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     }
     const channel_teardown_t teardown = channel_teardown(dwc2, ch_id, false);
     if (teardown != CHANNEL_TEARDOWN_WAIT) {
-      if (teardown == CHANNEL_TEARDOWN_HALTING && !channel_is_periodic(dwc2->channel[ch_id].hcchar)) {
+      if (teardown == CHANNEL_TEARDOWN_HALTING) {
         halting = &_hcd_data.xfer[ch_id];
       }
       break;
@@ -2190,8 +2190,9 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
   hcd_int_enable(rhport);
 
-  // Wait for the halt of an aborted control/bulk channel, so that the endpoint takes a new transfer and the controller
-  // no longer writes the aborted buffer. Bounded, as the ISR that retires the channel may not run with it masked.
+  // Wait for the halt of an aborted channel, so that the endpoint takes a new transfer and the controller no longer
+  // writes the aborted buffer. A periodic channel in DMA mode is not disabled but halts by itself at the end of its
+  // (micro)frame (Programming Guide 3.5). Bounded, as the ISR that retires the channel may not run with it masked.
   if (halting != NULL) {
     // HFNUM counts SOFs, which stop on a port disabled, suspended, resuming or in reset; 2 ms of (micro)frames
     // whatever the speed, so that a split behind a high-speed hub has time to drain
