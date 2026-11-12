@@ -203,7 +203,7 @@ static void ecm_report(bool nc) {
     },
   };
 
-  const uint32_t link_bps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
+  const uint32_t link_bps = tud_network_link_bitrate();
   const ecm_notify_t ecm_notify_csc = {
     .header = {
       .bmRequestType = 0xA1,

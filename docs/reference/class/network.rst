@@ -43,9 +43,11 @@ Configuration options
      - Maximum Ethernet frame including its 14-byte Ethernet header.
    * - ``CFG_TUD_NET_LINK_BITRATE``
      - ``0`` (USB bus speed)
-     - Link speed in bit/s reported to the host, for both directions; only
-       NCM reports it so far.  Hosts use it to rank the interface (Windows
-       derives the route metric from it); it does not limit the transfer rate.
+     - Link speed in bit/s reported to the host, for both directions: NCM
+       sends it in its speed notification and RNDIS answers
+       ``OID_GEN_LINK_SPEED`` with it; ECM does not report a speed.  Hosts use
+       it to rank the interface (Windows derives the route metric from it); it
+       does not limit the transfer rate.
    * - ``CFG_TUD_NCM_OUT_NTB_MAX_SIZE``
      - ``3200`` bytes
      - Largest host-to-device NTB received.  At least 2048 bytes (see
