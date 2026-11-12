@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run a pre-commit hook's steps in order, stopping at the first failure, with no shell: Windows has no `sh`.
 
-    python3 tools/hook_steps.py 'python3 tools/family_json.py fix' '@test/unit-test ceedling test:all'
+    python tools/hook_steps.py 'python tools/family_json.py fix' '@test/unit-test ceedling test:all'
 
 Each argument is one step, split like a POSIX shell word list. A leading `@DIR` runs it in DIR, relative to the repo
 root. A step whose command is `python` or `python3` runs with this interpreter, so a `language: python` hook's steps

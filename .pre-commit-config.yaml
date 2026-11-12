@@ -40,28 +40,31 @@ repos:
 - repo: local
   hooks:
   # A multi-step or cd-ing entry goes through tools/hook_steps.py: Windows has no sh to run `sh -c`.
+  # A Python hook is language: python with a `python` entry, not language: system with
+  # `python3`: a python.org Windows install has no python3.exe, while pre-commit's venv
+  # supplies `python` on every OS. Non-Python commands (ceedling, cmake) still come from PATH.
   - id: unique-example-pids
     name: unique example USB PIDs
     files: usb_descriptors\.c$
-    entry: python3 tools/check_example_pids.py
+    entry: python tools/check_example_pids.py
     pass_filenames: false
-    language: system
+    language: python
 
   - id: gen-doc
     name: regenerate reference docs
     files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json|\.claude/skills/build-doc/scripts/gen_doc\.py)$
-    entry: python3 .claude/skills/build-doc/scripts/gen_doc.py
+    entry: python .claude/skills/build-doc/scripts/gen_doc.py
     pass_filenames: false
-    language: system
+    language: python
 
   - id: unit-test
     name: unit-test
     files: ^(src/|test/unit-test/)
-    entry: python3 tools/hook_steps.py
+    entry: python tools/hook_steps.py
     args: ['@test/unit-test ceedling test:all']
     pass_filenames: false
     types_or: [c, header]
-    language: system
+    language: python
 
   # Two hooks, split by what each suite RUNS, not by what it reads: discovery is
   # disjoint (test_hil*.py vs the two named suites) so nothing runs twice, but the
@@ -94,25 +97,32 @@ repos:
     additional_dependencies: [pyusb, pyserial]
   - id: family-json
     name: family-json
-    entry: python3 tools/hook_steps.py
-    args: ['python3 tools/family_json.py fix', 'python3 test/hil/test/test_family_json.py']
+    entry: python tools/hook_steps.py
+    args: ['python tools/family_json.py fix', 'python test/hil/test/test_family_json.py']
     always_run: true
     pass_filenames: false
-    language: system
+    language: python
   - id: change-impact-test
     name: change-impact-test
     files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(change_impact|build|build_utils|family_json|get_deps)\.py$|\.github/(scripts|workflows)/|\.circleci/)
-    entry: python3 tools/hook_steps.py
-    args: ['python3 test/hil/test/test_change_impact.py', 'python3 test/hil/test/test_ci_metrics.py',
-           '@test/hil/test python3 -m unittest -q test_hil_util.BottomLayer']
+    entry: python tools/hook_steps.py
+    args: ['python test/hil/test/test_change_impact.py', 'python test/hil/test/test_ci_metrics.py',
+           '@test/hil/test python -m unittest -q test_hil_util.BottomLayer']
     pass_filenames: false
-    language: system
+    language: python
+  # the runner of the multi-step hooks above: stop at the first failure, @DIR, python -> venv
+  - id: hook-steps-test
+    name: hook-steps-test
+    files: ^(tools/hook_steps\.py|test/hil/test/test_hook_steps\.py)$
+    entry: python test/hil/test/test_hook_steps.py
+    pass_filenames: false
+    language: python
   - id: setup-toolchain-test
     name: setup-toolchain-test
     files: ^(\.github/actions/setup_toolchain/|test/hil/test/test_setup_toolchain\.py$)
-    entry: python3 test/hil/test/test_setup_toolchain.py
+    entry: python test/hil/test/test_setup_toolchain.py
     pass_filenames: false
-    language: system
+    language: python
   # a second copy lets GHA and CircleCI build on different IDF versions after a bump
   - id: esp-idf-image-pin
     name: esp-idf image pinned only in toolchain.json
@@ -145,8 +155,8 @@ repos:
     name: membrowse-targets
     # build.py's toolchain-free target list vs a real configure: only the files that list reads
     files: ^(tools/(build|build_utils|membrowse_cli)\.py|hw/bsp/.*\.(cmake|mk)|examples/.*/(skip|only)\.txt|examples/.*CMakeLists\.txt|test/hil/test/test_membrowse_targets\.py)$
-    entry: python3 test/hil/test/test_membrowse_targets.py
-    language: system
+    entry: python test/hil/test/test_membrowse_targets.py
+    language: python
     pass_filenames: false
 
 #  - id: build-fuzzer

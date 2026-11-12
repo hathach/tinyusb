@@ -436,7 +436,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         cfg = d / 'cfg.json'
         cfg.write_text(json.dumps({'boards': cfg_boards or [{'name': b} for b in boards]}), encoding='utf-8')
         args = [a for b in boards for a in ('-b', b)]
-        r = subprocess.run(['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
+        r = subprocess.run([sys.executable, str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
                             str(cfg), *args, '--report-dir', str(d)],
                            capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -661,7 +661,7 @@ class SummaryFoldsReportToBoards(unittest.TestCase):
         cfg = d / 'cfg.json'
         cfg.write_text(json.dumps({'boards': [{'name': 'boardA'}]}), encoding='utf-8')
         r = subprocess.run(
-            ['python3', str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
+            [sys.executable, str(Path(TEST_DIR).parents[0] / 'helper' / 'hil_report.py'),
              str(cfg), '-b', 'boardA', '--report-dir', str(d)],
             capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)

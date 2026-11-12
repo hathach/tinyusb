@@ -499,6 +499,9 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def _run_block_in(self, d, block, sel, setup=None):
         import subprocess
+        # skip before setup(): its os.symlink needs a privilege Windows withholds by default
+        if _no_bash():
+            raise unittest.SkipTest(_no_bash())
         with open(os.path.join(d, 'selection.json'), 'w', encoding='utf-8', newline='\n') as fh:
             json.dump(sel, fh)
         out = os.path.join(d, 'gh_output')

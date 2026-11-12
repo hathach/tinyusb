@@ -30,7 +30,7 @@ exit 2
 
 class Manifest(unittest.TestCase):
     def setUp(self):
-        with open(os.path.join(ACTION, 'toolchain.json')) as f:
+        with open(os.path.join(ACTION, 'toolchain.json'), encoding='utf-8') as f:
             self.manifest = json.load(f)
 
     def test_every_archive_entry_pins_an_https_url_and_sha256(self):
@@ -63,12 +63,12 @@ class Fetch(unittest.TestCase):
 
     def _write_exe(self, name, text):
         path = os.path.join(self.bin, name)
-        with open(path, 'w', newline='\n') as f:   # a CRLF shebang line does not run
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:   # a CRLF shebang line does not run
             f.write(text)
         os.chmod(path, 0o755)
 
     def _manifest(self, **entries):
-        with open(os.path.join(self.tmp, 'toolchain.json'), 'w') as f:
+        with open(os.path.join(self.tmp, 'toolchain.json'), 'w', encoding='utf-8') as f:
             json.dump(entries, f)
 
     def fetch(self, name='tc', path=None, **env):
@@ -87,9 +87,9 @@ class Fetch(unittest.TestCase):
         self._manifest(tc={'url': 'https://example.invalid/tc.tar.xz', 'sha256': DIGEST})
         r = self.fetch()
         self.assertEqual(r.returncode, 0, r.stderr)
-        with open(self.out) as f:
+        with open(self.out, encoding='utf-8') as f:
             self.assertEqual(f.read(), PAYLOAD)
-        with open(self.curl_log) as f:
+        with open(self.curl_log, encoding='utf-8') as f:
             self.assertIn('https://example.invalid/tc.tar.xz', f.read())
 
     def test_mismatched_digest_fails(self):
@@ -128,12 +128,12 @@ class Fetch(unittest.TestCase):
         self._manifest(tc={'url': 'https://example.invalid/tc.tar.xz', 'sha256': DIGEST})
         r = self.fetch()
         self.assertEqual(r.returncode, 0, r.stderr)
-        with open(self.curl_log) as f:
+        with open(self.curl_log, encoding='utf-8') as f:
             self.assertIn('https://example.invalid/tc.tar.xz -o', f.read())
 
     def test_curl_restricts_to_https_including_redirects(self):
         # a behavioural check needs a TLS server; pin the flags that enforce it instead
-        with open(FETCH) as f:
+        with open(FETCH, encoding='utf-8') as f:
             script = f.read()
         self.assertIn("--proto '=https'", script)
         self.assertIn("--proto-redir '=https'", script)
