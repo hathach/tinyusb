@@ -12,6 +12,7 @@ import io
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -487,6 +488,52 @@ class FailedCleanup(LockDir):
         failure = self.assert_released()
         self.assertIn('receipt missing', failure['receipts'][0]['unrecheckable'])
         self.assertTrue(hil_lock.resolve_restored(BOARD, [failure], evidence='parked'))
+
+    def run_interrupted_verdict(self):
+        """run_failing_test's board under a real SIGINT raised as the verdict gathers its evidence,
+        before task.failed stores it: the pending receipts are still logged, then the interrupt raised."""
+        old = signal.signal(signal.SIGINT, signal.default_int_handler)
+        self.addCleanup(signal.signal, signal.SIGINT, old)
+        evidence, raised = hil_test.pending_evidence, []
+
+        def interrupted(name, pending):
+            if not raised:
+                raised.append(name)
+                signal.raise_signal(signal.SIGINT)
+            return evidence(name, pending)
+        patch(self, hil_test, 'pending_evidence', interrupted)
+
+        def failing_test(board):
+            hil_flash.cleanup_pending[BOARD] = (self.RECEIPT,)
+            raise RuntimeError('no enumeration')
+        patch(self, hil_test, 'test_device_cdc_msc', failing_test)
+        self.provider(self.op('done', rc=0))
+        with self.assertRaises(KeyboardInterrupt):
+            hil_test.test_board(self.board)
+        self.assertEqual(raised, [BOARD])
+        failure = self.assert_logged()
+        self.assertNotIn('without a cleanup verdict', failure['detail'])
+        self.assertIn('lock released', self.log[-1])
+
+    def test_an_interrupt_as_the_verdict_starts_still_logs_the_pending_receipts(self):
+        self.run_interrupted_verdict()
+
+    def test_an_interrupt_before_the_verdicts_hold_still_logs_the_pending_receipts(self):
+        process = hil_util.provider().hil_process
+        hold, verdict, calls = process.InterruptHold, hil_test._verdict, []
+
+        def late_hold():
+            calls.append(1)
+            if len(calls) == 1:
+                raise KeyboardInterrupt
+            return hold()
+
+        def verdict_with_late_hold(*args, **kwargs):     # the task's own holds stay real
+            with mock.patch.object(process, 'InterruptHold', late_hold):
+                return verdict(*args, **kwargs)
+        patch(self, hil_test, '_verdict', verdict_with_late_hold)
+        self.run_interrupted_verdict()
+        self.assertEqual(len(calls), 2)
 
     def test_no_later_session_starts_on_the_board(self):
         self.provider(self.op('pending'))

@@ -2119,6 +2119,29 @@ def test_board(board: Board) -> tuple:
 
 
 def _verdict(task, board: Board, parked: list, unrestored: str = '', exc: BaseException | None = None) -> None:
+    """_give_verdict under the provider's InterruptHold, so a SIGINT landing before the verdict is
+    stored is replayed after it, never leaving the task to end evidence-free. One landing before the
+    hold went in gave nothing yet: it is raised once the verdict has been given."""
+    interrupted = None
+    while True:
+        try:
+            hold = hil_util.provider().hil_process.InterruptHold()
+        except Exception:
+            hold = None     # no hold to be had: the verdict is still given, unprotected
+        except BaseException as e:
+            interrupted = interrupted or e
+            continue
+        break
+    try:
+        _give_verdict(task, board, parked, unrestored, exc)
+    finally:
+        if hold is not None:
+            hold.release()
+    if interrupted is not None:
+        raise interrupted
+
+
+def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseException | None) -> None:
     """The battery's cleanup verdict, its last act under the lock (the HIL contract's Reservation).
     A battery that raised `exc` is restored when its final park still succeeded (the run itself
     stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
