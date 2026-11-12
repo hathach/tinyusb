@@ -1281,6 +1281,38 @@ void test_msc_host_command_refused_while_another_runs(void) {
   assert_unfenced();
 }
 
+// #4481: between stages usbh has freed both endpoints, but the command is still running. A task preempting the usbh
+// task there is told the interface is not ready and its command is refused, at each stage.
+static bool ready_in_callback;
+
+static bool record_ready_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  ready_in_callback = tuh_msc_ready(daddr);
+  return record_complete(daddr, cb_data);
+}
+
+void test_msc_host_ready_false_while_command_runs(void) {
+  enumerate();
+  reset_counters();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  start_data_in_cb(record_ready_complete); // CBW sent, data stage queued
+  TEST_ASSERT_EQUAL(0, claimed_ep);
+  TEST_ASSERT_EQUAL(0, busy_ep);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512)); // status stage queued
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(3, xfer_count);
+
+  // ready again once completed, already in its own callback
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_TRUE(ready_in_callback);
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+}
+
 // the recovery is refused and frees the claim: the command completes, and a recovery may start after it
 void test_msc_host_command_preempts_reset_admission(void) {
   enumerate();
