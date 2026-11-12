@@ -298,6 +298,7 @@ class EngineFixture(unittest.TestCase):
         patch(self, hil_lock, 'BOARD_LOCK_DIR', str(self.d / 'locks'))
         patch(self, eng, 'RECHECK_WAIT', 0)
         patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': '0483:374b'}})
+        patch(self, hil_flash, 'probe_busy', lambda board: [])   # the engine's busy check: never this host's /proc
 
     def roster(self, board):
         self.cfg.write_text(json.dumps({'boards': [board]}))

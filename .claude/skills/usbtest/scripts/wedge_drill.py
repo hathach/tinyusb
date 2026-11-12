@@ -430,21 +430,15 @@ def probe_evidence(report) -> dict:
     return {'receipts': [{'unrecheckable': f'probe process {held} may still hold the probe'}]} if held else {}
 
 
-def finish_locked(task, board, rec_board, park_fw, report, given):
-    """Cleanup and parking under the lock, on every path out of the drill, ending on the task's
-    verdict: restored once parked (True), else failed with probe_evidence. `given` gets an entry
-    once a verdict call returned."""
-    def failed(**evidence):
-        task.failed(detail='; '.join(filter(None, (report['boardState'], report['error']))), **evidence)
-        given.append('failed')
-        return False
-
+def finish_locked(board, rec_board, park_fw, report) -> bool:
+    """Cleanup and parking under the lock, on every path out of the drill: whether the board was
+    parked, its state in report['boardState'] for drill_verdict."""
     note_probe_holder(report)   # whatever path got here, signals and a failed flash included
     if held := report['halt'].get('probeHeld'):
         report['boardState'] = f'unknown, not parked: probe process {held} may still hold the probe (usb-kernel-recover)'
-        return failed(**probe_evidence(report))
+        return False
     if report['boardState'] == 'flash failed':
-        return failed()
+        return False
     if report['drill'] == 'pass':
         safe = True
     elif report['halt'].get('issued'):
@@ -458,25 +452,32 @@ def finish_locked(task, board, rec_board, park_fw, report, given):
                 and not report['error'])
     if not safe:
         report['boardState'] = 'unknown, not parked: check it (usb-kernel-recover)'
-        return failed()
+        return False
     if report['error'].startswith('terminated'):
         report['boardState'] = 'not parked: terminated'   # whoever signalled wants the board
-        return failed()
+        return False
     err = run_case.flash(board, park_fw)
     report['boardState'] = f'park failed: {err}' if err else 'parked on board_test'
     if err:
         report['error'] = report['error'] or f'park failed: {err}'
-        return failed()
-    task.restored(evidence='wedge_drill.py: parked on board_test')
-    given.append('restored')
-    return True
+    return not err
 
 
-def drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report):
-    """The drill and its cleanup under the board's task: its exit code, 2 when a peer refused it
-    under the lock. An interrupted cleanup ends the task failed, with probe_evidence and the
-    interruption in its detail, then propagates."""
-    parked, given = False, []
+def drill_verdict(task, report, ledger):
+    """The drill's board task's verdict collector: clean when a peer refused it under the lock,
+    restored once parked, else failed with probe_evidence."""
+    if ledger.get('refused'):
+        task.clean()
+    elif ledger.get('parked'):
+        task.restored(evidence='wedge_drill.py: parked on board_test')
+    else:
+        task.failed(detail='; '.join(filter(None, (report['boardState'], report['error']))), **probe_evidence(report))
+
+
+def drill_locked(board, rec_board, halt_with, fw, park_fw, args, report, ledger):
+    """The drill and its cleanup under the board's task, recording in `ledger` what drill_verdict
+    decides on: its exit code, 2 when a peer refused it under the lock. An interrupted cleanup
+    propagates once a probe holder it left is noted."""
     with tempfile.TemporaryDirectory(prefix='wedge_drill-', ignore_cleanup_errors=True) as workdir:
         os.chdir(workdir)
         try:
@@ -484,29 +485,23 @@ def drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report):
                 run_case.check_peers()   # again: a peer may have started before the lock
             report['drill'] = drill(board, halt_with, fw, args.delay, args.timeout, report)
         except Refused as e:
-            report['error'] = str(e)
-            task.clean()
+            report['error'], ledger['refused'] = str(e), True
             return 2
         except (Terminated, KeyboardInterrupt):
             report['error'] = 'terminated (signal)'
         except Exception as e:
             report['error'] = f'{type(e).__name__}: {e}'
         try:
-            parked = finish_locked(task, board, rec_board, park_fw, report, given)
-        except (Terminated, KeyboardInterrupt) as e:
+            ledger['parked'] = finish_locked(board, rec_board, park_fw, report)
+        except (Terminated, KeyboardInterrupt):
             interrupted = 'terminated (signal) during cleanup'
             report['error'] = (f'{report["error"]}; {interrupted}'
                                if report['error'] and not report['error'].startswith('terminated')
                                else report['error'] or interrupted)
             report['boardState'] = 'unknown, not parked: cleanup interrupted'
-            if not given:
-                note_probe_holder(report)   # e.g. the cleanup reset's child, past its reap
-                try:
-                    task.failed(detail=f'{report["boardState"]}: {type(e).__name__}', **probe_evidence(report))
-                except RuntimeError:
-                    pass    # its verdict was stored as the interrupt landed: board_task merged them, failed
+            note_probe_holder(report)   # e.g. the cleanup reset's child, past its reap
             raise
-    return 0 if report['drill'] == 'pass' and parked else 1
+    return 0 if report['drill'] == 'pass' and ledger.get('parked') else 1
 
 
 def main():
@@ -546,14 +541,16 @@ def main():
         except Terminated:
             report['error'] = 'terminated before any hardware action'
             return finish(2)
+        ledger = {}
         task = hil_lock.board_task(hil_util.lock_name(board), 'wedge_drill.py',
-                                   busy=lambda: hil_flash.probe_busy(board))
+                                   busy=lambda: hil_flash.probe_busy(board),
+                                   verdict=lambda task, exc: drill_verdict(task, report, ledger))
         entered, code = False, None
         try:
             with task:
                 entered = True
                 run_case.found(task)
-                code = drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report)
+                code = drill_locked(board, rec_board, halt_with, fw, park_fw, args, report, ledger)
         except (Terminated, KeyboardInterrupt):
             if entered:
                 landed = 'terminated (signal) as the task ended'

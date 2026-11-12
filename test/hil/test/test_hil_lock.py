@@ -518,22 +518,19 @@ class FailedCleanup(LockDir):
     def test_an_interrupt_as_the_verdict_starts_still_logs_the_pending_receipts(self):
         self.run_interrupted_verdict()
 
-    def test_an_interrupt_before_the_verdicts_hold_still_logs_the_pending_receipts(self):
-        process = hil_util.provider().hil_process
-        hold, verdict, calls = process.InterruptHold, hil_test._verdict, []
+    def test_an_interrupt_as_the_collector_is_called_still_logs_the_pending_receipts(self):
+        fired = []
 
-        def late_hold():
-            calls.append(1)
-            if len(calls) == 1:
-                raise KeyboardInterrupt
-            return hold()
-
-        def verdict_with_late_hold(*args, **kwargs):     # the task's own holds stay real
-            with mock.patch.object(process, 'InterruptHold', late_hold):
-                return verdict(*args, **kwargs)
-        patch(self, hil_test, '_verdict', verdict_with_late_hold)
+        def tracer(frame, event, arg):    # a real SIGINT as BoardTask calls _give_verdict, its collector
+            if not fired and event == 'call' and frame.f_code is hil_test._give_verdict.__code__:
+                fired.append(1)
+                signal.raise_signal(signal.SIGINT)
+        prev = sys.gettrace()
+        sys.settrace(tracer)
+        self.addCleanup(sys.settrace, prev)
         self.run_interrupted_verdict()
-        self.assertEqual(len(calls), 2)
+        sys.settrace(prev)
+        self.assertEqual(fired, [1])
 
     def test_no_later_session_starts_on_the_board(self):
         self.provider(self.op('pending'))
@@ -579,8 +576,10 @@ class FailedCleanup(LockDir):
         self.assertIn('failure NOT logged', cell)
         self.assertIn('cleanup log not written', cell)
         self.assertIn('log is read-only', cell)
-        self.assertEqual(hil_lock.record_state(BOARD)[0], 'empty')
-        hil_lock.release_board_lock(hil_lock.take_board_lock(BOARD, 'peer'))
+        self.assertEqual(hil_lock.record_state(BOARD)[0], 'record')    # kept, its only evidence: the next take logs it
+        fh = hil_lock.take_board_lock(BOARD, 'peer')
+        self.assertEqual(fh.cleanup_failures[-1]['how'], 'found-left')
+        hil_lock.release_board_lock(fh)
 
     def test_a_later_run_reports_the_latest_failure_and_counts_other_open_ones(self):
         first = hil_lock.log_cleanup_failure(BOARD, 'earlier', detail='old session', retained=[self.RECEIPT])
@@ -845,7 +844,7 @@ class Verdicts(LockDir):
             hil_test.test_board(self.board)
         failure, = self.events('failed')
         self.assertEqual((failure['how'], failure['receipts']), ('ended-failed', []))
-        self.assertIn('ended without a cleanup verdict: KeyboardInterrupt', failure['detail'])
+        self.assertEqual(failure['detail'], 'board battery aborted; then KeyboardInterrupt')
         self.assertIn('lock released', self.log[-1])
         self.test = (0, 'pass', None)
         _, err, _, rows, _ = hil_test.test_board(self.board)

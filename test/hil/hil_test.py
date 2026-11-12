@@ -2073,20 +2073,16 @@ def test_board(board: Board) -> tuple:
     board_wedged = ''
     board_pci = None
     # protected for every flasher: a worker killed mid-task leaves its record for the next take to log
-    task = hil_lock.board_task(lock, hil_lock.CI_REASON, busy=lambda: hil_flash.probe_busy(board),
-                               allow_bypass=True)
+    parked, unrestored = [], {}   # the verdict's ledger: the final park's success, why the board is not restored
+    task = hil_lock.board_task(lock, hil_lock.CI_REASON, busy=lambda: hil_flash.probe_busy(board), allow_bypass=True,
+                               verdict=lambda task, exc: _give_verdict(task, board, parked, unrestored.get('why', ''),
+                                                                       exc))
     entered = False
     try:
         with task:
             entered = True
             previous_cleanup = previous_cleanup_text(name, task.cleanup_failures)
-            parked = []   # the final park's success, kept for a battery that raises after it
-            try:
-                err_count, failed_tests, board_wide_fail, rows, unrestored = _board_battery(board, parked)
-            except BaseException as e:
-                _verdict(task, board, parked, exc=e)
-                raise
-            _verdict(task, board, parked, unrestored)
+            err_count, failed_tests, board_wide_fail, rows, unrestored['why'] = _board_battery(board, parked)
     except BaseException as e:
         if not entered and isinstance(e, Exception):
             return admission_refused(name, task, e)
@@ -2110,43 +2106,20 @@ def test_board(board: Board) -> tuple:
                      None))
         err_count += 1
         board_wide_fail = True
-    elif unrestored:
-        log_line(f'{name:25} board not restored ({unrestored}): failed cleanup logged; {ending}')
+    elif unrestored['why']:
+        log_line(f'{name:25} board not restored ({unrestored["why"]}): failed cleanup logged; {ending}')
     if previous_cleanup and rows:
         rows[0][1][hil_report.PREVIOUS_CLEANUP_CELL] = previous_cleanup
     return (name, err_count, [] if board_wide_fail else sorted(set(failed_tests)),
             rows, board_pci)
 
 
-def _verdict(task, board: Board, parked: list, unrestored: str = '', exc: BaseException | None = None) -> None:
-    """_give_verdict under the provider's InterruptHold, so a SIGINT landing before the verdict is
-    stored is replayed after it, never leaving the task to end evidence-free. One landing before the
-    hold went in gave nothing yet: it is raised once the verdict has been given."""
-    interrupted = None
-    while True:
-        try:
-            hold = hil_util.provider().hil_process.InterruptHold()
-        except Exception:
-            hold = None     # no hold to be had: the verdict is still given, unprotected
-        except BaseException as e:
-            interrupted = interrupted or e
-            continue
-        break
-    try:
-        _give_verdict(task, board, parked, unrestored, exc)
-    finally:
-        if hold is not None:
-            hold.release()
-    if interrupted is not None:
-        raise interrupted
-
-
 def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseException | None) -> None:
-    """The battery's cleanup verdict, its last act under the lock (the HIL contract's Reservation).
+    """The battery's cleanup verdict, the board task's collector (the HIL contract's Reservation).
     A battery that raised `exc` is restored when its final park still succeeded (the run itself
     stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
     may have landed after the provider returned a pending session but before hil_flash stored its
-    receipt, and otherwise given none, so the task ends failed naming `exc`."""
+    receipt, and otherwise failed, the task naming `exc` after its detail."""
     name = board['name']
     if pending := cleanup_pending(name):
         task.failed(detail=pending, **pending_evidence(name, pending))
@@ -2156,6 +2129,8 @@ def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseEx
         elif board['flasher']['name'].lower() == 'openocd_esp' and not isinstance(exc, Exception):
             missing = 'openocd_esp interrupted; cleanup unproven, receipt missing'
             task.failed(detail=missing, receipts=[{'unrecheckable': missing}])
+        else:
+            task.failed(detail='board battery aborted')    # board_task names `exc` after it
     elif unrestored:
         task.failed(detail=f'board not restored: {unrestored}')
     elif skip_flash:

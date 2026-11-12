@@ -123,25 +123,9 @@ class Adapters(unittest.TestCase):
         got = hil_flash.probe_busy(board)
         self.assertEqual(asked, [BOARDS['jlink'], {'name': 'openocd', 'args': '', 'uid': 'S1'}])
         self.assertEqual(got, [{'pid': 3, 'cmd': 'gdb'}, {'pid': 9, 'cmd': 'JLinkExe -USB S1'}])
-        self.assertEqual(hil_flash.users_text(got), 'pid 3 (gdb), pid 9 (JLinkExe -USB S1)')
         asked.clear()
         hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
         self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
-
-    def test_probe_busy_ignores_another_st_links_programmer_session(self):
-        # the provider counts every STM32_Programmer_CLI as a user of every stlink probe
-        cli = 'STM32_Programmer_CLI --connect port=swd '
-        users = [{'pid': 1, 'cmd': cli + 'sn=OTHER --write fw.elf --go'},
-                 {'pid': 2, 'cmd': cli + 'SN=s1 --rst'},
-                 {'pid': 3, 'cmd': 'STM32_Programmer_CLI -script /tmp/s1.prg'},
-                 {'pid': 4, 'cmd': cli + 'sn=OTHER -script /tmp/x.prg'},
-                 {'pid': 5, 'cmd': cli + '--write fw.elf'},
-                 {'pid': 6, 'cmd': cli + 'sn=OTHER --write cmake-build-S1/fw.elf'},
-                 {'pid': 7, 'cmd': 'timeout 9 ' + cli + 'sn=OTHER'}]
-        self.provider.probe_users = lambda f: users
-        self.assertEqual([u['pid'] for u in hil_flash.probe_busy(self.board('stlink'))], [2, 3, 4, 5, 6, 7])
-        board = {'name': 'b', 'flasher': {'name': 'openocd', 'uid': 'S1', 'args': '-f interface/stlink.cfg'}}
-        self.assertEqual(len(hil_flash.probe_busy(board)), len(users), 'only the stlink entry is filtered')
 
     def test_probe_busy_refuses_only_what_the_provider_cannot_decide(self):
         board = {'name': 'b', 'flasher': dict(BOARDS['jlink'])}

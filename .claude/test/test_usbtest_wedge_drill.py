@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -353,43 +354,50 @@ class InterruptedCleanup(unittest.TestCase):
         rig.reset_raises = run_case.Terminated()
         rig.run('--board', 'ok', '--delay', '0')
         failed, = rig.lock.events('failed')
-        self.assertIn('unknown, not parked: cleanup interrupted: Terminated', failed['detail'])
+        self.assertIn('unknown, not parked: cleanup interrupted; ', failed['detail'])
+        self.assertTrue(failed['detail'].endswith('; then Terminated'), failed['detail'])
         self.assertEqual(failed['receipts'], [])
 
-    def test_a_known_probe_holder_survives_an_interrupted_verdict(self):
+    def signal_at_the_verdict(self):
+        """A real SIGTERM, once, as BoardTask calls drill_verdict, its collector: deferred by the
+        task's hold, replayed once the task ended."""
+        fired = []
+
+        def tracer(frame, event, arg):
+            if not fired and event == 'call' and frame.f_code is wedge_drill.drill_verdict.__code__:
+                fired.append(1)
+                signal.raise_signal(signal.SIGTERM)
+        prev = sys.gettrace()
+        sys.settrace(tracer)
+        self.addCleanup(sys.settrace, prev)
+        return fired
+
+    def test_a_known_probe_holder_survives_a_signal_as_the_verdict_is_given(self):
         rig = Rig(self)
         rig.halt_raises = wedge_drill.ProbeHeld(777)
-        real, calls = run_case.hil_lock.BoardTask.failed, []
-
-        def failed(task, **kw):     # the interrupt lands as finish_locked gives its verdict
-            calls.append(kw)
-            if len(calls) == 1:
-                raise run_case.Terminated()
-            return real(task, **kw)
-        with mock.patch.object(run_case.hil_lock.BoardTask, 'failed', failed), \
-                mock.patch.object(run_case, 'kill_children'):
+        fired = self.signal_at_the_verdict()
+        with mock.patch.object(run_case, 'kill_children'):
             rc, r = rig.run('--board', 'wch', '--delay', '0')
-        self.assertEqual((rc, r['boardState']), (1, 'unknown, not parked: cleanup interrupted'))
+        sys.settrace(None)
+        self.assertEqual((fired, rc), ([1], 1))
+        self.assertIn('probe process 777 may still hold the probe', r['boardState'])
+        self.assertIn('terminated (signal) as the task ended', r['error'])
         event, = rig.lock.events('failed')
-        self.assertIn('cleanup interrupted: Terminated', event['detail'])
         self.assertEqual(event['receipts'], [{'unrecheckable': 'probe process 777 may still hold the probe'}])
         self.assertTrue(run_case.hil_lock.resolve_restored('wch', [event], evidence='parked'))   # stays open
 
-    def test_a_signal_in_the_verdict_after_a_failed_flash_keeps_both_errors(self):
+    def test_a_signal_as_the_verdict_is_given_after_a_failed_flash_keeps_both_errors(self):
         rig = Rig(self)
         rig.flash_errors['/fw/device/usbtest'] = 'flash timed out'
-        real, calls = run_case.hil_lock.BoardTask.failed, []
-
-        def failed(task, **kw):     # the interrupt lands as finish_locked gives its verdict
-            calls.append(kw)
-            if len(calls) == 1:
-                raise run_case.Terminated()
-            return real(task, **kw)
-        with mock.patch.object(run_case.hil_lock.BoardTask, 'failed', failed):
+        fired = self.signal_at_the_verdict()
+        with mock.patch.object(run_case, 'kill_children'):
             rc, r = rig.run('--board', 'ok', '--delay', '0')
-        self.assertEqual(rc, 1)
+        sys.settrace(None)
+        self.assertEqual((fired, rc), ([1], 1))
         self.assertIn('flash timed out', r['error'])
-        self.assertEqual(r['error'].count('terminated (signal) during cleanup'), 1, r['error'])
+        self.assertEqual(r['error'].count('terminated (signal) as the task ended'), 1, r['error'])
+        event, = rig.lock.events('failed')
+        self.assertIn('flash failed', event['detail'])
 
     def test_a_signal_during_parking(self):
         rig = Rig(self)
