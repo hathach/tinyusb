@@ -87,7 +87,9 @@ extern "C" {
  *
  * Overwritable mode and concurrency: an overwriting write() only holds the write mutex, and it may overwrite items
  * that a concurrent read()/peek() (holding the read mutex or running in another context e.g. ISR) is copying out.
- * The indices stay consistent but the data read in that case can be torn i.e a mix of old and new items.
+ * The data read in that case can be torn i.e a mix of old and new items. The write index is also derived from a
+ * snapshot of the read index, so if read()/peek() re-positions the read index meanwhile, the item count can end up
+ * wrong and some items may be skipped or replayed. A write that does not overflow is not affected.
  * Use overwritable mode only when losing/tearing the oldest data on overflow is acceptable.
  */
 typedef struct {

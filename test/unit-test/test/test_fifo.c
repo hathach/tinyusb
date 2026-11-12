@@ -186,9 +186,9 @@ void test_write_overwritable_mixed(void) {
       stream[total + i] = (uint8_t)(seed >> (i % 16)) ^ (uint8_t)i;
     }
     if (n == 1) {
-      tu_fifo_write(ff, &stream[total]);
+      TEST_ASSERT_TRUE(tu_fifo_write(ff, &stream[total]));
     } else {
-      tu_fifo_write_n(ff, &stream[total], n);
+      TEST_ASSERT_EQUAL(n, tu_fifo_write_n(ff, &stream[total], n));
     }
     total += n;
 
