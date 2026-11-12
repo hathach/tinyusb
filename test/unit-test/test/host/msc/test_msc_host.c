@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <string.h>
+
 #include "unity.h"
 #include "tusb_option.h"
 #include "host/usbh.h"
@@ -33,12 +35,14 @@ static msc_csw_t complete_csw;
 static bool     retry_submitted;
 static uint8_t  enum_buf[64];
 static uint8_t  data[98304];
-static uint8_t  edpt_open_count;
+
+static uint8_t opened_ep[4];
+static uint8_t opened_count;
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
-  (void) desc_ep;
-  edpt_open_count++;
+  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(opened_ep), opened_count);
+  opened_ep[opened_count++] = desc_ep->bEndpointAddress;
   return true;
 }
 
@@ -145,6 +149,48 @@ static bool record_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_dat
   return true;
 }
 
+static uint8_t desc_buf[64];
+
+// interface + two endpoint descriptors with the given bLength each, packed back to back; padding bytes are 0xA5
+static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint8_t ep1_addr, uint8_t ep2_len,
+                          uint8_t ep2_addr) {
+  memset(desc_buf, 0xA5, sizeof(desc_buf));
+  const tusb_desc_interface_t itf = {itf_len, TUSB_DESC_INTERFACE, ITF_NUM, 0, num_ep, TUSB_CLASS_MSC,
+                                     MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0};
+  const tusb_desc_endpoint_t ep1 = {ep1_len, TUSB_DESC_ENDPOINT, ep1_addr, {.xfer = TUSB_XFER_BULK}, 512, 0};
+  const tusb_desc_endpoint_t ep2 = {ep2_len, TUSB_DESC_ENDPOINT, ep2_addr, {.xfer = TUSB_XFER_BULK}, 512, 0};
+  // each descriptor writes its standard fields, the next one starts at its bLength
+  memcpy(desc_buf, &itf, sizeof(itf));
+  uint16_t len = itf_len;
+  memcpy(desc_buf + len, &ep1, sizeof(ep1));
+  len += ep1_len;
+  memcpy(desc_buf + len, &ep2, sizeof(ep2));
+  return (uint16_t) (len + ep2_len);
+}
+
+// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order
+static void open_expect_at(uint8_t daddr, uint16_t max_len, uint16_t expected) {
+  opened_count = 0;
+  TEST_ASSERT_EQUAL(expected, msch_open(0, daddr, (const tusb_desc_interface_t *) desc_buf, max_len));
+  if (expected == 0) {
+    TEST_ASSERT_EQUAL(0, opened_count);
+  } else {
+    const tusb_desc_endpoint_t *ep1 = (const tusb_desc_endpoint_t *) tu_desc_next(desc_buf);
+    const tusb_desc_endpoint_t *ep2 = (const tusb_desc_endpoint_t *) tu_desc_next(ep1);
+    TEST_ASSERT_EQUAL(2, opened_count);
+    TEST_ASSERT_EQUAL_HEX8(ep1->bEndpointAddress, opened_ep[0]);
+    TEST_ASSERT_EQUAL_HEX8(ep2->bEndpointAddress, opened_ep[1]);
+  }
+}
+
+static void open_expect(uint16_t max_len, uint16_t expected) {
+  open_expect_at(DADDR, max_len, expected);
+}
+
+static void check_open(uint8_t itf_len, uint8_t num_ep, uint8_t out_len, uint8_t in_len, uint16_t expected) {
+  open_expect(build_bot(itf_len, num_ep, out_len, EP_OUT, in_len, EP_IN), expected);
+}
+
 // like the enumeration and msc_file_explorer, issue the next command straight from the callback
 static bool retry_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
   (void) record_complete(daddr, cb_data);
@@ -162,18 +208,7 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
 }
 
 static void open_bot_interface(void) {
-  struct TU_ATTR_PACKED {
-    tusb_desc_interface_t itf;
-    tusb_desc_endpoint_t  ep_out;
-    tusb_desc_endpoint_t  ep_in;
-  } const desc = {
-    .itf    = {sizeof(tusb_desc_interface_t), TUSB_DESC_INTERFACE, ITF_NUM, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI,
-               MSC_PROTOCOL_BOT, 0},
-    .ep_out = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
-    .ep_in  = {sizeof(tusb_desc_endpoint_t), TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
-  };
-
-  TEST_ASSERT_EQUAL(sizeof(desc), msch_open(0, DADDR, &desc.itf, sizeof(desc)));
+  check_open(9, 2, 7, 7, 9 + 2 * 7);
 }
 
 // usbh resumes enumeration from the interface it is told completed
@@ -255,26 +290,20 @@ void setUp(void) {
 
 void tearDown(void) {}
 
-static void check_open_at(uint8_t daddr, uint8_t itf_len, uint8_t num_ep, uint8_t out_len, uint8_t in_len,
-                          uint16_t expected) {
-  struct TU_ATTR_PACKED {
-    tusb_desc_interface_t itf;
-    tusb_desc_endpoint_t  ep_out;
-    tusb_desc_endpoint_t  ep_in;
-  } const desc = {
-    .itf    = {itf_len, TUSB_DESC_INTERFACE, 0, 0, num_ep, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0},
-    .ep_out = {out_len, TUSB_DESC_ENDPOINT, EP_OUT, {.xfer = TUSB_XFER_BULK}, 512, 0},
-    .ep_in  = {in_len, TUSB_DESC_ENDPOINT, EP_IN, {.xfer = TUSB_XFER_BULK}, 512, 0},
-  };
-  TEST_ASSERT_EQUAL(expected, msch_open(0, daddr, &desc.itf, sizeof(desc)));
-}
-
-static void check_open(uint8_t itf_len, uint8_t num_ep, uint8_t out_len, uint8_t in_len, uint16_t expected) {
-  check_open_at(DADDR, itf_len, num_ep, out_len, in_len, expected);
-}
-
 void test_msc_host_open_valid(void) {
   check_open(9, 2, 7, 7, 9 + 2 * 7);
+}
+
+// USB 2.0 9.5: a longer descriptor is valid, its extra bytes are ignored and the next descriptor follows its bLength
+void test_msc_host_open_accepts_longer_descriptors(void) {
+  check_open(12, 2, 7, 7, 12 + 2 * 7);
+  check_open(9, 2, 9, 9, 9 + 2 * 9);
+}
+
+// check_open lists OUT first; an IN-first interface opens IN first
+void test_msc_host_open_in_first(void) {
+  open_expect(build_bot(9, 2, 7, EP_IN, 7, EP_OUT), 9 + 2 * 7);
+  open_expect(build_bot(12, 2, 9, EP_IN, 9, EP_OUT), 12 + 2 * 9);
 }
 
 void test_msc_host_open_rejects_bad_num_endpoints(void) {
@@ -282,22 +311,42 @@ void test_msc_host_open_rejects_bad_num_endpoints(void) {
   check_open(9, 3, 7, 7, 0);
 }
 
-void test_msc_host_open_rejects_bad_interface_length(void) {
-  check_open(23, 2, 7, 7, 0);
+void test_msc_host_open_rejects_short_interface(void) {
   check_open(8, 2, 7, 7, 0);
 }
 
-void test_msc_host_open_rejects_bad_endpoint_length(void) {
+void test_msc_host_open_rejects_short_endpoint(void) {
   check_open(9, 2, 6, 7, 0);
-  check_open(9, 2, 7, 8, 0);
-  check_open(9, 2, 0, 7, 0);
+  check_open(9, 2, 7, 6, 0);
+  check_open(9, 2, 7, 3, 0); // last in the span: fits by its bLength, fields read past it
+
+  // zero bLength: tu_desc_next() would not advance
+  build_bot(9, 2, 7, EP_OUT, 7, EP_IN);
+  desc_buf[9] = 0;
+  open_expect(23, 0);
+}
+
+void test_msc_host_open_rejects_descriptor_past_end(void) {
+  // interface claims the whole span, the endpoints start at its end
+  build_bot(23, 2, 7, EP_OUT, 7, EP_IN);
+  open_expect(23, 0);
+
+  // second endpoint's bLength runs one byte past the end
+  build_bot(9, 2, 7, EP_OUT, 8, EP_IN);
+  open_expect(23, 0);
+
+  // interface itself longer than the span
+  build_bot(9, 2, 7, EP_OUT, 7, EP_IN);
+  open_expect(8, 0);
+}
+
+void test_msc_host_open_rejects_same_direction(void) {
+  open_expect(build_bot(9, 2, 7, EP_OUT, 7, 0x02), 0);
 }
 
 // usbh addresses a hub-class device above CFG_TUH_DEVICE_MAX and still offers its interfaces to every driver
 void test_msc_host_open_rejects_hub_address(void) {
-  edpt_open_count = 0;
-  check_open_at(CFG_TUH_DEVICE_MAX + 1, 9, 2, 7, 7, 0);
-  TEST_ASSERT_EQUAL(0, edpt_open_count);
+  open_expect_at(CFG_TUH_DEVICE_MAX + 1, build_bot(9, 2, 7, EP_OUT, 7, EP_IN), 0);
 }
 
 static void start_data_in_cb(tuh_msc_complete_cb_t complete_cb) {

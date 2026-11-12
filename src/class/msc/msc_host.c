@@ -536,42 +536,44 @@ static void config_abort(uint8_t daddr) {
 uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX, 0); // per-device arrays have no slot for hub addresses
+  const uint8_t *desc_end = (const uint8_t *) desc_itf + max_len;
+
+  TU_VERIFY(tu_desc_in_bounds((const uint8_t *) desc_itf, desc_end) &&
+              tu_desc_len(desc_itf) >= sizeof(tusb_desc_interface_t), 0);
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
+  TU_VERIFY(2 == desc_itf->bNumEndpoints, 0);
 
-  // msc driver length is fixed: bulk-in and bulk-out endpoints
-  TU_VERIFY(TUH_VALIDATE_BASIC(sizeof(tusb_desc_interface_t) == desc_itf->bLength), 0);
-  TU_VERIFY(TUH_VALIDATE_BASIC(2 == desc_itf->bNumEndpoints), 0);
-  const uint16_t drv_len = (uint16_t)(sizeof(tusb_desc_interface_t) + 2 * sizeof(tusb_desc_endpoint_t));
-  TU_ASSERT(drv_len <= max_len, 0);
-
-  msch_interface_t           *p_msc   = get_itf(dev_addr);
-  const tusb_desc_endpoint_t *ep_desc = (const tusb_desc_endpoint_t *)tu_desc_next(desc_itf);
-
-  // validate both endpoints before opening either
-  const tusb_desc_endpoint_t *ep = ep_desc;
+  // one bulk IN and one bulk OUT, validated before either is opened. A descriptor longer than defined is valid and
+  // its extra bytes are skipped (USB 2.0 9.5), so walk by bLength within max_len.
+  const tusb_desc_endpoint_t *ep_in  = NULL;
+  const tusb_desc_endpoint_t *ep_out = NULL;
+  const uint8_t              *p_desc = tu_desc_next(desc_itf);
   for (uint32_t i = 0; i < 2; i++) {
-    // pin bLength so tu_desc_next() cannot move the second endpoint outside the checked window
-    TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == ep->bLength), 0);
+    TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
+    const tusb_desc_endpoint_t *ep = (const tusb_desc_endpoint_t *) p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep->bDescriptorType && TUSB_XFER_BULK == ep->bmAttributes.xfer, 0);
-    ep = (const tusb_desc_endpoint_t *)tu_desc_next(ep);
-  }
-
-  for (uint32_t i = 0; i < 2; i++) {
-    TU_ASSERT(tuh_edpt_open(dev_addr, ep_desc), 0);
-
-    if (TUSB_DIR_IN == tu_edpt_dir(ep_desc->bEndpointAddress)) {
-      p_msc->ep_in = ep_desc->bEndpointAddress;
+    if (TUSB_DIR_IN == tu_edpt_dir(ep->bEndpointAddress)) {
+      ep_in = ep;
     } else {
-      p_msc->ep_out = ep_desc->bEndpointAddress;
+      ep_out = ep;
     }
-
-    ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    p_desc = tu_desc_next(p_desc);
   }
+  TU_ASSERT(ep_in != NULL && ep_out != NULL, 0);
 
-  p_msc->itf_num = desc_itf->bInterfaceNumber;
+  // open in descriptor order: OUT-first devices opened IN first stalled their first READ10 on the
+  // espressif_s3_devkitm DWC2 DMA host (#4511)
+  const tusb_desc_endpoint_t *ep_first = (const tusb_desc_endpoint_t *) tu_desc_next(desc_itf);
+  TU_ASSERT(tuh_edpt_open(dev_addr, ep_first), 0);
+  TU_ASSERT(tuh_edpt_open(dev_addr, (ep_first == ep_in) ? ep_out : ep_in), 0);
+
+  msch_interface_t *p_msc = get_itf(dev_addr);
+  p_msc->ep_in            = ep_in->bEndpointAddress;
+  p_msc->ep_out           = ep_out->bEndpointAddress;
+  p_msc->itf_num          = desc_itf->bInterfaceNumber;
   _msch_tagid[dev_addr - 1]++;
 
-  return drv_len;
+  return (uint16_t) (p_desc - (const uint8_t *) desc_itf);
 }
 
 bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
