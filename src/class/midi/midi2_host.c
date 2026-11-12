@@ -50,6 +50,12 @@ typedef struct {
   uint8_t*  ep_buf;
 } midih2_tx_t;
 
+// A setting 1 endpoint that setting 0 does not provide as is
+typedef struct {
+  tusb_desc_endpoint_t desc; // bEndpointAddress 0: setting 0's endpoint is used
+  bool reopen;               // same address as setting 0's endpoint: close that one first
+} midih2_alt1_ep_t;
+
 typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber;
@@ -62,6 +68,8 @@ typedef struct {
   uint8_t tx_cable_count_alt0;
   uint8_t rx_cable_count_alt1;
   uint8_t tx_cable_count_alt1;
+
+  midih2_alt1_ep_t alt1_ep[2]; // indexed by tusb_dir_t
 
   bool mounted;
 
@@ -264,6 +272,78 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
   return p_desc;
 }
 
+// Record a setting 1 endpoint (USB-MIDI 2.0 5.3: Bulk or Interrupt). One at setting 0's address
+// with setting 0's bulk size reuses that endpoint. One at another address is opened now. One at
+// the same address that differs is reopened once the device has switched (midih2_alt1_open_ep).
+static bool midih2_parse_alt1_endpoint(midih2_interface_t *p_midi, const tusb_desc_endpoint_t *p_ep) {
+  const uint8_t          ep_addr = p_ep->bEndpointAddress;
+  const tusb_dir_t       dir     = tu_edpt_dir(ep_addr);
+  const tusb_xfer_type_t type    = (tusb_xfer_type_t) p_ep->bmAttributes.xfer;
+  midih2_alt1_ep_t      *alt1_ep = &p_midi->alt1_ep[dir];
+
+  TU_VERIFY(type == TUSB_XFER_BULK || type == TUSB_XFER_INTERRUPT);
+  if (alt1_ep->desc.bEndpointAddress != 0) {
+    return true; // one endpoint per direction, ignore any other
+  }
+
+  const bool     in       = (dir == TUSB_DIR_IN);
+  const uint8_t  alt0_ep  = in ? p_midi->ep_stream.rx.ep_addr : p_midi->ep_stream.tx.ep_addr;
+  const uint16_t alt0_mps = in ? p_midi->ep_stream.rx.mps : p_midi->ep_stream.tx.mps;
+
+  if (ep_addr == alt0_ep) {
+    if (type == TUSB_XFER_BULK && tu_edpt_packet_size(p_ep) == alt0_mps) {
+      return true; // shared with setting 0
+    }
+    // a bulk size is bounded after the reopen, which can rewrite it
+    TU_VERIFY(type == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
+    alt1_ep->reopen = true;
+  } else {
+    TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep));
+    // after tuh_edpt_open(), which can rewrite a bulk size: the transfer length follows it into _midi2_epbuf
+    TU_VERIFY(tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
+    alt1_ep->reopen = false;
+  }
+
+  alt1_ep->desc = *p_ep;
+  return true;
+}
+
+// Point the streams at setting 1's own endpoints once the device has switched to it. Nothing is
+// armed yet: RX starts on mount.
+static void midih2_alt1_open_ep(midih2_interface_t *p_midi) {
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    midih2_alt1_ep_t     *alt1_ep = &p_midi->alt1_ep[dir];
+    tusb_desc_endpoint_t *desc    = &alt1_ep->desc;
+    const uint8_t         ep_addr = desc->bEndpointAddress;
+    if (ep_addr == 0) {
+      continue;
+    }
+
+    bool usable = true;
+    if (alt1_ep->reopen) {
+      if (!tuh_edpt_close(p_midi->daddr, ep_addr)) {
+        // HCD without endpoint close: keep setting 0's endpoint
+        TU_LOG_DRV("  MIDI2 cannot reopen EP %02X for alt 1\r\n", ep_addr);
+        continue;
+      }
+      usable = tuh_edpt_open(p_midi->daddr, desc) && (tu_edpt_packet_size(desc) <= TUH_EPSIZE_BULK_MAX);
+    }
+
+    const uint16_t mps = tu_edpt_packet_size(desc);
+    if (dir == TUSB_DIR_IN) {
+      tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, desc, mps);
+      tu_edpt_stream_clear(&p_midi->ep_stream.rx);
+      if (!usable) {
+        tu_edpt_stream_close(&p_midi->ep_stream.rx);
+      }
+    } else {
+      p_midi->ep_stream.tx.ep_addr = usable ? ep_addr : 0;
+      p_midi->ep_stream.tx.mps     = mps;
+      tu_fifo_clear(&p_midi->ep_stream.tx.ff);
+    }
+  }
+}
+
 // Parse Alt Setting 1 (MIDI 2.0 UMP) descriptors. Returns pointer past last consumed descriptor.
 static const uint8_t* midih2_parse_descriptors_alt1(midih2_interface_t *p_midi,
     const tusb_desc_interface_t *desc_itf, const uint8_t *desc_end) {
@@ -297,6 +377,9 @@ static const uint8_t* midih2_parse_descriptors_alt1(midih2_interface_t *p_midi,
 
       case TUSB_DESC_ENDPOINT: {
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
+        TU_VERIFY(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t) &&
+                  p_desc + sizeof(tusb_desc_endpoint_t) <= desc_end, NULL);
+        TU_VERIFY(midih2_parse_alt1_endpoint(p_midi, p_ep), NULL);
         p_desc = tu_desc_next(p_desc);
 
         if (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_CS_ENDPOINT) {
@@ -428,6 +511,15 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     midih2_interface_t *p_midi = &_midi2_host[idx];
 
     p_end = midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
+    if (p_end == NULL) {
+      // stay on Alt Setting 0
+      p_midi->protocol_version = 0;
+      p_midi->bcdMSC_hi = 0;
+      p_midi->bcdMSC_lo = 0;
+      p_midi->rx_cable_count_alt1 = 0;
+      p_midi->tx_cable_count_alt1 = 0;
+      tu_memclr(p_midi->alt1_ep, sizeof(p_midi->alt1_ep));
+    }
   }
 
   // Return number of bytes consumed (following midi_host.c pattern)
@@ -481,6 +573,7 @@ static void midih2_set_interface_cb(tuh_xfer_t *xfer) {
   for (uint8_t idx = 0; idx < CFG_TUH_MIDI2; idx++) {
     if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == itf_num) {
       if (xfer->result == XFER_RESULT_SUCCESS) {
+        midih2_alt1_open_ep(&_midi2_host[idx]);
         midih2_set_config_complete(&_midi2_host[idx], idx);
       } else {
         // SET_INTERFACE failed, fall back to alt 0
@@ -559,9 +652,10 @@ bool midih2_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     tuh_midi2_tx_cb(idx, xferred_bytes);
     if (result == XFER_RESULT_SUCCESS) {
       uint16_t queued = _tuh_tx_start_xfer(p_midi);
-      // Send ZLP if no more data is queued but the last transfer was exactly mps
+      // Send ZLP if no more data is queued but the last transfer was a multiple of mps
+      // (an Alt Setting 1 interrupt endpoint can have a size that is not a power of 2)
       if (queued == 0 && tu_fifo_count(&ep_tx->ff) == 0 && xferred_bytes > 0 &&
-          (0 == (xferred_bytes & (ep_tx->mps - 1)))) {
+          (0 == (xferred_bytes % ep_tx->mps))) {
         if (usbh_edpt_claim(dev_addr, ep_tx->ep_addr)) {
           usbh_edpt_xfer(dev_addr, ep_tx->ep_addr, NULL, 0);
         }
