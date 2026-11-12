@@ -658,6 +658,44 @@ class TaskVerdicts(unittest.TestCase):
         self.assertEqual(rig.lock.events('failed'), [])   # the restored cleanup stands
         self.assertTrue(rig.lock.cleared and rig.lock.closed)
 
+    def test_an_interrupt_replayed_at_the_task_end_aborts_a_refused_drill(self):
+        rig = Rig(self)
+        real_exit = run_case.hil_lock.BoardTask.__exit__
+
+        def exit_(task, *a):    # the task ended clean, then its hold replays the signal
+            real_exit(task, *a)
+            raise run_case.Terminated()
+        with mock.patch.object(run_case, 'live_peers', side_effect=[([], True), ([(1, 'hil_test.py')], True)]), \
+                mock.patch.object(run_case.hil_lock.BoardTask, '__exit__', exit_):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (1, 'untouched'))
+        self.assertEqual(r['error'], 'a battery may be running on this host: hil_test.py (pid 1); '
+                                     'terminated (signal) as the task ended')
+        self.assertTrue(rig.lock.cleared and rig.lock.closed)
+
+    def test_a_flasher_left_by_a_failed_flash_is_unrecheckable_evidence(self):
+        rig = Rig(self)
+        rig.flash_errors['/fw/device/usbtest'] = 'flash timed out'
+        rig.live_children = [999]
+        rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual(rc, 1)
+        self.assertIn('probe process 999', r['boardState'])
+        self.assertNotIn('battery', [c[0] for c in rig.calls])
+        failed, = rig.lock.events('failed')
+        self.assertEqual(failed['receipts'], [{'unrecheckable': 'probe process 999 may still hold the probe'}])
+
+    def test_a_child_left_by_an_interrupted_cleanup_reset_is_unrecheckable_evidence(self):
+        rig = Rig(self)
+        rig.case27 = ({**HUNG, 'cases': [{'num': 27, 'status': 'FAIL'}]}, '', '')
+        rig.reset_raises = run_case.Terminated()
+        with mock.patch.object(wedge_drill, 'live_children',
+                               lambda grace: [999] if ('cleanup-reset', 'openocd') in rig.calls else []):
+            rc, r = rig.run('--board', 'ok', '--delay', '0')
+        self.assertEqual((rc, r['boardState']), (1, 'unknown, not parked: cleanup interrupted'))
+        self.assertEqual(r['halt']['probeHeld'], 999)
+        failed, = rig.lock.events('failed')
+        self.assertEqual(failed['receipts'], [{'unrecheckable': 'probe process 999 may still hold the probe'}])
+
     def test_a_held_probe_is_unrecheckable_evidence(self):
         rig = Rig(self)
         rig.live_children = [999]

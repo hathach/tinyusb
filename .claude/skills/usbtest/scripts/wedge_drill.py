@@ -415,6 +415,14 @@ def live_children(grace):
         time.sleep(0.1)
 
 
+def note_probe_holder(report):
+    """A live child as `probeHeld` when none is known yet: no probe access past it."""
+    if not report['halt'].get('probeHeld'):
+        stuck = live_children(hil_util.REAP_GRACE)
+        if stuck:
+            report['halt']['probeHeld'] = stuck[0]
+
+
 def probe_evidence(report) -> dict:
     """A probe process that may still hold the probe, as unrecheckable evidence: only its recovery
     ends it, never a later park."""
@@ -431,16 +439,12 @@ def finish_locked(task, board, rec_board, park_fw, report, given):
         given.append('failed')
         return False
 
-    if report['boardState'] == 'flash failed':
-        return failed()
-    if not report['halt'].get('probeHeld'):
-        # whatever path got here, signals included: no probe access past a live child
-        stuck = live_children(hil_util.REAP_GRACE)
-        if stuck:
-            report['halt']['probeHeld'] = stuck[0]
+    note_probe_holder(report)   # whatever path got here, signals and a failed flash included
     if held := report['halt'].get('probeHeld'):
         report['boardState'] = f'unknown, not parked: probe process {held} may still hold the probe (usb-kernel-recover)'
         return failed(**probe_evidence(report))
+    if report['boardState'] == 'flash failed':
+        return failed()
     if report['drill'] == 'pass':
         safe = True
     elif report['halt'].get('issued'):
@@ -493,6 +497,7 @@ def drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report):
             report['error'] = report['error'] or 'terminated (signal) during cleanup'
             report['boardState'] = 'unknown, not parked: cleanup interrupted'
             if not given:
+                note_probe_holder(report)   # e.g. the cleanup reset's child, past its reap
                 try:
                     task.failed(detail=f'{report["boardState"]}: {type(e).__name__}', **probe_evidence(report))
                 except RuntimeError:
@@ -548,8 +553,11 @@ def main():
                 code = drill_locked(task, board, rec_board, halt_with, fw, park_fw, args, report)
         except (Terminated, KeyboardInterrupt):
             if entered:
-                report['error'] = report['error'] or 'terminated (signal) as the task ended'
-                code = code or 1   # aborted, whatever the drill and its cleanup did
+                landed = 'terminated (signal) as the task ended'
+                # drill_locked's own interruption is in error already; one its task end replayed is added
+                report['error'] = (f'{report["error"]}; {landed}' if report['error'] and code is not None
+                                   else report['error'] or landed)
+                code = 1   # aborted, whatever the drill and its cleanup did
             elif task.taken or task.ended:  # inside the admission: its take's failures and end still count
                 report['error'], code = 'terminated before any hardware action', 2
             else:
