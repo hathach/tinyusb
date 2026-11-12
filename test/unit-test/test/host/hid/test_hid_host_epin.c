@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <string.h>
+
 #include "unity.h"
 #include "tusb_option.h"
 #include "host/usbh.h"
@@ -105,6 +107,82 @@ void test_hid_host_opens_in_mps_at_bufsize(void) {
   TEST_ASSERT_EQUAL(1, epin_open_count);
   TEST_ASSERT_EQUAL(1, epout_open_count);
   TEST_ASSERT_EQUAL(1, tuh_hid_itf_get_count(DADDR));
+}
+
+//--------------------------------------------------------------------+
+// Descriptor walk
+//--------------------------------------------------------------------+
+#define ITF_DESC(_len)       _len, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_HID, 0, 0, 0
+#define HID_DESC(_len)       _len, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(32)
+#define EP_DESC(_len, _addr) _len, TUSB_DESC_ENDPOINT, _addr, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 1
+
+static uint16_t open_raw(const uint8_t *desc, uint16_t max_len) {
+  return hidh_open(0, DADDR, (const tusb_desc_interface_t *) desc, max_len);
+}
+
+// extra bytes are skipped (USB 2.0 9.5): the walk follows bLength and returns what it consumed
+void test_hid_host_open_walks_long_descriptors_by_length(void) {
+  const uint8_t desc[] = {
+    ITF_DESC(10), 0xAA,
+    HID_DESC(12), 0xAA, 0xAA, 0xAA,
+    EP_DESC(9, EP_IN), 0xAA, 0xAA,
+    EP_DESC(8, EP_OUT), 0xAA,
+    ITF_DESC(9), // next interface, not consumed
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc) - 9, open_raw(desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(1, epin_open_count);
+  TEST_ASSERT_EQUAL(1, epout_open_count);
+}
+
+void test_hid_host_open_hid_after_long_endpoints(void) {
+  const uint8_t desc[] = {
+    ITF_DESC(9),
+    EP_DESC(9, EP_IN), 0xAA, 0xAA,
+    EP_DESC(7, EP_OUT),
+    HID_DESC(10), 0xAA,
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc), open_raw(desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(1, epin_open_count);
+  TEST_ASSERT_EQUAL(1, epout_open_count);
+}
+
+// a span ending inside or right after a descriptor: nothing past max_len is read or opened (#4508)
+void test_hid_host_open_bounded_by_max_len(void) {
+  const uint8_t desc[] = {
+    ITF_DESC(9),
+    HID_DESC(9),
+    EP_DESC(7, EP_IN),
+    EP_DESC(7, EP_OUT),
+  };
+  for (uint16_t len = 0; len < sizeof(desc); len++) {
+    TEST_ASSERT_EQUAL(0, open_raw(desc, len));
+  }
+  TEST_ASSERT_EQUAL(0, epin_open_count + epout_open_count);
+  TEST_ASSERT_EQUAL(0, tuh_hid_itf_get_count(DADDR));
+
+  // an interface whose bLength reaches the end of the span, as does a HID descriptor that runs past it
+  uint8_t itf_long[sizeof(desc)];
+  memcpy(itf_long, desc, sizeof(desc));
+  itf_long[0] = 9 + 9 + 7;
+  TEST_ASSERT_EQUAL(0, open_raw(itf_long, 9 + 9 + 7));
+  memcpy(itf_long, desc, sizeof(desc));
+  itf_long[9] = 9 + 7 + 7 + 1;
+  TEST_ASSERT_EQUAL(0, open_raw(itf_long, sizeof(itf_long)));
+  TEST_ASSERT_EQUAL(0, epin_open_count + epout_open_count);
+  TEST_ASSERT_EQUAL(0, tuh_hid_itf_get_count(DADDR));
+}
+
+void test_hid_host_open_rejects_short_descriptors(void) {
+  const uint8_t short_hid[] = {ITF_DESC(9), 6, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1,
+                               EP_DESC(7, EP_IN), EP_DESC(7, EP_OUT)};
+  TEST_ASSERT_EQUAL(0, open_raw(short_hid, sizeof(short_hid)));
+
+  const uint8_t short_ep[] = {ITF_DESC(9), HID_DESC(9), EP_DESC(7, EP_IN), 6, TUSB_DESC_ENDPOINT, EP_OUT,
+                              TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8)};
+  TEST_ASSERT_EQUAL(0, open_raw(short_ep, sizeof(short_ep)));
+
+  TEST_ASSERT_EQUAL(0, epin_open_count + epout_open_count);
+  TEST_ASSERT_EQUAL(0, tuh_hid_itf_get_count(DADDR));
 }
 
 void test_hid_host_receives_in_mps(void) {

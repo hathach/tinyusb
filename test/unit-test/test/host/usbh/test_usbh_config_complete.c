@@ -144,13 +144,18 @@ static void fake_close(uint8_t dev_addr) {
   close_count++;
 }
 
-// claims the whole rest of the configuration and records the endpoint sizes it is given, before opening any
+// claims the whole rest of the configuration, recording the interfaces it is offered and the endpoint sizes it is
+// given, before opening any
 static uint16_t open_ep_size[4];
 static uint8_t  open_ep_count;
+static uint8_t  open_count;
+static uint8_t  open_itf_num;
 
 static uint16_t fake_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
   (void) dev_addr;
+  open_count++;
+  open_itf_num = desc_itf->bInterfaceNumber;
   const uint8_t *p_desc   = (const uint8_t *) desc_itf;
   const uint8_t *desc_end = p_desc + max_len;
   for (; tu_desc_in_bounds(p_desc, desc_end); p_desc = tu_desc_next(p_desc)) {
@@ -198,6 +203,8 @@ void setUp(void) {
   umount_cb_count  = 0;
   set_config_count = 0;
   close_count      = 0;
+  open_count       = 0;
+  open_itf_num     = 0xff;
   set_config_hook  = NULL;
   clear_stall_count  = 0;
   clear_stall_rhport = 0xff;
@@ -315,6 +322,19 @@ void test_parse_config_keeps_highspeed_bulk_512(void) {
   TEST_ASSERT_EQUAL(512, open_ep_size[1]);
   TEST_ASSERT_EQUAL(512, open_ep_size[2]);
   TEST_ASSERT_EQUAL(512, open_ep_size[3]);
+}
+
+// drivers read interface fields before checking bLength: an interface shorter than defined is skipped (#4508)
+void test_parse_config_skips_short_interface(void) {
+  const uint8_t desc[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 8 + 9), 2, 1, 0, 0x80, 50,
+    8, TUSB_DESC_INTERFACE, 0, 0, 0, 0xFF, 0, 0,
+    9, TUSB_DESC_INTERFACE, 1, 0, 0, 0xFF, 0, 0, 0,
+  };
+
+  TEST_ASSERT_TRUE(enum_parse_configuration_desc(DADDR, (const tusb_desc_configuration_t *) desc));
+  TEST_ASSERT_EQUAL(1, open_count);
+  TEST_ASSERT_EQUAL(1, open_itf_num);
 }
 
 //--------------------------------------------------------------------+

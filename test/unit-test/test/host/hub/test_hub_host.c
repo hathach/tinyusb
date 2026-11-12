@@ -35,7 +35,9 @@ static uint8_t    ctrl_count;
 static bool       ctrl_reject;
 
 // the status endpoint open fails in hub_open()
-static bool edpt_open_fail;
+static bool    edpt_open_fail;
+static uint8_t edpt_open_count;
+static uint8_t edpt_open_interval; // bInterval of the last endpoint opened
 
 // completions of the test callback, in order
 typedef struct {
@@ -73,7 +75,8 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
-  (void) desc_ep;
+  edpt_open_count++;
+  edpt_open_interval = desc_ep->bInterval;
   return !edpt_open_fail;
 }
 
@@ -286,6 +289,8 @@ void setUp(void) {
   ctrl_count     = 0;
   ctrl_reject    = false;
   edpt_open_fail = false;
+  edpt_open_count    = 0;
+  edpt_open_interval = 0;
   cb_count       = 0;
   poll_count     = 0;
   poll_buf       = NULL;
@@ -325,6 +330,68 @@ void test_open_failed_does_not_leave_mtt(void) {
   TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
   TEST_ASSERT_EQUAL(1, ctrl_count);
   TEST_ASSERT_EQUAL(HUB_REQUEST_GET_DESCRIPTOR, ctrl_reqs[0].setup.bRequest);
+}
+
+// interface and status endpoint each longer than defined, followed by another interface
+static const uint8_t desc_hub_long[] = {
+  12, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_HUB, 0, 0, 0, 0xAA, 0xAA, 0xAA,
+  9, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_INTERRUPT, 1, 0, 12, 0xAA, 0xAA,
+  9, TUSB_DESC_INTERFACE, 1, 0, 0, 0xFF, 0, 0, 0,
+};
+enum { DESC_HUB_LONG_LEN = 12 + 9 };
+
+// extra bytes are skipped (USB 2.0 9.5): the walk follows bLength and returns what it consumed
+void test_open_walks_long_descriptors_by_length(void) {
+  const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *) desc_hub_long;
+  TEST_ASSERT_EQUAL(DESC_HUB_LONG_LEN, hub_open(0, HUB_A, itf, sizeof(desc_hub_long)));
+  TEST_ASSERT_EQUAL(1, edpt_open_count);
+  TEST_ASSERT_EQUAL(12, edpt_open_interval);
+}
+
+// a span ending inside or right after a descriptor: nothing past max_len is read or opened
+void test_open_bounded_by_max_len(void) {
+  const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *) desc_hub_long;
+  const uint16_t lens[] = {12, DESC_HUB_LONG_LEN - 1};
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(lens); i++) {
+    TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, itf, lens[i]));
+  }
+  TEST_ASSERT_EQUAL(0, edpt_open_count);
+}
+
+void test_open_rejects_short_descriptors(void) {
+  // interface shorter than defined
+  uint8_t desc[sizeof(desc_hub_itf)];
+  memcpy(desc, &desc_hub_itf, sizeof(desc));
+  desc[0] = sizeof(tusb_desc_interface_t) - 1;
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+
+  // status endpoint shorter than defined
+  memcpy(desc, &desc_hub_itf, sizeof(desc));
+  desc[sizeof(tusb_desc_interface_t)] = sizeof(tusb_desc_endpoint_t) - 1;
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, edpt_open_count);
+}
+
+// multi-TT hub with every descriptor longer than defined: alt 1's endpoint is opened
+static const uint8_t desc_mtt_hub_long[] = {
+  10, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_HUB, 0, HUB_PROTOCOL_HIGH_SPEED_STT, 0, 0xAA,
+  8, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_INTERRUPT, 1, 0, 12, 0xAA,
+  10, TUSB_DESC_INTERFACE, 0, 1, 1, TUSB_CLASS_HUB, 0, HUB_PROTOCOL_HIGH_SPEED_MTT, 0, 0xAA,
+  8, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_INTERRUPT, 1, 0, 4, 0xAA,
+};
+
+void test_open_mtt_walks_long_descriptors_by_length(void) {
+  const tusb_desc_interface_t *itf = (const tusb_desc_interface_t *) desc_mtt_hub_long;
+  dev_mtt = true;
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, itf, sizeof(desc_mtt_hub_long) - 1));
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, itf, 10 + 8)); // alt 1 outside the span
+  TEST_ASSERT_EQUAL(0, edpt_open_count);
+
+  TEST_ASSERT_EQUAL(sizeof(desc_mtt_hub_long), hub_open(0, HUB_A, itf, sizeof(desc_mtt_hub_long)));
+  dev_mtt = false;
+  TEST_ASSERT_EQUAL(1, edpt_open_count);
+  TEST_ASSERT_EQUAL(4, edpt_open_interval);
+  TEST_ASSERT_TRUE(hub_tt_multi(HUB_A));
 }
 
 //--------------------------------------------------------------------+
