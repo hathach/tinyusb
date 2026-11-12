@@ -108,6 +108,13 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return true;
 }
 
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) daddr;
+  (void) ep_addr;
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // Helpers
 //--------------------------------------------------------------------+
