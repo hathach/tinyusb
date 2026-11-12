@@ -142,15 +142,11 @@ under a timer.
 
 Case 29 (`test_toggle_sync`: clear halt, write, clear halt, write) is the most common DCD bug here:
 reset the toggle to DATA0 **and** keep the pending transfer armed (fixed that way in rp2040
-ad7acc849, fsdev 046463687, ch32_usbhs d63a45509).
+ad7acc849, fsdev 046463687, ch32_usbhs 99044894a).
 
-WCH SuperSpeed silicon fails two rows for good, and quirk-skips them (`QUIRK_SKIPS`):
-- **13 at 5 Gbps:** a halted endpoint answers exactly one STALL TP (quirk 0x20, CH569 and
-  CH32H417 alike, although the CH32H417 has RB_EP_TX/RX_HALT).
-- **14, 21 at 5 Gbps:** the CH569 intermittently drops EP0 OUT data stages with `wLength % 4 == 1`
-  (quirk 0x10, wire evidence 2026-08-11: transaction error, full 489-byte residual). The strike
-  rate depends on the host: a Renesas uPD720201 fails most ctrl_out runs while an onboard AMD xHCI
-  ran 15/15 clean, which once retired the quirk by mistake.
+WCH SuperSpeed silicon fails cases 13 (CH569, CH32H417) and 14, 21 (CH569) for good and quirk-skips them
+(`QUIRK_SKIPS`); the errata are in `docs/reference/device_issues.rst`. The 14/21 strike rate depends on the host: an
+onboard AMD xHCI ran clean and once retired the quirk by mistake, so run it on a uPD720201 before removing a quirk.
 
 Escalate in order:
 1. The case's `detail` and captured `dmesg` in the JSON verdict (`TEST n` lines bracket each case).

@@ -252,7 +252,7 @@ USB supports multiple speed modes:
 
 **Super Speed (5 Gbps)**:
 - USB 3.0 and later
-- Not supported by TinyUSB
+- Supported in device mode on WCH CH569 and CH32H417 (see the SuperSpeed section of :doc:`../porting`)
 
 **TinyUSB Speed Support**: Most TinyUSB ports support Full Speed and High Speed. Speed is typically auto-detected by hardware. Configure speed requirements in board configuration (``hw/bsp/FAMILY/boards/BOARD/board.mk``) and ensure your MCU supports the desired speed.
 

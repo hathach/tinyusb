@@ -44,7 +44,7 @@
 #endif
 
 // SuperSpeed erratum quirks in bcdDevice bits 4-7, read by the host script to skip cases
-// (erratum notes: src/portable/wch/wch_ss1/dcd_wch_ss1.c header, wch_ss2/dcd_wch_ss2.c):
+// (errata: docs/reference/device_issues.rst; notes in the wch_ss1/dcd_wch_ss1.c header, wch_ss2/dcd_wch_ss2.c):
 //   0x10: CH569 EP0 OUT data stages with wLength % 4 == 1 are intermittently dropped
 //   0x20: a halted endpoint answers only one STALL TP per halt (CH569, CH32H417)
 #if TU_CHECK_MCU(OPT_MCU_CH569) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
