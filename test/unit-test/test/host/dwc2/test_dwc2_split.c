@@ -1169,10 +1169,23 @@ void test_slave_interrupt_split_in_mdata_past_its_window_drops_the_packet(void) 
   TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, _hcd_data.edpt[0].next_pid);
 }
 
+static const uint8_t* fifo_read_dest;
+static uint16_t       fifo_read_len;
+
+static void fifo_read_record(const volatile void* fifo, uint8_t* dest, uint16_t len,
+                             const tu_hwfifo_access_t* access_mode, int cmock_num_calls) {
+  (void) fifo;
+  (void) access_mode;
+  (void) cmock_num_calls;
+  fifo_read_dest = dest;
+  fifo_read_len  = len;
+}
+
 void test_slave_interrupt_split_in_mdata_continues_a_packet_of_a_longer_transfer(void) {
   // a 128-byte buffer on a 64-byte endpoint, 2 packets from DATA0 (an even count keeps next_pid): the first packet's
   // complete-split returns MDATA. It is continued with its own toggle, and its end moves on to the second packet
-  // instead of completing the transfer with the 14-byte fragment.
+  // instead of completing the transfer with the 14-byte fragment. The second packet, in the next service interval on a
+  // channel allocated again, lands after the first and completes the transfer with both.
   int_in_mdata_setup(4);
   _hcd_data.edpt[0].buflen   = 128;
   _hcd_data.edpt[0].next_pid = HCTSIZ_PID_DATA0;
@@ -1195,6 +1208,37 @@ void test_slave_interrupt_split_in_mdata_continues_a_packet_of_a_longer_transfer
   TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid);
   TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.xfer[0].int_pid);
   TEST_ASSERT_BITS_LOW(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
+
+  // its halt releases the channel until the next service interval, keeping the packet received
+  test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+  TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, 0, HCINT_HALTED));
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].xfer_pending);
+  TEST_ASSERT_EQUAL(64, _hcd_data.edpt[0].periodic_xferred);
+
+  // the next interval resumes the transfer after it, for the second packet only
+  _hcd_data.xfer[0].xferred_bytes = 0; // nothing left over from the released channel
+  TEST_ASSERT_TRUE(edpt_xfer_kickoff(&test_regs, 0));
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].ep_id);
+  TEST_ASSERT_EQUAL(64, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  const dwc2_channel_tsize_t resumed = {.value = test_regs.channel[0].hctsiz};
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, resumed.pid);
+  TEST_ASSERT_EQUAL(64, resumed.xfer_size);
+  TEST_ASSERT_EQUAL(1, resumed.packet_count);
+
+  // its complete-split returns the second packet, read into the buffer after the first: the transfer completes
+  test_regs.channel[0].hcsplt |= HCSPLT_COMPLSPLT;
+  tu_hwfifo_read_Stub(fifo_read_record);
+  fifo_read_dest = NULL;
+  fifo_read_len  = 0;
+  rx_packet(64, HCTSIZ_PID_DATA1);
+  TEST_ASSERT_EQUAL_PTR(payload + 64, fifo_read_dest);
+  TEST_ASSERT_EQUAL(64, fifo_read_len);
+  TEST_ASSERT_TRUE(int_in_xfer_complete(0));
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(128, _hcd_data.xfer[0].xferred_bytes);
 }
 
 static hcd_event_t xfer_event;

@@ -181,7 +181,8 @@ typedef struct {
   uint8_t* buffer;
   uint16_t buflen;
   uint16_t periodic_frame; // frame/microframe number of the last scheduled periodic transaction
-  uint16_t periodic_xferred; // bytes a periodic OUT transfer sent before its retry in a later service interval
+  uint16_t periodic_xferred; // bytes a periodic OUT transfer sent, or a split interrupt IN one received, before its
+                             // retry in a later service interval
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -1865,11 +1866,20 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
 
   // hctsiz: zero length packet still count as 1
-  const uint16_t packet_count = channel_packet_count(edpt, hcchar_bm->ep_size);
+  uint16_t packet_count = channel_packet_count(edpt, hcchar_bm->ep_size);
+  uint16_t xfer_len     = edpt->buflen;
+#if HCD_SPLIT && CFG_TUH_DWC2_SLAVE_ENABLE
+  // A slave split interrupt IN reads into buffer + xferred_bytes: resumed after the packets it already received (see
+  // channel_xfer_in_retry()), it is programmed for the rest of the buffer
+  if (!dma_host_enabled(dwc2) && edpt->hcsplt_bm.split_en && !split_iso && hcchar_bm->ep_dir == TUSB_DIR_IN) {
+    xfer_len     = (uint16_t) (edpt->buflen - xfer->xferred_bytes);
+    packet_count = cal_packet_count(xfer_len, hcchar_bm->ep_size);
+  }
+#endif
   dwc2_channel_tsize_t hctsiz = {.value = 0};
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
-  hctsiz.xfer_size = edpt->buflen;
+  hctsiz.xfer_size = xfer_len;
 #if HCD_SPLIT
   xfer->int_pid = edpt->next_pid;
 #endif
@@ -1901,7 +1911,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     }
     hcsplt = hcsplt_bm.value;
   } else if (packet_count == 1) {
-    hctsiz.xfer_size = tu_min16(edpt->buflen, hcchar_bm->ep_size); // a split OUT sends one packet here
+    hctsiz.xfer_size = tu_min16(xfer_len, hcchar_bm->ep_size); // a split OUT sends one packet here
   }
 #endif
   channel->hctsiz = hctsiz.value;
@@ -2045,7 +2055,7 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
     xfer->ep_id = ep_id;
     xfer->result = XFER_RESULT_INVALID;
     xfer->err_count = edpt->periodic_err; // a periodic retry keeps the errors of its transfer
-    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes an OUT one already sent
+    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes it already sent or received
     if (is_period) {
       edpt->periodic_phase = 1;
       edpt->xfer_pending = 0;
@@ -2294,6 +2304,12 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         edpt->next_pid = hctsiz.pid; // save PID
       }
       edpt->periodic_err = xfer->err_count;
+      if (HCD_SPLIT && hcsplt.split_en) {
+        // A split interrupt IN releases its channel between the packets of its transfer too: keep the packets received
+        // so far, the tentative MDATA part of one dropped above. A DMA one moved its buffer past them already, a slave
+        // one resumes at buffer + xferred_bytes (channel_xfer_start()).
+        edpt->periodic_xferred = xfer->xferred_bytes;
+      }
       periodic_xfer_defer(dwc2, edpt, true);
       // already halted, de-allocate channel (called from DMA isr)
       channel_dealloc(dwc2, ch_id);
