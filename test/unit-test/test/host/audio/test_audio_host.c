@@ -85,6 +85,13 @@ static void complete_edpt(uint8_t ep_addr) {
   edpt_busy_mask &= ~edpt_mask(ep_addr);
 }
 
+static uint16_t capture_cb_bytes;
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
+  (void)idx;
+  (void)stream_idx;
+  capture_cb_bytes = xferred_bytes;
+}
+
 void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result) {
   event_cb_count++;
   event_cb_idx        = idx;
@@ -929,6 +936,7 @@ void setUp(void) {
   edpt_close_count = 0;
 
   edpt_busy_mask   = 0;
+  capture_cb_bytes = 0;
   edpt_xfer_result = true;
   memset(edpt_xfer_ep, 0, sizeof(edpt_xfer_ep));
   memset(edpt_xfer_bytes, 0, sizeof(edpt_xfer_bytes));
@@ -1300,8 +1308,6 @@ void test_audio_host_maps_relevant_terminal_and_fu_after_unrelated_entities(void
 }
 
 void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
-  uint8_t        captured[CFG_TUH_AUDIO_STREAM_BUFSIZE];
-  const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % 3);
   open_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
   TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
   TEST_ASSERT_EQUAL_HEX16(tu_u16(CAPTURE_FU, AUDIO_AC_ITF), tu_le16toh(control_request.wIndex));
@@ -1309,28 +1315,41 @@ void test_audio_host_maps_capture_fu_declared_before_usb_output_terminal(void) {
 
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_CAPTURE, tuh_audio_stream_direction(0, 0));
   TEST_ASSERT_TRUE(tuh_audio_mute_supported(0, 0));
+}
 
+// Without application reads a new packet that no longer fits drops just enough of the oldest whole frames;
+// the capture callback still reports the received length.
+void test_audio_host_capture_overrun_drops_oldest_frames(void) {
+  enum { PACKET = 96, FRAME = 3 };
+  uint8_t        captured[CFG_TUH_AUDIO_STREAM_BUFSIZE];
+  const uint16_t fifo_depth = CFG_TUH_AUDIO_STREAM_BUFSIZE - (CFG_TUH_AUDIO_STREAM_BUFSIZE % FRAME);
+  const uint8_t  fitting    = (uint8_t)(fifo_depth / PACKET);
+  const uint16_t first_kept = (uint16_t)(fifo_depth - fitting * PACKET); // tail of packet 1 left after the overrun
+  TEST_ASSERT_LESS_THAN(AUDIO_TEST_MAX_XFERS - 2, fitting);
+  TEST_ASSERT_LESS_THAN(PACKET, first_kept);
+
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
   TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
   complete_interface_set(XFER_RESULT_SUCCESS);
   complete_control_xfer(XFER_RESULT_SUCCESS);
   TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
 
-  // Keep polling without application reads. Once full, the capture FIFO must
-  // overwrite its oldest frames while retaining the newest complete packets.
-  for (uint8_t packet = 0; packet < 11; packet++) {
+  // packets 1..fitting fit; packet fitting + 1 drops the head of packet 1
+  for (uint8_t packet = 0; packet <= fitting; packet++) {
     TEST_ASSERT_NOT_NULL(edpt_xfer_buffer[packet]);
-    memset(edpt_xfer_buffer[packet], packet + 1, 96);
+    memset(edpt_xfer_buffer[packet], packet + 1, PACKET);
     complete_edpt(0x81);
-    TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+    TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, PACKET));
     TEST_ASSERT_EQUAL_UINT8(packet + 2, edpt_xfer_count);
+    TEST_ASSERT_EQUAL_UINT16(PACKET, capture_cb_bytes);
   }
 
-  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read_available(0, 0));
-  TEST_ASSERT_EQUAL_UINT32(fifo_depth / 3, tuh_audio_read(0, 0, captured, fifo_depth / 3));
-  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, 63);
-  TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + 63, 96);
-  TEST_ASSERT_EACH_EQUAL_UINT8(11, captured + fifo_depth - 96, 96);
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / FRAME, tuh_audio_read_available(0, 0));
+  TEST_ASSERT_EQUAL_UINT32(fifo_depth / FRAME, tuh_audio_read(0, 0, captured, fifo_depth / FRAME));
+  TEST_ASSERT_EACH_EQUAL_UINT8(1, captured, first_kept);
+  TEST_ASSERT_EACH_EQUAL_UINT8(2, captured + first_kept, PACKET);
+  TEST_ASSERT_EACH_EQUAL_UINT8(fitting + 1, captured + fifo_depth - PACKET, PACKET);
 }
 
 void test_audio_host_maps_duplex_fus_declared_before_usb_terminals(void) {
