@@ -340,9 +340,17 @@ static ep_op_t ep_ops[16];
 static uint8_t ep_op_count;
 static uint8_t ep0_in_data[8];
 static uint16_t ep0_in_len;
+static uint8_t ep0_stall_count;
+static uint8_t ep0_out_data_count; // OUT data stages armed on EP0 (status stages excluded)
 
 static void log_op(uint8_t op, uint8_t ep_addr) {
-  if (tu_edpt_number(ep_addr) != 0 && ep_op_count < TU_ARRAY_SIZE(ep_ops)) {
+  if (tu_edpt_number(ep_addr) == 0) {
+    if (op == OP_STALL) {
+      ep0_stall_count++;
+    }
+    return;
+  }
+  if (ep_op_count < TU_ARRAY_SIZE(ep_ops)) {
     ep_ops[ep_op_count].op = op;
     ep_ops[ep_op_count].ep_addr = ep_addr;
     ep_op_count++;
@@ -366,6 +374,9 @@ static bool stub_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t* buffer, uint1
     ep0_in_len = total_bytes;
     memcpy(ep0_in_data, buffer, tu_min16(total_bytes, sizeof(ep0_in_data)));
   }
+  if (ep_addr == 0x00 && total_bytes > 0) {
+    ep0_out_data_count++;
+  }
   log_op(OP_XFER, ep_addr);
   return true;
 }
@@ -380,6 +391,8 @@ static bool stub_edpt_xfer_fifo(uint8_t port, uint8_t ep_addr, tu_fifo_t* ff, ui
 static void stub_endpoints(void) {
   ep_op_count = 0;
   ep0_in_len = 0;
+  ep0_stall_count = 0;
+  ep0_out_data_count = 0;
   memset(ep0_in_data, 0xAA, sizeof(ep0_in_data));
   dcd_edpt_stall_Stub(stub_edpt_stall);
   dcd_edpt_clear_stall_Stub(stub_edpt_clear_stall);
@@ -462,4 +475,15 @@ void test_get_interface_returns_selected_setting(void) {
   send_request(0x81, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
   TEST_ASSERT_EQUAL(1, ep0_in_len);
   TEST_ASSERT_EQUAL(0, ep0_in_data[0]);
+}
+
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error, its data stage is never armed
+void test_get_interface_out_is_stalled(void) {
+  midi2_test_configure();
+  midi2_test_set_alt(1);
+
+  send_request(0x01, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
+  TEST_ASSERT_EQUAL(0, ep0_out_data_count);
+  TEST_ASSERT_EQUAL(2, ep0_stall_count);
+  TEST_ASSERT_EQUAL(1, tud_midi2_alt_setting());
 }
