@@ -120,7 +120,7 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   // Abort any pending transfer
   const uint8_t  dir        = (uint8_t)tu_edpt_dir(ep->ep_addr);
   const uint8_t  epnum      = tu_edpt_number(ep->ep_addr);
-  const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
+  const uint32_t abort_mask = rp2usb_ep_bit(ep->ep_addr);
 
   // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
   // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
@@ -196,16 +196,22 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
   hw_buffer_ptr = &usb_dpram->epx_data[0];
 }
 
+// the SDK registers this as the ISR, so it records its own span; under tud_int_handler() the depth counter keeps one
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
   const uint32_t status  = usb_hw->ints;
+  uint32_t sof_count = 0;
 
   if (status & USB_INTF_DEV_SOF_BITS) {
-    uint32_t sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
+    sof_count = usb_hw->sof_rd & USB_SOF_RD_BITS; // clear interrupt by reading SOF_RD
 
   #if CFG_TUSB_RP2_ERRATA_E15
-    e15_last_sof = time_us_32();                           // timing critical
+    e15_last_sof = time_us_32();                  // timing critical: before the SystemView record below
   #endif
+  }
 
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_ENTER(); }
+
+  if (status & USB_INTF_DEV_SOF_BITS) {
     dcd_event_sof(0, sof_count, true);
   }
 
@@ -252,16 +258,17 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
           };
 
           const bool buf0_idle = !(buf_reg16[0] & BUSY_MASK);
-          const bool buf1_idle = (ep->remaining_len > 0) && !(buf_reg16[1] & BUSY_MASK);
+          const bool buf1_idle = !(buf_reg16[1] & BUSY_MASK);
 
           if (buf0_idle && buf1_idle) {
             // both are idle, start fresh
+            // this also resets the buffer selector for a deferred ZLP
             io_rw_32 *ep_reg = get_ep_ctrl(i, TUSB_DIR_IN);
             rp2usb_buffer_start(ep, ep_reg, buf_reg32, false);
           } else if (buf0_idle) {
             uint16_t buf0 = bufctrl_prepare16(ep, ep->dpram_buf, false);
             bufctrl_write16(buf_reg16, buf0);
-          } else if (buf1_idle) {
+          } else if (buf1_idle && ep->remaining_len > 0) {
             uint16_t buf1 = bufctrl_prepare16(ep, ep->dpram_buf + 64, false);
             bufctrl_write16(buf_reg16 + 1, buf1);
           }
@@ -326,6 +333,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     usb_hw_clear->sie_status = USB_SIE_STATUS_RESUME_BITS;
   }
 
+  if (TUD_SYSVIEW_ISR_TRACED) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 /*------------------------------------------------------------------*/

@@ -12,13 +12,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
+# no job writes to the repository; self-hosted rigs keep state between jobs, so none may hold a write token
+permissions:
+  contents: read
+
 jobs:
   # Check if the code changes and we need to run ci build
   # Cannot use paths filter in the on-event since we want this workflow to run even when there are no code changes, to register the commit chain
   check-paths:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       code_changed: ${{ steps.gate.outputs.code }}
       # hil-hfp-iar trusts its own selector run on this, not rerunning the suites on the rig runner
@@ -27,6 +29,13 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # the selector diffs against the PR base or the push's before
+
+      - name: Get agentrc
+        # the selector and the matrix read each roster board's flasher from agentrc's board
+        # registry, at the commit test/hil/agentrc.json pins. A failed fetch fails the
+        # selector's suites, which runs everything, as every other selector failure does.
+        continue-on-error: true
+        run: python3 test/hil/helper/agentrc.py fetch
 
       - name: Selection gate
         id: gate
@@ -84,6 +93,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Get agentrc
+        continue-on-error: true   # the selection below falls back to the full matrix without it
+        run: python3 test/hil/helper/agentrc.py fetch
 
       - name: CI selection (PR only)
         id: hil-select
@@ -461,9 +474,6 @@ jobs:
   hil-tinyusb:
     needs: [ hil-build, set-matrix ]
     name: hil-tinyusb (${{ matrix.display }})
-    # self-hosted rigs keep state between jobs: no write token, none left in the checkout
-    permissions:
-      contents: read
     # Above hil_test.py's pool guard (HIL_POOL_TIMEOUT, 60 min) so the guard fires first
     # and still gets to write its report. The ~15 min on top is what the job pays OUTSIDE
     # the guard clock: workspace cleanup, checkout and the multi-board artifact merge
@@ -521,6 +531,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+          # the merge commit's parents: the SystemView capture records its base and head (checkout_identity)
+          fetch-depth: 2
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -544,10 +556,10 @@ jobs:
             *tinyusb.json) SEL_ARGS="$SEL_ARGS_TINYUSB"; SEL_RUN="$SEL_RUN_TINYUSB" ;;
             *hfp.json)     SEL_ARGS="$SEL_ARGS_HFP";     SEL_RUN="$SEL_RUN_HFP" ;;
           esac
-          # the board locks and the report document come from agentrc at the commit get_deps.py
-          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
-          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
-          python3 tools/get_deps.py lib/agentrc
+          # the board locks and the report document come from agentrc at the commit
+          # test/hil/agentrc.json pins, a skipped leg's report included; a failed fetch fails
+          # the step, and the prepare step's marker says the report is unavailable.
+          python3 test/hil/helper/agentrc.py fetch
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected boards on this rig)"
             # a report saying so, or the combined PR comment drops the section (and leaves a
@@ -561,14 +573,19 @@ jobs:
           # that failed); -b/-bt accumulate, so keeping SEL_ARGS here would re-run the
           # entire original selection instead of just what failed
           if [ -n "$RERUN_ARGS" ]; then SEL_ARGS=''; fi
-          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS
+          # SystemView capture of the selected roster sysview boards, before each one's final park, flashing the
+          # traced image hil-build's sysview leg uploaded. Not on re-run attempts: a re-run recaptures every board,
+          # wasting shared-rig time for no report benefit.
+          SV_ARGS=''
+          if [ "${{ github.run_attempt }}" = 1 ]; then SV_ARGS='--sysview-out sysview-out'; fi
+          python3 test/hil/hil_test.py --retry 1 ${{ matrix.test_args }} $SEL_ARGS ${{ env.HIL_JSON }} $RERUN_ARGS $SV_ARGS
 
       - &hil_report_prepare
         name: Prepare HIL report
         id: prepare
         if: always() && github.event_name == 'pull_request'
         # the uploaded Markdown is a rendering of the uploaded JSON or an explicit unavailable
-        # notice, never a table the JSON does not hold. When prepare fails (with lib/agentrc
+        # notice, never a table the JSON does not hold. When prepare fails (with agentrc
         # missing or off its pin not even the notice writer loads) the upload takes a fresh dir
         # holding only its hil_report.unprepared marker, made here without the checkout's
         # scripts: the report dir can still hold an earlier attempt's report. The hfp job sets
@@ -601,6 +618,19 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      - name: Upload SystemView captures
+        # records and raw captures, base-branch pushes included: sysview-report decodes them off the rig
+        if: ${{ !cancelled() && github.run_attempt == '1' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: sysview-${{ matrix.display }}
+          path: |
+            sysview-out/sysview-*.json
+            sysview-out/*-capture.SVDat
+          if-no-files-found: ignore
+          overwrite: true
+
   # ---------------------------------------
   # Hardware in the loop (HIL) - espressif boards only
   # Same rig as hil-tinyusb (tinyusb.json) but gated only on the slow esp-idf build,
@@ -610,8 +640,6 @@ jobs:
   hil-tinyusb-esp:
     needs: [ hil-build-esp, set-matrix ]
     name: hil-tinyusb (tinyusb-esp.json)
-    permissions:
-      contents: read
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     # above hil_test.py's pool guard (60 min) with ~15 min for the pre-pool checkout
     # and the report upload, so its own guard still writes a report;
@@ -668,10 +696,10 @@ jobs:
           SEL_ARGS: ${{ needs.set-matrix.outputs.hil_args_tinyusb_esp }}
           SEL_RUN: ${{ needs.set-matrix.outputs.hil_run_tinyusb_esp }}
         run: |
-          # the board locks and the report document come from agentrc at the commit get_deps.py
-          # pins, a skipped leg's report included. get_deps.py exits 0 on a failed fetch: the pin
-          # check in hil_report.py and hil_test.py is what refuses, naming the fetch.
-          python3 tools/get_deps.py lib/agentrc
+          # the board locks and the report document come from agentrc at the commit
+          # test/hil/agentrc.json pins, a skipped leg's report included; a failed fetch fails
+          # the step, and the prepare step's marker says the report is unavailable.
+          python3 test/hil/helper/agentrc.py fetch
           if [ "$SEL_RUN" = "false" ]; then
             echo "HIL skipped by PR selection (no affected esp-idf boards)"
             # a report saying so, or the combined PR comment drops the section (and leaves a
@@ -738,9 +766,16 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
         with:
+          # self-hosted: leave no GITHUB_TOKEN in .git/config for later jobs
+          persist-credentials: false
           # full history: the "HIL selection" step below needs
           # merge-base(HEAD, origin/<base_ref>) for PR-scoped selection
           fetch-depth: 0
+
+      - name: Get agentrc
+        # hil_test.py's board locks and the report document, a run the selection skipped
+        # included, and the selector's board registry
+        run: python3 test/hil/helper/agentrc.py fetch
 
       # Computed BEFORE the build: the IAR build is four boards and up to 30 minutes on
       # a runner that hil-tinyusb (hfp.json) also needs, so an unaffected PR must release
@@ -821,9 +856,8 @@ jobs:
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
-        # lib/agentrc: hil_test.py's board locks and the report document, at the commit
-        # get_deps.py pins; a run the selection skipped writes its report with it too
-        run: python3 tools/get_deps.py lib/agentrc $BUILD_ARGS
+        if: env.SEL_RUN != 'false'
+        run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
         if: env.SEL_RUN != 'false'

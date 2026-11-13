@@ -48,7 +48,7 @@ static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const 
   uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
   printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
-    block_count, block_size, block_count / ((1024 * 1024) / block_size));
+    block_count, block_size, (uint32_t) (((uint64_t) block_count * block_size) >> 20));
 
   return true;
 }

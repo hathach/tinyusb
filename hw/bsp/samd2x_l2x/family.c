@@ -95,6 +95,8 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB_Handler(void) {
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
+  TU_SYSVIEW_ISR_ENTER();
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
@@ -102,6 +104,7 @@ void USB_Handler(void) {
 #if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
   tuh_int_handler(0);
 #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 //--------------------------------------------------------------------+

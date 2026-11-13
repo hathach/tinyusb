@@ -69,13 +69,21 @@ bool tud_inited(void);
 // Task function should be called in main/rtos loop, extended version of tud_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tud_task_ext(uint32_t timeout_ms, bool in_isr);
+// Return true when the stack is not initialized or tud_task_stop() was called: leave the task loop, then
+// call tud_deinit() from this task if needed
+bool tud_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
 TU_ATTR_ALWAYS_INLINE static inline
-void tud_task (void) {
-  tud_task_ext(UINT32_MAX, false);
+bool tud_task (void) {
+  return tud_task_ext(UINT32_MAX, false);
 }
+
+// Make tud_task()/tud_task_ext() return true once the events queued before this call are processed, waking it
+// if blocked. Call once per stop from one other task (not ISR) to stop the USB task before tud_deinit().
+// On a full queue it waits for space if the OS adapter's queue send waits (FreeRTOS, ThreadX, Zephyr), else
+// returns false (no OS, RT-Thread, RTX4, Mynewt...): retry. Also returns false if not initialized
+bool tud_task_stop(void);
 
 // Check if there is pending events need processing by tud_task()
 bool tud_task_event_ready(void);
@@ -84,8 +92,14 @@ bool tud_task_event_ready(void);
 extern void dcd_int_handler(uint8_t rhport);
 #endif
 
-// Interrupt handler, name alias to DCD
-#define tud_int_handler   dcd_int_handler
+// Interrupt handler, name alias to DCD. Most BSPs call it from their vector ISR rather than
+// tusb_int_handler(), so the SystemView ISR span is recorded here.
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #define tud_int_handler(_rhport) \
+    do { TU_SYSVIEW_ISR_ENTER(); dcd_int_handler(_rhport); TU_SYSVIEW_ISR_EXIT(); } while(0)
+#else
+  #define tud_int_handler   dcd_int_handler
+#endif
 
 // Get current bus speed
 tusb_speed_t tud_speed_get(void);
@@ -111,15 +125,15 @@ bool tud_ready(void) {
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
-// Enable pull-up resistor on D+ D-
-// Return false on unsupported MCUs
+// Disable pull-up resistor on D+ D-, a no-op on MCUs without software control. Always returns true
 bool tud_disconnect(void);
 
-// Disable pull-up resistor on D+ D-
-// Return false on unsupported MCUs
+// Enable pull-up resistor on D+ D-, a no-op on MCUs without software control. Always returns true
 bool tud_connect(void);
 
-// Enable or disable the Start Of Frame callback support
+// Enable or disable the Start Of Frame callback support.
+// A bus reset, or a SET_CONFIGURATION that leaves the current configuration, turns it off again: enable it from
+// tud_mount_cb() rather than once at startup.
 void tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer
@@ -183,7 +197,7 @@ void tud_resume_cb(void);
 // Invoked when there is a new usb event, which need to be processed by tud_task()/tud_task_ext()
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
-// Invoked when a new (micro) frame started
+// Invoked when a new (micro) frame started, while enabled by tud_sof_cb_enable()
 void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE

@@ -296,8 +296,10 @@ bool hidd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             xferlen++;
           }
 
-          xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
-          TU_ASSERT(xferlen > 0);
+          const uint16_t report_len =
+            tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
+          TU_VERIFY(report_len > 0); // 0 stalls the request, report ID prefix or not
+          xferlen += report_len;
 
           tud_control_xfer(rhport, request, p_epbuf->ctrl, xferlen);
         }

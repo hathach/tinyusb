@@ -557,6 +557,24 @@
       }
     }
   },
+  "ch32v4x7": {
+    "ch32v407_r0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32V4X7"
+        ],
+        "mcu": "OPT_MCU_CH32V4X7",
+        "options": {},
+        "portable": [
+          "wch/wch_hs2/dcd_wch_hs2.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch32x035": {
     "weact_ch32x035_core_board": {
       "cmake": {
@@ -3375,6 +3393,26 @@
   },
   "stm32c5": {
     "stm32c542nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32C5"
+        ],
+        "mcu": "OPT_MCU_STM32C5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    },
+    "stm32c5a3nucleo": {
       "cmake": {
         "defines": {},
         "family_mcus": [

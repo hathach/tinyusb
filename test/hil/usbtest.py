@@ -10,7 +10,7 @@ kernel tools/usb/testusb.c), write access to the device's usbfs node
 (tools/88-tinyusb.rules).
 
 Driver loading and binding, the bounded testusb case run and its verdict, and the
-upstream host controller check are agentrc's hil_usbtest (lib/agentrc, helper/agentrc.py);
+upstream host controller check are agentrc's hil_usbtest (helper/agentrc.py);
 this script picks the battery and its options, and owns the recovery and the report. A case
 gated off by the driver's capability profile (or an in-kernel parameter check) is NOTRUN,
 reported as a failure since every case in the selected battery is expected to run.
@@ -193,8 +193,9 @@ def recover_hang(board_json, fw, proc, dev):
               f'opening usbfs nodes, and this DUT has a D-state holder on '
               f'its own node): skipping the recovery rather than adding a '
               f'second stray. Give the board a flasher_recover entry (openocd '
-              f'pinned with vid_pid or over a VID-filtered interface cfg) to '
-              f'enable recovery for it.',
+              f'pinned with vid_pid or over a VID-filtered interface cfg), in '
+              f'agentrc\'s board registry for a board with a probe, to enable '
+              f'recovery for it.',
               file=sys.stderr)
         return False
     reset_fn = hil_flash.reset_primitive(fname)

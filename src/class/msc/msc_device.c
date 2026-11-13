@@ -292,9 +292,11 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
   return true;
 }
 
+// default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
 TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lun) {
-  // default sense is NOT READY, MEDIUM NOT PRESENT
-  (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  if (_mscd_itf.sense_key == 0) {
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  }
 }
 
 static void proc_async_io_done(void *bytes_io) {
@@ -450,9 +452,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
-  (void) event;
-
+static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t * p_cbw = &p_msc->cbw;
   msc_csw_t * p_csw = &p_msc->csw;
@@ -561,7 +561,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
-      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE); // sanity check to avoid buffer overflow
+      // sanity check to avoid buffer overflow
+      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE);
       // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, _mscd_epbuf.buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0]) {
@@ -649,6 +650,14 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   return true;
 }
 
+bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
+  (void) event;
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  bool const ret = mscd_xfer(rhport, ep_addr, xferred_bytes);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_MSC_XFER);
+  return ret;
+}
+
 /*------------------------------------------------------------------*/
 /* SCSI Command Process
  *------------------------------------------------------------------*/
@@ -669,9 +678,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
 
@@ -683,9 +690,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
     }
@@ -698,9 +703,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       }
       break;
     }
@@ -719,9 +722,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       } else {
         scsi_read_capacity10_resp_t read_capa10;
 
@@ -753,9 +754,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         resplen = -1;
 
         // set default sense if not set by callback
-        if (p_msc->sense_key == 0) {
-          set_sense_medium_not_present(lun);
-        }
+        set_sense_medium_not_present(lun);
       } else {
         read_fmt_capa.block_num = tu_htonl(block_count);
         read_fmt_capa.block_size_u16 = tu_htons(block_size);

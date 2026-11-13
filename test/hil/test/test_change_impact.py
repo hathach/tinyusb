@@ -9,7 +9,7 @@
 # is stdlib + hil_util only (test_hil_util.BottomLayer enforces the stdlib closure of
 # both) and the roster-dispatch tests need its flash_* table; never import hil_test,
 # which pulls pyserial. Nothing here may call into agentrc's flash provider either:
-# build.yml's selector gate runs this suite without lib/agentrc, so tests that do live
+# build.yml's selector gate may run this suite without agentrc, so tests that do live
 # in test_hil_flash.py.
 import contextlib
 import glob
@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import hil_flash
 import change_impact
-from helper.hil_util import device_tests, dual_tests
+from helper.hil_util import device_tests, dual_tests, hil_boards
 
 
 def _read(path):
@@ -53,12 +53,13 @@ def real_rosters():
 
 def roster_flashers():
     """(roster path, board) for every board in the live rosters, `boards-skip`
-    included: a parked board's flasher name must still dispatch, so that unparking it
-    is not what discovers the name went stale."""
+    included, each with its flasher from agentrc's board registry: a parked board's
+    flasher name must still dispatch, so that unparking it is not what discovers the
+    name went stale."""
     for name in ('tinyusb.json', 'hfp.json'):
         path = os.path.join(REPO, 'test/hil', name)
         with open(path) as f:
-            cfg = json.load(f)
+            cfg = hil_boards().resolve_roster(json.load(f))
         for key in ('boards', 'boards-skip'):
             for b in cfg.get(key, []):
                 yield f'test/hil/{name}', b
@@ -884,10 +885,9 @@ class TestOrphanInvariant(unittest.TestCase):
 
     # hw/bsp families absent from ci_set_matrix's family_list, so a PR touching one
     # gets no compile coverage (ci_set_matrix treats a selection that intersects
-    # family_list to nothing as unusable -> full matrix). cxd56: NuttX headers break
-    # the audio/midi2 examples. espressif is NOT here: it is in family_list with no
-    # toolchain, since hil-build-esp builds its boards by name.
-    UNBUILT_FAMILIES = {'cxd56', 'pic32mz', 'py32f0'}
+    # family_list to nothing as unusable -> full matrix). espressif is NOT here: it is
+    # in family_list with no toolchain, since hil-build-esp builds its boards by name.
+    UNBUILT_FAMILIES = {'pic32mz', 'py32f0'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
@@ -1081,16 +1081,21 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_agentrc.py',
             'test/hil/test/test_hil_args.py',
             'test/hil/test/test_hil_bounded.py',
+            'test/hil/test/test_hil_dual_parse.py',
             'test/hil/test/test_hil_farm_check.py',
             'test/hil/test/test_hil_flash.py',
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
+            'test/hil/test/test_hil_net.py',
+            'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
             'test/hil/test/test_hil_report.py',
             'test/hil/test/test_hil_reset_order.py',
             'test/hil/test/test_hil_rtt.py',
             'test/hil/test/test_hil_stale_setup.py',
+            'test/hil/test/test_hil_sysview_capture.py',
+            'test/hil/test/test_hil_sysview_ci.py',
             'test/hil/test/test_hil_teardown_stress.py',
             'test/hil/test/test_hil_tty_raw.py',
             'test/hil/test/test_hil_usbtest_id.py',
@@ -1452,17 +1457,78 @@ class TestLibRule(unittest.TestCase):
         self.assertNotIn('stm32f407disco', s['boards'])
         self.assertNotIn('espressif_s3_devkitm', s['boards'])
 
-    def test_hil_lib_used_only_by_a_disabled_test_selects_nothing(self):
-        # device/net_lwip_webserver is commented out of hil_util.device_tests, so the
-        # intersection with the HIL universe is empty
-        s = sel(['lib/networking/dhserver.c'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['boards'], {})
+    def test_hil_network_changes_select_webserver(self):
+        for path in ('lib/networking/dhserver.c', 'src/class/net/ncm_device.c'):
+            with self.subTest(path=path):
+                s = sel([path])
+                self.assertFalse(s['full'])
+                self.assertEqual(set(s['boards']['stm32f407disco']),
+                                 {'device/net_lwip_webserver'})
 
     def test_hil_lib_nobody_builds_selects_nothing(self):
         s = sel(['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'])
         self.assertFalse(s['full'])
         self.assertEqual(s['boards'], {})
+
+    def _rtt_rosters(self, traced, console):
+        roster = [dict(b) for b in ROSTER]
+        if traced:
+            roster[1]['sysview'] = {'example': 'device/cdc_msc'}
+        if console:
+            roster[0]['logger'] = 'rtt'
+        return [('test/hil/tinyusb.json', roster)]
+
+    def test_build_rtt_lock_header_selects_nothing(self):
+        # force-included only by SYSVIEW and LOGGER=rtt configures, which no main-matrix leg sets
+        s = self.b(['hw/bsp/rtt_conf_cortexm.h'])
+        self.assertFalse(s['full'])
+        self.assertEqual(s['families'], [])
+        self.assertEqual(s['family_examples'], {})
+
+    def test_hil_rtt_lock_header_selects_what_compiles_segger_rtt(self):
+        traced = {'stm32f407disco': {'device/cdc_msc'}}
+        console = {'raspberry_pi_pico': {'all'}}
+        for (t, c), want in {(False, False): {}, (True, False): traced, (False, True): console,
+                             (True, True): {**traced, **console}}.items():
+            for path in ('hw/bsp/rtt_conf_cortexm.h', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+                s = change_impact.classify([path], REPO, self._rtt_rosters(t, c))
+                self.assertFalse(s['full'])
+                got = {k: {'all'} if v == 'all' else set(v) for k, v in s['boards'].items()}
+                self.assertEqual(got, want, (path, t, c))
+
+    def _traced_roster(self):
+        return self._rtt_rosters(True, False)
+
+    def test_hil_a_traced_build_dependency_selects_the_capture_boards(self):
+        # lib/SystemView is compiled only by hil-build's traced legs; lib/SEGGER_RTT by them too
+        for path in ('lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
+            s = change_impact.classify([path], REPO, self._traced_roster())
+            self.assertFalse(s['full'])
+            self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}},
+                             path)
+        b = self.b(['lib/SystemView/SYSVIEW/SEGGER_SYSVIEW.c'])
+        self.assertEqual((b['full'], b['families']), (False, []))
+
+    def test_hil_the_systemview_pin_selects_the_capture_boards(self):
+        with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
+            real = f.read()
+        sys.path.insert(0, os.path.join(REPO, 'tools'))
+        import get_deps
+        commit = get_deps.deps_optional['lib/SystemView'][1]
+        bumped = real.replace(commit, '0' * len(commit))
+        # no family token: without its path a pin bump would select nothing
+        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
+        self.assertEqual(gd, {'lib/SystemView'})
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd)
+        self.assertEqual({k: set(v) for k, v in s['boards'].items()}, {'stm32f407disco': {'device/cdc_msc'}})
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd)
+        self.assertEqual((b['full'], b['families']), (False, []))
+        # alongside a family's bump both are selected
+        s = change_impact.classify(['tools/get_deps.py'], REPO, self._traced_roster(), gd | {'nrf'})
+        self.assertIn('stm32f407disco', s['boards'])
+        self.assertEqual(s['families'], ['nrf'])
+        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families=gd | {'nrf'})
+        self.assertEqual(b['families'], ['nrf'])
 
 
 # A miniature get_deps.py: the module shape the parser must cope with (imports,
@@ -1579,6 +1645,27 @@ class TestGetDepsChangedFamilies(unittest.TestCase):
                          set(tokens.split()))
 
 
+class TestAgentrcPinRule(unittest.TestCase):
+    """Rule 2f: the agentrc pin and its bootstrap pick the shared HIL harness scripts and the code-size engine
+    every build leg's snapshot step runs (rule 2d), so either is full on both axes."""
+
+    PIN = ('test/hil/agentrc.json', 'test/hil/helper/agentrc.py')
+
+    def test_the_pin_or_its_bootstrap_selects_full_hil_and_the_full_build(self):
+        for path in self.PIN:
+            with self.subTest(path):
+                self.assertTrue(change_impact.classify([path], REPO, ROSTERS)['full'])
+                b = change_impact.classify_build([path], REPO)
+                self.assertTrue(b['full'])
+                self.assertEqual([r['rule'] for r in b['paths']], ['agentrc'])
+
+    def test_the_rest_of_the_harness_is_still_rule_2(self):
+        self.assertTrue(change_impact.classify(['test/hil/helper/hil_util.py'], REPO, ROSTERS)['full'])
+        b = change_impact.classify_build(['test/hil/helper/hil_util.py', 'test/hil/agentrc.jsonx'], REPO)
+        self.assertFalse(b['full'])
+        self.assertEqual({r['rule'] for r in b['paths']}, {'hil-harness'})
+
+
 class TestGetDepsRule(unittest.TestCase):
     """tools/get_deps.py: the changed dep entries' families, or full when unknowable."""
 
@@ -1608,30 +1695,16 @@ class TestGetDepsRule(unittest.TestCase):
     def test_hil_without_a_base_is_full(self):
         self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS)['full'])
 
-    def test_a_hil_harness_dep_selects_full_hil_and_the_full_build(self):
-        # lib/agentrc also holds the code-size engine each build leg's snapshot step runs (rule 2d)
-        s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families={'lib/agentrc'})
-        self.assertTrue(s['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'lib/agentrc'})
-        self.assertTrue(b['full'])
-        b = change_impact.classify_build(['tools/get_deps.py'], REPO, get_deps_families={'stm32f4'})
-        self.assertEqual(b['families'], ['stm32f4'])
-
-    def test_the_real_agentrc_pin_is_a_hil_harness_dep(self):
+    def test_a_dep_bump_selects_only_its_families(self):
         with open(os.path.join(REPO, 'tools/get_deps.py')) as f:
             real = f.read()
         sys.path.insert(0, os.path.join(REPO, 'tools'))
         import get_deps
-        commit = get_deps.deps_optional['lib/agentrc'][1]
-        bumped = real.replace(commit, '0' * len(commit))
-        # lib/agentrc has no family token, so without its path a pin bump would select nothing
-        gd = change_impact.get_deps_changed_families(real, bumped, REPO)
-        self.assertEqual(gd, {'lib/agentrc'})
-        self.assertTrue(change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, gd)['full'])
+        self.assertNotIn('lib/agentrc', get_deps.deps_all, 'the agentrc pin is test/hil/agentrc.json (rule 2f)')
         nrfx = get_deps.deps_optional['hw/mcu/nordic/nrfx'][1]
-        both = bumped.replace(nrfx, '1' * len(nrfx))
-        self.assertEqual(change_impact.get_deps_changed_families(real, both, REPO),
-                         {'lib/agentrc', *get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()})
+        bumped = real.replace(nrfx, '1' * len(nrfx))
+        self.assertEqual(change_impact.get_deps_changed_families(real, bumped, REPO),
+                         set(get_deps.deps_optional['hw/mcu/nordic/nrfx'][2].split()))
 
     def test_hil_no_dep_entry_changed_selects_nothing(self):
         s = change_impact.classify(['tools/get_deps.py'], REPO, ROSTERS, get_deps_families=set())
@@ -1774,6 +1847,11 @@ class TestBuildClassifier(unittest.TestCase):
     def test_bsp_top_level_file_is_full(self):                     # rule 16
         self.assertTrue(self.b(['hw/bsp/board.c'])['full'])
         self.assertTrue(self.b(['hw/bsp/family_support.cmake'])['full'])
+
+    def test_the_sysview_manifest_helper_is_full(self):            # rule 16, not 16c
+        # family_support.cmake includes it in every configure, traced or not
+        self.assertTrue(self.b(['hw/bsp/sysview_manifest.cmake'])['full'])
+        self.assertTrue(sel(['hw/bsp/sysview_manifest.cmake'])['full'])
 
     def test_mcu_rule(self):                                       # rule 7
         s = self.b(['hw/mcu/nordic/nrf5x/nrf_clock.h'])
@@ -2501,10 +2579,10 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         # hil-build-esp sizes and uploads every leg under its --build-name: an unnamed
         # esp-idf variant would collide with the plain board; other buckets never upload
         import tempfile
-        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink'},
+        other = {'name': 'metro_m4_express', 'uid': 'm', 'flasher': {'name': 'jlink', 'uid': 'p'},
                  'variant': [{'name': 'metro_m4_express', 'defines': ['MAX3421_HOST=1']}]}
         for vname, ok in (('espressif_s3_devkitm', False), ('espressif_s3_devkitm-X', True)):
-            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool'},
+            esp = {'name': 'espressif_s3_devkitm', 'uid': 'u', 'flasher': {'name': 'esptool', 'uid': 'p'},
                    'variant': [{'name': vname, 'defines': ['X=1']}]}
             with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
                 json.dump({'boards': [esp, other]}, f)
@@ -2516,9 +2594,51 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
             else:
                 self.assertIn('an esp-idf variant needs a name of its own', r.stderr)
 
+    def _matrix_of(self, boards, *args):
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
+            json.dump({'boards': boards}, f)
+            f.flush()
+            return subprocess.run([sys.executable, HIL_SET_MATRIX, *args, f.name], capture_output=True, text=True)
+
+    def test_the_traced_leg_only_beside_a_device_or_dual_test(self):
+        # hil_test.py captures only then: the park image alone or a host-only selection builds no traced image
+        f407 = {'name': 'stm32f407disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
+                'sysview': {'example': 'device/cdc_msc'}}
+        for examples, traced in ((['device/board_test', 'host/cdc_msc_hid'], False), (['device/board_test'], False),
+                                 (['device/board_test', 'device/cdc_msc'], True),
+                                 (['device/board_test', 'dual/host_info_to_device_cdc'], True)):
+            with self.subTest(examples):
+                sel = mf(boards={'stm32f407disco': [e for e in examples if e != 'device/board_test']},
+                         hil_examples={'stm32f407disco': examples})
+                r = self._matrix_of([f407], '--select', json.dumps(sel))
+                self.assertEqual(r.returncode, 0, r.stderr)
+                legs = json.loads(r.stdout)['arm-gcc']
+                self.assertEqual(any('stm32f407disco-sysview' in leg for leg in legs), traced, legs)
+
+    def test_a_sysview_board_gets_a_traced_leg_of_its_own(self):
+        # its own build name, so neither the test image nor the parking board_test is replaced
+        pico = {'name': 'raspberry_pi_pico', 'uid': 'u', 'flasher': {'name': 'openocd', 'uid': 'p'},
+                'variant': [{'name': 'raspberry_pi_pico', 'flags': '-DCFG_TUH_RPI_PIO_USB=1'}],
+                'sysview': {'example': 'device/cdc_msc', 'buffer': 65536}}
+        r = self._matrix_of([pico])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['arm-gcc'], [
+            '-b raspberry_pi_pico --cflag=-DCFG_TUH_RPI_PIO_USB=1',
+            '-b raspberry_pi_pico --build-name raspberry_pi_pico-sysview -e device/cdc_msc -DSYSVIEW=4 '
+            '-DSYSVIEW_BUFFER_SIZE=65536 --cflag=-DCFG_TUH_RPI_PIO_USB=1'])
+
+    def test_a_sysview_board_with_several_variants_is_refused(self):
+        b = {'name': 'stm32f723disco', 'uid': 'u', 'flasher': {'name': 'jlink', 'uid': 'p'},
+             'variant': [{'name': 'stm32f723disco'}, {'name': 'stm32f723disco-DMA', 'flags': '-DX=1'}],
+             'sysview': {'example': 'device/cdc_msc'}}
+        r = self._matrix_of([b])
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('cannot tell which one to trace', r.stderr)
+
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         import tempfile
-        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp'}}
+        p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp', 'uid': 'p'}}
         with tempfile.NamedTemporaryFile('w', suffix='.json') as f:
             json.dump({'boards': [p4]}, f)
             f.flush()
@@ -2571,11 +2691,16 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         sel = json.dumps(mf(boards={board: 'all'}, hil_examples={board: ['device/board_test', 'device/cdc_msc']}))
         m = json.loads(self.run_matrix('--select', sel))
         entries = [e for entries in m.values() for e in entries]
+        traced = [e for e in entries if f'--build-name {board}-sysview' in e]
         self.assertTrue(entries)
         for e in entries:
             self.assertIn(f'-b {board}', e)
-            self.assertIn('-e device/board_test', e)
-            self.assertIn('-e device/cdc_msc', e)
+            if e not in traced:
+                self.assertIn('-e device/board_test', e)
+                self.assertIn('-e device/cdc_msc', e)
+        # the capture's traced leg builds its one example whatever the selection
+        for e in traced:
+            self.assertEqual(re.findall(r'-e (\S+)', e), ['device/cdc_msc'])
 
 
 class TestBuildPyExampleFilter(unittest.TestCase):
@@ -3346,12 +3471,16 @@ class TestPrunePoolIsBuildPys(unittest.TestCase):
     def test_espressif_builds_every_example_its_rig_boards_run(self):
         # an only-list example missing from get_examples('espressif') has no binary,
         # so HIL reports it skipped rather than failing
+        on_roster(self, 'espressif_s3_devkitm', 'espressif_p4_function_ev')
         pool = set(self.build_py.get_examples('espressif'))
+        checked = 0
         for _, boards in real_rosters():
-            for b in boards:
-                if b.get('flasher', {}).get('name') == 'esptool':
+            for b in map(hil_boards().resolve, boards):
+                if b['flasher']['name'] == 'esptool':
+                    checked += 1
                     for t in b.get('tests', {}).get('only', []):
                         self.assertIn(t, pool, f"{b['name']}: {t}")
+        self.assertTrue(checked, 'no esptool board checked: the flasher lookup no longer resolves')
 
     def test_selections_are_what_the_espressif_only_rule_gave(self):
         # espressif's own list is the one value that ever differed from the unfiltered
@@ -3395,7 +3524,7 @@ class TestGetDepsExampleShim(unittest.TestCase):
             'class P:\n'
             '    def __enter__(self): return self\n'
             '    def __exit__(self, *a): return False\n'
-            '    def map(self, fn, items): return [0] * len(items)\n'
+            '    def map(self, fn, items): print(*items, sep="\\n"); return [0] * len(items)\n'
             'get_deps.Pool = P\n'
             "sys.argv = ['get_deps.py'] + sys.argv[1:]\n"
             'sys.exit(get_deps.main())\n')
@@ -3414,17 +3543,183 @@ class TestGetDepsExampleShim(unittest.TestCase):
         r = self.run_get_deps('-b', 'stm32f407disco')
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_a_traced_build_fetches_systemview(self):
+        # hil_ci_set_matrix.py's sysview leg hands its -D list here: only SYSVIEW=<nonzero> adds the sources
+        for defines, fetched in ((['-DSYSVIEW=4', '-DSYSVIEW_BUFFER_SIZE=65536'], True),
+                                 (['-DSYSVIEW=0'], False), (['-DMAX3421_HOST=1'], False)):
+            r = self.run_get_deps('-b', 'stm32f407disco', *defines)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual('lib/SystemView' in r.stdout.split(), fetched, (defines, r.stdout))
+
 
 
 class TestNoLockDependency(unittest.TestCase):
     def test_the_selector_never_loads_hil_lock(self):
-        # build.yml's check-paths gate selects on a checkout that never fetched lib/agentrc,
+        # build.yml's check-paths gate may select on a checkout whose agentrc fetch failed,
         # which helper/agentrc.py refuses to load hil_lock or the RTT console without
         code = ('import sys; sys.path.insert(0, "tools"); import change_impact; '
                 'print(sorted(m for m in sys.modules if "hil_lock" in m or "rtt" in m))')
         r = subprocess.run([sys.executable, '-c', code], cwd=REPO, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), '[]')
+
+
+class TestGetDepsExistingDirectory(unittest.TestCase):
+    def run_get_dep(self, fail=None, create_git=True, initialized=False, valid=True, unborn=False,
+                    origin=True, pinned=False, unborn_output=b''):
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+
+        with TemporaryDirectory(prefix='tinyusb deps ') as top:
+            dep = pathlib.Path(top, 'lib', 'dep')
+            dep.mkdir(parents=True)
+            if initialized:
+                (dep / '.git').mkdir()
+
+            commands = []
+
+            def run(command):
+                commands.append(command)
+                if command[-1] == 'init' and fail != 'init' and create_git:
+                    (dep / '.git').mkdir()
+                returncode, output = 0, b'parent-head\n'
+                if command[-1] == '--show-toplevel':
+                    # an invalid .git makes git answer with the enclosing repository's top level
+                    output = f'{dep if valid else top}\n'.encode()
+                elif command[-3:] == ['remote', 'get-url', 'origin']:
+                    returncode, output = ((0, b'https://example.invalid/dep.git\n') if origin else (1, b''))
+                elif command[-1] == 'HEAD':
+                    if unborn:
+                        returncode, output = 1, unborn_output
+                    elif pinned:
+                        output = b'0123456789abcdef\n'
+                if fail and command[-1].endswith(fail):
+                    returncode = 1
+                return subprocess.CompletedProcess([], returncode, stdout=output)
+
+            with mock.patch.object(get_deps, 'TOP', pathlib.Path(top)), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch.object(get_deps, 'run_cmd', side_effect=run):
+                status = get_deps.get_a_dep('lib/dep')
+
+        return dep, commands, status
+
+    def test_directory_without_git_metadata_is_initialized(self):
+        dep, commands, status = self.run_get_dep()
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            [*git, 'init'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+        self.assertIn(' ', str(dep))
+
+    def test_git_failures_stop_dependency_setup(self):
+        for name, suffix, count in [('init', 'init', 1), ('remote', 'dep.git', 2),
+                                    ('fetch', '0123456789abcdef', 3), ('checkout', 'FETCH_HEAD', 4)]:
+            with self.subTest(failed=name):
+                _, commands, status = self.run_get_dep(suffix)
+                self.assertEqual(status, 1)
+                self.assertEqual(len(commands), count)
+
+    def test_init_without_dependency_metadata_stops_setup(self):
+        _, commands, status = self.run_get_dep(create_git=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(len(commands), 1)
+
+    def test_unborn_repository_retries_fetch(self):
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True, origin=False)
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands, [
+            [*git, 'rev-parse', '--show-toplevel'],
+            [*git, 'remote', 'get-url', 'origin'],
+            [*git, 'remote', 'add', 'origin', 'https://example.invalid/dep.git'],
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_unborn_repository_with_non_utf8_diagnostic_retries_fetch(self):
+        # a non-UTF-8 locale's message for the failed verify must not abort the fetch retry
+        dep, commands, status = self.run_get_dep(initialized=True, unborn=True,
+                                                 unborn_output=b'fatal: \xff\xfe HEAD\n')
+        git = ['git', '-C', str(dep)]
+        self.assertEqual(status, 0)
+        self.assertEqual(commands[-3:], [
+            [*git, 'rev-parse', '--verify', 'HEAD'],
+            [*git, 'fetch', '--depth', '1', 'origin', '0123456789abcdef'],
+            [*git, 'checkout', 'FETCH_HEAD'],
+        ])
+
+    def test_failed_command_output_survives_a_strict_narrow_stdout(self):
+        # piped on Windows, stdout is cp1252 strict: U+FFFD from b'\xff' must not raise
+        from unittest import mock
+        import get_deps
+        buf = io.BytesIO()
+        out = io.TextIOWrapper(buf, encoding='cp1252', errors='strict')
+        child = 'import sys; sys.stdout.buffer.write(b"\\xff"); sys.exit(1)'
+        with mock.patch('sys.stdout', out):
+            r = get_deps.run_cmd([sys.executable, '-c', child])
+            out.flush()
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(r.stdout, b'\xff')
+        lines = buf.getvalue().splitlines()
+        self.assertTrue(lines[0].startswith(b'Command Error:'), lines)
+        self.assertEqual(lines[-1], b'?')
+
+    def test_pinned_branch_is_detached_and_failure_propagates(self):
+        for fail, expected in [(None, 0), ('--detach', 1)]:
+            with self.subTest(fail=fail):
+                dep, commands, status = self.run_get_dep(fail, initialized=True, pinned=True)
+                self.assertEqual(status, expected)
+                self.assertEqual(commands[-1], ['git', '-C', str(dep), 'checkout', '--detach'])
+                self.assertFalse(any('fetch' in command for command in commands))
+
+    def test_invalid_git_metadata_stops_setup(self):
+        dep, commands, status = self.run_get_dep(initialized=True, valid=False)
+        self.assertEqual(status, 1)
+        self.assertEqual(commands, [['git', '-C', str(dep), 'rev-parse', '--show-toplevel']])
+
+    def test_an_empty_git_directory_leaves_the_enclosing_checkout_alone(self):
+        # real git: it ignores an empty .git and walks up, which a mocked rev-parse cannot show
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        import get_deps
+        env = {k: v for k, v in os.environ.items() if k not in get_deps.GIT_REPO_ENV}
+
+        def git(path, *args):
+            return subprocess.run(['git', '-C', str(path), '-c', 'user.name=t', '-c', 'user.email=t@t',
+                                   '-c', 'commit.gpgsign=false', *args],
+                                  capture_output=True, text=True, check=True, env=env).stdout.strip()
+
+        with TemporaryDirectory() as td:
+            outer = pathlib.Path(td, 'outer')
+            outer.mkdir()
+            git(outer, 'init', '-q')
+            (outer / 'work.txt').write_text('committed\n')
+            git(outer, 'add', 'work.txt')
+            git(outer, 'commit', '-q', '-m', 'outer')
+            head = git(outer, 'rev-parse', 'HEAD')
+            (outer / 'work.txt').write_text('uncommitted\n')
+            (outer / 'lib' / 'dep' / '.git').mkdir(parents=True)
+            with mock.patch.object(get_deps, 'TOP', outer), \
+                    mock.patch.dict(get_deps.deps_all,
+                                    {'lib/dep': ['https://example.invalid/dep.git',
+                                                 '0123456789abcdef', 'test']},
+                                    clear=True), \
+                    mock.patch('sys.stdout'):
+                status = get_deps.get_a_dep('lib/dep')
+            self.assertEqual(status, 1)
+            self.assertEqual((outer / 'work.txt').read_text(), 'uncommitted\n')
+            self.assertEqual(git(outer, 'rev-parse', 'HEAD'), head)
+            self.assertEqual(git(outer, 'remote'), '')
 
 
 if __name__ == '__main__':

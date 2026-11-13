@@ -481,6 +481,27 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
   return true;
 }
 
+// A DCD may queue the unplug ahead of an endpoint completion latched in the same ISR run (dwc2 handles OTGINT before
+// the endpoint interrupts). The unplug unbinds the endpoint, so the completion that follows is stale: it is dropped
+// without reaching the class (mscd_xfer_cb has no expectation) and the run goes on to the next event.
+static void count_call(void* param) {
+  (*(unsigned*) param)++;
+}
+
+void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
+  msc_out_armed();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+
+  // an event queued behind the stale completion is still processed in the same tud_task() run
+  unsigned calls = 0;
+  usbd_defer_func(count_call, &calls, false);
+
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(1, calls);
+}
+
 // usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
 void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   msc_out_armed();
@@ -735,4 +756,138 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
   TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
   tud_task();
   TEST_ASSERT_EQUAL(1, deferred_calls);
+}
+
+//--------------------------------------------------------------------+
+// tud_task_stop
+//--------------------------------------------------------------------+
+
+// events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
+void test_usbd_task_stop_after_queued_events(void) {
+  deferred_calls = 0;
+  usbd_defer_func(deferred_call, NULL, false);
+  TEST_ASSERT_TRUE(tud_task_stop());
+  usbd_defer_func(deferred_call, NULL, false);
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+
+  TEST_ASSERT_FALSE(tud_task());
+  TEST_ASSERT_EQUAL(2, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
+// without an RTOS a full queue refuses the stop and nothing stops; a retry once it drained is taken
+void test_usbd_task_stop_full_queue(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_FALSE(tud_task_stop());
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    TEST_ASSERT_FALSE(tud_task());
+  }
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls);
+
+  TEST_ASSERT_TRUE(tud_task_stop());
+  TEST_ASSERT_TRUE(tud_task());
+}
+
+//--------------------------------------------------------------------+
+// SOF callback: a bus reset or leaving a configuration turns it off, the application enables it again from
+// tud_mount_cb() (#2973)
+//--------------------------------------------------------------------+
+static unsigned sof_cb_count;
+static bool     sof_on_mount;
+
+void tud_sof_cb(uint32_t frame_count) {
+  (void) frame_count;
+  sof_cb_count++;
+}
+
+void tud_mount_cb(void) {
+  if (sof_on_mount) {
+    tud_sof_cb_enable(true);
+  }
+}
+
+static void bus_reset(void) {
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+}
+
+// SET_CONFIGURATION(cfg_num) of the configuration without interfaces, status stage included
+static void set_configuration(uint8_t cfg_num, bool was_configured) {
+  static tusb_control_request_t req; // read by the status-complete expectation during tud_task()
+  req        = req_set_configuration;
+  req.wValue = cfg_num;
+  desc_configuration = data_desc_configuration;
+  if (was_configured) {
+    // leaving a configuration turns SOF and the endpoints off first
+    dcd_sof_enable_Expect(rhport, false);
+    dcd_edpt_close_all_Expect(rhport);
+  }
+  dcd_event_setup_received(rhport, (uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
+  if (was_configured) {
+    // the configuration reset clears the control request too, so the status stage reports a zeroed one
+    dcd_edpt0_status_complete_IgnoreArg_request();
+  }
+  tud_task();
+}
+
+// SOF callbacks for n SOF interrupts
+static unsigned sof_cb_after(unsigned n) {
+  const unsigned before = sof_cb_count;
+  for (unsigned i = 0; i < n; i++) {
+    dcd_event_sof(rhport, i, false);
+  }
+  while (tud_task_event_ready()) {
+    tud_task();
+  }
+  return sof_cb_count - before;
+}
+
+// A bus reset turns the SOF callback off without touching the DCD. Enabling it again reaches the DCD, which may
+// have turned its SOF interrupt off on bus reset.
+void test_usbd_sof_cb_enable_again_after_bus_reset(void) {
+  bus_reset();
+  dcd_sof_enable_Expect(rhport, true);
+  tud_sof_cb_enable(true);
+  TEST_ASSERT_EQUAL(2, sof_cb_after(2));
+
+  bus_reset();
+  TEST_ASSERT_EQUAL(0, sof_cb_after(2));
+
+  dcd_sof_enable_Expect(rhport, true);
+  tud_sof_cb_enable(true);
+  TEST_ASSERT_EQUAL(2, sof_cb_after(2));
+
+  dcd_sof_enable_Expect(rhport, false);
+  tud_sof_cb_enable(false);
+}
+
+// Leaving a configuration turns SOF off; enabling it from tud_mount_cb() turns it on again
+void test_usbd_sof_cb_enabled_from_mount_cb_after_leaving_configuration(void) {
+  bus_reset();
+  sof_on_mount = true;
+
+  dcd_sof_enable_Expect(rhport, true);
+  set_configuration(1, false);
+  TEST_ASSERT_EQUAL(1, sof_cb_after(1));
+
+  set_configuration(0, true);
+  TEST_ASSERT_EQUAL(0, sof_cb_after(1));
+
+  dcd_sof_enable_Expect(rhport, true);
+  set_configuration(1, false);
+  TEST_ASSERT_EQUAL(1, sof_cb_after(1));
+
+  sof_on_mount = false;
+  dcd_sof_enable_Expect(rhport, false);
+  tud_sof_cb_enable(false);
 }

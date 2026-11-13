@@ -473,7 +473,11 @@ void dcd_int_handler(uint8_t rhport) {
 
     USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
   } else if (int_flag & USBHS_SUSPEND_FLAG) {
-    dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
+    // The SUSPEND interrupt fires on both suspend and resume; MIS_ST's suspend bit tells them apart
+    // (set while suspended, clear once resumed). Reporting both as suspend leaves usbd suspended for
+    // good: SOF interrupts are off after reset, so nothing else clears it and tud_ready() stays false.
+    dcd_event_t event = {.rhport = rhport,
+                         .event_id = (USBHSD->MIS_ST & USBHS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME};
     dcd_event_handler(&event, true);
 
     USBHSD->INT_FG = USBHS_SUSPEND_FLAG; /* Clear flag */

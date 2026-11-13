@@ -36,6 +36,8 @@
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
 void USB_IRQHandler(void) {
+  // one SystemView span for both roles' self-wrapped handlers (tu_sysview_isr_enter)
+  TU_SYSVIEW_ISR_ENTER();
   #if CFG_TUD_ENABLED
   tud_int_handler(0);
   #endif
@@ -43,6 +45,7 @@ void USB_IRQHandler(void) {
   #if CFG_TUH_ENABLED
   tuh_int_handler(0, true);
   #endif
+  TU_SYSVIEW_ISR_EXIT();
 }
 
 //--------------------------------------------------------------------+

@@ -180,6 +180,7 @@
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 #define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
+#define OPT_MCU_CH32V4X7         2280 ///< WCH CH32V407, CH32V467
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -558,6 +559,15 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
+// SEGGER SystemView instrumentation level (like CFG_TUSB_DEBUG):
+//   0=off  1=USB ISR  2=+usbd/usbh functions  3=+dcd/hcd API  4=+class driver API
+// Requires lib/SystemView (python3 tools/get_deps.py) and a SYSVIEW=<level> build.
+#ifndef CFG_TUSB_SYSVIEW
+  #define CFG_TUSB_SYSVIEW 0
+#endif
+// Derived, not a setting
+#define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED || CFG_TUH_ENABLED) && CFG_TUSB_SYSVIEW)
+
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL
   #define CFG_TUH_LOG_LEVEL   2
@@ -767,6 +777,12 @@
 
   #ifndef CFG_TUH_ENUMERATION_BUFSIZE
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
+  #endif
+
+  // Root-port delay after reset, before reading the port speed/status.
+  // Increase this for devices that need more time to become responsive.
+  #ifndef CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS
+    #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 2
   #endif
 
   // Timeout in ms for each control transfer; raise it for a device with slow control requests.

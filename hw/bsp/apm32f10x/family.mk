@@ -9,7 +9,7 @@ CFLAGS += \
   -flto
 
 LDFLAGS += \
-  -flto --specs=nosys.specs -nostdlib -nostartfiles
+  -flto --specs=nosys.specs --specs=nano.specs -nostdlib -nostartfiles
 
 SRC_C += \
   $(APM32_SDK)/APM32F10x_StdPeriphDriver/src/apm32f10x_gpio.c \

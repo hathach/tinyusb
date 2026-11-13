@@ -10,13 +10,20 @@ already flashed, run `test/hil/usbtest.py --serial <uid> --tests N --json` direc
 
 Refuses before touching hardware (exit 2) when: the board or variant is unknown or ambiguous,
 the board sits in boards-skip, does not run device/usbtest or lacks a uid or flasher name in the
-roster, it flashes through openocd_esp (its ordinary, always-released lock cannot be kept through a session left
-running; use hil_test.py), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
-is held or unusable, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
-process is alive on this host, checked before and again after taking the lock. That check is
-host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it only when
-another battery's load on this board's host controller does not matter for what you are measuring.
+roster, it flashes through openocd_esp (its verdict would not log a session the provider left running; use
+hil_test.py), the usbtest (or, for --after park, the board_test) firmware is not built, the board lock
+is held or unusable, the busy check under it (hil_flash.probe_busy) names a live user of the board's probe or cannot
+rule one out, or a testusb, usbtest.py, hil_test.py, wedge_drill.py or other run_case.py
+process is alive on this host, checked before and again after taking the lock. That peer check is
+host-wide and does not see a hil_test.py started after it: --allow-concurrent skips it, never the busy check, only
+when another battery's load on this board's host controller does not matter for what you are measuring.
 A host that is not Linux is refused first, once argparse has accepted the command line.
+
+The lock is agentrc's hil_lock.board_task (protected; HIL_NO_BOARD_LOCK is ignored), ended on the run's cleanup
+verdict: restored once parked on board_test, clean when --after leave keeps usbtest running with a complete,
+unwedged verdict or a peer refused the run under the lock, failed otherwise (flash, enumeration, an incomplete
+verdict, a wedge, a failed park, an exception or SIGTERM), which logs it in the board's cleanup log for the next
+take to report until a later restore resolves it.
 
 Flashes with the roster's flasher from cmake-build/cmake-build-<variant> (the build skill's
 --shared --variants layout), waits for 0525:a4a0 with the board's serial, and runs usbtest.py
@@ -25,11 +32,14 @@ device/board_test afterwards unless the device is wedged or the verdict is incom
 
 stdout ends with one JSON line: {"pass", "board", "variant", "tests", "cases", "wedged",
 "boardState", "error"}, each case with usbtest.py's num, name, status, detail and, when it captured
-them, stderr and dmesg. Exit 0 every case passed, 1 a case failed or the run failed after the
-lock was taken, 2 refused before any hardware action; a command line argparse rejects exits 2
-with its usage on stderr and no JSON line. A SIGTERM (`hil_lock.py release` sends one
-to the lock holder) kills the running flasher or usbtest.py, reports boardState unknown with a
-verdict line, then releases the lock.
+them, stderr and dmesg; with "previousCleanupFailure" and "openCleanupFailures" (hil_lock.failure_report) when
+the take found open failed cleanups, which go to stderr before any hardware action too, and "restoreNotes" for
+those a park left open. Exit 0 every case passed, 1 a case failed or the run failed after the
+lock was taken or the task's lock did not end as its verdict asked (its errors in "error"), a refusal's too, 2 refused
+before any hardware action; a command line argparse rejects exits 2 with its usage on stderr and no JSON line. The
+JSON line follows the lock's release. A SIGTERM kills the running flasher or usbtest.py, ends the task failed and reports
+boardState unknown. A signal that lands as the task's __exit__ is entered leaves the lock held until this process
+exits (hil_lock.BoardTask's limit), which follows at once.
 """
 import argparse
 import json
@@ -136,7 +146,8 @@ def kill_children(spare=()):
 
 
 def resolve(config, board_name, variant):
-    """(board, variant name) from the roster, or Refused naming the alternatives."""
+    """(board, variant name) from the roster, its flashers from agentrc's board registry, or Refused
+    naming the alternatives."""
     try:
         cfg = json.loads(Path(config).read_text())
     except (OSError, ValueError) as e:
@@ -153,10 +164,10 @@ def resolve(config, board_name, variant):
     if 'device/usbtest' not in change_impact.board_tests(board):
         raise Refused(f'{board_name} does not run device/usbtest in {config} (its "tests" entry); '
                       f'its device port may not reach this host')
-    flasher = board.get('flasher')
-    if not (isinstance(board.get('uid'), str) and board['uid'] and isinstance(flasher, dict)
-            and isinstance(flasher.get('name'), str) and flasher['name']):
-        raise Refused(f'{board_name} in {config} needs a "uid" and a "flasher" with a "name"')
+    try:   # its flasher and flasher_recover are agentrc's, by its probe (`hil` skill, Board registry)
+        board = hil_util.hil_boards().resolve(board)
+    except ValueError as e:
+        raise Refused(f'{config}: {e}')
     if why := hil_flash.openocd_esp_refused(board, retains_lock=False):
         raise Refused(f'{board_name}: {why}')
     try:
@@ -326,6 +337,12 @@ def main():
         signal.signal(signal.SIGTERM, previous)
 
 
+def refusal(e) -> str:
+    """Why a board task refused the board before any hardware action: the lock's refusal, or the
+    busy check under it naming a probe user or unable to rule one out."""
+    return hil_flash.busy_refusal(e) or (str(e) if isinstance(e, RuntimeError) else f'{type(e).__name__}: {e}')
+
+
 def lock_and_run(args, tests, report, finish):
     cwd = os.getcwd()   # before the lock: nothing after it may fail outside the cleanup
     try:
@@ -336,60 +353,100 @@ def lock_and_run(args, tests, report, finish):
         park_fw = firmware(variant, 'device/board_test', flasher) if args.after == 'park' else None
         if not args.allow_concurrent:
             check_peers()
-        try:
-            lock = hil_lock.acquire_board_lock(board['name'], reason=f'run_case.py usbtest {args.tests}')
-        except RuntimeError as e:
-            raise Refused(f'{board["name"]}: {e}')
-        if lock is None:
-            raise Refused(f'{board["name"]}: board lock unavailable or bypassed (HIL_NO_BOARD_LOCK)')
     except Refused as e:
         return finish(2, str(e))
     except Terminated:
         return finish(2, 'terminated (SIGTERM) before any hardware action')
 
+    task = hil_lock.board_task(hil_util.lock_name(board), f'run_case.py usbtest {args.tests}',
+                               busy=lambda: hil_flash.probe_busy(board))
+    entered = False
     try:
-        if not args.allow_concurrent:
-            try:
-                check_peers()   # again: a peer may have started before the lock was taken
-            except Refused as e:
-                return finish(2, str(e))
-        # flash_jlink writes its command file into the cwd: keep it out of the checkout. Cleanup
-        # runs after run_locked printed the verdict, so its errors must not add a second one.
-        with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
-            os.chdir(workdir)
-            return run_locked(board, fw, park_fw, tests, args.timeout, report, finish)
+        with task:
+            entered = True
+            found(task)
+            code, error = run_task(task, board, fw, park_fw, tests, args, report)
     except Terminated:
-        report['pass'] = False
-        report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
-        return finish(1, 'terminated (SIGTERM), e.g. by hil_lock.py release')
-    except Exception as e:   # any failure after the lock still ends with a verdict line
-        return finish(1, f'{type(e).__name__}: {e}')
+        if entered:
+            report['pass'] = False
+            report['boardState'] = 'unknown: terminated (SIGTERM) mid-run'
+            code, error = 1, 'terminated (SIGTERM)'
+        elif task.taken or task.ended:  # inside the admission: its take's failures and end still count
+            code, error = 2, 'terminated (SIGTERM) before any hardware action'
+        else:
+            return finish(2, 'terminated (SIGTERM) before any hardware action')
+    except Exception as e:
+        if entered:   # any failure after the lock still ends with a verdict line
+            code, error = 1, f'{type(e).__name__}: {e}'
+        else:   # admission: the lock, or the busy check under it, refused the board
+            code, error = 2, f'{board["name"]}: {refusal(e)}'
     finally:
+        os.chdir(cwd)
+    # published once the task ended, so its finalization counts
+    code, error = ended(task, code, error, report)
+    report['pass'] = report['pass'] and code == 0
+    return finish(code, error)
+
+
+def found(task):
+    """The open failed cleanups the take found, reported before any hardware access."""
+    if task.cleanup_failures:
+        print(f'{len(task.cleanup_failures)} open cleanup failure(s): '
+              + '; '.join(map(hil_lock.failure_text, task.cleanup_failures)), file=sys.stderr)
+
+
+def ended(task, code, error, report):
+    """(code, error) once the task ended, the open failed cleanups its take found and why a restore left
+    any open in `report`: a lock that did not end as its verdict asked fails the run (1), its state and
+    errors in `error`; advisory errors of a clean end only go to stderr."""
+    report.update(hil_lock.failure_report(task.cleanup_failures))
+    if task.restore_notes:
+        report['restoreNotes'] = list(task.restore_notes)
+        print(f'board task notes: {"; ".join(task.restore_notes)}', file=sys.stderr)
+    if task.ended_cleanly:
+        if task.errors:
+            print(f'board task notes: {task.describe()}', file=sys.stderr)
+        return code, error
+    problem = f'board task did not end as its verdict asked: {task.describe()}'
+    return 1, f'{error}; {problem}' if error else problem
+
+
+def run_task(task, board, fw, park_fw, tests, args, report):
+    """The run under the board's task: (exit code, error), the task's cleanup verdict given."""
+    if not args.allow_concurrent:
         try:
-            os.chdir(cwd)
-        finally:
-            release(lock)
+            check_peers()   # again: a peer may have started before the lock was taken
+        except Refused as e:
+            task.clean()
+            return 2, str(e)
+    # flash_jlink writes its command file into the cwd: keep it out of the checkout. Cleanup errors
+    # of the dir must not replace the verdict.
+    with tempfile.TemporaryDirectory(prefix='run_case-', ignore_cleanup_errors=True) as workdir:
+        os.chdir(workdir)
+        return run_locked(task, board, fw, park_fw, tests, args.timeout, report)
 
 
-def release(lock):
-    hil_lock.clear_record(lock)
-    lock.close()
-
-
-def run_locked(board, fw, park_fw, tests, timeout, report, finish):
+def run_locked(task, board, fw, park_fw, tests, timeout, report):
+    """Flash, enumerate, run, then park or leave: (exit code, error). Its last hardware action gives
+    the task's verdict: restored once parked, clean when usbtest is left running with a complete
+    unwedged verdict as --after leave asks, failed whenever the board's state is not known good."""
     err = flash(board, fw)
     report['boardState'] = 'flash failed' if err else 'usbtest firmware'
     if err:
-        return finish(1, err)
+        task.failed(detail=f'usbtest flash failed: {err}')
+        return 1, err
     if not enumerated(board['uid']):
-        return finish(1, f'no {usbtest.VID}:{usbtest.PID} device with serial {board["uid"]} '
-                         f'{ENUM_TIMEOUT}s after flashing')
+        err = f'no {usbtest.VID}:{usbtest.PID} device with serial {board["uid"]} {ENUM_TIMEOUT}s after flashing'
+        task.failed(detail=err)
+        return 1, err
     data, stderr, killed = battery(board, fw, tests, timeout)
     if stderr.strip():
         print(stderr.rstrip(), file=sys.stderr)
     if data is None:
         report['boardState'] = 'usbtest firmware, verdict incomplete'
-        return finish(1, killed or 'usbtest.py printed no verdict')
+        err = killed or 'usbtest.py printed no verdict'
+        task.failed(detail=f'{report["boardState"]}: {err}')
+        return 1, err
     report['cases'] = [{k: c[k] for k in ('num', 'name', 'status', 'detail', 'stderr', 'dmesg') if k in c}
                        for c in data.get('cases', [])]
     report['wedged'] = bool(data.get('wedged'))
@@ -402,15 +459,19 @@ def run_locked(board, fw, park_fw, tests, timeout, report, finish):
                 print('    ' + c[k].replace('\n', '\n    '))
     if report['wedged']:
         report['boardState'] = 'wedged: recover it (usb-kernel-recover)'
-        return finish(1)
+        task.failed(detail=f'usbtest reported the device wedged: {report["boardState"]}')
+        return 1, ''
     if park_fw:
         err = flash(board, park_fw)
         report['boardState'] = f'park failed: {err}' if err else 'parked on board_test'
         if err:
             report['pass'] = False
-            return finish(1, err)
-    return finish(0 if report['pass'] else 1)
-
+            task.failed(detail=report['boardState'])
+            return 1, err
+        task.restored(evidence='run_case.py: parked on board_test')
+    else:
+        task.clean()
+    return 0 if report['pass'] else 1, ''
 
 if __name__ == '__main__':
     sys.exit(main())

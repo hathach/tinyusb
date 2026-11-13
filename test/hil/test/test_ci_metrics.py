@@ -6,7 +6,11 @@
 import json
 import os
 import re
+import shlex
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -69,6 +73,91 @@ class TestCircleCiSentinelContract(unittest.TestCase):
         # very same job rewrites. Gating on one of the two leaves the other unguarded.
         for suite in ('test_change_impact.py', 'test_ci_metrics.py'):
             self.assertIn(suite, self.config, f'{suite} does not gate the CircleCI selector')
+
+
+class TestCircleCiExampleMapBudget(unittest.TestCase):
+    """Every generated job inlines the example map, so a broad selection multiplies it
+    past CircleCI's compiled-config cap (#4194). Runs the set-matrix step for real with
+    the selector, ci_set_matrix and git stubbed."""
+    BUDGET = 2000000
+
+    def _run_set_matrix(self, matrix, example_map, fork=False):
+        """Returns (config2.yml example-map default, generated job count, stdout)."""
+        with open(os.path.join(CIRCLECI, 'config.yml')) as fh:
+            config = fh.read()
+        i = config.index('command: |\n', config.index('name: Set matrix')) + len('command: |\n')
+        j = config.index('      - continuation/continue', i)
+        # CircleCI escapes a literal << as \<< in config text
+        block = re.sub(r'^ {12}', '', config[i:j], flags=re.M).replace('\\<<', '<<')
+        with tempfile.TemporaryDirectory() as d:
+            def write(path, text, mode=0o644):
+                path = os.path.join(d, path)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'w') as fh:
+                    fh.write(text)
+                os.chmod(path, mode)
+            os.mkdir(os.path.join(d, '.circleci'))
+            shutil.copy(os.path.join(CIRCLECI, 'config2.yml'), os.path.join(d, '.circleci'))
+            write('.github/scripts/ci_set_matrix.py',
+                  'import os, sys\n'
+                  'print(os.environ["STUB_MAP" if "--example-map" in sys.argv else "STUB_MATRIX"])\n')
+            for suite in ('test/hil/test/test_change_impact.py', '.claude/test/test_build_select.py',
+                          'test/hil/test/test_ci_metrics.py'):
+                write(suite, '')
+            write('.claude/skills/build/scripts/check_build.py', 'print("{}")\n')
+            write('bin/git', '#!/bin/sh\nexit 1\n', 0o755)
+            write('bin/python', f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n', 0o755)
+            env = {k: v for k, v in os.environ.items()
+                   if not k.startswith('GIT_') and k != 'CIRCLE_PR_USERNAME'}
+            env.update(PATH=os.path.join(d, 'bin') + os.pathsep + env['PATH'],
+                       CIRCLE_PULL_REQUEST='https://github.com/hathach/tinyusb/pull/1',
+                       STUB_MATRIX=json.dumps(matrix), STUB_MAP=json.dumps(example_map))
+            if fork:
+                env['CIRCLE_PR_USERNAME'] = 'contributor'
+            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, env=env,
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            with open(os.path.join(d, '.circleci', 'config2.yml')) as fh:
+                config2 = fh.read()
+        default = re.search(rf"default: '(.*)'  # {SENTINEL}$", config2, re.M).group(1)
+        # jq pretty-prints each family list over several lines
+        jobs = sum(len(json.loads(f)) for f in re.findall(r'^ {14}family: (\[.*?\])', config2, re.M | re.S))
+        return json.loads(default.replace("''", "'")), jobs, r.stdout
+
+    @staticmethod
+    def _map_of(size):
+        """An example map of about `size` bytes over one family."""
+        return {'stm32f4': ['device/x%05d' % k for k in range(size // 15)]}
+
+    def test_the_count_is_the_generated_jobs(self):
+        matrix = {'arm-gcc': ['nrf', 'stm32f4'], 'arm-clang': ['rp2040'], 'arm-iar': ['stm32f4'],
+                  'esp-idf': ['espressif'], 'riscv-gcc': []}
+        for fork in (False, True):
+            with self.subTest(fork=fork):
+                kept, jobs, out = self._run_set_matrix(matrix, self._map_of(100), fork=fork)
+                self.assertEqual(kept, self._map_of(100))
+                self.assertEqual(jobs, 6 if fork else 7)  # arm-gcc on cmake and make
+                self.assertRegex(out, rf'example map: \d+ bytes x {jobs} jobs')
+
+    def test_a_large_map_on_a_broad_matrix_is_dropped(self):
+        matrix = {'arm-gcc': ['f%03d' % k for k in range(68)], 'arm-clang': ['f%03d' % k for k in range(35)]}
+        example_map = self._map_of(36000)
+        kept, jobs, out = self._run_set_matrix(matrix, example_map)
+        self.assertEqual(jobs, 68 * 2 + 35)
+        self.assertGreater(len(json.dumps(example_map)) * jobs, self.BUDGET)
+        self.assertEqual(kept, {})
+        self.assertIn('over the compiled-config budget', out)
+
+    def test_the_same_map_on_a_narrow_matrix_stays_scoped(self):
+        example_map = self._map_of(36000)
+        kept, jobs, _ = self._run_set_matrix({'arm-gcc': ['stm32f4']}, example_map)
+        self.assertEqual((kept, jobs), (example_map, 2))
+
+    def test_an_empty_matrix_keeps_the_map(self):
+        example_map = self._map_of(36000)
+        kept, jobs, out = self._run_set_matrix({'arm-gcc': [], 'arm-clang': []}, example_map)
+        self.assertEqual((kept, jobs), (example_map, 0))
+        self.assertIn('example map: ', out)
 
 
 class TestWorkflowSelectionHandOff(unittest.TestCase):
@@ -307,14 +396,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     return f.read().splitlines()
             log = run('-b espressif_s3_devkitm $(touch pwned) ;id')
             self.assertFalse(os.path.exists(os.path.join(d, 'pwned')))
-            # the engine is lib/agentrc's, fetched on the runner before anything sizes
-            fetch = 'python [tools/get_deps.py] [lib/agentrc]'
+            # the engine is agentrc's at the pin, fetched on the runner before anything sizes
+            fetch = 'python [test/hil/helper/agentrc.py] [fetch]'
             self.assertEqual(log.pop(0), fetch)
+            # the container selects the pin as the runner does (CI), and its git may read the pin's checkout
             self.assertTrue(log[0].startswith('docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME '
-                                              f'-v {d}:/project -w /project espressif/idf:tinyusb bash -c'))
-            self.assertEqual(log[1:3], ['git config --global --add safe.directory /project',
+                                              f'-e CI -e GITHUB_ACTIONS -v {d}:/project -w /project '
+                                              'espressif/idf:tinyusb bash -c'))
+            self.assertEqual(log[1:4], ['git config --global --add safe.directory /project',
+                                        'git config --global --add safe.directory /project/lib/agentrc',
                                         'pip install --only-binary :all: membrowse==1.2.12'])
-            self.assertEqual(log[3], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+            self.assertEqual(log[4], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                                      '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
                              [fetch, 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '

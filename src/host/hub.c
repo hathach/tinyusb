@@ -186,6 +186,7 @@ bool hub_deinit(void) {
 
 uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   (void)rhport;
+  TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, 0); // only a hub-class device gets a hub address
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass && 0 == itf_desc->bInterfaceSubClass, 0);
 
   const uint16_t itf_ep_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
@@ -198,6 +199,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   // Check device descriptor for MTT hub (bDeviceProtocol == 2)
   // MTT hub has 2 alt settings: alt 0 is STT (protocol 1), alt 1 is MTT (protocol 2)
   // Consume both alt settings and use alt setting 1 for endpoint
+  bool               mtt = false;
   tusb_desc_device_t desc_dev;
   if (tuh_descriptor_get_device_local(dev_addr, &desc_dev) && desc_dev.bDeviceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT) {
     drv_len += itf_ep_len;
@@ -206,7 +208,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
     TU_ASSERT(desc_alt1->bDescriptorType == TUSB_DESC_INTERFACE && desc_alt1->bInterfaceClass == TUSB_CLASS_HUB &&
                 desc_alt1->bInterfaceProtocol == HUB_PROTOCOL_HIGH_SPEED_MTT,
               0);
-    p_hub->mtt   = true;
+    mtt          = true;
     desc_itf_use = desc_alt1;
   }
 
@@ -215,6 +217,8 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
+  // set only once opened: hub_close() clears an opened hub
+  p_hub->mtt     = mtt;
   p_hub->itf_num = itf_desc->bInterfaceNumber;
   p_hub->ep_in   = desc_ep->bEndpointAddress;
 
@@ -263,6 +267,7 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
     tuh_xfer_t xfer;
     xfer.daddr     = daddr;
     xfer.ep_addr   = 0;
+    xfer.result    = XFER_RESULT_SUCCESS;
     xfer.user_data = 0;
     config_get_hub_descriptor(&xfer);
   }
@@ -271,6 +276,12 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    // A STALL keeps alternate setting 0, single-TT (USB 2.0 9.4.10, 11.23.1); after a transport error the setting is
+    // unknown. Either way schedule it as single-TT: one TT budget for every port is safe for both organizations.
+    get_hub_itf(xfer->daddr)->mtt = false;
+  }
+
   // Get Hub Descriptor
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -407,7 +418,9 @@ static void process_new_status(tuh_xfer_t* xfer) {
   // usbh fails a removed hub's requests after hub_close(): nothing to re-arm
   TU_VERIFY(get_hub_itf(daddr)->ep_in != 0,);
 
-  if (xfer->result != XFER_RESULT_SUCCESS) {
+  // a reply shorter than requested (GET_STATUS: 4 bytes, CLEAR_FEATURE: none) fails, so a short status is
+  // never decoded from the previous buffer contents
+  if (xfer->result != XFER_RESULT_SUCCESS || xfer->actual_len < tu_le16toh(xfer->setup->wLength)) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
     return;
   }
@@ -483,6 +496,17 @@ static void process_new_status(tuh_xfer_t* xfer) {
   if (!processed) {
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
   }
+}
+
+//--------------------------------------------------------------------+
+// Transaction Translator
+//--------------------------------------------------------------------+
+
+// A multi-TT hub runs in its multi-TT alternate setting, with one transaction translator per downstream port. False
+// also when that setting is unknown: scheduling it as single-TT is conservative.
+bool hub_tt_multi(uint8_t hub_addr) {
+  TU_VERIFY(hub_addr > CFG_TUH_DEVICE_MAX && hub_addr <= CFG_TUH_DEVICE_MAX + CFG_TUH_HUB);
+  return get_hub_itf(hub_addr)->mtt;
 }
 
 #endif

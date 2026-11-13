@@ -55,10 +55,10 @@ and ``tud_msc_scsi_cb()``.  The other callbacks below have weak defaults.
 
 Read and write callbacks may cover only part of a logical block; honor both
 ``lba`` and ``offset`` instead of assuming one callback per block.
-``TUD_MSC_RET_ERROR`` from read10/write10 overwrites the stored sense with
-NOT READY / MEDIUM NOT PRESENT.  For other command callbacks, such as
-``tud_msc_scsi_cb()``, set useful sense data with ``tud_msc_set_sense()``
-before returning an error.
+Set useful sense data with ``tud_msc_set_sense()`` before returning an error
+from a command callback, such as ``tud_msc_scsi_cb()`` or read10/write10.
+For a ``TUD_MSC_RET_ERROR`` from read10/write10, TinyUSB keeps any sense still
+stored and otherwise defaults to NOT READY / MEDIUM NOT PRESENT.
 
 For temporarily busy media, return ``TUD_MSC_RET_BUSY``; TinyUSB will invoke
 the callback again with the same parameters.  For true background I/O, return
@@ -82,13 +82,12 @@ used at once.  ``CFG_TUH_MSC_MAXLUN`` is the LUN limit per device.  After
 ``tuh_msc_mount_cb(dev_addr)``, query cached geometry with
 ``tuh_msc_get_block_count()`` and ``tuh_msc_get_block_size()``.
 
-Pass a LUN below ``tuh_msc_get_maxlun()``: the LUN argument is not
-range-checked, and ``tuh_msc_get_maxlun()`` returns the device-reported LUN
-count clamped to ``CFG_TUH_MSC_MAXLUN``, so the reported count never exceeds
-the cached storage even if the device advertises more.  ``CFG_TUH_MSC_MAXLUN``
-defaults to 4 and allocates cached state per possible LUN for each of the
-``CFG_TUH_DEVICE_MAX`` addresses.  Enumeration only reads the geometry of
-LUN 0, so other LUNs read back as 0.
+``tuh_msc_get_maxlun()`` returns the LUN count the device reports, clamped to
+``CFG_TUH_MSC_MAXLUN``; for a LUN at or past it the geometry getters return 0
+and commands are refused.  ``CFG_TUH_MSC_MAXLUN`` defaults to 4 and allocates
+cached state per possible LUN for each of the ``CFG_TUH_DEVICE_MAX``
+addresses.  Enumeration only reads the geometry of LUN 0, so other LUNs read
+back as 0.
 
 ``tuh_msc_read10()`` and ``tuh_msc_write10()`` are asynchronous.  Keep the
 buffer valid, correctly aligned, cache coherent, and accessible to the USB
@@ -97,6 +96,16 @@ controller until the ``tuh_msc_complete_cb_t`` callback runs.  Check
 ``cb_data->csw->status`` in the completion callback.  The callback has no
 separate USB transfer result, so it does not report transfer failures on its
 own.
+
+If a command's data or status stage cannot be queued on the host controller
+after its CBW was sent, the driver completes the command at once with a
+locally built CSW whose status is ``MSC_CSW_STATUS_PHASE_ERROR``.  The device
+is then mid-command, so the driver refuses further commands:
+``tuh_msc_ready()`` stays ``false`` and every command API returns ``false``
+until ``tuh_msc_reset()`` succeeds or the device is re-enumerated.  The failed
+command is not retried: for a write, the device may have stored part of it.
+If the device answers an enumeration command with a Phase Error CSW, the
+interface stays unmounted and refuses commands until it is re-enumerated.
 
 .. list-table::
    :header-rows: 1
@@ -110,20 +119,28 @@ own.
    * - ``tuh_msc_get_maxlun()`` /
        ``tuh_msc_get_block_count()`` /
        ``tuh_msc_get_block_size()``
-     - Returns the device-reported LUN count (clamped to
-       ``CFG_TUH_MSC_MAXLUN``) and the geometry cached during enumeration
-       (LUN 0 only).
+     - Returns the LUN count, clamped to ``CFG_TUH_MSC_MAXLUN``, and the
+       geometry cached during enumeration (LUN 0 only).
    * - ``tuh_msc_read10()`` / ``tuh_msc_write10()``
      - Queues an integral number of logical blocks and completes through the
        supplied callback.  Returns ``false`` without queuing if the device is
-       not mounted or ``block_count`` x block size exceeds the 32-bit CBW
-       data length.
+       not mounted or is refusing commands after a failed stage submit, the
+       LUN is not below ``tuh_msc_get_maxlun()``, or ``block_count`` x block
+       size exceeds the 32-bit CBW data length.
    * - ``tuh_msc_inquiry()`` / ``tuh_msc_request_sense()``
      - Queues standard SCSI identification or detailed-error requests into an
        application-owned response buffer.
    * - ``tuh_msc_scsi_command()``
      - Queues a caller-built command block wrapper for commands without a
        convenience API.
+   * - ``tuh_msc_reset()``
+     - Runs Bulk-Only Reset Recovery on an idle mounted interface: the class
+       Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and Bulk-Out
+       with a host-side data toggle reset.  Its callback reports the result;
+       only success lifts the refusal above.  Host controllers that cannot
+       reset the toggle (rp2040, pio-usb, WCH USBFS, MAX3421E, RUSB2, OHCI on
+       an endpoint it has not halted, and SAMD when Bulk-In and Bulk-Out share
+       an endpoint number) fail it and leave the interface refusing commands.
    * - ``tuh_msc_mount_cb()`` / ``tuh_msc_umount_cb()``
      - Announces cached capacity availability or invalidates all filesystem and
        media state for the address.

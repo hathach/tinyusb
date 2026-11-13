@@ -10,7 +10,7 @@ description: Use when bringing up examples/device/usbtest (0525:a4a0) on a new M
 data-toggle and unlink storms. The example README describes every case and tier; the host runner
 is `test/hil/usbtest.py`. It picks the cases, their options and the recovery; the driver loading and
 binding, bounded case run and host check (`hil_usbtest.py`) and the Reset_TT (`hil_tt.py`) are
-agentrc's `hil` provider, loaded from the pinned `lib/agentrc`.
+agentrc's `hil` provider, loaded from the agentrc `test/hil/helper/agentrc.py` selects.
 
 **The battery tests the DCD, not the firmware.** A failed case points at the DCD path it
 exercises (map below). Reproduce that one case, root-cause it on hardware before changing
@@ -43,9 +43,12 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
 has several. It refuses with exit 2 and the reason before touching hardware, including on a host
-that is not Linux and while any battery or another `run_case.py` runs on the host; pass
-`--allow-concurrent` only when another battery's load on the board's host controller does not
-matter for what you are measuring. A wedged device is never parked. The last stdout
+that is not Linux, while any battery or another `run_case.py` runs on the host, and when the busy
+check under the lock names a live user of the board's probe or cannot rule one out; pass
+`--allow-concurrent` (it never skips the busy check) only when another battery's load on the board's
+host controller does not matter for what you are measuring. A wedged device is never parked, and any
+end but a park or a clean `--after leave` is logged as a failed cleanup for the next take to report
+(the HIL contract's Reservation). The last stdout
 line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
 `dmesg` when it captured them.
 

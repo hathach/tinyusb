@@ -15,11 +15,12 @@ from membrowse_cli import IDF_LD_SCRIPTS, extract_defsyms, extract_ld_scripts, l
 
 engine = None  # the code-size engine; its main() sets it before any hook runs
 
+PROFILE_API = 1   # the engine's PROFILE_API this profile follows; the engine's main() checks it
 NAME = 'TinyUSB'
 # resolved like filters(), so a symlinked checkout still matches its filter
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 OUT_DIR = os.path.join(ROOT, 'cmake-code-size')
-BASE_BRANCH = 'master'
+BASE_BRANCH = 'origin/master'
 DEFAULT_ENGINE = 'membrowse'
 BASELINE_REPO = 'hathach/tinyusb'
 CI_PINNED_BOARDS = os.path.join(ROOT, '.github', 'ci-pinned-boards.json')
@@ -253,4 +254,9 @@ def snapshot_boards(families, boards, examples, defines=()):
     return list(dict.fromkeys(picked))
 
 
-skip_example = build_utils.skip_example
+def skip_example(example, board, defines=()):
+    """Does `board` not build `example` here, as tools/build.py decides (an ESP-IDF example without
+    a component included)? An example absent here is not skipped: the snapshot reports it."""
+    import build  # tools/build.py; its import has no side effects
+    kept, dropped = build.select_examples(board, [example], defines, root=ROOT)
+    return not kept and dropped[example] != build.NO_SUCH_EXAMPLE

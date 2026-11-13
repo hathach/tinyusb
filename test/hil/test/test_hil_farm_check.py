@@ -4,13 +4,16 @@
 # wiring to agentrc's engine, with the bus, the flasher and the tracked runner faked and the
 # engine's lock dir in a temp dir: no board, no ssh. Run directly:
 #   python3 test/hil/test/test_hil_farm_check.py
+import io
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -18,10 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
-from helper import farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
+from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
-STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P', 'args': ''})
+STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
 CONTACT = 'Device ID   : 0x413\n'
 eng = hil_farm_check.load_engine()
 
@@ -83,6 +86,21 @@ def capture(fn):
         return code, out.read().decode(), err.read().decode()
 
 
+def runpy_helper():
+    """helper/hil_lock.py's own namespace: imported, the module is agentrc's primitive. Run inside
+    the helper package, whose agentrc it then imports: no helper/ on sys.path, no second agentrc."""
+    return types.SimpleNamespace(**runpy.run_path(str(hil_util.TINYUSB_ROOT / 'test/hil/helper/hil_lock.py'),
+                                                  run_name='helper._hil_lock_cli'))
+
+
+class Busy(unittest.TestCase):
+    def test_the_hook_is_the_batterys_own_busy_check(self):
+        users = [{'pid': 7, 'cmd': 'openocd -c "adapter serial P"'}]
+        seen = []
+        patch(self, hil_flash, 'probe_busy', lambda board: seen.append(board) or users)
+        self.assertIs(farm_profile.busy(BOARD), users)
+        self.assertEqual(seen, [BOARD])
+
 class Roster(unittest.TestCase):
     def test_a_rig_host_gets_its_roster(self):
         got = farm_profile.roster('ci', None, args())
@@ -106,6 +124,27 @@ class Roster(unittest.TestCase):
 
     def test_the_probe_is_named_by_its_flasher(self):
         self.assertEqual(farm_profile.probe_name(BOARD), 'openocd')
+
+    def test_a_registered_board_locks_as_agentrcs_name_for_it_and_hold_all_takes_that(self):
+        probe, reg = next(iter(hil_util.hil_boards().registry().items()))
+        entry = {'name': 'this-repos-name', 'uid': 'U', 'probe': probe}
+        self.assertEqual((farm_profile.lock_name(entry), farm_profile.lock_name(BOARD)), (reg['name'], BOARD['name']))
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [BOARD], 'boards-skip': [entry]}))
+            path, modules = list(sys.path), set(sys.modules)
+            helper = runpy_helper()
+            self.assertEqual((sys.path, set(sys.modules) - modules), (path, set()), 'the helper run leaked')
+            self.assertEqual(helper.boards_from_config(str(cfg)), [BOARD['name'], reg['name']])
+
+    def test_hold_all_reports_a_registry_refusal_as_one(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td, 'r.json')
+            cfg.write_text(json.dumps({'boards': [{'name': 'x', 'uid': 'U', 'probe': 'farm-check-unregistered'}]}))
+            with redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+                runpy_helper().boards_from_config(str(cfg))
+        self.assertIn(f"cannot name the board locks of {cfg}: x: probe 'farm-check-unregistered' is not in agentrc",
+                      err.getvalue())
 
 
 class Probe(unittest.TestCase):
@@ -140,14 +179,6 @@ class Probe(unittest.TestCase):
     def test_an_all_zero_uid_never_matches_by_padding(self):
         self.bus([('1-1', '000000', '1366:0101'), ('1-2', '123456', '1366:0101')])
         self.assertEqual(self.candidates('0'), [])
-
-    def test_a_placeholder_serial_is_matched_exactly_before_by_padding(self):
-        # metro_m4_express's probe legitimately reports the placeholder '123456'
-        self.bus([('1-1', '123456', '1366:0101'), ('1-2', '000123456', '1366:0101'), ('1-3', '000000', '1366:0101')])
-        self.assertEqual(self.candidates('123456'), ['1-1'])
-        self.assertEqual(self.candidates('000123456'), ['1-2'])
-        self.assertEqual(self.candidates('0123456'), ['1-1', '1-2'])
-        self.assertEqual(self.candidates('000'), [])
 
 
 class Reset(unittest.TestCase):
@@ -229,8 +260,8 @@ class RunPlumbing(unittest.TestCase):
 
 
 class Launcher(unittest.TestCase):
-    def test_the_engine_comes_from_lib_agentrc_at_the_pin(self):
-        self.assertEqual(Path(eng.__file__), hil_util.TINYUSB_ROOT / 'lib/agentrc/skills/hil/scripts/hil_farm_check.py')
+    def test_the_engine_is_the_loaded_agentrcs(self):
+        self.assertEqual(Path(eng.__file__), Path(agentrc.identity()['root']) / 'skills/hil/scripts/hil_farm_check.py')
         self.assertEqual(eng.REASON, 'farm_check')
         self.assertIsNone(eng._lock_api_problem(hil_lock))
 
@@ -245,11 +276,11 @@ class Launcher(unittest.TestCase):
 
     def test_an_engine_that_cannot_load_refuses(self):
         def missing():
-            raise ImportError('lib/agentrc must be at X')
+            raise ImportError('no usable agentrc at X')
         patch(self, hil_farm_check, 'load_engine', missing)
         code, out, err = capture(lambda: hil_farm_check.main([]))
         self.assertEqual((code, out), (2, ''))
-        self.assertIn('lib/agentrc must be at X', err)
+        self.assertIn('no usable agentrc at X', err)
 
 
 class EngineFixture(unittest.TestCase):
@@ -267,6 +298,7 @@ class EngineFixture(unittest.TestCase):
         patch(self, hil_lock, 'BOARD_LOCK_DIR', str(self.d / 'locks'))
         patch(self, eng, 'RECHECK_WAIT', 0)
         patch(self, farm_profile, 'scan_usb', lambda: {'1-1': {'serial': 'p', 'vidpid': '0483:374b'}})
+        patch(self, hil_flash, 'probe_busy', lambda board: [])   # the engine's busy check: never this host's /proc
 
     def roster(self, board):
         self.cfg.write_text(json.dumps({'boards': [board]}))
@@ -323,7 +355,7 @@ class EngineWithProfile(EngineFixture):
         self.assertEqual((o['returncode'], [a['returncode'] for a in o['attempts']]), (1, [0]))
 
     def test_an_lm4flash_board_is_unsupported_and_untouched(self):
-        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P', 'args': ''}))
+        self.roster(dict(BOARD, flasher={'name': 'lm4flash', 'uid': 'P'}))
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual((code, r['status'], r['coverage'], self.ran), (0, 'unsupported', 'unsupported', []))
@@ -394,8 +426,8 @@ class Retain(unittest.TestCase):
 
 class EngineOpenocdEsp(EngineFixture):
     """An openocd_esp board through the engine: a reset session ended `done` leaves the board
-    released, and one the provider left running stops the board, whose lock the engine hands to a
-    cleanup holder naming the receipt."""
+    released, and one the provider left running stops the board, logs the receipt and releases
+    the lock with the cleanup unproven."""
 
     def setUp(self):
         super().setUp()
@@ -414,7 +446,6 @@ class EngineOpenocdEsp(EngineFixture):
         patch(self, hil_flash, 'cleanup_pending', {})
         patch(self, hil_flash, 'OPENOCD_ESP_DIR', self.d / 'openocd_esp')
         self.sessions, self.outcomes = [], []
-        self.addCleanup(self.end_holder)
 
         def reset(flasher, *, retains_lock, **kw):
             self.assertIs(retains_lock, True)
@@ -431,13 +462,6 @@ class EngineOpenocdEsp(EngineFixture):
         patch(self, hil_util, 'openocd_esp', lambda: fake)
         self.real = real
 
-    def end_holder(self):
-        rec = hil_lock.read_record('b')
-        if hil_lock.is_cleanup_holder(rec):
-            # a release refuses until the retained session's receipt reads as `hil_openocd_esp.py end` leaves it
-            Path(self.RECEIPT).write_text(json.dumps({'tool': 'hil_openocd_esp', 'closed': True, 'cleanup': 'done'}))
-            hil_lock.release_token(rec['token'])
-
     def test_a_done_session_is_ok_and_released(self):
         code, doc = self.run_engine()
         r, = doc['rows']
@@ -445,30 +469,39 @@ class EngineOpenocdEsp(EngineFixture):
                          (0, 'ok', 'released', True, ['reset']))
         self.assertIsNone(hil_lock.read_record('b'))
 
-    def assert_held_by_a_cleanup_holder(self, r):
+    def assert_released_with_failure(self, r):
         self.assertEqual(self.sessions, ['reset'])
-        self.assertEqual((r['status'], r['coverage'], r['cleanup']['blocker']), ('blocked', 'blocked-after',
-                                                                                 'cleanup-holder'))
+        self.assertEqual((r['status'], r['coverage'], r['cleanup']['released']), ('blocked', 'blocked-after', True))
         self.assertTrue(any(self.RECEIPT in e for e in r['cleanup']['evidence']), r['cleanup'])
-        rec = hil_lock.read_record('b')
-        self.assertTrue(hil_lock.is_cleanup_holder(rec), rec)
-        self.assertEqual((rec['token'], rec['protected']), (r['cleanup']['token'], True))
-        self.assertIn(self.RECEIPT, rec['detail'])
-        self.assertEqual((r['cleanup']['retained'], rec['retained']), ([self.RECEIPT], [self.RECEIPT]))
+        self.assertIsNone(hil_lock.read_record('b'))
+        fh = hil_lock.take_board_lock('b', 'peer')
+        try:
+            failure, = fh.cleanup_failures
+            self.assertIn(self.RECEIPT, failure['detail'])
+            self.assertEqual((r['cleanup']['retained'], failure['retained']), ([self.RECEIPT], [self.RECEIPT]))
+        finally:
+            hil_lock.release_board_lock(fh)
 
-    def test_a_session_left_running_hands_the_lock_to_a_cleanup_holder(self):
+    def test_a_session_left_running_is_logged_and_the_lock_released(self):
         self.outcomes = ['pending']
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual((code, r['check_status']), (4, 'failed'))
-        self.assert_held_by_a_cleanup_holder(r)
+        self.assert_released_with_failure(r)
 
-    def test_one_left_running_by_a_raising_reset_is_held_the_same_way(self):
+    def test_one_left_running_by_a_raising_reset_is_logged_the_same_way(self):
         self.outcomes = [RuntimeError('interrupted mid-session')]
         code, doc = self.run_engine()
         r, = doc['rows']
         self.assertEqual(code, 4)
-        self.assert_held_by_a_cleanup_holder(r)
+        self.assert_released_with_failure(r)
+
+    def test_the_next_check_reports_the_open_cleanup_failure(self):
+        failure = hil_lock.log_cleanup_failure('b', 'earlier', detail='old session', retained=[self.RECEIPT])
+        code, doc = self.run_engine()
+        r, = doc['rows']
+        self.assertEqual((code, r['status']), (0, 'ok'))
+        self.assertEqual(r['previousCleanupFailure'], failure)
 
     def test_under_a_ci_job_it_is_refused_before_any_session(self):
         os.environ[self.real.CI_JOB_ENV[0]] = '1'

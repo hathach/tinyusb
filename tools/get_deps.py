@@ -252,14 +252,17 @@ deps_optional = {
                   '083944907e7d08fcb1f614b47598ce45935b8da1',
                   'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v103': ['https://github.com/openwch/ch32v103.git',
-                            '7578cae0b21f86dd053a1f781b2fc6ab99d0ec17',
+                            'ff367d8fec5c9f40029355b2806cd059d9508e4e',
                             'ch32v10x'],
     'hw/mcu/wch/ch32v20x': ['https://github.com/openwch/ch32v20x.git',
-                            'c4c38f507e258a4e69b059ccc2dc27dde33cea1b',
+                            'b375bbbc7dfe8642d6fb7c17e6d3207ee1c3c9c1',
                             'ch32v20x'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
-                            '184f21b852cb95eed58e86e901837bc9fff68775',
+                            '8b3699d9e4eafc3102e382b74266a1165a2bb584',
                             'ch32v30x'],
+    'hw/mcu/wch/ch32v407_ch32v467': ['https://github.com/openwch/ch32v407_ch32v467.git',
+                                     '17394a1f9aa484c9b2ca0c9fdfe5730ec31c06c7',
+                                     'ch32v4x7'],
     'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
                             'ch32f20x'],
@@ -307,10 +310,10 @@ deps_optional = {
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
                     'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
-    # shared HIL harness scripts test/hil/helper/agentrc.py loads: no family builds with it
-    'lib/agentrc': ['https://github.com/hathach/agentrc.git',
-                    '56a1263aa04e239d653e7e1c7a233aae2cf7f0f3',
-                    ''],
+    # fetched by path, or for -D SYSVIEW=<level>: just traced builds need it
+    'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
+                       '92ca7a810c5765ba64911919acd511c61b6b083f',
+                       ''],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
@@ -371,14 +374,22 @@ GIT_REPO_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_IMPLICIT_WORK_TREE', 'GIT_COMMO
                 'GIT_GRAFT_FILE', 'GIT_PREFIX')
 
 
+def print_safe(text):
+    # a strict narrow stdout (cp1252 when piped on Windows) cannot take U+FFFD or a path's
+    # characters: replace what it cannot represent rather than lose the git result
+    enc = getattr(sys.stdout, 'encoding', None)
+    enc = enc if isinstance(enc, str) and enc else 'utf-8'
+    print(text.encode(enc, errors='replace').decode(enc))
+
+
 def run_cmd(cmd):
     # a hook's inherited GIT_DIR and friends outrank -C and would name the enclosing repo
     env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_ENV}
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-    title = f'Command Error: {cmd}'
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    title = f'Command Error: {subprocess.list2cmdline([str(arg) for arg in cmd])}'
     if r.returncode != 0:
-        print(title)
-        print(r.stdout.decode("utf-8"))
+        print_safe(title)
+        print_safe(r.stdout.decode("utf-8", errors="replace"))
     return r
 
 
@@ -393,26 +404,46 @@ def get_a_dep(d):
     print(f'cloning {d} with {url}')
 
     p = Path(TOP / d)
-    git_cmd = f"git -C {p}"
+    git_cmd = ["git", "-C", str(p)]
 
-    # Init git deps if not existed
-    if not p.exists():
-        p.mkdir(parents=True)
-        run_cmd(f"{git_cmd} init")
-        run_cmd(f"{git_cmd} remote add origin {url}")
+    # Init git deps if not initialized. Checking only p.exists() lets git -C walk
+    # up to TinyUSB's repository when an empty dependency directory is present.
+    if not (p / '.git').exists():
+        p.mkdir(parents=True, exist_ok=True)
+        if run_cmd([*git_cmd, "init"]).returncode != 0 or not (p / '.git').exists():
+            return 1
+        if run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
+            return 1
         head = None
     else:
-        # Check if commit is already fetched
-        result = run_cmd(f"{git_cmd} rev-parse HEAD")
-        head = result.stdout.decode("utf-8").splitlines()[0]
-        run_cmd(f"{git_cmd} reset --hard")
+        # an empty or broken .git lets git -C walk up to TinyUSB's repository as well:
+        # touch only a checkout whose own top level is this dependency
+        result = run_cmd([*git_cmd, "rev-parse", "--show-toplevel"])
+        lines = os.fsdecode(result.stdout).splitlines() if result.returncode == 0 else []
+        top = lines[-1].strip() if lines else ''
+        if not top or os.path.normcase(os.path.realpath(top)) != os.path.normcase(os.path.realpath(p)):
+            print(f'{d}: {p} is not a git checkout of its own (git resolves {top or "no repository"}); '
+                  'remove it and rerun')
+            return 1
+        if run_cmd([*git_cmd, "remote", "get-url", "origin"]).returncode != 0 and \
+                run_cmd([*git_cmd, "remote", "add", "origin", url]).returncode != 0:
+            return 1
+        result = run_cmd([*git_cmd, "rev-parse", "--verify", "HEAD"])
+        # a failed verify (unborn HEAD) takes the fetch path; its diagnostic is never decoded
+        heads = result.stdout.decode("utf-8", errors="replace").splitlines() if result.returncode == 0 else []
+        head = heads[0] if heads else None
+        if head is not None and run_cmd([*git_cmd, "reset", "--hard"]).returncode != 0:
+            return 1
 
     if commit != head:
-        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
-        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
+        if run_cmd([*git_cmd, "fetch", "--depth", "1", "origin", commit]).returncode != 0:
+            return 1
+        if run_cmd([*git_cmd, "checkout", "FETCH_HEAD"]).returncode != 0:
+            return 1
     elif dep_head(d) is None:
         # a branch at the pinned commit: detach it, as dep_head() readers expect
-        run_cmd(f"{git_cmd} checkout --detach")
+        if run_cmd([*git_cmd, "checkout", "--detach"]).returncode != 0:
+            return 1
 
     # Remove files that conflict with TinyUSB's custom versions
     if d in deps_remove_files:
@@ -439,7 +470,8 @@ def main():
     parser.add_argument('families', nargs='*', default=[],
                         help='Families, or optional dependency paths (e.g. tools/linkermap), to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
-    parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
+    parser.add_argument('-D', '--define', action='append', default=[],
+                        help='SYSVIEW=<level> (nonzero) also fetches lib/SystemView; others have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--build-name', default=None, help='Have no effect')
     parser.add_argument('--cflag', action='append', default=[], help='Have no effect')
@@ -466,6 +498,9 @@ def main():
         deps.extend(deps_optional.keys())
     else:
         families = list(families)
+        # a traced build (hil_ci_set_matrix.py's sysview legs) compiles the SystemView sources
+        if any(k == 'SYSVIEW' and v not in ('', '0') for k, _, v in (d.partition('=') for d in args.define)):
+            families.append('lib/SystemView')
         if boards is not None:
             for b in boards:
                 f = find_family(b)

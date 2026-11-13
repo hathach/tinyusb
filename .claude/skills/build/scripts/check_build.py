@@ -51,6 +51,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -657,14 +658,21 @@ def stale_options(build_dir, supplied):
 
 
 def roster_variants(boards, config):
-    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board."""
+    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board; a parked
+    boards-skip board builds only when named, as CI's matrix never does."""
     try:
-        roster = {b['name']: b for b in json.loads(Path(config).read_text(encoding='utf-8'))['boards']}
+        cfg = json.loads(Path(config).read_text(encoding='utf-8'))
+        entries = cfg['boards'] + cfg.get('boards-skip', [])
+        roster = {b['name']: b for b in entries}
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'could not read the HIL roster {config}: {e}')
     unknown = [b for b in boards if b not in roster]
     if unknown:
         fail(f'not in {config}: {" ".join(unknown)}; --variants takes rig board names')
+    listed = Counter(e['name'] for e in entries)
+    twice = [b for b in dict.fromkeys(boards) if listed[b] > 1]
+    if twice:
+        fail(f'{config} lists {" ".join(twice)} more than once; which entry builds is ambiguous')
     out = []
     for b in boards:
         try:
