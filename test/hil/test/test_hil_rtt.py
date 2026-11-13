@@ -13,6 +13,9 @@ from pathlib import Path
 HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(HIL_DIR))
 sys.path.insert(0, HIL_DIR)
+if sys.platform == 'win32':
+    raise unittest.SkipTest("hil_test imports agentrc's rig harness (fcntl locks, process groups): POSIX only")
+
 import usbtest_harness   # noqa: E402,F401 - stubs pyserial before hil_test imports it
 import hil_test          # noqa: E402
 from helper import agentrc   # noqa: E402

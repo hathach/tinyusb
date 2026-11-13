@@ -39,6 +39,9 @@ needs_flock = unittest.skipUnless(shutil.which('flock', path=RIG_PATH), f'flock 
 needs_rig_python = unittest.skipUnless(shutil.which('python3', path=RIG_PATH), f'no python3 on the fake rig PATH ({RIG_PATH})')
 # the fake ssh, rsync and python3 are #! scripts Windows cannot exec: a run there would reach the real ones
 needs_fake_rig = unittest.skipIf(os.name == 'nt', 'the fake rig is #! scripts and a POSIX shell')
+# Windows refusals keep git, which the agentrc loader runs, from a dir with no real ssh or rsync
+GIT_DIR = os.path.dirname(shutil.which('git') or '')
+GIT_ALONE = bool(GIT_DIR) and not any(shutil.which(t, path=GIT_DIR) for t in ('ssh', 'rsync'))
 
 FAKE_SSH = f'''#!{sys.executable}
 import json, os, subprocess, sys
@@ -151,13 +154,15 @@ class Rig(unittest.TestCase):
     def env(self):
         e = {k: v for k, v in os.environ.items() if not k.startswith('HIL_') and k not in ('CI', 'GITHUB_ACTIONS')}
         e.update(ROOT_DIR=str(self.root), REMOTE='rig', REMOTE_DIR=str(self.remote), AGENTRC_DIR=AGENTRC['root'],
-                 PATH=f'{self.bin}:{os.environ["PATH"]}', FAKE_LOG=str(self.log),
+                 PATH=os.pathsep.join([str(self.bin), os.environ['PATH']]), FAKE_LOG=str(self.log),
                  FAKE_HOME=str(self.home), FAKE_RUN=str(self.run_file),
                  FAKE_DEFAULT=DEFAULT_REPORT)
         e.pop('CONFIG', None)
         if os.name == 'nt':
             # only the refusals run here: a REMOTE_DIR they accept, and no real ssh or rsync on PATH
-            e.update(REMOTE_DIR='/tmp/hil-remote-test', PATH=str(self.bin))
+            if not GIT_ALONE:
+                self.skipTest(f'git dir {GIT_DIR or "(none)"} also holds ssh or rsync')
+            e.update(REMOTE_DIR='/tmp/hil-remote-test', PATH=os.pathsep.join([str(self.bin), GIT_DIR]))
         return e
 
     def hil_remote(self, *argv, **env):

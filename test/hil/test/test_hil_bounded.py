@@ -37,6 +37,9 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 # the modules under test live in the parent dir (test/hil), not here
 sys.path.insert(0, os.path.dirname(TEST_DIR))
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("hil_test imports agentrc's rig harness (fcntl locks, process groups): POSIX only")
+
 import usbtest_harness
 import hil_flash
 import hil_test

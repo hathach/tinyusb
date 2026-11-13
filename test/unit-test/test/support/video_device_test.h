@@ -6,8 +6,7 @@
 #define TUSB_VIDEO_DEVICE_TEST_H_
 
 #ifdef VIDEO_DEVICE_TEST_FIXTURE
-#include <signal.h>
-#include <unistd.h>
+#include "test_watchdog.h"
 #endif
 
 #include "device/usbd.h"
@@ -310,11 +309,7 @@ static void lock_watchdog(int sig) {
 }
 
 static inline void video_test_setup(void) {
-  // SA_NODEFER: Unity leaves the handler by longjmp, which would keep SIGALRM blocked.
-  struct sigaction watchdog = {.sa_handler = lock_watchdog, .sa_flags = SA_NODEFER};
-  TEST_ASSERT_EQUAL(0, sigemptyset(&watchdog.sa_mask));
-  TEST_ASSERT_EQUAL(0, sigaction(SIGALRM, &watchdog, NULL));
-  alarm(5);
+  test_watchdog_arm(lock_watchdog, 5);
   claimed       = false;
   accept_commit = true;
   in_commit = stalled = refuse_claim = refuse_xfer = false;
@@ -337,7 +332,7 @@ static inline void video_test_teardown(void) {
   if (!Unity.CurrentTestFailed) {
     TEST_ASSERT_FALSE(tud_video_n_frame_xfer(0, 0, frame, 0));
   }
-  alarm(0);
+  test_watchdog_disarm();
   videod_reset(0);
 }
 

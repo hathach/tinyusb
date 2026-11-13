@@ -12,14 +12,19 @@ repos:
       (?x)^(
         hw/bsp/mcx/sdk/
       )
+  # AGENTS.md and .agents are symlinks: without core.symlinks (Windows) git checks them out as
+  # plain files holding the target, which would get a newline appended
   - id: end-of-file-fixer
     exclude: |
       (?x)^(
         .idea/|
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        AGENTS\.md$|
+        \.agents$
       )
   - id: forbid-submodules
 
+# codespell itself is excluded from tools/codespell/, whose files hold the misspellings on purpose
 - repo: https://github.com/codespell-project/codespell
   rev: v2.2.4
   hooks:
@@ -28,32 +33,38 @@ repos:
     exclude: |
       (?x)^(
         lib/|
-        hw/bsp/mcx/sdk/
+        hw/bsp/mcx/sdk/|
+        tools/codespell/
       )
 
 - repo: local
   hooks:
+  # A multi-step or cd-ing entry goes through tools/hook_steps.py: Windows has no sh to run `sh -c`.
+  # A Python hook is language: python with a `python` entry, not language: system with
+  # `python3`: a python.org Windows install has no python3.exe, while pre-commit's venv
+  # supplies `python` on every OS. Non-Python commands (ceedling, cmake) still come from PATH.
   - id: unique-example-pids
     name: unique example USB PIDs
     files: usb_descriptors\.c$
-    entry: python3 tools/check_example_pids.py
+    entry: python tools/check_example_pids.py
     pass_filenames: false
-    language: system
+    language: python
 
   - id: gen-doc
     name: regenerate reference docs
     files: ^(hw/bsp/.*/(board\.h|family\.c)|tools/get_deps\.py|test/hil/(tinyusb|hfp)\.json|\.claude/skills/build-doc/scripts/gen_doc\.py)$
-    entry: python3 .claude/skills/build-doc/scripts/gen_doc.py
+    entry: python .claude/skills/build-doc/scripts/gen_doc.py
     pass_filenames: false
-    language: system
+    language: python
 
   - id: unit-test
     name: unit-test
     files: ^(src/|test/unit-test/)
-    entry: sh -c "cd test/unit-test && ceedling test:all"
+    entry: python tools/hook_steps.py
+    args: ['@test/unit-test ceedling test:all']
     pass_filenames: false
     types_or: [c, header]
-    language: system
+    language: python
 
   # Two hooks, split by what each suite RUNS, not by what it reads: discovery is
   # disjoint (test_hil*.py vs the two named suites) so nothing runs twice, but the
@@ -75,32 +86,43 @@ repos:
   # examples/device/mtp/src is in scope: test_hil_bounded parses README_TXT_CONTENT
   # and md5-checks the logo header from there as its MTP fixtures.
   # language: python so pre-commit's venv supplies pyusb and pyserial, which the rig
-  # scripts under test import.
+  # scripts under test import. language: python hooks run `python`, not `python3`:
+  # a Windows venv has no python3.exe, so python3 would be the system interpreter.
   - id: hil-test
     name: hil-test
     files: ^(test/hil/|examples/device/mtp/src/|\.claude/skills/hil-contract/scripts/hil_remote\.py$|\.github/workflows/pr_comment\.yml$)
-    entry: python3 -m unittest discover -s test/hil/test -p 'test_hil*.py'
+    entry: python -m unittest discover -s test/hil/test -p 'test_hil*.py'
     pass_filenames: false
     language: python
     additional_dependencies: [pyusb, pyserial]
   - id: family-json
     name: family-json
-    entry: sh -c "python3 tools/family_json.py fix && python3 test/hil/test/test_family_json.py"
+    entry: python tools/hook_steps.py
+    args: ['python tools/family_json.py fix', 'python test/hil/test/test_family_json.py']
     always_run: true
     pass_filenames: false
-    language: system
+    language: python
   - id: change-impact-test
     name: change-impact-test
     files: ^(hw/bsp/|hw/mcu/|src/|examples/|test/hil/|tools/(change_impact|build|build_utils|family_json|get_deps)\.py$|\.github/(scripts|workflows)/|\.circleci/)
-    entry: sh -c "python3 test/hil/test/test_change_impact.py && python3 test/hil/test/test_ci_metrics.py && cd test/hil/test && python3 -m unittest -q test_hil_util.BottomLayer"
+    entry: python tools/hook_steps.py
+    args: ['python test/hil/test/test_change_impact.py', 'python test/hil/test/test_ci_metrics.py',
+           '@test/hil/test python -m unittest -q test_hil_util.BottomLayer']
     pass_filenames: false
-    language: system
+    language: python
+  # the runner of the multi-step hooks above: stop at the first failure, @DIR, python -> venv
+  - id: hook-steps-test
+    name: hook-steps-test
+    files: ^(tools/hook_steps\.py|test/hil/test/test_hook_steps\.py)$
+    entry: python test/hil/test/test_hook_steps.py
+    pass_filenames: false
+    language: python
   - id: setup-toolchain-test
     name: setup-toolchain-test
     files: ^(\.github/actions/setup_toolchain/|test/hil/test/test_setup_toolchain\.py$)
-    entry: python3 test/hil/test/test_setup_toolchain.py
+    entry: python test/hil/test/test_setup_toolchain.py
     pass_filenames: false
-    language: system
+    language: python
   # a second copy lets GHA and CircleCI build on different IDF versions after a bump
   - id: esp-idf-image-pin
     name: esp-idf image pinned only in toolchain.json
@@ -115,7 +137,7 @@ repos:
   - id: claude-scripts
     name: claude-scripts
     files: ^(\.claude/(skills/.*/(scripts/|SKILL\.md|[^/]*\.py$)|test/)|tools/(build_utils|family_json|get_deps)\.py$|test/hil/(agentrc\.json|helper/agentrc\.py)$)
-    entry: python3 -m unittest discover -s .claude/test -p 'test_*.py'
+    entry: python -m unittest discover -s .claude/test -p 'test_*.py'
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml]
@@ -123,7 +145,8 @@ repos:
   - id: drivers-coverage
     name: drivers-coverage
     files: ^(\.github/ci-pinned-boards\.json$|\.github/scripts/ci_set_matrix\.py$|tools/drivers_coverage_check\.py$|tools/change_impact\.py$|tools/build_utils\.py$|hw/bsp/|src/portable/|examples/|test/hil/test/test_drivers_coverage\.py$|tools/build\.py$|test/hil/test/test_ci_boards\.py$|tools/code_size\.py$|tools/code_size_profile\.py$|test/hil/agentrc\.json$|test/hil/helper/agentrc\.py$|test/hil/test/test_code_size\.py$|\.github/scripts/code_size_ci\.py$|test/hil/test/test_code_size_ci\.py$|tools/membrowse_cli\.py$|test/hil/test/test_membrowse_cli\.py$|test/hil/tinyusb\.json$|test/hil/hfp\.json$)
-    entry: sh -c "cd test/hil/test && python3 -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli"
+    entry: python tools/hook_steps.py
+    args: ['@test/hil/test python -m unittest -q test_drivers_coverage test_ci_boards test_code_size test_code_size_ci test_membrowse_cli']
     pass_filenames: false
     language: python
     additional_dependencies: [pyyaml, pyelftools]
@@ -132,8 +155,8 @@ repos:
     name: membrowse-targets
     # build.py's toolchain-free target list vs a real configure: only the files that list reads
     files: ^(tools/(build|build_utils|membrowse_cli)\.py|hw/bsp/.*\.(cmake|mk)|examples/.*/(skip|only)\.txt|examples/.*CMakeLists\.txt|test/hil/test/test_membrowse_targets\.py)$
-    entry: python3 test/hil/test/test_membrowse_targets.py
-    language: system
+    entry: python test/hil/test/test_membrowse_targets.py
+    language: python
     pass_filenames: false
 
 #  - id: build-fuzzer
