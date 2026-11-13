@@ -89,13 +89,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   return true;
 }
 
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  return true;
-}
-
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
   (void) rhport;
   (void) daddr;
