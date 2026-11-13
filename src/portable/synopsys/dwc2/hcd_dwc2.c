@@ -212,6 +212,7 @@ typedef struct {
   uint8_t  setup_busy;     // SETUP start-split errors retried as a TT's NAK, see handle_channel_out_slave()
   uint8_t  int_mdata;      // slave interrupt split IN: bytes of the packet taken from MDATA complete-splits, tentative
   bool     int_mdata_last; // slave interrupt split IN: the last complete-split returned MDATA, see channel_int_in_more()
+  uint8_t  int_pid;        // slave interrupt split IN: data toggle the current packet started with
 #endif
 #if HCD_CHANNEL_PARK
   uint8_t  park;           // channel is programmed but waiting for the SOF interrupt to start it, see channel_park_t
@@ -1608,10 +1609,12 @@ uint32_t hcd_frame_number(uint8_t rhport) {
 // Port API
 //--------------------------------------------------------------------+
 
-// Get the current connect status of roothub port
+// Get the current connect status of roothub port. A port in overcurrent has no usable device: it is reported removed
+// until the overcurrent clears, see handle_hprt_irq()
 bool hcd_port_connect_status(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  return dwc2->hprt & HPRT_CONN_STATUS;
+  const uint32_t hprt = dwc2->hprt;
+  return (hprt & HPRT_CONN_STATUS) && !(hprt & HPRT_OVER_CURRENT_ACTIVE);
 }
 
 // Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
@@ -1867,6 +1870,9 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
   hctsiz.xfer_size = edpt->buflen;
+#if HCD_SPLIT
+  xfer->int_pid = edpt->next_pid;
+#endif
   if (edpt->next_do_ping && edpt->speed == TUSB_SPEED_HIGH &&
      edpt->next_pid != HCTSIZ_PID_SETUP && hcchar_bm->ep_dir == TUSB_DIR_OUT) {
     hctsiz.do_ping = 1;
@@ -2567,17 +2573,20 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
 // of the packet for the next complete-split (USB 2.0 11.20.4, Figure 11-80). The core completed the channel as for a
 // short packet and toggled HCTSIZ.PID. Arm the next complete-split for the rest, with the data toggle the packet started
 // with, which DATA0/DATA1 then ends; the MDATA bytes stay tentative until then. Return false when the window has
-// passed: the packet is dropped and retried in the next service interval. A transfer of one packet only (the PID it
-// started with is the one before edpt->next_pid). DMA mode reports MDATA nowhere: there it ends the transfer short.
+// passed: the packet is dropped and retried in the next service interval. The channel keeps the packets of the transfer
+// left from the start of this one, so a full packet moves on to the next as without MDATA. DMA mode reports MDATA
+// nowhere: there it ends the transfer short.
 static bool channel_int_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*           xfer    = &_hcd_data.xfer[ch_id];
   const hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_t*       channel = &dwc2->channel[ch_id];
   xfer->int_mdata_last          = false;
+  xfer->fifo_bytes              = 0; // bytes of the next piece, the packet's are fifo_bytes + int_mdata
 
+  const uint16_t packet_left  = (uint16_t) (edpt->buflen - (xfer->xferred_bytes - xfer->int_mdata));
   dwc2_channel_tsize_t hctsiz = {.value = 0};
-  hctsiz.pid          = (edpt->next_pid == HCTSIZ_PID_DATA1) ? HCTSIZ_PID_DATA0 : HCTSIZ_PID_DATA1;
-  hctsiz.packet_count = 1;
+  hctsiz.pid          = xfer->int_pid;
+  hctsiz.packet_count = cal_packet_count(packet_left, edpt->hcchar_bm.ep_size);
   hctsiz.xfer_size    = edpt->buflen - xfer->xferred_bytes;
   channel->hctsiz     = hctsiz.value;
   if (channel_csplit_arm(dwc2, ch_id)) {
@@ -2786,12 +2795,16 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     if (hcsplt.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
       return !channel_iso_in_more(dwc2, ch_id); // the core halted the completed periodic channel
     }
-    if (xfer->int_mdata_last && edpt->buflen <= edpt->hcchar_bm.ep_size) {
+    if (xfer->int_mdata_last) {
       // the core halted the completed periodic channel
       return !channel_int_in_more(dwc2, ch_id) && channel_xfer_in_retry(dwc2, ch_id, 0);
     }
+    const uint16_t packet_bytes = (uint16_t) (xfer->fifo_bytes + xfer->int_mdata);
     xfer->int_mdata      = 0; // DATA0/DATA1 ended the packet: its MDATA bytes are taken
     xfer->int_mdata_last = false;
+    xfer->int_pid        = (uint8_t) hctsiz.pid; // the next packet of the transfer starts with the toggled PID
+#else
+    const uint16_t packet_bytes = xfer->fifo_bytes;
 #endif
     if (edpt->hcchar_bm.ep_num != 0 &&
         edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
@@ -2799,7 +2812,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     }
 
     const uint16_t remain_packets = hctsiz.packet_count;
-    if (hcsplt.split_en && remain_packets && xfer->fifo_bytes == edpt->hcchar_bm.ep_size) {
+    if (hcsplt.split_en && remain_packets && packet_bytes == edpt->hcchar_bm.ep_size) {
       // Split can only complete 1 transaction (up to 1 packet) at a time, schedule more
       hcsplt.split_compl = 0;
       channel->hcsplt = hcsplt.value;
@@ -3337,6 +3350,11 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 // Report the completed transfer of a channel and release the channel
 static void channel_xfer_done(dwc2_regs_t* dwc2, uint8_t ch_id, bool in_isr) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+#if HCD_SPLIT
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    channel_int_in_drop(xfer); // a failed packet's MDATA bytes were never confirmed by its DATA0/DATA1
+  }
+#endif
   if (xfer->closing == 1) {
     edpt_dealloc(&_hcd_data.edpt[xfer->ep_id]);
   } else {
@@ -3728,7 +3746,9 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
     // Port Connect Detect
     hprt |= HPRT_CONN_DETECT;
 
-    if (hprt_bm.conn_status == 1u) {
+    // Overcurrent wins: an attach queued first would start usbh's debounce, which drops the removal below. The
+    // overcurrent clearing reports the device attached.
+    if (hprt_bm.conn_status == 1u && hprt_bm.over_current_active == 0u) {
       hcd_event_device_attach(rhport, in_isr);
     }
   }

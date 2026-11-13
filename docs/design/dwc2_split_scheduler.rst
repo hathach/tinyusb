@@ -546,9 +546,10 @@ These choices are **not** protocol requirements merely because they exist in
      - The core completes an interrupt CS that returned MDATA as a short packet
        (XferCompl, HCTSIZ.PID toggled to DATA0/DATA1, never MDATA); only the
        RxFIFO status (GRXSTSP.DPID) shows MDATA. Slave mode continues the packet
-       with the next CS and its starting toggle, its MDATA bytes tentative until
-       DATA0/DATA1 (dropped and retried in the next interval otherwise), for a
-       transfer of one packet. Buffer DMA mode has no such status: HCINT and
+       with the next CS and the toggle it started with, its MDATA bytes
+       tentative until DATA0/DATA1 (dropped and retried in the next interval
+       otherwise); a full packet then moves on to the next packet of the
+       transfer as without MDATA. Buffer DMA mode has no such status: HCINT and
        HCTSIZ are the same as for a short report, so the transfer still ends
        short there. Measured on STM32U5A5 with three 64-byte FS interrupt IN
        endpoints stacked in one slot of a single TT next to an isochronous IN:

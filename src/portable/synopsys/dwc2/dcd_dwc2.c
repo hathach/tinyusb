@@ -57,7 +57,7 @@ typedef struct {
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t dfifo_top;      // top free location in DFIFO in words
   uint16_t tx_allocated;   // bitmap of IN endpoints holding a TX FIFO in this configuration
-  uint16_t rx_periodic;    // bitmap of periodic OUT endpoints counted in rx.periodic_sum
+  uint16_t rx_periodic[DWC2_EP_MAX]; // words (packet + 1) each periodic OUT endpoint adds to rx.periodic_sum, 0 = none
   uint8_t  tx_fifo_count;  // implemented TX FIFOs, 0 = not limited
   dfifo_rx_t rx;
 
@@ -304,9 +304,10 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
     if (xfer_type == TUSB_XFER_BULK) {
       rx.bulk = tu_max16(rx.bulk, fifo_size);
     } else if (xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) {
-      // An endpoint re-opened without close (SET_INTERFACE) is counted once per configuration
-      if (!tu_bit_test(_dcd_data.rx_periodic, epnum)) {
-        rx.periodic_sum = (uint16_t) (rx.periodic_sum + fifo_size + 1);
+      // An endpoint re-opened without close (SET_INTERFACE) is counted once per configuration, with its largest packet
+      const uint16_t counted = _dcd_data.rx_periodic[epnum];
+      if (fifo_size + 1u > counted) {
+        rx.periodic_sum = (uint16_t) (rx.periodic_sum + fifo_size + 1u - counted);
       }
       if (fifo_size > rx.periodic[0]) {
         rx.periodic[1] = rx.periodic[0];
@@ -333,8 +334,9 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
       dwc2->grxfsiz = new_sz; // Enlarge RX FIFO
     }
     _dcd_data.rx = rx;
-    if (xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) {
-      _dcd_data.rx_periodic |= (uint16_t) TU_BIT(epnum);
+    if ((xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) &&
+        fifo_size + 1u > _dcd_data.rx_periodic[epnum]) {
+      _dcd_data.rx_periodic[epnum] = (uint16_t) (fifo_size + 1u);
     }
   } else {
     if (!dfifo_tx_exists(rhport, epnum)) {
@@ -356,18 +358,19 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
 
     // An endpoint re-opened without close (e.g. video SET_INTERFACE on a bulk endpoint) keeps its FIFO. A larger
     // packet can only grow the FIFO allocated last, the one at the free space.
+    uint16_t top = _dcd_data.dfifo_top;
     if (tu_bit_test(_dcd_data.tx_allocated, epnum)) {
       const uint16_t cur_size = (uint16_t) (*txf >> DIEPTXF_INEPTXFD_Pos);
       if (fifo_size <= cur_size) {
         return true;
       }
-      TU_ASSERT((uint16_t) (*txf & DIEPTXF_INEPTXSA_Msk) == _dcd_data.dfifo_top);
-      _dcd_data.dfifo_top += cur_size;
+      TU_ASSERT((uint16_t) (*txf & DIEPTXF_INEPTXSA_Msk) == top);
+      top = (uint16_t) (top + cur_size);
     }
 
-    // Check if free space is available
-    TU_ASSERT(_dcd_data.dfifo_top >= fifo_size + dwc2->grxfsiz);
-    _dcd_data.dfifo_top -= fifo_size;
+    // Check if free space is available; a failed grow keeps the FIFO it has
+    TU_ASSERT(top >= fifo_size + dwc2->grxfsiz);
+    _dcd_data.dfifo_top = (uint16_t) (top - fifo_size);
     _dcd_data.tx_allocated |= (uint16_t) TU_BIT(epnum);
     *txf = ((uint32_t) fifo_size << DIEPTXF_INEPTXFD_Pos) | _dcd_data.dfifo_top;
   }
@@ -380,7 +383,7 @@ static void dfifo_device_init(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   tu_memclr(&_dcd_data.rx, sizeof(_dcd_data.rx));
   _dcd_data.rx.largest = CFG_TUD_ENDPOINT0_SIZE / 4;
-  _dcd_data.rx_periodic = 0;
+  tu_memclr(_dcd_data.rx_periodic, sizeof(_dcd_data.rx_periodic));
   _dcd_data.tx_allocated = 0;
   _dcd_data.tx_fifo_count = dfifo_tx_count(rhport);
 
