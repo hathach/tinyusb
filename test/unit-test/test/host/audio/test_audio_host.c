@@ -69,6 +69,8 @@ static uint8_t                  event_cb_idx;
 static uint8_t                  event_cb_stream_idx;
 static tuh_audio_event_t        event_cb_event;
 static tusb_xfer_result_t       event_cb_result;
+static bool                     event_cb_restart_on_stop;
+static bool                     event_cb_restart_result;
 
 static uint8_t  descriptor_cb_count;
 static uint8_t  descriptor_cb_idx;
@@ -92,6 +94,14 @@ void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event
   event_cb_stream_idx = stream_idx;
   event_cb_event      = event;
   event_cb_result     = result;
+
+  if (event == TUH_AUDIO_EVENT_STOP_COMPLETE && event_cb_restart_on_stop) {
+    // Restart from the completion event once the last transfer has drained.
+    event_cb_restart_on_stop      = false;
+    interface_set_complete_inline = false;
+    complete_edpt(0x81);
+    event_cb_restart_result = tuh_audio_start(idx, stream_idx);
+  }
 }
 
 void tuh_audio_descriptor_cb(uint8_t idx, const tuh_audio_descriptor_cb_t *desc_cb) {
@@ -945,11 +955,13 @@ void setUp(void) {
   memset(edpt_xfer_buffer, 0, sizeof(edpt_xfer_buffer));
   edpt_xfer_count = 0;
 
-  event_cb_count      = 0;
-  event_cb_idx        = TUSB_INDEX_INVALID_8;
-  event_cb_stream_idx = TUSB_INDEX_INVALID_8;
-  event_cb_event      = TUH_AUDIO_EVENT_START_COMPLETE;
-  event_cb_result     = XFER_RESULT_INVALID;
+  event_cb_count           = 0;
+  event_cb_idx             = TUSB_INDEX_INVALID_8;
+  event_cb_stream_idx      = TUSB_INDEX_INVALID_8;
+  event_cb_event           = TUH_AUDIO_EVENT_START_COMPLETE;
+  event_cb_result          = XFER_RESULT_INVALID;
+  event_cb_restart_on_stop = false;
+  event_cb_restart_result  = false;
 
   descriptor_cb_count           = 0;
   descriptor_cb_idx             = TUSB_INDEX_INVALID_8;
@@ -1540,6 +1552,39 @@ void test_audio_host_reports_stop_completed_before_stop_returns(void) {
   interface_set_complete_inline = false;
   complete_edpt(0x81);
   TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+}
+
+void test_audio_host_restarts_from_stop_completed_before_stop_returns(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // SET_INTERFACE(alt 0) completes before tuh_audio_stop() returns, and the
+  // STOP_COMPLETE event restarts the stream: the stop must already be finished.
+  interface_set_complete_inline = true;
+  event_cb_restart_on_stop      = true;
+  TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+  TEST_ASSERT_TRUE(event_cb_restart_result);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL_UINT8(3, interface_set_count);
+  TEST_ASSERT_EQUAL_UINT8(1, interface_alt);
+
+  // Returning from tuh_audio_stop() must not tear down the restarted stream.
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(3, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_START_COMPLETE, event_cb_event);
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, event_cb_result);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
 }
 
 void test_audio_host_restarts_after_unplug_during_pending_start(void) {

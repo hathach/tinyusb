@@ -68,8 +68,8 @@
  *           `-- tuh_audio_event_cb(START_COMPLETE)
  *
  *   tuh_audio_stop(stream)
- *     +-- SET_INTERFACE(alt 0) and stop local transfer resubmission
- *     `-- completion -> tuh_audio_event_cb(STOP_COMPLETE)
+ *     +-- stop local transfer resubmission, then SET_INTERFACE(alt 0)
+ *     `-- completion -> discard queued frames -> tuh_audio_event_cb(STOP_COMPLETE)
  *
  * A successful start/stop API return means that the first control request was
  * submitted. The corresponding event reports completion of the entire chain.
@@ -2185,6 +2185,10 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
     return;
   }
   TU_LOG_DRV("  AUDIO SET_INTERFACE deactivate done: result=%u\r\n", xfer->result);
+  // Finish the local stop before reporting it, so the event callback may
+  // reconfigure or restart the stream. The last transfer still drains; its data
+  // and all queued frames are discarded.
+  audioh_stream_stop_xfers(s);
   s->operation = AUDIOH_STREAM_OP_NONE;
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_STOP_COMPLETE, xfer->result);
 }
@@ -2198,18 +2202,18 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s && s->state == STREAM_STATE_READY && s->operation == AUDIOH_STREAM_OP_NONE && s->running, false);
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  // Mark the stop before submitting: on an RTOS the host task may complete the
-  // request before tuh_interface_set() returns to this caller.
+  // Stop resubmission and mark the stop before submitting: on an RTOS the host
+  // task may complete the request, and the application restart the stream from
+  // STOP_COMPLETE, before tuh_interface_set() returns to this caller. Nothing may
+  // touch the stream after a successful submission.
+  s->running   = false;
   s->operation = AUDIOH_STREAM_OP_STOP;
   if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
     // Preserve running state when submission fails so the caller can retry.
     s->operation = AUDIOH_STREAM_OP_NONE;
+    s->running   = true;
     return false;
   }
-
-  // SET_INTERFACE stops future traffic. The current transfer drains, while its
-  // data and all queued frames are discarded.
-  audioh_stream_stop_xfers(s);
   return true;
 }
 
