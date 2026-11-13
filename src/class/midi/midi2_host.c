@@ -78,6 +78,7 @@ typedef struct {
 
   tusb_desc_endpoint_t alt0_ep[2]; // setting 0's opened endpoints, indexed by tusb_dir_t (address 0: none)
   midih2_alt1_ep_t     alt1_ep[2]; // indexed by tusb_dir_t
+  uint8_t alt1_reopen_refused;     // directions whose REOPEN endpoint the HCD refused after the switch
 
   bool mounted;
 
@@ -282,10 +283,21 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
   return p_desc;
 }
 
+// Settle now what tuh_edpt_open() would rewrite or refuse in an endpoint opened only once the device
+// has switched (MIDIH2_ALT1_EP_REOPEN), so that a descriptor it cannot open keeps the device on setting 0
+static bool midih2_alt1_reopen_desc_fit(uint8_t daddr, tusb_desc_endpoint_t *desc) {
+  const tusb_speed_t speed = tuh_speed_get(daddr);
+  // tuh_edpt_open()'s rewrite of a bulk size some full-speed devices report as 512
+  if (desc->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc) > 64 && speed == TUSB_SPEED_FULL) {
+    desc->wMaxPacketSize = tu_htole16(64);
+  }
+  return tu_edpt_packet_size(desc) <= TUH_EPSIZE_BULK_MAX && tu_edpt_validate(desc, speed);
+}
+
 // Record a setting 1 endpoint (USB-MIDI 2.0 5.3: Bulk or Interrupt). One identical to setting 0's
 // reuses that endpoint. One at another address is opened now, so that a host which cannot open it
-// stays on setting 0. One at setting 0's address that differs is reopened around the switch
-// (midih2_alt0_close_for_reopen, midih2_alt1_open_ep).
+// stays on setting 0. One at setting 0's address that differs is checked now and reopened around the
+// switch (midih2_alt0_close_for_reopen, midih2_alt1_reopen).
 static bool midih2_parse_alt1_endpoint(midih2_interface_t *p_midi, const tusb_desc_endpoint_t *p_ep) {
   const uint8_t               ep_addr = p_ep->bEndpointAddress;
   const tusb_dir_t            dir     = tu_edpt_dir(ep_addr);
@@ -310,6 +322,7 @@ static bool midih2_parse_alt1_endpoint(midih2_interface_t *p_midi, const tusb_de
   alt1_ep->desc = *p_ep;
 
   if (ep_addr == alt0_ep->bEndpointAddress) {
+    TU_VERIFY(midih2_alt1_reopen_desc_fit(p_midi->daddr, &alt1_ep->desc));
     alt1_ep->kind = MIDIH2_ALT1_EP_REOPEN;
   } else {
     TU_ASSERT(tuh_edpt_open(p_midi->daddr, &alt1_ep->desc));
@@ -381,21 +394,38 @@ static bool midih2_alt0_close_for_reopen(midih2_interface_t *p_midi) {
   return true;
 }
 
-// The device stays on setting 0 after midih2_alt0_close_for_reopen() succeeded: undo the preparation
+// The device is on setting 0 after midih2_alt0_close_for_reopen() succeeded, never switched or switched
+// back: undo the preparation
 static void midih2_alt1_abandon(midih2_interface_t *p_midi) {
   midih2_alt0_reopen(p_midi, midih2_alt1_reopen_mask(p_midi));
   midih2_alt1_discard(p_midi);
   p_midi->alt_setting_current = 0;
 }
 
-// Point the streams at setting 1's endpoints once the device has switched to it, and close setting
-// 0's that setting 1 does not share. Nothing is armed yet: RX starts on mount.
-static void midih2_alt1_open_ep(midih2_interface_t *p_midi) {
+// Once the device has switched to setting 1: open its endpoints at setting 0's addresses, closed before
+// the switch. Their descriptors were checked while parsing, so only the HCD can refuse one (e.g. no free
+// endpoint). Returns the directions refused; the others are open.
+static uint8_t midih2_alt1_reopen(midih2_interface_t *p_midi) {
+  uint8_t refused = 0;
   for (uint8_t dir = 0; dir < 2; dir++) {
-    midih2_alt1_ep_t     *alt1_ep  = &p_midi->alt1_ep[dir];
-    tusb_desc_endpoint_t *desc     = &alt1_ep->desc;
-    const uint8_t         alt0_ep  = p_midi->alt0_ep[dir].bEndpointAddress;
-    bool                  usable   = false;
+    const midih2_alt1_ep_t *alt1_ep = &p_midi->alt1_ep[dir];
+    if (alt1_ep->kind == MIDIH2_ALT1_EP_REOPEN && !tuh_edpt_open(p_midi->daddr, &alt1_ep->desc)) {
+      TU_LOG_DRV("  MIDI2 cannot reopen EP %02X for alt 1\r\n", alt1_ep->desc.bEndpointAddress);
+      refused |= (uint8_t) TU_BIT(dir);
+    }
+  }
+  return refused;
+}
+
+// Point the streams at setting 1's endpoints once the device has switched to it and midih2_alt1_reopen()
+// ran, and close setting 0's that setting 1 does not share. A direction in refused is left without a
+// stream. Nothing is armed yet: RX starts on mount.
+static void midih2_alt1_use(midih2_interface_t *p_midi, uint8_t refused) {
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    const midih2_alt1_ep_t     *alt1_ep = &p_midi->alt1_ep[dir];
+    const tusb_desc_endpoint_t *desc    = &alt1_ep->desc;
+    const uint8_t               alt0_ep = p_midi->alt0_ep[dir].bEndpointAddress;
+    bool                        usable  = false;
 
     switch (alt1_ep->kind) {
       case MIDIH2_ALT1_EP_SHARED:
@@ -407,11 +437,7 @@ static void midih2_alt1_open_ep(midih2_interface_t *p_midi) {
 
       case MIDIH2_ALT1_EP_REOPEN:
         // setting 0's was closed before the switch
-        usable = tuh_edpt_open(p_midi->daddr, desc);
-        if (usable && tu_edpt_packet_size(desc) > TUH_EPSIZE_BULK_MAX) {
-          (void) tuh_edpt_close(p_midi->daddr, desc->bEndpointAddress);
-          usable = false;
-        }
+        usable = (refused & TU_BIT(dir)) == 0;
         break;
 
       default:
@@ -664,34 +690,72 @@ static void midih2_set_config_complete(midih2_interface_t *p_midi, uint8_t idx) 
   usbh_driver_set_config_complete(dev_addr, p_midi->bInterfaceNumber);
 }
 
+static uint8_t midih2_find_idx_by_itf(uint8_t daddr, uint8_t itf_num) {
+  for (uint8_t idx = 0; idx < CFG_TUH_MIDI2; idx++) {
+    if (_midi2_host[idx].daddr == daddr && _midi2_host[idx].bInterfaceNumber == itf_num) {
+      return idx;
+    }
+  }
+  return TUSB_INDEX_INVALID_8;
+}
+
+// SET_INTERFACE(0), sent because setting 1 could not be used once the device had switched to it
+static void midih2_set_interface_alt0_cb(tuh_xfer_t *xfer) {
+  uint8_t const idx = midih2_find_idx_by_itf(xfer->daddr, (uint8_t) tu_le16toh(xfer->setup->wIndex));
+  TU_VERIFY(idx < CFG_TUH_MIDI2, );
+  midih2_interface_t *p_midi = &_midi2_host[idx];
+  uint8_t const refused = p_midi->alt1_reopen_refused;
+
+  if (xfer->result == XFER_RESULT_SUCCESS) {
+    // close setting 1's endpoints opened at setting 0's addresses, then restore setting 0's
+    uint8_t const reopened = (uint8_t) (midih2_alt1_reopen_mask(p_midi) & ~refused);
+    for (uint8_t dir = 0; dir < 2; dir++) {
+      if (reopened & TU_BIT(dir)) {
+        (void) tuh_edpt_close(p_midi->daddr, p_midi->alt1_ep[dir].desc.bEndpointAddress);
+      }
+    }
+    midih2_alt1_abandon(p_midi);
+  } else {
+    // the device is still on setting 1: use what could be opened
+    TU_LOG_DRV("MIDI2 SET_INTERFACE alt 0 failed, staying on alt 1\r\n");
+    midih2_alt1_use(p_midi, refused);
+  }
+  midih2_set_config_complete(p_midi, idx);
+}
+
 static void midih2_set_interface_cb(tuh_xfer_t *xfer) {
   uint8_t const dev_addr = xfer->daddr;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  uint8_t const idx = midih2_find_idx_by_itf(dev_addr, itf_num);
+  TU_VERIFY(idx < CFG_TUH_MIDI2, );
+  midih2_interface_t *p_midi = &_midi2_host[idx];
 
-  // Find our interface
-  for (uint8_t idx = 0; idx < CFG_TUH_MIDI2; idx++) {
-    if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == itf_num) {
-      if (xfer->result == XFER_RESULT_SUCCESS) {
-        midih2_alt1_open_ep(&_midi2_host[idx]);
-      } else {
-        // SET_INTERFACE failed, fall back to alt 0
-        TU_LOG_DRV("MIDI2 SET_INTERFACE failed, falling back to alt 0\r\n");
-        midih2_alt1_abandon(&_midi2_host[idx]);
-      }
-      midih2_set_config_complete(&_midi2_host[idx], idx);
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    // SET_INTERFACE failed, fall back to alt 0
+    TU_LOG_DRV("MIDI2 SET_INTERFACE failed, falling back to alt 0\r\n");
+    midih2_alt1_abandon(p_midi);
+    midih2_set_config_complete(p_midi, idx);
+    return;
+  }
+
+  uint8_t const refused = midih2_alt1_reopen(p_midi);
+  if (refused != 0) {
+    // a direction setting 1 defines has no endpoint: switch the device back to setting 0
+    p_midi->alt1_reopen_refused = refused;
+    TU_LOG_DRV("MIDI2 alt 1 endpoints cannot be opened, requesting SET_INTERFACE alt 0 for itf %u\r\n", itf_num);
+    if (tuh_interface_set(dev_addr, itf_num, 0, midih2_set_interface_alt0_cb, 0)) {
       return;
     }
+    // not submitted, so the device stays on setting 1: use what could be opened
+    TU_LOG_DRV("MIDI2 SET_INTERFACE alt 0 not submitted, staying on alt 1\r\n");
   }
+
+  midih2_alt1_use(p_midi, refused);
+  midih2_set_config_complete(p_midi, idx);
 }
 
 bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
-  uint8_t idx = 0;
-  for (idx = 0; idx < CFG_TUH_MIDI2; idx++) {
-    if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == itf_num) {
-      break;
-    }
-  }
-
+  uint8_t const idx = midih2_find_idx_by_itf(dev_addr, itf_num);
   if (idx >= CFG_TUH_MIDI2) {
     // Not our interface (e.g. Audio Control) - pass through to next
     usbh_driver_set_config_complete(dev_addr, itf_num);
