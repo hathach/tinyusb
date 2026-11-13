@@ -832,11 +832,15 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
 static void ncm_link_state_task(void *param) {
   (void) param;
 
-  // Clear pending before reading the request: a request stored after this
-  // point sees pending == false and queues a new call.
+  // Clear pending and read the request under the usbd spinlock, which
+  // tud_network_link_state() also holds while storing a request and testing
+  // pending: on a multi-core target a request is then either read here or
+  // sees pending == false and queues a new call, never lost between the two.
+  usbd_spin_lock(false);
   ncm_link_req.pending = false;
   uint8_t const rhport = ncm_link_req.rhport;
   bool const is_up = ncm_link_req.is_up;
+  usbd_spin_unlock(false);
 
   if (ncm_interface.link_is_up == is_up) {
     return; // no change in link state
@@ -867,21 +871,27 @@ static void ncm_link_state_task(void *param) {
  *
  * The request is stored and a deferred call is queued only if none is
  * pending, so repeated calls keep at most one link-state event in the usbd
- * queue (two tasks calling at once may queue a second, which is harmless) and
- * a caller in tud_task() context (e.g. tud_network_recv_cb()) does not fill
+ * queue and a caller in tud_task() context (e.g. tud_network_recv_cb()) does not fill
  * the queue it is the only reader of. The queued call applies the latest
  * requested state; intermediate states requested before it runs are skipped.
  */
 void tud_network_link_state(uint8_t rhport, bool is_up) {
   TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
 
+  // Store the request and test-and-set pending under the usbd spinlock (see
+  // ncm_link_state_task()); queue the deferred call outside the lock.
+  usbd_spin_lock(false);
   ncm_link_req.rhport = rhport;
   ncm_link_req.is_up = is_up;
-  if (!ncm_link_req.pending) {
-    ncm_link_req.pending = true;
-    if (!usbd_defer_func(ncm_link_state_task, NULL, false)) {
-      ncm_link_req.pending = false; // not queued (OS_NONE: queue full): let the next request try again
-    }
+  bool const need_queue = !ncm_link_req.pending;
+  ncm_link_req.pending = true;
+  usbd_spin_unlock(false);
+
+  if (need_queue && !usbd_defer_func(ncm_link_state_task, NULL, false)) {
+    // not queued (OS_NONE: queue full): let the next request try again
+    usbd_spin_lock(false);
+    ncm_link_req.pending = false;
+    usbd_spin_unlock(false);
   }
 }
 
