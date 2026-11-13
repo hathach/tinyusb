@@ -471,8 +471,9 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
   switch (p_msc->stage) {
     case MSC_STAGE_CMD:
       // Must be Command Block
-      TU_ASSERT(ep_addr == p_msc->ep_out && event == XFER_RESULT_SUCCESS && xferred_bytes == sizeof(msc_cbw_t));
-      if (cbw->total_bytes && p_msc->buffer) {
+      if (!(ep_addr == p_msc->ep_out && event == XFER_RESULT_SUCCESS && xferred_bytes == sizeof(msc_cbw_t))) {
+        submitted = false;
+      } else if (cbw->total_bytes && p_msc->buffer) {
         // Data stage if any
         p_msc->stage = MSC_STAGE_DATA;
         submitted = data_stage_xfer(dev_addr, p_msc, cbw);
@@ -492,6 +493,11 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
       break;
 
     case MSC_STAGE_STATUS:
+      // a failed or short CSW transfer leaves epbuf->csw stale: fail the command instead of reporting it
+      if (event != XFER_RESULT_SUCCESS || xferred_bytes != sizeof(msc_csw_t)) {
+        submitted = false;
+        break;
+      }
       // BOT 1.0 §5.3.3.1: a Phase Error needs Reset Recovery, which an unmounted interface cannot run.
       // Once mounted, a device Phase Error is #3985.
       if (csw->status == MSC_CSW_STATUS_PHASE_ERROR && !p_msc->mounted) {
@@ -507,7 +513,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
 
   if (!submitted) {
     // nothing is pending to finish the command: complete it now with a CSW the device never sent
-    TU_LOG_DRV("  MSCh stage %u submit failed\r\n", p_msc->stage);
+    TU_LOG_DRV("  MSCh stage %u failed\r\n", p_msc->stage);
     csw->signature    = MSC_CSW_SIGNATURE;
     csw->tag          = cbw->tag;
     csw->data_residue = cbw->total_bytes - p_msc->data_xferred;
