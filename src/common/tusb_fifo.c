@@ -411,6 +411,17 @@ static uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset) {
   return new_idx;
 }
 
+// Advance write index by n after data is written. In overwritable mode, if the write would make the overflow count
+// reach 2*depth (double overflow), the index would alias to an empty fifo. Drop one depth from it instead: the
+// write pointer is unchanged and the fifo is still full, holding the last depth items in order.
+static uint16_t advance_write_index(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx, uint16_t n) {
+  const uint16_t new_idx = advance_index(depth, wr_idx, n);
+  if (tu_ff_overflow_count(depth, wr_idx, rd_idx) + n >= 2 * depth) {
+    return advance_index(depth, new_idx, depth);
+  }
+  return new_idx;
+}
+
 // index to pointer (0..depth-1), simply a modulo with minus.
 TU_ATTR_ALWAYS_INLINE static inline uint16_t idx2ptr(uint16_t depth, uint16_t idx) {
   // Only run at most 3 times since index is limit in the range of [0..2*depth)
@@ -534,25 +545,9 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
 
       // We start writing at the read pointer's position since we fill the whole buffer
       wr_idx = rd_idx;
-    } else {
-      const uint16_t overflowable_count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
-      if (overflowable_count + n >= 2 * f->depth) {
-        // Double overflowed
-        // Index is bigger than the allowed range [0,2*depth)
-        // re-position write index to have a full fifo after pushed
-        wr_idx = advance_index(f->depth, rd_idx, f->depth - n);
-
-        // TODO we should also shift out n bytes from read index since we avoid changing rd index !!
-        // However memmove() is expensive due to actual copying + wrapping consideration.
-        // Also race condition could happen anyway if read() is invoke while moving result in corrupted memory
-        // currently deliberately not implemented --> result in incorrect data read back
-      } else {
-        // normal + single overflowed:
-        // Index is in the range of [0,2*depth) and thus detect and recoverable. Recovering is handled in read()
-        // Therefore we just increase write index
-        // we will correct (re-position) read index later on in fifo_read() function
-      }
     }
+    // Otherwise (n < depth) the data is written at the write index. Single overflow is recoverable (handled in
+    // read(), which re-positions the read index), double overflow is handled by advance_write_index()
   }
 
   if (n) {
@@ -567,7 +562,7 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
     {
       ff_push_n(f, buf8, n, wr_ptr);
     }
-    f->wr_idx = advance_index(f->depth, wr_idx, n);
+    f->wr_idx = advance_write_index(f->depth, wr_idx, rd_idx, n);
 
     TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
   }
@@ -645,7 +640,7 @@ bool tu_fifo_write(tu_fifo_t *f, const void *data) {
   } else {
     const uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
     memcpy(f->buffer + wr_ptr, data, 1);
-    f->wr_idx = advance_index(f->depth, wr_idx, 1);
+    f->wr_idx = advance_write_index(f->depth, wr_idx, f->rd_idx, 1);
     ret       = true;
   }
 

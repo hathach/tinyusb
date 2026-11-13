@@ -45,7 +45,10 @@ Enable ``CFG_TUD_CDC`` with the required port count and add one
    * - ``CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED``
      - ``1``
      - Allows writes made before DTR connection to replace old queued data
-       rather than permanently filling the FIFO.
+       rather than permanently filling the FIFO.  While DTR is clear, an
+       overflowing write drops the oldest queued bytes, including bytes queued
+       before DTR dropped.  If it races the endpoint copying data out, those
+       bytes can be torn (partly old, partly new data), skipped or replayed.
 
 Use speed-dependent values from an example when the device can enumerate at
 high speed.

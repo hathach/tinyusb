@@ -89,11 +89,15 @@ Data path
        version, read from the AudioControl interface descriptor.
    * - ``tud_audio_available()`` / ``tud_audio_read()``
      - Reports and removes speaker bytes from the OUT software FIFO.  The read
-       count can be shorter than requested.
+       count can be shorter than requested.  When the application falls
+       behind, received packets overwrite the oldest unread bytes, with the
+       same overflow effects as ``tud_audio_write()``.
    * - ``tud_audio_write()``
      - Copies microphone bytes into the IN software FIFO and returns the number
        written.  When the FIFO is full the oldest unsent bytes are overwritten,
-       so pace writes to the stream.
+       so pace writes to the stream.  An overwrite that races the endpoint
+       copying data out can tear those bytes (partly old, partly new data) or
+       skip or replay up to one FIFO depth of samples.
    * - ``tud_audio_clear_ep_*_ff()``
      - Discards queued samples in the selected endpoint FIFO, useful when a
        streaming alternate setting closes.
