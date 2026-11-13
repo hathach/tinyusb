@@ -38,6 +38,7 @@ static tuh_xfer_t interface_xfer;
 static uint8_t    interface_alt;
 static uint8_t    interface_set_count;
 static bool       interface_set_complete_inline;
+static uint8_t    interface_set_edpt_done; // data endpoint completing inside tuh_interface_set()
 
 static bool                   control_xfer_result;
 static tuh_xfer_t             control_xfer;
@@ -172,6 +173,14 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
   interface_xfer.complete_cb = complete_cb;
   interface_xfer.user_data   = user_data;
   interface_set_count++;
+  if (interface_set_edpt_done != 0) {
+    // Model an RTOS host task completing a data transfer while the caller is
+    // still inside tuh_interface_set().
+    const uint8_t ep_addr   = interface_set_edpt_done;
+    interface_set_edpt_done = 0;
+    complete_edpt(ep_addr);
+    TEST_ASSERT_TRUE(audioh_xfer_cb(daddr, ep_addr, XFER_RESULT_SUCCESS, 96));
+  }
   if (interface_set_result && interface_set_complete_inline) {
     // Model an RTOS host task that finishes the request before the caller resumes.
     tuh_xfer_t xfer            = interface_xfer;
@@ -931,6 +940,7 @@ void setUp(void) {
   interface_alt                 = 0;
   interface_set_count           = 0;
   interface_set_complete_inline = false;
+  interface_set_edpt_done       = 0;
 
   control_xfer_result = true;
   memset(&control_xfer, 0, sizeof(control_xfer));
@@ -1531,6 +1541,60 @@ void test_audio_host_keeps_running_when_stop_cannot_be_submitted(void) {
   complete_edpt(0x81);
   TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
   TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+}
+
+void test_audio_host_rearms_transfer_completed_during_refused_stop(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // The capture transfer completes while tuh_audio_stop() is submitting
+  // SET_INTERFACE(alt 0), which is then refused.
+  interface_set_result    = false;
+  interface_set_edpt_done = 0x81;
+  TEST_ASSERT_FALSE(tuh_audio_stop(0, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+
+  // The stream keeps running: the completed transfer was re-armed.
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(0x81, edpt_xfer_ep[1]);
+  TEST_ASSERT_TRUE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x81));
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
+
+  // A retried stop still completes.
+  interface_set_result = true;
+  TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+}
+
+void test_audio_host_failure_during_pending_stop_reports_only_stop_complete(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // The device switched to alt 0 on the SETUP: the capture transfer in flight fails.
+  TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_FAILED, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
 }
 
 void test_audio_host_reports_stop_completed_before_stop_returns(void) {

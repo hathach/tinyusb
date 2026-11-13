@@ -649,6 +649,12 @@ static void audioh_stream_stop_xfers(tuh_audio_stream_t *s) {
 }
 
 static void audioh_stream_xfer_failed(tuh_audio_stream_t *s, tusb_xfer_result_t result) {
+  if (s->operation == AUDIOH_STREAM_OP_STOP) {
+    // A stop is pending and the device may already be on alt 0: leave this
+    // transfer unarmed and let STOP_COMPLETE be the stream's last event. Should
+    // the stop request be refused, running stays true so the caller can retry it.
+    return;
+  }
   audioh_stream_stop_xfers(s);
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_XFER_FAILED, result);
 }
@@ -2202,16 +2208,15 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s && s->state == STREAM_STATE_READY && s->operation == AUDIOH_STREAM_OP_NONE && s->running, false);
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  // Stop resubmission and mark the stop before submitting: on an RTOS the host
-  // task may complete the request, and the application restart the stream from
-  // STOP_COMPLETE, before tuh_interface_set() returns to this caller. Nothing may
-  // touch the stream after a successful submission.
-  s->running   = false;
+  // Mark the stop before submitting: on an RTOS the host task may complete the
+  // request, and the application restart the stream from STOP_COMPLETE, before
+  // tuh_interface_set() returns to this caller. Nothing may touch the stream
+  // after a successful submission. The stream keeps running, and completed
+  // transfers keep being re-armed, until audioh_stream_stop_complete() stops it,
+  // so a refused request leaves the stream streaming for the caller to retry.
   s->operation = AUDIOH_STREAM_OP_STOP;
   if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
-    // Preserve running state when submission fails so the caller can retry.
     s->operation = AUDIOH_STREAM_OP_NONE;
-    s->running   = true;
     return false;
   }
   return true;
