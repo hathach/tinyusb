@@ -209,9 +209,11 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
     p_desc = tu_desc_next(p_desc);
     desc_itf = (const tusb_desc_interface_t *)p_desc;
     p_midi->itf_count = 1;
-    // skip non-interface and non-midi streaming descriptors
+    // skip non-interface and non-midi streaming descriptors. A short interface descriptor ends the walk before its
+    // class fields are read, and is rejected below.
     while (tu_desc_in_bounds(p_desc, desc_end) && (desc_itf->bDescriptorType != TUSB_DESC_INTERFACE ||
-                                                   (desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
+                                                   (tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t) &&
+                                                    desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
                                                     desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING))) {
       if (desc_itf->bDescriptorType == TUSB_DESC_INTERFACE && desc_itf->bAlternateSetting == 0) {
         p_midi->itf_count++;
