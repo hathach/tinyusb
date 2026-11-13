@@ -363,6 +363,9 @@ static void assert_status_stage_failed(xfer_result_t result, uint32_t len) {
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, result, len));
   TEST_ASSERT_EQUAL(2, complete_count);
+  // a CSW built for this command, not the stale one (tag 0) left in the buffer
+  TEST_ASSERT_EQUAL_HEX32(MSC_CSW_SIGNATURE, complete_csw.signature);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
   TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
   TEST_ASSERT_EQUAL(sizeof(data) - 512, complete_csw.data_residue);
   TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
@@ -383,6 +386,8 @@ void test_msc_host_cbw_failed_completes(void) {
   TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, record_complete, 0));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_FAILED, 0));
   TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL_HEX32(MSC_CSW_SIGNATURE, complete_csw.signature);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
   TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
   TEST_ASSERT_EQUAL(sizeof(data), complete_csw.data_residue);
   TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
