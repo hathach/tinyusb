@@ -739,6 +739,57 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
 }
 
 //--------------------------------------------------------------------+
+// Endpoint stream: Interrupt endpoint size not a power of 2
+//--------------------------------------------------------------------+
+
+// An Interrupt endpoint can be any size up to its maximum, 48 here. A read must ask for whole packets that the FIFO
+// can take: 100 bytes free hold two, 96 bytes. Rounding by masking with mps - 1 gives 64, which a second 48-byte
+// packet overruns.
+void test_usbd_stream_read_xfer_non_power_of_2_mps(void) {
+  uint8_t ff_buf[100];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x06,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, false, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x06, ep_buf, 96, false, true);
+  TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
+}
+
+// A transfer of whole 48-byte packets ends on a full packet, so the host needs a ZLP after it
+void test_usbd_stream_write_zlp_non_power_of_2_mps(void) {
+  uint8_t ff_buf[128];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x86,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64)); // short last packet
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x86, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 96));
+}
+
+//--------------------------------------------------------------------+
 // Endpoint stream: refused transfer submission (#4449)
 //--------------------------------------------------------------------+
 

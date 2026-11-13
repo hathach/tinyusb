@@ -385,20 +385,52 @@ static bool stream_release(tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY(tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
-            (0 == (last_xferred_bytes & (s->mps - 1))));
+
+// Serialize the stream's own submissions (tu_edpt_stream_write_xfer(), tu_edpt_stream_write_zlp_if_needed()) with
+// the TX FIFO's write mutex. usbd/usbh release the endpoint as soon as they refuse a submission, so without it
+// another task could claim the endpoint and overwrite ep_buf before the refused bytes are restored as tx_pending
+// (#4449). Without an RTOS nothing preempts a submission, and the macros compile out.
+#if OSAL_MUTEX_REQUIRED
+TU_ATTR_ALWAYS_INLINE static inline void stream_tx_lock(tu_edpt_stream_t *s) {
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_lock(s->ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void stream_tx_unlock(tu_edpt_stream_t *s) {
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_unlock(s->ff.mutex_wr);
+  }
+}
+#else
+  #define stream_tx_lock(_s)
+  #define stream_tx_unlock(_s)
+#endif
+
+static bool stream_write_zlp_locked(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size. An Interrupt endpoint's size
+  // need not be a power of 2.
+  TU_VERIFY(s->mps > 0 && tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
+            (0 == (last_xferred_bytes % s->mps)));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
   return true;
 }
 
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  stream_tx_lock(s);
+  const bool ret = stream_write_zlp_locked(s, last_xferred_bytes);
+  stream_tx_unlock(s);
+  return ret;
+}
+
 // A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
 // a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO before the submission: the
 // FIFO is advanced first so that a completion handled before stream_xfer() returns cannot send them again. A refused
-// submission keeps them in ep_buf as tx_pending, and the next call sends them ahead of the FIFO's.
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
+// submission keeps them in ep_buf as tx_pending, and the next call sends them ahead of the FIFO's. The caller holds
+// the stream lock, so no other submission of this stream runs between the refusal and the restore of tx_pending, and
+// a completion handled meanwhile waits for it before submitting again.
+static uint32_t stream_write_xfer_locked(tu_edpt_stream_t *s) {
   TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
   TU_VERIFY(stream_claim(s), 0);
 
@@ -432,6 +464,13 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   return count;
 }
 
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
+  stream_tx_lock(s);
+  const uint32_t count = stream_write_xfer_locked(s);
+  stream_tx_unlock(s);
+  return count;
+}
+
 // Return the bytes queued in the FIFO. Queued bytes are not lost if a transfer submission is refused, they are sent
 // by a later write, flush or transfer completion; when the endpoint can never send, writes stop queueing once the
 // FIFO is full.
@@ -461,13 +500,14 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= s->mps);
+  TU_VERIFY(s->mps > 0 && available >= s->mps, 0);
   TU_VERIFY(stream_claim(s), 0);
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
   if (available >= s->mps) {
-    // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & ~(s->mps - 1));
+    // multiple of packet size limit by ep bufsize. An Interrupt endpoint's size need not be a power of 2, so round
+    // down by division rather than by masking.
+    uint16_t count = (uint16_t) (available - (available % s->mps));
     count = tu_min16(count, s->xfer_len);
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
