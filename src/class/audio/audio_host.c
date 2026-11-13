@@ -860,6 +860,15 @@ static inline bool audioh_stream_rearmable(const tuh_audio_stream_t *s) {
   return s->running && s->operation != AUDIOH_STREAM_OP_STOP;
 }
 
+// A re-arm submission was refused. On an RTOS another task may have marked a
+// stop after audioh_stream_rearmable() passed: the endpoint then stays idle, for
+// the stop to finish or, if its request is refused, for the re-arm it defers.
+static void audioh_stream_rearm_failed(tuh_audio_stream_t *s) {
+  if (s->operation != AUDIOH_STREAM_OP_STOP) {
+    audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+  }
+}
+
 bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   tuh_audio_stream_t *s = audioh_find_stream(dev_addr, ep_addr);
   if (s == NULL) {
@@ -877,7 +886,9 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   // last transfer drains during SET_INTERFACE(alt 0), so the endpoint is free for
   // a restart or reconfigure from STOP_COMPLETE. A failure then (the device may
   // already be on alt 0) is not reported. If the request is refused,
-  // tuh_audio_stop() has the host task re-arm what was left idle.
+  // tuh_audio_stop() has the host task re-arm what was left idle. A stop called
+  // from the callbacks below is marked and cleared before this completion goes
+  // on, so it leaves nothing idle.
 
   // Failed, stalled, and aborted transfers do not carry valid audio data.
   if (result != XFER_RESULT_SUCCESS) {
@@ -892,7 +903,7 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
   if (s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep) {
     audioh_feedback_received(s, xferred_bytes);
     if (audioh_stream_rearmable(s) && !audioh_stream_feedback_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+      audioh_stream_rearm_failed(s);
     }
     return true;
   }
@@ -906,13 +917,13 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     // the callback may have stopped the stream
     if (audioh_stream_rearmable(s) && !audioh_stream_capture_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+      audioh_stream_rearm_failed(s);
     }
   } else {
     // Notify the application before requesting the next playback packet.
     tuh_audio_playback_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
     if (audioh_stream_rearmable(s) && !audioh_stream_playback_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+      audioh_stream_rearm_failed(s);
     }
   }
   return true;
@@ -2207,9 +2218,9 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_STOP_COMPLETE, xfer->result);
 }
 
-// Host task, deferred by a refused tuh_audio_stop(): arm again the stream's
-// endpoints left idle while the stop was marked. An endpoint still busy is
-// re-armed by its own completion, which now sees no stop pending.
+// Host task, deferred by a tuh_audio_stop() refused on another task: arm again
+// the stream's endpoints left idle while the stop was marked. An endpoint still
+// busy is re-armed by its own completion, which now sees no stop pending.
 static void audioh_stream_rearm_idle(void *param) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)param;
   if (s->state != STREAM_STATE_READY || !s->running || s->operation != AUDIOH_STREAM_OP_NONE) {
@@ -2231,7 +2242,7 @@ static void audioh_stream_rearm_idle(void *param) {
   }
 
   if (!ok) {
-    audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+    audioh_stream_rearm_failed(s);
   }
 }
 
@@ -2251,11 +2262,15 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   // (audioh_xfer_cb), and audioh_stream_stop_complete() stops the stream.
   s->operation = AUDIOH_STREAM_OP_STOP;
   if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
-    // The stream keeps running for the caller to retry: a transfer that completed
-    // or failed meanwhile was left idle, so have the host task, which also runs
-    // the completions, arm it again.
+    // The stream keeps running for the caller to retry. From another task, a
+    // transfer that completed or failed meanwhile was left idle, so have the host
+    // task, which also runs the completions, arm it again. On the host task (a
+    // callback) no completion ran while the stop was marked, so nothing was left
+    // idle, and a send to its own full queue would wait forever.
     s->operation = AUDIOH_STREAM_OP_NONE;
-    usbh_defer_func(audioh_stream_rearm_idle, s, false);
+    if (!usbh_in_task()) {
+      usbh_defer_func(audioh_stream_rearm_idle, s, false);
+    }
     return false;
   }
   return true;

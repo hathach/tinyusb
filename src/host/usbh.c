@@ -1394,6 +1394,14 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   queue_event(&event, in_isr);
 }
 
+bool usbh_in_task(void) {
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  return osal_task_get_current_handle() == _usbh_data.task_hdl;
+#else
+  return true; // single execution context
+#endif
+}
+
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+

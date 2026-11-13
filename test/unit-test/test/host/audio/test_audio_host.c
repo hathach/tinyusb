@@ -43,6 +43,11 @@ static xfer_result_t interface_set_edpt_result;
 
 static osal_task_func_t deferred_func;
 static void            *deferred_param;
+static bool             in_host_task; // the driver is called from the host task (a callback)
+
+static bool    data_cb_stop;        // the next capture/playback callback calls tuh_audio_stop()
+static bool    data_cb_stop_result;
+static uint8_t data_cb_count;
 
 static bool                   control_xfer_result;
 static tuh_xfer_t             control_xfer;
@@ -61,6 +66,7 @@ static uint8_t edpt_close_count;
 
 static uint32_t edpt_busy_mask;
 static bool     edpt_xfer_result;
+static bool     edpt_xfer_stop_refuse; // another task marks a stop, then the next submission is refused
 #define AUDIO_TEST_MAX_XFERS 128
 static uint8_t      edpt_xfer_ep[AUDIO_TEST_MAX_XFERS];
 static uint16_t     edpt_xfer_bytes[AUDIO_TEST_MAX_XFERS];
@@ -107,6 +113,28 @@ static void run_deferred(void) {
   deferred_func         = NULL;
   TEST_ASSERT_NOT_NULL(func);
   func(deferred_param);
+}
+
+bool usbh_in_task(void) {
+  return in_host_task;
+}
+
+static void data_cb(uint8_t idx, uint8_t stream_idx) {
+  data_cb_count++;
+  if (data_cb_stop) {
+    data_cb_stop        = false;
+    data_cb_stop_result = tuh_audio_stop(idx, stream_idx);
+  }
+}
+
+void tuh_audio_capture_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
+  (void)xferred_bytes;
+  data_cb(idx, stream_idx);
+}
+
+void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_bytes) {
+  (void)xferred_bytes;
+  data_cb(idx, stream_idx);
 }
 
 void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result) {
@@ -225,6 +253,14 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
     edpt_xfer_buffer[edpt_xfer_count] = buffer;
     memcpy(edpt_xfer_data[edpt_xfer_count], buffer, TU_MIN(sizeof(edpt_xfer_data[0]), total_bytes));
     edpt_xfer_count++;
+  }
+  if (edpt_xfer_stop_refuse) {
+    // Model an RTOS task marking a stop after the re-arm check, then the HCD
+    // refusing the submission.
+    edpt_xfer_stop_refuse = false;
+    TEST_ASSERT_TRUE(tuh_audio_stop(0, 0));
+    complete_edpt(ep_addr);
+    return false;
   }
   if (!edpt_xfer_result) {
     complete_edpt(ep_addr); // match usbh_edpt_xfer() cleanup after HCD rejection
@@ -967,6 +1003,10 @@ void setUp(void) {
   interface_set_edpt_result     = XFER_RESULT_SUCCESS;
   deferred_func                 = NULL;
   deferred_param                = NULL;
+  in_host_task                  = false;
+  data_cb_stop                  = false;
+  data_cb_stop_result           = false;
+  data_cb_count                 = 0;
 
   control_xfer_result = true;
   memset(&control_xfer, 0, sizeof(control_xfer));
@@ -983,8 +1023,9 @@ void setUp(void) {
   memset(closed_ep, 0, sizeof(closed_ep));
   edpt_close_count = 0;
 
-  edpt_busy_mask   = 0;
-  edpt_xfer_result = true;
+  edpt_busy_mask        = 0;
+  edpt_xfer_result      = true;
+  edpt_xfer_stop_refuse = false;
   memset(edpt_xfer_ep, 0, sizeof(edpt_xfer_ep));
   memset(edpt_xfer_bytes, 0, sizeof(edpt_xfer_bytes));
   memset(edpt_xfer_data, 0, sizeof(edpt_xfer_data));
@@ -1701,6 +1742,116 @@ void test_audio_host_failure_during_pending_stop_reports_only_stop_complete(void
   TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
   TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
   TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+}
+
+void test_audio_host_refused_stop_from_capture_callback_rearms_without_deferral(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // The capture callback, on the host task, stops the stream; the request is
+  // refused. Nothing is posted to the host task's own queue: its completion
+  // re-arms the endpoint once the callback returns.
+  in_host_task         = true;
+  interface_set_result = false;
+  data_cb_stop         = true;
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_EQUAL_UINT8(1, data_cb_count);
+  TEST_ASSERT_FALSE(data_cb_stop_result);
+  TEST_ASSERT_NULL(deferred_func);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(0x81, edpt_xfer_ep[1]);
+  TEST_ASSERT_TRUE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x81));
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+
+  // A retried stop from the callback completes.
+  interface_set_result = true;
+  data_cb_stop         = true;
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_TRUE(data_cb_stop_result);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+}
+
+void test_audio_host_refused_stop_from_playback_callback_rearms_without_deferral(void) {
+  mount_descriptors(playback_44100_with_feedback_16_16, sizeof(playback_44100_with_feedback_16_16));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count); // feedback and data
+
+  // The playback callback, on the host task, stops the stream; the request is
+  // refused. The data endpoint is re-armed by its own completion and the
+  // feedback endpoint still in flight is left alone.
+  in_host_task         = true;
+  interface_set_result = false;
+  data_cb_stop         = true;
+  complete_playback_xfer();
+  TEST_ASSERT_EQUAL_UINT8(1, data_cb_count);
+  TEST_ASSERT_FALSE(data_cb_stop_result);
+  TEST_ASSERT_NULL(deferred_func);
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(0x01, edpt_xfer_ep[2]);
+  TEST_ASSERT_TRUE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x01));
+  TEST_ASSERT_TRUE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x81));
+
+  complete_feedback_xfer(45u << 16, 4);
+  TEST_ASSERT_EQUAL_UINT8(4, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(0x81, edpt_xfer_ep[3]);
+}
+
+void test_audio_host_capture_rearm_refused_during_stop_marked_elsewhere_is_not_reported(void) {
+  mount_descriptors(capture_fu_before_usb_output, sizeof(capture_fu_before_usb_output));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  complete_control_xfer(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_EQUAL_UINT8(1, edpt_xfer_count);
+
+  // Another task marks a stop after the re-arm check passed; the re-arm is then
+  // refused. No XFER_FAILED: the endpoint stays idle for the stop to finish.
+  edpt_xfer_stop_refuse = true;
+  complete_edpt(0x81);
+  TEST_ASSERT_TRUE(audioh_xfer_cb(AUDIO_DEV_ADDR, 0x81, XFER_RESULT_SUCCESS, 96));
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(1, event_cb_count);
+  TEST_ASSERT_FALSE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x81));
+
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+}
+
+void test_audio_host_feedback_rearm_refused_during_stop_marked_elsewhere_is_not_reported(void) {
+  mount_descriptors(playback_44100_with_feedback_16_16, sizeof(playback_44100_with_feedback_16_16));
+  TEST_ASSERT_TRUE(tuh_audio_configure(0, 0, 0));
+  TEST_ASSERT_TRUE(tuh_audio_start(0, 0));
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(2, edpt_xfer_count); // feedback and data
+  const uint8_t events = event_cb_count;
+
+  edpt_xfer_stop_refuse = true;
+  complete_feedback_xfer(45u << 16, 4);
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
+  TEST_ASSERT_EQUAL_UINT8(events, event_cb_count);
+  TEST_ASSERT_FALSE(usbh_edpt_busy(AUDIO_DEV_ADDR, 0x81));
+
+  // The data transfer drains during the stop without being re-armed.
+  complete_playback_xfer();
+  TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
+  complete_interface_set(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_EQUAL_UINT8(events + 1, event_cb_count);
+  TEST_ASSERT_EQUAL(TUH_AUDIO_EVENT_STOP_COMPLETE, event_cb_event);
 }
 
 void test_audio_host_reports_stop_completed_before_stop_returns(void) {
