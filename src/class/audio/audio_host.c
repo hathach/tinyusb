@@ -2218,9 +2218,9 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_STOP_COMPLETE, xfer->result);
 }
 
-// Host task, deferred by a tuh_audio_stop() refused on another task: arm again
-// the stream's endpoints left idle while the stop was marked. An endpoint still
-// busy is re-armed by its own completion, which now sees no stop pending.
+// Host task, deferred by a refused tuh_audio_stop(): arm again the stream's
+// endpoints left idle while the stop was marked. An endpoint still busy is
+// re-armed by its own completion, which now sees no stop pending.
 static void audioh_stream_rearm_idle(void *param) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)param;
   if (s->state != STREAM_STATE_READY || !s->running || s->operation != AUDIOH_STREAM_OP_NONE) {
@@ -2262,15 +2262,11 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   // (audioh_xfer_cb), and audioh_stream_stop_complete() stops the stream.
   s->operation = AUDIOH_STREAM_OP_STOP;
   if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
-    // The stream keeps running for the caller to retry. From another task, a
-    // transfer that completed or failed meanwhile was left idle, so have the host
-    // task, which also runs the completions, arm it again. On the host task (a
-    // callback) no completion ran while the stop was marked, so nothing was left
-    // idle, and a send to its own full queue would wait forever.
+    // The stream keeps running for the caller to retry: a transfer that completed
+    // or failed meanwhile was left idle, so have the host task, which also runs
+    // the completions, arm it again.
     s->operation = AUDIOH_STREAM_OP_NONE;
-    if (!usbh_in_task()) {
-      usbh_defer_func(audioh_stream_rearm_idle, s, false);
-    }
+    usbh_defer_func(audioh_stream_rearm_idle, s, false);
     return false;
   }
   return true;
