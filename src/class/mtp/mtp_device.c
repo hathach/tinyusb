@@ -705,15 +705,14 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           cb_data.io_container = headerless_packet;
           cb_data.io_container.payload_bytes = xferred_bytes;
         }
-        int32_t xfer_ret = 0;
         if (xferred_bytes > 0) {
           p_mtp->out_owed = !is_complete;
-          xfer_ret = tud_mtp_data_xfer_cb(&cb_data);
+          if (tud_mtp_data_xfer_cb(&cb_data) < 0) {
+            p_mtp->out_owed = false;
+            p_mtp->phase = MTP_PHASE_ERROR; // application aborts: stall rather than arm another read
+            break;
+          }
           p_mtp->out_owed = false;
-        }
-        if (xfer_ret < 0) {
-          p_mtp->phase = MTP_PHASE_ERROR; // application aborts: stall rather than arm another read
-          break;
         }
         if (!is_complete && p_mtp->phase == MTP_PHASE_RESPONSE) {
           // Answered before the host finished sending: device-initiated cancel. The response was
