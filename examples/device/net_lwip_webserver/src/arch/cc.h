@@ -72,4 +72,10 @@ typedef int sys_prot_t;
 
 #define LWIP_PLATFORM_ASSERT(x) do { if(!(x)) while(1); } while(0)
 
+/* CH569: lwIP memory in RAMX (.dmadata, ch56x linker only); defined(): some lwIP files lack tusb_option.h */
+#if defined(OPT_MCU_CH569) && (CFG_TUSB_MCU == OPT_MCU_CH569)
+#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
+  u8_t variable_name[LWIP_MEM_ALIGN_BUFFER(size)] __attribute__((aligned(4), section(".dmadata")))
+#endif
+
 #endif /* CC_H__ */

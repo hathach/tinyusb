@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,7 @@ sys.path.insert(0, str(HIL_DIR))
 sys.path.insert(0, os.path.join(REPO, 'tools'))
 import change_impact  # noqa: E402
 import hil_flash  # noqa: E402
+import wch_uart_flash  # noqa: E402
 from helper import agentrc, hil_util  # noqa: E402
 from test_change_impact import flasher_names, roster_flashers  # noqa: E402
 
@@ -39,6 +41,7 @@ BOARDS = {
     'pyocd': {'name': 'pyocd', 'uid': 'S1', 'vid_pid': '0x1fc9 0x0090', 'args': '-t lpc55s28'},
     'esptool': {'name': 'esptool', 'uid': 'S1', 'args': '--baud 921600'},
     'openocd_esp': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02', 'args': '-f board/esp32p4-builtin.cfg'},
+    'wch_uart_loader': {'name': 'wch_uart_loader', 'uid': 'E8E68F066EEE', 'args': ''},
 }
 
 
@@ -103,6 +106,8 @@ class Adapters(unittest.TestCase):
         for name in names:
             if name == 'openocd_esp':
                 continue   # its own backend, hil_util.openocd_esp() (OpenocdEsp below)
+            if name == 'wch_uart_loader':
+                continue   # tinyusb's own, no provider operation (WchFlashers below)
             for verb, fn, args in (('flash', hil_flash.flash_primitive(name), (self.fw(name),)),
                                    ('reset', hil_flash.reset_primitive(name), ())):
                 if fn is None:
@@ -126,6 +131,10 @@ class Adapters(unittest.TestCase):
         asked.clear()
         hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
         self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
+        asked.clear()
+        users['esptool'] = []
+        hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])})
+        self.assertEqual(asked, [dict(BOARDS['wch_uart_loader'], name='esptool')], 'the LinkE VCP, as a bridge tty')
 
     def test_probe_busy_refuses_only_what_the_provider_cannot_decide(self):
         board = {'name': 'b', 'flasher': dict(BOARDS['jlink'])}
@@ -150,7 +159,7 @@ class Adapters(unittest.TestCase):
                 mock.patch.object(real, '_walk', return_value=[]):
             for name in flasher_names():
                 with self.subTest(name=name):
-                    self.assertEqual(real.probe_users(BOARDS[name]), [])
+                    self.assertEqual(real.probe_users(hil_flash.probe_entry(BOARDS[name])), [])
 
     def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
         self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
@@ -215,6 +224,223 @@ class Adapters(unittest.TestCase):
         (name, args, kw), = self.provider.calls
         self.assertEqual((name, args), ('rescue_openocd', (BOARDS['openocd'], 'flash output')))
         self.assertEqual(kw, {'timeout': hil_util.CMD_TIMEOUT, 'run': hil_util.run_cmd})
+
+
+class WchFlashers(unittest.TestCase):
+    """The dev-PC flashers no rig roster names: openocd with args_program, which bypasses the
+    provider's flash_openocd, and the WCH BSP UART loader, which is tinyusb's own. Driven with
+    the runner stubbed: no hardware, no subprocess."""
+
+    OPENOCD_WCH = {'name': 'openocd', 'uid': 'D3008F0657DB', 'args': '-f target/wch-riscv.cfg',
+                   'verify': False, 'args_program': '-c "halt" -c "riscv dmi_write 0x10 0"'}
+
+    def setUp(self):
+        self.cmds = []
+        self.provider = Provider(self)
+
+    def record(self, cmd, **kw):
+        self.cmds.append(cmd)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout='')
+
+    def test_openocd_flash_and_reset_run_args_program_in_one_session(self):
+        """The CH569 SDI debug-module quiesce must run in the SAME openocd session as the
+        program/reset it follows: a second attach re-activates the DM on running firmware and
+        kills the board until the next flash. So: one invocation, args_program before shutdown."""
+        board = {'name': 'b', 'flasher': dict(self.OPENOCD_WCH)}
+        hil_flash.flash_openocd(board, 'fw.elf', run=self.record)
+        hil_flash.reset_openocd(board, run=self.record)
+        flash, reset = self.cmds
+        self.assertIn('program {fw.elf} reset', flash)   # "verify": false
+        self.assertIn('init; reset run', reset)
+        for cmd in (flash, reset):
+            self.assertEqual(cmd[-6:], ['-c', 'halt', '-c', 'riscv dmi_write 0x10 0', '-c', 'shutdown'])
+            self.assertNotIn('exit', ' '.join(cmd))
+        self.assertEqual(self.provider.calls, [], 'args_program must not reach the provider')
+
+    def test_openocd_args_program_firmware_path_is_one_tcl_word(self):
+        board = {'name': 'b', 'flasher': dict(self.OPENOCD_WCH, verify=True)}
+        hil_flash.flash_openocd(board, '/tmp/my fw.elf', run=self.record)
+        (cmd,) = self.cmds
+        self.assertIn('program {/tmp/my fw.elf} verify reset', cmd)
+
+    def test_wch_uart_loader_flash_runs_helper(self):
+        board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])}
+        hil_flash.flash_wch_uart_loader(board, '/tmp/fw.bin', run=self.record)
+        (cmd,) = self.cmds
+        self.assertIn('wch_uart_flash.py', cmd)
+        self.assertIn('--uid E8E68F066EEE', cmd)
+        self.assertIn('/tmp/fw.bin', cmd)
+
+    def test_wch_uart_loader_flash_quotes_each_word(self):
+        board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'], uid='X; touch /tmp/pwn')}
+        hil_flash.flash_wch_uart_loader(board, '/tmp/my fw.bin', run=self.record)
+        (cmd,) = self.cmds
+        self.assertEqual(shlex.split(cmd)[1:], [str(Path(hil_flash.__file__).resolve().parent / 'wch_uart_flash.py'),
+                                                '--uid', 'X; touch /tmp/pwn', '/tmp/my fw.bin'])
+
+    def test_wch_uart_loader_reset_reports_park_result(self):
+        """A park that could not be written is a board that was never reset: report it (1)
+        rather than masking it. A successful park sits out the BSP's park window first."""
+        board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])}
+        with mock.patch.object(hil_flash, '_wch_uart_park', return_value=False):
+            self.assertEqual(1, hil_flash.reset_wch_uart_loader(board, run=self.record).returncode)
+        with mock.patch.object(hil_flash, '_wch_uart_park', return_value=True), \
+             mock.patch.object(hil_flash.time, 'sleep') as slept:
+            self.assertEqual(0, hil_flash.reset_wch_uart_loader(board, run=self.record).returncode)
+        (wait,), _ = slept.call_args
+        self.assertAlmostEqual(wait, hil_flash.WCH_PARK_ENTRY + hil_flash.WCH_PARK_WINDOW, delta=1)
+        self.assertEqual([], self.cmds, 'park is a VCP write, never a shell command')
+
+    def park_on_tty(self, run, timeout):
+        with tempfile.TemporaryDirectory() as tmp:
+            tty = os.path.join(tmp, 'usb-WCH_WCH-Link_E8E68F066EEE-if01')
+            Path(tty).touch()
+            board = {'name': 'b', 'flasher': dict(BOARDS['wch_uart_loader'])}
+            with mock.patch.object(hil_flash.glob, 'glob', return_value=[tty]), \
+                 mock.patch.object(hil_flash.time, 'sleep') as slept:
+                rc = hil_flash.reset_wch_uart_loader(board, timeout=timeout, run=run).returncode
+            return rc, tty, Path(tty).read_bytes(), slept
+
+    def test_wch_uart_park_runs_stty_and_the_write_through_the_callers_runner(self):
+        """The farm check's runner tracks every subprocess for its cleanup: stty and the park
+        magic's write to the probe's VCP (if01) both go through it, never in-process."""
+        def run(cmd, **kw):
+            self.record(cmd)
+            return subprocess.run(cmd) if cmd[0] == sys.executable else subprocess.CompletedProcess(cmd, 0)
+        rc, tty, written, _ = self.park_on_tty(run, timeout=30)
+        self.assertEqual(rc, 0)
+        stty, write = self.cmds
+        self.assertEqual(stty, ['stty', '-F', tty, '115200', 'raw', '-echo'])
+        self.assertEqual(write[-1], tty)
+        self.assertEqual(written, b'\x55\xaaFP')
+
+    def test_wch_uart_reset_bounds_the_park_by_the_callers_timeout(self):
+        """usbtest budgets this reset as RECOVER_RESET_TIMEOUT: a VCP that stops accepting must
+        not hold it past that bound, and the park wait only gets what the write left over."""
+        bounds = []
+
+        def run(cmd, timeout, **kw):
+            bounds.append(timeout)
+            return subprocess.CompletedProcess(cmd, 124 if cmd[0] == sys.executable else 0)
+        rc, _, _, slept = self.park_on_tty(run, timeout=3)
+        self.assertEqual(rc, 1, 'a write the runner had to kill is no reset')
+        slept.assert_not_called()
+        self.assertEqual(len(bounds), 2)
+        self.assertTrue(all(0 < b <= 3 for b in bounds), bounds)
+
+        def accepted(cmd, timeout, **kw):
+            bounds.append(timeout)
+            return self.record(cmd)
+        bounds.clear()
+        rc, _, _, slept = self.park_on_tty(accepted, timeout=4)
+        self.assertEqual(rc, 0)
+        (wait,), _ = slept.call_args
+        self.assertLessEqual(wait, 4)
+        self.assertLessEqual(bounds[0], 4)
+
+    def test_find_firmware_hands_the_uart_loader_its_bin(self):
+        """FLASHER_SUFFIX decides which extension a flasher is handed: the UART loader takes
+        the raw .bin even when an .elf of the same name sits next to it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fw_dir = Path(tmp) / 'cmake-build-synth' / 'device/cdc_msc'
+            fw_dir.mkdir(parents=True)
+            for ext in ('.elf', '.bin'):
+                (fw_dir / f'cdc_msc{ext}').touch()
+            with mock.patch.object(hil_flash, 'build_dir', tmp):
+                for flasher, ext in (('wch_uart_loader', '.bin'), ('openocd', '.elf')):
+                    fw = hil_flash.find_firmware('synth', 'device/cdc_msc', flasher=flasher)
+                    self.assertEqual(ext, fw.suffix, flasher)
+
+
+class FakeWchLoader:
+    """CH32H417 on the WCH-LinkE VCP, on a fake fd and clock: deaf until `listen_at` (s), then a
+    running image whose hook enters the loader on the magic; the loader ignores every byte but 'H'
+    and answers the session as hw/bsp/ch32h417/family.c's uart_flash_loader does."""
+
+    def __init__(self, listen_at=0.0):
+        self.now = 0.0
+        self.listen_at = listen_at
+        self.in_loader = False
+        self.rx = bytearray()    # host -> device, not yet consumed
+        self.tx = bytearray()    # device -> host
+        self.sent = bytearray()  # everything the host wrote
+        self.entries = 0         # loader entries (resets the magic caused)
+        self.length = self.done = 0
+
+    def monotonic(self):
+        return self.now
+
+    def write(self, _fd, data):
+        data = bytes(data)
+        self.sent += data
+        if self.now >= self.listen_at:  # before: previous loader draining / image booting
+            self.rx += data
+            self._step()
+        return len(data)
+
+    def read(self, _fd, n):
+        if not self.tx:
+            self.now += 0.1  # VTIME=1 read timeout
+            return b''
+        out, self.tx = bytes(self.tx[:n]), self.tx[n:]
+        return out
+
+    def _step(self):
+        magic = wch_uart_flash.MAGIC
+        chunk = wch_uart_flash.CHUNK
+        while True:
+            if not self.in_loader:
+                i = self.rx.find(magic)
+                if i < 0:
+                    return
+                del self.rx[:i + len(magic)]
+                self.entries += 1
+                self.in_loader = True
+                self.tx += b'L'
+            elif self.rx.startswith(magic):
+                del self.rx[:len(magic)]
+            elif self.rx[:1] == b'H' and len(self.rx) >= 9:
+                self.length = int.from_bytes(self.rx[1:5], 'little')
+                del self.rx[:9]
+                self.tx += b'A'
+            elif self.rx[:1] == b'C' and len(self.rx) >= 3 + chunk:
+                del self.rx[:3 + chunk]
+                self.done += chunk
+                self.tx += b'KD' if self.done == self.length else b'K'
+            else:
+                return
+
+
+class WchUartFlashMagicResend(unittest.TestCase):
+    """A back-to-back flash's first magic can land while the previous loader drains its 'D' and
+    resets; the magic is resent until the banner shows, within the same 8 s wait."""
+
+    @staticmethod
+    def flash(board):
+        with mock.patch.object(wch_uart_flash.time, 'monotonic', board.monotonic), \
+             mock.patch.object(wch_uart_flash.os, 'read', board.read), \
+             mock.patch.object(wch_uart_flash.os, 'write', board.write), \
+             mock.patch.object(wch_uart_flash.termios, 'tcflush', lambda *_: None), \
+             mock.patch('sys.stderr', io.StringIO()):
+            return wch_uart_flash.flash(-1, b'\x01' * 100)
+
+    def test_first_magic_lost_then_resent(self):
+        board = FakeWchLoader(listen_at=0.3)
+        self.assertTrue(self.flash(board))
+        self.assertGreaterEqual(board.sent.count(wch_uart_flash.MAGIC), 2)
+        self.assertEqual(1, board.entries)
+
+    def test_no_resend_after_banner(self):
+        board = FakeWchLoader()
+        self.assertTrue(self.flash(board))
+        self.assertTrue(board.sent.startswith(wch_uart_flash.MAGIC + b'H'))
+        self.assertEqual(1, board.sent.count(wch_uart_flash.MAGIC))
+
+    def test_dead_board_gives_up_at_deadline(self):
+        board = FakeWchLoader(listen_at=float('inf'))
+        self.assertFalse(self.flash(board))
+        self.assertLess(board.now, 8.5)
+        self.assertLessEqual(board.sent.count(wch_uart_flash.MAGIC), 8.0 / wch_uart_flash.MAGIC_RESEND + 1)
 
 
 _RIG_TREE = tempfile.TemporaryDirectory()

@@ -29,13 +29,19 @@
 // Unique PID per example: guarantees re-enumeration on re-flash and a fresh host driver match.
 #define USB_PID           0x400b
 
+#if TUD_OPT_SUPER_SPEED
+#define USB_BCD 0x0210 // an Enhanced SuperSpeed device in a USB 2.0 mode reports 2.1 (USB 3.2 9.6.1)
+#else
+#define USB_BCD 0x0201
+#endif
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
 static const tusb_desc_device_t desc_device =
   {.bLength         = sizeof(tusb_desc_device_t),
    .bDescriptorType = TUSB_DESC_DEVICE,
-   .bcdUSB          = 0x0201,
+   .bcdUSB          = USB_BCD,
 
 #if CFG_TUD_CDC
    // Use Interface Association Descriptor (IAD) for CDC
@@ -49,7 +55,7 @@ static const tusb_desc_device_t desc_device =
    .bDeviceProtocol = 0x00,
 #endif
 
-   .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+   .bMaxPacketSize0 = TUD_OPT_EP0_SIZE_USB2,
 
    .idVendor  = 0xCafe,
    .idProduct = USB_PID,
@@ -61,9 +67,46 @@ static const tusb_desc_device_t desc_device =
 
    .bNumConfigurations = 0x01};
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed device descriptor: bcdUSB >= 3.0 and bMaxPacketSize0 is an exponent (2^9 = 512)
+static const tusb_desc_device_t desc_device_ss =
+  {.bLength         = sizeof(tusb_desc_device_t),
+   .bDescriptorType = TUSB_DESC_DEVICE,
+   .bcdUSB          = 0x0320,
+
+#if CFG_TUD_CDC
+   // Use Interface Association Descriptor (IAD) for CDC
+   // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+   .bDeviceClass    = TUSB_CLASS_MISC,
+   .bDeviceSubClass = MISC_SUBCLASS_COMMON,
+   .bDeviceProtocol = MISC_PROTOCOL_IAD,
+#else
+   .bDeviceClass    = 0x00,
+   .bDeviceSubClass = 0x00,
+   .bDeviceProtocol = 0x00,
+#endif
+
+   .bMaxPacketSize0 = 9,
+
+   .idVendor  = 0xCafe,
+   .idProduct = USB_PID,
+   .bcdDevice = 0x0100,
+
+   .iManufacturer = 0x01,
+   .iProduct      = 0x02,
+   .iSerialNumber = 0x03,
+
+   .bNumConfigurations = 0x01};
+#endif
+
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 const uint8_t *tud_descriptor_device_cb(void) {
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return (const uint8_t *)&desc_device_ss;
+  }
+#endif
   return (const uint8_t *)&desc_device;
 }
 
@@ -90,11 +133,31 @@ uint8_t const desc_configuration[] = {
   TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
 };
 
+#if TUD_OPT_SUPER_SPEED
+// Per USB specs: SuperSpeed devices must report a BOS descriptor. DFU interface has no
+// endpoints, so no endpoint companion descriptor is needed
+#define CONFIG_SS_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_DFU_DESC_LEN(ALT_COUNT))
+
+// superspeed configuration
+static uint8_t const desc_ss_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_SS_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_SS_TOTAL_LEN, 0x00, 96),
+
+  // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
+  TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
+};
+#endif // superspeed
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
   (void)index; // for multiple configurations
+#if TUD_OPT_SUPER_SPEED
+  if (tud_speed_get() == TUSB_SPEED_SUPER) {
+    return desc_ss_configuration;
+  }
+#endif
   return desc_configuration;
 }
 
@@ -114,14 +177,29 @@ const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
   (Section Microsoft OS compatibility descriptors)
 */
 
+#if TUD_OPT_SUPER_SPEED
+// SuperSpeed devices must carry USB 2.0 extension + SuperSpeed device capabilities
+#define BOS_TOTAL_LEN            (TUD_BOS_DESC_LEN + TUD_BOS_USB20_EXT_DESC_LEN + TUD_BOS_SUPERSPEED_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define BOS_CAP_COUNT            3
+#else
 #define BOS_TOTAL_LEN            (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define BOS_CAP_COUNT            1
+#endif
+
 #define MS_OS_20_DESC_LEN        0xA2
 #define VENDOR_REQUEST_MICROSOFT 1
 
 // BOS Descriptor is required for webUSB
 const uint8_t desc_bos[] = {
   // total length, number of device caps
-  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, BOS_CAP_COUNT),
+
+#if TUD_OPT_SUPER_SPEED
+  // LPM capable
+  TUD_BOS_USB20_EXT_DESCRIPTOR(0x00000002),
+  // no LTM, TUD_BOS_SUPERSPEED_SPEEDS supported, fully functional from HS, U1/U2 exit latency
+  TUD_BOS_SUPERSPEED_DESCRIPTOR(0x00, TUD_BOS_SUPERSPEED_SPEEDS, 2, 0x0A, 0x07FF),
+#endif
 
   // Microsoft OS 2.0 descriptor
   TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)};

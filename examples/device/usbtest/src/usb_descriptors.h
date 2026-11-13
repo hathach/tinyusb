@@ -43,6 +43,18 @@
   #endif
 #endif
 
+// SuperSpeed erratum quirks in bcdDevice bits 4-7, read by the host script to skip cases
+// (errata: docs/reference/device_issues.rst; notes in the wch_ss1/dcd_wch_ss1.c header, wch_ss2/dcd_wch_ss2.c):
+//   0x10: CH569 EP0 OUT data stages with wLength % 4 == 1 are intermittently dropped
+//   0x20: a halted endpoint answers only one STALL TP per halt (CH569, CH32H417)
+#if TU_CHECK_MCU(OPT_MCU_CH569) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
+  #define USBTEST_QUIRKS  0x30
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417) && defined(CFG_TUD_WCH_USBIP_USB30) && CFG_TUD_WCH_USBIP_USB30
+  #define USBTEST_QUIRKS  0x20
+#else
+  #define USBTEST_QUIRKS  0
+#endif
+
 // Interrupt/isochronous endpoint max packet sizes, must match the configuration descriptor.
 // TUD_OPT_HIGH_SPEED is a compile-time capability flag, NOT the live bus speed, so the full-speed
 // config descriptor (and the OTHER_SPEED descriptor served to a HS host) must use full-speed-legal
@@ -75,10 +87,18 @@
 #endif
 #define USBTEST_ISO_EP_MPS_HS  512
 
+// CH32H417 USBSS iso TX always sends 1024-byte DPs whatever CHAIN_LEN is armed: declare that
+#if TU_CHECK_MCU(OPT_MCU_CH32H417)
+  #define USBTEST_ISO_EP_MPS_SS  1024
+#else
+  #define USBTEST_ISO_EP_MPS_SS  USBTEST_ISO_EP_MPS_HS
+#endif
+
 // Compile-time capability maximum: sizes the source buffers / vendor epbufs for the largest
 // packet the build can negotiate. Runtime write lengths follow tud_speed_get() (see main.c) —
 // a high-speed build enumerated at full speed submits the _FS lengths.
 #define USBTEST_INT_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_INT_EP_MPS_HS : USBTEST_INT_EP_MPS_FS)
-#define USBTEST_ISO_EP_MPS  (TUD_OPT_HIGH_SPEED ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS)
+#define USBTEST_ISO_EP_MPS  (TUD_OPT_SUPER_SPEED ? USBTEST_ISO_EP_MPS_SS : \
+                             (TUD_OPT_HIGH_SPEED ? USBTEST_ISO_EP_MPS_HS : USBTEST_ISO_EP_MPS_FS))
 
 #endif /* USB_DESCRIPTORS_H_ */

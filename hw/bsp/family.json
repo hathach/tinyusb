@@ -412,6 +412,48 @@
       }
     }
   },
+  "ch32h417": {
+    "ch32h417_r0": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "0",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH32H417"
+        ],
+        "mcu": "OPT_MCU_CH32H417",
+        "options": {},
+        "portable": [
+          "wch/wch_hs2/dcd_wch_hs2.c",
+          "wch/wch_ss2/dcd_wch_ss2.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    },
+    "nanoch32h417": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "0",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH32H417"
+        ],
+        "mcu": "OPT_MCU_CH32H417",
+        "options": {},
+        "portable": [
+          "wch/wch_hs2/dcd_wch_hs2.c",
+          "wch/wch_ss2/dcd_wch_ss2.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "ch32v10x": {
     "ch32v103c_bluepill": {
       "cmake": {
@@ -586,6 +628,28 @@
         "options": {},
         "portable": [
           "wch/dcd_ch32_usbfs.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
+  "ch569": {
+    "hydrausb3_v1": {
+      "cmake": {
+        "defines": {
+          "CFG_TUD_WCH_USB30_FALLBACK": "1",
+          "CFG_TUD_WCH_USBIP_USB30": "1"
+        },
+        "family_mcus": [
+          "CH569"
+        ],
+        "mcu": "OPT_MCU_CH569",
+        "options": {},
+        "portable": [
+          "wch/dcd_ch56x_usbhs.c",
+          "wch/wch_ss1/dcd_wch_ss1.c"
         ],
         "roles": [
           "device"

@@ -65,6 +65,28 @@ USB.5: An isochronous IN endpoint sending a 1024-byte maximum-packet-size packet
 interrupt and its command/status entry is not updated. Workaround: cap the isochronous IN maximum
 packet size at 1023 bytes in the descriptor.
 
+WCH CH569/CH32H417 USBSS
+------------------------
+**Severity: Low**
+
+Reference: observed during `PR #3779`_ with the Linux ``usbtest`` battery at 5 Gbps on a Renesas uPD720201 host. The
+``examples/device/usbtest`` firmware declares both through its bcdDevice quirk bits, and ``test/hil/usbtest.py`` skips
+the affected cases of its tier battery at 5 Gbps instead of failing them. Cases chosen with ``--tests``, and ``testusb``
+run directly, still run them.
+
+.. _PR #3779: https://github.com/hathach/tinyusb/pull/3779
+
+**1. A halted endpoint answers a single STALL** (CH569 and CH32H417)
+
+After ``dcd_edpt_stall()`` a SuperSpeed data endpoint answers the first transaction with a STALL TP and then nothing. A
+host that retries before clearing the halt sees a transaction error instead of a second STALL. Affects usbtest case 13
+(quirk 0x20).
+
+**2. EP0 OUT data stages with wLength % 4 == 1 are intermittently dropped** (CH569)
+
+The host sees a transaction error and the full residual. The rate depends on the host: a uPD720201 failed most runs of
+usbtest cases 14 and 21 (quirk 0x10), an AMD xHCI ran clean.
+
 WCH CH32F20x/CH32V20x/CH32V30x
 ---------------------------------
 **Severity: High**

@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import copy
 import functools
+import glob
 import json
+import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import os
@@ -34,6 +37,11 @@ JLINK_CRASH_RETRIES = 2
 # pyocd's project dir: relative roster args (--pack...) resolve from here, and it holds no
 # pyocd config, which discovery would load (the provider's pyocd launcher refuses one)
 PYOCD_PROJECT_DIR = hil_util.TINYUSB_ROOT / 'test/hil/pyocd'
+
+# ch32h417 BSP park window (hw/bsp/ch32h417/family.c board_init): ~10 s of no USB at all,
+# entered on a park request or after an IWDG reset. Wait it out (plus slack) before telling a
+# caller the board was reset, otherwise the park itself reads as a failure to re-enumerate.
+WCH_PARK_WINDOW = 12  # s
 
 
 def _bound(timeout):
@@ -89,16 +97,90 @@ def _openocd_cmd_base(flasher):
     return hil_util.provider().openocd_cmd_base(flasher)
 
 
+# args_program: openocd commands run after the program or reset, in the SAME session. The CH569
+# quiesces its SDI debug module this way: an active DM corrupts core registers during USB
+# operation, and a second attach re-activates it on the running firmware (hw-measured
+# 2026-08-11: 10/12 suite failures).
+def _openocd_quiesced(flasher, command, timeout, run):
+    return _runner(run)([*_openocd_cmd_base(flasher), '-c', command,
+                         *shlex.split(flasher['args_program']), '-c', 'shutdown'],
+                        timeout=_bound(timeout))
+
+
 # `verify` is on by default, opted out per board with "verify": false (the provider's
 # flash_openocd holds which boards and why)
 def flash_openocd(board, firmware, timeout=None, *, run=None):
-    return hil_util.provider().flash_openocd(board['flasher'], firmware, timeout=_bound(timeout),
+    flasher = board['flasher']
+    if flasher.get('args_program'):
+        verify = ' verify' if flasher.get('verify', True) else ''
+        # braced: one Tcl word even when the path holds a space
+        return _openocd_quiesced(flasher, f'program {{{firmware}}}{verify} reset', timeout, run)
+    return hil_util.provider().flash_openocd(flasher, firmware, timeout=_bound(timeout),
                                              run=_runner(run))
 
 
 def reset_openocd(board, timeout=None, *, run=None):
     # timeout: usbtest's post-hang recovery bounds this (RECOVER_RESET_TIMEOUT)
-    return hil_util.provider().reset_openocd(board['flasher'], timeout=_bound(timeout), run=_runner(run))
+    flasher = board['flasher']
+    if flasher.get('args_program'):
+        return _openocd_quiesced(flasher, 'init; reset run', timeout, run)
+    return hil_util.provider().reset_openocd(flasher, timeout=_bound(timeout), run=_runner(run))
+
+
+# The park magic goes out in a child the runner bounds, never in-process: a VCP that stops
+# accepting blocks open/write, and close waits on the tty drain (closing_wait, 30 s by default).
+# O_NOCTTY: the runner makes the child a session leader, which would adopt the VCP as its tty.
+_WCH_PARK_WRITE = ("import os, sys\n"
+                   "fd = os.open(sys.argv[1], os.O_WRONLY | os.O_NOCTTY)\n"
+                   "n = os.write(fd, b'\\x55\\xaaFP')\n"
+                   "os.close(fd)\n"
+                   "sys.exit(n != 4)\n")
+WCH_PARK_ENTRY = 1.5  # s, reboot + park entry after the magic
+
+
+def _wch_uart_park(flasher, deadline, run=None):
+    # Reboot the running firmware by writing the park magic to the WCH-LinkE VCP; the ch32h417
+    # BSP catches {0x55,0xAA,'F','P'} on USART1 and reboots (~10 s park window). Harmless on
+    # firmware without the hook. Not a wlink operation -- a raw VCP write. Returns True iff the
+    # magic was written before `deadline` (time.monotonic()), so callers can report a genuine
+    # failure instead of a silent no-op.
+    uid = flasher.get('uid', '')
+    if not uid:
+        return False
+    # if01 is the WCH-LinkE VCP; if00 is the debug interface -- write only to the VCP
+    for tty in glob.glob('/dev/serial/by-id/*'):
+        if uid in tty and tty.endswith('if01'):
+            def bounded(cmd, cap=None):
+                left = deadline - time.monotonic()
+                return left > 0 and _runner(run)(cmd, timeout=min(cap or left, left)).returncode == 0
+            try:
+                # a failing stty (VCP gone/busy) means the write below cannot be trusted either
+                return (bounded(['stty', '-F', tty, '115200', 'raw', '-echo'], cap=5)
+                        and bounded([sys.executable, '-I', '-c', _WCH_PARK_WRITE, tty]))
+            except (OSError, subprocess.SubprocessError):
+                return False
+    return False
+
+
+def flash_wch_uart_loader(board, firmware, timeout=None, *, run=None):
+    # BSP UART loader over the WCH-LinkE VCP (hw/bsp/ch32h417/family.c): flashes via USART1 when
+    # the chip's SWD/SDI pins (= USB2 D+/D-) are unusable because a host is plugged into the
+    # untaped USB3 cable and its PHY termination corrupts SDI. See test/hil/wch_uart_flash.py.
+    flasher = board['flasher']
+    script = Path(__file__).resolve().parent / 'wch_uart_flash.py'
+    return _runner(run)(shlex.join(['python3', str(script), '--uid', flasher['uid'], str(firmware)]),
+                        timeout=timeout or 120)
+
+
+def reset_wch_uart_loader(board, timeout=None, *, run=None):
+    # A successful write is not proof of a reset: a board already in the UART loader eats the park
+    # bytes (loader states: hw/bsp/ch32h417/family.c). The park window is waited out inside the
+    # caller's bound, so a re-enumeration wait does not read the park as a dead board.
+    deadline = time.monotonic() + _bound(timeout)
+    ok = _wch_uart_park(board['flasher'], deadline, run)
+    if ok:
+        time.sleep(max(0, min(WCH_PARK_ENTRY + WCH_PARK_WINDOW, deadline - time.monotonic())))
+    return subprocess.CompletedProcess(args='park', returncode=0 if ok else 1)
 
 
 def rescue_openocd(board, flash_out: str = '', timeout=None) -> bool:
@@ -137,6 +219,13 @@ def convoy_safe(flasher: dict) -> bool:
     return hil_util.provider().convoy_safe(flasher)
 
 
+def probe_entry(flasher: dict) -> dict:
+    """The entry the provider's probe_users looks the flasher up by: wch_uart_loader flashes over
+    the WCH-LinkE's VCP, a USB-UART bridge, so it is looked up as esptool's tty is (the LinkE's
+    debug interface is not watched)."""
+    return {**flasher, 'name': 'esptool'} if flasher.get('name') == 'wch_uart_loader' else flasher
+
+
 class ProbeCheckFailed(RuntimeError):
     """probe_busy could not rule out a user of the board's probe."""
 
@@ -145,13 +234,13 @@ def probe_busy(board: dict) -> list:
     """The board_task busy check of every HIL entry point and the farm check: the provider's
     probe_users for the board's flasher and, when it differs, its recovery flasher (same probe,
     another tool); [{'pid', 'cmd'}]. ProbeCheckFailed, naming the cause, when the provider is
-    inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError,
-    wch_uart_loader); any other exception propagates. Probe users only: a DUT-side process (a
-    stray testusb) is the run's recovery, never a refusal."""
+    inconclusive (ProbeCheckInconclusive) or has no lookup for the flasher (ValueError); any
+    other exception propagates. Probe users only: a DUT-side process (a stray testusb) is the
+    run's recovery, never a refusal."""
     provider, users = hil_util.provider(), {}
     try:
         for f in {(f['name'], f.get('uid')): f for f in (board['flasher'], recover_flasher(board))}.values():
-            users.update((u['pid'], u) for u in provider.probe_users(f))
+            users.update((u['pid'], u) for u in provider.probe_users(probe_entry(f)))
     except (provider.ProbeCheckInconclusive, ValueError) as e:
         raise ProbeCheckFailed(f'{type(e).__name__}: {e}') from e
     return sorted(users.values(), key=lambda u: u['pid'])
@@ -393,6 +482,7 @@ def reset_primitive(flasher_name: str):
 # TestRosterFlashersDispatch fails if a roster names one.
 FLASHER_SUFFIX = {
     'esptool': '.bin',
+    'wch_uart_loader': '.bin',  # the BSP UART loader consumes raw binary images
     'jlink': '.elf',
     'lm4flash': '.bin',
     'openocd': '.elf',

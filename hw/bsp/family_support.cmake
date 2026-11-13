@@ -411,7 +411,8 @@ function(family_configure_common TARGET RTOS)
         SKIP_LINTING ON # need cmake 4.2
         )
       if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-        set_target_properties(${BOARD_TARGET} PROPERTIES COMPILE_OPTIONS -w)
+        # append, not set: keep family_add_board() flags on BSP sources (matches Make); -w last
+        set_property(TARGET ${BOARD_TARGET} APPEND PROPERTY COMPILE_OPTIONS -w)
       endif ()
     endif ()
     target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})

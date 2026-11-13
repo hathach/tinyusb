@@ -240,6 +240,51 @@ The arguments are:
 
 Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The pair of ``dcd_edpt_stall()``, ``dcd_edpt_clear_stall()`` help manage the stall state of all endpoints.
 
+SuperSpeed
+----------
+
+To the stack, SuperSpeed is one more speed. The DCD hides the link layer (LTSSM, LMP, warm and hot reset) and
+reports ordinary events; usbd only needs the operating speed to size EP0 transactions and to pick descriptors. The
+reference drivers are ``src/portable/wch/wch_ss1`` (CH569, with its own USB2 driver ``dcd_ch56x_usbhs.c``) and
+``src/portable/wch/wch_ss2`` (CH32H417, whose USB3 driver owns ``dcd_*`` and drives ``wch_hs2`` for the USB2
+fallback).
+
+What the port provides:
+
+* ``CFG_TUSB_SUPER_SPEED_DEFAULT 1`` in its ``tusb_mcu.h`` block. ``TUD_OPT_SUPER_SPEED`` follows it while
+  ``CFG_TUD_MAX_SPEED`` is left at default; ``tusb_config.h`` may override it with ``CFG_TUSB_SUPER_SPEED``.
+* ``TUP_DCD_SS_BULK_BURST_PACKETS``, the bulk burst (1..16 packets) the endpoint engine handles. Examples encode
+  ``bMaxBurst`` as ``TUD_OPT_SS_BULK_BURST_PACKETS - 1``.
+* The actual link speed in every ``dcd_event_bus_reset()``: ``TUSB_SPEED_SUPER`` once the link is up, the USB2 speed
+  after a fallback. Where in the link bring-up to report it is the controller's choice.
+
+A USB2 fallback on a second controller stays behind the same rhport: the USB3 driver owns ``dcd_*`` and calls the USB2
+driver under a private prefix. A timer bounds SuperSpeed training and then brings USB2 up, and usbd re-initializes on
+its bus reset. ``dcd_int_enable()`` runs on every task-loop queue operation without an RTOS, so it must honour the
+fallback state and any vector the driver masked itself, instead of unmasking every vector.
+
+What the stack already does:
+
+* EP0 max packet size is fixed at 512 (USB 3.2 §9.6.1): ``CFG_TUD_ENDPOINT0_SIZE`` defaults to it, and a SuperSpeed
+  build rejects any other value.
+* With ``CFG_TUSB_DEBUG``, ``tu_edpt_validate()`` requires a bulk max packet size of exactly 1024 (512 at high
+  speed); without it the check only rejects a zero size, so a release build accepts a wrong one.
+* The class drivers that support SuperSpeed skip the endpoint companion that follows every endpoint descriptor
+  (``usbd_skip_ss_ep_companion()``) and include its bytes in the length ``open()`` returns; a class driver gaining
+  SuperSpeed support must do both.
+* SET_SEL, SET_ISOCH_DELAY, U1/U2 enable and FUNCTION_SUSPEND are handled in ``usbd.c``.
+
+Examples switch descriptors on ``tud_speed_get()``; ``examples/device/cdc_msc`` is the pattern: ``desc_device_ss``
+(bcdUSB 0x0320, ``bMaxPacketSize0`` 9, an exponent), a USB2 device descriptor reporting bcdUSB 0x0210 in SuperSpeed
+builds (USB 3.2 §9.6.1), a configuration built from the ``TUD_*_SS_DESCRIPTOR`` templates, and a BOS with the USB 2.0
+extension and SuperSpeed capabilities (``TUD_BOS_SUPERSPEED_SPEEDS``).
+
+To verify: build the examples for both the SuperSpeed and high-speed configuration; check that ``wTotalLength`` matches
+the SuperSpeed configuration array (a wrong length builds and then enumerates wrong); confirm a 0-byte code-size delta on
+a non-SuperSpeed board; run usbtest at 5 Gbps, and data integrity before throughput; repeat replug and suspend/resume
+cycles, and the USB2 fallback on a USB2-only port. ``uhubctl -l <hub> -p <port>`` shows the link state of a hub port:
+``Rx.Detect`` is receiver detection or reset, ``Polling`` is link training, ``U0`` is trained.
+
 Validate with usbtest
 ---------------------
 

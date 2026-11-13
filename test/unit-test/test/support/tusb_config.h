@@ -73,8 +73,21 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
+// Enable SuperSpeed code paths for testing. High speed stays enabled (matching the
+// RHPORT0_MODE above, and real SS hardware is always HS-capable). EP0 size is 512, the
+// value a SuperSpeed-capable build must use (enforced in tusb_option.h).
+// A suite opts out with TUD_TEST_NO_SUPER_SPEED (project.yml per-test :defines: matcher) to
+// build the FS/HS shape instead - the one every shipping port runs, whose #else branches
+// would otherwise never be compiled at all (see test_usbd_fshs.c).
+#ifdef TUD_TEST_NO_SUPER_SPEED
+  #define CFG_TUD_MAX_SPEED        OPT_MODE_HIGH_SPEED
+  #define CFG_TUD_ENDPOINT0_SIZE    64
+#else
+  #define CFG_TUD_MAX_SPEED        (OPT_MODE_HIGH_SPEED | OPT_MODE_SUPER_SPEED)
+  #define CFG_TUD_ENDPOINT0_SIZE    512 // SuperSpeed-capable build: EP0 is fixed at 512 (enforced in tusb_option.h)
+#endif
+
 #define CFG_TUD_TASK_QUEUE_SZ    100
-#define CFG_TUD_ENDPOINT0_SIZE    64
 
 //------------- CLASS -------------//
 //#define CFG_TUD_CDC              0

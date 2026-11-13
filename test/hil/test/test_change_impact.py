@@ -2280,6 +2280,21 @@ class TestCiSetMatrix(unittest.TestCase):
         m = json.loads(self.run_matrix('--select', sel).stdout)
         self.assertEqual(m['arm-gcc'], ['rp2040', 'stm32f0'])
 
+    def test_family_variant_legs_follow_their_family_into_a_scoped_matrix(self):
+        hs = {'ch32h417': '-bnanoch32h417 -DSPEED=high --build-name nanoch32h417-hs',
+              'ch569': '-bhydrausb3_v1 -DSPEED=high --build-name hydrausb3_v1-hs'}
+        full = json.loads(self.run_matrix().stdout)['riscv-gcc']
+        self.assertLessEqual(set(hs.values()), set(full))
+        for fam, leg in hs.items():
+            m = json.loads(self.run_matrix('--select', json.dumps(mf([fam]))).stdout)
+            self.assertEqual(m['riscv-gcc'], [fam, leg])
+        m = json.loads(self.run_matrix('--select', json.dumps(mf(['ch32v20x']))).stdout)
+        self.assertEqual(m['riscv-gcc'], ['ch32v20x'])
+        # the pinned (size) matrix keeps the families and none of the variant legs
+        pinned = json.loads(self.run_matrix('--pinned').stdout)['riscv-gcc']
+        self.assertLessEqual(set(hs), set(pinned))
+        self.assertFalse(set(hs.values()) & set(pinned))
+
     def test_malformed_select_falls_open(self):
         base = json.loads(self.run_matrix().stdout)
         r = self.run_matrix('--select', 'not json {')
@@ -2497,6 +2512,22 @@ class TestCiSetMatrix(unittest.TestCase):
         r = self.run_matrix('--example-map', '--select', 'not json {')
         self.assertEqual((json.loads(r.stdout), r.returncode), ({}, 0))
         self.assertIn('ci_set_matrix: UNSCOPED', r.stderr)
+
+    def test_example_map_keys_variant_legs_by_their_matrix_arg(self):
+        # build_util.yml and config2.yml look the filter up by the leg's whole arg
+        sys.path.insert(0, os.path.dirname(SET_MATRIX))
+        import ci_set_matrix
+        sel = mf(['ch569', 'ch32h417'])
+        sel['build']['families']['ch569']['examples'] = ['device/cdc_msc']
+        legs = json.loads(self.run_matrix('--select', json.dumps(sel)).stdout)['riscv-gcc']
+        r = self.run_matrix('--example-map', '--select', json.dumps(sel))
+        ex = json.loads(r.stdout)
+        variant = ci_set_matrix.family_variants['ch569'][0]
+        self.assertIn(variant, legs)
+        self.assertEqual(ex, {'ch569': ['device/cdc_msc'], variant: ['device/cdc_msc']})
+        for leg in ci_set_matrix.family_variants['ch32h417']:
+            self.assertIn(leg, legs)
+            self.assertNotIn(leg, ex)
 
     def test_full_with_filtered_families_falls_open(self):
         sel = mf(['stm32f4'], full=True)

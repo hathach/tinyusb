@@ -41,6 +41,8 @@ family_list = {
     "ch32v30x": ["riscv-gcc"],
     "ch32v4x7": ["riscv-gcc"],
     "ch32x035": ["riscv-gcc"],
+    "ch32h417": ["riscv-gcc"],
+    "ch569": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
     "cxd56": ["arm-gcc"],
     "da1469x": ["arm-gcc"],
@@ -106,6 +108,17 @@ family_list = {
     "stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
     "tm4c": ["arm-gcc"],
     "xmc4000": ["arm-gcc"],
+}
+
+# family: extra build.py legs on the family's toolchains, emitted after it in every unpinned
+# matrix (full or scoped) the family is in.
+# The WCH SuperSpeed families default to SPEED=super, which compiles their USB2 dcd out
+# entirely (dcd_ch32h417_usbhs.c) or all but its dcd_* entry points (dcd_ch56x_usbhs.c).
+# One SPEED=high build per family type-checks that half; --build-name keeps its metrics.json
+# out of the default build's artifact path.
+family_variants = {
+    "ch32h417": ["-bnanoch32h417 -DSPEED=high --build-name nanoch32h417-hs"],
+    "ch569": ["-bhydrausb3_v1 -DSPEED=high --build-name hydrausb3_v1-hs"],
 }
 
 
@@ -180,10 +193,16 @@ def required_json(select):
 
 def example_map_json(select):
     """{family: [examples]} for build_util.yml/config2.yml's -e filter: a family that
-    builds every example has no entry, and an unusable selection filters nothing."""
+    builds every example has no entry, and an unusable selection filters nothing.
+    The consumers look a leg up by its whole matrix arg, so a family_variants leg is
+    keyed too, with its family's list."""
     select = usable(select)
     fams = select['build']['families'] if select else {}
-    print(json.dumps({f: v['examples'] for f, v in fams.items() if v['examples'] != 'all'}))
+    out = {}
+    for f, v in fams.items():
+        if v['examples'] != 'all':
+            out.update((leg, v['examples']) for leg in (f, *family_variants.get(f, ())))
+    print(json.dumps(out))
 
 
 def leg_key(arg):
@@ -251,6 +270,11 @@ def set_matrix_json(select=None, pinned=False):
         # family selected", not a selection to widen back to the full matrix.
         keep = pinned_families()
         matrix = {tc: [f for f in fams if f in keep] for tc, fams in matrix.items()}
+    else:
+        # compile checks only: the pinned (size) leg leaves them out, as membrowse_json's
+        # universe has no identical upload for a variant board
+        matrix = {tc: [leg for f in fams for leg in (f, *family_variants.get(f, ()))]
+                  for tc, fams in matrix.items()}
     print(json.dumps(matrix))
 
 

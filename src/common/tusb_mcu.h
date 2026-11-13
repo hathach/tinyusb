@@ -688,6 +688,86 @@
 
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_CH569)
+  // CH565/CH569: USB3.0 SuperSpeed device (USBSS @0x40008000, registers reverse-engineered
+  // by the hydrausb3 project; same LINK-layer IP as the documented CH32H417 USBSS) plus a
+  // USB2.0 high-speed device (USBHS @0x40009000, CH56x register layout - NOT compatible with
+  // the CH32V307 USBHS driver). One controller is selected at compile time (SPEED=super|high),
+  // both on rhport 0. With CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both controllers and
+  // falls back to USB2 at runtime when the SuperSpeed link does not train.
+  #define TUP_USBIP_WCH_SS1
+  #define TUP_USBIP_WCH_USBHS_CH56X
+  #define TUP_USBD_XFER_ISR 0
+
+  #ifndef CFG_TUD_WCH_USBIP_USBHS
+    #define CFG_TUD_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUD_WCH_USBIP_USB30
+    #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
+  #endif
+  #if CFG_TUD_WCH_USBIP_USBHS && CFG_TUD_WCH_USBIP_USB30
+    #error "CH569: CFG_TUD_WCH_USBIP_USBHS and CFG_TUD_WCH_USBIP_USB30 cannot both be 1"
+  #endif
+  #ifndef CFG_TUD_WCH_USB30_FALLBACK
+    #define CFG_TUD_WCH_USB30_FALLBACK 0
+  #endif
+  // Bulk burst size (packets per burst, 1..4). 4 matches the link layer's header-packet
+  // buffer count (NUM_HP_BUF) and is hardware-validated; 8 fails to configure.
+  #ifndef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_TUD_WCH_USB30_MAX_BURST 4
+  #endif
+  #if CFG_TUD_WCH_USBIP_USB30 && (CFG_TUD_WCH_USB30_MAX_BURST < 1 || CFG_TUD_WCH_USB30_MAX_BURST > 4)
+    #error "CH569: CFG_TUD_WCH_USB30_MAX_BURST must be 1..4 (hardware-validated range, 8 fails to configure)"
+  #endif
+  #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
+
+  #define TUP_RHPORT_HIGHSPEED  1
+  #define CFG_TUSB_SUPER_SPEED_DEFAULT CFG_TUD_WCH_USBIP_USB30
+  #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
+  #define TUP_DCD_EDPT_CLOSE_API
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32H417)
+  // CH32H416/CH32H417: USB3.0 SuperSpeed device (USBSS @0x40034000, officially documented in the
+  // reference manual; same LINK-layer IP as the CH569 but a reworked chain-DMA endpoint engine)
+  // plus a USB2.0 high-speed device (USBHS @0x40030000, WCH HS2 IP: wch_hs2/dcd_wch_hs2.c) and a
+  // full-speed USBFS/OTG (not supported). One controller is selected at compile time
+  // (SPEED=super|high), both on rhport 0. With CFG_TUD_WCH_USB30_FALLBACK the USB30 dcd owns both
+  // controllers and falls back to USB2 at runtime when the SuperSpeed link does not train.
+  #define TUP_USBIP_WCH_SS2
+  #define TUP_USBD_XFER_ISR 0
+
+  #ifndef CFG_TUD_WCH_USBIP_USBHS
+    #define CFG_TUD_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUD_WCH_USBIP_USB30
+    #define CFG_TUD_WCH_USBIP_USB30 (CFG_TUD_WCH_USBIP_USBHS ? 0 : 1) // default SuperSpeed
+  #endif
+  #if CFG_TUD_WCH_USBIP_USBHS && CFG_TUD_WCH_USBIP_USB30
+    #error "CH32H417: CFG_TUD_WCH_USBIP_USBHS and CFG_TUD_WCH_USBIP_USB30 cannot both be 1"
+  #endif
+  #ifndef CFG_TUD_WCH_USB30_FALLBACK
+    #define CFG_TUD_WCH_USB30_FALLBACK 0
+  #endif
+  #if CFG_TUD_WCH_USBIP_USBHS || (CFG_TUD_WCH_USBIP_USB30 && CFG_TUD_WCH_USB30_FALLBACK)
+    #define TUP_USBIP_WCH_HS2
+  #endif
+  #if CFG_TUD_WCH_USBIP_USB30 && CFG_TUD_WCH_USB30_FALLBACK
+    #define TUP_USBIP_WCH_HS2_FALLBACK // the USB30 dcd owns dcd_* and drives HS2 through wch_hs2_*
+  #endif
+  // Bulk burst size (packets per burst); must be 1: wch_ss2 arms OUT one packet per chain
+  #ifndef CFG_TUD_WCH_USB30_MAX_BURST
+    #define CFG_TUD_WCH_USB30_MAX_BURST 1
+  #endif
+  #if CFG_TUD_WCH_USB30_MAX_BURST != 1
+    #error "CH32H417: CFG_TUD_WCH_USB30_MAX_BURST must be 1 (dcd arms OUT one packet per chain)"
+  #endif
+  #define TUP_DCD_SS_BULK_BURST_PACKETS CFG_TUD_WCH_USB30_MAX_BURST
+
+  #define TUP_RHPORT_HIGHSPEED  1
+  #define CFG_TUSB_SUPER_SPEED_DEFAULT CFG_TUD_WCH_USBIP_USB30
+  #define TUP_DCD_ENDPOINT_MAX  8 // EP0..EP7 IN + OUT on both controllers
+  #define TUP_DCD_EDPT_CLOSE_API
+
 #elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
   // Two WCH HS2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
   #define TUP_USBIP_WCH_HS2

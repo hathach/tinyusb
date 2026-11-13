@@ -58,12 +58,12 @@ Used for device configuration and control commands.
 **Characteristics**:
 - Bidirectional (uses both IN and OUT)
 - Guaranteed delivery with error detection
-- Limited data size (8-64 bytes per packet)
+- Limited data size per packet: 8 bytes at Low Speed, 8, 16, 32 or 64 at Full Speed, 64 at High Speed, 512 at SuperSpeed
 - All devices must support control transfers on endpoint 0
 
 **Usage**: Device enumeration, configuration changes, class-specific commands
 
-**TinyUSB Context**: Handled automatically by the core stack for standard requests; class drivers handle class-specific requests. Endpoint 0 is managed by ``src/device/usbd.c`` and ``src/host/usbh.c``. Configure buffer size with ``CFG_TUD_ENDPOINT0_SIZE`` (typically 64 bytes).
+**TinyUSB Context**: Handled automatically by the core stack for standard requests; class drivers handle class-specific requests. Endpoint 0 is managed by ``src/device/usbd.c`` and ``src/host/usbh.c``. Configure buffer size with ``CFG_TUD_ENDPOINT0_SIZE`` (defaults to 64 bytes, 512 for a SuperSpeed build).
 
 Bulk Transfers
 --------------
@@ -252,7 +252,7 @@ USB supports multiple speed modes:
 
 **Super Speed (5 Gbps)**:
 - USB 3.0 and later
-- Not supported by TinyUSB
+- Supported in device mode on WCH CH569 and CH32H417 (see the SuperSpeed section of :doc:`../porting`)
 
 **TinyUSB Speed Support**: Most TinyUSB ports support Full Speed and High Speed. Speed is typically auto-detected by hardware. Configure speed requirements in board configuration (``hw/bsp/FAMILY/boards/BOARD/board.mk``) and ensure your MCU supports the desired speed.
 

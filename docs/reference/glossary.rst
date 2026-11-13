@@ -74,7 +74,7 @@ Glossary
       USB protocol mechanism where an endpoint responds with a STALL handshake to indicate an error condition or unsupported request. Used for error handling, not flow control.
 
    Super Speed
-      USB 3.0 speed mode operating at 5 Gbps. Not supported by TinyUSB.
+      USB 3.0 speed mode operating at 5 Gbps. Supported in device mode on WCH CH569 and CH32H417.
 
    tud
       TinyUSB Device. Function prefix for all device stack APIs (e.g., ``tud_task()``, ``tud_cdc_write()``).
