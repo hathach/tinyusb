@@ -58,9 +58,10 @@ interfaces.
        ``tud_printer_n_write()``
      - Reports TX room and copies bidirectional response data into the TX
        FIFO.  The TX FIFO is overwritable: when it is full the oldest unsent
-       bytes are overwritten, so check ``tud_printer_n_write_available()``
-       first.  An overwrite that races the endpoint copying data out can tear,
-       skip or replay those bytes.
+       bytes are overwritten, and a write longer than the FIFO depth keeps only
+       its last depth bytes and returns the depth.  Limit each write to
+       ``tud_printer_n_write_available()``.  An overwrite that races the
+       endpoint copying data out can tear, skip or replay those bytes.
    * - ``tud_printer_n_write_flush()``
      - Starts a short TX transfer and returns the number of bytes submitted.
    * - ``tud_printer_n_read_flush()`` /
