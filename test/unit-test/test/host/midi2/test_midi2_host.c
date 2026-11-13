@@ -109,6 +109,13 @@ static const uint8_t desc_alt1_no_in[] = {
   MS_ITF_DESC(1, 0x0200), ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0)
 };
 
+// setting 1 announces USB-MIDI 2.0 but has no endpoint
+static const uint8_t desc_alt1_no_ep[] = {
+  AC_ITF_DESC,
+  MS_ITF_DESC(0, 0x0100), ALT0_EP_DESC(EP_OUT), ALT0_EP_DESC(EP_IN),
+  MS_ITF_DESC(1, 0x0200)
+};
+
 // USB-MIDI 2.0 Appendix B for both directions: OUT 0x01 and IN 0x81 are Interrupt in setting 1
 static const uint8_t desc_same_addr_int_both[] = {
   MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_INTERRUPT, EP_INT_SIZE, 1),
@@ -171,9 +178,7 @@ static uint16_t last_xfer_len;
 static uint8_t xfer_count;
 
 static bool interface_set_ok;            // SET_INTERFACE(1) submitted
-static bool interface_set_alt0_ok;       // SET_INTERFACE(0) submitted
-static xfer_result_t interface_set_result;      // of SET_INTERFACE(1)
-static xfer_result_t interface_set_alt0_result; // of SET_INTERFACE(0)
+static xfer_result_t interface_set_result;
 static uint8_t interface_set_count;
 static uint8_t interface_set_alt[4];     // alternate setting of each request, in order
 static tuh_xfer_cb_t interface_set_cb;
@@ -209,12 +214,11 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
                        uintptr_t user_data) {
   (void) daddr; (void) user_data;
   TEST_ASSERT_EQUAL(ITF_MS, itf_num);
-  TEST_ASSERT_TRUE(itf_alt <= 1);
+  TEST_ASSERT_EQUAL(1, itf_alt); // the driver only ever switches to setting 1
   TEST_ASSERT_TRUE(interface_set_count < TU_ARRAY_SIZE(interface_set_alt));
   interface_set_alt[interface_set_count++] = itf_alt;
-  const bool ok = (itf_alt == 1) ? interface_set_ok : interface_set_alt0_ok;
-  interface_set_cb = ok ? complete_cb : NULL;
-  return ok;
+  interface_set_cb = interface_set_ok ? complete_cb : NULL;
+  return interface_set_ok;
 }
 
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
@@ -320,8 +324,8 @@ static void enumerate(uint8_t daddr, const uint8_t *desc, uint16_t len) {
   TEST_ASSERT_TRUE(midih2_set_config(daddr, ITF_AC));
   TEST_ASSERT_TRUE(midih2_set_config(daddr, ITF_MS));
 
-  // complete each SET_INTERFACE submitted, including one its completion submits
-  while (interface_set_cb != NULL) {
+  // complete the SET_INTERFACE submitted
+  if (interface_set_cb != NULL) {
     const uint8_t alt = interface_set_alt[interface_set_count - 1];
     const tusb_control_request_t request = {
       .bmRequestType = 0x01,
@@ -333,7 +337,7 @@ static void enumerate(uint8_t daddr, const uint8_t *desc, uint16_t len) {
     tuh_xfer_t xfer = {
       .daddr = daddr,
       .ep_addr = 0,
-      .result = (alt == 1) ? interface_set_result : interface_set_alt0_result,
+      .result = interface_set_result,
       .setup = &request,
     };
     tuh_xfer_cb_t cb = interface_set_cb;
@@ -377,9 +381,7 @@ void setUp(void) {
   open_refused_type = 0;
   test_speed = TUSB_SPEED_FULL;
   interface_set_ok = true;
-  interface_set_alt0_ok = true;
   interface_set_result = XFER_RESULT_SUCCESS;
-  interface_set_alt0_result = XFER_RESULT_SUCCESS;
   TEST_ASSERT_TRUE(midih2_init());
 }
 
@@ -680,7 +682,7 @@ void test_set_interface_not_submitted_closes_alt1_own_endpoints(void) {
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// SET_INTERFACE failing after setting 0's endpoint was closed for its reopen restores that endpoint
+// SET_INTERFACE failing after setting 1's endpoint was swapped in for setting 0's restores setting 0's
 void test_set_interface_failed_reopens_alt0_endpoint(void) {
   interface_set_result = XFER_RESULT_STALLED;
   enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
@@ -689,14 +691,18 @@ void test_set_interface_failed_reopens_alt0_endpoint(void) {
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
 
-  // closed before the switch, then reopened as setting 0's Bulk IN
-  TEST_ASSERT_EQUAL(1, closed_count);
+  // setting 1's Interrupt IN swapped in before the request, swapped out again for setting 0's Bulk IN
+  TEST_ASSERT_EQUAL(2, closed_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[0]);
-  const opened_ep_t *ep_in = find_opened(EP_IN, 1);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[1]);
+  const opened_ep_t *ep_in_alt1 = find_opened(EP_IN, 1);
+  TEST_ASSERT_NOT_NULL(ep_in_alt1);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, ep_in_alt1->type);
+  const opened_ep_t *ep_in = find_opened(EP_IN, 2);
   TEST_ASSERT_NOT_NULL(ep_in);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_in->type);
   TEST_ASSERT_EQUAL(EP_SIZE, ep_in->mps);
-  TEST_ASSERT_NULL(find_opened(EP_IN, 2));
+  TEST_ASSERT_NULL(find_opened(EP_IN, 3));
 
   TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
@@ -720,22 +726,20 @@ void test_alt1_without_in_closes_alt0_in(void) {
 // Setting 1 endpoint at setting 0's address
 //--------------------------------------------------------------------+
 
-// One the HCD refuses once the device has switched: SET_INTERFACE(0) switches it back, and setting 0's
-// endpoint is reopened before the interface is reported configured
-void test_alt1_reopen_refused_after_switch_returns_to_alt0(void) {
+// One the HCD refuses to open: as Linux's usb_set_interface(), which takes the new setting's resources
+// before its request, SET_INTERFACE(1) is never sent and setting 0's endpoint is reopened
+void test_alt1_swap_refused_stays_on_alt0(void) {
   open_refused_ep = EP_IN;
   open_refused_type = TUSB_XFER_INTERRUPT;
   enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
 
-  TEST_ASSERT_EQUAL(2, interface_set_count);
-  TEST_ASSERT_EQUAL(1, interface_set_alt[0]);
-  TEST_ASSERT_EQUAL(0, interface_set_alt[1]);
+  TEST_ASSERT_EQUAL(0, interface_set_count);
   TEST_ASSERT_EQUAL(2, config_complete_count); // Audio Control passed through, then MIDI Streaming
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
   TEST_ASSERT_EQUAL(0, tuh_midi2_get_alt_setting_active(0));
 
-  // closed before the switch, then reopened as setting 0's Bulk IN
+  // closed for the swap, then reopened as setting 0's Bulk IN
   TEST_ASSERT_EQUAL(1, closed_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[0]);
   const opened_ep_t *ep_in = find_opened(EP_IN, 1);
@@ -749,17 +753,17 @@ void test_alt1_reopen_refused_after_switch_returns_to_alt0(void) {
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// The other direction, reopened for setting 1, is closed again and reopened as setting 0's
-void test_alt1_reopen_refused_closes_other_reopened_endpoint(void) {
+// The other direction, already swapped in, is swapped back to setting 0's
+void test_alt1_swap_refused_undoes_other_direction(void) {
   open_refused_ep = EP_IN;
   open_refused_type = TUSB_XFER_INTERRUPT;
   enumerate(1, desc_same_addr_int_both, sizeof(desc_same_addr_int_both));
 
-  TEST_ASSERT_EQUAL(2, interface_set_count);
+  TEST_ASSERT_EQUAL(0, interface_set_count);
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
 
-  // both closed before the switch, setting 1's OUT closed after switching back
+  // OUT swapped in, IN refused, then setting 1's OUT closed again
   TEST_ASSERT_EQUAL(3, closed_count);
   TEST_ASSERT_EQUAL_HEX8(EP_OUT, closed[0]);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[1]);
@@ -781,13 +785,13 @@ void test_alt1_reopen_refused_closes_other_reopened_endpoint(void) {
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// Setting 1's own endpoint is closed on switching back, setting 0's of that direction stays in use
-void test_alt1_reopen_refused_closes_alt1_own_endpoint(void) {
+// Setting 1's own endpoint is closed too, setting 0's of that direction stays in use
+void test_alt1_swap_refused_closes_alt1_own_endpoint(void) {
   open_refused_ep = EP_IN;
   open_refused_type = TUSB_XFER_INTERRUPT;
   enumerate(1, desc_own_out_same_addr_int_in, sizeof(desc_own_out_same_addr_int_in));
 
-  TEST_ASSERT_EQUAL(2, interface_set_count);
+  TEST_ASSERT_EQUAL(0, interface_set_count);
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
   TEST_ASSERT_NOT_NULL(find_opened(0x02, 0));
@@ -801,35 +805,39 @@ void test_alt1_reopen_refused_closes_alt1_own_endpoint(void) {
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// SET_INTERFACE(0) failing leaves the device on setting 1: the refused direction has no stream
-void test_alt1_reopen_refused_set_interface_alt0_failed_stays_on_alt1(void) {
-  open_refused_ep = EP_IN;
-  open_refused_type = TUSB_XFER_INTERRUPT;
-  interface_set_alt0_result = XFER_RESULT_STALLED;
-  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+// SET_INTERFACE failing swaps both directions back to setting 0's endpoints
+void test_set_interface_failed_swaps_both_directions_back(void) {
+  interface_set_result = XFER_RESULT_STALLED;
+  enumerate(1, desc_same_addr_int_both, sizeof(desc_same_addr_int_both));
 
-  TEST_ASSERT_EQUAL(2, interface_set_count);
-  TEST_ASSERT_EQUAL(2, config_complete_count);
+  TEST_ASSERT_EQUAL(1, interface_set_count);
   TEST_ASSERT_EQUAL(1, mount_count);
-  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
-  TEST_ASSERT_NULL(find_opened(EP_IN, 1));
-  TEST_ASSERT_EQUAL(0, xfer_count); // no RX armed
-  assert_ump_write_goes_to(1, EP_OUT); // shared OUT kept
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+
+  // setting 0's closed for the swap, setting 1's closed after the failure
+  TEST_ASSERT_EQUAL(4, closed_count);
+  const opened_ep_t *ep_out = find_opened(EP_OUT, 2);
+  const opened_ep_t *ep_in = find_opened(EP_IN, 2);
+  TEST_ASSERT_NOT_NULL(ep_out);
+  TEST_ASSERT_NOT_NULL(ep_in);
+  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_out->type);
+  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_in->type);
+
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+  assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// SET_INTERFACE(0) not submitted: no callback would continue, so the configuration completes on setting 1
-void test_alt1_reopen_refused_set_interface_alt0_not_submitted_stays_on_alt1(void) {
-  open_refused_ep = EP_IN;
-  open_refused_type = TUSB_XFER_INTERRUPT;
-  interface_set_alt0_ok = false;
-  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+// As Linux's USB-MIDI 2.0 driver: a USB-MIDI 2.0 setting 1 without endpoints is not used
+void test_alt1_without_endpoints_stays_on_midi1(void) {
+  enumerate(1, desc_alt1_no_ep, sizeof(desc_alt1_no_ep));
 
-  TEST_ASSERT_EQUAL(2, interface_set_count);
-  TEST_ASSERT_EQUAL(0, interface_set_alt[1]);
-  TEST_ASSERT_EQUAL(2, config_complete_count);
+  TEST_ASSERT_EQUAL(0, interface_set_count);
   TEST_ASSERT_EQUAL(1, mount_count);
-  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
-  TEST_ASSERT_EQUAL(0, xfer_count); // no RX armed
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(0, last_mount.protocol_version);
+  TEST_ASSERT_EQUAL(0, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
