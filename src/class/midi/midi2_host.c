@@ -78,6 +78,7 @@ typedef struct {
 
   tusb_desc_endpoint_t alt0_ep[2]; // setting 0's opened endpoints, indexed by tusb_dir_t (address 0: none)
   midih2_alt1_ep_t     alt1_ep[2]; // indexed by tusb_dir_t
+  bool alt0_lost;                  // a setting 0 endpoint could not be restored: configured, not mounted
 
   bool mounted;
 
@@ -348,13 +349,16 @@ static void midih2_alt1_discard(midih2_interface_t *p_midi) {
 }
 
 // Reopen setting 0's endpoint of the directions in dir_mask, swapped out for setting 1's
-// (midih2_alt1_swap_in). A direction that cannot be reopened is left without a stream.
+// (midih2_alt1_swap_in). A direction that cannot be reopened (an HCD that frees a closed endpoint
+// only later, e.g. EHCI, with no other free) is left without a stream, and the interface is then
+// configured without being mounted (midih2_set_config_complete).
 static void midih2_alt0_reopen(midih2_interface_t *p_midi, uint8_t dir_mask) {
   for (uint8_t dir = 0; dir < 2; dir++) {
     if ((dir_mask & TU_BIT(dir)) == 0 || tuh_edpt_open(p_midi->daddr, &p_midi->alt0_ep[dir])) {
       continue;
     }
     TU_LOG_DRV("  MIDI2 cannot reopen EP %02X for alt 0\r\n", p_midi->alt0_ep[dir].bEndpointAddress);
+    p_midi->alt0_lost = true;
     if (dir == TUSB_DIR_IN) {
       tu_edpt_stream_close(&p_midi->ep_stream.rx);
     } else {
@@ -655,6 +659,15 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
 
 static void midih2_set_config_complete(midih2_interface_t *p_midi, uint8_t idx) {
   uint8_t dev_addr = p_midi->daddr;
+
+  if (p_midi->alt0_lost) {
+    // a direction has no endpoint after setting 1 was given up: the interface is not reported mounted,
+    // and the device's configuration goes on
+    TU_LOG_DRV("MIDI2 addr = %u itf %u not mounted: alt 0 endpoints not restored\r\n",
+               dev_addr, p_midi->bInterfaceNumber);
+    usbh_driver_set_config_complete(dev_addr, p_midi->bInterfaceNumber);
+    return;
+  }
 
   // Invoke descriptor_cb
   tuh_midi2_descriptor_cb_t desc_cb = {
