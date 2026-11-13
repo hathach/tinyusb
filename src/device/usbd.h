@@ -175,6 +175,11 @@ uint8_t const* tud_descriptor_device_qualifier_cb(void);
 // Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index);
 
+// Invoked when host sends SET_ADDRESS request (informational, e.g. for logging).
+// Note: address may not be effective yet as some DCDs apply it after status stage.
+// Not invoked on MCUs that handle SET_ADDRESS in hardware (e.g. nRF5x).
+void tud_address_cb(uint8_t address);
+
 // Invoked when device is mounted (configured)
 void tud_mount_cb(void);
 
