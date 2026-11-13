@@ -1269,6 +1269,8 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_INTERFACE: {
+            // USB 2.0 9.4.4 is device-to-host: an OUT data stage would land in this stack local after it is gone
+            TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
             uint8_t alternate = 0;
             tud_control_xfer(rhport, p_request, &alternate, 1);
             break;

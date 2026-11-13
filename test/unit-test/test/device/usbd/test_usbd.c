@@ -443,8 +443,8 @@ tusb_control_request_t const req_set_configuration = {
 
 static uint8_t msc_out_buf[64];
 
-// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
-static void msc_out_armed(void) {
+// Bind the bulk endpoints to the (mocked) MSC driver
+static void msc_configured(void) {
   mscd_reset_Ignore();
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
@@ -457,10 +457,48 @@ static void msc_out_armed(void) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
   tud_task();
+}
+
+// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
+static void msc_out_armed(void) {
+  msc_configured();
 
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+//--------------------------------------------------------------------+
+// GET_INTERFACE answered by the core
+//--------------------------------------------------------------------+
+
+// A class without alternate settings leaves GET_INTERFACE to the core, which answers 0 (USB 2.0 9.4.4)
+void test_usbd_get_interface_default_answers_zero(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x81, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  static const uint8_t zero = 0;
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) &zero, 1, 1, false, true);
+  tud_task();
+}
+
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error. Its data stage must not be armed: the core's
+// answer lives in a stack local the data would be written into after the handler returned.
+void test_usbd_get_interface_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
 }
 
 static void msc_out_complete(CMOCK_mscd_xfer_cb_CALLBACK xfer_cb) {

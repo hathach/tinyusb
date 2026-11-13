@@ -977,6 +977,8 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
       // USB 2.0 9.4.4: report the selected setting, which USB-MIDI 2.0 3.1.1 uses as the
       // protocol selector. Left to the core, it would answer 0.
       if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD) return false;
+      // an OUT one would take host data into alt_setting: the core stalls it
+      if (request->bmRequestType_bit.direction != TUSB_DIR_IN) return false;
 
       uint8_t idx = find_midi2_itf_by_num(tu_u16_low(request->wIndex));
       if (idx >= CFG_TUD_MIDI2) return false;
