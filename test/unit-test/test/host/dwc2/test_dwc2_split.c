@@ -1092,6 +1092,77 @@ void test_iso_in_split_packet_filling_a_buffer_completes_only_at_mps(void) {
   }
 }
 
+// One RxFIFO status of channel 0: a data packet of len bytes with the received data PID pid
+static void rx_packet(uint16_t len, uint8_t pid) {
+  dwc2_grxstsp_t rx = {.value = 0};
+  rx.ep_ch_num      = 0;
+  rx.byte_count     = len;
+  rx.dpid           = pid;
+  rx.packet_status  = GRXSTS_PKTSTS_RX_DATA;
+  test_regs.grxstsp = rx.value;
+  handle_rxflvl_irq(0);
+}
+
+// The completion the core reports for a split interrupt IN packet, MDATA or not (slave mode): XferCompl, the channel
+// halted, HCTSIZ.PID toggled
+static bool int_in_xfer_complete(uint16_t remain) {
+  dwc2_channel_tsize_t ts     = {.value = 0};
+  ts.pid                      = HCTSIZ_PID_DATA1;
+  ts.xfer_size                = remain;
+  test_regs.channel[0].hctsiz = ts.value;
+  test_regs.channel[0].hcchar &= ~HCCHAR_CHENA;
+  return handle_channel_in_slave(&test_regs, 0, HCINT_XFER_COMPLETE);
+}
+
+// A 64-byte interrupt split IN transfer of one packet started with DATA0 (next_pid predicts DATA1 after it), its
+// complete-split sent in the microframe after its start-split's
+static void int_in_mdata_setup(uint16_t split_uframe) {
+  tu_hwfifo_read_Ignore();
+  endpoint(0, true, 64, false);
+  _hcd_data.edpt[0].hcchar_bm.enable = 1;
+  _hcd_data.edpt[0].next_pid         = HCTSIZ_PID_DATA1;
+  _hcd_data.xfer[0].result           = XFER_RESULT_INVALID;
+  _hcd_data.xfer[0].split_uframe     = split_uframe;
+  _hcd_data.xfer[0].csplit_next      = HCD_SPLIT_CSPLIT_FIRST;
+  test_regs.channel[0].hcsplt        = _hcd_data.edpt[0].hcsplt | HCSPLT_COMPLSPLT;
+}
+
+void test_slave_interrupt_split_in_mdata_continues_the_packet(void) {
+  // USB 2.0 11.20.4: the TT returned the first 14 bytes as MDATA, the rest comes with the next complete-split. The core
+  // reports MDATA only in the RxFIFO status and completes the channel as for a short packet.
+  int_in_mdata_setup(4); // HFNUM is in microframe 6: the second complete-split
+  rx_packet(14, HCTSIZ_PID_MDATA);
+  TEST_ASSERT_FALSE(int_in_xfer_complete(50));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(14, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid); // not taken from the toggled HCTSIZ.PID
+  const dwc2_channel_tsize_t armed = {.value = test_regs.channel[0].hctsiz};
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, armed.pid); // the toggle the packet started with
+  TEST_ASSERT_EQUAL(50, armed.xfer_size);
+  TEST_ASSERT_EQUAL(1, armed.packet_count);
+  TEST_ASSERT_TRUE((test_regs.channel[0].hcchar & HCCHAR_CHENA) || _hcd_data.xfer[0].csplit_wait);
+
+  // DATA0 ends the packet: the transfer completes with all of it and the toggle moves on
+  rx_packet(50, HCTSIZ_PID_DATA0);
+  TEST_ASSERT_TRUE(int_in_xfer_complete(0));
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(64, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid);
+}
+
+void test_slave_interrupt_split_in_mdata_past_its_window_drops_the_packet(void) {
+  // no complete-split left for the rest: the MDATA bytes are not delivered as a report, and the packet starts over in
+  // the next service interval with the toggle it had
+  int_in_mdata_setup(0); // HFNUM is in microframe 6: past the last complete-split
+  rx_packet(14, HCTSIZ_PID_MDATA);
+  TEST_ASSERT_FALSE(int_in_xfer_complete(50));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].xfer_pending);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, _hcd_data.edpt[0].next_pid);
+}
+
 void test_sof_starts_a_held_split_in_a_late_slot_once_its_packet_has_ended(void) {
   // held behind an isochronous OUT packet that ended before the hold was pending again: no END kicked it
   endpoint(0, true, 64, false);

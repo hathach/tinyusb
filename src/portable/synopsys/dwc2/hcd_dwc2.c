@@ -210,6 +210,8 @@ typedef struct {
 #if HCD_SPLIT
   uint16_t split_uframe;   // periodic split: microframe number of the start-split
   uint8_t  setup_busy;     // SETUP start-split errors retried as a TT's NAK, see handle_channel_out_slave()
+  uint8_t  int_mdata;      // slave interrupt split IN: bytes of the packet taken from MDATA complete-splits, tentative
+  bool     int_mdata_last; // slave interrupt split IN: the last complete-split returned MDATA, see channel_int_in_more()
 #endif
 #if HCD_CHANNEL_PARK
   uint8_t  park;           // channel is programmed but waiting for the SOF interrupt to start it, see channel_park_t
@@ -2237,6 +2239,16 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // HCD Event Handler
 //--------------------------------------------------------------------
 
+#if HCD_SPLIT
+// Drop what an interrupt split IN packet took from MDATA complete-splits: its transaction failed or its complete-split
+// window passed, and the next service interval starts the packet over (USB 2.0 11.20.4)
+TU_ATTR_ALWAYS_INLINE static inline void channel_int_in_drop(hcd_xfer_t* xfer) {
+  xfer->xferred_bytes  = (uint16_t) (xfer->xferred_bytes - xfer->int_mdata);
+  xfer->int_mdata      = 0;
+  xfer->int_mdata_last = false;
+}
+#endif
+
 // Retry an IN transfer, channel must be halted. Return true when the transfer completes instead: an isochronous split
 // IN is not retried once its complete-split window has passed.
 static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
@@ -2255,6 +2267,9 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       }
       // window passed, de-allocate channel with below code
     }
+#if HCD_SPLIT
+    channel_int_in_drop(xfer); // the transaction ends without its packet
+#endif
     if (HCD_SPLIT && hcsplt.split_en && hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
       xfer->result = XFER_RESULT_FAILED;
       return true;
@@ -2546,6 +2561,32 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   xfer->result = XFER_RESULT_FAILED;
   return false;
 }
+
+  #if CFG_TUH_DWC2_SLAVE_ENABLE
+// A complete-split of a slave-mode interrupt split IN returned MDATA (seen in the RxFIFO status): the TT holds the rest
+// of the packet for the next complete-split (USB 2.0 11.20.4, Figure 11-80). The core completed the channel as for a
+// short packet and toggled HCTSIZ.PID. Arm the next complete-split for the rest, with the data toggle the packet started
+// with, which DATA0/DATA1 then ends; the MDATA bytes stay tentative until then. Return false when the window has
+// passed: the packet is dropped and retried in the next service interval. A transfer of one packet only (the PID it
+// started with is the one before edpt->next_pid). DMA mode reports MDATA nowhere: there it ends the transfer short.
+static bool channel_int_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  hcd_xfer_t*           xfer    = &_hcd_data.xfer[ch_id];
+  const hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
+  dwc2_channel_t*       channel = &dwc2->channel[ch_id];
+  xfer->int_mdata_last          = false;
+
+  dwc2_channel_tsize_t hctsiz = {.value = 0};
+  hctsiz.pid          = (edpt->next_pid == HCTSIZ_PID_DATA1) ? HCTSIZ_PID_DATA0 : HCTSIZ_PID_DATA1;
+  hctsiz.packet_count = 1;
+  hctsiz.xfer_size    = edpt->buflen - xfer->xferred_bytes;
+  channel->hctsiz     = hctsiz.value;
+  if (channel_csplit_arm(dwc2, ch_id)) {
+    return true;
+  }
+  channel_int_in_drop(xfer);
+  return false;
+}
+  #endif
 #endif
 
 #if CFG_TUSB_DEBUG && 0
@@ -2603,6 +2644,15 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         }
         xfer->xferred_bytes += xact_len;
         xfer->fifo_bytes = byte_count;
+#if HCD_SPLIT
+        if (edpt->hcsplt_bm.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_INTERRUPT) {
+          // The core reports an interrupt complete-split's MDATA only here: HCTSIZ.PID shows a toggled DATA0/DATA1
+          xfer->int_mdata_last = (grxstsp.dpid == HCTSIZ_PID_MDATA);
+          if (xfer->int_mdata_last) {
+            xfer->int_mdata = (uint8_t) (xfer->int_mdata + xact_len);
+          }
+        }
+#endif
       }
       break;
     }
@@ -2736,6 +2786,12 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     if (hcsplt.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
       return !channel_iso_in_more(dwc2, ch_id); // the core halted the completed periodic channel
     }
+    if (xfer->int_mdata_last && edpt->buflen <= edpt->hcchar_bm.ep_size) {
+      // the core halted the completed periodic channel
+      return !channel_int_in_more(dwc2, ch_id) && channel_xfer_in_retry(dwc2, ch_id, 0);
+    }
+    xfer->int_mdata      = 0; // DATA0/DATA1 ended the packet: its MDATA bytes are taken
+    xfer->int_mdata_last = false;
 #endif
     if (edpt->hcchar_bm.ep_num != 0 &&
         edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {

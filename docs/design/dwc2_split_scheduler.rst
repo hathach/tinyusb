@@ -542,9 +542,18 @@ These choices are **not** protocol requirements merely because they exist in
    * - Terminal interrupt CS NYET not counted as an error
      - Deliberate divergence from USB 11.18.8 case 4; decide and test the
        intended error policy instead of inheriting it invisibly.
-   * - MDATA continuation helper only for ISO IN
-     - The retained interrupt-IN MDATA failure predates the reviewed PR. A
-       complete rewrite must address U15, not preserve that limitation as truth.
+   * - Interrupt IN MDATA continued in slave mode only
+     - The core completes an interrupt CS that returned MDATA as a short packet
+       (XferCompl, HCTSIZ.PID toggled to DATA0/DATA1, never MDATA); only the
+       RxFIFO status (GRXSTSP.DPID) shows MDATA. Slave mode continues the packet
+       with the next CS and its starting toggle, its MDATA bytes tentative until
+       DATA0/DATA1 (dropped and retried in the next interval otherwise), for a
+       transfer of one packet. Buffer DMA mode has no such status: HCINT and
+       HCTSIZ are the same as for a short report, so the transfer still ends
+       short there. Measured on STM32U5A5 with three 64-byte FS interrupt IN
+       endpoints stacked in one slot of a single TT next to an isochronous IN:
+       a third of the reports came back as 14-byte MDATA before the fix. With
+       the scheduler's own slot choice the stack did not happen on that bench.
    * - ISO IN whose MDATA fills a buffer of exactly MPS completes at once
      - Departs from U15: the terminal CS is not issued, so its ERR (FS CRC
        failure, USB 11.21.4) is not seen and the packet is reported good. A
