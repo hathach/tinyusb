@@ -928,7 +928,22 @@ void test_early_response_mid_data_out_is_a_cancel(void) {
   app.resp_code = MTP_RESP_INVALID_PARAMETER;
   host_out(pkt, BUFSIZE);
   TEST_ASSERT_EQUAL(0, app.complete_calls);
-  expect_call(DCD_XFER, EP_IN, HDR); // the response was queued, then retired by the stall
+  // nothing is queued on ep_in: a DCD keeping a loaded IN packet across the stall and clear-halt
+  // would otherwise answer the next command with this response
+  recover_from_error(EP_OUT, EP_IN);
+}
+
+// same, answered from a 2nd packet that still does not end the phase
+void test_early_response_mid_data_out_headerless_is_a_cancel(void) {
+  open_device(TUSB_SPEED_HIGH);
+  uint8_t pkt[BUFSIZE];
+  start_data_out(3 * BUFSIZE - HDR, pkt);
+  host_out(pkt, BUFSIZE);
+  expect_call(DCD_XFER, EP_OUT, BUFSIZE);
+  app.respond_at_xfer = 2;
+  app.resp_code = MTP_RESP_INVALID_PARAMETER;
+  host_out(pkt, BUFSIZE);
+  TEST_ASSERT_EQUAL(0, app.complete_calls);
   recover_from_error(EP_OUT, EP_IN);
 }
 

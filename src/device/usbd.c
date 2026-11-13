@@ -1274,6 +1274,8 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_INTERFACE: {
+            // USB 2.0 9.4.4 is device-to-host: an OUT data stage would land in this stack local after it is gone
+            TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
             uint8_t alternate = 0;
             tud_control_xfer(rhport, p_request, &alternate, 1);
             break;
@@ -1386,7 +1388,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
       continue;
     }
 
-    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t));
     const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
 
     // Find driver for this interface
@@ -1637,6 +1639,9 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
+    // bLength must cover the whole endpoint descriptor: usbd_edpt_open() reads wMaxPacketSize and bInterval, and a
+    // short bLength would also step the next iteration into the middle of this one
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
@@ -1653,7 +1658,7 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
 }
 
 // Helper to defer an isr function
-void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
+bool usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   dcd_event_t event = {
       .rhport   = 0,
       .event_id = USBD_EVENT_FUNC_CALL,
@@ -1661,7 +1666,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   event.func_call.func  = func;
   event.func_call.param = param;
 
-  queue_event(&event, in_isr);
+  return queue_event(&event, in_isr);
 }
 
 bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {

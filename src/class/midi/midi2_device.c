@@ -852,7 +852,9 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   }
 
   // 2nd Interface: MIDI Streaming
-  TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
+  TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_INTERFACE == tu_desc_type(p_desc) &&
+              tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t),
+            0);
   const tusb_desc_interface_t* desc_midi = (const tusb_desc_interface_t*) p_desc;
 
   TU_VERIFY(TUSB_CLASS_AUDIO              == desc_midi->bInterfaceClass &&
@@ -881,6 +883,7 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   uint8_t found_ep = 0;
   while ((found_ep < desc_midi->bNumEndpoints) && tu_desc_in_bounds(p_desc, desc_end)) {
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
       const uint8_t ep_addr = desc_ep->bEndpointAddress;
@@ -941,6 +944,18 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
       midi2d_interface_t* p_midi = &_midi2d_itf[idx];
       p_midi->alt_setting = alt;
 
+      // USB 2.0 9.1.1.5: a setting change resets the data toggle of every endpoint of the
+      // interface. Both settings share one OUT and one IN endpoint, so abort them: this retires
+      // a transfer armed in the old setting (e.g. a MIDI 1.0 event packet the host would parse
+      // as UMP) and resets the toggle. Abort before clearing the FIFOs, which a dedicated
+      // hardware FIFO transfer reads and writes while armed.
+      if (tu_edpt_stream_is_opened(&p_midi->ep_stream.rx)) {
+        usbd_edpt_abort(rhport, p_midi->ep_stream.rx.ep_addr);
+      }
+      if (_tx_opened(p_midi)) {
+        usbd_edpt_abort(rhport, p_midi->ep_stream.tx.ep_addr);
+      }
+
       tu_edpt_stream_clear(&p_midi->ep_stream.rx);
       tu_fifo_clear(&p_midi->ep_stream.tx.ff);
       _nego_clear_pending(p_midi);
@@ -956,6 +971,19 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
       tud_midi2_set_itf_cb(idx, alt);
       tud_control_status(rhport, request);
       return true;
+    }
+
+    case TUSB_REQ_GET_INTERFACE: {
+      // USB 2.0 9.4.4: report the selected setting, which USB-MIDI 2.0 3.1.1 uses as the
+      // protocol selector. Left to the core, it would answer 0.
+      if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD) return false;
+      // an OUT one would take host data into alt_setting: the core stalls it
+      if (request->bmRequestType_bit.direction != TUSB_DIR_IN) return false;
+
+      uint8_t idx = find_midi2_itf_by_num(tu_u16_low(request->wIndex));
+      if (idx >= CFG_TUD_MIDI2) return false;
+
+      return tud_control_xfer(rhport, request, &_midi2d_itf[idx].alt_setting, 1);
     }
 
     case TUSB_REQ_GET_DESCRIPTOR: {

@@ -204,6 +204,21 @@ void test_video_rejected_commit_keeps_payload_size(void) {
   TEST_ASSERT_NOT_EQUAL(committed_length, payload_length);
 }
 
+// #4427: the values of a COMMIT the application rejects are not stored.
+void test_video_rejected_commit_keeps_committed_values(void) {
+  accept_commit = false;
+  commit_interval(10000000);
+  video_probe_and_commit_control_t committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(1000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(8, committed.dwMaxPayloadTransferSize);
+
+  accept_commit = true;
+  commit_interval(10000000);
+  committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(10000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(3, committed.dwMaxPayloadTransferSize);
+}
+
 // usbd ignores the class result for both SET and CLEAR_FEATURE(ENDPOINT_HALT); only the SET_FEATURE
 // return shows endpoint ownership.
 void test_video_set_halt_reports_endpoint_ownership(void) {
@@ -271,6 +286,65 @@ void test_video_iso_recommit_on_setting_0_drains_payload_before_releasing_frame(
   TEST_ASSERT_EQUAL(0, completed);
   TEST_ASSERT_EQUAL(1, submitted);
   TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+}
+
+// #4434: alternate setting 1 has no VS header; PROBE and COMMIT must parse the header of setting 0
+// instead of walking off the endpoint descriptor. The lock watchdog fails a hang.
+void test_video_iso_probe_and_commit_on_setting_1_return(void) {
+  open_iso_stream();
+  set_interface(1);
+  TEST_ASSERT_TRUE(tud_video_n_streaming(0, 0));
+  TEST_ASSERT_TRUE(vs_set_cur(1, VIDEO_VS_CTL_PROBE, 10000000));
+  video_probe_and_commit_control_t probe = vs_get_cur(1, VIDEO_VS_CTL_PROBE);
+  TEST_ASSERT_EQUAL_UINT8(1, probe.bFormatIndex);
+  TEST_ASSERT_EQUAL_UINT8(1, probe.bFrameIndex);
+  TEST_ASSERT_EQUAL_UINT32(10000000, probe.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(512, probe.dwMaxVideoFrameSize);
+  TEST_ASSERT_EQUAL_UINT32(3, probe.dwMaxPayloadTransferSize);
+  commit_interval(10000000);
+  TEST_ASSERT_EQUAL_UINT32(10000000, vs_get_cur(1, VIDEO_VS_CTL_COMMIT).dwFrameInterval);
+
+  // GET_INTERFACE still reports the current setting.
+  tusb_control_request_t request = {.bmRequestType = 0x81,
+                                    .bRequest      = TUSB_REQ_GET_INTERFACE,
+                                    .wIndex        = 1,
+                                    .wLength       = 1};
+  TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+  TEST_ASSERT_EQUAL_UINT8(1, control_in[0]);
+}
+
+// #4434: a descriptor with bLength 0 ends the descriptor walks instead of spinning on it.
+void test_video_zero_length_descriptor_fails_open(void) {
+  static video_fixture_t malformed;
+  videod_reset(0);
+  malformed                = descriptor;
+  malformed.format.bLength = 0;
+  TEST_ASSERT_EQUAL(0, videod_open(0, &malformed.vc, sizeof(malformed)));
+}
+
+// #4426: with one VC carrying two VS, every payload of stream 1, the first included, is built in
+// stream 1's buffer and leaves stream 0's in-flight payload alone.
+void test_video_second_stream_of_one_vc_uses_its_own_buffer(void) {
+  open_two_streams();
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  TEST_ASSERT_EQUAL_HEX8(0x81, payload_ep);
+  uint8_t *const stream0 = payload;
+  uint8_t        queued[64];
+  uint16_t const queued_length = payload_length;
+  memcpy(queued, payload, payload_length);
+
+  claimed = false; // the stub models one endpoint claim; stream 1 has its own endpoint
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 1, frame, sizeof(frame)));
+  TEST_ASSERT_EQUAL_HEX8(0x82, payload_ep);
+  uint8_t *const first = payload;
+  TEST_ASSERT_TRUE(first != stream0);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(queued, stream0, queued_length);
+
+  claimed = false;
+  TEST_ASSERT_TRUE(videod_xfer_cb(0, 0x82, XFER_RESULT_SUCCESS, payload_length));
+  TEST_ASSERT_EQUAL_HEX8(0x82, payload_ep);
+  TEST_ASSERT_EQUAL_PTR(first, payload);
+  TEST_ASSERT_FALSE(payload[1] & 2); // the frame is not finished yet
 }
 
 void test_video_set_interface_drops_queued_frame_once(void) {

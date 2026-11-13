@@ -22,6 +22,13 @@ extern "C" {
   #define CFG_TUH_MSC_MAXLUN 4
 #endif
 
+// How long enumeration keeps retrying Test Unit Ready (each failure followed by Request Sense) for a unit that is not
+// ready yet, from its first Test Unit Ready. Past it the interface is left unmounted: tuh_msc_mount_cb() is not called.
+// A unit reporting NOT READY / MEDIUM NOT PRESENT (sense 02/3A/00, e.g. an empty card reader slot) is not retried.
+#ifndef CFG_TUH_MSC_READY_TIMEOUT_MS
+  #define CFG_TUH_MSC_READY_TIMEOUT_MS 10000
+#endif
+
 typedef struct {
   const msc_cbw_t *cbw;       // SCSI command
   const msc_csw_t *csw;       // SCSI status
@@ -40,7 +47,8 @@ typedef void (*tuh_msc_reset_cb_t)(uint8_t dev_addr, bool success, uintptr_t arg
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface can accept a new command: false while busy, and once fenced after a failed stage submit
+// Check if the interface can accept a new command: false while a command or recovery is in progress (its endpoints
+// busy or not), and once fenced after a failed stage submit
 // (see tuh_msc_scsi_command) until tuh_msc_reset() succeeds or the device is re-enumerated
 bool tuh_msc_ready(uint8_t dev_addr);
 

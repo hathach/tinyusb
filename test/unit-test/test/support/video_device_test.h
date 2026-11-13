@@ -107,12 +107,29 @@ static const video_fixture_t descriptor =
 
 static video_iso_fixture_t iso_descriptor;
 
+// One VideoControl with two bulk streams, each laid out as the stream of `descriptor`.
+typedef struct TU_ATTR_PACKED {
+  uint8_t bytes[sizeof(video_fixture_t) - offsetof(video_fixture_t, vs)];
+} video_vs_block_t;
+
+typedef struct TU_ATTR_PACKED {
+  tusb_desc_interface_t                     vc;
+  tusb_desc_video_control_header_2itf_t     vc_header;
+  tusb_desc_video_control_camera_terminal_t camera;
+  tusb_desc_video_control_output_terminal_t output;
+  video_vs_block_t                          stream[2];
+} video_2vs_fixture_t;
+
+static video_2vs_fixture_t two_stream_descriptor;
+
 // `claimed` stands for the core's BUSY|CLAIMED bits of the stream endpoint.
 static bool     claimed, accept_commit, in_commit, stalled, refuse_claim, refuse_xfer;
 static unsigned completed, aborted, submitted;
 static uint8_t *payload;
 static uint16_t payload_length;
+static uint8_t  payload_ep;
 static void    *control_buffer;
+static uint8_t  control_in[sizeof(video_probe_and_commit_control_t)];
 static uint8_t  frame[512];
 // A frame the next release callback submits, as an application refilling from that callback does.
 static uint8_t *resubmit_frame;
@@ -128,9 +145,11 @@ static inline void resubmit_from_callback(void) {
 
 bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t *request, void *buffer, uint16_t length) {
   (void)rhport;
-  (void)request;
-  (void)length;
   control_buffer = buffer;
+  if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
+    // The data stage of an IN request may come from the class's stack: copy it as the core does.
+    memcpy(control_in, buffer, TU_MIN(length, sizeof(control_in)));
+  }
   return true;
 }
 bool tud_control_status(uint8_t rhport, const tusb_control_request_t *request) {
@@ -166,7 +185,6 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep) {
 }
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep, uint8_t *buffer, uint16_t length, bool is_isr) {
   (void)rhport;
-  (void)ep;
   (void)is_isr;
   TEST_ASSERT_TRUE(claimed);
   if (refuse_xfer) {
@@ -176,6 +194,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep, uint8_t *buffer, uint16_t length
   }
   payload        = buffer;
   payload_length = length;
+  payload_ep     = ep;
   submitted++;
   return true;
 }
@@ -214,13 +233,13 @@ int tud_video_commit_cb(uint_fast8_t ctl, uint_fast8_t stream, const video_probe
   return accept_commit ? VIDEO_ERROR_NONE : VIDEO_ERROR_WRONG_STATE;
 }
 
-// The driver derives the payload size from the interval: 8 bytes at 100 ms, 3 bytes at 1 s.
-static inline void commit_interval(uint32_t frame_interval) {
-  in_commit                      = true;
+// SET_CUR of a VS control (PROBE or COMMIT) on interface itf; returns what the class reports for
+// the data stage.
+static inline bool vs_set_cur(uint8_t itf, uint8_t selector, uint32_t frame_interval) {
   tusb_control_request_t request = {.bmRequestType = 0x21,
                                     .bRequest      = VIDEO_REQUEST_SET_CUR,
-                                    .wValue        = VIDEO_VS_CTL_COMMIT << 8,
-                                    .wIndex        = 1,
+                                    .wValue        = (uint16_t)(selector << 8),
+                                    .wIndex        = itf,
                                     .wLength       = sizeof(video_probe_and_commit_control_t)};
   TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
   video_probe_and_commit_control_t parameters = {.bFormatIndex             = 1,
@@ -228,9 +247,32 @@ static inline void commit_interval(uint32_t frame_interval) {
                                                  .dwFrameInterval          = frame_interval,
                                                  .dwMaxPayloadTransferSize = 64};
   memcpy(control_buffer, &parameters, sizeof(parameters));
+  return videod_control_xfer_cb(0, CONTROL_STAGE_DATA, &request);
+}
+
+// GET_CUR of a VS control (PROBE or COMMIT) on interface itf.
+static inline video_probe_and_commit_control_t vs_get_cur(uint8_t itf, uint8_t selector) {
+  tusb_control_request_t request = {.bmRequestType = 0xA1,
+                                    .bRequest      = VIDEO_REQUEST_GET_CUR,
+                                    .wValue        = (uint16_t)(selector << 8),
+                                    .wIndex        = itf,
+                                    .wLength       = sizeof(video_probe_and_commit_control_t)};
+  TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+  video_probe_and_commit_control_t parameters;
+  memcpy(&parameters, control_in, sizeof(parameters));
+  return parameters;
+}
+
+static inline void commit_itf(uint8_t itf, uint32_t frame_interval) {
+  in_commit = true;
   /* A rejected application COMMIT must protocol-stall, not ACK. */
-  TEST_ASSERT_EQUAL(accept_commit, videod_control_xfer_cb(0, CONTROL_STAGE_DATA, &request));
+  TEST_ASSERT_EQUAL(accept_commit, vs_set_cur(itf, VIDEO_VS_CTL_COMMIT, frame_interval));
   in_commit = false;
+}
+
+// The driver derives the payload size from the interval: 8 bytes at 100 ms, 3 bytes at 1 s.
+static inline void commit_interval(uint32_t frame_interval) {
+  commit_itf(1, frame_interval);
 }
 
 static inline void commit(void) {
@@ -261,12 +303,16 @@ static inline void endpoint_halt(bool halt) {
   (void)endpoint_request(halt, 0x81);
 }
 
-static inline void set_interface(uint8_t alt) {
+static inline void set_interface_itf(uint8_t itf, uint8_t alt) {
   tusb_control_request_t request = {.bmRequestType = 0x01,
                                     .bRequest      = TUSB_REQ_SET_INTERFACE,
                                     .wValue        = alt,
-                                    .wIndex        = 1};
+                                    .wIndex        = itf};
   TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+}
+
+static inline void set_interface(uint8_t alt) {
+  set_interface_itf(1, alt);
 }
 
 // Completes queued payloads until the frame completes.
@@ -300,6 +346,39 @@ static inline void open_iso_stream(void) {
   set_interface(1);
   set_interface(0);
   commit();
+}
+
+// Replaces the stream by one VideoControl with two bulk streams: interface 1 on EP 0x81 and
+// interface 2 on EP 0x82, both committed on setting 0.
+static inline void open_two_streams(void) {
+  video_2vs_fixture_t *d = &two_stream_descriptor;
+  size_t const vs_ofs    = offsetof(video_fixture_t, vs);
+  videod_reset(0);
+  d->vc                          = descriptor.vc;
+  d->vc_header.bLength           = sizeof(d->vc_header);
+  d->vc_header.bDescriptorType   = TUSB_DESC_CS_INTERFACE;
+  d->vc_header.bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER;
+  d->vc_header.bcdUVC            = VIDEO_BCD_1_50;
+  d->vc_header.wTotalLength      = offsetof(video_2vs_fixture_t, stream) - sizeof(tusb_desc_interface_t);
+  d->vc_header.bInCollection     = 2;
+  d->vc_header.baInterfaceNr[0]  = 1;
+  d->vc_header.baInterfaceNr[1]  = 2;
+  d->camera                      = descriptor.camera;
+  d->output                      = descriptor.output;
+  for (uint8_t i = 0; i < 2; ++i) {
+    uint8_t *vs = d->stream[i].bytes;
+    memcpy(vs, (uint8_t const *)&descriptor + vs_ofs, sizeof(d->stream[i].bytes));
+    vs[offsetof(tusb_desc_interface_t, bInterfaceNumber)] = (uint8_t)(1 + i);
+    vs[offsetof(video_fixture_t, vs_header) - vs_ofs +
+       offsetof(tusb_desc_video_streaming_input_header_1byte_t, bEndpointAddress)] = (uint8_t)(0x81 + i);
+    vs[offsetof(video_fixture_t, ep) - vs_ofs + offsetof(tusb_desc_endpoint_t, bEndpointAddress)] =
+      (uint8_t)(0x81 + i);
+  }
+  TEST_ASSERT_EQUAL(sizeof(*d), videod_open(0, &d->vc, sizeof(*d)));
+  for (uint8_t itf = 1; itf <= 2; ++itf) {
+    set_interface_itf(itf, 0);
+    commit_itf(itf, 1000000);
+  }
 }
 
 // osal_none's mutex spins forever when it is taken twice. Fail the running test instead of hanging

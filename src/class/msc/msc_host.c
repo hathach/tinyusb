@@ -72,6 +72,7 @@ typedef struct {
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open and close
+static uint32_t _msch_ready_start_ms; // first Test Unit Ready of the enumeration: usbh configures one device at a time
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
@@ -148,7 +149,8 @@ bool tuh_msc_mounted(uint8_t dev_addr) {
 
 bool tuh_msc_ready(uint8_t dev_addr) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->mounted && !p_msc->desync);
+  // usbh frees the endpoints before msch_xfer_cb() runs, so they can look idle in the middle of a command
+  TU_VERIFY(p_msc->mounted && !p_msc->desync && p_msc->stage == MSC_STAGE_IDLE);
   const bool epin_busy = usbh_edpt_busy(dev_addr, p_msc->ep_in);
   const bool epout_busy = usbh_edpt_busy(dev_addr, p_msc->ep_out);
   return !epin_busy && !epout_busy;
@@ -445,7 +447,8 @@ bool msch_deinit(void) {
 void msch_close(uint8_t dev_addr) {
   TU_VERIFY(dev_addr <= CFG_TUH_DEVICE_MAX,);
   msch_interface_t* p_msc = get_itf(dev_addr);
-  TU_VERIFY(p_msc->configured,);
+  // opened, configured or not: msch_open() refuses an address whose interface was never cleared
+  TU_VERIFY(p_msc->ep_in != 0,);
 
   TU_LOG_DRV("  MSCh close addr = %d\r\n", dev_addr);
 
@@ -543,6 +546,13 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   TU_VERIFY(MSC_SUBCLASS_SCSI == desc_itf->bInterfaceSubClass && MSC_PROTOCOL_BOT == desc_itf->bInterfaceProtocol, 0);
   TU_VERIFY(2 == desc_itf->bNumEndpoints, 0);
 
+  // the state is per device: a second Bulk-Only interface would overwrite the first one's, so leave it unclaimed
+  msch_interface_t *p_msc = get_itf(dev_addr);
+  if (p_msc->ep_in != 0) {
+    TU_LOG_DRV("  MSCh interface %u skipped: one per device\r\n", desc_itf->bInterfaceNumber);
+    return 0;
+  }
+
   // one bulk IN and one bulk OUT, validated before either is opened. A descriptor longer than defined is valid and
   // its extra bytes are skipped (USB 2.0 9.5), so walk by bLength within max_len.
   const tusb_desc_endpoint_t *ep_in  = NULL;
@@ -567,7 +577,6 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   TU_ASSERT(tuh_edpt_open(dev_addr, ep_first), 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, (ep_first == ep_in) ? ep_out : ep_in), 0);
 
-  msch_interface_t *p_msc = get_itf(dev_addr);
   p_msc->ep_in            = ep_in->bEndpointAddress;
   p_msc->ep_out           = ep_out->bEndpointAddress;
   p_msc->itf_num          = desc_itf->bInterfaceNumber;
@@ -578,7 +587,12 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
 
 bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
   msch_interface_t* p_msc = get_itf(daddr);
-  TU_ASSERT(p_msc->itf_num == itf_num);
+  // usbh ignores set_config's result: an interface this driver did not open must still end its configuration
+  if (p_msc->ep_in == 0 || p_msc->itf_num != itf_num) {
+    TU_LOG_DRV("  MSCh set config: interface %u not opened\r\n", itf_num);
+    usbh_driver_set_config_complete(daddr, itf_num);
+    return false;
+  }
   p_msc->configured = true;
 
   //------------- Get Max Lun -------------//
@@ -634,6 +648,7 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   // TODO multiple LUN support
   TU_LOG_DRV("SCSI Test Unit Ready\r\n");
   uint8_t const lun = 0;
+  _msch_ready_start_ms = tusb_time_millis_api();
   if (!tuh_msc_test_unit_ready(daddr, lun, config_test_unit_ready_complete, 0)) {
     config_abort(daddr);
   }
@@ -653,8 +668,9 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
   } else {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
     // with Request Sense to start working !!
-    // TODO limit number of retries
+    // A short response must not leave an earlier sense in place
     TU_LOG_DRV("SCSI Request Sense\r\n");
+    tu_memclr(enum_buf, sizeof(scsi_sense_fixed_resp_t));
     submitted = tuh_msc_request_sense(dev_addr, cbw->lun, enum_buf, config_request_sense_complete, 0);
   }
 
@@ -667,8 +683,30 @@ static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_d
 static bool config_request_sense_complete(uint8_t dev_addr, tuh_msc_complete_data_t const* cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
   msc_csw_t const* csw = cb_data->csw;
+  const scsi_sense_fixed_resp_t* sense = (const scsi_sense_fixed_resp_t*) (uintptr_t) usbh_get_enum_buf();
 
-  if (csw->status != 0 || !tuh_msc_test_unit_ready(dev_addr, cbw->lun, config_test_unit_ready_complete, 0)) {
+  if (csw->status != 0) {
+    config_abort(dev_addr);
+    return true;
+  }
+
+  TU_LOG_DRV("  Sense Key %02X, ASC %02X, ASCQ %02X\r\n", sense->sense_key, sense->add_sense_code,
+             sense->add_sense_qualifier);
+
+  // no retry makes a medium appear, e.g. in an empty card reader slot (#3898)
+  if (sense->sense_key == SCSI_SENSE_NOT_READY && sense->add_sense_code == 0x3A && sense->add_sense_qualifier == 0x00) {
+    TU_LOG_DRV("  MSCh LUN %u medium not present\r\n", cbw->lun);
+    config_abort(dev_addr);
+    return true;
+  }
+
+  if ((uint32_t) (tusb_time_millis_api() - _msch_ready_start_ms) >= CFG_TUH_MSC_READY_TIMEOUT_MS) {
+    TU_LOG_DRV("  MSCh LUN %u not ready after %u ms\r\n", cbw->lun, (unsigned) CFG_TUH_MSC_READY_TIMEOUT_MS);
+    config_abort(dev_addr);
+    return true;
+  }
+
+  if (!tuh_msc_test_unit_ready(dev_addr, cbw->lun, config_test_unit_ready_complete, 0)) {
     config_abort(dev_addr);
   }
   return true;

@@ -187,9 +187,12 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
 // when this function returns false.
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
 // Stop transferring and asynchronously deactivate the Audio Streaming
-// interface (alt 0). true means that the deactivation request was submitted.
-// Completion is reported through tuh_audio_event_cb(); no event is emitted
-// when this function returns false.
+// interface (alt 0). true means that the deactivation request was submitted;
+// TUH_AUDIO_EVENT_STOP_COMPLETE is then the stream's last event (a transfer
+// failing meanwhile reports no XFER_FAILED). Transfers are not re-armed during
+// the request, so the last one has normally drained by then; tuh_audio_start()
+// and tuh_audio_configure() refuse an endpoint still draining. false leaves the
+// stream running and emits no event.
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
 
 // Frame-based transfer. One frame = channels * bytes per sample.

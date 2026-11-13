@@ -145,6 +145,24 @@ void test_stream_read_stays_within_bufsize(void) {
   TEST_ASSERT_EQUAL(0, tuh_midi_read_available(0));
 }
 
+// Audio Control, then a 3-byte interface descriptor ahead of the MIDI Streaming one. Read as a full one, its
+// bInterfaceClass and bInterfaceSubClass would be the next descriptor's bInterfaceNumber 1 (TUSB_CLASS_AUDIO) and
+// bAlternateSetting 0 (not MIDI Streaming), so a walk reading them would skip it and accept the function.
+static const uint8_t midi_short_itf_desc[] = {
+  9, TUSB_DESC_INTERFACE, 0, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, 0, 0,
+  9, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(9), 1, 1,
+  3, TUSB_DESC_INTERFACE, 0,
+  9, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, 0, 0,
+  TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1), TEST_MIDI_EP_DESC(MIDI_EP_IN, 3)
+};
+
+// A short interface descriptor ends the walk past Audio Control and is rejected, not read past its bLength
+void test_short_interface_after_audio_control_is_rejected(void) {
+  midih_close(MIDI_DEV_ADDR); // free the slot setUp took
+  TEST_ASSERT_EQUAL(0, midih_open(0, MIDI_DEV_ADDR + 1, (const tusb_desc_interface_t *) midi_short_itf_desc,
+                                  sizeof(midi_short_itf_desc)));
+}
+
 // A buffer too small for a full event must not consume one from the FIFO
 void test_stream_read_rejects_buffer_smaller_than_event(void) {
   const uint8_t packet[] = {0x09, 0x90, 0x3C, 0x7F};

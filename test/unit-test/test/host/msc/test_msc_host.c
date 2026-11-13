@@ -89,6 +89,12 @@ uint8_t *usbh_get_enum_buf(void) {
   return enum_buf;
 }
 
+static uint32_t now_ms;
+
+uint32_t tusb_time_millis_api(void) {
+  return now_ms;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   set_config_daddr = dev_addr;
   set_config_itf   = itf_num;
@@ -168,8 +174,10 @@ static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint
   return (uint16_t) (len + ep2_len);
 }
 
-// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order
+// a rejected interface opens no endpoint, an accepted one opens both bulk endpoints in descriptor order.
+// Opens on a fresh device: an address that already has an interface refuses another one.
 static void open_expect_at(uint8_t daddr, uint16_t max_len, uint16_t expected) {
+  msch_close(daddr);
   opened_count = 0;
   TEST_ASSERT_EQUAL(expected, msch_open(0, daddr, (const tusb_desc_interface_t *) desc_buf, max_len));
   if (expected == 0) {
@@ -284,6 +292,7 @@ void setUp(void) {
   claim_preempt   = NULL;
   umount_hook     = NULL;
   device_connected = true;
+  now_ms          = 0;
   msch_init();
   mount_bot_interface();
 }
@@ -347,6 +356,56 @@ void test_msc_host_open_rejects_same_direction(void) {
 // usbh addresses a hub-class device above CFG_TUH_DEVICE_MAX and still offers its interfaces to every driver
 void test_msc_host_open_rejects_hub_address(void) {
   open_expect_at(CFG_TUH_DEVICE_MAX + 1, build_bot(9, 2, 7, EP_OUT, 7, EP_IN), 0);
+}
+
+// open without closing the address first, as usbh offers each interface of one device; returns the claimed length
+static uint16_t open_on_device(uint8_t itf_num, uint8_t ep_out, uint8_t ep_in) {
+  const uint16_t len = build_bot(9, 2, 7, ep_out, 7, ep_in);
+  ((tusb_desc_interface_t *) desc_buf)->bInterfaceNumber = itf_num;
+  opened_count = 0;
+  return msch_open(0, DADDR, (const tusb_desc_interface_t *) desc_buf, len);
+}
+
+// The state is per device (#4480): a second Bulk-Only interface is left unclaimed, opening none of its endpoints, and
+// the first one keeps its endpoints and interface number and still enumerates
+void test_msc_host_open_second_interface_refused(void) {
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  TEST_ASSERT_EQUAL(0, open_on_device(ITF_NUM + 1, 0x02, 0x82));
+  TEST_ASSERT_EQUAL(0, opened_count);
+
+  TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
+  TEST_ASSERT_EQUAL(ITF_NUM, ctrl_req[ctrl_count - 1].wIndex); // Get Max LUN
+  enumerate();
+  // Test Unit Ready went out on the first interface's endpoints
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[0]);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
+}
+
+// usbh ignores set_config's result: an interface number the driver did not open still ends the configuration
+void test_msc_host_set_config_unopened_interface_completes(void) {
+  const uint8_t ctrl_before = ctrl_count;
+  set_config_count = 0;
+  TEST_ASSERT_FALSE(msch_set_config(DADDR, ITF_NUM + 1));
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(DADDR, set_config_daddr);
+  TEST_ASSERT_EQUAL(ITF_NUM + 1, set_config_itf);
+  TEST_ASSERT_EQUAL(ctrl_before, ctrl_count);
+
+  msch_close(DADDR);
+  set_config_count = 0;
+  TEST_ASSERT_FALSE(msch_set_config(DADDR, ITF_NUM));
+  TEST_ASSERT_EQUAL(1, set_config_count);
+  TEST_ASSERT_EQUAL(ctrl_before, ctrl_count);
+}
+
+// a device removed between open and set config is closed too, so the next device at its address opens
+void test_msc_host_close_before_set_config_allows_reopen(void) {
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  msch_close(DADDR);
+  TEST_ASSERT_EQUAL(9 + 2 * 7, open_on_device(ITF_NUM, EP_OUT, EP_IN));
+  TEST_ASSERT_EQUAL(2, opened_count);
 }
 
 static void start_data_in_cb(tuh_msc_complete_cb_t complete_cb) {
@@ -696,6 +755,98 @@ void test_msc_host_enum_request_sense_passed_tur_submit_fail(void) {
   enum_tur_failed_request_sense_passed();
 
   assert_enum_ended_unmounted(6);
+}
+
+//------------- Test Unit Ready retry bound (#3898, #3985) -------------//
+// fixed-format sense data: key in byte 2, ASC and ASCQ in bytes 12 and 13
+static const uint8_t sense_becoming_ready[18] = {
+    0x70, 0, SCSI_SENSE_NOT_READY, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0x04, 0x01};
+static const uint8_t sense_medium_not_present[18] = {
+    0x70, 0, SCSI_SENSE_NOT_READY, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0x3A, 0x00};
+static const uint8_t sense_tray_closed[18] = {
+    0x70, 0, SCSI_SENSE_NOT_READY, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0x3A, 0x01};
+
+// The queued Test Unit Ready CBW is sent and fails; its Request Sense returns `len` bytes of `sense` and passes.
+// Transfers are counted from that CBW's completion: TUR CSW, Request Sense CBW, data and CSW, then a retried TUR.
+static void tur_failed_with_sense(const uint8_t *sense, uint16_t len) {
+  xfer_count = 0;
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw(MSC_CSW_STATUS_FAILED);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  TEST_ASSERT_EQUAL(3, xfer_count);
+  TEST_ASSERT_EQUAL(18, xfer_len[2]);
+  if (len > 0) {
+    memcpy(xfer_buf[2], sense, len);
+  }
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, len));
+  reply_csw_passed();
+}
+
+static void assert_tur_retried(void) {
+  TEST_ASSERT_EQUAL(5, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[4]);
+  TEST_ASSERT_EQUAL_HEX8(SCSI_CMD_TEST_UNIT_READY, ((msc_cbw_t *) xfer_buf[4])->command[0]);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+}
+
+// a unit becoming ready is retried within the bound, then read and mounted once Test Unit Ready passes
+void test_msc_host_enum_not_ready_retried_until_ready(void) {
+  get_max_lun_stalled();
+  for (uint8_t i = 0; i < 3; i++) {
+    now_ms += CFG_TUH_MSC_READY_TIMEOUT_MS / 4;
+    tur_failed_with_sense(sense_becoming_ready, sizeof(sense_becoming_ready));
+    assert_tur_retried();
+  }
+
+  xfer_count = 0;
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  reply_csw_passed(); // Test Unit Ready passes: Read Capacity follows
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+  scsi_read_capacity10_resp_t cap = {.last_lba = tu_htonl(1023), .block_size = tu_htonl(512)};
+  memcpy(xfer_buf[xfer_count - 1], &cap, sizeof(cap));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(cap)));
+  reply_csw_passed();
+
+  TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
+  assert_config_completed();
+}
+
+// the bound is measured from the first Test Unit Ready, across a wrap of the millisecond counter; once it has passed
+// the enumeration ends with the interface unmounted, and the in-sync interface is not fenced
+void test_msc_host_enum_not_ready_timeout(void) {
+  now_ms = UINT32_MAX - CFG_TUH_MSC_READY_TIMEOUT_MS / 2;
+  get_max_lun_stalled();
+  now_ms += CFG_TUH_MSC_READY_TIMEOUT_MS - 1;
+  tur_failed_with_sense(sense_becoming_ready, sizeof(sense_becoming_ready));
+  assert_tur_retried();
+
+  now_ms += 1;
+  tur_failed_with_sense(sense_becoming_ready, sizeof(sense_becoming_ready));
+  assert_enum_ended_unmounted(4);
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, record_complete, 0));
+}
+
+// NOT READY / MEDIUM NOT PRESENT, measured on an empty card reader slot in #3898: no retry, the enumeration ends
+void test_msc_host_enum_medium_not_present_stops(void) {
+  get_max_lun_stalled();
+  tur_failed_with_sense(sense_medium_not_present, sizeof(sense_medium_not_present));
+  assert_enum_ended_unmounted(4);
+}
+
+// only 02/3A/00 stops early: other sense data is retried within the bound
+void test_msc_host_enum_other_not_ready_sense_retried(void) {
+  get_max_lun_stalled();
+  tur_failed_with_sense(sense_tray_closed, sizeof(sense_tray_closed));
+  assert_tur_retried();
+}
+
+// a Request Sense returning no data must not be read as the sense an earlier response left in the buffer
+void test_msc_host_enum_empty_sense_not_stale(void) {
+  get_max_lun_stalled();
+  memcpy(enum_buf, sense_medium_not_present, sizeof(sense_medium_not_present));
+  tur_failed_with_sense(NULL, 0);
+  assert_tur_retried();
 }
 
 void test_msc_host_enum_read_capacity_submit_fail(void) {
@@ -1227,6 +1378,38 @@ void test_msc_host_command_refused_while_another_runs(void) {
   reply_csw_passed();
   TEST_ASSERT_EQUAL(1, complete_count);
   assert_unfenced();
+}
+
+// #4481: between stages usbh has freed both endpoints, but the command is still running. A task preempting the usbh
+// task there is told the interface is not ready and its command is refused, at each stage.
+static bool ready_in_callback;
+
+static bool record_ready_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  ready_in_callback = tuh_msc_ready(daddr);
+  return record_complete(daddr, cb_data);
+}
+
+void test_msc_host_ready_false_while_command_runs(void) {
+  enumerate();
+  reset_counters();
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
+
+  start_data_in_cb(record_ready_complete); // CBW sent, data stage queued
+  TEST_ASSERT_EQUAL(0, claimed_ep);
+  TEST_ASSERT_EQUAL(0, busy_ep);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512)); // status stage queued
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+  TEST_ASSERT_FALSE(tuh_msc_test_unit_ready(DADDR, 0, record_complete, 0));
+  TEST_ASSERT_EQUAL(3, xfer_count);
+
+  // ready again once completed, already in its own callback
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_TRUE(ready_in_callback);
+  TEST_ASSERT_TRUE(tuh_msc_ready(DADDR));
 }
 
 // the recovery is refused and frees the claim: the command completes, and a recovery may start after it

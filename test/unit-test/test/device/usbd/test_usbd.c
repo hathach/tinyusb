@@ -443,8 +443,8 @@ tusb_control_request_t const req_set_configuration = {
 
 static uint8_t msc_out_buf[64];
 
-// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
-static void msc_out_armed(void) {
+// Bind the bulk endpoints to the (mocked) MSC driver
+static void msc_configured(void) {
   mscd_reset_Ignore();
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
@@ -457,10 +457,48 @@ static void msc_out_armed(void) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
   tud_task();
+}
+
+// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
+static void msc_out_armed(void) {
+  msc_configured();
 
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+//--------------------------------------------------------------------+
+// GET_INTERFACE answered by the core
+//--------------------------------------------------------------------+
+
+// A class without alternate settings leaves GET_INTERFACE to the core, which answers 0 (USB 2.0 9.4.4)
+void test_usbd_get_interface_default_answers_zero(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x81, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  static const uint8_t zero = 0;
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) &zero, 1, 1, false, true);
+  tud_task();
+}
+
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error. Its data stage must not be armed: the core's
+// answer lives in a stack local the data would be written into after the handler returned.
+void test_usbd_get_interface_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
 }
 
 static void msc_out_complete(CMOCK_mscd_xfer_cb_CALLBACK xfer_cb) {
@@ -617,6 +655,51 @@ void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
 }
 
 //--------------------------------------------------------------------+
+// Malformed configuration descriptor (#4387)
+//--------------------------------------------------------------------+
+
+// A trailing bLength 1 descriptor at wTotalLength - 1 is not walkable: its bDescriptorType would be the byte past
+// wTotalLength. Here that byte is an INTERFACE guard; reading it would hand a 1-byte "interface" to the drivers
+// (mscd_open has no expectation for it). The walk stops and SET_CONFIGURATION completes with the MSC interface.
+void test_usbd_set_config_trailing_blength1_not_walked(void) {
+  static const uint8_t desc_cfg[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN + 1, 0, 100),
+    TUD_MSC_DESCRIPTOR(0, 0, EDPT_MSC_OUT, EDPT_MSC_IN, 64),
+    1,                  // bLength 1, last byte within wTotalLength
+    TUSB_DESC_INTERFACE // guard byte past wTotalLength
+  };
+
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+
+  desc_configuration = desc_cfg;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_configuration, false);
+  mscd_open_ExpectAndReturn(rhport, (tusb_desc_interface_t const*) (desc_cfg + TUD_CONFIG_DESC_LEN),
+                            TUD_MSC_DESC_LEN + 1, TUD_MSC_DESC_LEN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
+  tud_task();
+
+  TEST_ASSERT_TRUE(tud_mounted());
+}
+
+// usbd_open_edpt_pair() must not open an endpoint whose bLength is shorter than an endpoint descriptor: usbd_edpt_open
+// would read wMaxPacketSize and bInterval past it (no dcd_edpt_open expectation)
+void test_usbd_open_edpt_pair_short_blength(void) {
+  const uint8_t desc_ep[] = {
+    6, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(64), // bLength 6, wMaxPacketSize still in the buffer
+    0                                                                 // bInterval, outside bLength
+  };
+  uint8_t ep_out = 0;
+  uint8_t ep_in  = 0;
+
+  TEST_ASSERT_FALSE(usbd_open_edpt_pair(rhport, desc_ep, 1, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0, ep_out);
+}
+
+//--------------------------------------------------------------------+
 // Endpoint stream ZLP
 //--------------------------------------------------------------------+
 
@@ -653,6 +736,163 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
   // one full packet and nothing left to send
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream: Interrupt endpoint size not a power of 2
+//--------------------------------------------------------------------+
+
+// An Interrupt endpoint can be any size up to its maximum, 48 here. A read must ask for whole packets that the FIFO
+// can take: 100 bytes free hold two, 96 bytes. Rounding by masking with mps - 1 gives 64, which a second 48-byte
+// packet overruns.
+void test_usbd_stream_read_xfer_non_power_of_2_mps(void) {
+  uint8_t ff_buf[100];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x06,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, false, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x06, ep_buf, 96, false, true);
+  TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
+}
+
+// A transfer of whole 48-byte packets ends on a full packet, so the host needs a ZLP after it
+void test_usbd_stream_write_zlp_non_power_of_2_mps(void) {
+  uint8_t ff_buf[128];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x86,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64)); // short last packet
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x86, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 96));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream: refused transfer submission (#4449)
+//--------------------------------------------------------------------+
+
+// tu_edpt_stream_write() reports the bytes it queued. When the DCD refuses the transfer, the packet already moved into
+// ep_buf must not be lost: the next write submits it again, ahead of the newly queued byte.
+void test_usbd_stream_write_refused_xfer_keeps_data(void) {
+  uint8_t ff_buf[128];
+  uint8_t ep_buf[64];
+  uint8_t src[64];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x83,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) (i + 1);
+  }
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  // a full packet flushes; the DCD refuses it, the bytes stay queued in ep_buf
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x83, src, sizeof(src), sizeof(src), false, false);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL_UINT16(64, stream.tx_pending);
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x83));
+
+  // nothing new to send yet beyond the kept packet: no ZLP in its place
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+
+  // the next write resends the kept packet first; the new byte waits in the FIFO
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x83, src, sizeof(src), sizeof(src), false, true);
+  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "y", 1));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(1, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, 0x83));
+}
+
+// A short refused packet is topped up from the FIFO when it is resent, keeping the byte order
+void test_usbd_stream_write_xfer_refused_short_packet_topped_up(void) {
+  uint8_t ff_buf[128];
+  uint8_t ep_buf[64];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x84,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  // below a packet: queued without a transfer, then an explicit flush is refused
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x84, (uint8_t*) "abc", 3, 3, false, false);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+
+  // the next write retries: the kept bytes go first, followed by the new ones
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x84, (uint8_t*) "abcde", 5, 5, false, true);
+  TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write(&stream, "de", 2));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+
+  // a cleared stream drops what a refused transfer left
+  stream.tx_pending = 3;
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+}
+
+// Without ep_buf the transfer reads the FIFO itself: a refused one leaves the bytes queued
+void test_usbd_stream_write_refused_xfer_fifo_keeps_data(void) {
+  uint8_t ff_buf[128];
+  uint8_t src[64] = { 0 };
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x85,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), NULL));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, 64);
+
+  dcd_edpt_xfer_fifo_ExpectAndReturn(rhport, 0x85, &stream.ff, 64, false, false);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
 }
 
 //--------------------------------------------------------------------+

@@ -87,7 +87,15 @@ used at once.  ``CFG_TUH_MSC_MAXLUN`` is the LUN limit per device.  After
 and commands are refused.  ``CFG_TUH_MSC_MAXLUN`` defaults to 4 and allocates
 cached state per possible LUN for each of the ``CFG_TUH_DEVICE_MAX``
 addresses.  Enumeration only reads the geometry of LUN 0, so other LUNs read
-back as 0.
+back as 0.  Only the first Bulk-Only interface of a device is claimed; a second
+one is left to other drivers.
+
+During enumeration a LUN 0 that answers Test Unit Ready with an error is
+retried, each failure followed by Request Sense, for up to
+``CFG_TUH_MSC_READY_TIMEOUT_MS`` (default 10000) from the first Test Unit
+Ready.  Sense NOT READY / MEDIUM NOT PRESENT (02/3A/00, e.g. an empty card
+reader slot) is not retried.  Either way the interface is left unmounted:
+``tuh_msc_mount_cb()`` is not called.
 
 ``tuh_msc_read10()`` and ``tuh_msc_write10()`` are asynchronous.  Keep the
 buffer valid, correctly aligned, cache coherent, and accessible to the USB

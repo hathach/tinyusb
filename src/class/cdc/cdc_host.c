@@ -903,12 +903,17 @@ static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate; // update baudrate
-    TU_ASSERT(driver->set_data_format(p_cdc, cdch_set_line_coding_stage2_data_format_complete, xfer->user_data),);
-  } else {
-    xfer->complete_cb = p_cdc->user_complete_cb;
-    if (xfer->complete_cb != NULL) {
-      xfer->complete_cb(xfer);
+    if (driver->set_data_format(p_cdc, cdch_set_line_coding_stage2_data_format_complete, xfer->user_data)) {
+      return;
     }
+    // the caller still gets a completion, e.g. enumeration waits for it to complete SET_CONFIG (#4064)
+    TU_LOG_DRV("  stage2 set data format failed to queue\r\n");
+    xfer->result = XFER_RESULT_FAILED;
+  }
+
+  xfer->complete_cb = p_cdc->user_complete_cb;
+  if (xfer->complete_cb != NULL) {
+    xfer->complete_cb(xfer);
   }
 }
 

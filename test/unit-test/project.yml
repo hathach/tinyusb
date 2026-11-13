@@ -162,6 +162,9 @@
     :test_hid_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_HID=1
+    :test_cdc_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_CDC=1
     :test_hid_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_HID=1
@@ -174,6 +177,10 @@
     :test_midi_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MIDI=1
+      - CFG_TUSB_DEBUG=0
+    :test_midi2_host:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUH_MIDI2=1
       - CFG_TUSB_DEBUG=0
     :test_hid_host_epin:
       - CFG_TUH_ENABLED=1
@@ -203,10 +210,8 @@
       - CFG_TUH_DEVICE_MAX=3
       - CFG_TUH_HUB=2
       - CFG_TUSB_DEBUG=0
-    :test_midi2_device_gtb_default:
-      - CFG_TUD_MSC=0
-      - CFG_TUD_MIDI2=1
-    :test_midi2_device_gtb_midi1:
+    # keys match by substring, so this also configures test_midi2_device_gtb_*
+    :test_midi2_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MIDI2=1
     :test_mtp_device:
@@ -245,7 +250,8 @@
     :test_video_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_VIDEO=1
-      - CFG_TUD_VIDEO_STREAMING=1
+      # two, so one VideoControl can carry two VideoStreaming interfaces
+      - CFG_TUD_VIDEO_STREAMING=2
       - CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE=64
       - CFG_TUSB_DEBUG=0
       # real osal_none mutex, so the tests run with the class lock live

@@ -22,14 +22,25 @@
  * THE SOFTWARE.
  */
 
-#include "unity.h"
-#include "tusb_types.h"
-#include "class/audio/audio.h"
-#include "class/midi/midi.h"
-#include "device/usbd.h"
-#include "class/midi/midi2_device.h"
+#include <string.h>
 
-void setUp(void) {}
+#include "unity.h"
+
+#include "tusb.h"
+#include "usbd.h"
+TEST_SOURCE_FILE("usbd_control.c")
+TEST_SOURCE_FILE("midi2_device.c")
+TEST_SOURCE_FILE("tusb_fifo.c")
+
+#include "mock_dcd.h"
+#include "midi2_device_test.h"
+
+MIDI2_TEST_CALLBACKS
+
+void setUp(void) {
+  midi2_test_init();
+}
+
 void tearDown(void) {}
 
 //--------------------------------------------------------------------+
@@ -307,4 +318,172 @@ void test_gtb_block_default_protocol_is_midi2(void) {
   TEST_ASSERT_EQUAL(MIDI2_GTB_ENTRY_LEN, sizeof(block));
   TEST_ASSERT_EQUAL_HEX8(CFG_TUD_MIDI2_GTB_PROTOCOL, block[8]);
   TEST_ASSERT_EQUAL_HEX8(MIDI2_GTB_PROTOCOL_MIDI2, CFG_TUD_MIDI2_GTB_PROTOCOL);
+}
+
+//--------------------------------------------------------------------+
+// SET_INTERFACE / GET_INTERFACE
+//--------------------------------------------------------------------+
+
+// Endpoint operations the driver issues on the non-control endpoints
+enum {
+  OP_STALL = 1,
+  OP_CLEAR_STALL,
+  OP_XFER,
+};
+
+typedef struct {
+  uint8_t op;
+  uint8_t ep_addr;
+} ep_op_t;
+
+static ep_op_t ep_ops[16];
+static uint8_t ep_op_count;
+static uint8_t ep0_in_data[8];
+static uint16_t ep0_in_len;
+static uint8_t ep0_stall_count;
+static uint8_t ep0_out_data_count; // OUT data stages armed on EP0 (status stages excluded)
+
+static void log_op(uint8_t op, uint8_t ep_addr) {
+  if (tu_edpt_number(ep_addr) == 0) {
+    if (op == OP_STALL) {
+      ep0_stall_count++;
+    }
+    return;
+  }
+  if (ep_op_count < TU_ARRAY_SIZE(ep_ops)) {
+    ep_ops[ep_op_count].op = op;
+    ep_ops[ep_op_count].ep_addr = ep_addr;
+    ep_op_count++;
+  }
+}
+
+static void stub_edpt_stall(uint8_t port, uint8_t ep_addr, int cmock_num_calls) {
+  (void) port; (void) cmock_num_calls;
+  log_op(OP_STALL, ep_addr);
+}
+
+static void stub_edpt_clear_stall(uint8_t port, uint8_t ep_addr, int cmock_num_calls) {
+  (void) port; (void) cmock_num_calls;
+  log_op(OP_CLEAR_STALL, ep_addr);
+}
+
+static bool stub_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr,
+                           int cmock_num_calls) {
+  (void) port; (void) is_isr; (void) cmock_num_calls;
+  if (ep_addr == 0x80 && buffer != NULL && total_bytes > 0) {
+    ep0_in_len = total_bytes;
+    memcpy(ep0_in_data, buffer, tu_min16(total_bytes, sizeof(ep0_in_data)));
+  }
+  if (ep_addr == 0x00 && total_bytes > 0) {
+    ep0_out_data_count++;
+  }
+  log_op(OP_XFER, ep_addr);
+  return true;
+}
+
+static bool stub_edpt_xfer_fifo(uint8_t port, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr,
+                                int cmock_num_calls) {
+  (void) port; (void) ff; (void) total_bytes; (void) is_isr; (void) cmock_num_calls;
+  log_op(OP_XFER, ep_addr);
+  return true;
+}
+
+static void stub_endpoints(void) {
+  ep_op_count = 0;
+  ep0_in_len = 0;
+  ep0_stall_count = 0;
+  ep0_out_data_count = 0;
+  memset(ep0_in_data, 0xAA, sizeof(ep0_in_data));
+  dcd_edpt_stall_Stub(stub_edpt_stall);
+  dcd_edpt_clear_stall_Stub(stub_edpt_clear_stall);
+  dcd_edpt_xfer_Stub(stub_edpt_xfer);
+  dcd_edpt_xfer_fifo_Stub(stub_edpt_xfer_fifo);
+}
+
+static void send_request(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint16_t length) {
+  tusb_control_request_t const req = {
+    .bmRequestType = type,
+    .bRequest      = request,
+    .wValue        = value,
+    .wIndex        = index,
+    .wLength       = length
+  };
+  stub_endpoints();
+  dcd_event_setup_received(rhport, (uint8_t const*) &req, false);
+  tud_task();
+}
+
+static void assert_ep_op(uint8_t i, uint8_t op, uint8_t ep_addr) {
+  TEST_ASSERT_TRUE(i < ep_op_count);
+  TEST_ASSERT_EQUAL(op, ep_ops[i].op);
+  TEST_ASSERT_EQUAL_HEX8(ep_addr, ep_ops[i].ep_addr);
+}
+
+// USB 2.0 9.1.1.5: a setting change resets both data toggles and must not leave a
+// transfer of the old setting armed, then RX is armed again.
+void test_set_interface_aborts_both_endpoints_and_rearms_rx(void) {
+  midi2_test_configure();
+
+  // a USB-MIDI 1.0 event packet armed on the IN endpoint in alt 0
+  const uint8_t packet[4] = {0x09, 0x90, 0x3C, 0x7F};
+  TEST_ASSERT_EQUAL(1, tud_midi2_n_packet_write(0, packet, 1));
+
+  send_request(0x01, TUSB_REQ_SET_INTERFACE, 1, ITF_MIDI2_STREAMING, 0);
+  TEST_ASSERT_EQUAL(1, tud_midi2_alt_setting());
+
+  TEST_ASSERT_EQUAL(5, ep_op_count);
+  assert_ep_op(0, OP_STALL, EDPT_MIDI2_OUT);
+  assert_ep_op(1, OP_CLEAR_STALL, EDPT_MIDI2_OUT);
+  assert_ep_op(2, OP_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(3, OP_CLEAR_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(4, OP_XFER, EDPT_MIDI2_OUT);
+
+  // the old IN transfer is retired: the first UMP write of the new setting queues at once
+  stub_endpoints();
+  const uint32_t ump = 0x20903C7Fu; // MIDI 1.0 channel voice message, one word
+  TEST_ASSERT_EQUAL(1, tud_midi2_ump_write(&ump, 1));
+  TEST_ASSERT_EQUAL(1, ep_op_count);
+  assert_ep_op(0, OP_XFER, EDPT_MIDI2_IN);
+}
+
+// Selecting the same setting again also resets the toggles
+void test_set_interface_same_setting_aborts_again(void) {
+  midi2_test_configure();
+  midi2_test_set_alt(1);
+
+  send_request(0x01, TUSB_REQ_SET_INTERFACE, 1, ITF_MIDI2_STREAMING, 0);
+  TEST_ASSERT_EQUAL(5, ep_op_count);
+  assert_ep_op(0, OP_STALL, EDPT_MIDI2_OUT);
+  assert_ep_op(2, OP_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(4, OP_XFER, EDPT_MIDI2_OUT);
+}
+
+// USB 2.0 9.4.4: GET_INTERFACE returns the selected setting
+void test_get_interface_returns_selected_setting(void) {
+  midi2_test_configure();
+
+  send_request(0x81, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
+  TEST_ASSERT_EQUAL(1, ep0_in_len);
+  TEST_ASSERT_EQUAL(0, ep0_in_data[0]);
+
+  midi2_test_set_alt(1);
+  send_request(0x81, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
+  TEST_ASSERT_EQUAL(1, ep0_in_len);
+  TEST_ASSERT_EQUAL(1, ep0_in_data[0]);
+
+  midi2_test_set_alt(0);
+  send_request(0x81, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
+  TEST_ASSERT_EQUAL(1, ep0_in_len);
+  TEST_ASSERT_EQUAL(0, ep0_in_data[0]);
+}
+
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error, its data stage is never armed
+void test_get_interface_out_is_stalled(void) {
+  midi2_test_configure();
+  midi2_test_set_alt(1);
+
+  send_request(0x01, TUSB_REQ_GET_INTERFACE, 0, ITF_MIDI2_STREAMING, 1);
+  TEST_ASSERT_EQUAL(0, ep0_out_data_count);
+  TEST_ASSERT_EQUAL(2, ep0_stall_count);
+  TEST_ASSERT_EQUAL(1, tud_midi2_alt_setting());
 }
