@@ -51,6 +51,7 @@ static const tu_hwfifo_access_t hwfifo_access_16 = {
 };
 
 void setUp(void) {
+  tu_fifo_set_overwritable(ff, false);
   tu_fifo_clear(ff);
   memset(&info, 0, sizeof(tu_fifo_buffer_info_t));
 
@@ -175,11 +176,12 @@ void test_write_overwritable_mixed(void) {
 
   // deterministic mix of single and bulk writes, checked against the last FIFO_SIZE bytes.
   // Each write is below depth so double overflows are not masked by whole-buffer rewrites.
+  // The loop runs until the stream buffer is used up (about 500 writes).
   uint8_t  stream[4 * FIFO_SIZE * 64];
   uint32_t total = 0;
   uint32_t seed  = 12345;
 
-  for (int iter = 0; iter < 2000; iter++) {
+  for (uint32_t iter = 0; total + FIFO_SIZE <= sizeof(stream); iter++) {
     seed       = seed * 1103515245u + 12345u;
     uint16_t n = (seed >> 16) % FIFO_SIZE;
     for (uint16_t i = 0; i < n; i++) {
@@ -199,10 +201,6 @@ void test_write_overwritable_mixed(void) {
       uint8_t rd[FIFO_SIZE] = {0};
       TEST_ASSERT_EQUAL(expected, tu_fifo_peek_n(ff, rd, FIFO_SIZE));
       TEST_ASSERT_EQUAL_MEMORY(stream + total - expected, rd, expected);
-    }
-
-    if (total + FIFO_SIZE > sizeof(stream)) {
-      break;
     }
   }
 }

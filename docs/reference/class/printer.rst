@@ -56,7 +56,11 @@ interfaces.
      - Reports and removes bytes sent by the print spooler.
    * - ``tud_printer_n_write_available()`` /
        ``tud_printer_n_write()``
-     - Reports TX room and copies as much bidirectional response data as fits.
+     - Reports TX room and copies bidirectional response data into the TX
+       FIFO.  The TX FIFO is overwritable: when it is full the oldest unsent
+       bytes are overwritten, so check ``tud_printer_n_write_available()``
+       first.  An overwrite that races the endpoint copying data out can tear,
+       skip or replay those bytes.
    * - ``tud_printer_n_write_flush()``
      - Starts a short TX transfer and returns the number of bytes submitted.
    * - ``tud_printer_n_read_flush()`` /
