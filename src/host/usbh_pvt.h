@@ -56,6 +56,11 @@ void usbh_int_set(bool enabled);
 // Invoke this function later in tuh_task() by putting it into task queue
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr);
 
+// True when called from the host task (tuh_task()), e.g. from a host-stack callback; always true without a scheduler
+// (single execution context). The host task must not post to its own queue from task context: on an RTOS that send
+// waits for room only this task can make.
+bool usbh_in_task(void);
+
 // Schedules a function to be called after certain time asynchronously
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param);
 
