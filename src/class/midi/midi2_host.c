@@ -50,10 +50,17 @@ typedef struct {
   uint8_t*  ep_buf;
 } midih2_tx_t;
 
-// A setting 1 endpoint that setting 0 does not provide as is
+// How setting 1 provides the endpoint of one direction
+enum {
+  MIDIH2_ALT1_EP_NONE = 0, // setting 1 has none: setting 0's is closed once the device has switched
+  MIDIH2_ALT1_EP_SHARED,   // setting 0's endpoint as is
+  MIDIH2_ALT1_EP_OWN,      // at another address: opened while parsing, used once the device has switched
+  MIDIH2_ALT1_EP_REOPEN,   // at setting 0's address but differing: setting 0's is closed before the switch
+};
+
 typedef struct {
-  tusb_desc_endpoint_t desc; // bEndpointAddress 0: setting 0's endpoint is used
-  bool reopen;               // same address as setting 0's endpoint: close that one first
+  tusb_desc_endpoint_t desc; // setting 1's descriptor, for OWN and REOPEN
+  uint8_t kind;              // MIDIH2_ALT1_EP_*
 } midih2_alt1_ep_t;
 
 typedef struct {
@@ -69,7 +76,8 @@ typedef struct {
   uint8_t rx_cable_count_alt1;
   uint8_t tx_cable_count_alt1;
 
-  midih2_alt1_ep_t alt1_ep[2]; // indexed by tusb_dir_t
+  tusb_desc_endpoint_t alt0_ep[2]; // setting 0's opened endpoints, indexed by tusb_dir_t (address 0: none)
+  midih2_alt1_ep_t     alt1_ep[2]; // indexed by tusb_dir_t
 
   bool mounted;
 
@@ -237,6 +245,8 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
 
         TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep), NULL);
+        // kept as opened, after tuh_edpt_open() which can rewrite a bulk size, to restore it (midih2_alt0_reopen)
+        p_midi->alt0_ep[tu_edpt_dir(p_ep->bEndpointAddress)] = *p_ep;
         if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, p_ep, tu_edpt_packet_size(p_ep));
           tu_edpt_stream_clear(&p_midi->ep_stream.rx);
@@ -272,74 +282,161 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
   return p_desc;
 }
 
-// Record a setting 1 endpoint (USB-MIDI 2.0 5.3: Bulk or Interrupt). One at setting 0's address
-// with setting 0's bulk size reuses that endpoint. One at another address is opened now. One at
-// the same address that differs is reopened once the device has switched (midih2_alt1_open_ep).
+// Record a setting 1 endpoint (USB-MIDI 2.0 5.3: Bulk or Interrupt). One identical to setting 0's
+// reuses that endpoint. One at another address is opened now, so that a host which cannot open it
+// stays on setting 0. One at setting 0's address that differs is reopened around the switch
+// (midih2_alt0_close_for_reopen, midih2_alt1_open_ep).
 static bool midih2_parse_alt1_endpoint(midih2_interface_t *p_midi, const tusb_desc_endpoint_t *p_ep) {
-  const uint8_t          ep_addr = p_ep->bEndpointAddress;
-  const tusb_dir_t       dir     = tu_edpt_dir(ep_addr);
-  const tusb_xfer_type_t type    = (tusb_xfer_type_t) p_ep->bmAttributes.xfer;
-  midih2_alt1_ep_t      *alt1_ep = &p_midi->alt1_ep[dir];
+  const uint8_t               ep_addr = p_ep->bEndpointAddress;
+  const tusb_dir_t            dir     = tu_edpt_dir(ep_addr);
+  const tusb_xfer_type_t      type    = (tusb_xfer_type_t) p_ep->bmAttributes.xfer;
+  const tusb_desc_endpoint_t *alt0_ep = &p_midi->alt0_ep[dir];
+  midih2_alt1_ep_t           *alt1_ep = &p_midi->alt1_ep[dir];
 
   TU_VERIFY(type == TUSB_XFER_BULK || type == TUSB_XFER_INTERRUPT);
-  if (alt1_ep->desc.bEndpointAddress != 0) {
+  if (alt1_ep->kind != MIDIH2_ALT1_EP_NONE) {
     return true; // one endpoint per direction, ignore any other
   }
 
-  const bool     in       = (dir == TUSB_DIR_IN);
-  const uint8_t  alt0_ep  = in ? p_midi->ep_stream.rx.ep_addr : p_midi->ep_stream.tx.ep_addr;
-  const uint16_t alt0_mps = in ? p_midi->ep_stream.rx.mps : p_midi->ep_stream.tx.mps;
-
-  if (ep_addr == alt0_ep) {
-    if (type == TUSB_XFER_BULK && tu_edpt_packet_size(p_ep) == alt0_mps) {
-      return true; // shared with setting 0
-    }
-    // a bulk size is bounded after the reopen, which can rewrite it
-    TU_VERIFY(type == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
-    alt1_ep->reopen = true;
-  } else {
-    TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep));
-    // after tuh_edpt_open(), which can rewrite a bulk size: the transfer length follows it into _midi2_epbuf
-    TU_VERIFY(tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
-    alt1_ep->reopen = false;
+  if (ep_addr == alt0_ep->bEndpointAddress && type == alt0_ep->bmAttributes.xfer &&
+      tu_edpt_packet_size(p_ep) == tu_edpt_packet_size(alt0_ep) &&
+      (type == TUSB_XFER_BULK || p_ep->bInterval == alt0_ep->bInterval)) {
+    alt1_ep->kind = MIDIH2_ALT1_EP_SHARED;
+    return true;
   }
 
+  // a bulk size is bounded after the open, which can rewrite it
+  TU_VERIFY(type == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
   alt1_ep->desc = *p_ep;
+
+  if (ep_addr == alt0_ep->bEndpointAddress) {
+    alt1_ep->kind = MIDIH2_ALT1_EP_REOPEN;
+  } else {
+    TU_ASSERT(tuh_edpt_open(p_midi->daddr, &alt1_ep->desc));
+    // after tuh_edpt_open(), which can rewrite a bulk size: the transfer length follows it into _midi2_epbuf
+    if (tu_edpt_packet_size(&alt1_ep->desc) > TUH_EPSIZE_BULK_MAX) {
+      (void) tuh_edpt_close(p_midi->daddr, ep_addr);
+      return false;
+    }
+    alt1_ep->kind = MIDIH2_ALT1_EP_OWN;
+  }
+
   return true;
 }
 
-// Point the streams at setting 1's own endpoints once the device has switched to it. Nothing is
-// armed yet: RX starts on mount.
-static void midih2_alt1_open_ep(midih2_interface_t *p_midi) {
+// Setting 1 is not used: close the endpoints opened for it while parsing and forget it
+static void midih2_alt1_discard(midih2_interface_t *p_midi) {
   for (uint8_t dir = 0; dir < 2; dir++) {
-    midih2_alt1_ep_t     *alt1_ep = &p_midi->alt1_ep[dir];
-    tusb_desc_endpoint_t *desc    = &alt1_ep->desc;
-    const uint8_t         ep_addr = desc->bEndpointAddress;
-    if (ep_addr == 0) {
+    const midih2_alt1_ep_t *alt1_ep = &p_midi->alt1_ep[dir];
+    if (alt1_ep->kind == MIDIH2_ALT1_EP_OWN) {
+      (void) tuh_edpt_close(p_midi->daddr, alt1_ep->desc.bEndpointAddress);
+    }
+  }
+  tu_memclr(p_midi->alt1_ep, sizeof(p_midi->alt1_ep));
+}
+
+// Reopen setting 0's endpoint of the directions in dir_mask, closed for setting 1 (midih2_alt0_close_for_reopen).
+// A direction that cannot be reopened is left without a stream.
+static void midih2_alt0_reopen(midih2_interface_t *p_midi, uint8_t dir_mask) {
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    if ((dir_mask & TU_BIT(dir)) == 0 || tuh_edpt_open(p_midi->daddr, &p_midi->alt0_ep[dir])) {
       continue;
     }
+    TU_LOG_DRV("  MIDI2 cannot reopen EP %02X for alt 0\r\n", p_midi->alt0_ep[dir].bEndpointAddress);
+    if (dir == TUSB_DIR_IN) {
+      tu_edpt_stream_close(&p_midi->ep_stream.rx);
+    } else {
+      p_midi->ep_stream.tx.ep_addr = 0;
+    }
+  }
+}
 
-    bool usable = true;
-    if (alt1_ep->reopen) {
-      if (!tuh_edpt_close(p_midi->daddr, ep_addr)) {
-        // HCD without endpoint close: keep setting 0's endpoint
-        TU_LOG_DRV("  MIDI2 cannot reopen EP %02X for alt 1\r\n", ep_addr);
+// The directions whose setting 0 endpoint setting 1 reopens at the same address
+static uint8_t midih2_alt1_reopen_mask(const midih2_interface_t *p_midi) {
+  uint8_t mask = 0;
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    if (p_midi->alt1_ep[dir].kind == MIDIH2_ALT1_EP_REOPEN) {
+      mask |= (uint8_t) TU_BIT(dir);
+    }
+  }
+  return mask;
+}
+
+// Before switching: close setting 0's endpoints that setting 1 reopens at the same address. An HCD
+// that cannot close one would keep setting 0's type and size on setting 1's endpoint, so the device
+// is not switched then: what was closed is reopened, and false is returned. Nothing is armed yet.
+static bool midih2_alt0_close_for_reopen(midih2_interface_t *p_midi) {
+  uint8_t closed = 0;
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    if (p_midi->alt1_ep[dir].kind != MIDIH2_ALT1_EP_REOPEN) {
+      continue;
+    }
+    if (!tuh_edpt_close(p_midi->daddr, p_midi->alt0_ep[dir].bEndpointAddress)) {
+      TU_LOG_DRV("  MIDI2 cannot close EP %02X to reopen it for alt 1\r\n", p_midi->alt0_ep[dir].bEndpointAddress);
+      midih2_alt0_reopen(p_midi, closed);
+      return false;
+    }
+    closed |= (uint8_t) TU_BIT(dir);
+  }
+  return true;
+}
+
+// The device stays on setting 0 after midih2_alt0_close_for_reopen() succeeded: undo the preparation
+static void midih2_alt1_abandon(midih2_interface_t *p_midi) {
+  midih2_alt0_reopen(p_midi, midih2_alt1_reopen_mask(p_midi));
+  midih2_alt1_discard(p_midi);
+  p_midi->alt_setting_current = 0;
+}
+
+// Point the streams at setting 1's endpoints once the device has switched to it, and close setting
+// 0's that setting 1 does not share. Nothing is armed yet: RX starts on mount.
+static void midih2_alt1_open_ep(midih2_interface_t *p_midi) {
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    midih2_alt1_ep_t     *alt1_ep  = &p_midi->alt1_ep[dir];
+    tusb_desc_endpoint_t *desc     = &alt1_ep->desc;
+    const uint8_t         alt0_ep  = p_midi->alt0_ep[dir].bEndpointAddress;
+    bool                  usable   = false;
+
+    switch (alt1_ep->kind) {
+      case MIDIH2_ALT1_EP_SHARED:
         continue;
-      }
-      usable = tuh_edpt_open(p_midi->daddr, desc) && (tu_edpt_packet_size(desc) <= TUH_EPSIZE_BULK_MAX);
+
+      case MIDIH2_ALT1_EP_OWN:
+        usable = true;
+        break;
+
+      case MIDIH2_ALT1_EP_REOPEN:
+        // setting 0's was closed before the switch
+        usable = tuh_edpt_open(p_midi->daddr, desc);
+        if (usable && tu_edpt_packet_size(desc) > TUH_EPSIZE_BULK_MAX) {
+          (void) tuh_edpt_close(p_midi->daddr, desc->bEndpointAddress);
+          usable = false;
+        }
+        break;
+
+      default:
+        break; // none in setting 1
     }
 
-    const uint16_t mps = tu_edpt_packet_size(desc);
+    // setting 0's endpoint is not part of setting 1
+    if (alt0_ep != 0 && alt1_ep->kind != MIDIH2_ALT1_EP_REOPEN) {
+      (void) tuh_edpt_close(p_midi->daddr, alt0_ep);
+    }
+
     if (dir == TUSB_DIR_IN) {
-      tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, desc, mps);
+      tu_edpt_stream_close(&p_midi->ep_stream.rx);
       tu_edpt_stream_clear(&p_midi->ep_stream.rx);
-      if (!usable) {
-        tu_edpt_stream_close(&p_midi->ep_stream.rx);
+      if (usable) {
+        tu_edpt_stream_open(&p_midi->ep_stream.rx, p_midi->daddr, desc, tu_edpt_packet_size(desc));
       }
     } else {
-      p_midi->ep_stream.tx.ep_addr = usable ? ep_addr : 0;
-      p_midi->ep_stream.tx.mps     = mps;
+      p_midi->ep_stream.tx.ep_addr = usable ? desc->bEndpointAddress : 0;
+      p_midi->ep_stream.tx.mps     = usable ? tu_edpt_packet_size(desc) : 0;
       tu_fifo_clear(&p_midi->ep_stream.tx.ff);
+    }
+
+    if (!usable) {
+      TU_LOG_DRV("  MIDI2 alt 1 has no usable %s endpoint\r\n", dir == TUSB_DIR_IN ? "IN" : "OUT");
     }
   }
 }
@@ -470,15 +567,17 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     TU_VERIFY(tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE, 0);
     p_desc = tu_desc_next(p_desc);
     desc_itf = (const tusb_desc_interface_t *) p_desc;
-    // Skip until we find MIDI Streaming interface
+    // Skip until we find MIDI Streaming interface. A short interface descriptor ends the walk before
+    // its class fields are read, and is rejected below.
     while (tu_desc_in_bounds(p_desc, desc_end) &&
            (desc_itf->bDescriptorType != TUSB_DESC_INTERFACE ||
-            (desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
+            (tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t) &&
+             desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
              desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING))) {
       p_desc = tu_desc_next(p_desc);
       desc_itf = (const tusb_desc_interface_t *) p_desc;
     }
-    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end), 0);
+    TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass, 0);
   }
 
@@ -518,7 +617,7 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
       p_midi->bcdMSC_lo = 0;
       p_midi->rx_cable_count_alt1 = 0;
       p_midi->tx_cable_count_alt1 = 0;
-      tu_memclr(p_midi->alt1_ep, sizeof(p_midi->alt1_ep));
+      midih2_alt1_discard(p_midi);
     }
   }
 
@@ -574,13 +673,12 @@ static void midih2_set_interface_cb(tuh_xfer_t *xfer) {
     if (_midi2_host[idx].daddr == dev_addr && _midi2_host[idx].bInterfaceNumber == itf_num) {
       if (xfer->result == XFER_RESULT_SUCCESS) {
         midih2_alt1_open_ep(&_midi2_host[idx]);
-        midih2_set_config_complete(&_midi2_host[idx], idx);
       } else {
         // SET_INTERFACE failed, fall back to alt 0
         TU_LOG_DRV("MIDI2 SET_INTERFACE failed, falling back to alt 0\r\n");
-        _midi2_host[idx].alt_setting_current = 0;
-        midih2_set_config_complete(&_midi2_host[idx], idx);
+        midih2_alt1_abandon(&_midi2_host[idx]);
       }
+      midih2_set_config_complete(&_midi2_host[idx], idx);
       return;
     }
   }
@@ -607,13 +705,23 @@ bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
 
   // If MIDI 2.0 detected, issue SET_INTERFACE to activate Alt Setting 1
   if (p_midi->alt_setting_current == 1) {
-    TU_LOG_DRV("MIDI2 requesting SET_INTERFACE alt 1 for itf %u\r\n", itf_num);
-    if (tuh_interface_set(dev_addr, itf_num, 1, midih2_set_interface_cb, 0)) {
-      return true;
+    if (!midih2_alt0_close_for_reopen(p_midi)) {
+      // setting 0's endpoints are as parsed again
+      TU_LOG_DRV("MIDI2 alt 1 endpoints cannot be reopened, staying on alt 0\r\n");
+      midih2_alt1_discard(p_midi);
+      p_midi->alt_setting_current = 0;
+    } else {
+      TU_LOG_DRV("MIDI2 requesting SET_INTERFACE alt 1 for itf %u\r\n", itf_num);
+      if (tuh_interface_set(dev_addr, itf_num, 1, midih2_set_interface_cb, 0)) {
+        return true;
+      }
+      // not submitted, so no callback continues the configuration: stay on alt 0
+      TU_LOG_DRV("MIDI2 SET_INTERFACE not submitted, falling back to alt 0\r\n");
+      midih2_alt1_abandon(p_midi);
     }
-    // not submitted, so no callback continues the configuration: stay on alt 0
-    TU_LOG_DRV("MIDI2 SET_INTERFACE not submitted, falling back to alt 0\r\n");
-    p_midi->alt_setting_current = 0;
+  } else {
+    // a parsed setting 1 that is not selected (not USB-MIDI 2.0) keeps no endpoint open
+    midih2_alt1_discard(p_midi);
   }
 
   // Alt 0 (MIDI 1.0) needs no request, complete immediately

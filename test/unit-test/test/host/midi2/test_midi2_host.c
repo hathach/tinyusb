@@ -91,6 +91,33 @@ static const uint8_t desc_oversized[] = {
              ALT1_EP_DESC(0x82, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX * 2, 1))
 };
 
+// a setting 1 bulk IN that is larger than the endpoint buffer once opened
+static const uint8_t desc_oversized_bulk[] = {
+  MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0),
+             ALT1_EP_DESC(0x82, TUSB_XFER_BULK, TUH_EPSIZE_BULK_MAX * 2, 0))
+};
+
+// setting 1 with an OUT of its own, then an IN of a type USB-MIDI 2.0 does not allow
+static const uint8_t desc_bad_in_after_own_out[] = {
+  MIDI2_DESC(ALT1_EP_DESC(0x02, TUSB_XFER_BULK, EP_SIZE, 0), ALT1_EP_DESC(0x82, TUSB_XFER_ISOCHRONOUS, EP_SIZE, 1))
+};
+
+// setting 1 shares setting 0's OUT and has no IN
+static const uint8_t desc_alt1_no_in[] = {
+  AC_ITF_DESC,
+  MS_ITF_DESC(0, 0x0100), ALT0_EP_DESC(EP_OUT), ALT0_EP_DESC(EP_IN),
+  MS_ITF_DESC(1, 0x0200), ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0)
+};
+
+// a 3-byte interface descriptor ahead of the MIDI Streaming one: read as a full one, its
+// bInterfaceClass and bInterfaceSubClass would be the next descriptor's ITF_MS (TUSB_CLASS_AUDIO)
+// and bAlternateSetting 0 (not MIDI Streaming), so a walk reading them would skip it
+static const uint8_t desc_short_itf[] = {
+  AC_ITF_DESC,
+  3, TUSB_DESC_INTERFACE, 0,
+  MS_ITF_DESC(0, 0x0100), ALT0_EP_DESC(EP_OUT), ALT0_EP_DESC(EP_IN),
+};
+
 // an Audio Class function without MIDI Streaming: Audio Control + Audio Streaming
 static const uint8_t desc_audio_only[] = {
   AC_ITF_DESC,
@@ -119,6 +146,7 @@ static uint16_t last_xfer_len;
 static uint8_t xfer_count;
 
 static bool interface_set_ok;
+static xfer_result_t interface_set_result;
 static uint8_t interface_set_count;
 static tuh_xfer_cb_t interface_set_cb;
 static uint8_t config_complete_count;
@@ -263,7 +291,7 @@ static void enumerate(uint8_t daddr, const uint8_t *desc, uint16_t len) {
     tuh_xfer_t xfer = {
       .daddr = daddr,
       .ep_addr = 0,
-      .result = XFER_RESULT_SUCCESS,
+      .result = interface_set_result,
       .setup = &request,
     };
     tuh_xfer_cb_t cb = interface_set_cb;
@@ -281,6 +309,15 @@ static const opened_ep_t *find_opened(uint8_t ep_addr, uint8_t nth) {
   return NULL;
 }
 
+static bool was_closed(uint8_t ep_addr) {
+  for (uint8_t i = 0; i < closed_count; i++) {
+    if (closed[i] == ep_addr) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void assert_ump_write_goes_to(uint8_t daddr, uint8_t ep_addr) {
   const uint32_t ump = 0x20903C7Fu; // MIDI 1.0 channel voice message, one word
   xfer_count = 0;
@@ -295,6 +332,7 @@ void setUp(void) {
   reset_records();
   close_supported = true;
   interface_set_ok = true;
+  interface_set_result = XFER_RESULT_SUCCESS;
   TEST_ASSERT_TRUE(midih2_init());
 }
 
@@ -474,7 +512,11 @@ void test_alt1_own_endpoints_are_used(void) {
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_out->type);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, ep_in->type);
   TEST_ASSERT_EQUAL(EP_INT_SIZE, ep_in->mps);
-  TEST_ASSERT_EQUAL(0, closed_count);
+
+  // setting 0's endpoints are not part of setting 1: closed after the switch
+  TEST_ASSERT_EQUAL(2, closed_count);
+  TEST_ASSERT_TRUE(was_closed(EP_OUT));
+  TEST_ASSERT_TRUE(was_closed(EP_IN));
 
   // RX armed on setting 1's Interrupt IN, one packet at a time
   TEST_ASSERT_EQUAL_HEX8(0x82, last_xfer_ep);
@@ -502,15 +544,20 @@ void test_alt1_same_address_other_type_is_reopened(void) {
   assert_ump_write_goes_to(1, EP_OUT);
 }
 
-// An HCD that cannot close an endpoint keeps setting 0's
+// An HCD that cannot close an endpoint cannot reopen it with setting 1's type and size: the device is
+// not switched, and setting 0's endpoint stays in use
 void test_alt1_reopen_without_hcd_close_keeps_alt0_endpoint(void) {
   close_supported = false;
   enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+  TEST_ASSERT_EQUAL(0, interface_set_count);
   TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(0, tuh_midi2_get_alt_setting_active(0));
 
   TEST_ASSERT_NULL(find_opened(EP_IN, 1));
   TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+  assert_ump_write_goes_to(1, EP_OUT);
 }
 
 // A setting 1 endpoint larger than the endpoint buffer is refused: the device stays on setting 0
@@ -521,6 +568,114 @@ void test_alt1_oversized_endpoint_stays_on_alt0(void) {
   TEST_ASSERT_EQUAL(1, mount_count);
   TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
   TEST_ASSERT_EQUAL(0, last_mount.protocol_version);
+  TEST_ASSERT_NULL(find_opened(0x82, 0)); // refused before it is opened
   TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+// A setting 1 bulk endpoint found too large once opened is closed again: the device stays on setting 0
+void test_alt1_oversized_bulk_endpoint_is_closed(void) {
+  enumerate(1, desc_oversized_bulk, sizeof(desc_oversized_bulk));
+
+  TEST_ASSERT_NOT_NULL(find_opened(0x82, 0));
+  TEST_ASSERT_TRUE(was_closed(0x82));
+  TEST_ASSERT_EQUAL(0, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+//--------------------------------------------------------------------+
+// Falling back to setting 0
+//--------------------------------------------------------------------+
+
+// A setting 1 rejected after one of its own endpoints was opened closes that endpoint
+void test_alt1_rejected_after_own_endpoint_closes_it(void) {
+  enumerate(1, desc_bad_in_after_own_out, sizeof(desc_bad_in_after_own_out));
+
+  TEST_ASSERT_NOT_NULL(find_opened(0x02, 0));
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_TRUE(was_closed(0x02));
+  TEST_ASSERT_EQUAL(0, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  assert_ump_write_goes_to(1, EP_OUT);
+}
+
+// SET_INTERFACE failing closes setting 1's own endpoints, setting 0's stay in use
+void test_set_interface_failed_closes_alt1_own_endpoints(void) {
+  interface_set_result = XFER_RESULT_STALLED;
+  enumerate(1, desc_own_ep, sizeof(desc_own_ep));
+
+  TEST_ASSERT_EQUAL(1, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(2, closed_count);
+  TEST_ASSERT_TRUE(was_closed(0x02));
+  TEST_ASSERT_TRUE(was_closed(0x82));
+
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+  assert_ump_write_goes_to(1, EP_OUT);
+}
+
+// SET_INTERFACE not submitted closes setting 1's own endpoints too
+void test_set_interface_not_submitted_closes_alt1_own_endpoints(void) {
+  interface_set_ok = false;
+  enumerate(1, desc_own_ep, sizeof(desc_own_ep));
+
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(2, closed_count);
+  TEST_ASSERT_TRUE(was_closed(0x02));
+  TEST_ASSERT_TRUE(was_closed(0x82));
+  assert_ump_write_goes_to(1, EP_OUT);
+}
+
+// SET_INTERFACE failing after setting 0's endpoint was closed for its reopen restores that endpoint
+void test_set_interface_failed_reopens_alt0_endpoint(void) {
+  interface_set_result = XFER_RESULT_STALLED;
+  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+
+  TEST_ASSERT_EQUAL(1, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+
+  // closed before the switch, then reopened as setting 0's Bulk IN
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, closed[0]);
+  const opened_ep_t *ep_in = find_opened(EP_IN, 1);
+  TEST_ASSERT_NOT_NULL(ep_in);
+  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, ep_in->type);
+  TEST_ASSERT_EQUAL(EP_SIZE, ep_in->mps);
+  TEST_ASSERT_NULL(find_opened(EP_IN, 2));
+
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+// A direction setting 1 does not have is not used on setting 1: no RX is armed on setting 0's IN,
+// which is closed
+void test_alt1_without_in_closes_alt0_in(void) {
+  enumerate(1, desc_alt1_no_in, sizeof(desc_alt1_no_in));
+
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_TRUE(was_closed(EP_IN));
+  TEST_ASSERT_EQUAL(0, xfer_count); // nothing armed on mount
+
+  assert_ump_write_goes_to(1, EP_OUT); // shared OUT kept
+}
+
+//--------------------------------------------------------------------+
+// Malformed descriptors
+//--------------------------------------------------------------------+
+
+// A short interface descriptor ends the walk past Audio Control and is rejected, not read past its bLength
+void test_short_interface_after_audio_control_is_rejected(void) {
+  TEST_ASSERT_EQUAL(TUSB_CLASS_AUDIO, ITF_MS);
+  TEST_ASSERT_EQUAL(0, midih2_open(0, 1, (const tusb_desc_interface_t *) desc_short_itf, sizeof(desc_short_itf)));
+  TEST_ASSERT_EQUAL(0, opened_count);
 }
