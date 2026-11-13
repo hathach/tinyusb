@@ -169,7 +169,8 @@ static uint8_t closed[8];
 static uint8_t closed_count;
 static bool close_supported;
 static uint8_t open_refused_ep;   // an open of this endpoint with open_refused_type fails (address 0: none)
-static uint8_t open_refused_type;
+static uint8_t open_refused_type; // 0: any type
+static uint8_t open_refused_skip; // matching opens allowed before the refusals start
 static tusb_speed_t test_speed;
 
 static uint8_t last_xfer_daddr;
@@ -189,8 +190,11 @@ static tuh_midi2_mount_cb_t last_mount;
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   if (open_refused_ep != 0 && desc_ep->bEndpointAddress == open_refused_ep &&
-      desc_ep->bmAttributes.xfer == open_refused_type) {
-    return false; // e.g. the HCD has no free endpoint of this type
+      (open_refused_type == 0 || desc_ep->bmAttributes.xfer == open_refused_type)) {
+    if (open_refused_skip == 0) {
+      return false; // e.g. the HCD has no free endpoint of this type
+    }
+    open_refused_skip--;
   }
   TEST_ASSERT_TRUE(opened_count < TU_ARRAY_SIZE(opened));
   opened[opened_count].daddr = daddr;
@@ -379,6 +383,7 @@ void setUp(void) {
   close_supported = true;
   open_refused_ep = 0;
   open_refused_type = 0;
+  open_refused_skip = 0;
   test_speed = TUSB_SPEED_FULL;
   interface_set_ok = true;
   interface_set_result = XFER_RESULT_SUCCESS;
@@ -826,6 +831,38 @@ void test_set_interface_failed_swaps_both_directions_back(void) {
   TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
   assert_ump_write_goes_to(1, EP_OUT);
+}
+
+// Setting 0's endpoint cannot be reopened either once the swap is refused (an HCD that frees a closed
+// endpoint only later): the configuration completes, but the interface is not mounted
+void test_alt1_swap_refused_and_alt0_not_restored_is_not_mounted(void) {
+  open_refused_ep = EP_IN;
+  open_refused_skip = 1; // setting 0's open while parsing
+  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+
+  TEST_ASSERT_EQUAL(0, interface_set_count);
+  TEST_ASSERT_EQUAL(2, config_complete_count); // Audio Control passed through, then MIDI Streaming
+  TEST_ASSERT_EQUAL(0, mount_count);
+  TEST_ASSERT_FALSE(tuh_midi2_mounted(0));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+
+  midih2_close(1);
+  TEST_ASSERT_EQUAL(0, umount_count);
+}
+
+// The same once SET_INTERFACE(1) failed
+void test_set_interface_failed_and_alt0_not_restored_is_not_mounted(void) {
+  interface_set_result = XFER_RESULT_STALLED;
+  open_refused_ep = EP_IN;
+  open_refused_type = TUSB_XFER_BULK;
+  open_refused_skip = 1; // setting 0's open while parsing
+  enumerate(1, desc_same_addr_int, sizeof(desc_same_addr_int));
+
+  TEST_ASSERT_EQUAL(1, interface_set_count);
+  TEST_ASSERT_NOT_NULL(find_opened(EP_IN, 1)); // setting 1's Interrupt IN swapped in
+  TEST_ASSERT_EQUAL(2, config_complete_count);
+  TEST_ASSERT_EQUAL(0, mount_count);
+  TEST_ASSERT_FALSE(tuh_midi2_mounted(0));
 }
 
 // As Linux's USB-MIDI 2.0 driver: a USB-MIDI 2.0 setting 1 without endpoints is not used
