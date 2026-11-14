@@ -253,6 +253,11 @@
     # every level, so each test also checks that every SystemView CALL is closed by its RET
     :test_msc_device:
       - CFG_TUSB_SYSVIEW=4
+      - CFG_TUD_MSC_PAD_SHORT_REPLY=1
+    # full speed: the 64-byte Bulk-In lets a partial READ10 chunk end on a packet boundary
+    :test_msc_nopad_device:
+      - CFG_TUD_MSC_PAD_SHORT_REPLY=0
+      - CFG_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

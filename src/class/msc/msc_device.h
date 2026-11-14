@@ -29,6 +29,18 @@
   #error CFG_TUD_MSC_EP_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
+// Pad a Data-In reply shorter than the host's length with fill data, instead of a STALL after it (BOT 6.7.2 case 5),
+// when the host's length fits CFG_TUD_MSC_EP_BUFSIZE; a READ10 ending in a partial chunk (tud_msc_read10_cb) is filled
+// up to the host's length whatever its size. Behind a high-speed hub, a full-speed device's STALL makes the host clear
+// the hub's TT buffer, which can cut off a token in progress on any of the hub's full-speed ports: an RP2040 device
+// controller there then stops responding until bus reset (docs/reference/device_issues.rst). On by default at full
+// speed, so the device neither locks up itself nor knocks out an RP2040 next to it; a high-speed STALL clears no TT.
+// The default follows the build's speed capability (TUD_OPT_HIGH_SPEED), not the negotiated speed: a high-speed
+// capable build that may run at full speed behind a hub should set it to 1 (padding is harmless at high speed).
+#ifndef CFG_TUD_MSC_PAD_SHORT_REPLY
+  #define CFG_TUD_MSC_PAD_SHORT_REPLY (!TUD_OPT_HIGH_SPEED)
+#endif
+
 // Return value of callback functions
 enum {
   TUD_MSC_RET_BUSY = 0,   // Busy, e.g disk I/O is not ready
@@ -48,6 +60,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 // Called by Application once asynchronous I/O operation is done
 // bytes_io is number of bytes in I/O op, typically the bufsize in read/write_cb() or
 // TUD_MSC_RET_ERROR (-1) for error. Note TUD_MSC_RET_BUSY (0) will be treated as error as well.
+// Returns false if no I/O is pending. The completion of an I/O abandoned by a reset is accepted and discarded.
 bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
 
 //--------------------------------------------------------------------+
@@ -59,7 +72,12 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
   - Address = lba * BLOCK_SIZE + offset
     - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
   - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
-    - 0 < ret < bufsize: These bytes are transferred first and callback will be invoked again for remaining data.
+    - 0 < ret < bufsize:
+      - READ10: These bytes are transferred first. If ret is a multiple of the Bulk-In max packet size, callback will
+        be invoked again for remaining data. Otherwise the chunk ends in a short packet, which ends the Data Stage:
+        Bulk-In is STALLed and the CSW reports the remaining data as residue. With CFG_TUD_MSC_PAD_SHORT_REPLY the
+        rest of the host's length is sent as zero fill data instead of the STALL, with the same residue.
+      - WRITE10: These bytes are consumed first and callback will be invoked again for remaining data.
     - TUD_MSC_RET_BUSY
         Application is buys e.g disk I/O not ready. Callback will be invoked again with the same parameters later on.
     - TUD_MSC_RET_ERROR
@@ -67,6 +85,9 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
     - TUD_MSC_RET_ASYNC
         Data I/O will be done asynchronously in a background task. Application should return immediately.
         tud_msc_async_io_done() must be called once IO/ is done to signal completion.
+        A Bulk-Only Mass Storage Reset or a bus reset abandons a pending async I/O, but it must still be completed:
+        the I/O owns the buffer until its tud_msc_async_io_done(), with any result. That completion is discarded, and
+        only then is the next command received.
 */
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
