@@ -203,7 +203,8 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const* re
 
   for (uint8_t i = 0; i < 6; i++) {
     uint8_t keycode = report->keycode[i];
-    if (keycode) {
+    // keycodes past the table (0x87 International1, 0x90 LANG1, ...) have no ASCII
+    if (keycode && keycode < TU_ARRAY_SIZE(keycode2ascii)) {
       if (find_key_in_report(&prev_report, keycode)) {
         // exist in previous report means the current key is holding
       } else {
