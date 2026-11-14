@@ -141,6 +141,15 @@ void test_interrupt_bounded(void) {
   TEST_ASSERT_FALSE(validate(TUSB_XFER_INTERRUPT, 1025, TUSB_SPEED_HIGH));
 }
 
+// lowspeed allows 8, a larger size up to the fullspeed bound is only non-compliant: accepted and kept as reported
+void test_interrupt_lowspeed_over_8_accepted_unchanged(void) {
+  TEST_ASSERT_TRUE(validate(TUSB_XFER_INTERRUPT, 8, TUSB_SPEED_LOW));
+  TEST_ASSERT_TRUE(validate(TUSB_XFER_INTERRUPT, 9, TUSB_SPEED_LOW));
+  TEST_ASSERT_EQUAL_UINT16(9, tu_edpt_packet_size(&desc_ep));
+  TEST_ASSERT_TRUE(validate(TUSB_XFER_INTERRUPT, 64, TUSB_SPEED_LOW));
+  TEST_ASSERT_FALSE(validate(TUSB_XFER_INTERRUPT, 65, TUSB_SPEED_LOW));
+}
+
 void test_isochronous_bounded(void) {
   TEST_ASSERT_TRUE(validate(TUSB_XFER_ISOCHRONOUS, 1023, TUSB_SPEED_FULL));
   TEST_ASSERT_FALSE(validate(TUSB_XFER_ISOCHRONOUS, 1024, TUSB_SPEED_FULL));

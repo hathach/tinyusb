@@ -262,6 +262,8 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
 
     case TUSB_XFER_INTERRUPT:
       spec_max = is_highspeed ? 1024 : 64;
+      // Interrupt lowspeed is at most 8, above that only non-compliant: buffers are sized to the fullspeed bound
+      compliant = (speed != TUSB_SPEED_LOW) || (max_packet_size <= 8);
       break;
 
     default:
