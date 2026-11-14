@@ -128,6 +128,9 @@ enum
 
 uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE];
 
+// block size reported by tud_msc_capacity_cb(), 0 for a LUN without usable media
+static uint16_t capacity_block_size = DISK_BLOCK_SIZE;
+
 // Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
 // Some inquiry_resp's fields are already filled with default values, application can update them
 // Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
@@ -161,7 +164,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
   (void) lun;
 
   *block_count = DISK_BLOCK_NUM;
-  *block_size  = DISK_BLOCK_SIZE;
+  *block_size  = capacity_block_size;
 }
 
 // Invoked when received Start Stop Unit command
@@ -367,6 +370,7 @@ void tearDown(void)
 {
   TEST_ASSERT_EQUAL_UINT(0, sv_depth);
   io_mode = IO_OK;
+  capacity_block_size = DISK_BLOCK_SIZE;
 }
 
 //--------------------------------------------------------------------+
@@ -1156,14 +1160,14 @@ void test_msc_bus_reset_waits_for_abandoned_async_write10(void)
 //--------------------------------------------------------------------+
 // read10/write10 error sense
 //--------------------------------------------------------------------+
-// SET_CONFIGURATION, then the host sends a one-block READ10 or WRITE10 of LBA 0
-static void configure_and_send_io_cbw(uint8_t cmd_code)
+// SET_CONFIGURATION, then the host sends a READ10 or WRITE10 of block_count 512-byte blocks at lba
+static void configure_and_send_io_cbw(uint8_t cmd_code, uint32_t lba, uint16_t block_count)
 {
   cbw_io = (msc_cbw_t)
   {
     .signature   = MSC_CBW_SIGNATURE,
     .tag         = 0xCAFECAFE,
-    .total_bytes = 512,
+    .total_bytes = (uint32_t) block_count * DISK_BLOCK_SIZE,
     .lun         = 0,
     .dir         = (cmd_code == SCSI_CMD_READ_10) ? TUSB_DIR_IN_MASK : 0,
     .cmd_len     = sizeof(scsi_read10_t)
@@ -1171,8 +1175,8 @@ static void configure_and_send_io_cbw(uint8_t cmd_code)
   scsi_read10_t const cmd =
   {
     .cmd_code    = cmd_code,
-    .lba         = tu_htonl(0),
-    .block_count = tu_htons(1)
+    .lba         = tu_htonl(lba),
+    .block_count = tu_htons(block_count)
   };
   memcpy(cbw_io.command, &cmd, cbw_io.cmd_len);
 
@@ -1201,14 +1205,14 @@ static void host_request_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 static void expect_failed_io_csw(void)
 {
   static msc_csw_t csw;
-  csw = csw_with_residue(512);
+  csw = csw_with_residue(cbw_io.total_bytes);
   csw.status = MSC_CSW_STATUS_FAILED;
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(csw), sizeof(csw), false, true);
 }
 
-static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
+static void check_read10_error_sense(uint32_t lba, uint16_t block_count, uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
-  configure_and_send_io_cbw(SCSI_CMD_READ_10);
+  configure_and_send_io_cbw(SCSI_CMD_READ_10, lba, block_count);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
   tud_task();
 
@@ -1225,7 +1229,7 @@ static void check_read10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t asc
 
 static void check_write10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 {
-  configure_and_send_io_cbw(SCSI_CMD_WRITE_10);
+  configure_and_send_io_cbw(SCSI_CMD_WRITE_10, 0, 1);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, 512, false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   tud_task();
@@ -1251,7 +1255,7 @@ static void check_write10_error_sense(uint8_t sense_key, uint8_t asc, uint8_t as
 void test_msc_read10_error_keeps_callback_sense(void)
 {
   io_mode = IO_ERROR_WITH_SENSE;
-  check_read10_error_sense(SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x5A);
+  check_read10_error_sense(0, 1, SCSI_SENSE_MEDIUM_ERROR, 0x11, 0x5A);
 }
 
 void test_msc_write10_error_keeps_callback_sense(void)
@@ -1264,13 +1268,58 @@ void test_msc_write10_error_keeps_callback_sense(void)
 void test_msc_read10_error_default_sense(void)
 {
   io_mode = IO_ERROR_NO_SENSE;
-  check_read10_error_sense(SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  check_read10_error_sense(0, 1, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
 void test_msc_write10_error_default_sense(void)
 {
   io_mode = IO_ERROR_NO_SENSE;
   check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+}
+
+//--------------------------------------------------------------------+
+// READ10/WRITE10 checked against the LUN capacity
+//--------------------------------------------------------------------+
+// A WRITE10 failed before its data stage: Bulk-Out stalls and the failed CSW goes out at once
+static void check_write10_rejected_sense(uint32_t lba, uint16_t block_count, uint8_t sense_key, uint8_t asc, uint8_t ascq)
+{
+  configure_and_send_io_cbw(SCSI_CMD_WRITE_10, lba, block_count);
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  expect_failed_io_csw();
+  tud_task();
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(msc_csw_t), 0, true);
+  tud_task();
+
+  clear_halt(EDPT_MSC_OUT);
+  expect_cbw_xfer(&cbw_sense);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  host_request_sense(sense_key, asc, ascq);
+  tud_task();
+}
+
+// read10/write10 callbacks never see an lba past the disk: the command fails with LBA OUT OF RANGE
+void test_msc_read10_lba_out_of_range(void)
+{
+  check_read10_error_sense(DISK_BLOCK_NUM, 1, SCSI_SENSE_ILLEGAL_REQUEST, 0x21, 0x00);
+}
+
+void test_msc_write10_blocks_past_last_lba(void)
+{
+  check_write10_rejected_sense(DISK_BLOCK_NUM - 1, 2, SCSI_SENSE_ILLEGAL_REQUEST, 0x21, 0x00);
+}
+
+// A LUN reporting block size 0 has no usable media: NOT READY / MEDIUM NOT PRESENT, as for READ CAPACITY
+void test_msc_read10_block_size_zero(void)
+{
+  capacity_block_size = 0;
+  check_read10_error_sense(0, 1, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+}
+
+void test_msc_write10_block_size_zero(void)
+{
+  capacity_block_size = 0;
+  check_write10_rejected_sense(0, 1, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
 //--------------------------------------------------------------------+

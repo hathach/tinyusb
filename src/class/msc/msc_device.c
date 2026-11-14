@@ -68,6 +68,7 @@ typedef struct {
 #endif
   uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
   uint16_t write_len; // host data bytes in the buffer handed to tud_msc_write10_cb(), kept for an async completion
+  uint16_t block_size; // LUN block size of the current READ10/WRITE10, set by rdwr10_validate_cmd()
 
   // Below is not cleared by a bus reset (ITF_MEM_RESET_SIZE): an async I/O the reset abandoned stays pending, and
   // tud_msc_async_io_done() reads it from any context, so the reset never makes it read false meanwhile
@@ -114,6 +115,13 @@ TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
   return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
 }
 
+// default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
+TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lun) {
+  if (_mscd_itf.sense_key == 0) {
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+  }
+}
+
 static void fail_scsi_op(mscd_interface_t* p_msc, uint8_t status) {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
@@ -149,60 +157,62 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t rdwr10_get_blockcount(msc_cbw_t con
   return tu_ntohs(block_count);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw) {
-  // first extract block count in the command
-  uint16_t const block_count = rdwr10_get_blockcount(cbw);
-  if (block_count == 0) {
-    return 0; // invalid block count
-  }
-  return (uint16_t) (cbw->total_bytes / block_count);
-}
-
-static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
-  uint8_t status = MSC_CSW_STATUS_PASSED;
+// Single gate for READ10/WRITE10: on success the data stage only reaches the read10/write10 callbacks with an
+// in-range lba and offset < LUN block size, both derived from the LUN rather than from host fields
+static uint8_t rdwr10_validate_cmd(mscd_interface_t* p_msc) {
+  msc_cbw_t const* cbw = &p_msc->cbw;
   uint16_t const block_count = rdwr10_get_blockcount(cbw);
 
   if (cbw->total_bytes == 0) {
     if (block_count > 0) {
       TU_LOG_DRV("  SCSI case 2 (Hn < Di) or case 3 (Hn < Do) \r\n");
-      status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else {
-      // no data transfer, only exist in complaint test suite
+      return MSC_CSW_STATUS_PHASE_ERROR;
     }
-  } else {
-    if (SCSI_CMD_READ_10 == cbw->command[0] && !is_data_in(cbw->dir)) {
-      TU_LOG_DRV("  SCSI case 10 (Ho <> Di)\r\n");
-      status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else if (SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir)) {
-      TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
-      status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else if (0 == block_count || (cbw->total_bytes >> 16) >= block_count) { // or block size > 16-bit, without a divide
-      TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
-      status = MSC_CSW_STATUS_FAILED;
-    } else if (cbw->total_bytes / block_count == 0) {
-      TU_LOG_DRV(" Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
-      status = MSC_CSW_STATUS_PHASE_ERROR;
-    } else {
-      // lba and offset passed to read10/write10 callbacks are in the LUN's block size, the transfer length
-      // must be exactly block_count of those blocks or offset runs past the end of the block
-      uint32_t lun_block_count = 0;
-      uint16_t lun_block_size  = 0;
-      tud_msc_capacity_cb(cbw->lun, &lun_block_count, &lun_block_size);
-      uint32_t const lun_bytes = (uint32_t) block_count * lun_block_size;
-
-      if (cbw->total_bytes > lun_bytes) {
-        TU_LOG_DRV("  SCSI case 5 Hi > Di (READ10) or case 11 Ho > Do (WRITE10)\r\n");
-        status = MSC_CSW_STATUS_FAILED;
-      } else if (cbw->total_bytes < lun_bytes) {
-        TU_LOG_DRV("  SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRITE10)\r\n");
-        status = MSC_CSW_STATUS_PHASE_ERROR;
-      } else {
-        // nothing to do
-      }
-    }
+    return MSC_CSW_STATUS_PASSED; // no data transfer, only exist in complaint test suite
   }
 
-  return status;
+  if (SCSI_CMD_READ_10 == cbw->command[0] && !is_data_in(cbw->dir)) {
+    TU_LOG_DRV("  SCSI case 10 (Ho <> Di)\r\n");
+    return MSC_CSW_STATUS_PHASE_ERROR;
+  }
+  if (SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir)) {
+    TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
+    return MSC_CSW_STATUS_PHASE_ERROR;
+  }
+  if (block_count == 0) {
+    TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
+    return MSC_CSW_STATUS_FAILED;
+  }
+
+  uint32_t lun_block_count = 0;
+  uint16_t lun_block_size  = 0;
+  tud_msc_capacity_cb(cbw->lun, &lun_block_count, &lun_block_size);
+
+  if (lun_block_count == 0 || lun_block_size == 0) {
+    TU_LOG_DRV("  LUN not ready\r\n");
+    set_sense_medium_not_present(cbw->lun);
+    return MSC_CSW_STATUS_FAILED;
+  }
+
+  uint32_t const lba = rdwr10_get_lba(cbw->command);
+  if (lba >= lun_block_count || block_count > lun_block_count - lba) {
+    TU_LOG_DRV("  LBA out of range\r\n");
+    (void) tud_msc_set_sense(cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x21, 0x00);
+    return MSC_CSW_STATUS_FAILED;
+  }
+
+  uint32_t const lun_bytes = (uint32_t) block_count * lun_block_size;
+  if (cbw->total_bytes > lun_bytes) {
+    TU_LOG_DRV("  SCSI case 5 Hi > Di (READ10) or case 11 Ho > Do (WRITE10)\r\n");
+    return MSC_CSW_STATUS_FAILED;
+  }
+  if (cbw->total_bytes < lun_bytes) {
+    TU_LOG_DRV("  SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRITE10)\r\n");
+    return MSC_CSW_STATUS_PHASE_ERROR;
+  }
+
+  p_msc->block_size = lun_block_size;
+  return MSC_CSW_STATUS_PASSED;
 }
 
 static bool proc_stage_status(mscd_interface_t *p_msc) {
@@ -318,13 +328,6 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
   _mscd_itf.add_sense_code      = add_sense_code;
   _mscd_itf.add_sense_qualifier = add_sense_qualifier;
   return true;
-}
-
-// default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
-TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lun) {
-  if (_mscd_itf.sense_key == 0) {
-    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
-  }
 }
 
 static void proc_async_io_done(void *bytes_io) {
@@ -579,7 +582,7 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
 
       // Read10 or Write10
       if ((SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0])) {
-        uint8_t const status = rdwr10_validate_cmd(p_cbw);
+        uint8_t const status = rdwr10_validate_cmd(p_msc);
 
         if (status != MSC_CSW_STATUS_PASSED) {
           fail_scsi_op(p_msc, status);
@@ -967,7 +970,7 @@ static void proc_io_retry(void* left_over) {
 
 static void proc_read10_cmd(mscd_interface_t* p_msc) {
   msc_cbw_t const* p_cbw = &p_msc->cbw;
-  uint16_t const block_sz = rdwr10_get_blocksize(p_cbw); // already verified non-zero
+  uint16_t const block_sz = p_msc->block_size; // validated non-zero by rdwr10_validate_cmd()
   TU_VERIFY(block_sz != 0, );
   // Adjust lba & offset with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
@@ -1041,7 +1044,7 @@ static void proc_write10_cmd(mscd_interface_t* p_msc) {
 // process new data arrived from WRITE10
 static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_bytes) {
   msc_cbw_t const* p_cbw = &p_msc->cbw;
-  uint16_t const block_sz = rdwr10_get_blocksize(p_cbw); // already verified non-zero
+  uint16_t const block_sz = p_msc->block_size; // validated non-zero by rdwr10_validate_cmd()
   TU_VERIFY(block_sz != 0, );
 
   // Adjust lba & offset with transferred bytes
