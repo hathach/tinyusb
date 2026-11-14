@@ -181,9 +181,8 @@ typedef struct {
   uint8_t* buffer;
   uint16_t buflen;
   uint16_t periodic_frame; // frame/microframe number of the last scheduled periodic transaction
-#if HCD_SPLIT
-  uint16_t periodic_xferred; // bytes a periodic split OUT transfer sent before its retry in a later service interval
-#endif
+  uint16_t periodic_xferred; // bytes a periodic OUT transfer sent, or a split interrupt IN one received, before its
+                             // retry in a later service interval
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -212,6 +211,9 @@ typedef struct {
 #if HCD_SPLIT
   uint16_t split_uframe;   // periodic split: microframe number of the start-split
   uint8_t  setup_busy;     // SETUP start-split errors retried as a TT's NAK, see handle_channel_out_slave()
+  uint8_t  int_mdata;      // slave interrupt split IN: bytes of the packet taken from MDATA complete-splits, tentative
+  bool     int_mdata_last; // slave interrupt split IN: the last complete-split returned MDATA, see channel_int_in_more()
+  uint8_t  int_pid;        // slave interrupt split IN: data toggle the current packet started with
 #endif
 #if HCD_CHANNEL_PARK
   uint8_t  park;           // channel is programmed but waiting for the SOF interrupt to start it, see channel_park_t
@@ -245,6 +247,11 @@ typedef struct {
 } hcd_data_t;
 
 static hcd_data_t _hcd_data;
+
+// hcd_port_reset() reset the root port and it has not been enabled since. On some cores (ESP32-S2/S3/P4: ESP-IDF
+// usb_dwc_hal) a reset of an enabled port disables it, which handle_hprt_irq() must not take for the core disabling a
+// connected port: re-attaching would end usbh's enumeration retry budgets and loop forever on a failing device.
+static bool _hcd_port_resetting;
 
 #if HCD_SPLIT
 // A complete-split waits behind an older one on its TT, or for the end of channel interrupt handling: enable it then
@@ -569,12 +576,13 @@ TU_ATTR_ALWAYS_INLINE static inline bool park_is_csplit(const hcd_xfer_t* xfer) 
   return xfer->park == PARK_CSPLIT_IN || xfer->park == PARK_CSPLIT_OUT;
 }
 
-// An aborted control/bulk split in DMA mode (the caller's check) whose start-split the TT took runs its complete-split
-// to a result before the channel retires, see abort_csplit_rearm(). Not for a closing channel, nor an IN one whose MPS
-// _hcd_abort_rx cannot take.
+// An aborted or closing control/bulk split in DMA mode (the caller's check) whose start-split the TT took runs its
+// complete-split to a result before the channel retires, see abort_csplit_rearm(). Not for an IN one whose MPS
+// _hcd_abort_rx cannot take: that one retires at its next halt.
 static bool abort_csplit_ok(const hcd_xfer_t* xfer, const dwc2_channel_t* channel, uint32_t hcchar) {
+  (void) xfer;
   const dwc2_channel_char_t hcchar_bm = {.value = hcchar};
-  if (xfer->closing || 0 == (channel->hcsplt & HCSPLT_SPLITEN) || channel_is_periodic(hcchar)) {
+  if (0 == (channel->hcsplt & HCSPLT_SPLITEN) || channel_is_periodic(hcchar)) {
     return false;
   }
   return hcchar_bm.ep_dir != TUSB_DIR_IN || hcchar_bm.ep_size <= sizeof(_hcd_abort_rx.buf);
@@ -1048,7 +1056,8 @@ static bool channel_csplit_arm(dwc2_regs_t* dwc2, uint8_t ch_id) {
     return true;
   }
   while (is_in && 0 == req_queue_avail(dwc2, true)) {
-    // blocking wait for request queue available
+    // DMA mode: bounded. The core moves received data from the RxFIFO to memory itself, so an IN at the queue head
+    // never waits for this interrupt, and the queue drains within the (micro)frames its requests are for.
   }
   const dwc2_hfnum_t hfnum = {.value = dwc2->hfnum};
   const uint16_t     now   = (uint16_t) ((hfnum.value - xfer->split_uframe) & HCD_FRAME_NUMBER_MASK);
@@ -1179,18 +1188,23 @@ typedef enum {
 // retired now, which also covers DMA mode where a periodic channel cannot be disabled. Otherwise it is marked and
 // disabled, with no FIFO write between channel_out_expect_posted() and the disable. An aborted transfer keeps its
 // endpoint from a replacement until its halt retires the channel: a started transaction still completes (Programming
-// Guide 3.5), and a control/bulk halt would otherwise be retried. A DMA split channel halts by itself after each
-// split, so an aborted one is not disabled (see channel_disable()).
+// Guide 3.5), and a control/bulk halt would otherwise be retried. A DMA split channel must not be disabled at an
+// arbitrary point and halts by itself after each split (Programming Guide 3.5), so an aborted or closing one is not
+// disabled (see channel_disable()).
 static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, bool closing) {
   hcd_xfer_t*     xfer    = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
   const bool      is_dma  = dma_host_enabled(dwc2);
 #if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
-  // an aborted split parked for its complete-split keeps it, and its result retires the channel
-  if (!closing && is_dma && park_is_csplit(xfer) && abort_csplit_ok(xfer, channel, channel->hcchar)) {
-    edpt->aborting = 1;
-    xfer->aborting = true;
+  // an aborted or closing split parked for its complete-split keeps it, and its result retires the channel
+  if (is_dma && park_is_csplit(xfer) && abort_csplit_ok(xfer, channel, channel->hcchar)) {
+    if (closing) {
+      xfer->closing = 1;
+    } else {
+      edpt->aborting = 1;
+      xfer->aborting = true;
+    }
     if (xfer->park == PARK_CSPLIT_IN) {
       channel->hcdma = (uintptr_t) _hcd_abort_rx.buf;
     }
@@ -1221,7 +1235,7 @@ static channel_teardown_t channel_teardown(dwc2_regs_t* dwc2, uint8_t ch_id, boo
     xfer->aborting = true;
   }
   channel_out_expect_posted(dwc2, ch_id);
-  if (closing || !is_dma || 0 == (channel->hcsplt & HCSPLT_SPLITEN)) {
+  if (!is_dma || 0 == (channel->hcsplt & HCSPLT_SPLITEN)) {
     channel_disable(dwc2, channel);
   }
   return CHANNEL_TEARDOWN_HALTING;
@@ -1520,6 +1534,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_clock_init(rhport, rh_init->role);
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
+  _hcd_port_resetting = false;
 
   // Core Initialization
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -1595,10 +1610,12 @@ uint32_t hcd_frame_number(uint8_t rhport) {
 // Port API
 //--------------------------------------------------------------------+
 
-// Get the current connect status of roothub port
+// Get the current connect status of roothub port. A port in overcurrent has no usable device: it is reported removed
+// until the overcurrent clears, see handle_hprt_irq()
 bool hcd_port_connect_status(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  return dwc2->hprt & HPRT_CONN_STATUS;
+  const uint32_t hprt = dwc2->hprt;
+  return (hprt & HPRT_CONN_STATUS) && !(hprt & HPRT_OVER_CURRENT_ACTIVE);
 }
 
 // Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
@@ -1607,6 +1624,7 @@ void hcd_port_reset(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK;
   hprt |= HPRT_RESET;
+  _hcd_port_resetting = true;
   dwc2->hprt = hprt;
 }
 
@@ -1686,7 +1704,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcchar_bm->ep_dir          = tu_edpt_dir(desc_ep->bEndpointAddress);
   hcchar_bm->low_speed_dev   = (bus_info.speed == TUSB_SPEED_LOW) ? 1 : 0;
   hcchar_bm->ep_type         = desc_ep->bmAttributes.xfer; // ep_type matches TUSB_XFER_*
-  hcchar_bm->err_multi_count = 0;
+  // EC/MC: 1 transaction per (micro)frame, or 1 immediate retry of a periodic split; 0 is reserved (Databook v4.20a
+  // HCCHARn.EC_MC). High-bandwidth endpoints are not supported.
+  hcchar_bm->err_multi_count = 1;
   hcchar_bm->dev_addr        = dev_addr;
   hcchar_bm->odd_frame       = 0;
   hcchar_bm->disable         = 0;
@@ -1846,11 +1866,23 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
   channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
 
   // hctsiz: zero length packet still count as 1
-  const uint16_t packet_count = channel_packet_count(edpt, hcchar_bm->ep_size);
+  uint16_t packet_count = channel_packet_count(edpt, hcchar_bm->ep_size);
+  uint16_t xfer_len     = edpt->buflen;
+#if HCD_SPLIT && CFG_TUH_DWC2_SLAVE_ENABLE
+  // A slave split interrupt IN reads into buffer + xferred_bytes: resumed after the packets it already received (see
+  // channel_xfer_in_retry()), it is programmed for the rest of the buffer
+  if (!dma_host_enabled(dwc2) && edpt->hcsplt_bm.split_en && !split_iso && hcchar_bm->ep_dir == TUSB_DIR_IN) {
+    xfer_len     = (uint16_t) (edpt->buflen - xfer->xferred_bytes);
+    packet_count = cal_packet_count(xfer_len, hcchar_bm->ep_size);
+  }
+#endif
   dwc2_channel_tsize_t hctsiz = {.value = 0};
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
-  hctsiz.xfer_size = edpt->buflen;
+  hctsiz.xfer_size = xfer_len;
+#if HCD_SPLIT
+  xfer->int_pid = edpt->next_pid;
+#endif
   if (edpt->next_do_ping && edpt->speed == TUSB_SPEED_HIGH &&
      edpt->next_pid != HCTSIZ_PID_SETUP && hcchar_bm->ep_dir == TUSB_DIR_OUT) {
     hctsiz.do_ping = 1;
@@ -1879,7 +1911,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id, bool defer_peri
     }
     hcsplt = hcsplt_bm.value;
   } else if (packet_count == 1) {
-    hctsiz.xfer_size = tu_min16(edpt->buflen, hcchar_bm->ep_size); // a split OUT sends one packet here
+    hctsiz.xfer_size = tu_min16(xfer_len, hcchar_bm->ep_size); // a split OUT sends one packet here
   }
 #endif
   channel->hctsiz = hctsiz.value;
@@ -2023,9 +2055,7 @@ static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
     xfer->ep_id = ep_id;
     xfer->result = XFER_RESULT_INVALID;
     xfer->err_count = edpt->periodic_err; // a periodic retry keeps the errors of its transfer
-#if HCD_SPLIT
-    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes a split OUT one already sent
-#endif
+    xfer->xferred_bytes = edpt->periodic_xferred; // and the bytes it already sent or received
     if (is_period) {
       edpt->periodic_phase = 1;
       edpt->xfer_pending = 0;
@@ -2096,9 +2126,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   edpt->buffer = buffer;
   edpt->buflen = buflen;
   edpt->periodic_err = 0; // idle endpoint: the ISR does not write this word
-#if HCD_SPLIT
   edpt->periodic_xferred = 0;
-#endif
 
   if (ep_num == 0) {
     // update ep_dir since control endpoint can switch direction
@@ -2171,7 +2199,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     }
     const channel_teardown_t teardown = channel_teardown(dwc2, ch_id, false);
     if (teardown != CHANNEL_TEARDOWN_WAIT) {
-      if (teardown == CHANNEL_TEARDOWN_HALTING && !channel_is_periodic(dwc2->channel[ch_id].hcchar)) {
+      if (teardown == CHANNEL_TEARDOWN_HALTING) {
         halting = &_hcd_data.xfer[ch_id];
       }
       break;
@@ -2182,8 +2210,9 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
   hcd_int_enable(rhport);
 
-  // Wait for the halt of an aborted control/bulk channel, so that the endpoint takes a new transfer and the controller
-  // no longer writes the aborted buffer. Bounded, as the ISR that retires the channel may not run with it masked.
+  // Wait for the halt of an aborted channel, so that the endpoint takes a new transfer and the controller no longer
+  // writes the aborted buffer. A periodic channel in DMA mode is not disabled but halts by itself at the end of its
+  // (micro)frame (Programming Guide 3.5). Bounded, as the ISR that retires the channel may not run with it masked.
   if (halting != NULL) {
     // HFNUM counts SOFs, which stop on a port disabled, suspended, resuming or in reset; 2 ms of (micro)frames
     // whatever the speed, so that a split behind a high-speed hub has time to drain
@@ -2226,6 +2255,16 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // HCD Event Handler
 //--------------------------------------------------------------------
 
+#if HCD_SPLIT
+// Drop what an interrupt split IN packet took from MDATA complete-splits: its transaction failed or its complete-split
+// window passed, and the next service interval starts the packet over (USB 2.0 11.20.4)
+TU_ATTR_ALWAYS_INLINE static inline void channel_int_in_drop(hcd_xfer_t* xfer) {
+  xfer->xferred_bytes  = (uint16_t) (xfer->xferred_bytes - xfer->int_mdata);
+  xfer->int_mdata      = 0;
+  xfer->int_mdata_last = false;
+}
+#endif
+
 // Retry an IN transfer, channel must be halted. Return true when the transfer completes instead: an isochronous split
 // IN is not retried once its complete-split window has passed.
 static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
@@ -2244,6 +2283,9 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       }
       // window passed, de-allocate channel with below code
     }
+#if HCD_SPLIT
+    channel_int_in_drop(xfer); // the transaction ends without its packet
+#endif
     if (HCD_SPLIT && hcsplt.split_en && hcchar.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
       xfer->result = XFER_RESULT_FAILED;
       return true;
@@ -2262,6 +2304,12 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         edpt->next_pid = hctsiz.pid; // save PID
       }
       edpt->periodic_err = xfer->err_count;
+      if (HCD_SPLIT && hcsplt.split_en) {
+        // A split interrupt IN releases its channel between the packets of its transfer too: keep the packets received
+        // so far, the tentative MDATA part of one dropped above. A DMA one moved its buffer past them already, a slave
+        // one resumes at buffer + xferred_bytes (channel_xfer_start()).
+        edpt->periodic_xferred = xfer->xferred_bytes;
+      }
       periodic_xfer_defer(dwc2, edpt, true);
       // already halted, de-allocate channel (called from DMA isr)
       channel_dealloc(dwc2, ch_id);
@@ -2281,18 +2329,20 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   return false;
 }
 
-// Restart an OUT transfer after a NAK or error, channel must be halted. A periodic split starts over in its slot of
-// the next service interval, keeping the errors of its transfer.
+// Restart an OUT transfer after a NAK or error, channel must be halted. A periodic one starts over in the next service
+// interval (in its slot there for a split), keeping the errors of its transfer, as a NAKed periodic IN does (Programming
+// Guide 4.2.3: re-initialize in the next b_interval). Restarting it at once would retry a NAKing interrupt OUT every
+// frame, and a low-speed one behind a full-speed hub would win every frame's preamble slot from the others
+// (ls_frame_claim()).
 static void channel_xfer_out_restart(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t*     xfer = &_hcd_data.xfer[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
-  if (HCD_SPLIT && channel_is_periodic(edpt->hcchar) && edpt->hcsplt_bm.split_en) {
+  if (channel_is_periodic(edpt->hcchar)) {
     edpt->periodic_err = xfer->err_count;
-  #if HCD_SPLIT
-    // the channel is released: keep what the packets sent so far count. An isochronous packet starts over at BEGIN.
-    edpt->periodic_xferred =
-        (edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) ? 0 : xfer->xferred_bytes;
-  #endif
+    // the channel is released: keep what the packets sent so far count. An isochronous split packet starts over at
+    // BEGIN.
+    const bool iso_split = edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS && edpt->hcsplt_bm.split_en;
+    edpt->periodic_xferred = iso_split ? 0 : xfer->xferred_bytes;
     periodic_xfer_defer(dwc2, edpt, true);
   #if HCD_SPLIT
     split_iso_out_close(dwc2, ch_id);
@@ -2533,6 +2583,35 @@ static bool channel_iso_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
   xfer->result = XFER_RESULT_FAILED;
   return false;
 }
+
+  #if CFG_TUH_DWC2_SLAVE_ENABLE
+// A complete-split of a slave-mode interrupt split IN returned MDATA (seen in the RxFIFO status): the TT holds the rest
+// of the packet for the next complete-split (USB 2.0 11.20.4, Figure 11-80). The core completed the channel as for a
+// short packet and toggled HCTSIZ.PID. Arm the next complete-split for the rest, with the data toggle the packet started
+// with, which DATA0/DATA1 then ends; the MDATA bytes stay tentative until then. Return false when the window has
+// passed: the packet is dropped and retried in the next service interval. The channel keeps the packets of the transfer
+// left from the start of this one, so a full packet moves on to the next as without MDATA. DMA mode reports MDATA
+// nowhere: there it ends the transfer short.
+static bool channel_int_in_more(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  hcd_xfer_t*           xfer    = &_hcd_data.xfer[ch_id];
+  const hcd_endpoint_t* edpt    = &_hcd_data.edpt[xfer->ep_id];
+  dwc2_channel_t*       channel = &dwc2->channel[ch_id];
+  xfer->int_mdata_last          = false;
+  xfer->fifo_bytes              = 0; // bytes of the next piece, the packet's are fifo_bytes + int_mdata
+
+  const uint16_t packet_left  = (uint16_t) (edpt->buflen - (xfer->xferred_bytes - xfer->int_mdata));
+  dwc2_channel_tsize_t hctsiz = {.value = 0};
+  hctsiz.pid          = xfer->int_pid;
+  hctsiz.packet_count = cal_packet_count(packet_left, edpt->hcchar_bm.ep_size);
+  hctsiz.xfer_size    = edpt->buflen - xfer->xferred_bytes;
+  channel->hctsiz     = hctsiz.value;
+  if (channel_csplit_arm(dwc2, ch_id)) {
+    return true;
+  }
+  channel_int_in_drop(xfer);
+  return false;
+}
+  #endif
 #endif
 
 #if CFG_TUSB_DEBUG && 0
@@ -2590,6 +2669,15 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         }
         xfer->xferred_bytes += xact_len;
         xfer->fifo_bytes = byte_count;
+#if HCD_SPLIT
+        if (edpt->hcsplt_bm.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_INTERRUPT) {
+          // The core reports an interrupt complete-split's MDATA only here: HCTSIZ.PID shows a toggled DATA0/DATA1
+          xfer->int_mdata_last = (grxstsp.dpid == HCTSIZ_PID_MDATA);
+          if (xfer->int_mdata_last) {
+            xfer->int_mdata = (uint8_t) (xfer->int_mdata + xact_len);
+          }
+        }
+#endif
       }
       break;
     }
@@ -2723,6 +2811,16 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     if (hcsplt.split_en && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS) {
       return !channel_iso_in_more(dwc2, ch_id); // the core halted the completed periodic channel
     }
+    if (xfer->int_mdata_last) {
+      // the core halted the completed periodic channel
+      return !channel_int_in_more(dwc2, ch_id) && channel_xfer_in_retry(dwc2, ch_id, 0);
+    }
+    const uint16_t packet_bytes = (uint16_t) (xfer->fifo_bytes + xfer->int_mdata);
+    xfer->int_mdata      = 0; // DATA0/DATA1 ended the packet: its MDATA bytes are taken
+    xfer->int_mdata_last = false;
+    xfer->int_pid        = (uint8_t) hctsiz.pid; // the next packet of the transfer starts with the toggled PID
+#else
+    const uint16_t packet_bytes = xfer->fifo_bytes;
 #endif
     if (edpt->hcchar_bm.ep_num != 0 &&
         edpt->hcchar_bm.ep_type != HCCHAR_EPTYPE_ISOCHRONOUS) {
@@ -2730,7 +2828,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     }
 
     const uint16_t remain_packets = hctsiz.packet_count;
-    if (hcsplt.split_en && remain_packets && xfer->fifo_bytes == edpt->hcchar_bm.ep_size) {
+    if (hcsplt.split_en && remain_packets && packet_bytes == edpt->hcchar_bm.ep_size) {
       // Split can only complete 1 transaction (up to 1 packet) at a time, schedule more
       hcsplt.split_compl = 0;
       channel->hcsplt = hcsplt.value;
@@ -3268,6 +3366,11 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 // Report the completed transfer of a channel and release the channel
 static void channel_xfer_done(dwc2_regs_t* dwc2, uint8_t ch_id, bool in_isr) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+#if HCD_SPLIT
+  if (xfer->result != XFER_RESULT_SUCCESS) {
+    channel_int_in_drop(xfer); // a failed packet's MDATA bytes were never confirmed by its DATA0/DATA1
+  }
+#endif
   if (xfer->closing == 1) {
     edpt_dealloc(&_hcd_data.edpt[xfer->ep_id]);
   } else {
@@ -3380,7 +3483,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       }
       if (retire && (hcint & HCINT_HALTED)) {
 #if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
-        if (is_dma && xfer->aborting && abort_csplit_rearm(dwc2, ch_id, hcchar.value, hcint)) {
+        if (is_dma && abort_csplit_rearm(dwc2, ch_id, hcchar.value, hcint)) {
           continue;
         }
 #endif
@@ -3518,12 +3621,12 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
     }
     hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 #if HCD_SPLIT && CFG_TUH_DWC2_DMA_ENABLE
-    // an aborted split's complete-split still goes out, see abort_csplit_ok()
-    const bool abort_csplit = xfer->aborting && park_is_csplit(xfer);
+    // an aborted or closing split's complete-split still goes out, see abort_csplit_ok()
+    const bool abort_csplit = (xfer->aborting || xfer->closing) && park_is_csplit(xfer);
 #else
     const bool abort_csplit = false;
 #endif
-    if (xfer->closing || edpt->closing || (edpt->aborting && !abort_csplit)) {
+    if ((xfer->closing || edpt->closing || edpt->aborting) && !abort_csplit) {
       // Teardown is under way. A channel that never reached the bus gets no halt to finish it, so retire it here; one
       // parked between the packets of its transfer is still enabled and finishes through its halt.
       const bool closing = xfer->closing || edpt->closing;
@@ -3659,7 +3762,9 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
     // Port Connect Detect
     hprt |= HPRT_CONN_DETECT;
 
-    if (hprt_bm.conn_status == 1u) {
+    // Overcurrent wins: an attach queued first would start usbh's debounce, which drops the removal below. The
+    // overcurrent clearing reports the device attached.
+    if (hprt_bm.conn_status == 1u && hprt_bm.over_current_active == 0u) {
       hcd_event_device_attach(rhport, in_isr);
     }
   }
@@ -3670,11 +3775,26 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.enable == 1u) {
       // Port enable
+      _hcd_port_resetting = false;
       const tusb_speed_t speed = hprt_speed_get(dwc2);
       port0_enable(dwc2, speed);
-    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u) {
+    } else if (hprt_bm.conn_status == 1u && hprt_bm.conn_detected == 0u && hprt_bm.over_current_active == 0u &&
+               !_hcd_port_resetting) {
       // The core disabled a still-connected port. Reuse attach handling
       // to tear down the stale device tree and restart enumeration.
+      hcd_event_device_attach(rhport, in_isr);
+    }
+  }
+
+  if (hprt_bm.over_current_change == 1u) {
+    // PrtOvrCurrChng is W1C and keeps PrtInt asserted (Databook v4.20a Table 7-44). Overcurrent disables the port:
+    // report the device removed until it clears, then enumerate a still-connected device again.
+    hprt |= HPRT_OVER_CURRENT_CHANGE;
+    if (hprt_bm.over_current_active == 1u) {
+      TU_LOG1("DWC2: root port overcurrent\r\n");
+      channel_cleanup_on_disconnect(dwc2);
+      hcd_event_device_remove(rhport, in_isr);
+    } else if (hprt_bm.conn_status == 1u) {
       hcd_event_device_attach(rhport, in_isr);
     }
   }
@@ -3705,6 +3825,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (gintsts & GINTSTS_DISCINT) {
     dwc2->gintsts = GINTSTS_DISCINT;
+    _hcd_port_resetting = false;
     channel_cleanup_on_disconnect(dwc2);
     hcd_event_device_remove(rhport, in_isr);
 

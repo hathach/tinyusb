@@ -535,21 +535,35 @@ These choices are **not** protocol requirements merely because they exist in
        needs a defined endpoint-open result.
    * - Fixed ``DWC2_PERIODIC_OUT_MIN_FRREM=1024``
      - Timing heuristic requiring integration-specific justification.
-   * - HCCHAR.EC/MC programmed 0 on every channel, split or not
-     - The databook requires EC of at least 1 on a split channel; 0 is reserved
-       with undefined result (D09). The same holds for MC on nonsplit periodic
-       channels and DMA-mode nonperiodic ones. Fix it or justify it.
+   * - HCCHAR.EC/MC programmed 1 on every channel
+     - Fixed: was 0, which the databook reserves (D09). 1 is one transaction per
+       (micro)frame, one immediate split retry, and one packet per DMA
+       arbitration; high-bandwidth endpoints are not supported.
    * - Terminal interrupt CS NYET not counted as an error
      - Deliberate divergence from USB 11.18.8 case 4; decide and test the
        intended error policy instead of inheriting it invisibly.
-   * - MDATA continuation helper only for ISO IN
-     - The retained interrupt-IN MDATA failure predates the reviewed PR. A
-       complete rewrite must address U15, not preserve that limitation as truth.
+   * - Interrupt IN MDATA continued in slave mode only
+     - The core completes an interrupt CS that returned MDATA as a short packet
+       (XferCompl, HCTSIZ.PID toggled to DATA0/DATA1, never MDATA); only the
+       RxFIFO status (GRXSTSP.DPID) shows MDATA. Slave mode continues the packet
+       with the next CS and the toggle it started with, its MDATA bytes
+       tentative until DATA0/DATA1 (dropped and retried in the next interval
+       otherwise); a full packet then moves on to the next packet of the
+       transfer as without MDATA. Buffer DMA mode has no such status: HCINT and
+       HCTSIZ are the same as for a short report, so the transfer still ends
+       short there. Measured on STM32U5A5 with three 64-byte FS interrupt IN
+       endpoints stacked in one slot of a single TT next to an isochronous IN:
+       a third of the reports came back as 14-byte MDATA before the fix. With
+       the scheduler's own slot choice the stack did not happen on that bench.
    * - ISO IN whose MDATA fills a buffer of exactly MPS completes at once
      - Departs from U15: the terminal CS is not issued, so its ERR (FS CRC
        failure, USB 11.21.4) is not seen and the packet is reported good. A
        larger buffer keeps the check. The DWC2 documents do not cover a CS with
-       no buffer left; **open** until hardware shows how the core handles it.
+       no buffer left. Not reproducible on the bench (STM32U5A5 slave mode, WCH
+       1a86:8091 multi-TT hub, full-speed isochronous IN of exactly MPS each
+       frame, 96 to 192 bytes, about 180k packets): up to 162 bytes the TT ends
+       every packet with one DATA0 CS, beyond it the first MDATA carries about
+       159 bytes, and it never returned a whole packet as MDATA. Left as is.
    * - DMA SS sequence assigned at enable
      - Ordering proof remains open because the guide describes arbiter
        admission.

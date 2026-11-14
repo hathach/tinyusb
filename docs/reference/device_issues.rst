@@ -217,6 +217,16 @@ Mitigation in TinyUSB: ``hcd_dwc2`` lets one preamble channel own the bus at a t
 next one only in a frame after the previous one halted, which puts an SOF between them. A port
 disable re-enumerates the root port.
 
+**IN endpoints beyond the five TX FIFOs (device).** The ESP32-S2/S3 TRMs allow five IN endpoints
+active at once, EP0 included, each with its own TX FIFO. ``dcd_dwc2`` opens an interrupt IN endpoint
+numbered past the FIFOs (arduino-esp32's never-sent CDC notification ``0x85``) with ``USBActEP`` set
+and no FIFO, and refuses its transfers, so ``EPEna`` is never set. Such an endpoint answers the
+host's polls with NAK; the TRMs do not define "active" at the ``USBActEP`` level. Leaving it inactive
+instead is worse: the core then ignores IN tokens, and every poll ends in a host transaction error
+(measured on an STM32U5A5 OTG_HS limited to 4 TX FIFOs, Windows ``usbser`` polling: NAK with
+``USBActEP`` set, no handshake without). An ESP32-S3 with ``0x85`` open this way ran byte-exact CDC
+loopback on both ports in slave and DMA mode.
+
 STMicroelectronics STM32 OTG_FS/OTG_HS
 --------------------------------------
 **Severity: High** for a full-speed host with a low-speed device behind a hub
@@ -236,3 +246,22 @@ transaction per frame did not help (9 of 10 boots still lost the port), so the E
 mitigation is not enabled for STM32. TinyUSB re-enumerates the root port after a port disable. A
 high-speed host with a high-speed hub avoids preambles altogether (the hub's transaction translator
 talks low speed).
+
+STMicroelectronics STM32F2/F4 OTG_FS host channel halt
+------------------------------------------------------
+**Severity: Low** for a host that aborts transfers
+
+Reference: "Host channel-halted interrupt not generated when the channel is disabled", section 2.14.5
+of ES0005 (STM32F20x/21x), ES0182 (F405/407/415/417) and ES0206 (F427/437/429/439).
+
+ST: when the application enables and then immediately disables a host channel before the OTG_FS core
+has begun the transfer sequence, no channel-halted interrupt is raised; the core otherwise operates
+normally. The workaround is not to disable a channel right after enabling it.
+
+``hcd_dwc2`` aborts a transfer by disabling its channel and retires the channel, and lets the
+endpoint take a new transfer, only on that channel-halted interrupt: neither the reference manual
+nor the databook supports treating a channel as disabled without it. OTG_FS has no DMA, so the
+host runs in slave mode, which re-enables a NAKed control or bulk IN after every NAK: a
+``tuh_edpt_abort_xfer()`` that lands right after such a re-enable can miss the halt. The abort then
+returns after its bounded wait and the endpoint refuses new transfers until the device is
+unplugged. Not observed on hardware (no F2/F4 host on the test rigs).

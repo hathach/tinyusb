@@ -52,6 +52,7 @@ void setUp(void) {
   memset(&_hcd_data, 0, sizeof(_hcd_data));
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
   _hcd_nonperiodic_uframe = 0;
+  _hcd_port_resetting = false;
   on_int_enable = NULL;
   _tuh_cfg.max_nak = HCD_XFER_NAK_DEFAULT;
   fifo_writes = 0;
@@ -1091,6 +1092,196 @@ void test_iso_in_split_packet_filling_a_buffer_completes_only_at_mps(void) {
   }
 }
 
+// One RxFIFO status of channel 0: a data packet of len bytes with the received data PID pid
+static void rx_packet(uint16_t len, uint8_t pid) {
+  dwc2_grxstsp_t rx = {.value = 0};
+  rx.ep_ch_num      = 0;
+  rx.byte_count     = len;
+  rx.dpid           = pid;
+  rx.packet_status  = GRXSTS_PKTSTS_RX_DATA;
+  test_regs.grxstsp = rx.value;
+  handle_rxflvl_irq(0);
+}
+
+// The completion the core reports for a split interrupt IN packet, MDATA or not (slave mode): XferCompl, the channel
+// halted, HCTSIZ.PID toggled
+static bool int_in_xfer_complete_left(uint16_t remain, uint16_t packets) {
+  dwc2_channel_tsize_t ts     = {.value = 0};
+  ts.pid                      = HCTSIZ_PID_DATA1;
+  ts.xfer_size                = remain;
+  ts.packet_count             = packets;
+  test_regs.channel[0].hctsiz = ts.value;
+  test_regs.channel[0].hcchar &= ~HCCHAR_CHENA;
+  return handle_channel_in_slave(&test_regs, 0, HCINT_XFER_COMPLETE);
+}
+
+static bool int_in_xfer_complete(uint16_t remain) {
+  return int_in_xfer_complete_left(remain, 0);
+}
+
+// A 64-byte interrupt split IN transfer of one packet started with DATA0 (next_pid predicts DATA1 after it), its
+// complete-split sent in the microframe after its start-split's
+static void int_in_mdata_setup(uint16_t split_uframe) {
+  tu_hwfifo_read_Ignore();
+  endpoint(0, true, 64, false);
+  _hcd_data.edpt[0].hcchar_bm.enable = 1;
+  _hcd_data.edpt[0].next_pid         = HCTSIZ_PID_DATA1;
+  _hcd_data.xfer[0].int_pid          = HCTSIZ_PID_DATA0; // channel_xfer_start() records the packet's toggle
+  _hcd_data.xfer[0].result           = XFER_RESULT_INVALID;
+  _hcd_data.xfer[0].split_uframe     = split_uframe;
+  _hcd_data.xfer[0].csplit_next      = HCD_SPLIT_CSPLIT_FIRST;
+  test_regs.channel[0].hcsplt        = _hcd_data.edpt[0].hcsplt | HCSPLT_COMPLSPLT;
+}
+
+void test_slave_interrupt_split_in_mdata_continues_the_packet(void) {
+  // USB 2.0 11.20.4: the TT returned the first 14 bytes as MDATA, the rest comes with the next complete-split. The core
+  // reports MDATA only in the RxFIFO status and completes the channel as for a short packet.
+  int_in_mdata_setup(4); // HFNUM is in microframe 6: the second complete-split
+  rx_packet(14, HCTSIZ_PID_MDATA);
+  TEST_ASSERT_FALSE(int_in_xfer_complete(50));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(14, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid); // not taken from the toggled HCTSIZ.PID
+  const dwc2_channel_tsize_t armed = {.value = test_regs.channel[0].hctsiz};
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, armed.pid); // the toggle the packet started with
+  TEST_ASSERT_EQUAL(50, armed.xfer_size);
+  TEST_ASSERT_EQUAL(1, armed.packet_count);
+  TEST_ASSERT_TRUE((test_regs.channel[0].hcchar & HCCHAR_CHENA) || _hcd_data.xfer[0].csplit_wait);
+
+  // DATA0 ends the packet: the transfer completes with all of it and the toggle moves on
+  rx_packet(50, HCTSIZ_PID_DATA0);
+  TEST_ASSERT_TRUE(int_in_xfer_complete(0));
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(64, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid);
+}
+
+void test_slave_interrupt_split_in_mdata_past_its_window_drops_the_packet(void) {
+  // no complete-split left for the rest: the MDATA bytes are not delivered as a report, and the packet starts over in
+  // the next service interval with the toggle it had
+  int_in_mdata_setup(0); // HFNUM is in microframe 6: past the last complete-split
+  rx_packet(14, HCTSIZ_PID_MDATA);
+  TEST_ASSERT_FALSE(int_in_xfer_complete(50));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].xfer_pending);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, _hcd_data.edpt[0].next_pid);
+}
+
+static const uint8_t* fifo_read_dest;
+static uint16_t       fifo_read_len;
+
+static void fifo_read_record(const volatile void* fifo, uint8_t* dest, uint16_t len,
+                             const tu_hwfifo_access_t* access_mode, int cmock_num_calls) {
+  (void) fifo;
+  (void) access_mode;
+  (void) cmock_num_calls;
+  fifo_read_dest = dest;
+  fifo_read_len  = len;
+}
+
+void test_slave_interrupt_split_in_mdata_continues_a_packet_of_a_longer_transfer(void) {
+  // a 128-byte buffer on a 64-byte endpoint, 2 packets from DATA0 (an even count keeps next_pid): the first packet's
+  // complete-split returns MDATA. It is continued with its own toggle, and its end moves on to the second packet
+  // instead of completing the transfer with the 14-byte fragment. The second packet, in the next service interval on a
+  // channel allocated again, lands after the first and completes the transfer with both.
+  int_in_mdata_setup(4);
+  _hcd_data.edpt[0].buflen   = 128;
+  _hcd_data.edpt[0].next_pid = HCTSIZ_PID_DATA0;
+  rx_packet(14, HCTSIZ_PID_MDATA);
+  TEST_ASSERT_FALSE(int_in_xfer_complete_left(114, 1));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(14, _hcd_data.xfer[0].xferred_bytes);
+  const dwc2_channel_tsize_t armed = {.value = test_regs.channel[0].hctsiz};
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA0, armed.pid);
+  TEST_ASSERT_EQUAL(114, armed.xfer_size);
+  TEST_ASSERT_EQUAL(2, armed.packet_count); // both packets of the transfer still to end
+  TEST_ASSERT_TRUE((test_regs.channel[0].hcchar & HCCHAR_CHENA) || _hcd_data.xfer[0].csplit_wait);
+
+  // DATA0 ends the first packet at MPS: the second starts with its start-split and DATA1
+  rx_packet(50, HCTSIZ_PID_DATA0);
+  TEST_ASSERT_FALSE(int_in_xfer_complete_left(64, 1));
+  TEST_ASSERT_EQUAL(XFER_RESULT_INVALID, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(64, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].int_mdata);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.edpt[0].next_pid);
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, _hcd_data.xfer[0].int_pid);
+  TEST_ASSERT_BITS_LOW(HCSPLT_COMPLSPLT, test_regs.channel[0].hcsplt);
+
+  // its halt releases the channel until the next service interval, keeping the packet received
+  test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+  TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, 0, HCINT_HALTED));
+  TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].xfer_pending);
+  TEST_ASSERT_EQUAL(64, _hcd_data.edpt[0].periodic_xferred);
+
+  // the next interval resumes the transfer after it, for the second packet only
+  _hcd_data.xfer[0].xferred_bytes = 0; // nothing left over from the released channel
+  TEST_ASSERT_TRUE(edpt_xfer_kickoff(&test_regs, 0));
+  TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+  TEST_ASSERT_EQUAL(0, _hcd_data.xfer[0].ep_id);
+  TEST_ASSERT_EQUAL(64, _hcd_data.xfer[0].xferred_bytes);
+  TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+  const dwc2_channel_tsize_t resumed = {.value = test_regs.channel[0].hctsiz};
+  TEST_ASSERT_EQUAL(HCTSIZ_PID_DATA1, resumed.pid);
+  TEST_ASSERT_EQUAL(64, resumed.xfer_size);
+  TEST_ASSERT_EQUAL(1, resumed.packet_count);
+
+  // its complete-split returns the second packet, read into the buffer after the first: the transfer completes
+  test_regs.channel[0].hcsplt |= HCSPLT_COMPLSPLT;
+  tu_hwfifo_read_Stub(fifo_read_record);
+  fifo_read_dest = NULL;
+  fifo_read_len  = 0;
+  rx_packet(64, HCTSIZ_PID_DATA1);
+  TEST_ASSERT_EQUAL_PTR(payload + 64, fifo_read_dest);
+  TEST_ASSERT_EQUAL(64, fifo_read_len);
+  TEST_ASSERT_TRUE(int_in_xfer_complete(0));
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, _hcd_data.xfer[0].result);
+  TEST_ASSERT_EQUAL(128, _hcd_data.xfer[0].xferred_bytes);
+}
+
+static hcd_event_t xfer_event;
+static unsigned    xfer_event_count;
+
+static void xfer_event_stub(hcd_event_t const* event, bool in_isr, int cmock_num_calls) {
+  (void) in_isr;
+  (void) cmock_num_calls;
+  xfer_event = *event;
+  xfer_event_count++;
+}
+
+void test_slave_interrupt_split_in_mdata_then_a_failure_reports_no_bytes(void) {
+  // the packet's MDATA bytes were never confirmed by DATA0/DATA1: a transfer failed on its continuation reports none
+  const struct {
+    uint32_t      hcint;
+    uint8_t       err_count; // before the error
+    xfer_result_t result;
+  } cases[] = {
+    {HCINT_STALL, 0, XFER_RESULT_STALLED},
+    {HCINT_BABBLE_ERR, 0, XFER_RESULT_FAILED},
+    {HCINT_XACT_ERR, HCD_XFER_ERROR_MAX - 1, XFER_RESULT_FAILED}, // the error limit
+  };
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    variant_setup(i);
+    int_in_mdata_setup(4);
+    hcd_event_handler_Stub(xfer_event_stub);
+    xfer_event_count = 0;
+    rx_packet(14, HCTSIZ_PID_MDATA);
+    TEST_ASSERT_FALSE(int_in_xfer_complete(50));
+    TEST_ASSERT_EQUAL(14, _hcd_data.xfer[0].xferred_bytes);
+
+    _hcd_data.xfer[0].err_count = cases[i].err_count;
+    TEST_ASSERT_FALSE(handle_channel_in_slave(&test_regs, 0, cases[i].hcint));
+    TEST_ASSERT_TRUE(handle_channel_in_slave(&test_regs, 0, HCINT_HALTED));
+    channel_xfer_done(&test_regs, 0, true);
+    TEST_ASSERT_EQUAL(1, xfer_event_count);
+    TEST_ASSERT_EQUAL(HCD_EVENT_XFER_COMPLETE, xfer_event.event_id);
+    TEST_ASSERT_EQUAL(cases[i].result, xfer_event.xfer_complete.result);
+    TEST_ASSERT_EQUAL(0, xfer_event.xfer_complete.len);
+  }
+}
+
 void test_sof_starts_a_held_split_in_a_late_slot_once_its_packet_has_ended(void) {
   // held behind an isochronous OUT packet that ended before the hold was pending again: no END kicked it
   endpoint(0, true, 64, false);
@@ -1367,6 +1558,174 @@ void test_setup_and_clear_stall_wait_for_an_aborted_channel_halt(void) {
     }
     ts.value = test_regs.channel[0].hctsiz;
     TEST_ASSERT_EQUAL(clear_stall ? HCTSIZ_PID_DATA0 : HCTSIZ_PID_SETUP, ts.pid);
+  }
+}
+
+void test_dma_split_close_runs_its_complete_split_before_freeing_the_endpoint(void) {
+  // a class close, SET_CONFIGURATION or a removal behind a hub that stays, with the start-split in flight or with the
+  // complete-split parked: the split channel is not disabled at random (Programming Guide 3.5), its complete-split runs
+  // to a result into the scratch buffer, and that result frees the endpoint
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool    in           = (i & 1u) == 0;
+    const bool    parked_first = i >= 2;
+    const uint8_t ep_addr      = abort_bulk_endpoint(true, in, true);
+    test_regs.channel[0].hcdma = (uint32_t) (uintptr_t) payload;
+    test_regs.hfnum            = (3500u << 16) | (8u * 20u + 3u);
+    memset(payload, 0xA5, sizeof(payload));
+    if (parked_first) {
+      channel0_irq(HCINT_HALTED | HCINT_ACK);
+      TEST_ASSERT_BITS_LOW_MESSAGE(HCCHAR_CHENA, test_regs.channel[0].hcchar, "precondition: CS parked");
+    }
+    test_regs.hfnum++;
+
+    edpt_close(&test_regs, 0);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+    TEST_ASSERT_TRUE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_EQUAL(1, _hcd_data.edpt[0].hcchar_bm.enable); // freed by the channel's result, not now
+    if (!parked_first) {
+      channel0_irq(HCINT_HALTED | HCINT_ACK);
+    }
+    assert_abort_csplit_sent(ep_addr);
+
+    dwc2_channel_tsize_t ts     = {.value = test_regs.channel[0].hctsiz};
+    ts.xfer_size                = 0;
+    ts.packet_count             = 0;
+    test_regs.channel[0].hctsiz = ts.value;
+    channel0_irq(HCINT_HALTED | HCINT_ACK | HCINT_XFER_COMPLETE);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_EQUAL(0, _hcd_data.edpt[0].hcchar_bm.enable);
+    TEST_ASSERT_EACH_EQUAL_HEX8(0xA5, payload, sizeof(payload));
+  }
+}
+
+void test_dma_periodic_abort_is_retired_by_the_halt_at_the_end_of_its_frame(void) {
+  // native and split interrupt IN: not disabled in DMA mode (Programming Guide 3.5), the core halts it at the end of
+  // its (micro)frame. The abort waits for that halt, as for control/bulk; on a port without SOF it returns at once and
+  // the endpoint refuses a new transfer until the halt
+  for (unsigned i = 0; i < 4; i++) {
+    variant_setup(i);
+    const bool      split   = (i & 1u) != 0;
+    const bool      halts   = i < 2;
+    const uint8_t   ep_addr = abort_bulk_endpoint(true, true, split);
+    hcd_endpoint_t* ep      = &_hcd_data.edpt[0];
+    ep->hcchar_bm.ep_type   = HCCHAR_EPTYPE_INTERRUPT;
+    test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+
+    if (halts) {
+      on_int_enable = isr_halts_aborted_dma_channel;
+      TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+      TEST_ASSERT_EQUAL(1, isr_runs);
+    } else {
+      abort_unhalted(ep_addr);
+      TEST_ASSERT_BITS_LOW(HCCHAR_CHDIS, test_regs.channel[0].hcchar);
+      TEST_ASSERT_TRUE(_hcd_data.xfer[0].aborting);
+      TEST_ASSERT_FALSE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+      isr_halts_aborted_dma_channel();
+    }
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_FALSE(_hcd_data.edpt[0].aborting);
+  }
+}
+
+//--------------------------------------------------------------------+
+// Root port
+//--------------------------------------------------------------------+
+static hcd_event_t port_events[4];
+static unsigned    port_event_count;
+
+static void port_event_stub(hcd_event_t const* event, bool in_isr, int cmock_num_calls) {
+  (void) in_isr;
+  (void) cmock_num_calls;
+  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(port_events), port_event_count);
+  port_events[port_event_count++] = *event;
+}
+
+void test_root_port_overcurrent_is_cleared_and_reported_as_a_removal(void) {
+  // PrtOvrCurrChng is W1C and holds PrtInt (Databook v4.20a Table 7-44); overcurrent also disables the port, which
+  // must not read as a core-disabled connected port to enumerate again
+  hcd_event_handler_Stub(port_event_stub);
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_ACTIVE | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HPRT_OVER_CURRENT_CHANGE | HPRT_ENABLE_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_REMOVE, port_events[0].event_id);
+
+  // overcurrent gone with the device still connected: enumerate it again
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HPRT_OVER_CURRENT_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
+}
+
+void test_root_port_connect_with_overcurrent_is_only_a_removal(void) {
+  // an attach queued first would start usbh's debounce, which drops the removal: overcurrent wins, and the port does
+  // not read as connected for the check after the debounce
+  hcd_event_handler_Stub(port_event_stub);
+  port_event_count = 0;
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_CONN_DETECT | HPRT_OVER_CURRENT_ACTIVE | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_BITS_HIGH(HPRT_CONN_DETECT | HPRT_OVER_CURRENT_CHANGE, test_regs.hprt);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_REMOVE, port_events[0].event_id);
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_OVER_CURRENT_ACTIVE;
+  TEST_ASSERT_FALSE(hcd_port_connect_status(0));
+
+  // overcurrent gone with the device still connected: enumerate it
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_OVER_CURRENT_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
+  TEST_ASSERT_TRUE(hcd_port_connect_status(0));
+}
+
+void test_root_port_disabled_by_our_reset_is_not_a_new_attach(void) {
+  // ESP-IDF usb_dwc_hal: resetting an enabled port disables it. usbh's enumeration retry resets the port it is
+  // enumerating; reporting that disable as an attach would restart enumeration and its retry budgets forever
+  hcd_event_handler_Stub(port_event_stub);
+  port_event_count = 0;
+  test_regs.hprt   = HPRT_CONN_STATUS | HPRT_ENABLE;
+  hcd_port_reset(0);
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_RESET | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_EQUAL(0, port_event_count);
+
+  // the reset enables the port; the core disabling the connected port later still enumerates it again
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_ENABLE | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
+  test_regs.hprt = HPRT_CONN_STATUS | HPRT_ENABLE_CHANGE;
+  handle_hprt_irq(0, true);
+  TEST_ASSERT_EQUAL(1, port_event_count);
+  TEST_ASSERT_EQUAL(HCD_EVENT_DEVICE_ATTACH, port_events[0].event_id);
+}
+
+//--------------------------------------------------------------------+
+// Periodic OUT retry
+//--------------------------------------------------------------------+
+void test_nak_periodic_out_restarts_in_its_next_service_interval(void) {
+  // native and split interrupt OUT, slave mode: a NAK ends the attempt and the transfer starts over in the endpoint's
+  // next service interval (Programming Guide 4.2.3), not in the next frame, where a NAKing low-speed one would take
+  // every frame's preamble slot from the other low-speed devices
+  for (unsigned split = 0; split < 2; split++) {
+    variant_setup(split);
+    endpoint(0, false, 8, false);
+    hcd_endpoint_t* ep          = &_hcd_data.edpt[0];
+    ep->hcchar_bm.enable        = 1;
+    ep->hcsplt_bm.split_en      = split;
+    test_regs.channel[0].hcchar = ep->hcchar | HCCHAR_CHENA;
+    test_regs.channel[0].hcsplt = ep->hcsplt;
+    _hcd_data.xfer[0].result    = XFER_RESULT_INVALID;
+
+    TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_NAK));
+    test_regs.channel[0].hcchar &= ~(HCCHAR_CHENA | HCCHAR_CHDIS);
+    TEST_ASSERT_FALSE(handle_channel_out_slave(&test_regs, 0, HCINT_HALTED));
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_EQUAL(1, ep->xfer_pending);
   }
 }
 
