@@ -20,8 +20,7 @@ static bool pending;
 static unsigned request_count;
 static unsigned callback_count;
 static unsigned configured_count;
-static uint8_t closed_ep[2];
-static unsigned closed_count;
+static unsigned opened_count;
 
 //--------------------------------------------------------------------+
 // Host stack and bulk stream stubs. Control requests use the real CDC driver.
@@ -42,13 +41,7 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc) {
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
   TEST_ASSERT_TRUE(desc_ep->bEndpointAddress == EP_IN || desc_ep->bEndpointAddress == EP_OUT);
-  return true;
-}
-
-bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
-  TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
-  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(closed_ep), closed_count);
-  closed_ep[closed_count++] = ep_addr;
+  opened_count++;
   return true;
 }
 
@@ -180,7 +173,7 @@ void setUp(void) {
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
-  closed_count = 0;
+  opened_count = 0;
   TEST_ASSERT_TRUE(cdch_init());
 }
 
@@ -189,9 +182,9 @@ void tearDown(void) {
   TEST_ASSERT_TRUE(cdch_deinit());
 }
 
-// An IN endpoint larger than CFG_TUH_CDC_RX_EPSIZE is rejected and the endpoints the pair opened are closed. The
+// An IN endpoint larger than CFG_TUH_CDC_RX_EPSIZE is rejected before either endpoint of the pair is opened. The
 // stubbed tuh_edpt_open() takes any size, as a real one does when the build lowers CFG_TUH_CDC_RX_EPSIZE.
-void test_open_rejects_in_over_rx_epsize_and_closes_pair(void) {
+void test_open_rejects_in_over_rx_epsize_before_open(void) {
   device_desc.idVendor = 0x0403;
   device_desc.idProduct = 0x6001;
   device_desc.bcdDevice = 0x0600;
@@ -201,9 +194,7 @@ void test_open_rejects_in_over_rx_epsize_and_closes_pair(void) {
     7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(CFG_TUH_CDC_RX_EPSIZE + 1), 0,
   };
   TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
-  TEST_ASSERT_EQUAL(2, closed_count);
-  TEST_ASSERT_EQUAL_HEX8(EP_IN, closed_ep[0]);
-  TEST_ASSERT_EQUAL_HEX8(EP_OUT, closed_ep[1]);
+  TEST_ASSERT_EQUAL(0, opened_count);
 }
 
 // Each 232BM-type chip encodes 3 Mbaud with divisor zero; channel encoding differs.
