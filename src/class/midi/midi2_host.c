@@ -376,13 +376,13 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
       }
     }
   }
-  if (idx == TUSB_INDEX_INVALID_8) {
+  const bool new_slot = (idx == TUSB_INDEX_INVALID_8);
+  if (new_slot) {
     idx = find_new_midi2_index();
   }
   TU_VERIFY(idx < CFG_TUH_MIDI2, 0);
 
   midih2_interface_t *p_midi = &_midi2_host[idx];
-  p_midi->daddr = dev_addr;
 
   const uint8_t *desc_start = (const uint8_t *) desc_itf;
   const uint8_t *desc_end = desc_start + max_len;
@@ -412,12 +412,22 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   TU_LOG_DRV("MIDI2 opening Interface %u Alt %u (addr = %u)\r\n",
              desc_itf->bInterfaceNumber, desc_itf->bAlternateSetting, dev_addr);
 
+  // reserve the slot once the interface is known to be MIDI streaming, the parsers open endpoints on daddr
+  p_midi->daddr = dev_addr;
+
   // Dispatch to appropriate parser based on Alt Setting
   const uint8_t *p_end = NULL;
   if (desc_itf->bAlternateSetting == 0) {
     p_end = midih2_parse_descriptors_alt0(p_midi, desc_itf, desc_end);
   } else if (desc_itf->bAlternateSetting == 1) {
     p_end = midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
+  }
+
+  // usbh calls no close for an interface it did not bind: release a slot this open reserved
+  if (p_end == NULL && new_slot) {
+    tu_edpt_stream_close(&p_midi->ep_stream.rx);
+    p_midi->ep_stream.tx.ep_addr = 0;
+    p_midi->daddr                = 0;
   }
 
   // Return number of bytes consumed (following midi_host.c pattern)

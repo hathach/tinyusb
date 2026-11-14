@@ -185,6 +185,9 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
   TU_VERIFY(idx < CFG_TUH_MIDI, 0);
   midih_interface_t *p_midi = &_midi_host[idx];
   p_midi->itf_count = 0;
+  // a failed open leaves daddr 0 but may have opened a stream: start the slot without one
+  tu_edpt_stream_close(&p_midi->ep_stream.rx);
+  tu_edpt_stream_close(&p_midi->ep_stream.tx);
 
   tuh_midi_descriptor_cb_t desc_cb = { 0 };
   desc_cb.jack_num = 0;

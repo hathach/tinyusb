@@ -746,8 +746,7 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
   return true;
 }
 
-uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
-  (void)rhport;
+static uint16_t open_itf(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // For CDC: only support ACM subclass
   // Note: Protocol 0xFF can be RNDIS device
   if (TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
@@ -774,6 +773,24 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   }
 
   return 0;
+}
+
+uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
+  (void)rhport;
+  const uint16_t drv_len = open_itf(daddr, itf_desc, max_len);
+  if (drv_len == 0) {
+    // usbh calls no close for an interface it did not bind: release the slot a failed open reserved
+    // not found for any interface that is not ours, so no get_itf() and its assert
+    const uint8_t idx = tuh_cdc_itf_get_index(daddr, itf_desc->bInterfaceNumber);
+    if (idx < CFG_TUH_CDC && !cdch_data[idx].mounted) {
+      cdch_interface_t *p_cdc = &cdch_data[idx];
+      tu_edpt_stream_close(&p_cdc->stream.tx);
+      tu_edpt_stream_close(&p_cdc->stream.rx);
+      p_cdc->daddr            = 0;
+      p_cdc->bInterfaceNumber = 0;
+    }
+  }
+  return drv_len;
 }
 
 static void set_config_complete(cdch_interface_t *p_cdc, bool success) {

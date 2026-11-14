@@ -195,6 +195,8 @@ void test_open_rejects_in_over_rx_epsize_before_open(void) {
   };
   TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
   TEST_ASSERT_EQUAL(0, opened_count);
+  // usbh does not close an interface it did not bind: the open itself released the slot (CFG_TUH_CDC = 1)
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
 }
 
 // Each 232BM-type chip encodes 3 Mbaud with divisor zero; channel encoding differs.
