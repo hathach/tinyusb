@@ -462,6 +462,11 @@ TU_ATTR_WEAK bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t 
   return false;
 }
 
+TU_ATTR_WEAK bool dcd_edpt_abort_xfer(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  return false;
+}
+
 TU_ATTR_WEAK bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport; (void) cfg_id; (void) cfg_param;
   return false;
@@ -1849,9 +1854,20 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 }
 
 // Not valid for EP0, where dcd_edpt_stall() means "stall the control transfer" rather than "cancel".
-// TODO replace this stall/clear-stall stand-in with a dcd_edpt_abort_xfer() returning bool, like
-// hcd_edpt_abort_xfer(): the stall is wire-visible and the clear resets the toggle.
 void usbd_edpt_abort(uint8_t rhport, uint8_t ep_addr) {
+  rhport = _usbd_rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+
+  if (!usbd_edpt_stalled(rhport, ep_addr) && dcd_edpt_abort_xfer(rhport, ep_addr)) {
+    // no completion will release the aborted transfer's claim
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+    return;
+  }
+
+  // A stalled endpoint, or a DCD without dcd_edpt_abort_xfer(): the stall drops the transfer and the clear leaves the
+  // endpoint idle. The stall is visible on the wire meanwhile, and the clear resets the data toggle.
   usbd_edpt_stall(rhport, ep_addr);
   usbd_edpt_clear_stall(rhport, ep_addr);
 }

@@ -151,6 +151,38 @@ shared between IN and OUT of the same endpoint number: EP1 = 512 B, EP2-4 = 128 
 This is much lower than the max ISO ep size of 1024 for high EP numbers.
 Place large isochronous endpoints on EP1 and size descriptors accordingly.
 
+Raspberry Pi RP2040
+-------------------
+**Severity: High** for a full-speed device behind a high-speed hub
+
+Reference: RP2040-E15 in the `RP2040 Datasheet`_; section 12.7.2.2.4 of the `RP2350 Datasheet`_ describes the cause
+and its fix in RP2350 (``LINESTATE_TUNING.SIE_RX_BITSTUFF_FIX``, set at reset), which is not affected.
+
+.. _RP2040 Datasheet: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+.. _RP2350 Datasheet: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+
+When a hub cuts off a token on the device's port with a bit-stuffing error, the device controller locks up and answers
+nothing, SETUP included, until a bus reset; only ``SIE_STATUS.BIT_STUFF_ERROR`` shows it. Besides the VL805 case of the
+erratum, a Genesys 05e3:0610 hub does this even in multi-TT mode: when a full-speed device on any of its ports returns
+STALL, the host's Clear_TT_Buffer request can cut off the RP2040's transaction in progress. A WCH 1a86:8091 hub was not
+affected.
+
+The hub then answers STALL for the locked device, so recovery depends on the host's class driver. On Linux,
+``usb-storage`` resets the port and the device re-enumerates; ``snd-usb-audio`` never does, so an audio device stays
+dead until replugged; ``cdc_acm`` keeps clearing the TT buffer, about twice per millisecond, which in turn keeps cutting
+off the hub's other full-speed devices. Toggling ``MAIN_CTRL.CONTROLLER_EN`` or ``SIE_CTRL.TRANSCEIVER_PD`` does not
+recover the controller, and TinyUSB's E15 workaround (no bulk IN armed late in a frame) does not cover this case.
+
+Workarounds:
+
+- Connect the RP2040 to a root port, or to a hub that is not affected.
+- Detect the lockup and restart the stack. Count it as a lockup only when ``SOF_RD`` stays unchanged for a few
+  hundred milliseconds while ``tud_connected()`` is true and ``tud_suspended()`` false: a bus reset also stops
+  SOFs. Restart from the task running ``tud_task()`` (``tud_task_stop()`` makes it return true): ``tud_deinit()``,
+  at least 2 ms with the pull-up off so the hub sees the disconnect, then ``tusb_init()``. Raspberry Pi's
+  debugprobe firmware restarts from a watchdog task instead, which TinyUSB does not support under an RTOS.
+  ``tud_disconnect()`` and ``tud_connect()`` only switch the D+ pull-up and do not reset the controller.
+
 Espressif ESP32-S2/S3/P4
 ------------------------
 **Severity: High** for a full-speed host with a low-speed device behind a full-speed hub
