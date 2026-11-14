@@ -362,10 +362,14 @@ static cdch_interface_t* get_itf_by_xfer(const tuh_xfer_t * xfer) {
   return NULL;
 }
 
+// slot reserved by the cdch_open() in progress, released if that open fails
+static cdch_interface_t *open_new_itf;
+
 static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t const * itf_desc) {
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
     if (cdch_data[i].daddr == 0) {
       cdch_interface_t * p_cdc = &cdch_data[i];
+      open_new_itf              = p_cdc;
       p_cdc->daddr              = daddr;
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
@@ -769,19 +773,17 @@ static uint16_t open_itf(uint8_t daddr, const tusb_desc_interface_t *itf_desc, u
 
 uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   (void)rhport;
+  open_new_itf = NULL;
   const uint16_t drv_len = open_itf(daddr, itf_desc, max_len);
-  if (drv_len == 0) {
-    // usbh calls no close for an interface it did not bind: release the slot a failed open reserved
-    // not found for any interface that is not ours, so no get_itf() and its assert
-    const uint8_t idx = tuh_cdc_itf_get_index(daddr, itf_desc->bInterfaceNumber);
-    if (idx < CFG_TUH_CDC && !cdch_data[idx].mounted) {
-      cdch_interface_t *p_cdc = &cdch_data[idx];
-      tu_edpt_stream_close(&p_cdc->stream.tx);
-      tu_edpt_stream_close(&p_cdc->stream.rx);
-      p_cdc->daddr            = 0;
-      p_cdc->bInterfaceNumber = 0;
-    }
+  if (drv_len == 0 && open_new_itf != NULL) {
+    // usbh calls no close for an interface it did not bind: release the slot this open reserved, not one an earlier
+    // open of the same interface number (another alternate setting) holds
+    tu_edpt_stream_close(&open_new_itf->stream.tx);
+    tu_edpt_stream_close(&open_new_itf->stream.rx);
+    open_new_itf->daddr            = 0;
+    open_new_itf->bInterfaceNumber = 0;
   }
+  open_new_itf = NULL;
   return drv_len;
 }
 

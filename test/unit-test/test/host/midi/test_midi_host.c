@@ -97,6 +97,12 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
 }
 
 static uint8_t read_xfer_ep_addr;
+static tuh_midi_mount_cb_t mount_data;
+
+void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t *mount_cb_data) {
+  (void) idx;
+  mount_data = *mount_cb_data;
+}
 
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   read_xfer_ep_addr = s->ep_addr;
@@ -160,6 +166,10 @@ void test_open_rejected_after_in_leaves_no_stale_rx(void) {
   read_xfer_ep_addr = 0xff;
   TEST_ASSERT_TRUE(midih_set_config(MIDI_DEV_ADDR + 1, MIDI_ITF_NUM));
   TEST_ASSERT_EQUAL_HEX8(0, read_xfer_ep_addr);
+
+  // nor report the rejected interface's IN cables
+  TEST_ASSERT_EQUAL(0, mount_data.rx_cable_count);
+  TEST_ASSERT_EQUAL(1, mount_data.tx_cable_count);
   midih_close(MIDI_DEV_ADDR + 1);
 }
 

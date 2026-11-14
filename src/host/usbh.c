@@ -2108,6 +2108,14 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       dev0_bus->speed = (port_status.status.high_speed)  ? TUSB_SPEED_HIGH
                         : (port_status.status.low_speed) ? TUSB_SPEED_LOW
                                                          : TUSB_SPEED_FULL;
+
+      // a hub cannot run a device faster than its own link: endpoint buffers are sized to the host speed, so a
+      // highspeed child behind a fullspeed hub (e.g. on a fullspeed host) would pass highspeed packet sizes
+      if (dev0_bus->speed == TUSB_SPEED_HIGH && tuh_speed_get(dev0_bus->hub_addr) != TUSB_SPEED_HIGH) {
+        TU_LOG_USBH("Hub %u reports a highspeed device on a non-highspeed link\r\n", dev0_bus->hub_addr);
+        is_enum_failed = true;
+        break;
+      }
       TU_ATTR_FALLTHROUGH;
     }
   #endif
