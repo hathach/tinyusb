@@ -84,6 +84,10 @@ typedef struct {
   TUH_EPBUF_DEF(ctrl, 8);
 } cdch_epbuf_t;
 
+// Each bulk transfer is wMaxPacketSize long, which tuh_edpt_open() bounds to TUH_EPSIZE_BULK_MAX
+TU_VERIFY_STATIC(CFG_TUH_CDC_RX_EPSIZE >= TUH_EPSIZE_BULK_MAX, "CFG_TUH_CDC_RX_EPSIZE must be >= TUH_EPSIZE_BULK_MAX");
+TU_VERIFY_STATIC(CFG_TUH_CDC_TX_EPSIZE >= TUH_EPSIZE_BULK_MAX, "CFG_TUH_CDC_TX_EPSIZE must be >= TUH_EPSIZE_BULK_MAX");
+
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
 CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 
@@ -716,28 +720,16 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 //--------------------------------------------------------------------+
 
 static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t const *desc_ep) {
-  // check both endpoints before opening either. Enumeration already fixed wMaxPacketSize to what tuh_edpt_open() uses
-  const tusb_desc_endpoint_t *ep = desc_ep;
   for (size_t i = 0; i < 2; i++) {
     // pin bLength so tu_desc_next() below cannot walk the second endpoint past a caller-checked bound
-    TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == ep->bLength) &&
-                TUSB_DESC_ENDPOINT == ep->bDescriptorType && TUSB_XFER_BULK == ep->bmAttributes.xfer,
+    TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == desc_ep->bLength) &&
+                TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer,
               0);
-    // every IN transfer is wMaxPacketSize long and must fit the endpoint buffer
-    if (tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN && tu_edpt_packet_size(ep) > CFG_TUH_CDC_RX_EPSIZE) {
-      TU_LOG_DRV("  IN wMaxPacketSize %u > CFG_TUH_CDC_RX_EPSIZE\r\n", tu_edpt_packet_size(ep));
-      return false;
-    }
-    ep = (const tusb_desc_endpoint_t *)tu_desc_next(ep);
-  }
-
-  for (size_t i = 0; i < 2; i++) {
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
-    const uint8_t     ep_dir     = tu_edpt_dir(desc_ep->bEndpointAddress);
-    tu_edpt_stream_t *stream     = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
-    const uint16_t    ep_bufsize = (ep_dir == TUSB_DIR_IN) ? CFG_TUH_CDC_RX_EPSIZE : CFG_TUH_CDC_TX_EPSIZE;
-    // OUT can be clamped, a short packet is valid: tu_edpt_stream_write_xfer() copies xfer_len into the TX buffer
-    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_min16(tu_edpt_packet_size(desc_ep), ep_bufsize));
+    const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
+    tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
+    // fits the endpoint buffer: tuh_edpt_open() bounds a bulk size to TUH_EPSIZE_BULK_MAX, see TU_VERIFY_STATIC above
+    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
     tu_edpt_stream_clear(stream);
 
     desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
