@@ -1160,14 +1160,14 @@ void test_msc_bus_reset_waits_for_abandoned_async_write10(void)
 //--------------------------------------------------------------------+
 // read10/write10 error sense
 //--------------------------------------------------------------------+
-// SET_CONFIGURATION, then the host sends a READ10 or WRITE10 of block_count 512-byte blocks at lba
-static void configure_and_send_io_cbw(uint8_t cmd_code, uint32_t lba, uint16_t block_count)
+// SET_CONFIGURATION, then send READ10/WRITE10 with an independently chosen CBW data length
+static void configure_and_send_io_cbw_with_length(uint8_t cmd_code, uint32_t lba, uint16_t block_count, uint32_t total_bytes)
 {
   cbw_io = (msc_cbw_t)
   {
     .signature   = MSC_CBW_SIGNATURE,
     .tag         = 0xCAFECAFE,
-    .total_bytes = (uint32_t) block_count * DISK_BLOCK_SIZE,
+    .total_bytes = total_bytes,
     .lun         = 0,
     .dir         = (cmd_code == SCSI_CMD_READ_10) ? TUSB_DIR_IN_MASK : 0,
     .cmd_len     = sizeof(scsi_read10_t)
@@ -1182,6 +1182,11 @@ static void configure_and_send_io_cbw(uint8_t cmd_code, uint32_t lba, uint16_t b
 
   configure_msc(&cbw_io);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
+}
+
+static void configure_and_send_io_cbw(uint8_t cmd_code, uint32_t lba, uint16_t block_count)
+{
+  configure_and_send_io_cbw_with_length(cmd_code, lba, block_count, (uint32_t) block_count * DISK_BLOCK_SIZE);
 }
 
 // The REQUEST SENSE CBW transfer is already expected: the host sends it and must read `sense_key`/`asc`/`ascq`
@@ -1320,6 +1325,58 @@ void test_msc_write10_block_size_zero(void)
 {
   capacity_block_size = 0;
   check_write10_rejected_sense(0, 1, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+}
+
+// Reject a mismatched byte count before any application I/O, then recover for the next CBW
+static void check_rdwr10_length_rejection(uint8_t cmd_code, uint32_t total_bytes, uint8_t status)
+{
+  configure_and_send_io_cbw_with_length(cmd_code, DISK_BLOCK_NUM - 1, 1, total_bytes);
+  bool const is_read = cmd_code == SCSI_CMD_READ_10;
+  msc_csw_t csw = csw_with_residue(total_bytes);
+  csw.status = status;
+
+  dcd_edpt_stall_Expect(rhport, is_read ? EDPT_MSC_IN : EDPT_MSC_OUT);
+  if (!is_read) {
+    dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(csw), sizeof(csw), false, true);
+  }
+  tud_task();
+
+  // READ10 cannot send its CSW until the host clears Bulk-In; WRITE10 sends it immediately
+  if (is_read) {
+    clear_halt(EDPT_MSC_IN);
+    dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(csw), sizeof(csw), false, true);
+    dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+    tud_task();
+  }
+  TEST_ASSERT_EQUAL_UINT32(0, read10_calls);
+  TEST_ASSERT_EQUAL_UINT32(0, write10_calls);
+
+  dcd_event_xfer_complete(rhport, EDPT_MSC_IN, sizeof(csw), 0, true);
+  if (is_read) {
+    expect_cbw_receive();
+  }
+  tud_task();
+
+  // Reset Recovery must leave the device ready to receive another command
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_bot_reset, false);
+  expect_bot_reset(ABORT_NONE, false);
+  tud_task();
+  reset_recovery_clear_halts();
+}
+
+void test_msc_read10_length_over_lun_block_size(void)
+{
+  check_rdwr10_length_rejection(SCSI_CMD_READ_10, 2 * DISK_BLOCK_SIZE, MSC_CSW_STATUS_FAILED);
+}
+
+void test_msc_read10_length_under_lun_block_size(void)
+{
+  check_rdwr10_length_rejection(SCSI_CMD_READ_10, DISK_BLOCK_SIZE - 1, MSC_CSW_STATUS_PHASE_ERROR);
+}
+
+void test_msc_write10_length_under_lun_block_size(void)
+{
+  check_rdwr10_length_rejection(SCSI_CMD_WRITE_10, DISK_BLOCK_SIZE - 1, MSC_CSW_STATUS_PHASE_ERROR);
 }
 
 //--------------------------------------------------------------------+
