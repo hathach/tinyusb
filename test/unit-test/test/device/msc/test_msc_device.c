@@ -1120,14 +1120,8 @@ static void configure_and_send_io_cbw(uint8_t cmd_code)
   };
   memcpy(cbw_io.command, &cmd, cbw_io.cmd_len);
 
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-  expect_cbw_xfer(&cbw_io);
+  configure_msc(&cbw_io);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 }
 
 // The REQUEST SENSE CBW transfer is already expected: the host sends it and must read `sense_key`/`asc`/`ascq`
@@ -1151,13 +1145,8 @@ static void host_request_sense(uint8_t sense_key, uint8_t asc, uint8_t ascq)
 static void expect_failed_io_csw(void)
 {
   static msc_csw_t csw;
-  csw = (msc_csw_t)
-  {
-    .signature    = MSC_CSW_SIGNATURE,
-    .tag          = 0xCAFECAFE,
-    .data_residue = 512,
-    .status       = MSC_CSW_STATUS_FAILED
-  };
+  csw = csw_with_residue(512);
+  csw.status = MSC_CSW_STATUS_FAILED;
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(csw), sizeof(csw), false, true);
 }
 
