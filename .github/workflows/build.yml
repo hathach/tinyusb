@@ -76,6 +76,7 @@ jobs:
       cmake_toolchains: ${{ steps.set-matrix-json.outputs.cmake_toolchains }}
       pinned_json: ${{ steps.set-matrix-json.outputs.pinned_matrix }}
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
+      hfp_iar_json: ${{ steps.set-matrix-json.outputs.hfp_iar_matrix }}
       example_map: ${{ steps.set-matrix-json.outputs.example_map }}
       required_json: ${{ steps.set-matrix-json.outputs.required_json }}
       membrowse_all: ${{ steps.set-matrix-json.outputs.membrowse_all }}
@@ -243,6 +244,11 @@ jobs:
           fi
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
+
+          # hfp-iar-build's legs: every hfp.json build entry, never scoped by the selection
+          HFP_IAR_JSON=$(python .github/scripts/hil_ci_set_matrix.py test/hil/hfp.json | jq -c '.["arm-gcc"]')
+          echo "hfp_iar_matrix=$HFP_IAR_JSON"
+          echo "hfp_iar_matrix=$HFP_IAR_JSON" >> $GITHUB_OUTPUT
 
           # membrowse-identical's legs: the pinned and espressif legs no build above uploads
           MEMBROWSE_JSON=$(python .github/scripts/ci_set_matrix.py --membrowse --pinned-json "$PINNED_JSON" \
@@ -428,6 +434,24 @@ jobs:
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)['esp-idf']) }}
       upload-artifacts: true
       upload-membrowse: true
+    secrets: inherit
+
+  # IAR compile check of every hfp.json build (variants included) on a hosted runner.
+  # hil-hfp-iar builds them on the rig runner only for the boards the PR selection picks
+  # by HIL test impact, so a change that breaks only the IAR build of an untested path
+  # (e.g. a host driver on these device-only boards) was first seen failing on master.
+  # Push needs no copy: hil-hfp-iar builds the full hfp matrix there. Non-fork PRs only,
+  # as the IAR token is not passed to forks.
+  hfp-iar-build:
+    needs: [ check-paths, set-matrix ]
+    if: |
+      github.event_name == 'pull_request' && needs.check-paths.outputs.code_changed == 'true' &&
+      github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    uses: ./.github/workflows/build_util.yml
+    with:
+      build-system: 'cmake'
+      toolchain: 'arm-iar'
+      build-args: ${{ needs.set-matrix.outputs.hfp_iar_json }}
     secrets: inherit
 
   # Every membrowse leg no build uploads goes --identical here, so each commit has one
