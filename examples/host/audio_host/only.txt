@@ -31,3 +31,7 @@ mcu:STM32WBA
 mcu:APM32F107
 mcu:LPC43XX
 mcu:MIMXRT1XXX
+# LPC55S28/69: build with RHPORT_HOST=1 (-DRHPORT_HOST=1 for CMake) for host-only audio (IP3516).
+# Port 0 (OHCI) does not support ISO.
+board:lpcxpresso55s28
+board:lpcxpresso55s69
