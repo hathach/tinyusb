@@ -197,8 +197,8 @@ typedef struct TU_ATTR_ALIGNED(32) {
   uint32_t direction   : 1; ///<  0 = OUT; 1 = IN. This field encodes whether the full-speed transaction should be an IN or OUT.
 
   // Word 2: Micro-frame Schedule Control
-  uint8_t int_smask   ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
-  uint8_t fl_int_cmask; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
+  uint8_t int_smask   ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
+  uint8_t fl_int_cmask; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
   uint16_t reserved ; ///< reserved
 
   // Word 3: siTD Transfer Status and Control
@@ -232,6 +232,29 @@ typedef struct TU_ATTR_ALIGNED(32) {
 } ehci_sitd_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_sitd_t) == 32, "size is not correct" );
+
+// Raw views of the iTD transaction word (EHCI Table 3-3) and the siTD transfer
+// state word (Table 3-11), for reading a controller-updated word only once.
+#define EHCI_ITD_XACT_ACTIVE         TU_BIT(31)
+#define EHCI_ITD_XACT_ERRORS         (TU_BIT(30) | TU_BIT(29) | TU_BIT(28)) // buffer, babble, transaction
+#define EHCI_ITD_XACT_LENGTH_SHIFT   16
+#define EHCI_ITD_XACT_LENGTH_MASK    0xfffu
+#define EHCI_ITD_XACT_IOC            TU_BIT(15)
+
+#define EHCI_SITD_STATE_IOC          TU_BIT(31)
+#define EHCI_SITD_STATE_BYTES_SHIFT  16
+#define EHCI_SITD_STATE_BYTES_MASK   0x3ffu
+#define EHCI_SITD_STATE_ACTIVE       TU_BIT(7)
+#define EHCI_SITD_STATE_ERRORS       0x7cu // error, buffer, babble, transaction, missed micro-frame
+
+// siTD endpoint characteristics (Table 3-9): device address in [6:0]
+#define EHCI_SITD_EP_ENDPT_SHIFT     8
+#define EHCI_SITD_EP_HUB_SHIFT       16
+#define EHCI_SITD_EP_PORT_SHIFT      24
+#define EHCI_SITD_EP_DIR_SHIFT       31
+
+// siTD buffer page 1 (Table 3-12): transaction count in [2:0], position in [4:3]
+#define EHCI_SITD_TP_BEGIN           TU_BIT(3)
 
 //--------------------------------------------------------------------+
 // EHCI Operational Register
