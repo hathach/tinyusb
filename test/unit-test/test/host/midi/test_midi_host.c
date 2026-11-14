@@ -25,15 +25,18 @@ enum {
 #define TEST_MIDI_HEADER_DESC                                                                  \
   7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7)
 
-// Audio-class bulk endpoint followed by its CS endpoint with one embedded jack
-#define TEST_MIDI_EP_DESC(_addr, _jack_id)                                                                      \
-  9, TUSB_DESC_ENDPOINT, _addr, TUSB_XFER_BULK, U16_TO_U8S_LE(MIDI_EP_SIZE), 0, 0, 0, 5, TUSB_DESC_CS_ENDPOINT, \
+// Audio-class endpoint followed by its CS endpoint with one embedded jack
+#define TEST_MIDI_EP_DESC_XFER(_addr, _xfer, _size, _jack_id)                                         \
+  9, TUSB_DESC_ENDPOINT, _addr, _xfer, U16_TO_U8S_LE(_size), 0, 0, 0, 5, TUSB_DESC_CS_ENDPOINT,       \
     MIDI_CS_ENDPOINT_GENERAL, 1, _jack_id
+
+#define TEST_MIDI_EP_DESC(_addr, _jack_id) TEST_MIDI_EP_DESC_XFER(_addr, TUSB_XFER_BULK, MIDI_EP_SIZE, _jack_id)
 
 static const uint8_t midi_itf_desc[] = {TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1),
                                         TEST_MIDI_EP_DESC(MIDI_EP_IN, 3)};
 
 static uint8_t *rx_ep_buf;
+static uint8_t  edpt_open_count;
 
 //--------------------------------------------------------------------+
 // Host stack functions called by midi_host.c
@@ -41,6 +44,7 @@ static uint8_t *rx_ep_buf;
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void)daddr;
   (void)desc_ep;
+  edpt_open_count++;
   return true;
 }
 
@@ -92,8 +96,16 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize
   return tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
 }
 
+static uint8_t read_xfer_ep_addr;
+static tuh_midi_mount_cb_t mount_data;
+
+void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t *mount_cb_data) {
+  (void) idx;
+  mount_data = *mount_cb_data;
+}
+
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
-  (void)s;
+  read_xfer_ep_addr = s->ep_addr;
   return 0;
 }
 
@@ -119,6 +131,46 @@ void setUp(void) {
 
 void tearDown(void) {
   midih_close(MIDI_DEV_ADDR);
+}
+
+// tuh_edpt_open() bounds only bulk to _midi_epbuf: a larger interrupt endpoint is rejected before it is opened
+void test_open_rejects_interrupt_packet_size_over_ep_buffer(void) {
+  midih_close(MIDI_DEV_ADDR);
+
+  static const uint8_t desc[] = {
+    TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC,
+    TEST_MIDI_EP_DESC_XFER(MIDI_EP_IN, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX + 1, 3),
+    TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1)};
+
+  edpt_open_count = 0;
+  TEST_ASSERT_EQUAL(0, midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, edpt_open_count);
+}
+
+// An interface rejected after its IN endpoint opened leaves the slot free: the next interface given that slot must
+// not read from the rejected one's IN endpoint
+void test_open_rejected_after_in_leaves_no_stale_rx(void) {
+  midih_close(MIDI_DEV_ADDR);
+
+  static const uint8_t rejected[] = {
+    TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_IN, 3),
+    TEST_MIDI_EP_DESC_XFER(MIDI_EP_OUT, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX + 1, 1)};
+  TEST_ASSERT_EQUAL(0, midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)rejected, sizeof(rejected)));
+
+  static const uint8_t out_only[] = {
+    9, TUSB_DESC_INTERFACE, MIDI_ITF_NUM, 0, 1, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, 0, 0,
+    TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1)};
+  TEST_ASSERT_EQUAL(sizeof(out_only),
+                    midih_open(0, MIDI_DEV_ADDR + 1, (const tusb_desc_interface_t *)out_only, sizeof(out_only)));
+
+  read_xfer_ep_addr = 0xff;
+  TEST_ASSERT_TRUE(midih_set_config(MIDI_DEV_ADDR + 1, MIDI_ITF_NUM));
+  TEST_ASSERT_EQUAL_HEX8(0, read_xfer_ep_addr);
+
+  // nor report the rejected interface's IN cables
+  TEST_ASSERT_EQUAL(0, mount_data.rx_cable_count);
+  TEST_ASSERT_EQUAL(1, mount_data.tx_cable_count);
+  midih_close(MIDI_DEV_ADDR + 1);
 }
 
 // A message larger than the room left in the buffer must stay in the FIFO, not be written past bufsize

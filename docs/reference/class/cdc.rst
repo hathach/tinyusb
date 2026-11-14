@@ -124,7 +124,8 @@ The RX/TX software FIFO and endpoint buffers default to
 ``TUH_EPSIZE_BULK_MAX`` through ``CFG_TUH_CDC_RX_BUFSIZE``,
 ``CFG_TUH_CDC_TX_BUFSIZE``, ``CFG_TUH_CDC_RX_EPSIZE``, and
 ``CFG_TUH_CDC_TX_EPSIZE``.  Increase FIFO sizes to tolerate application
-latency; endpoint sizes normally stay at the host bulk maximum.  Optional
+latency; endpoint sizes must be at least ``TUH_EPSIZE_BULK_MAX``, which is
+checked at compile time.  Optional
 ``CFG_TUH_CDC_LINE_CODING_ON_ENUM`` and
 ``CFG_TUH_CDC_LINE_CONTROL_ON_ENUM`` values apply initial serial settings as
 part of enumeration.

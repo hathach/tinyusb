@@ -1475,14 +1475,18 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
 }
 
-bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  // HACK: some device incorrectly always reports 512 bulk regardless of link speed, overwrite descriptor to force 64
-  if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 64 &&
-      tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
-    TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
-    tusb_desc_endpoint_t *hacked_ep = (tusb_desc_endpoint_t *)(uintptr_t)desc_ep;
-    hacked_ep->wMaxPacketSize       = tu_htole16(64);
+// HACK: some device incorrectly always reports 512 bulk regardless of link speed, overwrite descriptor to force 64
+static void edpt_fix_fullspeed_bulk_size(tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
+  if (speed == TUSB_SPEED_FULL && desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 64) {
+    TU_LOG1("  WARN: EP %02X max packet size %u in fullspeed, force to 64\r\n", desc_ep->bEndpointAddress,
+            tu_edpt_packet_size(desc_ep));
+    desc_ep->wMaxPacketSize = tu_htole16(64);
   }
+}
+
+bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
+  // enumeration already fixed the configuration descriptor, this covers descriptors the application opens itself
+  edpt_fix_fullspeed_bulk_size((tusb_desc_endpoint_t *)(uintptr_t)desc_ep, tuh_speed_get(dev_addr));
   TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
@@ -2104,6 +2108,14 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       dev0_bus->speed = (port_status.status.high_speed)  ? TUSB_SPEED_HIGH
                         : (port_status.status.low_speed) ? TUSB_SPEED_LOW
                                                          : TUSB_SPEED_FULL;
+
+      // a hub cannot run a device faster than its own link: endpoint buffers are sized to the host speed, so a
+      // highspeed child behind a fullspeed hub (e.g. on a fullspeed host) would pass highspeed packet sizes
+      if (dev0_bus->speed == TUSB_SPEED_HIGH && tuh_speed_get(dev0_bus->hub_addr) != TUSB_SPEED_HIGH) {
+        TU_LOG_USBH("Hub %u reports a highspeed device on a non-highspeed link\r\n", dev0_bus->hub_addr);
+        is_enum_failed = true;
+        break;
+      }
       TU_ATTR_FALLTHROUGH;
     }
   #endif
@@ -2356,11 +2368,22 @@ static uint8_t enum_get_new_address(bool is_hub) {
 
 static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg) {
   usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev != NULL);
   uint16_t const total_len = tu_le16toh(desc_cfg->wTotalLength);
   uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + total_len;
   uint8_t const* p_desc   = tu_desc_next(desc_cfg);
 
   TU_LOG_USBH("Parsing Configuration descriptor (wTotalLength = %u)\r\n", total_len);
+
+  // Fix endpoint sizes before any driver opens: a driver can then check wMaxPacketSize against its buffers before
+  // opening an endpoint, and reads the size tuh_edpt_open() uses. Alternate settings are fixed here too.
+  if (dev->bus_info.speed == TUSB_SPEED_FULL) {
+    for (const uint8_t *p = p_desc; tu_desc_in_bounds(p, desc_end) && tu_desc_len(p) > 0; p = tu_desc_next(p)) {
+      if (TUSB_DESC_ENDPOINT == tu_desc_type(p) && tu_desc_len(p) >= sizeof(tusb_desc_endpoint_t)) {
+        edpt_fix_fullspeed_bulk_size((tusb_desc_endpoint_t *)(uintptr_t)p, TUSB_SPEED_FULL);
+      }
+    }
+  }
 
   // parse all interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {

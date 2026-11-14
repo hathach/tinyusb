@@ -144,8 +144,26 @@ static void fake_close(uint8_t dev_addr) {
   close_count++;
 }
 
+// claims the whole rest of the configuration and records the endpoint sizes it is given, before opening any
+static uint16_t open_ep_size[4];
+static uint8_t  open_ep_count;
+
+static uint16_t fake_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
+  (void) rhport;
+  (void) dev_addr;
+  const uint8_t *p_desc   = (const uint8_t *) desc_itf;
+  const uint8_t *desc_end = p_desc + max_len;
+  for (; tu_desc_in_bounds(p_desc, desc_end); p_desc = tu_desc_next(p_desc)) {
+    if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) && open_ep_count < TU_ARRAY_SIZE(open_ep_size)) {
+      open_ep_size[open_ep_count++] = tu_edpt_packet_size((const tusb_desc_endpoint_t *) p_desc);
+    }
+  }
+  return max_len;
+}
+
 static const usbh_class_driver_t fake_driver = {
   .name       = "FAKE",
+  .open       = fake_open,
   .set_config = fake_set_config,
   .close      = fake_close,
 };
@@ -185,6 +203,8 @@ void setUp(void) {
   clear_stall_rhport = 0xff;
   clear_stall_ep     = 0;
   clear_stall_result = true;
+  open_ep_count      = 0;
+  tu_memclr(open_ep_size, sizeof(open_ep_size));
 
   // DADDR is being enumerated and has reached the SET_CONFIGURATION stage
   usbh_device_t *dev    = get_device(DADDR);
@@ -256,6 +276,45 @@ void test_config_complete_ignored_when_not_configured(void) {
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_EQUAL(0, mount_cb_count);
   TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
+}
+
+//--------------------------------------------------------------------+
+// Configuration parsing: full-speed bulk 512 quirk
+//--------------------------------------------------------------------+
+// alt 0 with bulk OUT/IN 512, alt 1 with bulk IN 512 and an interrupt IN 512 (not a bulk size quirk)
+static const uint8_t cfg_bulk_512[] = {
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7 + 7 + 9 + 7 + 7), 1, 1, 0, 0x80, 50,
+  9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+  7, TUSB_DESC_ENDPOINT, 0x01, TUSB_XFER_BULK, U16_TO_U8S_LE(512), 0,
+  7, TUSB_DESC_ENDPOINT, 0x81, TUSB_XFER_BULK, U16_TO_U8S_LE(512), 0,
+  9, TUSB_DESC_INTERFACE, 0, 1, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+  7, TUSB_DESC_ENDPOINT, 0x82, TUSB_XFER_BULK, U16_TO_U8S_LE(512), 0,
+  7, TUSB_DESC_ENDPOINT, 0x83, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(512), 1,
+};
+
+static void parse_cfg_bulk_512(tusb_speed_t speed) {
+  uint8_t desc[sizeof(cfg_bulk_512)];
+  memcpy(desc, cfg_bulk_512, sizeof(desc));
+  get_device(DADDR)->bus_info.speed = speed;
+  TEST_ASSERT_TRUE(enum_parse_configuration_desc(DADDR, (const tusb_desc_configuration_t *) desc));
+  TEST_ASSERT_EQUAL(4, open_ep_count);
+}
+
+// drivers see the size tuh_edpt_open() will use before they open, alternate settings included
+void test_parse_config_fixes_fullspeed_bulk_512_before_open(void) {
+  parse_cfg_bulk_512(TUSB_SPEED_FULL);
+  TEST_ASSERT_EQUAL(64, open_ep_size[0]);
+  TEST_ASSERT_EQUAL(64, open_ep_size[1]);
+  TEST_ASSERT_EQUAL(64, open_ep_size[2]);
+  TEST_ASSERT_EQUAL(512, open_ep_size[3]); // interrupt: left for tu_edpt_validate() to reject
+}
+
+void test_parse_config_keeps_highspeed_bulk_512(void) {
+  parse_cfg_bulk_512(TUSB_SPEED_HIGH);
+  TEST_ASSERT_EQUAL(512, open_ep_size[0]);
+  TEST_ASSERT_EQUAL(512, open_ep_size[1]);
+  TEST_ASSERT_EQUAL(512, open_ep_size[2]);
+  TEST_ASSERT_EQUAL(512, open_ep_size[3]);
 }
 
 //--------------------------------------------------------------------+
