@@ -632,6 +632,13 @@
   #define CFG_TUD_MEM_SECTION     CFG_TUSB_MEM_SECTION
 #endif
 
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUD_UNCACHED_MEM_SECTION
+  #define CFG_TUD_UNCACHED_MEM_SECTION CFG_TUD_MEM_SECTION
+  #define TUD_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
+#endif
+
 // Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
   #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
@@ -807,6 +814,13 @@
   #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
 #endif
 
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUH_UNCACHED_MEM_SECTION
+  #define CFG_TUH_UNCACHED_MEM_SECTION CFG_TUH_MEM_SECTION
+  #define TUH_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
+#endif
+
 // Attribute to align memory for host controller
 #ifndef CFG_TUH_MEM_ALIGN
   #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
@@ -827,6 +841,13 @@
 // max events processed in one tuh_task_ext() call, 0 for unlimited
 #ifndef CFG_TUH_TASK_EVENTS_PER_RUN
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
+#endif
+
+// Enable the ChipIdea HCD's single-transfer isochronous scheduler, by default with the audio host.
+// Supports service intervals up to 4 ms (HS bInterval <= 6, FS bInterval <= 3).
+// Costs about 2.2 KB of flash and 64 bytes of RAM, 2.9 KB and 96 bytes with CFG_TUH_HUB (RT1064 audio_host, GCC -Os).
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE (CFG_TUH_AUDIO > 0)
 #endif
 
 //------------- CLASS -------------//
