@@ -240,48 +240,48 @@ bool tu_edpt_release(volatile uint8_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
-#if CFG_TUSB_DEBUG
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   const uint16_t max_packet_size = tu_edpt_packet_size(desc_ep);
+  const bool     is_highspeed    = (speed == TUSB_SPEED_HIGH);
+  uint16_t       spec_max;
+  bool           compliant = true;
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
-  TU_ASSERT(max_packet_size > 0);
 
   switch (desc_ep->bmAttributes.xfer) {
-    case TUSB_XFER_ISOCHRONOUS: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(max_packet_size <= spec_size);
+    case TUSB_XFER_ISOCHRONOUS:
+      spec_max = is_highspeed ? 1024 : 1023;
       break;
-    }
 
     case TUSB_XFER_BULK:
-      if (speed == TUSB_SPEED_HIGH) {
-        // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(max_packet_size == 512);
-      } else {
-        // Bulk fullspeed can only be 8, 16, 32, 64. Some non-compliant devices report 4 (e.g. USB-MIDI, the size of
-        // one event packet): accept it with a warning as Linux does, keeping the reported size so the host never sends
-        // the device a packet larger than it can take
-        if (max_packet_size == 4) {
-          TU_LOG1("  WARN: EP %02X bulk fullspeed max packet size 4 is non-compliant\r\n", desc_ep->bEndpointAddress);
-        } else {
-          TU_ASSERT(max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 || max_packet_size == 64);
-        }
-      }
+      spec_max = is_highspeed ? 512 : 64;
+      // Bulk highspeed must be exactly 512, fullspeed 8, 16, 32 or 64
+      compliant = is_highspeed ? (max_packet_size == 512)
+                               : (max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 ||
+                                  max_packet_size == 64);
       break;
 
-    case TUSB_XFER_INTERRUPT: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(max_packet_size <= spec_size);
+    case TUSB_XFER_INTERRUPT:
+      spec_max = is_highspeed ? 1024 : 64;
       break;
-    }
 
     default:
       return false;
   }
 
+  // endpoint buffers are sized to the spec maximum: a larger size can never be accepted
+  if (max_packet_size == 0 || max_packet_size > spec_max) {
+    TU_LOG1("  EP %02X max packet size %u is invalid\r\n", desc_ep->bEndpointAddress, max_packet_size);
+    return false;
+  }
+
+  // Some devices report a non-compliant size (e.g. USB-MIDI bulk 4, one event packet): accept it with a warning as
+  // Linux does, keeping the reported size so the host never sends the device a packet larger than it can take
+  if (!compliant) {
+    TU_LOG1("  WARN: EP %02X max packet size %u is non-compliant\r\n", desc_ep->bEndpointAddress, max_packet_size);
+  }
+
   return true;
 }
-#endif
 
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
                               uint8_t ep_max, const uint8_t *p_desc, uint16_t desc_len) {

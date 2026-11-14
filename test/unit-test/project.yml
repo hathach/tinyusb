@@ -215,8 +215,6 @@
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
-    :test_tu_edpt_validate_release:
-      - CFG_TUSB_DEBUG=0
     # tusb.c's SystemView body (and the TU_SYSVIEW_ISR_ENTER/EXIT declarations it needs) only
     # compile in when CFG_TUSB_SYSVIEW is nonzero with a stack enabled; every other test
     # leaves it at the tusb_option.h default of 0 (undefined here) so this test is fully isolated.
