@@ -55,6 +55,13 @@
 #define ETH_PAD_SIZE                    0
 #define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
+// The only link is USB, whose CRC already protects every packet, so received frames are not re-verified: that
+// checksum costs about a quarter of the CPU at HS throughput. Outgoing checksums are still generated for the host.
+#define CHECKSUM_CHECK_IP               0
+#define CHECKSUM_CHECK_UDP              0
+#define CHECKSUM_CHECK_TCP              0
+#define CHECKSUM_CHECK_ICMP             0
+
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (4 * TCP_MSS)
 #if LWIP_HIGH_THROUGHPUT
@@ -62,6 +69,13 @@
   #define PBUF_POOL_SIZE                8
   // Must grow in step with TCP_SND_BUF (default MEMP_NUM_TCP_SEG=16 caps TCP_SND_BUF at 4*MSS).
   #define MEMP_NUM_TCP_SEG              16
+  // TCP TX segments are allocated from the heap: the 1600 default cannot hold one full MSS segment
+  // next to lwiperf's state, so iperf as client sends its header and then stalls.
+  #define MEM_SIZE                      (TCP_SND_BUF + 2 * TCP_MSS)
+  // 32-bit word checksum, the default 16-bit one costs about a quarter of the CPU at HS throughput
+  #define LWIP_CHKSUM_ALGORITHM         3
+  // NCM hands received frames to lwIP in place (PBUF_REF custom pbufs) instead of copying them
+  #define LWIP_SUPPORT_CUSTOM_PBUF      1
 #else
   #define TCP_WND                       (4 * TCP_MSS)
   #define PBUF_POOL_SIZE                4

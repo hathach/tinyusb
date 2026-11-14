@@ -63,6 +63,16 @@ extern void rndis_class_set_handler(uint8_t *data, int size);
 // indicate to network driver that client has finished with the packet provided to network_recv_cb()
 void tud_network_recv_renew(void);
 
+#if CFG_TUD_NCM
+// Zero-copy reception: called from tud_network_recv_cb(), keeps the packet's buffer valid after the callback returns
+// until tud_network_recv_release(). Returns NULL when the packet must be copied instead (holding it could leave no
+// receive buffer, always so with CFG_TUD_NCM_OUT_NTB_N == 1).
+void *tud_network_recv_hold(void);
+
+// release a buffer kept by tud_network_recv_hold(), task context only
+void tud_network_recv_release(void *handle);
+#endif
+
 // poll network driver for its ability to accept another packet to transmit
 bool tud_network_can_xmit(uint16_t size);
 

@@ -30,7 +30,7 @@ this appears as either a RNDIS or CDC-ECM USB virtual network adapter; the OS pi
 
 RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and macOS hosts
 
-The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
+The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server and web server.
 
 Link State Control:
 - Press the user button to toggle the network link state (UP/DOWN)
@@ -51,9 +51,11 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#if CFG_TUD_NCM
+  #include "class/net/ncm.h" // NTB counts sizing the zero-copy pbuf pool
+#endif
 
 #include "dhserver.h"
-#include "dnserver.h"
 #include "httpd.h"
 #include "lwip/ethip6.h"
 #include "lwip/init.h"
@@ -105,8 +107,9 @@ static dhcp_entry_t entries[] = {
 static const dhcp_config_t dhcp_config = {
     .router = INIT_IP4(0, 0, 0, 0),  /* router address (if any) */
     .port = 67,                      /* listen port */
-    .dns = INIT_IP4(192, 168, 7, 1), /* dns server (if any) */
-    "usb",                           /* dns suffix */
+    /* no dns server: the host may rank this link's DNS first and stall every lookup it cannot answer */
+    .dns = INIT_IP4(0, 0, 0, 0),
+    NULL,                            /* dns suffix */
     TU_ARRAY_SIZE(entries),          /* num entry */
     entries                          /* entries */
 };
@@ -166,10 +169,66 @@ static void usbnet_netif_link_callback(struct netif *netif) {
     tud_network_link_state(BOARD_TUD_RHPORT, link_up);
 }
 
+#if CFG_TUD_NCM && LWIP_HIGH_THROUGHPUT
+// Zero-copy reception: a received frame is handed to lwIP in place, as a PBUF_REF pbuf pointing into the NCM receive
+// buffer, which the class keeps until lwIP frees the pbuf. A frame the class cannot hold, or beyond this pool, is
+// copied into a PBUF_POOL pbuf instead.
+// One pbuf per held frame: every receive NTB can hold frames at once, each up to the datagram count the device
+// advertises to the host per NTB.
+#define RX_PBUF_N (CFG_TUD_NCM_OUT_NTB_N * CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB)
+TU_VERIFY_STATIC(RX_PBUF_N <= UINT8_MAX, "rx_pbuf_free_count is 8-bit");
+
+typedef struct {
+  struct pbuf_custom pc; // first: lwIP frees it through its struct pbuf
+  void *ntb;
+} rx_pbuf_t;
+
+static rx_pbuf_t rx_pbuf[RX_PBUF_N];
+static rx_pbuf_t *rx_pbuf_free[RX_PBUF_N];
+static uint8_t rx_pbuf_free_count;
+
+static void rx_pbuf_init(void) {
+  for (uint8_t i = 0; i < RX_PBUF_N; i++) {
+    rx_pbuf_free[i] = &rx_pbuf[i];
+  }
+  rx_pbuf_free_count = RX_PBUF_N;
+}
+
+static void rx_pbuf_release(struct pbuf *p) {
+  rx_pbuf_t *rp = (rx_pbuf_t *) p;
+  tud_network_recv_release(rp->ntb);
+  rx_pbuf_free[rx_pbuf_free_count++] = rp;
+}
+
+// a pbuf referencing the frame in place, or NULL when it must be copied
+static struct pbuf *rx_pbuf_in_place(const uint8_t *src, uint16_t size) {
+  if (rx_pbuf_free_count == 0) {
+    return NULL;
+  }
+  void *ntb = tud_network_recv_hold();
+  if (ntb == NULL) {
+    return NULL;
+  }
+  rx_pbuf_t *rp = rx_pbuf_free[--rx_pbuf_free_count];
+  rp->ntb = ntb;
+  rp->pc.custom_free_function = rx_pbuf_release;
+  return pbuf_alloced_custom(PBUF_RAW, size, PBUF_REF, &rp->pc, (void *) (uintptr_t) src, size);
+}
+#else
+static void rx_pbuf_init(void) {}
+
+static struct pbuf *rx_pbuf_in_place(const uint8_t *src, uint16_t size) {
+  (void) src;
+  (void) size;
+  return NULL;
+}
+#endif
+
 static void init_lwip(void) {
   struct netif *netif = &netif_data;
 
   lwip_init();
+  rx_pbuf_init();
 
   /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
   netif->hwaddr_len = sizeof(tud_network_mac_address);
@@ -191,28 +250,23 @@ static void init_lwip(void) {
 #endif
 }
 
-/* handle any DNS requests from dns-server */
-static bool dns_query_proc(const char *name, ip4_addr_t *addr) {
-  if (0 == strcmp(name, "tiny.usb")) {
-    *addr = ipaddr;
-    return true;
-  }
-  return false;
-}
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
   struct netif *netif = &netif_data;
 
   if (size) {
-    struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
+    struct pbuf *p = rx_pbuf_in_place(src, size);
 
     if (p == NULL) {
-      printf("ERROR: Failed to allocate pbuf of size %d\n", size);
-      return false;
-    }
+      p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
+      if (p == NULL) {
+        printf("ERROR: Failed to allocate pbuf of size %d\n", size);
+        return false;
+      }
 
-    /* Copy buf to pbuf */
-    pbuf_take(p, src, size);
+      /* Copy buf to pbuf */
+      pbuf_take(p, src, size);
+    }
 
     // Surrender ownership of our pbuf unless there was an error
     // Only call pbuf_free if not Ok else it will panic with "pbuf_free: p->ref > 0"
@@ -222,10 +276,11 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
       printf("ERROR: netif input failed\n");
       pbuf_free(p);
     }
-    // Signal tinyusb that the current frame has been processed.
-    tud_network_recv_renew();
   }
 
+  // Signal tinyusb that the current frame has been processed. An empty frame (a ZLP, or an RNDIS packet that failed
+  // validation) must be renewed too: returning true without it leaves OUT un-armed and stalls the link.
+  tud_network_recv_renew();
   return true;
 }
 
@@ -286,11 +341,10 @@ int main(void) {
 
   board_init_after_tusb();
 
-  /* initialize lwip, dhcp-server, dns-server, and http */
+  /* initialize lwip, dhcp-server, and http */
   init_lwip();
   while (!netif_is_up(&netif_data));
   while (dhserv_init(&dhcp_config) != ERR_OK);
-  while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK);
   httpd_init();
 
 #ifdef INCLUDE_IPERF
