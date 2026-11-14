@@ -130,7 +130,8 @@ static void process_kbd_report(hid_keyboard_report_t const *report) {
 
   //------------- example code ignore control (non-printable) key affects -------------//
   for (uint8_t i = 0; i < 6; i++) {
-    if (report->keycode[i]) {
+    // keycodes past the table (0x87 International1, 0x90 LANG1, ...) have no ASCII
+    if (report->keycode[i] && report->keycode[i] < TU_ARRAY_SIZE(keycode2ascii)) {
       if (find_key_in_report(&prev_report, report->keycode[i])) {
         // exist in previous report means the current key is holding
       } else {
