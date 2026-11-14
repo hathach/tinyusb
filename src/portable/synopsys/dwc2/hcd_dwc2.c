@@ -264,7 +264,9 @@ static uint16_t _hcd_nonperiodic_uframe;
 TU_ATTR_ALWAYS_INLINE static inline uint16_t nonperiodic_uframe_tag(uint32_t hfnum) {
   return (uint16_t) (HCD_NONPERIODIC_UFRAME_VALID | (hfnum & HCD_FRAME_NUMBER_MASK));
 }
+#endif
 
+#if HCD_SPLIT && CFG_TUH_DWC2_SLAVE_ENABLE
 // A held start-split was started during the FIFO-empty interrupt, which then stays enabled for its FIFO write
 static bool _hcd_split_kicked;
 #endif
@@ -2374,9 +2376,12 @@ static void split_iso_out_close(dwc2_regs_t* dwc2, uint8_t ch_id) {
         periodic_xfer_defer(dwc2, edpt, false);
         continue;
       }
-      if (edpt_xfer_kickoff(dwc2, ep_id)) {
-        _hcd_split_kicked = true;
-      }
+      const bool kicked = edpt_xfer_kickoff(dwc2, ep_id);
+#if CFG_TUH_DWC2_SLAVE_ENABLE
+      _hcd_split_kicked = _hcd_split_kicked || kicked;
+#else
+      (void) kicked; // only the slave-mode FIFO-empty interrupt waits on it
+#endif
     }
   }
 }
