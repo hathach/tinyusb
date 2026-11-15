@@ -1324,6 +1324,32 @@ void test_usbd_get_descriptor_out_is_stalled(void) {
   tud_task();
 }
 
+// An OUT GET_INTERFACE to an interface stalls before reaching its class driver: no mscd_control_xfer_cb expected
+void test_usbd_get_interface_out_to_interface_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// The device-to-host rule is for standard requests only: a vendor OUT request numbered GET_DESCRIPTOR is dispatched
+void test_usbd_vendor_out_request_6_is_dispatched(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x40, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = 0, .wIndex = 0, .wLength = 8
+  };
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 8, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Endpoint stream read: the ep buffer cap is rounded down to whole packets
 //--------------------------------------------------------------------+

@@ -1096,8 +1096,6 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       return true;
 
     case TUSB_REQ_GET_CONFIGURATION: {
-      // USB 2.0 9.4.2 is device-to-host: an OUT data stage would land in this stack local after it is gone
-      TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
       uint8_t cfg_num = _usbd_dev.cfg_num;
       tud_control_xfer(rhport, p_request, &cfg_num, 1);
       return true;
@@ -1141,8 +1139,6 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
     }
 
     case TUSB_REQ_GET_DESCRIPTOR:
-      // USB 2.0 9.4.3 is device-to-host: an OUT data stage would be written into the descriptor
-      TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
       return process_get_descriptor(rhport, p_request);
 
     case TUSB_REQ_SET_FEATURE:
@@ -1197,11 +1193,24 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
 
 
 // Reply to a standard GET_STATUS (device/interface/endpoint) with its 2-byte status word.
-// GET_STATUS is Device-to-host only; reject a mis-directed (OUT) request rather than handing
-// usbd the address of a stack local to write host data into after this frame has returned.
 static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status) {
-  TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
   return tud_control_xfer(rhport, request, &status, 2);
+}
+
+// USB 2.0 Table 9-3, HID 1.11 7.1.1: device-to-host only for every recipient. An OUT data stage
+// would write host data into a descriptor, driver state or a stack local that is gone by then.
+static bool is_std_request_in_only(uint8_t bRequest) {
+  switch (bRequest) { //-V2520
+    case TUSB_REQ_GET_STATUS:
+    case TUSB_REQ_GET_DESCRIPTOR:
+    case TUSB_REQ_GET_CONFIGURATION:
+    case TUSB_REQ_GET_INTERFACE:
+    case TUSB_REQ_SYNCH_FRAME:
+      return true;
+
+    default:
+      return false;
+  }
 }
 
 // This handles the actual request and its response.
@@ -1219,6 +1228,9 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
   p_request = &ctrl_xfer->request; // re-direct request pointer to internal copy (modifiable for hacking)
   TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
+  TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+              TUSB_DIR_OUT == p_request->bmRequestType_bit.direction &&
+              is_std_request_in_only(p_request->bRequest)));
 
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR ) {
@@ -1282,12 +1294,6 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
-
-      // USB 2.0 9.4.4: GET_INTERFACE is device-to-host. Stall an OUT one before any class driver sees it: a driver
-      // answering from its alternate setting would otherwise arm an OUT data stage that writes host data into it.
-      TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-                  TUSB_REQ_GET_INTERFACE == p_request->bRequest &&
-                  TUSB_DIR_IN != p_request->bmRequestType_bit.direction));
 
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
