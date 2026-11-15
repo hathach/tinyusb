@@ -706,6 +706,8 @@ static bool usbd_process_event(dcd_event_t* event) {
     case DCD_EVENT_UNPLUGGED:
       TU_LOG_USBD("\r\n");
       usbd_reset(event->rhport);
+      // a SETUP still in the queue was received before the cable was removed
+      _usbd_queued_setup = 0;
       tud_umount_cb();
       break;
 

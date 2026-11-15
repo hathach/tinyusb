@@ -379,6 +379,19 @@ void test_usbd_setup_queued_before_bus_reset_is_dropped(void) {
   tud_task();
 }
 
+// a SETUP still queued when the cable is unplugged is stale: it is dropped and the device stays disconnected
+void test_usbd_setup_queued_behind_unplug_is_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
+
+  // the SETUP never reaches the DCD
+  tud_task();
+  TEST_ASSERT_FALSE(tud_connected());
+}
+
 //--------------------------------------------------------------------+
 // Transfer completion dropped by full event queue
 //--------------------------------------------------------------------+
