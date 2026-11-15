@@ -119,6 +119,7 @@
         </group>
         <group name="src/portable/chipidea/ci_fs">
             <path>$TUSB_DIR$/src/portable/chipidea/ci_fs/dcd_ci_fs.c</path>
+            <path>$TUSB_DIR$/src/portable/chipidea/ci_fs/hcd_ci_fs.c</path>
             <path>$TUSB_DIR$/src/portable/chipidea/ci_fs/ci_fs_kinetis.h</path>
             <path>$TUSB_DIR$/src/portable/chipidea/ci_fs/ci_fs_mcx.h</path>
             <path>$TUSB_DIR$/src/portable/chipidea/ci_fs/ci_fs_type.h</path>
@@ -177,10 +178,6 @@
         </group>
         <group name="src/portable/nuvoton/nuc505">
             <path>$TUSB_DIR$/src/portable/nuvoton/nuc505/dcd_nuc505.c</path>
-        </group>
-        <group name="src/portable/nxp/khci">
-            <path>$TUSB_DIR$/src/portable/nxp/khci/dcd_khci.c</path>
-            <path>$TUSB_DIR$/src/portable/nxp/khci/hcd_khci.c</path>
         </group>
         <group name="src/portable/nxp/lpc17_40">
             <path>$TUSB_DIR$/src/portable/nxp/lpc17_40/dcd_lpc17_40.c</path>
