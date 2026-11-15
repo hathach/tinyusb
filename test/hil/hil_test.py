@@ -750,6 +750,7 @@ def test_host_device_info(board):
 
 # msc_app.c's capacity line, terminated: a line still arriving may hold a truncated count
 DISK_SIZE_RE = re.compile(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks: \d+ MB\r?\n')
+DISK_SIZE_RE_B = re.compile(DISK_SIZE_RE.pattern.encode())  # the wait loops' raw buffer, undecoded
 
 
 def check_msc_info(text, msc_devs):
@@ -792,7 +793,7 @@ def test_host_cdc_msc_hid(board):
             if new_data:
                 data += new_data
                 cdc_ok = (not wait_cdc) or (b'CDC Interface is mounted' in data)
-                msc_ok = (not wait_msc) or DISK_SIZE_RE.search(data.decode('utf-8', errors='ignore'))
+                msc_ok = (not wait_msc) or DISK_SIZE_RE_B.search(data)
                 if cdc_ok and msc_ok:
                     break
             time.sleep(0.1)
@@ -806,7 +807,8 @@ def test_host_cdc_msc_hid(board):
             '1a86:55d3': 'CH9102', '1a86:55d4': 'CH9102',
         }
 
-        lines = data.decode('utf-8', errors='ignore').splitlines()
+        text = data.decode('utf-8', errors='ignore')
+        lines = text.splitlines()
 
         if cdc_devs:
             assert b'CDC Interface is mounted' in data, 'CDC device not mounted on host'
@@ -818,7 +820,7 @@ def test_host_cdc_msc_hid(board):
 
         if msc_devs:
             assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
-            check_msc_info(data.decode('utf-8', errors='ignore'), msc_devs)
+            check_msc_info(text, msc_devs)
 
         # CDC echo test via flasher serial
         if not cdc_devs:
@@ -874,11 +876,10 @@ def test_host_msc_file_explorer(board):
             new_data = ser.read(ser.in_waiting or 1)
             if new_data:
                 data += new_data
-                if DISK_SIZE_RE.search(data.decode('utf-8', errors='ignore')):
+                if DISK_SIZE_RE_B.search(data):
                     break
             time.sleep(0.1)
             timeout -= 0.1
-        assert b'Disk Size' in data, 'MSC device not mounted'
         check_msc_info(data.decode('utf-8', errors='ignore'), msc_devs)
 
         # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
@@ -1383,37 +1384,43 @@ def test_device_printer_to_cdc(board):
     ser.close()
 
 
+def _run_session(board, script: str, label: str, t, margin) -> tuple:
+    """Run session child `script` (mtp_test.py, usbtmc_test.py) for `board` with enumeration budget `t` s and
+    `margin` s more before its kill: (rc, stdout text). A killed session raises; one that outlived SIGKILL
+    first latches board_wedged, so this board gets no retry, no further flash and no park through the held
+    node. run_cmd keeps what the killed child flushed, the cases that failed before the wedge."""
+    global board_wedged
+    path = Path(__file__).resolve().parent / script
+    fd, pidfile = tempfile.mkstemp(prefix=f'{label.lower()}-session-')
+    os.close(fd)
+    try:
+        r = hil_util.run_cmd(
+            f'{shlex.quote(sys.executable)} {shlex.quote(str(path))} --uid {shlex.quote(board["uid"])} '
+            f'--timeout {t} --pidfile {shlex.quote(pidfile)}',
+            timeout=t + margin)
+        alive = _session_alive(pidfile) if r.returncode == 124 else ''
+    finally:
+        os.unlink(pidfile)
+    out = hil_util.cmd_stdout_text(r.stdout)
+    if r.returncode == 124:
+        if alive:
+            board_wedged = f'{board["name"]}: {label} session {alive} outlived SIGKILL and holds the device'
+        raise AssertionError(f'{label} session wedged (abandoned after {t + margin}s; '
+                             f'{board_wedged or "the session was reaped"}):\n{out[-600:]}')
+    return r.returncode, out
+
+
 def test_device_mtp(board):
     # The whole session lives in mtp_test.py under run_cmd: libmtp calls are synchronous
     # ctypes that block unkillably (D state) on a wedged device, so a disposable process is
     # the only thing the harness can walk away from.
-    global board_wedged
-    uid = board['uid']
-    script = Path(__file__).resolve().parent / 'mtp_test.py'
     # 2x, as master's in-process open_mtp_dev used: libmtp-runtime publishes
     # /dev/libmtp-* only after its SYNCHRONOUS mtp-probe finishes, seconds on a freshly
     # flashed FS board, and the gio unmount eats part of what is left before the first
     # probe. Extracting the session into a subprocess halved this by accident (8s/4s),
     # which fails healthy hardware on the retry.
-    t = 2 * enum_timeout()
-    fd, pidfile = tempfile.mkstemp(prefix='mtp-session-')
-    os.close(fd)
-    try:
-        r = hil_util.run_cmd(
-            f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t} '
-            f'--pidfile {shlex.quote(pidfile)}',
-            timeout=t + MTP_SESSION_MARGIN)
-        alive = _session_alive(pidfile) if r.returncode == 124 else ''
-    finally:
-        os.unlink(pidfile)
-    if r.returncode == 124:
-        # A session blocked in a usbfs ioctl (D state) outlives SIGKILL and holds the device: latch the
-        # wedge, as test_device_usbtmc does, so this board gets no retry, no further flash and no park
-        if alive:
-            board_wedged = f'{board["name"]}: MTP session {alive} outlived SIGKILL and holds the device'
-        raise AssertionError(f'MTP session wedged (abandoned after {t + MTP_SESSION_MARGIN}s; '
-                             f'{board_wedged or "the session was reaped"})')
-    assert r.returncode == 0, f'MTP session failed (rc {r.returncode}):\n{r.stdout}'
+    rc, out = _run_session(board, 'mtp_test.py', 'MTP', 2 * enum_timeout(), MTP_SESSION_MARGIN)
+    assert rc == 0, f'MTP session failed (rc {rc}):\n{out}'
 
 
 def _session_alive(pidfile: str) -> str:
@@ -1432,32 +1439,10 @@ def _session_alive(pidfile: str) -> str:
 def test_device_usbtmc(board):
     # Raw USBTMC/USB488 requests from usbtmc_test.py, in a child for the same reason as mtp_test.py:
     # a pyusb call blocked in a usbfs ioctl cannot be bounded in-process.
-    global board_wedged
-    uid = board['uid']
-    script = Path(__file__).resolve().parent / 'usbtmc_test.py'
-    t = enum_timeout()
-    fd, pidfile = tempfile.mkstemp(prefix='usbtmc-session-')
-    os.close(fd)
-    try:
-        r = hil_util.run_cmd(
-            f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t} '
-            f'--pidfile {shlex.quote(pidfile)}',
-            timeout=t + USBTMC_SESSION_MARGIN)
-        alive = _session_alive(pidfile) if r.returncode == 124 else ''
-    finally:
-        os.unlink(pidfile)
-    out = hil_util.cmd_stdout_text(r.stdout)
-    if r.returncode == 124:
-        # A session that outlived SIGKILL still holds the device: latch the wedge, as usbtest does, so this
-        # board gets no retry, no further flash and no park through the held node
-        if alive:
-            board_wedged = f'{board["name"]}: USBTMC session {alive} outlived SIGKILL and holds the device'
-        # run_cmd keeps what the killed child flushed: the cases that failed before the wedge
-        raise AssertionError(f'USBTMC session wedged (abandoned after {t + USBTMC_SESSION_MARGIN}s; '
-                             f'{board_wedged or "the session was reaped"}):\n{out[-600:]}')
+    rc, out = _run_session(board, 'usbtmc_test.py', 'USBTMC', enum_timeout(), USBTMC_SESSION_MARGIN)
     lines = out.splitlines()
     fails = [line for line in lines if line.startswith(('FAIL', 'device lost'))]
-    assert r.returncode == 0, f'USBTMC session failed (rc {r.returncode}):\n' + '\n'.join(fails or [out[-600:]])
+    assert rc == 0, f'USBTMC session failed (rc {rc}):\n' + '\n'.join(fails or [out[-600:]])
     # The multi-packet abort and clear cases skip on a high-speed endpoint: show that coverage in the cell
     passed = sum(line.startswith('PASS') for line in lines)
     skipped = sum(line.startswith('SKIP') for line in lines)

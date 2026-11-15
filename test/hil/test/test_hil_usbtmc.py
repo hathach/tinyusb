@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 # usbtmc_test.Dut.find against a fake sysfs tree and a fake pyusb: every USBTMC DUT is cafe:401c, so the
 # requested serial is resolved from sysfs, bounded, before the one matching device is opened.
+# SessionChild: the sysfs walk and bounded serial read session_child.py gives usbtmc_test and mtp_test.
 # Run directly:
 #   python3 test/hil/test/test_hil_usbtmc.py
 import os
@@ -13,6 +14,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import session_child     # noqa: E402
 import usbtest_harness   # noqa: E402
 import usbtmc_test       # noqa: E402
 
@@ -113,6 +115,73 @@ class Find(unittest.TestCase):
                               lambda s: self.node('1-1', 'cafe', '401c', 'U', 1, 2) and None)
         self.devices[(1, 2)] = FakeDev()
         self.assertEqual(self.dut(timeout=5).itf, 0)
+
+
+class SessionChild(unittest.TestCase):
+    def setUp(self):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        self.root = Path(td.name)
+
+    def node(self, name, serial='U', bus=1, address=2):
+        d = self.root / name
+        d.mkdir()
+        for attr, val in (('idVendor', 'cafe'), ('idProduct', '401c'), ('busnum', bus), ('devnum', address)):
+            (d / attr).write_text(f'{val}\n')
+        if serial is None:
+            os.mkfifo(d / 'serial')
+        else:
+            (d / 'serial').write_text(f'{serial}\n')
+        return d
+
+    def find(self):
+        return session_child.find_devices(self.root, 'cafe', '401c', 'U')
+
+    def strand(self, fifo):
+        """A first read of `fifo` given up on: its reader stays blocked in open() until released."""
+        self.addCleanup(Find.release, fifo)
+        self.assertIsNone(session_child.bounded_read(fifo, grace=0.1))
+        return session_child._stranded[str(fifo)][1]
+
+    def test_root_hubs_and_interfaces_are_skipped_before_any_read(self):
+        self.node('usb1')
+        self.node('1-9:1.0')
+        self.node('1-1')
+        read = []
+        attr = session_child._attr
+        usbtest_harness.patch(self, session_child, '_attr', lambda dev, name: read.append(dev) or attr(dev, name))
+        self.assertEqual(self.find(), [(1, 2)])
+        self.assertEqual({Path(d).name for d in read}, {'1-1'})
+
+    def test_a_blocked_serial_gets_no_second_reader_until_the_first_returns(self):
+        fifo = self.node('1-1', serial=None) / 'serial'
+        stuck = self.strand(fifo)
+        self.assertEqual(self.find(), [])
+        self.assertIs(session_child._stranded[str(fifo)][1], stuck, 'a second reader joined the blocked one')
+        Find.release(fifo)
+        stuck.join(2)
+        self.assertFalse(stuck.is_alive())
+        self.assertIsNone(session_child.bounded_read(fifo, grace=0.1))   # no writer again: a fresh read blocks
+        self.assertIsNot(session_child._stranded[str(fifo)][1], stuck, 'not retried after the reader finished')
+
+    def test_a_re_enumerated_node_is_read_while_the_old_reader_is_still_blocked(self):
+        d = self.node('1-1', serial=None)
+        stuck = self.strand(d / 'serial')
+        (d / 'serial').rename(d / 'serial.old')   # the old node, its reader still blocked on it
+        self.addCleanup(Find.release, d / 'serial.old')
+        (d / 'serial').write_text('U\n')
+        self.assertEqual(self.find(), [(1, 2)])
+        self.assertTrue(stuck.is_alive())
+
+    def test_a_serial_read_across_a_re_enumeration_is_rejected(self):
+        d = self.node('1-1')
+
+        def read_then_re_enumerate(path, grace=None):
+            d.rename(self.root / 'gone')
+            self.node('1-1', address=3)
+            return 'U'
+        usbtest_harness.patch(self, session_child, 'bounded_read', read_then_re_enumerate)
+        self.assertEqual(self.find(), [], 'serial of one enumeration paired with the address of the next')
 
 
 if __name__ == '__main__':

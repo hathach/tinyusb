@@ -27,6 +27,7 @@ the graph never saw are listed per commit; a commit that deletes a file needs it
 historical tree, since the current graph cannot know what built the deleted file.
 """
 import argparse
+import contextlib
 import importlib.util
 import json
 import os
@@ -361,15 +362,6 @@ def extract_board(build_dir, root):
     return out
 
 
-def family_in(tools_build, board, root):
-    old = os.getcwd()
-    os.chdir(root)  # build.py's find_family reads hw/bsp from the cwd
-    try:
-        return tools_build.find_family(board)
-    finally:
-        os.chdir(old)
-
-
 def cmd_graph(a):
     root = os.path.abspath(a.root)
     head = run_ok(['git', 'rev-parse', 'HEAD'], root).strip()
@@ -397,8 +389,9 @@ def cmd_graph(a):
         other_drive.clear()
         try:
             r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
-            rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
-                   'family': family_in(tools_build, board, root)}
+            with contextlib.chdir(root):  # build.py's find_family reads hw/bsp from the cwd
+                family = tools_build.find_family(board)
+            rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default', 'family': family}
             try:
                 rec.update(status='ok' if r.returncode == 0 else 'partial', **extract_board(build_dir, root))
                 if r.returncode != 0:

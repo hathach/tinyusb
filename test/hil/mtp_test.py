@@ -5,7 +5,7 @@
 # a wedged device, where not even SIGKILL is delivered — so the session must be
 # something the harness can abandon: hil_test.test_device_mtp runs it under
 # hil_util.run_cmd (killpg + bounded reap, rc 124 on timeout). Imports stay stdlib +
-# pymtp: nothing here may pull in the harness.
+# pymtp + session_child: nothing here may pull in the harness.
 #
 # Exit 0 on a fully passing session; 1 with the failure on stdout/stderr otherwise.
 import argparse
@@ -16,7 +16,6 @@ import os
 import signal
 import subprocess
 import sys
-import threading
 import time
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
@@ -25,6 +24,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH dr
 from pathlib import Path
 from pymtp import LIBMTP_DeviceEntry, LIBMTP_RawDevice, MTP
 import mtp_raw
+import session_child
 
 FILE1_EXPECT = b'TinyUSB MTP Filesystem example'
 FILE2_MD5_EXPECT = '40ef23fc2891018d41a05d4a0d5f822f'  # md5sum of logo.png
@@ -43,29 +43,6 @@ _SYS_USB = Path(f'{_ROOT}/sys/bus/usb/devices')
 _USB_DEV = Path(f'{_ROOT}/dev/bus/usb')
 
 
-def _bounded_read(path, grace: float = 2.0):
-    """Read a sysfs attribute with a wall-clock bound, or return None.
-
-    `serial` is served under the device lock a wedged usbfs ioctl holds, and EVERY MTP DUT
-    is cafe:4017 -- so the vid/pid filter below cannot rule out a wedged NEIGHBOUR, and an
-    unbounded read of its serial would burn this session's whole budget and report a
-    healthy board as wedged. Stdlib only by design (this file never imports the harness),
-    so this is a small local twin of usb_observe.read_sysfs.
-    """
-    out = {}
-
-    def _read():
-        try:
-            out['v'] = path.read_text().strip()
-        except OSError:
-            pass
-
-    t = threading.Thread(target=_read, daemon=True)
-    t.start()
-    t.join(grace)
-    return out.get('v')
-
-
 def _ready_marker(uid: str):
     """(busnum, devnum) of the udev-ready MTP device with this serial, or None.
 
@@ -77,19 +54,11 @@ def _ready_marker(uid: str):
     for marker_name in glob.glob(_MARKER_GLOB):
         marker = Path(marker_name)
         try:
-            dev = _SYS_USB / marker.name[len('libmtp-'):]
-            # vid/pid first: lock-free descriptor fields, so they rule out every other
-            # device before the `serial` read, which the kernel serves under the device
-            # lock a wedged usbfs ioctl would hold
-            if ((dev / 'idVendor').read_text().strip() != 'cafe'
-                    or (dev / 'idProduct').read_text().strip() != '4017'):
+            # bounded serial read: every MTP DUT is cafe:4017, so a wedged neighbour passes the vid/pid filter
+            ident = session_child.device_identity(_SYS_USB / marker.name[len('libmtp-'):], 'cafe', '4017')
+            if ident is None or ident[0].lower() != uid.lower():
                 continue
-            # bounded: this one CAN block, and a wedged neighbour shares the vid/pid above
-            serial = _bounded_read(dev / 'serial')
-            if serial is None or serial.lower() != uid.lower():
-                continue
-            busnum = int((dev / 'busnum').read_text())
-            devnum = int((dev / 'devnum').read_text())
+            _, busnum, devnum = ident
             node = _USB_DEV / f'{busnum:03d}' / f'{devnum:03d}'
             if marker.resolve(strict=True) != node or not os.access(node, os.R_OK | os.W_OK):
                 continue
@@ -261,11 +230,7 @@ def main() -> int:
                                           'this process outlived its kill')
     args = parser.parse_args()
     if args.pidfile:
-        # starttime is proc(5) stat field 22: a recycled pid has another
-        with open('/proc/self/stat') as f:
-            start = f.read().rpartition(')')[2].split()[19]
-        with open(args.pidfile, 'w') as f:
-            f.write(f'{os.getpid()} {start}\n')
+        session_child.write_pidfile(args.pidfile)
     return run_session(args.uid, args.timeout)
 
 
