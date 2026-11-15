@@ -153,7 +153,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
   (void) ep_addr;
 
-  return true;
+  return false; // data toggle reset not implemented
 }
 
 static void __no_inline_not_in_flash_func(handle_endpoint_irq)(root_port_t *rport, xfer_result_t result,

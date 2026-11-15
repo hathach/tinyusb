@@ -154,7 +154,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]);
 
-// clear stall, data toggle is also reset to DATA0
+// Reset the host side of an idle endpoint to DATA0 (and clear its halt) after the device accepted
+// CLEAR_FEATURE(ENDPOINT_HALT). Sends no USB request. Return false if not supported.
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+

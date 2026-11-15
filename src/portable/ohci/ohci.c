@@ -570,6 +570,8 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   TU_ASSERT(p_ed);
 
   ohci_ed_word2_t td_head = p_ed->td_head;
+  // OHCI 1.0a §4.2.3: HeadP, toggleCarry and Halted may only be written while the ED is halted, skipped or unlinked
+  TU_VERIFY(td_head.halted);
   td_head.toggle = 0; // reset data toggle
   td_head.halted = 0;
   p_ed->td_head = td_head;

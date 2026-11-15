@@ -481,12 +481,35 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
   return true;
 }
 
-// usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
+// A DCD may queue the unplug ahead of an endpoint completion latched in the same ISR run (dwc2 handles OTGINT before
+// the endpoint interrupts). The unplug unbinds the endpoint, so the completion that follows is stale: it is dropped
+// without reaching the class (mscd_xfer_cb has no expectation) and the run goes on to the next event.
+static void count_call(void* param) {
+  (*(unsigned*) param)++;
+}
+
+void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
+  msc_out_armed();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+
+  // an event queued behind the stale completion is still processed in the same tud_task() run
+  unsigned calls = 0;
+  usbd_defer_func(count_call, &calls, false);
+
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(1, calls);
+}
+
+// Without dcd_edpt_abort_xfer() in the DCD, usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and
+// releases the claim
 void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   msc_out_armed();
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
@@ -507,9 +530,39 @@ void test_usbd_edpt_abort_idle_endpoint(void) {
   usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+// A DCD with dcd_edpt_abort_xfer() drops the in-flight transfer without stalling the endpoint, and the claim is
+// released
+void test_usbd_edpt_abort_uses_dcd_abort(void) {
+  msc_out_armed();
+
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+// A stalled endpoint is still stalled and cleared, which clears the stall: the DCD abort is only for a transfer
+void test_usbd_edpt_abort_clears_a_stall(void) {
+  msc_out_armed();
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_stall(rhport, EDPT_MSC_OUT);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
 

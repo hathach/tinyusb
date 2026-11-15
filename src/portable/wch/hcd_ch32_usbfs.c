@@ -352,6 +352,8 @@ void hcd_int_disable(uint8_t rhport) {
 }
 
 
+static bool send_clear_stall_sync(uint8_t dev_addr, uint8_t ep_addr);
+
 static void xfer_retry(void* _params) {
   LOG_CH32_USBFSH("xfer_retry()\r\n");
   usb_edpt_t* edpt_info = (usb_edpt_t*)_params;
@@ -473,7 +475,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     } else {
       if (response_pid == USB_PID_STALL) {
         LOG_CH32_USBFSH("STALL response\r\n");
-        hcd_edpt_clear_stall(0, dev_addr, ep_addr);
+        send_clear_stall_sync(dev_addr, ep_addr);
         edpt_info->data_toggle = 0;
         hardware_start_xfer(request_pid, ep_addr, 0);
         return;
@@ -629,10 +631,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   return true;
 }
 
-bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  (void) rhport;
+// Sends CLEAR_FEATURE(ENDPOINT_HALT) itself, busy-waiting: only for the STALL path in hcd_int_handler()
+static bool send_clear_stall_sync(uint8_t dev_addr, uint8_t ep_addr) {
   (void) dev_addr;
-  LOG_CH32_USBFSH("hcd_edpt_clear_stall(rhport=%d, dev_addr=0x%02x, ep_addr=0x%02x)\r\n", rhport, dev_addr, ep_addr);
+  LOG_CH32_USBFSH("send_clear_stall_sync(dev_addr=0x%02x, ep_addr=0x%02x)\r\n", dev_addr, ep_addr);
   uint8_t edpt_num = tu_edpt_number(ep_addr);
   uint8_t setup_request_clear_stall[8] = {
       0x02, 0x01, 0x00, 0x00, edpt_num, 0x00, 0x00, 0x00
@@ -649,13 +651,21 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   USBOTG_H_FS->HOST_EP_PID = 0;
   uint8_t response_pid = USBOTG_H_FS->INT_ST & USBFS_UIS_H_RES_MASK;
   (void) response_pid;
-  LOG_CH32_USBFSH("hcd_edpt_clear_stall() response pid=0x%02x\r\n", response_pid);
+  LOG_CH32_USBFSH("send_clear_stall_sync() response pid=0x%02x\r\n", response_pid);
 
   if (prev_int_state) {
     hcd_int_enable(0);
   }
 
   return true;
+}
+
+// Local toggle reset without a USB request is not implemented
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  return false;
 }
 
 #endif

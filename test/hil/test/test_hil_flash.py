@@ -114,6 +114,44 @@ class Adapters(unittest.TestCase):
                     self.assertEqual((called, pargs[0]), (f'{verb}_{name}', BOARDS[name]))
                     self.assertEqual((kw['timeout'], kw['run']), (7, hil_util.run_cmd))
 
+    def test_probe_busy_asks_for_each_entry_of_the_probe_once(self):
+        asked = []
+        users = {'jlink': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}, {'pid': 3, 'cmd': 'gdb'}],
+                 'openocd': [{'pid': 9, 'cmd': 'JLinkExe -USB S1'}]}
+        self.provider.probe_users = lambda f: asked.append(f) or users[f['name']]
+        board = {'name': 'b', 'flasher': dict(BOARDS['jlink']), 'flasher_recover': {'name': 'openocd', 'args': ''}}
+        got = hil_flash.probe_busy(board)
+        self.assertEqual(asked, [BOARDS['jlink'], {'name': 'openocd', 'args': '', 'uid': 'S1'}])
+        self.assertEqual(got, [{'pid': 3, 'cmd': 'gdb'}, {'pid': 9, 'cmd': 'JLinkExe -USB S1'}])
+        asked.clear()
+        hil_flash.probe_busy({'name': 'b', 'flasher': dict(BOARDS['jlink'])})
+        self.assertEqual(asked, [BOARDS['jlink']], 'no recovery entry: the primary alone, once')
+
+    def test_probe_busy_refuses_only_what_the_provider_cannot_decide(self):
+        board = {'name': 'b', 'flasher': dict(BOARDS['jlink'])}
+        for raised in (self.provider.real.ProbeCheckInconclusive('/proc may hide'), ValueError('no probe lookup')):
+            with self.subTest(raised=raised):
+                self.provider.probe_users = mock.Mock(side_effect=raised)
+                with self.assertRaisesRegex(hil_flash.ProbeCheckFailed, f'{type(raised).__name__}: {raised}'):
+                    hil_flash.probe_busy(board)
+        self.provider.probe_users = mock.Mock(side_effect=TypeError('a harness bug'))
+        with self.assertRaisesRegex(TypeError, 'a harness bug'):   # never a refusal
+            hil_flash.probe_busy(board)
+
+    def test_every_rostered_flasher_has_a_probe_lookup(self):
+        # the busy check refuses a board whose flasher it cannot look up, so a roster must not name one;
+        # the provider's device lookup and /proc walk are stubbed: no host I/O
+        real = self.provider.real
+        usj = types.SimpleNamespace(load_file=lambda path: types.SimpleNamespace(usj_node=lambda uid: '/dev/null'))
+        with mock.patch.object(real, '_probe_nodes', return_value=set()), \
+                mock.patch.object(real, 'esptool_port', return_value='/dev/null'), \
+                mock.patch.object(real, 'hil_load', usj), \
+                mock.patch.object(real.hil_process, '_proc_hides_others', return_value=False), \
+                mock.patch.object(real, '_walk', return_value=[]):
+            for name in flasher_names():
+                with self.subTest(name=name):
+                    self.assertEqual(real.probe_users(BOARDS[name]), [])
+
     def test_without_a_bound_cmd_timeout_is_read_at_call_time(self):
         self.addCleanup(setattr, hil_util, 'CMD_TIMEOUT', hil_util.CMD_TIMEOUT)
         hil_util.CMD_TIMEOUT = 33
@@ -633,6 +671,8 @@ class Rosters(unittest.TestCase):
         (no LPC55 target cfg or flash driver in 0ce743125), its DAP pinned to DPIDR 0x6ba02477 and
         AP 0; SYSRESETREQ is a chip reset (UM11126 4.6.1) and libjaylink finds its LPCXpresso V2
         probe (PID 0x1024) from 0.4.0; 3/3 resets each re-enumerated the DUT (ci.lan 2026-10-17).
+        max32666fthr's J-Link: 3/3 resets each re-enumerated the DUT and a reflash of cdc_msc verified
+        and re-enumerated (ci.lan 2026-11-11).
         The STM32 entries empty
         their target's reset-init event: stm32f0x/f4x/f7x/l4x.cfg set `adapter speed 8000` there,
         these on-board J-Link probes cap at 4000 and fail even at 4000 (auto_probe failed, SWD
@@ -647,7 +687,7 @@ class Rosters(unittest.TestCase):
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
                         'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
                         'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
-                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69'}
+                        'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69', 'max32666fthr'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                          '-c "swd newdap rt1064 cpu -expected-id 0" '
                                          '-c "dap create rt1064.dap -chain-position rt1064.cpu" '

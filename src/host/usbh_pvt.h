@@ -85,6 +85,10 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr);
 // Check if endpoint transferring is complete
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 
+// Reset the host side of an idle non-control endpoint to DATA0 after its CLEAR_FEATURE(ENDPOINT_HALT) succeeded.
+// Sends no request and aborts nothing; false if the HCD cannot do it.
+bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
+
 #ifdef __cplusplus
  }
 #endif

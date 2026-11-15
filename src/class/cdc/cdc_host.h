@@ -132,17 +132,17 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
 // Request to Set DTR
 TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_set_dtr(uint8_t idx, bool dtr_state, tuh_xfer_cb_t complete_cb,
                                                          uintptr_t user_data) {
-  cdc_line_control_state_t line_state = {.dtr = dtr_state};
-  line_state.rts                      = tuh_cdc_get_rts(idx);
-  return tuh_cdc_set_control_line_state(idx, line_state.value, complete_cb, user_data);
+  const uint16_t line_state =
+    (uint16_t)((dtr_state ? CDC_CONTROL_LINE_STATE_DTR : 0) | (tuh_cdc_get_rts(idx) ? CDC_CONTROL_LINE_STATE_RTS : 0));
+  return tuh_cdc_set_control_line_state(idx, line_state, complete_cb, user_data);
 }
 
 // Request to Set RTS
 TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_set_rts(uint8_t idx, bool rts_state, tuh_xfer_cb_t complete_cb,
                                                          uintptr_t user_data) {
-  cdc_line_control_state_t line_state = {.rts = rts_state};
-  line_state.dtr                      = tuh_cdc_get_dtr(idx);
-  return tuh_cdc_set_control_line_state(idx, line_state.value, complete_cb, user_data);
+  const uint16_t line_state =
+    (uint16_t)((rts_state ? CDC_CONTROL_LINE_STATE_RTS : 0) | (tuh_cdc_get_dtr(idx) ? CDC_CONTROL_LINE_STATE_DTR : 0));
+  return tuh_cdc_set_control_line_state(idx, line_state, complete_cb, user_data);
 }
 
 // Request to set baudrate

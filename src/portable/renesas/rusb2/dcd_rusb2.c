@@ -31,6 +31,7 @@ typedef struct {
   bool queued;      /* a transfer is submitted and not yet completed (independent of `buf`, which is
                        NULL for a zero-length read) -- used to decide clear-stall re-arm */
   bool zlp_pending; /* a zero-length IN packet couldn't be queued at submit (FIFO full); retry on BRDY */
+  bool wait_empty;  /* the last IN packet of a double-buffered pipe is queued; completes on BEMP */
 } pipe_state_t;
 
 typedef struct
@@ -144,6 +145,37 @@ static bool pipe_is_iso(rusb2_reg_t *rusb, unsigned num) {
 
 static inline void pipe_brdy_clear(rusb2_reg_t *rusb, unsigned num) {
   rusb->BRDYSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
+}
+
+// A double-buffered (bulk, pipes 1-5) IN pipe raises BRDY whenever a buffer plane is writable again
+// (RA4M2 UM 26.3.3.1), which can be while the transfer's last packet still waits in the other plane:
+// a USBTMC abort's short packet was reported sent before the host had read it (issue #4307). Its
+// transfers complete on BEMP instead: the FIFO is empty once transmission is done (26.3.3.3).
+static bool pipe_in_completes_on_bemp(rusb2_reg_t *rusb, unsigned num) {
+  rusb->PIPESEL = (uint16_t)num;
+  const uint16_t cfg = rusb->PIPECFG;
+  return (cfg & RUSB2_PIPECFG_DBLB_Msk) && (cfg & RUSB2_PIPECFG_TYPE_Msk) != RUSB2_PIPECFG_TYPE_ISO;
+}
+
+static void pipe_bemp_disarm(rusb2_reg_t *rusb, unsigned num) {
+  _dcd.pipe[num].wait_empty = false;
+  rusb->BEMPENB &= (uint16_t)~TU_BIT(num);
+  rusb->BEMPSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
+}
+
+// The last packet of an IN transfer on `num` is queued: arm BEMP for its completion. BEMPSTS
+// latches whatever BEMPENB says, so a stale bit is dropped first; a packet the host already took
+// before BEMP was armed shows as INBUFM = 0 (pipes 1-5, RA4M2 UM 26.3.3.3 and Table 26.21).
+// Returns true if the transfer is already complete. USB IRQ masked by the caller.
+static bool pipe_in_wait_empty(rusb2_reg_t *rusb, unsigned num) {
+  _dcd.pipe[num].wait_empty = true;
+  rusb->BEMPSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
+  rusb->BEMPENB |= TU_BIT(num);
+  if (*get_pipectr(rusb, num) & RUSB2_PIPE_CTR_INBUFM_Msk) {
+    return false;
+  }
+  pipe_bemp_disarm(rusb, num);
+  return true;
 }
 
 // Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
@@ -310,8 +342,10 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   const unsigned rem  = pipe->remaining;
 
   if (!rem) {
+    // all data queued: a single-buffered pipe's BRDY means it was sent, a double-buffered one
+    // completes on BEMP (see pipe_in_completes_on_bemp)
     pipe->buf = NULL;
-    return true;
+    return !pipe->wait_empty;
   }
 
   const uint16_t fifo_sel     = num | FIFOSEL_BIGEND;
@@ -351,6 +385,9 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
 
   pipe->remaining = rem - len;
+  if (pipe->remaining == 0 && pipe_in_completes_on_bemp(rusb, num)) {
+    return pipe_in_wait_empty(rusb, num);
+  }
 
   return false;
 }
@@ -537,11 +574,17 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type
 
   if (dir) {
     /* IN */
+    pipe_bemp_disarm(rusb, num);
+    bool completed;
     if (total_bytes) {
-      pipe_xfer_in(rusb, num);
+      completed = pipe_xfer_in(rusb, num);
     } else {
       /* ZLP: if the FIFO buffer isn't free yet, defer the queue to the next BRDY (see process_pipe_brdy) */
       pipe->zlp_pending = !pipe_zlp_in(rusb, num);
+      completed = !pipe->zlp_pending && pipe_in_completes_on_bemp(rusb, num) && pipe_in_wait_empty(rusb, num);
+    }
+    if (completed) {
+      pipe_xfer_complete(rhport, num, is_isr);
     }
   } else {
     // OUT
@@ -601,6 +644,16 @@ static void process_pipe0_bemp(uint8_t rhport)
   }
 }
 
+static void process_pipe_bemp(uint8_t rhport, unsigned num) {
+  rusb2_reg_t  *rusb = RUSB2_REG(rhport);
+  pipe_state_t *pipe = &_dcd.pipe[num];
+  const bool    done = pipe->wait_empty && pipe->queued;
+  pipe_bemp_disarm(rusb, num);
+  if (done) {
+    pipe_xfer_complete(rhport, num, true);
+  }
+}
+
 static void process_pipe_brdy(uint8_t rhport, unsigned num)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
@@ -615,10 +668,11 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     }
     if (pipe->zlp_pending) {
       // The submit-time ZLP couldn't be queued (FIFO full); a freed buffer plane lets us queue it
-      // now. Don't report completion until the ZLP is actually queued (and then sent, next BRDY),
-      // otherwise a spurious BRDY would complete a zero-length IN the host never received.
+      // now. Don't report completion until the ZLP is actually queued (and then sent: next BRDY, or
+      // BEMP on a double-buffered pipe), otherwise a spurious BRDY would complete a zero-length IN
+      // the host never received.
       pipe->zlp_pending = !pipe_zlp_in(rusb, num);
-      completed = false;
+      completed = !pipe->zlp_pending && pipe_in_completes_on_bemp(rusb, num) && pipe_in_wait_empty(rusb, num);
     } else {
       completed = pipe_xfer_in(rusb, num);
     }
@@ -958,6 +1012,7 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   const unsigned num = _dcd.ep[dir][epn];
 
   rusb->BRDYENB &= (uint16_t)~TU_BIT(num);
+  pipe_bemp_disarm(rusb, num);
   // PIPECFG changes only on an idle NAKing pipe; on timeout the pipe stays configured but NAKing,
   // and the next open resets it
   if (pipe_reset(rusb, num, 0)) {
@@ -1081,6 +1136,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   if (num) {
     // a halt aborts the IN transfer; dcd_edpt_clear_stall() discards what it left in the buffer
     _dcd.pipe[num].queued = false;
+    pipe_bemp_disarm(RUSB2_REG(rhport), num);
   }
   dcd_int_enable(rhport);
 }
@@ -1222,10 +1278,17 @@ void dcd_int_handler(uint8_t rhport)
 
   // Buffer empty
   if ( is0 & RUSB2_INTSTS0_BEMP_Msk ) {
-    const uint16_t s = rusb->BEMPSTS;
-    rusb->BEMPSTS = 0;
+    unsigned s = rusb->BEMPSTS & rusb->BEMPENB;
+    /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
+    rusb->BEMPSTS = (uint16_t)~s;
     if ( s & 1 ) {
       process_pipe0_bemp(rhport);
+    }
+    s &= ~1u;
+    while (s) {
+      const unsigned num = __builtin_ctz(s);
+      process_pipe_bemp(rhport, num);
+      s &= ~TU_BIT(num);
     }
   }
 

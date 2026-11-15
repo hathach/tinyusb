@@ -47,6 +47,10 @@ TU_ATTR_WEAK uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t 
   return NULL;
 }
 
+TU_ATTR_WEAK void tud_address_cb(uint8_t address) {
+  (void) address;
+}
+
 TU_ATTR_WEAK void tud_mount_cb(void) {
 }
 
@@ -458,6 +462,11 @@ TU_ATTR_WEAK bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t 
   return false;
 }
 
+TU_ATTR_WEAK bool dcd_edpt_abort_xfer(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  return false;
+}
+
 TU_ATTR_WEAK bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport; (void) cfg_id; (void) cfg_param;
   return false;
@@ -750,7 +759,12 @@ static bool usbd_process_event(dcd_event_t* event) {
       usbd_class_driver_t const* driver = NULL; // EP0 has no class driver
       if (0 != epnum) {
         driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-        TU_ASSERT(driver, false);
+        if (driver == NULL) {
+          // Stale: a bus reset or unplug closed the endpoint after this transfer completed. A DCD may queue the
+          // reset/unplug ahead of an endpoint interrupt latched in the same ISR run (dwc2 handles OTGINT first).
+          TU_LOG_USBD("  no driver, dropped\r\n");
+          break;
+        }
       }
 
       // Clear busy + claimed. An OUT endpoint changed to RX_PENDING, so no other task can claim and re-arm it before
@@ -1065,6 +1079,7 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       // or even require stack to not response with status at all
       // Therefore DCD must take full responsibility to response and include zlp status packet if needed.
       dcd_set_address(rhport, (uint8_t) p_request->wValue);
+      tud_address_cb((uint8_t) p_request->wValue);
       _usbd_dev.addressed = 1;
       return true;
 
@@ -1839,9 +1854,20 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 }
 
 // Not valid for EP0, where dcd_edpt_stall() means "stall the control transfer" rather than "cancel".
-// TODO replace this stall/clear-stall stand-in with a dcd_edpt_abort_xfer() returning bool, like
-// hcd_edpt_abort_xfer(): the stall is wire-visible and the clear resets the toggle.
 void usbd_edpt_abort(uint8_t rhport, uint8_t ep_addr) {
+  rhport = _usbd_rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+
+  if (!usbd_edpt_stalled(rhport, ep_addr) && dcd_edpt_abort_xfer(rhport, ep_addr)) {
+    // no completion will release the aborted transfer's claim
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+    return;
+  }
+
+  // A stalled endpoint, or a DCD without dcd_edpt_abort_xfer(): the stall drops the transfer and the clear leaves the
+  // endpoint idle. The stall is visible on the wire meanwhile, and the clear resets the data toggle.
   usbd_edpt_stall(rhport, ep_addr);
   usbd_edpt_clear_stall(rhport, ep_addr);
 }

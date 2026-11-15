@@ -60,6 +60,12 @@ def probe_candidates(board: dict) -> list:
 
 
 # --- inside the engine's reservation ----------------------------------------------------------
+def busy(board: dict) -> list:
+    """The live users of the board's probe, hil_test.py's own busy check (hil_flash.probe_busy):
+    raises when inconclusive. An engine that predates the hook never calls it."""
+    return hil_flash.probe_busy(board)
+
+
 def _retain(ctx, board: dict) -> None:
     """An openocd_esp session the provider left running (hil_flash.cleanup_pending) goes to the
     engine's ctx.retain, its detail naming the receipts (its receipt path, or its native record

@@ -264,7 +264,9 @@ static uint16_t _hcd_nonperiodic_uframe;
 TU_ATTR_ALWAYS_INLINE static inline uint16_t nonperiodic_uframe_tag(uint32_t hfnum) {
   return (uint16_t) (HCD_NONPERIODIC_UFRAME_VALID | (hfnum & HCD_FRAME_NUMBER_MASK));
 }
+#endif
 
+#if HCD_SPLIT && CFG_TUH_DWC2_SLAVE_ENABLE
 // A held start-split was started during the FIFO-empty interrupt, which then stays enabled for its FIFO write
 static bool _hcd_split_kicked;
 #endif
@@ -2374,9 +2376,12 @@ static void split_iso_out_close(dwc2_regs_t* dwc2, uint8_t ch_id) {
         periodic_xfer_defer(dwc2, edpt, false);
         continue;
       }
-      if (edpt_xfer_kickoff(dwc2, ep_id)) {
-        _hcd_split_kicked = true;
-      }
+      const bool kicked = edpt_xfer_kickoff(dwc2, ep_id);
+#if CFG_TUH_DWC2_SLAVE_ENABLE
+      _hcd_split_kicked = _hcd_split_kicked || kicked;
+#else
+      (void) kicked; // only the slave-mode FIFO-empty interrupt waits on it
+#endif
     }
   }
 }
@@ -2577,8 +2582,18 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
       if (byte_count > 0) {
-        tu_hwfifo_read(dwc2->fifo[0], edpt->buffer + xfer->xferred_bytes, byte_count, NULL);
-        xfer->xferred_bytes += byte_count;
+        // The core pushes the whole packet whatever xfersize has left (HCTSIZ expects an IN size that is a multiple
+        // of the packet size), so a device answering with more bytes than the transfer has room for would be copied
+        // past the buffer. Keep what fits and drain the rest of the packet.
+        const uint16_t xact_len = tu_min16(byte_count, (uint16_t) (edpt->buflen - xfer->xferred_bytes));
+        if (xact_len > 0) {
+          tu_hwfifo_read(dwc2->fifo[0], edpt->buffer + xfer->xferred_bytes, xact_len, NULL);
+        }
+        for (uint16_t count = (uint16_t) tu_round_up(xact_len, sizeof(uint32_t)); count < byte_count;
+             count += sizeof(uint32_t)) {
+          (void) dwc2->fifo[0][0];
+        }
+        xfer->xferred_bytes += xact_len;
         xfer->fifo_bytes = byte_count;
       }
       break;

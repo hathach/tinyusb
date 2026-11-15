@@ -20,6 +20,8 @@ static bool pending;
 static unsigned request_count;
 static unsigned callback_count;
 static unsigned configured_count;
+static unsigned opened_count;
+static uint8_t  edpt_open_fail_addr; // tuh_edpt_open() fails for this endpoint, 0 for none
 
 //--------------------------------------------------------------------+
 // Host stack and bulk stream stubs. Control requests use the real CDC driver.
@@ -40,6 +42,10 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc) {
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
   TEST_ASSERT_TRUE(desc_ep->bEndpointAddress == EP_IN || desc_ep->bEndpointAddress == EP_OUT);
+  if (desc_ep->bEndpointAddress == edpt_open_fail_addr) {
+    return false;
+  }
+  opened_count++;
   return true;
 }
 
@@ -171,12 +177,52 @@ void setUp(void) {
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
+  opened_count = 0;
+  edpt_open_fail_addr = 0;
   TEST_ASSERT_TRUE(cdch_init());
 }
 
 void tearDown(void) {
   cdch_close(DEV_ADDR);
   TEST_ASSERT_TRUE(cdch_deinit());
+}
+
+// usbh does not close an interface it did not bind: a failed open releases the slot it reserved (CFG_TUH_CDC = 1)
+void test_failed_open_releases_slot(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  edpt_open_fail_addr = EP_IN;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+
+  // the freed slot takes the next adapter
+  edpt_open_fail_addr = 0;
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+}
+
+// usbh offers alternate setting 1 after setting 0 is open: rejecting it before reserving a slot must not release the
+// slot setting 0 holds, since configuration starts only after every interface is parsed
+void test_failed_alt_open_keeps_open_interface(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t alt0[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  const uint8_t alt1[] = {9, TUSB_DESC_INTERFACE, 0, 1, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0};
+
+  TEST_ASSERT_EQUAL(sizeof(alt0), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) alt0, sizeof(alt0)));
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) alt1, sizeof(alt1)));
+  TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
 }
 
 // Each 232BM-type chip encodes 3 Mbaud with divisor zero; channel encoding differs.

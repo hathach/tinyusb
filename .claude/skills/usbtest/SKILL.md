@@ -43,9 +43,12 @@ python3 .claude/skills/usbtest/scripts/run_case.py --config <this host's config>
 
 `--after leave` keeps usbtest running for a debug session. `--variant` is required when the board
 has several. It refuses with exit 2 and the reason before touching hardware, including on a host
-that is not Linux and while any battery or another `run_case.py` runs on the host; pass
-`--allow-concurrent` only when another battery's load on the board's host controller does not
-matter for what you are measuring. A wedged device is never parked. The last stdout
+that is not Linux, while any battery or another `run_case.py` runs on the host, and when the busy
+check under the lock names a live user of the board's probe or cannot rule one out; pass
+`--allow-concurrent` (it never skips the busy check) only when another battery's load on the board's
+host controller does not matter for what you are measuring. A wedged device is never parked, and any
+end but a park or a clean `--after leave` is logged as a failed cleanup for the next take to report
+(the HIL contract's Reservation). The last stdout
 line is its JSON verdict; each of its `cases` carries `usbtest.py`'s `detail`, and `stderr` and
 `dmesg` when it captured them.
 

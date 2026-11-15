@@ -443,7 +443,7 @@ class RemoteStaging(unittest.TestCase):
                     else:
                         yield node.module.replace('.', '/') + '.py'
 
-        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py', 'net_test.py']  # CLI + spawned helpers
+        seeds = ['hil_test.py', 'usbtest.py', 'mtp_test.py', 'net_test.py', 'usbtmc_test.py']  # CLI + spawned helpers
         for f in seeds:  # a renamed seed must fail loudly, not fall out of the walk
             self.assertTrue((hil_dir / f).exists(), f'stale RemoteStaging seed: {f}')
         todo, seen = list(seeds), set()
@@ -1416,8 +1416,9 @@ class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
         with mock.patch.object(hil_test, 'skip_flash', False), \
              mock.patch.object(hil_test, 'shuffle_seed', None), \
              mock.patch.object(hil_flash, 'cleanup_pending', {}), \
-             mock.patch.object(hil_test.hil_lock, 'acquire_board_lock', return_value=mock.Mock(cleanup_failures=[])), \
-             mock.patch.object(hil_test, 'end_failed_cleanup', return_value='logged'), \
+             TemporaryDirectory() as locks, \
+             mock.patch.object(hil_test.hil_lock, 'BOARD_LOCK_DIR', locks), \
+             mock.patch.object(hil_flash, 'probe_busy', return_value=[]), \
              mock.patch.object(hil_test.usbtest, 'strays_on', return_value=[]), \
              mock.patch.object(hil_test, '_tests_for', return_value=(['device/cdc_msc'], [])), \
              mock.patch.object(hil_test, 'test_example', test_example), \

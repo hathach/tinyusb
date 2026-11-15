@@ -72,7 +72,13 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 #if defined(CFG_TUD_USBTMC)
 
-#if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
+#  define EPNUM_USBTMC_OUT 0x02
+#  define EPNUM_USBTMC_IN  0x82
+#  define EPNUM_USBTMC_INT 0x81
+#elif CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY
 #  define EPNUM_USBTMC_OUT 0x01
 #  define EPNUM_USBTMC_IN  0x82
 #  define EPNUM_USBTMC_INT 0x83

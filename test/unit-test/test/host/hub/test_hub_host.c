@@ -34,6 +34,9 @@ static ctrl_req_t ctrl_reqs[MAX_CTRL];
 static uint8_t    ctrl_count;
 static bool       ctrl_reject;
 
+// the status endpoint open fails in hub_open()
+static bool edpt_open_fail;
+
 // completions of the test callback, in order
 typedef struct {
   uintptr_t     user_data;
@@ -71,7 +74,7 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
   (void) desc_ep;
-  return true;
+  return !edpt_open_fail;
 }
 
 bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc_device) {
@@ -150,70 +153,80 @@ static void complete_ctrl(uint8_t idx, xfer_result_t result) {
 
 static void complete_ctrl_data(uint8_t idx, const void *data, uint16_t len) {
   memcpy(ctrl_reqs[idx].xfer.buffer, data, len);
+  ctrl_reqs[idx].xfer.actual_len = len;
   complete_ctrl(idx, XFER_RESULT_SUCCESS);
 }
 
-static void open_hub(uint8_t daddr) {
-  const struct TU_ATTR_PACKED {
-    tusb_desc_interface_t itf;
-    tusb_desc_endpoint_t  ep;
-  } desc = {
-    .itf = {
-      .bLength            = sizeof(tusb_desc_interface_t),
-      .bDescriptorType    = TUSB_DESC_INTERFACE,
-      .bInterfaceNumber   = 0,
-      .bNumEndpoints      = 1,
-      .bInterfaceClass    = TUSB_CLASS_HUB,
-      .bInterfaceSubClass = 0,
-    },
-    .ep = {
-      .bLength          = sizeof(tusb_desc_endpoint_t),
-      .bDescriptorType  = TUSB_DESC_ENDPOINT,
-      .bEndpointAddress = EP_IN,
-      .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
-      .wMaxPacketSize   = 1,
-      .bInterval        = 12,
-    },
-  };
-  TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, daddr, &desc.itf, sizeof(desc)));
-}
-
-// a multi-TT hub: alternate setting 0 single-TT, 1 multi-TT, each with the status endpoint
-static void open_mtt_hub(uint8_t daddr) {
-  const tusb_desc_endpoint_t ep = {
+// hub interface and its status-change endpoint
+static const struct TU_ATTR_PACKED {
+  tusb_desc_interface_t itf;
+  tusb_desc_endpoint_t  ep;
+} desc_hub_itf = {
+  .itf = {
+    .bLength            = sizeof(tusb_desc_interface_t),
+    .bDescriptorType    = TUSB_DESC_INTERFACE,
+    .bInterfaceNumber   = 0,
+    .bNumEndpoints      = 1,
+    .bInterfaceClass    = TUSB_CLASS_HUB,
+    .bInterfaceSubClass = 0,
+  },
+  .ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = EP_IN,
     .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
     .wMaxPacketSize   = 1,
     .bInterval        = 12,
-  };
-  const struct TU_ATTR_PACKED {
-    tusb_desc_interface_t itf0;
-    tusb_desc_endpoint_t  ep0;
-    tusb_desc_interface_t itf1;
-    tusb_desc_endpoint_t  ep1;
-  } desc = {
-    .itf0 = {
-      .bLength            = sizeof(tusb_desc_interface_t),
-      .bDescriptorType    = TUSB_DESC_INTERFACE,
-      .bNumEndpoints      = 1,
-      .bInterfaceClass    = TUSB_CLASS_HUB,
-      .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_STT,
-    },
-    .ep0  = ep,
-    .itf1 = {
-      .bLength            = sizeof(tusb_desc_interface_t),
-      .bDescriptorType    = TUSB_DESC_INTERFACE,
-      .bAlternateSetting  = 1,
-      .bNumEndpoints      = 1,
-      .bInterfaceClass    = TUSB_CLASS_HUB,
-      .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_MTT,
-    },
-    .ep1  = ep,
-  };
+  },
+};
+
+static void open_hub(uint8_t daddr) {
+  TEST_ASSERT_EQUAL(sizeof(desc_hub_itf), hub_open(0, daddr, &desc_hub_itf.itf, sizeof(desc_hub_itf)));
+}
+
+// a multi-TT hub: alternate setting 0 single-TT, 1 multi-TT, each with the status endpoint
+static const struct TU_ATTR_PACKED {
+  tusb_desc_interface_t itf0;
+  tusb_desc_endpoint_t  ep0;
+  tusb_desc_interface_t itf1;
+  tusb_desc_endpoint_t  ep1;
+} desc_mtt_hub = {
+  .itf0 = {
+    .bLength            = sizeof(tusb_desc_interface_t),
+    .bDescriptorType    = TUSB_DESC_INTERFACE,
+    .bNumEndpoints      = 1,
+    .bInterfaceClass    = TUSB_CLASS_HUB,
+    .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_STT,
+  },
+  .ep0 = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EP_IN,
+    .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
+    .wMaxPacketSize   = 1,
+    .bInterval        = 12,
+  },
+  .itf1 = {
+    .bLength            = sizeof(tusb_desc_interface_t),
+    .bDescriptorType    = TUSB_DESC_INTERFACE,
+    .bAlternateSetting  = 1,
+    .bNumEndpoints      = 1,
+    .bInterfaceClass    = TUSB_CLASS_HUB,
+    .bInterfaceProtocol = HUB_PROTOCOL_HIGH_SPEED_MTT,
+  },
+  .ep1 = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EP_IN,
+    .bmAttributes     = {.xfer = TUSB_XFER_INTERRUPT},
+    .wMaxPacketSize   = 1,
+    .bInterval        = 12,
+  },
+};
+
+static void open_mtt_hub(uint8_t daddr) {
   dev_mtt = true;
-  TEST_ASSERT_EQUAL(sizeof(desc), hub_open(0, daddr, &desc.itf0, sizeof(desc)));
+  TEST_ASSERT_EQUAL(sizeof(desc_mtt_hub), hub_open(0, daddr, &desc_mtt_hub.itf0, sizeof(desc_mtt_hub)));
   dev_mtt = false;
 }
 
@@ -270,18 +283,48 @@ static void attach_on_port1(uint8_t daddr) {
 }
 
 void setUp(void) {
-  ctrl_count  = 0;
-  ctrl_reject = false;
-  cb_count    = 0;
-  poll_count  = 0;
-  poll_buf    = NULL;
-  event_count = 0;
-  dev_mtt     = false;
+  ctrl_count     = 0;
+  ctrl_reject    = false;
+  edpt_open_fail = false;
+  cb_count       = 0;
+  poll_count     = 0;
+  poll_buf       = NULL;
+  event_count    = 0;
+  dev_mtt        = false;
   config_complete_count = 0;
   hub_init();
 }
 
 void tearDown(void) {
+}
+
+//--------------------------------------------------------------------+
+// Open
+//--------------------------------------------------------------------+
+// usbh gives a hub address only to a device whose bDeviceClass is hub, but offers each interface to every driver
+void test_open_rejects_non_hub_address(void) {
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    TEST_ASSERT_EQUAL(0, hub_open(0, daddr, &desc_hub_itf.itf, sizeof(desc_hub_itf)));
+  }
+  open_hub(HUB_A);
+}
+
+// a failed open leaves the entry unopened, which hub_close() does not clear
+void test_open_failed_does_not_leave_mtt(void) {
+  dev_mtt        = true;
+  edpt_open_fail = true;
+  TEST_ASSERT_EQUAL(0, hub_open(0, HUB_A, &desc_mtt_hub.itf0, sizeof(desc_mtt_hub)));
+  dev_mtt        = false;
+  edpt_open_fail = false;
+  hub_close(HUB_A);
+  TEST_ASSERT_FALSE(hub_tt_multi(HUB_A));
+
+  // a single-TT hub at the same address reads its hub descriptor without SET_INTERFACE
+  open_hub(HUB_A);
+  TEST_ASSERT_FALSE(hub_tt_multi(HUB_A));
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+  TEST_ASSERT_EQUAL(1, ctrl_count);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_GET_DESCRIPTOR, ctrl_reqs[0].setup.bRequest);
 }
 
 //--------------------------------------------------------------------+
@@ -331,6 +374,42 @@ void test_port_status_failed_after_close_reaches_caller(void) {
   TEST_ASSERT_EQUAL(1, cb_count);
   TEST_ASSERT_EQUAL(1, cb_records[0].user_data);
   TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, cb_records[0].result);
+}
+
+// a short reply leaves the previous status in ctrl_buf: it fails like any failed read
+void test_short_port_status_rearms(void) {
+  configure_hub(HUB_A, 4);
+  attach_on_port1(HUB_A); // ctrl_buf: port 1 connected, connection changed
+
+  poll_buf[0] = TU_BIT(2);
+  TEST_ASSERT_TRUE(hub_xfer_cb(HUB_A, EP_IN, XFER_RESULT_SUCCESS, 1));
+  assert_get_port_status(2, HUB_A, 2);
+  const uint8_t  polls       = poll_count;
+  const uint16_t status_only = 0; // wPortStatus without wPortChange
+  complete_ctrl_data(2, &status_only, sizeof(status_only));
+
+  TEST_ASSERT_EQUAL(3, ctrl_count); // no CLEAR_FEATURE for port 1's change
+  TEST_ASSERT_EQUAL(polls + 1, poll_count);
+  TEST_ASSERT_EQUAL(1, event_count);
+}
+
+void test_short_hub_status_rearms(void) {
+  configure_hub(HUB_A, 1);
+  hub_status_response_t resp = {0};
+  resp.change.over_current   = 1;
+
+  for (uint8_t len = 0; len < sizeof(resp); len++) {
+    poll_buf[0] = TU_BIT(0);
+    TEST_ASSERT_TRUE(hub_xfer_cb(HUB_A, EP_IN, XFER_RESULT_SUCCESS, 1));
+    TEST_ASSERT_EQUAL(len + 1, ctrl_count);
+    assert_get_port_status(len, HUB_A, 0);
+    memcpy(ctrl_reqs[len].xfer.buffer, &resp, sizeof(resp)); // what an earlier reply left in ctrl_buf
+    const uint8_t polls = poll_count;
+    complete_ctrl_data(len, &resp, len);
+
+    TEST_ASSERT_EQUAL(len + 1, ctrl_count); // no CLEAR_FEATURE
+    TEST_ASSERT_EQUAL(polls + 1, poll_count);
+  }
 }
 
 //--------------------------------------------------------------------+

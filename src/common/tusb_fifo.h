@@ -80,22 +80,17 @@ extern "C" {
  *    This occurs when we continue to write after 1st overflowed to 2nd overflowed. e.g:
  *      write(3), write(1), write(2)
  *    This must be prevented since it will cause unrecoverable state, in above example
- *    if not handled the fifo will be empty instead of continue-to-be full. Since we must not modify
- *    read index in write() function, which cause race condition. We will re-position write index so that
- *    after data is written it is a full fifo i.e W = depth - R
+ *    if not handled the write index catches up with the read index and the fifo reads as empty instead of
+ *    continue-to-be full. Since we must not modify read index in write() function, which cause race condition,
+ *    the data is written at the write index as usual, then the write index is moved back by one depth i.e it
+ *    still points to the same location. The fifo is full and holds the last depth items in order.
  *
- *      re-position W = 1 before write(2)
- *      Note: we should also move data from mem[3] to read index as well, but deliberately skipped here
- *      since it is an expensive operation !!!
- *                  |
- *      -------------------------
- *      | R | W | 2 | 3 | 4 | 5 |
- *
- *      perform write(2), result is still a full fifo.
- *
- *                  |
- *      -------------------------
- *      | R | 1 | 2 | W | 4 | 5 |
+ * Overwritable mode and concurrency: an overwriting write() only holds the write mutex, and it may overwrite items
+ * that a concurrent read()/peek() (holding the read mutex or running in another context e.g. ISR) is copying out.
+ * The data read in that case can be torn i.e a mix of old and new items. The write index is also derived from a
+ * snapshot of the read index, so if read()/peek() re-positions the read index meanwhile, the item count can end up
+ * wrong and some items may be skipped or replayed. A write that does not overflow is not affected.
+ * Use overwritable mode only when losing/tearing the oldest data on overflow is acceptable.
  */
 typedef struct {
   uint8_t *buffer;              // buffer pointer
