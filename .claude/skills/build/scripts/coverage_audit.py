@@ -361,6 +361,15 @@ def extract_board(build_dir, root):
     return out
 
 
+def family_in(tools_build, board, root):
+    old = os.getcwd()
+    os.chdir(root)  # build.py's find_family reads hw/bsp from the cwd
+    try:
+        return tools_build.find_family(board)
+    finally:
+        os.chdir(old)
+
+
 def cmd_graph(a):
     root = os.path.abspath(a.root)
     head = run_ok(['git', 'rev-parse', 'HEAD'], root).strip()
@@ -389,7 +398,7 @@ def cmd_graph(a):
         try:
             r = run([sys.executable, 'tools/build.py', '-b', board, '--build-name', name], root)
             rec = {'format': FORMAT, 'head': head, 'board': board, 'config': 'default',
-                   'family': tools_build.find_family(board)}
+                   'family': family_in(tools_build, board, root)}
             try:
                 rec.update(status='ok' if r.returncode == 0 else 'partial', **extract_board(build_dir, root))
                 if r.returncode != 0:

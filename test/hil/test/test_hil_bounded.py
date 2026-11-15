@@ -676,6 +676,36 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         self.assertTrue(finished, 'test_device_mtp hung on a wedged MTP stack')
         self.assertIsInstance(exc, AssertionError)
 
+    def _timed_out_session(self, alive):
+        """test_device_mtp over a session run_cmd times out, `alive` standing in for the survival check."""
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+        os.environ['FAKE_PYMTP_MODE'] = 'hang'
+        hil_test.MTP_SESSION_MARGIN = 3
+        recorded = []
+
+        def check(pidfile):
+            recorded.append(Path(pidfile).read_text().split())
+            return alive(pidfile)
+        usbtest_harness.patch(self, hil_test, '_session_alive', check)
+        finished, exc = run_bounded(lambda: hil_test.test_device_mtp(self.board), 25)
+        self.assertTrue(finished)
+        self.assertIsInstance(exc, AssertionError)
+        self.assertEqual([len(r) for r in recorded], [2], 'the child records "<pid> <starttime>" first')
+        return exc
+
+    def test_a_reaped_timeout_latches_no_wedge(self):
+        exc = self._timed_out_session(hil_test._session_alive)
+        self.assertIn('the session was reaped', str(exc))
+        self.assertEqual(hil_test.board_wedged, '')
+
+    def test_a_session_that_outlives_its_kill_latches_the_wedge(self):
+        # rc 124 alone is not the wedge: only a session still holding the device stops retries and the park
+        exc = self._timed_out_session(lambda pidfile: 'pid 4242')
+        self.assertIn('MTP session pid 4242 outlived SIGKILL', str(exc))
+        self.assertEqual(hil_test.board_wedged, 'fakeboard: MTP session pid 4242 outlived SIGKILL and holds the device')
+        self.assertFalse(hil_test._should_park(False), 'no park through the held node')
+
 
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the
@@ -1243,6 +1273,23 @@ class UsbtestRetryPolicy(unittest.TestCase):
 
     def test_a_transient_failure_is_retried(self):
         self.assertEqual(self._attempts(hil_test.TestFail('usbtest did not run')), 3)
+
+    def test_only_a_per_case_verdict_reports_final(self):
+        # the report's FINAL_CELL comes from this status: hil_report.sequence never infers it from '0/N'
+        for exc, want in ((hil_test.TestFail('29/30', metric='❌ 29/30', parsed=True), 'final'),
+                          (hil_test.TestFail('usbtest did not run', metric='❌ 0/30'), 'fail')):
+            with self.subTest(want):
+                self._patch(hil_flash, 'find_firmware', lambda *a, **k: Path('/nonexistent/fw.elf'))
+                self._patch(hil_test, 'skip_flash', True)
+                self._patch(hil_test, 'max_retry', 2)
+                self._patch(hil_test, 'log_line', lambda *a, **k: None)
+
+                def fake_test(board, exc=exc):
+                    raise exc
+                self._patch(hil_test, 'test_fake_example', fake_test)
+                got = hil_test.test_example({'name': 'b', 'uid': 'u', 'flasher': {'name': 'openocd'}},
+                                            'v', 'fake/example')
+                self.assertEqual(got, (1, want, exc.metric))
 
 
 class UsbtestOuterKillStaysRetryable(unittest.TestCase):

@@ -625,6 +625,7 @@ def test_host_device_info(board):
     ser = open_console_reset(board)
     try:
         data = b''
+        records = []
         timeout = enum_timeout()
         while timeout > 0:
             # infra death is not a board failure: without this a dead JLinkExe/probe
@@ -634,12 +635,8 @@ def test_host_device_info(board):
             new_data = ser.read(ser.in_waiting or 1)
             if new_data:
                 data += new_data
-            enum_dev_sn = []
-            for l in data.decode('utf-8', errors='ignore').splitlines():
-                vid_pid_sn = DEV_INFO_RE.search(l)
-                if vid_pid_sn:
-                    enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-            if set(declared).issubset(set(enum_dev_sn)):
+            records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
+            if set(declared).issubset({dev for _, dev in records}):
                 break
             time.sleep(0.1)
             timeout -= 0.1
@@ -658,11 +655,9 @@ def test_host_device_info(board):
         assert False, 'No data from device'
 
     enum_dev_sn = []
-    for l in lines:
-        vid_pid_sn = DEV_INFO_RE.search(l)
-        if vid_pid_sn:
-            print(f'\r\n  {l} ', end='')
-            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+    for l, dev in records:
+        print(f'\r\n  {l} ', end='')
+        enum_dev_sn.append(dev)
 
     if set(declared) != set(enum_dev_sn):
         failed_msg = f'Expected {declared}, Enumerated {enum_dev_sn}'
@@ -671,30 +666,24 @@ def test_host_device_info(board):
     return 0
 
 
-def check_msc_info(lines, msc_devs):
-    """Print MSC info and verify block_count/block_size against config"""
+# msc_app.c's capacity line, terminated: a line still arriving may hold a truncated count
+DISK_SIZE_RE = re.compile(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks: \d+ MB\r?\n')
+
+
+def check_msc_info(text, msc_devs):
+    """Print MSC info and verify every reported block_count/block_size pair against a declared device;
+    a field a device does not declare matches any value."""
+    disks = [(int(c), int(s)) for c, s in DISK_SIZE_RE.findall(text)]
+    assert disks, 'MSC Disk Size not reported as a complete "Disk Size: N S-byte blocks" line'
     inquiry = ''
-    disk_size = ''
-    for l in lines:
+    for l in text.splitlines():
         if re.match(r'^[A-Za-z].*\s+(rev\s+|[0-9])', l) and 'Disk Size' not in l:
             inquiry = l.strip()
-        if 'Disk Size' in l:
-            disk_size = l.strip()
-    if inquiry or disk_size:
-        print(f'\r\n  {inquiry} {disk_size} ', end='')
-    # Verify block_count and block_size from "Disk Size: COUNT SIZE-byte blocks: N MB"
-    if disk_size and msc_devs:
-        m = re.match(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks', disk_size)
-        if m:
-            actual_count = int(m.group(1))
-            actual_size = int(m.group(2))
-            for dev in msc_devs:
-                exp_count = dev.get('block_count')
-                exp_size = dev.get('block_size')
-                if exp_count and actual_count == exp_count:
-                    assert actual_size == exp_size, (
-                        f'MSC block_size mismatch: expected {exp_size}, got {actual_size}')
-                    break
+    print(f'\r\n  {inquiry} Disk Size: {disks[0][0]} {disks[0][1]}-byte blocks ', end='')
+    declared = [(d.get('block_count'), d.get('block_size')) for d in msc_devs]
+    for count, size in disks:
+        assert any(c in (None, count) and s in (None, size) for c, s in declared), (
+            f'MSC capacity mismatch: reported {count} {size}-byte blocks, declared (count, size) {declared}')
 
 
 def test_host_cdc_msc_hid(board):
@@ -721,7 +710,7 @@ def test_host_cdc_msc_hid(board):
             if new_data:
                 data += new_data
                 cdc_ok = (not wait_cdc) or (b'CDC Interface is mounted' in data)
-                msc_ok = (not wait_msc) or (b'Disk Size' in data)
+                msc_ok = (not wait_msc) or DISK_SIZE_RE.search(data.decode('utf-8', errors='ignore'))
                 if cdc_ok and msc_ok:
                     break
             time.sleep(0.1)
@@ -747,8 +736,7 @@ def test_host_cdc_msc_hid(board):
 
         if msc_devs:
             assert b'MassStorage device is mounted' in data, 'MSC device not mounted on host'
-            assert b'Disk Size' in data, 'MSC Disk Size not reported'
-            check_msc_info(lines, msc_devs)
+            check_msc_info(data.decode('utf-8', errors='ignore'), msc_devs)
 
         # CDC echo test via flasher serial
         if not cdc_devs:
@@ -804,13 +792,12 @@ def test_host_msc_file_explorer(board):
             new_data = ser.read(ser.in_waiting or 1)
             if new_data:
                 data += new_data
-                if b'Disk Size' in data:
+                if DISK_SIZE_RE.search(data.decode('utf-8', errors='ignore')):
                     break
             time.sleep(0.1)
             timeout -= 0.1
         assert b'Disk Size' in data, 'MSC device not mounted'
-        lines = data.decode('utf-8', errors='ignore').splitlines()
-        check_msc_info(lines, msc_devs)
+        check_msc_info(data.decode('utf-8', errors='ignore'), msc_devs)
 
         # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
         time.sleep(1)
@@ -1318,6 +1305,7 @@ def test_device_mtp(board):
     # The whole session lives in mtp_test.py under run_cmd: libmtp calls are synchronous
     # ctypes that block unkillably (D state) on a wedged device, so a disposable process is
     # the only thing the harness can walk away from.
+    global board_wedged
     uid = board['uid']
     script = Path(__file__).resolve().parent / 'mtp_test.py'
     # 2x, as master's in-process open_mtp_dev used: libmtp-runtime publishes
@@ -1326,22 +1314,31 @@ def test_device_mtp(board):
     # probe. Extracting the session into a subprocess halved this by accident (8s/4s),
     # which fails healthy hardware on the retry.
     t = 2 * enum_timeout()
-    r = hil_util.run_cmd(
-        f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t}',
-        timeout=t + MTP_SESSION_MARGIN)
+    fd, pidfile = tempfile.mkstemp(prefix='mtp-session-')
+    os.close(fd)
+    try:
+        r = hil_util.run_cmd(
+            f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t} '
+            f'--pidfile {shlex.quote(pidfile)}',
+            timeout=t + MTP_SESSION_MARGIN)
+        alive = _session_alive(pidfile) if r.returncode == 124 else ''
+    finally:
+        os.unlink(pidfile)
     if r.returncode == 124:
-        # "abandoned", not "killed": a session blocked in a usbfs ioctl (D state) never
-        # receives the SIGKILL -- it lingers until its device path clears, by design
+        # A session blocked in a usbfs ioctl (D state) outlives SIGKILL and holds the device: latch the
+        # wedge, as test_device_usbtmc does, so this board gets no retry, no further flash and no park
+        if alive:
+            board_wedged = f'{board["name"]}: MTP session {alive} outlived SIGKILL and holds the device'
         raise AssertionError(f'MTP session wedged (abandoned after {t + MTP_SESSION_MARGIN}s; '
-                             f'the session process may linger unkillable in D state)')
+                             f'{board_wedged or "the session was reaped"})')
     assert r.returncode == 0, f'MTP session failed (rc {r.returncode}):\n{r.stdout}'
 
 
-def _usbtmc_session_alive(pidfile: str) -> str:
-    """After run_cmd gave up on usbtmc_test.py: which session is still alive ('pid N'), a session blocked in a
-    usbfs ioctl outlives SIGKILL and keeps the device; '' when it was reaped. Only /proc/<pid>/stat is read,
-    which a D-state process does not block. A session that never recorded itself counts as alive: nothing
-    proves it ended."""
+def _session_alive(pidfile: str) -> str:
+    """After run_cmd gave up on a session child (usbtmc_test.py, mtp_test.py): which session is still alive
+    ('pid N'), a session blocked in a usbfs ioctl outlives SIGKILL and keeps the device; '' when it was reaped.
+    Only /proc/<pid>/stat is read, which a D-state process does not block. A session that never recorded itself
+    counts as alive: nothing proves it ended."""
     try:
         with open(pidfile) as f:
             pid, start = f.read().split()
@@ -1364,7 +1361,7 @@ def test_device_usbtmc(board):
             f'{shlex.quote(sys.executable)} {shlex.quote(str(script))} --uid {shlex.quote(uid)} --timeout {t} '
             f'--pidfile {shlex.quote(pidfile)}',
             timeout=t + USBTMC_SESSION_MARGIN)
-        alive = _usbtmc_session_alive(pidfile) if r.returncode == 124 else ''
+        alive = _session_alive(pidfile) if r.returncode == 124 else ''
     finally:
         os.unlink(pidfile)
     out = hil_util.cmd_stdout_text(r.stdout)
@@ -1769,7 +1766,8 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
     :param example: example name
     :return: (err_count, status, metric) where err_count is 0 on success/skip or
              1 on failure, status is one of 'pass'/'fail'/'skip' (a missing binary
-             counts as 'skip'), and metric is an optional string a test returns to
+             counts as 'skip'), or 'final' for a fail that is a parsed per-case verdict
+             (TestFail.parsed), and metric is an optional string a test returns to
              show in its report cell instead of the pass symbol (e.g. speed)
     """
     err_count = 0
@@ -1873,6 +1871,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                         # the whole battery to re-observe a number the JSON already
                         # reported. Only that case.
                         err_count += 1
+                        result_status = 'final'
                         metric = getattr(e, 'metric', None)
                         msg = f'{test_name}  {STATUS_FAILED}: {e}'
                         if last_detail:
@@ -2183,6 +2182,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
             if run_list[0] == prev_last:
                 run_list[0], run_list[-1] = run_list[-1], run_list[0]
         cells = {}
+        final_tests = []
         # beside a pending cleanup no park may flash; the loop below skips every test instead
         if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
             # Same example (same PID) still repeats across the boundary (a one-test
@@ -2238,9 +2238,13 @@ def _board_battery(board: Board, parked: list) -> tuple:
                 continue
             ec, status, metric = test_example(board, vname, test)
             err_count += ec
-            cells[test] = metric if metric else status
+            cells[test] = metric if metric else ('fail' if status == 'final' else status)
+            if status == 'final':
+                final_tests.append(test)
             if ec > 0:
                 failed_tests.append(test)
+        if final_tests:
+            cells[hil_report.FINAL_CELL] = ','.join(final_tests)
         if board_wedged:
             log_line(f'{vname:40} SKIPPING the rest of this board: {board_wedged}; '
                      f'flashing through the poisoned node would add a stray per test')

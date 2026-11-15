@@ -16,7 +16,9 @@ import errno
 import os
 import struct
 import sys
+import threading
 import time
+from pathlib import Path
 
 import usb.core
 import usb.util
@@ -39,8 +41,47 @@ APP_DELAY_MS = 50  # the example answers a query after 2x this; the abort cases 
 PROBE_TAG = 77  # next_write's bTag, never issued by Dut.next_tag: a Bulk-OUT bTag report of it is a parsed probe
 
 
+_SYS_USB = Path('/sys/bus/usb/devices')
+
+
 class SkipCase(Exception):
     pass
+
+
+def _bounded_read(path, grace=2.0):
+    """A sysfs attribute's text, or None when it cannot be read within `grace` s (a local twin of
+    usb_observe.read_sysfs: this file never imports the harness)."""
+    out = {}
+
+    def _read():
+        try:
+            out['v'] = path.read_text().strip()
+        except OSError:
+            pass
+
+    t = threading.Thread(target=_read, daemon=True)
+    t.start()
+    t.join(grace)
+    return out.get('v')
+
+
+def targets(uid):
+    """(busnum, devnum) of every cafe:401c device whose serial is uid, from sysfs alone. Every USBTMC DUT
+    shares this vid:pid, and a pyusb string read opens the device: on a wedged peer that blocks in D state
+    under its device lock. idVendor/idProduct are lock-free; `serial` waits on that lock interruptibly, so
+    a bounded read can abandon it."""
+    found = []
+    for dev in _SYS_USB.glob('*'):
+        try:
+            if ((dev / 'idVendor').read_text().strip() != f'{VID:04x}'
+                    or (dev / 'idProduct').read_text().strip() != f'{PID:04x}'):
+                continue
+            if _bounded_read(dev / 'serial') != uid:
+                continue
+            found.append((int((dev / 'busnum').read_text()), int((dev / 'devnum').read_text())))
+        except (OSError, ValueError):
+            continue   # an interface or hub node, or a device that left mid-read
+    return found
 
 
 class Dut:
@@ -50,11 +91,6 @@ class Dut:
 
     def find(self, timeout):
         deadline = time.monotonic() + timeout
-        def serial(dev):
-            try:
-                return usb.util.get_string(dev, dev.iSerialNumber)
-            except (usb.core.USBError, ValueError):
-                return None
 
         def configuration(dev):
             # The device node, and its strings, are there before the kernel's SET_CONFIGURATION: until then pyusb
@@ -66,13 +102,17 @@ class Dut:
                 return None
 
         while True:
-            self.dev = next((d for d in usb.core.find(find_all=True, idVendor=VID, idProduct=PID)
-                             if serial(d) == self.uid), None)
+            found = targets(self.uid)
+            # only the one match is opened; a stale same-serial node (dual-port part) is waited out
+            self.dev = usb.core.find(bus=found[0][0], address=found[0][1]) if len(found) == 1 else None
+            if self.dev is not None and (self.dev.idVendor, self.dev.idProduct) != (VID, PID):
+                self.dev = None   # the address was reused after the scan
             cfg = None if self.dev is None else configuration(self.dev)
             if cfg is not None:
                 break
             if time.monotonic() > deadline:
-                state = 'not found' if self.dev is None else 'found, but its configuration is not set'
+                state = (f'ambiguous: {len(found)} devices at (bus, address) {found}' if len(found) > 1 else
+                         'not found' if self.dev is None else 'found, but its configuration is not set')
                 raise RuntimeError(f'USBTMC device {VID:04x}:{PID:04x} serial {self.uid} {state}')
             time.sleep(0.5)
         itf = cfg[(0, 0)]

@@ -166,6 +166,16 @@ class TestBoardSweep(unittest.TestCase):
         self.assertEqual(err, 0)
         self.assertEqual(self.ran, ['device/cdc_msc', 'device/board_test'])
 
+    def test_a_parsed_verdict_is_recorded_beside_its_cell(self):
+        usbtest_harness.patch(self, usbtest, 'strays_on', lambda serial: [])
+        self.board['tests'] = {'only': ['device/usbtest', 'device/cdc_msc']}
+        usbtest_harness.patch(self, hil_test, 'test_example', lambda board, v, ex: {
+            'device/usbtest': (1, 'final', '❌ 29/30'), 'device/cdc_msc': (1, 'fail', None)}.get(ex, (0, 'pass', None)))
+        _, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(rows[0][1], {'device/usbtest': '❌ 29/30', 'device/cdc_msc': 'fail',
+                                      hil_test.hil_report.FINAL_CELL: 'device/usbtest'})
+        self.assertEqual((err, sorted(failed)), (2, ['device/cdc_msc', 'device/usbtest']))
+
     def test_skip_flash_runs_no_sweep(self):
         hil_test.skip_flash = True
         usbtest_harness.patch(self, usbtest, 'strays_on', lambda serial: self.fail('swept'))
