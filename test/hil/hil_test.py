@@ -640,7 +640,8 @@ def open_printer_dev(id: str, vendor_str, product_str, ifnum: int) -> str:
 # Tests: dual
 # -------------------------------------------------------------
 MOUNT_NOTICE_RE = re.compile(r'(?:un)?mounted device \d+\r?\n')
-DEV_INFO_RE = re.compile(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)')
+# the serial is the rest of the line: \w+ would cut 'AB-1' to 'AB' and pass a board declaring 'AB'
+DEV_INFO_RE = re.compile(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (.+)$')
 
 
 def parse_dev_info_records(text: str) -> list[tuple[str, str]]:

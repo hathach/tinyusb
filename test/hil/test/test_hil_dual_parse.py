@@ -80,6 +80,11 @@ class ParseDevInfoRecords(unittest.TestCase):
         text = record(1, '1a86_55d4', '52D2999999') + record(2, '21c4_0cc7', '0') + 'Device 3: ID 0951:1603 SN \r\n'
         self.assertEqual(devs(text), ['1a86_55d4_52D2999999', '21c4_0cc7_0'])
 
+    def test_punctuated_serial_is_kept_whole(self):
+        text = record(1, '1a86_55d4', 'ABC-DEF.1:2_3') + 'mounted device 2\r\n' + record(2, '1a86_55d4', 'AB')
+        self.assertEqual(devs(text), ['1a86_55d4_ABC-DEF.1:2_3', '1a86_55d4_AB'])
+        self.assertEqual(devs('Device 1: ID 1a86:55d4 SN ABC-DEF\r'), [])
+
 
 class FakeSerial:
     """Hands out one chunk per read, then nothing."""
@@ -150,6 +155,15 @@ class HostDeviceInfo(unittest.TestCase):
         text = 'Device 1: ID 1a86:55d4 SN 52D20' + '03414\r\nDevice Descriptor:\r\n'
         with self.assertRaisesRegex(AssertionError, r"Enumerated \['1a86_55d4_52D2003414'\]"):
             self.run_cell(board, text, len('Device 1: ID 1a86:55d4 SN 52D20'))
+
+    def test_a_declared_serial_that_prefixes_the_punctuated_one_fails(self):
+        board = {'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'AB'}]}
+        with self.assertRaisesRegex(AssertionError, r"Enumerated \['1a86_55d4_AB-1'\]"):
+            self.run_cell(board, record(1, '1a86_55d4', 'AB-1'), 7)
+
+    def test_a_declared_punctuated_serial_passes(self):
+        board = {'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'AB-1'}]}
+        self.assertEqual(self.run_cell(board, record(1, '1a86_55d4', 'AB-1'), 7), 0)
 
 
 class MscCapacity(unittest.TestCase):
