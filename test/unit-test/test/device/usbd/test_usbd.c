@@ -1309,6 +1309,21 @@ void test_usbd_get_configuration_out_is_stalled(void) {
   tud_task();
 }
 
+// GET_DESCRIPTOR is device-to-host (USB 2.0 9.4.3): an OUT data stage would be written into the descriptor
+void test_usbd_get_descriptor_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = (TUSB_DESC_DEVICE << 8), .wIndex = 0,
+    .wLength = sizeof(tusb_desc_device_t)
+  };
+  desc_device = (uint8_t const *) &data_desc_device;
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Endpoint stream read: the ep buffer cap is rounded down to whole packets
 //--------------------------------------------------------------------+

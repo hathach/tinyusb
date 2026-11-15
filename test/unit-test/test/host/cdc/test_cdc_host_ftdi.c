@@ -262,6 +262,22 @@ void test_acm_open_rejects_truncated_descriptors(void) {
   }
 }
 
+// CDC 1.2 3.4.1: the notification element is an interrupt or bulk endpoint, an isochronous one is not opened
+void test_acm_open_notification_endpoint_type(void) {
+  uint8_t desc[ACM_EXTENDED_LEN];
+  memcpy(desc, acm_extended, ACM_EXTENDED_LEN);
+  uint8_t *notif_xfer = &desc[9 + 5 + 4 + 3];
+
+  *notif_xfer = TUSB_XFER_ISOCHRONOUS;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  TEST_ASSERT_EQUAL(0, opened_count);
+
+  *notif_xfer = TUSB_XFER_BULK;
+  TEST_ASSERT_EQUAL(ACM_EXTENDED_LEN, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(3, opened_count);
+}
+
 void test_ftdi_open_walks_extended_endpoints(void) {
   device_desc.idVendor = 0x0403;
   device_desc.idProduct = 0x6001;
