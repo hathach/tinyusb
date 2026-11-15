@@ -958,20 +958,25 @@ void test_usbd_get_configuration_out_is_stalled(void) {
 //--------------------------------------------------------------------+
 enum { EDPT_STREAM_OUT = 0x07 };
 
-static void stream_rx_open(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
-                           uint16_t xfer_len) {
+static void stream_rx_open_ep(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
+                              uint16_t xfer_len, uint8_t xfer_type, uint16_t mps) {
   const tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = EDPT_STREAM_OUT,
-    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-    .wMaxPacketSize   = 64,
-    .bInterval        = 0
+    .bmAttributes     = { .xfer = xfer_type },
+    .wMaxPacketSize   = mps,
+    .bInterval        = (xfer_type == TUSB_XFER_INTERRUPT) ? 1 : 0
   };
   bus_reset(); // endpoint idle and unclaimed
   memset(stream, 0, sizeof(*stream));
   TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, false, false, ff_buf, ff_size, ep_buf));
   tu_edpt_stream_open(stream, rhport, &desc_ep, xfer_len);
+}
+
+static void stream_rx_open(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
+                           uint16_t xfer_len) {
+  stream_rx_open_ep(stream, ff_buf, ff_size, ep_buf, xfer_len, TUSB_XFER_BULK, 64);
 }
 
 // 256 bytes free, a 100-byte cap: one 64-byte packet, not 100 that a second packet would overrun
@@ -995,4 +1000,15 @@ void test_usbd_stream_read_xfer_cap_below_packet(void) {
   TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_read_xfer(&stream));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_OUT));
   usbd_edpt_release(rhport, EDPT_STREAM_OUT);
+}
+
+// a non power-of-two packet size (FS interrupt) still gets every whole packet the buffers hold
+void test_usbd_stream_read_xfer_non_pow2_mps(void) {
+  uint8_t ff_buf[96];
+  uint8_t ep_buf[100];
+  tu_edpt_stream_t stream;
+  stream_rx_open_ep(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf), TUSB_XFER_INTERRUPT, 48);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 96, false, true);
+  TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
 }

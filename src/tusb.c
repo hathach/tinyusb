@@ -447,10 +447,9 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
   if (available >= s->mps) {
-    // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & ~(s->mps - 1));
-    count = tu_min16(count, s->xfer_len);
-    count = (uint16_t) (count - (count % s->mps)); // xfer_len need not be a whole number of packets
+    // whole packets only, limited by ep bufsize; neither mps nor xfer_len need be a power of two
+    uint16_t count = tu_min16(available, s->xfer_len);
+    count = (uint16_t) (count - (count % s->mps));
     if (count > 0) {
       TU_ASSERT(stream_xfer(s, count), 0);
       return count;

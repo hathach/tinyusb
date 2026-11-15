@@ -428,7 +428,9 @@ void test_short_hub_descriptor_powers_no_port(void) {
     complete_ctrl_data(0, &reply, len);
 
     if (len < min_len) {
-      TEST_ASSERT_EQUAL(1, ctrl_count);
+      TEST_ASSERT_EQUAL(1, ctrl_count); // no port power request
+      TEST_ASSERT_EQUAL(0, poll_count);
+      TEST_ASSERT_EQUAL(1, config_complete_count);
     } else {
       TEST_ASSERT_EQUAL(2, ctrl_count);
       TEST_ASSERT_EQUAL(HUB_REQUEST_SET_FEATURE, ctrl_reqs[1].setup.bRequest);
