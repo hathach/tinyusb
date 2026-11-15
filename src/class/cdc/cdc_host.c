@@ -752,6 +752,18 @@ static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t
   return p_desc;
 }
 
+// Open the notification endpoint at p_desc; returns the descriptor after it, or NULL.
+// CDC 1.2 3.4.1: a notification element is an interrupt or a bulk endpoint.
+static const uint8_t *open_ep_notif(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
+  const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
+  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
+  TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep), NULL);
+  TU_ASSERT(TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer || TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, NULL);
+  TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep), NULL);
+  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  return next;
+}
+
 static uint16_t open_itf(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // For CDC: only support ACM subclass
   // Note: Protocol 0xFF can be RNDIS device
@@ -1082,12 +1094,8 @@ static uint16_t acm_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, u
 
   // Open notification endpoint of control interface if any
   if (itf_desc->bNumEndpoints == 1) {
-    const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
-    TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
-    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-    TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-    p_cdc->ep_notif = desc_ep->bEndpointAddress;
-    p_desc          = next;
+    p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+    TU_ASSERT(p_desc, 0);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -1812,14 +1820,10 @@ static uint16_t ch34x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc,
   TU_ASSERT(p_desc, 0);
 
   // Interrupt endpoint: not used for now
-  const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-  TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer,
-            0);
-  TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+  TU_ASSERT(p_desc, 0);
 
-  return (uint16_t)(next - (const uint8_t *)itf_desc);
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 static bool ch34x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
@@ -2143,19 +2147,13 @@ static uint16_t pl2303_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc
   TU_VERIFY(p_cdc, 0);
 
   p_cdc->serial_drid = SERIAL_DRIVER_PL2303;
-  p_cdc->pl2303.quirks = 0;
-  p_cdc->pl2303.supports_hx_status = false;
 
   // Interrupt endpoint: not used for now
-  const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-  TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer,
-            0);
-  TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+  TU_ASSERT(p_desc, 0);
 
   // data endpoints expected to be in pairs
-  p_desc = open_ep_stream_pair(p_cdc, next, desc_end);
+  p_desc = open_ep_stream_pair(p_cdc, p_desc, desc_end);
   TU_ASSERT(p_desc, 0);
 
   return (uint16_t)(p_desc - (const uint8_t *)itf_desc);

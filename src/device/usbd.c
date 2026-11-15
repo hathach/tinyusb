@@ -1129,6 +1129,8 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
     }
 
     case TUSB_REQ_GET_DESCRIPTOR:
+      // USB 2.0 9.4.3 is device-to-host: an OUT data stage would be written into the descriptor
+      TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
       return process_get_descriptor(rhport, p_request);
 
     case TUSB_REQ_SET_FEATURE:

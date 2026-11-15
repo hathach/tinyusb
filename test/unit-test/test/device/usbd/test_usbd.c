@@ -953,6 +953,21 @@ void test_usbd_get_configuration_out_is_stalled(void) {
   tud_task();
 }
 
+// GET_DESCRIPTOR is device-to-host (USB 2.0 9.4.3): an OUT data stage would be written into the descriptor
+void test_usbd_get_descriptor_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = (TUSB_DESC_DEVICE << 8), .wIndex = 0,
+    .wLength = sizeof(tusb_desc_device_t)
+  };
+  desc_device = (uint8_t const *) &data_desc_device;
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Endpoint stream read: the ep buffer cap is rounded down to whole packets
 //--------------------------------------------------------------------+
@@ -1011,4 +1026,29 @@ void test_usbd_stream_read_xfer_non_pow2_mps(void) {
 
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 96, false, true);
   TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
+}
+
+// a non power-of-two packet size (FS interrupt) gets a ZLP after whole packets only: mps - 1 is no mask for 48
+void test_usbd_stream_write_zlp_non_pow2_mps(void) {
+  enum { EDPT_STREAM_IN = 0x83 };
+  uint8_t ff_buf[96];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  const tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EDPT_STREAM_IN,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+  bus_reset(); // endpoint idle and unclaimed
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 48));
 }
