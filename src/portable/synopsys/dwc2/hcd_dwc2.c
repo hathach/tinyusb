@@ -3364,7 +3364,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 #endif
 
     // HAINT keeps a released channel's latched cause, which channel_xfer_start() clears before unmasking it again
-    if (tu_bit_test(dwc2->haint & dwc2->haintmsk, ch_id)) {
+    const uint32_t haint = dwc2->haint; // read HAINT before HAINTMSK: no unsequenced volatile reads (IAR Pa082)
+    if (tu_bit_test(haint & dwc2->haintmsk, ch_id)) {
 #if HCD_SPLIT
       handled = true;
 #endif
