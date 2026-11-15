@@ -63,7 +63,7 @@ enum {
 };
 
 enum {
-  TIME_TO_EXIT_SUSPEND_MS = 4u, // datasheet: PWRDOWN = 1 to 0 to OSCOKIRQ = 3 ms + 1 ms margin
+  TIME_OSCOK_TIMEOUT_MS   = 50u, // datasheet: OSCOKIRQ after 3 ms typ, crystal dependent, no max given
   TIME_CHIPRES_DELAY_MS   = 2u  // CHIPRES hold: 2 guarantees >= 1 ms actual despite ms-tick quantization
 };
 
@@ -495,11 +495,16 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   while (tusb_time_millis_api() - reset_start_ms < TIME_CHIPRES_DELAY_MS) {} // hold reset so the oscillator stops
   reg_write(rhport, USBCTL_ADDR, 0, false);
 
-  // Wait for OSCOK (12 MHz oscillator + 48 MHz PLL relock). Bounded as a safety net, so the host never
-  // hangs if the edge is still missed on some board - the clock is running regardless.
+  // Wait for OSCOK (12 MHz oscillator + 48 MHz PLL relock): the chip is not ready to operate before it
   const uint32_t oscok_start_ms = tusb_time_millis_api();
-  while (!(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ) &&
-         (tusb_time_millis_api() - oscok_start_ms < TIME_TO_EXIT_SUSPEND_MS)) {}
+  while (!(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ)) {
+    if (tusb_time_millis_api() - oscok_start_ms >= TIME_OSCOK_TIMEOUT_MS) {
+      TU_LOG1("MAX3421: OSCOK timeout\r\n");
+      reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
+      reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
+      return false;
+    }
+  }
 
   // Mode: Host and DP/DM pull down
   mode_write(rhport, MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST, false);
