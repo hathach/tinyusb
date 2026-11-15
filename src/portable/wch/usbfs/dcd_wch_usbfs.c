@@ -668,10 +668,15 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_tx_ctrl_set(0, USBFS_EP_T_RES_STALL);
     }
   } else {
+    // Stalling drops the queued transfer: invalidate it so neither the ISR nor a clear-stall re-arms it
     if (dir == TUSB_DIR_OUT) {
+      dcd_int_disable(rhport);
+      data.xfer[ep][TUSB_DIR_OUT].valid = false;
       ep_rx_set_response(ep, USBFS_EP_R_RES_STALL);
+      dcd_int_enable(rhport);
     } else {
       ep_in_claim_begin(rhport, ep);
+      data.xfer[ep][TUSB_DIR_IN].valid = false;
       ep_tx_set_response(ep, USBFS_EP_T_RES_STALL);
       ep_in_claim_end(rhport);
     }
@@ -691,6 +696,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
     // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
+      // Masked so a pending completion cannot retire the receive between the check and the re-arm
+      dcd_int_disable(rhport);
       uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
                     ? (data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
                     : USBFS_EP_R_RES_NAK;
@@ -698,6 +705,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_rx_ctrl_set(ep, res);
 #endif
       ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
+      dcd_int_enable(rhport);
     } else {
       ep_in_claim_begin(rhport, ep);
 #ifdef CH32_USBFS_EP4_MANUAL_TOG

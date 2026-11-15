@@ -44,6 +44,7 @@ static bool reset_evt_pending;
 // TX_CTRL toggle bits each bulk/interrupt IN packet in flight was armed with (one byte per endpoint:
 // written from task and ISR context, so never a shared read-modify-write)
 static uint8_t in_pkt_tog[EP_MAX];
+static bool sof_requested; // by usbd; reset completion also needs the SOF interrupt
 
 static void queue_in_packet(uint8_t ep_num, xfer_ctl_t* xfer) {
   uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -157,6 +158,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   memset(&xfer_status, 0, sizeof(xfer_status));
   ep0_tog = true;
   reset_evt_pending = false;
+  sof_requested = false;
 
   USBHSD->HOST_CTRL = 0x00;
   USBHSD->HOST_CTRL = USBHS_PHY_SUSPENDM;
@@ -167,9 +169,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
   } else if (rh_init->speed == TUSB_SPEED_FULL) {
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
-  } else if (rh_init->speed == TUSB_SPEED_LOW) {
-    USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_LOW_SPEED;
   } else {
+    // Low speed is rejected too: a low-speed device receives no SOF, which completes the bus reset below
     return false;
   }
 
@@ -213,6 +214,9 @@ void dcd_edpt_close_all(uint8_t rhport) {
   (void)rhport;
 
   for (size_t ep = 1; ep < EP_MAX; ep++) {
+    // Retire pending transfers first, so neither the ISR nor a later clear-stall re-arms one
+    xfer_status[ep][TUSB_DIR_OUT].valid = false;
+    xfer_status[ep][TUSB_DIR_IN].valid  = false;
     EP_TX_LEN(ep)  = 0;
     EP_TX_CTRL(ep) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
     EP_RX_CTRL(ep) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
@@ -247,12 +251,14 @@ void dcd_disconnect(uint8_t rhport) {
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
-  (void)rhport;
-  if (en) {
+  dcd_int_disable(rhport);
+  sof_requested = en;
+  if (en || reset_evt_pending) {
     USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
   } else {
     USBHSD->INT_EN &= ~(USBHS_SOF_ACT_EN);
   }
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
@@ -276,6 +282,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   }
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
+  xfer->valid      = false;
   xfer->max_size   = tu_edpt_packet_size(desc_edpt);
 
   xfer->is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
@@ -306,6 +313,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
+  xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num)    = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
     EP_RX_MAX_LEN(ep_num) = 0;
@@ -340,6 +348,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
+  // Stalling drops the queued transfer: invalidate it before the ISR or a clear-stall can act on it
+  xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_STALL;
   } else {
@@ -356,6 +366,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
   if (dir == TUSB_DIR_OUT) {
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+    // Masked so a pending completion cannot retire the receive between the check and the re-arm
+    dcd_int_disable(rhport);
     EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0 |
                          ((ep_num != 0 && !xfer->is_iso) ? USBHS_EP_R_AUTOTOG : 0);
     if (xfer->valid) {
@@ -364,6 +376,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
       // clear-halt (usbtest toggle test 29 clears the halt on an armed bulk-OUT pipe).
       queue_out_packet(ep_num, xfer);
     }
+    dcd_int_enable(rhport);
   } else {
     xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
     EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0 |
@@ -442,7 +455,9 @@ void dcd_int_handler(uint8_t rhport) {
             break;
         }
         dcd_event_bus_reset(rhport, actual_speed, true);
-        USBHSD->INT_EN &= ~USBHS_SOF_ACT_EN;
+        if (!sof_requested) {
+          USBHSD->INT_EN &= ~USBHS_SOF_ACT_EN;
+        }
       } else {
         uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
         dcd_event_sof(rhport, frame_count, true);
