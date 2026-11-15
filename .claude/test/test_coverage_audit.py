@@ -322,6 +322,35 @@ class JudgeTest(unittest.TestCase):
         self.assertEqual(ca.judge([], [], self.INDEX, self.FAMILY, self.view())['required'], 0)
 
 
+class GraphTest(unittest.TestCase):
+    def test_family_is_looked_up_in_the_root_not_the_cwd(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as cwd:
+            os.makedirs(os.path.join(root, 'hw', 'bsp', 'rp2040', 'boards', 'pico'))
+            os.makedirs(os.path.join(root, 'tools'))
+            with open(os.path.join(root, 'tools', 'build.py'), 'w') as fh:   # cwd-relative, as tools/build.py's
+                fh.write('from pathlib import Path\n'
+                         'def find_family(board):\n'
+                         '    d = Path("hw/bsp")\n'
+                         '    return next((f.name for f in d.iterdir() if (f / "boards" / board).exists()), None)'
+                         ' if d.is_dir() else None\n')
+            out = os.path.join(cwd, 'graph')
+            old = os.getcwd()
+            os.chdir(cwd)
+            try:
+                with mock.patch.dict(sys.modules), mock.patch.object(sys, 'path', list(sys.path)), \
+                        mock.patch.object(ca, 'run_ok', return_value='abc\n'), \
+                        mock.patch.object(ca, 'run', return_value=mock.Mock(returncode=0, stdout='', stderr='')), \
+                        mock.patch.object(ca, 'extract_board', return_value={'examples': {}, 'cmake_inputs': []}):
+                    sys.modules.pop('build', None)
+                    ca.main(['graph', '--root', root, '--out', out, '--board', 'pico'])
+                self.assertEqual(os.getcwd(), cwd)
+            finally:
+                os.chdir(old)
+            with open(os.path.join(out, 'pico.json')) as fh:
+                self.assertEqual(json.load(fh)['family'], 'rp2040')
+            self.assertEqual(ca.load_index(out)[1], {'pico': 'rp2040'})
+
+
 class ReplayTest(unittest.TestCase):
     def test_an_unknown_ref_fails_without_writing_a_report(self):
         with tempfile.TemporaryDirectory() as d:

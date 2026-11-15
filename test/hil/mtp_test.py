@@ -257,7 +257,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--uid', required=True, help='board_get_unique_id serial to match')
     parser.add_argument('--timeout', type=float, default=30, help='enumeration wait budget (s)')
+    parser.add_argument('--pidfile', help='write "<pid> <starttime>" here first, so the harness can tell whether '
+                                          'this process outlived its kill')
     args = parser.parse_args()
+    if args.pidfile:
+        # starttime is proc(5) stat field 22: a recycled pid has another
+        with open('/proc/self/stat') as f:
+            start = f.read().rpartition(')')[2].split()[19]
+        with open(args.pidfile, 'w') as f:
+            f.write(f'{os.getpid()} {start}\n')
     return run_session(args.uid, args.timeout)
 
 

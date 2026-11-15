@@ -107,7 +107,8 @@ class ReleaseToTag(unittest.TestCase):
             self.assertEqual(kernel_src.tag_for_release(release), (tag, 'upstream'), release)
 
     def test_debian_13_is_only_a_candidate(self):
-        for release in ('6.12.107+deb13-amd64', '6.12.107+deb13-cloud-amd64', '6.12.107+deb14-arm64'):
+        for release in ('6.12.107+deb13-amd64', '6.12.107+deb13-cloud-amd64', '6.12.107+deb14-arm64',
+                        '6.12.107+deb13.1-amd64'):   # point update
             tag, note = kernel_src.tag_for_release(release)
             self.assertEqual(tag, 'v6.12.107')
             self.assertIn('upstream candidate', note)
@@ -115,6 +116,8 @@ class ReleaseToTag(unittest.TestCase):
     def test_refused_forms(self):
         for release in ('6.1.0-18-amd64',             # Debian <= 12 ABI name
                         '6.1.123+deb12-amd64',        # Debian 12 with the new suffix
+                        '6.1.123+deb12.1-amd64',      # its point update
+                        '6.12.107+deb13.-amd64', '6.12.107+deb13.1.2-amd64', '6.12.107+deb13.x-amd64',
                         '6.8.0-45-generic',           # Ubuntu ABI name
                         '6.14.0-0.rc3.29.fc42.x86_64',  # Fedora rc
                         '6.12.0-061200rc3-generic',   # Ubuntu mainline rc
