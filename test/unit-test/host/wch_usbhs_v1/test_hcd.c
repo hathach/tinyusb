@@ -25,6 +25,8 @@ static uintptr_t dma_address(void const *ptr);
 static uint32_t irq_state;
 static unsigned irq_depth, pair_polls;
 static bool pair_ready;
+static uint8_t pair_advance;
+static bool pair_sof;
 static uint32_t irq_save(void);
 static void irq_restore(uint32_t state);
 static bool split_ready(void);
@@ -37,6 +39,10 @@ static bool split_ready(void);
 static tuh_bus_info_t buses[128];
 static hcd_event_t event;
 static unsigned events;
+#if CFG_TUH_HUB && TUH_OPT_HIGH_SPEED
+static bool multi_tt;
+bool hub_tt_multi(uint8_t hub_addr) { (void)hub_addr; return multi_tt; }
+#endif
 
 // Map fixture objects to 32-bit DMA register values and back.
 static uintptr_t dma_address(void const *ptr) {
@@ -62,6 +68,14 @@ static uint32_t irq_save(void) {
   uint32_t const old = irq_state;
   irq_state &= ~0x88u;
   assert(irq_depth++ == 0);
+  if (pair_advance) {
+    regs.FRAME_NO = (regs.FRAME_NO & USBHS_FRAME_NO_NUM_MASK) |
+                    ((uint16_t)pair_advance << USBHS_FRAME_NO_MICROFRAME_SHIFT);
+    if (pair_sof) {
+      regs.MIS_ST |= USBHS_SOF_PRES;
+    }
+    pair_advance = false;
+  }
   return old;
 }
 static void irq_restore(uint32_t state) {
@@ -86,10 +100,12 @@ static void reset(tusb_speed_t speed) {
   memset(buffer, 0xa5, sizeof(buffer));
   _hcd.active = _hcd.last = -1;
 #if CFG_TUH_HUB && TUH_OPT_HIGH_SPEED
-  _hcd.split_owner = _hcd.periodic_owner = -1;
+  _hcd.split_owner = -1;
+  multi_tt = false;
   irq_state = 0x1088;
   irq_depth = pair_polls = 0;
   pair_ready = true;
+  pair_advance = pair_sof = false;
 #endif
   _hcd.attached = true;
   _hcd.root_speed = speed;
@@ -306,7 +322,7 @@ static void test_split_dma_and_cancel(void) {
   regs.INT_FG = 0;
   assert(hcd_edpt_abort_xfer(0, 1, 0x81));
   assert(_hcd.active == -1 && _hcd.split_owner == -1 && !ep_find(1, 0x81)->pending);
-  assert(!hcd_edpt_xfer(0, 1, 0x81, buffer, 18)); // downstream toggle now unknown
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 18));
   assert(hcd_edpt_close(0, 1, 0x81));
   assert(open_ep(1, 0x81, TUSB_XFER_BULK, 64, 0)); // no global TT quarantine
   hcd_device_close(0, 5);
@@ -315,11 +331,19 @@ static void test_split_dma_and_cancel(void) {
 static void test_split_periodic_and_watchdog(void) {
   reset(TUSB_SPEED_HIGH); child(1);
   assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 8, 1));
+  tick(8);
   assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8)); done(0, 0);
-  tick(2); done(USBHS_PID_NYET, 0);
-  tick(3); done(USBHS_PID_MDATA, 4);
+  tick(10); done(USBHS_PID_NYET, 0);
+  tick(11); done(USBHS_PID_MDATA, 4);
   assert(events == 1 && event.xfer_complete.result == XFER_RESULT_FAILED && event.xfer_complete.len == 0);
-  assert(_hcd.periodic_owner == -1 && _hcd.split_blocked_until == 8);
+  assert(ep_find(1, 0x81)->split_phase == SPLIT_IDLE && ep_find(1, 0x81)->due == 16);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+  tick(16); done(0, 0);
+  tick(18); done(0xb, 8); // TT already ACKed an abandoned DATA0: discard DATA1.
+  assert(events == 1 && ep_find(1, 0x81)->pending);
+  tick(24); done(0, 0);
+  tick(26); receive(0x42, 8); done(USBHS_TOGGLE_OK | 3, 8);
+  assert(events == 2 && event.xfer_complete.result == XFER_RESULT_SUCCESS);
 
   reset(TUSB_SPEED_HIGH); child(1);
   assert(open_ep(1, 0x81, TUSB_XFER_BULK, 64, 0));
@@ -330,6 +354,191 @@ static void test_split_periodic_and_watchdog(void) {
   tick(5); tick(7); tick(9);
   assert(events == 1 && event.xfer_complete.result == XFER_RESULT_FAILED && _hcd.split_owner == -1);
   assert(_hcd.active == -1); // no control requests/deferred work linked into HCD
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+}
+static void test_split_rearm_after_errors(void) {
+  reset(TUSB_SPEED_HIGH); child(1);
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 8, 1));
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+  for (unsigned frame = 1; frame <= 3; frame++) {
+    tick(frame * 8); done(0, 0);
+    tick(frame * 8 + 2); done(USBHS_PID_ERR, 0);
+  }
+  assert(events == 1 && event.xfer_complete.result == XFER_RESULT_FAILED);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+  tick(32); done(0, 0);
+  tick(34); receive(0x51, 8); done(USBHS_TOGGLE_OK | 3, 8);
+  assert(events == 2 && event.xfer_complete.result == XFER_RESULT_SUCCESS);
+
+  reset(TUSB_SPEED_HIGH); child(1);
+  assert(open_ep(1, 0x81, TUSB_XFER_BULK, 64, 0));
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64)); done(USBHS_PID_ACK, 0);
+  tick(2); done(USBHS_PID_NYET, 0);
+  tick(256); // Nonperiodic TT watchdog.
+  assert(events == 1 && event.xfer_complete.result == XFER_RESULT_FAILED);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+
+  reset(TUSB_SPEED_HIGH); child(1);
+  assert(open_ep(1, 1, TUSB_XFER_BULK, 64, 0));
+  assert(hcd_edpt_xfer(0, 1, 1, buffer, 8)); done(USBHS_PID_ACK, 0);
+  tick(2); regs.INT_FG = 0;
+  assert(hcd_edpt_abort_xfer(0, 1, 1));
+  assert(!hcd_edpt_xfer(0, 1, 1, buffer, 8)); // OUT still requires toggle recovery.
+  assert(hcd_edpt_clear_stall(0, 1, 1));
+  assert(hcd_edpt_xfer(0, 1, 1, buffer, 8));
+}
+static void test_split_deferred_scheduler(void) {
+  for (unsigned sof = 0; sof < 2; sof++) {
+    reset(TUSB_SPEED_HIGH); child(1);
+    assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 8, 1));
+    assert(open_ep(2, 1, TUSB_XFER_BULK, 512, 0));
+    _hcd.resetting = true; // Queue both before the scheduler runs.
+    tick(8);
+    assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+    assert(hcd_edpt_xfer(0, 2, 1, buffer + 64, 8));
+    _hcd.resetting = false;
+    pair_advance = true;
+    pair_sof = sof != 0;
+    engine_kick(); // The frame counter advances between selection and SPLIT launch.
+    assert(pair_polls == 0 && ep_find(1, 0x81)->split_phase == SPLIT_IDLE);
+    if (sof) {
+      assert(_hcd.active == -1); // SOF must precede every other transaction.
+    } else {
+      assert(_hcd.active >= 0 && regs.DEV_AD == 2);
+      done(USBHS_PID_ACK, 0);
+      assert(events == 1 && ep_find(1, 0x81)->pending);
+    }
+  }
+}
+static void test_split_periodic_capacity(void) {
+  reset(TUSB_SPEED_HIGH); child(1); child(2);
+  // Each 64-byte FS interrupt reserves 63us including maximum TT think time.
+  // Four independent microframe budgets on this TT, regardless of interval.
+  for (uint8_t i = 1; i <= 4; i++) {
+    assert(open_ep(1, 0x80 | i, TUSB_XFER_INTERRUPT, 64, 1));
+    assert(ep_find(1, 0x80 | i)->split_slot == i - 1);
+  }
+  buses[2].hub_port = 2; // Another port of a single-TT hub still shares the budget.
+  assert(!open_ep(2, 0x81, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(open_ep(2, 0x81, TUSB_XFER_INTERRUPT, 8, 1)); // Small reports can share a microframe.
+  buses[2].hub_addr = 6; // An independent TT has its own full budget.
+  assert(open_ep(2, 0x82, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(ep_find(2, 0x82)->split_slot == 0);
+  assert(hcd_edpt_close(0, 1, 0x81));
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 64, 3));
+  assert(ep_find(1, 0x81)->interval == 24); // Preserve bInterval, including non-powers of two.
+
+  reset(TUSB_SPEED_HIGH); child(1); child(2);
+  multi_tt = true;
+  buses[2].hub_port = 2;
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(open_ep(2, 0x81, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(ep_find(1, 0x81)->split_slot == 0 && ep_find(2, 0x81)->split_slot == 0);
+}
+
+static void test_split_multiple_periodic(void) {
+  reset(TUSB_SPEED_HIGH); child(1);
+  for (uint8_t i = 1; i <= 3; i++) {
+    assert(open_ep(1, 0x80 | i, TUSB_XFER_INTERRUPT, 64, 1));
+    assert(hcd_edpt_xfer(0, 1, 0x80 | i, buffer + 64 * i, 64));
+  }
+  assert(open_ep(2, 1, TUSB_XFER_BULK, 512, 0));
+  for (unsigned frame = 1; frame <= 3; frame++) {
+    for (unsigned uf = 0; uf <= 4; uf++) {
+      tick(frame * 8 + uf);
+      while (_hcd.active >= 0) {
+        hcd_ep_t *ep = &_hcd.ep[_hcd.active];
+        assert(ep->daddr == 1);
+        if (ep->split_phase == SPLIT_START) {
+          assert(uf == ep->split_slot);
+          done(0, 0);
+        } else {
+          assert(uf == ep->split_slot + 2u);
+          uint8_t const addr = ep->ep_addr;
+          uint8_t *const data = ep->buffer;
+          receive(addr, 64);
+          done(USBHS_TOGGLE_OK | (ep->toggle ? 0xb : 3), 64);
+          assert(hcd_edpt_xfer(0, 1, addr, data, 64));
+        }
+      }
+    }
+    assert(events == frame * 4 - 1); // Three periodic completions per frame.
+    assert(hcd_edpt_xfer(0, 2, 1, buffer + 1024, 512));
+    assert(regs.DEV_AD == 2); done(USBHS_PID_ACK, 0);
+  }
+}
+
+static void test_split_completion_order(bool boundary) {
+  reset(TUSB_SPEED_HIGH); child(1); child(2);
+  for (uint8_t i = 1; i <= 5; i++) {
+    assert(open_ep(1, 0x80 | i, TUSB_XFER_INTERRUPT, 8, 1));
+  }
+  // EP1 and EP5 share SS0. Round-robin would choose EP5 first at CS time.
+  assert(ep_find(1, 0x81)->split_slot == 0 && ep_find(1, 0x85)->split_slot == 0);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+  assert(hcd_edpt_xfer(0, 1, 0x85, buffer + 64, 8));
+  tick(8); assert(regs.HOST_EP_PID == 0x91); done(0, 0);
+  assert(regs.HOST_EP_PID == 0x95); done(0, 0);
+  _hcd.last = 0;
+  tick(10); assert(regs.HOST_EP_PID == 0x91);
+  done(0, 0); // Transport error must retry before the later matching CS.
+  assert(regs.HOST_EP_PID == 0x91);
+  if (boundary) {
+    pair_advance = 3;
+  }
+  done(USBHS_PID_NYET, 0); // NYET may yield until the next CS microframe.
+  if (boundary) {
+    assert(_hcd.now == 11 && regs.HOST_EP_PID == 0x91);
+    receive(1, 8); done(USBHS_TOGGLE_OK | 3, 8);
+    assert(regs.HOST_EP_PID == 0x95);
+    receive(5, 8); done(USBHS_TOGGLE_OK | 3, 8);
+    assert(events == 2);
+    return;
+  }
+  assert(regs.HOST_EP_PID == 0x95);
+  done(USBHS_PID_NYET, 0);
+  _hcd.last = 0;
+  tick(11); assert(regs.HOST_EP_PID == 0x91);
+  receive(1, 8); done(USBHS_TOGGLE_OK | 3, 8);
+  assert(regs.HOST_EP_PID == 0x95);
+  receive(5, 8); done(USBHS_TOGGLE_OK | 3, 8);
+  assert(events == 2);
+}
+
+static void test_split_cancel_peer(void) {
+  reset(TUSB_SPEED_HIGH); child(1);
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(open_ep(1, 0x82, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+  assert(hcd_edpt_xfer(0, 1, 0x82, buffer + 64, 64));
+  tick(8); done(0, 0);
+  tick(9); done(0, 0);
+  assert(hcd_edpt_abort_xfer(0, 1, 0x81));
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+  assert(ep_find(1, 0x81)->due == 16);
+  assert(hcd_edpt_close(0, 1, 0x81));
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 64, 1));
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+  assert(ep_find(1, 0x81)->due == 16 && _hcd.active == -1);
+  tick(11); assert(regs.HOST_EP_PID == 0x92);
+  receive(2, 64); done(USBHS_TOGGLE_OK | 3, 64);
+  assert(events == 1 && event.xfer_complete.ep_addr == 0x82);
+  tick(16); assert(regs.HOST_EP_PID == 0x91); done(0, 0);
+  tick(18); receive(1, 64); done(USBHS_TOGGLE_OK | 3, 64);
+  assert(events == 2);
+}
+
+static void test_split_open_frame_offset(void) {
+  reset(TUSB_SPEED_HIGH); child(1);
+  // Port reset can rebase the hardware counter independently of monotonic time.
+  _hcd.now = 6;
+  for (uint8_t i = 1; i <= 4; i++) {
+    assert(open_ep(1, 0x80 | i, TUSB_XFER_INTERRUPT, 64, 1));
+    assert(hcd_edpt_xfer(0, 1, 0x80 | i, buffer + 64 * i, 64));
+  }
+  tick(2); assert(_hcd.active == -1);
+  tick(3); assert(_hcd.active == -1);
+  tick(8); assert(regs.HOST_EP_PID == 0x91);
 }
 #endif
 int main(void) {
@@ -346,6 +555,14 @@ int main(void) {
 #if CFG_TUH_HUB && TUH_OPT_HIGH_SPEED
   test_split_dma_and_cancel();
   test_split_periodic_and_watchdog();
+  test_split_rearm_after_errors();
+  test_split_deferred_scheduler();
+  test_split_periodic_capacity();
+  test_split_multiple_periodic();
+  test_split_completion_order(false);
+  test_split_completion_order(true);
+  test_split_cancel_peer();
+  test_split_open_frame_offset();
 #endif
   puts("WCH USBHS v1 direct DMA / ISO scheduling tests passed");
   return 0;

@@ -675,7 +675,8 @@
     #define CFG_TUD_WCH_USBIP_USBHS (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
   #endif
 
-  #define TUP_RHPORT_HIGHSPEED (CFG_TUD_WCH_USBIP_USBHS || CFG_TUH_WCH_USBIP_USBHS)
+  #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_HCD_HIGHSPEED CFG_TUH_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
   #if CFG_TUD_WCH_USBIP_USBHS
@@ -812,6 +813,11 @@
 // Default to fullspeed if not defined
 #ifndef TUP_RHPORT_HIGHSPEED
   #define TUP_RHPORT_HIGHSPEED 0
+#endif
+
+// Host and device may select different controllers on the same MCU.
+#ifndef TUP_HCD_HIGHSPEED
+  #define TUP_HCD_HIGHSPEED TUP_RHPORT_HIGHSPEED
 #endif
 
 // fast function, normally mean placing function in SRAM

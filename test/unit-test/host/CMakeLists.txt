@@ -34,6 +34,39 @@ foreach (speed IN ITEMS high full)
   endforeach ()
 endforeach ()
 
+# Speed selection must work without BSP-provided BOARD_TUx_MAX_SPEED defaults.
+foreach (device_hs IN ITEMS 0 1)
+  math(EXPR host_hs "1 - ${device_hs}")
+  foreach (mode IN ITEMS default auto explicit legacy)
+    set(name test_wch_usbhs_v1_speed_${device_hs}_${mode})
+    add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/wch_usbhs_v1/test_speed.c)
+    target_compile_definitions(${name} PRIVATE
+      "CFG_TUSB_CONFIG_FILE=<stdint.h>"
+      CFG_TUSB_MCU=OPT_MCU_CH32V307 CFG_TUSB_OS=OPT_OS_NONE
+      CFG_TUD_ENABLED=1 CFG_TUH_ENABLED=1
+      CFG_TUD_WCH_USBIP_USBHS=${device_hs} CFG_TUD_WCH_USBIP_USBFS=${host_hs}
+      CFG_TUH_WCH_USBIP_USBHS=${host_hs} CFG_TUH_WCH_USBIP_USBFS=${device_hs}
+      )
+    if (mode STREQUAL "default" OR mode STREQUAL "auto")
+      target_compile_definitions(${name} PRIVATE EXPECT_DEVICE_HS=${device_hs} EXPECT_HOST_HS=${host_hs})
+      if (mode STREQUAL "auto")
+        target_compile_definitions(${name} PRIVATE
+          CFG_TUD_MAX_SPEED=OPT_MODE_DEFAULT_SPEED CFG_TUH_MAX_SPEED=OPT_MODE_DEFAULT_SPEED)
+      endif ()
+    else ()
+      target_compile_definitions(${name} PRIVATE EXPECT_DEVICE_HS=0 EXPECT_HOST_HS=0)
+      if (mode STREQUAL "explicit")
+        target_compile_definitions(${name} PRIVATE
+          CFG_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED CFG_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED)
+      else ()
+        target_compile_definitions(${name} PRIVATE
+          "CFG_TUSB_RHPORT0_MODE=OPT_MODE_DEVICE|OPT_MODE_FULL_SPEED"
+          "CFG_TUSB_RHPORT1_MODE=OPT_MODE_HOST|OPT_MODE_FULL_SPEED")
+      endif ()
+    endif ()
+  endforeach ()
+endforeach ()
+
 # EHCI fixture links encode native pointers in 32 bits. macOS cannot guarantee
 # low static addresses (in particular, Apple Silicon executables require PIE).
 if (APPLE)

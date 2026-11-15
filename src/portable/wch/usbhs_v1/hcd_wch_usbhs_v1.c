@@ -9,6 +9,7 @@
  * References: CH32FV2x/V3x RM v2.5, 22.2.1 and 22.2.3; WCH USBHS HOST_KM.
  * Low-speed SPLIT and PRE transactions are unsupported.
  * SPLIT ISO, high-bandwidth endpoints and MDATA continuation are unsupported.
+ * Periodic SPLITs use SS microframes 0..3, with per-TT bandwidth admission.
  * TODO: USBH must implement TT recovery after abandoned nonperiodic SPLITs.
  */
 
@@ -21,6 +22,9 @@
 #include "host/usbh.h"
 
 #define HCD_SPLIT (CFG_TUH_HUB && TUH_OPT_HIGH_SPEED)
+#if HCD_SPLIT
+  #include "host/hub.h"
+#endif
 
 #ifndef CFG_TUH_WCH_USBHS_ENDPOINT_MAX
   #define CFG_TUH_WCH_USBHS_ENDPOINT_MAX (1 + 4 * (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB))
@@ -41,6 +45,7 @@ enum {
 enum { NAK_PER_FRAME = 3, ERROR_MAX = 3 };
 #if HCD_SPLIT
 enum { SPLIT_IDLE, SPLIT_START, SPLIT_COMPLETE };
+enum { SPLIT_PERIODIC_SLOTS = 4 };
 #endif
 
 typedef struct {
@@ -61,9 +66,9 @@ typedef struct {
   uint8_t tt_port;
   uint8_t split_phase;
   uint32_t split_start;
-  uint16_t split_frame;
-  uint8_t split_period;
+  uint32_t split_order;
   uint8_t split_slot;
+  bool tt_multi;
 #endif
   bool pending;
   bool setup_pending;
@@ -93,8 +98,7 @@ static struct {
   int8_t last;
 #if HCD_SPLIT
   int8_t split_owner;
-  int8_t periodic_owner;
-  uint32_t split_blocked_until;
+  uint32_t split_order;
 #endif
   bool attached;
   bool resetting;
@@ -110,6 +114,8 @@ static void engine_kick(void);
 static void complete(hcd_ep_t *ep, xfer_result_t result, bool in_isr);
 
 #if HCD_SPLIT
+static bool split_complete_older(hcd_ep_t const *ep, uint32_t now);
+
 #ifndef USBHS_IRQ_SAVE
 static inline uint32_t usbhs_irq_save(void) {
   uint32_t state;
@@ -143,17 +149,27 @@ static int split_pair(hcd_ep_t *ep, uint8_t token, uint8_t tx_ctrl, uint8_t rx_c
   uint8_t const micro = (uint8_t)(frame >> USBHS_FRAME_NO_MICROFRAME_SHIFT);
   bool const periodic = ep->type == TUSB_XFER_INTERRUPT;
   if ((USBHSH->MIS_ST & USBHS_SOF_PRES) ||
-      (ep->split_phase == SPLIT_START && (micro == 6 || (periodic && micro != 0))) ||
-      (ep->split_phase == SPLIT_COMPLETE && periodic &&
-       (micro < 2 || micro > 4 || (frame & USBHS_FRAME_NO_NUM_MASK) != ep->split_frame))) {
+      (ep->split_phase == SPLIT_START && (micro == 6 || (periodic && micro != ep->split_slot)))) {
     USBHS_IRQ_RESTORE(state);
     return 0;
   }
   uint16_t const raw = (uint16_t)(((frame & USBHS_FRAME_NO_NUM_MASK) << 3) | micro);
   _hcd.active_started = _hcd.now + ((uint16_t)(raw - _hcd.frame_raw) & 0x3fff);
+  if (periodic && ep->split_phase == SPLIT_COMPLETE &&
+      ((uint32_t)(_hcd.active_started - ep->split_start - 2) > 2 ||
+       split_complete_older(ep, _hcd.active_started))) {
+    USBHS_IRQ_RESTORE(state);
+    return 0;
+  }
+  // The ordering scan itself may straddle SOF. Keep its timestamp valid up to
+  // the bounded prefix/child sequence below.
+  if (USBHSH->FRAME_NO != frame || (USBHSH->MIS_ST & USBHS_SOF_PRES)) {
+    USBHS_IRQ_RESTORE(state);
+    return 0;
+  }
   if (ep->split_phase == SPLIT_START) {
     ep->split_start = _hcd.active_started;
-    ep->split_frame = frame & USBHS_FRAME_NO_NUM_MASK;
+    ep->split_order = _hcd.split_order++;
   }
   USBHSH->DEV_AD = ep->tt_hub;
   USBHSH->HOST_SPLIT_DATA = split;
@@ -250,9 +266,7 @@ static bool engine_stop(bool preserve_toggle) {
 #if HCD_SPLIT
 static void split_release(hcd_ep_t *ep) {
   ep->split_phase = SPLIT_IDLE;
-  if (ep->type == TUSB_XFER_INTERRUPT) {
-    _hcd.periodic_owner = -1;
-  } else {
+  if (ep->type != TUSB_XFER_INTERRUPT) {
     _hcd.split_owner = -1;
   }
 }
@@ -261,17 +275,63 @@ static void split_abandon(hcd_ep_t *ep, bool in_isr) {
   if (!EP_SPLIT(ep) || ep->split_phase == SPLIT_IDLE) {
     return;
   }
-  if (tu_edpt_number(ep->ep_addr)) {
-    // The TT may have ACKed downstream DATA before cancellation. Until the
-    // endpoint's CLEAR_FEATURE resets both ends, guessing its toggle is unsafe.
+  if (tu_edpt_number(ep->ep_addr) && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_OUT) {
+    // The TT may have delivered the OUT packet before cancellation. IN can
+    // resynchronize by discarding duplicate DATA; OUT needs CLEAR_FEATURE.
     ep->toggle_unknown = true;
   }
   if (ep->type == TUSB_XFER_INTERRUPT) {
-    // USB2 11.18.7: SS at uframe0; all periodic TT state drains by next frame.
-    _hcd.split_blocked_until = ep->split_start + 8;
+    // Let this transaction expire before reusing its TT result entry. Other
+    // endpoints may continue; a later matching CS discards abandoned results.
+    ep->due = ep->split_start + ep->interval;
   }
   split_release(ep);
   (void)in_isr;
+}
+
+static bool split_tt_same(hcd_ep_t const *a, hcd_ep_t const *b) {
+  return a->tt_hub == b->tt_hub && (!a->tt_multi || a->tt_port == b->tt_port);
+}
+
+static bool split_complete_older(hcd_ep_t const *ep, uint32_t now) {
+  // USB2 11.18.8: a later matching CS can discard earlier retained results.
+  // NYET defers to the next microframe; transport errors retry before peers.
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(_hcd.ep); i++) {
+    hcd_ep_t const *other = &_hcd.ep[i];
+    if (other->split_phase == SPLIT_COMPLETE && other->type == TUSB_XFER_INTERRUPT &&
+        split_tt_same(ep, other) && (int32_t)(other->split_order - ep->split_order) < 0 &&
+        (int32_t)(now - other->due) >= 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static uint16_t split_bus_time_us(uint16_t mps) {
+  // USB2 5.11.3: full-speed interrupt, worst-case stuffing and 32-bit TT think time.
+  uint32_t const bits = 4u + (56u * mps) / 6u;
+  return (uint16_t)((9107u + 84u * bits + 2667u + 999u) / 1000u);
+}
+
+static bool split_slot_pick(hcd_ep_t *ep) {
+  uint16_t load[SPLIT_PERIODIC_SLOTS] = {0};
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(_hcd.ep); i++) {
+    hcd_ep_t const *other = &_hcd.ep[i];
+    if (other != ep && other->mps && other->tt_hub && other->type == TUSB_XFER_INTERRUPT &&
+        split_tt_same(ep, other)) {
+      load[other->split_slot] += split_bus_time_us(other->mps);
+    }
+  }
+  // Reserve each endpoint every frame, independent of its polling interval.
+  // SS0..3 budget FS work in microframes1..4 and keep all CS attempts in-frame.
+  uint8_t slot = 0;
+  for (uint8_t i = 1; i < SPLIT_PERIODIC_SLOTS; i++) {
+    if (load[i] < load[slot]) {
+      slot = i;
+    }
+  }
+  ep->split_slot = slot;
+  return load[slot] + split_bus_time_us(ep->mps) <= 125;
 }
 
 #endif
@@ -285,33 +345,38 @@ static void engine_kick(void) {
     return;
   }
   time_update();
-  for (unsigned k = 1; k <= TU_ARRAY_SIZE(_hcd.ep); k++) {
-    int8_t const idx = (int8_t)(((unsigned)(_hcd.last + k)) % TU_ARRAY_SIZE(_hcd.ep));
+  int8_t const last = _hcd.last;
+#if HCD_SPLIT
+  bool rescanned = false;
+#endif
+  // Periodic SPLIT windows take precedence; other pipes retain round-robin service.
+  for (unsigned k = 1; k <= TU_ARRAY_SIZE(_hcd.ep) * (HCD_SPLIT ? 2 : 1); k++) {
+    int8_t const idx = (int8_t)(((unsigned)(last + k)) % TU_ARRAY_SIZE(_hcd.ep));
     hcd_ep_t *ep = &_hcd.ep[idx];
     if (!ep->pending || (int32_t)(_hcd.now - ep->due) < 0) {
       continue;
     }
 #if HCD_SPLIT
-    int8_t const owner = ep->type == TUSB_XFER_INTERRUPT ? _hcd.periodic_owner : _hcd.split_owner;
+    bool const periodic = ep->tt_hub && ep->type == TUSB_XFER_INTERRUPT;
+    if ((k <= TU_ARRAY_SIZE(_hcd.ep)) != periodic) {
+      continue;
+    }
+    int8_t const owner = periodic ? -1 : _hcd.split_owner;
     if (ep->tt_hub && (ep->errors >= ERROR_MAX ||
-        (owner >= 0 && owner != idx) || (ep->type == TUSB_XFER_INTERRUPT &&
-        (int32_t)(_hcd.now - _hcd.split_blocked_until) < 0))) {
+        (owner >= 0 && owner != idx))) {
       continue;
     }
     bool const start_split = ep->tt_hub && ep->split_phase == SPLIT_IDLE;
     if (ep->tt_hub) {
       uint8_t const micro = _hcd.frame_raw & 7;
-      if ((start_split && (micro == 6 || (ep->type == TUSB_XFER_INTERRUPT &&
-           (micro != 0 || ((_hcd.frame_raw >> 3) & (ep->split_period - 1)) != ep->split_slot)))) ||
-          (ep->split_phase == SPLIT_COMPLETE && ep->type == TUSB_XFER_INTERRUPT &&
-           (int32_t)(_hcd.now - (ep->split_start + 4)) > 0)) {
+      if ((start_split && (micro == 6 || (periodic && micro != ep->split_slot))) ||
+          (ep->split_phase == SPLIT_COMPLETE && periodic &&
+           ((int32_t)(_hcd.now - (ep->split_start + 4)) > 0 || split_complete_older(ep, _hcd.now)))) {
         continue;
       }
       if (start_split) {
         ep->split_phase = SPLIT_START;
-        if (ep->type == TUSB_XFER_INTERRUPT) {
-          _hcd.periodic_owner = idx;
-        } else {
+        if (!periodic) {
           _hcd.split_owner = idx;
         }
       }
@@ -362,7 +427,7 @@ static void engine_kick(void) {
         tx_ctrl |= USBHS_UH_T_RES_NO; // interrupt SS OUT has no handshake
       }
       if (complete_split && in) {
-        // Bench candidate: RM22.2.3.3 synchronous RX framing for no-handshake CS DATA.
+        // RM22.2.3.3 synchronous RX suppresses the CS-IN host ACK (bench-verified).
         // This changes receiver framing, not the SPLIT wire endpoint type.
         USBHSH->HOST_EP_TYPE = USBHS_ENDP_RX_ISO;
         // USB2 8.4.2: complete-split DATA has no subsequent host ACK.
@@ -375,6 +440,18 @@ static void engine_kick(void) {
           if (start_split) {
             split_release(ep);
           }
+          if (USBHSH->MIS_ST & USBHS_SOF_PRES) {
+            return;
+          }
+          uint32_t const before = _hcd.now;
+          time_update();
+          if (!rescanned && _hcd.now != before) {
+            // A boundary may have made an earlier CS eligible after it was
+            // skipped. Revisit once, including when this is its final window.
+            rescanned = true;
+            k = 0;
+          }
+          continue;
         } else {
           // No child was launched. Revisit through the ISR error path without
           // spinning or invoking a task callback from an unknown context.
@@ -659,8 +736,7 @@ static void port_check(uint8_t rhport, bool in_isr) {
     } else {
       engine_stop(false);
 #if HCD_SPLIT
-      _hcd.split_owner = _hcd.periodic_owner = -1;
-      _hcd.split_blocked_until = 0;
+      _hcd.split_owner = -1;
 #endif
       for (unsigned i = 0; i < TU_ARRAY_SIZE(_hcd.ep); i++) {
         _hcd.ep[i].pending = false;
@@ -682,7 +758,7 @@ bool hcd_init(uint8_t rhport, tusb_rhport_init_t const *rh_init) {
   tu_memclr(&_hcd, sizeof(_hcd));
   _hcd.active = _hcd.last = -1;
 #if HCD_SPLIT
-  _hcd.split_owner = _hcd.periodic_owner = -1;
+  _hcd.split_owner = -1;
 #endif
   _hcd.root_speed = TUSB_SPEED_FULL;
   USBHSH->CONTROL = USBHS_FORCE_RST | USBHS_ALL_CLR;
@@ -837,27 +913,12 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const *de
   TU_VERIFY(!split || type != TUSB_XFER_ISOCHRONOUS);
 #endif
   uint32_t interval = 8;
-#if HCD_SPLIT
-  uint8_t split_period = 0, split_slot = 0;
-#endif
   if (type == TUSB_XFER_INTERRUPT || type == TUSB_XFER_ISOCHRONOUS) {
     uint8_t const binterval = tu_max8(desc->bInterval, 1);
     if (bus.speed == TUSB_SPEED_HIGH || type == TUSB_XFER_ISOCHRONOUS) {
       interval = (bus.speed == TUSB_SPEED_HIGH ? 1u : 8u) << (tu_min8(binterval, 16) - 1);
     } else {
       interval = 8u * binterval;
-#if HCD_SPLIT
-      if (split) {
-        // At most one periodic SS per frame. Power-of-two periods permit
-        // collision-free admission; rounding down polls at least as often as
-        // requested. Reject oversubscription rather than silently miss polls.
-        split_period = 1;
-        while ((uint16_t)split_period * 2 <= binterval) {
-          split_period *= 2;
-        }
-        interval = 8u * split_period;
-      }
-#endif
     }
   }
   hcd_int_disable(rhport);
@@ -866,28 +927,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const *de
     hcd_int_enable(rhport);
     return false;
   }
-#if HCD_SPLIT
-  if (split_period) {
-    for (; split_slot < split_period; split_slot++) {
-      bool available = true;
-      for (unsigned i = 0; i < TU_ARRAY_SIZE(_hcd.ep); i++) {
-        hcd_ep_t const *other = &_hcd.ep[i];
-        if (other != ep && other->mps && other->split_period &&
-            ((split_slot ^ other->split_slot) & (tu_min8(split_period, other->split_period) - 1)) == 0) {
-          available = false;
-          break;
-        }
-      }
-      if (available) {
-        break;
-      }
-    }
-    if (split_slot == split_period) {
-      hcd_int_enable(rhport);
-      return false;
-    }
-  }
-#endif
   if (!ep) {
     for (unsigned i = 0; i < TU_ARRAY_SIZE(_hcd.ep); i++) {
       if (!_hcd.ep[i].mps) {
@@ -907,8 +946,17 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const *de
 #if HCD_SPLIT
     ep->tt_hub = tt_hub;
     ep->tt_port = tt_port;
-    ep->split_period = split_period;
-    ep->split_slot = split_slot;
+    ep->tt_multi = tt_hub && hub_tt_multi(tt_hub);
+    if (split && type == TUSB_XFER_INTERRUPT) {
+      // A close/reopen must not reuse a canceled TT entry or its consumed budget
+      // in this frame. Starting next frame also makes admission independent of it.
+      time_update();
+      ep->due = _hcd.now + 8 - (_hcd.frame_raw & 7u);
+      if (!split_slot_pick(ep)) {
+        tu_memclr(ep, sizeof(*ep));
+        ep = NULL;
+      }
+    }
 #endif
   }
   hcd_int_enable(rhport);
@@ -976,6 +1024,9 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
     }
 #if HCD_SPLIT
     if (accepted && ep->tt_hub) {
+      if (ep->type == TUSB_XFER_INTERRUPT) {
+        ep->due = ep->split_start + ep->interval;
+      }
       split_release(ep);
     } else {
       split_abandon(ep, false);
