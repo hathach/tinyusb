@@ -11,7 +11,7 @@
 TEST_SOURCE_FILE("cdc_host.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
 
-enum { DEV_ADDR = 1, EP_OUT = 0x02, EP_IN = 0x81, EP_SIZE = 64 };
+enum { DEV_ADDR = 1, EP_OUT = 0x02, EP_IN = 0x81, EP_NOTIF = 0x83, EP_SIZE = 64 };
 
 static tusb_desc_device_t device_desc;
 static tusb_control_request_t pending_setup;
@@ -41,7 +41,8 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t *desc) {
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
-  TEST_ASSERT_TRUE(desc_ep->bEndpointAddress == EP_IN || desc_ep->bEndpointAddress == EP_OUT);
+  TEST_ASSERT_TRUE(desc_ep->bEndpointAddress == EP_IN || desc_ep->bEndpointAddress == EP_OUT ||
+                   desc_ep->bEndpointAddress == EP_NOTIF);
   if (desc_ep->bEndpointAddress == edpt_open_fail_addr) {
     return false;
   }
@@ -223,6 +224,72 @@ void test_failed_alt_open_keeps_open_interface(void) {
   TEST_ASSERT_EQUAL(sizeof(alt0), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) alt0, sizeof(alt0)));
   TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) alt1, sizeof(alt1)));
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+}
+
+// USB 2.0 9.5: a descriptor longer than defined is valid, its extra bytes skipped. ACM with a 9-byte notification
+// endpoint, a 10-byte data interface and 9-byte (audio-style) bulk endpoints, then the next function's interface.
+static const uint8_t acm_extended[] = {
+  9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0, 0,
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),
+  4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 0x02,
+  9, TUSB_DESC_ENDPOINT, EP_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 16, 0xA5, 0xA5,
+  10, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0, 0xA5,
+  9, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0, 0xA5, 0xA5,
+  9, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0, 0xA5, 0xA5,
+};
+#define ACM_EXTENDED_LEN (sizeof(acm_extended))
+
+void test_acm_open_walks_extended_descriptors(void) {
+  // trailing bytes of another function are not consumed
+  uint8_t desc[ACM_EXTENDED_LEN + 9];
+  memcpy(desc, acm_extended, ACM_EXTENDED_LEN);
+  const uint8_t next_itf[9] = {9, TUSB_DESC_INTERFACE, 2, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0};
+  memcpy(desc + ACM_EXTENDED_LEN, next_itf, sizeof(next_itf));
+  TEST_ASSERT_EQUAL(ACM_EXTENDED_LEN, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(3, opened_count);
+}
+
+// A descriptor whose bLength runs past the span is not opened, wherever it sits
+void test_acm_open_rejects_truncated_descriptors(void) {
+  const uint16_t cut[] = {
+    ACM_EXTENDED_LEN - 1,      // last bulk endpoint
+    ACM_EXTENDED_LEN - 9 - 1,  // first bulk endpoint
+    9 + 5 + 4 + 9 - 1,         // notification endpoint
+  };
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(cut); i++) {
+    TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm_extended, cut[i]));
+    TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  }
+}
+
+void test_ftdi_open_walks_extended_endpoints(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    9, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0, 0xA5, 0xA5,
+    9, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0, 0xA5, 0xA5,
+  };
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc) - 1));
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+}
+
+// A slot freed by one device starts clean for the next: the ACM notification endpoint must not route a completion
+// on that address to the FTDI interface now in the slot
+void test_reused_slot_drops_previous_notification_endpoint(void) {
+  const uint8_t acm[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 16,
+    9, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(sizeof(acm), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm, sizeof(acm)));
+  cdch_close(DEV_ADDR);
+
+  open_ftdi(0x0600, 0);
+  TEST_ASSERT_FALSE(cdch_xfer_cb(DEV_ADDR, EP_NOTIF, XFER_RESULT_SUCCESS, 0));
 }
 
 // Each 232BM-type chip encodes 3 Mbaud with divisor zero; channel encoding differs.

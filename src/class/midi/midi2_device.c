@@ -611,7 +611,9 @@ static void _nego_handle_stream_msg(midi2d_interface_t* p_midi, const uint32_t* 
       if (req_proto == MIDI_PROTOCOL_MIDI1 || req_proto == MIDI_PROTOCOL_MIDI2) {
         p_midi->protocol = req_proto;
       }
-      _nego_send_config_notify(p_midi, p_midi->protocol);
+      // the Endpoint Discovery bit for this reply: kept pending while the TX FIFO is full
+      p_midi->nego_pending_ep_filter |= 0x10;
+      _nego_send_pending(p_midi);
       p_midi->negotiated = true;
       break;
     }

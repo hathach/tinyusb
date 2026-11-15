@@ -565,7 +565,7 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
         if (status == MIDI_STATUS_SYSEX_START) {
           cable_sysex_in_progress |= cable_mask;
         }
-        // only add the packet if a sysex message is in progress
+        // only add the packet if a sysex message is in progress, otherwise it is discarded
         if (cable_sysex_in_progress & cable_mask) {
           ++bytes_to_add_to_stream;
           for (uint8_t i = 2; i < 4; i++) {
@@ -577,11 +577,6 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
               i = 4;// force the loop to exit; I hate break statements in loops
             }
           }
-        }
-        else {
-          // bad packet discard
-          nread = tu_edpt_stream_read(&p_midi->ep_stream.rx, p_midi->stream_read.buffer, 4);
-          continue;
         }
       } else if (status < MIDI_STATUS_SYSEX_START) {
         // then it is a channel message either three bytes or two
@@ -625,11 +620,7 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
         bytes_to_add_to_stream = 1;
       }
     }
-    else {
-      // bad packet discard
-      nread = tu_edpt_stream_read(&p_midi->ep_stream.rx, p_midi->stream_read.buffer, 4);
-      continue;
-    }
+    // else: a packet of a cable out of range is discarded
 
     for (uint8_t i = 1; i <= bytes_to_add_to_stream; i++) {
       *p_buffer++ = p_midi->stream_read.buffer[i];
@@ -638,7 +629,8 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
     nread = 0;
     if (bufsize - bytes_buffered >= 3 && tu_edpt_stream_peek(&p_midi->ep_stream.rx, &one_byte)) {
       uint8_t new_cable = (one_byte >> 4) & 0xf;
-      if (new_cable == *p_cable_num) {
+      // nothing buffered yet (only discarded packets): the next packet picks the cable
+      if (new_cable == *p_cable_num || bytes_buffered == 0) {
         // still on the same cable. Continue reading the stream
         nread = tu_edpt_stream_read(&p_midi->ep_stream.rx, p_midi->stream_read.buffer, 4);
       }

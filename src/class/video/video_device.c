@@ -1282,6 +1282,11 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
           } else if (stage == CONTROL_STAGE_DATA) {
             video_probe_and_commit_control_t *param = &_videod_commit_param;
             TU_VERIFY(_update_streaming_parameters(stm, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
+            /* UVC 1.5 4.3.1.1.1: COMMIT stalls an unsupported state. Leaving a field to negotiate leaves
+             * dwMaxPayloadTransferSize the host's, and a payload no larger than its header moves no data. */
+            TU_VERIFY(param->bFormatIndex && param->bFrameIndex && param->dwFrameInterval &&
+                        param->dwMaxPayloadTransferSize > sizeof(tusb_video_payload_header_t),
+                      VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < param->dwMaxPayloadTransferSize) {
               param->dwMaxPayloadTransferSize = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;

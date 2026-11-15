@@ -549,6 +549,13 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
         submitted = false;
         break;
       }
+      // BOT 1.0 6.3: neither an invalid CSW (6.5: needs Reset Recovery) nor one that is not meaningful is reported
+      if (csw->signature != MSC_CSW_SIGNATURE || csw->tag != cbw->tag || csw->status > MSC_CSW_STATUS_PHASE_ERROR ||
+          (csw->status != MSC_CSW_STATUS_PHASE_ERROR && csw->data_residue > cbw->total_bytes)) {
+        TU_LOG_DRV("  MSCh invalid CSW\r\n");
+        submitted = false;
+        break;
+      }
       // BOT 1.0 §5.3.3.1: a Phase Error needs Reset Recovery, which an unmounted interface cannot run.
       // Once mounted, a device Phase Error is #3985.
       if (csw->status == MSC_CSW_STATUS_PHASE_ERROR && !p_msc->mounted) {
