@@ -10,6 +10,13 @@ A USB virtual network adapter that runs a small lwIP stack on the device, servin
 - On higher-RAM MCUs it also starts an iperf TCP server for throughput testing, and the NCM build hands received frames to lwIP in place instead of copying them (`tud_network_recv_hold()`).
 - Blinks the board LED to indicate USB state (not mounted / mounted / suspended).
 
+> **Disclaimer — receive checksums are not verified.** `lwipopts.h` sets `CHECKSUM_CHECK_IP/UDP/TCP/ICMP` to 0 to save
+> CPU. This is safe for the example only because its sole peer is the USB host, and the USB CRC protects that hop.
+> Nothing then detects data corrupted before the USB hop, for example a frame the host routes or bridges from another
+> network, or corruption in host or device memory. If you build a product on this example that forwards or bridges
+> traffic, uses another network interface, or relies on end-to-end integrity, set these options back to 1 (the lwIP
+> default). Outgoing checksums are always generated.
+
 ## Requirements
 
 - Depends on the lwIP TCP/IP stack, fetched as a dependency (e.g. `python3 tools/get_deps.py`).
