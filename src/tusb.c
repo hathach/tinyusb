@@ -450,13 +450,16 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
     // multiple of packet size limit by ep bufsize
     uint16_t count = (uint16_t) (available & ~(s->mps - 1));
     count = tu_min16(count, s->xfer_len);
-    TU_ASSERT(stream_xfer(s, count), 0);
-    return count;
-  } else {
-    // Release endpoint since we don't make any transfer
-    stream_release(s);
-    return 0;
+    count = (uint16_t) (count - (count % s->mps)); // xfer_len need not be a whole number of packets
+    if (count > 0) {
+      TU_ASSERT(stream_xfer(s, count), 0);
+      return count;
+    }
   }
+
+  // Release endpoint since we don't make any transfer
+  stream_release(s);
+  return 0;
 }
 
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {

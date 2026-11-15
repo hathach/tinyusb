@@ -303,7 +303,8 @@ static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
 }
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
+  // a short reply leaves stale ctrl_buf bytes where bNbrPorts and bPwrOn2PwrGood are read
+  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result && xfer->actual_len > offsetof(hub_desc_cs_t, bPwrOn2PwrGood), );
 
   uint8_t const daddr = xfer->daddr;
   hub_interface_t* p_hub = get_hub_itf(daddr);

@@ -1792,6 +1792,15 @@ static void mark_device_tree_removing(uint8_t rhport, uint8_t hub_addr, uint8_t 
   } while (marked);
 }
 
+static void close_class_drivers(uint8_t daddr) {
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+    usbh_class_driver_t const* driver = get_driver(drv_id);
+    if (driver != NULL) {
+      driver->close(daddr);
+    }
+  }
+}
+
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
@@ -1827,14 +1836,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
           }
         }
 
-        // Close class driver
-        for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-          usbh_class_driver_t const* driver = get_driver(drv_id);
-          if (driver != NULL) {
-            driver->close(daddr);
-          }
-        }
-
+        close_class_drivers(daddr);
         usbh_device_close(rhport, daddr);
         clear_device(dev);
       }
@@ -2133,7 +2135,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       }
 
       const uint8_t new_addr = enum_get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
-      TU_ASSERT(new_addr != 0,);
+      if (new_addr == 0) {
+        TU_LOG_USBH("No free device address\r\n");
+        is_enum_failed = true;
+        break;
+      }
 
       usbh_device_t* new_dev = get_device(new_addr);
       new_dev->bus_info = *dev0_bus;
@@ -2262,8 +2268,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh(tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)));
 
-      // TODO not enough buffer to hold configuration descriptor
-      TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE,);
+      if (total_len > CFG_TUH_ENUMERATION_BUFSIZE) {
+        TU_LOG_USBH("Configuration wTotalLength %u exceeds CFG_TUH_ENUMERATION_BUFSIZE\r\n", total_len);
+        is_enum_failed = true;
+        break;
+      }
 
       // Get full configuration descriptor
       // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
@@ -2319,7 +2328,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
-      TU_ASSERT(enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
+      if (!enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
+        TU_LOG_USBH("Failed to bind class drivers\r\n");
+        close_class_drivers(daddr); // a driver may have opened before the failure
+        is_enum_failed = true;
+        break;
+      }
 
       // Start the Set Configuration process for interfaces (itf = TUSB_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.

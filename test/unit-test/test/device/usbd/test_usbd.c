@@ -923,3 +923,76 @@ void test_usbd_sof_cb_enabled_from_mount_cb_after_leaving_configuration(void) {
   dcd_sof_enable_Expect(rhport, false);
   tud_sof_cb_enable(false);
 }
+
+//--------------------------------------------------------------------+
+// GET_CONFIGURATION direction
+//--------------------------------------------------------------------+
+void test_usbd_get_configuration_in_answers_cfg_num(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x80, .bRequest = TUSB_REQ_GET_CONFIGURATION, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  static const uint8_t zero = 0;
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) &zero, 1, 1, false, true);
+  tud_task();
+}
+
+// GET_CONFIGURATION is device-to-host: an OUT one is a Request Error. Its data stage must not be armed: the answer
+// lives in a stack local the data would be written into after the handler returned.
+void test_usbd_get_configuration_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_CONFIGURATION, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream read: the ep buffer cap is rounded down to whole packets
+//--------------------------------------------------------------------+
+enum { EDPT_STREAM_OUT = 0x07 };
+
+static void stream_rx_open(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
+                           uint16_t xfer_len) {
+  const tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EDPT_STREAM_OUT,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+  bus_reset(); // endpoint idle and unclaimed
+  memset(stream, 0, sizeof(*stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, false, false, ff_buf, ff_size, ep_buf));
+  tu_edpt_stream_open(stream, rhport, &desc_ep, xfer_len);
+}
+
+// 256 bytes free, a 100-byte cap: one 64-byte packet, not 100 that a second packet would overrun
+void test_usbd_stream_read_xfer_cap_rounded_to_packets(void) {
+  uint8_t ff_buf[256];
+  uint8_t ep_buf[100];
+  tu_edpt_stream_t stream;
+  stream_rx_open(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 64, false, true);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read_xfer(&stream));
+}
+
+// a cap below one packet holds no packet: nothing is submitted and the endpoint is released
+void test_usbd_stream_read_xfer_cap_below_packet(void) {
+  uint8_t ff_buf[256];
+  uint8_t ep_buf[32];
+  tu_edpt_stream_t stream;
+  stream_rx_open(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf));
+
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_read_xfer(&stream));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_OUT));
+  usbd_edpt_release(rhport, EDPT_STREAM_OUT);
+}

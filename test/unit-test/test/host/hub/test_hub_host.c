@@ -412,6 +412,35 @@ void test_short_hub_status_rearms(void) {
   }
 }
 
+// a hub descriptor reply short of bPwrOn2PwrGood leaves an earlier reply's port count in ctrl_buf: no port is powered
+// from it. One that covers the fields read powers the ports it reports.
+void test_short_hub_descriptor_powers_no_port(void) {
+  const hub_desc_cs_t stale = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 4, .bPwrOn2PwrGood = 50};
+  const hub_desc_cs_t reply = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 1};
+  const uint8_t       min_len = offsetof(hub_desc_cs_t, bPwrOn2PwrGood) + 1;
+
+  for (uint8_t len = 0; len <= min_len; len++) {
+    setUp();
+    open_hub(HUB_A);
+    TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+    TEST_ASSERT_EQUAL(1, ctrl_count);
+    memcpy(ctrl_reqs[0].xfer.buffer, &stale, sizeof(stale));
+    complete_ctrl_data(0, &reply, len);
+
+    if (len < min_len) {
+      TEST_ASSERT_EQUAL(1, ctrl_count);
+    } else {
+      TEST_ASSERT_EQUAL(2, ctrl_count);
+      TEST_ASSERT_EQUAL(HUB_REQUEST_SET_FEATURE, ctrl_reqs[1].setup.bRequest);
+      TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_POWER, ctrl_reqs[1].setup.wValue);
+      TEST_ASSERT_EQUAL(1, ctrl_reqs[1].setup.wIndex);
+      complete_ctrl(1, XFER_RESULT_SUCCESS);
+      TEST_ASSERT_EQUAL(2, ctrl_count); // reply's single port, not the stale four
+      TEST_ASSERT_EQUAL(1, config_complete_count);
+    }
+  }
+}
+
 //--------------------------------------------------------------------+
 // Status sequence of a closed hub
 //--------------------------------------------------------------------+
