@@ -3,7 +3,7 @@
 # USBTMC/USB488 protocol session against examples/device/usbtmc (cafe:401c) for one board, in a
 # disposable process: pyusb calls block in usbfs ioctls on a wedged device, so
 # hil_test.test_device_usbtmc runs this under hil_util.run_cmd (killpg + bounded reap, rc 124 on
-# timeout). Imports stay stdlib + pyusb: nothing here may pull in the harness.
+# timeout). Imports stay stdlib + pyusb + session_child: nothing here may pull in the harness.
 #
 # Raw requests, not a VISA library: NI-VISA and the Linux usbtmc driver recover from a refused abort
 # or a missing short packet on their own, which hides exactly what these cases check. Each case
@@ -16,12 +16,14 @@ import errno
 import os
 import struct
 import sys
-import threading
 import time
 from pathlib import Path
 
 import usb.core
 import usb.util
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
+import session_child  # noqa: E402
 
 VID, PID = 0xCAFE, 0x401C
 
@@ -48,42 +50,6 @@ class SkipCase(Exception):
     pass
 
 
-def _bounded_read(path, grace=2.0):
-    """A sysfs attribute's text, or None when it cannot be read within `grace` s (a local twin of
-    usb_observe.read_sysfs: this file never imports the harness)."""
-    out = {}
-
-    def _read():
-        try:
-            out['v'] = path.read_text().strip()
-        except OSError:
-            pass
-
-    t = threading.Thread(target=_read, daemon=True)
-    t.start()
-    t.join(grace)
-    return out.get('v')
-
-
-def targets(uid):
-    """(busnum, devnum) of every cafe:401c device whose serial is uid, from sysfs alone. Every USBTMC DUT
-    shares this vid:pid, and a pyusb string read opens the device: on a wedged peer that blocks in D state
-    under its device lock. idVendor/idProduct are lock-free; `serial` waits on that lock interruptibly, so
-    a bounded read can abandon it."""
-    found = []
-    for dev in _SYS_USB.glob('*'):
-        try:
-            if ((dev / 'idVendor').read_text().strip() != f'{VID:04x}'
-                    or (dev / 'idProduct').read_text().strip() != f'{PID:04x}'):
-                continue
-            if _bounded_read(dev / 'serial') != uid:
-                continue
-            found.append((int((dev / 'busnum').read_text()), int((dev / 'devnum').read_text())))
-        except (OSError, ValueError):
-            continue   # an interface or hub node, or a device that left mid-read
-    return found
-
-
 class Dut:
     def __init__(self, uid, timeout):
         self.uid = uid
@@ -102,7 +68,9 @@ class Dut:
                 return None
 
         while True:
-            found = targets(self.uid)
+            # From sysfs alone: every USBTMC DUT shares this vid:pid, and a pyusb string read opens the device,
+            # which on a wedged peer blocks in D state under its device lock
+            found = session_child.find_devices(_SYS_USB, f'{VID:04x}', f'{PID:04x}', self.uid)
             # only the one match is opened; a stale same-serial node (dual-port part) is waited out
             self.dev = usb.core.find(bus=found[0][0], address=found[0][1]) if len(found) == 1 else None
             if self.dev is not None and (self.dev.idVendor, self.dev.idProduct) != (VID, PID):
@@ -628,11 +596,7 @@ def main():
     args = ap.parse_args()
 
     if args.pidfile:
-        # starttime is proc(5) stat field 22: a recycled pid has another
-        with open('/proc/self/stat') as f:
-            start = f.read().rpartition(')')[2].split()[19]
-        with open(args.pidfile, 'w') as f:
-            f.write(f'{os.getpid()} {start}\n')
+        session_child.write_pidfile(args.pidfile)
 
     d = Dut(args.uid, args.timeout)
     print(f'usbtmc {VID:04x}:{PID:04x} mps {d.mps}', flush=True)

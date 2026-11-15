@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.dirname(TEST_DIR))
 import usbtest_harness
 import hil_flash
 import hil_test
+import session_child
 
 
 def write_script(path: Path, body: str) -> None:
@@ -705,6 +706,22 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         self.assertIn('MTP session pid 4242 outlived SIGKILL', str(exc))
         self.assertEqual(hil_test.board_wedged, 'fakeboard: MTP session pid 4242 outlived SIGKILL and holds the device')
         self.assertFalse(hil_test._should_park(False), 'no park through the held node')
+
+
+
+class SessionPidfile(unittest.TestCase):
+    """session_child.write_pidfile's record, read back by hil_test._session_alive."""
+
+    def test_the_record_round_trips_and_a_recycled_or_missing_pid_is_told_apart(self):
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            session_child.write_pidfile(str(pidfile))
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {os.getpid()}')
+            pid, start = pidfile.read_text().split()
+            pidfile.write_text(f'{pid} {int(start) + 1}\n')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'another starttime is a recycled pid')
+            pidfile.write_text('')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), 'with an unrecorded pid')
 
 
 class ThroughputPayloadBound(unittest.TestCase):

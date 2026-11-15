@@ -1056,7 +1056,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
     def test_the_harness_itself_still_takes_the_whole_rig(self):
         # the thing rule 2 exists for: these decide what the rig does, so they cannot be
         # trusted to narrow their own blast radius
-        for p in ('test/hil/hil_test.py', 'test/hil/tinyusb.json',
+        for p in ('test/hil/hil_test.py', 'test/hil/tinyusb.json', 'test/hil/session_child.py',
                   'test/hil/helper/hil_ci_set_matrix.py'):
             s = change_impact.classify([p], REPO, ROSTERS)
             self.assertTrue(s['full'], f'{p} must still force the full rig')
