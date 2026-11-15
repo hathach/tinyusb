@@ -14,6 +14,10 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 1)
+endif ()
+
 # Host defaults to USBFS, leaving USBHS available for the device controller.
 set(WCH_HOST_USBIP usbfs CACHE STRING "WCH host controller: usbfs or usbhs")
 if (NOT WCH_HOST_USBIP MATCHES "^(usbfs|usbhs)$")
@@ -69,7 +73,10 @@ function(family_add_board BOARD_TARGET)
       set(BOARD_TUH_MAX_SPEED OPT_MODE_FULL_SPEED)
     endif ()
   endif ()
-  target_compile_definitions(${BOARD_TARGET} PUBLIC BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED})
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
+    BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED}
+    )
   if (SPEED STREQUAL high)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USBHS=1
