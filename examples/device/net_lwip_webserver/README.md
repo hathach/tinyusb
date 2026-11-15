@@ -7,7 +7,7 @@ A USB virtual network adapter that runs a small lwIP stack on the device, servin
 - Brings up a USB network interface. Depending on the target MCU the build is either CDC-NCM (the default for most MCUs) or a dual RNDIS + CDC-ECM device that offers two configurations and lets the host pick its preferred one (Windows uses RNDIS, macOS uses CDC-ECM, Linux works with either). The NCM build also ships a BOS / Microsoft OS 2.0 descriptor so Windows auto-loads its NCM driver.
 - The device takes IP address 192.168.7.1 and runs a DHCP server (handing out 192.168.7.2–192.168.7.4) and an HTTP server.
 - Pressing the board button toggles the network link state (up/down) to simulate an Ethernet cable being unplugged/plugged.
-- On higher-RAM MCUs it also starts an iperf TCP server for throughput testing, and the NCM build hands received frames to lwIP in place instead of copying them (`tud_network_recv_hold()`).
+- On higher-RAM MCUs it also starts an iperf TCP server for throughput testing, and the NCM build hands received frames to lwIP in place instead of copying them (`tud_network_recv_hold()`), except where USB buffer memory cannot be read unaligned (the LPC55 high-speed port).
 - Blinks the board LED to indicate USB state (not mounted / mounted / suspended).
 
 > **Disclaimer — receive checksums are not verified.** `lwipopts.h` sets `CHECKSUM_CHECK_IP/UDP/TCP/ICMP` to 0 to save

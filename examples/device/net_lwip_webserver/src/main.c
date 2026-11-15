@@ -169,10 +169,13 @@ static void usbnet_netif_link_callback(struct netif *netif) {
     tud_network_link_state(BOARD_TUD_RHPORT, link_up);
 }
 
-#if CFG_TUD_NCM && LWIP_HIGH_THROUGHPUT
 // Zero-copy reception: a received frame is handed to lwIP in place, as a PBUF_REF pbuf pointing into the NCM receive
 // buffer, which the class keeps until lwIP frees the pbuf. A frame the class cannot hold, or beyond this pool, is
 // copied into a PBUF_POOL pbuf instead.
+// Not on MCUs whose USB buffer memory faults on unaligned access (TUP_MCU_STRICT_ALIGN, e.g. the LPC55 high-speed
+// port's USB RAM): the frames' IP header fields are often not word aligned, and lwIP's packed header reads may compile
+// to unaligned word loads.
+#if CFG_TUD_NCM && LWIP_HIGH_THROUGHPUT && !TUP_MCU_STRICT_ALIGN
 // One pbuf per held frame: every receive NTB can hold frames at once, each up to the datagram count the device
 // advertises to the host per NTB.
 #define RX_PBUF_N (CFG_TUD_NCM_OUT_NTB_N * CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB)
