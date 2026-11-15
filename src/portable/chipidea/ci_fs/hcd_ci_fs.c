@@ -231,10 +231,8 @@ static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
 {
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer  = bd->addr;
-  // A NAK leaves the toggle unchanged (USB 2.0 8.6.3): the retry resends this packet
-  // with the DATA0/1 its BD was armed with, which USBFS does not modify. Not the
-  // transfer's first toggle: packets before this one may have completed.
-  pipe->data    = bd->data;
+  // A NAK has no data packet and leaves the toggle unchanged (USB 2.0 8.6.2): keep pipe->data. Not
+  // bd->data, which read DATA1 at the first NAK of a DATA0 bulk IN on frdm_k64f.
   if ((TUSB_XFER_INTERRUPT == pipe->xfer) ||
       (TUSB_XFER_BULK == pipe->xfer)) {
     _hcd.pending |= TU_BIT(pipenum);
