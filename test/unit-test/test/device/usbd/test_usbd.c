@@ -443,8 +443,8 @@ tusb_control_request_t const req_set_configuration = {
 
 static uint8_t msc_out_buf[64];
 
-// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
-static void msc_out_armed(void) {
+// Configure the MSC configuration, binding interface 0 and its bulk endpoints to the (mocked) MSC driver
+static void msc_configure(void) {
   mscd_reset_Ignore();
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
@@ -457,7 +457,11 @@ static void msc_out_armed(void) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
   tud_task();
+}
 
+// Claim and arm the MSC OUT endpoint
+static void msc_out_armed(void) {
+  msc_configure();
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
@@ -965,6 +969,32 @@ void test_usbd_get_descriptor_out_is_stalled(void) {
   dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
   dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
   dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// An OUT GET_INTERFACE to an interface stalls before reaching its class driver: no mscd_control_xfer_cb expected
+void test_usbd_get_interface_out_to_interface_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configure();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// The device-to-host rule is for standard requests only: a vendor OUT request numbered GET_DESCRIPTOR is dispatched
+void test_usbd_vendor_out_request_6_is_dispatched(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x40, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = 0, .wIndex = 0, .wLength = 8
+  };
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 8, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
   tud_task();
 }
 
