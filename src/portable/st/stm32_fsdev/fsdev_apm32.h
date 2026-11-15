@@ -71,6 +71,8 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   }
 }
 
+// APM32F072 has the embedded DP pull-up in BCDR; APM32F103 uses none of these helpers
+#if TU_CHECK_MCU(OPT_MCU_APM32F0XX)
 TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
   (void) rhport;
   FSDEV_REG->CNTR |= U_CNTR_PDWN;
@@ -82,5 +84,6 @@ TU_ATTR_ALWAYS_INLINE static inline void fsdev_connect(uint8_t rhport) {
   FSDEV_REG->CNTR &= ~U_CNTR_PDWN;
   FSDEV_REG->BCDR |= U_BCDR_DPPU;
 }
+#endif
 
 #endif

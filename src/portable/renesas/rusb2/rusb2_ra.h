@@ -53,7 +53,8 @@ typedef struct {
   int32_t irqnum;
 }rusb2_controller_t;
 
-#if defined(BSP_MCU_GROUP_RA6M5) || defined(BSP_MCU_GROUP_RA6M3) || (BSP_CFG_MCU_PART_SERIES == 8)
+// e.g RA6M3, RA6M5, RA8M1, RA8D1 (not RA8E1, RA8T1)
+#if defined(BSP_FEATURE_USB_HAS_USBHS) && BSP_FEATURE_USB_HAS_USBHS
   #define RUSB2_SUPPORT_HIGHSPEED
   #define RUSB2_CONTROLLER_COUNT 2
 
@@ -64,7 +65,8 @@ typedef struct {
   // before the PHY PLL is released (RA6M5 UM R01UH0891 29.2.17: 00=12 MHz, 10=20 MHz,
   // 11=24 MHz reset default). EK-RA6M5 runs 24 MHz (default works); EK-RA8M1 runs 20 MHz and
   // never locks/chirps on the default. A board with a non-standard USB clocking scheme can
-  // pre-define RUSB2_PHYSET_CLKSEL_VALUE to override this selection.
+  // pre-define RUSB2_PHYSET_CLKSEL_VALUE to override this selection. Any other XTAL is rejected when
+  // the USBHS port is initialized, not at build time, since a USBFS-only application never uses it.
   #ifndef RUSB2_PHYSET_CLKSEL_VALUE
     #if   BSP_CFG_XTAL_HZ == 12000000
       #define RUSB2_PHYSET_CLKSEL_VALUE 0u
@@ -72,8 +74,6 @@ typedef struct {
       #define RUSB2_PHYSET_CLKSEL_VALUE 2u
     #elif BSP_CFG_XTAL_HZ == 24000000
       #define RUSB2_PHYSET_CLKSEL_VALUE 3u
-    #else
-      #error "USBHS UTMI PHY: no PHYSET.CLKSEL encoding for this BSP_CFG_XTAL_HZ; define RUSB2_PHYSET_CLKSEL_VALUE"
     #endif
   #endif
 #else
@@ -122,13 +122,16 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
 // release DIRPD, 1 ms, release PLLRESET, then wait for PLL lock. Changing CLKSEL as the PHY
 // powers up gets mis-sampled (EK-RA8M1, 20 MHz).
 static inline void rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
+  #ifndef RUSB2_PHYSET_CLKSEL_VALUE
+  // no PHYSET.CLKSEL encoding for this BSP_CFG_XTAL_HZ: the PLL would never lock
+  (void) rusb;
+  TU_ASSERT(false, );
+  #else
   uint16_t physet = rusb->PHYSET | RUSB2_PHYSET_DIRPD_Msk;
   rusb->PHYSET = physet;
-  #ifdef RUSB2_PHYSET_CLKSEL_VALUE
   physet = (uint16_t) ((physet & ~RUSB2_PHYSET_CLKSEL_Msk) |
                        (RUSB2_PHYSET_CLKSEL_VALUE << RUSB2_PHYSET_CLKSEL_Pos));
   rusb->PHYSET = physet;
-  #endif
   R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MICROSECONDS);
   physet &= (uint16_t) ~RUSB2_PHYSET_DIRPD_Msk;
   rusb->PHYSET = physet;
@@ -138,6 +141,7 @@ static inline void rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
   // set UTMI to operating mode and wait for PLL lock confirmation
   rusb->LPSTS_b.SUSPENDM = 1;
   while (!rusb->PLLSTA_b.PLLLOCK) {}
+  #endif
 }
 #endif
 
