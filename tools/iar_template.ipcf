@@ -248,10 +248,18 @@
             <path>$TUSB_DIR$/src/portable/valentyusb/eptri/dcd_eptri.c</path>
             <path>$TUSB_DIR$/src/portable/valentyusb/eptri/dcd_eptri.h</path>
         </group>
-        <group name="src/portable/wch">
-            <path>$TUSB_DIR$/src/portable/wch/dcd_ch32_usbfs.c</path>
-            <path>$TUSB_DIR$/src/portable/wch/dcd_ch32_usbhs.c</path>
-            <path>$TUSB_DIR$/src/portable/wch/ch32_usbhs_reg.h</path>
+        <group name="src/portable/wch/usbfs">
+            <path>$TUSB_DIR$/src/portable/wch/usbfs/dcd_wch_usbfs.c</path>
+            <path>$TUSB_DIR$/src/portable/wch/usbfs/hcd_wch_usbfs.c</path>
+            <path>$TUSB_DIR$/src/portable/wch/usbfs/wch_usbfs_reg.h</path>
+        </group>
+        <group name="src/portable/wch/usbhs_v1">
+            <path>$TUSB_DIR$/src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c</path>
+            <path>$TUSB_DIR$/src/portable/wch/usbhs_v1/wch_usbhs_v1_reg.h</path>
+        </group>
+        <group name="src/portable/wch/usbhs_v2">
+            <path>$TUSB_DIR$/src/portable/wch/usbhs_v2/dcd_wch_usbhs_v2.c</path>
+            <path>$TUSB_DIR$/src/portable/wch/usbhs_v2/wch_usbhs_v2_reg.h</path>
         </group>
         <group name="src/typec">
             <path>$TUSB_DIR$/src/typec/usbc.c</path>

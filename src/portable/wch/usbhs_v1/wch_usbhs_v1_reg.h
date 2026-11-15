@@ -6,8 +6,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef USB_CH32_USBHS_REG_H
-#define USB_CH32_USBHS_REG_H
+#ifndef WCH_USBHS_V1_REG_H
+#define WCH_USBHS_V1_REG_H
 
 // https://github.com/openwch/ch32v307/pull/90
 // https://github.com/openwch/ch32v20x/pull/12

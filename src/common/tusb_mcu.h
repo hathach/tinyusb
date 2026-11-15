@@ -585,7 +585,7 @@
 // WCH
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
 
@@ -655,7 +655,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   // v307 support both FS and HS, default to HS
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
 
@@ -681,8 +681,8 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH583)
   // CH582/583 USBFS: older WCH USBFS IP with a single combined per-endpoint control register
-  // (like CH32V103), driven by the shared dcd_ch32_usbfs.c on USB0 (rhport 0). Device only:
-  // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
+  // (like CH32V103), driven by the shared dcd_wch_usbfs.c on USB0 (rhport 0). Device only:
+  // the shared hcd_wch_usbfs.c supports CH32V20x/CH32V30x and does not support CH58x, so host /
   // USB2 (rhport 1) is not provided here.
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
@@ -694,8 +694,8 @@
   #define TUP_DCD_ENDPOINT_MAX 8
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
-  // Two WCH HS2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
-  #define TUP_USBIP_WCH_HS2
+  // Two WCH USBHS v2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
+  #define TUP_USBIP_WCH_USBHS_V2
   #define TUP_RHPORT_HIGHSPEED 1
   #define TUP_DCD_ENDPOINT_MAX 8
   #define TUP_DCD_EDPT_CLOSE_API

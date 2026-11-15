@@ -8,9 +8,9 @@
  */
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && defined(CFG_TUD_WCH_USBIP_USBHS) && \
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS_V1) && defined(CFG_TUD_WCH_USBIP_USBHS) && \
   (CFG_TUD_WCH_USBIP_USBHS == 1)
-  #include "ch32_usbhs_reg.h"
+  #include "wch_usbhs_v1_reg.h"
 
   #include "device/dcd.h"
 

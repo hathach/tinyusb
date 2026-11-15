@@ -2,6 +2,7 @@
  * SPDX-FileCopyrightText: Copyright (c) 2024 Mitsumine Suzu (verylowfreq)
  * SPDX-FileCopyrightText: Copyright (c) 2024 Ha Thach (tinyusb.org)
  * SPDX-FileCopyrightText: Copyright (c) 2026 Robert Dale Smith
+ * SPDX-FileCopyrightText: Copyright (c) 2026 HiFiPhile (Zixun LI)
  * SPDX-License-Identifier: MIT
  *
  * This file is part of the TinyUSB stack.
@@ -32,7 +33,7 @@
 
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_WCH_USBFS) && defined(CFG_TUH_WCH_USBIP_USBFS) && CFG_TUH_WCH_USBIP_USBFS
 
-#include "ch32_usbfs_reg.h"
+#include "wch_usbfs_reg.h"
 
 #if CFG_TUSB_MCU == OPT_MCU_CH32V20X
   #include <ch32v20x_usb.h>

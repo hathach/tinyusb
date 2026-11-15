@@ -50,7 +50,7 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-// Device only: the shared dcd_ch32_usbfs.c drives USB0 (rhport 0). CH58x's second controller
+// Device only: the shared dcd_wch_usbfs.c drives USB0 (rhport 0). CH58x's second controller
 // (USB2 / rhport 1) was driven by the now-removed ch58x host driver; its handler is kept
 // commented out below to ease re-adding host support.
 __INTERRUPT __HIGH_CODE void USB_IRQHandler(void) {
@@ -143,7 +143,7 @@ void board_init(void) {
 #endif
 
   // Device only on USB0 (rhport 0): enable analog function for USB1 D+/D- and assert its D+
-  // pull-up. The shared dcd_ch32_usbfs.c drives USB0; CH58x host / USB2 (rhport 1) is unsupported
+  // pull-up. The shared dcd_wch_usbfs.c drives USB0; CH58x host / USB2 (rhport 1) is unsupported
   // here — to re-add host, also OR in RB_PIN_USB2_IE below.
   R16_PIN_ANALOG_IE |= RB_PIN_USB_IE; // | RB_PIN_USB2_IE  (re-add for host on USB2)
 #if CFG_TUD_ENABLED
