@@ -748,8 +748,9 @@ def test_host_device_info(board):
     return 0
 
 
-# msc_app.c's capacity line, terminated: a line still arriving may hold a truncated count
-DISK_SIZE_RE = re.compile(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks: \d+ MB\r?\n')
+# msc_app.c's capacity line, terminated: a line still arriving may hold a truncated count. ESP-IDF's
+# console turns the example's "\r\n" into "\r\r\n".
+DISK_SIZE_RE = re.compile(r'Disk Size:\s+(\d+)\s+(\d+)-byte blocks: \d+ MB\r*\n')
 DISK_SIZE_RE_B = re.compile(DISK_SIZE_RE.pattern.encode())  # the wait loops' raw buffer, undecoded
 
 

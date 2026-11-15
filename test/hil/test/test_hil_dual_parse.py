@@ -167,6 +167,9 @@ class MscCapacity(unittest.TestCase):
     def test_the_declared_capacity_passes(self):
         self.check('Lexar    USB Flash Drive  PMAP\r\n' + self.disk(60620800), [self.LEXAR])
 
+    def test_an_esp_idf_line_ending_passes(self):
+        self.check(self.disk(60620800).replace('\r\n', '\r\r\n'), [self.LEXAR])
+
     def test_a_wrong_count_fails(self):
         with self.assertRaisesRegex(AssertionError, 'reported 30310400 512-byte blocks'):
             self.check(self.disk(30310400), [self.LEXAR])
