@@ -231,10 +231,10 @@ static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
 {
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer  = bd->addr;
-  // A NAK transfers no data, so the data toggle must be preserved for the retry.
-  // (Do NOT flip pipe->data here: flipping it makes the retried packet use the wrong
-  // DATA0/DATA1, which the device silently discards - breaking any bulk/interrupt
-  // transfer that is NAKed, e.g. the MSC CBW/CSW when the device is momentarily busy.)
+  // A NAK leaves the toggle unchanged (USB 2.0 8.6.3): the retry resends this packet
+  // with the DATA0/1 its BD was armed with, which USBFS does not modify. Not the
+  // transfer's first toggle: packets before this one may have completed.
+  pipe->data    = bd->data;
   if ((TUSB_XFER_INTERRUPT == pipe->xfer) ||
       (TUSB_XFER_BULK == pipe->xfer)) {
     _hcd.pending |= TU_BIT(pipenum);

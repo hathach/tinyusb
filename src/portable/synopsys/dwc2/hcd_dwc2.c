@@ -1677,6 +1677,15 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   }
 #endif
 
+  // USB 2.0 Table 9-13: an exponent 1..16 for isochronous and high-speed interrupt, 1..255 frames for full-speed
+  // interrupt. A short low-speed interval is raised below.
+  if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS ||
+      (desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT && bus_info.speed == TUSB_SPEED_HIGH)) {
+    TU_VERIFY(desc_ep->bInterval >= 1 && desc_ep->bInterval <= 16);
+  } else if (desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT && bus_info.speed == TUSB_SPEED_FULL) {
+    TU_VERIFY(desc_ep->bInterval > 0);
+  }
+
   // find a free endpoint
   const uint8_t ep_id = edpt_alloc();
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
@@ -3354,7 +3363,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
     pass_uframe = uframe;
 #endif
 
-    if (tu_bit_test(dwc2->haint, ch_id)) {
+    // HAINT keeps a released channel's latched cause, which channel_xfer_start() clears before unmasking it again
+    if (tu_bit_test(dwc2->haint & dwc2->haintmsk, ch_id)) {
 #if HCD_SPLIT
       handled = true;
 #endif
@@ -3398,6 +3408,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
           edpt->next_pid = hctsiz.pid;
         }
         xfer->aborting = false;
+        channel->hcint = HCINT_HALTED; // slave mode left it pending above
 #if HCD_SPLIT
         split_iso_out_close(dwc2, ch_id);
 #endif
