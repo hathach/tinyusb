@@ -1096,6 +1096,8 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       return true;
 
     case TUSB_REQ_GET_CONFIGURATION: {
+      // USB 2.0 9.4.2 is device-to-host: an OUT data stage would land in this stack local after it is gone
+      TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
       uint8_t cfg_num = _usbd_dev.cfg_num;
       tud_control_xfer(rhport, p_request, &cfg_num, 1);
       return true;
