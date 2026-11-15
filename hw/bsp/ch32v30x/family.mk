@@ -14,8 +14,18 @@ SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
-# default to use high speed port, unless specified in board.mk or command line
-SPEED ?= high
+WCH_HOST_USBIP ?= usbfs
+ifeq ($(WCH_HOST_USBIP),usbhs)
+  CFLAGS += -DCFG_TUH_WCH_USBIP_USBHS=1
+  BOARD_TUH_MAX_SPEED ?= OPT_MODE_HIGH_SPEED
+  SPEED ?= full
+else ifeq ($(WCH_HOST_USBIP),usbfs)
+  BOARD_TUH_MAX_SPEED ?= OPT_MODE_FULL_SPEED
+  SPEED ?= high
+else
+  $(error WCH_HOST_USBIP must be usbfs or usbhs)
+endif
+CFLAGS += -DBOARD_TUH_MAX_SPEED=$(BOARD_TUH_MAX_SPEED)
 
 CFLAGS += \
 	-flto \
@@ -30,10 +40,10 @@ CFLAGS += -Wno-error=strict-prototypes
 
 ifeq ($(SPEED),high)
   $(info "Using USBHS driver for HighSpeed mode")
-  CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1 -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 else
   $(info "Using USBFS driver for FullSpeed mode")
-  CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1 -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
 endif
 
 LDFLAGS += \
@@ -42,6 +52,7 @@ LDFLAGS += \
 
 SRC_C += \
 	src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c \
+	src/portable/wch/usbhs_v1/hcd_wch_usbhs_v1.c \
 	src/portable/wch/usbfs/dcd_wch_usbfs.c \
 	src/portable/wch/usbfs/hcd_wch_usbfs.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \

@@ -23,6 +23,17 @@ function(add_host_test name fixture)
   set_tests_properties(${name} PROPERTIES TIMEOUT 10 LABELS host)
 endfunction()
 
+foreach (speed IN ITEMS high full)
+  foreach (hub IN ITEMS 0 1)
+    set(name test_wch_usbhs_v1_${speed}_hub${hub})
+    add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/wch_usbhs_v1/test_hcd.c)
+    target_compile_definitions(${name} PRIVATE CFG_TUH_HUB=${hub})
+    if (speed STREQUAL "full")
+      target_compile_definitions(${name} PRIVATE CFG_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED)
+    endif ()
+  endforeach ()
+endforeach ()
+
 # EHCI fixture links encode native pointers in 32 bits. macOS cannot guarantee
 # low static addresses (in particular, Apple Silicon executables require PIE).
 if (APPLE)

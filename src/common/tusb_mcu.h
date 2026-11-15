@@ -659,9 +659,12 @@
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
 
-  // USBFS can act as host (v307 has no USBHS host IP), same as v20x
+  // Keep USBFS as the default host; USBHS v1 is explicitly selectable.
+  #ifndef CFG_TUH_WCH_USBIP_USBHS
+    #define CFG_TUH_WCH_USBIP_USBHS 0
+  #endif
   #ifndef CFG_TUH_WCH_USBIP_USBFS
-    #define CFG_TUH_WCH_USBIP_USBFS 1
+    #define CFG_TUH_WCH_USBIP_USBFS (!CFG_TUH_WCH_USBIP_USBHS)
   #endif
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
@@ -672,7 +675,7 @@
     #define CFG_TUD_WCH_USBIP_USBHS (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
   #endif
 
-  #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_RHPORT_HIGHSPEED (CFG_TUD_WCH_USBIP_USBHS || CFG_TUH_WCH_USBIP_USBHS)
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
   #if CFG_TUD_WCH_USBIP_USBHS

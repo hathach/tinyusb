@@ -56,9 +56,24 @@
 
 // TODO maybe having FS as port0, HS as port1
 
+#if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBHS && CFG_TUH_WCH_USBIP_USBFS
+  #error "Select one WCH host controller"
+#endif
+#if CFG_TUD_ENABLED && CFG_TUH_ENABLED && \
+    ((CFG_TUD_WCH_USBIP_USBHS && CFG_TUH_WCH_USBIP_USBHS) || \
+     (CFG_TUD_WCH_USBIP_USBFS && CFG_TUH_WCH_USBIP_USBFS))
+  #error "WCH host and device roles must use different controllers"
+#endif
+
 // The startup enables QingKe hardware context stacking. Avoid duplicating its
 // register saves in software: closely spaced ISO transactions need a short IRQ entry.
-#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+#if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBHS
+  static void usbhs_hcd_int_handler(uint8_t rhport) {
+    (void)rhport;
+    tuh_int_handler(BOARD_TUH_RHPORT);
+  }
+  #define USBHS_ISR_TARGET usbhs_hcd_int_handler
+#elif CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
   #if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
   // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
   static void usbhs_dcd_int_handler(uint8_t rhport) {
@@ -68,12 +83,14 @@
   #else
     #define USBHS_ISR_TARGET dcd_int_handler
   #endif
+#endif
+#ifdef USBHS_ISR_TARGET
 // Keep the assembly call visible to LTO, as in the CH32V20x USB interrupt wrappers.
 TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = USBHS_ISR_TARGET;
 #endif
 
 __attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
-#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+#ifdef USBHS_ISR_TARGET
   __asm volatile("li a0, 0\n\t call " TU_XSTRING(USBHS_ISR_TARGET) "\n\t mret");
 #else
   __asm volatile("mret");

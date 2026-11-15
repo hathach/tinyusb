@@ -14,9 +14,19 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
-# default to highspeed, used to select USBFS / USBHS driver
+# Host defaults to USBFS, leaving USBHS available for the device controller.
+set(WCH_HOST_USBIP usbfs CACHE STRING "WCH host controller: usbfs or usbhs")
+if (NOT WCH_HOST_USBIP MATCHES "^(usbfs|usbhs)$")
+  message(FATAL_ERROR "WCH_HOST_USBIP must be usbfs or usbhs")
+endif ()
+
+# SPEED selects the device controller. Default to the other IP for dual mode.
 if (NOT DEFINED SPEED)
-  set(SPEED high)
+  if (WCH_HOST_USBIP STREQUAL usbhs)
+    set(SPEED full)
+  else ()
+    set(SPEED high)
+  endif ()
 endif()
 
 #------------------------------------
@@ -49,14 +59,26 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
+  if (WCH_HOST_USBIP STREQUAL usbhs)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUH_WCH_USBIP_USBHS=1)
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_HIGH_SPEED)
+    endif ()
+  else ()
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_FULL_SPEED)
+    endif ()
+  endif ()
+  target_compile_definitions(${BOARD_TARGET} PUBLIC BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED})
   if (SPEED STREQUAL high)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USBHS=1
-#      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
       )
   else ()
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USBFS=1
+      BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
       )
   endif ()
 
@@ -89,6 +111,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c
+    ${TOP}/src/portable/wch/usbhs_v1/hcd_wch_usbhs_v1.c
     ${TOP}/src/portable/wch/usbfs/dcd_wch_usbfs.c
     ${TOP}/src/portable/wch/usbfs/hcd_wch_usbfs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}

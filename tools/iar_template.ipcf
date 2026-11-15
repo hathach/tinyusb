@@ -255,6 +255,7 @@
         </group>
         <group name="src/portable/wch/usbhs_v1">
             <path>$TUSB_DIR$/src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c</path>
+            <path>$TUSB_DIR$/src/portable/wch/usbhs_v1/hcd_wch_usbhs_v1.c</path>
             <path>$TUSB_DIR$/src/portable/wch/usbhs_v1/wch_usbhs_v1_reg.h</path>
         </group>
         <group name="src/portable/wch/usbhs_v2">

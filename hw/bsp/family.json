@@ -531,7 +531,8 @@
         "portable": [
           "wch/usbfs/dcd_wch_usbfs.c",
           "wch/usbfs/hcd_wch_usbfs.c",
-          "wch/usbhs_v1/dcd_wch_usbhs_v1.c"
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
         ],
         "roles": [
           "device",
@@ -553,7 +554,8 @@
         "portable": [
           "wch/usbfs/dcd_wch_usbfs.c",
           "wch/usbfs/hcd_wch_usbfs.c",
-          "wch/usbhs_v1/dcd_wch_usbhs_v1.c"
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
         ],
         "roles": [
           "device",
