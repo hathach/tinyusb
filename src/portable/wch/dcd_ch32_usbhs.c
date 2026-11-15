@@ -327,12 +327,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
   #endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void)rhport;
-
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
-  // Stalling drops the queued transfer: invalidate it before the ISR or a clear-stall can act on it
+  // Stalling drops the queued transfer: invalidate it so neither the ISR nor a clear-stall acts on it
+  dcd_int_disable(rhport);
   xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_STALL;
@@ -340,6 +339,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     EP_TX_LEN(ep_num) = 0;
     EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_STALL;
   }
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -453,8 +453,9 @@ void dcd_int_handler(uint8_t rhport) {
         // Release early: ISO transfers ignore INT_BUSY and would overwrite
         // the shared INT_ST/RX_LEN of this pending completion.
         xfer_ctl_t const *const out = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
-        // Keep the receive armed if update_out() rejects this packet's toggle.
-        if (!out->is_iso) {
+        // Keep the receive armed if update_out() rejects this packet's toggle. A retired transfer
+        // already has its final response (NAK, or STALL that must not be overwritten).
+        if (!out->is_iso && out->valid) {
           EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
         }
         USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
@@ -465,7 +466,7 @@ void dcd_int_handler(uint8_t rhport) {
       if (ep_num != 0) {
         // Release early, as for OUT.
         xfer_ctl_t const *const in = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
-        if (!in->is_iso) {
+        if (!in->is_iso && in->valid) {
           EP_TX_CTRL(ep_num) = (EP_TX_CTRL(ep_num) & ~(USBHS_EP_T_RES_MASK)) | USBHS_EP_T_RES_NAK;
         }
         USBHSD->INT_FG = USBHS_TRANSFER_FLAG;
