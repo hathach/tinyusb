@@ -197,6 +197,60 @@ void test_stream_read_stays_within_bufsize(void) {
   TEST_ASSERT_EQUAL(0, tuh_midi_read_available(0));
 }
 
+// IN endpoint with two embedded jacks: cables 0 and 1
+static void open_two_rx_cables(void) {
+  midih_close(MIDI_DEV_ADDR);
+  static const uint8_t desc[] = {
+    TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DESC, TEST_MIDI_EP_DESC(MIDI_EP_OUT, 1),
+    9, TUSB_DESC_ENDPOINT, MIDI_EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(MIDI_EP_SIZE), 0, 0, 0,
+    6, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 2, 3, 4};
+  TEST_ASSERT_EQUAL(sizeof(desc), midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)desc, sizeof(desc)));
+  TEST_ASSERT_TRUE(midih_set_config(MIDI_DEV_ADDR, MIDI_ITF_NUM));
+  TEST_ASSERT_EQUAL(2, mount_data.rx_cable_count);
+}
+
+// A discarded packet must not let the read run on into another cable's packet: each read returns one cable's bytes
+void test_stream_read_discard_keeps_cable_boundary(void) {
+  open_two_rx_cables();
+  const uint8_t packets[] = {
+    0x09, 0x90, 0x3C, 0x7F, // cable 0 note on
+    0x0F, 0x10, 0x20, 0x30, // cable 0 data byte outside SysEx: discarded
+    0x19, 0x91, 0x40, 0x7F, // cable 1 note on
+  };
+  receive_packets(packets, sizeof(packets));
+
+  uint8_t buf[16];
+  uint8_t cable_num = 0xFF;
+  TEST_ASSERT_EQUAL(3, tuh_midi_stream_read(0, &cable_num, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL(0, cable_num);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((const uint8_t[]){0x90, 0x3C, 0x7F}), buf, 3);
+
+  TEST_ASSERT_EQUAL(3, tuh_midi_stream_read(0, &cable_num, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL(1, cable_num);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((const uint8_t[]){0x91, 0x40, 0x7F}), buf, 3);
+  TEST_ASSERT_EQUAL(0, tuh_midi_read_available(0));
+}
+
+// A packet on a cable the device does not have is discarded; with nothing read yet, the next packet sets the cable
+void test_stream_read_discards_out_of_range_cable(void) {
+  open_two_rx_cables();
+  const uint8_t packets[] = {
+    0x09, 0x90, 0x3C, 0x7F, // cable 0 note on
+    0x59, 0x92, 0x01, 0x02, // cable 5: none
+    0x19, 0x91, 0x40, 0x7F, // cable 1 note on
+  };
+  receive_packets(packets, sizeof(packets));
+
+  uint8_t buf[16];
+  uint8_t cable_num = 0xFF;
+  TEST_ASSERT_EQUAL(3, tuh_midi_stream_read(0, &cable_num, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL(0, cable_num);
+  TEST_ASSERT_EQUAL(3, tuh_midi_stream_read(0, &cable_num, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL(1, cable_num);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((const uint8_t[]){0x91, 0x40, 0x7F}), buf, 3);
+  TEST_ASSERT_EQUAL(0, tuh_midi_read_available(0));
+}
+
 // A buffer too small for a full event must not consume one from the FIFO
 void test_stream_read_rejects_buffer_smaller_than_event(void) {
   const uint8_t packet[] = {0x09, 0x90, 0x3C, 0x7F};

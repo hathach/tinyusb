@@ -1123,7 +1123,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
     // Close corresponding feedback EP
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     #ifndef TUP_DCD_EDPT_ISO_ALLOC
-    usbd_edpt_close(rhport, audio->ep_fb);
+    if (audio->ep_fb != 0) { // an alternate setting without a feedback EP
+      usbd_edpt_close(rhport, audio->ep_fb);
+    }
     #endif
     audio->ep_fb = 0;
     tu_memclr(&audio->feedback, sizeof(audio->feedback));

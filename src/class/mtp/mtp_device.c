@@ -667,7 +667,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Send/queue ZLP if packet is full-sized but transfer is complete. OUT must deliver
       // this final payload to the application before arming the read for the terminating
       // ZLP, since both use the same endpoint buffer.
-      const bool need_zlp = is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1));
+      // modulo: the OUT threshold, CFG_TUD_MTP_EP_BUFSIZE, need not be a power of 2
+      const bool need_zlp = is_complete && xferred_bytes > 0 && (xferred_bytes % threshold) == 0;
       if (is_data_in) {
         // Data In
         if (need_zlp) {

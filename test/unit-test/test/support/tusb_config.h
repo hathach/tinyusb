@@ -102,7 +102,9 @@
 #define CFG_TUD_HID_EP_BUFSIZE    64
 
 //------------- MTP -------------//
+#ifndef CFG_TUD_MTP_EP_BUFSIZE
 #define CFG_TUD_MTP_EP_BUFSIZE          512
+#endif
 #define CFG_TUD_MTP_EP_CONTROL_BUFSIZE  16
 #define CFG_TUD_MTP_DEVICEINFO_EXTENSIONS                   "microsoft.com: 1.0; "
 #define CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS         MTP_OP_GET_DEVICE_INFO, MTP_OP_OPEN_SESSION
