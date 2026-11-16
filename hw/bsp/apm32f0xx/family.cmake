@@ -1,6 +1,5 @@
 include_guard()
 
-set(APM32_FAMILY apm32f0xx)
 set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F0xx_SDK/Libraries)
 
 # include board specific
