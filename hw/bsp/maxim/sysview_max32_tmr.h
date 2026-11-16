@@ -3,31 +3,22 @@
  * SPDX-License-Identifier: MIT
  */
 
-// SEGGER_SYSVIEW timestamp for the MAX32 parts. MAX3266x's Cortex-M4 DWT has NO cycle counter:
-// DWT_CTRL.NOCYCCNT=1 (read live on max32666fthr, 2026-08-11 -- Maxim implemented only the
-// watchpoint comparators), so SystemView's ARMv7-M default of reading 0xE0001004 returns a
-// frozen 0 and every duration decodes as zero. MAX32650 and MAX32690's user guides do not
-// document their DWT, so they use a TMR too. family.cmake therefore defines
-// SEGGER_SYSVIEW_GET_TIMESTAMP as SEGGER_SYSVIEW_X_GetTimestamp, routing timestamps to the hook below.
+// SEGGER_SYSVIEW timestamp for the MAX32 parts, from a TMR instead of the DWT cycle counter:
+// MAX3266x's DWT reads NOCYCCNT=1 (observed on max32666fthr), so SystemView's ARMv7-M default
+// read of 0xE0001004 returns 0; MAX32650 and MAX32690's user guides do not document their DWT.
+// family.cmake routes SEGGER_SYSVIEW_GET_TIMESTAMP to SEGGER_SYSVIEW_X_GetTimestamp below.
 //
-// Source: a TMR in Continuous mode at prescaler 1, counting PCLK = SYSCLK/2 (UG6971 Eq. 15-1,
-// MAX32650 UG p41, MAX32690 UG 4.2.2). The 1 MHz "microseconds" contract the M0/RISC-V
-// families follow is unreachable here -- the prescaler is powers-of-two only -- so this
-// overrides tusb.c's weak SEGGER_SYSVIEW_X_GetTimestampFreq() with the timer's rate.
-// UG6971 15.2 guarantees TMRn_CNT "is always readable, even while the timer is enabled and
-// counting". With CMP=0xFFFFFFFF the hardware wrap reloads CNT to 0x0000_0001, not 0
-// (UG6971 15.5.1, MAX32690 UG 23.7.2): modulus 2^32-1, one tick lost per wrap -- on MAX3266x
-// one 20.8 ns slip per ~89.5 s, ~0.23 ppb, far below crystal tolerance.
+// The TMR runs in Continuous mode at prescaler 1 on PCLK = SYSCLK/2 (UG6971 Eq. 15-1, MAX32650
+// UG p41, MAX32690 UG 4.2.2). The prescaler is powers-of-two only, so 1 MHz is unreachable and
+// this overrides tusb.c's weak SEGGER_SYSVIEW_X_GetTimestampFreq() with the timer's rate.
+// TMRn_CNT is readable while counting (UG6971 15.2). With CMP=0xFFFFFFFF a wrap reloads CNT to 1,
+// not 0 (UG6971 15.5.1, MAX32690 UG 23.7.2): one tick lost per 2^32-1.
 //
-// The instance is SYSVIEW_MAX32_TMR (default TMR0, present on every MAX32 part). TinyUSB
-// examples use no TMR at all and the FreeRTOS builds tick on SysTick (lib/FreeRTOS-Kernel's
-// ARM_CM4F port -- MSDK's TMR-based tickless demos are never compiled here), so any instance
-// is free; override with -DSYSVIEW_MAX32_TMR=<0..5> (<0..3> on MAX32690) if an application
-// claims TMR0.
+// SYSVIEW_MAX32_TMR selects the instance, default TMR0: the examples use no TMR and FreeRTOS
+// ticks on SysTick. Override with -DSYSVIEW_MAX32_TMR=<0..5> (<0..3> on MAX32690).
 //
-// Include once from family.c inside its `#if CFG_TUSB_SYSVIEW_ENABLED` guard:
-// SEGGER_SYSVIEW_X_GetTimestamp*() below are non-static linker-visible hooks (SEGGER calls
-// them by name), so a second include in the same TU is a redefinition error.
+// Include once, from family.c inside its `#if CFG_TUSB_SYSVIEW_ENABLED` guard: the
+// SEGGER_SYSVIEW_X_GetTimestamp*() hooks below are non-static, called by name from SEGGER.
 #ifndef TUSB_BSP_SYSVIEW_MAX32_TMR_H_
 #define TUSB_BSP_SYSVIEW_MAX32_TMR_H_
 
