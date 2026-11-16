@@ -15,7 +15,7 @@
 #include "host/usbh.h"
 #include "rusb2_common.h"
 
-#ifdef RUSB2_RA_USBFS_DEVICE_ONLY
+#ifdef RUSB2_USBFS_DEVICE_ONLY
   #error "Host mode not supported for this device"
 #endif
 

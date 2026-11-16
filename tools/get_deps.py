@@ -309,7 +309,7 @@ deps_optional = {
                     'tm4c efm32'],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
-                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5'],
+                    'imxrt kinetis_k32l ra stm32n6 lpc51 lpc55 mcx stm32c5 synergy'],
     # fetched by path, or for -D SYSVIEW=<level>: just traced builds need it
     'lib/SystemView': ['https://github.com/SEGGERMicro/SystemView.git',
                        '92ca7a810c5765ba64911919acd511c61b6b083f',

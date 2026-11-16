@@ -59,7 +59,7 @@ static dcd_data_t _dcd;
 // Note: for small mcu with USBFS mini module (e.g RA2A1, RA4E2, RA6E2, RA6T3)
 // only pipe 4-7 are available, and no support for ISO
 static unsigned find_pipe(unsigned xfer_type) {
-  #ifdef RUSB2_RA_USBFS_PIPE4567_ONLY
+  #ifdef RUSB2_USBFS_PIPE4567_ONLY
   const uint8_t pipe_idx_arr[4][2] = {
       { 0, 0 }, // Control
       { 0, 0 }, // Isochronous not supported
