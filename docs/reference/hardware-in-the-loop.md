@@ -119,6 +119,12 @@ qm set <vmid> --machine q35 --cpu host \
 
 Debian 13, 16 vCPU, 18 GB RAM.
 
+`ci` is provisioned and checked by agentrc's [`hil-farm-setup`][farm-setup]: its setup installs the
+pinned tools, udev rules and the Renesas firmware below, and its `verify.sh` checks them. The rest
+of this section is the same ground by hand, for a rig outside that procedure.
+
+[farm-setup]: https://github.com/hathach/agentrc/tree/main/skills/hil-farm-setup
+
 ### Renesas firmware
 
 The controllers' ROM firmware is not reliable under HIL churn: Address Device fails with
@@ -148,8 +154,8 @@ not the Proxmox host.
    sudo reboot
    ```
 
-4. Confirm the controller is running it, after every reboot. Nothing checks it for you,
-   the battery included:
+4. Confirm the controller is running it, after every reboot. The HIL battery does not check
+   it; on a farm host `verify.sh` does (`renesas_fw_check.sh`), by hand:
 
    ```bash
    sudo setpci -s <bdf> 0x6c.l   # version is bits 23:8, must be >= 2026 (2.0.2.6); ffffffff = unreadable
@@ -200,6 +206,9 @@ for g in adm dialout plugdev users wireshark; do
   getent group "$g" >/dev/null && sudo usermod -aG "$g" "$USER"
 done
 ```
+
+A farm host gets its own copy from `hil-farm-setup` instead, with the `adm` group as `hil` and
+without the catch-all hidraw rule.
 
 Add the vendor rules for the probes you use (J-Link, picotool). `uhubctl` needs one too
 and no package ships it — without it every port toggle wants root:
@@ -341,10 +350,10 @@ REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil-cont
 ## A minimal rig
 
 None of the above is a prerequisite. The VM, the uPD720201 cards and the leaf hubs are
-what let one machine hold 27 boards and recover them unattended — the harness itself runs
-fine against boards plugged straight into a development PC's own USB ports, on whatever
-xHCI that PC already has. All it takes is the boards, their debug probes, and a
-`test/hil/local.json` describing them in the same shape as `tinyusb.json`.
+what let one machine hold every board in Attached boards and recover them unattended — the
+harness itself runs fine against boards plugged straight into a development PC's own USB
+ports, on whatever xHCI that PC already has. All it takes is the boards, their debug probes,
+and a `test/hil/local.json` describing them in the same shape as `tinyusb.json`.
 
 Host-side prerequisites, beyond a cross toolchain:
 

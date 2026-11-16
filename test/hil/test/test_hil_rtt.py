@@ -4,11 +4,16 @@
 # themselves are tested where they live, in agentrc's tests/test_rtt.py against the same
 # file, which hil_test loads from the agentrc helper/agentrc.py selects. Run directly:
 #   python3 test/hil/test/test_hil_rtt.py
+import io
+import json
 import multiprocessing
 import os
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(HIL_DIR))
@@ -59,6 +64,42 @@ class RttHarnessContracts(unittest.TestCase):
         for line in ('Hello from TinyUSB', 'USBD init on controller 0',
                      'ID 1a86:8010 SN 7FD88F0604B5', 'echo:p'):
             self.assertFalse(banner_re.match(line), f'target line wrongly filtered: {line!r}')
+
+
+class _PastTheGate(Exception):
+    pass
+
+
+class RttLoggerGate(unittest.TestCase):
+    """An "rtt" board whose variant lacks LOGGER=rtt aborts the run where it built the firmware: --build, or CI as
+    agentrc.ci() reads it. Elsewhere it is a warning, a GITHUB_ACTIONS=false included."""
+    BOARD = {'name': 'b', 'uid': 'X', 'tests': {'device': True}, 'logger': 'rtt',
+             'flasher': {'name': 'jlink', 'uid': 'X', 'args': '-device x'}}
+
+    def main(self, env):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = Path(td) / 'c.json'
+            cfg.write_text(json.dumps({'boards': [self.BOARD]}))
+            out = io.StringIO()
+            with mock.patch.dict(os.environ, {'HIL_REPORT_DIR': td, 'GITHUB_ACTIONS': '', 'CI': '', **env}), \
+                    mock.patch.object(sys, 'argv', ['hil_test.py', str(cfg)]), \
+                    mock.patch.object(hil_test, 'schedule_boards', side_effect=_PastTheGate), \
+                    redirect_stdout(out), self.assertRaises((SystemExit, _PastTheGate)) as cm:
+                hil_test.main()
+        return isinstance(cm.exception, SystemExit), out.getvalue()
+
+    def test_the_gate_reads_the_ci_predicate(self):
+        msg = '"logger": "rtt" board has a variant without LOGGER=rtt'
+        for env in ({'GITHUB_ACTIONS': 'true'}, {'GITHUB_ACTIONS': '1'}, {'CI': 'true'}):
+            with self.subTest(env=env):
+                aborted, out = self.main(env)
+                self.assertTrue(aborted, out)
+                self.assertIn(f'ERROR: {msg}', out)
+        for env in ({}, {'GITHUB_ACTIONS': 'false'}, {'GITHUB_ACTIONS': '0'}):
+            with self.subTest(env=env):
+                aborted, out = self.main(env)
+                self.assertFalse(aborted, out)
+                self.assertIn(f'warning: {msg}', out)
 
 
 if __name__ == '__main__':

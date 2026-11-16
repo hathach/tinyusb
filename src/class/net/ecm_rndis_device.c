@@ -360,7 +360,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   /* data transmission finished */
   if (ep_addr == _netd_itf.ep_in) {
     /* TinyUSB requires the class driver to implement ZLP (since ZLP usage is class-specific) */
-    if (xferred_bytes > 0 && 0 == (xferred_bytes & (_netd_itf.ep_size-1))) {
+    if (xferred_bytes > 0 && 0 == (xferred_bytes % _netd_itf.ep_size)) {
       do_in_xfer(NULL, 0); /* a ZLP is needed */
     } else {
       /* we're finally finished */

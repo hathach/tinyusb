@@ -12,9 +12,13 @@ commands:
             type: string
 
     steps:
+      - run:
+          name: Toolchain Cache Key
+          command: .github/actions/setup_toolchain/download/cache_key.sh << parameters.toolchain >> > /tmp/toolchain-cache-key
+
       - restore_cache:
           name: Restore Toolchain Cache
-          key: deps-<< parameters.toolchain >>-{{ checksum ".github/actions/setup_toolchain/toolchain.json" }}
+          key: deps-<< parameters.toolchain >>-{{ checksum "/tmp/toolchain-cache-key" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
 
@@ -55,7 +59,7 @@ commands:
 
       - save_cache:
           name: Save Toolchain Cache
-          key: deps-<< parameters.toolchain >>-{{ checksum ".github/actions/setup_toolchain/toolchain.json" }}
+          key: deps-<< parameters.toolchain >>-{{ checksum "/tmp/toolchain-cache-key" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
 

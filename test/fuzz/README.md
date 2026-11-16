@@ -16,7 +16,7 @@ The device synthetic controller never completes a transfer, so only bus events a
 ## Build and run
 
 Needs clang with the libFuzzer runtime, lld and CMake >= 3.20 (>= 3.24 for the Make entry points). `net` needs
-`lib/lwip` headers: `python3 tools/get_deps.py`.
+`lib/lwip` headers: `python3 tools/get_deps.py lib/lwip`.
 
 ```sh
 CC=clang CXX=clang++ cmake -S test/fuzz -B test/fuzz/_build
@@ -41,4 +41,4 @@ OSS-Fuzz's `projects/tinyusb/build.sh` runs `make -C test/fuzz/device/<harness> 
 archive (a crafted out-of-bounds NTB) once.
 
 For the host enumeration request oracle, input format, and regression cases, see
-+[`host/usbh_enum/README.md`](host/usbh_enum/README.md).
+[`host/usbh_enum/README.md`](host/usbh_enum/README.md).

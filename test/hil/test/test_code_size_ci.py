@@ -87,6 +87,14 @@ class Baseline(unittest.TestCase):
             with open(info) as f:
                 return json.load(f)
 
+    def test_an_engine_that_cannot_load_is_no_baseline_with_its_reason(self):
+        def refused():
+            raise ImportError('agentrc engine PROFILE_API 2, expected 1')
+        with mock.patch.object(ci.code_size, 'load_engine', refused):
+            info = self.lookup(FakeGh({}, {}))
+        self.assertEqual(info, {'sha': None, 'url': None, 'exact': False, 'run_id': None,
+                                'note': 'the baseline lookup failed: agentrc engine PROFILE_API 2, expected 1'})
+
     def test_the_base_commits_own_run_is_exact(self):
         fake = FakeGh({}, {sha('b'): [run(7, sha('b'))]}, {7: SNAPSHOTS})
         self.assertEqual(self.lookup(fake), {'sha': sha('b'), 'url': f'https://github.com/{NAME}/actions/runs/7',

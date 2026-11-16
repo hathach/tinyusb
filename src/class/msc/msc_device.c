@@ -67,7 +67,7 @@ typedef struct {
   bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
 #endif
   uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
-  uint16_t write_len; // host data bytes in the buffer handed to tud_msc_write10_cb(), kept for an async completion
+  uint16_t write_len; // host data bytes in the buffer for tud_msc_write10_cb(), kept for an async completion or a retry
   uint16_t block_size; // LUN block size of the current READ10/WRITE10, set by rdwr10_validate_cmd()
 
   // Below is not cleared by a bus reset (ITF_MEM_RESET_SIZE): an async I/O the reset abandoned stays pending, and
@@ -953,14 +953,15 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
 // Retry a READ10/WRITE10 chunk the application answered with TUD_MSC_RET_BUSY or, for WRITE10, consumed only in part.
 // A reset processed meanwhile ended the Data Stage: the retry is then dropped, where a faked transfer completion would
 // have been taken for the next CBW.
-static void proc_io_retry(void* left_over) {
+static void proc_io_retry(void* param) {
+  (void) param;
   mscd_interface_t* p_msc = &_mscd_itf;
   TU_VERIFY(p_msc->stage == MSC_STAGE_DATA, );
 
   if (SCSI_CMD_READ_10 == p_msc->cbw.command[0]) {
     proc_read10_cmd(p_msc);
   } else {
-    proc_write10_host_data(p_msc, (uint32_t) (uintptr_t) left_over);
+    proc_write10_host_data(p_msc, p_msc->write_len);
   }
 
   if (p_msc->stage == MSC_STAGE_STATUS) {
@@ -989,10 +990,15 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
 
 static void proc_read_io_data(mscd_interface_t* p_msc, int32_t nbytes) {
   const uint8_t rhport = p_msc->rhport;
+  uint16_t const chunk = (uint16_t) tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_msc->cbw.total_bytes - p_msc->xferred_len);
+  if (nbytes > (int32_t) chunk) {
+    TU_LOG_DRV("  IO read() returned more than requested\r\n");
+    nbytes = TUD_MSC_RET_ERROR;
+  }
+
   if (nbytes > 0) {
     uint16_t xfer_len = (uint16_t) nbytes;
   #if CFG_TUD_MSC_PAD_SHORT_REPLY
-    uint16_t const chunk = (uint16_t) tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_msc->cbw.total_bytes - p_msc->xferred_len);
     if ((0 != (xfer_len % p_msc->ep_in_mps)) && (xfer_len < chunk)) {
       // A partial chunk ending in a short packet would end the Data Stage: fill the rest of the host's length with
       // zeros instead of the case-5 STALL (CFG_TUD_MSC_PAD_SHORT_REPLY). The residue counts only the data read.
@@ -1084,7 +1090,8 @@ static void proc_write_io_data(mscd_interface_t* p_msc, uint32_t xferred_bytes, 
       }
 
       // invoke the callback again later with the bytes left over
-      usbd_defer_func(proc_io_retry, (void*) (uintptr_t) left_over, false);
+      p_msc->write_len = (uint16_t) left_over;
+      usbd_defer_func(proc_io_retry, NULL, false);
     } else {
       // Application consume all bytes in our buffer
       p_msc->xferred_len += xferred_bytes;

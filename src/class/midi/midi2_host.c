@@ -557,7 +557,7 @@ bool midih2_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
       uint16_t queued = _tuh_tx_start_xfer(p_midi);
       // Send ZLP if no more data is queued but the last transfer was exactly mps
       if (queued == 0 && tu_fifo_count(&ep_tx->ff) == 0 && xferred_bytes > 0 &&
-          (0 == (xferred_bytes & (ep_tx->mps - 1)))) {
+          (0 == (xferred_bytes % ep_tx->mps))) {
         if (usbh_edpt_claim(dev_addr, ep_tx->ep_addr)) {
           usbh_edpt_xfer(dev_addr, ep_tx->ep_addr, NULL, 0);
         }

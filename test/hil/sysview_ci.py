@@ -253,7 +253,7 @@ def config_line(j):
                  f"{c.get('buffer')} · {events} · workload {j.get('workload')} "
                  f"r{c.get('workload_rev')} {j.get('duration_s')} s · OpenOCD RTT channel {r.get('channel')}") + "*"
 
-def board_section(name, base_j, pr_j, base_dropped=None):
+def board_section(name, base_j, pr_j, base_dropped=None, base_missing=False):
     pm_all = pr_j.get("metrics") or {}
     live_window_s = pm_all.get("live_window_s", (pr_j.get("capture") or {}).get("live_window_s"))
     heading = f"### {md(name)}" + (f" — live {live_window_s:.1f} s" if live_window_s is not None else "")
@@ -261,6 +261,9 @@ def board_section(name, base_j, pr_j, base_dropped=None):
         # The report header states the PR-side config only, so a dropped baseline has to say
         # here why every row reads "new" -- otherwise it looks like base never captured.
         heading += f" — base dropped, {md(', '.join(base_dropped))}"
+    elif base_missing:
+        # the header names a base the other boards were recorded at, not this one
+        heading += " — no base record for this board"
     lines = [heading, "", config_line(pr_j), ""]
     # the board left without its park image, whether or not the capture itself failed
     park_error = (pr_j.get("capture") or {}).get("park_error")
@@ -464,8 +467,6 @@ def report(base_dir, pr_dir, baseline_info=None, unrecorded=()):
     if not pr:
         return ""
     base = load_set(base_dir)
-    if baseline_info is None and base and not (set(base) & set(pr)):
-        return ""
     boards = sorted(pr)
     any_pr = next(iter(pr.values()))
     # .get throughout: one malformed capture JSON must not abort the whole report -- the same
@@ -477,7 +478,8 @@ def report(base_dir, pr_dir, baseline_info=None, unrecorded=()):
         else:
             changed = [f"capture config changed ({', '.join(c)})" for c in [capture_cfg_changes(base.get(b), pr[b])]
                        if c]
-        parts.append(board_section(b, None if changed else base.get(b), pr[b], changed))
+        parts.append(board_section(b, None if changed else base.get(b), pr[b], changed,
+                                   base_missing=bool(base) and b not in base))
     if unrecorded:
         parts += [unrecorded_line(unrecorded), ""]
     parts.append(LEGEND)

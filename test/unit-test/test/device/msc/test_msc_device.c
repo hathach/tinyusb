@@ -191,6 +191,9 @@ static uint32_t read10_busy;
 // calls of tud_msc_read10_cb()
 static uint32_t read10_calls;
 
+// bytes tud_msc_read10_cb() claims beyond the bufsize it was asked for, as a misbehaving application would
+static uint32_t read10_excess;
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 // how read10/write10 callbacks fail: not at all, after setting MEDIUM ERROR sense, or without setting a sense
@@ -224,7 +227,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     return TUD_MSC_RET_ASYNC;
   }
 
-  return bufsize;
+  return (int32_t) (bufsize + read10_excess);
 }
 
 // times tud_msc_write10_cb() answers TUD_MSC_RET_BUSY before it writes
@@ -360,6 +363,7 @@ void setUp(void)
   read10_async = false;
   read10_busy = 0;
   read10_calls = 0;
+  read10_excess = 0;
   write10_busy = 0;
   write10_async = false;
   write10_accept = 0;
@@ -371,6 +375,35 @@ void tearDown(void)
   TEST_ASSERT_EQUAL_UINT(0, sv_depth);
   io_mode = IO_OK;
   capacity_block_size = DISK_BLOCK_SIZE;
+}
+
+// SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
+static void configure_msc(msc_cbw_t const* cbw) {
+  desc_configuration = data_desc_configuration;
+  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
+
+  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
+  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) cbw, sizeof(msc_cbw_t));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
+}
+
+static void clear_halt(uint8_t ep_addr) {
+  tusb_control_request_t const request_clear_halt =
+  {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
 }
 
 //--------------------------------------------------------------------+
@@ -459,35 +492,13 @@ void test_msc_read10_block_size_over_16bit(void)
 
   memcpy(cbw_read10.command, &cmd_read10, cbw_read10.cmd_len);
 
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_read10, sizeof(msc_cbw_t));
-
+  configure_msc(&cbw_read10);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
-
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
   // case 4 (Hi > Dn): no data, STALL Bulk-In, then a failed CSW with full residue after the host clears it
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
 
   tud_task();
-
-  tusb_control_request_t const request_clear_halt =
-  {
-    .bmRequestType = 0x02,
-    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
-    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
-    .wIndex        = EDPT_MSC_IN,
-    .wLength       = 0
-  };
 
   msc_csw_t const csw =
   {
@@ -497,8 +508,7 @@ void test_msc_read10_block_size_over_16bit(void)
     .status       = MSC_CSW_STATUS_FAILED
   };
 
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
-  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_IN);
+  clear_halt(EDPT_MSC_IN);
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_MSC_IN, (uint8_t*) &csw, sizeof(msc_csw_t), sizeof(msc_csw_t), false, true);
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
@@ -530,21 +540,8 @@ void test_msc_write10_length_over_lun_block_size(void)
 
   memcpy(cbw_write10.command, &cmd_write10, cbw_write10.cmd_len);
 
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer( (uint8_t*) &cbw_write10, sizeof(msc_cbw_t));
-
+  configure_msc(&cbw_write10);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
-
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
 
   // case 11 (Ho > Do): no data, STALL Bulk-Out, then a failed CSW with full residue
   msc_csw_t const csw =
@@ -577,32 +574,8 @@ static msc_cbw_t const cbw_read10_2blocks =
 
 // SET_CONFIGURATION, then the CBW of a 2-block READ10
 static void read10_2blocks_received(void) {
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw_read10_2blocks, sizeof(msc_cbw_t));
+  configure_msc(&cbw_read10_2blocks);
   dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_cbw_t), 0, true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-}
-
-// SET_CONFIGURATION, with the first CBW buffer armed to receive cbw
-static void configure_msc(msc_cbw_t const* cbw) {
-  desc_configuration = data_desc_configuration;
-  uint8_t const* desc_ep = tu_desc_next(tu_desc_next(desc_configuration));
-
-  dcd_event_setup_received(rhport, (uint8_t*) &request_set_configuration, false);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) desc_ep, true);
-  dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
-  dcd_edpt_xfer_IgnoreArg_buffer();
-  dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) cbw, sizeof(msc_cbw_t));
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
-  tud_task();
 }
 
 // A whole chunk ends in a full packet: the Data Stage goes on with the next chunk
@@ -711,20 +684,6 @@ static tusb_control_request_t const request_bot_reset =
   .wIndex        = ITF_NUM_MSC,
   .wLength       = 0
 };
-
-static void clear_halt(uint8_t ep_addr) {
-  tusb_control_request_t const request_clear_halt =
-  {
-    .bmRequestType = 0x02,
-    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
-    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
-    .wIndex        = ep_addr,
-    .wLength       = 0
-  };
-
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
-  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
-}
 
 static void expect_cbw_receive(void) {
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
@@ -1280,6 +1239,29 @@ void test_msc_write10_error_default_sense(void)
 {
   io_mode = IO_ERROR_NO_SENSE;
   check_write10_error_sense(SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+}
+
+// A read10 result larger than the chunk asked for fails the command instead of sending past the request
+void test_msc_read10_oversized_result_fails(void)
+{
+  read10_excess = 1;
+  check_read10_error_sense(0, 1, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+}
+
+void test_msc_read10_async_oversized_completion_fails(void)
+{
+  read10_async = true;
+  configure_and_send_io_cbw(SCSI_CMD_READ_10, 0, 1);
+  tud_task(); // tud_msc_read10_cb() answers TUD_MSC_RET_ASYNC: nothing armed on Bulk-In
+
+  TEST_ASSERT_TRUE(tud_msc_async_io_done(DISK_BLOCK_SIZE + 1, false));
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_IN);
+  tud_task();
+
+  clear_halt(EDPT_MSC_IN);
+  expect_failed_io_csw();
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  tud_task();
 }
 
 //--------------------------------------------------------------------+

@@ -76,6 +76,18 @@ returning success from ``tud_msc_write10_cb()`` or calling
 the host has received the command status, so a cache flush there is
 best-effort and cannot make an acknowledged write durable.
 
+``CFG_TUD_MSC_PAD_SHORT_REPLY`` pads a Data-In reply shorter than the host's
+length with zeros instead of stalling Bulk-In after it (BOT case 5): a reply to
+a command other than READ10 when the host's length is at most
+``CFG_TUD_MSC_EP_BUFSIZE``, and a partial READ10 chunk from
+``tud_msc_read10_cb()`` that is not a multiple of the packet size.  The CSW
+residue still counts only the real data.  It defaults to 1 in a build without
+high-speed support (``TUD_OPT_HIGH_SPEED`` is 0), on every MCU, and to 0
+otherwise; set it to 1 in a high-speed capable build that may run at full speed
+behind a hub.  A full-speed STALL behind a high-speed hub makes the host clear
+the hub's TT buffer, which can lock up an RP2040 on another port of that hub:
+see the Raspberry Pi RP2040 entry in :doc:`../device_issues`.
+
 See :doc:`../../examples/device/cdc_msc` for a RAM disk and
 :doc:`../../examples/device/msc_dual_lun` for multiple LUNs.
 

@@ -36,7 +36,10 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_APM32F107
+#if CFG_TUSB_MCU == OPT_MCU_APM32F103
+void USBD1_HP_CAN1_TX_IRQHandler(void);
+void USBD1_LP_CAN1_RX0_IRQHandler(void);
+#elif CFG_TUSB_MCU == OPT_MCU_APM32F107
 void OTG_FS_IRQHandler(void);
 #endif
 

@@ -522,8 +522,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       udd_dma_ctrl |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
     } else {
       udd_dma_ctrl |= DEVDMACONTROL_END_B_EN;
-      dcd_dcache_clean(xfer->buffer, total_bytes);
     }
+    // OUT too: a dirty line the CPU left in a reused receive buffer could be evicted over DMA data
+    dcd_dcache_clean(xfer->buffer, total_bytes);
     USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)buffer;
     udd_dma_ctrl |= DEVDMACONTROL_END_BUFFIT | DEVDMACONTROL_CHANN_ENB;
     USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl;

@@ -395,7 +395,7 @@ def run_cmd(cmd):
 
 def get_a_dep(d):
     if d not in deps_all.keys():
-        print('{} is not found in dependency list')
+        print(f'{d} is not found in dependency list')
         return 1
     url = deps_all[d][0]
     commit = deps_all[d][1]

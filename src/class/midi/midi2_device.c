@@ -884,6 +884,7 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
   while ((found_ep < desc_midi->bNumEndpoints) && tu_desc_in_bounds(p_desc, desc_end)) {
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
+      TU_ASSERT(CFG_TUD_EDPT_DEDICATED_HWFIFO || usbd_edpt_rx_fits(desc_ep, CFG_TUD_MIDI2_RX_EPSIZE), 0);
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
       const uint8_t ep_addr = desc_ep->bEndpointAddress;
 
@@ -1025,7 +1026,7 @@ bool midi2d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     uint16_t queued = _tx_start_xfer(p_midi);
     // Send ZLP if no more data is queued but the last transfer was exactly mps
     if (queued == 0 && tu_fifo_count(&ep_tx->ff) == 0 && xferred_bytes > 0 &&
-        (0 == (xferred_bytes & (ep_tx->mps - 1)))) {
+        (0 == (xferred_bytes % ep_tx->mps))) {
       if (usbd_edpt_claim(rhport, ep_tx->ep_addr)) {
           usbd_edpt_xfer(rhport, ep_tx->ep_addr, NULL, 0, false);
       }

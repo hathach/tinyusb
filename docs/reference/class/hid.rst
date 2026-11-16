@@ -164,6 +164,14 @@ Use ``tuh_hid_send_report()`` for an interrupt OUT report and
    * - ``tuh_hid_receive_ready()`` / ``tuh_hid_receive_report()``
      - Tests and arms one interrupt IN transfer.  Re-arm it after every receive
        callback for continuous input.
+   * - ``tuh_hid_report_failed_cb()``
+     - Invoked instead of the receive callback when an interrupt IN transfer
+       fails.  The weak default re-arms after a transient error
+       (``XFER_RESULT_FAILED``, ``XFER_RESULT_TIMEOUT``) and stops polling
+       after ``XFER_RESULT_STALLED`` or ``XFER_RESULT_ABORTED``.  A stalled
+       endpoint stays halted until ``CLEAR_FEATURE(ENDPOINT_HALT)``, which the
+       host stack has no API for yet (`#4315
+       <https://github.com/hathach/tinyusb/issues/4315>`__).
    * - ``tuh_hid_send_ready()`` / ``tuh_hid_send_report()``
      - Tests and queues one interrupt OUT report.  The send callback releases
        the internal endpoint buffer; the source is copied before return.

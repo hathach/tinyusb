@@ -1337,7 +1337,8 @@ enum {
   // F6-F7 Reserved
 
   HID_USAGE_TELEPHONY_STOP_RING_TONE              = 0x00F8, // Sel
-  HID_USAGE_TELEHONY_PSTN_RING_TONE               = 0x00F9, // Sel
+  HID_USAGE_TELEPHONY_PSTN_RING_TONE              = 0x00F9, // Sel
+  HID_USAGE_TELEHONY_PSTN_RING_TONE               = HID_USAGE_TELEPHONY_PSTN_RING_TONE, // misspelled, kept for compatibility
   HID_USAGE_TELEPHONY_HOST_RING_TONE              = 0x00FA, // Sel
   HID_USAGE_TELEPHONY_ALERT_SOUND_ERROR           = 0x00FB, // Sel
   HID_USAGE_TELEPHONY_ALERT_SOUND_CONFIRM         = 0x00FC, // Sel

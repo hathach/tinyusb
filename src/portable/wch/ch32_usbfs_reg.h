@@ -165,9 +165,7 @@
   TU_VERIFY_STATIC(offsetof(USBOTG_FS_TypeDef, EP_CTRL_5_7) == 0x64, "CH58x EP_CTRL_5_7 @0x64");
 
   #define CH32_USBFS_EP_CTRL_COMBINED 1
-  // CH58x's hardware AUTO_TOG does not stay in sync (notably across clear-stall and multi-packet
-  // bulk transfers), causing data-toggle mismatch and bus resets. Drive the toggle manually in
-  // the ISR instead. CH32V103/V20x/V307 keep AUTO_TOG (this macro is undefined for them).
+  // EP4 has no AUTO_TOG (CH583DS1 R8_UEPn_CTRL: EP1/2/3/5/6/7 only), so the ISR toggles EP4 by hand
   #define CH32_USBFS_EP4_MANUAL_TOG   1
   // CH58x EP4 has no DMA register of its own: it overlays EP0's DMA region as
   // EP0[0:63] + EP4_OUT[64:127] + EP4_IN[128:191], so EP0 needs a 192-byte buffer.
@@ -181,6 +179,7 @@
   #include <ch32x035.h>
   #define USBOTG_FS USBFSD
   #define CH32_USBFS_EP_CTRL_COMBINED 1
+  // EP4 has no AUTO_TOG (CH32X035RM R16_UEP4_CTRL_H bits 5:4 reserved)
   #define CH32_USBFS_EP4_MANUAL_TOG   1
   #define CH32_USBFS_EP4_SHARES_EP0   1
   #define USBHD_IRQn USBFS_IRQn

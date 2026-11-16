@@ -5,9 +5,7 @@
 
 #include "unity.h"
 #include "tusb_option.h"
-#include "host/usbh.h"
-#include "host/usbh_pvt.h"
-#include "class/hid/hid_host.h"
+#include "hid_host_test.h"
 
 TEST_SOURCE_FILE("hid_host.c")
 
@@ -20,6 +18,8 @@ enum {
 static uint8_t epin_open_count;
 static uint8_t epout_open_count;
 static uint16_t xfer_total_bytes;
+static bool     edpt_busy;
+static uint8_t  edpt_busy_count;
 
 bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   (void) daddr;
@@ -45,7 +45,12 @@ uint8_t *usbh_get_enum_buf(void) { TEST_FAIL(); return NULL; }
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) { (void) dev_addr; (void) itf_num; TEST_FAIL(); }
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; return true; }
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }
-bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }
+bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
+  TEST_ASSERT_EQUAL(DADDR, dev_addr);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, ep_addr);
+  edpt_busy_count++;
+  return edpt_busy;
+}
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void) dev_addr; (void) ep_addr; (void) buffer; (void) complete_cb; (void) user_data;
@@ -81,6 +86,8 @@ void setUp(void) {
   epin_open_count  = 0;
   epout_open_count = 0;
   xfer_total_bytes = 0;
+  edpt_busy        = false;
+  edpt_busy_count  = 0;
 }
 
 void tearDown(void) {
@@ -114,4 +121,25 @@ void test_hid_host_receives_in_mps(void) {
 
   TEST_ASSERT_TRUE(tuh_hid_receive_report(DADDR, 0));
   TEST_ASSERT_EQUAL(8, xfer_total_bytes);
+}
+
+// without an OUT endpoint there is nothing to send on: refused before usbh is asked about endpoint 0
+void test_hid_host_send_ready_without_out_endpoint(void) {
+  hid_desc_t desc         = make_desc(0, 8);
+  desc.itf.bNumEndpoints  = 1;
+  TEST_ASSERT_EQUAL(sizeof(desc) - sizeof(tusb_desc_endpoint_t), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, epout_open_count);
+
+  TEST_ASSERT_FALSE(tuh_hid_send_ready(DADDR, 0));
+  TEST_ASSERT_EQUAL(0, edpt_busy_count);
+}
+
+void test_hid_host_send_ready_follows_out_endpoint_busy(void) {
+  const hid_desc_t desc = make_desc(0, 8);
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+
+  TEST_ASSERT_TRUE(tuh_hid_send_ready(DADDR, 0));
+  edpt_busy = true;
+  TEST_ASSERT_FALSE(tuh_hid_send_ready(DADDR, 0));
+  TEST_ASSERT_EQUAL(2, edpt_busy_count);
 }

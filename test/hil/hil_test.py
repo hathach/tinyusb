@@ -228,7 +228,7 @@ class Board(TypedDict):
     # MAX3421_HOST=1), which is exactly what hil_report.board_variants() synthesises
     variant: NotRequired[list[VariantCfg]]
     logger: NotRequired[str]  # "rtt": console = the debug probe's RTT channel 0, not a VCOM (rtt skill)
-    toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by hil_ci_set_matrix.py)
+    toolchain: NotRequired[str]  # CI build bucket override, e.g. "riscv-gcc" (consumed by .github/scripts/hil_ci_set_matrix.py)
     uart_uid: NotRequired[str]   # console bridge serial when the flasher probe has no CDC (e.g. J-Trace)
 
 
@@ -265,6 +265,8 @@ USBTEST_OVERSHOOT = 120
 # Named, not a literal, so the unit tests can zero it: every test that drives
 # test_device_usbtest against a fake rig otherwise pays a real 3s (ten of them, 30s a run).
 USBTEST_SETTLE = 3
+# a battery that never ran: no count, which would claim a battery size it never learned (tier 1 runs 22 cases)
+USBTEST_NOT_RUN = f'{hil_report.REPORT_CELL["fail"]} not run'
 SERIAL_READ_TIMEOUT = hil_util.pos_float_env('HIL_SERIAL_READ_TIMEOUT', 5)
 SERIAL_WRITE_TIMEOUT = hil_util.pos_float_env('HIL_SERIAL_WRITE_TIMEOUT', 10)
 
@@ -295,10 +297,22 @@ def get_alsa_capture_dev(id):
     return None
 
 
+def get_midi_dev(id):
+    """The card's midiC<N>D0 from its by-id link to controlC<N>; a link a re-enumeration dropped is skipped."""
+    for dev in glob.glob(f'/dev/snd/by-id/usb-*_{id}-*'):
+        try:
+            m = re.fullmatch(r'controlC(\d+)', os.path.basename(os.readlink(dev)))
+        except OSError:
+            continue
+        if m and os.path.exists(path := f'/dev/snd/midiC{m.group(1)}D0'):
+            return path
+    return None
+
+
 def open_serial_dev(port: str):
-    timeout = enum_timeout()
+    deadline = time.monotonic() + enum_timeout()
     ser = None
-    while timeout > 0:
+    while time.monotonic() < deadline:
         if os.path.exists(port):
             try:
                 # write_timeout: see serial_write_all
@@ -306,13 +320,10 @@ def open_serial_dev(port: str):
                                     write_timeout=SERIAL_WRITE_TIMEOUT)
                 break
             except serial.SerialException:
-                print(f'serial {port} not reaady {timeout} sec')
-                pass
+                print(f'serial {port} not ready {deadline - time.monotonic():.1f} sec')
         time.sleep(0.1)
-        timeout -= 0.1
 
-    assert timeout > 0, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
-    assert ser is not None
+    assert ser is not None, f'Cannot open port {port}' if os.path.exists(port) else f'Port {port} not existed'
     return ser
 
 
@@ -586,21 +597,21 @@ def test_dual_host_info_to_device_cdc(board):
     declared = declared_devs(board)
     port = hil_util.get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
-    ser.timeout = 0.1
-
-    data = b''
-    records = []
-    timeout = enum_timeout()
-    while timeout > 0:
-        new_data = ser.read(ser.in_waiting or 1)
-        if new_data:
-            data += new_data
-        records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
-        if set(declared).issubset({dev for _, dev in records}):
-            break
-        time.sleep(0.1)
-        timeout -= 0.1
-    ser.close()
+    try:
+        ser.timeout = 0.1
+        data = b''
+        records = []
+        deadline = time.monotonic() + enum_timeout()
+        while time.monotonic() < deadline:
+            new_data = ser.read(ser.in_waiting or 1)
+            if new_data:
+                data += new_data
+            records = parse_dev_info_records(data.decode('utf-8', errors='ignore'))
+            if set(declared).issubset({dev for _, dev in records}):
+                break
+            time.sleep(0.1)
+    finally:
+        ser.close()
 
     if len(data) == 0:
         assert False, 'No data from device'
@@ -627,8 +638,8 @@ def test_host_device_info(board):
     try:
         data = b''
         records = []
-        timeout = enum_timeout()
-        while timeout > 0:
+        deadline = time.monotonic() + enum_timeout()
+        while time.monotonic() < deadline:
             # infra death is not a board failure: without this a dead JLinkExe/probe
             # would burn the whole timeout and report as 'No data from device'
             assert not getattr(ser, 'eof', False), \
@@ -640,7 +651,6 @@ def test_host_device_info(board):
             if set(declared).issubset({dev for _, dev in records}):
                 break
             time.sleep(0.1)
-            timeout -= 0.1
     finally:
         ser.close()
 
@@ -701,10 +711,10 @@ def test_host_cdc_msc_hid(board):
     try:
 
         data = b''
-        timeout = enum_timeout()
+        deadline = time.monotonic() + enum_timeout()
         wait_cdc = len(cdc_devs) > 0
         wait_msc = len(msc_devs) > 0
-        while timeout > 0:
+        while time.monotonic() < deadline:
             # infra death is not a board failure: without this a dead JLinkExe/probe
             # would burn the whole timeout and report as a mount failure
             assert not getattr(ser, 'eof', False), \
@@ -717,7 +727,6 @@ def test_host_cdc_msc_hid(board):
                 if cdc_ok and msc_ok:
                     break
             time.sleep(0.1)
-            timeout -= 0.1
 
         vid_pid_name = {
             '0403:6001': 'FTDI', '0403:6010': 'FTDI', '0403:6011': 'FTDI', '0403:6014': 'FTDI',
@@ -787,8 +796,8 @@ def test_host_msc_file_explorer(board):
     try:
 
         data = b''
-        timeout = enum_timeout()
-        while timeout > 0:
+        deadline = time.monotonic() + enum_timeout()
+        while time.monotonic() < deadline:
             # infra death is not a board failure: without this a dead JLinkExe/probe
             # would burn the whole timeout and report as a mount failure
             assert not getattr(ser, 'eof', False), \
@@ -799,7 +808,6 @@ def test_host_msc_file_explorer(board):
                 if DISK_SIZE_RE_B.search(data):
                     break
             time.sleep(0.1)
-            timeout -= 0.1
         check_msc_info(data.decode('utf-8', errors='ignore'), msc_devs)
 
         # Send "cat README.TXT" and check response (optional — file may not exist on all drives)
@@ -1013,7 +1021,6 @@ def test_device_cdc_msc_throughput(board):
     msc_count = 2 if is_fs else 16    # bs=1M
     cdc_count = 16 if is_fs else 128  # bs=64K
 
-    tmp_file = f'/tmp/cdc_msc_tp_{uid}.bin'
     t_cdc, t_msc = dd_timeout(cdc_count / 16), dd_timeout(msc_count)
 
     rw = hil_util.run_cmd(f'timeout {t_cdc} dd if=/dev/zero of={tty} bs=64K count={cdc_count} 2>&1')
@@ -1024,21 +1031,22 @@ def test_device_cdc_msc_throughput(board):
     assert rr.returncode == 0, f'CDC dd read failed: {hil_util.cmd_stdout_text(rr.stdout)}'
     cdc_r = parse_speed(hil_util.cmd_stdout_text(rr.stdout))
 
-    # inner bound, like the CDC pair above: run_cmd's SIGKILL is merely QUEUED against a
-    # dd blocked in the block layer on a half-dead device, so without one the call rides
-    # CMD_TIMEOUT and is abandoned holding the disk and usbfs nodes.
-    rmr = hil_util.run_cmd(f'timeout {t_msc} dd if={dev} of={tmp_file} bs=1M count={msc_count} iflag=direct 2>&1')
-    assert rmr.returncode == 0, f'MSC dd read failed: {hil_util.cmd_stdout_text(rmr.stdout)}'
-    msc_r = parse_speed(hil_util.cmd_stdout_text(rmr.stdout))
-
-    rmw = hil_util.run_cmd(f'timeout {t_msc} dd if={tmp_file} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
-    assert rmw.returncode == 0, f'MSC dd write failed: {hil_util.cmd_stdout_text(rmw.stdout)}'
-    msc_w = parse_speed(hil_util.cmd_stdout_text(rmw.stdout))
-
+    # per attempt: an abandoned dd of an earlier attempt may still be writing its own file
+    fd, tmp_file = tempfile.mkstemp(prefix=f'cdc_msc_tp_{uid}-', suffix='.bin')
+    os.close(fd)
     try:
-        os.remove(tmp_file)
-    except OSError:
-        pass
+        # inner bound, like the CDC pair above: run_cmd's SIGKILL is merely QUEUED against a
+        # dd blocked in the block layer on a half-dead device, so without one the call rides
+        # CMD_TIMEOUT and is abandoned holding the disk and usbfs nodes.
+        rmr = hil_util.run_cmd(f'timeout {t_msc} dd if={dev} of={shlex.quote(tmp_file)} bs=1M count={msc_count} iflag=direct 2>&1')
+        assert rmr.returncode == 0, f'MSC dd read failed: {hil_util.cmd_stdout_text(rmr.stdout)}'
+        msc_r = parse_speed(hil_util.cmd_stdout_text(rmr.stdout))
+
+        rmw = hil_util.run_cmd(f'timeout {t_msc} dd if={shlex.quote(tmp_file)} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
+        assert rmw.returncode == 0, f'MSC dd write failed: {hil_util.cmd_stdout_text(rmw.stdout)}'
+        msc_w = parse_speed(hil_util.cmd_stdout_text(rmw.stdout))
+    finally:
+        os.unlink(tmp_file)
 
     print(f'  CDC read {cdc_r} write {cdc_w}, MSC read {msc_r} write {msc_w}  ', end='')
 
@@ -1353,7 +1361,7 @@ def _session_alive(pidfile: str) -> str:
             pid, start = f.read().split()
     except (OSError, ValueError):
         return 'with an unrecorded pid'
-    return f'pid {pid}' if usbtest._uo().proc_holds({'pid': int(pid), 'start': start}) else ''
+    return f'pid {pid}' if usb_observe.proc_holds({'pid': int(pid), 'start': start}) else ''
 
 
 def test_device_usbtmc(board):
@@ -1366,6 +1374,7 @@ def test_device_usbtmc(board):
     # The multi-packet abort and clear cases skip on a high-speed endpoint: show that coverage in the cell
     passed = sum(line.startswith('PASS') for line in lines)
     skipped = sum(line.startswith('SKIP') for line in lines)
+    assert passed + skipped, f'USBTMC session reported no case results (rc 0):\n{out[-600:]}'
     cell = f'{hil_report.REPORT_CELL["pass"]} {passed}/{passed + skipped}'
     return f'{cell} ({skipped} skipped)' if skipped else cell
 
@@ -1396,21 +1405,7 @@ def test_device_msc_dual_lun(board):
 def test_device_midi_test(board):
     uid = board['uid']
 
-    timeout = enum_timeout()
-    midi_port = None
-    while timeout > 0:
-        pattern = f'/dev/snd/by-id/usb-*_{uid}-*'
-        devs = glob.glob(pattern)
-        if devs:
-            # by-id entry points to controlCX, derive card number for midiCXD0
-            link = os.path.basename(os.readlink(devs[0]))  # e.g. "controlC2"
-            card_num = link.replace('controlC', '')
-            midi_path = f'/dev/snd/midiC{card_num}D0'
-            if os.path.exists(midi_path):
-                midi_port = midi_path
-                break
-        time.sleep(1)
-        timeout -= 1
+    midi_port = wait_until(lambda: get_midi_dev(uid))
     assert midi_port is not None, f'MIDI device not found for {uid}'
 
     import select
@@ -1570,9 +1565,9 @@ def test_device_usbtest(board):
         time.sleep(0.2)
         seen = usbtest_enumerated()
     if not seen:
-        # 0/30 rather than a bare cell: the battery never ran (30 = standard case count)
+        # no count: the battery never ran, and the device's tier, which sizes it, is unknown
         raise TestFail(f'no {usbtest.VID}:{usbtest.PID} device with serial {uid}',
-                       metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
+                       metric=USBTEST_NOT_RUN)
     # the DUT is enumerated now, so learn its controller for the next run's dispatch order.
     # Dual-port parts (CH32V307 usbhs/usbfs variants) share one uid: the first port seen wins.
     if board_pci is None:
@@ -1648,8 +1643,7 @@ def test_device_usbtest(board):
         # in-band recovery is off (--skip-flash, a flasher failing convoy_safe, a terminal
         # wedge) that reflash is the only thing left to unpoison the DUT for the boards
         # that share its controller.
-        raise TestFail(f'usbtest did not run: {detail}',
-                       metric=f'{hil_report.REPORT_CELL["fail"]} 0/30')
+        raise TestFail(f'usbtest did not run: {detail}', metric=USBTEST_NOT_RUN)
 
     return _usbtest_verdict(board, data, out, passed, failed, recovery,
                             _rec_flasher)
@@ -2713,7 +2707,7 @@ def main() -> None:
         # expressed as a single self-named variant (see the Board comment).
         msg = (f'"logger": "rtt" board has a variant without LOGGER=rtt in its defines '
                f'({", ".join(rtt_no_logger_def)})')
-        if args.build or os.environ.get('GITHUB_ACTIONS'):
+        if args.build or agentrc.ci():
             _config_abort(f'{msg} -- the firmware built for this run cannot serve the '
                               f'configured RTT console')
         print(f'warning: {msg} -- fine for prebuilt example sets, wrong for --build/CI '
