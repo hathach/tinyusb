@@ -507,7 +507,6 @@ static void split_retry_start(hcd_ep_t *ep, bool error, bool in_isr) {
     }
   }
   split_release(ep);
-  engine_kick();
 }
 
 // Return false only for a valid complete-split packet: the common path then
@@ -535,7 +534,6 @@ static bool split_done(hcd_ep_t *ep, uint8_t status, uint16_t received, bool in_
       // Repeat the same SS: TT deduplicates a pending SS whose ACK was lost.
       ep->due = _hcd.now + 1;
     }
-    engine_kick();
     return true;
   }
   if (periodic && response == USBHS_PID_MDATA) {
@@ -553,7 +551,6 @@ static bool split_done(hcd_ep_t *ep, uint8_t status, uint16_t received, bool in_
       split_retry_start(ep, true, in_isr);
     } else {
       ep->due = _hcd.now + 1;
-      engine_kick();
     }
     return true;
   }
@@ -595,7 +592,6 @@ static bool split_done(hcd_ep_t *ep, uint8_t status, uint16_t received, bool in_
     complete(ep, XFER_RESULT_FAILED, in_isr);
   } else {
     ep->due = _hcd.now;
-    engine_kick();
   }
   return true;
 }
@@ -721,7 +717,6 @@ static void transaction_done(bool in_isr) {
       ep->due = (_hcd.now & ~7u) + 8;
     }
   }
-  engine_kick();
 }
 
 static void port_check(uint8_t rhport, bool in_isr) {
@@ -876,6 +871,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     split_maintenance(in_isr);
 #endif
   }
+  // Schedule retries and remaining work after transaction and timeout handling.
   engine_kick();
 }
 

@@ -39,6 +39,7 @@ static bool split_ready(void);
 static tuh_bus_info_t buses[128];
 static hcd_event_t event;
 static unsigned events;
+static int8_t active_at_event;
 #if CFG_TUH_HUB && TUH_OPT_HIGH_SPEED
 static bool multi_tt;
 bool hub_tt_multi(uint8_t hub_addr) { (void)hub_addr; return multi_tt; }
@@ -92,7 +93,12 @@ static bool split_ready(void) {
 // No hub control/defer mocks: every matrix variant must link without them.
 bool tuh_bus_info_get(uint8_t addr, tuh_bus_info_t *bus) { *bus = buses[addr]; return true; }
 void tusb_time_delay_ms_api(uint32_t ms) { (void)ms; }
-void hcd_event_handler(hcd_event_t const *e, bool in_isr) { (void)in_isr; event = *e; events++; }
+void hcd_event_handler(hcd_event_t const *e, bool in_isr) {
+  (void)in_isr;
+  event = *e;
+  active_at_event = _hcd.active;
+  events++;
+}
 static void reset(tusb_speed_t speed) {
   memset(&_hcd, 0, sizeof(_hcd));
   memset(&regs, 0, sizeof(regs));
@@ -111,6 +117,7 @@ static void reset(tusb_speed_t speed) {
   _hcd.root_speed = speed;
   regs.MIS_ST = USBHS_SIE_FREE | USBHS_ATTACH;
   events = 0;
+  active_at_event = -1;
   for (unsigned i = 0; i < TU_ARRAY_SIZE(buses); i++) { buses[i].speed = speed; }
 }
 static bool open_ep(uint8_t addr, uint8_t endpoint, uint8_t type, uint16_t mps, uint8_t interval) {
@@ -129,7 +136,8 @@ static void done(uint8_t status, uint16_t received) {
   assert(_hcd.active >= 0);
   regs.INT_ST = status;
   regs.RX_LEN = received;
-  transaction_done(true);
+  regs.INT_FG = USBHS_TRANSFER_FLAG;
+  hcd_int_handler(0, true);
 }
 static void receive(uint8_t value, uint16_t len) {
   assert(len <= regs.HOST_RX_MAX_LEN);
@@ -147,6 +155,8 @@ static void test_dma_and_round_robin(void) {
   assert(regs.DEV_AD == 2 && regs.HOST_TX_DMA == dma_address(buffer + 1025));
   done(USBHS_PID_ACK, 0);
   assert(regs.DEV_AD == 1 && regs.HOST_RX_DMA == dma_address(buffer + 512));
+  // The next packet must already be launched when the completion event is posted.
+  assert(active_at_event >= 0 && &_hcd.ep[active_at_event] == ep_find(1, 0x81));
   assert(regs.HOST_RX_MAX_LEN == 4);
   receive(0x22, 4);
   done(USBHS_TOGGLE_OK | 0xb, 4);
