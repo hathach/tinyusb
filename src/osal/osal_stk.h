@@ -16,7 +16,8 @@
  *   CFG_TUH_OSAL_STK_USE_CPP=1 - STK's native C++ API (stk::sync::FastMutex/Semaphore/MessageQueue,
  *     stk::hw::CriticalSection). STK's C++ API is not includable from plain C, so in this mode
  *     every STK-touching function is only *declared* here (as extern "C") and *defined* in the
- *     companion osal_stk.cpp, which must be added to the build and is compiled as C++. Pick this
+ *     companion osal_stk.cpp shipped with STK (deps/port/tinyusb in the STK repository, not in
+ *     TinyUSB), which must be added to the build and is compiled as C++. Pick this
  *     mode only if something else in your build already requires STK's C++ API; the C backend
  *     above covers everything this OSAL port needs.
  *
@@ -58,9 +59,6 @@ extern "C" {
 // TASK API
 //----------------------------------------------------------------------------+
 
-/* Underlying task-id type isn't part of this header's C-visible surface in either backend (it's
- * a plain STK type, not necessarily a pointer) - uintptr_t is wide enough to hold it regardless
- * of size; a static_assert (osal_stk.cpp, or stk_c.h's own stk_tid_t definition) guards the fit. */
 typedef void *osal_task_handle_t;
 
 //----------------------------------------------------------------------------+
@@ -87,7 +85,7 @@ typedef uint8_t osal_spinlock_t;
 
 //=============================================================================
 // C++ backend (stk::sync::*, stk::hw::CriticalSection) - declared here,
-// defined in the companion osal_stk.cpp. See the file-level comment above for
+// defined in STK's deps/port/tinyusb/osal_stk.cpp. See the file-level comment above for
 // when to use this.
 //=============================================================================
 

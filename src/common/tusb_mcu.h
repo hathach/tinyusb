@@ -887,9 +887,8 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-// TUP_DCD_EDPT_CLOSE_API is deprecated: these USBIPs implement dcd_edpt_close() and lack the
-// ISO alloc & activate API. IP3511, RUSB2 and NRF5X have been migrated to ISO_ALLOC; the remaining
-// CLOSE_API MCUs (mm32, pic, da1469x, f1c100s, ch32-usbhs) are pending per-board verification.
+// TUP_DCD_EDPT_CLOSE_API is deprecated: the USBIPs that set it implement dcd_edpt_close() and lack the
+// ISO alloc & activate API; each moves to ISO_ALLOC once verified on its boards.
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
