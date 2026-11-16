@@ -221,12 +221,9 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
   const bool next_rx_dma_unaligned = (ep_num != 0) && ((xfer->queued_len & 3u) != 0);
 
   if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size) || next_rx_dma_unaligned) {
-    // Leave the endpoint idle before reporting: with TUP_USBD_XFER_ISR a class callback runs inside
-    // dcd_event_xfer_complete() and may queue the next transfer, which nothing here may overwrite.
-    // RES=NAK is documented as "respond with NAK or busy": with no xfer queued this must reject
-    // the packet, not accept it - ACK here would DMA the next OUT packet to EP_RX_DMA's stale
-    // target (still pointing at the just-completed buffer, only queue_out_packet() moves it),
-    // overwriting the completed transfer before task context delivers it.
+    // Leave the endpoint idle before reporting: with TUP_USBD_XFER_ISR a class callback inside
+    // dcd_event_xfer_complete() may queue the next transfer. NAK, not ACK: EP_RX_DMA still targets the
+    // completed buffer until queue_out_packet() moves it, so an accepted packet would overwrite it.
     xfer->valid = false;
     set_rx_res(ep_num, WCH_USBHS_V2_UEP_R_RES_NAK);
     dcd_event_xfer_complete(rhport, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -578,32 +575,16 @@ void dcd_int_handler(uint8_t rhport) {
   const uint8_t intflag = usbhs->INT_FG;
 
   if (intflag & WCH_USBHS_V2_UDIF_TRANSFER) {
-    // RB_UDIF_RTX_ACT (INT_FG bit 4) is read-only and is the wired-OR of every endpoint's DONE
-    // flag - RM 22.2.1.8: "Receive cleared by RB_UEP_R_DONE; Transmit cleared by RB_UEP_T_DONE" -
-    // while INT_ST names only ONE endpoint. Servicing just that endpoint leaves the other
-    // completion pending, and the SIE then refuses new transactions: a SETUP that arrives while
-    // another endpoint still has DONE set gets no handshake at all. That is fatal, because a SETUP
-    // may not be NAKed or STALLed - the host retries three times and fails with -EPROTO
-    // (wire-confirmed: SETUP dropped 64 us after a bulk-IN on EP1 completed). So walk every
-    // endpoint and drain all pending completions before leaving the handler, instead of trusting
-    // INT_ST to name the only one that matters. RX is serviced before TX for each endpoint so that
-    // a SETUP is dispatched first: an EP0 IN completion and the next SETUP are routinely pending
-    // together, and the SETUP branch delivers that IN completion itself before resetting the
-    // control pipe (see below) rather than discarding it.
+    // RB_UDIF_RTX_ACT (INT_FG bit 4, RO) is the OR of every endpoint's DONE (RM 22.2.1.8) while INT_ST
+    // names one endpoint, and a SETUP arriving while any DONE is pending gets no handshake (wire-confirmed),
+    // so drain every endpoint. RX before TX: a SETUP is dispatched first, and its branch delivers a pending
+    // EP0 IN completion itself before resetting the control pipe.
     for (uint8_t ep_num = 0; ep_num < EP_MAX; ep_num++) {
       if (EP_RX_CTRL(ep_num) & WCH_USBHS_V2_UEP_R_DONE) {
-        // SETUP or OUT transaction.
-        // RB_UEP_R_SETUP_IS (RM 22.2.1.32) is read-only and survives a software write, but the
-        // hardware DOES clear it as soon as a non-SETUP packet is received - verified on hardware:
-        // EP0 RX reads 0x34 (flag clear) immediately after a status OUT lands, while it still reads
-        // set on a genuine SETUP completion. So the flag alone identifies a SETUP, which is also
-        // what every WCH demo relies on.
-        // Two narrower tests were tried here and are WRONG, do not reintroduce them:
-        //   - gating on !xfer_status[0][OUT].valid suppresses the SETUP a host uses to abort an
-        //     in-progress control-OUT (USB 2.0 8.5.3), where valid is legitimately still true;
-        //   - gating on EP_RX_LEN(0) == 8 misreads any 8-byte control-OUT data packet (an 8-byte
-        //     class/vendor payload, or usbtest's ctrl_out which varies the length 1..512) as a
-        //     SETUP, feeding usbd garbage and discarding the real transfer.
+        // RB_UEP_R_SETUP_IS (RM 22.2.1.32, RO) survives a software write but the hardware clears it on any
+        // non-SETUP packet (verified on hardware), so it alone identifies a SETUP, as in the WCH demos.
+        // Gating on !xfer_status[0][OUT].valid would drop a SETUP aborting a control-OUT (USB 2.0 8.5.3);
+        // gating on EP_RX_LEN(0) == 8 would misread an 8-byte control-OUT data packet as a SETUP.
         if (ep_num == 0 && (EP_RX_CTRL(0) & WCH_USBHS_V2_UEP_R_SETUP_IS)) {
           tusb_control_request_t const *setup = (tusb_control_request_t const *)ep0_buffer;
           if (bus_reset_pending) {
@@ -611,19 +592,11 @@ void dcd_int_handler(uint8_t rhport) {
             // reset end, so this request stalls until the host times it out; later ones see the speed.
             report_bus_reset_end(rhport);
           }
-          // The status-IN of the previous transfer and this SETUP are often pending together, and
-          // the scan services RX before TX. Deliver that completion first: the pipe reset below
-          // would drop it (xfer->valid cleared) and the full-byte TX write would clear its DONE,
-          // so usbd would never run the transfer's CONTROL_STAGE_ACK - which is where classes
-          // apply a received payload (hid_device.c applies SET_REPORT only on that stage).
-          // Only when that transfer is actually finished, though. On an unfinished multi-packet
-          // control-IN, update_in() would queue the NEXT packet, and queue_in_packet() memcpys it
-          // into ep0_buffer - the very buffer holding the SETUP about to be handed to usbd, which
-          // would arrive as stale descriptor bytes. A host may legally abort a control-IN with a
-          // new SETUP (USB 2.0 8.5.3), e.g. cutting a GET_DESCRIPTOR short, so this is reachable.
-          // An abandoned transfer has no completion worth reporting; the pipe reset below drops it.
-          // A finished data-stage chunk is still delivered: the next chunk or status stage usbd
-          // arms for it is dropped by the tag bumped below, so it cannot disturb ep0_tog.
+          // Deliver a finished EP0 IN completion pending with this SETUP: the pipe reset below would drop
+          // it, and usbd's CONTROL_STAGE_ACK is where classes apply a received payload (HID SET_REPORT).
+          // Not an unfinished one, which a host may abort with a SETUP (USB 2.0 8.5.3): update_in() would
+          // memcpy its next packet over this SETUP in ep0_buffer. What usbd arms after a delivered
+          // data-stage chunk is dropped by the tag bumped below, so it cannot disturb ep0_tog.
           const xfer_ctl_t *ep0_in = XFER_CTL_BASE(0, TUSB_DIR_IN);
           if ((EP_TX_CTRL(0) & WCH_USBHS_V2_UEP_T_DONE) && ep0_in->valid &&
               (ep0_in->total_len <= ep0_in->queued_len)) {
@@ -643,14 +616,10 @@ void dcd_int_handler(uint8_t rhport) {
                                     WCH_USBHS_V2_UEP_R_TOG_DATA1);
           dcd_event_setup_received_tagid(rhport, ep0_buffer, setup_rcv_tagid, true);
         } else {
-          // A packet whose PID does not match the endpoint's expected toggle is a host retransmission
-          // after a lost ACK: the SIE stores it and raises this interrupt anyway. RM 22.2.1.32/35
-          // RB_UEP_R_TOG_MATCH (RO, bit 4 of UEPx_RX_CTRL): 1 = synchronized, 0 = not synchronized -
-          // consuming an unsynchronized packet would inject it into the transfer twice, so it is
-          // dropped. The SIE ACKs it but, as after any received packet, sets RES to NAK (measured:
-          // RX_CTRL 0x80 on EP0, 0xC0 on bulk OUT; the RM is silent), so the endpoint is re-armed
-          // unchanged for the host's next packet; left NAKing, the transfer stalls until the host
-          // times out. Iso endpoints run without handshake or toggle.
+          // RB_UEP_R_TOG_MATCH (RM 22.2.1.32/35, RO) is 0 for a host retransmission after a lost ACK, which
+          // the SIE stores and reports anyway: drop it. The SIE has ACKed it and set RES to NAK (measured;
+          // the RM is silent), so re-arm the endpoint unchanged or the transfer stalls until the host times
+          // out. Iso endpoints run without handshake or toggle.
           const uint8_t rx_ctrl = EP_RX_CTRL(ep_num);
           EP_RX_CTRL(ep_num) = (uint8_t)(rx_ctrl & ~WCH_USBHS_V2_UEP_R_DONE);
           if (xfer_status[ep_num][TUSB_DIR_OUT].is_iso || (rx_ctrl & WCH_USBHS_V2_UEP_R_TOG_MATCH)) {
@@ -674,12 +643,9 @@ void dcd_int_handler(uint8_t rhport) {
     // The transfer interrupt is acknowledged by clearing the per-endpoint DONE bits above (matching
     // the vendor driver); do NOT also write INT_FG - RB_UDIF_RTX_ACT is read-only anyway.
   } else if (intflag & WCH_USBHS_V2_UDIF_RX_SOF) {
-    // The hardware sets RB_UDIF_RX_SOF every frame whether or not the SOF interrupt is enabled, so
-    // this branch is reached on ANY interrupt that leaves no transfer pending. Emitting a SOF event
-    // unasked flooded usbd's event queue within one enumeration (queue_event asserts, events lost,
-    // the host sees the device drop) - and because the branch also short-circuits the chain, the
-    // terminal else never ran and an enabled-but-unhandled flag kept the IRQ line asserted, so the
-    // ISR re-entered immediately. Always clear the flag; only report it when usbd asked for it.
+    // RB_UDIF_RX_SOF is set every frame even with the SOF interrupt disabled, so this branch is reached
+    // on any interrupt that leaves no transfer pending: always clear it, and report it only when usbd
+    // asked (unasked SOF events overflowed usbd's event queue during enumeration).
     usbhs->INT_FG = WCH_USBHS_V2_UDIF_RX_SOF;
     if (sof_enabled) {
       dcd_event_sof(rhport, usbhs->FRAME_NO & WCH_USBHS_V2_UD_FRAME_NO, true);
@@ -702,12 +668,9 @@ void dcd_int_handler(uint8_t rhport) {
     usbhs->INT_FG = WCH_USBHS_V2_UDIF_BUS_RST;
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
   } else if (intflag & WCH_USBHS_V2_UDIF_SUSPEND) {
-    // This single interrupt fires on both suspend and resume; the live suspend status bit
-    // distinguishes them. Clear first, then sample, like the vendor demo (CH372Device).
-    // EDGE-TRIGGERED: the controller raises this constantly (measured on hardware: ~2000 times
-    // during one enumeration), and queueing a usbd event each time overflows the event queue -
-    // events are dropped, enumeration dies and the host sees the device disappear. usbd only
-    // needs the transitions, so report a change of state and swallow the repeats.
+    // One interrupt for suspend and resume; clear, then sample the live suspend status, like the vendor
+    // demo (CH372Device). It fires constantly (~2000 times per enumeration, measured), so report only
+    // state changes or usbd's event queue overflows.
     usbhs->INT_FG = WCH_USBHS_V2_UDIF_SUSPEND;
     const bool now_suspended = (usbhs->MIS_ST & WCH_USBHS_V2_UDMS_SUSPEND) != 0;
     if (now_suspended != bus_suspended) {
