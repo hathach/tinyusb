@@ -3,8 +3,9 @@ This README file contains the design notes and limitations of the
 MIDI host driver.
 
 # MAXIMUM NUMBER OF MIDI DEVICES ATTACHED TO HOST
-In this version of the driver, only one MIDI device is supported. This
-constraint may change in the future.
+The driver opens up to `CFG_TUH_MIDI` MIDI streaming interfaces at once, on
+one or more devices. The current usage guide is
+[docs/reference/class/midi.rst](../../../docs/reference/class/midi.rst).
 
 # MAXIMUM NUMBER OF ENDPOINTS
 Although the USB MIDI 1.0 Class specification allows an arbitrary number

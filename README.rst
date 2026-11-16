@@ -146,6 +146,7 @@ If you have a special requirement, ``usbd_app_driver_get_cb()`` can be used to w
 Host Stack
 ----------
 
+- Audio Class 1.0/2.0 (UAC1/UAC2)
 - Communication Device Class: CDC-ACM
 - Vendor serial over USB: FTDI, CP210x, CH34x, PL2303
 - Human Interface Device (HID): Keyboard, Mouse, Generic
