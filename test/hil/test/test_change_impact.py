@@ -1001,6 +1001,41 @@ class TestCachesAreKeyedOnTheTree(unittest.TestCase):
             os.chdir(old)
 
 
+class TestMakeFilterFiles(unittest.TestCase):
+    """The make filter's skip.txt/only.txt, read once per file (_filter_tokens): a missing file filters nothing, an
+    empty only.txt admits nothing, and tokens split on any whitespace as master's read did."""
+
+    CASES = {
+        'none': ({}, False),
+        'empty_skip': ({'skip.txt': ''}, False),
+        'empty_only': ({'only.txt': ''}, True),
+        'skip_board': ({'skip.txt': 'mcu:NONE\n\tboard:stm32f407disco\n'}, True),
+        'skip_other': ({'skip.txt': 'board:other family:other'}, False),
+        'only_family': ({'only.txt': 'mcu:NONE family:stm32f4'}, False),
+        'only_other': ({'only.txt': 'board:other'}, True),
+        'skip_wins': ({'skip.txt': 'family:stm32f4', 'only.txt': 'board:stm32f407disco'}, True),
+    }
+
+    def test_missing_empty_and_populated_files(self):
+        import build_utils, tempfile
+        old = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                os.symlink(os.path.join(REPO, 'hw'), os.path.join(d, 'hw'))
+                for name, (files, _) in self.CASES.items():
+                    os.makedirs(os.path.join(d, 'examples/device', name))
+                    for f, text in files.items():
+                        with open(os.path.join(d, 'examples/device', name, f), 'w') as fh:
+                            fh.write(text)
+                os.chdir(d)
+                for name, (_, want) in self.CASES.items():
+                    with self.subTest(name):
+                        self.assertEqual(build_utils.skip_example(f'device/{name}', 'stm32f407disco',
+                                                                  build_system='make'), want)
+        finally:
+            os.chdir(old)
+
+
 class TestClassesWithNoEnablingExample(unittest.TestCase):
     """The class rule is the one rule with no drift guard: ports, hw/mcu, get_deps
     tokens and bsp families all have one. A class dir that no example config enables
