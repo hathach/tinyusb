@@ -20,6 +20,7 @@
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import signal
@@ -816,6 +817,85 @@ class ThroughputPayloadBound(unittest.TestCase):
         self.assertLess(hil_test.dd_timeout(16), hil_test.hil_util.CMD_TIMEOUT)
 
 
+class ThroughputScratchFile(unittest.TestCase):
+    """The MSC read-back file is private to its attempt and removed however the attempt ends."""
+
+    def setUp(self):
+        from helper import hil_util, usb_observe
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        node = str(Path(tmp.name) / 'node')
+        Path(node).touch()
+        usbtest_harness.patch(self, hil_test, 'get_disk_dev', lambda *a: node)
+        usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: node)
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [])
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        self.cmds, self.fail = [], ''
+
+        def run_cmd(cmd, **k):
+            self.cmds.append(cmd)
+            rc = 1 if isinstance(cmd, str) and self.fail and re.search(rf'{self.fail}=\S*/cdc_msc_tp_', cmd) else 0
+            return types.SimpleNamespace(returncode=rc, stdout=b'1048576 bytes copied, 1 s, 1.0 MB/s')
+        usbtest_harness.patch(self, hil_util, 'run_cmd', run_cmd)
+
+    def scratch(self):
+        return [re.search(r'(?:of|if)=(\S+/cdc_msc_tp_\S+)', c).group(1) for c in self.cmds
+                if isinstance(c, str) and 'cdc_msc_tp_' in c]
+
+    def test_each_attempt_gets_its_own_file_and_removes_it(self):
+        seen = set()
+        for fail in ('', 'of', 'if', ''):   # pass, failed read, failed write, pass
+            with self.subTest(fail=fail):
+                self.cmds, self.fail = [], fail
+                if fail:
+                    with self.assertRaisesRegex(AssertionError, 'MSC dd (read|write) failed'):
+                        hil_test.test_device_cdc_msc_throughput({'uid': 'U'})
+                else:
+                    hil_test.test_device_cdc_msc_throughput({'uid': 'U'})
+                path, = set(self.scratch())
+                self.assertFalse(os.path.exists(path))
+                seen.add(path)
+        self.assertEqual(len(seen), 4, "a later attempt reused an earlier one's file")
+
+
+class UsbtmcCell(unittest.TestCase):
+    """A session that exits 0 must have reported a case: an empty one is no pass."""
+
+    def cell(self, out):
+        usbtest_harness.patch(self, hil_test, '_run_session', lambda *a: (0, out))
+        return hil_test.test_device_usbtmc({'name': 'b', 'uid': 'U'})
+
+    def test_empty_output_fails_and_passes_and_skips_count(self):
+        for out in ('', 'found device U\n'):
+            with self.subTest(out=out), self.assertRaisesRegex(AssertionError, 'no case results'):
+                self.cell(out)
+        self.assertEqual(self.cell('PASS a\nPASS b\n'), '✅ 2/2')
+        self.assertEqual(self.cell('PASS a\nSKIP b (high speed)\n'), '✅ 1/2 (1 skipped)')
+        self.assertEqual(self.cell('SKIP b (high speed)\n'), '✅ 0/1 (1 skipped)')
+
+
+class MidiDevice(unittest.TestCase):
+    """The by-id lookup survives a link that vanishes or names no control node."""
+
+    def lookup(self, links):
+        def readlink(path):
+            target = links[path]
+            if isinstance(target, Exception):
+                raise target
+            return target
+        usbtest_harness.patch(self, hil_test.glob, 'glob', lambda pattern: list(links))
+        usbtest_harness.patch(self, hil_test.os, 'readlink', readlink)
+        usbtest_harness.patch(self, hil_test.os.path, 'exists', lambda p: p == '/dev/snd/midiC3D0')
+        return hil_test.get_midi_dev('U')
+
+    def test_a_vanished_or_malformed_link_is_skipped(self):
+        self.assertEqual(self.lookup({'a': FileNotFoundError('gone'), 'b': '../controlC3'}), '/dev/snd/midiC3D0')
+        self.assertEqual(self.lookup({'a': '../pcmC3D0p', 'b': '../controlCx', 'c': '../controlC3'}),
+                         '/dev/snd/midiC3D0')
+        self.assertIsNone(self.lookup({'a': FileNotFoundError('gone')}))
+        self.assertIsNone(self.lookup({'a': '../controlC4'}))   # its midi node is not there yet
+
+
 class FindDeviceCache(unittest.TestCase):
     """usbtest.find_device is agentrc's hil_usbtest.find_device for 0525:a4a0, reading the sysfs
     root the harness's usb_observe names: one module, so a patched root reaches it."""
@@ -1567,6 +1647,16 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.assertFalse(self._run('{"cases": [{"num": 10, "status": "HUNG"', rc=124))
         self.assertIsInstance(self.raised, hil_test.TestFail)
         self.assertIn('usbtest did not run', str(self.raised))
+        self.assertEqual((self.raised.metric, self.raised.parsed), (hil_test.USBTEST_NOT_RUN, False))
+
+    def test_a_battery_that_ran_counts_its_own_tier(self):
+        """The denominator is the battery's own case count: 22 at tier 1, 30 at tier 4."""
+        for tier, total in ((1, 22), (4, 30)):
+            with self.subTest(tier=tier):
+                js = (f'{{"serial":"U","speed":"480","tier":{tier},"passed":{total - 1},"failed":1,"notrun":0,'
+                      f'"wedged":false,"cases":[{{"num":5,"status":"FAIL"}}]}}')
+                self._run(js)
+                self.assertEqual((self.raised.metric, self.raised.parsed), (f'❌ {total - 1}/{total}', True))
 
 
 class WedgedBoardCannotReportAPass(unittest.TestCase):
@@ -1970,8 +2060,8 @@ class ControllerCacheMerge(unittest.TestCase):
 
 
 class UsbtestAbsentDeviceVerdict(unittest.TestCase):
-    """An absent device fails before the battery is launched, and the cell needs the 0/30
-    denominator or the row reads as a bare failure."""
+    """An absent device fails before the battery is launched: the cell says the battery did not run, with no
+    count, since the device's tier sizes the battery (22 cases at tier 1, 30 at tier 4) and is never learned."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
@@ -1987,12 +2077,14 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
             raise AssertionError('launched a battery for an absent device')
         hil_util.run_cmd = boom
 
-    def test_a_readable_bus_without_the_device_says_absent_with_a_denominator(self):
+    def test_a_readable_bus_without_the_device_says_absent_without_a_count(self):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
         self.assertIn('no 0525:a4a0 device', str(cm.exception))
-        self.assertIn('0/30', cm.exception.metric)
+        self.assertEqual(cm.exception.metric, hil_test.USBTEST_NOT_RUN)
+        self.assertNotRegex(cm.exception.metric, r'\d')
+        self.assertFalse(cm.exception.parsed)   # retryable, and never the report's final-fail
 
 class UsbtestNeverCleansUp(unittest.TestCase):
     """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a

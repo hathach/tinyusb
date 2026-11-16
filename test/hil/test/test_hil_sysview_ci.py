@@ -48,8 +48,17 @@ class Report(unittest.TestCase):
         write_set(self.base, *base_objs); write_set(self.pr, *pr_objs)
         return sysview_ci.report(self.base, self.pr)
 
-    def test_empty_intersection_returns_empty(self):
-        self.assertEqual(self.go([board_json(board="a")], [board_json(board="b")]), "")
+    def test_a_board_only_the_pr_recorded_renders_against_no_base(self):
+        # with or without the baseline lookup's metadata: base records of other boards hide no PR board
+        for info in (None, {"sha": None, "exact": False, "note": "no build found"}):
+            with self.subTest(info=info):
+                funcs = [F("tud_task", 22000, 7.4)]
+                write_set(self.base, board_json(board="a", funcs=funcs))
+                write_set(self.pr, board_json(board="b", funcs=funcs))
+                md = sysview_ci.report(self.base, self.pr, info)
+                self.assertIn("### b — live 14.2 s — no base record for this board", md)
+                self.assertNotIn("### a", md)
+                self.assertIn("| new |", md)
         self.assertEqual(sysview_ci.report(self.base, os.path.join(self.tmp,'nope')), "")
 
     def test_delta_and_occupancy_order(self):

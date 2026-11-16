@@ -86,11 +86,20 @@ class ParseDevInfoRecords(unittest.TestCase):
         self.assertEqual(devs('Device 1: ID 1a86:55d4 SN ABC-DEF\r'), [])
 
 
+def fake_clock(test) -> list:
+    """time.sleep advances time.monotonic: the waits' deadlines run on simulated time, and a read may spend some."""
+    now = [0.0]
+    usbtest_harness.patch(test, hil_test.time, 'monotonic', lambda: now[0])
+    usbtest_harness.patch(test, hil_test.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s))
+    return now
+
+
 class FakeSerial:
     """Hands out one chunk per read, then nothing."""
     def __init__(self, chunks):
         self.chunks = list(chunks)
         self.timeout = None
+        self.closed = False
 
     @property
     def in_waiting(self):
@@ -100,7 +109,67 @@ class FakeSerial:
         return self.chunks.pop(0) if self.chunks else b''
 
     def close(self):
-        pass
+        self.closed = True
+
+
+class SlowSerial(FakeSerial):
+    """Every read blocks a full second (SERIAL_READ_TIMEOUT on a silent port) and returns nothing."""
+    def __init__(self, test, fail=None):
+        super().__init__([])
+        self.now, self.fail, self.reads = fake_clock(test), fail, 0
+
+    def read(self, n):
+        self.reads += 1
+        if self.fail:
+            raise self.fail
+        self.now[0] += 1
+        return b''
+
+
+class SerialWaits(unittest.TestCase):
+    """The enumeration waits are deadlines on the monotonic clock: a slow read spends the budget, it does not
+    stretch it, and an exceptional read still closes the port."""
+    BOARD = {'uid': 'U', 'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'S'}]}
+
+    def setUp(self):
+        usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: 3)
+        usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+
+    def run_dual(self, ser):
+        usbtest_harness.patch(self, hil_test, 'open_serial_dev', lambda port: ser)
+        return hil_test.test_dual_host_info_to_device_cdc(self.BOARD)
+
+    def test_a_slow_read_spends_the_budget(self):
+        for name, run in (('dual', self.run_dual), ('host', lambda ser: (
+                usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: ser),
+                hil_test.test_host_device_info(self.BOARD)))):
+            with self.subTest(name):
+                ser = SlowSerial(self)
+                with self.assertRaisesRegex(AssertionError, 'No data from device'):
+                    run(ser)
+                # 3 s at 1 s a read plus 0.1 s a sleep: a countdown of 0.1 s a pass made 30 reads, 33 s
+                self.assertEqual(ser.reads, 3)
+                self.assertTrue(ser.closed)
+
+    def test_an_exceptional_read_closes_the_port(self):
+        ser = SlowSerial(self, fail=OSError('device disconnected'))
+        with self.assertRaisesRegex(OSError, 'device disconnected'):
+            self.run_dual(ser)
+        self.assertTrue(ser.closed)
+
+    def test_opening_a_port_that_never_opens_is_bounded_by_the_deadline(self):
+        now = fake_clock(self)
+        tries = []
+
+        def busy(*a, **k):
+            tries.append(now[0])
+            now[0] += 1
+            raise hil_test.serial.SerialException('busy')
+        usbtest_harness.patch(self, hil_test.serial, 'Serial', busy)
+        with self.assertRaisesRegex(AssertionError, 'Cannot open port /dev/null'):
+            hil_test.open_serial_dev('/dev/null')
+        self.assertEqual(len(tries), 3)
 
 
 class CellVerdict(unittest.TestCase):
@@ -113,7 +182,7 @@ class CellVerdict(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
         usbtest_harness.patch(self, hil_test, 'open_serial_dev', lambda port: FakeSerial(chunks))
         usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: len(chunks) + 1)   # 10 reads a unit
-        usbtest_harness.patch(self, hil_test.time, 'sleep', lambda s: None)
+        fake_clock(self)
         out = usbtest_harness.Out()
         usbtest_harness.patch(self, sys, 'stdout', out)
         return hil_test.test_dual_host_info_to_device_cdc(self.BOARD)
@@ -141,7 +210,7 @@ class HostDeviceInfo(unittest.TestCase):
         chunks = [data[i:i + size] for i in range(0, len(data), size)]
         usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: FakeSerial(chunks))
         usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: len(chunks) + 1)
-        usbtest_harness.patch(self, hil_test.time, 'sleep', lambda s: None)
+        fake_clock(self)
         usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
         return hil_test.test_host_device_info(board)
 
@@ -220,7 +289,7 @@ class MscCapacity(unittest.TestCase):
 
         usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: Console(chunks))
         usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: 1)
-        usbtest_harness.patch(self, hil_test.time, 'sleep', lambda s: None)
+        fake_clock(self)
         usbtest_harness.patch(self, hil_test, 'check_msc_info', lambda text, devs: seen.append(text))
         usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
         with self.assertRaises(StopIteration):
