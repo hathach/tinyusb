@@ -701,8 +701,7 @@ static bool run_after_queue_call(void) {
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-// One dequeued event; false ends this tud_task_ext() run (a failed assertion)
-static bool usbd_process_event(dcd_event_t* event) {
+static void usbd_process_event(dcd_event_t* event) {
   switch (event->event_id) {
     case DCD_EVENT_BUS_RESET_START:
       TU_LOG_USBD("\r\n");
@@ -777,7 +776,7 @@ static bool usbd_process_event(dcd_event_t* event) {
       _usbd_dev.ep_status[epnum][ep_dir] = (uint8_t) (
         (_usbd_dev.ep_status[epnum][ep_dir] & ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) | rx_pending);
 
-      if (driver == NULL) {
+      if (epnum == 0) {
         // Not stalled on failure: a DCD refuses an EP0 prime when a newer setup is already
         // latched, and EP0 stalls are cleared by hardware when that setup arrives - so a stall
         // issued here lands after the auto-clear and would stall the transfer that superseded
@@ -832,7 +831,6 @@ static bool usbd_process_event(dcd_event_t* event) {
       TU_BREAKPOINT();
       break;
   }
-  return true;
 }
 
 /* USB Device Driver task
@@ -899,11 +897,8 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 #endif
 
     TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
-    bool const cont = usbd_process_event(&event);
+    usbd_process_event(&event);
     TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
-    if (!cont) {
-      return false;
-    }
 
     tu_sysview_stack_report(TUSB_ROLE_DEVICE);
 
@@ -1349,7 +1344,8 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
         // Handle STD request to endpoint
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_STATUS:
-            // USB 2.0 9.4.5: endpoint GET_STATUS bit 0 = Halt
+            // USB 2.0 9.4.5: endpoint GET_STATUS bit 0 = Halt; an endpoint no interface owns is a Request Error
+            TU_VERIFY(ep_num == 0 || driver != NULL);
             TU_VERIFY(process_get_status(rhport, p_request, usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u));
             break;
 
@@ -1768,9 +1764,7 @@ void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr) {
 
   TU_VERIFY((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0,);
   (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  if ((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0) {
-    *ep_state &= (uint8_t) ~TU_EDPT_STATE_RX_PENDING;
-  }
+  *ep_state &= (uint8_t) ~TU_EDPT_STATE_RX_PENDING;
   (void) osal_mutex_unlock(_usbd_mutex);
 }
 
@@ -1856,7 +1850,6 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
     // DCD error, mark endpoint as ready to allow next transfer
     _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
     TU_LOG_USBD("failed\r\n");
-    TU_BREAKPOINT();
     return false;
   }
   #else

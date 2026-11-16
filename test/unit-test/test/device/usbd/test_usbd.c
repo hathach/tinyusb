@@ -173,6 +173,20 @@ static void replug(void) {
   tud_task();
 }
 
+static unsigned deferred_calls;
+
+static void count_call(void* param) {
+  (*(unsigned*) param)++;
+}
+
+// tud_task() until no work is left; bounded so a regression that keeps work pending fails instead of hanging
+static void drain_events(void) {
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 2 && tud_task_event_ready(); i++) {
+    tud_task();
+  }
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
 //--------------------------------------------------------------------+
 // Task
 //--------------------------------------------------------------------+
@@ -517,9 +531,7 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x01, xfer_buf, 64, false));
 
   // drain the fillers so later tests start from an empty queue
-  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
-    tud_task();
-  }
+  drain_events();
   replug();
 }
 
@@ -653,10 +665,6 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
 // A DCD may queue the unplug ahead of an endpoint completion latched in the same ISR run (dwc2 handles OTGINT before
 // the endpoint interrupts). The unplug unbinds the endpoint, so the completion that follows is stale: it is dropped
 // without reaching the class (mscd_xfer_cb has no expectation) and the run goes on to the next event.
-static void count_call(void* param) {
-  (*(unsigned*) param)++;
-}
-
 void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
   msc_out_armed();
 
@@ -833,9 +841,7 @@ static bool xfer_cb_rearm_dropped(uint8_t rhport_, uint8_t ep_addr, xfer_result_
 void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
   msc_out_armed();
   msc_out_complete(xfer_cb_rearm_dropped);
-  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
-    tud_task();
-  }
+  drain_events();
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
@@ -1082,14 +1088,8 @@ void test_usbd_stream_wide_request(void)
 //--------------------------------------------------------------------+
 // usbd_defer_func_after_queue
 //--------------------------------------------------------------------+
-static unsigned deferred_calls;
 static unsigned after_queue_runs;
 static unsigned deferred_calls_at_after_queue;
-
-static void deferred_call(void* param) {
-  (void) param;
-  deferred_calls++;
-}
 
 static void after_queue_call(void* param) {
   (void) param;
@@ -1101,13 +1101,11 @@ static void after_queue_call(void* param) {
 void test_usbd_defer_func_after_queue_runs_after_queued_events(void) {
   deferred_calls = after_queue_runs = 0;
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
-    usbd_defer_func(deferred_call, NULL, false);
+    usbd_defer_func(count_call, &deferred_calls, false);
   }
   TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
 
-  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 2; i++) {
-    tud_task();
-  }
+  drain_events();
   TEST_ASSERT_EQUAL(1, after_queue_runs);
   TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls_at_after_queue);
 }
@@ -1120,7 +1118,7 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
   TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
   TEST_ASSERT_TRUE(tud_task_event_ready());
   TEST_ASSERT_TRUE(usbd_defer_func_after_queue(after_queue_call, NULL));
-  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(deferred_call, NULL));
+  TEST_ASSERT_FALSE(usbd_defer_func_after_queue(count_call, &deferred_calls));
   TEST_ASSERT_FALSE(usbd_defer_func_after_queue(after_queue_call, &after_queue_runs));
 
   tud_task();
@@ -1128,7 +1126,7 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
   TEST_ASSERT_EQUAL(0, deferred_calls);
   TEST_ASSERT_FALSE(tud_task_event_ready());
 
-  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
+  TEST_ASSERT_TRUE(usbd_defer_func_after_queue(count_call, &deferred_calls));
   tud_task();
   TEST_ASSERT_EQUAL(1, deferred_calls);
 }
@@ -1140,9 +1138,9 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
 // events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
 void test_usbd_task_stop_after_queued_events(void) {
   deferred_calls = 0;
-  usbd_defer_func(deferred_call, NULL, false);
+  usbd_defer_func(count_call, &deferred_calls, false);
   TEST_ASSERT_TRUE(tud_task_stop());
-  usbd_defer_func(deferred_call, NULL, false);
+  usbd_defer_func(count_call, &deferred_calls, false);
 
   TEST_ASSERT_TRUE(tud_task());
   TEST_ASSERT_EQUAL(1, deferred_calls);
@@ -1156,7 +1154,7 @@ void test_usbd_task_stop_after_queued_events(void) {
 void test_usbd_task_stop_full_queue(void) {
   deferred_calls = 0;
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
-    usbd_defer_func(deferred_call, NULL, false);
+    usbd_defer_func(count_call, &deferred_calls, false);
   }
   TEST_ASSERT_FALSE(tud_task_stop());
 
@@ -1173,7 +1171,7 @@ void test_usbd_task_stop_full_queue(void) {
 void test_usbd_task_stop_last_event_of_run(void) {
   deferred_calls = 0;
   for (unsigned i = 0; i < CFG_TUD_TASK_EVENTS_PER_RUN - 1; i++) {
-    usbd_defer_func(deferred_call, NULL, false);
+    usbd_defer_func(count_call, &deferred_calls, false);
   }
   TEST_ASSERT_TRUE(tud_task_stop());
 
@@ -1234,9 +1232,7 @@ static unsigned sof_cb_after(unsigned n) {
   for (unsigned i = 0; i < n; i++) {
     dcd_event_sof(rhport, i, false);
   }
-  while (tud_task_event_ready()) {
-    tud_task();
-  }
+  drain_events();
   return sof_cb_count - before;
 }
 
@@ -1380,4 +1376,61 @@ void test_usbd_stream_read_xfer_cap_rounded_to_packets(void) {
 
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 64, false, true);
   TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read_xfer(&stream));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint GET_STATUS: a Request Error for an endpoint no interface owns (USB 2.0 9.4.5)
+//--------------------------------------------------------------------+
+static void get_endpoint_status(uint8_t ep_addr) {
+  static tusb_control_request_t req; // read by the expectation during tud_task()
+  req = (tusb_control_request_t) {
+    .bmRequestType = 0x82, .bRequest = TUSB_REQ_GET_STATUS, .wValue = 0, .wIndex = ep_addr, .wLength = 2
+  };
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+}
+
+static void expect_endpoint_status_not_halted(void) {
+  static const uint8_t not_halted[2] = {0, 0};
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) not_halted, 2, 2, false, true);
+}
+
+void test_usbd_get_status_ep0(void) {
+  bus_reset();
+  get_endpoint_status(EDPT_CTRL_IN);
+  expect_endpoint_status_not_halted();
+  tud_task();
+}
+
+void test_usbd_get_status_owned_endpoint(void) {
+  msc_configured();
+  get_endpoint_status(EDPT_MSC_IN);
+  expect_endpoint_status_not_halted();
+  tud_task();
+}
+
+void test_usbd_get_status_unowned_endpoint_is_stalled(void) {
+  msc_configured();
+  get_endpoint_status(0x82);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// FIFO transfer refused by the DCD
+//--------------------------------------------------------------------+
+
+// a refusal (e.g. dwc2 on a closed endpoint) releases the endpoint, which can be claimed and armed again
+void test_usbd_edpt_xfer_fifo_refused_releases_endpoint(void) {
+  static tu_fifo_t ff;
+  msc_configured();
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_IN));
+  dcd_edpt_xfer_fifo_ExpectAndReturn(rhport, EDPT_MSC_IN, &ff, 64, false, false);
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_fifo(rhport, EDPT_MSC_IN, &ff, 64, false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_IN));
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_IN));
+  dcd_edpt_xfer_fifo_ExpectAndReturn(rhport, EDPT_MSC_IN, &ff, 64, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer_fifo(rhport, EDPT_MSC_IN, &ff, 64, false));
 }
