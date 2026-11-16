@@ -119,9 +119,10 @@ Core API and callbacks
        Attachments deferred behind an ongoing enumeration are not processed;
        ``tuh_deinit()`` drops them.  Call it once per stop, from one other
        task, not an ISR.  On a full queue it waits for space when the OS
-       adapter's queue send waits (FreeRTOS, ThreadX, Zephyr); otherwise (no
-       OS, RT-Thread, RTX4, Mynewt) it returns ``false`` and the caller
-       retries.  It also returns ``false`` if the stack is not initialized.
+       adapter's queue send waits (FreeRTOS, ThreadX, Zephyr, STK); otherwise
+       (no OS, RT-Thread, RTX4, Mynewt, Pico) it returns ``false`` and the
+       caller retries.  It also returns ``false`` if the stack is not
+       initialized.
    * - ``tuh_mount_cb()`` / ``tuh_umount_cb()``
      - Announces a configured device or detachment.  Class mount callbacks
        provide the interface-specific indices used for I/O.
