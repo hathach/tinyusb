@@ -44,6 +44,7 @@ static tusb_control_request_t control_request;
 static uint8_t                control_buffer[8];
 static uint8_t                control_xfer_count;
 static uint32_t               control_sync_actual_len;
+static tusb_xfer_result_t     control_sync_result;
 
 static bool                 edpt_open_result;
 static tusb_desc_endpoint_t opened_ep[4];
@@ -127,8 +128,12 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
   if (xfer->buffer != NULL) {
     memcpy(control_buffer, xfer->buffer, TU_MIN(sizeof(control_buffer), control_request.wLength));
   }
-  xfer->result     = XFER_RESULT_SUCCESS;
+  // A blocking request completes before returning, reporting through user_data as usbh does
+  xfer->result     = control_sync_result;
   xfer->actual_len = control_sync_actual_len;
+  if (control_xfer_result && xfer->complete_cb == NULL && xfer->user_data != 0) {
+    *((tusb_xfer_result_t *)xfer->user_data) = control_sync_result;
+  }
   return control_xfer_result;
 }
 
@@ -487,6 +492,28 @@ static const uint8_t uac2_duplex_shared_clock[] = {
   TEST_UAC2_AS_GENERAL(CAPTURE_OUTPUT_TERM, 1),
   TEST_UAC2_FORMAT(2, 16),
   TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 96, 1),
+  TEST_UAC2_CS_DATA_EP,
+};
+
+// Capture endpoint too small for any clock rate: capture keeps its AS interface but gets no configuration
+static const uint8_t uac2_duplex_capture_without_config[] = {
+  TEST_UAC2_AC_HEADER(75),
+  TEST_UAC2_OUTPUT_TERM(CAPTURE_OUTPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, CAPTURE_INPUT_TERM, PLAYBACK_CLOCK),
+  TEST_UAC2_INPUT_TERM(PLAYBACK_INPUT_TERM, AUDIO_TERM_TYPE_USB_STREAMING, PLAYBACK_CLOCK, 2),
+  TEST_UAC2_CLOCK_SOURCE(PLAYBACK_CLOCK, AUDIO20_CTRL_RW << AUDIO20_CLOCK_SOURCE_CTRL_CLK_FRQ_POS),
+  TEST_UAC2_INPUT_TERM(CAPTURE_INPUT_TERM, AUDIO_TERM_TYPE_IN_GENERIC_MIC, PLAYBACK_CLOCK, 1),
+  TEST_UAC2_OUTPUT_TERM(PLAYBACK_OUTPUT_TERM, AUDIO_TERM_TYPE_OUT_HEADPHONES, PLAYBACK_INPUT_TERM, PLAYBACK_CLOCK),
+  TEST_UAC2_AS_ALT0,
+  TEST_UAC2_AS_INTERFACE(1, 1),
+  TEST_UAC2_AS_GENERAL(PLAYBACK_INPUT_TERM, 2),
+  TEST_UAC2_FORMAT(2, 16),
+  TEST_UAC2_CS_DATA_EP,
+  TEST_UAC1_DATA_EP(0x01, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 192, 1),
+  TEST_UAC2_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 0, 0),
+  TEST_UAC2_AS_INTERFACE_NUM(AUDIO_AS_IN_ITF, 1, 1),
+  TEST_UAC2_AS_GENERAL(CAPTURE_OUTPUT_TERM, 1),
+  TEST_UAC2_FORMAT(2, 16),
+  TEST_UAC1_DATA_EP(0x81, TUSB_ISO_EP_ATT_ASYNCHRONOUS, 32, 1),
   TEST_UAC2_CS_DATA_EP,
 };
 
@@ -936,6 +963,7 @@ void setUp(void) {
   memset(control_buffer, 0, sizeof(control_buffer));
   control_xfer_count      = 0;
   control_sync_actual_len = 0;
+  control_sync_result     = XFER_RESULT_SUCCESS;
 
   edpt_open_result = true;
   memset(opened_ep, 0, sizeof(opened_ep));
@@ -1245,6 +1273,26 @@ void test_audio_host_uac2_shared_clock_is_discovered_once_for_both_streams(void)
   TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_CAPTURE, tuh_audio_stream_direction(0, 1));
   TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_config_count(0, 0));
   TEST_ASSERT_EQUAL_UINT8(2, tuh_audio_config_count(0, 1));
+}
+
+void test_audio_host_uac2_rejects_index_of_stream_without_config(void) {
+  open_descriptors(uac2_duplex_capture_without_config, sizeof(uac2_duplex_capture_without_config));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  complete_uac2_clock_range(44100, 48000);
+
+  TEST_ASSERT_TRUE(tuh_audio_mounted(0));
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_audio_stream_count(0));
+  TEST_ASSERT_TRUE(tuh_audio_stream_exists(0, 0));
+  TEST_ASSERT_EQUAL(TUH_AUDIO_STREAM_PLAYBACK, tuh_audio_stream_direction(0, 0));
+  TEST_ASSERT_FALSE(tuh_audio_stream_exists(0, 1));
+  TEST_ASSERT_FALSE(tuh_audio_stream_exists(0, TUSB_INDEX_INVALID_8));
+  TEST_ASSERT_FALSE(tuh_audio_configure(0, TUSB_INDEX_INVALID_8, 0));
+  TEST_ASSERT_FALSE(tuh_audio_start(0, TUSB_INDEX_INVALID_8));
+
+  bool mute = false;
+  TEST_ASSERT_FALSE(tuh_audio_mute_get(0, TUSB_INDEX_INVALID_8, &mute, NULL, 0));
+  TEST_ASSERT_FALSE(tuh_audio_mute_set(0, TUSB_INDEX_INVALID_8, true, NULL, 0));
+  TEST_ASSERT_EQUAL_UINT8(1, control_xfer_count);
 }
 
 void test_audio_host_uac2_finds_clock_source_after_unrelated_clocks(void) {
@@ -1884,6 +1932,39 @@ void test_audio_host_typed_mute_and_volume_controls(void) {
   TEST_ASSERT_EQUAL_INT16(-12 * 256, volume);
   TEST_ASSERT_EQUAL_UINT8(4, fu_cb_count);
   TEST_ASSERT_EQUAL_HEX32(0x4567, fu_cb_user_data);
+}
+
+void test_audio_host_sync_mute_and_volume_wrappers_return_transfer_result(void) {
+  bool    mute   = false;
+  int16_t volume = 0;
+  mount_descriptors(playback_fu_before_terminal, sizeof(playback_fu_before_terminal));
+  const uint8_t base_count = control_xfer_count;
+
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, tuh_audio_mute_set_sync(0, 0, true));
+  TEST_ASSERT_EQUAL_HEX8(AUDIO10_CS_REQ_SET_CUR, control_request.bRequest);
+  TEST_ASSERT_EQUAL_HEX8(1, control_buffer[0]);
+
+  control_sync_actual_len = 1;
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, tuh_audio_mute_get_sync(0, 0, &mute));
+  TEST_ASSERT_EQUAL_HEX8(AUDIO10_CS_REQ_GET_CUR, control_request.bRequest);
+
+  control_sync_actual_len = 2;
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, tuh_audio_volume_set_sync(0, 0, 0, -6 * 256));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(((uint8_t[]){0x00, 0xFA}), control_buffer, 2);
+  TEST_ASSERT_EQUAL(XFER_RESULT_SUCCESS, tuh_audio_volume_get_sync(0, 0, 0, &volume));
+
+  control_sync_result = XFER_RESULT_STALLED;
+  TEST_ASSERT_EQUAL(XFER_RESULT_STALLED, tuh_audio_mute_set_sync(0, 0, false));
+  TEST_ASSERT_EQUAL(XFER_RESULT_STALLED, tuh_audio_volume_get_sync(0, 0, 0, &volume));
+
+  // A short GET response is a failure even though the transfer itself succeeded
+  control_sync_result     = XFER_RESULT_SUCCESS;
+  control_sync_actual_len = 1;
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, tuh_audio_volume_get_sync(0, 0, 0, &volume));
+
+  control_xfer_result = false;
+  TEST_ASSERT_EQUAL(XFER_RESULT_TIMEOUT, tuh_audio_mute_get_sync(0, 0, &mute));
+  TEST_ASSERT_EQUAL_UINT8(base_count + 8, control_xfer_count);
 }
 
 // Unplugged with an asynchronous Feature Unit request in flight: usbh fails it after the class close, and the
