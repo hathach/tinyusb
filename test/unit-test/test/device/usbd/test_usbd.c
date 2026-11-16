@@ -380,7 +380,7 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
     .wMaxPacketSize   = 64,
     .bInterval        = 0
   };
-  static uint8_t xfer_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[64];
 
   dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, true);
   TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep));
@@ -453,7 +453,7 @@ tusb_control_request_t const req_set_configuration = {
   .wLength       = 0
 };
 
-static uint8_t msc_out_buf[64];
+TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t msc_out_buf[64]; // usbd_edpt_xfer() checks the alignment
 
 // Bind the bulk endpoints to the (mocked) MSC driver
 static void msc_configured(void) {
@@ -765,7 +765,7 @@ void test_usbd_open_edpt_pair_short_blength(void) {
 void test_usbd_stream_write_zlp_after_full_packet(void)
 {
   uint8_t ff_buf[64];
-  uint8_t ep_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -802,7 +802,7 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
 // packet overruns.
 void test_usbd_stream_read_xfer_non_power_of_2_mps(void) {
   uint8_t ff_buf[100];
-  uint8_t ep_buf[96];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[96];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -824,7 +824,7 @@ void test_usbd_stream_read_xfer_non_power_of_2_mps(void) {
 // A transfer of whole 48-byte packets ends on a full packet, so the host needs a ZLP after it
 void test_usbd_stream_write_zlp_non_power_of_2_mps(void) {
   uint8_t ff_buf[128];
-  uint8_t ep_buf[96];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[96];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -852,7 +852,7 @@ void test_usbd_stream_write_zlp_non_power_of_2_mps(void) {
 // ep_buf must not be lost: the next write submits it again, ahead of the newly queued byte.
 void test_usbd_stream_write_refused_xfer_keeps_data(void) {
   uint8_t ff_buf[128];
-  uint8_t ep_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
   uint8_t src[64];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
@@ -892,7 +892,7 @@ void test_usbd_stream_write_refused_xfer_keeps_data(void) {
 // A short refused packet is topped up from the FIFO when it is resent, keeping the byte order
 void test_usbd_stream_write_xfer_refused_short_packet_topped_up(void) {
   uint8_t ff_buf[128];
-  uint8_t ep_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
