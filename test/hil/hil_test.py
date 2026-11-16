@@ -1120,11 +1120,11 @@ def test_device_cdc_msc_throughput(board):
         # inner bound, like the CDC pair above: run_cmd's SIGKILL is merely QUEUED against a
         # dd blocked in the block layer on a half-dead device, so without one the call rides
         # CMD_TIMEOUT and is abandoned holding the disk and usbfs nodes.
-        rmr = hil_util.run_cmd(f'timeout {t_msc} dd if={dev} of={tmp_file} bs=1M count={msc_count} iflag=direct 2>&1')
+        rmr = hil_util.run_cmd(f'timeout {t_msc} dd if={dev} of={shlex.quote(tmp_file)} bs=1M count={msc_count} iflag=direct 2>&1')
         assert rmr.returncode == 0, f'MSC dd read failed: {hil_util.cmd_stdout_text(rmr.stdout)}'
         msc_r = parse_speed(hil_util.cmd_stdout_text(rmr.stdout))
 
-        rmw = hil_util.run_cmd(f'timeout {t_msc} dd if={tmp_file} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
+        rmw = hil_util.run_cmd(f'timeout {t_msc} dd if={shlex.quote(tmp_file)} of={dev} bs=1M count={msc_count} oflag=direct 2>&1')
         assert rmw.returncode == 0, f'MSC dd write failed: {hil_util.cmd_stdout_text(rmw.stdout)}'
         msc_w = parse_speed(hil_util.cmd_stdout_text(rmw.stdout))
     finally:

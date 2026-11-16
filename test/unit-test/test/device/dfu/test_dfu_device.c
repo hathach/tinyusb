@@ -244,3 +244,14 @@ void test_getstatus_out_stalls(void) {
   host_complete_ep0(EP_CTRL_IN, sizeof(dfu_status_response_t));
   host_complete_ep0(EP_CTRL_OUT, 0);
 }
+
+// A tail too short to hold bDescriptorType after an interface: nothing past max_len is read
+static uint8_t desc_dfu_tail[sizeof(tusb_desc_interface_t) + 1];
+
+void test_open_rejects_one_byte_tail(void) {
+  for (uint8_t tail_len = 0; tail_len < 2; tail_len++) {
+    memcpy(desc_dfu_tail, desc_configuration + TUD_CONFIG_DESC_LEN, sizeof(tusb_desc_interface_t));
+    desc_dfu_tail[sizeof(tusb_desc_interface_t)] = tail_len;
+    TEST_ASSERT_EQUAL(0, dfu_moded_open(RHPORT, (const tusb_desc_interface_t *) desc_dfu_tail, sizeof(desc_dfu_tail)));
+  }
+}

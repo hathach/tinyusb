@@ -172,7 +172,9 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   uint8_t alt_count = 0;
   const uint8_t* p_desc = desc_start;
 
-  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
+  // bLength >= 2 keeps bDescriptorType inside max_len
+  while (tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= 2 &&
+         tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) {
     // a whole interface descriptor, which also moves the walk forward
     TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
     const tusb_desc_interface_t* alt_desc = (const tusb_desc_interface_t*) p_desc;
@@ -191,8 +193,8 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   }
 
   //------------- DFU Functional descriptor -------------//
-  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_type(p_desc) == TUSB_DESC_FUNCTIONAL &&
-            tu_desc_len(p_desc) >= sizeof(tusb_desc_dfu_functional_t), 0);
+  TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_dfu_functional_t) &&
+            tu_desc_type(p_desc) == TUSB_DESC_FUNCTIONAL, 0);
   const tusb_desc_dfu_functional_t* func_desc = (const tusb_desc_dfu_functional_t*) p_desc;
   const uint16_t drv_len = (uint16_t) ((p_desc - desc_start) + sizeof(tusb_desc_dfu_functional_t));
 
