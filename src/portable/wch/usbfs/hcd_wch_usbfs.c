@@ -89,9 +89,9 @@ typedef struct {
   uint8_t xfer_type : 2;
   uint8_t bounce    : 1; // current IN packet lands in bounce_buf
   uint8_t nak_count : 5; // NAKs in this frame
-  uint8_t err_count : 2; // consecutive transactions without response
-  uint8_t  interval;    // service interval in frames
-  uint16_t packet_size; // 0 = free slot
+  uint8_t  interval; // service interval in frames
+  uint16_t packet_size : 11; // 0 = free slot
+  uint16_t err_count   : 2;  // consecutive transactions without response
   uint16_t next_frame;  // earliest frame for the next attempt
 
   uint16_t total_len;
