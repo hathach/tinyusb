@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for .github/actions/setup_toolchain: the toolchain manifest and fetch.sh, with curl stubbed."""
+"""Tests for .github/actions/setup_toolchain: the toolchain manifest, cache_key.sh, and fetch.sh with curl stubbed."""
 import hashlib
 import json
 import os
@@ -11,6 +11,7 @@ import unittest
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 ACTION = os.path.join(REPO, '.github', 'actions', 'setup_toolchain')
 FETCH = os.path.join(ACTION, 'download', 'fetch.sh')
+CACHE_KEY = os.path.join(ACTION, 'download', 'cache_key.sh')
 PAYLOAD = 'toolchain bytes\n'
 DIGEST = hashlib.sha256(PAYLOAD.encode()).hexdigest()
 
@@ -42,6 +43,37 @@ class Manifest(unittest.TestCase):
     def test_esp_idf_pins_a_release_image(self):
         self.assertEqual(set(self.manifest['esp-idf']), {'image'})
         self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
+
+
+class CacheKey(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        # cache_key.sh reads ../toolchain.json beside itself, so run a copy next to a fixture manifest
+        os.mkdir(os.path.join(self.tmp, 'download'))
+        self.script = shutil.copy(CACHE_KEY, os.path.join(self.tmp, 'download', 'cache_key.sh'))
+        with open(os.path.join(self.tmp, 'toolchain.json'), 'w') as f:
+            json.dump({'arm-gcc': {'url': 'https://example.invalid/a', 'sha256': 'a' * 64},
+                       'arm-iar': {'url': 'https://example.invalid/b', 'sha256': 'b' * 64},
+                       'iar-lmsc-tools': {'url': 'https://example.invalid/c', 'sha256': 'c' * 64}}, f)
+
+    def key(self, name):
+        return subprocess.run([self.script, name], capture_output=True, text=True)
+
+    def test_ordinary_toolchain_is_its_own_sha256(self):
+        r = self.key('arm-gcc')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, 'a' * 64)
+
+    def test_arm_iar_adds_iar_lmsc_tools_sha256(self):
+        r = self.key('arm-iar')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, 'b' * 64 + '-' + 'c' * 64)
+
+    def test_unknown_toolchain_fails(self):
+        r = self.key('other')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(r.stdout, '')
 
 
 class Fetch(unittest.TestCase):

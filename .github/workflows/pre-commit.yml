@@ -41,7 +41,8 @@ jobs:
 
     - name: Fuzz
       run: |
-        python3 tools/get_deps.py
+        # lwIP headers are the harnesses' only external source dependency
+        python3 tools/get_deps.py lib/lwip
         cmake -S test/fuzz -B test/fuzz/_build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
         cmake --build test/fuzz/_build --parallel
         ctest --test-dir test/fuzz/_build --output-on-failure
