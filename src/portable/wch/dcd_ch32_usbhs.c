@@ -446,15 +446,15 @@ void dcd_int_handler(uint8_t rhport) {
         uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
         dcd_event_sof(rhport, frame_count, true);
       }
-    // Drop an OUT packet whose data toggle doesn't match what we expect -- a host retransmit
-    // after a lost ACK, or a host that doesn't alternate DATA0/DATA1.
     } else if (token == USBHS_TOKEN_PID_OUT && (int_status & USBHS_DEV_UIS_TOG_OK)) {
+      // An OUT packet whose data toggle doesn't match -- a host retransmit after a lost ACK, or a host
+      // that doesn't alternate DATA0/DATA1 -- fails TOG_OK and is dropped.
       if (ep_num != 0) {
         // Release early: ISO transfers ignore INT_BUSY and would overwrite
         // the shared INT_ST/RX_LEN of this pending completion.
         xfer_ctl_t const *const out = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
-        // Keep the receive armed if update_out() rejects this packet's toggle. A retired transfer
-        // already has its final response (NAK, or STALL that must not be overwritten).
+        // NAK until update_out() re-arms or retires the receive. A retired transfer already has its
+        // final response (NAK, or STALL that must not be overwritten).
         if (!out->is_iso && out->valid) {
           EP_RX_CTRL(ep_num) = (EP_RX_CTRL(ep_num) & ~(USBHS_EP_R_RES_MASK)) | USBHS_EP_R_RES_NAK;
         }
@@ -492,9 +492,7 @@ void dcd_int_handler(uint8_t rhport) {
     // The SUSPEND interrupt fires on both suspend and resume; MIS_ST's suspend bit tells them apart
     // (set while suspended, clear once resumed). Reporting both as suspend leaves usbd suspended for
     // good: SOF interrupts are off after reset, so nothing else clears it and tud_ready() stays false.
-    dcd_event_t event = {.rhport = rhport,
-                         .event_id = (USBHSD->MIS_ST & USBHS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME};
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, (USBHSD->MIS_ST & USBHS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME, true);
 
     USBHSD->INT_FG = USBHS_SUSPEND_FLAG; /* Clear flag */
   } else {
