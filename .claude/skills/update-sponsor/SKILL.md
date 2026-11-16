@@ -24,5 +24,6 @@ Applying dirties tracked files (`README.rst`, sometimes `tools/codespell/ignore-
 leave them unstaged for the maintainer, as `make-release` does.
 
 **`.github/workflows/labeler.yml` owns the label rules.** It applies the same labels when a ticket is
-opened; this script only backfills what that workflow cannot reach — tickets older than it, and
-private sponsors its `GITHUB_TOKEN` cannot see. Changing the policy means changing both.
+opened; this script only backfills what that workflow cannot reach — tickets older than it. A
+private sponsor, whom its `GITHUB_TOKEN` cannot see, gets no label from either (`--rules` says why).
+Changing the policy means changing both.

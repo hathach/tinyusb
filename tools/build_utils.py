@@ -379,18 +379,15 @@ def _skip_example_make(example, board):
             max3421_enabled = True
             break
 
-    skip_file = ex_dir / "skip.txt"
-    only_file = ex_dir / "only.txt"
-
-    if skip_file.exists():
-        skips = skip_file.read_text(**_TEXT).split()
+    skips = _filter_tokens(str(ex_dir / "skip.txt"))
+    if skips is not None:
         if ("mcu:" + mcu in skips or
             "board:" + board in skips or
             "family:" + family in skips):
             return True
 
-    if only_file.exists():
-        onlys = only_file.read_text(**_TEXT).split()
+    onlys = _filter_tokens(str(ex_dir / "only.txt"))
+    if onlys is not None:
         if not ("mcu:" + mcu in onlys or
                 ("mcu:MAX3421" in onlys and max3421_enabled) or
                 "board:" + board in onlys or
@@ -471,10 +468,10 @@ def dep_head(path):
 def missing_deps(family, root=None):
     """The family's dependencies that are not what get_deps.py's table asks for, each
     named with why. Present means content, not a directory: get_deps.py git-inits the dep
-    dir before fetching and exits 0 whatever the fetch did (its run_cmd's status is
-    ignored), so a fetch that failed leaves a dir holding nothing but .git. A checkout at
-    another commit is the same kind of miss: when the change under test bumps a pin, a
-    stale checkout builds the revision the change is replacing and verifies nothing."""
+    dir before fetching, so a failed or interrupted fetch leaves a dir holding nothing but
+    .git. A checkout at another commit is the same kind of miss: when the change under test
+    bumps a pin, a stale checkout builds the revision the change is replacing and verifies
+    nothing."""
     root = pathlib.Path(root) if root else pathlib.Path(__file__).resolve().parents[1]
     needed = list(get_deps.deps_mandatory) + \
         [d for d, entry in get_deps.deps_optional.items() if family in entry[2].split()]
