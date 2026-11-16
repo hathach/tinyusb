@@ -404,6 +404,10 @@ static tuh_audio_stream_t *audioh_get_stream(audioh_interface_t *p_audio, tusb_d
 }
 
 static tuh_audio_stream_t *audioh_get_stream_by_idx(audioh_interface_t *p_audio, uint8_t stream_idx) {
+  // A stream without any usable configuration keeps TUSB_INDEX_INVALID_8
+  if (stream_idx >= p_audio->stream_count) {
+    return NULL;
+  }
   for (uint8_t i = 0; i < 2; i++) {
     tuh_audio_stream_t *s = (i == 0) ? &p_audio->out_stream : &p_audio->in_stream;
     if (s->as_count > 0 && s->stream_idx == stream_idx) {
