@@ -199,7 +199,9 @@ number and direction which usually determines where to write the buffer info. Th
 written to a specific location in memory and the peripheral is told the data is valid. (Maybe by writing a 1 to a
 register or setting a counter register to 0 for OUT or length for IN.)
 
-The transmit buffer alignment is determined by ``CFG_TUSB_MEM_ALIGN``.
+The transfer buffer alignment is what the controller needs: set ``TUP_DCD_MEM_ALIGN`` (device) or
+``TUP_HCD_MEM_ALIGN`` (host) for the MCU in ``src/common/tusb_mcu.h`` when it is more than the default 4 bytes. It is
+the default of ``CFG_TUD_MEM_ALIGN``/``CFG_TUH_MEM_ALIGN``, and usbd/usbh assert every transfer buffer meets it.
 
 One potential pitfall is that the buffer may be longer than the maximum endpoint size of one USB
 packet. Some peripherals can handle transmitting multiple USB packets for a provided buffer (like the SAMD21).

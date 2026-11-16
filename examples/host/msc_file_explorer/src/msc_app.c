@@ -60,7 +60,7 @@ static CFG_TUH_MEM_SECTION FIL     file1, file2;
 #ifndef CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE
 #define CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE 4096
 #endif
-static CFG_TUH_MEM_SECTION uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
+static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
 
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {

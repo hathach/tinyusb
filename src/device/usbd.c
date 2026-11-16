@@ -1757,6 +1757,9 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
 
+  // The buffer must meet the device controller's alignment (TUP_DCD_MEM_ALIGN): declare it with CFG_TUD_MEM_ALIGN
+  TU_ASSERT((((uintptr_t) buffer) & (TUP_DCD_MEM_ALIGN - 1u)) == 0);
+
   TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer()

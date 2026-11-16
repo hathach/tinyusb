@@ -95,10 +95,6 @@
 #define CFG_TUD_MEM_SECTION
 #endif
 
-#ifndef CFG_TUD_MEM_ALIGN
-#define CFG_TUD_MEM_ALIGN        __attribute__ ((aligned(4)))
-#endif
-
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
@@ -128,10 +124,6 @@
 
 #ifndef CFG_TUH_MEM_SECTION
 #define CFG_TUH_MEM_SECTION
-#endif
-
-#ifndef CFG_TUH_MEM_ALIGN
-#define CFG_TUH_MEM_ALIGN           __attribute__ ((aligned(4)))
 #endif
 
 #define CFG_TUH_HUB                 1

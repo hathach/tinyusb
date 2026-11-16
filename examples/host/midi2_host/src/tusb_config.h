@@ -53,10 +53,6 @@ extern "C" {
 #define CFG_TUH_MEM_SECTION
 #endif
 
-#ifndef CFG_TUH_MEM_ALIGN
-#define CFG_TUH_MEM_ALIGN     __attribute__ ((aligned(4)))
-#endif
-
 //--------------------------------------------------------------------+
 // Host Configuration
 //--------------------------------------------------------------------+

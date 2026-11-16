@@ -32,7 +32,13 @@
  * - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
  *                              e.g EP1 OUT & EP1 IN cannot exist together
  * - RHPORT_HIGHSPEED: support highspeed with on-chip PHY
+ * - DCD_MEM_ALIGN, HCD_MEM_ALIGN: alignment in bytes the device/host controller needs for a transfer buffer,
+ *              default 4. They are the defaults of CFG_TUD_MEM_ALIGN/CFG_TUH_MEM_ALIGN, and usbd/usbh assert every
+ *              transfer buffer meets them
  */
+
+// IP3511 endpoint command list holds the buffer address offset in 64-byte units (bits 21:6)
+#define TUP_IP3511_MEM_ALIGN 64
 
 //--------------------------------------------------------------------+
 // NXP
@@ -40,6 +46,7 @@
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
   #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX 5
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   #define TUP_DCD_ENDPOINT_MAX 16
@@ -50,6 +57,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
   #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX 5
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC54)
   #include "fsl_device_registers.h"
@@ -65,6 +73,7 @@
   #endif
 
   #define TUP_DCD_ENDPOINT_MAX 6
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
@@ -75,6 +84,7 @@
   #define TUP_OHCI_RHPORTS     1 // 1 downstream port
 
   #define TUP_DCD_ENDPOINT_MAX 6
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // USB0 has 6 with HS PHY, USB1 has 4 only FS
@@ -803,6 +813,15 @@
 
 #ifndef TUP_MCU_MULTIPLE_CORE
   #define TUP_MCU_MULTIPLE_CORE 0
+#endif
+
+// Transfer buffer alignment the device/host controller needs
+#ifndef TUP_DCD_MEM_ALIGN
+  #define TUP_DCD_MEM_ALIGN 4
+#endif
+
+#ifndef TUP_HCD_MEM_ALIGN
+  #define TUP_HCD_MEM_ALIGN 4
 #endif
 
 #if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED

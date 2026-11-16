@@ -65,7 +65,6 @@ function(family_add_board BOARD_TARGET)
     ${SDK_DIR}/LPC51U68/periph
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
     __STARTUP_CLEAR_BSS
     )
 

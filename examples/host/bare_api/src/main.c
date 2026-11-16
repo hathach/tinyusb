@@ -37,12 +37,13 @@
 #define BUF_COUNT   4
 
 
-CFG_TUH_MEM_SECTION tusb_desc_device_t desc_device;
+// buffers handed to the stack for usb transfers: in USB/DMA memory with the host controller's alignment
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN tusb_desc_device_t desc_device;
 
-CFG_TUH_MEM_SECTION uint8_t buf_pool[BUF_COUNT][64];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint8_t buf_pool[BUF_COUNT][64];
 uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
 
-CFG_TUH_MEM_SECTION uint16_t temp_buf[128]; // temp buffer for string descriptor
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint16_t temp_buf[128]; // temp buffer for string descriptor
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES

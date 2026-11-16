@@ -571,6 +571,17 @@ void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
 }
 
+// A transfer buffer that misses the device controller's alignment (TUP_DCD_MEM_ALIGN) never reaches the DCD
+void test_usbd_xfer_unaligned_buffer_refused(void) {
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
+
+  TEST_ASSERT_FALSE(usbd_edpt_xfer(rhport, 0x87, xfer_buf + 1, 8, false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x87));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x87, xfer_buf, 8, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf, 8, false));
+}
+
 // an idle endpoint: the same dcd sequence, and it stays claimable
 void test_usbd_edpt_abort_idle_endpoint(void) {
   msc_out_armed();

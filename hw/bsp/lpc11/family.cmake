@@ -38,7 +38,6 @@ function(family_add_board BOARD_TARGET)
     __VTOR_PRESENT=0
     CORE_M0
     CORE_M0PLUS
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/inc
