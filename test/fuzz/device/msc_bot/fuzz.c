@@ -35,12 +35,12 @@ bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const *desc, uint8_t count, uin
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  ep_stalled[ep_addr >> 7] = true;
+  ep_stalled[tu_edpt_dir(ep_addr)] = true;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  return ep_stalled[ep_addr >> 7];
+  return ep_stalled[tu_edpt_dir(ep_addr)];
 }
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
@@ -51,7 +51,7 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
-  ep_stalled[ep_addr >> 7] = false;
+  ep_stalled[tu_edpt_dir(ep_addr)] = false;
 }
 
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr) {

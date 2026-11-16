@@ -6,7 +6,8 @@
 #include "tusb.h"
 #include "host/hcd.h"
 
-// Stateless time/HCD stubs shared by usbh suites; each suite defines its own hcd_setup_send().
+// Stateless time/HCD stubs shared by usbh suites; each suite defines its own hcd_setup_send(), and may override
+// hcd_edpt_clear_stall() to observe it.
 uint32_t tusb_time_millis_api(void) {
   return 0;
 }
@@ -83,7 +84,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   return true;
 }
 
-bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+TU_ATTR_WEAK bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   (void) rhport;
   (void) daddr;
   (void) ep_addr;

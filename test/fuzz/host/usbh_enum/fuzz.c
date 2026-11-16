@@ -8,6 +8,8 @@
 // enumeration state machine without adding test-only public APIs.
 #include "host/usbh.c"
 
+#include "input_format.h"
+
 // Synthetic device and controller.
 #define TEST_RHPORT                       0u
 #define TEST_DEVICE_ADDRESS               1u
@@ -20,21 +22,11 @@
 #define TEST_ACCEPT_FIRST                 TEST_FIRST_CONFIG_INDEX
 #define TEST_ACCEPT_SECOND                TEST_SECOND_CONFIG_INDEX
 #define TEST_REJECT_ALL                   TEST_CONFIG_COUNT
-#define TEST_DECISION_COUNT               3u
-
-// Three-byte input format. Keep these ranges synchronized with regression.c.
-#define INPUT_INTERFACES_OFFSET           0u
-#define INPUT_CONFIG_VALUE_OFFSET         1u
-#define INPUT_DECISION_OFFSET             2u
 
 #define TEST_MIN_INTERFACES                1u
-#define TEST_INTERFACE_VARIANTS            4u
 #define TEST_SECOND_INTERFACE_INCREMENT    1u
 
 #define TEST_FIRST_CONFIG_VALUE            1u
-#define TEST_SECOND_CONFIG_VALUE_MIN       3u
-#define TEST_CONFIG_VALUE_VARIANTS \
-  (UINT8_MAX - TEST_SECOND_CONFIG_VALUE_MIN + 1u)
 
 #define TEST_DEFAULT_SECOND_CONFIG_VALUE   7u
 
