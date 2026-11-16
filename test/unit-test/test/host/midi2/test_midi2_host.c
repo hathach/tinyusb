@@ -230,6 +230,12 @@ tusb_speed_t tuh_speed_get(uint8_t daddr) {
   return test_speed;
 }
 
+// tusb.c is not linked: accept any endpoint with a packet size, as a release build's check does for these descriptors
+bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
+  (void) speed;
+  return tu_edpt_packet_size(desc_ep) > 0;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void) dev_addr; (void) itf_num;
   config_complete_count++;

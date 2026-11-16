@@ -76,7 +76,9 @@ static inline void midi2_test_request(uint8_t type, uint8_t request, uint16_t va
   dcd_edpt_open_IgnoreAndReturn(true);
   dcd_edpt_xfer_IgnoreAndReturn(true);
   dcd_edpt_xfer_fifo_IgnoreAndReturn(true);
-  dcd_edpt_stall_Ignore();       // SET_INTERFACE aborts both endpoints
+  // SET_INTERFACE aborts both endpoints: a DCD without dcd_edpt_abort_xfer() falls back to stall + clear-stall
+  dcd_edpt_abort_xfer_IgnoreAndReturn(false);
+  dcd_edpt_stall_Ignore();
   dcd_edpt_clear_stall_Ignore();
   dcd_event_setup_received(rhport, (uint8_t const*) &req, false);
   tud_task();
