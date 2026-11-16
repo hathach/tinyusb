@@ -830,9 +830,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       }
   #endif
 
-      // every OUT transfer lands in the RX endpoint buffer
-      TU_ASSERT(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN ||
-                  tu_edpt_packet_size(desc_ep) <= CFG_TUD_VENDOR_RX_EPSIZE, 0);
+      TU_ASSERT(usbd_edpt_rx_fits(desc_ep, CFG_TUD_VENDOR_RX_EPSIZE), 0);
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
       uint16_t rx_xfer_len = CFG_TUD_VENDOR_RX_NEED_ZLP ? CFG_TUD_VENDOR_RX_EPSIZE : tu_edpt_packet_size(desc_ep);

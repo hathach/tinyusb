@@ -112,6 +112,12 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
   return !is_busy && !is_stalled;
 }
 
+// An OUT endpoint's every transfer lands in its class RX buffer of bufsize bytes, which must hold a packet
+TU_ATTR_ALWAYS_INLINE static inline
+bool usbd_edpt_rx_fits(const tusb_desc_endpoint_t *desc_ep, uint16_t bufsize) {
+  return tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN || tu_edpt_packet_size(desc_ep) <= bufsize;
+}
+
 // Enable SOF interrupt
 void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 

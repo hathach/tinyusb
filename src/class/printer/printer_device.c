@@ -200,6 +200,7 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
     TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end), 0);
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
+    TU_ASSERT(CFG_TUD_EDPT_DEDICATED_HWFIFO || usbd_edpt_rx_fits(desc_ep, CFG_TUD_PRINTER_RX_EPSIZE), 0);
 
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
 
