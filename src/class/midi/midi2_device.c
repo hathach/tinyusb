@@ -947,13 +947,16 @@ bool midi2d_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_re
       // USB 2.0 9.1.1.5: a setting change resets the data toggle of every endpoint of the
       // interface. Both settings share one OUT and one IN endpoint, so abort them: this retires
       // a transfer armed in the old setting (e.g. a MIDI 1.0 event packet the host would parse
-      // as UMP) and resets the toggle. Abort before clearing the FIFOs, which a dedicated
+      // as UMP). A DCD's dcd_edpt_abort_xfer() keeps the data toggle, so clear the (not
+      // stalled) endpoint to reset it. Abort before clearing the FIFOs, which a dedicated
       // hardware FIFO transfer reads and writes while armed.
       if (tu_edpt_stream_is_opened(&p_midi->ep_stream.rx)) {
         usbd_edpt_abort(rhport, p_midi->ep_stream.rx.ep_addr);
+        usbd_edpt_clear_stall(rhport, p_midi->ep_stream.rx.ep_addr);
       }
       if (_tx_opened(p_midi)) {
         usbd_edpt_abort(rhport, p_midi->ep_stream.tx.ep_addr);
+        usbd_edpt_clear_stall(rhport, p_midi->ep_stream.tx.ep_addr);
       }
 
       tu_edpt_stream_clear(&p_midi->ep_stream.rx);

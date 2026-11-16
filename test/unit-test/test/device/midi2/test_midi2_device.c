@@ -329,6 +329,7 @@ enum {
   OP_STALL = 1,
   OP_CLEAR_STALL,
   OP_XFER,
+  OP_ABORT,
 };
 
 typedef struct {
@@ -342,6 +343,7 @@ static uint8_t ep0_in_data[8];
 static uint16_t ep0_in_len;
 static uint8_t ep0_stall_count;
 static uint8_t ep0_out_data_count; // OUT data stages armed on EP0 (status stages excluded)
+static bool    dcd_has_abort;      // the DCD implements dcd_edpt_abort_xfer(), as on RP2040
 
 static void log_op(uint8_t op, uint8_t ep_addr) {
   if (tu_edpt_number(ep_addr) == 0) {
@@ -388,6 +390,15 @@ static bool stub_edpt_xfer_fifo(uint8_t port, uint8_t ep_addr, tu_fifo_t* ff, ui
   return true;
 }
 
+// Without dcd_edpt_abort_xfer() usbd falls back to stall + clear-stall
+static bool stub_edpt_abort_xfer(uint8_t port, uint8_t ep_addr, int cmock_num_calls) {
+  (void) port; (void) cmock_num_calls;
+  if (dcd_has_abort) {
+    log_op(OP_ABORT, ep_addr);
+  }
+  return dcd_has_abort;
+}
+
 static void stub_endpoints(void) {
   ep_op_count = 0;
   ep0_in_len = 0;
@@ -398,6 +409,7 @@ static void stub_endpoints(void) {
   dcd_edpt_clear_stall_Stub(stub_edpt_clear_stall);
   dcd_edpt_xfer_Stub(stub_edpt_xfer);
   dcd_edpt_xfer_fifo_Stub(stub_edpt_xfer_fifo);
+  dcd_edpt_abort_xfer_Stub(stub_edpt_abort_xfer);
 }
 
 static void send_request(uint8_t type, uint8_t request, uint16_t value, uint16_t index, uint16_t length) {
@@ -431,12 +443,15 @@ void test_set_interface_aborts_both_endpoints_and_rearms_rx(void) {
   send_request(0x01, TUSB_REQ_SET_INTERFACE, 1, ITF_MIDI2_STREAMING, 0);
   TEST_ASSERT_EQUAL(1, tud_midi2_alt_setting());
 
-  TEST_ASSERT_EQUAL(5, ep_op_count);
+  // usbd_edpt_abort() falls back to stall + clear-stall, then the toggle reset clears again
+  TEST_ASSERT_EQUAL(7, ep_op_count);
   assert_ep_op(0, OP_STALL, EDPT_MIDI2_OUT);
   assert_ep_op(1, OP_CLEAR_STALL, EDPT_MIDI2_OUT);
-  assert_ep_op(2, OP_STALL, EDPT_MIDI2_IN);
-  assert_ep_op(3, OP_CLEAR_STALL, EDPT_MIDI2_IN);
-  assert_ep_op(4, OP_XFER, EDPT_MIDI2_OUT);
+  assert_ep_op(2, OP_CLEAR_STALL, EDPT_MIDI2_OUT);
+  assert_ep_op(3, OP_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(4, OP_CLEAR_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(5, OP_CLEAR_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(6, OP_XFER, EDPT_MIDI2_OUT);
 
   // the old IN transfer is retired: the first UMP write of the new setting queues at once
   stub_endpoints();
@@ -446,16 +461,32 @@ void test_set_interface_aborts_both_endpoints_and_rearms_rx(void) {
   assert_ep_op(0, OP_XFER, EDPT_MIDI2_IN);
 }
 
+// A DCD that aborts without a stall keeps the data toggle: each aborted endpoint is cleared to reset it
+void test_set_interface_resets_toggle_after_dcd_abort(void) {
+  midi2_test_configure();
+  dcd_has_abort = true;
+
+  send_request(0x01, TUSB_REQ_SET_INTERFACE, 1, ITF_MIDI2_STREAMING, 0);
+  dcd_has_abort = false;
+
+  TEST_ASSERT_EQUAL(5, ep_op_count);
+  assert_ep_op(0, OP_ABORT, EDPT_MIDI2_OUT);
+  assert_ep_op(1, OP_CLEAR_STALL, EDPT_MIDI2_OUT);
+  assert_ep_op(2, OP_ABORT, EDPT_MIDI2_IN);
+  assert_ep_op(3, OP_CLEAR_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(4, OP_XFER, EDPT_MIDI2_OUT);
+}
+
 // Selecting the same setting again also resets the toggles
 void test_set_interface_same_setting_aborts_again(void) {
   midi2_test_configure();
   midi2_test_set_alt(1);
 
   send_request(0x01, TUSB_REQ_SET_INTERFACE, 1, ITF_MIDI2_STREAMING, 0);
-  TEST_ASSERT_EQUAL(5, ep_op_count);
+  TEST_ASSERT_EQUAL(7, ep_op_count);
   assert_ep_op(0, OP_STALL, EDPT_MIDI2_OUT);
-  assert_ep_op(2, OP_STALL, EDPT_MIDI2_IN);
-  assert_ep_op(4, OP_XFER, EDPT_MIDI2_OUT);
+  assert_ep_op(3, OP_STALL, EDPT_MIDI2_IN);
+  assert_ep_op(6, OP_XFER, EDPT_MIDI2_OUT);
 }
 
 // USB 2.0 9.4.4: GET_INTERFACE returns the selected setting
