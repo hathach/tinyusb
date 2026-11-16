@@ -81,6 +81,16 @@ ECM/RNDIS drops the frame and renews reception itself; NCM keeps the frame and
 offers it again on the next ``tud_network_recv_renew()``, which the application
 must call.
 
+NCM can also keep the frame in place instead (zero-copy): call
+``tud_network_recv_hold()`` inside the callback and pass its handle to
+``tud_network_recv_release()`` once the frame is no longer referenced; the
+receive buffer stays valid until then.  It returns ``NULL`` when holding the
+frame could leave no buffer to receive into, every other one being held
+already; copy the frame in that case.  At least one buffer thus keeps cycling
+while the network stack holds frames, and with ``CFG_TUD_NCM_OUT_NTB_N`` = 1 it
+always returns ``NULL``.  ``net_lwip_webserver`` uses it on high-throughput MCUs,
+handing lwIP ``PBUF_REF`` pbufs.
+
 For device-to-host frames:
 
 1. Call ``tud_network_can_xmit(size)``.
@@ -89,8 +99,9 @@ For device-to-host frames:
    Ethernet frame into ``dst`` and return its length.
 
 The drivers do not lock their state: call ``tud_network_recv_renew()``,
-``tud_network_can_xmit()`` and ``tud_network_xmit()`` from the task that runs
-``tud_task()``.
+``tud_network_recv_release()``, ``tud_network_can_xmit()`` and
+``tud_network_xmit()`` from the task that runs ``tud_task()``, not from an ISR
+or another task.
 
 Use ``tud_network_link_state()`` to notify the host when the logical or physical
 link changes.  A mounted USB device is not necessarily a link-up network
@@ -108,6 +119,9 @@ interface.
    * - ``tud_network_recv_renew()``
      - Lets the driver deliver the next frame (re-arms reception, or offers the
        next NCM datagram).
+   * - ``tud_network_recv_hold()`` / ``tud_network_recv_release()``
+     - NCM only: keep the frame offered to ``tud_network_recv_cb()`` in its
+       receive buffer until released (zero-copy), or ``NULL`` to copy it.
    * - ``tud_network_can_xmit()`` / ``tud_network_xmit()``
      - Checks whether one frame of ``size`` bytes can be queued now, then
        queues it.  Call ``xmit`` once after each successful check.
@@ -139,7 +153,7 @@ the NTB sizes or their ``*_NTB_N`` counts.  Keep descriptor capabilities and
 runtime responses consistent with the enabled NCM features.
 
 The :doc:`../../examples/device/net_lwip_webserver` example includes NCM and
-ECM/RNDIS descriptor sets, lwIP integration, DHCP, DNS, link-state changes, and
+ECM/RNDIS descriptor sets, lwIP integration, DHCP, link-state changes, and
 host setup notes.
 
 Specifications used: *CDC Ethernet Control Model*, Revision 1.2, and *CDC

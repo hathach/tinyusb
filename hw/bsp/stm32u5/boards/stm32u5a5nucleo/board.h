@@ -226,7 +226,30 @@ static inline void board_vbus_sense_init(void) {
   HAL_TIM_Base_Start(&htim1);
 }
 
+static inline void board_vbus_override_write(bool vbus_valid) {
+  if (vbus_valid) {
+    USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+    USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
+  } else {
+    USB_OTG_HS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
+    USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALOVAL;
+  }
+}
+
+// Samples (1 ms each) the override is synced from OTG_HS registers after the stack starts
+#define BOARD_VBUS_SYNC_SAMPLES 10
+
 void ADC1_2_IRQHandler(void) {
+  // Any OTG_HS register access, even a read, made while a TX FIFO holds a packet one word short of complete zeroes that
+  // endpoint's DIEPTSIZ.XFRSIZ: if this ISR preempts the stack's slave-mode FIFO push at that point, the rest of the
+  // transfer is never written and the IN endpoint NAKs forever. dcd_init() forces the override on at every (re)start,
+  // so the registers are read and corrected only for the first samples after it (the host does not enumerate, so no
+  // FIFO push, within 100 ms of connect); afterwards OTG_HS is touched only when VBUS changes, or while VBUS is absent:
+  // a tud_deinit()/tud_init() between two samples leaves the override forced on with no VBUS, and with no host attached
+  // there is no FIFO push to collide with.
+  static uint8_t sync_samples = BOARD_VBUS_SYNC_SAMPLES;
+  static bool vbus_state;
+
   if(LL_ADC_IsActiveFlag_EOC(ADC1) != 0) {
     /* Clear flag ADC group regular end of unitary conversion */
     LL_ADC_ClearFlag_EOC(ADC1);
@@ -234,12 +257,25 @@ void ADC1_2_IRQHandler(void) {
      * with R1 = 330kOhm and R2 = 50kOhm
      */
     const uint32_t threshold = 4500 * 50 / (50 + 330) * 16384 / 3300;
-    if((ADC1->DR > threshold) && (USB_OTG_HS->GOTGCTL & USB_OTG_GOTGCTL_BVALOEN)) {
-      USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
-    } else {
-      USB_OTG_HS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
-      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALOVAL;
+    const bool vbus_sensed = ADC1->DR > threshold;
+    if (!tusb_inited()) {
+      sync_samples = BOARD_VBUS_SYNC_SAMPLES;
+    } else if (sync_samples > 0) {
+      const uint32_t gotgctl = USB_OTG_HS->GOTGCTL;
+      const bool override_on = (gotgctl & USB_OTG_GOTGCTL_BVALOEN) != 0;
+      vbus_state = vbus_sensed && override_on;
+      if (vbus_state != ((gotgctl & USB_OTG_GOTGCTL_BVALOVAL) != 0)) {
+        board_vbus_override_write(vbus_state);
+      }
+      if (override_on) {
+        sync_samples--;
+      }
+    } else if (vbus_sensed != vbus_state) {
+      vbus_state = vbus_sensed;
+      board_vbus_override_write(vbus_state);
+    } else if (!vbus_sensed && ((USB_OTG_HS->GOTGCTL & USB_OTG_GOTGCTL_BVALOVAL) != 0 ||
+                                (USB_OTG_HS->GCCFG & USB_OTG_GCCFG_VBVALOVAL) != 0)) {
+      board_vbus_override_write(false);
     }
   }
   if(LL_ADC_IsActiveFlag_OVR(ADC1) != 0) {
