@@ -2049,6 +2049,41 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
 
 
 
+class TheReRunSpecIsScreenedBeforeTheEnv(unittest.TestCase):
+    """build.yml's "Get re-run spec" steps export the previous attempt's spec to GITHUB_ENV only when it holds
+    board and test-name characters alone: a newline in a roster name would add NAME=VALUE lines for every later
+    step. Each step runs here as the workflow has it."""
+    WORKFLOW = REPO / '.github/workflows/build.yml'
+
+    def steps(self):
+        legs = TheCiLegsUploadAPreparedReport.legs(self)
+        steps = [st for job in legs.values() for st in job['steps']
+                 if st.get('name') == 'Get re-run spec from previous attempt']
+        self.assertEqual(len(steps), 2, 'hil-tinyusb and hil-tinyusb-esp')
+        return steps
+
+    def run_spec(self, step, spec):
+        td = TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        (root / '.failed').write_text(spec)   # HIL_JSON's expression is stripped: the spec is "<dir>/.failed"
+        r = subprocess.run(['bash', '-e', '-c', TheCiLegsUploadAPreparedReport.script(step)], cwd=root,
+                           capture_output=True, text=True, timeout=60,
+                           env={**os.environ, 'HIL_REPORT_DIR': str(root), 'GITHUB_ENV': str(root / 'github_env')})
+        env = root / 'github_env'
+        return r.returncode, env.read_text().splitlines() if env.exists() else []
+
+    @unittest.skipIf(os.name == 'nt', 'the steps are bash')
+    def test_an_ordinary_spec_is_exported_and_an_injected_one_refused(self):
+        spec = '--accumulate -b stm32f407disco-sysview -bt raspberry_pi_pico:device/cdc_msc,dual/x.y'
+        for i, step in enumerate(self.steps()):
+            with self.subTest(step=i):
+                self.assertEqual(self.run_spec(step, spec), (0, [f'RERUN_ARGS={spec}']))
+            for bad in ('--accumulate -b x\nEVIL=1', '--accumulate -b x;id', '--accumulate -b $(id)'):
+                with self.subTest(step=i, bad=bad):
+                    self.assertEqual(self.run_spec(step, bad), (1, []))
+
+
 class TheCiLegsUploadAPreparedReport(unittest.TestCase):
     """build.yml's HIL legs: a leg the PR selection skips writes its report with
     hil_report.py, after agentrc is fetched, and every leg prepares the pair before the

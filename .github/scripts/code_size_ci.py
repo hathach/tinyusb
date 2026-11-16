@@ -127,7 +127,7 @@ def lookup_sha(repo, sha, whose='this PR\'s', branch=BRANCH, usable=has_snapshot
 def baseline(args):
     try:
         info = lookup(args.repo, args.current)
-    except (RuntimeError, KeyError, TypeError, ValueError) as e:  # an API failure or an unexpected reply
+    except (RuntimeError, KeyError, TypeError, ValueError, ImportError) as e:  # API, reply or snapshot-engine failure
         info = {'sha': None, 'url': None, 'exact': False, 'run_id': None, 'note': f'the baseline lookup failed: {e}'}
     with open(args.info, 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=1, sort_keys=True)
