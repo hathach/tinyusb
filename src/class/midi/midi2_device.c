@@ -1062,7 +1062,7 @@ bool midi2d_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     uint16_t queued = _tx_start_xfer(p_midi);
     // Send ZLP if no more data is queued but the last transfer was exactly mps
     if (queued == 0 && tu_fifo_count(&ep_tx->ff) == 0 && xferred_bytes > 0 &&
-        (0 == (xferred_bytes & (ep_tx->mps - 1)))) {
+        (0 == (xferred_bytes % ep_tx->mps))) {
       if (usbd_edpt_claim(rhport, ep_tx->ep_addr)) {
           usbd_edpt_xfer(rhport, ep_tx->ep_addr, NULL, 0, false);
       }
