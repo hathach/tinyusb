@@ -132,8 +132,9 @@ CFG_TUD_MEM_SECTION static ncm_epbuf_t ncm_epbuf;
 // Receive NTBs whose datagrams the glue logic still references after tud_network_recv_cb() (zero-copy). Kept apart
 // from ncm_interface, which netd_init() clears: a reset must not recycle an NTB the network stack still points into.
 static struct {
-  uint8_t count[RECV_NTB_N]; // tud_network_recv_hold() calls not yet released
-  bool done[RECV_NTB_N];     // all datagrams handed out: the last release returns the NTB to the free list
+  // tud_network_recv_hold() calls not yet released. A held NTB other than recv_glue_ntb has handed out all its
+  // datagrams: its last release returns it to the free list.
+  uint8_t count[RECV_NTB_N];
 } ncm_recv_hold;
 
 // Link state requested by tud_network_link_state(), applied by ncm_link_state_task() in the usbd task.
@@ -166,12 +167,7 @@ TU_ATTR_WEAK bool tud_network_default_link_state_cb(void) {
  *     We are lucky, that byte order is correct
  */
 
-// wNdbInDivisor/wNdbOutDivisor: a Windows Update (KB5124008, Sept 2026)
-// enabled NTB-parameter validation in usbncm.sys requiring these to be
-// >=4 and a power of 2. 1 is spec-legal but now rejected with
-// STATUS_DEVICE_HARDWARE_ERROR (Code 10) during enumeration. 4 satisfies
-// the check and is spec-legal on the device side too.
-
+// wNdbInDivisor/wNdbOutDivisor: 4, as usbncm.sys since KB5124008 rejects a divisor below 4 or not a power of 2
 TU_ATTR_ALIGNED(4) static const ntb_parameters_t ntb_parameters = {
   .wLength                  = sizeof(ntb_parameters_t),
   .bmNtbFormatsSupported    = 0x01,// 16-bit NTB supported
@@ -365,7 +361,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp(%d,%ld)\n", rhport, xferred_bytes);
 
   uint16_t const ep_size = ncm_interface.ep_size;
-  if (xferred_bytes == 0 || (xferred_bytes & (ep_size-1)) != 0) {
+  if (xferred_bytes == 0 || (xferred_bytes % ep_size) != 0) {
     return false;
   }
 
@@ -653,7 +649,8 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
   }
   // the NDP block (wLength bytes from wNdpIndex) must fit within the received NTB, otherwise the
   // datagram pointer array walked below (max_ndx is derived from wLength) runs past ntb->data
-  if ((uint32_t) nth16->wNdpIndex + ndp16->wLength > len) {
+  const uint32_t ndp_end = (uint32_t) nth16->wNdpIndex + ndp16->wLength;
+  if (ndp_end > len) {
     TU_LOG_DRV("(EE) ill ndp16 length: %d (%lu)\n", ndp16->wLength, len);
     return false;
   }
@@ -667,6 +664,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
   }
 
   const ndp16_datagram_t *ndp16_datagram = (const ndp16_datagram_t *) (ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
+  const uint16_t hdr_len = nth16->wHeaderLength;
   int ndx = 0;
   uint16_t max_ndx = (uint16_t) ((ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t));
 
@@ -685,6 +683,14 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     }
     if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
       TU_LOG_DRV("(EE) ill end of datagram[%d]: %d (%lu)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+      return false;
+    }
+    // past the NTH16 (NCM 1.0 Table 3-3) and clear of the NDP16, whose entries are read after a datagram the glue
+    // logic may modify in place (zero-copy)
+    const uint32_t dg_start = ndp16_datagram[ndx].wDatagramIndex;
+    const uint32_t dg_end   = dg_start + ndp16_datagram[ndx].wDatagramLength;
+    if (dg_start < hdr_len || (dg_start < ndp_end && dg_end > nth16->wNdpIndex)) {
+      TU_LOG_DRV("(EE) datagram[%d] overlaps NTH16/NDP16: %d %d\n", ndx, (int) dg_start, (int) (dg_end - dg_start));
       return false;
     }
     ++ndx;
@@ -738,10 +744,7 @@ static void recv_transfer_datagram_to_glue_logic(void) {
           ++ncm_interface.recv_glue_ntb_datagram_ndx;
         } else {
           // end of datagrams reached: free the NTB now, or on the last release of a held datagram
-          const int idx = recv_ntb_index(ncm_interface.recv_glue_ntb);
-          if (idx >= 0 && ncm_recv_hold.count[idx] != 0) {
-            ncm_recv_hold.done[idx] = true;
-          } else {
+          if (ncm_recv_hold.count[recv_ntb_index(ncm_interface.recv_glue_ntb)] == 0) {
             recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
           }
           ncm_interface.recv_glue_ntb = NULL;
@@ -872,8 +875,7 @@ void tud_network_recv_release(void *handle) {
   const int idx = recv_ntb_index((const recv_ntb_t *) handle);
   TU_ASSERT(idx >= 0 && ncm_recv_hold.count[idx] != 0,);
 
-  if (--ncm_recv_hold.count[idx] == 0 && ncm_recv_hold.done[idx]) {
-    ncm_recv_hold.done[idx] = false;
+  if (--ncm_recv_hold.count[idx] == 0 && handle != ncm_interface.recv_glue_ntb) {
     recv_put_ntb_into_free_list((recv_ntb_t *) handle);
     recv_try_to_start_new_reception(ncm_interface.rhport);
   }
@@ -893,13 +895,9 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
  * usbd-task trampoline for tud_network_link_state(): applies the latest
  * requested link state from ncm_link_req.
  *
- * Runs entirely in the usbd task context, so it cannot race the notify
- * xfer-completion callback over the notification state machine. Re-arming
- * notification_xmit_state and kicking notification_xmit() (rather than
- * sending NETWORK_CONNECTION directly) means a state change that collides
- * with an in-flight notification is picked up by the existing completion
- * callback instead of being silently dropped - which would otherwise leave
- * the host stuck at NO-CARRIER after a link-state change.
+ * In the usbd task it cannot race the notify completion callback. Re-arming the notification state machine, not
+ * sending NETWORK_CONNECTION directly, lets a change that collides with an in-flight notification be sent by that
+ * callback instead of dropped, which would leave the host at NO-CARRIER.
  */
 static void ncm_link_state_task(void *param) {
   (void) param;
@@ -925,11 +923,8 @@ static void ncm_link_state_task(void *param) {
     return; // data interface not active yet; SET_INTERFACE(alt=1) will notify
   }
 
-  // A link toggle does not change the link speed, so strictly only the
-  // NETWORK_CONNECTION notification would need (re)sending. Re-running the
-  // speed-then-connection sequence keeps this on the same state machine the
-  // completion callback already drives, at the cost of a redundant speed
-  // notification on every toggle.
+  // only NETWORK_CONNECTION changed, but the speed-then-connection sequence keeps to the state machine the completion
+  // callback drives, at the cost of a redundant speed notification
   ncm_interface.notification_xmit_state = NOTIFICATION_SPEED;
   notification_xmit(rhport, false);
 }
@@ -988,10 +983,8 @@ void netd_init(void) {
   }
   int nfree = 0;
   for (int i = 0; i < RECV_NTB_N; ++i) {
-    if (ncm_recv_hold.count[i] != 0) {
-      // still referenced by the network stack: freed by its last tud_network_recv_release()
-      ncm_recv_hold.done[i] = true;
-    } else {
+    // one still referenced by the network stack is freed by its last tud_network_recv_release()
+    if (ncm_recv_hold.count[i] == 0) {
       ncm_interface.recv_free_ntb[nfree++] = &ncm_epbuf.recv[i].ntb;
     }
   }
