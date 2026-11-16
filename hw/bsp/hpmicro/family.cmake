@@ -3,7 +3,7 @@ include_guard()
 set(SDK_DIR ${TOP}/hw/mcu/hpmicro/hpm_sdk)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 if (NOT DEFINED CMAKE_SYSTEM_CPU)
@@ -29,8 +29,8 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 #------------------------------------
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/pinmux.c
+    ${BOARD_DIR}/board.c
+    ${BOARD_DIR}/pinmux.c
     ${HPM_SOC}/boot/hpm_bootheader.c
     ${HPM_SOC}/toolchains/gcc/initfini.c
     ${HPM_SOC}/toolchains/reset.c
@@ -55,8 +55,8 @@ function(family_add_board BOARD_TARGET)
     )
 
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board
+    ${BOARD_DIR}
+    ${BOARD_DIR}/board
     ${HPM_SOC}
     ${HPM_IP_REGS}
     ${HPM_SOC}/boot
@@ -90,7 +90,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     ${TOP}/src/portable/chipidea/ci_hs
     )
 

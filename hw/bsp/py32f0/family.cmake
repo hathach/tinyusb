@@ -1,6 +1,6 @@
 include_guard()
 
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 if (NOT DEFINED MCU_VARIANT)
   set(MCU_VARIANT PY32F071)
@@ -41,7 +41,7 @@ function(family_add_board BOARD_TARGET)
     ${PY32_SDK}/Drivers/CMSIS/Include
     ${PY32_CMSIS}/Include
     ${PY32_HAL}/Inc
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PRIVATE
     USE_HAL_DRIVER
@@ -62,7 +62,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

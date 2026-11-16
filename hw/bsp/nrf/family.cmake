@@ -8,7 +8,7 @@ set(NRFX_PATH ${TOP}/hw/mcu/nordic/nrfx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # include board specific, for zephyr BOARD_ALIAS may be used instead
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake OPTIONAL RESULT_VARIABLE board_cmake_included)
+include(${BOARD_DIR}/board.cmake OPTIONAL RESULT_VARIABLE board_cmake_included)
 if (NOT board_cmake_included)
   include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD_ALIAS}/board.cmake)
 endif ()
@@ -149,7 +149,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (RTOS STREQUAL zephyr)

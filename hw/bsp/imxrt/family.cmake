@@ -9,7 +9,7 @@ set(MCUX_DEVICES ${TOP}/hw/mcu/nxp/mcux-devices-rt)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 set(MCU_VARIANT_WITH_CORE ${MCU_VARIANT}${MCU_CORE})
 
 # toolchain set up
@@ -72,8 +72,8 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 #------------------------------------
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/clock_config.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/pin_mux.c
+    ${BOARD_DIR}/board/clock_config.c
+    ${BOARD_DIR}/board/pin_mux.c
     # mcuxsdk-core drivers
     ${MCUX_CORE}/drivers/common/fsl_common.c
     ${MCUX_CORE}/drivers/common/fsl_common_arm.c
@@ -103,8 +103,8 @@ function(family_add_board BOARD_TARGET)
   endif ()
 
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board
+    ${BOARD_DIR}
+    ${BOARD_DIR}/board
     ${CMSIS_DIR}/CMSIS/Core/Include
     # device specific
     ${MCUX_DEVICES}/${MCU_FAMILY}/${MCU_VARIANT}
@@ -156,7 +156,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     ${XIP_DIR}
     )
   target_compile_definitions(${TARGET} PUBLIC

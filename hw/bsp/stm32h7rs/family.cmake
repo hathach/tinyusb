@@ -9,7 +9,7 @@ set(ST_TCPP0203 ${TOP}/hw/mcu/st/stm32-tcpp0203)
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_CPU cortex-m7 CACHE INTERNAL "System Processor")
@@ -107,7 +107,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

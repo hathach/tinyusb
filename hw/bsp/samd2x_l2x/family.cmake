@@ -1,7 +1,7 @@
 include_guard()
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # Determine which SAM family based on board configuration
 # SAM_FAMILY should be set by board.cmake (samd21, saml21, or saml22)
@@ -118,7 +118,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

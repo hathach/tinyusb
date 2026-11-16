@@ -1,6 +1,6 @@
 include_guard()
 
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 string(REPLACE "mm32f" "MM32F" MCU_VARIANT_UPPER ${MCU_VARIANT})
 set(SDK_DIR ${TOP}/hw/mcu/mindmotion/mm32sdk/${MCU_VARIANT_UPPER})
@@ -57,7 +57,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

@@ -4,7 +4,7 @@ set(APM32_FAMILY apm32f10x)
 set(APM32_SDK ${TOP}/hw/mcu/geehy/APM32F10x_SDK/Libraries)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_CPU cortex-m3 CACHE INTERNAL "System Processor")
@@ -77,7 +77,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

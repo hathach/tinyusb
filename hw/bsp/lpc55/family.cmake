@@ -5,7 +5,7 @@ set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-devices-lpc/LPC5500)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
@@ -68,9 +68,9 @@ function(family_add_board BOARD_TARGET)
   endif ()
 
   add_library(${BOARD_TARGET} STATIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/clock_config.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/pin_mux.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/peripherals.c
+    ${BOARD_DIR}/board/clock_config.c
+    ${BOARD_DIR}/board/pin_mux.c
+    ${BOARD_DIR}/board/peripherals.c
     # driver
     ${MCUX_DIR}/drivers/lpc_gpio/fsl_gpio.c
     ${MCUX_DIR}/drivers/common/fsl_common_arm.c
@@ -150,7 +150,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

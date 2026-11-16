@@ -3,7 +3,7 @@ include_guard()
 set(SDK_DIR ${TOP}/hw/mcu/ti/msp430/msp430-gcc-support-files/include)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_CPU msp430 CACHE INTERNAL "System Processor")
@@ -49,7 +49,7 @@ function(family_configure_example TARGET RTOS)
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

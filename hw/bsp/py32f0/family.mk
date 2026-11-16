@@ -45,7 +45,7 @@ INC += \
   $(TOP)/$(CMSIS_DIR)/Include \
   $(TOP)/$(CMSIS_DEVICE_DIR)/Include \
   $(TOP)/$(HAL_DIR)/Inc \
-  $(TOP)/hw/bsp/py32f0/boards/$(BOARD)
+  $(TOP)/$(BOARD_PATH)
 
 SKIP_NANOLIB = 1
 

@@ -8,7 +8,7 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 set(FSP_RA ${TOP}/hw/mcu/renesas/fsp/ra/fsp)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 #set(FREERTOS_PORT A_CUSTOM_PORT CACHE INTERNAL "")
 
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
@@ -41,7 +41,7 @@ cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_
 # Startup & Linker script
 #------------------------------------
 if (NOT DEFINED LD_FILE_GNU)
-set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/fsp.ld)
+set(LD_FILE_GNU ${BOARD_DIR}/script/fsp.ld)
 endif ()
 
 #------------------------------------
@@ -62,8 +62,8 @@ function(family_add_board BOARD_TARGET)
     ${FSP_RA}/src/bsp/mcu/all/bsp_sbrk.c
     ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
     ${FSP_RA}/src/r_ioport/r_ioport.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/common_data.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/pin_data.c
+    ${BOARD_DIR}/ra_gen/common_data.c
+    ${BOARD_DIR}/ra_gen/pin_data.c
     )
 
   target_compile_options(${BOARD_TARGET} PUBLIC
@@ -71,10 +71,10 @@ function(family_add_board BOARD_TARGET)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_cfg/fsp_cfg
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_cfg/fsp_cfg/bsp
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen
+    ${BOARD_DIR}
+    ${BOARD_DIR}/ra_cfg/fsp_cfg
+    ${BOARD_DIR}/ra_cfg/fsp_cfg/bsp
+    ${BOARD_DIR}/ra_gen
     ${CMSIS_DIR}/CMSIS/Core/Include
     ${FSP_RA}/inc
     ${FSP_RA}/inc/api
@@ -117,7 +117,7 @@ function(family_configure_example TARGET RTOS)
     target_link_options(${TARGET} PUBLIC
       # linker file
       "LINKER:--script=${LD_FILE_GNU}"
-      -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script
+      -L${BOARD_DIR}/script
       -Wl,--defsym=end=__bss_end__
       -nostartfiles
       --specs=nano.specs --specs=nosys.specs

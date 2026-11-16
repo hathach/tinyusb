@@ -64,14 +64,19 @@ PROJECT := $(notdir $(CURDIR))
 #-------------------------------------------------------------
 # Family and Board
 #-------------------------------------------------------------
-BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
-FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
-FAMILY_PATH = hw/bsp/$(FAMILY)
+# BOARD_PATH is the board directory relative to TOP. Set it to use a board outside this
+# repository; the directory must follow the <family>/boards/<board> layout.
+ifeq ($(BOARD_PATH),)
+  BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+endif
 
 ifeq ($(BOARD_PATH),)
   $(info You must provide a BOARD parameter with 'BOARD=')
   $(error Invalid BOARD specified)
 endif
+
+FAMILY := $(notdir $(abspath $(TOP)/$(BOARD_PATH)/../..))
+FAMILY_PATH = hw/bsp/$(FAMILY)
 
 # Include Family and Board specific defs
 include $(TOP)/$(FAMILY_PATH)/family.mk

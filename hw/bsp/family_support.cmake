@@ -20,7 +20,7 @@ function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
 
   file(GLOB _board_paths
     LIST_DIRECTORIES true
-    RELATIVE ${TOP}/hw/bsp
+    RELATIVE ${TOP}
     ${TOP}/hw/bsp/*/boards/*
     )
 
@@ -120,11 +120,28 @@ endif ()
 #-------------------------------------------------------------
 # FAMILY and BOARD
 #-------------------------------------------------------------
-if (NOT DEFINED FAMILY)
-  family_resolve_board("${BOARD}" BOARD_PATH)
+# BOARD_PATH is the board directory, absolute or relative to TOP. Set it to use a board outside
+# this repository; the directory must follow the <family>/boards/<board> layout.
+# Resolve BOARD_PATH on every configure: only FAMILY is cached, so a reconfigure
+# would otherwise leave BOARD_PATH empty.
+if (NOT BOARD_PATH)
+  if (NOT DEFINED FAMILY)
+    family_resolve_board("${BOARD}" BOARD_PATH)
+  elseif (BOARD AND IS_DIRECTORY ${TOP}/hw/bsp/${FAMILY}/boards/${BOARD})
+    set(BOARD_PATH hw/bsp/${FAMILY}/boards/${BOARD})
+  elseif (BOARD)
+    message(FATAL_ERROR "BOARD '${BOARD}' not found in family '${FAMILY}'; set BOARD_PATH for a board outside this repository")
+  endif ()
+endif ()
 
-  string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
-  list(GET BOARD_PATH 0 FAMILY)
+# absolute board directory, used by family.cmake (a family that defaults BOARD sets it itself)
+if (BOARD_PATH)
+  get_filename_component(BOARD_DIR "${BOARD_PATH}" ABSOLUTE BASE_DIR ${TOP})
+endif ()
+
+if (NOT DEFINED FAMILY)
+  get_filename_component(FAMILY "${BOARD_DIR}/../.." ABSOLUTE)
+  get_filename_component(FAMILY "${FAMILY}" NAME)
   set(FAMILY ${FAMILY} CACHE STRING "Board family")
 endif ()
 

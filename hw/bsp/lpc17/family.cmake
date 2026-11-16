@@ -4,7 +4,7 @@ set(SDK_DIR ${TOP}/hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_CPU cortex-m3 CACHE INTERNAL "System Processor")
@@ -83,7 +83,7 @@ function(family_configure_example TARGET RTOS)
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   # Flashing

@@ -9,8 +9,11 @@ if (NOT BOARD)
 	message("BOARD not specified, defaulting to pico_sdk")
 	set(BOARD pico_sdk)
 endif()
+if (NOT BOARD_DIR)
+	set(BOARD_DIR ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD})
+endif()
 
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 #if (TOOLCHAIN STREQUAL "clang")
 #	set(PICO_COMPILER "pico_arm_clang")
@@ -161,7 +164,7 @@ target_sources(tinyusb_bsp INTERFACE
 	)
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
-	${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}
+	${BOARD_DIR}
 	)
 target_link_libraries(tinyusb_bsp INTERFACE
 	pico_unique_id

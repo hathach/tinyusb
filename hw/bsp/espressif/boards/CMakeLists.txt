@@ -8,6 +8,6 @@ else ()
 endif ()
 
 idf_component_register(SRCS family.c
-                    INCLUDE_DIRS "." ${BOARD} ${hw_dir}
+                    INCLUDE_DIRS "." ${BOARD_DIR} ${hw_dir}
                     PRIV_REQUIRES ${priv_requires}
                     REQUIRES led_strip src tinyusb_src)

@@ -15,6 +15,8 @@ TinyUSB separates example applications from board-specific hardware configuratio
 
 For example, stm32h743eval is located in `hw/bsp/stm32h7/boards/stm32h743eval <https://github.com/hathach/tinyusb/tree/master/hw/bsp/stm32h7/boards/stm32h743eval>`_ where ``FAMILY=stm32h7`` and ``BOARD=stm32h743eval``. When you build with ``BOARD=stm32h743eval``, the build system automatically finds the corresponding BSP using the FAMILY.
 
+A board can also live outside the TinyUSB tree, for example in your own project. Lay it out as ``FAMILY/boards/BOARD_NAME/`` (``FAMILY`` is taken from this path) and set ``BOARD_PATH`` to that directory: ``-DBOARD=myboard -DBOARD_PATH=/path/to/stm32h7/boards/myboard`` for CMake, or ``BOARD=myboard BOARD_PATH=../path/to/stm32h7/boards/myboard`` for Make. CMake accepts an absolute path or one relative to the TinyUSB root; Make requires a path relative to the TinyUSB root.
+
 For guidance on integrating TinyUSB into your own firmware (configuration, descriptors, initialization, and callback workflow), see :doc:`integration`.
 
 Quick Start Examples

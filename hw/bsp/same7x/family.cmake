@@ -1,6 +1,6 @@
 include_guard()
 
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 set(SDK_DIR ${TOP}/hw/mcu/microchip/same70)
 
@@ -41,7 +41,7 @@ function(family_add_board BOARD_TARGET)
     ${SDK_DIR}/hpl/pmc
     ${SDK_DIR}/hri
     ${SDK_DIR}/CMSIS/Core/Include
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   update_board(${BOARD_TARGET})
@@ -67,7 +67,7 @@ function(family_configure_example TARGET RTOS)
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    ${BOARD_DIR}
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

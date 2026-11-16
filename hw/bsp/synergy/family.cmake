@@ -13,7 +13,7 @@ set(RENESAS_SSP_PATH "${TOP}/hw/mcu/renesas/synergy/ssp" CACHE PATH
   "Path to a licensed Renesas Synergy Software Package (SSP)")
 
 # include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+include(${BOARD_DIR}/board.cmake)
 
 if (NOT EXISTS "${RENESAS_SSP_PATH}/inc/bsp/bsp_api.h" OR
     NOT EXISTS "${RENESAS_SSP_PATH}/src/bsp/mcu/all/bsp_common.c" OR
@@ -76,8 +76,8 @@ function(family_add_board BOARD_TARGET)
     ${RENESAS_SSP_PATH}/src/driver/r_cgc/r_cgc.c
     ${RENESAS_SSP_PATH}/src/driver/r_elc/r_elc.c
     ${RENESAS_SSP_PATH}/src/driver/r_ioport/r_ioport.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/synergy_gen/common_data.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/synergy_gen/pin_data.c
+    ${BOARD_DIR}/synergy_gen/common_data.c
+    ${BOARD_DIR}/synergy_gen/pin_data.c
     )
 
   target_compile_options(${BOARD_TARGET} PUBLIC
@@ -85,10 +85,10 @@ function(family_add_board BOARD_TARGET)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/synergy_cfg/ssp_cfg/bsp
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/synergy_cfg/ssp_cfg/driver
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/synergy_gen
+    ${BOARD_DIR}
+    ${BOARD_DIR}/synergy_cfg/ssp_cfg/bsp
+    ${BOARD_DIR}/synergy_cfg/ssp_cfg/driver
+    ${BOARD_DIR}/synergy_gen
     ${CMSIS_DIR}/CMSIS/Core/Include
     ${RENESAS_SSP_PATH}/inc
     ${RENESAS_SSP_PATH}/inc/bsp
@@ -142,7 +142,7 @@ function(family_configure_example TARGET RTOS)
     target_link_options(${TARGET} PUBLIC
       # linker file
       "LINKER:--script=${LD_FILE_GNU}"
-      -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script
+      -L${BOARD_DIR}/script
       -Wl,--defsym=end=__bss_end__
       -nostartfiles
       --specs=nano.specs --specs=nosys.specs
