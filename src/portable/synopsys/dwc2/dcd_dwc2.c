@@ -506,9 +506,8 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   #if CFG_TUD_DWC2_DMA_ENABLE
   const bool is_dma = dma_device_enabled(dwc2);
   if(is_dma) {
-    if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      dcd_dcache_clean(xfer->buffer, total_bytes);
-    }
+    // OUT too: a dirty line the CPU left in a reused receive buffer (NCM zero-copy) could be evicted over DMA data
+    dcd_dcache_clean(xfer->buffer, total_bytes);
     uintptr_t dma_addr = (uintptr_t) xfer->buffer;
     // EP0 OUT status stage has no buffer, but a SETUP received while it is armed is still DMA-written to DOEPDMA0,
     // which must always point to memory for SETUP packets (Programming Guide v4.20a): use the setup buffer
