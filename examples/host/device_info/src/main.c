@@ -70,8 +70,6 @@ CFG_TUH_MEM_SECTION struct {
   TUH_EPBUF_DEF(buf, 128*sizeof(uint16_t));
 } desc;
 
-static tusb_desc_device_t descriptor_device[CFG_TUH_DEVICE_MAX + 1];
-
 void led_blinking_task(void* param);
 void print_devinfo_task(void* param);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
@@ -117,12 +115,6 @@ int main(void) {
 }
 
 /*------------- TinyUSB Callbacks -------------*/
-
-void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device) {
-  if (daddr <= CFG_TUH_DEVICE_MAX) {
-    descriptor_device[daddr] = *desc_device;
-  }
-}
 
 // Invoked when device is mounted (configured). Runs in the host task — keep
 // it minimal. The actual descriptor fetching/printing happens in
@@ -210,7 +202,10 @@ void print_devinfo_task(void* param) {
     for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
       if (need_devinfo[daddr]) {
         need_devinfo[daddr] = false;
-        print_one_device(daddr, &descriptor_device[daddr]);
+        tusb_desc_device_t desc_device;
+        if (tuh_descriptor_get_device_local(daddr, &desc_device)) {
+          print_one_device(daddr, &desc_device);
+        }
       }
     }
 #if CFG_TUSB_OS == OPT_OS_FREERTOS

@@ -62,7 +62,7 @@
 #ifdef ESP_PLATFORM
   #define MSC_APP_STACK_SIZE     4096
 #else
-  #define MSC_APP_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 3 : 2))
+  #define MSC_APP_STACK_SIZE    (configMINIMAL_STACK_SIZE * (BOARD_STACK_INSTRUMENTED ? 3 : 2))
 #endif
 
 static EmbeddedCli *_cli;
