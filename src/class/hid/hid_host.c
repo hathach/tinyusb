@@ -401,7 +401,7 @@ bool tuh_hid_receive_abort(uint8_t dev_addr, uint8_t idx) {
 
 bool tuh_hid_send_ready(uint8_t dev_addr, uint8_t idx) {
   hidh_interface_t* p_hid = get_hid_itf(dev_addr, idx);
-  TU_VERIFY(p_hid);
+  TU_VERIFY(p_hid && p_hid->ep_out);
   return !usbh_edpt_busy(dev_addr, p_hid->ep_out);
 }
 

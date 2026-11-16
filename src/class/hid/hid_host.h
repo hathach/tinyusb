@@ -105,8 +105,10 @@ bool tuh_hid_set_report(uint8_t dev_addr, uint8_t idx, uint8_t report_id, uint8_
 bool tuh_hid_receive_ready(uint8_t dev_addr, uint8_t idx);
 
 // Try to receive next report on Interrupt Endpoint. Immediately return
-// - true If succeeded, tuh_hid_report_received_cb() callback will be invoked when report is available
-// - false if failed to queue the transfer e.g endpoint is busy
+// - true If succeeded, tuh_hid_report_received_cb() is invoked when a report arrives, or
+//   tuh_hid_report_failed_cb() if the transfer fails
+// - false if failed to queue the transfer e.g endpoint is busy, or the interface has no usable IN endpoint
+//   (none, or its wMaxPacketSize exceeds CFG_TUH_HID_EPIN_BUFSIZE)
 bool tuh_hid_receive_report(uint8_t dev_addr, uint8_t idx);
 
 // Abort receiving report on Interrupt Endpoint
@@ -127,8 +129,9 @@ bool tuh_hid_send_report(uint8_t dev_addr, uint8_t idx, uint8_t report_id, const
 // Invoked when device with hid interface is mounted
 // Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
 // can be used to parse common/simple enough descriptor.
-// Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
-// therefore report_desc = NULL, desc_len = 0
+// Note: report_desc = NULL, desc_len = 0 if the report descriptor could not be retrieved: its length
+// > CFG_TUH_ENUMERATION_BUFSIZE, or its request failed or could not be queued. desc_len may be less than
+// the length in the HID descriptor if the device returned a short descriptor.
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc, uint16_t desc_len);
 
 // Invoked when device with hid interface is un-mounted
