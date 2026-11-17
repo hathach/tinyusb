@@ -406,6 +406,8 @@ void dcd_int_handler(uint8_t rhport) {
   if (int_flag & USBHS_BUS_RST_FLAG) {
     // Reset invalidates pending completions, so handle it before TRANSFER or SETUP.
     // The first SOF follows speed negotiation and completes the reset notification.
+    // usbd_reset() clears its SOF consumers without calling dcd_sof_enable(), so drop the stale request too.
+    sof_requested = false;
     reset_evt_pending = true;
     USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);

@@ -21,6 +21,7 @@ static unsigned request_count;
 static unsigned callback_count;
 static unsigned configured_count;
 static unsigned opened_count;
+static unsigned umount_count;
 static uint8_t  edpt_open_fail_addr; // tuh_edpt_open() fails for this endpoint, 0 for none
 
 //--------------------------------------------------------------------+
@@ -48,6 +49,11 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   }
   opened_count++;
   return true;
+}
+
+void tuh_cdc_umount_cb(uint8_t idx) {
+  (void) idx;
+  umount_count++;
 }
 
 bool tuh_control_xfer(tuh_xfer_t *xfer) {
@@ -178,7 +184,7 @@ void setUp(void) {
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
-  opened_count = 0;
+  opened_count = umount_count = 0;
   edpt_open_fail_addr = 0;
   TEST_ASSERT_TRUE(cdch_init());
 }
@@ -289,6 +295,42 @@ void test_ftdi_open_walks_extended_endpoints(void) {
   };
   TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc) - 1));
   TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+}
+
+// A span ending inside the second endpoint is rejected before either endpoint is opened
+void test_ftdi_open_truncated_second_endpoint_opens_none(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc) - 3));
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  TEST_ASSERT_EQUAL(0, opened_count);
+}
+
+// usbh closes the drivers of a device whose configuration failed to parse: an interface the application never got
+// tuh_cdc_mount_cb() for gets no tuh_cdc_umount_cb()
+void test_close_unmounted_interface_skips_umount_cb(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  cdch_close(DEV_ADDR);
+  TEST_ASSERT_EQUAL(0, umount_count);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+
+  open_ftdi(0x0600, 0);
+  cdch_close(DEV_ADDR);
+  TEST_ASSERT_EQUAL(1, umount_count);
 }
 
 // A slot freed by one device starts clean for the next: the ACM notification endpoint must not route a completion

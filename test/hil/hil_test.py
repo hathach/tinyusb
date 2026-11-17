@@ -1343,17 +1343,33 @@ def test_device_mtp(board):
     assert rc == 0, f'MTP session failed (rc {rc}):\n{out}'
 
 
+def _proc_state_start(path: str) -> tuple | None:
+    """(state, starttime) from proc(5) stat file `path`, None when it is gone."""
+    try:
+        with open(path, errors='replace') as f:
+            fields = f.read().rpartition(')')[2].split()
+    except (OSError, ValueError):
+        return None
+    return (fields[0], fields[19]) if len(fields) >= 20 else None
+
+
 def _session_alive(pidfile: str) -> str:
     """After run_cmd gave up on a session child (usbtmc_test.py, mtp_test.py): which session is still alive
     ('pid N'), a session blocked in a usbfs ioctl outlives SIGKILL and keeps the device; '' when it was reaped.
-    Only /proc/<pid>/stat is read, which a D-state process does not block. A session that never recorded itself
+    Only /proc stat files are read, which a D-state process does not block. A session that never recorded itself
     counts as alive: nothing proves it ended."""
     try:
         with open(pidfile) as f:
             pid, start = f.read().split()
     except (OSError, ValueError):
         return 'with an unrecorded pid'
-    return f'pid {pid}' if usbtest._uo().proc_holds({'pid': int(pid), 'start': start}) else ''
+    root = f'{usbtest._uo().PROC_ROOT}/{int(pid)}'
+    leader = _proc_state_start(f'{root}/stat')
+    if leader is None or leader[1] != start:
+        return ''   # gone, or a recycled pid
+    # an exited leader reads Z while a thread blocked in D state (a stranded bounded_read) keeps the device
+    tasks = (_proc_state_start(p) for p in glob.glob(f'{root}/task/*/stat'))
+    return f'pid {pid}' if any(t and t[0] not in ('Z', 'X') for t in tasks) else ''
 
 
 def test_device_usbtmc(board):

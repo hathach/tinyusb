@@ -532,7 +532,9 @@ void midih2_close(uint8_t dev_addr) {
       tu_edpt_stream_close(&p_midi->ep_stream.rx);
       tu_fifo_clear(&p_midi->ep_stream.tx.ff);
       p_midi->ep_stream.tx.ep_addr = 0;
-      tuh_midi2_umount_cb(idx);
+      if (p_midi->mounted) {
+        tuh_midi2_umount_cb(idx); // only an interface the application got tuh_midi2_mount_cb() for
+      }
       tu_memclr(p_midi, sizeof(midih2_interface_t));
     }
   }

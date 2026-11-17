@@ -123,7 +123,9 @@ void midih_close(uint8_t daddr) {
     midih_interface_t* p_midi = &_midi_host[idx];
     if (p_midi->daddr == daddr) {
       TU_LOG_DRV("  MIDI close addr = %u index = %u\r\n", daddr, idx);
-      tuh_midi_umount_cb(idx);
+      if (p_midi->mounted) {
+        tuh_midi_umount_cb(idx); // only an interface the application got tuh_midi_mount_cb() for
+      }
 
       p_midi->bInterfaceNumber = 0;
       p_midi->rx_cable_count = 0;
