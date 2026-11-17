@@ -370,6 +370,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t  *buffer, uint16_t t
 
   if (bd->own) {
     TU_LOG1("DCD XFER fail %x %d %lx %lx\r\n", ep_addr, total_bytes, ep->state, bd->head);
+    NVIC_EnableIRQ(USB_FS_IRQn);
     return false; /* The last transfer has not completed */
   }
   ep->length    = total_bytes;

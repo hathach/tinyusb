@@ -258,6 +258,12 @@
     :test_msc_nopad_device:
       - CFG_TUD_MSC_PAD_SHORT_REPLY=0
       - CFG_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+    :test_usbh:
+      - CFG_TUH_ENABLED=1
+      - CFG_TUD_ENABLED=0
+      - CFG_TUSB_DEBUG=0
+    :test_usbh_task_ready:
+      - CFG_TUH_HUB=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

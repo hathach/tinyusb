@@ -208,8 +208,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
-  // Skip queue lock/unlock since this function is primarily called
-  // with interrupt disabled before going into low power mode
+  // Lock-free on purpose: also polled with interrupts enabled by the bare-metal tud/tuh_task fast path,
+  // where a stale empty only defers the event to the next poll
   return tu_fifo_empty(&qhdl->ff);
 }
 
