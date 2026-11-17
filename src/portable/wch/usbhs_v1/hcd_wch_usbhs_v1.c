@@ -469,7 +469,9 @@ static void engine_kick(void) {
       USBHSH->HOST_TX_CTRL = USBHS_UH_T_RES_NO;
     }
     _hcd.active_started = _hcd.now + ((uint16_t)(frame_read() - _hcd.frame_raw) & 0x3fff);
-    if (ep->type == TUSB_XFER_ISOCHRONOUS) {
+    // A periodic packet takes its service interval at launch: aborting it, even after it went
+    // out on the wire, must not let a re-arm send a second packet in the same interval.
+    if (ep->type == TUSB_XFER_ISOCHRONOUS || ep->type == TUSB_XFER_INTERRUPT) {
       ep->due = _hcd.active_started + ep->interval;
     }
     USBHSH->INT_FG = USBHS_TRANSFER_FLAG;

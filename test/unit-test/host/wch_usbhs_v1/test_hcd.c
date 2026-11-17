@@ -277,6 +277,28 @@ static void test_iso_cancel_interval(tusb_speed_t speed) {
   done(0, 0);
 }
 
+static void test_interrupt_cancel_interval(tusb_speed_t speed) {
+  reset(speed);
+  uint32_t const interval = speed == TUSB_SPEED_HIGH ? 4 : 16;
+  assert(open_ep(1, 0x81, TUSB_XFER_INTERRUPT, 8, speed == TUSB_SPEED_HIGH ? 3 : 2));
+  hcd_ep_t *ep = ep_find(1, 0x81);
+  assert(ep->interval == interval);
+  tick(8);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8) && _hcd.active >= 0);
+  // The poll already returned data when the abort stops it: the re-arm waits for the next interval.
+  regs.INT_FG = USBHS_TRANSFER_FLAG;
+  regs.INT_ST = USBHS_TOGGLE_OK | 3;
+  assert(hcd_edpt_abort_xfer(0, 1, 0x81) && ep->toggle);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 8));
+  assert(_hcd.active == -1 && ep->due == 8 + interval);
+  tick(8 + interval - 1);
+  assert(_hcd.active == -1);
+  tick(8 + interval);
+  assert(_hcd.active >= 0 && (regs.HOST_RX_CTRL & USBHS_UH_R_TOG_1));
+  receive(0x61, 8); done(USBHS_TOGGLE_OK | 0xb, 8);
+  assert(events == 1 && event.xfer_complete.result == XFER_RESULT_SUCCESS && event.xfer_complete.len == 8);
+}
+
 static void test_iso_completion_at_boundary(void) {
   reset(TUSB_SPEED_HIGH);
   assert(open_ep(1, 1, TUSB_XFER_ISOCHRONOUS, 64, 1));
@@ -888,6 +910,8 @@ int main(void) {
   test_iso_missing_completion();
   test_iso_cancel_interval(TUSB_SPEED_FULL);
   test_iso_cancel_interval(TUSB_SPEED_HIGH);
+  test_interrupt_cancel_interval(TUSB_SPEED_FULL);
+  test_interrupt_cancel_interval(TUSB_SPEED_HIGH);
   test_root_port();
   test_native_nak_stall_error();
   test_abort_completed_packet();

@@ -333,6 +333,11 @@ static void xact_start(int8_t idx, bool new_ep, bool at_sof) {
     engine_stop();
     return;
   }
+  // A periodic packet takes its service interval at launch: aborting it, even after it went out
+  // on the wire, must not let a re-arm send a second packet in the same interval.
+  if (is_iso || ep->xfer_type == TUSB_XFER_INTERRUPT) {
+    ep->next_frame = (uint16_t)(_hcd.frame_count + ep->interval);
+  }
   USBFSH->INT_FG       = USBFS_UIF_TRANSFER;
   USBFSH->HOST_EP_PID  = (uint8_t)((pid << 4) | ep->ep_num);
 }
