@@ -200,8 +200,15 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
     // Isochronous and interrupt endpoints get a single DPRAM buffer (hw_endpoint_open only double-sizes BULK), so
     // they must never be double-buffered here even when a transfer spans multiple packets, or buffer 1 (at
     // dpram_buf+64) would spill into the next endpoint's DPRAM. Bulk and host control (EPX) stay double-buffered.
-    const uint32_t buffer_type  = (ep_ctrl >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u;
-    const bool     force_single = (buffer_type == TUSB_XFER_ISOCHRONOUS) || (buffer_type == TUSB_XFER_INTERRUPT);
+    const uint32_t buffer_type = (ep_ctrl >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u;
+    const bool     single_buf  = (buffer_type == TUSB_XFER_ISOCHRONOUS) || (buffer_type == TUSB_XFER_INTERRUPT);
+  #if CFG_TUH_ENABLED
+    // host interrupt endpoints, polled on EPX (whose buffer type may be bulk): a poll arms one packet (a poll without
+    // data gives back just that one, see hcd_rp2040.c)
+    const bool force_single = single_buf || (rp2usb_is_host_mode() && ep->transfer_type == TUSB_XFER_INTERRUPT);
+  #else
+    const bool force_single = single_buf;
+  #endif
 
     if (ep->remaining_len && !force_single) {
       // Use buffer 1 (double buffered) if there is still data
@@ -332,8 +339,8 @@ static uint16_t __tusb_irq_path_func(bufctrl_sync16)(hw_endpoint_t *ep, bool is_
 
 // Returns true if transfer is complete.
 // buf_id: which buffer completed (from BUFF_CPU_SHOULD_HANDLE, only used for double-buffered).
-bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t buf_id,
-                                                bool is_rx) {
+bool __tusb_irq_path_func(rp2usb_xfer_continue_ex)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg,
+                                                   uint8_t buf_id, bool is_rx, bool rearm) {
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->state == EPSTATE_IDLE) {
@@ -423,7 +430,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue)(hw_endpoint_t *ep, io_rw_32 *ep_
     return true;
   }
 
-  if (!is_done && ep->remaining_len > 0) {
+  if (rearm && !is_done && ep->remaining_len > 0) {
   #if CFG_TUSB_RP2_ERRATA_E15
     const bool need_e15 = ep->e15_bulk_in;
     if (need_e15 && e15_is_critical_frame_period()) {
