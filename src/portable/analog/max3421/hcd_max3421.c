@@ -459,6 +459,15 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   return true;
 }
 
+// usbh marks the controller inactive on a failed init, so hcd_deinit() never runs to free the mutex
+static bool init_failed(void) {
+#if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(_hcd_data.spi_mutex);
+  _hcd_data.spi_mutex = NULL;
+#endif
+  return false;
+}
+
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
@@ -483,7 +492,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Note: v1 and v2 has host OUT errata whose workaround is not implemented in this driver
   uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
   TU_LOG2_HEX(revision);
-  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
+  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, init_failed());
 
   // Software reset via CHIPRES. Per the Programming Guide, CHIPRES stops the internal oscillator;
   // clearing it restarts the oscillator, and OSCOKIRQ latches on the resulting OSCOK 0->1 edge.
@@ -502,7 +511,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
       TU_LOG1("MAX3421: OSCOK timeout\r\n");
       reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
       reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
-      return false;
+      return init_failed();
     }
   }
 
