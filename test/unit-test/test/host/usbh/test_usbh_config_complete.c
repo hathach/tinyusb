@@ -355,3 +355,66 @@ void test_clear_stall_rejects_invalid_target(void) {
   TEST_ASSERT_FALSE(usbh_edpt_clear_stall(OTHER_ADDR, EP_BULK_IN));              // not connected
   TEST_ASSERT_EQUAL(0, clear_stall_count);
 }
+
+//--------------------------------------------------------------------+
+// Enumeration failures end the enumeration: the next attach is not held behind it
+//--------------------------------------------------------------------+
+static void assert_enumeration_ended(void) {
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_EQUAL(0, mount_cb_count);
+}
+
+static void run_enumeration(uint8_t daddr, uintptr_t state, const void *ctrl_data, uint16_t len) {
+  static const tusb_control_request_t req_get_config = {
+    .bmRequestType = 0x80, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = TUSB_DESC_CONFIGURATION << 8, .wLength = 9
+  };
+  _usbh_data.root_retry_count = USBH_ENUM_ROOT_RETRY_MAX; // no root port retry: it would post an attach event
+  memcpy(_usbh_epbuf.ctrl, ctrl_data, len);
+  tuh_xfer_t xfer = {
+    .daddr = daddr, .result = XFER_RESULT_SUCCESS, .setup = &req_get_config, .actual_len = len, .user_data = state
+  };
+  process_enumeration(&xfer);
+}
+
+// every address taken: the device at address 0 fails instead of holding the enumeration
+void test_enum_no_free_address_ends_enumeration(void) {
+  static const uint8_t desc_dev8[8] = {18, TUSB_DESC_DEVICE, U16_TO_U8S_LE(0x0200), 0, 0, 0, 64};
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    get_device(daddr)->connected = 1;
+  }
+  _usbh_data.enumerating_daddr = 0;
+
+  run_enumeration(0, ENUM_SET_ADDR, desc_dev8, sizeof(desc_dev8));
+
+  assert_enumeration_ended();
+}
+
+// a configuration larger than the enumeration buffer is not read, and fails the device
+void test_enum_config_larger_than_buffer_ends_enumeration(void) {
+  static const uint8_t desc_cfg9[9] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(CFG_TUH_ENUMERATION_BUFSIZE + 1), 1, 1, 0, 0x80, 50
+  };
+
+  run_enumeration(DADDR, ENUM_GET_FULL_CONFIG_DESC, desc_cfg9, sizeof(desc_cfg9));
+
+  assert_enumeration_ended();
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+}
+
+// the driver opened, but its endpoint cannot be bound: the driver is closed and the device fails
+void test_enum_refused_binding_closes_driver_and_ends_enumeration(void) {
+  static const uint8_t desc_cfg[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+  };
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+
+  assert_enumeration_ended();
+  TEST_ASSERT_EQUAL(1, close_count);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+}

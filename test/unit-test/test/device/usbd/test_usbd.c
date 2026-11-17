@@ -443,8 +443,8 @@ tusb_control_request_t const req_set_configuration = {
 
 static uint8_t msc_out_buf[64];
 
-// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
-static void msc_out_armed(void) {
+// Configure the MSC configuration, binding interface 0 and its bulk endpoints to the (mocked) MSC driver
+static void msc_configure(void) {
   mscd_reset_Ignore();
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
@@ -457,7 +457,11 @@ static void msc_out_armed(void) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
   tud_task();
+}
 
+// Claim and arm the MSC OUT endpoint
+static void msc_out_armed(void) {
+  msc_configure();
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
@@ -922,4 +926,159 @@ void test_usbd_sof_cb_enabled_from_mount_cb_after_leaving_configuration(void) {
   sof_on_mount = false;
   dcd_sof_enable_Expect(rhport, false);
   tud_sof_cb_enable(false);
+}
+
+//--------------------------------------------------------------------+
+// GET_CONFIGURATION direction
+//--------------------------------------------------------------------+
+void test_usbd_get_configuration_in_answers_cfg_num(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x80, .bRequest = TUSB_REQ_GET_CONFIGURATION, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  static const uint8_t zero = 0;
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) &zero, 1, 1, false, true);
+  tud_task();
+}
+
+// GET_CONFIGURATION is device-to-host: an OUT one is a Request Error. Its data stage must not be armed: the answer
+// lives in a stack local the data would be written into after the handler returned.
+void test_usbd_get_configuration_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_CONFIGURATION, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// GET_DESCRIPTOR is device-to-host (USB 2.0 9.4.3): an OUT data stage would be written into the descriptor
+void test_usbd_get_descriptor_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = (TUSB_DESC_DEVICE << 8), .wIndex = 0,
+    .wLength = sizeof(tusb_desc_device_t)
+  };
+  desc_device = (uint8_t const *) &data_desc_device;
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// An OUT GET_INTERFACE to an interface stalls before reaching its class driver: no mscd_control_xfer_cb expected
+void test_usbd_get_interface_out_to_interface_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configure();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+// The device-to-host rule is for standard requests only: a vendor OUT request numbered GET_DESCRIPTOR is dispatched
+void test_usbd_vendor_out_request_6_is_dispatched(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x40, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = 0, .wIndex = 0, .wLength = 8
+  };
+  bus_reset();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 8, false, true);
+  dcd_edpt_xfer_IgnoreArg_buffer();
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream read: the ep buffer cap is rounded down to whole packets
+//--------------------------------------------------------------------+
+enum { EDPT_STREAM_OUT = 0x07 };
+
+static void stream_rx_open_ep(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
+                              uint16_t xfer_len, uint8_t xfer_type, uint16_t mps) {
+  const tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EDPT_STREAM_OUT,
+    .bmAttributes     = { .xfer = xfer_type },
+    .wMaxPacketSize   = mps,
+    .bInterval        = (xfer_type == TUSB_XFER_INTERRUPT) ? 1 : 0
+  };
+  bus_reset(); // endpoint idle and unclaimed
+  memset(stream, 0, sizeof(*stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, false, false, ff_buf, ff_size, ep_buf));
+  tu_edpt_stream_open(stream, rhport, &desc_ep, xfer_len);
+}
+
+static void stream_rx_open(tu_edpt_stream_t *stream, uint8_t *ff_buf, uint16_t ff_size, uint8_t *ep_buf,
+                           uint16_t xfer_len) {
+  stream_rx_open_ep(stream, ff_buf, ff_size, ep_buf, xfer_len, TUSB_XFER_BULK, 64);
+}
+
+// 256 bytes free, a 100-byte cap: one 64-byte packet, not 100 that a second packet would overrun
+void test_usbd_stream_read_xfer_cap_rounded_to_packets(void) {
+  uint8_t ff_buf[256];
+  uint8_t ep_buf[100];
+  tu_edpt_stream_t stream;
+  stream_rx_open(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 64, false, true);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_read_xfer(&stream));
+}
+
+// a cap below one packet holds no packet: nothing is submitted and the endpoint is released
+void test_usbd_stream_read_xfer_cap_below_packet(void) {
+  uint8_t ff_buf[256];
+  uint8_t ep_buf[32];
+  tu_edpt_stream_t stream;
+  stream_rx_open(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf));
+
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_read_xfer(&stream));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_OUT));
+  usbd_edpt_release(rhport, EDPT_STREAM_OUT);
+}
+
+// a non power-of-two packet size (FS interrupt) still gets every whole packet the buffers hold
+void test_usbd_stream_read_xfer_non_pow2_mps(void) {
+  uint8_t ff_buf[96];
+  uint8_t ep_buf[100];
+  tu_edpt_stream_t stream;
+  stream_rx_open_ep(&stream, ff_buf, sizeof(ff_buf), ep_buf, sizeof(ep_buf), TUSB_XFER_INTERRUPT, 48);
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_OUT, ep_buf, 96, false, true);
+  TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
+}
+
+// a non power-of-two packet size (FS interrupt) gets a ZLP after whole packets only: mps - 1 is no mask for 48
+void test_usbd_stream_write_zlp_non_pow2_mps(void) {
+  enum { EDPT_STREAM_IN = 0x83 };
+  uint8_t ff_buf[96];
+  uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  const tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = EDPT_STREAM_IN,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+  bus_reset(); // endpoint idle and unclaimed
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 48));
 }

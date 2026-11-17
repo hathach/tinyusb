@@ -45,9 +45,11 @@ jobs:
         cmake -S test/fuzz -B test/fuzz/_build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
         cmake --build test/fuzz/_build --parallel
         ctest --test-dir test/fuzz/_build --output-on-failure
+        # each configured harness has a <name>_seed_replay test; a directory can build several (msch_open_none)
+        targets=$(ctest --test-dir test/fuzz/_build -N | sed -n 's/^ *Test *#[0-9]*: \(.*\)_seed_replay$/\1/p')
+        [ -n "$targets" ] || { echo "no fuzz targets configured"; exit 1; }
         pids=""
-        for d in test/fuzz/device/*/ test/fuzz/host/*/; do
-          h=$(basename $d)
+        for h in $targets; do
           test/fuzz/_build/$h -max_total_time=10 test/fuzz/_build/corpus/$h > fuzz-$h.log 2>&1 &
           pids="$pids $!"
         done

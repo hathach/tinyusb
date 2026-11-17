@@ -1,6 +1,7 @@
 """Tests for the build skill's coverage_audit.py: the parsers that turn ninja and readelf
 output into a per-example file set, extraction over a canned build, and the replay
 judgement against a build view."""
+import contextlib
 import importlib.util
 import json
 import os
@@ -320,6 +321,24 @@ class JudgeTest(unittest.TestCase):
 
     def test_no_files_requires_nothing(self):
         self.assertEqual(ca.judge([], [], self.INDEX, self.FAMILY, self.view())['required'], 0)
+
+
+class GraphTest(unittest.TestCase):
+    def test_family_is_looked_up_in_the_root_not_the_cwd(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as cwd:
+            os.makedirs(os.path.join(root, 'hw', 'bsp', 'rp2040', 'boards', 'pico'))
+            os.makedirs(os.path.join(root, 'tools'))
+            with open(os.path.join(root, 'tools', 'build.py'), 'w') as fh:   # cwd-relative, as tools/build.py's
+                fh.write('import os\n'
+                         'def find_family(board):\n'
+                         '    return "rp2040" if os.path.isdir(f"hw/bsp/rp2040/boards/{board}") else None\n')
+            out = os.path.join(cwd, 'graph')
+            with contextlib.chdir(cwd), mock.patch.dict(sys.modules), mock.patch.object(sys, 'path', list(sys.path)), \
+                    mock.patch.object(ca, 'run_ok', return_value='abc\n'):
+                sys.modules.pop('build', None)
+                ca.main(['graph', '--root', root, '--out', out, '--board', 'pico'])
+            with open(os.path.join(out, 'pico.json')) as fh:
+                self.assertEqual(json.load(fh)['family'], 'rp2040')
 
 
 class ReplayTest(unittest.TestCase):

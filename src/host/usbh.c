@@ -546,6 +546,53 @@ bool tuh_inited(void) {
   return _usbh_controller_id != TUSB_INDEX_INVALID_8;
 }
 
+// Release what tuh_rhport_init()'s stack setup created
+static void usbh_stack_deinit(void) {
+  // Class drivers
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+    usbh_class_driver_t const* driver = get_driver(drv_id);
+    if (driver && driver->deinit) {
+      TU_LOG_USBH("%s deinit\r\n", driver->name);
+      driver->deinit();
+    }
+  }
+
+  osal_queue_delete(_usbh_q);
+  _usbh_q = NULL;
+
+  #if CFG_TUH_HUB
+  osal_queue_delete(_usbh_daq);
+  _usbh_daq = NULL;
+  #endif
+
+  // Fire FAILED cb for any queued async control xfer so callers aren't stranded.
+  usbh_pending_ctrl_t pending;
+  while (tu_fifo_read_n(&_usbh_pending_ctrl_q, &pending, sizeof(pending)) == sizeof(pending)) {
+    if (pending.complete_cb) {
+      tuh_xfer_t x = {
+        .daddr       = pending.daddr,
+        .ep_addr     = 0,
+        .result      = XFER_RESULT_FAILED,
+        .actual_len  = 0,
+        .setup       = &pending.setup,
+        .buffer      = pending.buffer,
+        .complete_cb = pending.complete_cb,
+        .user_data   = pending.user_data,
+      };
+      pending.complete_cb(&x);
+    }
+  }
+  tu_fifo_clear(&_usbh_pending_ctrl_q);
+
+  #if OSAL_MUTEX_REQUIRED
+  // TODO make sure there is no task waiting on this mutex
+  osal_mutex_delete(_usbh_mutex);
+  _usbh_mutex = NULL;
+  #endif
+
+  osal_spin_deinit(&_usbh_spin);
+}
+
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (tuh_rhport_is_active(rhport)) {
     return true; // skip if already initialized
@@ -625,9 +672,16 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     }
   }
 
-  // Init host controller
+  // Init host controller; restore the id on failure so a retry is not skipped as already active
+  const uint8_t prev_controller_id = _usbh_controller_id;
   _usbh_controller_id = rhport;
-  TU_ASSERT(hcd_init(rhport, rh_init));
+  if (!hcd_init(rhport, rh_init)) {
+    _usbh_controller_id = prev_controller_id;
+    if (!tuh_inited()) {
+      usbh_stack_deinit(); // a retry re-runs stack setup, which would leak dynamically allocated queues/mutex
+    }
+    TU_ASSERT(false);
+  }
   hcd_int_enable(rhport);
 
   return true;
@@ -648,49 +702,7 @@ bool tuh_deinit(uint8_t rhport) {
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
-    // Class drivers
-    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-      usbh_class_driver_t const* driver = get_driver(drv_id);
-      if (driver && driver->deinit) {
-        TU_LOG_USBH("%s deinit\r\n", driver->name);
-        driver->deinit();
-      }
-    }
-
-    osal_queue_delete(_usbh_q);
-    _usbh_q = NULL;
-
-  #if CFG_TUH_HUB
-    osal_queue_delete(_usbh_daq);
-    _usbh_daq = NULL;
-  #endif
-
-    // Fire FAILED cb for any queued async control xfer so callers aren't stranded.
-    usbh_pending_ctrl_t pending;
-    while (tu_fifo_read_n(&_usbh_pending_ctrl_q, &pending, sizeof(pending)) == sizeof(pending)) {
-      if (pending.complete_cb) {
-        tuh_xfer_t x = {
-          .daddr       = pending.daddr,
-          .ep_addr     = 0,
-          .result      = XFER_RESULT_FAILED,
-          .actual_len  = 0,
-          .setup       = &pending.setup,
-          .buffer      = pending.buffer,
-          .complete_cb = pending.complete_cb,
-          .user_data   = pending.user_data,
-        };
-        pending.complete_cb(&x);
-      }
-    }
-    tu_fifo_clear(&_usbh_pending_ctrl_q);
-
-  #if OSAL_MUTEX_REQUIRED
-    // TODO make sure there is no task waiting on this mutex
-    osal_mutex_delete(_usbh_mutex);
-    _usbh_mutex = NULL;
-  #endif
-
-    osal_spin_deinit(&_usbh_spin);
+    usbh_stack_deinit();
   }
 
   return true;
@@ -1792,6 +1804,15 @@ static void mark_device_tree_removing(uint8_t rhport, uint8_t hub_addr, uint8_t 
   } while (marked);
 }
 
+static void close_class_drivers(uint8_t daddr) {
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+    usbh_class_driver_t const* driver = get_driver(drv_id);
+    if (driver != NULL) {
+      driver->close(daddr);
+    }
+  }
+}
+
 // remove a device at rhport:hub_addr:hub_port and all of its downstream
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
@@ -1827,14 +1848,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
           }
         }
 
-        // Close class driver
-        for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-          usbh_class_driver_t const* driver = get_driver(drv_id);
-          if (driver != NULL) {
-            driver->close(daddr);
-          }
-        }
-
+        close_class_drivers(daddr);
         usbh_device_close(rhport, daddr);
         clear_device(dev);
       }
@@ -2133,7 +2147,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       }
 
       const uint8_t new_addr = enum_get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
-      TU_ASSERT(new_addr != 0,);
+      if (new_addr == 0) {
+        TU_LOG_USBH("No free device address\r\n");
+        is_enum_failed = true;
+        break;
+      }
 
       usbh_device_t* new_dev = get_device(new_addr);
       new_dev->bus_info = *dev0_bus;
@@ -2262,8 +2280,11 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh(tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)));
 
-      // TODO not enough buffer to hold configuration descriptor
-      TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE,);
+      if (total_len > CFG_TUH_ENUMERATION_BUFSIZE) {
+        TU_LOG_USBH("Configuration wTotalLength %u exceeds CFG_TUH_ENUMERATION_BUFSIZE\r\n", total_len);
+        is_enum_failed = true;
+        break;
+      }
 
       // Get full configuration descriptor
       // Assumption: xfer was a GET_DESCRIPTOR request, so the index is in wValue and not wIndex.
@@ -2319,7 +2340,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
-      TU_ASSERT(enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
+      if (!enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
+        TU_LOG_USBH("Failed to bind class drivers\r\n");
+        close_class_drivers(daddr); // a driver may have opened before the failure
+        is_enum_failed = true;
+        break;
+      }
 
       // Start the Set Configuration process for interfaces (itf = TUSB_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.

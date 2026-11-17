@@ -651,10 +651,8 @@ static void process_set_config(tuh_xfer_t* xfer) {
         config_driver_mount_complete(daddr, idx, NULL, 0);
         break;
       }
-      const uint8_t *desc_report = usbh_get_enum_buf();
-      const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
-
-      config_driver_mount_complete(daddr, idx, desc_report, desc_len);
+      // a successful control IN may end short of wLength (USB 2.0 5.5.3)
+      config_driver_mount_complete(daddr, idx, usbh_get_enum_buf(), (uint16_t) xfer->actual_len);
       break;
     }
 

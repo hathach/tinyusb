@@ -1905,9 +1905,45 @@ class TheSequenceVerdictReadsEveryAttempt(unittest.TestCase):
         self.assertEqual(self.verdicts(['b'])['b'], ('blocker', False))
 
     def test_a_usbtest_batterys_fail_is_final(self):
-        self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 28/29'}}})
-        self.attempt(True, {'b': {'b': {'device/usbtest': '✅ 29/29'}}})
+        for name, cell in (('partial', '❌ 28/29'), ('every case failed', '❌ 0/29')):
+            with self.subTest(name):
+                self.setUp()
+                self.attempt(False, {'b': {'b': {'device/usbtest': cell, hil_report.FINAL_CELL: 'device/usbtest'}}})
+                self.attempt(True, {'b': {'b': {'device/usbtest': '✅ 29/29'}}})
+                self.assertEqual(self.verdicts(['b'])['b'], ('fail', False))
+
+    def test_a_usbtest_fail_without_a_parsed_verdict_is_retried(self):
+        # a battery that never launched or bound, or stopped with BUDGET entries: the same '❌ n/N' shape
+        for name, cell in (('did not run', '❌ 0/30'), ('stopped early', '❌ 10/30')):
+            with self.subTest(name):
+                self.setUp()
+                self.attempt(False, {'b': {'b': {'device/usbtest': cell}}})
+                self.attempt(True, {'b': {'b': {'device/usbtest': '✅ 30/30'}}})
+                self.assertEqual(self.verdicts(['b'])['b'], ('pass', True))
+
+    def test_a_retry_that_reparses_the_fail_keeps_it_final(self):
+        self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 0/30'}}})
+        self.attempt(True, {'b': {'b': {'device/usbtest': '❌ 29/30', hil_report.FINAL_CELL: 'device/usbtest'}}})
         self.assertEqual(self.verdicts(['b'])['b'], ('fail', False))
+
+    def test_final_provenance_follows_the_cell_it_describes(self):
+        self.attempt(False, {'b': {'b': {'device/usbtest': '❌ 29/30', 'device/cdc_msc': '❌ boom',
+                                         hil_report.FINAL_CELL: 'device/usbtest'}}})
+        self.attempt(True, {'b': {'b': {'device/cdc_msc': '✅'}}})
+        cells = hil_report._load(self.rd)[0]['rows'][0]['cells']
+        self.assertEqual(cells[hil_report.FINAL_CELL], 'device/usbtest', 'an untouched usbtest cell keeps it')
+        self.attempt(True, {'b': {'b': {'device/usbtest': '❌ 0/30'}}})
+        cells = hil_report._load(self.rd)[0]['rows'][0]['cells']
+        self.assertNotIn(hil_report.FINAL_CELL, cells, 'a re-run that parsed nothing drops it')
+        md = (self.rd / hil_report.REPORT_MD).read_text()
+        self.assertNotIn(hil_report.FINAL_CELL, md)
+        self.attempt(True, {'b': {'b': {'device/usbtest': '❌ 29/30', hil_report.FINAL_CELL: 'device/usbtest'}}})
+        doc = hil_report._load(self.rd)[0]
+        md = (self.rd / hil_report.REPORT_MD).read_text()
+        self.assertNotIn(hil_report.FINAL_CELL, md, 'provenance is never a table column')
+        self.assertIn('1 failed', md, 'nor a counted cell')
+        got = hil_report.summarize(json.loads(self.cfg.read_text()), ['b'], doc)['results'][0]
+        self.assertEqual(got['detail'], 'b device/usbtest: ❌ 29/30')
 
     def test_an_aborted_predecessor_stays_a_blocker(self):
         hil_report.start_attempt(self.rd, False, self.cfg, ['a', 'b'])

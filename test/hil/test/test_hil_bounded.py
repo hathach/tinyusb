@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.dirname(TEST_DIR))
 import usbtest_harness
 import hil_flash
 import hil_test
+import session_child
 
 
 def write_script(path: Path, body: str) -> None:
@@ -676,6 +677,73 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         self.assertTrue(finished, 'test_device_mtp hung on a wedged MTP stack')
         self.assertIsInstance(exc, AssertionError)
 
+    def _timed_out_session(self, alive):
+        """test_device_mtp over a session run_cmd times out, `alive` standing in for the survival check."""
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+        os.environ['FAKE_PYMTP_MODE'] = 'hang'
+        hil_test.MTP_SESSION_MARGIN = 3
+        recorded = []
+
+        def check(pidfile):
+            recorded.append(Path(pidfile).read_text().split())
+            return alive(pidfile)
+        usbtest_harness.patch(self, hil_test, '_session_alive', check)
+        finished, exc = run_bounded(lambda: hil_test.test_device_mtp(self.board), 25)
+        self.assertTrue(finished)
+        self.assertIsInstance(exc, AssertionError)
+        self.assertEqual([len(r) for r in recorded], [2], 'the child records "<pid> <starttime>" first')
+        return exc
+
+    def test_a_reaped_timeout_latches_no_wedge(self):
+        exc = self._timed_out_session(hil_test._session_alive)
+        self.assertIn('the session was reaped', str(exc))
+        self.assertEqual(hil_test.board_wedged, '')
+
+    def test_a_session_that_outlives_its_kill_latches_the_wedge(self):
+        # rc 124 alone is not the wedge: only a session still holding the device stops retries and the park
+        exc = self._timed_out_session(lambda pidfile: 'pid 4242')
+        self.assertIn('MTP session pid 4242 outlived SIGKILL', str(exc))
+        self.assertEqual(hil_test.board_wedged, 'fakeboard: MTP session pid 4242 outlived SIGKILL and holds the device')
+        self.assertFalse(hil_test._should_park(False), 'no park through the held node')
+
+
+
+class SessionPidfile(unittest.TestCase):
+    """session_child.write_pidfile's record, read back by hil_test._session_alive."""
+
+    def test_the_record_round_trips_and_a_recycled_or_missing_pid_is_told_apart(self):
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            session_child.write_pidfile(str(pidfile))
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {os.getpid()}')
+            pid, start = pidfile.read_text().split()
+            pidfile.write_text(f'{pid} {int(start) + 1}\n')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'another starttime is a recycled pid')
+            pidfile.write_text('')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), 'with an unrecorded pid')
+
+    def test_a_live_thread_behind_an_exited_leader_keeps_the_session_alive(self):
+        # a stranded bounded_read thread can stay blocked past SIGKILL while the leader already reads Z
+        child = ('import ctypes, sys, threading, time\n'
+                 'import session_child\n'
+                 'session_child.write_pidfile(sys.argv[1])\n'
+                 'threading.Thread(target=time.sleep, args=(30,)).start()\n'
+                 'ctypes.CDLL(None).pthread_exit(None)\n')
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            p = subprocess.Popen([sys.executable, '-c', child, str(pidfile)], cwd=os.path.dirname(TEST_DIR))
+            self.addCleanup(p.wait)
+            self.addCleanup(p.kill)
+            deadline = time.monotonic() + 10
+            while (hil_test._proc_state_start(f'/proc/{p.pid}/stat') or ('',))[0] != 'Z':
+                self.assertLess(time.monotonic(), deadline, 'the leader never exited')
+                time.sleep(0.05)
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {p.pid}')
+            p.kill()
+            p.wait()
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'a reaped session is not alive')
+
 
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the
@@ -1243,6 +1311,23 @@ class UsbtestRetryPolicy(unittest.TestCase):
 
     def test_a_transient_failure_is_retried(self):
         self.assertEqual(self._attempts(hil_test.TestFail('usbtest did not run')), 3)
+
+    def test_only_a_per_case_verdict_reports_final(self):
+        # the report's FINAL_CELL comes from this status: hil_report.sequence never infers it from '0/N'
+        for exc, want in ((hil_test.TestFail('29/30', metric='❌ 29/30', parsed=True), 'final'),
+                          (hil_test.TestFail('usbtest did not run', metric='❌ 0/30'), 'fail')):
+            with self.subTest(want):
+                self._patch(hil_flash, 'find_firmware', lambda *a, **k: Path('/nonexistent/fw.elf'))
+                self._patch(hil_test, 'skip_flash', True)
+                self._patch(hil_test, 'max_retry', 2)
+                self._patch(hil_test, 'log_line', lambda *a, **k: None)
+
+                def fake_test(board, exc=exc):
+                    raise exc
+                self._patch(hil_test, 'test_fake_example', fake_test)
+                got = hil_test.test_example({'name': 'b', 'uid': 'u', 'flasher': {'name': 'openocd'}},
+                                            'v', 'fake/example')
+                self.assertEqual(got, (1, want, exc.metric))
 
 
 class UsbtestOuterKillStaysRetryable(unittest.TestCase):

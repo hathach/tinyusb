@@ -332,3 +332,28 @@ void test_video_recommit_abort_callback_may_submit(void) {
   TEST_ASSERT_TRUE(resubmitted);
   TEST_ASSERT_EQUAL(2, submitted);
 }
+
+// UVC 1.5 4.3.1.1.1: COMMIT stalls an unsupported state. A field left to negotiate (here the frame interval, with
+// a continuous range to pick from) leaves dwMaxPayloadTransferSize as the host sent it, and a payload no larger
+// than its header carries no frame data.
+void test_video_commit_rejects_unresolved_parameters(void) {
+  const uint32_t payload_sizes[] = {0, sizeof(tusb_video_payload_header_t), 64};
+  const tusb_control_request_t request = {.bmRequestType = 0x21,
+                                          .bRequest      = VIDEO_REQUEST_SET_CUR,
+                                          .wValue        = VIDEO_VS_CTL_COMMIT << 8,
+                                          .wIndex        = 1,
+                                          .wLength       = sizeof(video_probe_and_commit_control_t)};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(payload_sizes); i++) {
+    in_commit = true;
+    TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    const video_probe_and_commit_control_t parameters = {
+      .bFormatIndex = 1, .bFrameIndex = 1, .dwMaxPayloadTransferSize = payload_sizes[i]};
+    memcpy(control_buffer, &parameters, sizeof(parameters));
+    TEST_ASSERT_FALSE(videod_control_xfer_cb(0, CONTROL_STAGE_DATA, &request));
+    in_commit = false;
+  }
+
+  // the earlier COMMIT (100 ms frames) still sizes the payloads
+  TEST_ASSERT_TRUE(tud_video_n_frame_xfer(0, 0, frame, sizeof(frame)));
+  TEST_ASSERT_EQUAL(8, payload_length);
+}

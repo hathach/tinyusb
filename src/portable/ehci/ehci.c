@@ -1070,16 +1070,15 @@ static bool iso_td_idle(iso_ep_t const* ep) {
 }
 
 // Advance to the endpoint's first slot that can still be published, keeping
-// its phase: ISO intervals are powers of two.
+// its phase: ISO intervals are powers of two. An idle endpoint's slot is less
+// than an interval ahead but may be any age behind, too old for a signed
+// difference to order, so the slot is taken from earliest.
 static void iso_schedule(iso_ep_t* ep, uint32_t now) {
   uint32_t earliest = iso_earliest(now);
   if (ep->speed == TUSB_SPEED_FULL) {
     earliest = (earliest + 7) & ~7u;
   }
-  if ((int32_t) (ep->uframe - earliest) < 0) {
-    uint32_t const behind = earliest - ep->uframe;
-    ep->uframe += (behind + ep->interval - 1) & ~(ep->interval - 1);
-  }
+  ep->uframe = earliest + ((ep->uframe - earliest) & (ep->interval - 1));
   if (ep->speed == TUSB_SPEED_FULL) {
     ep->uframe = (ep->uframe + 7) & ~7u;
   }

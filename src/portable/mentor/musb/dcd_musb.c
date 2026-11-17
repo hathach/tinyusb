@@ -651,6 +651,7 @@ static void process_bus_reset_isr(uint8_t rhport) {
   pipe0->remain_wlength = 0;
   pipe0->deferred_setup_valid = false;
   pipe0->rxrdy_consumed = false;
+  pipe0->pending_addr = 0; // reset aborts a SET_ADDRESS whose status stage has not completed
 
   musb->intr_txen = 1; /* Enable only EP0 */
   musb->intr_rxen = 0;

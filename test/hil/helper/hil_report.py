@@ -66,6 +66,10 @@ RUN_ABORTED_CELL = 'run-aborted'
 CLEANUP_PENDING_CELL = 'cleanup-pending'
 # earlier open failures observed at the take, informational rather than test results
 PREVIOUS_CLEANUP_CELL = 'previous-cleanup-failure'
+# the row's tests whose fail is a parsed per-case verdict (hil_test's TestFail.parsed: a usbtest battery that
+# ran every case), comma-separated: a retry would only re-observe it, so sequence() keeps it final. A battery
+# that never ran or stopped early is not listed and stays retryable. Provenance only, never rendered.
+FINAL_CELL = 'final-fail'
 # its value for a board hil_test.py --build did not test because check_build.py refused the
 # build: nothing ran, so the board's earlier cells stand beside it
 BUILD_REFUSED = f'{REPORT_CELL["fail"]} build refused'
@@ -209,7 +213,7 @@ def render_matrix(rows_all: list) -> str:
     per-row duration as the trailing column."""
     seen = set()
     for _, cells, _ in rows_all:
-        seen.update(cells)
+        seen.update(k for k in cells if k != FINAL_CELL)
     if not seen:
         return 'No tests were run.'
 
@@ -489,7 +493,12 @@ def accumulate_report(mret: list, report_dir: Path, fresh: bool, scope: str = ''
             if any(k in cells for k in _REFUSAL_CELLS):
                 for k in _REFUSAL_CELLS:
                     row[0].pop(k, None)
+            # a re-run test's finality is this attempt's; a test it left alone keeps the earlier one
+            final = [t for t in _final_tests(row[0]) if t not in cells] + _final_tests(cells)
             row[0].update(cells)
+            row[0].pop(FINAL_CELL, None)
+            if final:
+                row[0][FINAL_CELL] = ','.join(final)
             if dur is not None:
                 row[1] = dur
 
@@ -599,13 +608,17 @@ def variants_of(cfg: dict, board: str) -> list:
 
 
 # board-level information, never a test's result
-_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL, PREVIOUS_CLEANUP_CELL)
+_MARKER_CELLS = (*_REFUSAL_CELLS, WEDGED_CELL, PREVIOUS_CLEANUP_CELL, FINAL_CELL)
 
 
 def _result_cells(cells: dict, *, include_board_state=False) -> dict:
     """Test cells; the table also counts board refusals and wedges, never informational notices."""
     return {k: v for k, v in cells.items()
-            if k not in _MARKER_CELLS or (include_board_state and k != PREVIOUS_CLEANUP_CELL)}
+            if k not in _MARKER_CELLS or (include_board_state and k not in (PREVIOUS_CLEANUP_CELL, FINAL_CELL))}
+
+
+def _final_tests(cells: dict) -> list:
+    return [t for t in cells.get(FINAL_CELL, '').split(',') if t]
 
 
 def _board_rows(report: dict) -> dict:
@@ -803,9 +816,10 @@ def _attempt(cfg: dict, roster: dict, reading) -> tuple:
     run = core().apply_run_rules(schema(), boards, [_normalised(r, c) for r, c, missing in results if not missing],
                                  meta['termination'], body['caveat'].strip())
     cells = {r['board']: c for r, c, _ in results}
-    # a usbtest battery's per-case verdicts stand (Results): its fail is never retried
+    # a parsed per-case verdict stands (Results): its fail is never retried. Only the writer's FINAL_CELL says
+    # one exists -- a battery that never ran shows the same '❌ 0/N' as one whose every case failed.
     final = frozenset(r['board'] for r in run['rows'] if r['verdict'] == 'fail' and any(
-        cell_state(c.get('device/usbtest', '')) == 'fail' for c in cells[r['board']].values()))
+        cell_state(c.get(t, '')) == 'fail' for c in cells[r['board']].values() for t in _final_tests(c)))
     return run, {r['board'] for r, _, _ in results if r['locked']}, final, cells, own is not None
 
 

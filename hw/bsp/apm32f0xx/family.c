@@ -96,15 +96,10 @@ uint32_t board_button_read(void) {
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  (void) max_len;
   volatile uint32_t *apm32_uuid = ((volatile uint32_t *) 0x1FFFF7AC);
-  uint32_t *id32 = (uint32_t *) (uintptr_t) id;
-  uint8_t const len = 12;
-
-  id32[0] = apm32_uuid[0];
-  id32[1] = apm32_uuid[1];
-  id32[2] = apm32_uuid[2];
-
+  uint32_t uid[3] = { apm32_uuid[0], apm32_uuid[1], apm32_uuid[2] };
+  size_t const len = TU_MIN(max_len, sizeof(uid));
+  memcpy(id, uid, len); // byte copy: id[] need not be 4-byte aligned
   return len;
 }
 
@@ -117,7 +112,7 @@ int board_uart_read(uint8_t *buf, int len) {
 int board_uart_write(void const *buf, int len) {
   (void) buf;
   (void) len;
-  return 0;
+  return -1; // no UART: tells sys_write() to stop retrying
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

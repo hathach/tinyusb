@@ -386,7 +386,7 @@ static bool stream_release(tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1))));
+  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes % s->mps)));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
   return true;
@@ -446,17 +446,17 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   TU_VERIFY(stream_claim(s), 0);
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
-  if (available >= s->mps) {
-    // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & ~(s->mps - 1));
-    count = tu_min16(count, s->xfer_len);
+  // whole packets only, limited by ep bufsize; neither mps nor xfer_len need be a power of two
+  uint16_t count = tu_min16(available, s->xfer_len);
+  count = (uint16_t) (count - (count % s->mps));
+  if (count > 0) {
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
-  } else {
-    // Release endpoint since we don't make any transfer
-    stream_release(s);
-    return 0;
   }
+
+  // Release endpoint since we don't make any transfer
+  stream_release(s);
+  return 0;
 }
 
 uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {

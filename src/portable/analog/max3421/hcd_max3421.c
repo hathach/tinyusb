@@ -63,7 +63,7 @@ enum {
 };
 
 enum {
-  TIME_TO_EXIT_SUSPEND_MS = 4u, // datasheet: PWRDOWN = 1 to 0 to OSCOKIRQ = 3 ms + 1 ms margin
+  TIME_OSCOK_TIMEOUT_MS   = 50u, // datasheet: OSCOKIRQ after 3 ms typ, crystal dependent, no max given
   TIME_CHIPRES_DELAY_MS   = 2u  // CHIPRES hold: 2 guarantees >= 1 ms actual despite ms-tick quantization
 };
 
@@ -459,6 +459,15 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   return true;
 }
 
+// usbh marks the controller inactive on a failed init, so hcd_deinit() never runs to free the mutex
+static bool init_failed(void) {
+#if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(_hcd_data.spi_mutex);
+  _hcd_data.spi_mutex = NULL;
+#endif
+  return false;
+}
+
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
@@ -483,7 +492,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Note: v1 and v2 has host OUT errata whose workaround is not implemented in this driver
   uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
   TU_LOG2_HEX(revision);
-  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
+  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, init_failed());
 
   // Software reset via CHIPRES. Per the Programming Guide, CHIPRES stops the internal oscillator;
   // clearing it restarts the oscillator, and OSCOKIRQ latches on the resulting OSCOK 0->1 edge.
@@ -495,11 +504,16 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   while (tusb_time_millis_api() - reset_start_ms < TIME_CHIPRES_DELAY_MS) {} // hold reset so the oscillator stops
   reg_write(rhport, USBCTL_ADDR, 0, false);
 
-  // Wait for OSCOK (12 MHz oscillator + 48 MHz PLL relock). Bounded as a safety net, so the host never
-  // hangs if the edge is still missed on some board - the clock is running regardless.
+  // Wait for OSCOK (12 MHz oscillator + 48 MHz PLL relock): the chip is not ready to operate before it
   const uint32_t oscok_start_ms = tusb_time_millis_api();
-  while (!(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ) &&
-         (tusb_time_millis_api() - oscok_start_ms < TIME_TO_EXIT_SUSPEND_MS)) {}
+  while (!(reg_read(rhport, USBIRQ_ADDR, false) & USBIRQ_OSCOK_IRQ)) {
+    if (tusb_time_millis_api() - oscok_start_ms >= TIME_OSCOK_TIMEOUT_MS) {
+      TU_LOG1("MAX3421: OSCOK timeout\r\n");
+      reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
+      reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
+      return init_failed();
+    }
+  }
 
   // Mode: Host and DP/DM pull down
   mode_write(rhport, MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST, false);

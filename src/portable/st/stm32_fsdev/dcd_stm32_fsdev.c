@@ -337,13 +337,15 @@ static void handle_ctr_rx(uint32_t ep_id) {
   const uint16_t   rx_count = btable_get_count(ep_id, buf_id);
   uint16_t         pma_addr = (uint16_t)btable_get_addr(ep_id, buf_id);
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(pma_addr);
+  // The RX buffer is armed in whole blocks (2 or 32 bytes), so a packet can be longer than what is left
+  const uint16_t   copy_len = tu_min16(rx_count, (uint16_t)(xfer->total_len - xfer->queued_len));
 
   if (xfer->ff) {
-    tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, rx_count, NULL);
+    tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, copy_len, NULL);
   } else {
-    tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, NULL);
+    tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, copy_len, NULL);
   }
-  xfer->queued_len += rx_count;
+  xfer->queued_len += copy_len;
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
@@ -862,7 +864,8 @@ void dcd_int_disable(uint8_t rhport) {
   fsdev_int_disable(rhport);
 }
 
-  #if defined(USB_BCDR_DPPU) || defined(SYSCFG_PMC_USB_PU) || defined(EXTEN_USBD_PU_EN)
+  #if defined(USB_BCDR_DPPU) || defined(SYSCFG_PMC_USB_PU) || defined(EXTEN_USBD_PU_EN) || \
+    TU_CHECK_MCU(OPT_MCU_APM32F0XX)
 void dcd_connect(uint8_t rhport) {
   fsdev_connect(rhport);
 }

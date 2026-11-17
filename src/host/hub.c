@@ -303,10 +303,16 @@ static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
 }
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
-  TU_ASSERT(XFER_RESULT_SUCCESS == xfer->result, );
-
   uint8_t const daddr = xfer->daddr;
   hub_interface_t* p_hub = get_hub_itf(daddr);
+
+  // a short reply leaves stale ctrl_buf bytes where bNbrPorts and bPwrOn2PwrGood are read.
+  // usbh holds every later enumeration until SET_CONFIG completes, so complete it serving no port.
+  if (XFER_RESULT_SUCCESS != xfer->result || xfer->actual_len <= offsetof(hub_desc_cs_t, bPwrOn2PwrGood)) {
+    TU_VERIFY(p_hub->ep_in != 0, ); // closed meanwhile: usbh no longer waits for it
+    usbh_driver_set_config_complete(daddr, p_hub->itf_num);
+    return;
+  }
   hub_epbuf_t* p_epbuf = get_hub_epbuf(daddr);
 
   // only use the number of ports in the hub descriptor

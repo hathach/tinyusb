@@ -209,9 +209,15 @@
     :test_midi2_device_gtb_midi1:
       - CFG_TUD_MSC=0
       - CFG_TUD_MIDI2=1
+    :test_midi2_device_nego:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_MIDI2=1
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    # also configured by test_mtp_device: a buffer of 3 HS packets, not a power of 2
+    :test_mtp_device_1536:
+      - CFG_TUD_MTP_EP_BUFSIZE=1536
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
@@ -237,6 +243,26 @@
     # keys match by substring: test_audio_device above configures this one too, this adds the WCH CH32 path
     :test_audio_device_deferred:
       - TUP_USBD_XFER_ISR=0
+    # also configured by test_audio_device: a port that closes endpoints, with feedback EP support
+    :test_audio_device_close_api:
+      - TUP_DCD_EDPT_CLOSE_API
+      - CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP=1
+    # keys match by substring: this also configures test_vendor_device_alt
+    :test_vendor_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_VENDOR=1
+      - CFG_TUD_VENDOR_RX_EPSIZE=64
+      - CFG_TUD_VENDOR_RX_BUFSIZE=0
+      - CFG_TUD_VENDOR_TX_BUFSIZE=0
+    :test_vendor_device_alt:
+      - CFG_TUD_VENDOR_ALT_SETTINGS=1
+    # buffered, on the suite's default dedicated HW FIFO: no RX endpoint buffer
+    :test_vendor_buffered_hwfifo:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_VENDOR=1
+      - CFG_TUD_VENDOR_RX_EPSIZE=64
+      - CFG_TUD_VENDOR_RX_BUFSIZE=1024
+      - CFG_TUD_VENDOR_TX_BUFSIZE=1024
     :test_dfu_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1

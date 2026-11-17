@@ -240,17 +240,24 @@ void test_hidh_report_failed(void) {
   }
 }
 
-// Complete the control request the driver queued last with the given result
-static void complete_ctrl_xfer(xfer_result_t result) {
+// Complete the control request the driver queued last with the given result and data stage length
+static void complete_ctrl_xfer_len(xfer_result_t result, uint32_t actual_len) {
   TEST_ASSERT_NOT_NULL(ctrl_complete_cb);
   tuh_xfer_t xfer = {
-    .daddr     = HID_DEV_ADDR,
-    .ep_addr   = 0,
-    .result    = result,
-    .setup     = &ctrl_setup,
-    .user_data = ctrl_user_data,
+    .daddr      = HID_DEV_ADDR,
+    .ep_addr    = 0,
+    .result     = result,
+    .actual_len = actual_len,
+    .setup      = &ctrl_setup,
+    .user_data  = ctrl_user_data,
   };
   ctrl_complete_cb(&xfer);
+}
+
+// A successful IN request returns all wLength bytes
+static void complete_ctrl_xfer(xfer_result_t result) {
+  const bool in_data = (ctrl_setup.bmRequestType & TUSB_DIR_IN_MASK) && result == XFER_RESULT_SUCCESS;
+  complete_ctrl_xfer_len(result, in_data ? tu_le16toh(ctrl_setup.wLength) : 0);
 }
 
 // Run set_config through SET_IDLE and SET_PROTOCOL up to the queued report descriptor request
@@ -274,6 +281,24 @@ void test_hidh_set_config_report_desc(void) {
   TEST_ASSERT_EQUAL(63, mount_cb_len);
   TEST_ASSERT_EQUAL(1, config_complete_count);
   TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
+// A report descriptor shorter than requested (USB 2.0 5.5.3) mounts with the bytes received; the rest of the
+// enumeration buffer is not part of it
+void test_hidh_set_config_report_desc_short(void) {
+  const uint32_t lens[] = {40, 0};
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(lens); i++) {
+    set_config_to_report_desc();
+    complete_ctrl_xfer_len(XFER_RESULT_SUCCESS, lens[i]);
+
+    TEST_ASSERT_EQUAL(1, mount_cb_count);
+    TEST_ASSERT_EQUAL_PTR(usbh_get_enum_buf(), mount_cb_desc);
+    TEST_ASSERT_EQUAL(lens[i], mount_cb_len);
+    TEST_ASSERT_EQUAL(1, config_complete_count);
+
+    mount_cb_count        = 0;
+    config_complete_count = 0;
+  }
 }
 
 // A failed report descriptor request mounts the interface without a descriptor, so enumeration still completes

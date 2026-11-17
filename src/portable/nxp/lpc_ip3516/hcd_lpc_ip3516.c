@@ -366,7 +366,9 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
     ptd_state->nak_cnt = 0x0f;
   }
 
-  // Activate only after the ISO scheduling fields have been restored.
+  // Activate only after the ISO scheduling fields have been restored. Restore
+  // the entry state: a caller may submit with the interrupt disabled.
+  const bool int_enabled = NVIC_GetEnableIRQ(USB1_IRQn) != 0;
   hcd_int_disable(rhport);
   if (iso_interval) {
     // Activated after its first microframe began, a transfer would wait for
@@ -387,7 +389,9 @@ static bool edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t
   }
   ptd_ctrl1->valid  = 1;
   ptd_state->active = 1;
-  hcd_int_enable(rhport);
+  if (int_enabled) {
+    hcd_int_enable(rhport);
+  }
 
   return true;
 }
@@ -588,7 +592,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
   const uint8_t ptd_index = ptd_find_free(xfer_type);
   TU_ASSERT(ptd_index != TUSB_INDEX_INVALID_8);
 
-  uint16_t mps = ep_desc->wMaxPacketSize;
+  const uint16_t packet_size = tu_edpt_packet_size(ep_desc);
+  uint16_t mps = packet_size;
   uint8_t uframe = 0;
   uint8_t uframe_active = 0;
   uint8_t uframe_complete = 0;
@@ -599,6 +604,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
       // must target a different frame, so its power-of-two limit is 16 ms.
       const uint8_t max_binterval = high_speed ? 9 : 5;
       TU_VERIFY(ep_desc->bInterval > 0 && ep_desc->bInterval <= max_binterval);
+      // One transaction per microframe (Mult 1): LPC55S6x USB.7 and LPC540xx USB.6 allow no more for ISO IN
+      TU_VERIFY(((tu_le16toh(ep_desc->wMaxPacketSize) >> 11) & 3u) == 0);
       const uint16_t interval = (uint16_t)(1u << (ep_desc->bInterval - 1u + (high_speed ? 0u : 3u)));
       uint8_t split_slot = 0;
       uframe_active = 1; // Non-split ISO gets its actual frame/slot at submission.
@@ -619,7 +626,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
       }
       #endif
       _iso_ep[ptd_index].interval = interval;
-      _iso_ep[ptd_index].max_packet_size = ep_desc->wMaxPacketSize;
+      _iso_ep[ptd_index].max_packet_size = packet_size;
       _iso_ep[ptd_index].split_slot = split_slot;
       _iso_ep[ptd_index].uframe_active = uframe_active;
       _iso_ep[ptd_index].uframe_complete = uframe_complete;
