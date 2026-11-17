@@ -126,6 +126,8 @@ void test_vendor_open_accepts_out_mps_within_rx_buffer(void) {
 
 void test_vendor_rearm_out_within_rx_buffer_after_in_endpoint(void) {
   TEST_ASSERT_EQUAL(23, open_vendor(64));
+  xfer_len = 0; // forget the OUT transfer armed by open
   TEST_ASSERT_TRUE(vendord_xfer_cb(0, EP_OUT, XFER_RESULT_SUCCESS, 64));
+  TEST_ASSERT_NOT_EQUAL(0, xfer_len);
   TEST_ASSERT_LESS_OR_EQUAL(CFG_TUD_VENDOR_RX_EPSIZE, xfer_len);
 }
