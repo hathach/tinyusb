@@ -552,7 +552,7 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
          since PID is NAK after SETUP when the data stage is a lone ZLP */
       if (ep_addr) {
         /* BVAL should only be set while FRDY is 1 */
-        TU_VERIFY(cfifo_wait_for_ready(rusb));
+        TU_ASSERT(cfifo_wait_for_ready(rusb));
         rusb->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
       } else if (rusb->CFIFOCTR_b.FRDY) {
         /* OUT: a packet parked by pipe0_xfer_out (host data beyond a class buffer that ended on a
