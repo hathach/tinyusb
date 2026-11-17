@@ -50,11 +50,8 @@ endif ()
 
 cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
 
-#------------------------------------
-# Startup & Linker script
-#------------------------------------
 if (NOT DEFINED LD_FILE_GNU)
-set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/r7fs124773a01cfm.ld)
+  message(FATAL_ERROR "Board ${BOARD} must set LD_FILE_GNU in its board.cmake")
 endif ()
 
 #------------------------------------
@@ -108,10 +105,6 @@ function(family_add_board BOARD_TARGET)
     BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
     )
 
-  target_link_libraries(${BOARD_TARGET} PUBLIC
-    ${RENESAS_SSP_PATH}/src/driver/r_fmi/libs/libfmi_cm0_${MCU_VARIANT}_gcc.a
-    ${RENESAS_SSP_PATH}/src/bsp/mcu/${MCU_VARIANT}/libfmi_R7FS124773A01CFM_gcc.a
-  )
   update_board(${BOARD_TARGET})
 endfunction()
 

@@ -54,8 +54,7 @@ SSP_VECTOR_DEFINE_UNIT(usbhs_interrupt_handler, USB, HS, USB_INT_RESUME, 0);
 //--------------------------------------------------------------------+
 
 void board_init(void) {
-  // Enable global interrupts in CPSR register since board with bootloader such as Arduino Uno R4
-  // can transfer CPU control with CPSR.I bit set to 0 (disable IRQ)
+  // Enable global interrupts in case a bootloader handed over control with PRIMASK set
   __enable_irq();
 
   /* Configure pins. */
@@ -74,7 +73,6 @@ void board_init(void) {
   SysTick->CTRL &= ~1U;
 #endif
 
-  //g_ioport_on_ioport.pinDirectionSet(LED1, IOPORT_DIRECTION_OUTPUT);
   board_led_write(true);
 }
 
