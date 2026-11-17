@@ -1909,10 +1909,12 @@ static uint16_t ch34x_get_divisor_prescaler(cdch_interface_t *p_cdc) {
         b = 0;
         c = 11719;
       }
-      a = (uint8_t) (c / baval);
-      if (a == 0 || a == 0xFF) {
+      // below 46 baud the divisor does not fit in 8 bits, reject it instead of truncating
+      const uint32_t div = c / baval;
+      if (div == 0 || div >= 0xFF) {
         return 0;
       }
+      a = (uint8_t) div;
       if ((c / a - baval) > (baval - c / (a + 1))) {
         a++;
       }
