@@ -24,7 +24,8 @@ function(add_host_test name fixture)
 endfunction()
 
 foreach (speed IN ITEMS high full)
-  foreach (hub IN ITEMS 0 1)
+  # hub 2 also covers a full-speed hub behind the high-speed hub that owns the TT
+  foreach (hub IN ITEMS 0 1 2)
     set(name test_wch_usbhs_v1_${speed}_hub${hub})
     add_host_test(${name} ${CMAKE_CURRENT_LIST_DIR}/wch_usbhs_v1/test_hcd.c)
     target_compile_definitions(${name} PRIVATE CFG_TUH_HUB=${hub})
