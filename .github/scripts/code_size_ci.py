@@ -19,6 +19,7 @@ or attempt supersedes it: its comment would overwrite a newer one.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -33,11 +34,14 @@ GH_TIMEOUT = 60  # seconds per gh api call, a stalled one never blocks
 
 def gh(path, paginate=False):
     """Parsed `gh api` GET of `path`; with `paginate`, the list of every page."""
-    cmd = ['gh', 'api', '-H', 'Accept: application/vnd.github+json'] + (['--paginate', '--slurp'] if paginate else [])
+    # by PATH: Windows' CreateProcess searches System32 first and only for gh.exe
+    cmd = [shutil.which('gh') or 'gh', 'api', '-H', 'Accept: application/vnd.github+json'] + (['--paginate', '--slurp'] if paginate else [])
     try:
         ret = subprocess.run(cmd + [path], capture_output=True, text=True, check=False, timeout=GH_TIMEOUT)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f'gh api {path}: no reply in {GH_TIMEOUT} s') from None
+    except OSError as e:  # no runnable gh is a failed lookup too
+        raise RuntimeError(f'gh api {path}: {e}') from None
     if ret.returncode != 0:
         raise RuntimeError(f'gh api {path}: {ret.stderr.strip()}')
     return json.loads(ret.stdout)
@@ -127,7 +131,7 @@ def baseline(args):
         info = lookup(args.repo, args.current)
     except (RuntimeError, KeyError, TypeError, ValueError) as e:  # an API failure or an unexpected reply
         info = {'sha': None, 'url': None, 'exact': False, 'run_id': None, 'note': f'the baseline lookup failed: {e}'}
-    with open(args.info, 'w') as f:
+    with open(args.info, 'w', encoding='utf-8') as f:
         json.dump(info, f, indent=1, sort_keys=True)
         f.write('\n')
     print(json.dumps(info))

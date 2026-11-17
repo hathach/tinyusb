@@ -3,11 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <signal.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "unity.h"
+#include "test_watchdog.h"
 #include "mock_dwc2_test.h"
 
 // Compile the driver itself so these tests exercise its admission and retry paths.
@@ -43,11 +42,7 @@ static void spin_watchdog(int sig) {
 static int test_variant = -1;
 
 void setUp(void) {
-  // SA_NODEFER: Unity leaves the handler by longjmp, which would keep SIGALRM blocked.
-  struct sigaction watchdog = {.sa_handler = spin_watchdog, .sa_flags = SA_NODEFER};
-  TEST_ASSERT_EQUAL(0, sigemptyset(&watchdog.sa_mask));
-  TEST_ASSERT_EQUAL(0, sigaction(SIGALRM, &watchdog, NULL));
-  alarm(5);
+  test_watchdog_arm(spin_watchdog, 5);
   memset(&test_regs, 0, sizeof(test_regs));
   memset(&_hcd_data, 0, sizeof(_hcd_data));
   _hcd_csplit_behind = _hcd_csplit_pass = _hcd_csplit_late_held = _hcd_split_kicked = false;
@@ -68,7 +63,7 @@ void setUp(void) {
 }
 
 void tearDown(void) {
-  alarm(0);
+  test_watchdog_disarm();
   if (Unity.CurrentTestFailed && test_variant >= 0) {
     UnityPrint(" (variant ");
     UnityPrintNumberUnsigned((UNITY_UINT) test_variant);

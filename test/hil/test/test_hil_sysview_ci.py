@@ -32,7 +32,7 @@ def board_json(board="stm32f407disco", err=None, workload_ok=None, **mk):
 def write_set(d, *objs):
     os.makedirs(d, exist_ok=True)
     for o in objs:
-        with open(os.path.join(d, f"sysview-{o['board']}.json"), 'w') as f:
+        with open(os.path.join(d, f"sysview-{o['board']}.json"), 'w', encoding="utf-8") as f:
             json.dump(o, f)
 
 F = lambda name, n, p50: {"name": name, "n": n, "p50_us": p50, "p99_us": p50*2, "max_us": p50*99}
@@ -408,7 +408,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
         self.rtt = agentrc.load_file("skills/rtt/scripts/rtt.py")
         # a serial "node" that already exists, so the enumeration wait does not sleep
         node = os.path.join(self.tmp, "node")
-        open(node, "w").close()
+        open(node, "w", encoding="utf-8").close()
         for obj, attr, value in (
                 (hil_util, "get_serial_dev", lambda *a, **k: node),
                 (hil_flash, "flash_openocd", lambda board, fw: subprocess.CompletedProcess([], 0)),
@@ -446,6 +446,7 @@ class SystemExitDoesNotAbortRun(unittest.TestCase):
             cfg="-f interface/x.cfg -f target/y.cfg", addr=0x20000000, channel=sysview_ci.SYSVIEW_CHANNEL,
             serial_no="P", vid_pid=None, reset_before_attach=True)
 
+    @unittest.skipIf(sys.platform == "win32", "the flash output goes through agentrc's hil_process (fcntl): POSIX only")
     def test_failed_flash_runs_the_dap_rescue(self):
         import hil_flash
         rescued = []
@@ -511,7 +512,7 @@ class EventMap(unittest.TestCase):
 
     def test_matches_the_header_enum(self):
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        with open(os.path.join(root, "src", "common", "tusb_debug.h")) as f:
+        with open(os.path.join(root, "src", "common", "tusb_debug.h"), encoding="utf-8") as f:
             header = f.read()
         base = int(re.search(r"#define TU_SV_EVENT_BASE (\d+)", header).group(1))
         expected = {
@@ -528,12 +529,12 @@ class EventMap(unittest.TestCase):
         enum = re.sub(r"//[^\n]*|/\*.*?\*/", "", enum, flags=re.S)
         members = [member.strip() for member in enum.split(",") if member.strip()]
         self.assertEqual(members, ["TU_SV_ID_TUD_TASK = 0", *list(expected)[1:], "TU_SV_ID_COUNT"])
-        with open(sysview_ci.EVENT_MAP) as f:
+        with open(sysview_ci.EVENT_MAP, encoding="utf-8") as f:
             names = json.load(f)
         self.assertEqual(names, {str(base + i): label for i, label in enumerate(expected.values())})
 
     def test_workload_anchor_is_tud_cdc_read(self):
-        with open(sysview_ci.EVENT_MAP) as f:
+        with open(sysview_ci.EVENT_MAP, encoding="utf-8") as f:
             names = json.load(f)
         self.assertEqual(names[str(sysview_ci.workload_event())], "tud_cdc_read")
 
@@ -734,12 +735,12 @@ class DecodeCommand(unittest.TestCase):
                                                                               "workload_ok": True}))
         failed = sysview_ci.capture_result({**b, "name": "f"}, "c", error="skipped: --skip-flash")
         sysview_ci.write_result(self.dir, failed)
-        open(os.path.join(self.dir, "f-capture.SVDat"), "w").close()   # a leftover raw file is not a capture
+        open(os.path.join(self.dir, "f-capture.SVDat"), "w", encoding="utf-8").close()   # a leftover raw file is not a capture
         decoded, out = self.main()
         self.assertEqual(decoded, [("b-capture.SVDat", self.dir, None)])
-        with open(os.path.join(self.dir, "sysview-b.json")) as f:
+        with open(os.path.join(self.dir, "sysview-b.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
-        with open(os.path.join(self.dir, "sysview-f.json")) as f:
+        with open(os.path.join(self.dir, "sysview-f.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f), failed)
         self.assertEqual(out, "b: ok\nf: skipped: --skip-flash\n")
 
@@ -759,21 +760,21 @@ class DecodeCommand(unittest.TestCase):
         old = os.path.join(self.dir, "sysview-old")
         os.makedirs(old)
         older = board_json(board="o")   # decoded on the rig before records carried a status
-        with open(os.path.join(old, "sysview-o.json"), "w") as f:
+        with open(os.path.join(old, "sysview-o.json"), "w", encoding="utf-8") as f:
             json.dump(older, f)
         decoded_before = {**board_json(board="d"), "capture": {**board_json()["capture"], "status": "captured",
                                                                 "raw": "d-capture.SVDat"}}
-        with open(os.path.join(old, "sysview-d.json"), "w") as f:   # no raw beside it: never decoded again
+        with open(os.path.join(old, "sysview-d.json"), "w", encoding="utf-8") as f:   # no raw beside it: never decoded again
             json.dump(decoded_before, f)
-        with open(os.path.join(old, "sysview-bad.json"), "w") as f:
+        with open(os.path.join(old, "sysview-bad.json"), "w", encoding="utf-8") as f:
             f.write("{")
         decoded, out = self.main()
         self.assertEqual(decoded, [("b-capture.SVDat", nested, None)])
-        with open(os.path.join(nested, "sysview-b.json")) as f:
+        with open(os.path.join(nested, "sysview-b.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f)["metrics"], {"overflow": 0})
-        with open(os.path.join(old, "sysview-o.json")) as f:
+        with open(os.path.join(old, "sysview-o.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f), older)
-        with open(os.path.join(old, "sysview-d.json")) as f:
+        with open(os.path.join(old, "sysview-d.json"), encoding="utf-8") as f:
             self.assertEqual(json.load(f), decoded_before)
         self.assertIn(f"{os.path.join(old, 'sysview-bad.json')}: not decoded: JSONDecodeError", out)
         self.assertIn("b: ok", out)
@@ -802,7 +803,7 @@ class DecodeDeadline(unittest.TestCase):
     def decode(self, deadline, *steps):
         popen = unittest.mock.Mock(side_effect=list(steps))
         with unittest.mock.patch("subprocess.Popen", popen), \
-                unittest.mock.patch("os.killpg") as killpg, \
+                unittest.mock.patch("os.killpg", create=True) as killpg, \
                 unittest.mock.patch("helper.agentrc.path_of", lambda p: p):
             err = sysview_ci.decode_one(self.RESULT, self.tmp, deadline)["error"]
         return err, popen, killpg
@@ -846,6 +847,7 @@ class DecodeDeadline(unittest.TestCase):
         self.assertIn("decode skipped", err)
         popen.assert_not_called()
 
+    @unittest.skipIf(sys.platform == "win32", "no SIGKILL or process groups: the group kill is POSIX only")
     def test_a_cut_decoder_gets_sigterm_then_its_group_sigkill(self):
         # SIGKILL alone would skip sysview_record.py's handler, which records the failure
         cut = subprocess.TimeoutExpired("sysview_record.py", 30)
@@ -880,6 +882,7 @@ class DecodeDeadline(unittest.TestCase):
         killpg.assert_not_called()
 
 
+@unittest.skipIf(sys.platform == "win32", "a SIGTERM handler and a process-group SIGKILL are POSIX only")
 class DecodeStopsARealChild(unittest.TestCase):
     """A real decoder stand-in cut by the deadline: SIGTERM lets it clean up, SIGKILL takes its group."""
     RESULT = DecodeDeadline.RESULT
@@ -890,7 +893,7 @@ class DecodeStopsARealChild(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, True)
         script, ready = os.path.join(tmp, "decoder.py"), os.path.join(tmp, "ready")
-        with open(script, "w") as f:
+        with open(script, "w", encoding="utf-8") as f:
             f.write("import os, signal, subprocess, sys, time\n"
                     f"TMP = {tmp!r}\n" + setup +
                     f"open({ready!r}, 'w').close()\n"
@@ -928,11 +931,11 @@ class DecodeStopsARealChild(unittest.TestCase):
                 "open(os.path.join(TMP, 'child'), 'w').write(str(c.pid))\n")
         self.assertIn("decode timed out", err)
         self.assertLess(took, 10)
-        with open(os.path.join(tmp, "child")) as f:
+        with open(os.path.join(tmp, "child"), encoding="utf-8") as f:
             child = int(f.read())
         for _ in range(100):
             try:
-                with open(f"/proc/{child}/stat") as f:
+                with open(f"/proc/{child}/stat", encoding="utf-8") as f:
                     if f.read().rsplit(")", 1)[1].split()[0] == "Z":
                         break
             except (FileNotFoundError, ProcessLookupError):
@@ -970,7 +973,7 @@ class FindCaptureFirmware(unittest.TestCase):
                      "commit": self.HEAD, "dirty": False, "elfSha256": hashlib.sha256(rel.encode()).hexdigest(),
                      "eventMask": "none", "bufferSize": "65536",
                      **manifest}
-                with open(stem + ".sysview.json", "w") as f:
+                with open(stem + ".sysview.json", "w", encoding="utf-8") as f:
                     json.dump(m, f)
         with unittest.mock.patch.object(hil_util, "TINYUSB_ROOT", type(hil_util.TINYUSB_ROOT)(root)), \
                 unittest.mock.patch.object(hil_flash, "build_dir", "cmake-build"):
@@ -986,7 +989,7 @@ class FindCaptureFirmware(unittest.TestCase):
         fw, manifest, err = self._find(self._board(), {f"{self.LEG}.elf": True, f"{self.LEG}.bin": False,
                                                        "cmake-build-stm32f407disco/device/cdc_msc/cdc_msc.elf": True})
         self.assertIsNone(err)
-        self.assertTrue(fw.endswith(f"{self.LEG}.elf"), fw)
+        self.assertTrue(fw.replace(os.sep, "/").endswith(f"{self.LEG}.elf"), fw)
         self.assertEqual(manifest["bufferSize"], "65536")
 
     def test_the_buffer_is_the_rosters_or_the_family_default(self):
@@ -1051,7 +1054,7 @@ class FindCaptureFirmware(unittest.TestCase):
     def test_the_keys_build_py_sets_itself_are_the_ones_ignored(self):
         # a -D tools/build.py adds on its own would otherwise read as a traced build configured differently
         from helper import hil_util
-        src = (hil_util.TINYUSB_ROOT / "tools" / "build.py").read_text()
+        src = (hil_util.TINYUSB_ROOT / "tools" / "build.py").read_text(encoding="utf-8")
         keys = set(re.findall(r"""['"]-D([A-Z_]+)=""", src))
         self.assertEqual(keys - sysview_ci._BUILD_PY_KEYS, {"CMAKE_BUILD_TYPE"})
         self.assertIn("-DCMAKE_BUILD_TYPE=MinSizeRel", src)
@@ -1082,12 +1085,13 @@ class ManifestProducer(unittest.TestCase):
     def _configure(self, *defines, before_manifest=""):
         src = os.path.join(self.dir, "src")
         os.makedirs(src, exist_ok=True)
-        with open(os.path.join(src, "main.c"), "w") as f:
+        with open(os.path.join(src, "main.c"), "w", encoding="utf-8") as f:
             f.write("int main(void) { return 0; }\n")
-        with open(os.path.join(src, "CMakeLists.txt"), "w") as f:
-            # declared after the record, as RTOS and CMAKE_C_FLAGS are in family_support.cmake and project()
+        with open(os.path.join(src, "CMakeLists.txt"), "w", encoding="utf-8") as f:
+            # declared after the record, as RTOS and CMAKE_C_FLAGS are in family_support.cmake and project();
+            # include() takes a CMake string, where a Windows backslash is an escape
             f.write(f"""cmake_minimum_required(VERSION 3.20)
-include({self.SCRIPT})
+include({self.SCRIPT.replace(os.sep, '/')})
 sysview_record_command_line()
 project(t C)
 option(OPT_DECLARED "x" OFF)
@@ -1097,7 +1101,7 @@ add_executable(app main.c)
 sysview_manifest(app board1 device/ex)
 """)
         self._run("cmake", "-S", "src", "-B", "b", *defines)
-        with open(os.path.join(self.dir, "b", "app.sysview.in.json")) as f:
+        with open(os.path.join(self.dir, "b", "app.sysview.in.json"), encoding="utf-8") as f:
             return json.load(f)
 
     def test_every_define_any_configure_was_given_at_its_current_value(self):
@@ -1127,12 +1131,12 @@ sysview_manifest(app board1 device/ex)
     def _complete(self, top):
         import hashlib
         cfg, elf, out = (os.path.join(self.dir, n) for n in ("in.json", "app.elf", "out.json"))
-        with open(cfg, "w") as f:
+        with open(cfg, "w", encoding="utf-8") as f:
             json.dump({"board": "board1"}, f)
         with open(elf, "wb") as f:
             f.write(b"image")
         self._run("cmake", f"-DCONFIG={cfg}", f"-DELF={elf}", f"-DOUT={out}", f"-DTOP={top}", "-P", self.SCRIPT)
-        with open(out) as f:
+        with open(out, encoding="utf-8") as f:
             m = json.load(f)
         self.assertEqual((m["board"], m["elfSha256"]), ("board1", hashlib.sha256(b"image").hexdigest()))
         return m
@@ -1140,7 +1144,7 @@ sysview_manifest(app board1 device/ex)
     def test_the_commit_and_whether_the_sources_differ_from_it(self):
         top = os.path.join(self.dir, "repo")
         os.makedirs(os.path.join(top, "src"))
-        with open(os.path.join(top, "src", "a.c"), "w") as f:
+        with open(os.path.join(top, "src", "a.c"), "w", encoding="utf-8") as f:
             f.write("a\n")
         self._run("git", "init", "-q", cwd=top)
         self._run("git", "add", ".", cwd=top)
@@ -1150,12 +1154,12 @@ sysview_manifest(app board1 device/ex)
         self.assertEqual((self._complete(top)["commit"], self._complete(top)["dirty"]), (head, False))
         # CI's own fetches sit untracked at the top, outside the build's source dirs
         os.makedirs(os.path.join(top, "pico-sdk"))
-        open(os.path.join(top, "pico-sdk", "x"), "w").close()
+        open(os.path.join(top, "pico-sdk", "x"), "w", encoding="utf-8").close()
         self.assertFalse(self._complete(top)["dirty"])
-        open(os.path.join(top, "src", "new.c"), "w").close()
+        open(os.path.join(top, "src", "new.c"), "w", encoding="utf-8").close()
         self.assertTrue(self._complete(top)["dirty"])
         os.remove(os.path.join(top, "src", "new.c"))
-        with open(os.path.join(top, "src", "a.c"), "w") as f:
+        with open(os.path.join(top, "src", "a.c"), "w", encoding="utf-8") as f:
             f.write("b\n")
         self.assertTrue(self._complete(top)["dirty"])
 
@@ -1219,7 +1223,7 @@ class Baseline(unittest.TestCase):
                 info = self.baseline()
                 self.assertEqual((info["sha"], info["note"]),
                                  (None, "the PR captures record no single base commit"))
-        with open(os.path.join(self.tmp, "a0", "sysview-bad.json"), "w") as f:
+        with open(os.path.join(self.tmp, "a0", "sysview-bad.json"), "w", encoding="utf-8") as f:
             f.write("{")
         self.assertIsNone(self.baseline()["sha"])
 
@@ -1241,7 +1245,7 @@ class Baseline(unittest.TestCase):
                                                          "--current", self.tmp, "--info", out]), \
                 contextlib.redirect_stdout(io.StringIO()):
             sysview_ci.main()
-        with open(out) as f:
+        with open(out, encoding="utf-8") as f:
             info = json.load(f)
         self.assertEqual((info["sha"], info["note"]), (None, "the baseline lookup failed: RuntimeError: HTTP 502"))
 
@@ -1289,13 +1293,13 @@ class Unrecorded(unittest.TestCase):
         self.rosters, self.reports = os.path.join(self.tmp, "rosters"), os.path.join(self.tmp, "reports")
         self.base, self.pr = os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p")
         os.makedirs(self.rosters)
-        with open(os.path.join(self.rosters, "rig.json"), "w") as f:
+        with open(os.path.join(self.rosters, "rig.json"), "w", encoding="utf-8") as f:
             json.dump(self.ROSTER, f)
 
     def hil_report(self, rows, rig="rig.json"):
         d = os.path.join(self.reports, f"hil-report-{rig}")
         os.makedirs(d, exist_ok=True)
-        with open(os.path.join(d, "hil_report.json"), "w") as f:
+        with open(os.path.join(d, "hil_report.json"), "w", encoding="utf-8") as f:
             json.dump({"rows": [{"board": b, "cells": c} for b, c in rows.items()]}, f)
 
     def unrecorded(self):
@@ -1320,13 +1324,13 @@ class Unrecorded(unittest.TestCase):
         self.hil_report({"f407": {"device/cdc_msc": "✅"}}, rig="unknown.json")
         self.assertEqual(self.unrecorded(), [])
         d = os.path.join(self.reports, "hil-report-rig.json")
-        with open(os.path.join(d, "hil_report.json"), "w") as f:
+        with open(os.path.join(d, "hil_report.json"), "w", encoding="utf-8") as f:
             json.dump({"rows": [{"board": "f407", "retired": True, "cells": {"device/cdc_msc": "✅"}}, "junk"]}, f)
         self.assertEqual(self.unrecorded(), [])
 
     def test_an_unreadable_report_expects_nothing(self):
         self.hil_report({})
-        with open(os.path.join(self.reports, "hil-report-rig.json", "hil_report.json"), "w") as f:
+        with open(os.path.join(self.reports, "hil-report-rig.json", "hil_report.json"), "w", encoding="utf-8") as f:
             f.write("[1, 2")
         self.assertEqual(self.unrecorded(), [])
         self.assertEqual(sysview_ci.unrecorded_line([]), "")
@@ -1345,7 +1349,7 @@ class Unrecorded(unittest.TestCase):
         self.assertIn("record for `pico`, which", self.main("unrecorded", self.reports, self.pr))
         out = os.path.join(self.tmp, "report.md")
         self.main("report", self.base, self.pr, "--hil-reports", self.reports, "-o", out)
-        with open(out) as f:
+        with open(out, encoding="utf-8") as f:
             self.assertIn("record for `pico`, which", f.read())
         write_set(self.pr, board_json(board="pico"))
         self.assertEqual(self.main("unrecorded", self.reports, self.pr), "")
@@ -1365,7 +1369,7 @@ class HostileRecord(unittest.TestCase):
         for side, objs in (("b", base), ("p", pr)):
             os.makedirs(os.path.join(self.tmp, side))
             for i, o in enumerate(objs):   # a board name is no file name here
-                with open(os.path.join(self.tmp, side, f"sysview-{i}.json"), "w") as f:
+                with open(os.path.join(self.tmp, side, f"sysview-{i}.json"), "w", encoding="utf-8") as f:
                     json.dump(o, f)
         return sysview_ci.report(os.path.join(self.tmp, "b"), os.path.join(self.tmp, "p"), info)
 

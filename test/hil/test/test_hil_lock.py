@@ -27,6 +27,9 @@ HIL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(HIL_DIR))
 sys.path.insert(0, HIL_DIR)
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("agentrc's board lock is an fcntl flock: POSIX only")
+
 from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402

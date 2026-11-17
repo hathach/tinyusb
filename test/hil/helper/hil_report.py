@@ -835,7 +835,7 @@ def sequence(config_path, requested: list, report_dir: Path) -> dict:
     tests on the same rows. `current` is the last attempt's own run, its rows the requested boards'.
     summarize() stays the snapshot verdict."""
     c, s = core(), schema()
-    cfg = json.loads(Path(config_path).read_text())
+    cfg = json.loads(Path(config_path).read_text(encoding='utf-8'))
     roster = c.roster_identity(config_path)
     chain, locked_before, cells_before = [], None, {}
     for ctx in c.read_chain(report_dir, s):
@@ -931,7 +931,7 @@ def _report_args(argv: list, **parser) -> tuple | None:
                     help='boards to report on; default: every board in the config')
     ap.add_argument('--report-dir', default='.', help=f'where {REPORT_JSON} lives (default: cwd)')
     a = ap.parse_args(argv)
-    cfg = json.loads(Path(a.config_file).read_text())
+    cfg = json.loads(Path(a.config_file).read_text(encoding='utf-8'))
     jpath = Path(a.report_dir) / REPORT_JSON
     if not jpath.is_file():
         print(f'error: {jpath} not found -- did hil_test.py run in this directory?', file=sys.stderr)

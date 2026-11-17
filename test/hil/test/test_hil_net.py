@@ -348,6 +348,7 @@ class IperfVerification(unittest.TestCase):
         self.run.assert_not_called()
 
 
+@unittest.skipIf(sys.platform == 'win32', "hil_test imports agentrc's rig harness (fcntl locks, process groups): POSIX only")
 class ReportCell(unittest.TestCase):
     def setUp(self):
         import usbtest_harness  # noqa: F401 - stubs serial before hil_test is imported

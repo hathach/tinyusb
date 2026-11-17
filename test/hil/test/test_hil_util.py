@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper import hil_util
 
 
+@unittest.skipIf(sys.platform == 'win32', "the runner is agentrc's hil_process (fcntl, process groups): POSIX only")
 class Wrappers(unittest.TestCase):
     """run_cmd and run_alongside are agentrc's (hil_process; its tests hold the runner's
     contract) with this harness's CMD_TIMEOUT, REAP_GRACE and verbose read on every call:
@@ -119,7 +120,7 @@ class BottomLayer(unittest.TestCase):
                     '../../tools/get_deps', '../../tools/family_json',
                     # the selection contract CI calls: check_build.py --select-only
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
-            tree = ast.parse((hil_dir / f'{mod}.py').read_text())
+            tree = ast.parse((hil_dir / f'{mod}.py').read_text(encoding='utf-8'))
             # module level only: a deferred import inside a function cannot break
             # importability
             for node in tree.body:
@@ -133,6 +134,7 @@ class BottomLayer(unittest.TestCase):
                                   f'{mod}.py imports {root}, not stdlib/local - breaks the bare CI runner')
 
 
+@unittest.skipIf(sys.platform == 'win32', "the runner is agentrc's hil_process (fcntl, process groups): POSIX only")
 class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
     """test_device_printer_to_cdc byte-compares run_alongside's stdout against the payload
     it wrote. Merging stderr into that stream turns any stray child stderr byte -- a
@@ -185,7 +187,7 @@ class RosterPath(unittest.TestCase):
 
     def test_a_cwd_file_does_not_shadow_the_host_roster(self):
         with tempfile.TemporaryDirectory() as d:
-            Path(d, 'hfp.json').write_text('{}')
+            Path(d, 'hfp.json').write_text('{}', encoding='utf-8')
             cwd = os.getcwd()
             os.chdir(d)
             try:
@@ -203,7 +205,7 @@ class RosterPath(unittest.TestCase):
             hil.mkdir(parents=True)
             with self.assertRaises(LookupError):
                 hil_util.roster_path('htpc', local_fallback=True)
-            (hil / 'local.json').write_text('{}')
+            (hil / 'local.json').write_text('{}', encoding='utf-8')
             self.assertEqual(hil_util.roster_path('htpc', local_fallback=True), hil / 'local.json')
             self.assertEqual(hil_util.roster_path('ci', local_fallback=True), hil / 'tinyusb.json')
             with self.assertRaises(LookupError):   # the farm check's call: no fallback

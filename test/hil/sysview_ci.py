@@ -22,7 +22,7 @@ WORKLOAD_EVENT_NAME = "tud_cdc_read"
 def workload_event():
     """The workload window's anchor: the span of tud_cdc_read activity, the throughput test's
     own footprint."""
-    with open(EVENT_MAP) as f:
+    with open(EVENT_MAP, encoding="utf-8") as f:
         return next(int(i) for i, n in json.load(f).items() if n == WORKLOAD_EVENT_NAME)
 
 GATE_MIN_N = 50
@@ -51,7 +51,7 @@ def load_set(d):
     # recursive: a base download puts each artifact in its own subdirectory
     for p in glob.glob(os.path.join(d, "**", "sysview-*.json"), recursive=True):
         try:
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 j = json.load(f)
         except (OSError, ValueError):
             continue
@@ -431,9 +431,9 @@ def unrecorded_boards(reports_dir, pr_dir, roster_dir=None):
     for p in glob.glob(os.path.join(reports_dir, "hil-report-*", hil_report.REPORT_JSON)):
         roster = os.path.join(roster_dir, os.path.basename(os.path.dirname(p))[len("hil-report-"):])
         try:
-            with open(roster) as f:
+            with open(roster, encoding="utf-8") as f:
                 cfg = json.load(f)
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 doc = json.load(f)
             rows = {r["board"]: r.get("cells") for r in doc.get("rows") or []
                     if isinstance(r, dict) and isinstance(r.get("board"), str) and not r.get("retired")}
@@ -549,7 +549,7 @@ _BUILD_PY_KEYS = {"BOARD", "TOOLCHAIN", "MEMBROWSE_BOARD", "CFLAGS_CLI"}
 def read_manifest(fw):
     """The image's <target>.sysview.json (family_support.cmake) and the image's sha256."""
     import hashlib
-    with open(os.path.splitext(fw)[0] + ".sysview.json") as f:
+    with open(os.path.splitext(fw)[0] + ".sysview.json", encoding="utf-8") as f:
         m = json.load(f)
     with open(fw, "rb") as f:
         return m, hashlib.sha256(f.read()).hexdigest()
@@ -647,7 +647,7 @@ def capture_result(board, commit, capture=None, error=None, park_error=None, ide
             "metrics": None, "error": error or (NOT_DECODED if capture else None), **(identity or {})}
 
 def write_result(out_dir, result):
-    with open(os.path.join(out_dir, f"sysview-{result['board']}.json"), "w") as f:
+    with open(os.path.join(out_dir, f"sysview-{result['board']}.json"), "w", encoding="utf-8") as f:
         json.dump(result, f)
 
 def capture_one(board, fw, manifest, out_dir):
@@ -856,7 +856,7 @@ def baseline(repo, pr, current):
     records = []
     for p in glob.glob(os.path.join(current, "**", "sysview-*.json"), recursive=True):
         try:
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 records.append(json.load(f))
         except (OSError, ValueError):
             records.append(None)
@@ -922,17 +922,17 @@ def main():
             info = baseline(args.repo, args.pr, args.current)
         except Exception as e:   # an API failure or an unexpected reply is a result, the comment says so
             info = {**NO_BASELINE, "note": f"the baseline lookup failed: {type(e).__name__}: {e}"}
-        with open(args.info, "w") as f:
+        with open(args.info, "w", encoding="utf-8") as f:
             json.dump(info, f)
         print(json.dumps(info))
     elif args.cmd == "report":
         info = None
         if args.baseline_info:
-            with open(args.baseline_info) as f:
+            with open(args.baseline_info, encoding="utf-8") as f:
                 info = json.load(f)
         unrecorded = unrecorded_boards(args.hil_reports, args.pr_dir) if args.hil_reports else ()
         md = report(args.base_dir, args.pr_dir, info, unrecorded)
-        with open(args.out, "w") as f:
+        with open(args.out, "w", encoding="utf-8") as f:
             f.write(md)
         print(f"{'empty (no captures)' if not md else args.out}")
     elif args.cmd == "unrecorded":
@@ -945,13 +945,13 @@ def main():
         # recursive: a downloaded artifact sits in its own subdirectory, its raw files beside its records
         for path in sorted(glob.glob(os.path.join(args.dir, "**", "sysview-*.json"), recursive=True)):
             try:
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     result = json.load(f)
                 capture = result.get("capture") or {}
                 # an undecoded capture only: a decoded one may have no raw left beside it to decode again
                 if capture.get("status") == "captured" and result.get("error") == NOT_DECODED:
                     result = decode_one(result, os.path.dirname(path), deadline)
-                    with open(path, "w") as f:
+                    with open(path, "w", encoding="utf-8") as f:
                         json.dump(result, f)
                 park_error = capture.get("park_error")
                 print(f"{result['board']}: {result['error'] or 'ok'}" + (f" ({park_error})" if park_error else ""))

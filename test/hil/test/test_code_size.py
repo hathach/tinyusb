@@ -13,6 +13,7 @@ import sys
 import tempfile
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
@@ -183,9 +184,10 @@ class Build(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             _touch(tmp, 'device/a/a.elf', 'device/a/sub/bs2_default.elf', '_deps/picotool/x/enc.elf',
                    'host/b/b.elf')
-            self.assertEqual(sorted(os.path.relpath(e, tmp) for e in prof.elfs(tmp, None)),
-                             ['device/a/a.elf', 'host/b/b.elf'])
-            self.assertEqual([os.path.relpath(e, tmp) for e in prof.elfs(tmp, 'device/a')], ['device/a/a.elf'])
+            def rel(e):
+                return Path(os.path.relpath(e, tmp)).as_posix()
+            self.assertEqual(sorted(rel(e) for e in prof.elfs(tmp, None)), ['device/a/a.elf', 'host/b/b.elf'])
+            self.assertEqual([rel(e) for e in prof.elfs(tmp, 'device/a')], ['device/a/a.elf'])
 
 
 class Espressif(unittest.TestCase):
@@ -348,6 +350,8 @@ class CiBoardSet(unittest.TestCase):
             self.assertEqual(built, ['extra', 'b1', 'b2'])
 
     @mock.patch.object(sd, 'WINDOWS', new=False)
+    @mock.patch.object(sd, 'out_dir_lock', new=contextlib.nullcontext)   # fcntl's, with WINDOWS False
+    @mock.patch.object(prof, '_idf_image', new=lambda: True)   # CI's image, whether or not docker is here
     def test_ci_builds_pinned_espressif_boards_too(self):
         with tempfile.TemporaryDirectory() as tmp:
             built = self._boards_built(tmp, '{"boards": [{"board": "b1"}, '

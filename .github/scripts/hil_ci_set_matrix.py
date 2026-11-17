@@ -47,7 +47,7 @@ def main():
     hil = None
     try:
         if args.select_file:
-            with open(args.select_file) as f:
+            with open(args.select_file, encoding='utf-8') as f:
                 raw = f.read()
         if raw:
             # imported here, under the fall-open: a broken selector must still leave the
@@ -83,7 +83,7 @@ def main():
             matrix[toolchain].append(build_arg)
 
     for config_file in args.config_files:
-        with open(_resolve_config_path(config_file)) as f:
+        with open(_resolve_config_path(config_file), encoding='utf-8') as f:
             config = json.load(f)
 
         for board in config['boards']:

@@ -118,7 +118,7 @@ CMAKE_JOB_TOOLCHAINS = ['aarch64-gcc', 'arm-gcc', 'ft9xx-gcc', 'msp430-gcc', 'ri
 
 
 def pinned_boards(repo_root=REPO):
-    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json')) as f:
+    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json'), encoding='utf-8') as f:
         return {e['board'] for e in json.load(f)['boards']}
 
 
@@ -288,7 +288,7 @@ def main():
         if args.select:
             select = json.loads(args.select)
         elif args.select_file:
-            with open(args.select_file) as f:
+            with open(args.select_file, encoding='utf-8') as f:
                 select = json.load(f)
         elif args.base:
             r = subprocess.run([sys.executable, os.path.join(REPO, '.claude', 'skills', 'build', 'scripts',
