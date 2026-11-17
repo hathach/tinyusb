@@ -560,6 +560,53 @@ bool tuh_inited(void) {
   return _usbh_controller_id != TUSB_INDEX_INVALID_8;
 }
 
+// Release what tuh_rhport_init()'s stack setup created
+static void usbh_stack_deinit(void) {
+  // Class drivers
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+    usbh_class_driver_t const* driver = get_driver(drv_id);
+    if (driver && driver->deinit) {
+      TU_LOG_USBH("%s deinit\r\n", driver->name);
+      driver->deinit();
+    }
+  }
+
+  osal_queue_delete(_usbh_q);
+  _usbh_q = NULL;
+
+  #if CFG_TUH_HUB
+  osal_queue_delete(_usbh_daq);
+  _usbh_daq = NULL;
+  #endif
+
+  // Fire FAILED cb for any queued async control xfer so callers aren't stranded.
+  usbh_pending_ctrl_t pending;
+  while (tu_fifo_read_n(&_usbh_pending_ctrl_q, &pending, sizeof(pending)) == sizeof(pending)) {
+    if (pending.complete_cb) {
+      tuh_xfer_t x = {
+        .daddr       = pending.daddr,
+        .ep_addr     = 0,
+        .result      = XFER_RESULT_FAILED,
+        .actual_len  = 0,
+        .setup       = &pending.setup,
+        .buffer      = pending.buffer,
+        .complete_cb = pending.complete_cb,
+        .user_data   = pending.user_data,
+      };
+      pending.complete_cb(&x);
+    }
+  }
+  tu_fifo_clear(&_usbh_pending_ctrl_q);
+
+  #if OSAL_MUTEX_REQUIRED
+  // TODO make sure there is no task waiting on this mutex
+  osal_mutex_delete(_usbh_mutex);
+  _usbh_mutex = NULL;
+  #endif
+
+  osal_spin_deinit(&_usbh_spin);
+}
+
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (tuh_rhport_is_active(rhport)) {
     return true; // skip if already initialized
@@ -644,6 +691,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   _usbh_controller_id = rhport;
   if (!hcd_init(rhport, rh_init)) {
     _usbh_controller_id = prev_controller_id;
+    if (!tuh_inited()) {
+      usbh_stack_deinit(); // a retry re-runs stack setup, which would leak dynamically allocated queues/mutex
+    }
     TU_ASSERT(false);
   }
   hcd_int_enable(rhport);
@@ -666,49 +716,7 @@ bool tuh_deinit(uint8_t rhport) {
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
-    // Class drivers
-    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-      usbh_class_driver_t const* driver = get_driver(drv_id);
-      if (driver && driver->deinit) {
-        TU_LOG_USBH("%s deinit\r\n", driver->name);
-        driver->deinit();
-      }
-    }
-
-    osal_queue_delete(_usbh_q);
-    _usbh_q = NULL;
-
-  #if CFG_TUH_HUB
-    osal_queue_delete(_usbh_daq);
-    _usbh_daq = NULL;
-  #endif
-
-    // Fire FAILED cb for any queued async control xfer so callers aren't stranded.
-    usbh_pending_ctrl_t pending;
-    while (tu_fifo_read_n(&_usbh_pending_ctrl_q, &pending, sizeof(pending)) == sizeof(pending)) {
-      if (pending.complete_cb) {
-        tuh_xfer_t x = {
-          .daddr       = pending.daddr,
-          .ep_addr     = 0,
-          .result      = XFER_RESULT_FAILED,
-          .actual_len  = 0,
-          .setup       = &pending.setup,
-          .buffer      = pending.buffer,
-          .complete_cb = pending.complete_cb,
-          .user_data   = pending.user_data,
-        };
-        pending.complete_cb(&x);
-      }
-    }
-    tu_fifo_clear(&_usbh_pending_ctrl_q);
-
-  #if OSAL_MUTEX_REQUIRED
-    // TODO make sure there is no task waiting on this mutex
-    osal_mutex_delete(_usbh_mutex);
-    _usbh_mutex = NULL;
-  #endif
-
-    osal_spin_deinit(&_usbh_spin);
+    usbh_stack_deinit();
   }
 
   return true;
