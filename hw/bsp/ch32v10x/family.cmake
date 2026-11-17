@@ -69,7 +69,7 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/wch/usbfs/dcd_wch_usbfs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

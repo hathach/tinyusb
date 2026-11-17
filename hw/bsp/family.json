@@ -404,7 +404,7 @@
         "mcu": "OPT_MCU_CH32F20X",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c"
         ],
         "roles": [
           "device"
@@ -422,7 +422,7 @@
         "mcu": "OPT_MCU_CH32V103",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -438,7 +438,7 @@
         "mcu": "OPT_MCU_CH32V103",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -460,8 +460,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -483,8 +483,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -506,8 +506,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -529,11 +529,15 @@
         "mcu": "OPT_MCU_CH32V307",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c",
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -548,11 +552,15 @@
         "mcu": "OPT_MCU_CH32V307",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c",
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "dual",
+          "host"
         ]
       }
     }
@@ -567,7 +575,7 @@
         "mcu": "OPT_MCU_CH32V4X7",
         "options": {},
         "portable": [
-          "wch/wch_hs2/dcd_wch_hs2.c"
+          "wch/usbhs_v2/dcd_wch_usbhs_v2.c"
         ],
         "roles": [
           "device"
@@ -585,7 +593,7 @@
         "mcu": "OPT_MCU_CH32X035",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -605,7 +613,7 @@
         "mcu": "OPT_MCU_CH583",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -623,7 +631,7 @@
         "mcu": "OPT_MCU_CH583",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"

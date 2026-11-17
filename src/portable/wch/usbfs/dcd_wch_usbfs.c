@@ -11,14 +11,14 @@
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBFS) && CFG_TUD_WCH_USBIP_USBFS
 
   #include "device/dcd.h"
-  #include "ch32_usbfs_reg.h"
+  #include "wch_usbfs_reg.h"
 
   /* private defines */
   #define EP_MAX         (8)
 
   // EP3 IN buffer size. CH32V20x/V30x/F20x USBFS support full-speed iso packets up to 1023 B on
   // endpoint 3 (every other endpoint is 64 B); those parts set CH32_USBFS_EP3_1023_BUFSIZE in
-  // ch32_usbfs_reg.h. V103/X035/CH58x cap every endpoint at 64 B. Overridable per project.
+  // wch_usbfs_reg.h. V103/X035/CH58x cap every endpoint at 64 B. Overridable per project.
   #ifndef CFG_TUD_WCH_USBFS_EP3_BUFSIZE
     #ifdef CH32_USBFS_EP3_1023_BUFSIZE
       #define CFG_TUD_WCH_USBFS_EP3_BUFSIZE 1023
@@ -28,7 +28,7 @@
   #endif
 
   // Struct-based EP register access (uniform layout). CH58X has a different register map and
-  // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in ch32_usbfs_reg.h.
+  // defines EP_DMA/EP_TX_LEN/EP_CTRL itself in wch_usbfs_reg.h.
   #if CFG_TUSB_MCU == OPT_MCU_CH583
     // CH58X EP registers split into a low block (EP0-4) and a high block (EP5-7). Walk from each
     // block's first slot by the 4-byte slot stride (pointer arithmetic off slot 0, so the unused

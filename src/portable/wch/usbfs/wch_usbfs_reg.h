@@ -6,8 +6,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef USB_CH32_USBFS_REG_H
-#define USB_CH32_USBFS_REG_H
+#ifndef WCH_USBFS_REG_H
+#define WCH_USBFS_REG_H
 
 // https://github.com/openwch/ch32v307/pull/90
 // https://github.com/openwch/ch32v20x/pull/12
@@ -189,13 +189,13 @@
 // CH32V20x/V30x/F20x USBFS gives endpoint 3 a 1023-byte isochronous packet (CH32FV2x_V3xRM ch23:
 // every endpoint is 64 B except EP3 = 1023 B, from EP3's 10-bit R16_UEP3_T_LEN field plus a single
 // contiguous >=1023 B DMA buffer — NOT double-buffering, which only yields 2x64 B).
-// CH32V103/X035/CH58x cap every endpoint at 64 B. dcd_ch32_usbfs.c reads this to size EP3's buffer.
+// CH32V103/X035/CH58x cap every endpoint at 64 B. dcd_wch_usbfs.c reads this to size EP3's buffer.
 #if CFG_TUSB_MCU == OPT_MCU_CH32V20X || CFG_TUSB_MCU == OPT_MCU_CH32V307 || CFG_TUSB_MCU == OPT_MCU_CH32F20X
   #define CH32_USBFS_EP3_1023_BUFSIZE 1
 #endif
 
 // CH32V20x USBFS loses EP0 when an IN completes on another endpoint during a host-to-device control
-// transfer (see ep_in_hold() in dcd_ch32_usbfs.c), traced on CH32V203. CH32V305 USBFS was checked
+// transfer (see ep_in_hold() in dcd_wch_usbfs.c), traced on CH32V203. CH32V305 USBFS was checked
 // unaffected; V103/X035/CH58x/F20x are untested.
 #if CFG_TUSB_MCU == OPT_MCU_CH32V20X
   #define CH32_USBFS_H2D_IN_HOLD 1
@@ -290,4 +290,4 @@
 #define PID_IN    2
 #define PID_SETUP 3
 
-#endif // USB_CH32_USBFS_REG_H
+#endif // WCH_USBFS_REG_H

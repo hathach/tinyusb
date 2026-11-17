@@ -585,7 +585,7 @@
 // WCH
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
 
@@ -655,9 +655,17 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   // v307 support both FS and HS, default to HS
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
+
+  // Keep USBFS as the default host; USBHS v1 is explicitly selectable.
+  #ifndef CFG_TUH_WCH_USBIP_USBHS
+    #define CFG_TUH_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+    #define CFG_TUH_WCH_USBIP_USBFS (!CFG_TUH_WCH_USBIP_USBHS)
+  #endif
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -668,6 +676,7 @@
   #endif
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_HCD_HIGHSPEED CFG_TUH_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
   #if CFG_TUD_WCH_USBIP_USBHS
@@ -676,8 +685,8 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH583)
   // CH582/583 USBFS: older WCH USBFS IP with a single combined per-endpoint control register
-  // (like CH32V103), driven by the shared dcd_ch32_usbfs.c on USB0 (rhport 0). Device only:
-  // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
+  // (like CH32V103), driven by the shared dcd_wch_usbfs.c on USB0 (rhport 0). Device only:
+  // the shared hcd_wch_usbfs.c supports CH32V20x/CH32V30x and does not support CH58x, so host /
   // USB2 (rhport 1) is not provided here.
   #define TUP_USBIP_WCH_USBFS
   #define TUP_USBD_XFER_ISR 0
@@ -689,8 +698,8 @@
   #define TUP_DCD_ENDPOINT_MAX 8
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
-  // Two WCH HS2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
-  #define TUP_USBIP_WCH_HS2
+  // Two WCH USBHS v2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
+  #define TUP_USBIP_WCH_USBHS_V2
   #define TUP_RHPORT_HIGHSPEED 1
   #define TUP_DCD_ENDPOINT_MAX 8
   #define TUP_DCD_EDPT_CLOSE_API
@@ -804,6 +813,11 @@
 // Default to fullspeed if not defined
 #ifndef TUP_RHPORT_HIGHSPEED
   #define TUP_RHPORT_HIGHSPEED 0
+#endif
+
+// Host and device may select different controllers on the same MCU.
+#ifndef TUP_HCD_HIGHSPEED
+  #define TUP_HCD_HIGHSPEED TUP_RHPORT_HIGHSPEED
 #endif
 
 // fast function, normally mean placing function in SRAM

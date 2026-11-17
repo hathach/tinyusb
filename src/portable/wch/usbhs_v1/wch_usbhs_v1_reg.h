@@ -6,8 +6,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef USB_CH32_USBHS_REG_H
-#define USB_CH32_USBHS_REG_H
+#ifndef WCH_USBHS_V1_REG_H
+#define WCH_USBHS_V1_REG_H
 
 // https://github.com/openwch/ch32v307/pull/90
 // https://github.com/openwch/ch32v20x/pull/12
@@ -60,7 +60,7 @@
 // USB FRAME_NO
 #define USBHS_FRAME_NO_OFFSET 0x04
 #define USBHS_FRAME_NO_NUM_MASK (0x7FF)
-#define USBHS_FRAME_NO_MICROFRAME_SHIFT (11)
+#define USBHS_FRAME_NO_MICROFRAME_SHIFT (13)
 #define USBHS_FRAME_NO_MICROFRAME_MASK  (0x7 << USBHS_FRAME_NO_MICROFRAME_SHIFT)
 
 // USB SUSPEND

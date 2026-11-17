@@ -35,3 +35,5 @@ mcu:MIMXRT1XXX
 # Port 0 (OHCI) does not support ISO.
 board:lpcxpresso55s28
 board:lpcxpresso55s69
+mcu:CH32V20X
+mcu:CH32V307
