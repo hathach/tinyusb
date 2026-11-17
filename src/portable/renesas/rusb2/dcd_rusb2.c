@@ -193,6 +193,13 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   return true;
 }
 
+// CFIFO (DCP) counterpart of pipe_wait_for_ready(), same bound. Returns false on timeout.
+static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while ( !rusb->CFIFOCTR_b.FRDY ) { if (!spin--) return false; }
+  return true;
+}
+
 // Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
 // USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
 // FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
@@ -512,7 +519,7 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
     pipe->buf = buffer;
     if (ep_addr) {
       /* IN */
-      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & 0x80));
+      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & TUSB_DIR_IN_MASK));
       pipe0_xfer_in(rusb);
     } else if (rusb->CFIFOCTR_b.FRDY) {
       /* OUT: a back-to-back packet parked by pipe0_xfer_out already sits in the DCP buffer (its
@@ -532,7 +539,7 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
        (same rule as usbd's status_stage_ep). */
     pipe->buf = NULL;
 
-    const bool    req_in    = (rusb->USBREQ & 0x80u) != 0;
+    const bool    req_in    = (rusb->USBREQ & TUSB_DIR_IN_MASK) != 0;
     const uint8_t status_ep = (rusb->USBLENG != 0 && req_in) ? tu_edpt_addr(0, TUSB_DIR_OUT)
                                                              : tu_edpt_addr(0, TUSB_DIR_IN);
     if (ep_addr == status_ep) {
@@ -545,12 +552,7 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
          since PID is NAK after SETUP when the data stage is a lone ZLP */
       if (ep_addr) {
         /* BVAL should only be set while FRDY is 1 */
-        uint32_t spin = RUSB2_FIFO_READY_SPIN;
-        while (!rusb->CFIFOCTR_b.FRDY) {
-          if (!spin--) {
-            return false;
-          }
-        }
+        TU_VERIFY(cfifo_wait_for_ready(rusb));
         rusb->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
       } else if (rusb->CFIFOCTR_b.FRDY) {
         /* OUT: a packet parked by pipe0_xfer_out (host data beyond a class buffer that ended on a
@@ -1305,27 +1307,20 @@ void dcd_int_handler(uint8_t rhport)
 
   // Control transfer stage changes
   if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
-    switch ( is0 & RUSB2_INTSTS0_CTSQ_Msk )
-    {
+    switch (is0 & RUSB2_INTSTS0_CTSQ_Msk) {
+      // a setup packet has been received
       case RUSB2_INTSTS0_CTSQ_CTRL_RDATA:
       case RUSB2_INTSTS0_CTSQ_CTRL_WDATA:
       case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA:
-      {
         process_setup_packet(rhport);
         break;
-      }
 
+      // the status stage ZLP has been sent/received
       case RUSB2_INTSTS0_CTSQ_CTRL_IDLE:
-      {
-        /* A ZLP has been sent/received. */
         process_status_completion(rhport);
         break;
-      }
 
-      default:
-      {
-        break;
-      }
+      default: break;
     }
   }
 
