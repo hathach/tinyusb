@@ -166,6 +166,18 @@ void tearDown(void) {
 }
 
 //--------------------------------------------------------------------+
+// Task
+//--------------------------------------------------------------------+
+void test_usbd_task_idle_does_not_mask_interrupts(void) {
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  dcd_int_disable_StopIgnore();
+  dcd_int_enable_StopIgnore();
+
+  // An empty task poll must not call either interrupt mock.
+  TEST_ASSERT_FALSE(tud_task());
+}
+
+//--------------------------------------------------------------------+
 // Get Descriptor
 //--------------------------------------------------------------------+
 
@@ -502,12 +514,14 @@ void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
   TEST_ASSERT_EQUAL_UINT(1, calls);
 }
 
-// usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
+// Without dcd_edpt_abort_xfer() in the DCD, usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and
+// releases the claim
 void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   msc_out_armed();
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
@@ -528,9 +542,39 @@ void test_usbd_edpt_abort_idle_endpoint(void) {
   usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+// A DCD with dcd_edpt_abort_xfer() drops the in-flight transfer without stalling the endpoint, and the claim is
+// released
+void test_usbd_edpt_abort_uses_dcd_abort(void) {
+  msc_out_armed();
+
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+// A stalled endpoint is still stalled and cleared, which clears the stall: the DCD abort is only for a transfer
+void test_usbd_edpt_abort_clears_a_stall(void) {
+  msc_out_armed();
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_stall(rhport, EDPT_MSC_OUT);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
 
@@ -792,6 +836,19 @@ void test_usbd_task_stop_full_queue(void) {
 
   TEST_ASSERT_TRUE(tud_task_stop());
   TEST_ASSERT_TRUE(tud_task());
+}
+
+// a stop that is the last event of a full run is reported by that run, not left for the idle fast path to hide
+void test_usbd_task_stop_last_event_of_run(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_EVENTS_PER_RUN - 1; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(tud_task_stop());
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_EVENTS_PER_RUN - 1, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
 }
 
 //--------------------------------------------------------------------+

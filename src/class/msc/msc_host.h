@@ -40,8 +40,8 @@ typedef void (*tuh_msc_reset_cb_t)(uint8_t dev_addr, bool success, uintptr_t arg
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface can accept a new command: false while busy, and once fenced after a failed stage submit
-// (see tuh_msc_scsi_command) until tuh_msc_reset() succeeds or the device is re-enumerated
+// Check if the interface can accept a new command: false while busy, and once fenced after a failed stage submit or
+// a failed CBW/CSW transfer (see tuh_msc_scsi_command) until tuh_msc_reset() succeeds or the device is re-enumerated
 bool tuh_msc_ready(uint8_t dev_addr);
 
 // Get the LUN count the device reported, clamped to CFG_TUH_MSC_MAXLUN
@@ -57,9 +57,10 @@ uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 // Complete callback is invoked when SCSI op is complete.
 // return true if success, false if the interface is not configured or is fenced, cbw->lun is not below
 // tuh_msc_get_maxlun(), or there is already pending operation. The commands below also return false in these cases.
-// If the data or status stage fails to submit, the callback gets a locally built CSW with MSC_CSW_STATUS_PHASE_ERROR
-// and the interface is fenced: every further command is refused until tuh_msc_reset() succeeds or the device is
-// re-enumerated. The failed command is not retried.
+// If the data or status stage fails to submit, or the CBW transfer fails, or the CSW transfer fails or is short, the
+// callback gets a locally built CSW with MSC_CSW_STATUS_PHASE_ERROR and the interface is fenced: every further
+// command is refused until tuh_msc_reset() succeeds or the device is re-enumerated. The failed command is not
+// retried. A Phase Error CSW the device itself sends on a mounted interface is reported as is and does not fence.
 // NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, const msc_cbw_t *cbw, void *data, tuh_msc_complete_cb_t complete_cb,
                           uintptr_t arg);

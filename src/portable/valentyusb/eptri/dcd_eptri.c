@@ -492,10 +492,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     queue_log_append(ep_addr, total_bytes);
 #endif
     // If a reset happens while we're waiting, abort the transfer
-    if (previous_reset_count != reset_count)
+    if (previous_reset_count != reset_count) {
+      dcd_int_enable(0);
       return true;
+    }
 
-    TU_ASSERT(tx_buffer[ep_num] == NULL);
     tx_buffer_offset[ep_num] = 0;
     tx_buffer_max[ep_num] = total_bytes;
     tx_buffer[ep_num] = buffer;

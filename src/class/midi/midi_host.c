@@ -185,6 +185,11 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
   TU_VERIFY(idx < CFG_TUH_MIDI, 0);
   midih_interface_t *p_midi = &_midi_host[idx];
   p_midi->itf_count = 0;
+  // a failed open leaves daddr 0 but may have opened a stream or counted cables: start the slot without them
+  tu_edpt_stream_close(&p_midi->ep_stream.rx);
+  tu_edpt_stream_close(&p_midi->ep_stream.tx);
+  p_midi->rx_cable_count = 0;
+  p_midi->tx_cable_count = 0;
 
   tuh_midi_descriptor_cb_t desc_cb = { 0 };
   desc_cb.jack_num = 0;
@@ -288,6 +293,8 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
           desc_cb.desc_epin      = p_ep;
           ep_stream              = &p_midi->ep_stream.rx;
         }
+        // tuh_edpt_open() bounds bulk to TUH_EPSIZE_BULK_MAX, interrupt and isochronous can still exceed _midi_epbuf
+        TU_VERIFY(p_ep->bmAttributes.xfer == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX, 0);
         TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
         tu_edpt_stream_open(ep_stream, dev_addr, p_ep, tu_edpt_packet_size(p_ep));
         tu_edpt_stream_clear(ep_stream);

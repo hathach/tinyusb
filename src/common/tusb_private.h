@@ -52,15 +52,9 @@ typedef struct {
 // Endpoint
 //--------------------------------------------------------------------+
 
-// Check if endpoint descriptor is valid per USB specs if debug is enabled
-#if CFG_TUSB_DEBUG
+// Check an endpoint descriptor against USB specs: wMaxPacketSize must be non-zero and within the spec maximum, which
+// endpoint buffers are sized to. Other non-compliant sizes are accepted with a warning.
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
-#else
-TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
-  (void)speed;
-  return tu_edpt_packet_size(desc_ep) > 0;
-}
-#endif
 
 // Bind drivers to all interfaces and endpoints in the provided configuration descriptor
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,

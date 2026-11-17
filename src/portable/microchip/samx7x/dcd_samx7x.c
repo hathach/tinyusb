@@ -109,7 +109,7 @@ void dcd_remote_wakeup(uint8_t rhport) {
 
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport) {
-  (void)rhport;
+  const uint32_t ie = NVIC_GetEnableIRQ((IRQn_Type)ID_USBHS);
   dcd_int_disable(rhport);
   // Enable the USB controller in device mode
   USB_REG->CTRL = CTRL_UIMOD | CTRL_USBE;
@@ -132,11 +132,14 @@ void dcd_connect(uint8_t rhport) {
   USB_REG->DEVCTRL &= ~DEVCTRL_DETACH;
   // Freeze USB clock
   USB_REG->CTRL |= CTRL_FRZCLK;
+  if (ie) {
+    dcd_int_enable(rhport);
+  }
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport) {
-  (void)rhport;
+  const uint32_t ie = NVIC_GetEnableIRQ((IRQn_Type)ID_USBHS);
   dcd_int_disable(rhport);
   // Disable all endpoints
   USB_REG->DEVEPT &= ~(0x3FF << DEVEPT_EPEN0_Pos);
@@ -152,6 +155,9 @@ void dcd_disconnect(uint8_t rhport) {
   USB_REG->DEVCTRL |= DEVCTRL_DETACH;
   // Disable the device address
   USB_REG->DEVCTRL &= ~(DEVCTRL_ADDEN | DEVCTRL_UADD);
+  if (ie) {
+    dcd_int_enable(rhport);
+  }
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {

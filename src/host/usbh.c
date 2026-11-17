@@ -864,6 +864,14 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
     return true;
   }
 
+#if CFG_TUSB_OS == OPT_OS_NONE
+  // Include deferred work; avoid masking USB interrupts when the task is idle. A stop consumed from the queue by a
+  // non-stoppable poll (a sync control transfer) is left set and must still end the next tuh_task().
+  if (!(stoppable && _usbh_data.task_stop) && !tuh_task_event_ready()) {
+    return false;
+  }
+#endif
+
   (void) in_isr; // not implemented yet
 
 #if CFG_TUSB_OS_HAS_SCHEDULER
@@ -1321,8 +1329,13 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
   return true;
 }
 
+static void edpt_release_busy(usbh_device_t* dev, uint8_t epnum, uint8_t dir) {
+  dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
+  tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+}
+
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
-  TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
+  TU_LOG_USBH("[%u] Abort requested on EP %02X\r\n", daddr, ep_addr);
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir   = tu_edpt_dir(ep_addr);
 
@@ -1340,10 +1353,11 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(dev);
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
-    // abort then mark as ready and release endpoint
-    hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr);
-    dev->ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_BUSY; // clear busy
-    tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
+    // Abort, then mark as ready and release the endpoint. A transfer the HCD no longer has (completed, its event still
+    // queued) is not aborted: that event releases the endpoint. Released here, a new transfer could start into the
+    // same buffer, and the stale event would complete it with whatever that buffer holds by then.
+    TU_VERIFY(hcd_edpt_abort_xfer(dev->bus_info.rhport, daddr, ep_addr));
+    edpt_release_busy(dev, epnum, dir);
   }
 
   return true;
@@ -1475,21 +1489,33 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, &ep0_desc);
 }
 
-bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  // HACK: some device incorrectly always reports 512 bulk regardless of link speed, overwrite descriptor to force 64
-  if (desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 64 &&
-      tuh_speed_get(dev_addr) == TUSB_SPEED_FULL) {
-    TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
-    tusb_desc_endpoint_t *hacked_ep = (tusb_desc_endpoint_t *)(uintptr_t)desc_ep;
-    hacked_ep->wMaxPacketSize       = tu_htole16(64);
+// HACK: some device incorrectly always reports 512 bulk regardless of link speed, overwrite descriptor to force 64
+static void edpt_fix_fullspeed_bulk_size(tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
+  if (speed == TUSB_SPEED_FULL && desc_ep->bmAttributes.xfer == TUSB_XFER_BULK && tu_edpt_packet_size(desc_ep) > 64) {
+    TU_LOG1("  WARN: EP %02X max packet size %u in fullspeed, force to 64\r\n", desc_ep->bEndpointAddress,
+            tu_edpt_packet_size(desc_ep));
+    desc_ep->wMaxPacketSize = tu_htole16(64);
   }
+}
+
+bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
+  // enumeration already fixed the configuration descriptor, this covers descriptors the application opens itself
+  edpt_fix_fullspeed_bulk_size((tusb_desc_endpoint_t *)(uintptr_t)desc_ep, tuh_speed_get(dev_addr));
   TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
-  TU_VERIFY(0 != tu_edpt_number(ep_addr)); // cannot close EP0
-  tuh_edpt_abort_xfer(daddr, ep_addr); // abort any pending transfer
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  const uint8_t dir   = tu_edpt_dir(ep_addr);
+  TU_VERIFY(0 != epnum); // cannot close EP0
+  if (!tuh_edpt_abort_xfer(daddr, ep_addr)) { // abort any pending transfer
+    // the HCD had none to abort, but the endpoint is closing: release it all the same
+    usbh_device_t* dev = get_device(daddr);
+    if (dev != NULL && (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY)) {
+      edpt_release_busy(dev, epnum, dir);
+    }
+  }
   return hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
 }
 
@@ -1868,7 +1894,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
 //--------------------------------------------------------------------+
 enum {                                      // USB 2.0 specs 7.1.7 for timing
   ENUM_DEBOUNCING_DELAY_MS           = 150, // T(ATTDB)  minimum 100 ms for stable connection
-  ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
+  ENUM_RESET_ROOT_DELAY_MS           = 60,  // T(DRSTr)  minimum 50 ms; i.MX RT needs 60 to let its 55 ms reset finish
   ENUM_RESET_ROOT_POST_DELAY_MS      = CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS, // delay after root port reset before getting speed/status
   ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
   ENUM_RESET_RECOVERY_DELAY_MS       = 10,  // T(RSTRCY) minimum 10 ms for reset recovery
@@ -2104,6 +2130,14 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       dev0_bus->speed = (port_status.status.high_speed)  ? TUSB_SPEED_HIGH
                         : (port_status.status.low_speed) ? TUSB_SPEED_LOW
                                                          : TUSB_SPEED_FULL;
+
+      // a hub cannot run a device faster than its own link: endpoint buffers are sized to the host speed, so a
+      // highspeed child behind a fullspeed hub (e.g. on a fullspeed host) would pass highspeed packet sizes
+      if (dev0_bus->speed == TUSB_SPEED_HIGH && tuh_speed_get(dev0_bus->hub_addr) != TUSB_SPEED_HIGH) {
+        TU_LOG_USBH("Hub %u reports a highspeed device on a non-highspeed link\r\n", dev0_bus->hub_addr);
+        is_enum_failed = true;
+        break;
+      }
       TU_ATTR_FALLTHROUGH;
     }
   #endif
@@ -2356,11 +2390,22 @@ static uint8_t enum_get_new_address(bool is_hub) {
 
 static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg) {
   usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev != NULL);
   uint16_t const total_len = tu_le16toh(desc_cfg->wTotalLength);
   uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + total_len;
   uint8_t const* p_desc   = tu_desc_next(desc_cfg);
 
   TU_LOG_USBH("Parsing Configuration descriptor (wTotalLength = %u)\r\n", total_len);
+
+  // Fix endpoint sizes before any driver opens: a driver can then check wMaxPacketSize against its buffers before
+  // opening an endpoint, and reads the size tuh_edpt_open() uses. Alternate settings are fixed here too.
+  if (dev->bus_info.speed == TUSB_SPEED_FULL) {
+    for (const uint8_t *p = p_desc; tu_desc_in_bounds(p, desc_end) && tu_desc_len(p) > 0; p = tu_desc_next(p)) {
+      if (TUSB_DESC_ENDPOINT == tu_desc_type(p) && tu_desc_len(p) >= sizeof(tusb_desc_endpoint_t)) {
+        edpt_fix_fullspeed_bulk_size((tusb_desc_endpoint_t *)(uintptr_t)p, TUSB_SPEED_FULL);
+      }
+    }
+  }
 
   // parse all interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {

@@ -310,3 +310,13 @@
 #else
   #error Byte order is undefined
 #endif
+
+// Order CPU memory accesses when handing uncached structures to/from DMA.
+// Drivers that need it check that it is defined for the compiler in use.
+#if defined(__GNUC__)
+  #define TU_MEMORY_BARRIER() __sync_synchronize()
+#elif defined(__ICCARM__)
+  #define TU_MEMORY_BARRIER() __DMB()
+#elif defined(__CC_ARM)
+  #define TU_MEMORY_BARRIER() __dmb(0xF)
+#endif

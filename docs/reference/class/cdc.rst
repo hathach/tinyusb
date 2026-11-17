@@ -45,7 +45,10 @@ Enable ``CFG_TUD_CDC`` with the required port count and add one
    * - ``CFG_TUD_CDC_TX_OVERWRITABLE_IF_NOT_CONNECTED``
      - ``1``
      - Allows writes made before DTR connection to replace old queued data
-       rather than permanently filling the FIFO.
+       rather than permanently filling the FIFO.  While DTR is clear, an
+       overflowing write drops the oldest queued bytes, including bytes queued
+       before DTR dropped.  If it races the endpoint copying data out, those
+       bytes can be torn (partly old, partly new data), skipped or replayed.
 
 Use speed-dependent values from an example when the device can enumerate at
 high speed.
@@ -121,7 +124,8 @@ The RX/TX software FIFO and endpoint buffers default to
 ``TUH_EPSIZE_BULK_MAX`` through ``CFG_TUH_CDC_RX_BUFSIZE``,
 ``CFG_TUH_CDC_TX_BUFSIZE``, ``CFG_TUH_CDC_RX_EPSIZE``, and
 ``CFG_TUH_CDC_TX_EPSIZE``.  Increase FIFO sizes to tolerate application
-latency; endpoint sizes normally stay at the host bulk maximum.  Optional
+latency; endpoint sizes must be at least ``TUH_EPSIZE_BULK_MAX``, which is
+checked at compile time.  Optional
 ``CFG_TUH_CDC_LINE_CODING_ON_ENUM`` and
 ``CFG_TUH_CDC_LINE_CONTROL_ON_ENUM`` values apply initial serial settings as
 part of enumeration.
