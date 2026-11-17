@@ -193,6 +193,13 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   return true;
 }
 
+// CFIFO (DCP) counterpart of pipe_wait_for_ready(), same bound. Returns false on timeout.
+static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while ( !rusb->CFIFOCTR_b.FRDY ) { if (!spin--) return false; }
+  return true;
+}
+
 // Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
 // USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
 // FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
@@ -295,7 +302,8 @@ static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
   // host has already ACKed it). Park it in the DCP buffer — an unread buffer NAKs further OUTs —
   // and let process_pipe0_xfer deliver it when usbd arms the next chunk. BCLR here would silently
   // drop the packet and shift every later chunk by one (usbtest ctrl_out corruption at ra4m1).
-  if (pipe->buf == NULL && rem == 0) {
+  // `queued`, not `buf`: an armed zero-length data-stage receive has buf == NULL too.
+  if (!pipe->queued) {
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
     return false;
   }
@@ -503,17 +511,20 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
   pipe->ff           = buffer_type;
   pipe->length       = total_bytes;
   pipe->remaining    = total_bytes;
+  // An OUT data-stage receive is armed for pipe0_xfer_out; cleared below for the status stage,
+  // which CCPL and the CTSQ IDLE interrupt complete instead
+  pipe->queued       = (ep_addr == 0);
 
   if (total_bytes) {
     pipe->buf = buffer;
     if (ep_addr) {
       /* IN */
-      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & 0x80));
+      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & TUSB_DIR_IN_MASK));
       pipe0_xfer_in(rusb);
-    } else if (rusb->CFIFOCTR_b.DTLN > 0) {
+    } else if (rusb->CFIFOCTR_b.FRDY) {
       /* OUT: a back-to-back packet parked by pipe0_xfer_out already sits in the DCP buffer (its
          BRDY has fired and been cleared) — deliver it into this chunk now; no new BRDY will come
-         for it. Runs with the USB IRQ masked (dcd_edpt_xfer). Detected via the hardware DTLN
+         for it. Runs with the USB IRQ masked (dcd_edpt_xfer). Detected via the hardware FRDY
          rather than a driver flag: the BCLR at SETUP/bus-reset then self-heals any parked state. */
       if (pipe0_xfer_out(rusb)) {
         pipe_xfer_complete(rhport, 0, is_isr);
@@ -522,9 +533,38 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
     }
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
   } else {
-    /* ZLP */
+    /* ZLP: either the status stage or a data-stage ZLP. Classify it from the request, not from
+       CTSQ: usbd can submit the status before the host's status token moves CTSQ out of the data
+       stage. The status stage is IN for a no-data request and opposite the data stage otherwise
+       (same rule as usbd's status_stage_ep). */
     pipe->buf = NULL;
-    rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+
+    const bool    req_in    = (rusb->USBREQ & TUSB_DIR_IN_MASK) != 0;
+    const uint8_t status_ep = (rusb->USBLENG != 0 && req_in) ? tu_edpt_addr(0, TUSB_DIR_OUT)
+                                                             : tu_edpt_addr(0, TUSB_DIR_IN);
+    if (ep_addr == status_ep) {
+      /* status stage: CCPL may be set while still in the data stage, the hardware completes the
+         status transaction when the host's status token arrives */
+      pipe->queued = false;
+      rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+    } else {
+      /* data-stage ZLP, e.g. an IN reply ending on a full packet short of wLength. Arm the DCP
+         since PID is NAK after SETUP when the data stage is a lone ZLP */
+      if (ep_addr) {
+        /* BVAL should only be set while FRDY is 1 */
+        TU_ASSERT(cfifo_wait_for_ready(rusb));
+        rusb->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      } else if (rusb->CFIFOCTR_b.FRDY) {
+        /* OUT: a packet parked by pipe0_xfer_out (host data beyond a class buffer that ended on a
+           full packet) gets no new BRDY: deliver it into this zero-length receive, as the
+           non-zero OUT path above does */
+        if (pipe0_xfer_out(rusb)) {
+          pipe_xfer_complete(rhport, 0, is_isr);
+          return true; // PID stays NAK (set by pipe0_xfer_out)
+        }
+      }
+      rusb->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
+    }
   }
 
   return true;
@@ -1267,12 +1307,20 @@ void dcd_int_handler(uint8_t rhport)
 
   // Control transfer stage changes
   if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
-    if ( is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA ) {
-      /* A setup packet has been received. */
-      process_setup_packet(rhport);
-    } else if ( 0 == (is0 & RUSB2_INTSTS0_CTSQ_Msk) ) {
-      /* A ZLP has been sent/received. */
-      process_status_completion(rhport);
+    switch (is0 & RUSB2_INTSTS0_CTSQ_Msk) {
+      // a setup packet has been received
+      case RUSB2_INTSTS0_CTSQ_CTRL_RDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA:
+        process_setup_packet(rhport);
+        break;
+
+      // the status stage ZLP has been sent/received
+      case RUSB2_INTSTS0_CTSQ_CTRL_IDLE:
+        process_status_completion(rhport);
+        break;
+
+      default: break;
     }
   }
 
