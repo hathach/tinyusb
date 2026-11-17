@@ -853,12 +853,12 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     #endif
       }
   #else
-      p_vendor->rx_xfer_len = rx_xfer_len;
       // Non-FIFO mode: store endpoint info
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         p_vendor->ep_in     = desc_ep->bEndpointAddress;
       } else {
         p_vendor->ep_out     = desc_ep->bEndpointAddress;
+        p_vendor->rx_xfer_len = rx_xfer_len;
     #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
         // Prepare for incoming data
         TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, rx_xfer_len, false), 0);
