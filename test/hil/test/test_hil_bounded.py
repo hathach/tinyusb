@@ -777,6 +777,27 @@ class SessionPidfile(unittest.TestCase):
             pidfile.write_text('')
             self.assertEqual(hil_test._session_alive(str(pidfile)), 'with an unrecorded pid')
 
+    def test_a_live_thread_behind_an_exited_leader_keeps_the_session_alive(self):
+        # a stranded bounded_read thread can stay blocked past SIGKILL while the leader already reads Z
+        child = ('import ctypes, sys, threading, time\n'
+                 'import session_child\n'
+                 'session_child.write_pidfile(sys.argv[1])\n'
+                 'threading.Thread(target=time.sleep, args=(30,)).start()\n'
+                 'ctypes.CDLL(None).pthread_exit(None)\n')
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            p = subprocess.Popen([sys.executable, '-c', child, str(pidfile)], cwd=os.path.dirname(TEST_DIR))
+            self.addCleanup(p.wait)
+            self.addCleanup(p.kill)
+            deadline = time.monotonic() + 10
+            while (hil_test._proc_state_start(f'/proc/{p.pid}/stat') or ('',))[0] != 'Z':
+                self.assertLess(time.monotonic(), deadline, 'the leader never exited')
+                time.sleep(0.05)
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {p.pid}')
+            p.kill()
+            p.wait()
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'a reaped session is not alive')
+
 
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the

@@ -664,7 +664,9 @@ void cdch_close(uint8_t daddr) {
     cdch_interface_t *p_cdc = &cdch_data[idx];
     if (p_cdc->daddr == daddr) {
       TU_LOG_CDC(p_cdc, "close");
-      tuh_cdc_umount_cb(idx); // invoke callback
+      if (p_cdc->mounted) {
+        tuh_cdc_umount_cb(idx); // only an interface the application got tuh_cdc_mount_cb() for
+      }
 
       p_cdc->daddr            = 0;
       p_cdc->bInterfaceNumber = 0;
@@ -732,21 +734,27 @@ static const uint8_t *desc_next_bounded(const uint8_t *p_desc, const uint8_t *de
   return tu_desc_next(p_desc);
 }
 
-// Open the two bulk endpoints at p_desc; returns the descriptor after them, or NULL
+// Open the two bulk endpoints at p_desc; returns the descriptor after them, or NULL.
+// Both are validated before either opens: usbh closes no endpoint of an interface it did not bind.
 static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
+  const tusb_desc_endpoint_t *desc_eps[2];
   for (size_t i = 0; i < 2; i++) {
     const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
     TU_ASSERT(next, NULL);
-    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, NULL);
+    desc_eps[i] = (const tusb_desc_endpoint_t *)p_desc;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_eps[i]->bDescriptorType && TUSB_XFER_BULK == desc_eps[i]->bmAttributes.xfer,
+              NULL);
+    p_desc = next;
+  }
+
+  for (size_t i = 0; i < 2; i++) {
+    const tusb_desc_endpoint_t *desc_ep = desc_eps[i];
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep), NULL);
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
     // fits the endpoint buffer: tuh_edpt_open() bounds a bulk size to TUH_EPSIZE_BULK_MAX, see TU_VERIFY_STATIC above
     tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
     tu_edpt_stream_clear(stream);
-
-    p_desc = next;
   }
 
   return p_desc;

@@ -639,9 +639,13 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     }
   }
 
-  // Init host controller
+  // Init host controller; restore the id on failure so a retry is not skipped as already active
+  const uint8_t prev_controller_id = _usbh_controller_id;
   _usbh_controller_id = rhport;
-  TU_ASSERT(hcd_init(rhport, rh_init));
+  if (!hcd_init(rhport, rh_init)) {
+    _usbh_controller_id = prev_controller_id;
+    TU_ASSERT(false);
+  }
   hcd_int_enable(rhport);
 
   return true;

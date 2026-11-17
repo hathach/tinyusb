@@ -37,6 +37,7 @@ static const uint8_t midi_itf_desc[] = {TEST_MIDI_ITF_DESC, TEST_MIDI_HEADER_DES
 
 static uint8_t *rx_ep_buf;
 static uint8_t  edpt_open_count;
+static uint8_t  umount_count;
 
 //--------------------------------------------------------------------+
 // Host stack functions called by midi_host.c
@@ -104,6 +105,11 @@ void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t *mount_cb_data) {
   mount_data = *mount_cb_data;
 }
 
+void tuh_midi_umount_cb(uint8_t idx) {
+  (void) idx;
+  umount_count++;
+}
+
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   read_xfer_ep_addr = s->ep_addr;
   return 0;
@@ -122,6 +128,7 @@ static void receive_packets(const uint8_t *data, uint16_t len) {
 //--------------------------------------------------------------------+
 void setUp(void) {
   rx_ep_buf = NULL;
+  umount_count = 0;
   TEST_ASSERT_TRUE(midih_init());
   TEST_ASSERT_NOT_NULL(rx_ep_buf);
   TEST_ASSERT_EQUAL(sizeof(midi_itf_desc),
@@ -171,6 +178,19 @@ void test_open_rejected_after_in_leaves_no_stale_rx(void) {
   TEST_ASSERT_EQUAL(0, mount_data.rx_cable_count);
   TEST_ASSERT_EQUAL(1, mount_data.tx_cable_count);
   midih_close(MIDI_DEV_ADDR + 1);
+}
+
+// usbh closes the drivers of a device whose configuration failed to parse: an interface the application never got
+// tuh_midi_mount_cb() for gets no tuh_midi_umount_cb(), and its slot is still freed
+void test_close_unmounted_interface_skips_umount_cb(void) {
+  midih_close(MIDI_DEV_ADDR);
+  TEST_ASSERT_EQUAL(1, umount_count);
+
+  TEST_ASSERT_EQUAL(sizeof(midi_itf_desc),
+                    midih_open(0, MIDI_DEV_ADDR, (const tusb_desc_interface_t *)midi_itf_desc, sizeof(midi_itf_desc)));
+  midih_close(MIDI_DEV_ADDR);
+  TEST_ASSERT_EQUAL(1, umount_count);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_midi_itf_get_index(MIDI_DEV_ADDR, MIDI_ITF_NUM));
 }
 
 // A message larger than the room left in the buffer must stay in the FIFO, not be written past bufsize
