@@ -26,11 +26,11 @@ rusb2_controller_t rusb2_controller[] = {
   #elif TU_CHECK_MCU(OPT_MCU_SYNERGY)
     #include "rusb2_synergy.h"
 
-// USBFS_INT_IRQn and USBHS_USB_INT_RESUME_IRQn are defined in the BSP's vector_data.h
+// IRQ numbers are looked up from the SSP vector table by rusb2_module_start()
 rusb2_controller_t rusb2_controller[] = {
-  {.reg_base = R_USBFS_BASE, .irqnum = USBFS_INT_IRQn},
+  {.reg_base = R_USBFS_BASE, .irqnum = SSP_INVALID_VECTOR},
     #ifdef RUSB2_SUPPORT_HIGHSPEED
-  {.reg_base = R_USBHS_BASE, .irqnum = USBHS_USB_INT_RESUME_IRQn},
+  {.reg_base = R_USBHS_BASE, .irqnum = SSP_INVALID_VECTOR},
     #endif
 };
   #endif

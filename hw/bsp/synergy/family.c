@@ -33,10 +33,13 @@
 
 #include "common_data.h"
 #include "bsp_pin_cfg.h"
-#include "vector_data.h"
 
 #include "bsp/board_api.h"
 #include "board.h"
+
+#if defined(BSP_MCU_GROUP_S5D9) || defined(BSP_MCU_GROUP_S7G2)
+#define BOARD_HAS_USB_HIGHSPEED
+#endif
 
 //--------------------------------------------------------------------+
 // Vector Data
@@ -61,9 +64,18 @@ void board_init(void) {
   TU_ASSERT(SSP_SUCCESS == g_ioport_on_ioport.init(&g_bsp_pin_cfg), );
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USBFS_INT_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_RESUME_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher ).
+  // IRQ numbers are assigned by the SSP vector table, so look them up through FMI.
+  ssp_feature_t ssp_feature = {{(ssp_ip_t) 0U}};
+  ssp_feature.id      = SSP_IP_USB;
+  ssp_feature.unit    = SSP_IP_UNIT_USBFS;
+  ssp_feature.channel = 0U;
+  ssp_signal_t const usbfs_signals[] = {SSP_SIGNAL_USB_INT, SSP_SIGNAL_USB_RESUME};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(usbfs_signals); i++) {
+    fmi_event_info_t event_info = {.irq = SSP_INVALID_VECTOR, .event = (elc_event_t) 0U};
+    TU_ASSERT(SSP_SUCCESS == g_fmi_on_fmi.eventInfoGet(&ssp_feature, usbfs_signals[i], &event_info), );
+    NVIC_SetPriority(event_info.irq, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  }
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE

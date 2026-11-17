@@ -31,6 +31,7 @@ extern "C" {
 
 /* renesas ssp api */
 #include "bsp_api.h"
+#include "r_fmi.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -40,8 +41,6 @@ extern "C" {
 #if defined(__ICCARM__)
   #define __builtin_ctz(x)   __iar_builtin_CLZ(__iar_builtin_RBIT(x))
 #endif
-
-#include "vector_data.h"
 
 //--------------------------------------------------------------------+
 //
@@ -101,6 +100,20 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool
   uint32_t const mask = 1U << (11+rhport);
   if (start) {
     R_MSTP->MSTPCRB &= ~mask;
+
+    // IRQ numbers come from the SSP vector table, which the linker builds from the
+    // SSP_VECTOR_DEFINE_UNIT() entries: look the number up unless the application set it.
+    if (rusb2_controller[rhport].irqnum < 0) {
+      ssp_feature_t feature = {{(ssp_ip_t) 0U}};
+      feature.id      = SSP_IP_USB;
+      feature.unit    = rusb2_is_highspeed_rhport(rhport) ? SSP_IP_UNIT_USBHS : SSP_IP_UNIT_USBFS;
+      feature.channel = 0U;
+      ssp_signal_t const signal = rusb2_is_highspeed_rhport(rhport) ? SSP_SIGNAL_USB_USB_INT_RESUME : SSP_SIGNAL_USB_INT;
+      fmi_event_info_t event_info = {.irq = SSP_INVALID_VECTOR, .event = (elc_event_t) 0U};
+      // fails only if the vector table has no entry for this signal (a build configuration error)
+      TU_ASSERT(SSP_SUCCESS == g_fmi_on_fmi.eventInfoGet(&feature, signal, &event_info), );
+      rusb2_controller[rhport].irqnum = event_info.irq;
+    }
   }else {
     R_MSTP->MSTPCRB |= mask;
   }
