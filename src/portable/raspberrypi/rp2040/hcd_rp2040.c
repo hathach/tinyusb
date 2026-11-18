@@ -30,6 +30,7 @@
   // INCLUDE
   //--------------------------------------------------------------------+
   #include "rp2040_usb.h"
+  #include "pico/time.h"
   #include "osal/osal.h"
 
   #include "host/hcd.h"
@@ -59,9 +60,10 @@ static volatile bool port_resetting = false;
 static volatile bool port_reconnecting = false;
 static volatile uint32_t port_reconnect_start;
 enum {
-  PORT_RECONNECT_TIMEOUT_US = 300000 // a HOST_CONN_DIS later than this after the reset is a real remove or attach, and a
-                                     // device not back by then is removed (sof_service())
+  PORT_RECONNECT_TIMEOUT_US = 300000 // length of the reconnect window after hcd_port_reset_end()
 };
+// Hardware alarm that ends the reconnect window: the SIE sends no SOF (no HOST_SOF) while SIE_STATUS.SPEED is 0
+static int port_reconnect_alarm = -1;
 
   #ifndef HAS_STOP_EPX_ON_NAK
 // Set by the SOF round-robin for the transfer active on EPX at that SOF; any EPX completion or start clears it
@@ -934,7 +936,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
   #endif
 
 // HOST_SOF is enabled while an EPX endpoint is pending (RP2040), EPX is held after an RX timeout with transfers pending,
-// an interrupt endpoint has a transfer queued, or a port reset's reconnect window is open.
+// or an interrupt endpoint has a transfer queued.
 static void __tusb_irq_path_func(sof_service)(void) {
   const uint32_t frame      = usb_hw->sof_rd; // also acknowledges HOST_SOF
   bool           sof_needed = false;
@@ -964,19 +966,6 @@ static void __tusb_irq_path_func(sof_service)(void) {
       sof_needed = true;
     } else {
       epx_start_next_pending();
-    }
-  }
-
-  // A device unplugged during the reconnect window may raise no HOST_CONN_DIS at all, and tuh_rhport_reset_bus() never
-  // asks hcd_port_connect_status(): one not back when the window ends is removed. One that is back has its
-  // HOST_CONN_DIS pending, which reports it.
-  if (port_reconnecting) {
-    if ((time_us_32() - port_reconnect_start) < PORT_RECONNECT_TIMEOUT_US) {
-      sof_needed = true;
-    } else if (dev_speed() == SIE_CTRL_SPEED_DISCONNECT) {
-      port_reconnecting = false;
-      port_resetting    = false;
-      hcd_event_device_remove(RHPORT_NATIVE, true);
     }
   }
 
@@ -1019,6 +1008,15 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
       hcd_event_device_attach(RHPORT_NATIVE, true);
     }
     usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
+  }
+
+  // The window ended (port_reconnect_alarm pends this IRQ) without the device back: a device unplugged during it may
+  // raise no HOST_CONN_DIS, and tuh_rhport_reset_bus() never asks hcd_port_connect_status()
+  if (port_reconnecting && (time_us_32() - port_reconnect_start) >= PORT_RECONNECT_TIMEOUT_US &&
+      dev_speed() == SIE_CTRL_SPEED_DISCONNECT) {
+    port_reconnecting = false;
+    port_resetting    = false;
+    hcd_event_device_remove(RHPORT_NATIVE, true);
   }
 
   if (status & USB_INTS_STALL_BITS) {
@@ -1176,6 +1174,11 @@ void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   hcd_rp2040_irq();
 }
 
+static void __tusb_irq_path_func(port_reconnect_alarm_cb)(uint alarm_num) {
+  (void)alarm_num;
+  irq_set_pending(USBCTRL_IRQ);
+}
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -1184,6 +1187,11 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
   pico_trace("hcd_init %d\n", rhport);
   assert(rhport == 0);
+
+  port_reconnect_alarm = hardware_alarm_claim_unused(false);
+  TU_ASSERT(port_reconnect_alarm >= 0);
+  // installs the timer IRQ on this core, the one that takes USBCTRL_IRQ
+  hardware_alarm_set_callback((uint)port_reconnect_alarm, port_reconnect_alarm_cb);
 
   // Reset any previous state
   rp2usb_init();
@@ -1221,9 +1229,15 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
 bool hcd_deinit(uint8_t rhport) {
   (void)rhport;
+  if (!hcd_running) {
+    return true; // hcd_init() failed before it started the controller, or already deinited
+  }
+  hardware_alarm_cancel((uint)port_reconnect_alarm);
+  hardware_alarm_set_callback((uint)port_reconnect_alarm, NULL);
   irq_remove_handler(USBCTRL_IRQ, hcd_rp2040_irq);
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+  irq_clear(USBCTRL_IRQ); // drop a pend the alarm left
 
   // The controller is reset, so no transfer or port reset is under way: forget them while the lock still exists, so
   // the hcd_device_close() and hcd_port_connect_status() calls tuh_deinit() makes next take no lock
@@ -1239,6 +1253,9 @@ bool hcd_deinit(uint8_t rhport) {
 
   // Release allocated resources
   rp2usb_deinit();
+
+  hardware_alarm_unclaim((uint)port_reconnect_alarm);
+  port_reconnect_alarm = -1;
 
   return true;
 }
@@ -1301,6 +1318,11 @@ void hcd_port_reset(uint8_t rhport) {
     port_attach_reset = false;
     return;
   }
+  // a window a previous reset left open must not end this one
+  rp2usb_critical_enter();
+  port_reconnecting = false;
+  hardware_alarm_cancel((uint)port_reconnect_alarm);
+  rp2usb_critical_exit();
   // the disconnect the SE0 causes must not be reported as a remove
   usb_hw_clear->inte = USB_INTE_HOST_CONN_DIS_BITS;
   port_reset_retire_epx();
@@ -1322,6 +1344,9 @@ void hcd_port_reset_end(uint8_t rhport) {
   usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
   rp2usb_critical_exit();
   usb_hw_set->inte = USB_INTE_HOST_CONN_DIS_BITS;
+  if (hardware_alarm_set_target((uint)port_reconnect_alarm, make_timeout_time_us(PORT_RECONNECT_TIMEOUT_US))) {
+    irq_set_pending(USBCTRL_IRQ); // target missed: no callback
+  }
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
