@@ -6,6 +6,16 @@
 #   cmake -DCONFIG=<configure-time json> -DELF=<image> -DOUT=<manifest> -DTOP=<repo> -P sysview_manifest.cmake
 # (sysview_manifest's POST_BUILD): completes CONFIG into OUT.
 
+# sysview_record_command_line's probe: prints var=HELPSTRING for each -D<var> it was given
+if (CMAKE_SCRIPT_MODE_FILE AND SYSVIEW_HELP_PROBE)
+  get_cmake_property(cache CACHE_VARIABLES)
+  foreach (var IN LISTS cache)
+    get_property(help CACHE ${var} PROPERTY HELPSTRING)
+    message("${var}=${help}")
+  endforeach ()
+  return()
+endif ()
+
 if (CMAKE_SCRIPT_MODE_FILE)
   file(READ ${CONFIG} manifest)
   file(SHA256 ${ELF} sha)
@@ -33,18 +43,38 @@ if (CMAKE_SCRIPT_MODE_FILE)
 endif ()
 
 # Call before project(): only then does a -D given to this configure still carry the command line's marks
-# (type UNINITIALIZED, or this help string) before option() or set(CACHE) retype it. The names accumulate
+# (type UNINITIALIZED, or the help string -D gives) before option() or set(CACHE) retype it. The names accumulate
 # across configures, as a later configure without them leaves their values in place.
 function(sysview_record_command_line)
   set(names $CACHE{SYSVIEW_COMMAND_LINE_VARS})
+  set(typed "")
   get_cmake_property(cache CACHE_VARIABLES)
   foreach (var IN LISTS cache)
     get_property(type CACHE ${var} PROPERTY TYPE)
     get_property(help CACHE ${var} PROPERTY HELPSTRING)
     if (type STREQUAL "UNINITIALIZED" OR help STREQUAL "No help, variable specified on the command line.")
       list(APPEND names ${var})
+    elseif (NOT type MATCHES "^(INTERNAL|STATIC)$")
+      list(APPEND typed ${var})
     endif ()
   endforeach ()
+  # CMake 4.4+ gives a typed -D of a variable it documents (-DCMAKE_C_FLAGS:STRING=) that documentation as help
+  # string instead (cmake::ProcessCacheArg, cmCacheDocumentationTable); a script-mode cmake reports which it gives
+  if (typed AND CMAKE_VERSION VERSION_GREATER_EQUAL 4.4)
+    set(probe "")
+    foreach (var IN LISTS typed)
+      list(APPEND probe "-D${var}:STRING=")
+    endforeach ()
+    execute_process(COMMAND ${CMAKE_COMMAND} -DSYSVIEW_HELP_PROBE=1 ${probe} -P ${CMAKE_CURRENT_FUNCTION_LIST_FILE}
+                    ERROR_VARIABLE given OUTPUT_QUIET)
+    foreach (var IN LISTS typed)
+      get_property(help CACHE ${var} PROPERTY HELPSTRING)
+      string(FIND "\n${given}" "\n${var}=${help}\n" at)
+      if (NOT at EQUAL -1)
+        list(APPEND names ${var})
+      endif ()
+    endforeach ()
+  endif ()
   list(REMOVE_DUPLICATES names)
   set(SYSVIEW_COMMAND_LINE_VARS "${names}" CACHE INTERNAL "every -D a configure of this build dir was given")
 endfunction()
