@@ -723,10 +723,28 @@ function(family_flash_stlink TARGET)
     set(STM32_PROGRAMMER_CLI STM32_Programmer_CLI)
   endif ()
 
-  add_custom_target(${TARGET}-stlink
-    DEPENDS ${TARGET}
-    COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
-    )
+  if (DEFINED STM32_PROGRAMMER_EXTLOADER)
+    # external memory loader: a name resolves to the programmer's ExternalLoader directory.
+    # Reset instead of --go: the loader leaves clocks and interrupts configured
+    set(EXTLOADER ${STM32_PROGRAMMER_EXTLOADER})
+    if (NOT IS_ABSOLUTE ${EXTLOADER})
+      find_program(STM32_PROGRAMMER_CLI_PATH ${STM32_PROGRAMMER_CLI})
+      if (STM32_PROGRAMMER_CLI_PATH)
+        get_filename_component(CLI_DIR ${STM32_PROGRAMMER_CLI_PATH} DIRECTORY)
+        set(EXTLOADER ${CLI_DIR}/ExternalLoader/${EXTLOADER})
+      endif ()
+    endif ()
+    add_custom_target(${TARGET}-stlink
+      DEPENDS ${TARGET}
+      COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd -el ${EXTLOADER} --write $<TARGET_FILE:${TARGET}> -rst
+      VERBATIM
+      )
+  else ()
+    add_custom_target(${TARGET}-stlink
+      DEPENDS ${TARGET}
+      COMMAND ${STM32_PROGRAMMER_CLI} --connect port=swd --write $<TARGET_FILE:${TARGET}> --go
+      )
+  endif ()
 
   #set_property(TARGET ${TARGET}-stlink PROPERTY FOLDER ${TARGET}-group)
 endfunction()

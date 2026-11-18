@@ -45,12 +45,24 @@ cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_
 set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+
+# XSPI_BOOT (board.cmake): internal flash holds only the vector table and boot code, the image is
+# stored on the XSPI2 (XSPIM_P2) flash and copied to AXI SRAM at reset, see xspi_boot.c
+if (XSPI_BOOT)
+  set(LD_SUFFIX xspi)
+else ()
+  set(LD_SUFFIX flash)
+endif ()
 if(NOT DEFINED LD_FILE_GNU)
-set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_flash.ld)
+  set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_${LD_SUFFIX}.ld)
 endif()
 set(LD_FILE_Clang ${LD_FILE_GNU})
 if(NOT DEFINED LD_FILE_IAR)
-  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  if (XSPI_BOOT)
+    set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_xspi.icf)
+  else ()
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  endif ()
 endif()
 
 #------------------------------------
@@ -83,8 +95,18 @@ function(family_add_board BOARD_TARGET)
     BOARD_TUH_RHPORT=${RHPORT_HOST}
     BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
     SEGGER_RTT_SECTION=\"noncacheable_buffer\"
-    BUFFER_SIZE_UP=0x300
     )
+  # RTT up buffer, it lives in the noncacheable section (1 KB, 4 KB with XSPI_BOOT). Defined once:
+  # iasmarm rejects a second -D of it with another value, e.g. from CFLAGS_CLI
+  if (NOT CFLAGS_CLI MATCHES "BUFFER_SIZE_UP=")
+    if (NOT DEFINED BUFFER_SIZE_UP)
+      set(BUFFER_SIZE_UP 0x300)
+    endif ()
+    target_compile_definitions(${BOARD_TARGET} PUBLIC BUFFER_SIZE_UP=${BUFFER_SIZE_UP})
+  endif ()
+  if (XSPI_BOOT)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC XSPI_BOOT=1)
+  endif ()
 
   update_board(${BOARD_TARGET})
 endfunction()
@@ -104,6 +126,10 @@ function(family_configure_example TARGET RTOS)
     ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
+  if (XSPI_BOOT)
+    # not in the board library: its strong Reset_Handler must override the startup's weak one
+    target_sources(${TARGET} PUBLIC ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/xspi_boot.c)
+  endif ()
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
@@ -135,7 +161,23 @@ function(family_configure_example TARGET RTOS)
 
 
   # Flashing
-  family_add_bin_hex(${TARGET})
+  if (XSPI_BOOT)
+    # a single .bin would span 0x08000000-0x70000000: one per flash instead
+    if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} --ihex $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
+        VERBATIM)
+    else ()
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
+        COMMAND ${CMAKE_OBJCOPY} -Obinary -j .isr_vector -j .boot $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+        COMMAND ${CMAKE_OBJCOPY} -Obinary -j .text -j .rodata -j .ARM.extab -j .ARM -j .preinit_array -j .init_array
+                -j .fini_array -j .data $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}-xspi.bin
+        VERBATIM)
+    endif ()
+  else ()
+    family_add_bin_hex(${TARGET})
+  endif ()
   family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()
