@@ -68,6 +68,18 @@
 
 #define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
+// Raw view of a qTD and the QH overlay (EHCI Figure 3-6, Table 3-16, Table 3-22)
+#define EHCI_QTD_WORD_NEXT          0u
+#define EHCI_QTD_WORD_ALTERNATE     1u
+#define EHCI_QTD_WORD_TOKEN         2u
+#define EHCI_QTD_WORD_PAGE1         4u
+#define EHCI_QTD_WORD_PAGE2         5u
+#define EHCI_QTD_TOKEN_PING         TU_BIT(0)
+#define EHCI_QTD_TOKEN_PID          (3u << 8)
+#define EHCI_QTD_TOKEN_TOGGLE       TU_BIT(31)
+#define EHCI_QH_PAGE1_C_PROG_MASK   0xffu
+#define EHCI_QH_PAGE2_FRAME_TAG     0x1fu
+
 // Total queue head pool. TODO should be user configurable and more optimize memory usage in the future
 #define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #define QTD_MAX      QHD_MAX
@@ -800,6 +812,57 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
+// The transfer still runs: its qTD is active, or retired a full chunk that the
+// completion ISR has not re-armed yet. A terminal result is the ISR's to report.
+static bool qtd_cancelable(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd) {
+  return qtd->active || qtd_chunk_continues(qhd, qtd);
+}
+
+// Leave the overlay idle so the restarted schedule cannot resume the cancelled
+// qTD (EHCI 3.5.3, 3.6.3). Keep the data toggle, the PID and, at HS, the PING
+// state; at FS/LS bit 0 is P_ERR and the split state restarts.
+static void qhd_overlay_retire(ehci_qhd_t* qhd) {
+  volatile uint32_t* const overlay = (volatile uint32_t*) &qhd->qtd_overlay;
+  bool const hs = (qhd->ep_speed == TUSB_SPEED_HIGH);
+  uint32_t keep = EHCI_QTD_TOKEN_TOGGLE | EHCI_QTD_TOKEN_PID;
+  if (hs) {
+    keep |= EHCI_QTD_TOKEN_PING;
+  }
+  overlay[EHCI_QTD_WORD_TOKEN] &= keep;
+  overlay[EHCI_QTD_WORD_NEXT] = 1;      // terminate
+  overlay[EHCI_QTD_WORD_ALTERNATE] = 1; // terminate, NakCnt 0
+  if (!hs) {
+    overlay[EHCI_QTD_WORD_PAGE1] &= ~EHCI_QH_PAGE1_C_PROG_MASK;
+    overlay[EHCI_QTD_WORD_PAGE2] &= ~EHCI_QH_PAGE2_FRAME_TAG;
+  }
+}
+
+// Caller holds usbh_spin_lock, so the completion ISR cannot re-arm the qTD meanwhile.
+static bool qhd_cancel_xfer(ehci_qhd_t* qhd) {
+  ehci_qtd_t* const qtd = qhd->attached_qtd;
+  TU_VERIFY(qtd != NULL && qtd_cancelable(qhd, qtd));
+
+  ehci_registers_t* regs = ehci_data.regs;
+  bool const is_period = qhd_is_periodic(qhd);
+  if (!ehci_disable_schedule(regs, is_period)) {
+    // The controller may still own the TD: leave the transfer in place.
+    ehci_enable_schedule(regs, is_period);
+    return false;
+  }
+
+  // check again just in case HC has just retired the TD
+  bool const cancel = qtd_cancelable(qhd, qtd);
+  if (cancel) {
+    qhd_overlay_retire(qhd);
+    TU_MEMORY_BARRIER();
+    qhd_remove_qtd(qhd);
+  }
+
+  TU_MEMORY_BARRIER();
+  ehci_enable_schedule(regs, is_period);
+  return cancel;
+}
+
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
@@ -812,34 +875,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 #endif
   ehci_qhd_t* qhd = ep.qhd;
   TU_VERIFY(qhd != NULL);
-  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
-  TU_VERIFY(qtd != NULL); // no queued transfer
 
-  TU_VERIFY(qtd->active); // transfer is already complete
-
-  // HC is still processing, disable HC list schedule before making changes
-  bool const is_period = (qhd->interval_ms > 0);
-
-  if (!ehci_disable_schedule(ehci_data.regs, is_period)) {
-    // The controller may still own the TD: leave the transfer in place.
-    ehci_enable_schedule(ehci_data.regs, is_period);
-    return false;
-  }
-
-  // check active bit again just in case HC has just processed the TD
-  bool const still_active = qtd->active;
-  if (still_active) {
-    // remove TD from QH overlay
-    qhd->qtd_overlay.next.terminate = 1;
-
-    // remove TD from QH software list
-    qhd_remove_qtd(qhd);
-  }
-
-  TU_MEMORY_BARRIER();
-  ehci_enable_schedule(ehci_data.regs, is_period);
-
-  return still_active; // true if removed an active transfer
+  // Locked after edpt_find(), whose unlock would otherwise unmask the HCD interrupt.
+  usbh_spin_lock(false);
+  bool const cancelled = qhd_cancel_xfer(qhd);
+  usbh_spin_unlock(false);
+  return cancelled; // true if removed an unfinished transfer
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {

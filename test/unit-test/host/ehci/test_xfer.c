@@ -4,6 +4,11 @@
 #include "tusb_option.h"
 #include "common/tusb_common.h"
 
+// Record whether the HCD interrupt is masked at each driver barrier.
+static void test_barrier(void);
+#undef TU_MEMORY_BARRIER
+#define TU_MEMORY_BARRIER() test_barrier()
+
 // The QH software tail contains a native pointer; see test_iso.c.
 #pragma push_macro("TU_VERIFY_STATIC")
 #undef TU_VERIFY_STATIC
@@ -47,10 +52,34 @@ void test_cache_buffer(void const* addr, uint32_t size) {
   memcpy(cache_seen, test_cache_calls, sizeof(cache_seen));
 }
 
-void hcd_int_enable(uint8_t rhport) { (void) rhport; }
-void hcd_int_disable(uint8_t rhport) { (void) rhport; }
-void usbh_spin_lock(bool in_isr) { (void) in_isr; }
-void usbh_spin_unlock(bool in_isr) { (void) in_isr; }
+// Nesting lock as osal_none: only the outermost task-context unlock unmasks.
+static bool hcd_int_on = true;
+static unsigned lock_depth;
+static unsigned barriers_unmasked;
+
+void hcd_int_enable(uint8_t rhport) { (void) rhport; hcd_int_on = true; }
+void hcd_int_disable(uint8_t rhport) { (void) rhport; hcd_int_on = false; }
+
+void usbh_spin_lock(bool in_isr) {
+  if (!in_isr && lock_depth == 0) {
+    hcd_int_disable(0);
+  }
+  lock_depth++;
+}
+
+void usbh_spin_unlock(bool in_isr) {
+  assert(lock_depth > 0);
+  if (--lock_depth == 0 && !in_isr) {
+    hcd_int_enable(0);
+  }
+}
+
+static void test_barrier(void) {
+  __sync_synchronize();
+  if (hcd_int_on) {
+    barriers_unmasked++;
+  }
+}
 
 bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus) {
   memset(bus, 0, sizeof(*bus));
@@ -330,6 +359,165 @@ static void test_close_mid_chain(bool periodic, bool retired) {
   assert(events == 0);
 }
 
+// Abort with both schedules idle, so stopping one succeeds at once. The body
+// must run with the HCD interrupt masked and leave the lock balanced.
+static bool abort_xfer(uint8_t daddr, uint8_t ep_addr) {
+  regs.command_bm.async_enable = 0;
+  regs.command_bm.periodic_enable = 0;
+  regs.status_bm.async_status = 0;
+  regs.status_bm.periodic_status = 0;
+  barriers_unmasked = 0;
+  assert(lock_depth == 0 && hcd_int_on);
+  bool const ret = hcd_edpt_abort_xfer(0, daddr, ep_addr);
+  assert(lock_depth == 0 && hcd_int_on && barriers_unmasked == 0);
+  return ret;
+}
+
+static uint32_t overlay_word(ehci_qhd_t const* qhd, unsigned i) {
+  return ((volatile uint32_t const*) &qhd->qtd_overlay)[i];
+}
+
+// An active overlay part-way through its qTD, with every field abort must reset.
+static void hc_progress(ehci_qhd_t* qhd) {
+  hc_fetch(qhd);
+  volatile ehci_qtd_t* overlay = &qhd->qtd_overlay;
+  overlay->total_bytes -= qhd->max_packet_size;
+  overlay->current_page = 1;
+  overlay->err_count = 2;
+  overlay->xact_err = 1;
+  overlay->data_toggle = 1;
+  overlay->alternate.address = 1u | (5u << 1); // NakCnt 5
+  if (qhd->ep_speed != TUSB_SPEED_HIGH) {
+    overlay->ping_err = 1;
+    overlay->non_hs_split_state = 1;
+    overlay->non_hs_missed_uframe = 1;
+    overlay->buffer[1] |= 0xa5;       // C-prog-mask
+    overlay->buffer[2] |= 0x1f | 0x60; // FrameTag, S-bytes
+  }
+}
+
+// The cancelled transfer left an idle overlay, its qTD freed and the right
+// schedule restarted.
+static void check_cancelled(ehci_qhd_t* qhd, ehci_qtd_t* qtd, ehci_qtd_t const* before, uint8_t pid) {
+  bool const hs = qhd->ep_speed == TUSB_SPEED_HIGH;
+  uint32_t const token = ((uint32_t) before->data_toggle << 31) | ((uint32_t) pid << 8) |
+                         (hs ? before->ping_err : 0u);
+  assert(overlay_word(qhd, EHCI_QTD_WORD_TOKEN) == token);
+  assert(overlay_word(qhd, EHCI_QTD_WORD_NEXT) == 1 && overlay_word(qhd, EHCI_QTD_WORD_ALTERNATE) == 1);
+  assert(overlay_word(qhd, EHCI_QTD_WORD_PAGE1) == (hs ? before->buffer[1] : before->buffer[1] & ~0xffu));
+  assert((overlay_word(qhd, EHCI_QTD_WORD_PAGE2) & ~0x1fu) == (before->buffer[2] & ~0x1fu));
+  assert((overlay_word(qhd, EHCI_QTD_WORD_PAGE2) & 0x1fu) == (hs ? (before->buffer[2] & 0x1fu) : 0u));
+  assert(qhd->attached_qtd == NULL && !qtd->used && qhd->remaining == 0 && qhd->xferred == 0);
+  bool const periodic = qhd_is_periodic(qhd);
+  assert(regs.command_bm.periodic_enable == periodic && regs.command_bm.async_enable == !periodic);
+  run_isr();
+  assert(events == 0);
+}
+
+static void test_abort_active(void) {
+  // HS bulk OUT in its second chunk: the PING state survives.
+  reset();
+  ehci_qhd_t* qhd = open_ep(1, 0x01, TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  assert(hcd_edpt_xfer(0, 1, 0x01, buffer, 32768));
+  ehci_qtd_t* qtd = qhd->attached_qtd;
+  hc_retire(qhd, QTD_CAPACITY, false, false);
+  run_isr();
+  hc_progress(qhd);
+  assert(qhd->qtd_overlay.active && qhd->qtd_overlay.ping_err);
+  ehci_qtd_t const before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  assert(abort_xfer(1, 0x01));
+  check_cancelled(qhd, qtd, &before, EHCI_PID_OUT);
+
+  // Resubmission reuses the qTD and completes once with its own length.
+  assert(hcd_edpt_xfer(0, 1, 0x01, buffer + 512, 1000));
+  assert(qhd->attached_qtd == qtd && qhd->qtd_overlay.data_toggle == 1);
+  hc_retire(qhd, 1000, false, false);
+  run_isr();
+  assert(events == 1 && event.xfer_complete.len == 1000 && event.xfer_complete.result == XFER_RESULT_SUCCESS);
+  assert(!qtd->used);
+
+  // FS interrupt IN (split at a hub, or the embedded TT): split state is reset.
+  reset();
+  buses[1].hub_addr = CFG_TUH_HUB ? (uint8_t) (CFG_TUH_DEVICE_MAX + 1) : 0;
+  buses[1].hub_port = CFG_TUH_HUB ? 2 : 0;
+  qhd = open_ep(1, 0x83, TUSB_XFER_INTERRUPT, 64, TUSB_SPEED_FULL);
+  assert(qhd->int_smask == 0x01 && qhd->interval_ms == 1);
+  assert(hcd_edpt_xfer(0, 1, 0x83, buffer, 192));
+  qtd = qhd->attached_qtd;
+  hc_progress(qhd);
+  ehci_qtd_t const fs_before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  assert(abort_xfer(1, 0x83));
+  check_cancelled(qhd, qtd, &fs_before, EHCI_PID_IN);
+
+  // HS interrupt with a sub-ms interval (interval_ms 0) stops the periodic schedule.
+  reset();
+  qhd = open_ep(1, 0x84, TUSB_XFER_INTERRUPT, 1024, TUSB_SPEED_HIGH);
+  assert(qhd->interval_ms == 0 && qhd_is_periodic(qhd));
+  assert(hcd_edpt_xfer(0, 1, 0x84, buffer, 4096));
+  qtd = qhd->attached_qtd;
+  hc_progress(qhd);
+  ehci_qtd_t const intr_before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  assert(abort_xfer(1, 0x84));
+  check_cancelled(qhd, qtd, &intr_before, EHCI_PID_IN);
+}
+
+// A full intermediate chunk retired, but the ISR has not re-armed it yet.
+static void test_abort_retired_chunk(void) {
+  reset();
+  ehci_qhd_t* qhd = open_ep(1, 0x81, TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 32768));
+  ehci_qtd_t* qtd = qhd->attached_qtd;
+  hc_retire(qhd, QTD_CAPACITY, false, false);
+  assert(!qtd->active && qhd->remaining > 0);
+  ehci_qtd_t const before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  assert(abort_xfer(1, 0x81));
+  check_cancelled(qhd, qtd, &before, EHCI_PID_IN);
+}
+
+static void test_abort_not_cancelled(void) {
+  // No transfer.
+  reset();
+  ehci_qhd_t* qhd = open_ep(1, 0x81, TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  assert(!abort_xfer(1, 0x81) && !abort_xfer(1, 0x82));
+
+  // Terminal completion wins: the ISR reports it, exactly once.
+  static uint16_t const moved[] = {700, 0x6000 - QTD_CAPACITY};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(moved); i++) {
+    reset();
+    qhd = open_ep(1, 0x81, TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+    assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 0x6000));
+    hc_retire(qhd, QTD_CAPACITY, false, false);
+    run_isr();
+    hc_retire(qhd, moved[i], false, false); // short packet, or the full last chunk
+    if (i == 1) {
+      assert(qhd->remaining == 0 && qhd->attached_qtd->total_bytes == 0);
+    }
+    assert(!abort_xfer(1, 0x81));
+    assert(!regs.command_bm.async_enable && qhd->attached_qtd != NULL);
+    run_isr();
+    run_isr();
+    assert(events == 1 && event.xfer_complete.len == QTD_CAPACITY + moved[i]);
+  }
+
+  // The schedule does not stop: the transfer stays as it was.
+  reset();
+  qhd = open_ep(1, 0x81, TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 32768));
+  ehci_qtd_t* qtd = qhd->attached_qtd;
+  hc_progress(qhd);
+  ehci_qtd_t const before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  regs.command_bm.async_enable = 1;
+  regs.status_bm.async_status = 0;
+  barriers_unmasked = 0;
+  assert(!hcd_edpt_abort_xfer(0, 1, 0x81));
+  assert(lock_depth == 0 && hcd_int_on && barriers_unmasked == 0);
+  assert(regs.command_bm.async_enable);
+  assert(memcmp((void const*) (uintptr_t) &qhd->qtd_overlay, &before, sizeof(before)) == 0);
+  assert(qhd->attached_qtd == qtd && qtd->used && qtd->active);
+  assert(qhd->remaining == 32768 - QTD_CAPACITY && qhd->xferred == 0);
+  assert(events == 0);
+}
+
 int main(void) {
   assert((uintptr_t) &ehci_data <= UINT32_MAX && (uintptr_t) buffer + sizeof(buffer) <= UINT32_MAX);
   test_chunk_lengths();
@@ -338,6 +526,9 @@ int main(void) {
   for (int i = 0; i < 4; i++) {
     test_close_mid_chain(i & 1, i & 2);
   }
+  test_abort_active();
+  test_abort_retired_chunk();
+  test_abort_not_cancelled();
   puts("EHCI transfer tests passed");
   return 0;
 }
