@@ -42,9 +42,10 @@ do not initialize   { section .bss, section .noinit, section .stack, section HEA
 define block RAM_DATA with fixed order, alignment = 8 {
   rw section .data, section .code_in_ram, rw section __DLIB_PERTHREAD
 };
+/* by name only: IAR 9.70.1 types FSP's HEAP array "ro data", which "readonly" would put in flash */
 define block RAM_BSS    with alignment = 8 { rw section .bss };
-define block RAM_NOINIT with alignment = 8 { rw section .noinit, rw section HEAP };
-define block RAM_STACK  with alignment = 8 { rw section .stack };
+define block RAM_NOINIT with alignment = 8 { section .noinit, section HEAP };
+define block RAM_STACK  with alignment = 8 { section .stack };
 
 place in RAM { block RAM_DATA, block RAM_BSS, block RAM_NOINIT, readwrite, last block RAM_STACK };
 
