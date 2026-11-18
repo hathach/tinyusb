@@ -69,7 +69,6 @@ static uintptr_t    setup_user_data[SETUP_CALL_MAX];
 static tuh_xfer_cb_t     captured_cb;
 static uintptr_t         captured_user_data;
 static volatile bool     runner_armed;
-static volatile bool     in_call;
 static volatile bool     cb_invoked;
 static volatile uint16_t runner_runs;
 
@@ -137,9 +136,7 @@ static void runner(void *param) {
     captured_cb(&xfer);
     cb_invoked = true;
   }
-  if (runner_runs < RUNNER_INVOKE_RUN || in_call) {
-    usbh_defer_func(runner, NULL, false);
-  }
+  usbh_defer_func(runner, NULL, false);
 }
 
 static void capture(void) {
@@ -192,9 +189,7 @@ static tuh_xfer_t sync_xfer(void) {
 }
 
 static bool control_xfer_in_call(tuh_xfer_t *xfer) {
-  in_call = true;
   const bool ret = tuh_control_xfer(xfer);
-  in_call      = false;
   runner_armed = false;
   return ret;
 }
@@ -320,7 +315,6 @@ static void disarm(void) {
   hook_mode            = HOOK_NONE;
   setup_mode           = SETUP_ACCEPT;
   runner_armed         = false;
-  in_call              = false;
   captured_cb          = NULL;
   captured_user_data   = 0;
 }
