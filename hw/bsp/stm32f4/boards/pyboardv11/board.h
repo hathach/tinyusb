@@ -41,12 +41,9 @@
 #define PINID_LED      0
 #ifndef TRACE_SWO // the USR button is PB3, which TRACE_SWO takes as TRACESWO
 #define PINID_BUTTON   1
+#endif
 #define PINID_UART_TX  2
 #define PINID_UART_RX  3
-#else
-#define PINID_UART_TX  1
-#define PINID_UART_RX  2
-#endif
 
 #define VBUS_SENSE_EN  1
 
@@ -56,13 +53,11 @@ static board_pindef_t board_pindef[] = {
     .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
     .active_state = 1
   },
-#ifndef TRACE_SWO
   { // BUTTON
     .port = GPIOB,
     .pin_init = { .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
     .active_state = 1
   },
-#endif
   { // UART TX
     .port = GPIOA,
     .pin_init = { .Pin = GPIO_PIN_2, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART2 },
