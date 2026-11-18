@@ -138,7 +138,6 @@ static struct {
   uint8_t         ep0_status_dir;
 #ifdef CH32_USBFS_SETUP_RECOVER
   bool            ep0_marked;   // the EP0 buffer holds EP0_IDLE_MARK since the last status stage or stall
-  bool            ep0_h2d_data; // the current control request has a host-to-device data stage
 #endif
 #ifdef CH32_USBFS_H2D_IN_HOLD
   bool            in_hold;   // non-EP0 IN endpoints held at NAK for a host-to-device control transfer
@@ -337,10 +336,10 @@ static bool ep0_setup_arrived(void) {
 }
 
 // A stalled request has no status stage to mark the buffer, so mark it before the STALL is set: the host
-// sends no new SETUP until it has seen that STALL. Skipped when the host may still send OUT data to EP0,
-// since whether the SIE writes the buffer for an OUT it STALLs is undocumented (CH32xRM 21.2.2.8).
+// sends no new SETUP until it has seen that STALL. A control write is marked too: on CH32V103 the SIE was
+// seen to leave the buffer unchanged for OUT data it STALLs (undocumented, CH32xRM 21.2.2.8).
 static void ep0_mark_before_stall(uint8_t rhport) {
-  if (data.ep0_marked || data.ep0_h2d_data) { return; }
+  if (data.ep0_marked) { return; }
   dcd_int_disable(rhport);
   ep0_mark_idle();
   dcd_int_enable(rhport);
@@ -432,8 +431,7 @@ static void reset_ep_ctrls(void) {
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
 #ifdef CH32_USBFS_SETUP_RECOVER
-  data.ep0_marked   = false;
-  data.ep0_h2d_data = false;
+  data.ep0_marked = false;
 #endif
   // init registers
   USBOTG_FS->BASE_CTRL = USBFS_CTRL_SYS_CTRL | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
@@ -484,9 +482,6 @@ static void handle_setup(uint8_t rhport) {
   const tusb_control_request_t *setup = (const tusb_control_request_t *)ep0_out;
   data.ep0_status_dir = (setup->wLength && setup->bmRequestType_bit.direction == TUSB_DIR_IN) ? TUSB_DIR_OUT
                                                                                               : TUSB_DIR_IN;
-#ifdef CH32_USBFS_SETUP_RECOVER
-  data.ep0_h2d_data = setup->wLength && setup->bmRequestType_bit.direction == TUSB_DIR_OUT;
-#endif
   // Done before INT_FG is cleared: INT_BUSY NAKs every token until then (see ep_in_hold)
   ep_in_hold(setup->bmRequestType_bit.direction == TUSB_DIR_OUT);
   // The first transaction of either the data or status stage always uses DATA1.
