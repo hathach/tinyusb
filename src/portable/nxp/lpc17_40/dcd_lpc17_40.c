@@ -591,6 +591,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   {
     uint8_t ep_id = ep_addr2idx(ep_addr);
     dma_desc_t* dd = &_dcd.dd[ep_id];
+#if DCD_ISO_ENABLED
+    // taken before dd is read: a bus reset after it wipes dd and iso_armed, so the iso arm below must not happen
+    uint8_t const reset_gen = _iso_reset_gen;
+    __COMPILER_BARRIER(); // dd's bitfields are not volatile: keep their reads after the snapshot
+#endif
 
     // Prepare DMA descriptor
     // Isochronous & max packet size must be preserved, Other fields of dd should be clear
@@ -616,12 +621,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
         TU_VERIFY(total_bytes >= ep_size && (total_bytes % ep_size) == 0);
         packets = (uint16_t) (total_bytes / ep_size);
       }
-      TU_VERIFY(packets <= ISO_MAX_PACKETS);
+      TU_ASSERT(packets <= ISO_MAX_PACKETS);
 
       uint32_t const ep_bit = TU_BIT(ep_id);
       bool const lock = usb_irq_lock();
-      // previous DD not retired yet, or cancelled by activate and still DMA-owned
-      if ( (_dcd.iso_armed | _dcd.iso_cancel) & ep_bit )
+      // bus reset since ep_size was read, previous DD not retired yet, or cancelled by activate and still DMA-owned
+      if ( reset_gen != _iso_reset_gen || ((_dcd.iso_armed | _dcd.iso_cancel) & ep_bit) )
       {
         usb_irq_unlock(lock);
         return false;

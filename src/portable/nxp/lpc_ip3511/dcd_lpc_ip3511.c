@@ -485,7 +485,7 @@ void dcd_edpt_close_all (uint8_t rhport)
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  TU_VERIFY(iso_size_ok(rhport, ep_addr, largest_packet_size));
+  (void) largest_packet_size;
   // Reserve the endpoint command/status entry once (persists across altsetting changes); the
   // buffer pointer is filled per-transfer, so nothing to pre-allocate. Mirrors the ISO branch of
   // dcd_edpt_open().
@@ -506,11 +506,12 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // altsetting (the hardware keeps servicing an Active buffer across SET_INTERFACE, fighting the
   // fresh transfer the class queues), clear stall and reset the data toggle. Direct Active=0, not
   // EPSKIP (see edpt_skip_active). The class re-arms via dcd_edpt_xfer().
-  TU_VERIFY(iso_size_ok(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep)));
   uint8_t ep_id = ep_addr2id(desc_ep->bEndpointAddress);
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
   ep_cs[0].cmd_sts.active = 0;
   ep_cs[1].cmd_sts.active = 0;
+  // after the retire: usbd already cleared the endpoint's busy state, so a refusal must leave nothing armed
+  TU_VERIFY(iso_size_ok(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep)));
   dcd_edpt_clear_stall(rhport, desc_ep->bEndpointAddress);
   return true;
 }
