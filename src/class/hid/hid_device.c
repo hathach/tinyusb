@@ -28,6 +28,8 @@ typedef struct {
 
   uint16_t report_desc_len;
   uint16_t epout_xfer_len; // one packet when the DCD refuses a multi-packet OUT transfer
+  uint16_t epout_count;    // Output report bytes gathered so far, one packet at a time
+  uint8_t epout_stash[3];  // gathered bytes the 4-byte aligned arm of the next packet overlaps
   uint8_t protocol_mode; // Boot (0) or Report protocol (1)
   uint8_t idle_rate;     // up to application to handle idle rate
 
@@ -53,6 +55,16 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
     }
   }
   return 0xFF;
+}
+
+// Arm the OUT endpoint for the rest of the Output report. A packet of a report gathered one packet at a time lands
+// at the 4-byte aligned offset at or below the gathered count (DCD DMA alignment), so stash the bytes it overlaps.
+static bool epout_xfer(uint8_t rhport, hidd_interface_t *p_hid, hidd_epbuf_t *p_epbuf) {
+  uint16_t const count = p_hid->epout_count;
+  uint16_t const start = (uint16_t) tu_align4(count);
+  memcpy(p_hid->epout_stash, p_epbuf->epout + start, count - start);
+  uint16_t const len = tu_min16(p_hid->epout_xfer_len, (uint16_t) (CFG_TUD_HID_EP_BUFSIZE - count));
+  return usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout + start, len, false);
 }
 
 //--------------------------------------------------------------------+
@@ -246,13 +258,14 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
   // Prepare for output endpoint
   if (p_hid->ep_out) {
     p_hid->epout_xfer_len = CFG_TUD_HID_EP_BUFSIZE;
-    if (!usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false)) {
-      // e.g. wch usbhs refuses multi-packet on a non-multiple-of-4 mps: receive a packet at a time
+    p_hid->epout_count = 0;
+    if (!epout_xfer(rhport, p_hid, p_epbuf)) {
+      // e.g. wch usbhs refuses multi-packet on a non-multiple-of-4 mps: gather the report a packet at a time
       tusb_desc_endpoint_t const *desc_epout = (tusb_desc_endpoint_t const *)tu_desc_find2(
         p_desc, (uint8_t const *)desc_itf + drv_len, TUSB_DESC_ENDPOINT, p_hid->ep_out);
-      TU_ASSERT(desc_epout != NULL, drv_len);
+      TU_ASSERT(desc_epout != NULL, 0);
       p_hid->epout_xfer_len = tu_min16(CFG_TUD_HID_EP_BUFSIZE, tu_edpt_packet_size(desc_epout));
-      TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->epout_xfer_len, false), drv_len);
+      TU_ASSERT(epout_xfer(rhport, p_hid, p_epbuf), 0);
     }
   }
 
@@ -397,15 +410,29 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       tud_hid_report_failed_cb(instance, HID_REPORT_TYPE_INPUT, p_epbuf->epin, (uint16_t) xferred_bytes);
     }
   } else {
-    // Output report
+    // Output report: move the packet up to the gathered count and restore the bytes it overlapped
+    uint16_t const count = p_hid->epout_count;
+    uint16_t const start = (uint16_t) tu_align4(count);
+    if (start != count) {
+      memmove(p_epbuf->epout + count, p_epbuf->epout + start, xferred_bytes);
+      memcpy(p_epbuf->epout + start, p_hid->epout_stash, count - start);
+    }
+    p_hid->epout_count = (uint16_t) (count + xferred_bytes);
+
     if (XFER_RESULT_SUCCESS == result) {
-      tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_epbuf->epout, (uint16_t)xferred_bytes);
+      // a full packet with room left continues the report, as a multi-packet transfer would
+      if (xferred_bytes == p_hid->epout_xfer_len && p_hid->epout_count < CFG_TUD_HID_EP_BUFSIZE) {
+        TU_ASSERT(epout_xfer(rhport, p_hid, p_epbuf));
+        return true;
+      }
+      tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_epbuf->epout, p_hid->epout_count);
     } else {
-      tud_hid_report_failed_cb(instance, HID_REPORT_TYPE_OUTPUT, p_epbuf->epout, (uint16_t) xferred_bytes);
+      tud_hid_report_failed_cb(instance, HID_REPORT_TYPE_OUTPUT, p_epbuf->epout, p_hid->epout_count);
     }
 
     // prepare for new transfer
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->epout_xfer_len, false));
+    p_hid->epout_count = 0;
+    TU_ASSERT(epout_xfer(rhport, p_hid, p_epbuf));
   }
 
   return true;
