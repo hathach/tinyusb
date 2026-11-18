@@ -44,10 +44,10 @@ int sys_read(int fhdl, char *buf, size_t count) TU_ATTR_USED;
 
 #if defined(LOGGER_RTT)
 // Logging with RTT
+#include "SEGGER_RTT.h"
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
 #if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
-#include "SEGGER_RTT.h"
 
 int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
@@ -191,7 +191,7 @@ int board_putchar(int c) {
   char ch = (char) c;
 #if defined(LOGGER_RTT) && (defined(__SES_ARM) || defined(__SES_RISCV) || defined(__CROSSWORKS_ARM))
   // sys_write is not defined in this file for SES/CrossWorks RTT
-  return (board_uart_write(&ch, 1) > 0) ? c : -1;
+  return (SEGGER_RTT_Write(0, &ch, 1) > 0) ? c : -1;
 #else
   return (sys_write(0, &ch, 1) > 0) ? c : -1;
 #endif
