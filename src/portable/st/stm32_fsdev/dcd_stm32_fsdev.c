@@ -813,6 +813,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
+  // ISO has no handshake: only VALID/DISABLED STAT are legal and DTOG selects the buffer (RM0091 30.5.4)
+  if (ep_alloc_status[xfer->ep_idx].ep_type == TUSB_XFER_ISOCHRONOUS) {
+    return;
+  }
   const uint8_t    ep_idx = xfer->ep_idx;
 
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
@@ -836,6 +840,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
+  // ISO has no handshake: only VALID/DISABLED STAT are legal and DTOG selects the buffer (RM0091 30.5.4)
+  if (ep_alloc_status[xfer->ep_idx].ep_type == TUSB_XFER_ISOCHRONOUS) {
+    return;
+  }
   const uint8_t    ep_idx = xfer->ep_idx;
 
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
