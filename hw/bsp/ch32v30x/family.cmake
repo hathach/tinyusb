@@ -18,11 +18,12 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-# Drop the usbfs default an older family.cmake cached; a -D from the command line carries another help string.
+# Drop the usbfs default an older family.cmake cached under this help string; usbhs there was the user's -D.
 get_property(_wch_host_usbip_help CACHE WCH_HOST_USBIP PROPERTY HELPSTRING)
-if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs")
+if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs" AND "$CACHE{WCH_HOST_USBIP}" STREQUAL usbfs)
   unset(WCH_HOST_USBIP CACHE)
 endif ()
+unset(_wch_host_usbip_help)
 
 # Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
 if (NOT DEFINED WCH_HOST_USBIP)
