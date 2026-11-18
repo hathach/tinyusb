@@ -550,6 +550,10 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if ((LOGGER STREQUAL "RTT" OR SYSVIEW) AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+    # A family whose core needs its own RTT lock sets FAMILY_RTT_CONF; it comes first to claim SEGGER_RTT_CONF_H
+    if (DEFINED FAMILY_RTT_CONF)
+      target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${FAMILY_RTT_CONF}\"")
+    endif ()
     # Cortex-M: SystemView and RTT lock with PRIMASK, see the header (a no-op on other cores)
     target_compile_options(${TARGET} PUBLIC "SHELL:-include \"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/rtt_conf_cortexm.h\"")
   endif ()
