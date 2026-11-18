@@ -600,17 +600,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     // Prepare DMA descriptor
     // Isochronous & max packet size must be preserved, Other fields of dd should be clear
     uint16_t const ep_size = dd->max_packet_size;
-    uint8_t  is_iso = dd->isochronous;
 
 #if DCD_ISO_ENABLED
-    if ( is_iso )
+    // dispatch on the fixed type map, not dd->isochronous: a racing bus reset clears that bit
+    if ( ep_id_is_iso(ep_id) )
     {
       // iso: buflen counts packets; per-packet sizes live in the packet-size memory.
       // One packet moves per frame (UM10562 12.15.6: DMA request is raised for
       // DMA-enabled iso endpoints on every FRAME interrupt, both directions).
       // Validate BEFORE touching the DD: bailing out mid-rebuild would leave a
       // zeroed (retired=0 -> serviceable) descriptor armed for the frame engine.
-      TU_ASSERT(ep_size > 0);
+      TU_VERIFY(ep_size > 0); // 0: not allocated, or wiped by a bus reset
       uint16_t packets;
       if ( ep_id & 1 )
       {
@@ -673,8 +673,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       usb_irq_unlock(lock);
     }
     else
-#else
-    (void) is_iso;
 #endif
     {
       // A retired DD can leave DMA enabled until NDDR (UM10562 12.15.5.2).
