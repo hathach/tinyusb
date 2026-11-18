@@ -329,6 +329,36 @@ void test_video_iso_probe_and_commit_on_setting_1_return(void) {
   TEST_ASSERT_EQUAL_UINT8(1, control_in[0]);
 }
 
+// Alternate setting 0 stops an isochronous stream and resets the negotiation, but the COMMIT the application accepted
+// is still what GET_CUR(COMMIT) reports.
+void test_video_iso_stop_keeps_accepted_commit(void) {
+  open_iso_stream();
+  commit_interval(10000000);
+  set_interface(1);
+  TEST_ASSERT_TRUE(tud_video_n_streaming(0, 0));
+  set_interface(0);
+  TEST_ASSERT_FALSE(tud_video_n_streaming(0, 0));
+
+  video_probe_and_commit_control_t committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(10000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(3, committed.dwMaxPayloadTransferSize);
+}
+
+// A GET request is device-to-host (UVC 1.5 4.1). An OUT GET_CUR(COMMIT) is refused before its data stage is armed,
+// which would write host data into the committed settings.
+void test_video_out_get_cur_is_refused(void) {
+  commit_interval(10000000);
+  tusb_control_request_t request = {.bmRequestType = 0x21,
+                                    .bRequest      = VIDEO_REQUEST_GET_CUR,
+                                    .wValue        = (uint16_t)(VIDEO_VS_CTL_COMMIT << 8),
+                                    .wIndex        = 1,
+                                    .wLength       = sizeof(video_probe_and_commit_control_t)};
+  control_buffer = NULL;
+  TEST_ASSERT_FALSE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+  TEST_ASSERT_NULL(control_buffer);
+  TEST_ASSERT_EQUAL_UINT32(10000000, vs_get_cur(1, VIDEO_VS_CTL_COMMIT).dwFrameInterval);
+}
+
 // #4434: a descriptor with bLength 0 ends the descriptor walks instead of spinning on it.
 void test_video_zero_length_descriptor_fails_open(void) {
   static video_fixture_t malformed;

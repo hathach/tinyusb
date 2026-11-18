@@ -103,6 +103,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
   bool     frame_abort_pending;                              /* Drain a queued bulk payload before releasing its frame. */
+  bool     commit_accepted;                                  /* commit_payload holds a COMMIT the application accepted */
 
   video_probe_and_commit_control_t probe_payload;  /* Probe control: the settings being negotiated */
   video_probe_and_commit_control_t commit_payload; /* Commit control: the settings the application last accepted */
@@ -886,7 +887,11 @@ static bool _init_vs_configuration(videod_streaming_interface_t *stm) {
   video_probe_and_commit_control_t *param = &stm->probe_payload;
   tu_memclr(param, sizeof(*param));
   TU_VERIFY(_update_streaming_parameters(stm, param));
-  stm->commit_payload = *param; /* nothing committed yet: COMMIT reports the defaults, as PROBE does */
+  /* Until the application accepts a COMMIT, COMMIT reports the defaults, as PROBE does. An accepted one is kept when
+   * the host selects alternate setting 0 again, e.g. to stop an isochronous stream. */
+  if (!stm->commit_accepted) {
+    stm->commit_payload = *param;
+  }
   return true;
 }
 
@@ -985,6 +990,14 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
     hdr->EndOfFrame = 1;
   }
   return hdr_len + data_len;
+}
+
+/* UVC 1.5 4.1: a GET request (bRequest bit 7 set) is device-to-host, a SET request host-to-device. The data stage is
+ * armed from the SETUP direction, so a mismatch runs it the wrong way: an OUT GET_CUR would write host data into the
+ * reply buffer, e.g. commit_payload. */
+static bool _class_request_dir_valid(tusb_control_request_t const *request) {
+  bool const get = (request->bRequest & 0x80u) != 0;
+  return get == (TUSB_DIR_IN == request->bmRequestType_bit.direction);
 }
 
 /** Handle a standard request to the video control interface. */
@@ -1098,6 +1111,7 @@ static int handle_video_ctl_req(uint8_t rhport, uint8_t stage,
       return handle_video_ctl_std_req(rhport, stage, request, ctl_idx);
 
     case TUSB_REQ_TYPE_CLASS: {
+      TU_VERIFY(_class_request_dir_valid(request), VIDEO_ERROR_INVALID_REQUEST);
       uint_fast8_t entity_id = TU_U16_HIGH(request->wIndex);
       if (0 == entity_id) {
         return handle_video_ctl_cs_req(rhport, stage, request, ctl_idx);
@@ -1275,8 +1289,9 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
               bool dropped = false;
-              stm->commit_payload = *param;
-              stm->probe_payload  = *param;
+              stm->commit_payload  = *param;
+              stm->commit_accepted = true;
+              stm->probe_payload   = *param;
               (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
               stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
               stm->state = VS_STATE_COMMITTED;
@@ -1359,7 +1374,7 @@ static int handle_video_stm_req(uint8_t rhport, uint8_t stage,
       return handle_video_stm_std_req(rhport, stage, request, stm_idx);
 
     case TUSB_REQ_TYPE_CLASS:
-      if (0 != TU_U16_HIGH(request->wIndex)) {
+      if (0 != TU_U16_HIGH(request->wIndex) || !_class_request_dir_valid(request)) {
         return VIDEO_ERROR_INVALID_REQUEST;
       }
       return handle_video_stm_cs_req(rhport, stage, request, stm_idx);
