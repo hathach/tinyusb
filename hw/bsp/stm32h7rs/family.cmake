@@ -98,7 +98,7 @@ function(family_add_board BOARD_TARGET)
     )
   # RTT up buffer, it lives in the noncacheable section (1 KB, 4 KB with XSPI_BOOT). Defined once:
   # iasmarm rejects a second -D of it with another value, e.g. from CFLAGS_CLI
-  if (NOT CFLAGS_CLI MATCHES "(^|[ ;])-DBUFFER_SIZE_UP(=|[ ;]|$)")
+  if (NOT CFLAGS_CLI MATCHES "(^|[ ;])-D[ ;]*BUFFER_SIZE_UP(=|[ ;]|$)")
     if (NOT DEFINED BUFFER_SIZE_UP)
       set(BUFFER_SIZE_UP 0x300)
     endif ()
