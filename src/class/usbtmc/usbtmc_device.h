@@ -50,7 +50,7 @@ bool tud_usbtmc_initiate_abort_bulk_in_cb(uint8_t *tmcResult);
 bool tud_usbtmc_initiate_abort_bulk_out_cb(uint8_t *tmcResult);
 bool tud_usbtmc_initiate_clear_cb(uint8_t *tmcResult);
 
-bool tud_usbtmc_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp);
+bool tud_usbtmc_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp); // a PENDING set by the stack stays PENDING
 bool tud_usbtmc_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp);
 bool tud_usbtmc_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp);
 
