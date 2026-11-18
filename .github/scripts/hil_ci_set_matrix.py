@@ -41,6 +41,11 @@ def main():
     # would fail the step instead of falling open; callers that already have the
     # selection on disk pass the path instead
     g.add_argument('--select-file', help='file holding the same JSON as --select')
+    # hfp.json's IAR jobs: a board that pins no "toolchain" builds with IAR (bucket
+    # arm-iar); one that pins it (a family with no IAR linker config, e.g. ra) keeps
+    # that bucket and is built with gcc there
+    parser.add_argument('--iar', action='store_true',
+                        help='put boards without an explicit "toolchain" in an arm-iar bucket')
     args = parser.parse_args()
 
     raw = args.select
@@ -74,6 +79,8 @@ def main():
         'riscv-gcc': [],
         'esp-idf': []
     }
+    if args.iar:
+        matrix['arm-iar'] = []
 
     seen = {toolchain: set() for toolchain in matrix}
 
@@ -100,7 +107,7 @@ def main():
             if flasher['name'] in hil_util.ESP_IDF_FLASHERS:
                 toolchain = 'esp-idf'
             else:
-                toolchain = board.get('toolchain', 'arm-gcc')
+                toolchain = board.get('toolchain', 'arm-iar' if args.iar else 'arm-gcc')
             if toolchain not in matrix:
                 # a board in no bucket would never be built, and the bare KeyError
                 # below would only say so as a traceback from the set-matrix job

@@ -2636,6 +2636,21 @@ class TestHilCiSetMatrixExamples(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('cannot tell which one to trace', r.stderr)
 
+    def test_iar_mode_keeps_a_pinned_toolchain(self):
+        # hil-hfp-iar: an unpinned board builds with IAR, one pinning "toolchain" (ra: no IAR
+        # linker config) keeps its gcc bucket; without --iar there is no arm-iar bucket
+        plain = {'name': 'stm32l412nucleo', 'uid': 'u', 'flasher': {'name': 'stlink', 'uid': 'p'}}
+        pinned = {'name': 'ra4m2_ek', 'uid': 'v', 'toolchain': 'arm-gcc', 'flasher': {'name': 'jlink', 'uid': 'q'}}
+        r = self._matrix_of([plain, pinned])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        m = json.loads(r.stdout)
+        self.assertNotIn('arm-iar', m)
+        self.assertEqual(m['arm-gcc'], ['-b stm32l412nucleo', '-b ra4m2_ek'])
+        r = self._matrix_of([plain, pinned], '--iar')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        m = json.loads(r.stdout)
+        self.assertEqual((m['arm-iar'], m['arm-gcc']), (['-b stm32l412nucleo'], ['-b ra4m2_ek']))
+
     def test_an_openocd_esp_board_builds_under_esp_idf(self):
         p4 = {'name': 'espressif_p4_function_ev', 'uid': 'u', 'flasher': {'name': 'openocd_esp', 'uid': 'p'}}
         r = self._matrix_of([p4])
