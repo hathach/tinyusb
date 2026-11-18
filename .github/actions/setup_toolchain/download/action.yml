@@ -17,7 +17,6 @@ runs:
       id: cache-toolchain-download
       with:
         path: ~/cache/${{ inputs.toolchain }}
-        # whole manifest: arm-iar also installs the iar-lmsc-tools entry
         key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ hashFiles('.github/actions/setup_toolchain/toolchain.json') }}
 
     - name: Install Toolchain
@@ -36,9 +35,6 @@ runs:
           ./toolchain.run -p ~/cache/${TOOLCHAIN}/gnurx -y
         elif [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
           "$FETCH" "$TOOLCHAIN" ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
-        elif [[ ${TOOLCHAIN} == arm-iar ]]; then
-          "$FETCH" iar-lmsc-tools ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
-          "$FETCH" "$TOOLCHAIN" ~/cache/${TOOLCHAIN}/cxarm.deb
         elif [[ ${FILE_EXT} == zip ]]; then
           "$FETCH" "$TOOLCHAIN" toolchain.zip
           # Arm's Windows zip has no top-level directory; Setup Toolchain expects one
@@ -57,16 +53,16 @@ runs:
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        if [[ ${TOOLCHAIN} == arm-iar ]]; then
-          sudo dpkg -i ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
-          sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
-          TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
-        elif [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
+        if [[ ${TOOLCHAIN} == ft9xx-gcc ]]; then
           sudo apt install -y ~/cache/${TOOLCHAIN}/ft9xxtoolchain.deb
           TOOLCHAIN_PATH="/opt/ft32/bin"
         else
-          # Find the single toolchain bin directory
-          TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)
+          # Find the single toolchain bin directory (IAR's release tarball: cxarm-<version>/arm/bin)
+          if [[ ${TOOLCHAIN} == arm-iar ]]; then
+            TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/arm/bin)
+          else
+            TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)
+          fi
           if [[ ${#TOOLCHAIN_BIN_DIRS[@]} -ne 1 ]]; then
             echo "Error: Expected exactly one toolchain bin directory, found ${#TOOLCHAIN_BIN_DIRS[@]}"
             exit 1
