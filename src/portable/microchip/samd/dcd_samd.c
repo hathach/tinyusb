@@ -22,14 +22,24 @@ static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 typedef struct {
   uint8_t* buffer;
   uint16_t total_len;
-  uint16_t direct_len; // whole packets received straight into buffer, the rest lands in _out_tail
+  uint16_t direct_len; // whole packets received straight into buffer, the rest lands in landing
+  uint8_t* landing;    // packet-sized buffer the tail is received into, NULL without a tail
 } xfer_out_t;
 static xfer_out_t _xfer_out[8];
 
 // DS 38.6.2.8: MULTI_PACKET_SIZE must be a multiple of PCKSIZE.SIZE, else the controller writes a whole
-// packet past the armed length. A shorter tail is received here and copied out. Holds a 64-byte bank
-// (any non-ISO full-speed endpoint).
+// packet past the armed length. A shorter tail is received into a packet-sized landing buffer and copied
+// out: _out_tail holds a 64-byte bank (any non-ISO full-speed endpoint), _out_iso a larger ISO bank.
 static TU_ATTR_ALIGNED(4) uint8_t _out_tail[8][64];
+
+#if CFG_TUD_AUDIO || (defined(CFG_TUD_VENDOR_EP_ISO_OUT) && CFG_TUD_VENDOR_EP_ISO_OUT)
+  #define OUT_ISO_LANDING 1
+// shared by ISO OUT banks above 64 bytes: one endpoint owns it until close_all or bus reset
+static TU_ATTR_ALIGNED(4) uint8_t _out_iso[1023];
+static uint8_t _out_iso_owner; // epnum, 0 = free (EP0 is never ISO)
+#else
+  #define OUT_ISO_LANDING 0
+#endif
 
 // Setup packet is only 8 bytes in length. However under certain scenario,
 // USB DMA controller may decide to overwrite/overflow the buffer  with
@@ -53,6 +63,10 @@ static inline void prepare_setup(void)
 // Setup the control endpoint 0.
 static void bus_reset(void)
 {
+#if OUT_ISO_LANDING
+  _out_iso_owner = 0;
+#endif
+
   // Max size of packets is 64 bytes.
   UsbDeviceDescBank* bank_out = &sram_registers[0][TUSB_DIR_OUT];
   bank_out->PCKSIZE.bit.SIZE = 0x3;
@@ -255,6 +269,20 @@ static uint16_t out_packet_size(UsbDeviceDescBank const* bank) {
   return (code == 7) ? 1023 : (uint16_t) (8u << code);
 }
 
+// NULL when the bank is above 64 bytes and _out_iso is absent or owned by another endpoint
+static uint8_t* out_landing(uint8_t epnum, uint16_t packet_size) {
+  if ( packet_size <= sizeof(_out_tail[0]) ) {
+    return _out_tail[epnum];
+  }
+#if OUT_ISO_LANDING
+  if ( _out_iso_owner == 0 || _out_iso_owner == epnum ) {
+    _out_iso_owner = epnum;
+    return _out_iso;
+  }
+#endif
+  return NULL;
+}
+
 static void out_arm(UsbDeviceEndpoint* ep, UsbDeviceDescBank* bank, uint16_t len) {
   bank->PCKSIZE.bit.MULTI_PACKET_SIZE = len;
   bank->PCKSIZE.bit.BYTE_COUNT = 0;
@@ -266,6 +294,9 @@ void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
   // TODO implement dcd_edpt_close_all()
+#if OUT_ISO_LANDING
+  _out_iso_owner = 0;
+#endif
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
@@ -297,17 +328,22 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     xfer->buffer = buffer;
     xfer->total_len = total_bytes;
     xfer->direct_len = total_bytes;
+    xfer->landing = NULL;
 
-    if ( tail_len == 0 || packet_size > sizeof(_out_tail[0]) ) {
-      // an ISO bank above 64 bytes has no landing slot and is still armed directly (#4537)
+    if ( tail_len == 0 ) {
       out_arm(ep, bank, total_bytes);
-    } else if ( total_bytes > packet_size ) {
-      xfer->direct_len = total_bytes - tail_len;
-      out_arm(ep, bank, xfer->direct_len);
     } else {
-      xfer->direct_len = 0;
-      bank->ADDR.reg = (uint32_t) _out_tail[epnum];
-      out_arm(ep, bank, packet_size);
+      xfer->landing = out_landing(epnum, packet_size);
+      TU_ASSERT(xfer->landing != NULL);
+
+      if ( total_bytes > packet_size ) {
+        xfer->direct_len = total_bytes - tail_len;
+        out_arm(ep, bank, xfer->direct_len);
+      } else {
+        xfer->direct_len = 0;
+        bank->ADDR.reg = (uint32_t) xfer->landing;
+        out_arm(ep, bank, packet_size);
+      }
     }
   } else
   {
@@ -385,14 +421,14 @@ static void maybe_transfer_complete(void) {
       uint16_t const byte_count = bank->PCKSIZE.bit.BYTE_COUNT;
       uint16_t total_transfer_size;
 
-      if ( bank->ADDR.reg == (uint32_t) _out_tail[epnum] ) {
+      if ( xfer->landing != NULL && bank->ADDR.reg == (uint32_t) xfer->landing ) {
         uint16_t const tail_len = tu_min16(byte_count, xfer->total_len - xfer->direct_len);
-        memcpy(xfer->buffer + xfer->direct_len, _out_tail[epnum], tail_len);
+        memcpy(xfer->buffer + xfer->direct_len, xfer->landing, tail_len);
         total_transfer_size = xfer->direct_len + tail_len;
       } else if ( byte_count == xfer->direct_len && xfer->direct_len < xfer->total_len ) {
         // whole packets done, receive the tail; BK0RDY stays set until out_arm(), so no TRCPT0 is lost
         ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
-        bank->ADDR.reg = (uint32_t) _out_tail[epnum];
+        bank->ADDR.reg = (uint32_t) xfer->landing;
         out_arm(ep, bank, out_packet_size(bank));
         continue;
       } else {
