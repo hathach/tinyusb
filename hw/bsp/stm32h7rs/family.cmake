@@ -98,7 +98,7 @@ function(family_add_board BOARD_TARGET)
     )
   # RTT up buffer, it lives in the noncacheable section (1 KB, 4 KB with XSPI_BOOT). Defined once:
   # iasmarm rejects a second -D of it with another value, e.g. from CFLAGS_CLI
-  if (NOT CFLAGS_CLI MATCHES "BUFFER_SIZE_UP=")
+  if (NOT CFLAGS_CLI MATCHES "(^|[ ;])-DBUFFER_SIZE_UP(=|[ ;]|$)")
     if (NOT DEFINED BUFFER_SIZE_UP)
       set(BUFFER_SIZE_UP 0x300)
     endif ()
@@ -162,7 +162,8 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   if (XSPI_BOOT)
-    # a single .bin would span 0x08000000-0x70000000: one per flash instead
+    # .hex only: a .bin would span 0x08000000-0x70000000, and llvm-objcopy refuses to split
+    # the image by section (.ARM links to .boot). The .elf/.hex hold both flash regions
     if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_OBJCOPY} --ihex $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
@@ -170,9 +171,6 @@ function(family_configure_example TARGET RTOS)
     else ()
       add_custom_command(TARGET ${TARGET} POST_BUILD
         COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
-        COMMAND ${CMAKE_OBJCOPY} -Obinary -j .isr_vector -j .boot $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
-        COMMAND ${CMAKE_OBJCOPY} -Obinary -j .text -j .rodata -j .ARM.extab -j .ARM -j .preinit_array -j .init_array
-                -j .fini_array -j .data $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}-xspi.bin
         VERBATIM)
     endif ()
   else ()
