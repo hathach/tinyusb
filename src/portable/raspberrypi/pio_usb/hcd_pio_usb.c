@@ -72,8 +72,14 @@ bool hcd_port_connect_status(uint8_t rhport) {
 
   root_port_t *root = PIO_USB_ROOT_PORT(pio_rhport);
   port_pin_status_t line_state = pio_usb_bus_get_line_state(root);
+  bool const connected = (line_state != PORT_PIN_SE0);
 
-  return line_state != PORT_PIN_SE0;
+  // pio_usb skips disconnect checks until the port is reset; clear connected so it can detect the device reconnecting
+  if (!connected && root->connected && root->suspended) {
+    root->connected = false;
+  }
+
+  return connected;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
