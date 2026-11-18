@@ -68,6 +68,9 @@
 
 #define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
+// Longest interval with its own periodic head (1, 2, 4 and 8 ms); longer ones are polled at it
+#define PERIOD_HEAD_MAX_MS              8u
+
 // Raw view of a qTD and the QH overlay (EHCI Figure 3-6, Table 3-16, Table 3-22)
 #define EHCI_QTD_WORD_NEXT          0u
 #define EHCI_QTD_WORD_ALTERNATE     1u
@@ -538,11 +541,10 @@ static void init_periodic_list(uint8_t rhport) {
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
-  // TODO EHCI_FRAMELIST_SIZE with other size than 8
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
-  // 1, 5 --> period_head_arr[2] (4ms)
-  // 3 --> period_head_arr[3] (8ms)
+  // 1, 5, 9 etc --> period_head_arr[2] (4ms)
+  // 3, 11, 19 etc --> period_head_arr[3] (8ms)
 
   ehci_link_t * const framelist  = ehci_data.period_framelist;
   ehci_link_t * const head_1ms = (ehci_link_t *) &ehci_data.period_head_arr[0];
@@ -563,7 +565,9 @@ static void init_periodic_list(uint8_t rhport) {
     list_insert(framelist + i, head_4ms, EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist + 3, head_8ms, EHCI_QTYPE_QHD);
+  for (uint32_t i = 3; i < FRAMELIST_SIZE; i += PERIOD_HEAD_MAX_MS) {
+    list_insert(framelist + i, head_8ms, EHCI_QTYPE_QHD);
+  }
 
   head_1ms->terminate = 1;
 }
@@ -845,8 +849,8 @@ static bool qhd_cancel_xfer(ehci_qhd_t* qhd) {
   ehci_registers_t* regs = ehci_data.regs;
   bool const is_period = qhd_is_periodic(qhd);
   if (!ehci_disable_schedule(regs, is_period)) {
-    // The controller may still own the TD: leave the transfer in place.
-    ehci_enable_schedule(regs, is_period);
+    // The controller may still own the TD: leave the transfer in place. The enable bit is either
+    // still set, or cleared and awaiting its status, when it must not be rewritten (EHCI 4.6, 4.8).
     return false;
   }
 
@@ -1534,7 +1538,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (usb_int) {
     proccess_async_xfer_isr(list_get_async_head(rhport));
 
-    for ( uint32_t i = 1; i <= FRAMELIST_SIZE; i *= 2 ) {
+    for ( uint32_t i = 1; i <= PERIOD_HEAD_MAX_MS; i *= 2 ) {
       process_period_xfer_isr(rhport, i);
     }
 
@@ -1555,7 +1559,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 // Get head of periodic list
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms) {
   (void) rhport;
-  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(PERIOD_HEAD_MAX_MS, interval_ms) ) ];
 }
 
 // Get head of async list

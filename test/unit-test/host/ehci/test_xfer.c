@@ -518,6 +518,81 @@ static void test_abort_not_cancelled(void) {
   assert(events == 0);
 }
 
+// The stop is written but the controller never acknowledges it: the enable bit
+// must not be rewritten while it differs from the status (EHCI 4.6, 4.8).
+static void test_abort_stop_unacknowledged(bool periodic) {
+  reset();
+  uint8_t const ep_addr = periodic ? 0x82 : 0x81;
+  ehci_qhd_t* qhd = open_ep(1, ep_addr, periodic ? TUSB_XFER_INTERRUPT : TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  assert(hcd_edpt_xfer(0, 1, ep_addr, buffer, 32768));
+  ehci_qtd_t* qtd = qhd->attached_qtd;
+  hc_progress(qhd);
+  ehci_qtd_t const before = *(ehci_qtd_t const*) (uintptr_t) &qhd->qtd_overlay;
+  if (periodic) {
+    regs.command_bm.periodic_enable = 1;
+    regs.status_bm.periodic_status = 1;
+  } else {
+    regs.command_bm.async_enable = 1;
+    regs.status_bm.async_status = 1;
+  }
+  barriers_unmasked = 0;
+  assert(!hcd_edpt_abort_xfer(0, 1, ep_addr));
+  assert(lock_depth == 0 && hcd_int_on && barriers_unmasked == 0);
+  if (periodic) {
+    assert(!regs.command_bm.periodic_enable && regs.status_bm.periodic_status);
+  } else {
+    assert(!regs.command_bm.async_enable && regs.status_bm.async_status);
+  }
+  assert(memcmp((void const*) (uintptr_t) &qhd->qtd_overlay, &before, sizeof(before)) == 0);
+  assert(qhd->attached_qtd == qtd && qtd->used && qtd->active && events == 0);
+
+  // Once the status catches up the schedule is stopped: the next abort cancels and restarts it.
+  if (periodic) {
+    regs.status_bm.periodic_status = 0;
+  } else {
+    regs.status_bm.async_status = 0;
+  }
+  assert(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  check_cancelled(qhd, qtd, &before, EHCI_PID_IN);
+}
+
+// Intervals past 8 ms share the 8 ms head, which every eighth frame visits, and
+// the completion scan stays within the interval heads.
+static void test_long_interval(void) {
+  reset();
+  ehci_link_t const* head_8ms = (ehci_link_t const*) &ehci_data.period_head_arr[3];
+  for (uint32_t i = 0; i < FRAMELIST_SIZE; i++) {
+    ehci_link_t const* link = &ehci_data.period_framelist[i];
+    bool found = false;
+    while (!link->terminate) {
+      link = (ehci_link_t const*) (uintptr_t) tu_align32(link->address);
+      found = found || link == head_8ms;
+    }
+    assert(found == (i % 8 == 3));
+  }
+
+  buses[1].speed = TUSB_SPEED_HIGH;
+  static uint8_t const intervals[] = {8, 12}; // 16 ms, 255 ms
+  ehci_qhd_t* qhd[2];
+  for (size_t i = 0; i < TU_ARRAY_SIZE(intervals); i++) {
+    uint8_t const ep_addr = (uint8_t) (0x81 + i);
+    tusb_desc_endpoint_t const desc = {
+      .bLength = sizeof(desc), .bDescriptorType = TUSB_DESC_ENDPOINT, .bEndpointAddress = ep_addr,
+      .bmAttributes = {.xfer = TUSB_XFER_INTERRUPT}, .wMaxPacketSize = 64, .bInterval = intervals[i]
+    };
+    assert(hcd_edpt_open(0, 1, &desc));
+    qhd[i] = edpt_find(1, ep_addr).qhd;
+    assert(qhd[i] != NULL && qhd[i]->interval_ms > 8);
+    assert(tu_align32(head_8ms->address) == (uintptr_t) qhd[i]);
+  }
+
+  assert(hcd_edpt_xfer(0, 1, 0x81, buffer, 64));
+  hc_retire(qhd[0], 64, false, false);
+  regs.status = EHCI_INT_MASK_USB;
+  hcd_int_handler(0, true);
+  assert(events == 1 && event.xfer_complete.ep_addr == 0x81 && event.xfer_complete.len == 64);
+}
+
 int main(void) {
   assert((uintptr_t) &ehci_data <= UINT32_MAX && (uintptr_t) buffer + sizeof(buffer) <= UINT32_MAX);
   test_chunk_lengths();
@@ -529,6 +604,9 @@ int main(void) {
   test_abort_active();
   test_abort_retired_chunk();
   test_abort_not_cancelled();
+  test_abort_stop_unacknowledged(false);
+  test_abort_stop_unacknowledged(true);
+  test_long_interval();
   puts("EHCI transfer tests passed");
   return 0;
 }
