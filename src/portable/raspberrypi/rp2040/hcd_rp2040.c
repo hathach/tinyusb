@@ -1225,10 +1225,12 @@ bool hcd_deinit(uint8_t rhport) {
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
 
-  // The controller is reset, so no transfer is under way: forget every endpoint while the lock still exists, and
-  // let the hcd_device_close() calls tuh_deinit() makes next return at once
+  // The controller is reset, so no transfer or port reset is under way: forget them while the lock still exists, so
+  // the hcd_device_close() and hcd_port_connect_status() calls tuh_deinit() makes next take no lock
   rp2usb_critical_enter();
-  hcd_running = false;
+  hcd_running       = false;
+  port_resetting    = false;
+  port_reconnecting = false;
   memset(&ep_pool, 0, sizeof(ep_pool));
   epx         = &ep_pool[0];
   epx_closing = NULL;
@@ -1324,15 +1326,18 @@ void hcd_port_reset_end(uint8_t rhport) {
 
 bool hcd_port_connect_status(uint8_t rhport) {
   (void)rhport;
-  // read under the lock: a reconnect the IRQ took between the read and the update would be reported as no device
-  rp2usb_critical_enter();
-  const bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+  bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
   if (!connected && port_reconnecting) {
-    // usbh takes the reset device as gone: a later connect is a new attach, not the reset's reconnect
-    port_reconnecting = false;
-    port_resetting    = false;
+    // re-read under the lock: a reconnect the IRQ took after the first read must be reported as connected
+    rp2usb_critical_enter();
+    connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+    if (!connected && port_reconnecting) {
+      // usbh takes the reset device as gone: a later connect is a new attach, not the reset's reconnect
+      port_reconnecting = false;
+      port_resetting    = false;
+    }
+    rp2usb_critical_exit();
   }
-  rp2usb_critical_exit();
   return connected;
 }
 
