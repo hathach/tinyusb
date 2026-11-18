@@ -1310,7 +1310,17 @@ void hcd_port_reset_end(uint8_t rhport) {
 
 bool hcd_port_connect_status(uint8_t rhport) {
   (void)rhport;
-  return usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+  const bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+  if (!connected && port_reconnecting) {
+    // usbh takes the reset device as gone: a later connect is a new attach, not the reset's reconnect
+    rp2usb_critical_enter();
+    if (port_reconnecting) {
+      port_reconnecting = false;
+      port_resetting    = false;
+    }
+    rp2usb_critical_exit();
+  }
+  return connected;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
