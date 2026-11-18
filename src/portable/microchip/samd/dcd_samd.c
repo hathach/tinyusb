@@ -18,6 +18,9 @@
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 
+// OUT length armed by dcd_edpt_xfer(): BYTE_COUNT exceeds it if not a multiple of PCKSIZE.SIZE (SAM D5x 38.6.2.8)
+static uint16_t _out_xfer_len[8];
+
 // Setup packet is only 8 bytes in length. However under certain scenario,
 // USB DMA controller may decide to overwrite/overflow the buffer  with
 // 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
@@ -265,6 +268,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   if ( dir == TUSB_DIR_OUT )
   {
+    _out_xfer_len[epnum] = total_bytes;
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
     bank->PCKSIZE.bit.BYTE_COUNT = 0;
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
@@ -341,7 +345,7 @@ static void maybe_transfer_complete(void) {
     // Handle OUT completions
     if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
       UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
-      uint16_t const total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+      uint16_t const total_transfer_size = tu_min16(bank->PCKSIZE.bit.BYTE_COUNT, _out_xfer_len[epnum]);
 
       dcd_event_xfer_complete(0, epnum, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
