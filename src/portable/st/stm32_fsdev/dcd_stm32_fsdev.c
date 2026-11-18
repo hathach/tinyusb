@@ -474,6 +474,10 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 static uint32_t dcd_pma_alloc(uint16_t len, bool dbuf) {
   uint8_t  blsize, num_block;
   uint16_t aligned_len = pma_align_buffer_size(len, &blsize, &num_block);
+#ifdef CFG_TUSB_FSDEV_32BIT
+  // 32-bit PMA buffers must be word aligned (RM0444/RM0503): btable_set_addr() drops ADDR bits 1:0
+  aligned_len = (uint16_t)tu_align4(aligned_len + 3u);
+#endif
   (void)blsize;
   (void)num_block;
 
