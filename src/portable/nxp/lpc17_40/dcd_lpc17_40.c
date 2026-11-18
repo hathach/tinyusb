@@ -107,11 +107,21 @@ typedef struct
 #if DCD_ISO_ENABLED
   // iso packet-size memory, must be DMA-reachable like the DDs
   volatile uint32_t iso_psize[ISO_SLOT_COUNT][ISO_MAX_PACKETS];
+
+  // bit per ep_id; thread code sets them only under usb_irq_lock(), the ISR only clears them
+  volatile uint32_t iso_armed;  // DD handed to the DMA engine, its retirement EoT not yet seen
+  volatile uint32_t iso_cancel; // armed DD cancelled by activate: no completion, no resubmit until
+                                // a successful activation or a bus reset
 #endif
 
 } dcd_data_t;
 
 CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_t _dcd;
+
+#if DCD_ISO_ENABLED
+// bumped by bus_reset(); kept outside _dcd so its memclr does not reset it
+static volatile uint8_t _iso_reset_gen;
+#endif
 
 
 //--------------------------------------------------------------------+
@@ -223,6 +233,9 @@ static void bus_reset(void)
   LPC_USB->SysErrIntClr = 0xFFFFFFFF;
 
   tu_memclr(&_dcd, sizeof(dcd_data_t));
+#if DCD_ISO_ENABLED
+  _iso_reset_gen++;
+#endif
 }
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
@@ -421,25 +434,78 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 #endif
 }
 
+#if DCD_ISO_ENABLED
+// Wait for a cancelled iso DD to retire on its own: an armed DD advances one packet per FRAME
+// and retires even with no host traffic, NDDR follows one FRAME later. FRAME is not in DevIntEn,
+// so the ISR never clears it. The spin cap bounds the wait if FRAMEs stop (suspend).
+static bool iso_wait_retired(uint32_t ep_bit, uint32_t frames) {
+  uint32_t const spin_max = (frames + 1) * (SystemCoreClock / 1000);
+  uint32_t seen = 0;
+  uint32_t spin = 0;
+
+  LPC_USB->DevIntClr = DEV_INT_FRAME_MASK;
+  while (_dcd.iso_armed & ep_bit) {
+    if (LPC_USB->DevIntSt & DEV_INT_FRAME_MASK) {
+      LPC_USB->DevIntClr = DEV_INT_FRAME_MASK;
+      if (++seen >= frames) return false;
+    }
+    if (++spin > spin_max) return false;
+  }
+  return true;
+}
+#endif
+
+// Task context with the USB IRQ enabled: the ISR retires the cancelled DD.
+// A live iso DD is never disabled and rebuilt in place: the engine can resume the cancelled DD's
+// buffer, count and packet-size pointer on the next EpDMAEn (LPC4088, #4534).
 bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
 #if DCD_ISO_ENABLED
   (void)rhport;
   uint8_t const ep_id = ep_addr2idx(desc_ep->bEndpointAddress);
+  uint32_t const ep_bit = TU_BIT(ep_id);
   dma_desc_t* const dd = &_dcd.dd[ep_id];
 
   // same fixed-number rule as alloc: without it a rejected-but-ignored alloc (classes
   // discard that return) would set isochronous on a non-iso ep_id and underflow iso_slot()
   TU_ASSERT(ep_id_is_iso(ep_id));
 
-  // kill any armed transfer from a previous alternate setting
-  LPC_USB->EpDMADis = TU_BIT(ep_id);
-  _dcd.udca[ep_id] = NULL;
+  bool lock = usb_irq_lock();
+  bool const armed = (_dcd.iso_armed & ep_bit) != 0;
+  if (!lock && armed) {
+    return false; // USB IRQ already masked: the retirement could never be seen
+  }
+  _dcd.iso_cancel |= ep_bit;
+  uint16_t const buflen = dd->buflen;
+  uint32_t const frames = (uint32_t) (buflen - tu_min16(dd->present_count, buflen)) + 2;
+  uint8_t const reset_gen = _iso_reset_gen;
+  usb_irq_unlock(lock);
 
+  // on timeout the DD stays DMA-owned: iso_cancel keeps refusing transfers until a later activation
+  if (armed && !iso_wait_retired(ep_bit, frames)) {
+    return false;
+  }
+  TU_VERIFY(reset_gen == _iso_reset_gen); // bus reset during the wait: activation is obsolete
+
+  lock = usb_irq_lock();
+  if (reset_gen != _iso_reset_gen) {
+    usb_irq_unlock(lock);
+    return false;
+  }
+
+  LPC_USB->EpDMADis = ep_bit;
+  _dcd.udca[ep_id] = NULL;
+  // cleanup only: completion ownership rests on iso_armed/iso_cancel
+  LPC_USB->EoTIntClr    = ep_bit;
+  LPC_USB->NDDRIntClr   = ep_bit;
+  LPC_USB->SysErrIntClr = ep_bit;
+
+  dd->retired         = 1;
   dd->isochronous     = 1;
   dd->max_packet_size = tu_edpt_packet_size(desc_ep);
-  dd->retired         = 1;
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + ep_id, 1, 0);
+  _dcd.iso_cancel &= ~ep_bit;
+  usb_irq_unlock(lock);
   return true;
 #else
   (void)rhport; (void)desc_ep;
@@ -540,8 +606,29 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       // Validate BEFORE touching the DD: bailing out mid-rebuild would leave a
       // zeroed (retired=0 -> serviceable) descriptor armed for the frame engine.
       TU_ASSERT(ep_size > 0);
-      uint16_t const packets = (total_bytes > 0) ? (uint16_t) tu_div_ceil(total_bytes, ep_size) : 1;
-      TU_ASSERT(packets <= ISO_MAX_PACKETS);
+      uint16_t packets;
+      if ( ep_id & 1 )
+      {
+        packets = (total_bytes > 0) ? (uint16_t) tu_div_ceil(total_bytes, ep_size) : 1; // 0 = one ZLP
+      }else
+      {
+        // OUT receives whole packets of up to MPS into the buffer
+        TU_VERIFY(total_bytes >= ep_size && (total_bytes % ep_size) == 0);
+        packets = (uint16_t) (total_bytes / ep_size);
+      }
+      TU_VERIFY(packets <= ISO_MAX_PACKETS);
+
+      uint32_t const ep_bit = TU_BIT(ep_id);
+      bool const lock = usb_irq_lock();
+      // previous DD not retired yet, or cancelled by activate and still DMA-owned
+      if ( (_dcd.iso_armed | _dcd.iso_cancel) & ep_bit )
+      {
+        usb_irq_unlock(lock);
+        return false;
+      }
+
+      // retired DD: the EoT is the writeback fence (UM10562 12.15.5.5), EpDMASt is not
+      LPC_USB->EpDMADis = ep_bit;
 
       uint8_t const slot = iso_slot(ep_id);
       uint16_t remain = total_bytes;
@@ -549,21 +636,36 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       {
         uint16_t const pkt_len = tu_min16(remain, ep_size);
         // IN: length to send (0 = ZLP). OUT: hardware writes back
-        // Frame_number|Packet_valid|Packet_length -- prefill 0 so a frame the
-        // hardware never wrote (missed/invalid) cannot read back as data.
+        // Frame_number|Packet_valid|Packet_length -- the zero prefill is writeback storage,
+        // not a receive limit: a frame the hardware never wrote cannot read back as data.
         _dcd.iso_psize[slot][i] = (ep_id & 1) ? pkt_len : 0;
         remain = (uint16_t)(remain - pkt_len);
       }
 
-      tu_memclr(dd, sizeof(dma_desc_t));
-      dd->isochronous = 1;
-      dd->max_packet_size = ep_size;
-      dd->buffer = (uint32_t) buffer;
-      dd->buflen = packets;
-      dd->iso_packet_size_addr = (uint32_t) &_dcd.iso_psize[slot][0];
+      // keep the DD retired until every other field is written
+      dd->retired                = 1;
+      dd->next                   = 0;
+      dd->atle_mode              = 0;
+      dd->next_valid             = 0;
+      dd->isochronous            = 1;
+      dd->max_packet_size        = ep_size;
+      dd->buflen                 = packets;
+      dd->buffer                 = (uint32_t) buffer;
+      dd->status                 = DD_STATUS_NOT_SERVICED;
+      dd->iso_last_packet_valid  = 0;
+      dd->atle_lsb_extracted     = 0;
+      dd->atle_msb_extracted     = 0;
+      dd->atle_mess_len_position = 0;
+      dd->present_count          = 0;
+      dd->iso_packet_size_addr   = (uint32_t) &_dcd.iso_psize[slot][0];
+      __DMB();
+      dd->retired = 0;
 
       _dcd.udca[ep_id] = dd;
-      LPC_USB->EpDMAEn = TU_BIT(ep_id); // frame-triggered: no DMARSet, no EpIntEn
+      _dcd.iso_armed |= ep_bit;
+      __DSB();
+      LPC_USB->EpDMAEn = ep_bit; // frame-triggered: no DMARSet, no EpIntEn
+      usb_irq_unlock(lock);
     }
     else
 #else
@@ -690,33 +792,52 @@ static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
   uint8_t result = (dd->status == DD_STATUS_NORMAL || dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
   uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
 
-  uint32_t xferred_bytes;
+  dcd_event_xfer_complete(rhport, ep_addr, dd->present_count, result, true);
+}
+
 #if DCD_ISO_ENABLED
-  if ( ep_id_is_iso(ep_id) )
+// EoT of an iso endpoint: complete only the retirement of a DD this driver armed
+static void iso_complete_isr(uint8_t rhport, uint8_t ep_id)
+{
+  uint32_t const ep_bit = TU_BIT(ep_id);
+  // one snapshot of DD word 3: DD_retired (0), DD_status (4:1), Present_DMA_count (31:16)
+  uint32_t const word3 = ((volatile uint32_t const*) &_dcd.dd[ep_id])[3];
+  bool const retired = (word3 & 1u) != 0;
+  uint8_t const status = (uint8_t) ((word3 >> 1) & 0x0Fu);
+  uint16_t const present_count = (uint16_t) (word3 >> 16);
+
+  if ( !retired || !(_dcd.iso_armed & ep_bit) )
   {
-    // present_count is in packets; actual byte counts are in the packet-size memory
-    // (IN: as programmed by us, OUT: Packet_length written back by hardware,
-    //  guarded by Packet_valid -- a frame with no packet must count as 0)
-    uint8_t const slot = iso_slot(ep_id);
-    uint16_t const packets = tu_min16(dd->present_count, ISO_MAX_PACKETS);
-    xferred_bytes = 0;
-    for (uint16_t i = 0; i < packets; i++)
-    {
-      uint32_t const psize = _dcd.iso_psize[slot][i];
-      if ( (ep_id & 1) || (psize & TU_BIT(16)) )
-      {
-        xferred_bytes += (psize & 0xFFFFu);
-      }
-    }
-  }
-  else
-#endif
-  {
-    xferred_bytes = dd->present_count;
+    return; // stale or duplicate EoT
   }
 
+  bool const cancelled = (_dcd.iso_cancel & ep_bit) != 0;
+  _dcd.iso_armed &= ~ep_bit;
+  if ( cancelled )
+  {
+    return; // iso_cancel stays set: activate (or a bus reset) releases it
+  }
+
+  // present_count is in packets; actual byte counts are in the packet-size memory
+  // (IN: as programmed by us, OUT: Packet_length written back by hardware,
+  //  guarded by Packet_valid -- a frame with no packet must count as 0)
+  uint8_t const slot = iso_slot(ep_id);
+  uint16_t const packets = tu_min16(present_count, ISO_MAX_PACKETS);
+  uint32_t xferred_bytes = 0;
+  for ( uint16_t i = 0; i < packets; i++ )
+  {
+    uint32_t const psize = _dcd.iso_psize[slot][i];
+    if ( (ep_id & 1) || (psize & TU_BIT(16)) )
+    {
+      xferred_bytes += (psize & 0xFFFFu);
+    }
+  }
+
+  uint8_t const result = (status == DD_STATUS_NORMAL || status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
+  uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
   dcd_event_xfer_complete(rhport, ep_addr, (uint16_t) xferred_bytes, result, true);
 }
+#endif
 
 // main USB IRQ handler
 void dcd_int_handler(uint8_t rhport)
@@ -777,7 +898,7 @@ void dcd_int_handler(uint8_t rhport)
         if ( ep_id_is_iso(ep_id) )
         {
           // iso: last packet already left with its frame; complete both directions here
-          dd_complete_isr(rhport, ep_id);
+          iso_complete_isr(rhport, ep_id);
         }
         else
 #endif
