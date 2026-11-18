@@ -10,13 +10,33 @@
 #ifndef SEGGER_RTT_CONF_H
 #define SEGGER_RTT_CONF_H
 
-#define SEGGER_RTT_MAX_NUM_UP_BUFFERS   (3)
-#define SEGGER_RTT_MAX_NUM_DOWN_BUFFERS (3)
-#define BUFFER_SIZE_UP                  (1024)
-#define BUFFER_SIZE_DOWN                (16)
-#define SEGGER_RTT_PRINTF_BUFFER_SIZE   (64u)
-#define SEGGER_RTT_MODE_DEFAULT         SEGGER_RTT_MODE_NO_BLOCK_SKIP
-#define SEGGER_RTT_MEMCPY_USE_BYTELOOP  0
+#ifndef SEGGER_RTT_MAX_NUM_UP_BUFFERS
+  #define SEGGER_RTT_MAX_NUM_UP_BUFFERS   (3)
+#endif
+
+#ifndef SEGGER_RTT_MAX_NUM_DOWN_BUFFERS
+  #define SEGGER_RTT_MAX_NUM_DOWN_BUFFERS (3)
+#endif
+
+#ifndef BUFFER_SIZE_UP
+  #define BUFFER_SIZE_UP                  (1024)
+#endif
+
+#ifndef BUFFER_SIZE_DOWN
+  #define BUFFER_SIZE_DOWN                (16)
+#endif
+
+#ifndef SEGGER_RTT_PRINTF_BUFFER_SIZE
+  #define SEGGER_RTT_PRINTF_BUFFER_SIZE   (64u)
+#endif
+
+#ifndef SEGGER_RTT_MODE_DEFAULT
+  #define SEGGER_RTT_MODE_DEFAULT         SEGGER_RTT_MODE_NO_BLOCK_SKIP
+#endif
+
+#ifndef SEGGER_RTT_MEMCPY_USE_BYTELOOP
+  #define SEGGER_RTT_MEMCPY_USE_BYTELOOP  0
+#endif
 
 // QingKe V4C masks interrupts in CSR 0x800 (gintenr, the U-mode view of mstatus MIE/MPIE; QingKe V4 manual §8.3)
 // with fence.i after it, as the SDK's __disable_irq() does (EVT/EXAM/SRC/Core/core_riscv.h). SEGGER_RTT locks from
