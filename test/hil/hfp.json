@@ -45,8 +45,6 @@
         {
             "name": "ra4m2_ek",
             "uid": "058D032038313357364E2AA0EA284B4E",
-            "toolchain": "arm-gcc",
-            "note": "no IAR linker config for ra: hil-hfp-iar builds it with gcc",
             "tests": {
                 "device": true, "host": false, "dual": false
             },
