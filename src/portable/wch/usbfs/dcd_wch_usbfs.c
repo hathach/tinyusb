@@ -136,6 +136,9 @@ struct usb_xfer {
 static struct {
   bool            ep0_tog;
   uint8_t         ep0_status_dir;
+#ifdef CH32_USBFS_SETUP_RECOVER
+  bool            ep0_marked; // the EP0 buffer holds EP0_IDLE_MARK since the last status stage
+#endif
 #ifdef CH32_USBFS_H2D_IN_HOLD
   bool            in_hold;   // non-EP0 IN endpoints held at NAK for a host-to-device control transfer
   uint8_t         in_parked; // bit n: IN endpoint n was NAKed by the hold and is re-armed on release
@@ -301,6 +304,38 @@ static inline void ep_in_claim_end(uint8_t rhport) {
 }
 #endif
 
+#ifdef CH32_USBFS_SETUP_RECOVER
+// The SIE must ACK a SETUP (USB 2.0 8.4.6.4) even while INT_BUSY NAKs other tokens. On CH32V103 a
+// SETUP that lands while UIF_TRANSFER is pending for another endpoint was seen written into the EP0
+// buffer while that flag, and often INT_ST, still describe the other transaction, so clearing the
+// flag discarded it (bulk IN streaming alongside CDC requests). After each status stage the EP0
+// buffer is filled with a pattern no request uses; a buffer that changed since holds a SETUP.
+#define EP0_IDLE_MARK 0xFFFFFFFFu
+
+static void ep0_mark_idle(void) {
+  volatile uint32_t *buf = (volatile uint32_t *) (uintptr_t) ep_out_buf(0);
+  buf[0]          = EP0_IDLE_MARK;
+  buf[1]          = EP0_IDLE_MARK;
+  data.ep0_marked = true;
+}
+
+static bool ep0_setup_landed(void) {
+  const volatile uint32_t *buf = (const volatile uint32_t *) (uintptr_t) ep_out_buf(0);
+  return data.ep0_marked && (buf[0] != EP0_IDLE_MARK || buf[1] != EP0_IDLE_MARK);
+}
+
+// Bounded wait for SIE_FREE: the SETUP may still be arriving when INT_ST or the buffer first shows it.
+static void sie_wait_free(void) {
+  for (uint32_t n = 1000; !(USBOTG_FS->INT_FG & USBFS_INT_FG_SIE_FREE) && n; n--) {}
+}
+
+static bool ep0_setup_arrived(void) {
+  if (USBFS_INT_ST_MASK_UIS_TOKEN(USBOTG_FS->INT_ST) != PID_SETUP && !ep0_setup_landed()) { return false; }
+  sie_wait_free();
+  return !data.ep0_marked || ep0_setup_landed();
+}
+#endif
+
 static void update_in(uint8_t rhport, uint8_t ep, bool force) {
   struct usb_xfer *xfer = &data.xfer[ep][TUSB_DIR_IN];
   if (xfer->valid) {
@@ -381,6 +416,9 @@ static void reset_ep_ctrls(void) {
 /* public functions */
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
+#ifdef CH32_USBFS_SETUP_RECOVER
+  data.ep0_marked = false;
+#endif
   // init registers
   USBOTG_FS->BASE_CTRL = USBFS_CTRL_SYS_CTRL | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
   USBOTG_FS->UDEV_CTRL = USBFS_UDEV_CTRL_PD_DIS | USBFS_UDEV_CTRL_PORT_EN;
@@ -413,6 +451,31 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   return true;
 }
 
+static void handle_setup(uint8_t rhport) {
+#ifdef CH32_USBFS_SETUP_RECOVER
+  sie_wait_free();
+  data.ep0_marked = false;
+#endif
+  // setup clears stall
+  data.ep0_tog  = true;
+  ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK | USBFS_EP_T_TOG);
+  // A new SETUP supersedes any control transfer still in flight; drop its stale EP0 state so a
+  // spurious EP0 IN/OUT can't run update_in()/update_out() against the previous request.
+  data.xfer[0][TUSB_DIR_OUT].valid = false;
+  data.xfer[0][TUSB_DIR_IN].valid  = false;
+
+  uint8_t *ep0_out = ep_out_buf(0);
+  const tusb_control_request_t *setup = (const tusb_control_request_t *)ep0_out;
+  data.ep0_status_dir = (setup->wLength && setup->bmRequestType_bit.direction == TUSB_DIR_IN) ? TUSB_DIR_OUT
+                                                                                              : TUSB_DIR_IN;
+  // Done before INT_FG is cleared: INT_BUSY NAKs every token until then (see ep_in_hold)
+  ep_in_hold(setup->bmRequestType_bit.direction == TUSB_DIR_OUT);
+  // The first transaction of either the data or status stage always uses DATA1.
+  ep_rx_ctrl_set(0, ((setup->wLength == 0) ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK) | USBFS_EP_R_TOG);
+
+  dcd_event_setup_received(rhport, ep0_out, true);
+}
+
 void dcd_int_handler(uint8_t rhport) {
   (void)rhport;
   uint8_t status = USBOTG_FS->INT_FG;
@@ -421,6 +484,9 @@ void dcd_int_handler(uint8_t rhport) {
     uint8_t  ep       = USBFS_INT_ST_MASK_UIS_ENDP(int_st);
     uint8_t  token    = USBFS_INT_ST_MASK_UIS_TOKEN(int_st);
     uint16_t rx_len   = USBOTG_FS->RX_LEN;
+#ifdef CH32_USBFS_SETUP_RECOVER
+    bool     ep0_status = false; // this transaction completed an EP0 status stage
+#endif
 
     switch (token) {
       case PID_OUT: {
@@ -433,7 +499,13 @@ void dcd_int_handler(uint8_t rhport) {
         // Advance the expected EP4 RX toggle after each accepted packet. Iso endpoints are DATA0-only,
         if (ep == 4 && !data.isochronous[ep][TUSB_DIR_OUT]) { EP_CTRL(ep) ^= USBFS_EPC_R_TOG; }
 #endif
+#ifdef CH32_USBFS_SETUP_RECOVER
+        ep0_status = ep == 0 && data.xfer[0][TUSB_DIR_OUT].valid && data.ep0_status_dir == TUSB_DIR_OUT;
+#endif
         update_out(rhport, ep, rx_len);
+#ifdef CH32_USBFS_SETUP_RECOVER
+        ep0_status = ep0_status && !data.xfer[0][TUSB_DIR_OUT].valid;
+#endif
         break;
       }
 
@@ -444,33 +516,34 @@ void dcd_int_handler(uint8_t rhport) {
         // Isochronous transfers are DATA0-only (no toggle), so leave iso endpoints alone.
         if (ep == 4 && !data.isochronous[ep][TUSB_DIR_IN]) { EP_CTRL(ep) ^= USBFS_EPC_T_TOG; }
 #endif
+#ifdef CH32_USBFS_SETUP_RECOVER
+        ep0_status = ep == 0 && data.xfer[0][TUSB_DIR_IN].valid && data.ep0_status_dir == TUSB_DIR_IN;
+#endif
         update_in(rhport, ep, false);
+#ifdef CH32_USBFS_SETUP_RECOVER
+        ep0_status = ep0_status && !data.xfer[0][TUSB_DIR_IN].valid;
+#endif
         break;
 
       case PID_SETUP:
-        // setup clears stall
-        data.ep0_tog  = true;
-        ep_tx_ctrl_set(0, USBFS_EP_T_RES_NAK | USBFS_EP_T_TOG);
-        // A new SETUP supersedes any control transfer still in flight; drop its stale EP0 state so a
-        // spurious EP0 IN/OUT can't run update_in()/update_out() against the previous request.
-        data.xfer[0][TUSB_DIR_OUT].valid = false;
-        data.xfer[0][TUSB_DIR_IN].valid  = false;
-
-        uint8_t *ep0_out = ep_out_buf(0);
-        const tusb_control_request_t *setup = (const tusb_control_request_t *)ep0_out;
-        data.ep0_status_dir = (setup->wLength && setup->bmRequestType_bit.direction == TUSB_DIR_IN) ? TUSB_DIR_OUT
-                                                                                                    : TUSB_DIR_IN;
-        // Done before INT_FG is cleared below: INT_BUSY NAKs every token until then (see ep_in_hold)
-        ep_in_hold(setup->bmRequestType_bit.direction == TUSB_DIR_OUT);
-        // The first transaction of either the data or status stage always uses DATA1.
-        ep_rx_ctrl_set(0, ((setup->wLength == 0) ? USBFS_EP_R_RES_ACK : USBFS_EP_R_RES_NAK) | USBFS_EP_R_TOG);
-
-        dcd_event_setup_received(rhport, ep0_out, true);
+        handle_setup(rhport);
         break;
     }
 
+#ifdef CH32_USBFS_SETUP_RECOVER
+    // A SETUP that arrived while this flag was pending (see EP0_IDLE_MARK); INT_ST may have switched to it
+    if (token != PID_SETUP && ep0_setup_arrived()) {
+      handle_setup(rhport);
+    } else if (ep0_status) {
+      ep0_mark_idle();
+    }
+#endif
+
     USBOTG_FS->INT_FG = USBFS_INT_FG_TRANSFER;
   } else if (status & USBFS_INT_FG_BUS_RST) {
+#ifdef CH32_USBFS_SETUP_RECOVER
+    data.ep0_marked = false;
+#endif
     data.ep0_tog                        = true;
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
     data.xfer[0][TUSB_DIR_IN].max_size  = 64;

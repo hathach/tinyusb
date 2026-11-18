@@ -201,6 +201,12 @@
   #define CH32_USBFS_H2D_IN_HOLD 1
 #endif
 
+// CH32V103 USBFS drops a SETUP that lands while UIF_TRANSFER is pending for another endpoint (see
+// EP0_IDLE_MARK in dcd_wch_usbfs.c), traced on CH32V103; the other USBFS parts are untested.
+#if CFG_TUSB_MCU == OPT_MCU_CH32V103
+  #define CH32_USBFS_SETUP_RECOVER 1
+#endif
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
