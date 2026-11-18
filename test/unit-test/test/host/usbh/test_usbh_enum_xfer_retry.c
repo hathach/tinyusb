@@ -10,6 +10,7 @@
 
 TEST_SOURCE_FILE("tusb.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
+TEST_SOURCE_FILE("usbh_enum_xfer_retry_hcd_close.c")
 
 enum {
   RHPORT = 0,
@@ -82,13 +83,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   (void) rhport;
   (void) daddr;
   (void) ep_desc;
-  return true;
-}
-
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
   return true;
 }
 
