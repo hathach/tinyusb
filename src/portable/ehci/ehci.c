@@ -287,6 +287,7 @@ static ehci_edpt_t edpt_find(uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
 static void qhd_remove_qtd(ehci_qhd_t *qhd);
+static bool qtd_chunk_continues(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd);
 TU_ATTR_ALWAYS_INLINE static inline bool qhd_is_periodic(ehci_qhd_t const *qhd) {
   return qhd->int_smask != 0;
 }
@@ -297,6 +298,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t qhd_ep_addr(ehci_qhd_t const *qhd) {
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr);
 static ehci_qtd_t* qtd_find_free (void);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
+static void qtd_init_chunk(ehci_qhd_t* qhd, ehci_qtd_t* qtd, uint8_t const* buffer);
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
@@ -726,6 +728,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
+  qhd->remaining = 0;
+  qhd->xferred = 0;
   qtd_init(td, setup_packet, 8);
   td->pid = EHCI_PID_SETUP;
 
@@ -767,20 +771,20 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     }
 
     qtd = qtd_control(dev_addr);
-    qtd_init(qtd, buffer, buflen);
-
-    // first data toggle is always 1 (data & setup stage)
-    qtd->data_toggle = 1;
-    qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
   } else {
     // skip if endpoint is halted
     TU_VERIFY(!qhd->qtd_overlay.halted);
 
     qtd = qtd_find_free();
     TU_ASSERT(qtd);
+  }
 
-    qtd_init(qtd, buffer, buflen);
-    qtd->pid = qhd->pid;
+  qhd->remaining = buflen;
+  qhd->xferred = 0;
+  qtd_init_chunk(qhd, qtd, buffer);
+  qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+  if (epnum == 0) {
+    qtd->data_toggle = 1; // first data toggle is always 1 (data & setup stage)
   }
 
   // IN transfer: invalidate buffer, OUT transfer: clean buffer
@@ -1347,6 +1351,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
       return;
     }
     TU_MEMORY_BARRIER();
+    bool const next_chunk = !qhd->removing && qtd_chunk_continues(qhd, qtd);
     xfer_result_t xfer_result;
 
     if ( qtd_overlay->halted ) {
@@ -1366,11 +1371,26 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
     }
 
     uint8_t const dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
-    uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
+    uint32_t const origin = qhd->attached_buffer - qhd->xferred;
+    qhd->xferred = (uint16_t) (qhd->xferred + qtd->expected_bytes - qtd->total_bytes);
+    uint16_t const xferred_bytes = qhd->xferred;
+
+    if (next_chunk) {
+      // Re-arm the retired qTD with the next chunk; USBH sees only the final completion.
+      uint8_t const pid = qtd->pid;
+      uint8_t const toggle = qtd_overlay->data_toggle;
+      qtd_init_chunk(qhd, qtd, (uint8_t const*) (uintptr_t) (origin + xferred_bytes));
+      qtd->pid = pid;
+      if (qhd->data_toggle_control) {
+        qtd->data_toggle = toggle;
+      }
+      qhd_attach_qtd(qhd, qtd);
+      return;
+    }
 
     // invalidate dcache if IN transfer with data
-    if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
-      hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
+    if (dir == 1 && origin != 0 && xferred_bytes > 0) {
+      hcd_dcache_invalidate((void*) (uintptr_t) origin, xferred_bytes);
     }
 
     // remove and free TD before invoking callback
@@ -1713,8 +1733,15 @@ static void qhd_remove_qtd(ehci_qhd_t *qhd) {
 
   qhd->attached_qtd = NULL;
   qhd->attached_buffer = 0;
+  qhd->remaining = 0;
+  qhd->xferred = 0;
 
   qtd->used = 0; // free QTD
+}
+
+// The attached qTD retired a full chunk without error and more chunks remain
+static bool qtd_chunk_continues(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd) {
+  return !qtd->active && !qhd->qtd_overlay.halted && qtd->total_bytes == 0 && qhd->remaining > 0;
 }
 
 //--------------------------------------------------------------------+
@@ -1756,6 +1783,20 @@ static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes) 
   for(uint8_t i=1; i<5; i++) {
     qtd->buffer[i] |= tu_align4k(qtd->buffer[i - 1] ) + 4096;
   }
+}
+
+// Init the qTD with the next chunk of the QH's transfer starting at buffer. A qTD
+// reaches at most five 4 KiB pages (EHCI 3.5); a chunk that is not the last ends
+// on a whole packet, so no short packet falls mid-transfer.
+static void qtd_init_chunk(ehci_qhd_t* qhd, ehci_qtd_t* qtd, uint8_t const* buffer) {
+  uint32_t const capacity = 5 * 4096u - ((uint32_t) (uintptr_t) buffer & 0xfffu);
+  uint16_t len = qhd->remaining;
+  if (len > capacity) {
+    uint16_t const mps = qhd->max_packet_size;
+    len = (uint16_t) (capacity - (mps ? capacity % mps : 0));
+  }
+  qhd->remaining = (uint16_t) (qhd->remaining - len);
+  qtd_init(qtd, buffer, len);
 }
 
 #endif
