@@ -13,6 +13,8 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
+# QingKe RTT lock for SYSVIEW and LOGGER=rtt, see the header
+set(FAMILY_RTT_CONF ${CMAKE_CURRENT_LIST_DIR}/rtt_conf_qingke.h)
 
 if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
@@ -107,11 +109,6 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V307)
-
-  if (SYSVIEW)
-    # Work around lib/SEGGER_RTT's generic RISC-V lock trapping on WCH's QingKe core, see the header.
-    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf.h)
-  endif ()
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c

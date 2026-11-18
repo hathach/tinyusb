@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-// Force-included in SYSVIEW builds (family.cmake) so it claims SEGGER_RTT_CONF_H before the vendored
-// lib/SEGGER_RTT/Config/SEGGER_RTT_Conf.h, whose generic RISC-V lock reads mstatus with csrr and
-// traps (mcause=2) on WCH's QingKe core. The values match that file's defaults.
+// Force-included wherever SEGGER_RTT.c is built, SYSVIEW or LOGGER=rtt (FAMILY_RTT_CONF in family_support.cmake/.mk),
+// so it claims SEGGER_RTT_CONF_H before the vendored lib/SEGGER_RTT/Config/SEGGER_RTT_Conf.h, whose generic RISC-V
+// lock reads mstatus and traps (mcause=2): the QingKe startup mrets to main in U-mode. The values match that file's
+// defaults.
 #ifndef SEGGER_RTT_CONF_H
 #define SEGGER_RTT_CONF_H
 

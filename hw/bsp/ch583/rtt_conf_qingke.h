@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-// Force-included in SYSVIEW builds (family.cmake) so it claims SEGGER_RTT_CONF_H before the vendored
-// lib/SEGGER_RTT/Config/SEGGER_RTT_Conf.h, whose generic RISC-V lock reads mstatus with csrr and
-// traps (mcause=2) on WCH's QingKe core. The values match that file's defaults.
+// Force-included wherever SEGGER_RTT.c is built, SYSVIEW or LOGGER=rtt (FAMILY_RTT_CONF in family_support.cmake/.mk),
+// so it claims SEGGER_RTT_CONF_H before the vendored lib/SEGGER_RTT/Config/SEGGER_RTT_Conf.h, whose generic RISC-V
+// lock reads mstatus and traps (mcause=2): the QingKe startup mrets to main in U-mode. The values match that file's
+// defaults.
 #ifndef SEGGER_RTT_CONF_H
 #define SEGGER_RTT_CONF_H
 
@@ -17,13 +18,14 @@
 #define SEGGER_RTT_MODE_DEFAULT         SEGGER_RTT_MODE_NO_BLOCK_SKIP
 #define SEGGER_RTT_MEMCPY_USE_BYTELOOP  0
 
-// QingKe masks interrupts in CSR 0x800 (gintenr) and its manual requires fence.i after masking through a CSR, as
-// the SDK's __disable_irq() does. SEGGER_RTT locks from task and ISR context, so LOCK saves the CSR and UNLOCK
+// QingKe masks interrupts in CSR 0x800; PFIC_DisableAllIRQ() (RVMSIS/core_riscv.h) writes 0x80 and
+// follows with fence.i. SEGGER_RTT locks from task and ISR context, so LOCK saves the CSR and UNLOCK
 // restores it instead of re-enabling.
 #define SEGGER_RTT_LOCK() {                                       \
     unsigned int _seg_rtt_lock_state;                             \
     __asm volatile("csrr %0, 0x800" : "=r"(_seg_rtt_lock_state)); \
-    __asm volatile("csrc 0x800, %0\n fence.i" ::"r"(0x88) : "memory");
+    __asm volatile("csrw 0x800, %0" ::"r"(0x80) : "memory");      \
+    __asm volatile("fence.i");
 #define SEGGER_RTT_UNLOCK()                                                 \
     __asm volatile("csrw 0x800, %0" ::"r"(_seg_rtt_lock_state) : "memory"); \
   }

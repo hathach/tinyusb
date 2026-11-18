@@ -13,6 +13,9 @@ SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
+# QingKe RTT lock for LOGGER=rtt, see the header
+FAMILY_RTT_CONF = $(TOP)/$(FAMILY_PATH)/rtt_conf_qingke.h
+
 CFLAGS += \
 	-flto \
 	-msmall-data-limit=16 \
