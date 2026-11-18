@@ -217,10 +217,7 @@ static void update_out(uint8_t rhport, uint8_t ep_num, uint16_t rx_len) {
     ep0_rx_tog = !ep0_rx_tog;
   }
 
-  // the next packet's RX DMA address must be 4-byte aligned (CH32V407RM 22.2.1.23), so end the transfer here
-  const bool next_rx_dma_unaligned = (ep_num != 0) && ((xfer->queued_len & 3u) != 0);
-
-  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size) || next_rx_dma_unaligned) {
+  if ((xfer->queued_len == xfer->total_len) || (len < xfer->max_size)) {
     // Leave the endpoint idle before reporting: with TUP_USBD_XFER_ISR a class callback runs inside
     // dcd_event_xfer_complete() and may queue the next transfer, which nothing here may overwrite.
     // RES=NAK is documented as "respond with NAK or busy": with no xfer queued this must reject
