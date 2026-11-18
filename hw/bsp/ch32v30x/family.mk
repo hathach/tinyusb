@@ -18,7 +18,7 @@ RHPORT_HOST ?= 1
 CFLAGS += -DBOARD_TUH_RHPORT=$(RHPORT_HOST)
 
 # Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
-ifeq ($(filter-out high,$(SPEED)),)
+ifneq ($(filter undefined,$(origin SPEED))$(filter high,$(SPEED)),)
   WCH_HOST_USBIP ?= usbfs
 else
   WCH_HOST_USBIP ?= usbhs

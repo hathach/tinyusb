@@ -18,9 +18,11 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-# Drop the usbfs default an older family.cmake cached under this help string; usbhs there was the user's -D.
+# Drop the usbfs default an older family.cmake cached under this help string, unless a -D set it (recorded by
+# sysview_record_command_line, which that family.cmake already had); usbhs there was the user's -D.
 get_property(_wch_host_usbip_help CACHE WCH_HOST_USBIP PROPERTY HELPSTRING)
-if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs" AND "$CACHE{WCH_HOST_USBIP}" STREQUAL usbfs)
+if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs" AND "$CACHE{WCH_HOST_USBIP}" STREQUAL usbfs
+    AND NOT "WCH_HOST_USBIP" IN_LIST SYSVIEW_COMMAND_LINE_VARS)
   unset(WCH_HOST_USBIP CACHE)
 endif ()
 unset(_wch_host_usbip_help)
