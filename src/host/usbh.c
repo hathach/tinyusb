@@ -2087,8 +2087,11 @@ static void enum_new_device(hcd_event_t *event) {
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t *xfer) {
-  if ((uint8_t) (xfer->user_data >> 8) != _usbh_data.enum_gen) {
-    TU_LOG_USBH("Drop a request of an earlier enumeration attempt\r\n");
+  // usbh_device_close() ends an attempt without bumping enum_gen. A request still in flight then, e.g. the parent hub's
+  // PORT_RESET (sent to the hub, so xfer->daddr can't tell), must not run the next stage or complete the attempt again.
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 ||
+      (uint8_t) (xfer->user_data >> 8) != _usbh_data.enum_gen) {
+    TU_LOG_USBH("Drop a request of an ended enumeration attempt\r\n");
     return;
   }
 

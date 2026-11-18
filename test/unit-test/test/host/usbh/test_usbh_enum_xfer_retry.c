@@ -420,6 +420,41 @@ void test_stale_queued_resend_does_not_affect_next_device(void) {
   TEST_ASSERT_TRUE(tu_fifo_empty(&_usbh_pending_ctrl_q));
 }
 
+// End the attempt as usbh_device_close(0) does when the device's parent hub goes away, while a request sent to another
+// address (the hub's PORT_RESET) is still in flight. Its completion belongs to no attempt.
+static void end_attempt_with_request_in_flight(void) {
+  send_first_request();
+  _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+  _usbh_data.call_after.func   = NULL;
+}
+
+// A late success does not run the next stage, nor complete the attempt again: nothing is sent, no delay takes the slot
+// a new attach needs, and no root port retry is posted
+void test_success_after_attempt_ended_is_dropped(void) {
+  end_attempt_with_request_in_flight();
+  setup_send_count = 0;
+  request_succeeds(&desc_device, 8);
+
+  TEST_ASSERT_EQUAL_UINT32(0, setup_send_count); // no SET_ADDRESS
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL_UINT8(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.root_retry_count);
+  TEST_ASSERT_TRUE(osal_queue_empty(_usbh_q));
+}
+
+// A late failure does not complete the attempt again: no root port retry is posted for it
+void test_failure_after_attempt_ended_is_dropped(void) {
+  end_attempt_with_request_in_flight();
+  // address 0 is no longer connected, so usbh completes the request as FAILED without resending it
+  usbh_control_xfer_cb(0, 0, XFER_RESULT_FAILED, 0);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.root_retry_count);
+  TEST_ASSERT_TRUE(osal_queue_empty(_usbh_q));
+}
+
 // The resend cannot even be queued (slot busy, pending queue full): the attempt falls back to a port reset
 void test_resend_not_queued_resets_port(void) {
   send_first_request();
