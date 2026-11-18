@@ -37,7 +37,7 @@ can actually build.
 | 4 | `src/portable/<port>/hcd_*`, `*_host.[ch]` | `FAM` | `HOST`+`DUAL` | `FAM`'s host-role boards → host+dual tests |
 | 5 | `src/portable/<port>/**` (anything else) | `FAM` | `ALL` | `FAM`'s boards → all their tests |
 | 5b | `src/portable/<port>/**` where `FAM` is empty | — | — | — (empty resolves to nothing on BOTH axes) |
-| 6 | `hw/bsp/<family>/**` | that family | `ALL` | that family's boards → all tests (a `boards/<board>/` path narrows to that board) |
+| 6 | `hw/bsp/<family>/**` (not rule 16d's headers, which take precedence) | that family | `ALL` | that family's boards → all tests (a `boards/<board>/` path narrows to that board) |
 | 7 | `hw/mcu/<vendor>/**` | `FAM` — empty resolves to nothing (maintainer ruling) | `ALL` | `FAM`'s boards → all tests; empty resolves to nothing (maintainer ruling) |
 | 8 | `src/class/<cls>/*_device.[ch]` | `ALL` | examples enabling `CFG_TUD_<CLS>` | device-role boards → HIL tests enabling `CFG_TUD_<CLS>` |
 | 9 | `src/class/<cls>/*_host.[ch]` | `ALL` | examples enabling `CFG_TUH_<CLS>` | host-role boards → HIL tests enabling `CFG_TUH_<CLS>` |
@@ -52,7 +52,7 @@ can actually build.
 | 16a | `lib/<name>/**` | `ALL` | examples whose own `CMakeLists.txt`/`Makefile` names `lib/<name>` | those examples that are HIL tests, on all boards; empty resolves to nothing |
 | 16b | `tools/get_deps.py` | families whose `deps_mandatory`/`deps_optional` entries changed | `ALL` | those families' boards → all tests; a logic change, an `'all'` entry, no base content or a changed token naming no family → full |
 | 16c | `lib/SystemView/**`, its `tools/get_deps.py` pin; `lib/SEGGER_RTT/**` too (also rule 16a) | — | — | roster boards with a `sysview` entry → their capture example (only a `SYSVIEW=<level>` configure reads these: hil-build's traced leg for the selected boards) |
-| 16d | `hw/bsp/rtt_conf_cortexm.h` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` (rules 16a, 16c): every SYSVIEW and LOGGER=rtt configure force-includes it |
+| 16d | `hw/bsp/rtt_conf_cortexm.h`, `hw/bsp/<family>/rtt_conf_qingke.h` (ahead of rule 6) | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` | as `lib/SEGGER_RTT` (rules 16a, 16c): every SYSVIEW and LOGGER=rtt configure force-includes them |
 | 17a | anything unclassified in a build-input location: `src/`, `hw/`, `examples/`, `lib/`, `cmake/`, `zephyr/`, root build files (no tracked file reaches this — TestNoBuildInputIsUnclassified) | `ALL` | `ALL` | all boards → all tests (fail-open) |
 | 17b | anything unclassified elsewhere (`tools/`, `.github/`, `test/`, dot-dirs, other root files) | — | — | — |
 """
@@ -149,8 +149,9 @@ _CI_BOARDS_RE = re.compile(r'^\.github/ci-pinned-boards\.json$')
 # a roster sysview entry, so the HIL axis selects those boards' capture example. lib/SEGGER_RTT is compiled into
 # every traced build too.
 _SYSVIEW_DEP = 'lib/SystemView'
-# the RTT lock: force-included by every configure that compiles lib/SEGGER_RTT, so it is classified as that lib
-_RTT_CONF = 'hw/bsp/rtt_conf_cortexm.h'
+# the RTT locks: every SYSVIEW/LOGGER=rtt configure force-includes them (the family ones through FAMILY_RTT_CONF), so
+# they are classified as lib/SEGGER_RTT, ahead of rule 6
+_RTT_CONF_RE = re.compile(r'^hw/bsp/(?:rtt_conf_cortexm\.h|[^/]+/rtt_conf_qingke\.h)$')
 # Size scripts every pinned build leg runs (membrowse_cli.py from family_add_membrowse(),
 # code_size.py's CI snapshot): which family they break is data, not code, so full build
 # matrix as rule 2c. No rig board runs them.
@@ -832,7 +833,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         return
 
     m = re.match(r'hw/bsp/([^/]+)/(?:boards/([^/]+)/)?', path)
-    if m:
+    if m and not _RTT_CONF_RE.match(path):
         fam, brd = m.group(1), m.group(2)
         s.families.add(fam)
         if brd:
@@ -867,7 +868,7 @@ def _classify_one(path, repo_root, roster_boards, extras: set, s: _Sel,
         _select_sysview_capture(s, path, roster_boards)
         return
 
-    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if path == _RTT_CONF else path)   # rule 16d
+    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if _RTT_CONF_RE.match(path) else path)   # rule 16d
     if m:
         lib = m.group(1)
         # only the tests whose example builds the lib, and only those the rig runs
@@ -1406,7 +1407,7 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
             return
         s.add(path, 'port', fams, exs, reason, fams, port)
         return
-    if re.match(r'hw/bsp/[^/]+/', path):                          # rule 6
+    if re.match(r'hw/bsp/[^/]+/', path) and not _RTT_CONF_RE.match(path):   # rule 6
         fam = path.split('/')[2]
         s.add(path, 'bsp', {fam}, 'all', f'{path}: bsp family {fam}', {fam})
         return
@@ -1469,18 +1470,16 @@ def _classify_build_one(path, repo_root, s: _BSel, get_deps_families=None):
         s.note(path, 'sysview', 'gap', f'{path}: read only by a SYSVIEW build, which only hil-build\'s traced legs '
                                        f'(HIL selection) set, no contribution')
         return
-    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if path == _RTT_CONF else path)   # rule 16d
+    m = re.match(r'lib/([^/]+)/', 'lib/SEGGER_RTT/' if _RTT_CONF_RE.match(path) else path)   # rule 16d
     if m:                                                         # rule 16a
         lib = m.group(1)
         exs = lib_examples(lib, repo_root)
         if not exs:
             # empty means empty: no example's build pulls this lib in, so no MAIN-
             # matrix build compiles it. (lib/SEGGER_RTT is reached through LOGGER=rtt,
-            # which the main matrix never sets; the hil-build legs set it only for
-            # roster boards whose variant defines carry it, via the HIL SEGGER_RTT rule.
-            # No committed CI roster has such a board yet, so a SEGGER_RTT edit is
-            # currently neither built nor HIL-tested by CI -- verify vendor bumps
-            # manually until a rig board adopts "logger": "rtt".)
+            # which the main matrix never sets; the HIL SEGGER_RTT rule selects its
+            # roster consumers, ea4088_quickstart's LOGGER=rtt variant and the sysview
+            # boards. No WCH board builds LOGGER=rtt in CI.)
             s.note(path, 'lib', 'gap', f'{path}: lib {lib} built by no example, no contribution')
             return
         s.add(path, 'lib', all_bsp_families(repo_root), exs, f'{path}: lib {lib} -> {sorted(exs)}')
