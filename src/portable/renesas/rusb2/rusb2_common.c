@@ -23,7 +23,19 @@ rusb2_controller_t rusb2_controller[] = {
   {.reg_base = R_USB_HS0_BASE, .irqnum = USBHS_USB_INT_RESUME_IRQn},
     #endif
 };
+  #elif TU_CHECK_MCU(OPT_MCU_SYNERGY)
+    #include "rusb2_synergy.h"
 
+// IRQ numbers are looked up from the SSP vector table by rusb2_module_start()
+rusb2_controller_t rusb2_controller[] = {
+  {.reg_base = R_USBFS_BASE, .irqnum = SSP_INVALID_VECTOR},
+    #ifdef RUSB2_SUPPORT_HIGHSPEED
+  {.reg_base = R_USBHS_BASE, .irqnum = SSP_INVALID_VECTOR},
+    #endif
+};
+  #endif
+
+  #if TU_CHECK_MCU(OPT_MCU_RAXXX, OPT_MCU_SYNERGY)
 // Application API for setting IRQ number. May throw warnings for missing prototypes.
 void tusb_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum);
 void tusb_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum) {

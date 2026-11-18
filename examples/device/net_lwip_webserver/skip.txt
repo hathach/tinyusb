@@ -21,6 +21,7 @@ family:espressif
 board:at_start_f425
 board:curiosity_nano
 board:frdm_kl25z
+board:dk_s124
 # lpc55 has weird error 'ncm_interface' causes a section type conflict with 'ntb_parameters'
 #family:lpc55
 family:nuc126
