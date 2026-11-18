@@ -104,7 +104,8 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
   bool     frame_abort_pending;                              /* Drain a queued bulk payload before releasing its frame. */
 
-  video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
+  video_probe_and_commit_control_t probe_payload;  /* Probe control: the settings being negotiated */
+  video_probe_and_commit_control_t commit_payload; /* Commit control: the settings the application last accepted */
 } videod_streaming_interface_t;
 
 typedef struct {
@@ -129,9 +130,9 @@ static videod_interface_t _videod_itf[CFG_TUD_VIDEO];
 static videod_streaming_interface_t _videod_streaming_itf[CFG_TUD_VIDEO_STREAMING];
 CFG_TUD_MEM_SECTION static videod_streaming_epbuf_t _videod_streaming_epbuf[CFG_TUD_VIDEO_STREAMING];
 
-/* Receives the data of a COMMIT SET_CUR, which is stored only once tud_video_commit_cb() accepts
- * it, so a rejected COMMIT keeps the committed values. Control transfers are serialized, so one
- * buffer serves every stream. */
+/* Receives the data of a COMMIT SET_CUR, which is stored in commit_payload only once
+ * tud_video_commit_cb() accepts it, so a rejected COMMIT keeps the committed values even after a
+ * PROBE of the rejected ones. Control transfers are serialized, so one buffer serves every stream. */
 static video_probe_and_commit_control_t _videod_commit_param;
 
 /* Serializes frame ownership between tud_video_n_frame_xfer() in an application task and the
@@ -882,9 +883,11 @@ static bool _init_vs_configuration(videod_streaming_interface_t *stm) {
   /* initialize streaming settings */
   stm->state = VS_STATE_PROBING;
   stm->max_payload_transfer_size = 0;
-  video_probe_and_commit_control_t *param = &stm->probe_commit_payload;
+  video_probe_and_commit_control_t *param = &stm->probe_payload;
   tu_memclr(param, sizeof(*param));
-  return _update_streaming_parameters(stm, param);
+  TU_VERIFY(_update_streaming_parameters(stm, param));
+  stm->commit_payload = *param; /* nothing committed yet: COMMIT reports the defaults, as PROBE does */
+  return true;
 }
 
 /** Set the alternate setting to own video streaming interface.
@@ -1207,10 +1210,10 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_commit_payload, sizeof(video_probe_and_commit_control_t)),
+            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_payload, sizeof(video_probe_and_commit_control_t)),
                       VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
-            TU_VERIFY(_update_streaming_parameters(stm, &stm->probe_commit_payload),
+            TU_VERIFY(_update_streaming_parameters(stm, &stm->probe_payload),
                       VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
           } else {
             // nothing to do
@@ -1220,7 +1223,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength != 0, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -1230,7 +1233,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_DEF:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength != 0, VIDEO_ERROR_UNKNOWN);
-            video_probe_and_commit_control_t tmp = stm->probe_commit_payload;
+            video_probe_and_commit_control_t tmp = stm->probe_payload;
             TU_VERIFY(_negotiate_streaming_parameters(stm, request->bRequest, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             TU_VERIFY(tud_control_xfer(rhport, request, &tmp, sizeof(tmp)), VIDEO_ERROR_UNKNOWN);
           }
@@ -1259,8 +1262,8 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            /* A shorter COMMIT updates only its leading fields, as it would in place. */
-            _videod_commit_param = stm->probe_commit_payload;
+            /* A shorter COMMIT updates only its leading fields: the rest come from the probe it commits. */
+            _videod_commit_param = stm->probe_payload;
             TU_VERIFY(tud_control_xfer(rhport, request, &_videod_commit_param, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
             video_probe_and_commit_control_t *param = &_videod_commit_param;
@@ -1272,7 +1275,8 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
             int ret = tud_video_commit_cb(stm->index_vc, stm->index_vs, param);
             if (VIDEO_ERROR_NONE == ret) {
               bool dropped = false;
-              stm->probe_commit_payload = *param;
+              stm->commit_payload = *param;
+              stm->probe_payload  = *param;
               (void)osal_mutex_lock(_videod_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
               stm->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
               stm->state = VS_STATE_COMMITTED;
@@ -1307,7 +1311,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength != 0, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, &stm->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer(rhport, request, &stm->commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 

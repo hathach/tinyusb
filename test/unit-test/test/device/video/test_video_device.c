@@ -219,6 +219,22 @@ void test_video_rejected_commit_keeps_committed_values(void) {
   TEST_ASSERT_EQUAL_UINT32(3, committed.dwMaxPayloadTransferSize);
 }
 
+// A host probes the settings it then commits. Rejecting that COMMIT keeps the last accepted settings: the PROBE before
+// it must not have replaced them, while PROBE still reports what was probed.
+void test_video_rejected_commit_after_probe_keeps_committed_values(void) {
+  accept_commit = true;
+  commit_interval(10000000);
+
+  TEST_ASSERT_TRUE(vs_set_cur(1, VIDEO_VS_CTL_PROBE, 1000000));
+  accept_commit = false;
+  commit_interval(1000000);
+
+  video_probe_and_commit_control_t committed = vs_get_cur(1, VIDEO_VS_CTL_COMMIT);
+  TEST_ASSERT_EQUAL_UINT32(10000000, committed.dwFrameInterval);
+  TEST_ASSERT_EQUAL_UINT32(3, committed.dwMaxPayloadTransferSize);
+  TEST_ASSERT_EQUAL_UINT32(1000000, vs_get_cur(1, VIDEO_VS_CTL_PROBE).dwFrameInterval);
+}
+
 // usbd ignores the class result for both SET and CLEAR_FEATURE(ENDPOINT_HALT); only the SET_FEATURE
 // return shows endpoint ownership.
 void test_video_set_halt_reports_endpoint_ownership(void) {

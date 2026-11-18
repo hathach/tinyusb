@@ -129,6 +129,7 @@ static uint16_t payload_length;
 static uint8_t  payload_ep;
 static void    *control_buffer;
 static uint8_t  control_in[sizeof(video_probe_and_commit_control_t)];
+static uint16_t control_in_len; // bytes of the last IN data stage copied to control_in
 static uint8_t  frame[512];
 // A frame the next release callback submits, as an application refilling from that callback does.
 static uint8_t *resubmit_frame;
@@ -147,7 +148,8 @@ bool tud_control_xfer(uint8_t rhport, const tusb_control_request_t *request, voi
   control_buffer = buffer;
   if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
     // The data stage of an IN request may come from the class's stack: copy it as the core does.
-    memcpy(control_in, buffer, TU_MIN(length, sizeof(control_in)));
+    control_in_len = TU_MIN(length, sizeof(control_in));
+    memcpy(control_in, buffer, control_in_len);
   }
   return true;
 }
@@ -256,8 +258,10 @@ static inline video_probe_and_commit_control_t vs_get_cur(uint8_t itf, uint8_t s
                                     .wValue        = (uint16_t)(selector << 8),
                                     .wIndex        = itf,
                                     .wLength       = sizeof(video_probe_and_commit_control_t)};
+  control_in_len = 0;
   TEST_ASSERT_TRUE(videod_control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
   video_probe_and_commit_control_t parameters;
+  TEST_ASSERT_EQUAL_UINT16(sizeof(parameters), control_in_len); // the whole control, not leading fields only
   memcpy(&parameters, control_in, sizeof(parameters));
   return parameters;
 }
