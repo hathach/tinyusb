@@ -59,7 +59,8 @@ static volatile bool port_resetting = false;
 static volatile bool port_reconnecting = false;
 static volatile uint32_t port_reconnect_start;
 enum {
-  PORT_RECONNECT_TIMEOUT_US = 300000 // a HOST_CONN_DIS later than this after the reset is a real remove or attach
+  PORT_RECONNECT_TIMEOUT_US = 300000 // a HOST_CONN_DIS later than this after the reset is a real remove or attach, and a
+                                     // device not back by then is removed (sof_service())
 };
 
   #ifndef HAS_STOP_EPX_ON_NAK
@@ -933,7 +934,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool epx_sof_round_robin(void) {
   #endif
 
 // HOST_SOF is enabled while an EPX endpoint is pending (RP2040), EPX is held after an RX timeout with transfers pending,
-// or an interrupt endpoint has a transfer queued.
+// an interrupt endpoint has a transfer queued, or a port reset's reconnect window is open.
 static void __tusb_irq_path_func(sof_service)(void) {
   const uint32_t frame      = usb_hw->sof_rd; // also acknowledges HOST_SOF
   bool           sof_needed = false;
@@ -963,6 +964,19 @@ static void __tusb_irq_path_func(sof_service)(void) {
       sof_needed = true;
     } else {
       epx_start_next_pending();
+    }
+  }
+
+  // A device unplugged during the reconnect window may raise no HOST_CONN_DIS at all, and tuh_rhport_reset_bus() never
+  // asks hcd_port_connect_status(): one not back when the window ends is removed. One that is back has its
+  // HOST_CONN_DIS pending, which reports it.
+  if (port_reconnecting) {
+    if ((time_us_32() - port_reconnect_start) < PORT_RECONNECT_TIMEOUT_US) {
+      sof_needed = true;
+    } else if (dev_speed() == SIE_CTRL_SPEED_DISCONNECT) {
+      port_reconnecting = false;
+      port_resetting    = false;
+      hcd_event_device_remove(RHPORT_NATIVE, true);
     }
   }
 
@@ -1310,16 +1324,15 @@ void hcd_port_reset_end(uint8_t rhport) {
 
 bool hcd_port_connect_status(uint8_t rhport) {
   (void)rhport;
+  // read under the lock: a reconnect the IRQ took between the read and the update would be reported as no device
+  rp2usb_critical_enter();
   const bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
   if (!connected && port_reconnecting) {
     // usbh takes the reset device as gone: a later connect is a new attach, not the reset's reconnect
-    rp2usb_critical_enter();
-    if (port_reconnecting) {
-      port_reconnecting = false;
-      port_resetting    = false;
-    }
-    rp2usb_critical_exit();
+    port_reconnecting = false;
+    port_resetting    = false;
   }
+  rp2usb_critical_exit();
   return connected;
 }
 
