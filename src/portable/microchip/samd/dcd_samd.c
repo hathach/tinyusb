@@ -18,7 +18,7 @@
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 
-// OUT length armed by dcd_edpt_xfer(): BYTE_COUNT exceeds it if not a multiple of PCKSIZE.SIZE (SAM D5x 38.6.2.8)
+// OUT length armed by dcd_edpt_xfer(): BYTE_COUNT can overshoot it unless a multiple of PCKSIZE.SIZE (DS 38.6.2.8)
 static uint16_t _out_xfer_len[8];
 
 // Setup packet is only 8 bytes in length. However under certain scenario,
