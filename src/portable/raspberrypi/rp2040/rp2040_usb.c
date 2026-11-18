@@ -278,10 +278,15 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
 
     #if CFG_TUSB_RP2_ERRATA_E15
   if (ep->e15_bulk_in) {
+    // Discard a stale SOF latch and wait for a fresh frame before arming after idle.
+    const bool sof_was_off = !(usb_hw->inte & USB_INTS_DEV_SOF_BITS);
+    if (sof_was_off) {
+      (void)usb_hw->sof_rd;
+    }
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
 
     // skip transfer if we are in critical frame period
-    if (e15_is_critical_frame_period()) {
+    if (sof_was_off || e15_is_critical_frame_period()) {
       ep->e15_idle = 3; // nothing armed yet
       ep->state    = EPSTATE_PENDING;
       hw_endpoint_lock_update(ep, -1);
