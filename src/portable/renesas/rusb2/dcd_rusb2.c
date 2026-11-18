@@ -1126,6 +1126,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
     dcd_int_enable(rhport);
     return false;
   }
+  pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
   rusb->PIPEMAXP          = tu_edpt_packet_size(desc_ep);
   *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
   dcd_int_enable(rhport);
@@ -1214,6 +1215,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     }
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
+    pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
     rusb->PIPESEL = (uint16_t)num;
     // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
     // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
