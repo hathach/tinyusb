@@ -56,15 +56,17 @@ endfunction()
 # Functions
 #------------------------------------
 function(family_configure_example TARGET RTOS)
-  family_configure_common(${TARGET} ${RTOS})
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V103)
-
-  if (SYSVIEW)
-    # QingKe V3A has no gintenr at CSR 0x800, the other WCH families' RTT lock (QingKe V3 manual; writing it hung
-    # the board with the USB vector at PC=0); without a lock, RTT writes racing an ISR corrupt the stream
-    message(FATAL_ERROR "SYSVIEW needs an RTT lock; ch32v10x runs in U-mode where mstatus CSR "
+  # QingKe V3A has no gintenr at CSR 0x800, the other WCH families' RTT lock (QingKe V3 manual; writing it hung
+  # the board with the USB vector at PC=0); without a lock, RTT writes racing an ISR corrupt the stream.
+  # LOGGER is upper-cased only inside family_configure_common, so it is still raw here.
+  string(TOUPPER "${LOGGER}" _logger)
+  if (SYSVIEW OR _logger STREQUAL "RTT")
+    message(FATAL_ERROR "SYSVIEW and LOGGER=rtt need an RTT lock; ch32v10x runs in U-mode where mstatus CSR "
       "access traps and no safe mask is wired -- numbers would be silently corrupt")
   endif ()
+
+  family_configure_common(${TARGET} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32V103)
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c

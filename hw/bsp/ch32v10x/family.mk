@@ -14,6 +14,11 @@ SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
+# QingKe V3A has no gintenr at CSR 0x800 and main runs in U-mode, where the vendored mstatus RTT lock traps
+ifeq ($(LOGGER),rtt)
+$(error LOGGER=rtt needs an RTT lock; ch32v10x runs in U-mode where mstatus CSR access traps and no safe mask is wired)
+endif
+
 # Port0 use FSDev, Port1 use USBFS
 PORT ?= 0
 
