@@ -764,7 +764,11 @@ static void handle_usbevent_isr(void) {
   if (evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk) {
     // Put controller into low power mode
     // Leave HFXO disable to application, since it may be used by other peripherals
-    NRF_USBD->LOWPOWER = 1;
+    // A latched RESUME already took USBD out of Low Power; EVENTCAUSE keeps no order, so a coalesced
+    // suspend-resume-suspend stays in normal power (extra current, DMA still runs).
+    if (!(evt_cause & USBD_EVENTCAUSE_RESUME_Msk)) {
+      NRF_USBD->LOWPOWER = 1;
+    }
 
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
