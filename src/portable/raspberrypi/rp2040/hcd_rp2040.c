@@ -1334,10 +1334,11 @@ void hcd_port_reset_end(uint8_t rhport) {
   if (!port_resetting) {
     return;
   }
-  port_bus_reset(false);
   // The controller sees the device again only after its own attach sequence, ~150 ms on: hence the post-reset delay
-  // of at least 160 ms. Writing SIE_STATUS.SPEED acknowledges the disconnect the SE0 latched (clears HOST_CONN_DIS).
+  // of at least 160 ms. Writing SIE_STATUS.SPEED acknowledges the disconnect the SE0 latched (clears HOST_CONN_DIS);
+  // the release is under the lock so that no preemption lets the reconnect latch before that write clears it.
   rp2usb_critical_enter();
+  port_bus_reset(false);
   usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
   port_reconnect_start = time_us_32();
   port_reconnecting = true;
