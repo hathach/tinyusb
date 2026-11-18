@@ -228,13 +228,6 @@ static const dcd_controller_t _dcd_controller[] = {
   #define IP3511_HAS_HIGHSPEED
 #endif
 
-// HS ISO IN size erratum, on every currently supported HS IP3511 (LPC55xx, LPC54xxx)
-#ifdef IP3511_HAS_HIGHSPEED
-  #define ISO_IN_SIZE_ERRATUM(_rhport) (_dcd_controller[_rhport].is_highspeed)
-#else
-  #define ISO_IN_SIZE_ERRATUM(_rhport) ((void) (_rhport), false)
-#endif
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -265,9 +258,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool rhport_is_highspeed(uint8_t rhport) {
   return _dcd_controller[rhport].is_highspeed;
 }
 
-// Caller ensures the endpoint is ISO
+// Caller ensures the endpoint is ISO. HS ISO IN size erratum, on every currently supported HS IP3511
+// (LPC55xx, LPC54xxx); preprocessed out on FS-only parts, where a constant-false test is -Wunreachable-code
 TU_ATTR_ALWAYS_INLINE static inline bool iso_size_ok(uint8_t rhport, uint8_t ep_addr, uint16_t size) {
-  return !(ISO_IN_SIZE_ERRATUM(rhport) && tu_edpt_dir(ep_addr) == TUSB_DIR_IN && size > NBYTES_ISO_HS_IN_MAX);
+#ifdef IP3511_HAS_HIGHSPEED
+  return !(rhport_is_highspeed(rhport) && tu_edpt_dir(ep_addr) == TUSB_DIR_IN && size > NBYTES_ISO_HS_IN_MAX);
+#else
+  (void) rhport;
+  (void) ep_addr;
+  (void) size;
+  return true;
+#endif
 }
 
 
