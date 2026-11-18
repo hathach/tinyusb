@@ -43,6 +43,7 @@ typedef enum {
   HOOK_CLAIM_UNPLUG,         // the claim unlock: unplug DADDR
   HOOK_CLAIM_CAPTURE,        // the claim unlock: host task captures the slot, cb still to run
   HOOK_CLAIM_UNPLUG_RECLAIM, // the claim unlock: unplug DADDR, then an async xfer on DADDR2 takes the slot
+  HOOK_NEXT_UNPLUG_RECLAIM,  // as HOOK_CLAIM_UNPLUG_RECLAIM, one SETUP-stage unlock after the claim's
   HOOK_RETIRE,               // the unlock that retires the slot after hcd_setup_send() failed
   HOOK_RETIRE_RECLAIM,       // the retire unlock: an async xfer on DADDR2 takes the slot, then a late close of DADDR
 } hook_mode_t;
@@ -223,6 +224,12 @@ static bool unlock_hook(void) {
   const hook_mode_t mode = hook_mode;
 
   switch (mode) {
+    case HOOK_NEXT_UNPLUG_RECLAIM:
+      if (stage == CONTROL_STAGE_SETUP) {
+        hook_mode = HOOK_CLAIM_UNPLUG_RECLAIM;
+      }
+      break;
+
     case HOOK_CLAIM_UNPLUG:
     case HOOK_CLAIM_CAPTURE:
     case HOOK_CLAIM_UNPLUG_RECLAIM:
@@ -518,6 +525,20 @@ void test_sync_reclaimed_on_setup_failure_keeps_replacement(void) {
   TEST_ASSERT_EQUAL(2, setup_count);
   TEST_ASSERT_EQUAL(DADDR, setup_daddr[0]);
   TEST_ASSERT_EQUAL(DADDR2, setup_daddr[1]);
+  assert_replacement_slot();
+}
+
+// unplug + reclaim for DADDR2 right after the ownership check: DADDR's SETUP still goes out with its own request
+void test_sync_reclaim_cannot_split_check_and_submit(void) {
+  hook_mode = HOOK_NEXT_UNPLUG_RECLAIM;
+  tuh_xfer_t xfer = sync_xfer();
+
+  TEST_ASSERT_TRUE(tuh_control_xfer(&xfer));
+  TEST_ASSERT_EQUAL(XFER_RESULT_FAILED, xfer.result);
+  TEST_ASSERT_EQUAL(1, hook_fired);
+  TEST_ASSERT_EQUAL(2, setup_count);
+  assert_setup(0, DADDR, &request_get_device);
+  assert_setup(1, DADDR2, &request_b);
   assert_replacement_slot();
 }
 

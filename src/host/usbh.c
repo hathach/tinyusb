@@ -1118,35 +1118,30 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   TU_LOG_BUF_USBH(xfer->setup, 8);
 
   if (!is_nonblocking) {
+    // Check, submit and retire in one critical section, so a close cannot complete this xfer nor a reclaim overwrite
+    // _usbh_epbuf.request before the SETUP is out. No hcd_setup_send() locks _usbh_mutex (non-recursive).
     // A removal since the claim has completed this xfer through control_xfer_complete(): fail like a device
     // already gone, once its cb has run, without submitting to a closed device or touching a reclaimed slot.
     (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-    const bool owned = control_xfer_sync_owns_slot(ctrl_info, &sync_state);
-    (void) osal_mutex_unlock(_usbh_mutex);
-    if (!owned) {
-      control_xfer_sync_wait(&sync_state);
-      return false;
-    }
-  }
-
-  if (!hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request)) {
-    if (is_nonblocking) {
-      control_xfer_set_stage(CONTROL_STAGE_IDLE);
-      return false;
-    }
+    const bool sent = control_xfer_sync_owns_slot(ctrl_info, &sync_state) &&
+                      hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request);
     // Retire the slot only while it is still ours, clearing the cb so a late control_xfer_complete() cannot write
     // this frame's sync_state once it is gone; otherwise that cb is already running or done.
-    (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-    const bool owned = control_xfer_sync_owns_slot(ctrl_info, &sync_state);
-    if (owned) {
+    const bool retired = !sent && control_xfer_sync_owns_slot(ctrl_info, &sync_state);
+    if (retired) {
       ctrl_info->stage       = CONTROL_STAGE_IDLE;
       ctrl_info->complete_cb = NULL;
       ctrl_info->user_data   = 0;
     }
     (void) osal_mutex_unlock(_usbh_mutex);
-    if (!owned) {
-      control_xfer_sync_wait(&sync_state);
+    if (!sent) {
+      if (!retired) {
+        control_xfer_sync_wait(&sync_state);
+      }
+      return false;
     }
+  } else if (!hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request)) {
+    control_xfer_set_stage(CONTROL_STAGE_IDLE);
     return false;
   }
 
