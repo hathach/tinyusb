@@ -570,6 +570,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     (void) is_iso;
 #endif
     {
+      // A retired DD can leave DMA enabled until NDDR (UM10562 12.15.5.2).
+      // Disable it before DD reuse to avoid observed LPC4088 phantom IN completions (#4127).
+      LPC_USB->EpDMADis = TU_BIT(ep_id);
       tu_memclr(dd, sizeof(dma_desc_t));
       dd->max_packet_size = ep_size;
       dd->buffer = (uint32_t) buffer;
