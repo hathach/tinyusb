@@ -1326,8 +1326,9 @@ void hcd_port_reset_end(uint8_t rhport) {
 
 bool hcd_port_connect_status(uint8_t rhport) {
   (void)rhport;
+  const bool reconnecting = port_reconnecting; // before SPEED: a reconnect ends the window only once SPEED is set
   bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
-  if (!connected && port_reconnecting) {
+  if (!connected && reconnecting) {
     // re-read under the lock: a reconnect the IRQ took after the first read must be reported as connected
     rp2usb_critical_enter();
     connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
