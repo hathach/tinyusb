@@ -287,7 +287,31 @@ static void MPU_AdjustRegionAddressSize(uint32_t Address, uint32_t Size, MPU_Reg
   }
 }
 
+#ifdef XSPI_BOOT
+void xspi_boot_deinit(void);
+#endif
+
+#ifndef USB33_REGULATOR
+  #define USB33_REGULATOR 0
+#endif
+
+// PWR_CSR2 is reset by power-on only: set the USB regulator state explicitly, a regulator left
+// enabled by an earlier firmware keeps USB33RDY low when VDD33USB is supplied externally
+TU_ATTR_UNUSED static void usb_power_init(void) {
+#if USB33_REGULATOR
+  HAL_PWREx_EnableUSBReg();
+#else
+  HAL_PWREx_DisableUSBReg();
+#endif
+  HAL_PWREx_EnableUSBVoltageDetector();
+}
+
 void board_init(void) {
+#ifdef XSPI_BOOT
+  // image is in RAM now: stop the XSPI2 flash before the clocks are raised
+  xspi_boot_deinit();
+#endif
+
   HAL_Init();
 
   MPU_Config();
@@ -347,8 +371,7 @@ void board_init(void) {
 #if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0)
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 
-  HAL_PWREx_EnableUSBVoltageDetector();
-  HAL_PWREx_EnableUSBReg();
+  usb_power_init();
 
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
@@ -395,7 +418,7 @@ void board_init(void) {
   __HAL_RCC_USBPHYC_CLK_ENABLE();
 
   // Enable USB power
-  HAL_PWREx_EnableUSBVoltageDetector();
+  usb_power_init();
   HAL_PWREx_EnableUSBHSregulator();
 
 #if OTG_HS_VBUS_SENSE
