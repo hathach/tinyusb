@@ -824,7 +824,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #ifdef RUSB2_SUPPORT_HIGHSPEED
   if ( rusb2_is_highspeed_rhport(rhport) ) {
     rusb->SYSCFG_b.HSE = TUD_OPT_HIGH_SPEED ? 1 : 0; // FS-only build: no HS chirp
-    rusb2_utmi_phy_powerup(rusb);
+    TU_ASSERT(rusb2_utmi_phy_powerup(rusb));
 
     rusb->SYSCFG_b.DRPD = 0;
     rusb->SYSCFG_b.USBE = 1;
