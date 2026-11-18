@@ -135,9 +135,9 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   (void) rhport;
 
   if (en) {
-    USB->DEVICE.INTENSET.bit.SOF = 1;
+    USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF;
   } else {
-    USB->DEVICE.INTENCLR.bit.SOF = 1;
+    USB->DEVICE.INTENCLR.reg = USB_DEVICE_INTENCLR_SOF;
   }
 }
 
