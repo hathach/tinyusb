@@ -202,10 +202,10 @@ static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
 
 // Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
 // USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
-// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
+// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p640 notes 2-3).
 // Only D0FIFO serves non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM
-// 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; the next
-// bus reset re-inits it.
+// 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; a later
+// open or bus reset retries it; recovery is not guaranteed.
 static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
   volatile uint16_t *ctr = get_pipectr(rusb, num);
   if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
@@ -751,31 +751,33 @@ static void process_bus_reset(uint8_t rhport)
   rusb->BRDYENB = 1;
   rusb->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
 
+  // ACLRM needs PID = NAK, PBUSY = 0 and the pipe out of every port's CURPIPE (RA4M1 UM 27.2.30 p640
+  // notes 2-3; RA6M5 UM 29.3.7.1 p1004-1005), and >= 100 ns between ACLRM = 1 and 0 (RA4M1 p678,
+  // RA6M5 p907/p1009): pipe_reset() does both but checks only D0FIFOSEL, so deselect both ports here.
   rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
-
   rusb->D1FIFOSEL = 0;
-  while (rusb->D1FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
-
-  volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_CTR[0]));
-  volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_TR[0].E));
-
-  for (uint16_t i = 1; i <= 5; ++i) {
-    rusb->PIPESEL = i;
-    rusb->PIPECFG = 0;
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
-    ++ctr;
-    *tre = TU_BIT(8);
-    tre += 2;
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  bool deselected = true;
+  while (rusb->D0FIFOSEL_b.CURPIPE || rusb->D1FIFOSEL_b.CURPIPE) {
+    if (!spin--) {
+      deselected = false;
+      TU_LOG1("RUSB2: bus reset FIFO deselect timed out\r\n");
+      break;
+    }
   }
 
-  for (uint16_t i = 6; i <= 9; ++i) {
-    rusb->PIPESEL = i;
+  for (unsigned num = 1; deselected && num < PIPE_COUNT; num++) {
+    // TRCLR needs an empty buffer and PID != BUF (RA6M5 UM 29.3.7.5 p1006): after the ACLRM
+    if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk)) {
+      TU_LOG1("RUSB2: pipe %u bus-reset clear timed out, left NAKing\r\n", num);
+      continue;
+    }
+    rusb->PIPESEL = (uint16_t)num;
     rusb->PIPECFG = 0;
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
-    ++ctr;
+    volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+    if (pt) {
+      pt->TRE = TU_BIT(8);
+    }
   }
   tu_varclr(&_dcd);
 
