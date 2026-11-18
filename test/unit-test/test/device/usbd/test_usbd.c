@@ -583,6 +583,14 @@ void test_usbd_xfer_unaligned_buffer_refused(void) {
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf, 8, false));
 }
 
+// A zero-length packet moves no data: its buffer is not checked
+void test_usbd_xfer_zlp_unaligned_buffer_accepted(void) {
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x87, xfer_buf + 1, 0, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf + 1, 0, false));
+}
+
 // an idle endpoint: the same dcd sequence, and it stays claimable
 void test_usbd_edpt_abort_idle_endpoint(void) {
   msc_out_armed();
