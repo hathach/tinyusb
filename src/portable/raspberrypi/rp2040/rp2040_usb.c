@@ -257,17 +257,19 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
   const bool is_rx   = (is_host == (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN));
 
   #if CFG_TUD_ENABLED
-  if (!is_host && ep->future_len > 0) {
+  if (!is_host && ep->future_valid) {
     // Device only: previous short-packet abort saved data from the other buffer
     const uint16_t future_len = tu_min16(ep->future_len, ep->remaining_len);
+    const bool     is_short   = ep->future_len < ep->max_packet_size; // a saved short packet or ZLP ends this transfer
     memcpy(ep->user_buf, ep->dpram_buf + (ep->future_bufid << 6), future_len);
     ep->xferred_len += future_len;
     ep->remaining_len -= future_len;
     ep->user_buf += future_len;
+    ep->future_valid = false;
     ep->future_len   = 0;
     ep->future_bufid = 0;
 
-    if (ep->remaining_len == 0) {
+    if (is_short || ep->remaining_len == 0) {
       const uint16_t xferred_len = ep->xferred_len;
       rp2usb_reset_transfer(ep);
       dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, false);
@@ -411,6 +413,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue_ex)(hw_endpoint_t *ep, io_rw_32 *
       // buff_status will be clear by the next run
   #if CFG_TUD_ENABLED
       if (!is_host) {
+        ep->future_valid = true;
         ep->future_len   = (uint8_t)(buf_ctrl16_other & USB_BUF_CTRL_LEN_MASK);
         ep->future_bufid = buf_id ^ 1;
       }
