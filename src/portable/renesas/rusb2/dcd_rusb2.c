@@ -1326,7 +1326,8 @@ void dcd_int_handler(uint8_t rhport)
 
   // Buffer empty
   if ( is0 & RUSB2_INTSTS0_BEMP_Msk ) {
-    unsigned s = rusb->BEMPSTS & rusb->BEMPENB;
+    unsigned const enb = rusb->BEMPENB;
+    unsigned s = rusb->BEMPSTS & enb;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BEMPSTS = (uint16_t)~s;
     if ( s & 1 ) {

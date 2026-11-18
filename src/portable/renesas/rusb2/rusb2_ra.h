@@ -100,11 +100,11 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_module_start(uint8_t rhport, bool
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_enable(uint8_t rhport) {
-  NVIC_EnableIRQ(rusb2_controller[rhport].irqnum);
+  NVIC_EnableIRQ((IRQn_Type) rusb2_controller[rhport].irqnum);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void rusb2_int_disable(uint8_t rhport) {
-  NVIC_DisableIRQ(rusb2_controller[rhport].irqnum);
+  NVIC_DisableIRQ((IRQn_Type) rusb2_controller[rhport].irqnum);
 }
 
 // MCU specific PHY init
