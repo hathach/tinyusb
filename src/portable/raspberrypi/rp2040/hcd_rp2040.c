@@ -677,7 +677,8 @@ static void __tusb_irq_path_func(epx_poll_next_interval)(void) {
 //--------------------------------------------------------------------+
 // Interrupt handlers
 //--------------------------------------------------------------------+
-static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_result_t xfer_result, bool is_more) {
+// End the transfer on ep; returns its transferred length for the completion event
+static uint32_t __tusb_irq_path_func(xfer_retire)(hw_endpoint_t *ep, xfer_result_t xfer_result) {
   if (ep == epx && xfer_result != XFER_RESULT_SUCCESS) {
     // bufctrl_prepare16() toggled next_pid for every buffer it armed; give back the toggles of packets that never
     // completed on the wire, or the next transfer on this endpoint goes out with the wrong DATA PID (IN: DATA_SEQ
@@ -696,6 +697,11 @@ static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_resu
   uint32_t xferred_len = ep->xferred_len;
   rp2usb_reset_transfer(ep);
   ep->data_seq_retries = 0;
+  return xferred_len;
+}
+
+static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_result_t xfer_result, bool is_more) {
+  const uint32_t xferred_len = xfer_retire(ep, xfer_result);
   hcd_event_xfer_complete(ep->dev_addr, ep->ep_addr, xferred_len, xfer_result, true);
 
   // Carry more transfer on epx
@@ -1243,6 +1249,10 @@ static void port_bus_reset(bool active) {
 
 // Fail the transfer on EPX and hold EPX: the device it addresses is being reset
 static void port_reset_retire_epx(void) {
+  bool     retired     = false;
+  uint8_t  dev_addr    = 0;
+  uint8_t  ep_addr     = 0;
+  uint32_t xferred_len = 0;
   rp2usb_critical_enter();
   port_resetting = true;
   if (epx_is_aborting(epx)) {
@@ -1256,9 +1266,17 @@ static void port_reset_retire_epx(void) {
   #else
     epx_switch_request = false;
   #endif
-    xfer_complete_isr(epx, XFER_RESULT_FAILED, false);
+    dev_addr    = epx->dev_addr;
+    ep_addr     = epx->ep_addr;
+    xferred_len = xfer_retire(epx, XFER_RESULT_FAILED);
+    retired     = true;
   }
   rp2usb_critical_exit();
+  // Reported from task context, outside the critical section: an in_isr post may switch context directly
+  // (FreeRTOS RISC-V portYIELD_FROM_ISR calls vTaskSwitchContext())
+  if (retired) {
+    hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, XFER_RESULT_FAILED, false);
+  }
 }
 
 void hcd_port_reset(uint8_t rhport) {
