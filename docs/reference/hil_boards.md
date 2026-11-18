@@ -46,6 +46,6 @@
 |-----------------|---------|-----------|--------------------------------------|-------------------------------------------------------------|
 | stm32l412nucleo | device  | stlink    |                                      |                                                             |
 | stm32f746disco  | device  | stlink    | stm32f746disco, stm32f746disco-DMA   |                                                             |
-| stm32u5a5nucleo | device  | stlink    | stm32u5a5nucleo, stm32u5a5nucleo-DMA |                                                             |
+| stm32u5a5nucleo | device  | openocd   | stm32u5a5nucleo, stm32u5a5nucleo-DMA |                                                             |
 | ra4m2_ek        | device  | jlink     |                                      | no IAR linker config for ra: hil-hfp-iar builds it with gcc |
 | lpcxpresso43s67 | device  | jlink     |                                      |                                                             |
