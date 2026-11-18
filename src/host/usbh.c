@@ -1235,6 +1235,11 @@ static void control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   // Snapshot and set IDLE (before callback since cb can invoke another transfer) in one critical section: a sync
   // caller in tuh_control_xfer() tells from the slot under the mutex whether its cb has been captured.
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  // A caller's unlocked check can go stale: the slot retired by a sync caller, or reclaimed for another device
+  if (ctrl_info->stage == CONTROL_STAGE_IDLE || ctrl_info->daddr != daddr) {
+    (void) osal_mutex_unlock(_usbh_mutex);
+    return;
+  }
   request               = _usbh_epbuf.request;
   xfer_temp.actual_len  = (uint32_t) ctrl_info->actual_len;
   xfer_temp.buffer      = ctrl_info->buffer;

@@ -44,6 +44,7 @@ typedef enum {
   HOOK_CLAIM_CAPTURE,        // the claim unlock: host task captures the slot, cb still to run
   HOOK_CLAIM_UNPLUG_RECLAIM, // the claim unlock: unplug DADDR, then an async xfer on DADDR2 takes the slot
   HOOK_RETIRE,               // the unlock that retires the slot after hcd_setup_send() failed
+  HOOK_RETIRE_RECLAIM,       // the retire unlock: an async xfer on DADDR2 takes the slot, then a late close of DADDR
 } hook_mode_t;
 
 typedef enum {
@@ -55,6 +56,7 @@ typedef enum {
   SETUP_FORBIDDEN,           // (f) no SETUP may go out
   SETUP_CAPTURE_FAIL,        // (g) host task captures the slot, then the HCD refuses
   SETUP_UNPLUG_RECLAIM_FAIL, // (h) DADDR: unplug + reclaim for DADDR2, refused; DADDR2: accepted
+  SETUP_REFUSE_DADDR,        // (i) DADDR: refused; DADDR2: accepted
 } setup_mode_t;
 
 static hook_mode_t  hook_mode;
@@ -64,6 +66,7 @@ static bool         setup_returned_false;
 static uint8_t      setup_count;
 static uint8_t      setup_daddr[SETUP_CALL_MAX];
 static uintptr_t    setup_user_data[SETUP_CALL_MAX];
+static tusb_control_request_t setup_request[SETUP_CALL_MAX];
 
 // host task simulation: control_xfer_complete() has snapshotted and released the slot, cb not invoked yet
 static tuh_xfer_cb_t     captured_cb;
@@ -198,6 +201,11 @@ static void assert_slot_idle(void) {
   TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
 }
 
+static void assert_setup(uint8_t idx, uint8_t daddr, const tusb_control_request_t *request) {
+  TEST_ASSERT_EQUAL(daddr, setup_daddr[idx]);
+  TEST_ASSERT_EQUAL_MEMORY(request, &setup_request[idx], sizeof(tusb_control_request_t));
+}
+
 static void assert_replacement_slot(void) {
   const usbh_ctrl_xfer_info_t *ctrl_info = &_usbh_data.ctrl_xfer_info;
   TEST_ASSERT_NOT_EQUAL(CONTROL_STAGE_IDLE, ctrl_info->stage);
@@ -250,6 +258,17 @@ static bool unlock_hook(void) {
       break;
     }
 
+    case HOOK_RETIRE_RECLAIM:
+      if (stage != CONTROL_STAGE_IDLE || !setup_returned_false) {
+        return true;
+      }
+      hook_mode = HOOK_NONE;
+      hook_fired++;
+      reclaim_for_daddr2();
+      // a close of DADDR that passed usbh_device_close()'s unlocked stage check before the retire
+      control_xfer_complete(DADDR, XFER_RESULT_FAILED);
+      break;
+
     default:
       break;
   }
@@ -258,9 +277,9 @@ static bool unlock_hook(void) {
 
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
   (void) rhport;
-  (void) setup_packet;
   TEST_ASSERT_LESS_THAN(SETUP_CALL_MAX, setup_count);
   setup_daddr[setup_count]     = daddr;
+  memcpy(&setup_request[setup_count], setup_packet, sizeof(tusb_control_request_t));
   setup_user_data[setup_count] = _usbh_data.ctrl_xfer_info.user_data;
   setup_count++;
 
@@ -301,6 +320,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
       unplug();
       reclaim_for_daddr2();
       return fail_setup();
+
+    case SETUP_REFUSE_DADDR:
+      return (daddr == DADDR2) ? true : fail_setup();
 
     default:
       TEST_FAIL_MESSAGE("unknown setup mode");
@@ -348,6 +370,7 @@ void setUp(void) {
   setup_count          = 0;
   tu_memclr(setup_daddr, sizeof(setup_daddr));
   tu_memclr(setup_user_data, sizeof(setup_user_data));
+  tu_memclr(setup_request, sizeof(setup_request));
   cb_invoked         = false;
   runner_runs        = 0;
   async_cb_count     = 0;
@@ -495,5 +518,19 @@ void test_sync_reclaimed_on_setup_failure_keeps_replacement(void) {
   TEST_ASSERT_EQUAL(2, setup_count);
   TEST_ASSERT_EQUAL(DADDR, setup_daddr[0]);
   TEST_ASSERT_EQUAL(DADDR2, setup_daddr[1]);
+  assert_replacement_slot();
+}
+
+// retire after a refused SETUP, reclaim for DADDR2, then a late close of DADDR: DADDR2's transfer is not completed
+void test_sync_late_close_after_reclaim_keeps_replacement(void) {
+  setup_mode = SETUP_REFUSE_DADDR;
+  hook_mode  = HOOK_RETIRE_RECLAIM;
+  tuh_xfer_t xfer = sync_xfer();
+
+  TEST_ASSERT_FALSE(tuh_control_xfer(&xfer));
+  TEST_ASSERT_EQUAL(1, hook_fired);
+  TEST_ASSERT_EQUAL(2, setup_count);
+  assert_setup(0, DADDR, &request_get_device);
+  assert_setup(1, DADDR2, &request_b);
   assert_replacement_slot();
 }
