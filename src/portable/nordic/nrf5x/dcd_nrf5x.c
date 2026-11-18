@@ -205,8 +205,9 @@ static void dma_start_in_isr(uint8_t epnum);
 // Start queued requests while the channel is free: EP0 first, then ISO, then the other endpoints
 // round-robin. USBD ISR only, after its END events released the channel.
 static void dma_dispatch_isr(void) {
-  // NRF_USBD->ENABLE: an unplug disabled USBD; what is still pending is dropped by the next bus reset
-  while (!_dcd.dma_running && _dcd.dma_pending && NRF_USBD->ENABLE) {
+  // NRF_USBD->ENABLE: an unplug disabled USBD; what is still pending is dropped by the next bus reset.
+  // LOWPOWER: a DMA started in Low Power never ends; wait until resume, bus reset or ForceNormal clears it.
+  while (!_dcd.dma_running && _dcd.dma_pending && NRF_USBD->ENABLE && !NRF_USBD->LOWPOWER) {
     uint32_t pending = _dcd.dma_pending;
     // a SETUP received since this ISR captured its events retires EP0 when the next ISR handles it
     if ((pending & DMA_REQ_EP0) && NRF_USBD->EVENTS_EP0SETUP) {
