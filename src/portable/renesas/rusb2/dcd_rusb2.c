@@ -200,6 +200,16 @@ static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
   return true;
 }
 
+// STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30 p641)
+static void pipe_set_nak(volatile uint16_t *ctr) {
+  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
+    *ctr = RUSB2_PIPE_CTR_PID_STALL;
+  }
+  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) != RUSB2_PIPE_CTR_PID_NAK) {
+    *ctr = RUSB2_PIPE_CTR_PID_NAK;
+  }
+}
+
 // Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
 // USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
 // FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p640 notes 2-3).
@@ -208,12 +218,7 @@ static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
 // open or bus reset retries it; recovery is not guaranteed.
 static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
   volatile uint16_t *ctr = get_pipectr(rusb, num);
-  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
-    *ctr = RUSB2_PIPE_CTR_PID_STALL;
-  }
-  if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) != RUSB2_PIPE_CTR_PID_NAK) {
-    *ctr = RUSB2_PIPE_CTR_PID_NAK;
-  }
+  pipe_set_nak(ctr);
   if (rusb->D0FIFOSEL_b.CURPIPE == num) {
     rusb->D0FIFOSEL = 0;
   }
@@ -768,7 +773,13 @@ static void process_bus_reset(uint8_t rhport)
     }
   }
 
-  for (unsigned num = 1; deselected && num < PIPE_COUNT; num++) {
+  for (unsigned num = 1; num < PIPE_COUNT; num++) {
+    if (!deselected) {
+      // The reset NAKed every pipe (RA4M1 UM 27.2.30 p641, RA6M5 UM 28.2.35 p866, 29.2.38 p971), but a
+      // dcd_edpt_xfer() under a masked IRQ may have armed one since: re-NAK without pipe_reset()'s spin
+      pipe_set_nak(get_pipectr(rusb, num));
+      continue;
+    }
     // TRCLR needs an empty buffer and PID != BUF (RA6M5 UM 29.3.7.5 p1006): after the ACLRM
     if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk)) {
       TU_LOG1("RUSB2: pipe %u bus-reset clear timed out, left NAKing\r\n", num);
