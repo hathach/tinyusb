@@ -44,7 +44,7 @@
 #define PFIC_GISR_GACTSTA (1u << 8)
 
 static char tx_buf[UART_RINGBUFFER_SIZE_TX];
-static unsigned int tx_produce;
+static volatile unsigned int tx_produce;
 static volatile unsigned int tx_consume;
 
 void USART1_IRQHandler(void) __attribute__((naked));
@@ -95,7 +95,7 @@ void uart_write(char c)
     if (!tx_can_wait()) {
       return;
     }
-    while (tx_produce_next == tx_consume) {}
+    while (((tx_produce + 1) & UART_RINGBUFFER_MASK_TX) == tx_consume) {}
   }
   NVIC_EnableIRQ(USART1_IRQn);
 }
