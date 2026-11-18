@@ -9,6 +9,9 @@ SDK_SYSTEM_FILE = hw/mcu/wch/ch32v407_ch32v467/EVT/EXAM/GPIO/GPIO_Toggle/User/sy
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
+# QingKe RTT lock for LOGGER=rtt, see the header
+FAMILY_RTT_CONF = $(TOP)/$(FAMILY_PATH)/rtt_conf_qingke.h
+
 # rhport 0 = USBHS1 (PA11/PA12), rhport 1 = USBHS2 (PB6/PB7)
 RHPORT_DEVICE ?= 0
 

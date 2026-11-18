@@ -13,6 +13,8 @@ set(CMAKE_SYSTEM_CPU rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS CH32V4X7 CACHE INTERNAL "")
+# QingKe RTT lock for SYSVIEW and LOGGER=rtt, see the header
+set(FAMILY_RTT_CONF ${CMAKE_CURRENT_LIST_DIR}/rtt_conf_qingke.h)
 
 # rhport 0 = USBHS1 (PA11/PA12), rhport 1 = USBHS2 (PB6/PB7)
 if (NOT DEFINED RHPORT_DEVICE)
