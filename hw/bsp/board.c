@@ -188,11 +188,13 @@ int board_getchar(void) {
 }
 
 int board_putchar(int c) {
-  if (board_uart_write((const char *)&c, 1) > 0) {
-    return c;
-  } else {
-    return -1;
-  }
+  char ch = (char) c;
+#if defined(LOGGER_RTT) && (defined(__SES_ARM) || defined(__SES_RISCV) || defined(__CROSSWORKS_ARM))
+  // sys_write is not defined in this file for SES/CrossWorks RTT
+  return (board_uart_write(&ch, 1) > 0) ? c : -1;
+#else
+  return (sys_write(0, &ch, 1) > 0) ? c : -1;
+#endif
 }
 //--------------------------------------------------------------------
 // FreeRTOS hooks
