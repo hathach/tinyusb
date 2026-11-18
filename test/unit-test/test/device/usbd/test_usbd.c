@@ -498,8 +498,10 @@ void test_usbd_get_interface_default_answers_zero(void) {
   tud_task();
 }
 
-// GET_INTERFACE is device-to-host: an OUT one is a Request Error. Its data stage must not be armed: the core's
-// answer lives in a stack local the data would be written into after the handler returned.
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error. Its data stage must not be armed, by the core or by a
+// class driver: the core's answer lives in a stack local, a driver's in its alternate setting (NCM's itf_data_alt), and
+// the host data would be written into either. So the core stalls it before the class driver sees it: no
+// mscd_control_xfer_cb() expectation is set, and CMock fails the test if it is called.
 void test_usbd_get_interface_out_is_stalled(void) {
   static const tusb_control_request_t req = {
     .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
@@ -507,7 +509,6 @@ void test_usbd_get_interface_out_is_stalled(void) {
   msc_configured();
 
   dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
-  mscd_control_xfer_cb_IgnoreAndReturn(false);
   dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
   dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
   tud_task();

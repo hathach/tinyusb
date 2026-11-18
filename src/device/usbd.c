@@ -1275,6 +1275,12 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
 
+      // USB 2.0 9.4.4: GET_INTERFACE is device-to-host. Stall an OUT one before any class driver sees it: a driver
+      // answering from its alternate setting would otherwise arm an OUT data stage that writes host data into it.
+      TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+                  TUSB_REQ_GET_INTERFACE == p_request->bRequest &&
+                  TUSB_DIR_IN != p_request->bmRequestType_bit.direction));
+
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if (!invoke_class_control(rhport, driver, p_request)) {
@@ -1287,8 +1293,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_INTERFACE: {
-            // USB 2.0 9.4.4 is device-to-host: an OUT data stage would land in this stack local after it is gone
-            TU_VERIFY(TUSB_DIR_IN == p_request->bmRequestType_bit.direction);
+            // the direction is checked before the class driver: only an IN request reaches here
             uint8_t alternate = 0;
             tud_control_xfer(rhport, p_request, &alternate, 1);
             break;
