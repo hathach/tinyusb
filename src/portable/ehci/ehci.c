@@ -849,8 +849,8 @@ static bool qhd_cancel_xfer(ehci_qhd_t* qhd) {
   ehci_registers_t* regs = ehci_data.regs;
   bool const is_period = qhd_is_periodic(qhd);
   if (!ehci_disable_schedule(regs, is_period)) {
-    // The controller may still own the TD: leave the transfer in place. The enable bit is either
-    // still set, or cleared and awaiting its status, when it must not be rewritten (EHCI 4.6, 4.8).
+    // Controller may still own the TD: leave it, but keep the schedule running (strict EHCI 4.6 recovery: #4532)
+    ehci_enable_schedule(regs, is_period);
     return false;
   }
 

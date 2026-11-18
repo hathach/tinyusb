@@ -518,12 +518,15 @@ static void test_abort_not_cancelled(void) {
   assert(events == 0);
 }
 
-// The stop is written but the controller never acknowledges it: the enable bit
-// must not be rewritten while it differs from the status (EHCI 4.6, 4.8).
+// The stop is written but the controller does not acknowledge it in time: the
+// transfer stays, and the schedule is re-enabled so it keeps running (#4532).
 static void test_abort_stop_unacknowledged(bool periodic) {
   reset();
+  uint8_t const xfer = periodic ? TUSB_XFER_INTERRUPT : TUSB_XFER_BULK;
   uint8_t const ep_addr = periodic ? 0x82 : 0x81;
-  ehci_qhd_t* qhd = open_ep(1, ep_addr, periodic ? TUSB_XFER_INTERRUPT : TUSB_XFER_BULK, 512, TUSB_SPEED_HIGH);
+  uint8_t const other_addr = periodic ? 0x83 : 0x02;
+  ehci_qhd_t* qhd = open_ep(1, ep_addr, xfer, 512, TUSB_SPEED_HIGH);
+  ehci_qhd_t* other = open_ep(1, other_addr, xfer, 512, TUSB_SPEED_HIGH);
   assert(hcd_edpt_xfer(0, 1, ep_addr, buffer, 32768));
   ehci_qtd_t* qtd = qhd->attached_qtd;
   hc_progress(qhd);
@@ -538,21 +541,25 @@ static void test_abort_stop_unacknowledged(bool periodic) {
   barriers_unmasked = 0;
   assert(!hcd_edpt_abort_xfer(0, 1, ep_addr));
   assert(lock_depth == 0 && hcd_int_on && barriers_unmasked == 0);
-  if (periodic) {
-    assert(!regs.command_bm.periodic_enable && regs.status_bm.periodic_status);
-  } else {
-    assert(!regs.command_bm.async_enable && regs.status_bm.async_status);
-  }
+  assert(regs.command_bm.periodic_enable == periodic && regs.command_bm.async_enable == !periodic);
   assert(memcmp((void const*) (uintptr_t) &qhd->qtd_overlay, &before, sizeof(before)) == 0);
   assert(qhd->attached_qtd == qtd && qtd->used && qtd->active && events == 0);
 
-  // Once the status catches up the schedule is stopped: the next abort cancels and restarts it.
+  // The stop lands late, but the enable bit is set again: another endpoint's transfer still runs.
   if (periodic) {
     regs.status_bm.periodic_status = 0;
   } else {
     regs.status_bm.async_status = 0;
   }
-  assert(hcd_edpt_abort_xfer(0, 1, ep_addr));
+  assert(hcd_edpt_xfer(0, 1, other_addr, buffer + 32768, 64));
+  assert(regs.command_bm.periodic_enable == periodic && regs.command_bm.async_enable == !periodic);
+  hc_retire(other, 64, false, false);
+  run_isr();
+  assert(events == 1 && event.xfer_complete.ep_addr == other_addr && event.xfer_complete.len == 64);
+
+  // Once the schedule stops in time, the next abort cancels and restarts it.
+  events = 0;
+  assert(abort_xfer(1, ep_addr));
   check_cancelled(qhd, qtd, &before, EHCI_PID_IN);
 }
 
