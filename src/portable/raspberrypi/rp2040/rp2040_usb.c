@@ -284,11 +284,12 @@ void rp2usb_xfer_start(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, u
     const bool sof_was_off = !(usb_hw->inte & USB_INTS_DEV_SOF_BITS);
     if (sof_was_off) {
       (void)usb_hw->sof_rd;
+      e15_sof_stale = true;
     }
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
 
-    // skip transfer if we are in critical frame period
-    if (sof_was_off || e15_is_critical_frame_period()) {
+    // skip transfer if we are in critical frame period, or no SOF has been stamped since the SOF interrupt was off
+    if (e15_sof_stale || e15_is_critical_frame_period()) {
       ep->e15_idle = 3; // nothing armed yet
       ep->state    = EPSTATE_PENDING;
       hw_endpoint_lock_update(ep, -1);
@@ -485,6 +486,7 @@ bool __tusb_irq_path_func(rp2usb_xfer_continue_ex)(hw_endpoint_t *ep, io_rw_32 *
 */
 
 volatile uint32_t e15_last_sof = 0;
+volatile bool     e15_sof_stale = true; // set while the SOF interrupt is off, cleared when the SOF ISR stamps e15_last_sof
 
 // check if it is currently in critical frame period i.e 20% of last usb frame
 static bool __tusb_irq_path_func(e15_is_critical_frame_period)(void) {

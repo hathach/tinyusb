@@ -153,6 +153,7 @@ typedef struct hw_endpoint {
 
 #if CFG_TUSB_RP2_ERRATA_E15
 extern volatile uint32_t e15_last_sof;
+extern volatile bool     e15_sof_stale;
 #endif
 
 void rp2usb_init(void);

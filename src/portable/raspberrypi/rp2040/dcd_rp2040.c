@@ -256,6 +256,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 
   #if CFG_TUSB_RP2_ERRATA_E15
     e15_last_sof = time_us_32();                  // timing critical: before the SystemView record below
+    e15_sof_stale = false;
   #endif
   }
 
@@ -325,6 +326,9 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     // disable SOF interrupt if it is used for RESUME in remote wakeup
     if (!keep_sof_alive && !_sof_enable) {
       usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+  #if CFG_TUSB_RP2_ERRATA_E15
+      e15_sof_stale = true;
+  #endif
     }
   }
 
