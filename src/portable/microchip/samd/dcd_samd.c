@@ -182,15 +182,18 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
+  // Leave previously armed banks idle until dcd_edpt_xfer supplies a buffer.
   if ( dir == TUSB_DIR_OUT )
   {
     ep->EPCFG.bit.EPTYPE0 = samd_eptype(desc_edpt->bmAttributes.xfer);
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT; // clear stall & dtoggle
+    ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK0RDY;
     ep->EPINTENSET.bit.TRCPT0 = true;
   }else
   {
     ep->EPCFG.bit.EPTYPE1 = samd_eptype(desc_edpt->bmAttributes.xfer);
-    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1 | USB_DEVICE_EPSTATUSCLR_DTGLIN; // clear stall & dtoggle
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1 | USB_DEVICE_EPSTATUSCLR_DTGLIN |
+                          USB_DEVICE_EPSTATUSCLR_BK1RDY; // clear stall & dtoggle
     ep->EPINTENSET.bit.TRCPT1 = true;
   }
 
@@ -217,7 +220,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   uint8_t const dir   = tu_edpt_dir(desc_ep->bEndpointAddress);
 
   // Configure and enable the ISO endpoint on altsetting selection (bank SIZE already reserved by
-  // dcd_edpt_iso_alloc). Mirrors the per-direction setup in dcd_edpt_open(), plus a bank scrub:
+  // dcd_edpt_iso_alloc). Mirrors the per-direction setup in dcd_edpt_open():
   // under ISO_ALLOC the EP is never disabled on alt0 (usbd_edpt_close is a no-op), so the bank-ready
   // state from the previous streaming session survives into re-activation. Leave the EP un-armed so
   // a stale bank can't move a packet before dcd_edpt_xfer re-arms it (a leftover BK1RDY with a stale
@@ -240,7 +243,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
-  // TODO implement dcd_edpt_close_all()
+  // Preserve the packet-size reservations made by dcd_edpt_iso_alloc().
+  for (uint8_t epnum = 1; epnum < USB_EPT_NUM; epnum++) {
+    USB->DEVICE.DeviceEndpoint[epnum].EPCFG.reg = 0;
+  }
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
