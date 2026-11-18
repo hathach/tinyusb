@@ -18,8 +18,14 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-# Host defaults to USBFS, leaving USBHS available for the device controller.
-set(WCH_HOST_USBIP usbfs CACHE STRING "WCH host controller: usbfs or usbhs")
+# Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
+if (NOT DEFINED WCH_HOST_USBIP)
+  if (DEFINED SPEED AND NOT SPEED STREQUAL high)
+    set(WCH_HOST_USBIP usbhs)
+  else ()
+    set(WCH_HOST_USBIP usbfs)
+  endif ()
+endif ()
 if (NOT WCH_HOST_USBIP MATCHES "^(usbfs|usbhs)$")
   message(FATAL_ERROR "WCH_HOST_USBIP must be usbfs or usbhs")
 endif ()
