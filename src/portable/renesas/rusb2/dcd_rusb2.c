@@ -997,6 +997,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     dcd_int_enable(rhport);
     return false;
   }
+  // a pipe last used for OUT keeps TRENB, which a transmitting pipe must not have (RA6M5 UM 29.2.39);
+  // pipe_out_arm() re-enables it per OUT transfer
+  volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+  if (pt) {
+    pt->TRE = TU_BIT(8);
+  }
   _dcd.pipe[num].ep = ep_addr;
   _dcd.ep[dir][epn] = num;
 
