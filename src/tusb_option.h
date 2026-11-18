@@ -789,7 +789,12 @@
   // Root-port delay after reset, before reading the port speed/status.
   // Increase this for devices that need more time to become responsive.
   #ifndef CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS
-    #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 2
+    #if TU_CHECK_MCU(OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
+      // rp2 native host controller reconnects ~150 ms after a root port reset
+      #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 160
+    #else
+      #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 2
+    #endif
   #endif
 
   // Timeout in ms for each control transfer; raise it for a device with slow control requests.
