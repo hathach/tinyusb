@@ -27,6 +27,7 @@ typedef struct {
   uint8_t itf_protocol; // Boot mouse or keyboard
 
   uint16_t report_desc_len;
+  uint16_t epout_xfer_len; // one packet when the DCD refuses a multi-packet OUT transfer
   uint8_t protocol_mode; // Boot (0) or Report protocol (1)
   uint8_t idle_rate;     // up to application to handle idle rate
 
@@ -244,7 +245,15 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 
   // Prepare for output endpoint
   if (p_hid->ep_out) {
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false), drv_len);
+    p_hid->epout_xfer_len = CFG_TUD_HID_EP_BUFSIZE;
+    if (!usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false)) {
+      // e.g. wch usbhs refuses multi-packet on a non-multiple-of-4 mps: receive a packet at a time
+      tusb_desc_endpoint_t const *desc_epout = (tusb_desc_endpoint_t const *)tu_desc_find2(
+        p_desc, (uint8_t const *)desc_itf + drv_len, TUSB_DESC_ENDPOINT, p_hid->ep_out);
+      TU_ASSERT(desc_epout != NULL, drv_len);
+      p_hid->epout_xfer_len = tu_min16(CFG_TUD_HID_EP_BUFSIZE, tu_edpt_packet_size(desc_epout));
+      TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->epout_xfer_len, false), drv_len);
+    }
   }
 
   return drv_len;
@@ -396,7 +405,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     // prepare for new transfer
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false));
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->epout_xfer_len, false));
   }
 
   return true;
