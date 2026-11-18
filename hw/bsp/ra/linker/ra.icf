@@ -49,20 +49,20 @@ define block RAM_STACK  with alignment = 8 { section .stack };
 
 place in RAM { block RAM_DATA, block RAM_BSS, block RAM_NOINIT, readwrite, last block RAM_STACK };
 
-/*------------- TCM (RA8): FSP copies/zeroes these blocks by name -------------*/
+/*------------- TCM (RA8): FSP copies/zeroes these blocks by name, 8 bytes at a time -------------*/
 if (isdefinedsymbol(ITCM_LENGTH)) {
   initialize manually { section .itcm_data };
-  define block ITCM_DATA      with alignment = 8 { section .itcm_data };
-  define block ITCM_DATA_INIT with alignment = 8 { ro section .itcm_data_init };
+  define block ITCM_DATA      with alignment = 8, end alignment = 8 { section .itcm_data };
+  define block ITCM_DATA_INIT with alignment = 8, end alignment = 8 { ro section .itcm_data_init };
   place in mem:[from ITCM_START size ITCM_LENGTH] { block ITCM_DATA };
   place in FLASH { block ITCM_DATA_INIT };
 }
 if (isdefinedsymbol(DTCM_LENGTH)) {
   initialize manually { section .dtcm_data };
   do not initialize   { section .dtcm_bss };
-  define block DTCM_DATA      with alignment = 8 { section .dtcm_data };
-  define block DTCM_DATA_INIT with alignment = 8 { ro section .dtcm_data_init };
-  define block DTCM_BSS       with alignment = 8 { section .dtcm_bss };
+  define block DTCM_DATA      with alignment = 8, end alignment = 8 { section .dtcm_data };
+  define block DTCM_DATA_INIT with alignment = 8, end alignment = 8 { ro section .dtcm_data_init };
+  define block DTCM_BSS       with alignment = 8, end alignment = 8 { section .dtcm_bss };
   place in mem:[from DTCM_START size DTCM_LENGTH] { block DTCM_DATA, block DTCM_BSS };
   place in FLASH { block DTCM_DATA_INIT };
 }

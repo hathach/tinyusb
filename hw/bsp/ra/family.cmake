@@ -48,6 +48,8 @@ set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/linker/ra.icf)
 endif ()
 
 # ra.icf takes the board memory map from the "NAME = value;" lines of memory_regions.ld
+# (a configure input: an edit must refresh the --config_def values)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/memory_regions.ld)
 file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/memory_regions.ld MEM_REGION_LINES
   REGEX "^[ \t]*[A-Za-z0-9_]+[ \t]*=[ \t]*0x[0-9A-Fa-f]+[ \t]*;")
 set(LD_CONFIG_DEF_IAR "")
