@@ -443,6 +443,8 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
 
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
+    // NAK the host until pipe_out_arm(), as pipe0_xfer_out does; SHTNAK covers only bulk (RA6M5 UM 29.3.7.8)
+    *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_NAK;
     pipe->buf = NULL;
     return pipe->queued; // an armed zero-length receive has buf == NULL too
   }
@@ -724,9 +726,9 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
       volatile uint16_t *ctr = get_pipectr(rusb, num);
       const uint16_t     pid = *ctr & RUSB2_PIPE_CTR_PID_Msk;
       if (pid >= RUSB2_PIPE_CTR_PID_STALL || (!pipe->queued && !pipe_is_iso(rusb, num))) {
-        // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
-        // next transfer's first packets into its buffer planes). Park the packet and NAK the host
-        // until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
+        // Nothing armed: a NAK written at transfer end does not stop a packet already in progress
+        // (PBUSY) or one taken by a free plane of a double-buffered pipe. Park the packet and NAK the
+        // host until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
         // Halted: the packet stays parked for dcd_edpt_clear_stall() to drop, even if armed.
         if (pid == RUSB2_PIPE_CTR_PID_BUF) {
           *ctr = RUSB2_PIPE_CTR_PID_NAK;
@@ -1018,7 +1020,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   pipe_brdy_clear(rusb, num);
   rusb->BRDYENB |= TU_BIT(num);
 
-  if (dir || (xfer != TUSB_XFER_BULK)) {
+  if (dir) {
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
 
@@ -1128,7 +1130,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   }
   pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
   rusb->PIPEMAXP          = tu_edpt_packet_size(desc_ep);
-  *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
+  if (dir) {
+    *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable; an OUT pipe waits for pipe_out_arm()
+  }
   dcd_int_enable(rhport);
   return true;
 }
@@ -1218,12 +1222,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
     rusb->PIPESEL = (uint16_t)num;
     // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
-    // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
+    // NAK forever (usbtest toggle test 29). An idle OUT pipe of any type stays NAK until
+    // process_pipe_xfer() arms it.
     // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
     if (_dcd.pipe[num].queued) {
       pipe_out_arm(rusb, num);
-    } else if (rusb->PIPECFG_b.TYPE != 1) {
-      *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
   dcd_int_enable(rhport);
