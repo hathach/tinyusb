@@ -351,6 +351,16 @@ static void midih2_alt1_discard(midih2_interface_t *p_midi) {
   tu_memclr(p_midi->alt1_ep, sizeof(p_midi->alt1_ep));
 }
 
+// The interface runs on setting 0 (USB-MIDI 1.0): drop what was parsed from setting 1, so the descriptor and mount
+// callbacks and tuh_midi2_get_protocol_version() describe setting 0
+static void midih2_alt0_protocol(midih2_interface_t *p_midi) {
+  p_midi->protocol_version    = 0;
+  p_midi->bcdMSC_hi           = 0;
+  p_midi->bcdMSC_lo           = 0;
+  p_midi->rx_cable_count_alt1 = 0;
+  p_midi->tx_cable_count_alt1 = 0;
+}
+
 // Reopen setting 0's endpoint of the directions in dir_mask, swapped out for setting 1's
 // (midih2_alt1_swap_in). A direction that cannot be reopened (an HCD that frees a closed endpoint
 // only later, e.g. EHCI, with no other free) is left without a stream, and the interface is then
@@ -423,6 +433,7 @@ static void midih2_alt1_abandon(midih2_interface_t *p_midi) {
   midih2_alt1_swap_close(p_midi, swapped);
   midih2_alt0_reopen(p_midi, swapped);
   midih2_alt1_discard(p_midi);
+  midih2_alt0_protocol(p_midi);
   p_midi->alt_setting_current = 0;
 }
 
@@ -504,8 +515,8 @@ static const uint8_t* midih2_parse_descriptors_alt1(midih2_interface_t *p_midi,
 
       case TUSB_DESC_ENDPOINT: {
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
-        TU_VERIFY(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t) &&
-                  p_desc + sizeof(tusb_desc_endpoint_t) <= desc_end, NULL);
+        // the loop condition already bounds bLength within desc_end
+        TU_VERIFY(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), NULL);
         TU_VERIFY(midih2_parse_alt1_endpoint(p_midi, p_ep), NULL);
         p_desc = tu_desc_next(p_desc);
 
@@ -648,11 +659,7 @@ uint16_t midih2_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
     p_end = midih2_parse_descriptors_alt1(p_midi, desc_itf, desc_end);
     if (p_end == NULL) {
       // stay on Alt Setting 0
-      p_midi->protocol_version = 0;
-      p_midi->bcdMSC_hi = 0;
-      p_midi->bcdMSC_lo = 0;
-      p_midi->rx_cable_count_alt1 = 0;
-      p_midi->tx_cable_count_alt1 = 0;
+      midih2_alt0_protocol(p_midi);
       midih2_alt1_discard(p_midi);
     }
   }
@@ -752,6 +759,7 @@ bool midih2_set_config(uint8_t dev_addr, uint8_t itf_num) {
       // setting 0's endpoints are as parsed again
       TU_LOG_DRV("MIDI2 alt 1 endpoints cannot be swapped in, staying on alt 0\r\n");
       midih2_alt1_discard(p_midi);
+      midih2_alt0_protocol(p_midi);
       p_midi->alt_setting_current = 0;
     } else {
       TU_LOG_DRV("MIDI2 requesting SET_INTERFACE alt 1 for itf %u\r\n", itf_num);
