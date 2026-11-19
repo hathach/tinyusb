@@ -6,8 +6,7 @@ CFLAGS += \
   -flto \
   -nostdlib \
   -D__USE_LPCOPEN \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+  -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX
 
 # mcu driver cause following warnings
 CFLAGS += \

@@ -84,10 +84,6 @@ extern "C" {
   #define CFG_TUSB_MEM_SECTION
 #endif
 
-#ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN __attribute__((aligned(4)))
-#endif
-
 // Use different configurations to test all net devices (also due to resource limitations)
 #ifndef USE_ECM
 #if TU_CHECK_MCU(OPT_MCU_LPC15XX, OPT_MCU_LPC40XX, OPT_MCU_LPC51UXX, OPT_MCU_LPC54)

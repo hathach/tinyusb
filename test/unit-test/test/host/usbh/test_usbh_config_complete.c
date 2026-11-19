@@ -89,13 +89,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   return true;
 }
 
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  return true;
-}
-
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
   (void) rhport;
   (void) daddr;
@@ -144,13 +137,18 @@ static void fake_close(uint8_t dev_addr) {
   close_count++;
 }
 
-// claims the whole rest of the configuration and records the endpoint sizes it is given, before opening any
+// claims the whole rest of the configuration, recording the interfaces it is offered and the endpoint sizes it is
+// given, before opening any
 static uint16_t open_ep_size[4];
 static uint8_t  open_ep_count;
+static uint8_t  open_count;
+static uint8_t  open_itf_num;
 
 static uint16_t fake_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *desc_itf, uint16_t max_len) {
   (void) rhport;
   (void) dev_addr;
+  open_count++;
+  open_itf_num = desc_itf->bInterfaceNumber;
   const uint8_t *p_desc   = (const uint8_t *) desc_itf;
   const uint8_t *desc_end = p_desc + max_len;
   for (; tu_desc_in_bounds(p_desc, desc_end); p_desc = tu_desc_next(p_desc)) {
@@ -198,6 +196,8 @@ void setUp(void) {
   umount_cb_count  = 0;
   set_config_count = 0;
   close_count      = 0;
+  open_count       = 0;
+  open_itf_num     = 0xff;
   set_config_hook  = NULL;
   clear_stall_count  = 0;
   clear_stall_rhport = 0xff;
@@ -317,6 +317,19 @@ void test_parse_config_keeps_highspeed_bulk_512(void) {
   TEST_ASSERT_EQUAL(512, open_ep_size[3]);
 }
 
+// drivers read interface fields before checking bLength: an interface shorter than defined is skipped (#4508)
+void test_parse_config_skips_short_interface(void) {
+  const uint8_t desc[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 8 + 9), 2, 1, 0, 0x80, 50,
+    8, TUSB_DESC_INTERFACE, 0, 0, 0, 0xFF, 0, 0,
+    9, TUSB_DESC_INTERFACE, 1, 0, 0, 0xFF, 0, 0, 0,
+  };
+
+  TEST_ASSERT_TRUE(enum_parse_configuration_desc(DADDR, (const tusb_desc_configuration_t *) desc));
+  TEST_ASSERT_EQUAL(1, open_count);
+  TEST_ASSERT_EQUAL(1, open_itf_num);
+}
+
 //--------------------------------------------------------------------+
 // usbh_edpt_clear_stall
 //--------------------------------------------------------------------+
@@ -338,6 +351,41 @@ void test_clear_stall_propagates_hcd_failure(void) {
   clear_stall_result = false;
   TEST_ASSERT_FALSE(usbh_edpt_clear_stall(DADDR, EP_BULK_IN));
   TEST_ASSERT_EQUAL(1, clear_stall_count);
+}
+
+//--------------------------------------------------------------------+
+// Transfer buffer alignment (TUP_HCD_MEM_ALIGN)
+//--------------------------------------------------------------------+
+TU_ATTR_ALIGNED(TUP_HCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_HCD_MEM_ALIGN];
+
+static void control_xfer_cb(tuh_xfer_t *xfer) {
+  (void) xfer;
+}
+
+// The buffer of a control request is checked only when it has a data stage: SETUP is sent from _usbh_epbuf and the
+// status stage has no buffer, so the HCD never touches it otherwise.
+void test_control_xfer_checks_alignment_only_with_data_stage(void) {
+  tusb_control_request_t request = {
+    .bmRequestType = 0x80, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = 0x0100, .wIndex = 0, .wLength = 8
+  };
+  tuh_xfer_t xfer = {.daddr = DADDR, .ep_addr = 0, .setup = &request, .buffer = xfer_buf + 1, .complete_cb = control_xfer_cb};
+  TEST_ASSERT_FALSE(tuh_control_xfer(&xfer));
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+
+  request = (tusb_control_request_t) {
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_SET_CONFIGURATION, .wValue = 1, .wIndex = 0, .wLength = 0
+  };
+  TEST_ASSERT_TRUE(tuh_control_xfer(&xfer));
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_SETUP, _usbh_data.ctrl_xfer_info.stage);
+}
+
+// A zero-length packet moves no data: its buffer is not checked
+void test_edpt_xfer_checks_alignment_only_with_data(void) {
+  TEST_ASSERT_FALSE(usbh_edpt_xfer(DADDR, EP_BULK_IN, xfer_buf + 1, 8));
+  TEST_ASSERT_FALSE(usbh_edpt_busy(DADDR, EP_BULK_IN));
+
+  TEST_ASSERT_TRUE(usbh_edpt_xfer(DADDR, EP_BULK_IN, xfer_buf + 1, 0));
+  TEST_ASSERT_TRUE(usbh_edpt_busy(DADDR, EP_BULK_IN));
 }
 
 void test_clear_stall_rejects_busy_endpoint(void) {

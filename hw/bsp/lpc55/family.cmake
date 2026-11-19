@@ -98,7 +98,6 @@ function(family_add_board BOARD_TARGET)
     ${CMSIS_DIR}/CMSIS/Core/Include
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
     BOARD_TUD_RHPORT=${RHPORT_DEVICE}
     BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
     BOARD_TUH_RHPORT=${RHPORT_HOST}

@@ -120,6 +120,12 @@ typedef enum {
   SCSI_SENSE_MISCOMPARE      = 0x0e  ///< Indicates that the source data did not match the data read from the medium.
 }scsi_sense_key_type_t;
 
+/// SCSI Additional Sense Code (ASC) and its Qualifier (ASCQ)
+enum {
+  SCSI_ASC_MEDIUM_NOT_PRESENT  = 0x3A, ///< with SCSI_ASCQ_MEDIUM_NOT_PRESENT: no medium, e.g. an empty card reader slot
+  SCSI_ASCQ_MEDIUM_NOT_PRESENT = 0x00,
+};
+
 
 typedef enum {
   SCSI_PDT_DIRECT_ACCESS = 0x0,

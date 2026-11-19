@@ -118,7 +118,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
 // default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
 TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lun) {
   if (_mscd_itf.sense_key == 0) {
-    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
+    (void) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT, SCSI_ASCQ_MEDIUM_NOT_PRESENT);
   }
 }
 

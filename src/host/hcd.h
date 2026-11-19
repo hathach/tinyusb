@@ -141,7 +141,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 // return true if successfully opened or endpoint is currently opened
 bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc);
 
-// Close an endpoint
+// Close an endpoint. Optional: the weak default in usbh returns false (not supported)
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked

@@ -561,9 +561,10 @@ static bool handle_msg_out_header(uint8_t rhport, usbtmc_msg_generic_t *msg, uin
 bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   TU_VERIFY(result == XFER_RESULT_SUCCESS);
   //uart_tx_str_sync("TMC XFER CB\r\n");
-  if (usbtmc_state.state == STATE_CLEARING) {
+  // Interrupt-IN is not part of a clear: its completion still reaches tud_usbtmc_notification_complete_cb() below
+  if ((usbtmc_state.state == STATE_CLEARING) && (ep_addr != usbtmc_state.ep_int_in)) {
     // A queued Bulk-IN packet can't be flushed: a full one is followed by a short packet to
-    // terminate its transfer (USBTMC 1.0 Table 32 step 4b). Ignore everything else.
+    // terminate its transfer (USBTMC 1.0 Table 32 step 4b). Ignore the bulk-OUT completion.
     if (ep_addr == usbtmc_state.ep_bulk_in) {
       usbtmc_state.in_flight = 0;
       if ((xferred_bytes != 0u) && ((xferred_bytes % usbtmc_state.ep_bulk_in_mps) == 0u)) {
@@ -838,13 +839,16 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       } else if (usbtmc_state.last_bulk_out_tag != tu_u16_low(request->wValue)) {
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
       } else {
+        // The application decides first: any status but SUCCESS must leave bulk-OUT not Halted (USBTMC 1.0
+        // Table 20). STATE_RCV only ends on this USB task, so the transfer is still in progress afterwards.
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
-        usbtmc_lock();
-        usbtmc_state.state = STATE_ABORTING_BULK_OUT;
-        usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
-        usbtmc_unlock();
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_out_cb(&(rsp.USBTMC_status)));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
+          // Halt bulk-OUT before the response is queued (Table 20)
+          usbtmc_lock();
+          usbtmc_state.state = STATE_ABORTING_BULK_OUT;
+          usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+          usbtmc_unlock();
           start_split(SPLIT_ABORT_BULK_OUT);
         }
       }
@@ -882,35 +886,44 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
       // wValue is the requested bTag to abort (USBTMC 1.0 Tables 24 and 26). The transfer is in progress
       // until its short packet has been sent. Decided under the lock, the application may be starting the reply.
       usbtmc_lock();
-      usbtmcd_state_enum const old_state = usbtmc_state.state;
-      bool const in_progress = (old_state == STATE_TX_REQUESTED) || (old_state == STATE_TX_INITIATED) ||
-                              (old_state == STATE_TX_SHORTED);
+      usbtmcd_state_enum const cur_state = usbtmc_state.state;
+      bool const in_progress = (cur_state == STATE_TX_REQUESTED) || (cur_state == STATE_TX_INITIATED) ||
+                              (cur_state == STATE_TX_SHORTED);
       bool const matched = in_progress && (usbtmc_state.last_bulk_in_tag == tu_u16_low(request->wValue));
-      bool abort = matched;
-      if (abort) {
-        uint32_t const old_remaining = usbtmc_state.transfer_size_remaining;
-        usbtmc_state.transfer_size_remaining = 0u;
-        // TX_INITIATED always has a full packet in flight, the short packet follows it in usbtmcd_xfer_cb()
-        usbtmc_state.state = (old_state == STATE_TX_INITIATED) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
-        if (old_state == STATE_TX_REQUESTED) {
-          // Send short packet, nothing is in the buffer yet
-          abort = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false);
-          if (!abort) {
-            // Nothing was queued: the request stays as it was, and the abort is refused with STATUS_FAILED, the
-            // device cannot begin it (USBTMC 1.0 4.2.1.1 rule 2b); the host then sends no CHECK (Table 26)
-            usbtmc_state.transfer_size_remaining = old_remaining;
-            usbtmc_state.state = old_state;
-          }
-        }
-      }
       usbtmc_unlock();
-      if (abort) {
+      if (matched) {
+        // The application decides first, so a refused abort leaves the transfer untouched. Meanwhile the
+        // application may only move STATE_TX_REQUESTED on to STATE_TX_INITIATED or STATE_TX_SHORTED: the
+        // transfer ends only on this USB task, so it is still in progress below.
         rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_in_cb(&(rsp.USBTMC_status)));
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
-          start_split(SPLIT_ABORT_BULK_IN);
+          bool queued = true;
+          usbtmc_lock();
+          usbtmcd_state_enum const old_state = usbtmc_state.state;
+          uint32_t const old_remaining = usbtmc_state.transfer_size_remaining;
+          usbtmc_state.transfer_size_remaining = 0u;
+          // TX_INITIATED always has a full packet in flight, the short packet follows it in usbtmcd_xfer_cb()
+          usbtmc_state.state = (old_state == STATE_TX_INITIATED) ? STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
+          if (old_state == STATE_TX_REQUESTED) {
+            // Send short packet, nothing is in the buffer yet
+            queued = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false);
+            if (!queued) {
+              // Nothing was queued: the request stays as it was, and the abort is refused with STATUS_FAILED, the
+              // device cannot begin it (USBTMC 1.0 4.2.1.1 rule 2b); the host then sends no CHECK (Table 26).
+              // The application, which accepted it above, gets no separate notice.
+              usbtmc_state.transfer_size_remaining = old_remaining;
+              usbtmc_state.state = old_state;
+            }
+          }
+          usbtmc_unlock();
+          if (queued) {
+            start_split(SPLIT_ABORT_BULK_IN);
+          } else {
+            rsp.USBTMC_status = USBTMC_STATUS_FAILED;
+          }
         }
-      } else if (in_progress && !matched) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
+      } else if (in_progress) {// FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
         rsp.USBTMC_status = USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
       } else {
         rsp.USBTMC_status = USBTMC_STATUS_FAILED;

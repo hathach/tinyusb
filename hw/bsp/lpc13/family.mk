@@ -9,8 +9,7 @@ CFLAGS += \
   -D__USE_LPCOPEN \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_EXAMPLE_VIDEO_READONLY \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC13XX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+  -DCFG_TUSB_MCU=OPT_MCU_LPC13XX
 
 LDFLAGS += -specs=nosys.specs -specs=nano.specs
 

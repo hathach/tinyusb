@@ -139,6 +139,9 @@ typedef enum {
   VIDEO_REQUEST_GET_DEF_ALL = 0x97
 } video_control_request_t;
 
+// bRequest bit 7 marks a GET request (device-to-host), clear for a SET request
+#define VIDEO_REQUEST_GET_MASK 0x80u
+
 /* A.9.1 VideoControl Interface Control Selectors */
 typedef enum {
   VIDEO_VC_CTL_UNDEFINED = 0x00,

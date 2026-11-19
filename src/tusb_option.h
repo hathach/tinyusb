@@ -610,11 +610,12 @@
   #define CFG_TUSB_MEM_SECTION
 #endif
 
-// Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
-// host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
-#ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
-#endif
+// Alignment requirement of buffer used for usb transferring. Without CFG_TUSB_MEM_ALIGN each stack defaults to its
+// controller's requirement, at least 4: CFG_TUD_MEM_ALIGN to TUP_DCD_MEM_ALIGN, CFG_TUH_MEM_ALIGN to
+// TUP_HCD_MEM_ALIGN (common/tusb_mcu.h). The floor of 4 is for the stack's own buffers, which drivers read as words
+// (SETUP, CBW/CSW). Defining CFG_TUSB_MEM_ALIGN sets both; CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN set one.
+// Its default is defined after CFG_TUD_MEM_ALIGN and CFG_TUH_MEM_ALIGN.
+#define TU_MEM_ALIGN_AT_LEAST4(_align) TU_ATTR_ALIGNED(((_align) > 4) ? (_align) : 4)
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
   #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
@@ -665,9 +666,13 @@
   #define TUD_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
 #endif
 
-// Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
+// Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN, else TUP_DCD_MEM_ALIGN, at least 4)
 #ifndef CFG_TUD_MEM_ALIGN
-  #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
+  #ifdef CFG_TUSB_MEM_ALIGN
+    #define CFG_TUD_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
+  #else
+    #define CFG_TUD_MEM_ALIGN     TU_MEM_ALIGN_AT_LEAST4(TUP_DCD_MEM_ALIGN)
+  #endif
 #endif
 
 #ifndef CFG_TUD_MEM_DCACHE_ENABLE
@@ -847,9 +852,19 @@
   #define TUH_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
 #endif
 
-// Attribute to align memory for host controller
+// Attribute to align memory for host controller (default: CFG_TUSB_MEM_ALIGN, else TUP_HCD_MEM_ALIGN, at least 4)
 #ifndef CFG_TUH_MEM_ALIGN
-  #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
+  #ifdef CFG_TUSB_MEM_ALIGN
+    #define CFG_TUH_MEM_ALIGN   CFG_TUSB_MEM_ALIGN
+  #else
+    #define CFG_TUH_MEM_ALIGN   TU_MEM_ALIGN_AT_LEAST4(TUP_HCD_MEM_ALIGN)
+  #endif
+#endif
+
+// Alignment that suits both controllers, for a buffer used by either
+#ifndef CFG_TUSB_MEM_ALIGN
+  #define CFG_TUSB_MEM_ALIGN \
+    TU_MEM_ALIGN_AT_LEAST4((TUP_DCD_MEM_ALIGN > TUP_HCD_MEM_ALIGN) ? TUP_DCD_MEM_ALIGN : TUP_HCD_MEM_ALIGN)
 #endif
 
 #ifndef CFG_TUH_MEM_DCACHE_ENABLE

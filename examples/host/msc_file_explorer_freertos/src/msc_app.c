@@ -76,6 +76,7 @@ StaticTask_t msc_app_taskdef;
 //------------- Elm Chan FatFS -------------//
 static CFG_TUH_MEM_SECTION FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
 static volatile bool              _disk_busy[CFG_TUH_DEVICE_MAX];
+static volatile bool              _disk_failed[CFG_TUH_DEVICE_MAX]; // last command's CSW was not PASSED
 static volatile bool              _mount_pending[CFG_TUH_DEVICE_MAX];
 
 static CFG_TUH_MEM_SECTION FIL     file1, file2;
@@ -83,7 +84,7 @@ static CFG_TUH_MEM_SECTION FIL     file1, file2;
 #ifndef CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE
 #define CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE 4096
 #endif
-static CFG_TUH_MEM_SECTION uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
+static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
 
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {
@@ -257,8 +258,8 @@ static void wait_for_disk_io(BYTE pdrv) {
 }
 
 static bool disk_io_complete(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data) {
-  (void)dev_addr;
-  (void)cb_data;
+  // a command that fails after submission completes with a failed or phase-error CSW
+  _disk_failed[dev_addr - 1] = (cb_data->csw == NULL || cb_data->csw->status != MSC_CSW_STATUS_PASSED);
   _disk_busy[dev_addr - 1] = false;
   return true;
 }
@@ -293,10 +294,13 @@ DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
-  return RES_OK;
+  return _disk_failed[pdrv] ? RES_ERROR : RES_OK;
 }
 
 #if FF_FS_READONLY == 0
@@ -310,10 +314,13 @@ DRESULT disk_write(BYTE        pdrv,   /* Physical drive nmuber to identify the 
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
-  return RES_OK;
+  return _disk_failed[pdrv] ? RES_ERROR : RES_OK;
 }
 
 #endif
@@ -475,6 +482,10 @@ void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
     }
 
     wait_for_disk_io(pdrv);
+    if (_disk_failed[pdrv]) {
+      printf("dd: read failed at sector %" PRIu32 " (%u sectors)\r\n", i, n);
+      return;
+    }
   }
 
   if (submit_failed) {

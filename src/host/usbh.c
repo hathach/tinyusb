@@ -50,6 +50,12 @@ TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg
   return false;
 }
 
+// HCD without endpoint close (samd, WCH USBFS): tuh_edpt_close() fails, the endpoint stays open
+TU_ATTR_WEAK bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport; (void) daddr; (void) ep_addr;
+  return false;
+}
+
 TU_ATTR_WEAK void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device) {
   (void) daddr; (void) desc_device;
 }
@@ -1026,6 +1032,11 @@ static void control_xfer_sync_complete(tuh_xfer_t* xfer) {
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
   TU_VERIFY(daddr <= TOTAL_DEVICES && xfer->ep_addr == 0 && xfer->setup); // EP0 with setup packet
+#if TUP_HCD_MEM_ALIGN > 1
+  // The data stage buffer must meet the host controller's alignment (TUP_HCD_MEM_ALIGN), see usbh_edpt_xfer.
+  // Without a data stage the HCD never touches it: SETUP is sent from _usbh_epbuf, the status stage has no buffer.
+  TU_ASSERT(xfer->setup->wLength == 0 || (((uintptr_t) xfer->buffer) & (TUP_HCD_MEM_ALIGN - 1u)) == 0);
+#endif
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
 
 #if CFG_TUSB_OS_HAS_SCHEDULER
@@ -1456,6 +1467,17 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((*ep_state & TU_EDPT_STATE_BUSY) == 0);
+
+#if TUP_HCD_MEM_ALIGN > 1
+  // The buffer must meet the host controller's alignment (TUP_HCD_MEM_ALIGN): declare it with CFG_TUH_MEM_ALIGN.
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
+  // transfer the HCD refuses does.
+  bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_HCD_MEM_ALIGN - 1u)) == 0);
+  if (!aligned) {
+    *ep_state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
+  }
+  TU_ASSERT(aligned);
+#endif
 
   // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
   // could return and USBH task can preempt and clear the busy
@@ -2453,15 +2475,14 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 
   // parse all interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {
-    if (0 == tu_desc_len(p_desc)) {
-      // A zero-length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
-      // Parsed interfaces should still be usable
-      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
-      break;
-    }
-
     // skip if not interface
     if (TUSB_DESC_INTERFACE != tu_desc_type(p_desc)) {
+      p_desc = tu_desc_next(p_desc);
+      continue;
+    }
+    // drivers read interface fields before any length check of their own: offer none shorter than defined
+    if (tu_desc_len(p_desc) < sizeof(tusb_desc_interface_t)) {
+      TU_LOG_USBH("Skip interface descriptor with bLength = %u\r\n", tu_desc_len(p_desc));
       p_desc = tu_desc_next(p_desc);
       continue;
     }
@@ -2498,6 +2519,12 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
                   dev->bus_info.rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass,
                   desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
     }
+  }
+
+  if (p_desc < desc_end) {
+    // A descriptor with bLength < 2 or running past wTotalLength: the device is off spec (e.g. wrong wTotalLength).
+    // Parsed interfaces should still be usable
+    TU_LOG_USBH("Encountered a malformed descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
   }
 
   return true;

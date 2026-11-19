@@ -10,6 +10,7 @@
 
 TEST_SOURCE_FILE("tusb.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
+TEST_SOURCE_FILE("usbh_abort_hcd_close.c")
 
 enum {
   RHPORT = 0,
@@ -18,9 +19,9 @@ enum {
 };
 
 static bool     hcd_abort_result;
-static uint8_t  hcd_abort_count;
+uint8_t         hcd_abort_count; // shared with hcd_edpt_close() in usbh_abort_hcd_close.c
 static uint8_t  hcd_abort_ep;
-static uint8_t  hcd_close_count;
+uint8_t         hcd_close_count;
 static uint8_t  xfer_cb_count;
 static uint32_t xfer_cb_len;
 
@@ -84,15 +85,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep
   (void) rhport;
   (void) daddr;
   (void) ep_desc;
-  return true;
-}
-
-bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  TEST_ASSERT_EQUAL(1, hcd_abort_count); // the abort must have reached the HCD before the close
-  hcd_close_count++;
   return true;
 }
 

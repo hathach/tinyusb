@@ -1274,6 +1274,12 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
 
+      // USB 2.0 9.4.4: GET_INTERFACE is device-to-host. Stall an OUT one before any class driver sees it: a driver
+      // answering from its alternate setting would otherwise arm an OUT data stage that writes host data into it.
+      TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+                  TUSB_REQ_GET_INTERFACE == p_request->bRequest &&
+                  TUSB_DIR_IN != p_request->bmRequestType_bit.direction));
+
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if (!invoke_class_control(rhport, driver, p_request)) {
@@ -1286,6 +1292,7 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_INTERFACE: {
+            // the direction is checked before the class driver: only an IN request reaches here
             uint8_t alternate = 0;
             tud_control_xfer(rhport, p_request, &alternate, 1);
             break;
@@ -1398,7 +1405,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
       continue;
     }
 
-    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
+    TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc) && tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t));
     const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
 
     // Find driver for this interface
@@ -1666,6 +1673,9 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
   for (int i = 0; i < ep_count; i++) {
     const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
 
+    // bLength must cover the whole endpoint descriptor: usbd_edpt_open() reads wMaxPacketSize and bInterval, and a
+    // short bLength would also step the next iteration into the middle of this one
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
@@ -1682,7 +1692,7 @@ bool usbd_open_edpt_pair(uint8_t rhport, const uint8_t *p_desc, uint8_t ep_count
 }
 
 // Helper to defer an isr function
-void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
+bool usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   dcd_event_t event = {
       .rhport   = 0,
       .event_id = USBD_EVENT_FUNC_CALL,
@@ -1690,7 +1700,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
   event.func_call.func  = func;
   event.func_call.param = param;
 
-  queue_event(&event, in_isr);
+  return queue_event(&event, in_isr);
 }
 
 bool usbd_defer_func_after_queue(osal_task_func_t func, void* param) {
@@ -1767,6 +1777,17 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
+
+#if TUP_DCD_MEM_ALIGN > 1
+  // The buffer must meet the device controller's alignment (TUP_DCD_MEM_ALIGN): declare it with CFG_TUD_MEM_ALIGN.
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
+  // transfer the DCD refuses does.
+  bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_DCD_MEM_ALIGN - 1u)) == 0);
+  if (!aligned) {
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
+  }
+  TU_ASSERT(aligned);
+#endif
 
   TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
 
