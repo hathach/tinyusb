@@ -271,6 +271,7 @@ ra6m1_ek        RA6M1 EK                     ra        https://www.renesas.com/e
 ra6m5_ek        RA6M5 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m5-evaluation-kit-ra6m5-mcu-group
 ra8m1_ek        RA8M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra8m1-evaluation-kit-ra8m1-mcu-group
 uno_r4          Arduino UNO R4               ra        https://store-usa.arduino.cc/pages/uno-r4
+dk_s124         S124 Development Kit         synergy   https://www.renesas.com/en/design-resources/boards-kits/rtk7dks124s00002bu
 ==============  ===========================  ========  ================================================================================================================================================================  ======
 
 STMicroelectronics

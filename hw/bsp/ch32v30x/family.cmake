@@ -20,8 +20,23 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-# Host defaults to USBFS, leaving USBHS available for the device controller.
-set(WCH_HOST_USBIP usbfs CACHE STRING "WCH host controller: usbfs or usbhs")
+# Drop the usbfs default an older family.cmake cached under this help string, unless a -D set it (recorded by
+# sysview_record_command_line, which that family.cmake already had); usbhs there was the user's -D.
+get_property(_wch_host_usbip_help CACHE WCH_HOST_USBIP PROPERTY HELPSTRING)
+if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs" AND "$CACHE{WCH_HOST_USBIP}" STREQUAL usbfs
+    AND NOT "WCH_HOST_USBIP" IN_LIST SYSVIEW_COMMAND_LINE_VARS)
+  unset(WCH_HOST_USBIP CACHE)
+endif ()
+unset(_wch_host_usbip_help)
+
+# Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
+if (NOT DEFINED WCH_HOST_USBIP)
+  if (DEFINED SPEED AND NOT SPEED STREQUAL high)
+    set(WCH_HOST_USBIP usbhs)
+  else ()
+    set(WCH_HOST_USBIP usbfs)
+  endif ()
+endif ()
 if (NOT WCH_HOST_USBIP MATCHES "^(usbfs|usbhs)$")
   message(FATAL_ERROR "WCH_HOST_USBIP must be usbfs or usbhs")
 endif ()

@@ -3,6 +3,14 @@ set(JLINK_DEVICE stm32h7s3l8)
 
 set(LD_FILE_Clang ${LD_FILE_GNU})
 set(RHPORT_DEVICE 1)
+
+# Run from RAM, image on the MX25UW25645G octal flash (XSPIM_P2); -DXSPI_BOOT=0 for internal flash only
+if (NOT DEFINED XSPI_BOOT)
+  set(XSPI_BOOT 1)
+endif ()
+if (XSPI_BOOT AND NOT DEFINED STM32_PROGRAMMER_EXTLOADER)
+  set(STM32_PROGRAMMER_EXTLOADER MX25UW25645G_NUCLEO-H7S3L8.stldr)
+endif ()
 set(RHPORT_HOST 1)
 
 function(update_board TARGET)

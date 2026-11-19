@@ -13,22 +13,22 @@
   #include "rusb2_rx.h"
 #elif TU_CHECK_MCU(OPT_MCU_RAXXX)
   #include "rusb2_ra.h"
-
-  // USBFS mini module only has CFIFO: map D0FIFO/D1FIFO to it
-  #ifdef RUSB2_RA_USBFS_PIPE4567_ONLY
-    #define D0FIFO      CFIFO
-    #define D0FIFOSEL   CFIFOSEL
-    #define D0FIFOSEL_b CFIFOSEL_b
-    #define D1FIFOSEL   CFIFOSEL
-    #define D1FIFOSEL_b CFIFOSEL_b
-    #define D0FIFOCTR   CFIFOCTR
-    #define D0FIFOCTR_b CFIFOCTR_b
-  #endif
-
+#elif TU_CHECK_MCU(OPT_MCU_SYNERGY)
+  #include "rusb2_synergy.h"
 #else
   #error "Unsupported MCU"
 #endif
 
+// USBFS mini module only has CFIFO: map D0FIFO/D1FIFO to it
+#ifdef RUSB2_USBFS_PIPE4567_ONLY
+  #define D0FIFO      CFIFO
+  #define D0FIFOSEL   CFIFOSEL
+  #define D0FIFOSEL_b CFIFOSEL_b
+  #define D1FIFOSEL   CFIFOSEL
+  #define D1FIFOSEL_b CFIFOSEL_b
+  #define D0FIFOCTR   CFIFOCTR
+  #define D0FIFOCTR_b CFIFOCTR_b
+#endif
 
 //--------------------------------------------------------------------+
 // Common
