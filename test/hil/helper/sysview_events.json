@@ -1,0 +1,10 @@
+{
+  "512": "tud_task",
+  "513": "usbd_edpt_xfer",
+  "514": "dcd_edpt_xfer",
+  "515": "tud_cdc_write_flush",
+  "516": "tud_cdc_read",
+  "517": "mscd_xfer_cb",
+  "518": "tuh_task",
+  "519": "hcd_edpt_xfer"
+}

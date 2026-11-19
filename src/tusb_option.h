@@ -141,6 +141,7 @@
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
 #define OPT_MCU_RAXXX            1403 ///< Renesas RA generic
+#define OPT_MCU_SYNERGY          1404 ///< Renesas Synergy series
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
@@ -155,6 +156,7 @@
 
 // Infineon
 #define OPT_MCU_XMC4000          1800 ///< Infineon XMC4000
+#define OPT_MCU_PSE84            1801 ///< Infineon PSOC Edge E84 (PSE84)
 
 // PIC
 #define OPT_MCU_PIC32MZ          1900 ///< MicroChip PIC32MZ family
@@ -179,6 +181,7 @@
 #define OPT_MCU_CH583            2240 ///< WCH CH583
 #define OPT_MCU_CH582            OPT_MCU_CH583 ///< WCH CH582 (alias, same USB IP as CH583)
 #define OPT_MCU_CH32X035         2250 ///< WCH CH32X035
+#define OPT_MCU_CH32V4X7         2280 ///< WCH CH32V407, CH32V467
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -210,6 +213,8 @@
 
 // Geehy
 #define OPT_MCU_APM32F0XX        2800  ///< Geehy APM32F0xx
+#define OPT_MCU_APM32F103        2801  ///< Geehy APM32F103
+#define OPT_MCU_APM32F107        2802  ///< Geehy APM32F107
 
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
@@ -229,6 +234,7 @@
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
 #define OPT_OS_THREADX    9  ///< ThreadX
+#define OPT_OS_STK        10 ///< SuperTinyKernel RTOS (STK)
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -362,6 +368,26 @@
   #define CFG_TUD_DWC2_PTI_ENABLE CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
 #endif
 
+// Opt-in mitigation for the Buffer DMA erratum "Device Controller does not drop short SETUP packets":
+// size in bytes of a guard region reserved before the EP0 SETUP DMA buffer, 0 = disabled. Must be a multiple of 8.
+// A DOEPDMA0 rewind into the guard is detected and the device is disconnected and re-initialized. The guard only
+// contains the rewind while the DWC2 interrupt is serviced: guard ~= 12 + 4 * (T_irq / T_setup) bytes, where T_irq is
+// the worst DWC2 interrupt latency plus its handling time and T_setup the host SETUP-to-SETUP spacing (~1us minimum).
+// Rough sizes in bytes from that formula (fitted on STM32U5A5 @ 160MHz), rounded up to a multiple of 8, with
+// T_setup ~12us for a FS host (estimate), 4.83us for an HS EHCI host (RT1064), ~1us for the fastest HS host:
+//   T_irq          FS host    HS EHCI    HS fastest
+//   40 us          ~32        ~48        ~176
+//   100 us         ~48        ~96        ~416
+//   50 ms          ~17 KB     ~41 KB     ~200 KB    e.g. ESP-IDF flash sector erase blocking interrupts
+// A guard cannot cover interrupt blocking in the millisecond range: keep T_irq short instead.
+#ifndef CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE
+  #ifndef CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT
+    #define CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT
+#endif
+
 // DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
@@ -381,8 +407,13 @@
 #endif
 
 #if defined(TUP_USBIP_DWC2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    CFG_TUD_DWC2_SLAVE_ENABLE
-  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    CFG_TUH_DWC2_SLAVE_ENABLE
+  // Classes may skip their endpoint buffer only if every runtime mode takes a tu_fifo_t transfer: Buffer DMA cannot
+  // (needs a linear, word-aligned buffer), so a build that may select DMA at runtime keeps the endpoint buffers.
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    (CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE)
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    (CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE)
+
+  // Slave mode code is compiled in: it needs the hwfifo access helpers regardless of the above
+  #define CFG_TUSB_FIFO_HWFIFO_API         (CFG_TUD_DWC2_SLAVE_ENABLE || CFG_TUH_DWC2_SLAVE_ENABLE)
 
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0 // fixed hwfifo address
@@ -528,7 +559,7 @@
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
 // highspeed support indicator
-#define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
+#define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_HCD_HIGHSPEED)
 
 
 //--------------------------------------------------------------------+
@@ -554,6 +585,15 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
+// SEGGER SystemView instrumentation level (like CFG_TUSB_DEBUG):
+//   0=off  1=USB ISR  2=+usbd/usbh functions  3=+dcd/hcd API  4=+class driver API
+// Requires lib/SystemView (python3 tools/get_deps.py) and a SYSVIEW=<level> build.
+#ifndef CFG_TUSB_SYSVIEW
+  #define CFG_TUSB_SYSVIEW 0
+#endif
+// Derived, not a setting
+#define CFG_TUSB_SYSVIEW_ENABLED ((CFG_TUD_ENABLED || CFG_TUH_ENABLED) && CFG_TUSB_SYSVIEW)
+
 // Level where CFG_TUSB_DEBUG must be at least for USBH is logged
 #ifndef CFG_TUH_LOG_LEVEL
   #define CFG_TUH_LOG_LEVEL   2
@@ -570,11 +610,12 @@
   #define CFG_TUSB_MEM_SECTION
 #endif
 
-// Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
-// host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
-#ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
-#endif
+// Alignment requirement of buffer used for usb transferring. Without CFG_TUSB_MEM_ALIGN each stack defaults to its
+// controller's requirement, at least 4: CFG_TUD_MEM_ALIGN to TUP_DCD_MEM_ALIGN, CFG_TUH_MEM_ALIGN to
+// TUP_HCD_MEM_ALIGN (common/tusb_mcu.h). The floor of 4 is for the stack's own buffers, which drivers read as words
+// (SETUP, CBW/CSW). Defining CFG_TUSB_MEM_ALIGN sets both; CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN set one.
+// Its default is defined after CFG_TUD_MEM_ALIGN and CFG_TUH_MEM_ALIGN.
+#define TU_MEM_ALIGN_AT_LEAST4(_align) TU_ATTR_ALIGNED(((_align) > 4) ? (_align) : 4)
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
   #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
@@ -618,9 +659,20 @@
   #define CFG_TUD_MEM_SECTION     CFG_TUSB_MEM_SECTION
 #endif
 
-// Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUD_UNCACHED_MEM_SECTION
+  #define CFG_TUD_UNCACHED_MEM_SECTION CFG_TUD_MEM_SECTION
+  #define TUD_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
+#endif
+
+// Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN, else TUP_DCD_MEM_ALIGN, at least 4)
 #ifndef CFG_TUD_MEM_ALIGN
-  #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
+  #ifdef CFG_TUSB_MEM_ALIGN
+    #define CFG_TUD_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
+  #else
+    #define CFG_TUD_MEM_ALIGN     TU_MEM_ALIGN_AT_LEAST4(TUP_DCD_MEM_ALIGN)
+  #endif
 #endif
 
 #ifndef CFG_TUD_MEM_DCACHE_ENABLE
@@ -765,6 +817,12 @@
     #define CFG_TUH_ENUMERATION_BUFSIZE 256
   #endif
 
+  // Root-port delay after reset, before reading the port speed/status.
+  // Increase this for devices that need more time to become responsive.
+  #ifndef CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS
+    #define CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS 2
+  #endif
+
   // Timeout in ms for each control transfer; raise it for a device with slow control requests.
   // A broken device that ACKs SETUP but never completes a later stage (e.g NAK forever) would
   // otherwise stall the control pipe - and during enumeration also hub polling - forever.
@@ -787,9 +845,26 @@
   #define CFG_TUH_MEM_SECTION   CFG_TUSB_MEM_SECTION
 #endif
 
-// Attribute to align memory for host controller
+// Attribute for controller structures that require uncached (or DMA-coherent) RAM.
+// If the default section is cacheable, override this with an uncached section.
+#ifndef CFG_TUH_UNCACHED_MEM_SECTION
+  #define CFG_TUH_UNCACHED_MEM_SECTION CFG_TUH_MEM_SECTION
+  #define TUH_UNCACHED_MEM_SECTION_IMPLICIT // drivers warn when D-cache maintenance is enabled
+#endif
+
+// Attribute to align memory for host controller (default: CFG_TUSB_MEM_ALIGN, else TUP_HCD_MEM_ALIGN, at least 4)
 #ifndef CFG_TUH_MEM_ALIGN
-  #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
+  #ifdef CFG_TUSB_MEM_ALIGN
+    #define CFG_TUH_MEM_ALIGN   CFG_TUSB_MEM_ALIGN
+  #else
+    #define CFG_TUH_MEM_ALIGN   TU_MEM_ALIGN_AT_LEAST4(TUP_HCD_MEM_ALIGN)
+  #endif
+#endif
+
+// Alignment that suits both controllers, for a buffer used by either
+#ifndef CFG_TUSB_MEM_ALIGN
+  #define CFG_TUSB_MEM_ALIGN \
+    TU_MEM_ALIGN_AT_LEAST4((TUP_DCD_MEM_ALIGN > TUP_HCD_MEM_ALIGN) ? TUP_DCD_MEM_ALIGN : TUP_HCD_MEM_ALIGN)
 #endif
 
 #ifndef CFG_TUH_MEM_DCACHE_ENABLE
@@ -807,6 +882,13 @@
 // max events processed in one tuh_task_ext() call, 0 for unlimited
 #ifndef CFG_TUH_TASK_EVENTS_PER_RUN
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
+#endif
+
+// Enable the ChipIdea HCD's single-transfer isochronous scheduler, by default with the audio host.
+// Supports service intervals up to 4 ms (HS bInterval <= 6, FS bInterval <= 3).
+// Costs about 2.2 KB of flash and 64 bytes of RAM, 2.9 KB and 96 bytes with CFG_TUH_HUB (RT1064 audio_host, GCC -Os).
+#ifndef CFG_TUH_CHIPIDEA_ISO_ENABLE
+  #define CFG_TUH_CHIPIDEA_ISO_ENABLE (CFG_TUH_AUDIO > 0)
 #endif
 
 //------------- CLASS -------------//

@@ -57,6 +57,7 @@ function(family_add_board BOARD_TARGET)
     -Wno-error=unused-parameter
     -Wno-error=shadow
     -Wno-error=redundant-decls
+    -Wno-error=missing-prototypes
   )
 
   update_board(${BOARD_TARGET})

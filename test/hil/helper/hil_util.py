@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Bottom layer of the HIL harness: the bounded command runner plus the shared helpers and
-# data every other module needs. Stays stdlib-only -- everything else imports this,
-# including the unit tests on GitHub's bare runner; never import them from here. Callers
-# set the module global `verbose`.
+# Bottom layer of the HIL harness: the bounded command runner (agentrc's, wrapped with this
+# harness's bounds) plus the shared helpers and data every other module needs. Stays
+# stdlib-only at import -- everything else imports this, including the unit tests on GitHub's
+# bare runner; never import them from here. Callers set the module global `verbose`.
 
 from __future__ import annotations
 
 import glob
 import os
-import signal
 import subprocess
-import unicodedata
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,8 +36,9 @@ device_tests = [
     'device/printer_to_cdc',
     'device/midi_test',
     'device/mtp',
-    'device/usbtest',  # cafe:4010, unique PID; runs the Linux testusb tier-4 battery via usbtest.py
-    # 'device/net_lwip_webserver',  # disabled for PR #3605: USB net iface enum is flaky on the CI HIL host
+    'device/usbtmc',  # cafe:401c; raw USBTMC/USB488 requests via usbtmc_test.py (pyusb)
+    'device/usbtest',  # 0525:a4a0 (Gadget Zero, usbtest's static id); runs the Linux testusb tier-4 battery via usbtest.py
+    'device/net_lwip_webserver',
 ]
 
 dual_tests = [
@@ -52,6 +51,10 @@ host_test = [
     'host/msc_file_explorer_freertos',
     'host/device_info',
 ]
+
+# flashers of the boards built under esp-idf: the CI matrix's esp-idf bucket and CI's esp leg
+# (change_impact.rig_legs)
+ESP_IDF_FLASHERS = ('esptool', 'openocd_esp')
 
 verbose = False
 
@@ -94,230 +97,107 @@ CMD_TIMEOUT = pos_int_env('HIL_CMD_TIMEOUT', 180)
 REAP_GRACE = 10
 
 TINYUSB_ROOT = Path(__file__).resolve().parents[3]  # test/hil/helper/ -> repo root
+USBTEST_ID = ('0525', 'a4a0')   # examples/device/usbtest: Linux Gadget Zero, in usbtest's static ids
 
 
-def display_width(s: str) -> int:
-    """Terminal COLUMNS, not characters.
-
-    The status marks the reports use -- ✅ ❌ ⚪ ⚠ 🔒 -- are one Python character and TWO
-    columns wide. Measuring with len() pads every cell containing one a column short, so
-    the pipes drift out of line against the header rule for the whole table.
-    """
-    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in s)
+def is_dut_id(vidpid: str) -> bool:
+    """Whether 'vvvv:pppp' is TinyUSB example firmware: VID cafe, or the usbtest example."""
+    return vidpid.startswith('cafe:') or vidpid == ':'.join(USBTEST_ID)
 
 
-def pad(s: str, width: int, center: bool = False) -> str:
-    """str.ljust/center, measured in display columns. See display_width."""
-    room = max(0, width - display_width(s))
-    if not center:
-        return s + ' ' * room
-    left = room // 2
-    return ' ' * left + s + ' ' * (room - left)
+# each rig host's roster under test/hil; any other host names its own (a dev PC: test/hil/local.json)
+CONFIG_BY_HOST = {'ci': 'tinyusb.json', 'tusb': 'hfp.json'}
 
 
-def cmd_stdout_text(out: Any) -> str:
-    if out is None:
-        return ''
-    if isinstance(out, bytes):
-        return out.decode('utf-8', errors='ignore')
-    return str(out)
+def roster_path(host: str, config: str | None = None, local_fallback: bool = False) -> Path:
+    """The roster `config` names (as given, else under test/hil), else `host`'s under test/hil
+    only, so a same-named file in the cwd never replaces the rig's; with `local_fallback`, an
+    existing test/hil/local.json for any other host; LookupError for a host with none. The file
+    is the caller's to open: a missing one fails there."""
+    hil_dir = TINYUSB_ROOT / 'test' / 'hil'
+    if config:
+        path = Path(config)
+        return path if path.exists() else hil_dir / config
+    if host not in CONFIG_BY_HOST:
+        if local_fallback and (hil_dir / 'local.json').exists():
+            return hil_dir / 'local.json'
+        raise LookupError(f'host {host} has no roster here: name one (a dev PC: test/hil/local.json)')
+    return hil_dir / CONFIG_BY_HOST[host]
 
 
-def _banner_body(out: Any, err: Any) -> str:
-    # split_stderr callers keep the diagnostic in stderr — a banner of stdout alone
-    # would be blank exactly when something went wrong
-    body = cmd_stdout_text(out)
-    err_text = cmd_stdout_text(err)
-    if err_text:
-        body = f'{body}\n{err_text}' if body else err_text
-    return body
+# agentrc's flash provider (the `hil` skill's Flashers): its hil_flash, whose runner is
+# `.hil_process`. Loaded on first use, never at import: change_impact imports this module on
+# a bare checkout before CI fetches agentrc.
+_provider = None
 
 
-# Shared with compact_output's stripper in hil_test: duplicated literals let the two
-# layers drift and reintroduce literal marker noise mid-row in the GitHub log.
-GROUP_MARK, ENDGROUP_MARK = '::group::', '::endgroup::'
+def provider():
+    """agentrc's hil_flash; ImportError, before any tool runs, when agentrc is missing,
+    off CI's pin, or lacks a file the provider loads or launches (a staged tree included)."""
+    global _provider
+    if _provider is None:
+        from . import agentrc
+        # a literal path: RemoteStaging reads it and its FILES to check the rig gets each one
+        _provider = agentrc.load_file('skills/hil/scripts/hil_flash.py')
+    return _provider
 
 
-def strip_workflow_markers(line: str) -> str:
-    # run_cmd only ever emits markers at line start; mid-line is not a real case.
-    return line.removeprefix(GROUP_MARK).removeprefix(ENDGROUP_MARK)
+_hil_boards = None
 
 
-def _ci_log_groups() -> bool:
-    # GitHub folds ::group::/::endgroup:: only at line start of the JOB's real stdout; a
-    # pool worker's capture is compacted into one row line, where they render literally.
-    return bool(os.getenv('CI')) and sys.stdout is sys.__stdout__
+def hil_boards():
+    """agentrc's board registry (hil_boards): each roster board's flasher and flasher_recover by
+    its probe. Loaded on first use like provider(); every reader of a board's flasher resolves
+    its roster entry through it, readers of names alone read the roster raw."""
+    global _hil_boards
+    if _hil_boards is None:
+        from . import agentrc
+        _hil_boards = agentrc.load_file('skills/hil/scripts/hil_boards.py')
+    return _hil_boards
 
 
-def _print_banner(title: str, out: Any, err: Any) -> None:
-    print()
-    if _ci_log_groups():
-        print(f'{GROUP_MARK}{title}')
-        print(_banner_body(out, err))
-        print(ENDGROUP_MARK)
-    else:
-        print(title)
-        print(_banner_body(out, err))
+def lock_name(board: dict) -> str:
+    """The board's lock: its registered board's name in agentrc's registry, whatever this roster
+    calls it, else its roster name (`hil` skill, Board locks)."""
+    return hil_boards().lock_name(board)
 
 
-def _close_pipes(p: subprocess.Popen) -> None:
-    """Close OUR ends of an abandoned child's pipes. Never raises."""
-    for pipe in (p.stdout, p.stderr, p.stdin):
-        try:
-            if pipe is not None:
-                pipe.close()
-        except OSError:
-            pass
+_openocd_esp = None
 
 
-def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:
-    """Run `argv` alongside `work()`, which runs in THIS thread, then reap it -- bounded.
-
-    The read-while-we-write shape run_cmd cannot express: the caller needs the child
-    RUNNING while it does something else. Everything else about the contract is run_cmd's
-    -- own session, killpg, bounded reap, our pipe ends closed, rc 124 on the kill.
-
-    A PROCESS, not a thread: an abandoned thread keeps the fd, and usblp_open returns
-    -EBUSY while usblp->used (v6.12.96 usblp.c), so every later open in this long-lived
-    worker would read as a wedged device. A killed process takes its fd with it.
-
-    stdout is captured as BYTES and kept CLEAN -- a caller byte-compares it against the
-    payload it sent, so a single stderr byte (a PYTHONWARNINGS chirp, a sitecustomize
-    print, a .pth deprecation from a venv) would read as USB data corruption. stderr gets
-    its own pipe; communicate() drains both, so the split cannot deadlock.
-    `work` runs even if the child dies immediately -- the caller's own asserts decide.
-    """
-    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         start_new_session=True)
-
-    def _reap() -> subprocess.CompletedProcess:
-        try:
-            out, err = p.communicate(timeout=timeout)
-            return subprocess.CompletedProcess(argv, p.returncode, out, err)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(p.pid, signal.SIGKILL)
-            except OSError:
-                p.kill()
-            try:
-                out, err = p.communicate(timeout=REAP_GRACE)
-            except subprocess.TimeoutExpired:
-                # Outlasted SIGKILL: uninterruptible, still holding whatever it opened.
-                # Abandoned.
-                out, err = b'', b''
-                _close_pipes(p)     # our own fds must not leak either
-            return subprocess.CompletedProcess(argv, 124, out, err)
-
-    try:
-        work()
-    except BaseException:
-        # Reap first so the child never outlives us, then let the caller's error through.
-        # A `return` inside a `finally` would SWALLOW it -- an assert in `work` would
-        # vanish and the caller would compare data it never finished sending.
-        _reap()
-        raise
-    return _reap()
-
-
-def _cmd_label(cmd) -> str:
-    """A one-line name for a banner. An argv whose payload is a `python3 -c` program would
-    otherwise dump the whole body into the CI log, where run_cmd's banners are already the
-    noisiest thing in a failing row."""
-    if isinstance(cmd, str):
-        return cmd
-    parts = [a if len(a) <= 60 else f'<{len(a)}-char program>' for a in cmd]
-    return ' '.join(parts)
+def openocd_esp():
+    """agentrc's `openocd_esp` backend (hil_openocd_esp), loaded on first use like provider(): the
+    process's one hil_flash and usb_observe, and target-debug's esp_session for the managed session."""
+    global _openocd_esp
+    if _openocd_esp is None:
+        from . import agentrc
+        _openocd_esp = agentrc.load_file('skills/hil/scripts/hil_openocd_esp.py')
+    return _openocd_esp
 
 
 def run_cmd(cmd: str | list, cwd: str | None = None, timeout: int | None = None,
             binary: bool = False, split_stderr: bool = False,
-            quiet: bool = False) -> subprocess.CompletedProcess:
-    """Bounded subprocess: own session, killpg on expiry, rc 124 when it had to be killed.
+            quiet: bool = False, env: dict | None = None) -> subprocess.CompletedProcess:
+    """The provider's bounded runner (hil_process.run_cmd: own session, killpg on expiry, rc 124
+    when it had to be killed; `cmd` a shell string or an argv list, `env` added to the inherited
+    environment) with this harness's CMD_TIMEOUT default, REAP_GRACE and `verbose`, read on every
+    call."""
+    return provider().hil_process.run_cmd(
+        cmd, cwd, timeout=CMD_TIMEOUT if timeout is None else timeout, binary=binary,
+        split_stderr=split_stderr, quiet=quiet, reap_grace=REAP_GRACE, verbose=verbose, env=env)
 
-    `cmd` is a shell STRING or an argv LIST. argv exists for a program that cannot survive
-    a trip through the shell -- a multi-line `python3 -c` body -- which is how the harness
-    runs a library call that no in-process bound can contain. A daemon thread cannot bound
-    a C call that holds the GIL, so for those the child process IS the bound.
-    """
-    if timeout is None:
-        timeout = CMD_TIMEOUT
-    # binary: raw bytes (text mode's errors='replace' mangles non-UTF-8 file content).
-    # split_stderr: keep stderr out of stdout, for callers that parse stdout. quiet: no
-    # COMMAND FAILED banner, for retry loops that report failures themselves (timeouts
-    # still print: a killed child is always noteworthy).
-    popen_kwargs = {
-        'cwd': cwd,
-        # a list goes straight to execve; only a string needs a shell to parse it
-        'shell': isinstance(cmd, str),
-        'stdout': subprocess.PIPE,
-        'stderr': subprocess.PIPE if split_stderr else subprocess.STDOUT,
-    }
-    if not binary:
-        popen_kwargs.update({'text': True, 'encoding': 'utf-8', 'errors': 'replace'})
-    # C-level setsid, same process-group semantics as preexec_fn=os.setsid but safe when
-    # called from threads
-    popen_kwargs['start_new_session'] = True
 
-    p = subprocess.Popen(cmd, **popen_kwargs)
-    try:
-        out, err = p.communicate(timeout=timeout)
-        r = subprocess.CompletedProcess(args=cmd, returncode=p.returncode, stdout=out, stderr=err)
-    except subprocess.TimeoutExpired as ex:
-        try:
-            os.killpg(p.pid, signal.SIGKILL)
-        except OSError:
-            # ProcessLookupError: already gone. PermissionError: an all-root group refuses
-            # the group kill -- letting either escape would skip the bounded reap, the pipe
-            # close and the rc-124 return this handler exists for.
-            pass
-        try:
-            out, err = p.communicate(timeout=REAP_GRACE)
-        except subprocess.TimeoutExpired:
-            # Something in the group outlived SIGKILL: D state (truly unkillable), or
-            # root-owned because sudo FORKS rather than execs, so the wrapper dies and its
-            # root child does not. Abandon it; the harness never
-            # sudo-kills its way out. Our ends of its pipes must not leak, though: a pool
-            # worker lives for the whole run, so every wedged command would cost it two fds.
-            out, err = None, None
-            _close_pipes(p)
-        # prefer the post-kill buffers (supersets of the exception's), falling back to ex.*
-        # when the child was unkillable. TimeoutExpired carries BYTES even for a text-mode
-        # Popen, so the fallbacks must be decoded or a text-mode caller gets bytes exactly
-        # when the child wedged in D state.
-        def _typed(v):
-            if not binary and isinstance(v, bytes):
-                return v.decode('utf-8', errors='replace')
-            return v
+def run_alongside(argv: list, work, timeout: int) -> subprocess.CompletedProcess:
+    """The provider's hil_process.run_alongside, reaping for this harness's REAP_GRACE."""
+    return provider().hil_process.run_alongside(argv, work, timeout, reap_grace=REAP_GRACE)
 
-        timeout_out = _typed(out or ex.stdout) or (b'' if binary else '')
-        # ...and never None: with split_stderr the SUCCESS path always yields a str/bytes,
-        # so a caller that does `r.stderr.strip()` works everywhere except the timeout --
-        # the one path it was written for. Without split_stderr stderr stays None, as on
-        # the success path (it was merged into stdout).
-        timeout_err = _typed(err if err is not None else ex.stderr)
-        if split_stderr and timeout_err is None:
-            timeout_err = b'' if binary else ''
-        _print_banner(f'COMMAND TIMEOUT ({timeout}s): {_cmd_label(cmd)}', timeout_out, timeout_err)
-        return subprocess.CompletedProcess(args=cmd, returncode=124, stdout=timeout_out, stderr=timeout_err)
-    except BaseException:
-        # BaseException, not Exception (as in CPython's own subprocess.run):
-        # KeyboardInterrupt is the case that matters, and start_new_session put the child in
-        # its OWN group, so it never got the terminal's SIGINT -- without this, Ctrl-C
-        # leaves the flasher or testusb holding the probe and its usbfs node. Kill and
-        # close, never wait: this path must not add a hang of its own.
-        try:
-            os.killpg(p.pid, signal.SIGKILL)
-        except OSError:
-            pass
-        _close_pipes(p)
-        raise
 
-    if r.returncode != 0 and not quiet:
-        _print_banner(f'COMMAND FAILED: {_cmd_label(cmd)}', r.stdout, r.stderr)
-    elif verbose:
-        print(cmd)
-        print(cmd_stdout_text(r.stdout))
-    return r
+def cmd_stdout_text(out: Any) -> str:
+    return provider().hil_process.cmd_stdout_text(out)
+
+
+def strip_workflow_markers(line: str) -> str:
+    return provider().hil_process.strip_workflow_markers(line)
 
 
 # get usb serial by id

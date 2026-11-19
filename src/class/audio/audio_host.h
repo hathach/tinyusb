@@ -36,10 +36,6 @@ extern "C" {
   #error CFG_TUH_AUDIO_PROTOCOLS contains an unsupported protocol bit
 #endif
 
-// Maximum number of Audio devices
-#ifndef CFG_TUH_AUDIO_MAX
-  #define CFG_TUH_AUDIO_MAX 1
-#endif
 // Maximum discrete sampling frequencies retained per rate source. UAC1 uses
 // one rate source per alternate setting; UAC2 alternate settings may share a
 // Clock Source.
@@ -140,7 +136,11 @@ typedef struct {
 // Stream Enumeration
 //--------------------------------------------------------------------+
 
-// Number of logical audio streams exposed by one mounted device. The
+// idx/dev_idx identifies an Audio Control function in the shared pool
+// [0, CFG_TUH_AUDIO), independent of USB device address. One device may
+// expose multiple instances. The index is supplied by the mount callback.
+
+// Number of logical audio streams exposed by one audio instance. The
 // application iterates stream indices [0, tuh_audio_stream_count()) and
 // inspects each with tuh_audio_stream_exists()/tuh_audio_stream_direction().
 uint8_t tuh_audio_stream_count(uint8_t dev_idx);
@@ -187,9 +187,12 @@ bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx
 // when this function returns false.
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx);
 // Stop transferring and asynchronously deactivate the Audio Streaming
-// interface (alt 0). true means that the deactivation request was submitted.
-// Completion is reported through tuh_audio_event_cb(); no event is emitted
-// when this function returns false.
+// interface (alt 0). true means that the deactivation request was submitted;
+// TUH_AUDIO_EVENT_STOP_COMPLETE is then the stream's last event (a transfer
+// failing meanwhile reports no XFER_FAILED). Transfers are not re-armed during
+// the request, so the last one has normally drained by then; tuh_audio_start()
+// and tuh_audio_configure() refuse an endpoint still draining. false leaves the
+// stream running and emits no event.
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx);
 
 // Frame-based transfer. One frame = channels * bytes per sample.
@@ -339,9 +342,11 @@ void tuh_audio_playback_cb(uint8_t idx, uint8_t stream_idx, uint16_t xferred_byt
 // Reports completion of asynchronous start/stop operations and unrecoverable
 // transfer failures. START_COMPLETE is emitted after the complete activation
 // sequence and initial endpoint transfers are submitted. XFER_FAILED means the
-// HCD could not submit a transfer or completed it unsuccessfully; it is not a
-// notification for an individual dropped isochronous packet. The driver stops
-// the stream before reporting START_COMPLETE failure or XFER_FAILED.
+// HCD could not submit a transfer, stalled the endpoint, or failed several
+// consecutive transfers; it is not a notification for an individual dropped
+// isochronous packet. A dropped capture or playback packet is reported to the
+// data callback with xferred_bytes = 0. The driver stops the stream before
+// reporting START_COMPLETE failure or XFER_FAILED.
 void tuh_audio_event_cb(uint8_t idx, uint8_t stream_idx, tuh_audio_event_t event, tusb_xfer_result_t result);
 
 //--------------------------------------------------------------------+

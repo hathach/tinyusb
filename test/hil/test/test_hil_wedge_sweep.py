@@ -14,6 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("hil_test imports agentrc's rig harness (fcntl locks, process groups): POSIX only")
+
 import usbtest_harness   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
@@ -142,8 +145,10 @@ class TestBoardSweep(unittest.TestCase):
         p(hil_test, 'test_only', [])
         p(hil_test, 'board_test', {})
         p(hil_test, 'log_line', lambda msg: None)
-        p(hil_lock, 'acquire_board_lock', lambda name: open(os.devnull))
-        p(hil_lock, 'clear_record', lambda fh: None)
+        locks = tempfile.TemporaryDirectory()
+        self.addCleanup(locks.cleanup)
+        p(hil_lock, 'BOARD_LOCK_DIR', locks.name)
+        p(hil_flash, 'probe_busy', lambda board: [])
         self.ran = []
         p(hil_test, 'test_example', lambda board, v, ex: self.ran.append(ex) or (0, 'pass', None))
         p(usbtest, 'strays_on', lambda serial: [{'pid': 1, 'start': '1', 'node': NODE}])

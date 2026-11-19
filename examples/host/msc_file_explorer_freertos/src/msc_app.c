@@ -76,6 +76,7 @@ StaticTask_t msc_app_taskdef;
 //------------- Elm Chan FatFS -------------//
 static CFG_TUH_MEM_SECTION FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
 static volatile bool              _disk_busy[CFG_TUH_DEVICE_MAX];
+static volatile bool              _disk_failed[CFG_TUH_DEVICE_MAX]; // last command's CSW was not PASSED
 static volatile bool              _mount_pending[CFG_TUH_DEVICE_MAX];
 
 static CFG_TUH_MEM_SECTION FIL     file1, file2;
@@ -83,7 +84,7 @@ static CFG_TUH_MEM_SECTION FIL     file1, file2;
 #ifndef CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE
 #define CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE 4096
 #endif
-static CFG_TUH_MEM_SECTION uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
+static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint8_t rw_buf[CFG_EXAMPLE_MSC_FILE_EXPLORER_RW_BUFSIZE];
 
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {
@@ -198,7 +199,7 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t 
   const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
   printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
-    block_count, block_size, block_count / ((1024 * 1024) / block_size));
+    block_count, block_size, (uint32_t) (((uint64_t) block_count * block_size) >> 20));
 
   // For simplicity: we only mount 1 LUN per device
   const uint8_t drive_num     = dev_addr - 1;
@@ -257,8 +258,8 @@ static void wait_for_disk_io(BYTE pdrv) {
 }
 
 static bool disk_io_complete(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data) {
-  (void)dev_addr;
-  (void)cb_data;
+  // a command that fails after submission completes with a failed or phase-error CSW
+  _disk_failed[dev_addr - 1] = (cb_data->csw == NULL || cb_data->csw->status != MSC_CSW_STATUS_PASSED);
   _disk_busy[dev_addr - 1] = false;
   return true;
 }
@@ -271,8 +272,17 @@ DSTATUS disk_status(BYTE pdrv /* Physical drive nmuber to identify the drive */
 
 DSTATUS disk_initialize(BYTE pdrv /* Physical drive nmuber to identify the drive */
 ) {
-  (void)pdrv;
-  return 0;                       // nothing to do
+  const uint8_t dev_addr = pdrv + 1;
+  const uint8_t lun      = 0;
+
+  // FatFS moves whole sectors through FF_MAX_SS-byte buffers and, when FF_MIN_SS == FF_MAX_SS,
+  // never asks for the device's sector size: refuse one outside the range it was built for
+  const uint32_t block_size = tuh_msc_get_block_size(dev_addr, lun);
+  if (block_size < FF_MIN_SS || block_size > FF_MAX_SS) {
+    return STA_NOINIT;
+  }
+
+  return 0;
 }
 
 DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive */
@@ -284,10 +294,13 @@ DRESULT disk_read(BYTE  pdrv,     /* Physical drive nmuber to identify the drive
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
-  return RES_OK;
+  return _disk_failed[pdrv] ? RES_ERROR : RES_OK;
 }
 
 #if FF_FS_READONLY == 0
@@ -301,10 +314,13 @@ DRESULT disk_write(BYTE        pdrv,   /* Physical drive nmuber to identify the 
   const uint8_t lun      = 0;
 
   _disk_busy[pdrv] = true;
-  tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
+  if (!tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0)) {
+    _disk_busy[pdrv] = false; // not submitted: no completion will clear it
+    return RES_ERROR;
+  }
   wait_for_disk_io(pdrv);
 
-  return RES_OK;
+  return _disk_failed[pdrv] ? RES_ERROR : RES_OK;
 }
 
 #endif
@@ -436,6 +452,10 @@ void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
   const uint8_t  lun         = 0;
   const uint32_t block_size  = tuh_msc_get_block_size(dev_addr, lun);
   const uint32_t block_count = tuh_msc_get_block_count(dev_addr, lun);
+  if (block_size == 0 || block_size > sizeof(rw_buf)) {
+    printf("dd: unsupported block size %" PRIu32 "\r\n", block_size);
+    return;
+  }
   if (count > block_count) {
     count = block_count;
   }
@@ -462,6 +482,10 @@ void cli_cmd_dd(EmbeddedCli *cli, char *args, void *context) {
     }
 
     wait_for_disk_io(pdrv);
+    if (_disk_failed[pdrv]) {
+      printf("dd: read failed at sector %" PRIu32 " (%u sectors)\r\n", i, n);
+      return;
+    }
   }
 
   if (submit_failed) {

@@ -19,6 +19,7 @@ CFLAGS += \
 	-Dmain=spresense_main \
 	-pipe \
 	-std=gnu11 \
+	-fno-builtin \
 	-fno-strength-reduce \
 	-fomit-frame-pointer \
 	-Wno-error=undef \

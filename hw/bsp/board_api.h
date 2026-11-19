@@ -68,6 +68,9 @@ extern "C" {
 #define CFG_BOARD_UART_BAUDRATE 115200   ///< Default baud rate
 #endif
 
+// Example task stacks get extra room when the debug log or SystemView instrumentation is built in
+#define BOARD_STACK_INSTRUMENTED (CFG_TUSB_DEBUG || CFG_TUSB_SYSVIEW)
+
 //--------------------------------------------------------------------+
 // Board Porting API
 // For simplicity, only one LED and one Button are used

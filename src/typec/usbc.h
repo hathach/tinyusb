@@ -72,6 +72,7 @@ void tuc_attach_changed_cb(uint8_t rhport, bool attached);
 //--------------------------------------------------------------------+
 
 bool tuc_msg_request(uint8_t rhport, void const* rdo);
+bool tuc_msg_soft_reset(uint8_t rhport);
 
 
 #ifdef __cplusplus

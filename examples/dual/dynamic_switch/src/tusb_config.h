@@ -98,16 +98,8 @@ extern "C" {
 #define CFG_TUD_MEM_SECTION
 #endif
 
-#ifndef CFG_TUD_MEM_ALIGN
-#define CFG_TUD_MEM_ALIGN __attribute__((aligned(4)))
-#endif
-
 #ifndef CFG_TUH_MEM_SECTION
 #define CFG_TUH_MEM_SECTION CFG_TUD_MEM_SECTION
-#endif
-
-#ifndef CFG_TUH_MEM_ALIGN
-#define CFG_TUH_MEM_ALIGN CFG_TUD_MEM_ALIGN
 #endif
 
 //--------------------------------------------------------------------

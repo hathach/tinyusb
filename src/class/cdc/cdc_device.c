@@ -174,8 +174,11 @@ uint32_t tud_cdc_n_available(uint8_t itf) {
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_READ);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_read(&p_cdc->rx_stream, buffer, bufsize);
+  uint32_t const ret = tu_edpt_stream_read(&p_cdc->rx_stream, buffer, bufsize);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_READ);
+  return ret;
 }
 
 bool tud_cdc_n_peek(uint8_t itf, uint8_t *chr) {
@@ -201,8 +204,11 @@ uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
 
 uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
+  TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_FLUSH);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write_xfer(&p_cdc->tx_stream);
+  uint32_t const ret = tu_edpt_stream_write_xfer(&p_cdc->tx_stream);
+  TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_CLASS, TU_SV_ID_CDC_FLUSH);
+  return ret;
 }
 
 uint32_t tud_cdc_n_write_available(uint8_t itf) {
@@ -297,7 +303,8 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
   }
 
   // notification endpoint (optional)
-  if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+  if (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
     const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
     p_cdc->ep_notify = desc_ep->bEndpointAddress;
@@ -306,14 +313,13 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
   }
 
   //------------- Data Interface (optional) -------------//
-  if (TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
+  if (tu_desc_in_bounds(p_desc, desc_end) && TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
+    TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t), 0);
     const tusb_desc_interface_t *data_itf_desc = (const tusb_desc_interface_t *)p_desc;
     if (TUSB_CLASS_CDC_DATA == data_itf_desc->bInterfaceClass) {
       for (uint8_t e = 0; e < data_itf_desc->bNumEndpoints; e++) {
-        if (!tu_desc_in_bounds(p_desc, desc_end)) {
-          break;
-        }
         p_desc = tu_desc_next(p_desc);
+        TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t), 0);
 
         const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
         TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);

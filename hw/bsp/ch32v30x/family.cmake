@@ -14,9 +14,38 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
-# default to highspeed, used to select USBFS / USBHS driver
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 1)
+endif ()
+
+# Drop the usbfs default an older family.cmake cached under this help string, unless a -D set it (recorded by
+# sysview_record_command_line, which that family.cmake already had); usbhs there was the user's -D.
+get_property(_wch_host_usbip_help CACHE WCH_HOST_USBIP PROPERTY HELPSTRING)
+if (_wch_host_usbip_help STREQUAL "WCH host controller: usbfs or usbhs" AND "$CACHE{WCH_HOST_USBIP}" STREQUAL usbfs
+    AND NOT "WCH_HOST_USBIP" IN_LIST SYSVIEW_COMMAND_LINE_VARS)
+  unset(WCH_HOST_USBIP CACHE)
+endif ()
+unset(_wch_host_usbip_help)
+
+# Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
+if (NOT DEFINED WCH_HOST_USBIP)
+  if (DEFINED SPEED AND NOT SPEED STREQUAL high)
+    set(WCH_HOST_USBIP usbhs)
+  else ()
+    set(WCH_HOST_USBIP usbfs)
+  endif ()
+endif ()
+if (NOT WCH_HOST_USBIP MATCHES "^(usbfs|usbhs)$")
+  message(FATAL_ERROR "WCH_HOST_USBIP must be usbfs or usbhs")
+endif ()
+
+# SPEED selects the device controller. Default to the other IP for dual mode.
 if (NOT DEFINED SPEED)
-  set(SPEED high)
+  if (WCH_HOST_USBIP STREQUAL usbhs)
+    set(SPEED full)
+  else ()
+    set(SPEED high)
+  endif ()
 endif()
 
 #------------------------------------
@@ -49,14 +78,29 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
+  if (WCH_HOST_USBIP STREQUAL usbhs)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUH_WCH_USBIP_USBHS=1)
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_HIGH_SPEED)
+    endif ()
+  else ()
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_FULL_SPEED)
+    endif ()
+  endif ()
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
+    BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED}
+    )
   if (SPEED STREQUAL high)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USBHS=1
-#      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
       )
   else ()
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_USBFS=1
+      BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
       )
   endif ()
 
@@ -79,12 +123,19 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V307)
 
+  if (SYSVIEW)
+    # Work around lib/SEGGER_RTT's generic RISC-V lock trapping on WCH's QingKe core, see the header.
+    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf.h)
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/wch/dcd_ch32_usbhs.c
-    ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c
+    ${TOP}/src/portable/wch/usbhs_v1/hcd_wch_usbhs_v1.c
+    ${TOP}/src/portable/wch/usbfs/dcd_wch_usbfs.c
+    ${TOP}/src/portable/wch/usbfs/hcd_wch_usbfs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

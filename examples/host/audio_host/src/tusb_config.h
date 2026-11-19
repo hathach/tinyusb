@@ -49,10 +49,6 @@ extern "C" {
   #define CFG_TUH_MEM_SECTION
 #endif
 
-#ifndef CFG_TUH_MEM_ALIGN
-  #define CFG_TUH_MEM_ALIGN __attribute__((aligned(4)))
-#endif
-
 //--------------------------------------------------------------------
 // Host Configuration
 //--------------------------------------------------------------------
@@ -81,7 +77,9 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 512
 
-#define CFG_TUH_HUB                 0
+#ifndef CFG_TUH_HUB
+  #define CFG_TUH_HUB               0 // 1 to reach a device behind a hub, e.g. full speed via a high-speed hub
+#endif
 #define CFG_TUH_CDC                 0
 #define CFG_TUH_HID                 0
 #define CFG_TUH_MSC                 0
@@ -95,7 +93,6 @@ extern "C" {
 #define CFG_TUH_DEVICE_MAX (3 * CFG_TUH_HUB + 1)
 
 //------------- Audio Host Config -------------//
-#define CFG_TUH_AUDIO_MAX           1
 #define CFG_TUH_AUDIO_EPIN_BUFSIZE  256 // max capture transfer the application submits
 #define CFG_TUH_AUDIO_EPOUT_BUFSIZE 256 // max playback transfer the application submits
 

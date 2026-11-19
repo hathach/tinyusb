@@ -165,6 +165,26 @@ void setUp(void) {
 void tearDown(void) {
 }
 
+// The stack is initialized once for all tests: a test that ends unplugged leaves SETUPs dropped until the next
+// bus reset, so it ends with one, as the host's next connection would start.
+static void replug(void) {
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
+// Task
+//--------------------------------------------------------------------+
+void test_usbd_task_idle_does_not_mask_interrupts(void) {
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+  dcd_int_disable_StopIgnore();
+  dcd_int_enable_StopIgnore();
+
+  // An empty task poll must not call either interrupt mock.
+  TEST_ASSERT_FALSE(tud_task());
+}
+
 //--------------------------------------------------------------------+
 // Get Descriptor
 //--------------------------------------------------------------------+
@@ -276,9 +296,8 @@ void test_usbd_control_in_zlp(void)
 // SETUP dropped by full event queue
 //--------------------------------------------------------------------+
 
-// When the event queue is full, queue_event() drops the SETUP event. The queued-setup
-// counter must not keep the dropped SETUP's increment: a leaked count makes the handler
-// skip every later SETUP ("other SETUP in queue") forever, leaving EP0 permanently deaf.
+// When the event queue is full, queue_event() drops the SETUP event. Nothing may be left behind that
+// makes the handler skip every later SETUP and leaves EP0 permanently deaf.
 void test_usbd_setup_dropped_by_full_queue_recovers(void)
 {
   // fillers drain through usbd_reset -> class reset
@@ -296,8 +315,10 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
     tud_task();
   }
 
-  // the next SETUP must still be answered
+  // the next SETUP must still be answered (the fillers were unplugs, so the host resets first)
   desc_device = (uint8_t const*) &data_desc_device;
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
@@ -347,6 +368,114 @@ void test_usbd_setup_begin_rejected_is_not_processed(void) {
   tud_task();
 }
 
+// a SETUP queued behind a bus reset is the newest one, so it is served after the reset is processed
+void test_usbd_setup_queued_after_bus_reset_is_processed(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 11, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 11, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+}
+
+// a SETUP queued before the bus reset is still dropped (the post-reset one is newer), and the post-reset
+// one is served
+void test_usbd_setup_queued_before_bus_reset_is_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 12, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 13, false);
+
+  // only the post-reset SETUP reaches the DCD
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 13, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+}
+
+// a SETUP reported behind an unplug with no bus reset in between was received before the unplug: it is dropped
+// and the device stays disconnected
+void test_usbd_setup_queued_behind_unplug_is_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
+
+  // the SETUP never reaches the DCD
+  tud_task();
+  TEST_ASSERT_FALSE(tud_connected());
+  replug();
+}
+
+// a SETUP queued before an unplug that a full queue drops is still stale: it never reaches the DCD and the device
+// stays disconnected
+void test_usbd_setup_queued_before_dropped_unplug_is_stale(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 18, false);
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ - 1; i++) {
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  }
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);  // dropped: the queue is full
+
+  // draining the queue never begins tag 18
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_FALSE(tud_connected());
+  replug();
+}
+
+// the next connection starts with a bus reset: its SETUP, queued behind the unplug and that reset, is served
+void test_usbd_setup_queued_behind_unplug_and_bus_reset_is_processed(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 14, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+  TEST_ASSERT_TRUE(tud_connected());
+}
+
+// the newest SETUP dropped by a full queue still supersedes the older one already queued: that one is skipped,
+// and the host's retry is served
+void test_usbd_setup_older_skipped_when_newest_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  // an older SETUP, then fillers up to the brim, then the newest SETUP, which queue_event() drops
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 15, false);
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ - 1; i++) {
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  }
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 16, false);
+
+  // draining the queue never begins tag 15 (nor the dropped 16)
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+
+  // the retry is served
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 17, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 17, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Transfer completion dropped by full event queue
 //--------------------------------------------------------------------+
@@ -368,7 +497,7 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
     .wMaxPacketSize   = 64,
     .bInterval        = 0
   };
-  static uint8_t xfer_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[64];
 
   dcd_edpt_open_ExpectAndReturn(rhport, &desc_ep, true);
   TEST_ASSERT_TRUE(usbd_edpt_open(rhport, &desc_ep));
@@ -391,6 +520,7 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
   for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
     tud_task();
   }
+  replug();
 }
 
 //--------------------------------------------------------------------+
@@ -441,10 +571,10 @@ tusb_control_request_t const req_set_configuration = {
   .wLength       = 0
 };
 
-static uint8_t msc_out_buf[64];
+TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t msc_out_buf[64]; // usbd_edpt_xfer() checks the alignment
 
-// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
-static void msc_out_armed(void) {
+// Bind the bulk endpoints to the (mocked) MSC driver
+static void msc_configured(void) {
   mscd_reset_Ignore();
   dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   tud_task();
@@ -457,10 +587,49 @@ static void msc_out_armed(void) {
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
   tud_task();
+}
+
+// Bind the bulk endpoints to the (mocked) MSC driver, then claim and arm the OUT endpoint
+static void msc_out_armed(void) {
+  msc_configured();
 
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+//--------------------------------------------------------------------+
+// GET_INTERFACE answered by the core
+//--------------------------------------------------------------------+
+
+// A class without alternate settings leaves GET_INTERFACE to the core, which answers 0 (USB 2.0 9.4.4)
+void test_usbd_get_interface_default_answers_zero(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x81, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  static const uint8_t zero = 0;
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  mscd_control_xfer_cb_IgnoreAndReturn(false);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN, (uint8_t*) &zero, 1, 1, false, true);
+  tud_task();
+}
+
+// GET_INTERFACE is device-to-host: an OUT one is a Request Error. Its data stage must not be armed, by the core or by a
+// class driver: the core's answer lives in a stack local, a driver's in its alternate setting (NCM's itf_data_alt), and
+// the host data would be written into either. So the core stalls it before the class driver sees it: no
+// mscd_control_xfer_cb() expectation is set, and CMock fails the test if it is called.
+void test_usbd_get_interface_out_is_stalled(void) {
+  static const tusb_control_request_t req = {
+    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+  };
+  msc_configured();
+
+  dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
 }
 
 static void msc_out_complete(CMOCK_mscd_xfer_cb_CALLBACK xfer_cb) {
@@ -481,12 +650,36 @@ static bool xfer_cb_claim_after_consume(uint8_t rhport_, uint8_t ep_addr, xfer_r
   return true;
 }
 
-// usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and releases the claim
+// A DCD may queue the unplug ahead of an endpoint completion latched in the same ISR run (dwc2 handles OTGINT before
+// the endpoint interrupts). The unplug unbinds the endpoint, so the completion that follows is stale: it is dropped
+// without reaching the class (mscd_xfer_cb has no expectation) and the run goes on to the next event.
+static void count_call(void* param) {
+  (*(unsigned*) param)++;
+}
+
+void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
+  msc_out_armed();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_xfer_complete(rhport, EDPT_MSC_OUT, sizeof(msc_out_buf), XFER_RESULT_SUCCESS, false);
+
+  // an event queued behind the stale completion is still processed in the same tud_task() run
+  unsigned calls = 0;
+  usbd_defer_func(count_call, &calls, false);
+
+  tud_task();
+  TEST_ASSERT_EQUAL_UINT(1, calls);
+  replug();
+}
+
+// Without dcd_edpt_abort_xfer() in the DCD, usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and
+// releases the claim
 void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   msc_out_armed();
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
@@ -498,6 +691,28 @@ void test_usbd_edpt_abort_releases_busy_endpoint(void) {
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
 }
 
+// A transfer buffer that misses the device controller's alignment (TUP_DCD_MEM_ALIGN) never reaches the DCD
+void test_usbd_xfer_unaligned_buffer_refused(void) {
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x87));
+  TEST_ASSERT_FALSE(usbd_edpt_xfer(rhport, 0x87, xfer_buf + 1, 8, false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x87));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x87)); // the refused transfer ended the claim
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x87, xfer_buf, 8, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf, 8, false));
+}
+
+// A zero-length packet moves no data: its buffer is not checked. EP 0x86, as the test above leaves 0x87 busy and
+// usbd is initialized once for all tests.
+void test_usbd_xfer_zlp_unaligned_buffer_accepted(void) {
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x86, xfer_buf + 1, 0, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x86, xfer_buf + 1, 0, false));
+}
+
 // an idle endpoint: the same dcd sequence, and it stays claimable
 void test_usbd_edpt_abort_idle_endpoint(void) {
   msc_out_armed();
@@ -507,9 +722,39 @@ void test_usbd_edpt_abort_idle_endpoint(void) {
   usbd_edpt_rx_consume(rhport, EDPT_MSC_OUT);
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
 
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, false);
   dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
   dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
   usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+}
+
+// A DCD with dcd_edpt_abort_xfer() drops the in-flight transfer without stalling the endpoint, and the claim is
+// released
+void test_usbd_edpt_abort_uses_dcd_abort(void) {
+  msc_out_armed();
+
+  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, true);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, EDPT_MSC_OUT, msc_out_buf, sizeof(msc_out_buf), false));
+}
+
+// A stalled endpoint is still stalled and cleared, which clears the stall: the DCD abort is only for a transfer
+void test_usbd_edpt_abort_clears_a_stall(void) {
+  msc_out_armed();
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_stall(rhport, EDPT_MSC_OUT);
+
+  dcd_edpt_stall_Expect(rhport, EDPT_MSC_OUT);
+  dcd_edpt_clear_stall_Expect(rhport, EDPT_MSC_OUT);
+  usbd_edpt_abort(rhport, EDPT_MSC_OUT);
+
+  TEST_ASSERT_FALSE(usbd_edpt_stalled(rhport, EDPT_MSC_OUT));
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_MSC_OUT));
 }
 
@@ -596,6 +841,51 @@ void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
 }
 
 //--------------------------------------------------------------------+
+// Malformed configuration descriptor (#4387)
+//--------------------------------------------------------------------+
+
+// A trailing bLength 1 descriptor at wTotalLength - 1 is not walkable: its bDescriptorType would be the byte past
+// wTotalLength. Here that byte is an INTERFACE guard; reading it would hand a 1-byte "interface" to the drivers
+// (mscd_open has no expectation for it). The walk stops and SET_CONFIGURATION completes with the MSC interface.
+void test_usbd_set_config_trailing_blength1_not_walked(void) {
+  static const uint8_t desc_cfg[] = {
+    TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN + 1, 0, 100),
+    TUD_MSC_DESCRIPTOR(0, 0, EDPT_MSC_OUT, EDPT_MSC_IN, 64),
+    1,                  // bLength 1, last byte within wTotalLength
+    TUSB_DESC_INTERFACE // guard byte past wTotalLength
+  };
+
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+
+  desc_configuration = desc_cfg;
+  dcd_event_setup_received(rhport, (uint8_t*) &req_set_configuration, false);
+  mscd_open_ExpectAndReturn(rhport, (tusb_desc_interface_t const*) (desc_cfg + TUD_CONFIG_DESC_LEN),
+                            TUD_MSC_DESC_LEN + 1, TUD_MSC_DESC_LEN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_set_configuration, 1);
+  tud_task();
+
+  TEST_ASSERT_TRUE(tud_mounted());
+}
+
+// usbd_open_edpt_pair() must not open an endpoint whose bLength is shorter than an endpoint descriptor: usbd_edpt_open
+// would read wMaxPacketSize and bInterval past it (no dcd_edpt_open expectation)
+void test_usbd_open_edpt_pair_short_blength(void) {
+  const uint8_t desc_ep[] = {
+    6, TUSB_DESC_ENDPOINT, 0x02, TUSB_XFER_BULK, U16_TO_U8S_LE(64), // bLength 6, wMaxPacketSize still in the buffer
+    0                                                                 // bInterval, outside bLength
+  };
+  uint8_t ep_out = 0;
+  uint8_t ep_in  = 0;
+
+  TEST_ASSERT_FALSE(usbd_open_edpt_pair(rhport, desc_ep, 1, TUSB_XFER_BULK, &ep_out, &ep_in));
+  TEST_ASSERT_EQUAL_HEX8(0, ep_out);
+}
+
+//--------------------------------------------------------------------+
 // Endpoint stream ZLP
 //--------------------------------------------------------------------+
 
@@ -606,7 +896,7 @@ void test_usbd_out_dropped_rearm_in_xfer_cb_stays_idle(void) {
 void test_usbd_stream_write_zlp_after_full_packet(void)
 {
   uint8_t ff_buf[64];
-  uint8_t ep_buf[64];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
   tu_edpt_stream_t stream;
   tusb_desc_endpoint_t desc_ep = {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -632,6 +922,163 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
   // one full packet and nothing left to send
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream: Interrupt endpoint size not a power of 2
+//--------------------------------------------------------------------+
+
+// An Interrupt endpoint can be any size up to its maximum, 48 here. A read must ask for whole packets that the FIFO
+// can take: 100 bytes free hold two, 96 bytes. Rounding by masking with mps - 1 gives 64, which a second 48-byte
+// packet overruns.
+void test_usbd_stream_read_xfer_non_power_of_2_mps(void) {
+  uint8_t ff_buf[100];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x06,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, false, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x06, ep_buf, 96, false, true);
+  TEST_ASSERT_EQUAL_UINT32(96, tu_edpt_stream_read_xfer(&stream));
+}
+
+// A transfer of whole 48-byte packets ends on a full packet, so the host needs a ZLP after it
+void test_usbd_stream_write_zlp_non_power_of_2_mps(void) {
+  uint8_t ff_buf[128];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[96];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x86,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 48,
+    .bInterval        = 1
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64)); // short last packet
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x86, NULL, 0, false, true);
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 96));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream: refused transfer submission (#4449)
+//--------------------------------------------------------------------+
+
+// tu_edpt_stream_write() reports the bytes it queued. When the DCD refuses the transfer, the packet already moved into
+// ep_buf must not be lost: the next write submits it again, ahead of the newly queued byte.
+void test_usbd_stream_write_refused_xfer_keeps_data(void) {
+  uint8_t ff_buf[128];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
+  uint8_t src[64];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x83,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) (i + 1);
+  }
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  // a full packet flushes; the DCD refuses it, the bytes stay queued in ep_buf
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x83, src, sizeof(src), sizeof(src), false, false);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL_UINT16(64, stream.tx_pending);
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x83));
+
+  // nothing new to send yet beyond the kept packet: no ZLP in its place
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+
+  // the next write resends the kept packet first; the new byte waits in the FIFO
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x83, src, sizeof(src), sizeof(src), false, true);
+  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "y", 1));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(1, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, 0x83));
+}
+
+// A short refused packet is topped up from the FIFO when it is resent, keeping the byte order
+void test_usbd_stream_write_xfer_refused_short_packet_topped_up(void) {
+  uint8_t ff_buf[128];
+  TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) uint8_t ep_buf[64];
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x84,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), ep_buf));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, sizeof(ep_buf));
+
+  // below a packet: queued without a transfer, then an explicit flush is refused
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x84, (uint8_t*) "abc", 3, 3, false, false);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+
+  // the next write retries: the kept bytes go first, followed by the new ones
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x84, (uint8_t*) "abcde", 5, 5, false, true);
+  TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write(&stream, "de", 2));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(0, tu_fifo_count(&stream.ff));
+
+  // a cleared stream drops what a refused transfer left
+  stream.tx_pending = 3;
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+}
+
+// Without ep_buf the transfer reads the FIFO itself: a refused one leaves the bytes queued
+void test_usbd_stream_write_refused_xfer_fifo_keeps_data(void) {
+  uint8_t ff_buf[128];
+  uint8_t src[64] = { 0 };
+  tu_edpt_stream_t stream;
+  tusb_desc_endpoint_t desc_ep = {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x85,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 64,
+    .bInterval        = 0
+  };
+
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, ff_buf, sizeof(ff_buf), NULL));
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, 64);
+
+  dcd_edpt_xfer_fifo_ExpectAndReturn(rhport, 0x85, &stream.ff, 64, false, false);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
 }
 
 //--------------------------------------------------------------------+
@@ -735,4 +1182,151 @@ void test_usbd_defer_func_after_queue_holds_one_call(void) {
   TEST_ASSERT_TRUE(usbd_defer_func_after_queue(deferred_call, NULL));
   tud_task();
   TEST_ASSERT_EQUAL(1, deferred_calls);
+}
+
+//--------------------------------------------------------------------+
+// tud_task_stop
+//--------------------------------------------------------------------+
+
+// events queued before the stop run first, then tud_task() returns true once; later events wait for the next run
+void test_usbd_task_stop_after_queued_events(void) {
+  deferred_calls = 0;
+  usbd_defer_func(deferred_call, NULL, false);
+  TEST_ASSERT_TRUE(tud_task_stop());
+  usbd_defer_func(deferred_call, NULL, false);
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(1, deferred_calls);
+
+  TEST_ASSERT_FALSE(tud_task());
+  TEST_ASSERT_EQUAL(2, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
+// without an RTOS a full queue refuses the stop and nothing stops; a retry once it drained is taken
+void test_usbd_task_stop_full_queue(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_FALSE(tud_task_stop());
+
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    TEST_ASSERT_FALSE(tud_task());
+  }
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_QUEUE_SZ, deferred_calls);
+
+  TEST_ASSERT_TRUE(tud_task_stop());
+  TEST_ASSERT_TRUE(tud_task());
+}
+
+// a stop that is the last event of a full run is reported by that run, not left for the idle fast path to hide
+void test_usbd_task_stop_last_event_of_run(void) {
+  deferred_calls = 0;
+  for (unsigned i = 0; i < CFG_TUD_TASK_EVENTS_PER_RUN - 1; i++) {
+    usbd_defer_func(deferred_call, NULL, false);
+  }
+  TEST_ASSERT_TRUE(tud_task_stop());
+
+  TEST_ASSERT_TRUE(tud_task());
+  TEST_ASSERT_EQUAL(CFG_TUD_TASK_EVENTS_PER_RUN - 1, deferred_calls);
+  TEST_ASSERT_FALSE(tud_task_event_ready());
+}
+
+//--------------------------------------------------------------------+
+// SOF callback: a bus reset or leaving a configuration turns it off, the application enables it again from
+// tud_mount_cb() (#2973)
+//--------------------------------------------------------------------+
+static unsigned sof_cb_count;
+static bool     sof_on_mount;
+
+void tud_sof_cb(uint32_t frame_count) {
+  (void) frame_count;
+  sof_cb_count++;
+}
+
+void tud_mount_cb(void) {
+  if (sof_on_mount) {
+    tud_sof_cb_enable(true);
+  }
+}
+
+static void bus_reset(void) {
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+}
+
+// SET_CONFIGURATION(cfg_num) of the configuration without interfaces, status stage included
+static void set_configuration(uint8_t cfg_num, bool was_configured) {
+  static tusb_control_request_t req; // read by the status-complete expectation during tud_task()
+  req        = req_set_configuration;
+  req.wValue = cfg_num;
+  desc_configuration = data_desc_configuration;
+  if (was_configured) {
+    // leaving a configuration turns SOF and the endpoints off first
+    dcd_sof_enable_Expect(rhport, false);
+    dcd_edpt_close_all_Expect(rhport);
+  }
+  dcd_event_setup_received(rhport, (uint8_t*) &req, false);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
+  if (was_configured) {
+    // the configuration reset clears the control request too, so the status stage reports a zeroed one
+    dcd_edpt0_status_complete_IgnoreArg_request();
+  }
+  tud_task();
+}
+
+// SOF callbacks for n SOF interrupts
+static unsigned sof_cb_after(unsigned n) {
+  const unsigned before = sof_cb_count;
+  for (unsigned i = 0; i < n; i++) {
+    dcd_event_sof(rhport, i, false);
+  }
+  while (tud_task_event_ready()) {
+    tud_task();
+  }
+  return sof_cb_count - before;
+}
+
+// A bus reset turns the SOF callback off without touching the DCD. Enabling it again reaches the DCD, which may
+// have turned its SOF interrupt off on bus reset.
+void test_usbd_sof_cb_enable_again_after_bus_reset(void) {
+  bus_reset();
+  dcd_sof_enable_Expect(rhport, true);
+  tud_sof_cb_enable(true);
+  TEST_ASSERT_EQUAL(2, sof_cb_after(2));
+
+  bus_reset();
+  TEST_ASSERT_EQUAL(0, sof_cb_after(2));
+
+  dcd_sof_enable_Expect(rhport, true);
+  tud_sof_cb_enable(true);
+  TEST_ASSERT_EQUAL(2, sof_cb_after(2));
+
+  dcd_sof_enable_Expect(rhport, false);
+  tud_sof_cb_enable(false);
+}
+
+// Leaving a configuration turns SOF off; enabling it from tud_mount_cb() turns it on again
+void test_usbd_sof_cb_enabled_from_mount_cb_after_leaving_configuration(void) {
+  bus_reset();
+  sof_on_mount = true;
+
+  dcd_sof_enable_Expect(rhport, true);
+  set_configuration(1, false);
+  TEST_ASSERT_EQUAL(1, sof_cb_after(1));
+
+  set_configuration(0, true);
+  TEST_ASSERT_EQUAL(0, sof_cb_after(1));
+
+  dcd_sof_enable_Expect(rhport, true);
+  set_configuration(1, false);
+  TEST_ASSERT_EQUAL(1, sof_cb_after(1));
+
+  sof_on_mount = false;
+  dcd_sof_enable_Expect(rhport, false);
+  tud_sof_cb_enable(false);
 }

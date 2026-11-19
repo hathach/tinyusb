@@ -29,7 +29,7 @@ For example, one CDC ACM function starts with:
    #define CFG_TUD_CDC     1
 
    // One entry inside the configuration descriptor
-   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 0, EPNUM_CDC_NOTIF, 8,
+   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 0, EPNUM_CDC_NOTIF, 16,
                       EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
 
 See :doc:`../../integration` for stack initialization and the full descriptor
@@ -81,10 +81,14 @@ pages.  Defaults come from ``src/tusb_option.h``.
      - Highest endpoint-number pool retained by the stack.  Lowering it can
        save RAM, but it must cover every configured endpoint number.
    * - ``CFG_TUD_MEM_SECTION`` / ``CFG_TUD_MEM_ALIGN``
-     - Common USB settings / 4-byte alignment
-     - Places and aligns controller-facing buffers for DMA.  Override these
-       when the device controller requires a particular RAM region or
-       alignment.
+     - Common USB settings / the controller's ``TUP_DCD_MEM_ALIGN``
+     - Places and aligns controller-facing buffers for DMA.  The alignment
+       defaults to what the device controller needs (``TUP_DCD_MEM_ALIGN``
+       in ``common/tusb_mcu.h``: 64 bytes on IP3511, 4 on DMA controllers
+       such as WCH USBHS and DWC2 with DMA, else 1), at least 4 bytes, and
+       ``usbd_edpt_xfer()`` asserts every transfer buffer meets
+       ``TUP_DCD_MEM_ALIGN``.  Override
+       the section when the controller requires a particular RAM region.
 
 ``CFG_TUD_ENDPPOINT_MAX`` contains the double ``P`` for compatibility; use the
 spelling shown above.
@@ -105,7 +109,17 @@ Core API and callbacks
    * - ``tud_task()`` / ``tud_task_ext()``
      - Dispatches bus, control, class, and completion events.  The extended
        form selects a wait timeout; its ``in_isr`` argument is currently
-       ignored.  Never call either from an ISR.
+       ignored.  Never call either from an ISR.  Both return ``true`` when the
+       stack is not initialized or ``tud_task_stop()`` was called.
+   * - ``tud_task_stop()``
+     - Makes ``tud_task()`` return ``true`` once the events queued before the
+       call are processed, waking it if blocked, so another task can stop the
+       USB task before ``tud_deinit()``, which must run in the USB task.  Call
+       it once per stop, from one other task, not an ISR.  On a full queue it
+       waits for space when the OS adapter's queue send waits (FreeRTOS,
+       ThreadX, Zephyr); otherwise (no OS, RT-Thread, RTX4, Mynewt) it returns
+       ``false`` and the caller retries.  It also returns ``false`` if the
+       stack is not initialized.
    * - ``tud_connected()`` / ``tud_mounted()`` / ``tud_ready()``
      - Reports progressively stronger states: bus activity, configured by the
        host, and configured plus not suspended.  Use ``tud_ready()`` before

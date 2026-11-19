@@ -51,6 +51,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -432,7 +433,7 @@ def source_lines(entry):
     configuration does not satisfy is an empty translation unit, whatever built."""
     argv = family_json.preprocess_argv(entry) + ['-E', entry['file']]
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, cwd=entry['directory'])
+        r = subprocess.run(argv, capture_output=True, encoding='utf-8', errors='replace', cwd=entry['directory'])
     except OSError:
         return None
     if r.returncode != 0:
@@ -657,14 +658,21 @@ def stale_options(build_dir, supplied):
 
 
 def roster_variants(boards, config):
-    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board."""
+    """(board, build name, defines, cflags) for each variant hil_test.py runs of each board; a parked
+    boards-skip board builds only when named, as CI's matrix never does."""
     try:
-        roster = {b['name']: b for b in json.loads(Path(config).read_text())['boards']}
+        cfg = json.loads(Path(config).read_text(encoding='utf-8'))
+        entries = cfg['boards'] + cfg.get('boards-skip', [])
+        roster = {b['name']: b for b in entries}
     except (OSError, ValueError, KeyError, TypeError) as e:
         fail(f'could not read the HIL roster {config}: {e}')
     unknown = [b for b in boards if b not in roster]
     if unknown:
         fail(f'not in {config}: {" ".join(unknown)}; --variants takes rig board names')
+    listed = Counter(e['name'] for e in entries)
+    twice = [b for b in dict.fromkeys(boards) if listed[b] > 1]
+    if twice:
+        fail(f'{config} lists {" ".join(twice)} more than once; which entry builds is ambiguous')
     out = []
     for b in boards:
         try:
@@ -741,10 +749,11 @@ def build_one(board, examples, targets, defines, cflags, shared, fetch, verbose,
 
 def run(cmd, verbose):
     # streamed as it arrives: a variant build runs for minutes, and a silent buffer reads as a
-    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits
+    # stall. PYTHONUNBUFFERED, or tools/build.py block-buffers its piped stdout until it exits;
+    # PYTHONIOENCODING, or on Windows it writes the pipe in the ANSI code page, not as decoded here
     out = []
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ROOT,
-                          env={**os.environ, 'PYTHONUNBUFFERED': '1'}) as p:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', cwd=ROOT,
+                          env={**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}) as p:
         for line in p.stdout:
             out.append(line)
             if verbose:

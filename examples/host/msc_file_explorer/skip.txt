@@ -2,3 +2,6 @@ board:lpcxpresso54114
 board:atsaml21_xpro
 board:saml22_feather
 board:sensorwatch_m0
+board:ra2a1_ek
+# 10 KB RAM: 16 bytes were left, less than usbh's state for resending a failed enumeration request
+board:ch32v203g_r0_1v0

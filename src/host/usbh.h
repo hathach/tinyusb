@@ -76,7 +76,8 @@ enum {
   TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
   TUH_CFGID_MAX3421 = 200,
   TUH_CFGID_FSDEV = 300,
-  TUH_CFGID_DWC2 = 400
+  TUH_CFGID_DWC2 = 400,
+  TUH_CFGID_WCH_USBFS = 500
 };
 
 typedef struct {
@@ -91,13 +92,21 @@ typedef struct {
 
 typedef struct {
   bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even when working at full-speed
+  uint8_t max_nak; // max NAK per endpoint per frame of a control/bulk transfer the CPU retries (slave mode, split),
+                   // to save CPU usage: 0 = default (3), at most 15, UINT8_MAX = unlimited. Unlike fsdev/max3421, 0
+                   // is not unlimited, so a caller setting only use_hs_phy keeps the pacing.
 } tuh_configure_dwc2_t;
+
+typedef struct {
+  uint8_t max_nak; // max NAK per control/bulk endpoint per frame to save CPU usage (0=unlimited)
+} tuh_configure_wch_usbfs_t;
 
 typedef union {
   // For TUH_CFGID_RPI_PIO_USB_CONFIGURATION use pio_usb_configuration_t
   tuh_configure_max3421_t max3421;
   tuh_configure_fsdev_t fsdev;
   tuh_configure_dwc2_t dwc2;
+  tuh_configure_wch_usbfs_t wch_usbfs;
 } tuh_configure_param_t;
 
 //--------------------------------------------------------------------+
@@ -162,12 +171,21 @@ bool tuh_inited(void);
 // Task function should be called in main/rtos loop, extended version of tuh_task()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
+// Return true when the stack is not initialized or tuh_task_stop() was called: leave the task loop, then
+// call tuh_deinit() from this task if needed
+bool tuh_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
-TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
-  tuh_task_ext(UINT32_MAX, false);
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_task(void) {
+  return tuh_task_ext(UINT32_MAX, false);
 }
+
+// Make tuh_task()/tuh_task_ext() return true once the events queued before this call are processed, waking it
+// if blocked; attachments deferred behind an ongoing enumeration are not, tuh_deinit() drops them. Call once
+// per stop from one other task (not ISR) to stop the USB task before tuh_deinit().
+// On a full queue it waits for space if the OS adapter's queue send waits (FreeRTOS, ThreadX, Zephyr), else
+// returns false (no OS, RT-Thread, RTX4, Mynewt...): retry. Also returns false if not initialized
+bool tuh_task_stop(void);
 
 // Check if there is pending events need processing by tuh_task()
 bool tuh_task_event_ready(void);
@@ -176,10 +194,21 @@ bool tuh_task_event_ready(void);
 extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 
-// Interrupt handler alias to HCD with in_isr as optional parameter
-#define _tuh_int_handler_arg0()                   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
-#define _tuh_int_handler_arg1(_rhport)            hcd_int_handler(_rhport, true)
-#define _tuh_int_handler_arg2(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+// Interrupt handler alias to HCD with in_isr as optional parameter. Most BSPs call it from their
+// vector ISR rather than tusb_int_handler(), so the SystemView ISR span is recorded here.
+#define _tuh_int_handler_arg0()   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
+  #define _tuh_int_handler_arg1(_rhport) _tuh_int_handler_arg2(_rhport, true)
+  // _in_isr read once: ENTER and EXIT must agree
+  #define _tuh_int_handler_arg2(_rhport, _in_isr) \
+    do { bool const _sv_in_isr = (_in_isr); \
+         if (_sv_in_isr) { TU_SYSVIEW_ISR_ENTER(); } \
+         hcd_int_handler(_rhport, _sv_in_isr); \
+         if (_sv_in_isr) { TU_SYSVIEW_ISR_EXIT(); } } while(0)
+#else
+  #define _tuh_int_handler_arg1(_rhport)            hcd_int_handler(_rhport, true)
+  #define _tuh_int_handler_arg2(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+#endif
 
 // 1st argument is rhport (mandatory), 2nd argument in_isr (optional)
 #define tuh_int_handler(...)   TU_FUNC_OPTIONAL_ARG(_tuh_int_handler, __VA_ARGS__)
@@ -255,8 +284,10 @@ bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const * desc_ep);
 // Close a non-control endpoint, it will abort any pending transfer
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 
-// Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
+// Abort a queued transfer. Return false if there is no transfer to abort or the HCD cannot abort it: the transfer may
+// still be active, so do not reuse its buffer until it completes (a non-control endpoint stays busy until then).
+// True does not guarantee the transfer has stopped: one that finished just before the abort may still be reported.
+// Aborting an ongoing control transfer always completes it with XFER_RESULT_ABORTED, even if the HCD could not stop it.
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr);
 
 // Set Address (control transfer)
@@ -264,15 +295,15 @@ bool tuh_address_set(uint8_t daddr, uint8_t new_addr,
                      tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Set Configuration (control transfer)
-// config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
+// config_num = 0 will un-configure device. Note: config_num = bConfigurationValue of configuration descriptor
 // true on success, false if there is on-going control transfer or incorrect parameters
-// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
+// if complete_cb == NULL i.e blocking, user_data should contain a pointer to a xfer_result_t
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num,
                            tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Set Interface (control transfer)
 // true on success, false if there is on-going control transfer or incorrect parameters
-// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
+// if complete_cb == NULL i.e blocking, user_data should contain a pointer to a xfer_result_t
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
                        tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 

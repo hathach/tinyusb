@@ -129,6 +129,8 @@ bool tusb_inited(void) {
 
 void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
+  // ports may call this from task context (in_isr false): no span here then (a port's ISR body may record its own)
+  if (in_isr) { TU_SYSVIEW_ISR_ENTER(); }
 
   #if CFG_TUD_ENABLED
   if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
@@ -142,6 +144,8 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
     hcd_int_handler(rhport, in_isr);
   }
   #endif
+
+  if (in_isr) { TU_SYSVIEW_ISR_EXIT(); }
 }
 
 bool tusb_deinit(uint8_t rhport) {
@@ -236,42 +240,50 @@ bool tu_edpt_release(volatile uint8_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
-#if CFG_TUSB_DEBUG
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   const uint16_t max_packet_size = tu_edpt_packet_size(desc_ep);
+  const bool     is_highspeed    = (speed == TUSB_SPEED_HIGH);
+  uint16_t       spec_max;
+  bool           compliant = true;
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
-  TU_ASSERT(max_packet_size > 0);
 
   switch (desc_ep->bmAttributes.xfer) {
-    case TUSB_XFER_ISOCHRONOUS: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 1023);
-      TU_ASSERT(max_packet_size <= spec_size);
+    case TUSB_XFER_ISOCHRONOUS:
+      spec_max = is_highspeed ? 1024 : 1023;
       break;
-    }
 
     case TUSB_XFER_BULK:
-      if (speed == TUSB_SPEED_HIGH) {
-        // Bulk highspeed must be EXACTLY 512
-        TU_ASSERT(max_packet_size == 512);
-      } else {
-        // Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 || max_packet_size == 64);
-      }
+      spec_max = is_highspeed ? 512 : 64;
+      // Bulk highspeed must be exactly 512, fullspeed 8, 16, 32 or 64
+      compliant = is_highspeed ? (max_packet_size == 512)
+                               : (max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 ||
+                                  max_packet_size == 64);
       break;
 
-    case TUSB_XFER_INTERRUPT: {
-      const uint16_t spec_size = (speed == TUSB_SPEED_HIGH ? 1024 : 64);
-      TU_ASSERT(max_packet_size <= spec_size);
+    case TUSB_XFER_INTERRUPT:
+      spec_max = is_highspeed ? 1024 : 64;
+      // Interrupt lowspeed is at most 8, above that only non-compliant: buffers are sized to the fullspeed bound
+      compliant = (speed != TUSB_SPEED_LOW) || (max_packet_size <= 8);
       break;
-    }
 
     default:
       return false;
   }
 
+  // endpoint buffers are sized to the spec maximum: a larger size can never be accepted
+  if (max_packet_size == 0 || max_packet_size > spec_max) {
+    TU_LOG1("  EP %02X max packet size %u is invalid\r\n", desc_ep->bEndpointAddress, max_packet_size);
+    return false;
+  }
+
+  // Some devices report a non-compliant size (e.g. USB-MIDI bulk 4, one event packet): accept it with a warning as
+  // Linux does, keeping the reported size so the host never sends the device a packet larger than it can take
+  if (!compliant) {
+    TU_LOG1("  WARN: EP %02X max packet size %u is non-compliant\r\n", desc_ep->bEndpointAddress, max_packet_size);
+  }
+
   return true;
 }
-#endif
 
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
                               uint8_t ep_max, const uint8_t *p_desc, uint16_t desc_len) {
@@ -280,12 +292,14 @@ bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t it
     const uint8_t desc_type = tu_desc_type(p_desc);
 
     if (desc_type == TUSB_DESC_ENDPOINT) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_endpoint_t));
       const uint8_t ep_addr  = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
       const uint8_t ep_num   = tu_edpt_number(ep_addr);
       const uint8_t ep_dir   = tu_edpt_dir(ep_addr);
       TU_ASSERT(ep_num < ep_max);
       ep2drv[ep_num][ep_dir] = driver_id;
     } else if (desc_type == TUSB_DESC_INTERFACE) {
+      TU_ASSERT(tu_desc_len(p_desc) >= sizeof(tusb_desc_interface_t));
       const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
       if (desc_itf->bAlternateSetting == 0) {
         TU_ASSERT(desc_itf->bInterfaceNumber < itf_max);
@@ -320,7 +334,8 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   }
   #endif
 
-  s->ep_buf = ep_buf;
+  s->ep_buf     = ep_buf;
+  s->tx_pending = 0;
 
   return true;
 }
@@ -372,45 +387,102 @@ static bool stream_release(tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1))));
+
+// Serialize the stream's own submissions (tu_edpt_stream_write_xfer(), tu_edpt_stream_write_zlp_if_needed()) with
+// the TX FIFO's write mutex. usbd/usbh release the endpoint as soon as they refuse a submission, so without it
+// another task could claim the endpoint and overwrite ep_buf before the refused bytes are restored as tx_pending
+// (#4449). Without an RTOS nothing preempts a submission, and the macros compile out.
+#if OSAL_MUTEX_REQUIRED
+TU_ATTR_ALWAYS_INLINE static inline void stream_tx_lock(tu_edpt_stream_t *s) {
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_lock(s->ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void stream_tx_unlock(tu_edpt_stream_t *s) {
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_unlock(s->ff.mutex_wr);
+  }
+}
+#else
+  #define stream_tx_lock(_s)
+  #define stream_tx_unlock(_s)
+#endif
+
+static bool stream_write_zlp_locked(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size. An Interrupt endpoint's size
+  // need not be a power of 2.
+  TU_VERIFY(s->mps > 0 && tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
+            (0 == (last_xferred_bytes % s->mps)));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
   return true;
 }
 
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
-  const uint16_t ff_count = tu_fifo_count(&s->ff);
-  TU_VERIFY(ff_count > 0, 0); // skip if no data
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  stream_tx_lock(s);
+  const bool ret = stream_write_zlp_locked(s, last_xferred_bytes);
+  stream_tx_unlock(s);
+  return ret;
+}
+
+// A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
+// a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO before the submission: the
+// FIFO is advanced first so that a completion handled before stream_xfer() returns cannot send them again. A refused
+// submission keeps them in ep_buf as tx_pending, and the next call sends them ahead of the FIFO's. The caller holds
+// the stream lock, so no other submission of this stream runs between the refusal and the restore of tx_pending, and
+// a completion handled meanwhile waits for it before submitting again.
+static uint32_t stream_write_xfer_locked(tu_edpt_stream_t *s) {
+  TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
   TU_VERIFY(stream_claim(s), 0);
 
-  // Pull data from FIFO -> EP buf
+  // Pull data from FIFO -> EP buf, behind any bytes a refused submission left there
   uint16_t count;
   if (s->ep_buf == NULL) {
     count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
   } else {
-    count = tu_fifo_read_n(&s->ff, s->ep_buf, s->xfer_len);
+    count = s->tx_pending;
+    if (count < s->xfer_len) {
+      count = (uint16_t) (count + tu_fifo_read_n(&s->ff, s->ep_buf + count, (uint16_t) (s->xfer_len - count)));
+    }
+    s->tx_pending = 0;
   }
 
-  if (count > 0) {
-    TU_ASSERT(stream_xfer(s, count), 0);
-    return count;
-  } else {
+  if (count == 0) {
     // Release endpoint since we don't make any transfer
     // Note: data is dropped if terminal is not connected
     stream_release(s);
     return 0;
   }
+
+  if (!stream_xfer(s, count)) {
+    // refused: usbd/usbh already released the endpoint. Keep the bytes for the next call.
+    if (s->ep_buf != NULL) {
+      s->tx_pending = count;
+    }
+    return 0;
+  }
+
+  return count;
 }
 
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
+  stream_tx_lock(s);
+  const uint32_t count = stream_write_xfer_locked(s);
+  stream_tx_unlock(s);
+  return count;
+}
+
+// Return the bytes queued in the FIFO. Queued bytes are not lost if a transfer submission is refused, they are sent
+// by a later write, flush or transfer completion; when the endpoint can never send, writes stop queueing once the
+// FIFO is full.
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
   const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
 
-  // flush if fifo has more than packet size or
+  // flush if fifo has more than packet size, a refused transfer left bytes to resend, or
   // in rare case: fifo depth is configured too small (which never reach packet size)
-  if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
+  if ((tu_fifo_count(&s->ff) >= s->mps) || (s->tx_pending > 0) || (tu_fifo_depth(&s->ff) < s->mps)) {
     tu_edpt_stream_write_xfer(s);
   }
   return ret;
@@ -430,13 +502,14 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= s->mps);
+  TU_VERIFY(s->mps > 0 && available >= s->mps, 0);
   TU_VERIFY(stream_claim(s), 0);
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
   if (available >= s->mps) {
-    // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & ~(s->mps - 1));
+    // multiple of packet size limit by ep bufsize. An Interrupt endpoint's size need not be a power of 2, so round
+    // down by division rather than by masking.
+    uint16_t count = (uint16_t) (available - (available % s->mps));
     count = tu_min16(count, s->xfer_len);
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
@@ -548,5 +621,238 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 }
 
 #endif
+
+#if CFG_TUSB_SYSVIEW_ENABLED
+
+#if defined(SYSVIEW_MANIFEST_BUILD) && defined(SYSVIEW_DISABLE_EVENTS) && !defined(SYSVIEW_DISABLE_EVENTS_FROM_BUILD)
+  // the SystemView capture takes its event filter from the build manifest (hw/bsp/sysview_manifest.cmake)
+  #error "SYSVIEW_DISABLE_EVENTS is set only through CMake's SYSVIEW_DISABLE_EVENTS (family_support.cmake)"
+#endif
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+// SYSVIEW_FREERTOS_H is the guard of SEGGER_SYSVIEW_FreeRTOS.h, which FreeRTOSConfig.h must include for its trace hooks
+#ifndef SYSVIEW_FREERTOS_H
+  #pragma message("SYSVIEW: FreeRTOSConfig.h does not include SEGGER_SYSVIEW_FreeRTOS.h, so the per-task CPU-load " \
+                  "table is empty. Wire it as hw/bsp/stm32f4/FreeRTOSConfig/FreeRTOSConfig.h does: its " \
+                  "FREERTOS_SYSVIEW_ENABLED block, the two INCLUDE_* options it sets, the closing include, and " \
+                  "configUSE_TRACE_FACILITY and configRECORD_STACK_HIGH_ADDRESS set to 1.")
+#endif
+extern const SEGGER_SYSVIEW_OS_API SYSVIEW_X_OS_TraceAPI;
+#define SYSVIEW_OS_API  (&SYSVIEW_X_OS_TraceAPI)
+#define SYSVIEW_OS_DESC ",O=FreeRTOS"
+#else
+#define SYSVIEW_OS_API  0
+#define SYSVIEW_OS_DESC ""
+#endif
+
+#ifndef SYSVIEW_APP_NAME
+#define SYSVIEW_APP_NAME    "TinyUSB"
+#endif
+#ifndef SYSVIEW_DEVICE_NAME
+#define SYSVIEW_DEVICE_NAME "Cortex-M"
+#endif
+#ifndef SYSVIEW_RAM_BASE
+#define SYSVIEW_RAM_BASE    (0x20000000)
+#endif
+
+// CPU clock (and DWT timestamp rate). Weak because non-CMSIS SDKs (Pico SDK) have no SystemCoreClock;
+// declared here since no single vendor header provides it.
+#if defined(__GNUC__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+extern uint32_t SystemCoreClock;
+#if defined(__GNUC__)
+  #pragma GCC diagnostic pop
+#endif
+
+TU_ATTR_WEAK uint32_t tusb_sysview_cpu_freq(void) {
+  return SystemCoreClock;
+}
+
+// Kernel objects named for SystemView, kept for the system description a later recorder connect
+// replays. Names must be static: only the pointer is kept.
+#define TU_SV_NAMED_MAX 4
+static struct {
+  const void* handle;
+  const char* name;
+} _sv_named[TU_SV_NAMED_MAX];
+static uint8_t _sv_named_count;
+
+void tu_sysview_name_resource(const void* handle, const char* name) {
+  if (handle == NULL || name == NULL) {
+    return; // silently ignored: naming is cosmetic, never worth failing a boot over
+  }
+  // a re-init (dynamic_switch's role switch) names the same static mutex again: update in place
+  for (uint8_t i = 0; i < _sv_named_count; i++) {
+    if (_sv_named[i].handle == handle) {
+      _sv_named[i].name = name;
+      SEGGER_SYSVIEW_NameResource((U32) (uintptr_t) handle, name);
+      return;
+    }
+  }
+  if (_sv_named_count >= TU_SV_NAMED_MAX) {
+    return; // table full and this is a genuinely new handle: drop it, cosmetic only
+  }
+  _sv_named[_sv_named_count].handle = handle;
+  _sv_named[_sv_named_count].name = name;
+  _sv_named_count++;
+  // sent now too: Start()'s system description already ran, before the stacks created their mutexes
+  SEGGER_SYSVIEW_NameResource((U32) (uintptr_t) handle, name);
+}
+
+static void send_sys_desc(void) {
+  SEGGER_SYSVIEW_SendSysDesc("N=" SYSVIEW_APP_NAME ",D=" SYSVIEW_DEVICE_NAME SYSVIEW_OS_DESC);
+  SEGGER_SYSVIEW_SendSysDesc("I#15=SysTick");
+  for (uint8_t i = 0; i < _sv_named_count; i++) {
+    SEGGER_SYSVIEW_NameResource((U32) (uintptr_t) _sv_named[i].handle, _sv_named[i].name);
+  }
+}
+
+TU_ATTR_WEAK uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void) {
+#if defined(SEGGER_SYSVIEW_CORE) && (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3)
+  // DWT cycle counter: SEGGER_SYSVIEW_ConfDefaults.h reads it inline, no BSP code needed.
+  return tusb_sysview_cpu_freq();
+#else
+  // No DWT CYCCNT (ARMv6-M, RISC-V): hw/bsp/<family>/family.c supplies SEGGER_SYSVIEW_X_GetTimestamp(),
+  // a free-running microsecond count; a family without one fails to link on that symbol.
+  return 1000000u;
+#endif
+}
+
+// Active interrupt id for cores ConfDefaults does not read ICSR on: RISC-V (mcause), or a Cortex-M
+// built as SEGGER_SYSVIEW_CORE_OTHER.
+#if !defined(SEGGER_SYSVIEW_CORE) || \
+    ((SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM3) && (SEGGER_SYSVIEW_CORE != SEGGER_SYSVIEW_CORE_CM0))
+U32 SEGGER_SYSVIEW_X_GetInterruptId(void) {
+  #if defined(__riscv) || defined(__riscv__)
+  uint32_t mcause;
+  __asm volatile ("csrr %0, mcause" : "=r" (mcause));
+  return (U32) (mcause & 0xFFFu);
+  #elif defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || \
+        defined(__ARM_ARCH_8_1M_MAIN__) || defined(__ARM_ARCH_6M__) || defined(__ARM_ARCH_8M_BASE__)
+  // ICSR.VECTACTIVE: 9 bits on v7-M/v8-M mainline, 6 on v6-M (upper bits read 0)
+  return (*(volatile uint32_t*) 0xE000ED04u) & 0x1FFu;
+  #else
+  return 0; // unknown core: report "no interrupt" rather than a bogus id
+  #endif
+}
+#endif
+
+// Records only the outermost enter/exit: dual-role BSPs bracket their back-to-back self-wrapped
+// tud_/tuh_int_handler() calls, so one interrupt is one span. Volatile since nested USB IRQs (ch32v20x
+// LP/HP when an application gives them different preemption priorities) can both reach it; non-atomic on
+// purpose, as a lost update miscounts one span and recovers on the next balanced pair.
+static volatile uint8_t _sv_isr_depth;
+
+void tu_sysview_isr_enter(void) {
+  if (_sv_isr_depth++ == 0) {
+    SEGGER_SYSVIEW_RecordEnterISR();
+  }
+}
+
+// PendSV pending at the outermost exit means the ISR returns through the scheduler, not to the
+// task it preempted: record ExitISRToScheduler then, or SystemView shows a causeless switch.
+// Cortex-M only; RISC-V has no PendSV and takes the plain exit record.
+#if defined(SEGGER_SYSVIEW_CORE) && \
+    ((SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3) || (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM0))
+  #define SV_ICSR_PENDSVSET_PENDING() \
+    ((*(volatile uint32_t*) 0xE000ED04 /* SCB->ICSR */) & (1u << 28) /* PENDSVSET */)
+#endif
+
+void tu_sysview_isr_exit(void) {
+  if (_sv_isr_depth != 0 && --_sv_isr_depth == 0) {
+#if defined(SV_ICSR_PENDSVSET_PENDING)
+    if (SV_ICSR_PENDSVSET_PENDING()) {
+      SEGGER_SYSVIEW_RecordExitISRToScheduler();
+    } else {
+      SEGGER_SYSVIEW_RecordExitISR();
+    }
+#else
+    SEGGER_SYSVIEW_RecordExitISR();
+#endif
+  }
+}
+
+void tu_sysview_init(void) {
+  static bool inited = false;
+  if (inited) { return; }
+  inited = true;
+#if defined(SEGGER_SYSVIEW_CORE) && (SEGGER_SYSVIEW_CORE == SEGGER_SYSVIEW_CORE_CM3)
+  // DWT CYCCNT drives timestamps: enable it on target, not via a debugger (post-mortem too), unless
+  // DWT_CTRL.NOCYCCNT (bit 25) says the counter is absent.
+  (*(volatile unsigned int*) 0xE000EDFC) |= (1u << 24);   /* DEMCR.TRCENA */
+  if (((*(volatile unsigned int*) 0xE0001000) & (1u << 25)) == 0) {
+    (*(volatile unsigned int*) 0xE0001000) |= 1u;         /* DWT_CTRL.CYCCNTENA */
+  }
+#endif
+  SEGGER_SYSVIEW_Init(SEGGER_SYSVIEW_X_GetTimestampFreq(), tusb_sysview_cpu_freq(), SYSVIEW_OS_API, send_sys_desc);
+  SEGGER_SYSVIEW_SetRAMBase(SYSVIEW_RAM_BASE);
+  // no SEGGER_SYSVIEW_RegisterModule(): see TU_SV_EVENT_BASE
+  SEGGER_SYSVIEW_Start(); /* self-start: host recorders only drain */
+#ifdef SYSVIEW_DISABLE_EVENTS
+  SEGGER_SYSVIEW_DisableEvents(SYSVIEW_DISABLE_EVENTS);
+#endif
+}
+
+bool tu_sysview_stack_report_due(tusb_role_t role) {
+  static uint16_t count[2]; // device, host
+  return 0 == (++count[role == TUSB_ROLE_HOST] & 0x3FFu);
+}
+
+#if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_USB && CFG_TUSB_OS == OPT_OS_FREERTOS
+void tu_sysview_stack_report(tusb_role_t role) {
+  if (!tu_sysview_stack_report_due(role)) {
+    return;
+  }
+// Bytes used at peak needs pxEndOfStack, which TaskStatus_t has only under this condition (task.h);
+// the SYSVIEW families' FreeRTOSConfig.h set configRECORD_STACK_HIGH_ADDRESS=1. Headroom alone would read as usage.
+#if (configUSE_TRACE_FACILITY == 1) && ((portSTACK_GROWTH > 0) || (configRECORD_STACK_HIGH_ADDRESS == 1))
+  // SEGGER's FreeRTOS task-table cap (family_support.cmake). Above it uxTaskGetSystemState() returns
+  // 0, not a truncated list, so nothing is reported.
+  #ifndef SYSVIEW_FREERTOS_MAX_NOF_TASKS
+  #define SYSVIEW_FREERTOS_MAX_NOF_TASKS 16
+  #endif
+  // static: 16 TaskStatus_t is ~700 bytes, too much for usbd's stack
+  static TaskStatus_t status[SYSVIEW_FREERTOS_MAX_NOF_TASKS];
+  static char names[SYSVIEW_FREERTOS_MAX_NOF_TASKS][configMAX_TASK_NAME_LEN];
+  // One task per call: a burst of SendTaskInfo() calls (each locking and writing the RTT ring)
+  // dropped same54_xplained off the bus.
+  static UBaseType_t next_idx = 0;
+  static UBaseType_t n = 0;
+  // usbd's and usbh's tasks both report, so the scheduler stays suspended across the whole report
+  // (single-core ports only). It also keeps vTaskDelete() of another task from freeing its TCB
+  // while its name is copied.
+  vTaskSuspendAll();
+  if (next_idx == 0) {
+    // the snapshot scans every stack, so take it once per lap
+    n = uxTaskGetSystemState(status, TU_ARRAY_SIZE(status), NULL);
+    for (UBaseType_t t = 0; t < n; t++) {
+      strncpy(names[t], status[t].pcTaskName, configMAX_TASK_NAME_LEN - 1);
+      names[t][configMAX_TASK_NAME_LEN - 1] = '\0';
+    }
+  }
+  if (n != 0) {
+    UBaseType_t const i = next_idx;
+    next_idx = (next_idx + 1 < n) ? next_idx + 1 : 0;
+
+    SEGGER_SYSVIEW_TASKINFO info = {0};
+    info.TaskID    = (U32)(uintptr_t) status[i].xHandle;
+    info.sName     = names[i];
+    info.Prio      = status[i].uxCurrentPriority;
+    info.StackBase = (U32)(uintptr_t) status[i].pxStackBase;
+    uint32_t const free_bytes = status[i].usStackHighWaterMark * sizeof(StackType_t);
+    uint32_t const stack_size = (uint32_t)(uintptr_t) status[i].pxEndOfStack -
+                                 (uint32_t)(uintptr_t) status[i].pxStackBase + sizeof(StackType_t);
+    info.StackSize  = stack_size;
+    info.StackUsage = (free_bytes < stack_size) ? (stack_size - free_bytes) : 0;
+    SEGGER_SYSVIEW_SendTaskInfo(&info);
+  }
+  (void) xTaskResumeAll();
+#endif
+}
+#endif
+
+#endif // CFG_TUSB_SYSVIEW_ENABLED
 
 #endif // host or device enabled

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """Tests for .github/actions/setup_toolchain: the toolchain manifest and fetch.sh, with curl stubbed."""
+import functools
 import hashlib
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 ACTION = os.path.join(REPO, '.github', 'actions', 'setup_toolchain')
 FETCH = os.path.join(ACTION, 'download', 'fetch.sh')
 PAYLOAD = 'toolchain bytes\n'
 DIGEST = hashlib.sha256(PAYLOAD.encode()).hexdigest()
+BASH = shutil.which('bash')
 
 # writes CURL_PAYLOAD to the -o file and logs the call, or fails like curl -f on a 404 when CURL_FAIL is set
 CURL_STUB = '''#!/bin/sh
@@ -25,9 +29,26 @@ done
 exit 2
 '''
 
+
+@functools.cache
+def _bash_runs_fetch_sh():
+    """Whether BASH can read fetch.sh by the path the tests hand it.
+
+    On Windows `bash` may be WSL's launcher: with no distribution it does not run, and with one it
+    cannot open a Windows path, so presence alone does not make the Fetch tests runnable.
+    """
+    if not BASH:
+        return False
+    try:
+        return subprocess.run([BASH, '-c', 'test -r "$1"', '_', FETCH],
+                              capture_output=True, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 class Manifest(unittest.TestCase):
     def setUp(self):
-        with open(os.path.join(ACTION, 'toolchain.json')) as f:
+        with open(os.path.join(ACTION, 'toolchain.json'), encoding='utf-8') as f:
             self.manifest = json.load(f)
 
     def test_every_archive_entry_pins_an_https_url_and_sha256(self):
@@ -44,6 +65,8 @@ class Manifest(unittest.TestCase):
         self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
 
 
+@unittest.skipUnless(shutil.which('jq') and _bash_runs_fetch_sh(),
+                     'fetch.sh needs jq and a bash that runs it by this path')
 class Fetch(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -59,17 +82,22 @@ class Fetch(unittest.TestCase):
 
     def _write_exe(self, name, text):
         path = os.path.join(self.bin, name)
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:   # a CRLF shebang line does not run
             f.write(text)
         os.chmod(path, 0o755)
 
     def _manifest(self, **entries):
-        with open(os.path.join(self.tmp, 'toolchain.json'), 'w') as f:
+        with open(os.path.join(self.tmp, 'toolchain.json'), 'w', encoding='utf-8') as f:
             json.dump(entries, f)
 
     def fetch(self, name='tc', path=None, **env):
-        env = {'PATH': path or f'{self.bin}:{os.environ["PATH"]}', 'CURL_LOG': self.curl_log, 'CURL_PAYLOAD': PAYLOAD, **env}
-        return subprocess.run([self.fetch_sh, name, self.out], env=env, capture_output=True, text=True)
+        env = {'PATH': path or os.pathsep.join((self.bin, os.environ['PATH'])),
+               'CURL_LOG': self.curl_log, 'CURL_PAYLOAD': PAYLOAD, **env}
+        argv = [self.fetch_sh, name, self.out]
+        if sys.platform == 'win32':   # Windows runs no shebang: hand the script to bash, which needs SYSTEMROOT
+            env['SYSTEMROOT'] = os.environ['SYSTEMROOT']
+            argv.insert(0, BASH)
+        return subprocess.run(argv, env=env, capture_output=True, text=True)
 
     def curl_called(self):
         return os.path.exists(self.curl_log)
@@ -78,9 +106,9 @@ class Fetch(unittest.TestCase):
         self._manifest(tc={'url': 'https://example.invalid/tc.tar.xz', 'sha256': DIGEST})
         r = self.fetch()
         self.assertEqual(r.returncode, 0, r.stderr)
-        with open(self.out) as f:
+        with open(self.out, encoding='utf-8') as f:
             self.assertEqual(f.read(), PAYLOAD)
-        with open(self.curl_log) as f:
+        with open(self.curl_log, encoding='utf-8') as f:
             self.assertIn('https://example.invalid/tc.tar.xz', f.read())
 
     def test_mismatched_digest_fails(self):
@@ -114,16 +142,17 @@ class Fetch(unittest.TestCase):
 
     def test_native_windows_jq_line_endings(self):
         # native jq.exe turns every LF it prints into CRLF; command substitution keeps the CR
-        self._write_exe('jq', f'#!/bin/bash\nset -o pipefail\n{shutil.which("jq")} "$@" | perl -pe "s/\\n/\\r\\n/"\n')
+        jq = Path(shutil.which('jq')).as_posix()   # bash would eat a Windows path's backslashes
+        self._write_exe('jq', f'#!/bin/bash\nset -o pipefail\n"{jq}" "$@" | perl -pe "s/\\n/\\r\\n/"\n')
         self._manifest(tc={'url': 'https://example.invalid/tc.tar.xz', 'sha256': DIGEST})
         r = self.fetch()
         self.assertEqual(r.returncode, 0, r.stderr)
-        with open(self.curl_log) as f:
+        with open(self.curl_log, encoding='utf-8') as f:
             self.assertIn('https://example.invalid/tc.tar.xz -o', f.read())
 
     def test_curl_restricts_to_https_including_redirects(self):
         # a behavioural check needs a TLS server; pin the flags that enforce it instead
-        with open(FETCH) as f:
+        with open(FETCH, encoding='utf-8') as f:
             script = f.read()
         self.assertIn("--proto '=https'", script)
         self.assertIn("--proto-redir '=https'", script)

@@ -27,7 +27,7 @@
 // * tud_usbtmc_msgBulkIn_complete_cb
 // * (successful) tud_usbtmc_check_abort_bulk_out_cb
 // * (successful) tud_usbtmc_check_abort_bulk_in_cb
-// * (successful) tud_usmtmc_bulkOut_clearFeature_cb
+// * (successful) tud_usbtmc_bulkOut_clearFeature_cb
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
 usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void);
@@ -62,6 +62,10 @@ bool tud_usbtmc_notification_complete_cb(void);
 bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult);
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
+// With an interrupt endpoint, invoked after READ_STATUS_BYTE has claimed it and before the status byte is queued
+// on it; if the endpoint is busy the callback is not invoked and the request answers STATUS_INTERRUPT_IN_BUSY.
+// Queueing can still fail after the callback returns: the request then answers STATUS_INTERRUPT_IN_BUSY and the
+// byte is not sent, so an RQS cleared here (USB488 3.4.1) is lost.
 uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult);
 bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg);
 #endif

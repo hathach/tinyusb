@@ -7,8 +7,12 @@
 #   python3 test/hil/test/test_hil_tty_raw.py
 import os
 import sys
-import termios
 import unittest
+
+if sys.platform == 'win32':
+    raise unittest.SkipTest('termios: the raw tty mode is POSIX only')
+
+import termios
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(TEST_DIR))

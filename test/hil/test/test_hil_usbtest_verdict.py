@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""usbtest's per-case verdict and the battery's exit status. run_case runs a fake testusb
-that prints kernel tools/usb/testusb.c's own strings; main() runs with stubbed discovery.
-The strings are checked against the rig's testusb by a real battery run."""
+"""usbtest's per-case options and throughput, and the battery's exit status. The case run and
+its verdict are agentrc's hil_usbtest, tested there; run_case here runs a fake testusb that
+prints kernel tools/usb/testusb.c's own strings, main() runs with stubbed discovery. The
+strings are checked against the rig's testusb by a real battery run."""
 import io
 import json
 import os
@@ -15,6 +16,9 @@ from tempfile import TemporaryDirectory
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(TEST_DIR))
+if sys.platform == 'win32':
+    raise unittest.SkipTest("usbtest imports agentrc's hil_usbtest (fcntl, Linux usbfs): POSIX only")
+
 import usbtest_harness  # noqa: E402 - stubs serial before hil_test is imported
 import usbtest  # noqa: E402
 
@@ -39,8 +43,8 @@ class RunCase(unittest.TestCase):
         with open(self.testusb, 'w') as f:
             f.write(FAKE_TESTUSB)
         os.chmod(self.testusb, stat.S_IRWXU)
-        usbtest_harness.patch(self, usbtest, 'dmesg_tail', lambda: '')
-        usbtest_harness.patch(self, usbtest.os, 'access', lambda path, mode: True)   # no sudo wrap
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'dmesg_tail', lambda: '')
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'node_writable', lambda node: True)
         self.addCleanup(os.environ.pop, 'FAKE_OUT', None)
         self.addCleanup(os.environ.pop, 'FAKE_RC', None)
 
@@ -48,68 +52,43 @@ class RunCase(unittest.TestCase):
         os.environ['FAKE_OUT'], os.environ['FAKE_RC'] = out, str(rc)
         return usbtest.run_case(num, {'node': NODE, 'speed': '480'}, self.testusb, False, 30)
 
-    def test_pass_line(self):
+    def test_pass_line_keeps_the_case_identity(self):
         r = self.case(SPEED + '%s test %d,    3.004567 secs\n')   # "%s test %d, %4d.%.06d secs"
-        self.assertEqual((r['status'], r['secs']), ('PASS', 3.004567))
+        self.assertEqual(r, {'num': 1, 'name': usbtest.CASE_NAMES[1], 'params': usbtest.PARAMS[1][1],
+                             'status': 'PASS', 'secs': 3.004567})
 
     def test_perf_case_reports_throughput(self):
         r = self.case(SPEED + '%s test %d,    2.000000 secs\n', num=27)
         self.assertEqual(r['status'], 'PASS')
         self.assertEqual(r['mbps'], round(128 * 1024 * 32 / 2 / 1e6, 2))   # HS -c 128 -s 1024 -g 32
 
-    def test_error_line(self):
-        r = self.case(SPEED + '%s test %d --> 110 (Connection timed out)\n')   # "%s test %d --> %d (%s)"
-        self.assertEqual((r['status'], r['detail']), ('FAIL', 'errno 110 (Connection timed out)'))
-
-    def test_another_cases_result_line_is_not_this_ones(self):
-        r = self.case(SPEED + '%s test 2,    1.000000 secs\n', num=1)
-        self.assertEqual(r['status'], 'NOTRUN')
-
-    def test_opened_but_no_result_is_a_kernel_skip(self):
-        r = self.case(SPEED)                           # -EOPNOTSUPP: testusb continues silently
-        self.assertEqual(r['status'], 'NOTRUN')
-
-    def test_never_opened_the_node_is_a_failure_not_a_skip(self):
-        for out, rc in (("can't open dev file r/w: Permission denied\n", 0),
-                        ("must specify '-a' or '-D dev', or DEVICE=/dev/bus/usb/BBB/DDD in env\n", 1),
-                        ('USB device files are missing\n', 255),
-                        ('', 0)):
-            r = self.case(out, rc=rc)
-            self.assertEqual(r['status'], 'FAIL', out)
-            self.assertEqual(r['detail'], f'testusb did not run the case (rc {rc})')
-            self.assertEqual(r['stderr'], out.strip())
-
-    def test_speed_line_for_another_node_does_not_count(self):
-        r = self.case('high speed\t/dev/bus/usb/001/006\t0\n')
+    def test_a_failed_perf_case_has_no_throughput(self):
+        r = self.case(SPEED + '%s test %d --> 110 (Connection timed out)\n', num=27)
         self.assertEqual(r['status'], 'FAIL')
+        self.assertNotIn('mbps', r)
 
 
-class ScanScope(unittest.TestCase):
-    """testusb -D alone still ftw()s and opens every usbfs node; -A <node> scans only the DUT
-    (#4047). -A falls through to -a and clears -D, so it must come first."""
+class Options(unittest.TestCase):
+    """The provider gets each case's options for the device's speed verbatim, --quick dividing
+    every count by 8, and main's WEDGE_CONFIRM_S."""
 
-    def argv(self, node, sudo):
-        cmds = []
+    def options(self, speed, quick, num=1):
+        seen = []
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'run_case', lambda *a, **kw: seen.append((a, kw))
+                              or {'status': 'NOTRUN'})
+        usbtest.run_case(num, {'node': NODE, 'speed': speed}, '/x/testusb', quick, 30)
+        (args, kw), = seen
+        self.assertEqual(args[:3] + args[4:], ('/x/testusb', NODE, num, 30))
+        self.assertEqual(kw, {'wedge_confirm': usbtest.WEDGE_CONFIRM_S})
+        return args[3]
 
-        class Popen:
-            def __init__(self, cmd, **kw):
-                cmds.append(cmd)
-                self.returncode = 0
+    def test_full_and_high_speed(self):
+        self.assertEqual(self.options('12', False), ['-c', '128', '-s', '1024', '-v', '512'])
+        self.assertEqual(self.options('480', False), ['-c', '512', '-s', '1024', '-v', '512'])
 
-            def communicate(self, timeout=None):
-                return '', None
-
-        usbtest_harness.patch(self, usbtest.subprocess, 'Popen', Popen)
-        usbtest_harness.patch(self, usbtest.os, 'access', lambda p, m: not sudo)
-        usbtest_harness.patch(self, usbtest.os, 'geteuid', lambda: 1000)
-        usbtest.run_case(0, {'node': node, 'speed': '480'}, '/x/testusb', False, 30)
-        return cmds[0]
-
-    def test_scan_is_confined_to_the_node_before_it_is_selected(self):
-        for sudo, prefix in ((False, []), (True, ['sudo', '-n'])):
-            for node in ('/dev/bus/usb/001/005', '/dev/bus/usb/003/017'):
-                self.assertEqual(self.argv(node, sudo)[:len(prefix) + 7],
-                                 prefix + ['/x/testusb', '-A', node, '-D', node, '-t', '0'])
+    def test_quick_divides_the_count(self):
+        self.assertEqual(self.options('480', True), ['-c', '64', '-s', '1024', '-v', '512'])
+        self.assertEqual(self.options('12', True, num=0), ['-c', '1'])
 
 
 class ExitStatus(unittest.TestCase):
@@ -118,12 +97,11 @@ class ExitStatus(unittest.TestCase):
     def main(self, *extra, find=None, status='PASS', stranded=False):
         usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
                                     {'num': num, 'name': 'x', 'params': '', 'status': status, 'secs': 0.1})
-        usbtest_harness.patch(self, usbtest, 'register_usbtest_id', lambda: None)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         if find:
             usbtest_harness.patch(self, usbtest, 'find_device', find)
         if stranded:
-            uo = types.SimpleNamespace(path_stranded=lambda p: True)
+            uo = types.SimpleNamespace(path_stranded=lambda p: True, SYS_USB_DEVICES='/sys/bus/usb/devices')
             usbtest_harness.patch(self, usbtest, '_uo', lambda: uo)
         usbtest_harness.argv(self, *extra)
         out, err = usbtest_harness.Out(), io.StringIO()
@@ -169,10 +147,120 @@ class ExitStatus(unittest.TestCase):
             self.assertEqual((rc, data['failed']), (2, 2))
             self.assertEqual(err.count('usbtest skill'), 1, status)
 
-    def test_duplicate_case_numbers_are_refused(self):
-        with self.assertRaises(SystemExit) as e:
-            self.main('--tests', '0,1,0')
-        self.assertIn('case 0 is listed twice', str(e.exception.code))
+
+class Selection(unittest.TestCase):
+    """The battery main() picks (device tier, --tier, --tests) and the order it touches the
+    device in: host check, bind, pattern, then each case. Every device access is stubbed."""
+
+    def main(self, *args, tier=1, compat=None, bind=None):
+        calls = []
+
+        def step(name, fail=None):
+            def call(arg):
+                calls.append((name, arg))
+                if fail:
+                    sys.exit(fail)
+            return call
+        usbtest_harness.stub_device(self, usbtest, lambda num, d, tu, quick, timeout:
+                                    calls.append(('case', num)) or
+                                    {'num': num, 'name': 'x', 'params': '', 'status': 'PASS', 'secs': 0.1})
+        usbtest_harness.patch(self, usbtest, 'find_device', lambda serial: {**usbtest_harness.DEV, 'tier': tier})
+        usbtest_harness.patch(self, usbtest, 'check_host_compat', step('compat', compat))
+        usbtest_harness.patch(self, usbtest, 'bind_usbtest', step('bind', bind))
+        usbtest_harness.patch(self, usbtest, 'set_pattern', step('pattern'))
+        usbtest_harness.patch(self, usbtest, '_tt', lambda: types.SimpleNamespace(reset_tt=lambda *a, **kw: True))
+        usbtest_harness.patch(self, sys, 'argv', ['usbtest.py', '--json', '--testusb', sys.executable, *args])
+        with redirect_stdout(usbtest_harness.Out()), redirect_stderr(io.StringIO()):
+            try:
+                usbtest.main()
+            except SystemExit as e:
+                return calls, e.code
+        return calls, None
+
+    def cases(self, calls):
+        return [arg for name, arg in calls if name == 'case']
+
+    def battery(self, tier):
+        return [n for t in range(1, tier + 1) for n in usbtest.TIER_CASES[t]]
+
+    def test_each_tier_holds_the_documented_cases(self):
+        # examples/device/usbtest/README.md's Tiers table; it fixes membership, not run order
+        documented = {
+            1: {0, 9, 10, *range(1, 9), 11, 12, 24, 13, 29, *range(17, 21), 27, 28},
+            2: {14, 21},
+            3: {25, 26},
+            4: {15, 16, 22, 23},
+        }
+        self.assertEqual({t: set(c) for t, c in usbtest.TIER_CASES.items()}, documented)
+        for tier, cases in usbtest.TIER_CASES.items():
+            self.assertEqual(len(cases), len(set(cases)), tier)
+
+    def test_the_device_tier_selects_every_case_up_to_it_in_order(self):
+        for tier in usbtest.TIER_CASES:
+            calls, error = self.main(tier=tier)
+            self.assertIsNone(error, tier)
+            self.assertEqual(self.cases(calls), self.battery(tier), tier)
+
+    def test_tier_overrides_the_device_tier(self):
+        self.assertEqual(self.cases(self.main('--tier', '3', tier=1)[0]), self.battery(3))
+        self.assertEqual(self.cases(self.main('--tier', '1', tier=3)[0]), self.battery(1))
+
+    def test_tests_overrides_the_tier_and_keeps_its_order(self):
+        calls, error = self.main('--tier', '3', '--tests', '27, 5,0', tier=4)
+        self.assertIsNone(error)
+        self.assertEqual(self.cases(calls), [27, 5, 0])
+
+    def test_a_tier_outside_the_battery_is_refused_before_the_device_is_touched(self):
+        for tier in (0, max(usbtest.TIER_CASES) + 1):
+            calls, error = self.main(tier=tier)
+            self.assertIn('refusing to run an unknown/empty battery', error, tier)
+            self.assertEqual(calls, [], tier)
+        calls, error = self.main('--tier', str(max(usbtest.TIER_CASES) + 1))
+        self.assertEqual((calls, error), ([], 2))   # argparse's choices
+
+    def test_an_unknown_case_is_refused_before_the_device_is_touched(self):
+        for tests in ('99', 'x', '-1', '0,', '²'):   # superscript 2: isdigit() but no int()
+            calls, error = self.main('--tests', tests)
+            self.assertIn('is not a known case number', error, tests)
+            self.assertEqual(calls, [], tests)
+
+    def test_a_duplicate_case_is_refused_before_the_device_is_touched(self):
+        for tests in ('0, 0', '0,1,0'):
+            calls, error = self.main('--tests', tests)
+            self.assertIn('case 0 is listed twice', error, tests)
+            self.assertEqual(calls, [], tests)
+
+    def test_an_incompatible_host_is_refused_before_any_bind(self):
+        calls, error = self.main('--tests', '0', compat='incompatible host controller')
+        self.assertEqual(error, 'incompatible host controller')
+        self.assertEqual(calls, [('compat', usbtest_harness.DEV)])
+
+    def test_a_failed_bind_runs_no_case(self):
+        calls, error = self.main('--tests', '0', bind='cannot bind')
+        self.assertEqual(error, 'cannot bind')
+        self.assertEqual([name for name, _ in calls], ['compat', 'bind'])
+
+    def test_the_pattern_is_set_after_the_bind_and_before_any_case(self):
+        calls, error = self.main('--tests', '0,1')
+        self.assertIsNone(error)
+        self.assertEqual(calls, [('compat', usbtest_harness.DEV), ('bind', usbtest_harness.DEV), ('pattern', 0),
+                                 ('case', 0), ('case', 1)])
+
+
+class Adapters(unittest.TestCase):
+    """The thin calls into agentrc's hil_usbtest get the device's node and interface."""
+
+    def test_host_check_and_bind_name_the_devices_node_and_interface_0(self):
+        seen = []
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'check_host_compat', lambda *a: seen.append(('compat', a)))
+        usbtest_harness.patch(self, usbtest.hil_usbtest, 'ensure_usbtest_bound', lambda *a: seen.append(('bind', a)))
+        usbtest.check_host_compat(usbtest_harness.DEV)
+        usbtest.bind_usbtest(usbtest_harness.DEV)
+        node = usbtest_harness.DEV['node']
+        self.assertEqual(seen, [('compat', (node,)), ('bind', ('1-1:1.0', node))])
+        seen.clear()
+        usbtest.bind_usbtest({**usbtest_harness.DEV, 'sysname': '2-3'})
+        self.assertEqual(seen, [('bind', ('2-3:1.0', node))])
 
 
 if __name__ == '__main__':

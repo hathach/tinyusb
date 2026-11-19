@@ -13,7 +13,7 @@ CFLAGS += \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 SRC_C += \
-	src/portable/wch/dcd_ch32_usbhs.c \
+	src/portable/wch/usbhs_v1/dcd_wch_usbhs_v1.c \
 	$(CH32F20X_SDK_SRC)/StdPeriphDriver/src/ch32f20x_gpio.c \
 	$(CH32F20X_SDK_SRC)/StdPeriphDriver/src/ch32f20x_misc.c \
 	$(CH32F20X_SDK_SRC)/StdPeriphDriver/src/ch32f20x_rcc.c \

@@ -15,6 +15,10 @@
 #include "host/usbh.h"
 #include "rusb2_common.h"
 
+#ifdef RUSB2_USBFS_DEVICE_ONLY
+  #error "Host mode not supported for this device"
+#endif
+
   #define TU_RUSB2_HCD_DBG 2
 
 //--------------------------------------------------------------------+
@@ -105,20 +109,6 @@ static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num)
     tre = (volatile reg_pipetre_t*)&(rusb->PIPE_TR[num - 1].E);
   }
   return tre;
-}
-
-static volatile uint16_t* addr_to_pipectr(uint8_t rhport, uint8_t dev_addr, unsigned ep_addr)
-{
-  rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  const unsigned epn = tu_edpt_number(ep_addr);
-
-  if (epn) {
-    const unsigned dir_in = tu_edpt_dir(ep_addr);
-    const unsigned num = _hcd.ep[dev_addr][dir_in][epn - 1];
-    return get_pipectr(rusb, num);
-  } else {
-    return get_pipectr(rusb, 0);
-  }
 }
 
 static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb)
@@ -456,7 +446,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     rusb->PHYSET_b.HSEB = 0;
     // same PHY reference-clock + power-up requirements as dcd_init: without CLKSEL matching the
     // board XTAL the PLL never locks and the wait below would spin forever (e.g. EK-RA8M1, 20 MHz)
-    rusb2_utmi_phy_powerup(rusb);
+    TU_ASSERT(rusb2_utmi_phy_powerup(rusb));
     rusb->SYSCFG_b.DRPD = 1;
     rusb->SYSCFG_b.DCFM = 1;
     rusb->SYSCFG_b.DPRPU = 0;
@@ -701,22 +691,10 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  uint16_t volatile *ctr = addr_to_pipectr(rhport, dev_addr, ep_addr);
-  TU_ASSERT(ctr);
-
-  const uint32_t pid = *ctr & 0x3;
-  if (pid & 2) {
-    *ctr = pid & 2;
-    *ctr = 0;
-  }
-  *ctr = RUSB2_PIPE_CTR_SQCLR_Msk;
-  unsigned const epn = tu_edpt_number(ep_addr);
-  if (!epn) return true;
-
-  if (!tu_edpt_dir(ep_addr)) { /* OUT */
-    *ctr = RUSB2_PIPE_CTR_PID_BUF;
-  }
-  return true;
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  return false; // data toggle reset not implemented
 }
 
 //--------------------------------------------------------------------+

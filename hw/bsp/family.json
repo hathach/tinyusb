@@ -18,6 +18,45 @@
       }
     }
   },
+  "apm32f10x": {
+    "apm32f103_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F103"
+        ],
+        "mcu": "OPT_MCU_APM32F103",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    },
+    "apm32f107_dev_board": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "APM32F107"
+        ],
+        "mcu": "OPT_MCU_APM32F107",
+        "options": {},
+        "portable": [
+          "synopsys/dwc2/dcd_dwc2.c",
+          "synopsys/dwc2/dwc2_common.c",
+          "synopsys/dwc2/hcd_dwc2.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    }
+  },
   "at32f402_405": {
     "at_start_f402": {
       "cmake": {
@@ -365,7 +404,7 @@
         "mcu": "OPT_MCU_CH32F20X",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c"
         ],
         "roles": [
           "device"
@@ -383,7 +422,7 @@
         "mcu": "OPT_MCU_CH32V103",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -399,7 +438,7 @@
         "mcu": "OPT_MCU_CH32V103",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -421,8 +460,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -444,8 +483,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -467,8 +506,8 @@
         "portable": [
           "st/stm32_fsdev/dcd_stm32_fsdev.c",
           "st/stm32_fsdev/fsdev_common.c",
-          "wch/dcd_ch32_usbfs.c",
-          "wch/hcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c"
         ],
         "roles": [
           "device",
@@ -490,11 +529,15 @@
         "mcu": "OPT_MCU_CH32V307",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c",
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
         ],
         "roles": [
-          "device"
+          "device",
+          "dual",
+          "host"
         ]
       }
     },
@@ -509,8 +552,30 @@
         "mcu": "OPT_MCU_CH32V307",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c",
-          "wch/dcd_ch32_usbhs.c"
+          "wch/usbfs/dcd_wch_usbfs.c",
+          "wch/usbfs/hcd_wch_usbfs.c",
+          "wch/usbhs_v1/dcd_wch_usbhs_v1.c",
+          "wch/usbhs_v1/hcd_wch_usbhs_v1.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    }
+  },
+  "ch32v4x7": {
+    "ch32v407_r0": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "CH32V4X7"
+        ],
+        "mcu": "OPT_MCU_CH32V4X7",
+        "options": {},
+        "portable": [
+          "wch/usbhs_v2/dcd_wch_usbhs_v2.c"
         ],
         "roles": [
           "device"
@@ -528,7 +593,7 @@
         "mcu": "OPT_MCU_CH32X035",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -548,7 +613,7 @@
         "mcu": "OPT_MCU_CH583",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -566,7 +631,7 @@
         "mcu": "OPT_MCU_CH583",
         "options": {},
         "portable": [
-          "wch/dcd_ch32_usbfs.c"
+          "wch/usbfs/dcd_wch_usbfs.c"
         ],
         "roles": [
           "device"
@@ -2415,8 +2480,7 @@
           "renesas/rusb2/rusb2_common.c"
         ],
         "roles": [
-          "device",
-          "host"
+          "device"
         ]
       }
     },
@@ -2426,6 +2490,26 @@
         "family_mcus": [
           "RAXXX",
           "ra4m1"
+        ],
+        "mcu": "OPT_MCU_RAXXX",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device",
+          "host"
+        ]
+      }
+    },
+    "ra4m2_ek": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "RAXXX",
+          "ra4m2"
         ],
         "mcu": "OPT_MCU_RAXXX",
         "options": {},
@@ -3317,6 +3401,26 @@
   },
   "stm32c5": {
     "stm32c542nucleo": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "STM32C5"
+        ],
+        "mcu": "OPT_MCU_STM32C5",
+        "options": {},
+        "portable": [
+          "st/stm32_fsdev/dcd_stm32_fsdev.c",
+          "st/stm32_fsdev/fsdev_common.c",
+          "st/stm32_fsdev/hcd_stm32_fsdev.c"
+        ],
+        "roles": [
+          "device",
+          "dual",
+          "host"
+        ]
+      }
+    },
+    "stm32c5a3nucleo": {
       "cmake": {
         "defines": {},
         "family_mcus": [
@@ -4580,6 +4684,27 @@
         "roles": [
           "device",
           "host"
+        ]
+      }
+    }
+  },
+  "synergy": {
+    "dk_s124": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SYNERGY",
+          "s124"
+        ],
+        "mcu": "OPT_MCU_SYNERGY",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device"
         ]
       }
     }

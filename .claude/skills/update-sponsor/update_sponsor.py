@@ -17,6 +17,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -61,7 +62,7 @@ TIERS = [
 
 
 def gh(*args, **kw):
-  out = subprocess.run(["gh", *args], capture_output=True, text=True, **kw)
+  out = subprocess.run(["gh", *args], capture_output=True, encoding="utf-8", **kw)
   if out.returncode:
     sys.exit(f"gh {' '.join(args[:2])} failed:\n{out.stderr.strip()}")
   return out.stdout
@@ -187,25 +188,29 @@ def codespell_collisions(original, new_text):
                                            new_text.splitlines(), n=0) if l.startswith("+")]
   if not added:
     return []
-  with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=True) as probe:
-    # outside the repo and not dot-prefixed: codespell skips hidden files unless
-    # .codespellrc is picked up from cwd, which would make this guard fail open
-    probe.write("\n".join(added) + "\n")
-    probe.flush()
-    try:
-      run = subprocess.run(["codespell", "--ignore-words", str(IGNORE_WORDS), probe.name],
-                           capture_output=True, text=True)
-    except FileNotFoundError:
-      print("  note: codespell not on PATH - generated block is UNCHECKED")
-      return []
+  # closed before codespell reads it: Windows cannot open a file a second time while it is open
+  probe = tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8")
+  try:
+    with probe:
+      # outside the repo and not dot-prefixed: codespell skips hidden files unless
+      # .codespellrc is picked up from cwd, which would make this guard fail open
+      probe.write("\n".join(added) + "\n")
+    run = subprocess.run(["codespell", "--ignore-words", str(IGNORE_WORDS), probe.name],
+                         capture_output=True, encoding="utf-8", errors="replace")
+  except FileNotFoundError:
+    print("  note: codespell not on PATH - generated block is UNCHECKED")
+    return []
+  finally:
+    Path(probe.name).unlink(missing_ok=True)
   if run.returncode not in (0, 65):  # 65 = typos found; anything else is a tool error
     print(f"  note: codespell failed (rc={run.returncode}) - generated block is UNCHECKED")
     return []
   out = run.stdout
+  skip = 2 + probe.name.count(":")  # <file>:<line>: <word> ==> <fix>, and a Windows path has a drive colon
   # v2.2.4 (the pinned hook) lowercases dictionary keys before testing ignore-words,
   # so a cased entry would never match and -w would rewrite the login anyway.
-  return sorted({l.split(":", 2)[2].split("==>")[0].strip().lower()
-                 for l in out.splitlines() if l.count(":") >= 2})
+  return sorted({l.split(":", skip)[skip].split("==>")[0].strip().lower()
+                 for l in out.splitlines() if l.count(":") >= skip})
 
 
 def readme_diff(original, new_text):
@@ -404,6 +409,9 @@ def main():
   only.add_argument("--readme-only", action="store_true", help="skip the label pass")
   only.add_argument("--labels-only", action="store_true", help="skip the README pass")
   args = p.parse_args()
+  if os.name == "nt":  # labels carry emoji, names and titles any script, whatever the console's code page
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 
   if args.rules:
     return print_rules()

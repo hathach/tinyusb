@@ -4,10 +4,13 @@ judgement against a build view."""
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'build' / 'scripts' / 'coverage_audit.py'
 spec = importlib.util.spec_from_file_location('coverage_audit', SCRIPT)
@@ -50,6 +53,16 @@ class ParseTest(unittest.TestCase):
     def test_compiler_of_reads_either_compile_commands_form(self):
         self.assertEqual(ca.compiler_of({'command': '/x/riscv-none-elf-gcc -c a.c'}), '/x/riscv-none-elf-gcc')
         self.assertEqual(ca.compiler_of({'arguments': ['arm-none-eabi-gcc', '-c']}), 'arm-none-eabi-gcc')
+
+    def test_compiler_of_reads_a_quoted_compiler_path(self):
+        gcc = 'C:/Program Files/Arm GNU Toolchain/bin/arm-none-eabi-gcc.exe' if os.name == 'nt' else '/opt/arm gnu/bin/arm-none-eabi-gcc'
+        join = subprocess.list2cmdline if os.name == 'nt' else shlex.join   # as CMake writes it on each host
+        self.assertEqual(ca.compiler_of({'command': join([gcc, '-c', 'a.c'])}), gcc)
+
+    def test_its_family_json_leaves_the_audited_checkouts_to_import_build(self):
+        # graph imports the audited checkout's tools/build.py, whose `import family_json` must find that checkout's
+        self.assertEqual(Path(ca.family_json.__file__), SCRIPT.parents[4] / 'tools' / 'family_json.py')
+        self.assertIsNot(sys.modules.get('family_json'), ca.family_json)
 
     def test_global_assembly_label_is_live_local_one_is_not(self):
         self.assertTrue(ca.defines_symbols('    25: 00000000     2 NOTYPE  GLOBAL DEFAULT    7 Default_Handler\n'))
@@ -99,6 +112,25 @@ class ParseTest(unittest.TestCase):
         self.assertIsNone(ca.rel('/opt/gcc/include/stdint.h', '/repo'))
         self.assertIsNone(ca.rel('/repo/cmake-build/cmake-build-x/gen.h', '/repo'))
         self.assertEqual(ca.rel('../../src/tusb.c', '/repo', '/repo/cmake-build/b'), 'src/tusb.c')
+
+    @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
+    def test_rel_is_posix_and_another_drive_is_outside(self):
+        self.assertEqual(ca.rel('E:\\repo\\src\\tusb.h', 'E:/repo'), 'src/tusb.h')
+        ca.other_drive.clear()
+        self.assertIsNone(ca.rel('C:/Tool/arm/include/stdint.h', 'E:/repo'))
+        self.assertEqual(ca.other_drive, {os.path.normpath('C:/Tool/arm/include/stdint.h')}, 'counted for the graph note')
+
+    def test_an_lto_object_is_asked_through_its_compilers_own_nm(self):
+        for compiler, nm in (('/x/arm-none-eabi-gcc', '/x/arm-none-eabi-gcc-nm'),
+                             ('C:\\x\\arm-none-eabi-gcc.exe', 'C:\\x\\arm-none-eabi-gcc-nm.exe')):
+            calls = []
+
+            def run(cmd, cwd):
+                calls.append(cmd[0])
+                return subprocess.CompletedProcess(cmd, 0, '__gnu_lto_slim\n' if cmd[0] == 'readelf' else '00000000 T f\n', '')
+            with mock.patch.object(ca, 'run', run):
+                self.assertTrue(ca.is_live('x.obj', compiler, '.'))
+            self.assertEqual(calls, ['readelf', nm])
 
 
 class ScopeTest(unittest.TestCase):
@@ -166,8 +198,9 @@ class ExtractBoardTest(unittest.TestCase):
 class FakeBuild:
     """A built tree on disk (sources, compile_commands.json) whose ninja and readelf answers
     are canned: two examples, each linking a different library archive."""
-    def __init__(self, root, fail=None, built=('device/a', 'device/b')):
+    def __init__(self, root, fail=None, built=('device/a', 'device/b'), extra_deps=()):
         self.root, self.bd, self.fail = root, os.path.join(root, 'cmake-build', 'b'), fail
+        self.extra_deps = ''.join(f'    {d}\n' for d in extra_deps)   # in every object's deps
         for f in ('examples/device/a/main.c', 'examples/device/b/main.c', 'lib/os/os.c', 'lib/os/os.h',
                   'lib/usb/usb.c', 'hw/bsp/f/start.S', 'hw/bsp/f/mem.ld', 'src/dead.c', 'src/prog.pio'):
             os.makedirs(os.path.dirname(os.path.join(root, f)), exist_ok=True)
@@ -207,7 +240,7 @@ class FakeBuild:
             out = ''.join(f'{t}: x\n' for t in self.query)
         elif cmd[4] == 'deps':
             out = ''.join(f'{o}: #deps 2, deps mtime 1 (VALID)\n    {os.path.join(self.root, s)}\n'
-                          f'    {os.path.join(self.root, "lib/os/os.h")}\n'
+                          f'    {os.path.join(self.root, "lib/os/os.h")}\n' + self.extra_deps
                           + (f'    {self.bd}/gen/prog.h\n' if o.endswith('usb.c.obj') else '') + '\n'
                           for o, s in self.objs.items() if not o.endswith('start.S.obj'))
         elif cmd[4] == 'query':
@@ -219,10 +252,10 @@ class FakeBuild:
 
 
 class ExtractTest(unittest.TestCase):
-    def extract(self, fail=None, built=('device/a', 'device/b')):
+    def extract(self, fail=None, built=('device/a', 'device/b'), extra_deps=lambda root: ()):
         orig = ca.run
         with tempfile.TemporaryDirectory() as root:
-            fb = FakeBuild(root, fail, built)
+            fb = FakeBuild(root, fail, built, extra_deps(root))
             ca.run = fb
             try:
                 return ca.extract(fb.bd, root)
@@ -242,6 +275,18 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(list(self.extract(built=('device/a',))['examples']), ['device/a'])
         with self.assertRaises(ca.ExtractError):
             self.extract(built=())
+
+    @unittest.skipUnless(os.name == 'nt', 'drive letters are Windows paths')
+    def test_a_dependency_on_another_drive_is_outside(self):
+        def header(root):
+            drive = 'D:' if os.path.splitdrive(root)[0].upper() == 'C:' else 'C:'
+            return [f'{drive}/Tool/arm/include/stdint.h']
+        ca.other_drive.clear()
+        g = self.extract(extra_deps=header)
+        self.assertEqual(g['examples']['device/a'], ['examples/device/a/main.c', 'hw/bsp/f/link.ld', 'hw/bsp/f/mem.ld',
+                                                     'hw/bsp/f/start.S', 'lib/os/os.c', 'lib/os/os.h'])
+        self.assertEqual({os.path.splitdrive(p)[1] for p in ca.other_drive},
+                         {os.path.normpath('/Tool/arm/include/stdint.h')}, 'counted for the graph note')
 
     def test_a_failing_ninja_tool_fails_the_extraction(self):
         for tool in ('targets', 'deps', 'query', 'commands'):

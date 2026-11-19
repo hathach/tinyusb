@@ -36,12 +36,8 @@
     "sha256": "498ba69b8f2dfe8b731e12709a1cf4c7d591ef2223fa1140e901fa9277f650f8"
   },
   "arm-iar": {
-    "url": "https://netstorage.iar.com/FileStore/STANDARD/001/003/723/cxarm-9.70.1.deb",
-    "sha256": "54c97d4379d1cc3bee3ee0e10423167aaf406aa037261e6f72894fd740753ece"
-  },
-  "iar-lmsc-tools": {
-    "url": "https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb",
-    "sha256": "c54bdbaee9b4c73723ee4de4285bb6915bf05c9ec4643eaedf0b56cd8bf3e538"
+    "url": "https://github.com/iarsystems/arm/releases/download/9.70.4/cxarm-9.70.4-linux-x86_64-minimal.tar.bz2",
+    "sha256": "4baca7ce51faa382b36b2329d0214f83dea07b110f390682a55f84f721c1ab13"
   },
   "esp-idf": {
     "image": "espressif/idf:v6.1"

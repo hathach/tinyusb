@@ -68,8 +68,8 @@
  *           `-- tuh_audio_event_cb(START_COMPLETE)
  *
  *   tuh_audio_stop(stream)
- *     +-- SET_INTERFACE(alt 0) and stop local transfer resubmission
- *     `-- completion -> tuh_audio_event_cb(STOP_COMPLETE)
+ *     +-- stop local transfer resubmission, then SET_INTERFACE(alt 0)
+ *     `-- completion -> discard queued frames -> tuh_audio_event_cb(STOP_COMPLETE)
  *
  * A successful start/stop API return means that the first control request was
  * submitted. The corresponding event reports completion of the entire chain.
@@ -136,6 +136,12 @@ enum {
   AUDIOH_CTRL_NONE       = 0,
   AUDIOH_CTRL_READ       = 1,
   AUDIOH_CTRL_READ_WRITE = 3
+};
+
+// Consecutive failed isochronous completions tolerated as dropped packets
+// before the stream is stopped and XFER_FAILED is reported.
+enum {
+  AUDIOH_XFER_ERROR_LIMIT = 8
 };
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC1
@@ -238,6 +244,9 @@ typedef struct {
   uint8_t state;
   uint8_t operation;
   bool    running;
+  bool    rearm_pending; // a refused stop deferred audioh_stream_rearm_idle(), not yet run
+  // Consecutive failed completions on the data [0] and feedback [1] endpoints.
+  uint8_t xfer_errors[2];
 
   // Directly associated Feature Unit, or zero when none is usable.
   uint8_t                  feature_unit_id;
@@ -297,9 +306,9 @@ typedef struct {
   TUH_EPBUF_DEF(epout, CFG_TUH_AUDIO_EPOUT_BUFSIZE);
 } audioh_epbuf_t;
 
-static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO_MAX];
+static audioh_interface_t _audioh_itf[CFG_TUH_AUDIO];
 
-CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO_MAX];
+CFG_TUH_MEM_SECTION static audioh_epbuf_t _audioh_epbuf[CFG_TUH_AUDIO];
 
 //--------------------------------------------------------------------+
 // WEAK APPLICATION CALLBACKS
@@ -351,7 +360,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t *audioh_fu_ctrl(audioh_epbuf_t *epbu
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_new_audio_index(void) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     if (_audioh_itf[idx].daddr == 0) {
       return idx;
     }
@@ -510,6 +519,7 @@ static void audioh_stream_reset(tuh_audio_stream_t *s) {
   s->active_as                    = TUSB_INDEX_INVALID_8;
   s->active_rate                  = TUSB_INDEX_INVALID_8;
   s->state                        = STREAM_STATE_IDLE;
+  s->operation                    = AUDIOH_STREAM_OP_NONE;
   s->running                      = false;
   s->feature_unit_id              = 0;
   s->mute_access                  = AUDIOH_CTRL_NONE;
@@ -528,7 +538,7 @@ static void audioh_playback_reset(audioh_playback_t *playback) {
 }
 
 static tuh_audio_stream_t *audioh_find_stream(uint8_t dev_addr, uint8_t ep_addr) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     audioh_interface_t *p_audio = &_audioh_itf[idx];
     for (uint8_t s = 0; s < 2; s++) {
       tuh_audio_stream_t *stream = (s == 0) ? &p_audio->in_stream : &p_audio->out_stream;
@@ -753,7 +763,7 @@ static bool audioh_stream_open_ep(tuh_audio_stream_t *s) {
 bool audioh_init(void) {
   tu_memclr(&_audioh_itf, sizeof(_audioh_itf));
 
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     tuh_audio_stream_t *in  = &_audioh_itf[idx].in_stream;
     tuh_audio_stream_t *out = &_audioh_itf[idx].out_stream;
 
@@ -775,7 +785,7 @@ bool audioh_init(void) {
 }
 
 bool audioh_deinit(void) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     tu_edpt_stream_deinit(&_audioh_itf[idx].in_stream.edpt);
     tu_edpt_stream_deinit(&_audioh_itf[idx].out_stream.edpt);
   }
@@ -783,7 +793,7 @@ bool audioh_deinit(void) {
 }
 
 void audioh_close(uint8_t daddr) {
-  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO_MAX; idx++) {
+  for (uint8_t idx = 0; idx < CFG_TUH_AUDIO; idx++) {
     audioh_interface_t *p_audio = &_audioh_itf[idx];
     if (p_audio->daddr != daddr) {
       continue;
@@ -854,6 +864,20 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
   playback->target_frames_q16 = target_q16;
 }
 
+// Running and no stop pending: a completed transfer is armed again
+TU_ATTR_ALWAYS_INLINE static inline bool audioh_stream_rearmable(const tuh_audio_stream_t *s) {
+  return s->running && s->operation != AUDIOH_STREAM_OP_STOP;
+}
+
+// A re-arm submission was refused. On an RTOS another task may have marked a
+// stop after audioh_stream_rearmable() passed: the endpoint then stays idle, for
+// the stop to finish or, if its request is refused, for the re-arm it defers.
+static void audioh_stream_rearm_failed(tuh_audio_stream_t *s) {
+  if (s->operation != AUDIOH_STREAM_OP_STOP) {
+    audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+  }
+}
+
 bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   tuh_audio_stream_t *s = audioh_find_stream(dev_addr, ep_addr);
   if (s == NULL) {
@@ -867,18 +891,43 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
     return true;
   }
 
-  // Failed, stalled, and aborted transfers do not carry valid audio data.
-  if (result != XFER_RESULT_SUCCESS) {
-    TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
-    audioh_stream_xfer_failed(s, (tusb_xfer_result_t)result);
-    return true;
-  }
+  // While a stop is pending nothing is re-armed (audioh_stream_rearmable): the
+  // last transfer drains during SET_INTERFACE(alt 0), so the endpoint is free for
+  // a restart or reconfigure from STOP_COMPLETE. A failure then (the device may
+  // already be on alt 0) is not reported. If the request is refused,
+  // tuh_audio_stop() has the host task re-arm what was left idle. A stop called
+  // from the callbacks below is marked and cleared before this completion goes
+  // on, so it leaves nothing idle.
 
   const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
-  if (s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep) {
-    audioh_feedback_received(s, xferred_bytes);
-    if (!audioh_stream_feedback_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+  const bool    is_feedback = s->dir == TUSB_DIR_OUT && feedback_ep != 0 && ep_addr == feedback_ep;
+  uint8_t      *errors      = &s->xfer_errors[is_feedback ? 1 : 0];
+
+  // Failed, stalled, and aborted transfers do not carry valid audio data. An
+  // isochronous packet is never retried, so one failed completion (bus error,
+  // missed service interval) is a dropped packet: continue with an empty one.
+  // Stop on a stall or when failures persist.
+  if (result != XFER_RESULT_SUCCESS) {
+    TU_LOG_DRV("  AUDIO transfer failed: addr=%u ep=%02x result=%u\r\n", dev_addr, ep_addr, result);
+    if (s->operation == AUDIOH_STREAM_OP_STOP) {
+      return true; // draining for a stop: not reported, not re-armed
+    }
+    if (result != XFER_RESULT_FAILED || *errors >= AUDIOH_XFER_ERROR_LIMIT) {
+      audioh_stream_xfer_failed(s, (tusb_xfer_result_t)result);
+      return true;
+    }
+    (*errors)++;
+    xferred_bytes = 0;
+  } else {
+    *errors = 0;
+  }
+
+  if (is_feedback) {
+    if (result == XFER_RESULT_SUCCESS) {
+      audioh_feedback_received(s, xferred_bytes);
+    }
+    if (audioh_stream_rearmable(s) && !audioh_stream_feedback_xfer(s)) {
+      audioh_stream_rearm_failed(s);
     }
     return true;
   }
@@ -890,14 +939,15 @@ bool audioh_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uin
       tu_fifo_write_n(&s->edpt.ff, s->edpt.ep_buf, bytes);
     }
     tuh_audio_capture_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_capture_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+    // the callback may have stopped the stream
+    if (audioh_stream_rearmable(s) && !audioh_stream_capture_xfer(s)) {
+      audioh_stream_rearm_failed(s);
     }
   } else {
     // Notify the application before requesting the next playback packet.
     tuh_audio_playback_cb(s->idx, s->stream_idx, (uint16_t)xferred_bytes);
-    if (s->running && !audioh_stream_playback_xfer(s)) {
-      audioh_stream_xfer_failed(s, XFER_RESULT_FAILED);
+    if (audioh_stream_rearmable(s) && !audioh_stream_playback_xfer(s)) {
+      audioh_stream_rearm_failed(s);
     }
   }
   return true;
@@ -1599,7 +1649,7 @@ uint16_t audioh_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface
   TU_VERIFY(audioh_protocol_enabled(desc_itf->bInterfaceProtocol), 0);
 
   const uint8_t idx = find_new_audio_index();
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   p_audio->daddr              = dev_addr;
   p_audio->ac_itf_num         = desc_itf->bInterfaceNumber;
@@ -1868,7 +1918,7 @@ static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
 
 bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
   uint8_t idx = TUSB_INDEX_INVALID_8;
-  for (uint8_t i = 0; i < CFG_TUH_AUDIO_MAX; i++) {
+  for (uint8_t i = 0; i < CFG_TUH_AUDIO; i++) {
     if (_audioh_itf[i].daddr == dev_addr && _audioh_itf[i].ac_itf_num == itf_num) {
       idx = i;
       break;
@@ -1900,17 +1950,17 @@ bool audioh_set_config(uint8_t dev_addr, uint8_t itf_num) {
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tuh_audio_mounted(uint8_t idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX);
+  TU_VERIFY(idx < CFG_TUH_AUDIO);
   return _audioh_itf[idx].mounted;
 }
 
 uint8_t tuh_audio_get_dev_addr(uint8_t idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, 0);
   return _audioh_itf[idx].daddr;
 }
 
 bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -1918,7 +1968,7 @@ bool tuh_audio_mute_supported(uint8_t idx, uint8_t stream_idx) {
 }
 
 bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volume_range_t *range) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX && range != NULL, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO && range != NULL, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -1928,21 +1978,21 @@ bool tuh_audio_volume_range_get(uint8_t idx, uint8_t stream_idx, tuh_audio_volum
 }
 
 uint8_t tuh_audio_stream_count(uint8_t dev_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
   return p_audio->stream_count;
 }
 
 bool tuh_audio_stream_exists(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, false);
   return audioh_get_stream_by_idx(p_audio, stream_idx) != NULL;
 }
 
 tuh_audio_direction_t tuh_audio_stream_direction(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, TUH_AUDIO_STREAM_DIRECTION_COUNT);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, TUH_AUDIO_STREAM_DIRECTION_COUNT);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, TUH_AUDIO_STREAM_DIRECTION_COUNT);
 
@@ -1952,7 +2002,7 @@ tuh_audio_direction_t tuh_audio_stream_direction(uint8_t dev_idx, uint8_t stream
 }
 
 uint8_t tuh_audio_config_count(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -1961,7 +2011,7 @@ uint8_t tuh_audio_config_count(uint8_t dev_idx, uint8_t stream_idx) {
   return s->config_count;
 }
 uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, TUSB_INDEX_INVALID_8);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, TUSB_INDEX_INVALID_8);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, TUSB_INDEX_INVALID_8);
 
@@ -1970,7 +2020,7 @@ uint8_t tuh_audio_active_config(uint8_t dev_idx, uint8_t stream_idx) {
   return s->active_config;
 }
 bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx, tuh_audio_stream_config_t *config) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, false);
 
@@ -1981,7 +2031,7 @@ bool tuh_audio_config_get(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_id
 }
 
 bool tuh_audio_configure(uint8_t dev_idx, uint8_t stream_idx, uint8_t config_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2124,7 +2174,7 @@ static void audioh_stream_start_complete(tuh_xfer_t *xfer) {
 }
 
 bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2157,8 +2207,10 @@ bool tuh_audio_start(uint8_t dev_idx, uint8_t stream_idx) {
     p_audio->playback.target_frames_q16 = p_audio->playback.nominal_frames_q16;
     p_audio->playback.rem_acc           = 0;
   }
-  s->running   = true;
-  s->operation = AUDIOH_STREAM_OP_START;
+  s->running        = true;
+  s->xfer_errors[0] = 0;
+  s->xfer_errors[1] = 0;
+  s->operation      = AUDIOH_STREAM_OP_START;
   // UAC2 controls a Clock Source that exists before endpoint activation. UAC1
   // controls the endpoint itself, so its alternate setting must be active first.
   bool submitted = false;
@@ -2184,12 +2236,45 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
     return;
   }
   TU_LOG_DRV("  AUDIO SET_INTERFACE deactivate done: result=%u\r\n", xfer->result);
+  // Finish the local stop before reporting it, so the event callback may
+  // reconfigure or restart the stream. The last transfer still drains; its data
+  // and all queued frames are discarded.
+  audioh_stream_stop_xfers(s);
   s->operation = AUDIOH_STREAM_OP_NONE;
   tuh_audio_event_cb(s->idx, s->stream_idx, TUH_AUDIO_EVENT_STOP_COMPLETE, xfer->result);
 }
 
+// Host task, deferred by a refused tuh_audio_stop(): arm again the stream's
+// endpoints left idle while the stop was marked. An endpoint still busy is
+// re-armed by its own completion, which now sees no stop pending.
+static void audioh_stream_rearm_idle(void *param) {
+  tuh_audio_stream_t *s = (tuh_audio_stream_t *)param;
+  s->rearm_pending = false; // cleared before the checks: a stop refused from now on posts again
+  if (s->state != STREAM_STATE_READY || !s->running || s->operation != AUDIOH_STREAM_OP_NONE) {
+    return; // stopped, failed or unplugged since, or another operation pending
+  }
+
+  const audioh_as_config_t *as = audioh_stream_active_as(s);
+  bool ok = true;
+  if (s->dir == TUSB_DIR_OUT) {
+    const uint8_t feedback_ep = audioh_get_playback(s)->feedback[s->active_as].ep_addr;
+    if (feedback_ep != 0 && !usbh_edpt_busy(s->daddr, feedback_ep)) {
+      ok = audioh_stream_feedback_xfer(s);
+    }
+    if (ok && !usbh_edpt_busy(s->daddr, as->ep_addr)) {
+      ok = audioh_stream_playback_xfer(s);
+    }
+  } else if (!usbh_edpt_busy(s->daddr, as->ep_addr)) {
+    ok = audioh_stream_capture_xfer(s);
+  }
+
+  if (!ok) {
+    audioh_stream_rearm_failed(s);
+  }
+}
+
 bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted, false);
 
@@ -2197,18 +2282,29 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   TU_VERIFY(s && s->state == STREAM_STATE_READY && s->operation == AUDIOH_STREAM_OP_NONE && s->running, false);
 
   const audioh_as_config_t *as = audioh_stream_active_as(s);
-  // Preserve running state when submission fails so the caller can retry.
-  TU_VERIFY(tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s), false);
-
-  // SET_INTERFACE stops future traffic. The current transfer drains, while its
-  // data and all queued frames are discarded.
+  // Mark the stop before submitting: on an RTOS the host task may complete the
+  // request, and the application restart the stream from STOP_COMPLETE, before
+  // tuh_interface_set() returns to this caller. Nothing may touch the stream
+  // after a successful submission. From here completed transfers are not re-armed
+  // (audioh_xfer_cb), and audioh_stream_stop_complete() stops the stream.
   s->operation = AUDIOH_STREAM_OP_STOP;
-  audioh_stream_stop_xfers(s);
+  if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
+    // The stream keeps running for the caller to retry: a transfer that completed
+    // or failed meanwhile was left idle, so have the host task, which also runs
+    // the completions, arm it again. One post at a time: a caller retrying the
+    // stop in a loop would otherwise fill the host event queue with re-arms.
+    s->operation = AUDIOH_STREAM_OP_NONE;
+    if (!s->rearm_pending) {
+      s->rearm_pending = true;
+      usbh_defer_func(audioh_stream_rearm_idle, s, false);
+    }
+    return false;
+  }
   return true;
 }
 
 uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer, uint32_t frame_count) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
@@ -2227,7 +2323,7 @@ uint32_t tuh_audio_write(uint8_t dev_idx, uint8_t stream_idx, const void *buffer
 }
 
 uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint32_t frame_count) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->mounted && buffer, 0);
 
@@ -2244,7 +2340,7 @@ uint32_t tuh_audio_read(uint8_t dev_idx, uint8_t stream_idx, void *buffer, uint3
 }
 
 uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -2255,7 +2351,7 @@ uint32_t tuh_audio_write_available(uint8_t dev_idx, uint8_t stream_idx) {
 }
 
 uint32_t tuh_audio_read_available(uint8_t dev_idx, uint8_t stream_idx) {
-  TU_VERIFY(dev_idx < CFG_TUH_AUDIO_MAX, 0);
+  TU_VERIFY(dev_idx < CFG_TUH_AUDIO, 0);
   audioh_interface_t *p_audio = &_audioh_itf[dev_idx];
   TU_VERIFY(p_audio->daddr != 0, 0);
 
@@ -2297,7 +2393,7 @@ static uint8_t audioh_control_cur_request(uint8_t protocol, tusb_dir_t direction
 static bool audioh_control_submit(uint8_t idx, uint8_t entity_id, tusb_dir_t direction, uint8_t request,
                                   uint8_t control_selector, uint8_t channel, void *buffer, uint16_t length,
                                   tuh_xfer_t *xfer) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX && entity_id != 0 && request != 0, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO && entity_id != 0 && request != 0, false);
   TU_VERIFY(direction == TUSB_DIR_OUT || direction == TUSB_DIR_IN, false);
   TU_VERIFY(buffer != NULL || length == 0, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
@@ -2553,7 +2649,7 @@ static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
 static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel,
                           uint8_t last_channel, uint16_t value, uint8_t width, tuh_xfer_cb_t complete_cb,
                           uintptr_t user_data) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);
@@ -2616,7 +2712,7 @@ static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
 
 static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selector, uint8_t channel, void *value,
                           uint8_t width, uint8_t value_type, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(idx < CFG_TUH_AUDIO_MAX, false);
+  TU_VERIFY(idx < CFG_TUH_AUDIO, false);
   audioh_interface_t *p_audio = &_audioh_itf[idx];
   TU_VERIFY(p_audio->mounted && value, false);
   tuh_audio_stream_t *s = audioh_get_stream_by_idx(p_audio, stream_idx);

@@ -190,3 +190,35 @@ void test_tu_scatter_write32(void) {
   TEST_ASSERT_EQUAL_HEX8(0x03, buf1[2]);
   TEST_ASSERT_EQUAL_HEX8(0x04, buf2[0]);
 }
+
+// A descriptor is walkable only if bLength covers bLength and bDescriptorType and the descriptor ends within
+// desc_end. bLength 0 would make a walk spin in place, bLength 1 at the last byte would make tu_desc_type() read
+// one byte past desc_end (#4387).
+void test_tu_desc_in_bounds(void) {
+  // 9-byte interface, then a trailing byte. desc[10] stands for the byte past desc_end (a CS_INTERFACE guard).
+  uint8_t desc[11] = {9, TUSB_DESC_INTERFACE, 0, 0, 0, 0, 0, 0, 0, 0, TUSB_DESC_CS_INTERFACE};
+  const uint8_t *desc_end = desc + 10;
+
+  TEST_ASSERT_TRUE(tu_desc_in_bounds(desc, desc_end));
+  TEST_ASSERT_TRUE(tu_desc_in_bounds(desc, desc + 9));   // ends exactly at desc_end
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc, desc + 8));  // runs past desc_end
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc_end, desc_end));
+
+  // trailing bLength 1 at desc_end - 1: its bDescriptorType would be desc_end[0]
+  desc[9] = 1;
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc + 9, desc_end));
+
+  // trailing bLength 0: tu_desc_next() would not advance
+  desc[9] = 0;
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc + 9, desc_end));
+
+  // bLength 0 and 1 are rejected wherever they are, not just at the end
+  desc[0] = 0;
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc, desc_end));
+  desc[0] = 1;
+  TEST_ASSERT_FALSE(tu_desc_in_bounds(desc, desc_end));
+
+  // smallest walkable descriptor: bLength 2 ending at desc_end
+  desc[8] = 2;
+  TEST_ASSERT_TRUE(tu_desc_in_bounds(desc + 8, desc_end));
+}

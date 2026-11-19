@@ -10,6 +10,9 @@ import sys
 import unittest
 import unittest.mock
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("it imports usbtest, which loads agentrc's hil_usbtest (fcntl, Linux usbfs): POSIX only")
+
 import usb.core
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

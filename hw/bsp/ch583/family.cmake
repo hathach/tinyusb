@@ -73,11 +73,16 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH583)
 
+  if (SYSVIEW)
+    # Work around lib/SEGGER_RTT's generic RISC-V lock trapping on WCH's QingKe core, see the header.
+    target_compile_options(${TARGET} PUBLIC -include ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sysview_rtt_conf.h)
+  endif ()
+
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/wch/usbfs/dcd_wch_usbfs.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

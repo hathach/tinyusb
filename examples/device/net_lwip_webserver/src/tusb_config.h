@@ -74,12 +74,14 @@ extern "C" {
  * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
  * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
  */
-#ifndef CFG_TUSB_MEM_SECTION
-  #define CFG_TUSB_MEM_SECTION
+#if TU_CHECK_MCU(OPT_MCU_LPC43XX) && defined(__GNUC__) && !defined(CFG_TUSB_MEM_SECTION)
+  // The LPC43 linker scripts put .bss in the 40 KB RamLoc40 bank, which the high-throughput lwIP and NCM buffers
+  // overflow: put the USB buffers in the 32 KB AHB SRAM bank (RamAHB32), which the USB DMA also reaches.
+  #define CFG_TUSB_MEM_SECTION __attribute__((section(".bss.$RAM3")))
 #endif
 
-#ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN __attribute__((aligned(4)))
+#ifndef CFG_TUSB_MEM_SECTION
+  #define CFG_TUSB_MEM_SECTION
 #endif
 
 // Use different configurations to test all net devices (also due to resource limitations)
@@ -104,7 +106,7 @@ extern "C" {
       TU_CHECK_MCU(OPT_MCU_STM32H5,  OPT_MCU_STM32H7,  OPT_MCU_STM32H7RS) || \
       TU_CHECK_MCU(OPT_MCU_STM32C5,  OPT_MCU_STM32U5,  OPT_MCU_STM32N6) || \
       TU_CHECK_MCU(OPT_MCU_RP2040,   OPT_MCU_CH32V307) || \
-      TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX) || \
+      TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX, OPT_MCU_LPC43XX, OPT_MCU_LPC55) || \
       TU_CHECK_MCU(OPT_MCU_NRF5X)
     #define LWIP_HIGH_THROUGHPUT 1
   #else
@@ -129,13 +131,13 @@ extern "C" {
   #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 2048
 #endif
 
-// Number of NCM transfer blocks for reception side
+// Number of NCM transfer blocks: a second one lets USB transfer the next NTB while lwIP processes the current one
 #ifndef CFG_TUD_NCM_OUT_NTB_N
-  #define CFG_TUD_NCM_OUT_NTB_N 1
+  #define CFG_TUD_NCM_OUT_NTB_N (LWIP_HIGH_THROUGHPUT ? 2 : 1)
 #endif
 
 #ifndef CFG_TUD_NCM_IN_NTB_N
-  #define CFG_TUD_NCM_IN_NTB_N 1
+  #define CFG_TUD_NCM_IN_NTB_N (LWIP_HIGH_THROUGHPUT ? 2 : 1)
 #endif
 
 //--------------------------------------------------------------------

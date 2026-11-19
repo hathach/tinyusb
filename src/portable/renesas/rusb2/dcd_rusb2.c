@@ -31,6 +31,7 @@ typedef struct {
   bool queued;      /* a transfer is submitted and not yet completed (independent of `buf`, which is
                        NULL for a zero-length read) -- used to decide clear-stall re-arm */
   bool zlp_pending; /* a zero-length IN packet couldn't be queued at submit (FIFO full); retry on BRDY */
+  bool wait_empty;  /* the last IN packet of a double-buffered pipe is queued; completes on BEMP */
 } pipe_state_t;
 
 typedef struct
@@ -55,10 +56,10 @@ static dcd_data_t _dcd;
 // - Pipes 3 to 5: Bulk
 // - Pipes 6 to 9: Interrupt
 //
-// Note: for small mcu such as
-// - RA2A1: only pipe 4-7 are available, and no support for ISO
+// Note: for small mcu with USBFS mini module (e.g RA2A1, RA4E2, RA6E2, RA6T3)
+// only pipe 4-7 are available, and no support for ISO
 static unsigned find_pipe(unsigned xfer_type) {
-  #if defined(BSP_MCU_GROUP_RA2A1)
+  #ifdef RUSB2_USBFS_PIPE4567_ONLY
   const uint8_t pipe_idx_arr[4][2] = {
       { 0, 0 }, // Control
       { 0, 0 }, // Isochronous not supported
@@ -146,6 +147,37 @@ static inline void pipe_brdy_clear(rusb2_reg_t *rusb, unsigned num) {
   rusb->BRDYSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
 }
 
+// A double-buffered (bulk, pipes 1-5) IN pipe raises BRDY whenever a buffer plane is writable again
+// (RA4M2 UM 26.3.3.1), which can be while the transfer's last packet still waits in the other plane:
+// a USBTMC abort's short packet was reported sent before the host had read it (issue #4307). Its
+// transfers complete on BEMP instead: the FIFO is empty once transmission is done (26.3.3.3).
+static bool pipe_in_completes_on_bemp(rusb2_reg_t *rusb, unsigned num) {
+  rusb->PIPESEL = (uint16_t)num;
+  const uint16_t cfg = rusb->PIPECFG;
+  return (cfg & RUSB2_PIPECFG_DBLB_Msk) && (cfg & RUSB2_PIPECFG_TYPE_Msk) != RUSB2_PIPECFG_TYPE_ISO;
+}
+
+static void pipe_bemp_disarm(rusb2_reg_t *rusb, unsigned num) {
+  _dcd.pipe[num].wait_empty = false;
+  rusb->BEMPENB &= (uint16_t)~TU_BIT(num);
+  rusb->BEMPSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
+}
+
+// The last packet of an IN transfer on `num` is queued: arm BEMP for its completion. BEMPSTS
+// latches whatever BEMPENB says, so a stale bit is dropped first; a packet the host already took
+// before BEMP was armed shows as INBUFM = 0 (pipes 1-5, RA4M2 UM 26.3.3.3 and Table 26.21).
+// Returns true if the transfer is already complete. USB IRQ masked by the caller.
+static bool pipe_in_wait_empty(rusb2_reg_t *rusb, unsigned num) {
+  _dcd.pipe[num].wait_empty = true;
+  rusb->BEMPSTS = (uint16_t)(0x3FFu ^ TU_BIT(num));
+  rusb->BEMPENB |= TU_BIT(num);
+  if (*get_pipectr(rusb, num) & RUSB2_PIPE_CTR_INBUFM_Msk) {
+    return false;
+  }
+  pipe_bemp_disarm(rusb, num);
+  return true;
+}
+
 // Select the D0FIFO for `num` and wait until its buffer is ready for CPU access. Both flags
 // normally settle within a few cycles (the pipe was just armed, or a BRDY freed a plane). But an
 // IN pipe whose double buffer is already full stalls FRDY until the host drains it, and a
@@ -158,6 +190,13 @@ static inline bool pipe_wait_for_ready(rusb2_reg_t *rusb, unsigned num) {
   while ( rusb->D0FIFOSEL_b.CURPIPE != num ) { if (!spin--) return false; }
   spin = RUSB2_FIFO_READY_SPIN;
   while ( !rusb->D0FIFOCTR_b.FRDY ) { if (!spin--) return false; }
+  return true;
+}
+
+// CFIFO (DCP) counterpart of pipe_wait_for_ready(), same bound. Returns false on timeout.
+static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  while ( !rusb->CFIFOCTR_b.FRDY ) { if (!spin--) return false; }
   return true;
 }
 
@@ -263,7 +302,8 @@ static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
   // host has already ACKed it). Park it in the DCP buffer — an unread buffer NAKs further OUTs —
   // and let process_pipe0_xfer deliver it when usbd arms the next chunk. BCLR here would silently
   // drop the packet and shift every later chunk by one (usbtest ctrl_out corruption at ra4m1).
-  if (pipe->buf == NULL && rem == 0) {
+  // `queued`, not `buf`: an armed zero-length data-stage receive has buf == NULL too.
+  if (!pipe->queued) {
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
     return false;
   }
@@ -310,8 +350,10 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   const unsigned rem  = pipe->remaining;
 
   if (!rem) {
+    // all data queued: a single-buffered pipe's BRDY means it was sent, a double-buffered one
+    // completes on BEMP (see pipe_in_completes_on_bemp)
     pipe->buf = NULL;
-    return true;
+    return !pipe->wait_empty;
   }
 
   const uint16_t fifo_sel     = num | FIFOSEL_BIGEND;
@@ -351,6 +393,9 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
 
   pipe->remaining = rem - len;
+  if (pipe->remaining == 0 && pipe_in_completes_on_bemp(rusb, num)) {
+    return pipe_in_wait_empty(rusb, num);
+  }
 
   return false;
 }
@@ -466,17 +511,20 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
   pipe->ff           = buffer_type;
   pipe->length       = total_bytes;
   pipe->remaining    = total_bytes;
+  // An OUT data-stage receive is armed for pipe0_xfer_out; cleared below for the status stage,
+  // which CCPL and the CTSQ IDLE interrupt complete instead
+  pipe->queued       = (ep_addr == 0);
 
   if (total_bytes) {
     pipe->buf = buffer;
     if (ep_addr) {
       /* IN */
-      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & 0x80));
+      TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & TUSB_DIR_IN_MASK));
       pipe0_xfer_in(rusb);
-    } else if (rusb->CFIFOCTR_b.DTLN > 0) {
+    } else if (rusb->CFIFOCTR_b.FRDY) {
       /* OUT: a back-to-back packet parked by pipe0_xfer_out already sits in the DCP buffer (its
          BRDY has fired and been cleared) — deliver it into this chunk now; no new BRDY will come
-         for it. Runs with the USB IRQ masked (dcd_edpt_xfer). Detected via the hardware DTLN
+         for it. Runs with the USB IRQ masked (dcd_edpt_xfer). Detected via the hardware FRDY
          rather than a driver flag: the BCLR at SETUP/bus-reset then self-heals any parked state. */
       if (pipe0_xfer_out(rusb)) {
         pipe_xfer_complete(rhport, 0, is_isr);
@@ -485,9 +533,38 @@ static bool process_pipe0_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_typ
     }
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
   } else {
-    /* ZLP */
+    /* ZLP: either the status stage or a data-stage ZLP. Classify it from the request, not from
+       CTSQ: usbd can submit the status before the host's status token moves CTSQ out of the data
+       stage. The status stage is IN for a no-data request and opposite the data stage otherwise
+       (same rule as usbd's status_stage_ep). */
     pipe->buf = NULL;
-    rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+
+    const bool    req_in    = (rusb->USBREQ & TUSB_DIR_IN_MASK) != 0;
+    const uint8_t status_ep = (rusb->USBLENG != 0 && req_in) ? tu_edpt_addr(0, TUSB_DIR_OUT)
+                                                             : tu_edpt_addr(0, TUSB_DIR_IN);
+    if (ep_addr == status_ep) {
+      /* status stage: CCPL may be set while still in the data stage, the hardware completes the
+         status transaction when the host's status token arrives */
+      pipe->queued = false;
+      rusb->DCPCTR = RUSB2_DCPCTR_CCPL_Msk | RUSB2_PIPE_CTR_PID_BUF;
+    } else {
+      /* data-stage ZLP, e.g. an IN reply ending on a full packet short of wLength. Arm the DCP
+         since PID is NAK after SETUP when the data stage is a lone ZLP */
+      if (ep_addr) {
+        /* BVAL should only be set while FRDY is 1 */
+        TU_ASSERT(cfifo_wait_for_ready(rusb));
+        rusb->CFIFOCTR = RUSB2_CFIFOCTR_BVAL_Msk;
+      } else if (rusb->CFIFOCTR_b.FRDY) {
+        /* OUT: a packet parked by pipe0_xfer_out (host data beyond a class buffer that ended on a
+           full packet) gets no new BRDY: deliver it into this zero-length receive, as the
+           non-zero OUT path above does */
+        if (pipe0_xfer_out(rusb)) {
+          pipe_xfer_complete(rhport, 0, is_isr);
+          return true; // PID stays NAK (set by pipe0_xfer_out)
+        }
+      }
+      rusb->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
+    }
   }
 
   return true;
@@ -537,11 +614,17 @@ static bool process_pipe_xfer(uint8_t rhport, rusb2_reg_t *rusb, int buffer_type
 
   if (dir) {
     /* IN */
+    pipe_bemp_disarm(rusb, num);
+    bool completed;
     if (total_bytes) {
-      pipe_xfer_in(rusb, num);
+      completed = pipe_xfer_in(rusb, num);
     } else {
       /* ZLP: if the FIFO buffer isn't free yet, defer the queue to the next BRDY (see process_pipe_brdy) */
       pipe->zlp_pending = !pipe_zlp_in(rusb, num);
+      completed = !pipe->zlp_pending && pipe_in_completes_on_bemp(rusb, num) && pipe_in_wait_empty(rusb, num);
+    }
+    if (completed) {
+      pipe_xfer_complete(rhport, num, is_isr);
     }
   } else {
     // OUT
@@ -601,6 +684,16 @@ static void process_pipe0_bemp(uint8_t rhport)
   }
 }
 
+static void process_pipe_bemp(uint8_t rhport, unsigned num) {
+  rusb2_reg_t  *rusb = RUSB2_REG(rhport);
+  pipe_state_t *pipe = &_dcd.pipe[num];
+  const bool    done = pipe->wait_empty && pipe->queued;
+  pipe_bemp_disarm(rusb, num);
+  if (done) {
+    pipe_xfer_complete(rhport, num, true);
+  }
+}
+
 static void process_pipe_brdy(uint8_t rhport, unsigned num)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
@@ -615,10 +708,11 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     }
     if (pipe->zlp_pending) {
       // The submit-time ZLP couldn't be queued (FIFO full); a freed buffer plane lets us queue it
-      // now. Don't report completion until the ZLP is actually queued (and then sent, next BRDY),
-      // otherwise a spurious BRDY would complete a zero-length IN the host never received.
+      // now. Don't report completion until the ZLP is actually queued (and then sent: next BRDY, or
+      // BEMP on a double-buffered pipe), otherwise a spurious BRDY would complete a zero-length IN
+      // the host never received.
       pipe->zlp_pending = !pipe_zlp_in(rusb, num);
-      completed = false;
+      completed = !pipe->zlp_pending && pipe_in_completes_on_bemp(rusb, num) && pipe_in_wait_empty(rusb, num);
     } else {
       completed = pipe_xfer_in(rusb, num);
     }
@@ -770,7 +864,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #ifdef RUSB2_SUPPORT_HIGHSPEED
   if ( rusb2_is_highspeed_rhport(rhport) ) {
     rusb->SYSCFG_b.HSE = TUD_OPT_HIGH_SPEED ? 1 : 0; // FS-only build: no HS chirp
-    rusb2_utmi_phy_powerup(rusb);
+    TU_ASSERT(rusb2_utmi_phy_powerup(rusb));
 
     rusb->SYSCFG_b.DRPD = 0;
     rusb->SYSCFG_b.USBE = 1;
@@ -958,6 +1052,7 @@ static void edpt_close(uint8_t rhport, uint8_t ep_addr)
   const unsigned num = _dcd.ep[dir][epn];
 
   rusb->BRDYENB &= (uint16_t)~TU_BIT(num);
+  pipe_bemp_disarm(rusb, num);
   // PIPECFG changes only on an idle NAKing pipe; on timeout the pipe stays configured but NAKing,
   // and the next open resets it
   if (pipe_reset(rusb, num, 0)) {
@@ -1081,6 +1176,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   if (num) {
     // a halt aborts the IN transfer; dcd_edpt_clear_stall() discards what it left in the buffer
     _dcd.pipe[num].queued = false;
+    pipe_bemp_disarm(RUSB2_REG(rhport), num);
   }
   dcd_int_enable(rhport);
 }
@@ -1211,21 +1307,37 @@ void dcd_int_handler(uint8_t rhport)
 
   // Control transfer stage changes
   if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
-    if ( is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA ) {
-      /* A setup packet has been received. */
-      process_setup_packet(rhport);
-    } else if ( 0 == (is0 & RUSB2_INTSTS0_CTSQ_Msk) ) {
-      /* A ZLP has been sent/received. */
-      process_status_completion(rhport);
+    switch (is0 & RUSB2_INTSTS0_CTSQ_Msk) {
+      // a setup packet has been received
+      case RUSB2_INTSTS0_CTSQ_CTRL_RDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WDATA:
+      case RUSB2_INTSTS0_CTSQ_CTRL_WSTATUS_NODATA:
+        process_setup_packet(rhport);
+        break;
+
+      // the status stage ZLP has been sent/received
+      case RUSB2_INTSTS0_CTSQ_CTRL_IDLE:
+        process_status_completion(rhport);
+        break;
+
+      default: break;
     }
   }
 
   // Buffer empty
   if ( is0 & RUSB2_INTSTS0_BEMP_Msk ) {
-    const uint16_t s = rusb->BEMPSTS;
-    rusb->BEMPSTS = 0;
+    unsigned const enb = rusb->BEMPENB;
+    unsigned s = rusb->BEMPSTS & enb;
+    /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
+    rusb->BEMPSTS = (uint16_t)~s;
     if ( s & 1 ) {
       process_pipe0_bemp(rhport);
+    }
+    s &= ~1u;
+    while (s) {
+      const unsigned num = __builtin_ctz(s);
+      process_pipe_bemp(rhport, num);
+      s &= ~TU_BIT(num);
     }
   }
 

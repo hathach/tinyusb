@@ -27,8 +27,40 @@
             }
         },
         {
+            "name": "stm32u5a5nucleo",
+            "uid": "2F0028000650363948313120",
+            "variant": [
+                { "name": "stm32u5a5nucleo", "flags": "" },
+                { "name": "stm32u5a5nucleo-DMA", "flags": "-DCFG_TUD_DWC2_DMA_ENABLE=1 -DCFG_TUH_DWC2_DMA_ENABLE=1" }
+            ],
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "openocd",
+                "uid": "0055003D3532510831333430",
+                "args": "-f interface/stlink.cfg -f target/stm32u5x.cfg -c \"adapter speed 8000\" -c \"stm32u5x.cpu configure -event reset-init {}\""
+            }
+        },
+        {
+            "name": "ra4m2_ek",
+            "uid": "058D032038313357364E2AA0EA284B4E",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "831813223",
+                "args": "-device R7FA4M2AD"
+            },
+            "flasher_recover": {
+                "name": "openocd",
+                "args": "-f interface/jlink.cfg -c \"transport select swd\" -c \"adapter speed 1000\" -c \"swd newdap ra4m2 cpu -expected-id 0\" -c \"dap create ra4m2.dap -chain-position ra4m2.cpu\" -c \"target create ra4m2.cpu cortex_m -dap ra4m2.dap\" -c \"cortex_m reset_config sysresetreq\""
+            }
+        },
+        {
             "name": "lpcxpresso43s67",
-            "uid": "08F000044528BAAA8D858F58C50700F5",
+            "uid": "0C60020145401EAA0E4B6C64C40700F5",
             "tests": {
                 "device": true, "host": false, "dual": false
             },

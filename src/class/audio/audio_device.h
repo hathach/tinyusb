@@ -218,7 +218,8 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-// Invoked in ISR context once an audio packet was sent successfully.
+// Invoked in ISR context once an audio packet was sent successfully, or in tud_task() context
+// on ports with TUP_USBD_XFER_ISR = 0 (e.g. WCH CH32), where transfer completion is not handled in ISR.
 // Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock),
 // call tud_audio_write() in I2S receive callback.
 bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_id, uint8_t ep_in,
@@ -226,7 +227,8 @@ bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_i
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-// Invoked in ISR context once an audio packet was received successfully.
+// Invoked in ISR context once an audio packet was received successfully, or in tud_task() context
+// on ports with TUP_USBD_XFER_ISR = 0 (e.g. WCH CH32), where transfer completion is not handled in ISR.
 // Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock),
 // call tud_audio_read() in I2S transmit callback.
 bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out,
@@ -442,7 +444,9 @@ void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 bool     audiod_xfer_cb        (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+#if TUP_USBD_XFER_ISR
 bool     audiod_xfer_isr       (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+#endif
 void     audiod_sof_isr        (uint8_t rhport, uint32_t frame_count);
 
 #ifdef __cplusplus

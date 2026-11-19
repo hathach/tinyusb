@@ -13,6 +13,7 @@ the current one, a file a substitution did not change, a --prev that is not an
 ancestor of HEAD, a first-parent commit that is not a merged PR."""
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -58,7 +59,7 @@ def bump(root, version):
         raise Refused(f'version must be X.Y.Z, got {version!r}')
     major, minor, rev = version.split('.')
     option_h = root / 'src/tusb_option.h'
-    current = current_version(option_h.read_text())
+    current = current_version(option_h.read_text(encoding='utf-8'))
     if current == version:
         raise Refused(f'{version} is already the version in src/tusb_option.h')
 
@@ -68,26 +69,26 @@ def bump(root, version):
             (r'(#define TUSB_VERSION_MINOR *) \d+', rf'\g<1> {minor}'),
             (r'(#define TUSB_VERSION_REVISION *) \d+', rf'\g<1> {rev}'),
         ],
-        root / 'repository.yml': repository_edits((root / 'repository.yml').read_text(), version, major),
+        root / 'repository.yml': repository_edits((root / 'repository.yml').read_text(encoding='utf-8'), version, major),
         root / 'library.json': [(r'( {4}"version":) "\d+\.\d+\.\d+"', rf'\1 "{version}"')],
         root / 'sonar-project.properties': [(r'(sonar\.projectVersion=)\d+\.\d+\.\d+', rf'\g<1>{version}')],
     }
     pending = []
     for path, subs in edits.items():  # validate everything first: a refusal writes nothing
-        before = path.read_text()
+        before = path.read_text(encoding='utf-8')
         after = before
         for pattern, repl in subs:
             after = re.sub(pattern, repl, after, count=1)
         if after == before:
-            raise Refused(f'{path.relative_to(root)}: no line matched the version pattern; nothing written')
+            raise Refused(f'{path.relative_to(root).as_posix()}: no line matched the version pattern; nothing written')
         pending.append((path, after))
     for path, after in pending:
-        path.write_text(after)
+        path.write_bytes(after.encode('utf-8'))   # as on POSIX, no CRLF; write_text's newline= needs 3.10
     return [path for path, _ in pending]
 
 
 def git(root, *args):
-    r = subprocess.run(['git', '-C', str(root), *args], capture_output=True, text=True)
+    r = subprocess.run(['git', '-C', str(root), *args], capture_output=True, encoding='utf-8')
     if r.returncode != 0:
         raise Refused(f'git {" ".join(args)} failed: {r.stderr.strip()}')
     return r.stdout
@@ -120,7 +121,7 @@ def gh_pr(root, number, attempts=3):
     """One PR's number, title, labels and author; a few hundred calls in a row hit transient API errors."""
     for attempt in range(attempts):
         r = subprocess.run(['gh', 'pr', 'view', str(number), '--json', 'number,title,labels,author'],
-                           cwd=root, capture_output=True, text=True)
+                           cwd=root, capture_output=True, encoding='utf-8')
         if r.returncode == 0:
             return json.loads(r.stdout)
     raise Refused(f'gh pr view {number} failed {attempts} times: {r.stderr.strip()}')
@@ -142,11 +143,14 @@ def main():
                        help='the previous release tag; PRs are those reachable from --head but not from it')
         q.add_argument('--head', default='HEAD', help='the release branch (default HEAD)')
     a = p.parse_args()
+    if os.name == 'nt':   # PR titles are UTF-8 whatever the console's code page
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8', errors='backslashreplace')
     root = a.root.resolve()
     try:
         if a.cmd == 'bump':
             for path in bump(root, a.version):
-                print(f'{a.version} -> {path.relative_to(root)}')
+                print(f'{a.version} -> {path.relative_to(root).as_posix()}')
             print(f'now add docs/changelog/{a.version}.md and list it first in docs/changelog/index.rst')
             return 0
         prs = fetch(root, merged_prs(root, a.prev, a.head))

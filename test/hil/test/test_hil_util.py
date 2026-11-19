@@ -1,97 +1,66 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Unit tests for hil_util.run_cmd's binary/split_stderr/quiet modes — real subprocesses, no
-# hardware. Stdlib + hil_util (stdlib-only) + the agentrc provider helper/usb_observe.py
-# hands out, so the pre-commit hil-test hook can run this on GitHub's bare runner once
-# lib/agentrc is fetched at the pin. Run directly:
+# Unit tests for hil_util: its wrappers over agentrc's runner, the bottom-layer invariants and
+# helpers -- real subprocesses, no hardware. Stdlib + hil_util (stdlib-only) + the agentrc
+# providers it and helper/usb_observe.py hand out, so the pre-commit hil-test hook can run
+# this on GitHub's bare runner once agentrc is fetched at the pin. Run directly:
 #   python3 test/hil/test/test_hil_util.py
-import io
 import os
 import sys
+import tempfile
 import time
 import unittest
-from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 # the module under test lives in the parent dir's helper/ package
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper import hil_util
 
 
-class RunCmdModes(unittest.TestCase):
-    def test_default_mode_unchanged(self):
+@unittest.skipIf(sys.platform == 'win32', "the runner is agentrc's hil_process (fcntl, process groups): POSIX only")
+class Wrappers(unittest.TestCase):
+    """run_cmd and run_alongside are agentrc's (hil_process; its tests hold the runner's
+    contract) with this harness's CMD_TIMEOUT, REAP_GRACE and verbose read on every call:
+    callers and tests set them at run time, so a copy taken at import would be stale."""
+
+    def capture(self, name):
+        seen = []
+        patcher = mock.patch.object(hil_util.provider().hil_process, name,
+                                    lambda *a, **kw: seen.append((a, kw)))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for knob in ('CMD_TIMEOUT', 'REAP_GRACE', 'verbose'):
+            self.addCleanup(setattr, hil_util, knob, getattr(hil_util, knob))
+        hil_util.CMD_TIMEOUT, hil_util.REAP_GRACE, hil_util.verbose = 33, 4, True
+        return seen
+
+    def test_run_cmd_forwards_every_mode_and_the_knobs(self):
+        seen = self.capture('run_cmd')
+        hil_util.run_cmd('c', 'd', binary=True, split_stderr=True, quiet=True)
+        hil_util.run_cmd(['c'], timeout=5, env={'NO_COLOR': '1'})
+        self.assertEqual(seen, [
+            (('c', 'd'), dict(timeout=33, binary=True, split_stderr=True, quiet=True, reap_grace=4, verbose=True,
+                              env=None)),
+            ((['c'], None), dict(timeout=5, binary=False, split_stderr=False, quiet=False, reap_grace=4,
+                                 verbose=True, env={'NO_COLOR': '1'}))])
+
+    def test_a_real_argv_run_adds_env_to_the_inherited_environment(self):
+        r = hil_util.run_cmd(['sh', '-c', 'printf "%s %s" "$HIL_UTIL_ENV" "${HOME:+home}"'],
+                             env={'HIL_UTIL_ENV': 'a b'})
+        self.assertEqual((r.returncode, r.stdout), (0, 'a b home'))
+
+    def test_run_alongside_reaps_for_reap_grace(self):
+        seen = self.capture('run_alongside')
+        work = object()
+        hil_util.run_alongside(['c'], work, 5)
+        self.assertEqual(seen, [((['c'], work, 5), {'reap_grace': 4})])
+
+    def test_a_real_run_merges_stderr_and_a_timeout_is_124(self):
         r = hil_util.run_cmd('printf out; printf err >&2')
-        self.assertEqual(r.returncode, 0)
-        self.assertIsInstance(r.stdout, str)
-        # stderr merged into stdout, as every existing caller expects
-        self.assertIn('out', r.stdout)
-        self.assertIn('err', r.stdout)
-
-    def test_binary_stdout_is_exact_bytes(self):
-        # \xff is not valid UTF-8: text mode would mangle it via errors='replace'
-        r = hil_util.run_cmd(r"printf 'a\377\000b'", binary=True)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, b'a\xff\x00b')
-
-    def test_split_stderr_keeps_stdout_clean(self):
-        r = hil_util.run_cmd('printf out; printf err >&2', split_stderr=True)
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(r.stdout, 'out')
-        self.assertEqual(r.stderr, 'err')
-
-    def test_binary_split_stderr_timeout_returns_124(self):
-        t0 = time.monotonic()
-        r = hil_util.run_cmd(r"printf 'p\377re'; printf warn >&2; sleep 30",
-                              binary=True, split_stderr=True, timeout=1)
-        self.assertEqual(r.returncode, 124)
-        # killpg + bounded communicate: well under sleep 30
-        self.assertLess(time.monotonic() - t0, 15)
-        self.assertIn(b'p\xffre', r.stdout or b'')
-        # stderr collected before the timeout must survive the kill
-        self.assertIn(b'warn', r.stderr or b'')
-
-    def test_text_mode_timeout_stdout_stays_str(self):
+        self.assertEqual((r.returncode, r.stdout), (0, 'outerr'))
         r = hil_util.run_cmd('sleep 30', timeout=1)
-        self.assertEqual(r.returncode, 124)
-        # a text-mode caller must never get bytes back, even empty
-        self.assertIsInstance(r.stdout, str)
-
-    def test_failed_banner_includes_split_stderr(self):
-        # with split_stderr the diagnostic is in .stderr; the banner must not go blank.
-        # The text travels via env, not the command string — the banner title echoes the
-        # command, which would make a literal assertion pass vacuously.
-        os.environ['RUN_CMD_TEST_ERR'] = 'diagnostic-xyzzy'
-        self.addCleanup(os.environ.pop, 'RUN_CMD_TEST_ERR', None)
-        cap = io.StringIO()
-        with redirect_stdout(cap):
-            r = hil_util.run_cmd('printf "$RUN_CMD_TEST_ERR" >&2; exit 3', split_stderr=True)
-        self.assertEqual(r.returncode, 3)
-        self.assertIn('COMMAND FAILED', cap.getvalue())
-        self.assertIn('diagnostic-xyzzy', cap.getvalue())
-
-    def test_no_group_markers_when_stdout_is_captured(self):
-        # GitHub folds ::group:: only at line start of the JOB's real stdout. Pool
-        # workers run tests under redirect_stdout and compact the capture into one
-        # row line, where the markers land mid-line and render as literal noise.
-        saved_ci = os.environ.get('CI')  # pre-exists on GitHub runners: restore, not pop
-        os.environ['CI'] = '1'
-        self.addCleanup(lambda: os.environ.update({'CI': saved_ci}) if saved_ci is not None
-                        else os.environ.pop('CI', None))
-        cap = io.StringIO()
-        with redirect_stdout(cap):
-            r = hil_util.run_cmd('printf boom; exit 3')
-        self.assertEqual(r.returncode, 3)
-        self.assertIn('COMMAND FAILED', cap.getvalue())
-        self.assertNotIn('::group::', cap.getvalue())
-        self.assertNotIn('::endgroup::', cap.getvalue())
-
-    def test_quiet_suppresses_failed_banner(self):
-        # retry-loop callers report failures themselves; per-poll banners are noise
-        cap = io.StringIO()
-        with redirect_stdout(cap):
-            r = hil_util.run_cmd('printf boom >&2; exit 3', quiet=True)
-        self.assertEqual(r.returncode, 3)
-        self.assertNotIn('COMMAND FAILED', cap.getvalue())
+        self.assertEqual((r.returncode, r.stdout), (124, ''))
 
 
 class BottomLayer(unittest.TestCase):
@@ -121,10 +90,10 @@ class BottomLayer(unittest.TestCase):
         # `import hil_util` from inside helper/ creates a SECOND module object, and
         # state like `verbose` set on one copy never reaches the other
         import hil_flash
-        from helper import hil_pool_check
+        from helper import farm_profile
         self.assertIs(hil_flash.hil_util, hil_util)
-        self.assertIs(hil_pool_check.hil_util, hil_util)
-        self.assertIs(hil_pool_check.hil_flash, hil_flash)
+        self.assertIs(farm_profile.hil_util, hil_util)
+        self.assertIs(farm_profile.hil_flash, hil_flash)
 
     def test_bare_runner_modules_stay_stdlib_only(self):
         # hil_examples.py used to make this structural (a list of strings cannot grow a
@@ -139,22 +108,21 @@ class BottomLayer(unittest.TestCase):
         # module runs ctypes.CDLL(find_library('mtp')) at import and raises where there
         # is no libmtp, taking change_impact down with it.
         local = {'helper', 'hil_util', 'change_impact', 'hil_flash', 'agentrc',
-                 'hil_lock', 'hil_pool_check', 'build', 'build_utils', 'get_deps', 'family_json',
+                 'hil_lock', 'farm_profile', 'hil_farm_check', 'build', 'build_utils', 'get_deps', 'family_json',
                  'hil_report'}
         allowed = set(sys.stdlib_module_names) | local
-        # hil_pool_check included: test_hil_util_is_a_single_module_instance imports it
-        # on the bare runner, and its `import serial` is function-local for exactly
-        # this reason -- hoisting it must fail HERE, not on every PR's pre-commit CI
+        # farm_profile included: test_hil_util_is_a_single_module_instance imports it
+        # on the bare runner, so a module-level non-stdlib import there must fail HERE,
+        # not on every PR's pre-commit CI
         for mod in ('helper/hil_util', 'hil_flash', '../../tools/change_impact',
-                    'helper/hil_lock', 'helper/agentrc', 'helper/hil_pool_check',
+                    'helper/hil_lock', 'helper/agentrc', 'helper/farm_profile', 'helper/hil_farm_check',
                     '../../tools/build', '../../tools/build_utils',
                     '../../tools/get_deps', '../../tools/family_json',
                     # the selection contract CI calls: check_build.py --select-only
                     '../../.claude/skills/build/scripts/check_build', 'helper/hil_report'):
-            tree = ast.parse((hil_dir / f'{mod}.py').read_text())
+            tree = ast.parse((hil_dir / f'{mod}.py').read_text(encoding='utf-8'))
             # module level only: a deferred import inside a function cannot break
-            # importability (hil_pool_check keeps `import serial` function-local
-            # for exactly that reason)
+            # importability
             for node in tree.body:
                 roots = []
                 if isinstance(node, ast.Import):
@@ -166,6 +134,7 @@ class BottomLayer(unittest.TestCase):
                                   f'{mod}.py imports {root}, not stdlib/local - breaks the bare CI runner')
 
 
+@unittest.skipIf(sys.platform == 'win32', "the runner is agentrc's hil_process (fcntl, process groups): POSIX only")
 class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
     """test_device_printer_to_cdc byte-compares run_alongside's stdout against the payload
     it wrote. Merging stderr into that stream turns any stray child stderr byte -- a
@@ -183,66 +152,13 @@ class RunAlongsideKeepsStderrOffThePayload(unittest.TestCase):
                          'child stderr leaked into the payload stream')
 
 
-class RunCmdCleanupShape(unittest.TestCase):
-    """run_cmd's two cleanup paths, asserted structurally.
-
-    Both must kill the process GROUP: start_new_session puts the child in its own group, so
-    a flasher run through a shell keeps children a p.kill() cannot reach, and on the
-    BaseException path the child never receives the terminal's SIGINT either.
-
-    Structural rather than behavioural on purpose. Driving a real SIGINT into a blocked
-    communicate() from a unit test is timing-dependent, and a flaky guard on this block is
-    worse than none -- while what actually breaks it is an edit that rebinds a branch. Both
-    times this block has been mis-edited, an `else:` ended up attached to the `try` instead
-    of the `if` it belonged to, so `p.kill()` ran when killpg had SUCCEEDED and its
-    ProcessLookupError masked the caller's exception. That is a shape, and shapes are
-    exactly what an AST can pin.
-    """
-
-    def _run_cmd_ast(self):
-        import ast
-        src = Path(hil_util.__file__).read_text()
-        return next(n for n in ast.walk(ast.parse(src))
-                    if isinstance(n, ast.FunctionDef) and n.name == 'run_cmd')
-
-    def test_no_cleanup_try_has_an_else(self):
-        import ast
-        for n in ast.walk(self._run_cmd_ast()):
-            if isinstance(n, ast.Try) and n.orelse:
-                self.fail(f'try/else at line {n.lineno}: an else here runs when the kill '
-                          f'SUCCEEDED, and its ProcessLookupError masks the caller\'s '
-                          f'exception -- this block has been mis-edited that way twice')
-
-    def test_both_cleanup_paths_kill_the_group(self):
-        import ast
-        fn = self._run_cmd_ast()
-        killers = [getattr(c.func, 'attr', '') for c in ast.walk(fn)
-                   if isinstance(c, ast.Call) and getattr(c.func, 'attr', '') in
-                   ('killpg', 'kill')]
-        self.assertEqual(killers.count('killpg'), 2,
-                         'both the timeout and the BaseException path must killpg')
-        self.assertEqual(killers.count('kill'), 0,
-                         'p.kill() reaches only the direct child; a flasher run through a '
-                         'shell keeps grandchildren it cannot touch')
-
-    def test_the_interrupt_path_reraises(self):
-        import ast
-        fn = self._run_cmd_ast()
-        base = [h for n in ast.walk(fn) if isinstance(n, ast.Try) for h in n.handlers
-                if isinstance(h.type, ast.Name) and h.type.id == 'BaseException']
-        self.assertTrue(base, 'the BaseException cleanup path is gone')
-        for h in base:
-            self.assertTrue(any(isinstance(x, ast.Raise) for x in ast.walk(h)),
-                            'the interrupt path must re-raise, or Ctrl-C is swallowed')
-
-
-class UsbObserveIsThePinnedModule(unittest.TestCase):
+class UsbObserveIsTheLoadedModule(unittest.TestCase):
     """helper/usb_observe.py hands callers agentrc's module itself: one strand memo per
     process, and a patched root reaches every function that reads it."""
 
-    def test_callers_get_the_pinned_provider(self):
-        from helper import usb_observe
-        provider = Path(hil_util.TINYUSB_ROOT) / 'lib/agentrc/skills/hil/scripts/usb_observe.py'
+    def test_callers_get_the_loaded_agentrcs_provider(self):
+        from helper import agentrc, usb_observe
+        provider = Path(agentrc.identity()['root']) / 'skills/hil/scripts/usb_observe.py'
         self.assertEqual(Path(usb_observe.__file__).resolve(), provider.resolve())
         self.assertIs(sys.modules['helper.usb_observe'], usb_observe)
 
@@ -260,6 +176,47 @@ class RampGaps(unittest.TestCase):
 
     def test_gaps_before_start_are_ignored(self):
         self.assertEqual(hil_util.ramp_gaps([5, 0, 1, 2, 9], 1), [(4, 6)])
+
+
+class RosterPath(unittest.TestCase):
+    """The one hostname -> roster map, for the farm check and `hil_lock.py hold --all`."""
+    HIL = hil_util.TINYUSB_ROOT / 'test' / 'hil'
+
+    def test_the_hfp_rig_gets_its_own_roster(self):
+        self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+
+    def test_a_cwd_file_does_not_shadow_the_host_roster(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'hfp.json').write_text('{}', encoding='utf-8')
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                self.assertEqual(hil_util.roster_path('tusb'), self.HIL / 'hfp.json')
+            finally:
+                os.chdir(cwd)
+
+    def test_a_host_without_a_roster_must_name_one(self):
+        with self.assertRaises(LookupError):
+            hil_util.roster_path('htpc')
+
+    def test_local_fallback_takes_local_json_only_when_it_exists(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(hil_util, 'TINYUSB_ROOT', Path(d)):
+            hil = Path(d, 'test', 'hil')
+            hil.mkdir(parents=True)
+            with self.assertRaises(LookupError):
+                hil_util.roster_path('htpc', local_fallback=True)
+            (hil / 'local.json').write_text('{}', encoding='utf-8')
+            self.assertEqual(hil_util.roster_path('htpc', local_fallback=True), hil / 'local.json')
+            self.assertEqual(hil_util.roster_path('ci', local_fallback=True), hil / 'tinyusb.json')
+            with self.assertRaises(LookupError):   # the farm check's call: no fallback
+                hil_util.roster_path('htpc')
+
+    def test_an_explicit_roster_wins_on_any_host(self):
+        for host in ('ci', 'htpc'):
+            with self.subTest(host=host):
+                self.assertEqual(hil_util.roster_path(host, __file__), Path(__file__))
+                # a name found nowhere else is test/hil's, and its open fails in the caller
+                self.assertEqual(hil_util.roster_path(host, 'no-such.json'), self.HIL / 'no-such.json')
 
 
 if __name__ == '__main__':

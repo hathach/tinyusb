@@ -84,6 +84,10 @@ typedef struct {
   TUH_EPBUF_DEF(ctrl, 8);
 } cdch_epbuf_t;
 
+// Each bulk transfer is wMaxPacketSize long, which tuh_edpt_open() bounds to TUH_EPSIZE_BULK_MAX
+TU_VERIFY_STATIC(CFG_TUH_CDC_RX_EPSIZE >= TUH_EPSIZE_BULK_MAX, "CFG_TUH_CDC_RX_EPSIZE must be >= TUH_EPSIZE_BULK_MAX");
+TU_VERIFY_STATIC(CFG_TUH_CDC_TX_EPSIZE >= TUH_EPSIZE_BULK_MAX, "CFG_TUH_CDC_TX_EPSIZE must be >= TUH_EPSIZE_BULK_MAX");
+
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
 CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 
@@ -358,10 +362,14 @@ static cdch_interface_t* get_itf_by_xfer(const tuh_xfer_t * xfer) {
   return NULL;
 }
 
+// slot reserved by the cdch_open() in progress, released if that open fails
+static cdch_interface_t *open_new_itf;
+
 static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t const * itf_desc) {
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
     if (cdch_data[i].daddr == 0) {
       cdch_interface_t * p_cdc = &cdch_data[i];
+      open_new_itf              = p_cdc;
       p_cdc->daddr              = daddr;
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
@@ -724,6 +732,7 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
+    // fits the endpoint buffer: tuh_edpt_open() bounds a bulk size to TUH_EPSIZE_BULK_MAX, see TU_VERIFY_STATIC above
     tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
     tu_edpt_stream_clear(stream);
 
@@ -733,8 +742,7 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
   return true;
 }
 
-uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
-  (void)rhport;
+static uint16_t open_itf(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // For CDC: only support ACM subclass
   // Note: Protocol 0xFF can be RNDIS device
   if (TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
@@ -763,7 +771,28 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   return 0;
 }
 
+uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
+  (void)rhport;
+  open_new_itf = NULL;
+  const uint16_t drv_len = open_itf(daddr, itf_desc, max_len);
+  if (drv_len == 0 && open_new_itf != NULL) {
+    // usbh calls no close for an interface it did not bind: release the slot this open reserved, not one an earlier
+    // open of the same interface number (another alternate setting) holds
+    tu_edpt_stream_close(&open_new_itf->stream.tx);
+    tu_edpt_stream_close(&open_new_itf->stream.rx);
+    open_new_itf->daddr            = 0;
+    open_new_itf->bInterfaceNumber = 0;
+  }
+  open_new_itf = NULL;
+  return drv_len;
+}
+
 static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
+  // the failure path clears the entry, usbh still needs the device and interface
+  const uint8_t daddr      = p_cdc->daddr;
+  const uint8_t itf_num    = p_cdc->bInterfaceNumber;
+  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
+
   if (success) {
     const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted    = true;
@@ -777,8 +806,7 @@ static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
   }
 
   // notify usbh that driver enumeration is complete
-  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-  usbh_driver_set_config_complete(p_cdc->daddr, p_cdc->bInterfaceNumber + itf_offset);
+  usbh_driver_set_config_complete(daddr, itf_num + itf_offset);
 }
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
@@ -899,12 +927,17 @@ static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate; // update baudrate
-    TU_ASSERT(driver->set_data_format(p_cdc, cdch_set_line_coding_stage2_data_format_complete, xfer->user_data),);
-  } else {
-    xfer->complete_cb = p_cdc->user_complete_cb;
-    if (xfer->complete_cb != NULL) {
-      xfer->complete_cb(xfer);
+    if (driver->set_data_format(p_cdc, cdch_set_line_coding_stage2_data_format_complete, xfer->user_data)) {
+      return;
     }
+    // the caller still gets a completion, e.g. enumeration waits for it to complete SET_CONFIG (#4064)
+    TU_LOG_DRV("  stage2 set data format failed to queue\r\n");
+    xfer->result = XFER_RESULT_FAILED;
+  }
+
+  xfer->complete_cb = p_cdc->user_complete_cb;
+  if (xfer->complete_cb != NULL) {
+    xfer->complete_cb(xfer);
   }
 }
 
@@ -1098,7 +1131,7 @@ static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
 #if CFG_TUH_CDC_FTDI
 
 static bool ftdi_determine_type(cdch_interface_t *p_cdc);
-static uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc);
+static bool ftdi_get_divisor(cdch_interface_t *p_cdc, uint32_t *div_value);
 
 //------------- Control Request -------------//
 
@@ -1175,8 +1208,8 @@ static bool ftdi_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete
 }
 
 static bool ftdi_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint32_t index_value = ftdi_get_divisor(p_cdc);
-  TU_VERIFY(index_value != 0);
+  uint32_t index_value;
+  TU_VERIFY(ftdi_get_divisor(p_cdc, &index_value));
   uint16_t value = (uint16_t) index_value;
   uint16_t index = (uint16_t) (index_value >> 16);
   if (p_cdc->ftdi.channel != 0) {
@@ -1418,29 +1451,29 @@ static inline uint32_t ftdi_2232h_baud_to_divisor(uint32_t baud) {
   return ftdi_2232h_baud_base_to_divisor(baud, (uint32_t) 120000000);
 }
 
-static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
+// divisor 0 is valid (3 Mbaud on 232BM-type chips, 300 baud on SIO), so success is returned separately
+static inline bool ftdi_get_divisor(cdch_interface_t *p_cdc, uint32_t *div_value) {
   uint32_t baud = p_cdc->requested_line.coding.bit_rate;
-  uint32_t div_value = 0;
   TU_VERIFY(baud != 0);
 
   switch (p_cdc->ftdi.chip_type) {
     case FTDI_UNKNOWN:
-      return 0;
+      return false;
     case FTDI_SIO:
       switch (baud) {
-        case 300: div_value = ftdi_sio_b300; break;
-        case 600: div_value = ftdi_sio_b600; break;
-        case 1200: div_value = ftdi_sio_b1200; break;
-        case 2400: div_value = ftdi_sio_b2400; break;
-        case 4800: div_value = ftdi_sio_b4800; break;
-        case 9600: div_value = ftdi_sio_b9600; break;
-        case 19200: div_value = ftdi_sio_b19200; break;
-        case 38400: div_value = ftdi_sio_b38400; break;
-        case 57600: div_value = ftdi_sio_b57600;  break;
-        case 115200: div_value = ftdi_sio_b115200; break;
+        case 300: *div_value = ftdi_sio_b300; break;
+        case 600: *div_value = ftdi_sio_b600; break;
+        case 1200: *div_value = ftdi_sio_b1200; break;
+        case 2400: *div_value = ftdi_sio_b2400; break;
+        case 4800: *div_value = ftdi_sio_b4800; break;
+        case 9600: *div_value = ftdi_sio_b9600; break;
+        case 19200: *div_value = ftdi_sio_b19200; break;
+        case 38400: *div_value = ftdi_sio_b38400; break;
+        case 57600: *div_value = ftdi_sio_b57600;  break;
+        case 115200: *div_value = ftdi_sio_b115200; break;
         default:
           // Baudrate not supported
-          return 0;
+          return false;
           break;
       }
       break;
@@ -1460,7 +1493,7 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
     case FTDI_FT232R:
     case FTDI_FTX:
       TU_VERIFY(baud <= 3000000); // else Baud rate too high!
-      div_value = ftdi_232bm_baud_to_divisor(baud);
+      *div_value = ftdi_232bm_baud_to_divisor(baud);
       break;
     case FTDI_FT232H:
     case FTDI_FT2232H:
@@ -1475,16 +1508,16 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
     default:
       TU_VERIFY(baud <= 12000000); // else Baud rate too high!
       if (baud >= 1200) {
-        div_value = ftdi_2232h_baud_to_divisor(baud);
+        *div_value = ftdi_2232h_baud_to_divisor(baud);
       } else {
-        div_value = ftdi_232bm_baud_to_divisor(baud);
+        *div_value = ftdi_232bm_baud_to_divisor(baud);
       }
       break;
   }
 
-  TU_LOG_CDC(p_cdc, "Baudrate divisor = 0x%lu", div_value);
+  TU_LOG_CDC(p_cdc, "Baudrate divisor = 0x%lu", *div_value);
 
-  return div_value;
+  return true;
 }
 
 #endif
@@ -1881,10 +1914,12 @@ static uint16_t ch34x_get_divisor_prescaler(cdch_interface_t *p_cdc) {
         b = 0;
         c = 11719;
       }
-      a = (uint8_t) (c / baval);
-      if (a == 0 || a == 0xFF) {
+      // below 46 baud the divisor does not fit in 8 bits, reject it instead of truncating
+      const uint32_t div = c / baval;
+      if (div == 0 || div >= 0xFF) {
         return 0;
       }
+      a = (uint8_t) div;
       if ((c / a - baval) > (baval - c / (a + 1))) {
         a++;
       }

@@ -138,6 +138,13 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx);
 // Note: if there is report ID (composite), it is 1st byte of report
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);
 
+// Invoked instead of tuh_hid_report_received_cb() when the interrupt IN transfer failed, e.g. stalled, a
+// transaction error or the device is gone. The default calls tuh_hid_receive_report() again after a transient
+// error (XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT), so polling goes on as it does when the application re-arms from
+// tuh_hid_report_received_cb(). It does not re-arm after XFER_RESULT_STALLED, since the endpoint stays halted until
+// a CLEAR_FEATURE(ENDPOINT_HALT), nor after XFER_RESULT_ABORTED. Override it to change that.
+void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t result);
+
 // Invoked when sent report to device successfully via interrupt endpoint
 void tuh_hid_report_sent_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report, uint16_t len);
 

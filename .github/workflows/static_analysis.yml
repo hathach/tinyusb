@@ -114,8 +114,9 @@ jobs:
 
       - name: Install Tools
         run: |
-          wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo apt-key add -
-          sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.pvs-studio.com/etc/viva64.list
+          sudo install -d -m 0755 /etc/apt/keyrings
+          wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/viva64.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/viva64.gpg] https://files.pvs-studio.com/deb viva64-release pvs-studio" | sudo tee /etc/apt/sources.list.d/viva64.list
           sudo apt update
           sudo apt install pvs-studio
           pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
@@ -186,6 +187,7 @@ jobs:
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
   IAR-CStat:
+    # Re-enabling needs IAR's "base" release archive: toolchain.json pins "minimal", which has no icstat
     # Only run on non-forked PR since secrets token is required
     #if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     if: false

@@ -3,10 +3,15 @@
 # Unit tests for the CircleCI/GitHub Actions selection hand-off contracts.
 # Stdlib only; no builds.
 #   python3 test/hil/test/test_ci_metrics.py
+import functools
 import json
 import os
 import re
+import shlex
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -15,6 +20,35 @@ CIRCLECI = os.path.join(REPO, '.circleci')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_change_impact import mf  # noqa: E402  a manifest v1 fixture
 SENTINEL = 'example-map-default'
+# by PATH: Windows' CreateProcess looks in System32 first and would run WSL's bash.exe
+BASH = shutil.which('bash') or 'bash'
+# the CI steps below pipe through jq, which Git for Windows does not ship; CI runners have it
+NO_JQ = ('jq is not installed (Git for Windows ships none)'
+         if sys.platform == 'win32' and not shutil.which('jq') else '')
+
+
+@functools.cache
+def _no_bash():
+    """Why no bash runs here, else '': on Windows `bash` may be absent, or WSL's launcher with no WSL behind it."""
+    try:
+        if subprocess.run([BASH, '-c', 'exit 0'], capture_output=True, timeout=60).returncode == 0:
+            return ''
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return f'{BASH} does not run, and the CI steps under test are bash scripts'
+
+
+def run_bash(args, **kwargs):
+    """subprocess.run of bash with `args`; skips the calling test where no bash runs."""
+    if _no_bash():
+        raise unittest.SkipTest(_no_bash())
+    return subprocess.run([BASH, *args], **kwargs)
+
+
+def _read(path):
+    # a fixed encoding: the workflows hold non-ASCII text a non-UTF-8 locale cannot decode
+    with open(path, encoding='utf-8') as f:
+        return f.read()
 
 
 class TestCircleCiSentinelContract(unittest.TestCase):
@@ -24,8 +58,8 @@ class TestCircleCiSentinelContract(unittest.TestCase):
     fallback that no CI job reports, so pin the contract here."""
 
     def setUp(self):
-        self.config = open(os.path.join(CIRCLECI, 'config.yml')).read()
-        self.config2 = open(os.path.join(CIRCLECI, 'config2.yml')).read()
+        self.config = _read(os.path.join(CIRCLECI, 'config.yml'))
+        self.config2 = _read(os.path.join(CIRCLECI, 'config2.yml'))
 
     def test_sentinel_appears_once_on_a_default_line(self):
         marker = f'# {SENTINEL}: rewritten in-place by config.yml set-matrix'
@@ -71,6 +105,92 @@ class TestCircleCiSentinelContract(unittest.TestCase):
             self.assertIn(suite, self.config, f'{suite} does not gate the CircleCI selector')
 
 
+@unittest.skipIf(NO_JQ, NO_JQ)
+class TestCircleCiExampleMapBudget(unittest.TestCase):
+    """Every generated job inlines the example map, so a broad selection multiplies it
+    past CircleCI's compiled-config cap (#4194). Runs the set-matrix step for real with
+    the selector, ci_set_matrix and git stubbed."""
+    BUDGET = 2000000
+
+    def _run_set_matrix(self, matrix, example_map, fork=False):
+        """Returns (config2.yml example-map default, generated job count, stdout)."""
+        with open(os.path.join(CIRCLECI, 'config.yml'), encoding='utf-8') as fh:
+            config = fh.read()
+        i = config.index('command: |\n', config.index('name: Set matrix')) + len('command: |\n')
+        j = config.index('      - continuation/continue', i)
+        # CircleCI escapes a literal << as \<< in config text
+        block = re.sub(r'^ {12}', '', config[i:j], flags=re.M).replace('\\<<', '<<')
+        with tempfile.TemporaryDirectory() as d:
+            def write(path, text, mode=0o644):
+                path = os.path.join(d, path)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, 'w', encoding='utf-8', newline='\n') as fh:
+                    fh.write(text)
+                os.chmod(path, mode)
+            os.mkdir(os.path.join(d, '.circleci'))
+            shutil.copy(os.path.join(CIRCLECI, 'config2.yml'), os.path.join(d, '.circleci'))
+            write('.github/scripts/ci_set_matrix.py',
+                  'import os, sys\n'
+                  'print(os.environ["STUB_MAP" if "--example-map" in sys.argv else "STUB_MATRIX"])\n')
+            for suite in ('test/hil/test/test_change_impact.py', '.claude/test/test_build_select.py',
+                          'test/hil/test/test_ci_metrics.py'):
+                write(suite, '')
+            write('.claude/skills/build/scripts/check_build.py', 'print("{}")\n')
+            write('bin/git', '#!/bin/sh\nexit 1\n', 0o755)
+            write('bin/python', f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n', 0o755)
+            env = {k: v for k, v in os.environ.items()
+                   if not k.startswith('GIT_') and k != 'CIRCLE_PR_USERNAME'}
+            env.update(PATH=os.path.join(d, 'bin') + os.pathsep + env['PATH'],
+                       CIRCLE_PULL_REQUEST='https://github.com/hathach/tinyusb/pull/1',
+                       STUB_MATRIX=json.dumps(matrix), STUB_MAP=json.dumps(example_map))
+            if fork:
+                env['CIRCLE_PR_USERNAME'] = 'contributor'
+            r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, env=env,
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            with open(os.path.join(d, '.circleci', 'config2.yml'), encoding='utf-8') as fh:
+                config2 = fh.read()
+        default = re.search(rf"default: '(.*)'  # {SENTINEL}$", config2, re.M).group(1)
+        # jq pretty-prints each family list over several lines
+        jobs = sum(len(json.loads(f)) for f in re.findall(r'^ {14}family: (\[.*?\])', config2, re.M | re.S))
+        return json.loads(default.replace("''", "'")), jobs, r.stdout
+
+    @staticmethod
+    def _map_of(size):
+        """An example map of about `size` bytes over one family."""
+        return {'stm32f4': ['device/x%05d' % k for k in range(size // 15)]}
+
+    def test_the_count_is_the_generated_jobs(self):
+        matrix = {'arm-gcc': ['nrf', 'stm32f4'], 'arm-clang': ['rp2040'], 'arm-iar': ['stm32f4'],
+                  'esp-idf': ['espressif'], 'riscv-gcc': []}
+        for fork in (False, True):
+            with self.subTest(fork=fork):
+                kept, jobs, out = self._run_set_matrix(matrix, self._map_of(100), fork=fork)
+                self.assertEqual(kept, self._map_of(100))
+                self.assertEqual(jobs, 6 if fork else 7)  # arm-gcc on cmake and make
+                self.assertRegex(out, rf'example map: \d+ bytes x {jobs} jobs')
+
+    def test_a_large_map_on_a_broad_matrix_is_dropped(self):
+        matrix = {'arm-gcc': ['f%03d' % k for k in range(68)], 'arm-clang': ['f%03d' % k for k in range(35)]}
+        example_map = self._map_of(36000)
+        kept, jobs, out = self._run_set_matrix(matrix, example_map)
+        self.assertEqual(jobs, 68 * 2 + 35)
+        self.assertGreater(len(json.dumps(example_map)) * jobs, self.BUDGET)
+        self.assertEqual(kept, {})
+        self.assertIn('over the compiled-config budget', out)
+
+    def test_the_same_map_on_a_narrow_matrix_stays_scoped(self):
+        example_map = self._map_of(36000)
+        kept, jobs, _ = self._run_set_matrix({'arm-gcc': ['stm32f4']}, example_map)
+        self.assertEqual((kept, jobs), (example_map, 2))
+
+    def test_an_empty_matrix_keeps_the_map(self):
+        example_map = self._map_of(36000)
+        kept, jobs, out = self._run_set_matrix({'arm-gcc': [], 'arm-clang': []}, example_map)
+        self.assertEqual((kept, jobs), (example_map, 0))
+        self.assertIn('example map: ', out)
+
+
 class TestWorkflowSelectionHandOff(unittest.TestCase):
     """build.yml's counterpart of the CircleCI contract above: same E2BIG limit, same
     consequence (the scoping silently turns itself off on exactly the PRs where it
@@ -78,8 +198,8 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def setUp(self):
         wf = os.path.join(os.path.dirname(CIRCLECI), '.github', 'workflows')
-        self.build = open(os.path.join(wf, 'build.yml')).read()
-        self.util = open(os.path.join(wf, 'build_util.yml')).read()
+        self.build = _read(os.path.join(wf, 'build.yml'))
+        self.util = _read(os.path.join(wf, 'build_util.yml'))
         self.jobs = {j.split(':', 1)[0]: j for j in re.split(r'\n  (?=[a-z][\w-]*:\n)', self.build)}
 
     def test_no_step_execs_with_the_selection_in_its_environment(self):
@@ -106,7 +226,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertEqual(self.util.count(guard), 1,
                              f'{guard}: each GITHUB_ENV write screens its value exactly once')
         # CircleCI builds from the same PR-derived map and uses $EX_ARGS unquoted
-        cci = open(os.path.join(CIRCLECI, 'config2.yml')).read()
+        cci = _read(os.path.join(CIRCLECI, 'config2.yml'))
         self.assertIn('case "$EX_ARGS" in', cci,
                       'the CircleCI copy of the example filter needs the same screen')
         self.assertIn('case "$BUILD_ARGS" in', self.build)
@@ -138,19 +258,20 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         for producer in ('cmake', 'hil-build-esp'):
             self.assertIn("needs.check-paths.outputs.code_changed == 'true'", self.jobs[producer])
 
+    @unittest.skipIf(NO_JQ, NO_JQ)
     def test_membrowse_identical_uploads_every_leg_past_a_failure(self):
         import subprocess, tempfile
         i = self.build.index('run: |\n', self.build.index('- name: Membrowse identical upload')) + len('run: |\n')
         block = re.sub(r'^ {10}', '', self.build[i:self.build.index('\n\n', i)], flags=re.M)
         with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, 'python3'), 'w') as f:
+            with open(os.path.join(d, 'python3'), 'w', encoding='utf-8', newline='\n') as f:
                 f.write('#!/bin/sh\necho "$*" >> log\ncase "$*" in *bad*) exit 1 ;; esac\n')
             os.chmod(os.path.join(d, 'python3'), 0o755)
-            r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
+            r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, text=True,
                                env={**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'],
                                     'LEGS': json.dumps(['-b bad', '-b x --build-name x-DMA --cflag=-DY=1'])})
             self.assertNotEqual(r.returncode, 0)
-            with open(os.path.join(d, 'log')) as f:
+            with open(os.path.join(d, 'log'), encoding='utf-8') as f:
                 self.assertEqual(sorted(f.read().splitlines()), [
                     'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b bad',
                     'tools/build.py -s cmake --target examples-membrowse-upload -j 1 -b x --build-name x-DMA '
@@ -199,7 +320,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 self.assertTrue(ok(classes['args'], hfp), f'{path}: hfp {hfp!r}')
                 # BUILD_ARGS is the hfp job's `-b <board> [-e ...]` list, not the -bt
                 # test filter above - screen the value that step actually builds
-                with open(os.path.join(d, 'sel.json'), 'w') as fh:
+                with open(os.path.join(d, 'sel.json'), 'w', encoding='utf-8', newline='\n') as fh:
                     fh.write(r.stdout)
                 hm = subprocess.run(
                     [sys.executable, os.path.join(repo, '.github/scripts/hil_ci_set_matrix.py'),
@@ -241,6 +362,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertEqual(json.loads(m.group(1).replace("'", '"')), ci_set_matrix.REQUIRED_TOOLCHAINS)
         self.assertIn('needs.set-matrix.outputs.required_json', self.jobs['cmake-required'])
 
+    @unittest.skipIf(NO_JQ, NO_JQ)
     def test_the_code_size_scope_lists_every_cmake_leg_and_esp_leg(self):
         # pr_comment.yml's compare expects a snapshot artifact per listed leg: the list
         # must be the cmake job's matrix, from the one toolchain list both read, plus every
@@ -262,11 +384,11 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
         def scope(changed, owner='hathach'):
             with tempfile.TemporaryDirectory() as d:
-                subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
+                run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True, check=True,
                                env={**os.environ, 'TOOLCHAINS': m.group(1), 'PINNED_JSON': json.dumps(pinned),
                                     'EXAMPLE_MAP': '{"stm32f4": ["device/cdc_msc"]}', 'CODE_CHANGED': changed,
                                     'HIL_JSON': json.dumps(hil), 'OWNER': owner})
-                with open(os.path.join(d, 'code-size-scope', 'scope.json')) as fh:
+                with open(os.path.join(d, 'code-size-scope', 'scope.json'), encoding='utf-8') as fh:
                     return json.load(fh)
         cmake = [{'toolchain': 'arm-gcc', 'arg': 'stm32f4'}, {'toolchain': 'arm-gcc', 'arg': 'imxrt'},
                  {'toolchain': 'riscv-gcc', 'arg': 'fomu'}]
@@ -278,7 +400,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def test_the_esp_snapshot_runs_in_the_idf_image_with_the_leg_as_data(self):
         import subprocess, tempfile
-        with open(os.path.join(REPO, '.github', 'workflows', 'build_util.yml')) as f:
+        with open(os.path.join(REPO, '.github', 'workflows', 'build_util.yml'), encoding='utf-8') as f:
             text = f.read()
         def step_script(name):
             i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
@@ -291,7 +413,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                      'git': 'echo "git $*" >> "$LOG"', 'pip': 'echo "pip $*" >> "$LOG"',
                      'python': '{ printf "python"; printf " [%s]" "$@"; echo; } >> "$LOG"'}
             for name, body in stubs.items():
-                with open(os.path.join(d, name), 'w') as f:
+                with open(os.path.join(d, name), 'w', encoding='utf-8', newline='\n') as f:
                     f.write(f'#!/bin/bash\n{body}\n')
                 os.chmod(os.path.join(d, name), 0o755)
             env = {**os.environ, 'PATH': d + os.pathsep + os.environ['PATH'], 'LOG': os.path.join(d, 'log'),
@@ -300,21 +422,29 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
             def run(arg, toolchain='esp-idf'):
                 open(env['LOG'], 'w').close()
-                r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True,
+                r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d, capture_output=True,
                                    text=True, env={**env, 'ARG': arg, 'TOOLCHAIN': toolchain})
                 self.assertEqual(r.returncode, 0, r.stderr)
-                with open(env['LOG']) as f:
+                with open(env['LOG'], encoding='utf-8') as f:
                     return f.read().splitlines()
             log = run('-b espressif_s3_devkitm $(touch pwned) ;id')
+            # the mount is bash's $PWD: d itself on POSIX, its /c/... spelling under Git Bash
+            pwd = run_bash(['-c', 'pwd'], cwd=d, capture_output=True, text=True).stdout.strip()
             self.assertFalse(os.path.exists(os.path.join(d, 'pwned')))
+            # the engine is agentrc's at the pin, fetched on the runner before anything sizes
+            fetch = 'python [test/hil/helper/agentrc.py] [fetch]'
+            self.assertEqual(log.pop(0), fetch)
+            # the container selects the pin as the runner does (CI), and its git may read the pin's checkout
             self.assertTrue(log[0].startswith('docker run --rm -e ARG -e EX_ARGS -e BUILD_OUTCOME -e GITHUB_EVENT_NAME '
-                                              f'-v {d}:/project -w /project espressif/idf:tinyusb bash -c'))
-            self.assertEqual(log[1:3], ['git config --global --add safe.directory /project',
+                                              f'-e CI -e GITHUB_ACTIONS -v {pwd}:/project -w /project '
+                                              'espressif/idf:tinyusb bash -c'))
+            self.assertEqual(log[1:4], ['git config --global --add safe.directory /project',
+                                        'git config --global --add safe.directory /project/lib/agentrc',
                                         'pip install --only-binary :all: membrowse==1.2.17'])
-            self.assertEqual(log[3], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+            self.assertEqual(log[4], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                                      '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner
-                             ['python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
+                             [fetch, 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                               '[-o] [code-size] [stm32f4]'])
             # a variant leg is sized too, as the board its --build-name names
             self.assertEqual(run('-b espressif_s3_devkitm --build-name x-DMA --cflag=-DY=1')[-1],
@@ -325,7 +455,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         # a run without usable snapshots, and a baseline lookup that fails, must still
         # leave a comment.md, so the post replaces an earlier push's table
         import subprocess, tempfile
-        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml')) as f:
+        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
             text = f.read()
 
         def step_script(name):
@@ -336,21 +466,23 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             env = {**os.environ, 'RUNNER_TEMP': d, 'REPO': 'x/y', 'RUN_URL': 'https://example/run',
                    'GITHUB_STEP_SUMMARY': os.path.join(d, 'summary.md'), 'GITHUB_OUTPUT': os.path.join(d, 'out'),
                    'PATH': d + os.pathsep + os.environ['PATH']}
-            with open(os.path.join(d, 'gh'), 'w') as f:  # any API call fails
+            with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:  # any API call fails
                 f.write('#!/bin/sh\nexit 1\n')
             os.chmod(os.path.join(d, 'gh'), 0o755)
+            with open(os.path.join(d, 'gh.bat'), 'w', encoding='utf-8') as f:  # what Windows' which() finds
+                f.write('@exit /b 1\n')
             leg = os.path.join(d, 'code-size', 'current', 'code-size-arm-gcc-x')
             os.makedirs(leg)
-            with open(os.path.join(leg, 'leg.json'), 'w') as f:
+            with open(os.path.join(leg, 'leg.json'), 'w', encoding='utf-8', newline='\n') as f:
                 json.dump({'schema': 1, 'boards': [], 'examples': None, 'build_outcome': 'success',
                            'sha': 'a' * 40, 'base_sha': 'a' * 40, 'head_sha': 'a' * 40}, f)
             for name in ('Find the baseline', 'Compare against the baseline'):
-                r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
+                r = run_bash(['-e', '-o', 'pipefail', '-c', step_script(name)], cwd=REPO,
                                    capture_output=True, text=True, env=env)
                 self.assertEqual(r.returncode, 0, f'{name}: {r.stderr}')
-            with open(os.path.join(d, 'out')) as f:
+            with open(os.path.join(d, 'out'), encoding='utf-8') as f:
                 self.assertEqual(f.read(), 'run_id=\n')  # no baseline download
-            with open(os.path.join(d, 'code-size', 'out', 'comment.md')) as f:
+            with open(os.path.join(d, 'code-size', 'out', 'comment.md'), encoding='utf-8') as f:
                 comment = f.read()
         self.assertTrue(comment.startswith('## Code size'))
         self.assertIn('Baseline: unavailable - the baseline lookup failed', comment)
@@ -367,15 +499,18 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
 
     def _run_block_in(self, d, block, sel, setup=None):
         import subprocess
-        with open(os.path.join(d, 'selection.json'), 'w') as fh:
+        # skip before setup(): its os.symlink needs a privilege Windows withholds by default
+        if _no_bash():
+            raise unittest.SkipTest(_no_bash())
+        with open(os.path.join(d, 'selection.json'), 'w', encoding='utf-8', newline='\n') as fh:
             json.dump(sel, fh)
         out = os.path.join(d, 'gh_output')
         open(out, 'w').close()
         env = {**os.environ, **((setup and setup(d)) or {}), 'GITHUB_OUTPUT': out}
-        r = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', block], cwd=d,
+        r = run_bash(['-e', '-o', 'pipefail', '-c', block], cwd=d,
                            capture_output=True, text=True, env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
-        with open(out) as fh:
+        with open(out, encoding='utf-8') as fh:
             return dict(l.split('=', 1) for l in fh.read().splitlines() if '=' in l)
 
     def _run_matrix_step(self, sel, fail_pinned=False):
@@ -396,7 +531,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 os.symlink(os.path.join(repo, name), os.path.join(d, name))
             bin_dir = os.path.join(d, 'bin')
             os.mkdir(bin_dir)
-            with open(os.path.join(bin_dir, 'python'), 'w') as fh:
+            with open(os.path.join(bin_dir, 'python'), 'w', encoding='utf-8', newline='\n') as fh:
                 fh.write('#!/bin/sh\n')
                 if fail_pinned:
                     fh.write('case " $* " in *" --pinned "*--select-file*) exit 1 ;; esac\n')
@@ -456,7 +591,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             for name in ('test', 'tools'):
                 os.symlink(os.path.join(REPO, name), os.path.join(d, name))
             os.mkdir(os.path.join(d, 'bin'))
-            with open(os.path.join(d, 'bin', 'python3'), 'w') as fh:
+            with open(os.path.join(d, 'bin', 'python3'), 'w', encoding='utf-8', newline='\n') as fh:
                 fh.write('#!/bin/sh\n'
                          f'case "$*" in *test_change_impact.py*|*test_build_select.py*) exit {suites_rc} ;;\n'
                          '  *check_build.py*) echo "$*" > argv; exec cat selection.json ;; esac\n'
@@ -470,7 +605,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             out = self._run_block_in(d, block, sel, setup)
             self.assertEqual(out['suites_ok'], 'true' if suites_rc == 0 and 'argv' in os.listdir(d) else 'false')
             argv = os.path.join(d, 'argv')
-            return out['code'], (open(argv).read().split() if os.path.exists(argv) else None)
+            return out['code'], (_read(argv).split() if os.path.exists(argv) else None)
 
     def test_the_gate_skips_only_what_the_selector_clears(self):
         doc = {'path': 'README.rst', 'effect': 'none'}
@@ -577,7 +712,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn("grep -q 'ci_set_matrix: UNSCOPED'", self.build)
         self.assertIn('BUILD_SELECT_FILE', self.build)
         scripts = os.path.join(os.path.dirname(CIRCLECI), '.github', 'scripts')
-        matrix = open(os.path.join(scripts, 'ci_set_matrix.py')).read()
+        matrix = _read(os.path.join(scripts, 'ci_set_matrix.py'))
         # count-independent: pin the INVARIANT, not the number of fall-open paths -
         # every message that emits the full matrix must carry the marker, and a purely
         # informational note (a partial family miss) must not claim to have done so.

@@ -32,8 +32,8 @@ commands:
               elif [[ << parameters.toolchain >> == ft9xx-gcc ]]; then
                 $fetch << parameters.toolchain >> ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
               elif [[ << parameters.toolchain >> == arm-iar ]]; then
-                $fetch iar-lmsc-tools ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
-                $fetch << parameters.toolchain >> ~/cache/<< parameters.toolchain >>/toolchain.deb
+                # cache the 193 MB release tarball, not its 1 GB tree
+                $fetch << parameters.toolchain >> ~/cache/<< parameters.toolchain >>/cxarm.tar.bz2
               else
                 $fetch << parameters.toolchain >> toolchain.tar.gz
                 tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
@@ -42,10 +42,10 @@ commands:
 
             # Add toolchain to PATH
             if [[ << parameters.toolchain >> == arm-iar ]]; then
-              # Install IAR since we only cache deb file
-              sudo dpkg -i ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
-              sudo dpkg --ignore-depends=libusb-1.0-0 -i ~/cache/<< parameters.toolchain >>/toolchain.deb
-              echo "export PATH=$PATH:/opt/iar/cxarm/arm/bin" >> $BASH_ENV
+              # extract IAR since we only cache the tarball (cxarm-<version>/arm/bin)
+              mkdir -p ~/iar
+              tar -C ~/iar -xjf ~/cache/<< parameters.toolchain >>/cxarm.tar.bz2
+              echo "export PATH=$PATH:`echo ~/iar/*/arm/bin`" >> $BASH_ENV
             elif [[ << parameters.toolchain >> == ft9xx-gcc ]]; then
               sudo apt install -y ~/cache/<< parameters.toolchain >>/ft9xxtoolchain.deb
               echo "export PATH=$PATH:/opt/ft32/bin" >> $BASH_ENV

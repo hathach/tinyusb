@@ -22,6 +22,13 @@ extern "C" {
   #define CFG_TUH_MSC_MAXLUN 4
 #endif
 
+// How long enumeration keeps retrying Test Unit Ready (each failure followed by Request Sense) for a unit that is not
+// ready yet, from its first Test Unit Ready. Past it the interface is left unmounted: tuh_msc_mount_cb() is not called.
+// A unit reporting NOT READY / MEDIUM NOT PRESENT (sense 02/3A/00, e.g. an empty card reader slot) is not retried.
+#ifndef CFG_TUH_MSC_READY_TIMEOUT_MS
+  #define CFG_TUH_MSC_READY_TIMEOUT_MS 10000
+#endif
+
 typedef struct {
   const msc_cbw_t *cbw;       // SCSI command
   const msc_csw_t *csw;       // SCSI status
@@ -30,6 +37,7 @@ typedef struct {
 } tuh_msc_complete_data_t;
 
 typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data);
+typedef void (*tuh_msc_reset_cb_t)(uint8_t dev_addr, bool success, uintptr_t arg);
 
 //--------------------------------------------------------------------+
 // Application API
@@ -39,21 +47,28 @@ typedef bool (*tuh_msc_complete_cb_t)(uint8_t dev_addr, const tuh_msc_complete_d
 // This function true after tuh_msc_mounted_cb() and false after tuh_msc_unmounted_cb()
 bool tuh_msc_mounted(uint8_t dev_addr);
 
-// Check if the interface is currently ready or busy transferring data
+// Check if the interface can accept a new command: false while a command or recovery is in progress (its endpoints
+// busy or not), and once fenced after a failed stage submit or a failed CBW/CSW transfer (see tuh_msc_scsi_command)
+// until tuh_msc_reset() succeeds or the device is re-enumerated
 bool tuh_msc_ready(uint8_t dev_addr);
 
-// Get Max Lun
+// Get the LUN count the device reported, clamped to CFG_TUH_MSC_MAXLUN
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr);
 
-// Get number of block
+// Get number of block, as cached during enumeration (LUN 0 only). 0 for a LUN not below tuh_msc_get_maxlun()
 uint32_t tuh_msc_get_block_count(uint8_t dev_addr, uint8_t lun);
 
-// Get block size in bytes
+// Get block size in bytes, as cached during enumeration (LUN 0 only). 0 for a LUN not below tuh_msc_get_maxlun()
 uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
-// return true if success, false if there is already pending operation.
+// return true if success, false if the interface is not configured or is fenced, cbw->lun is not below
+// tuh_msc_get_maxlun(), or there is already pending operation. The commands below also return false in these cases.
+// If the data or status stage fails to submit, or the CBW transfer fails, or the CSW transfer fails or is short, the
+// callback gets a locally built CSW with MSC_CSW_STATUS_PHASE_ERROR and the interface is fenced: every further
+// command is refused until tuh_msc_reset() succeeds or the device is re-enumerated. The failed command is not
+// retried. A Phase Error CSW the device itself sends on a mounted interface is reported as is and does not fence.
 // NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, const msc_cbw_t *cbw, void *data, tuh_msc_complete_cb_t complete_cb,
                           uintptr_t arg);
@@ -92,6 +107,17 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, const void *buffer, uint32_t
 // simply call tuh_msc_get_block_count() and tuh_msc_get_block_size()
 bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_resp_t *response,
                            tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
+
+// Run BOT Reset Recovery on the whole interface (all LUNs): Bulk-Only Mass Storage Reset, then Clear HALT on Bulk-In and
+// Bulk-Out, each followed by a host-side data toggle reset. Always asynchronous; complete_cb may be NULL.
+// Allowed on a mounted interface with no command in flight, fenced or not; mount and cached geometry are kept.
+// return false, with no callback and the fence unchanged, if it cannot start. Once started, complete_cb reports the
+// result: on success the fence is lifted, on any failure (including a host controller whose hcd_edpt_clear_stall()
+// cannot reset the toggle) the interface stays fenced, even if it was not before. Not called on unplug.
+// Issue commands and tuh_msc_reset() for one interface from the task running tuh_task() (completion callbacks
+// included), or from another task that waits for each call's completion callback before the next one: admission is
+// checked under the Bulk-Out claim, which does not synchronize with completion processing.
+bool tuh_msc_reset(uint8_t daddr, tuh_msc_reset_cb_t complete_cb, uintptr_t arg);
 
 //------------- Application Callback -------------//
 

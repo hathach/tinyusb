@@ -24,6 +24,7 @@ toolchain_list = [
 # container), so it belongs here - "not in family_list" means CI never builds it.
 family_list = {
     "apm32f0xx": ["arm-gcc"],
+    "apm32f10x": ["arm-gcc"],
     "at32f402_405": ["arm-gcc"],
     "at32f403a_407": ["arm-gcc"],
     "at32f413": ["arm-gcc"],
@@ -38,8 +39,10 @@ family_list = {
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
+    "ch32v4x7": ["riscv-gcc"],
     "ch32x035": ["riscv-gcc"],
     "ch583": ["riscv-gcc"],
+    "cxd56": ["arm-gcc"],
     "da1469x": ["arm-gcc"],
     "efm32": ["arm-gcc"],
     "f1c100s": ["arm-gcc"],
@@ -72,7 +75,7 @@ family_list = {
     "nuc121_125": ["arm-gcc"],
     "nuc126": ["arm-gcc"],
     "nuc505": ["arm-gcc"],
-    "ra": ["arm-gcc"],
+    "ra": ["arm-gcc", "arm-iar"],
     "rp2040": ["arm-gcc"],
     "rw61x": ["arm-gcc"],
     "rx": ["rx-gcc"],
@@ -115,7 +118,7 @@ CMAKE_JOB_TOOLCHAINS = ['aarch64-gcc', 'arm-gcc', 'ft9xx-gcc', 'msp430-gcc', 'ri
 
 
 def pinned_boards(repo_root=REPO):
-    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json')) as f:
+    with open(os.path.join(repo_root, '.github', 'ci-pinned-boards.json'), encoding='utf-8') as f:
         return {e['board'] for e in json.load(f)['boards']}
 
 
@@ -285,7 +288,7 @@ def main():
         if args.select:
             select = json.loads(args.select)
         elif args.select_file:
-            with open(args.select_file) as f:
+            with open(args.select_file, encoding='utf-8') as f:
                 select = json.load(f)
         elif args.base:
             r = subprocess.run([sys.executable, os.path.join(REPO, '.claude', 'skills', 'build', 'scripts',

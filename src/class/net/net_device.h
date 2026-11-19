@@ -10,6 +10,8 @@
 #define TUSB_NET_DEVICE_H_
 
 #include <stdint.h>
+#include "common/tusb_common.h"
+#include "device/usbd.h"
 #include "class/cdc/cdc.h"
 
 #if CFG_TUD_ECM_RNDIS && CFG_TUD_NCM
@@ -19,6 +21,12 @@
 /* Maximum Transmission Unit (in bytes) of the network, including Ethernet header */
 #ifndef CFG_TUD_NET_MTU
 #define CFG_TUD_NET_MTU           1514
+#endif
+
+// Link speed in bit/s reported to the host, 0 = USB bus speed.
+// One value for both directions: Linux and Microsoft's NCM sample read the two speed fields in opposite order.
+#ifndef CFG_TUD_NET_LINK_BITRATE
+#define CFG_TUD_NET_LINK_BITRATE  0
 #endif
 
 
@@ -57,6 +65,16 @@ extern void rndis_class_set_handler(uint8_t *data, int size);
 // indicate to network driver that client has finished with the packet provided to network_recv_cb()
 void tud_network_recv_renew(void);
 
+#if CFG_TUD_NCM
+// Zero-copy reception: called from tud_network_recv_cb(), keeps the packet's buffer valid after the callback returns
+// until tud_network_recv_release(). Returns NULL when the packet must be copied instead (holding it could leave no
+// receive buffer, always so with CFG_TUD_NCM_OUT_NTB_N == 1).
+void *tud_network_recv_hold(void);
+
+// release a buffer kept by tud_network_recv_hold(), task context only
+void tud_network_recv_release(void *handle);
+#endif
+
 // poll network driver for its ability to accept another packet to transmit
 bool tud_network_can_xmit(uint16_t size);
 
@@ -75,7 +93,8 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg);
 
 //------------- ECM/RNDIS -------------//
 
-// client must provide this: initialize any network state back to the beginning
+// Optional: invoked once per configuration when the data endpoints open (RNDIS: on
+// SET_CONFIGURATION, ECM: first SET_INTERFACE alt 1), to reset network state
 void tud_network_init_cb(void);
 
 // client must provide this: 48-bit MAC address
@@ -93,6 +112,14 @@ bool tud_network_default_link_state_cb(void);
 
 // Set the network link state (up/down) and notify the host
 void tud_network_link_state(uint8_t rhport, bool is_up);
+
+// Link speed in bit/s reported to the host: CFG_TUD_NET_LINK_BITRATE, or the USB bus speed when it is 0
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_network_link_bitrate(void) {
+  if (CFG_TUD_NET_LINK_BITRATE) {
+    return (uint32_t) (CFG_TUD_NET_LINK_BITRATE);
+  }
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? 480000000U : 12000000U;
+}
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API

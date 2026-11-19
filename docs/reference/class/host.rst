@@ -69,24 +69,36 @@ Common configuration options
    * - ``CFG_TUH_ENUM_ATTEMPT_MAX``
      - ``2``
      - Maximum enumeration attempts per attachment after core enumeration
-       transfers fail or time out; ``1`` disables retries.
+       transfers fail or time out; ``1`` disables retries.  Each attempt resets
+       the port.  Within an attempt, a request the device fails is first sent
+       again up to twice, 100 ms apart, without a port reset; a timed-out
+       request is not.
+   * - ``CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS``
+     - ``2``
+     - Delay in milliseconds after a root-port reset before reading the port
+       speed/status.  Increase it for devices slow to respond after reset.
    * - ``CFG_TUH_TASK_EVENTS_PER_RUN``
      - ``16``
      - Maximum events handled by one ``tuh_task_ext()`` call.  ``0`` is
        unlimited.
    * - ``CFG_TUH_MEM_SECTION`` / ``CFG_TUH_MEM_ALIGN``
-     - Common USB settings / 4-byte alignment
-     - Places and aligns host-controller buffers for DMA-accessible RAM.
+     - Common USB settings / the controller's ``TUP_HCD_MEM_ALIGN``
+     - Places and aligns host-controller buffers for DMA-accessible RAM.  The
+       alignment defaults to what the host controller needs
+       (``TUP_HCD_MEM_ALIGN`` in ``common/tusb_mcu.h``: 4 on DMA controllers
+       such as WCH USBHS, DWC2 with DMA and ChipIdea FS, else 1), at least
+       4 bytes, and ``usbh`` asserts every transfer and control data buffer
+       meets ``TUP_HCD_MEM_ALIGN``.
    * - ``CFG_TUSB_OS``
      - ``OPT_OS_NONE``
      - Selects TinyUSB's synchronization backend.  Set the matching OS option
        when host APIs and ``tuh_task()`` run in different RTOS tasks.
 
-``CFG_TUH_CDC``, ``CFG_TUH_HID``, ``CFG_TUH_MIDI`` and ``CFG_TUH_MIDI2`` size a
-simultaneous interface pool.  Such a value is not a VID/PID allowlist and, for
-composite devices, may need to exceed ``CFG_TUH_DEVICE_MAX``.
-``CFG_TUH_MSC`` and ``CFG_TUH_AUDIO`` are enables, not pools; see :doc:`msc`
-and :doc:`audio`.
+``CFG_TUH_CDC``, ``CFG_TUH_HID``, ``CFG_TUH_MIDI``, ``CFG_TUH_MIDI2`` and
+``CFG_TUH_AUDIO`` size a simultaneous interface pool; ``CFG_TUH_AUDIO`` counts
+Audio Control functions (see :doc:`audio`).  Such a value is not a VID/PID
+allowlist and, for composite devices, may need to exceed ``CFG_TUH_DEVICE_MAX``.
+``CFG_TUH_MSC`` is an enable, not a pool; see :doc:`msc`.
 
 Core API and callbacks
 ======================
@@ -105,7 +117,19 @@ Core API and callbacks
    * - ``tuh_task()`` / ``tuh_task_ext()``
      - Advances enumeration and transfers and dispatches callbacks.  The
        extended form selects a wait timeout; its ``in_isr`` argument is
-       currently ignored.  Never call either from an ISR.
+       currently ignored.  Never call either from an ISR.  Both return
+       ``true`` when the stack is not initialized or ``tuh_task_stop()`` was
+       called.
+   * - ``tuh_task_stop()``
+     - Makes ``tuh_task()`` return ``true`` once the events queued before the
+       call are processed, waking it if blocked, so another task can stop the
+       USB task before ``tuh_deinit()``, which must run in the USB task.
+       Attachments deferred behind an ongoing enumeration are not processed;
+       ``tuh_deinit()`` drops them.  Call it once per stop, from one other
+       task, not an ISR.  On a full queue it waits for space when the OS
+       adapter's queue send waits (FreeRTOS, ThreadX, Zephyr); otherwise (no
+       OS, RT-Thread, RTX4, Mynewt) it returns ``false`` and the caller
+       retries.  It also returns ``false`` if the stack is not initialized.
    * - ``tuh_mount_cb()`` / ``tuh_umount_cb()``
      - Announces a configured device or detachment.  Class mount callbacks
        provide the interface-specific indices used for I/O.

@@ -381,7 +381,7 @@ typedef union {
     uint32_t b_valid_filter        : 1; // 23 B Valid Filter Enabled
     uint32_t session_end_filter    : 1; // 24 Session End Filter Enabled
     uint32_t dedicated_fifos       : 1; // 25 Dedicated tx fifo for device IN Endpoint
-    uint32_t num_dev_in_eps        : 4; // 26..29 Number of Device IN Endpoints including EP0
+    uint32_t num_dev_in_eps        : 4; // 26..29 Number of device IN endpoints (excluding EP0)
     uint32_t dma_desc_enabled      : 1; // scatter/gather DMA configuration enabled
     uint32_t dma_desc_dynamic      : 1; // Dynamic scatter/gather DMA
   };

@@ -32,7 +32,14 @@
  * - ENDPOINT_EXCLUSIVE_NUMBER: endpoint number with different direction IN and OUT aren't allowed,
  *                              e.g EP1 OUT & EP1 IN cannot exist together
  * - RHPORT_HIGHSPEED: support highspeed with on-chip PHY
+ * - DCD_MEM_ALIGN, HCD_MEM_ALIGN: alignment in bytes the device/host controller needs for a transfer buffer,
+ *              default 1 (no requirement). usbd/usbh assert every transfer buffer meets them, and
+ *              CFG_TUD_MEM_ALIGN/CFG_TUH_MEM_ALIGN default to them, at least 4
  */
+
+// IP3511 endpoint command list holds the buffer address offset in 64-byte units: address bits 21:6 relative to
+// DATABUFSTART on a full-speed port, bits 16:6 relative to USB_RAM on a high-speed port (dcd_lpc_ip3511.c)
+#define TUP_IP3511_MEM_ALIGN 64
 
 //--------------------------------------------------------------------+
 // NXP
@@ -40,6 +47,7 @@
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
   #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX 5
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   #define TUP_DCD_ENDPOINT_MAX 16
@@ -50,6 +58,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
   #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX 5
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC54)
   #include "fsl_device_registers.h"
@@ -65,6 +74,7 @@
   #endif
 
   #define TUP_DCD_ENDPOINT_MAX 6
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
@@ -75,6 +85,7 @@
   #define TUP_OHCI_RHPORTS     1 // 1 downstream port
 
   #define TUP_DCD_ENDPOINT_MAX 6
+  #define TUP_DCD_MEM_ALIGN    TUP_IP3511_MEM_ALIGN
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   // USB0 has 6 with HS PHY, USB1 has 4 only FS
@@ -529,7 +540,7 @@
 //--------------------------------------------------------------------+
 // Renesas
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX)
+#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX, OPT_MCU_SYNERGY)
   #define TUP_USBIP_RUSB2
   #define TUP_DCD_ENDPOINT_MAX 10
 
@@ -555,6 +566,12 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX 8
 
+#elif TU_CHECK_MCU(OPT_MCU_PSE84)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_IFX
+  #define TUP_DCD_ENDPOINT_MAX 9
+  #define TUP_RHPORT_HIGHSPEED 1
+
 //--------------------------------------------------------------------+
 // BridgeTek
 //--------------------------------------------------------------------+
@@ -574,13 +591,15 @@
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define TUP_DCD_ENDPOINT_MAX 4
   #define TUP_DCD_EDPT_CLOSE_API
+  #define TUP_DCD_MEM_ALIGN    4 // dcd_sunxi_musb.c copies the FIFO by words, and ARMv5 has no unaligned word access
 
 //--------------------------------------------------------------------+
 // WCH
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -592,6 +611,7 @@
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+  #define TUP_DCD_MEM_ALIGN    (CFG_TUD_WCH_USBIP_USBHS ? 4 : 1) // USBHS endpoint DMA address (#4488)
 
   #if CFG_TUD_WCH_USBIP_USBHS
     #define TUP_DCD_EDPT_CLOSE_API
@@ -599,6 +619,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V103)
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 1
@@ -628,6 +649,11 @@
     #define CFG_TUD_WCH_USBIP_USBFS 0
   #endif
 
+  // only the USBFS device port needs completions deferred to task, FSDEV keeps xfer_isr
+  #if CFG_TUD_WCH_USBIP_USBFS
+    #define TUP_USBD_XFER_ISR 0
+  #endif
+
   #if !defined(CFG_TUD_WCH_USBIP_FSDEV)
     #define CFG_TUD_WCH_USBIP_FSDEV (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
   #endif
@@ -642,8 +668,17 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   // v307 support both FS and HS, default to HS
-  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBHS_V1
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
+
+  // Keep USBFS as the default host; USBHS v1 is explicitly selectable.
+  #ifndef CFG_TUH_WCH_USBIP_USBHS
+    #define CFG_TUH_WCH_USBIP_USBHS 0
+  #endif
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+    #define CFG_TUH_WCH_USBIP_USBFS (!CFG_TUH_WCH_USBIP_USBHS)
+  #endif
 
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
     #define CFG_TUD_WCH_USBIP_USBFS 0
@@ -654,6 +689,11 @@
   #endif
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_HCD_HIGHSPEED CFG_TUH_WCH_USBIP_USBHS
+
+  // USBHS endpoint and host DMA addresses (#4488); USBFS copies into its own buffers or bounces
+  #define TUP_DCD_MEM_ALIGN (CFG_TUD_WCH_USBIP_USBHS ? 4 : 1)
+  #define TUP_HCD_MEM_ALIGN (CFG_TUH_WCH_USBIP_USBHS ? 4 : 1)
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
   #if CFG_TUD_WCH_USBIP_USBHS
@@ -662,16 +702,25 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_CH583)
   // CH582/583 USBFS: older WCH USBFS IP with a single combined per-endpoint control register
-  // (like CH32V103), driven by the shared dcd_ch32_usbfs.c on USB0 (rhport 0). Device only:
-  // the shared hcd_ch32_usbfs.c is CH32V20x-specific and does not support CH58x, so host /
+  // (like CH32V103), driven by the shared dcd_wch_usbfs.c on USB0 (rhport 0). Device only:
+  // the shared hcd_wch_usbfs.c supports CH32V20x/CH32V30x and does not support CH58x, so host /
   // USB2 (rhport 1) is not provided here.
   #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBD_XFER_ISR 0
 
   #ifndef CFG_TUD_WCH_USBIP_USBFS
     #define CFG_TUD_WCH_USBIP_USBFS 1
   #endif
 
   #define TUP_DCD_ENDPOINT_MAX 8
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32V4X7)
+  // Two WCH USBHS v2 controllers with built-in HS PHY: rhport 0 = USBHS1, rhport 1 = USBHS2 (instances, not IP versions)
+  #define TUP_USBIP_WCH_USBHS_V2
+  #define TUP_RHPORT_HIGHSPEED 1
+  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_MEM_ALIGN    4 // endpoint DMA address, CH32V407RM 22.2.1.23-24 (dcd_wch_usbhs_v2.c)
+  #define TUP_DCD_EDPT_CLOSE_API
 
 //--------------------------------------------------------------------+
 // Analog Devices
@@ -741,6 +790,17 @@
   #define TUP_USBIP_FSDEV_APM32
   #define CFG_TUSB_FSDEV_PMA_SIZE 1024u
 
+#elif TU_CHECK_MCU(OPT_MCU_APM32F103)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_APM32
+  #define CFG_TUSB_FSDEV_PMA_SIZE 512u
+
+#elif TU_CHECK_MCU(OPT_MCU_APM32F107)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_APM32
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+  #define TUP_DCD_ENDPOINT_MAX    4
+
 #endif
 
 // External USB controller
@@ -763,6 +823,26 @@
   #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
+// Transfer buffer alignment the device/host controller needs: 1 for a controller that copies the data with the CPU
+// or whose DMA takes any byte address. An MCU block above sets it for its own controller.
+#ifndef TUP_DCD_MEM_ALIGN
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_DCD_MEM_ALIGN (CFG_TUD_DWC2_DMA_ENABLE ? 4 : 1) // DIEPDMA/DOEPDMA need a DWORD-aligned address
+  #else
+    #define TUP_DCD_MEM_ALIGN 1
+  #endif
+#endif
+
+#ifndef TUP_HCD_MEM_ALIGN
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_HCD_MEM_ALIGN (CFG_TUH_DWC2_DMA_ENABLE ? 4 : 1) // HCDMA needs a DWORD-aligned address
+  #elif defined(TUP_USBIP_CHIPIDEA_FS)
+    #define TUP_HCD_MEM_ALIGN 4 // the BDT DMA writes 4-byte units (hcd_ci_fs.c)
+  #else
+    #define TUP_HCD_MEM_ALIGN 1
+  #endif
+#endif
+
 #if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX 8
@@ -771,6 +851,11 @@
 // Default to fullspeed if not defined
 #ifndef TUP_RHPORT_HIGHSPEED
   #define TUP_RHPORT_HIGHSPEED 0
+#endif
+
+// Host and device may select different controllers on the same MCU.
+#ifndef TUP_HCD_HIGHSPEED
+  #define TUP_HCD_HIGHSPEED TUP_RHPORT_HIGHSPEED
 #endif
 
 // fast function, normally mean placing function in SRAM
@@ -805,4 +890,10 @@
 // Backward-compatible alias: legacy code only tests defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
 #if CFG_TUD_ENDPOINT_ONE_DIRECTION_ONLY && !defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+#endif
+
+// Enable xfer_isr callback in usbd for handling transfer completion in ISR context.
+// Set to 0 for DCDs that cannot safely re-arm transfers from within their own ISR (e.g. WCH).
+#ifndef TUP_USBD_XFER_ISR
+  #define TUP_USBD_XFER_ISR 1
 #endif

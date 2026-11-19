@@ -89,6 +89,8 @@ Geehy
 Board                Name                 Family     URL                    Note
 ===================  ===================  =========  =====================  ======
 apm32f072_dev_board  APM32F072 Dev Board  apm32f0xx  https://www.geehy.com
+apm32f103_dev_board  APM32F103 Dev Board  apm32f10x  https://www.geehy.com
+apm32f107_dev_board  APM32F107 Dev Board  apm32f10x  https://www.geehy.com
 ===================  ===================  =========  =====================  ======
 
 GigaDevice
@@ -263,11 +265,13 @@ da1469x_dk_pro  DA1469x Development Kit Pro  da1469x   https://lpccs-docs.renesa
 portenta_c33    Arduino Portenta C33         ra        https://www.arduino.cc/pro/hardware-product-portenta-c33/
 ra2a1_ek        RA2A1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra2a1-evaluation-kit-ra2a1-mcu-group
 ra4m1_ek        RA4M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m1-evaluation-kit-ra4m1-mcu-group
+ra4m2_ek        RA4M2 EK                     ra        https://www.renesas.com/en/design-resources/boards-kits/ek-ra4m2
 ra4m3_ek        RA4M3 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m3-evaluation-kit-ra4m3-mcu-group
 ra6m1_ek        RA6M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m1-evaluation-kit-ra6m1-mcu-group
 ra6m5_ek        RA6M5 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m5-evaluation-kit-ra6m5-mcu-group
 ra8m1_ek        RA8M1 EK                     ra        https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra8m1-evaluation-kit-ra8m1-mcu-group
 uno_r4          Arduino UNO R4               ra        https://store-usa.arduino.cc/pages/uno-r4
+dk_s124         S124 Development Kit         synergy   https://www.renesas.com/en/design-resources/boards-kits/rtk7dks124s00002bu
 ==============  ===========================  ========  ================================================================================================================================================================  ======
 
 STMicroelectronics
@@ -278,6 +282,7 @@ Board                Name                               Family     URL          
 ===================  =================================  =========  =================================================================  ======
 stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-c071rb.html
 stm32c542nucleo      STM32C542 Nucleo                   stm32c5    https://www.st.com/en/evaluation-tools/nucleo-c542rc.html
+stm32c5a3nucleo      STM32C5A3 Nucleo                   stm32c5    https://www.st.com/en/evaluation-tools/nucleo-c5a3zg.html
 stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0    https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
 stm32f072disco       STM32 F072 Discovery               stm32f0    https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
 stm32f072eval        STM32 F072 Eval                    stm32f0    https://www.st.com/en/evaluation-tools/stm32072b-eval.html
@@ -385,6 +390,7 @@ ch32v203g_r0_1v0           CH32V203G-R0-1v0               ch32v20x  https://gith
 nanoch32v203               nanoCH32V203                   ch32v20x  https://github.com/wuxx/nanoCH32V203
 ch32v307v_r1_1v0           CH32V307V-R1-1v0               ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
 nanoch32v305               nanoCH32V305                   ch32v30x  https://github.com/wuxx/nanoCH32V305
+ch32v407_r0                CH32V407VET6-EVT-R0            ch32v4x7  https://www.wch-ic.com/products/CH32V407.html
 weact_ch32x035_core_board  WeAct CH32X035 Core Board      ch32x035  https://github.com/WeActStudio/WeActStudio.CH32X035CoreBoard
 ch582m_evt                 CH582M-EVT evaluation board    ch583     https://www.wch-ic.com/products/CH582.html
 yd-ch582m                  yd-ch582m from vcc-gnd studio  ch583     http://vcc-gnd.com/

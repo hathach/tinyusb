@@ -12,7 +12,7 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_APM32F0XX
 
 LDFLAGS += \
-	-flto --specs=nosys.specs -nostdlib -nostartfiles
+	-flto --specs=nosys.specs --specs=nano.specs -nostdlib -nostartfiles
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

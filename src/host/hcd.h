@@ -99,8 +99,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 // De-initialize controller
 bool hcd_deinit(uint8_t rhport);
 
-// Interrupt Handler
+// Interrupt Handler, also declared by usbh.h: whichever header comes first declares it
+#ifndef TUSB_USBH_H_
 void hcd_int_handler(uint8_t rhport, bool in_isr);
+#endif
 
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport);
@@ -139,7 +141,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 // return true if successfully opened or endpoint is currently opened
 bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc);
 
-// Close an endpoint
+// Close an endpoint. Optional: the weak default in usbh returns false (not supported)
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
@@ -152,7 +154,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]);
 
-// clear stall, data toggle is also reset to DATA0
+// Reset the host side of an idle endpoint to DATA0 (and clear its halt) after the device accepted
+// CLEAR_FEATURE(ENDPOINT_HALT). Sends no USB request. Return false if not supported.
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+

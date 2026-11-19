@@ -129,6 +129,12 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint
   (void)dwc2;
   (void)hs_phy_type;
   // maybe usb_utmi_hal_disable()
+#if TU_CHECK_MCU(OPT_MCU_ESP32H4)
+  // H4 AHB clock is <= 32 MHz: default TRDT = 5 corrupts IN data, needs >= 7. Use 9 for margin.
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
+    dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (9u << GUSBCFG_TRDT_Pos);
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
