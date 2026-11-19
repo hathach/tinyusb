@@ -996,7 +996,7 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
  * armed from the SETUP direction, so a mismatch runs it the wrong way: an OUT GET_CUR would write host data into the
  * reply buffer, e.g. commit_payload. */
 static bool _class_request_dir_valid(tusb_control_request_t const *request) {
-  bool const get = (request->bRequest & 0x80u) != 0;
+  bool const get = (request->bRequest & VIDEO_REQUEST_GET_MASK) != 0;
   return get == (TUSB_DIR_IN == request->bmRequestType_bit.direction);
 }
 

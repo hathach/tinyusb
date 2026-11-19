@@ -357,17 +357,17 @@ static inline void open_two_streams(void) {
   video_2vs_fixture_t *d = &two_stream_descriptor;
   size_t const vs_ofs    = offsetof(video_fixture_t, vs);
   videod_reset(0);
-  d->vc                          = descriptor.vc;
-  d->vc_header.bLength           = sizeof(d->vc_header);
-  d->vc_header.bDescriptorType   = TUSB_DESC_CS_INTERFACE;
+  d->vc                           = descriptor.vc;
+  d->vc_header.bLength            = sizeof(d->vc_header);
+  d->vc_header.bDescriptorType    = TUSB_DESC_CS_INTERFACE;
   d->vc_header.bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER;
-  d->vc_header.bcdUVC            = VIDEO_BCD_1_50;
-  d->vc_header.wTotalLength      = offsetof(video_2vs_fixture_t, stream) - sizeof(tusb_desc_interface_t);
-  d->vc_header.bInCollection     = 2;
-  d->vc_header.baInterfaceNr[0]  = 1;
-  d->vc_header.baInterfaceNr[1]  = 2;
-  d->camera                      = descriptor.camera;
-  d->output                      = descriptor.output;
+  d->vc_header.bcdUVC             = VIDEO_BCD_1_50;
+  d->vc_header.wTotalLength       = offsetof(video_2vs_fixture_t, stream) - sizeof(tusb_desc_interface_t);
+  d->vc_header.bInCollection      = 2;
+  d->vc_header.baInterfaceNr[0]   = 1;
+  d->vc_header.baInterfaceNr[1]   = 2;
+  d->camera                       = descriptor.camera;
+  d->output                       = descriptor.output;
   for (uint8_t i = 0; i < 2; ++i) {
     uint8_t *vs = d->stream[i].bytes;
     memcpy(vs, (uint8_t const *)&descriptor + vs_ofs, sizeof(d->stream[i].bytes));
