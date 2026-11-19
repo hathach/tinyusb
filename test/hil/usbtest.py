@@ -148,6 +148,8 @@ def reset_tt_settled(dev, budget_end=None):
         if time.monotonic() + TT_POLL > deadline:
             return False
         time.sleep(TT_POLL)
+        if time.monotonic() > deadline:   # overslept
+            return False
 
 
 def find_device(serial):

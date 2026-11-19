@@ -68,11 +68,11 @@ class Battery(unittest.TestCase):
         self.assertEqual(resets, [11, 11, 11, 12])
         self.assertEqual(([c['status'] for c in data['cases']], rc), (['PASS'] * 3, 0))
 
-    def settle(self, answers, budget_end=None):
-        """reset_tt_settled on a fake clock that each poll advances by TT_POLL: the start times of its calls."""
+    def settle(self, answers, budget_end=None, late=0.0):
+        """reset_tt_settled on a fake clock whose sleep overruns by `late`: the start times of its calls."""
         now, starts, it = [0.0], [], iter(answers)
         usbtest_harness.patch(self, usbtest.time, 'monotonic', lambda: now[0])
-        usbtest_harness.patch(self, usbtest.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s))
+        usbtest_harness.patch(self, usbtest.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s + late))
         usbtest_harness.patch(self, usbtest, '_tt', lambda: types.SimpleNamespace(
             reset_tt=lambda *a, **kw: starts.append(now[0]) or next(it)))
         return usbtest.reset_tt_settled(usbtest_harness.DEV, budget_end), starts
@@ -86,6 +86,7 @@ class Battery(unittest.TestCase):
     def test_no_retry_starts_past_the_battery_budget(self):
         self.assertEqual(self.settle([False, True], budget_end=1), (False, [0.0]))
         self.assertEqual(self.settle([False, True], budget_end=2), (True, [0.0, 2.0]))
+        self.assertEqual(self.settle([False, True], budget_end=2, late=0.25), (False, [0.0]))
 
     def test_unconfirmed_reset_ends_the_battery(self):
         resets, data, rc = self.main('1,11,12', ok=False)
