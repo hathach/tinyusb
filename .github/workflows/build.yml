@@ -768,7 +768,7 @@ jobs:
       (needs.set-matrix.result != 'success' || needs.set-matrix.outputs.hil_run_hfp != 'false')
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
     # Unlike the hil-tinyusb jobs, this one BUILDS with IAR in the same job before running
-    # hil_test.py -- hfp.json's 3 boards, 4 variant entries, "up to 30 minutes" (see the
+    # hil_test.py -- hfp.json's 5 boards, 7 variant entries, "up to 30 minutes" (see the
     # comment above the selection step). The ceiling has to cover build + the 60 min pool
     # guard + overhead, or GitHub cancels before the guard can write its report. 30 + 60 =
     # 90; the remaining ~15 is the full-history checkout, get_deps and the report upload.
@@ -801,7 +801,7 @@ jobs:
         # included, and the selector's board registry
         run: python3 test/hil/helper/agentrc.py fetch
 
-      # Computed BEFORE the build: the IAR build is four boards and up to 30 minutes on
+      # Computed BEFORE the build: the IAR build is seven entries and up to 30 minutes on
       # a runner that hil-tinyusb (hfp.json) also needs, so an unaffected PR must release
       # it immediately instead of building everything and then skipping. The selection
       # also narrows what gets built.

@@ -43,6 +43,20 @@ cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_
 if (NOT DEFINED LD_FILE_GNU)
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/fsp.ld)
 endif ()
+if (NOT DEFINED LD_FILE_IAR)
+set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/linker/ra.icf)
+endif ()
+
+# ra.icf takes the board memory map from the "NAME = value;" lines of memory_regions.ld
+# (a configure input: an edit must refresh the --config_def values)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/memory_regions.ld)
+file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/script/memory_regions.ld MEM_REGION_LINES
+  REGEX "^[ \t]*[A-Za-z0-9_]+[ \t]*=[ \t]*0x[0-9A-Fa-f]+[ \t]*;")
+set(LD_CONFIG_DEF_IAR "")
+foreach (line IN LISTS MEM_REGION_LINES)
+  string(REGEX REPLACE "^[ \t]*([A-Za-z0-9_]+)[ \t]*=[ \t]*(0x[0-9A-Fa-f]+).*" "--config_def=\\1=\\2" def "${line}")
+  list(APPEND LD_CONFIG_DEF_IAR "LINKER:${def}")
+endforeach ()
 
 #------------------------------------
 # Board Target
@@ -66,9 +80,9 @@ function(family_add_board BOARD_TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/pin_data.c
     )
 
-  target_compile_options(${BOARD_TARGET} PUBLIC
-    -ffreestanding
-    )
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(${BOARD_TARGET} PUBLIC -ffreestanding)
+  endif ()
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
@@ -125,6 +139,9 @@ function(family_configure_example TARGET RTOS)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
+      ${LD_CONFIG_DEF_IAR}
+      # FSP's Reset_Handler runs SystemInit (its own C runtime init), then main
+      "LINKER:--entry=Reset_Handler"
       )
   endif ()
 

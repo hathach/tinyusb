@@ -1,0 +1,108 @@
+/* IAR ILINK configuration for Renesas RA flat (non-TrustZone) projects.
+ *
+ * Board memory map: family.cmake passes every "NAME = value;" line of the board's
+ * script/memory_regions.ld as --config_def NAME=value. FSP does the C runtime init
+ * itself (SystemInit, BSP_CFG_C_RUNTIME_INIT): it zeroes .bss and copies .data,
+ * .code_in_ram and __DLIB_PERTHREAD from their _init sections, so nothing here is
+ * initialized by the IAR runtime. Option-setting / ID-code addresses follow script/fsp.ld.
+ */
+
+define memory mem with size = 4G;
+
+if (isdefinedsymbol(FLASH_IMAGE_START)) {
+  define symbol __flash_origin = FLASH_IMAGE_START;   /* image behind a bootloader */
+} else {
+  define symbol __flash_origin = FLASH_START;
+}
+define symbol __flash_end = FLASH_START + FLASH_LENGTH - 1;
+
+define region RAM = mem:[from RAM_START size RAM_LENGTH];
+
+if (OPTION_SETTING_LENGTH == 0) {
+  /* CM4/CM23: OFS/MPU ROM registers live in code flash, 0x400..0x4FF of the image */
+  define region FLASH = mem:[from __flash_origin to __flash_end] - mem:[from __flash_origin + 0x400 size 0x100];
+  place at address mem:(__flash_origin + 0x400) { ro section .rom_registers };
+} else {
+  define region FLASH = mem:[from __flash_origin to __flash_end];
+}
+
+/*------------- Code flash -------------*/
+define block VECTORS with fixed order { ro section .fixed_vectors, ro section .application_vectors };
+define block RAM_INIT with fixed order, alignment = 8 {
+  ro section .data_init, ro section .code_in_ram_init, ro section __DLIB_PERTHREAD_init
+};
+
+place at address mem:__flash_origin { block VECTORS };
+place in FLASH { readonly, block RAM_INIT };
+
+/*------------- RAM -------------*/
+initialize manually { rw section .data, section .code_in_ram, section __DLIB_PERTHREAD };
+do not initialize   { section .bss, section .noinit, section .stack, section HEAP };
+
+define block RAM_DATA with fixed order, alignment = 8 {
+  rw section .data, section .code_in_ram, rw section __DLIB_PERTHREAD
+};
+/* by name only: IAR 9.70.1 types FSP's HEAP array "ro data", which "readonly" would put in flash */
+define block RAM_BSS    with alignment = 8 { rw section .bss };
+define block RAM_NOINIT with alignment = 8 { section .noinit, section HEAP };
+define block RAM_STACK  with alignment = 8 { section .stack };
+
+place in RAM { block RAM_DATA, block RAM_BSS, block RAM_NOINIT, readwrite, last block RAM_STACK };
+
+/*------------- TCM (RA8): FSP copies/zeroes these blocks by name, 8 bytes at a time -------------*/
+if (isdefinedsymbol(ITCM_LENGTH)) {
+  initialize manually { section .itcm_data };
+  define block ITCM_DATA      with alignment = 8, end alignment = 8 { section .itcm_data };
+  define block ITCM_DATA_INIT with alignment = 8, end alignment = 8 { ro section .itcm_data_init };
+  place in mem:[from ITCM_START size ITCM_LENGTH] { block ITCM_DATA };
+  place in FLASH { block ITCM_DATA_INIT };
+}
+if (isdefinedsymbol(DTCM_LENGTH)) {
+  initialize manually { section .dtcm_data };
+  do not initialize   { section .dtcm_bss };
+  define block DTCM_DATA      with alignment = 8, end alignment = 8 { section .dtcm_data };
+  define block DTCM_DATA_INIT with alignment = 8, end alignment = 8 { ro section .dtcm_data_init };
+  define block DTCM_BSS       with alignment = 8, end alignment = 8 { section .dtcm_bss };
+  place in mem:[from DTCM_START size DTCM_LENGTH] { block DTCM_DATA, block DTCM_BSS };
+  place in FLASH { block DTCM_DATA_INIT };
+}
+
+/*------------- ID code, option-setting memory (secure/flat registers only) -------------*/
+if (ID_CODE_LENGTH > 0) {
+  place at address mem:ID_CODE_START { ro section .id_code };
+}
+
+if (OPTION_SETTING_LENGTH > 0) {
+  place at address mem:(OPTION_SETTING_START + 0x00) { ro section .option_setting_ofs0 };
+  place at address mem:(OPTION_SETTING_START + 0x04) { ro section .option_setting_ofs2 };
+  place at address mem:(OPTION_SETTING_START + 0x10) { ro section .option_setting_dualsel };
+  place at address mem:(OPTION_SETTING_START + 0x34) { ro section .option_setting_sas };
+
+  place at address mem:(OPTION_SETTING_S_START + 0x00) { ro section .option_setting_ofs1_sec };
+  place at address mem:(OPTION_SETTING_S_START + 0x04) { ro section .option_setting_ofs3_sec };
+  place at address mem:(OPTION_SETTING_S_START + 0x10) { ro section .option_setting_banksel_sec };
+  place at address mem:(OPTION_SETTING_S_START + 0x40) { ro section .option_setting_bps_sec0 };
+  place at address mem:(OPTION_SETTING_S_START + 0x44) { ro section .option_setting_bps_sec1 };
+  place at address mem:(OPTION_SETTING_S_START + 0x48) { ro section .option_setting_bps_sec2 };
+  place at address mem:(OPTION_SETTING_S_START + 0x4C) { ro section .option_setting_bps_sec3 };
+  place at address mem:(OPTION_SETTING_S_START + 0x60) { ro section .option_setting_pbps_sec0 };
+  place at address mem:(OPTION_SETTING_S_START + 0x64) { ro section .option_setting_pbps_sec1 };
+  place at address mem:(OPTION_SETTING_S_START + 0x68) { ro section .option_setting_pbps_sec2 };
+  place at address mem:(OPTION_SETTING_S_START + 0x6C) { ro section .option_setting_pbps_sec3 };
+  place at address mem:(OPTION_SETTING_S_START + 0x80) { ro section .option_setting_ofs1_sel };
+  place at address mem:(OPTION_SETTING_S_START + 0x84) { ro section .option_setting_ofs3_sel };
+  place at address mem:(OPTION_SETTING_S_START + 0x90) { ro section .option_setting_banksel_sel };
+  place at address mem:(OPTION_SETTING_S_START + 0xC0) { ro section .option_setting_bps_sel0 };
+  place at address mem:(OPTION_SETTING_S_START + 0xC4) { ro section .option_setting_bps_sel1 };
+  place at address mem:(OPTION_SETTING_S_START + 0xC8) { ro section .option_setting_bps_sel2 };
+  place at address mem:(OPTION_SETTING_S_START + 0xCC) { ro section .option_setting_bps_sel3 };
+}
+
+if (isdefinedsymbol(OPTION_SETTING_DATA_FLASH_S_START)) {
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x00) { ro section .option_setting_data_flash_fsblctrl0 };
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x04) { ro section .option_setting_data_flash_fsblctrl1 };
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x08) { ro section .option_setting_data_flash_fsblctrl2 };
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x0C) { ro section .option_setting_data_flash_sacc0 };
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x10) { ro section .option_setting_data_flash_sacc1 };
+  place at address mem:(OPTION_SETTING_DATA_FLASH_S_START + 0x14) { ro section .option_setting_data_flash_samr };
+}

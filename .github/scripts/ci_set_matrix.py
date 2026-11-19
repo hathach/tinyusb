@@ -75,7 +75,7 @@ family_list = {
     "nuc121_125": ["arm-gcc"],
     "nuc126": ["arm-gcc"],
     "nuc505": ["arm-gcc"],
-    "ra": ["arm-gcc"],
+    "ra": ["arm-gcc", "arm-iar"],
     "rp2040": ["arm-gcc"],
     "rw61x": ["arm-gcc"],
     "rx": ["rx-gcc"],

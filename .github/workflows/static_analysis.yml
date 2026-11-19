@@ -187,6 +187,7 @@ jobs:
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
   IAR-CStat:
+    # Re-enabling needs IAR's "base" release archive: toolchain.json pins "minimal", which has no icstat
     # Only run on non-forked PR since secrets token is required
     #if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     if: false

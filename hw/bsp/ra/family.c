@@ -167,11 +167,11 @@ void board_init_after_tusb(void) {
 }
 
 void board_led_write(bool state) {
-  R_IOPORT_PinWrite(&IOPORT_CFG_CTRL, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
+  R_IOPORT_PinWrite(&IOPORT_CFG_CTRL, LED1, (bsp_io_level_t) (state ? LED_STATE_ON : !LED_STATE_ON));
 }
 
 uint32_t board_button_read(void) {
-  bsp_io_level_t lvl = !BUTTON_STATE_ACTIVE;
+  bsp_io_level_t lvl = (bsp_io_level_t) !BUTTON_STATE_ACTIVE;
   R_IOPORT_PinRead(&IOPORT_CFG_CTRL, SW1, &lvl);
   return lvl == BUTTON_STATE_ACTIVE;
 }
@@ -261,8 +261,9 @@ void usbhs_d1fifo_handler(void) {
 #endif
 
 //--------------------------------------------------------------------+
-// stdlib
+// stdlib (newlib syscall stubs; IAR DLIB retargets through __write in board.c)
 //--------------------------------------------------------------------+
+#ifdef __GNUC__
 
 int close(int fd) {
   (void) fd;
@@ -286,3 +287,5 @@ int isatty(int fd) {
   (void) fd;
   return 1;
 }
+
+#endif

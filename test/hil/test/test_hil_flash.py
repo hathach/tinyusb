@@ -663,7 +663,8 @@ class Rosters(unittest.TestCase):
         resets re-enumerated it and its wedge drill passed (2026-10-06); the ~80% seen 2026-09-22
         did not reproduce in 70 resets. ra6m5_ek is reset-only the same way (SYSRESETREQ is an
         internal MCU reset, RA6M5 UM 5.3.7): 20/20 resets re-enumerated it at 480 Mbps and 3/3
-        wedge drills passed (ci.lan 2026-10-09).
+        wedge drills passed (ci.lan 2026-10-09). ra4m2_ek (hfp.json) is reset-only like ra4m1_ek:
+        3/3 resets each re-enumerated the DUT (tusb 2026-11-17).
         mimxrt1064_evk is reset-only: openocd 0ce743125 has no target cfg and no flash driver for
         it (FlexSPI), so its entry declares a bare SWD DAP and Cortex-M target with SYSRESETREQ;
         3/3 resets each re-enumerated the DUT (2026-09-22). Same trade as
@@ -688,7 +689,7 @@ class Rosters(unittest.TestCase):
         demonstrated = {'nrf52840dk', 'metro_m4_express', 'stm32f072disco',
                         'stm32f407disco', 'stm32f723disco', 'stm32l476disco', 'lpcxpresso11u37',
                         'ea4088_quickstart', 'nrf54lm20dk', 'nrf5340dk', 'frdm_k64f', 'mimxrt1064_evk',
-                        'lpcxpresso43s67',   # hfp.json, demonstrated on tusb
+                        'lpcxpresso43s67', 'ra4m2_ek',   # hfp.json, demonstrated on tusb
                         'stm32h743nucleo', 'stm32g0b1nucleo', 'stm32u083nucleo', 'ek_tm4c123gxl',
                         'ra4m1_ek', 'ra6m5_ek', 'lpcxpresso55s69', 'max32666fthr'}
         reset_only = {'mimxrt1064_evk': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
@@ -700,6 +701,11 @@ class Rosters(unittest.TestCase):
                                    '-c "swd newdap ra4m1 cpu -expected-id 0" '
                                    '-c "dap create ra4m1.dap -chain-position ra4m1.cpu" '
                                    '-c "target create ra4m1.cpu cortex_m -dap ra4m1.dap" '
+                                   '-c "cortex_m reset_config sysresetreq"'),
+                      'ra4m2_ek': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
+                                   '-c "swd newdap ra4m2 cpu -expected-id 0" '
+                                   '-c "dap create ra4m2.dap -chain-position ra4m2.cpu" '
+                                   '-c "target create ra4m2.cpu cortex_m -dap ra4m2.dap" '
                                    '-c "cortex_m reset_config sysresetreq"'),
                       'ra6m5_ek': ('-f interface/jlink.cfg -c "transport select swd" -c "adapter speed 1000" '
                                    '-c "swd newdap ra6m5 cpu -expected-id 0" '
