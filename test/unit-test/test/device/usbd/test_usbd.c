@@ -576,19 +576,22 @@ void test_usbd_edpt_abort_releases_busy_endpoint(void) {
 void test_usbd_xfer_unaligned_buffer_refused(void) {
   TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
 
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x87));
   TEST_ASSERT_FALSE(usbd_edpt_xfer(rhport, 0x87, xfer_buf + 1, 8, false));
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x87));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x87)); // the refused transfer ended the claim
 
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x87, xfer_buf, 8, false, true);
   TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf, 8, false));
 }
 
-// A zero-length packet moves no data: its buffer is not checked
+// A zero-length packet moves no data: its buffer is not checked. EP 0x86, as the test above leaves 0x87 busy and
+// usbd is initialized once for all tests.
 void test_usbd_xfer_zlp_unaligned_buffer_accepted(void) {
   TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t xfer_buf[2 * TUP_DCD_MEM_ALIGN];
 
-  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x87, xfer_buf + 1, 0, false, true);
-  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x87, xfer_buf + 1, 0, false));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, 0x86, xfer_buf + 1, 0, false, true);
+  TEST_ASSERT_TRUE(usbd_edpt_xfer(rhport, 0x86, xfer_buf + 1, 0, false));
 }
 
 // an idle endpoint: the same dcd sequence, and it stays claimable

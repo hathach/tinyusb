@@ -1763,8 +1763,13 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   TU_ASSERT((_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) == 0);
 
   // The buffer must meet the device controller's alignment (TUP_DCD_MEM_ALIGN): declare it with CFG_TUD_MEM_ALIGN.
-  // A zero-length packet moves no data, so its buffer is not checked.
-  TU_ASSERT(total_bytes == 0 || (((uintptr_t) buffer) & (TUP_DCD_MEM_ALIGN - 1u)) == 0);
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
+  // transfer the DCD refuses does.
+  bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_DCD_MEM_ALIGN - 1u)) == 0);
+  if (!aligned) {
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
+  }
+  TU_ASSERT(aligned);
 
   TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
 

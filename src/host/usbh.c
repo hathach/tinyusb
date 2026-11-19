@@ -1467,8 +1467,13 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
   TU_ASSERT((*ep_state & TU_EDPT_STATE_BUSY) == 0);
 
   // The buffer must meet the host controller's alignment (TUP_HCD_MEM_ALIGN): declare it with CFG_TUH_MEM_ALIGN.
-  // A zero-length packet moves no data, so its buffer is not checked.
-  TU_ASSERT(total_bytes == 0 || (((uintptr_t) buffer) & (TUP_HCD_MEM_ALIGN - 1u)) == 0);
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
+  // transfer the HCD refuses does.
+  bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_HCD_MEM_ALIGN - 1u)) == 0);
+  if (!aligned) {
+    *ep_state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
+  }
+  TU_ASSERT(aligned);
 
   // Set busy first since the actual transfer can be complete before hcd_edpt_xfer()
   // could return and USBH task can preempt and clear the busy
