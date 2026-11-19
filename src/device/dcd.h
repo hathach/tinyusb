@@ -45,6 +45,7 @@ typedef struct TU_ATTR_ALIGNED(4) {
   uint8_t rhport;
   uint8_t event_id;
   uint8_t setup_tagid; // SETUP_RECEIVED: the DCD's tag, handed back by dcd_edpt0_setup_begin()
+  uint8_t setup_seq;   // SETUP_RECEIVED: stamped by usbd when queued, the DCD leaves it alone
 
   union {
     // BUS RESET
