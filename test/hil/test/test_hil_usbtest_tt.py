@@ -5,6 +5,7 @@ agentrc's hil_tt, whose own tests cover the TT lookup, the request and the helpe
 when usbtest and hil_test send it, and that its child runs through this harness's runner.
 Whether the hub frees the buffer is proven on the rig."""
 import io
+import itertools
 import json
 import os
 import subprocess
@@ -31,7 +32,7 @@ class Battery(unittest.TestCase):
     """usbtest resets after each unlink case and each failed case, and an unconfirmed reset
     ends the battery unsuccessfully without calling the device wedged."""
 
-    def main(self, tests, ok=True, tt=None):
+    def main(self, tests, ok=True, tt=None, settle=0):
         fails = {13: 'errno 110 (Connection timed out)', 29: 'errno 32 (Broken pipe)'}
         last, resets = [], []
 
@@ -44,10 +45,10 @@ class Battery(unittest.TestCase):
                 r.update(status='PASS', secs=0.1)
             return r
 
-        answers = iter(ok if isinstance(ok, list) else [ok])   # then confirmed, unless never
-        tt = tt or types.SimpleNamespace(
-            reset_tt=lambda busport, speed, run: resets.append(last[0]) or next(answers, ok is not False))
+        answers = itertools.chain(ok, itertools.repeat(True)) if isinstance(ok, list) else itertools.repeat(ok)
+        tt = tt or types.SimpleNamespace(reset_tt=lambda busport, speed, run: resets.append(last[0]) or next(answers))
         usbtest_harness.patch(self, usbtest, 'TT_POLL', 0)
+        usbtest_harness.patch(self, usbtest, 'TT_SETTLE', settle)
         usbtest_harness.stub_device(self, usbtest, run_case)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         usbtest_harness.patch(self, usbtest, '_tt', lambda: tt)
@@ -63,19 +64,36 @@ class Battery(unittest.TestCase):
         self.assertEqual((data['failed'], data['wedged']), (2, False))
 
     def test_a_reset_confirmed_once_the_hub_settles_continues_the_battery(self):
-        resets, data, rc = self.main('1,11,12', ok=[False, False, True])
+        resets, data, rc = self.main('1,11,12', ok=[False, False, True], settle=90)
         self.assertEqual(resets, [11, 11, 11, 12])
         self.assertEqual(([c['status'] for c in data['cases']], rc), (['PASS'] * 3, 0))
 
+    def settle(self, answers, budget_end=None):
+        """reset_tt_settled on a fake clock that each poll advances by TT_POLL: the start times of its calls."""
+        now, starts, it = [0.0], [], iter(answers)
+        usbtest_harness.patch(self, usbtest.time, 'monotonic', lambda: now[0])
+        usbtest_harness.patch(self, usbtest.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s))
+        usbtest_harness.patch(self, usbtest, '_tt', lambda: types.SimpleNamespace(
+            reset_tt=lambda *a, **kw: starts.append(now[0]) or next(it)))
+        return usbtest.reset_tt_settled(usbtest_harness.DEV, budget_end), starts
+
+    def test_no_retry_starts_past_the_settle_window(self):
+        ok, starts = self.settle(itertools.repeat(False))
+        self.assertFalse(ok)
+        self.assertLessEqual(max(starts), usbtest.TT_SETTLE)
+        self.assertEqual(len(starts), usbtest.TT_SETTLE // usbtest.TT_POLL + 1)
+
+    def test_no_retry_starts_past_the_battery_budget(self):
+        self.assertEqual(self.settle([False, True], budget_end=1), (False, [0.0]))
+        self.assertEqual(self.settle([False, True], budget_end=2), (True, [0.0, 2.0]))
+
     def test_unconfirmed_reset_ends_the_battery(self):
-        usbtest_harness.patch(self, usbtest, 'TT_SETTLE', 0)
         resets, data, rc = self.main('1,11,12', ok=False)
         self.assertEqual(resets, [11])
         self.assertEqual([c['status'] for c in data['cases']], ['PASS', 'FAIL', 'BUDGET'])
         self.assertEqual((data['wedged'], rc > 0), (False, True))
 
     def test_unconfirmed_reset_after_the_last_case_is_not_a_pass(self):
-        usbtest_harness.patch(self, usbtest, 'TT_SETTLE', 0)
         _, data, rc = self.main('11', ok=False)
         self.assertEqual(([c['status'] for c in data['cases']], rc > 0), (['FAIL'], True))
 
@@ -88,7 +106,6 @@ class Battery(unittest.TestCase):
         spawned = []
         usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append((cmd, kw))
                               or subprocess.CompletedProcess(cmd, 124, '', None))
-        usbtest_harness.patch(self, usbtest, 'TT_SETTLE', 0)
         _, data, _ = self.main('11', tt=hil_tt)
         (cmd, kw), = spawned
         self.assertEqual(cmd[cmd.index('-I'):], ['-I', hil_tt.hil_root.__file__, 'reset-tt', '5-1.2'])

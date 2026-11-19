@@ -137,7 +137,7 @@ def _uo():
 
 
 def reset_tt_settled(dev, budget_end=None):
-    """Reset_TT on the device's hub port, retried for up to TT_SETTLE s, never past
+    """Reset_TT on the device's hub port, retried for up to TT_SETTLE s and none started past
     `budget_end` (monotonic): True once confirmed."""
     deadline = time.monotonic() + TT_SETTLE
     if budget_end is not None:
@@ -145,7 +145,7 @@ def reset_tt_settled(dev, budget_end=None):
     while True:
         if _tt().reset_tt(dev['sysname'], dev['speed'], run=lambda cmd, **kw: _hu().run_cmd(cmd, **kw)):
             return True
-        if time.monotonic() >= deadline:
+        if time.monotonic() + TT_POLL > deadline:
             return False
         time.sleep(TT_POLL)
 
