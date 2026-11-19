@@ -46,6 +46,9 @@
 #define OTG_FS_VBUS_SENSE     0
 #define OTG_HS_VBUS_SENSE     0
 
+// VDD33USB is supplied from 3V3 (SB23), not by the internal USB regulator from VDD50USB
+#define USB33_REGULATOR       0
+
 #define PINID_LED      0
 #define PINID_BUTTON   1
 #define PINID_UART_TX  2

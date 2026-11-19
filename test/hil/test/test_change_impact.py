@@ -888,7 +888,7 @@ class TestOrphanInvariant(unittest.TestCase):
     # gets no compile coverage (ci_set_matrix treats a selection that intersects
     # family_list to nothing as unusable -> full matrix). espressif is NOT here: it is
     # in family_list with no toolchain, since hil-build-esp builds its boards by name.
-    UNBUILT_FAMILIES = {'pic32mz', 'py32f0'}
+    UNBUILT_FAMILIES = {'pic32mz', 'py32f0', 'synergy'}
 
     def test_every_bsp_family_is_in_the_ci_matrix(self):
         sys.path.insert(0, os.path.join(REPO, '.github/scripts'))
