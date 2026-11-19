@@ -712,7 +712,12 @@ static void dma_setup_error(uint8_t rhport) {
   _dcd_data.setup_dma_recovery_pending = true;
   TU_LOG1("DWC2: SETUP DMA address rewind\r\n");
 
-  // Fail closed in the ISR so no further host traffic can extend the memory corruption; defer the blocking recovery
+  // Fail closed in the ISR so no further host traffic can extend the memory corruption; defer the blocking recovery.
+  // Mask the core's global interrupt as well: queue and spinlock operations re-enable the port interrupt
+  // (dcd_int_enable), but GAHBCFG.GINT stays cleared until dcd_init() sets it, so no stale interrupt, IN or OUT,
+  // is serviced and an uncleared one cannot storm while recovery is pending. A failed dcd_init() leaves it masked.
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
   usbd_defer_func(dma_setup_recover, (void*) (uintptr_t) rhport, true);
