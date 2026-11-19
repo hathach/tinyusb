@@ -5,6 +5,7 @@ agentrc's hil_tt, whose own tests cover the TT lookup, the request and the helpe
 when usbtest and hil_test send it, and that its child runs through this harness's runner.
 Whether the hub frees the buffer is proven on the rig."""
 import io
+import itertools
 import json
 import os
 import subprocess
@@ -31,7 +32,7 @@ class Battery(unittest.TestCase):
     """usbtest resets after each unlink case and each failed case, and an unconfirmed reset
     ends the battery unsuccessfully without calling the device wedged."""
 
-    def main(self, tests, ok=True, tt=None):
+    def main(self, tests, ok=True, tt=None, settle=0):
         fails = {13: 'errno 110 (Connection timed out)', 29: 'errno 32 (Broken pipe)'}
         last, resets = [], []
 
@@ -44,7 +45,10 @@ class Battery(unittest.TestCase):
                 r.update(status='PASS', secs=0.1)
             return r
 
-        tt = tt or types.SimpleNamespace(reset_tt=lambda busport, speed, run: resets.append(last[0]) or ok)
+        answers = itertools.chain(ok, itertools.repeat(True)) if isinstance(ok, list) else itertools.repeat(ok)
+        tt = tt or types.SimpleNamespace(reset_tt=lambda busport, speed, run: resets.append(last[0]) or next(answers))
+        usbtest_harness.patch(self, usbtest, 'TT_POLL', 0)
+        usbtest_harness.patch(self, usbtest, 'TT_SETTLE', settle)
         usbtest_harness.stub_device(self, usbtest, run_case)
         usbtest_harness.patch(self, usbtest, 'bind_usbtest', lambda d: None)
         usbtest_harness.patch(self, usbtest, '_tt', lambda: tt)
@@ -58,6 +62,31 @@ class Battery(unittest.TestCase):
         resets, data, _ = self.main('1,11,12,24,13,29')
         self.assertEqual(resets, [11, 12, 24, 13, 29])
         self.assertEqual((data['failed'], data['wedged']), (2, False))
+
+    def test_a_reset_confirmed_once_the_hub_settles_continues_the_battery(self):
+        resets, data, rc = self.main('1,11,12', ok=[False, False, True], settle=90)
+        self.assertEqual(resets, [11, 11, 11, 12])
+        self.assertEqual(([c['status'] for c in data['cases']], rc), (['PASS'] * 3, 0))
+
+    def settle(self, answers, budget_end=None, late=0.0):
+        """reset_tt_settled on a fake clock whose sleep overruns by `late`: the start times of its calls."""
+        now, starts, it = [0.0], [], iter(answers)
+        usbtest_harness.patch(self, usbtest.time, 'monotonic', lambda: now[0])
+        usbtest_harness.patch(self, usbtest.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s + late))
+        usbtest_harness.patch(self, usbtest, '_tt', lambda: types.SimpleNamespace(
+            reset_tt=lambda *a, **kw: starts.append(now[0]) or next(it)))
+        return usbtest.reset_tt_settled(usbtest_harness.DEV, budget_end), starts
+
+    def test_no_retry_starts_past_the_settle_window(self):
+        ok, starts = self.settle(itertools.repeat(False))
+        self.assertFalse(ok)
+        self.assertLessEqual(max(starts), usbtest.TT_SETTLE)
+        self.assertEqual(len(starts), usbtest.TT_SETTLE // usbtest.TT_POLL + 1)
+
+    def test_no_retry_starts_past_the_battery_budget(self):
+        self.assertEqual(self.settle([False, True], budget_end=1), (False, [0.0]))
+        self.assertEqual(self.settle([False, True], budget_end=2), (True, [0.0, 2.0]))
+        self.assertEqual(self.settle([False, True], budget_end=2, late=0.25), (False, [0.0]))
 
     def test_unconfirmed_reset_ends_the_battery(self):
         resets, data, rc = self.main('1,11,12', ok=False)
@@ -74,8 +103,7 @@ class Battery(unittest.TestCase):
         usbtest_harness.patch(self, usbtest_harness, 'DEV', {**usbtest_harness.DEV, 'speed': '12', 'sysname': '5-1.2'})
         usbtest_harness.patch(self, hil_tt.hil_root, 'tt_hub', lambda b: ('5-1', 2, 5, 58, (0, 0)))
         usbtest_harness.patch(self, hil_tt.hil_root, 'INSTALLED', '/nonexistent/hil_usbtest')   # this checkout's copy
-        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
-        usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
+        usbtest_harness.patch(self, hil_tt, '_unconfirmed', {})   # hil_process only scans /proc after the timeout
         spawned = []
         usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append((cmd, kw))
                               or subprocess.CompletedProcess(cmd, 124, '', None))
@@ -123,7 +151,7 @@ class BeforeFlash(unittest.TestCase):
         for k, v in (('devnum', '58'), ('maxchild', '4'), ('idVendor', '05e3'), ('idProduct', '0610')):
             (intf.parent / k).write_text(v + '\n')
         usbtest_harness.patch(self, hil_tt.hil_root, 'SYS_USB', Path(td.name))
-        usbtest_harness.patch(self, hil_tt, '_unconfirmed', set())
+        usbtest_harness.patch(self, hil_tt, '_unconfirmed', {})
         usbtest_harness.patch(self, hil_tt, '_process', lambda: self.fail("hil_tt's own runner, not the harness's"))
         spawned = []
         usbtest_harness.patch(self, hil_util, 'run_cmd', lambda cmd, **kw: spawned.append(cmd)
