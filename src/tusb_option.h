@@ -1012,6 +1012,11 @@
   #define CFG_TUH_API_EDPT_XFER 0
 #endif
 
+// tuh_rhport_recheck(): re-detect a root port device after a system sleep (costs a device descriptor buffer)
+#ifndef CFG_TUH_API_RHPORT_RECHECK
+  #define CFG_TUH_API_RHPORT_RECHECK 0
+#endif
+
 #ifndef CFG_TUH_EDPT_DEDICATED_HWFIFO
   #define CFG_TUH_EDPT_DEDICATED_HWFIFO 0
 #endif

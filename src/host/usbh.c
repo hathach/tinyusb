@@ -239,11 +239,13 @@ typedef struct {
   usbh_pending_ctrl_t enum_xfer; // the failed enumeration request enum_xfer_retry() sends again
   // Per-daddr generation counter — bumped on usbh_device_close() to identify stale pending control transfer
   uint8_t daddr_gen[TOTAL_DEVICES + 1];
+#if CFG_TUH_API_RHPORT_RECHECK
   // tuh_rhport_recheck(): one check at a time, on the active controller
   uint8_t recheck_state;        // RECHECK_*
   uint8_t recheck_again;        // another check was asked for while this one ran
   uint8_t recheck_daddr;        // the root device being probed
   uint8_t recheck_gen;          // its daddr_gen when the probe was sent
+#endif
 #if CFG_TUSB_OS_HAS_SCHEDULER
   osal_task_handle_t task_hdl;  // host task handle, lazy-captured on first tuh_task_ext()
 #endif
@@ -253,6 +255,7 @@ typedef struct {
 static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
 static usbh_data_t _usbh_data;
 
+#if CFG_TUH_API_RHPORT_RECHECK
 // tuh_rhport_recheck() states. The probe's completion callback only records a verdict; the task loop acts on it in
 // recheck_process(), because that callback also runs from device close and tuh_deinit(), where re-enumerating would
 // re-enter the teardown.
@@ -276,12 +279,19 @@ static bool recheck_due(void) {
       return false;
   }
 }
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool recheck_due(void) {
+  return false;
+}
+#endif
 
 typedef struct {
   TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
   TUH_EPBUF_DEF(ctrl, CFG_TUH_ENUMERATION_BUFSIZE);
+#if CFG_TUH_API_RHPORT_RECHECK
   TUH_EPBUF_DEF(recheck, sizeof(tusb_desc_device_t)); // tuh_rhport_recheck(): kept apart from ctrl, which an
                                                       // enumeration starting meanwhile may be using
+#endif
 } usbh_epbuf_t;
 CFG_TUH_MEM_SECTION static usbh_epbuf_t _usbh_epbuf;
 
@@ -687,9 +697,11 @@ bool tuh_deinit(uint8_t rhport) {
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
 
+#if CFG_TUH_API_RHPORT_RECHECK
   // a re-check in progress ends with the controller
   _usbh_data.recheck_state = RECHECK_IDLE;
   _usbh_data.recheck_again = 0;
+#endif
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
@@ -1058,6 +1070,7 @@ bool tuh_task_stop(void) {
 //--------------------------------------------------------------------+
 // Root port re-check (after a system sleep)
 //--------------------------------------------------------------------+
+#if CFG_TUH_API_RHPORT_RECHECK
 // End a check, or start the one asked for while it ran
 static void recheck_finish(void) {
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
@@ -1170,6 +1183,9 @@ bool tuh_rhport_recheck(uint8_t rhport) {
 bool tuh_rhport_recheck_busy(uint8_t rhport) {
   return tuh_rhport_is_active(rhport) && _usbh_data.recheck_state != RECHECK_IDLE;
 }
+#else
+static void recheck_process(void) {}
+#endif
 
 //--------------------------------------------------------------------+
 // Control transfer
