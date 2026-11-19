@@ -165,6 +165,14 @@ void setUp(void) {
 void tearDown(void) {
 }
 
+// The stack is initialized once for all tests: a test that ends unplugged leaves SETUPs dropped until the next
+// bus reset, so it ends with one, as the host's next connection would start.
+static void replug(void) {
+  mscd_reset_Ignore();
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
+}
+
 //--------------------------------------------------------------------+
 // Task
 //--------------------------------------------------------------------+
@@ -307,8 +315,10 @@ void test_usbd_setup_dropped_by_full_queue_recovers(void)
     tud_task();
   }
 
-  // the next SETUP must still be answered
+  // the next SETUP must still be answered (the fillers were unplugs, so the host resets first)
   desc_device = (uint8_t const*) &data_desc_device;
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  tud_task();
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
@@ -389,13 +399,29 @@ void test_usbd_setup_queued_before_bus_reset_is_dropped(void) {
   tud_task();
 }
 
-// a SETUP queued behind an unplug comes from the next connection: it is served once the unplug is processed
-void test_usbd_setup_queued_behind_unplug_is_processed(void) {
+// a SETUP reported behind an unplug with no bus reset in between was received before the unplug: it is dropped
+// and the device stays disconnected
+void test_usbd_setup_queued_behind_unplug_is_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
+
+  // the SETUP never reaches the DCD
+  tud_task();
+  TEST_ASSERT_FALSE(tud_connected());
+  replug();
+}
+
+// the next connection starts with a bus reset: its SETUP, queued behind the unplug and that reset, is served
+void test_usbd_setup_queued_behind_unplug_and_bus_reset_is_processed(void) {
   mscd_reset_Ignore();
   dcd_edpt0_setup_begin_StopIgnore();
   desc_device = (uint8_t const*) &data_desc_device;
 
   dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
 
   dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 14, true);
@@ -414,7 +440,7 @@ void test_usbd_setup_older_skipped_when_newest_dropped(void) {
   // an older SETUP, then fillers up to the brim, then the newest SETUP, which queue_event() drops
   dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 15, false);
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ - 1; i++) {
-    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
   }
   dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 16, false);
 
@@ -474,6 +500,7 @@ void test_usbd_xfer_complete_dropped_by_full_queue_recovers(void)
   for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
     tud_task();
   }
+  replug();
 }
 
 //--------------------------------------------------------------------+
@@ -583,6 +610,7 @@ void test_usbd_xfer_complete_after_unplug_is_dropped(void) {
 
   tud_task();
   TEST_ASSERT_EQUAL_UINT(1, calls);
+  replug();
 }
 
 // Without dcd_edpt_abort_xfer() in the DCD, usbd_edpt_abort() drops the in-flight transfer (stall + clear-stall) and

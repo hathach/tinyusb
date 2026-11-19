@@ -140,6 +140,9 @@ typedef struct {
 static usbd_device_t    _usbd_dev;
 // stamp of the newest SETUP queued: written only by dcd_event_handler(), the task only compares against it
 static volatile uint8_t _usbd_setup_seq;
+// set by an unplug, cleared by the next bus reset (written only by dcd_event_handler()): a SETUP reported in
+// between was received before the unplug, since a new connection always starts with a bus reset
+static volatile bool _usbd_unplugged;
 
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
@@ -572,6 +575,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
 
   tu_varclr(&_usbd_dev);
+  _usbd_unplugged = false;
 
   osal_spin_init(&_usbd_spin);
 
@@ -1522,6 +1526,13 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       _usbd_dev.addressed = 0;
       _usbd_dev.cfg_num = 0;
       _usbd_dev.suspended = 0;
+      _usbd_unplugged = true;
+      send = true;
+      break;
+
+    case DCD_EVENT_BUS_RESET_START:
+    case DCD_EVENT_BUS_RESET_END:
+      _usbd_unplugged = false;
       send = true;
       break;
 
@@ -1569,6 +1580,11 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SETUP_RECEIVED: {
+      // A SETUP behind an unplug and before the next bus reset is left over from the disconnected session: a DCD
+      // can report the unplug ahead of a SETUP latched in the same interrupt (dwc2 handles OTGINT first).
+      if (_usbd_unplugged) {
+        return;
+      }
       // Stamp a copy as the newest SETUP. The stamp has one writer, so no read-modify-write is shared with
       // the task (on another core under SMP). A SETUP dropped by a full queue needs no undo: the older ones
       // still queued are stale against its stamp, and the host retries the control transfer.
