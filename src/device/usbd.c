@@ -138,7 +138,8 @@ typedef struct {
 } usbd_device_t;
 
 static usbd_device_t    _usbd_dev;
-static volatile uint8_t _usbd_queued_setup;
+// stamp of the newest SETUP queued: written only by dcd_event_handler(), the task only compares against it
+static volatile uint8_t _usbd_setup_seq;
 
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
@@ -571,7 +572,6 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
 
   tu_varclr(&_usbd_dev);
-  _usbd_queued_setup = 0;
 
   osal_spin_init(&_usbd_spin);
 
@@ -671,8 +671,6 @@ static void configuration_reset(uint8_t rhport) {
 
 static void usbd_reset(uint8_t rhport) {
   configuration_reset(rhport);
-  // discard any pre-reset SETUP still counted: a stale count skips post-reset SETUPs
-  _usbd_queued_setup = 0;
 }
 
 bool tud_task_event_ready(void) {
@@ -717,13 +715,10 @@ static bool usbd_process_event(dcd_event_t* event) {
       break;
 
     case DCD_EVENT_SETUP_RECEIVED:
-      if (_usbd_queued_setup == 0) {
-        break;
-      }
-      _usbd_queued_setup--;
       TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event->setup_received, 8);
-      if (_usbd_queued_setup != 0) {
-        TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
+      // only the newest SETUP queued is served: a bus reset or unplug in between needs no bookkeeping
+      if (event->setup_seq != _usbd_setup_seq) {
+        TU_LOG_USBD("  Skipped since there is a newer SETUP in queue\r\n");
         break;
       }
       if (!dcd_edpt0_setup_begin(event->rhport, event->setup_tagid)) {
@@ -1573,10 +1568,16 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       }
       break;
 
-    case DCD_EVENT_SETUP_RECEIVED:
-      _usbd_queued_setup++;
-      send = true;
-      break;
+    case DCD_EVENT_SETUP_RECEIVED: {
+      // Stamp a copy as the newest SETUP. The stamp has one writer, so no read-modify-write is shared with
+      // the task (on another core under SMP). A SETUP dropped by a full queue needs no undo: the older ones
+      // still queued are stale against its stamp, and the host retries the control transfer.
+      dcd_event_t setup_event = *event;
+      setup_event.setup_seq = (uint8_t) (_usbd_setup_seq + 1u);
+      _usbd_setup_seq = setup_event.setup_seq;
+      (void) queue_event(&setup_event, in_isr);
+      return;
+    }
 
     case DCD_EVENT_XFER_COMPLETE: {
       // Invoke the class callback associated with the endpoint address
@@ -1612,11 +1613,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 
   if (send && !queue_event(event, in_isr)) {
     // event dropped by a full queue: undo state that would otherwise wedge permanently
-    if (event->event_id == DCD_EVENT_SETUP_RECEIVED) {
-      // undo the increment, else every later SETUP is skipped as "other SETUP in queue"
-      // and EP0 is deaf until re-init
-      _usbd_queued_setup--;
-    } else if (event->event_id == DCD_EVENT_XFER_COMPLETE) {
+    if (event->event_id == DCD_EVENT_XFER_COMPLETE) {
       // clear busy + claimed, else the endpoint can never be claimed or re-armed again
       uint8_t const epnum = tu_edpt_number(event->xfer_complete.ep_addr);
       uint8_t const ep_dir = tu_edpt_dir(event->xfer_complete.ep_addr);

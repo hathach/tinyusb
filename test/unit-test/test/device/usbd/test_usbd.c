@@ -288,9 +288,8 @@ void test_usbd_control_in_zlp(void)
 // SETUP dropped by full event queue
 //--------------------------------------------------------------------+
 
-// When the event queue is full, queue_event() drops the SETUP event. The queued-setup
-// counter must not keep the dropped SETUP's increment: a leaked count makes the handler
-// skip every later SETUP ("other SETUP in queue") forever, leaving EP0 permanently deaf.
+// When the event queue is full, queue_event() drops the SETUP event. Nothing may be left behind that
+// makes the handler skip every later SETUP and leaves EP0 permanently deaf.
 void test_usbd_setup_dropped_by_full_queue_recovers(void)
 {
   // fillers drain through usbd_reset -> class reset
@@ -356,6 +355,78 @@ void test_usbd_setup_begin_rejected_is_not_processed(void) {
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
+  tud_task();
+}
+
+// a SETUP queued behind a bus reset is the newest one, so it is served after the reset is processed
+void test_usbd_setup_queued_after_bus_reset_is_processed(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 11, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 11, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+}
+
+// a SETUP queued before the bus reset is still dropped (the post-reset one is newer), and the post-reset
+// one is served
+void test_usbd_setup_queued_before_bus_reset_is_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 12, false);
+  dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 13, false);
+
+  // only the post-reset SETUP reaches the DCD
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 13, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+}
+
+// a SETUP queued behind an unplug comes from the next connection: it is served once the unplug is processed
+void test_usbd_setup_queued_behind_unplug_is_processed(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 14, false);
+
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 14, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
+  tud_task();
+  TEST_ASSERT_TRUE(tud_connected());
+}
+
+// the newest SETUP dropped by a full queue still supersedes the older one already queued: that one is skipped,
+// and the host's retry is served
+void test_usbd_setup_older_skipped_when_newest_dropped(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+  desc_device = (uint8_t const*) &data_desc_device;
+
+  // an older SETUP, then fillers up to the brim, then the newest SETUP, which queue_event() drops
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 15, false);
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ - 1; i++) {
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);
+  }
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 16, false);
+
+  // draining the queue never begins tag 15 (nor the dropped 16)
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+
+  // the retry is served
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 17, false);
+  dcd_edpt0_setup_begin_ExpectAndReturn(rhport, 17, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) &data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
   tud_task();
 }
 
