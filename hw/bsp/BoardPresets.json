@@ -199,6 +199,10 @@
       "inherits": "default"
     },
     {
+      "name": "dk_s124",
+      "inherits": "default"
+    },
+    {
       "name": "double_m33_express",
       "inherits": "default"
     },
@@ -1241,6 +1245,11 @@
       "name": "daisyseed",
       "description": "Build preset for the daisyseed board",
       "configurePreset": "daisyseed"
+    },
+    {
+      "name": "dk_s124",
+      "description": "Build preset for the dk_s124 board",
+      "configurePreset": "dk_s124"
     },
     {
       "name": "double_m33_express",
@@ -2851,6 +2860,19 @@
         {
           "type": "build",
           "name": "daisyseed"
+        }
+      ]
+    },
+    {
+      "name": "dk_s124",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "dk_s124"
+        },
+        {
+          "type": "build",
+          "name": "dk_s124"
         }
       ]
     },
