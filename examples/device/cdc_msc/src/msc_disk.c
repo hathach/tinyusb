@@ -142,8 +142,8 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun) {
 
   // RAM disk is ready until ejected
   if (ejected) {
-    // Additional Sense 3A-00 is NOT_FOUND
-    tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
+    // Additional Sense 3A-00 is MEDIUM NOT PRESENT
+    tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT, SCSI_ASCQ_MEDIUM_NOT_PRESENT);
     return false;
   }
 

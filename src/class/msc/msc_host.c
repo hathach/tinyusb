@@ -700,7 +700,8 @@ static bool config_request_sense_complete(uint8_t dev_addr, tuh_msc_complete_dat
              sense->add_sense_qualifier);
 
   // no retry makes a medium appear, e.g. in an empty card reader slot (#3898)
-  if (sense->sense_key == SCSI_SENSE_NOT_READY && sense->add_sense_code == 0x3A && sense->add_sense_qualifier == 0x00) {
+  if (sense->sense_key == SCSI_SENSE_NOT_READY && sense->add_sense_code == SCSI_ASC_MEDIUM_NOT_PRESENT &&
+      sense->add_sense_qualifier == SCSI_ASCQ_MEDIUM_NOT_PRESENT) {
     TU_LOG_DRV("  MSCh LUN %u medium not present\r\n", cbw->lun);
     config_abort(dev_addr);
     return true;
