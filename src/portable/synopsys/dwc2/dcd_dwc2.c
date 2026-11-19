@@ -922,6 +922,11 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
+#if CFG_TUD_DWC2_DMA_ENABLE
+  // Slave mode only: Buffer DMA needs a linear buffer, a NULL one would make the core DMA to address 0 (AHB error)
+  TU_ASSERT(!dma_device_enabled(DWC2_REG(rhport)));
+#endif
+
   usbd_spin_lock(is_isr);
 
   if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !dfifo_tx_exists(rhport, epnum))) {
@@ -933,7 +938,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // Schedule packets to be sent within interrupt
-    // TODO xfer fifo may only available for slave mode
     edpt_schedule_packets(rhport, epnum, dir);
     ret = true;
   }
