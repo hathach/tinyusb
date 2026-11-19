@@ -40,12 +40,12 @@ extern "C" {
 
 // USBFS without host function e.g RA2A1, RA2L2, RA4E2, RA6E2, RA6T3
 #if defined(BSP_FEATURE_USB_HAS_NOT_HOST) && BSP_FEATURE_USB_HAS_NOT_HOST
-  #define RUSB2_RA_USBFS_DEVICE_ONLY
+  #define RUSB2_USBFS_DEVICE_ONLY
 #endif
 
 // USBFS mini module with only pipe 4-7 and CFIFO e.g RA2A1, RA4E2, RA6E2, RA6T3
 #if defined(BSP_FEATURE_USB_HAS_PIPE04567) && BSP_FEATURE_USB_HAS_PIPE04567
-  #define RUSB2_RA_USBFS_PIPE4567_ONLY
+  #define RUSB2_USBFS_PIPE4567_ONLY
 #endif
 
 typedef struct {
@@ -121,7 +121,7 @@ TU_ATTR_ALWAYS_INLINE static inline void rusb2_aclrm_delay(void) {
 // hcd_init: program CLKSEL to the board XTAL while the PHY is powered down (DIRPD=1), 1 us,
 // release DIRPD, 1 ms, release PLLRESET, then wait for PLL lock. Changing CLKSEL as the PHY
 // powers up gets mis-sampled (EK-RA8M1, 20 MHz).
-static inline void rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
+static inline bool rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
   uint16_t physet = rusb->PHYSET | RUSB2_PHYSET_DIRPD_Msk;
   rusb->PHYSET = physet;
   #ifdef RUSB2_PHYSET_CLKSEL_VALUE
@@ -138,6 +138,7 @@ static inline void rusb2_utmi_phy_powerup(rusb2_reg_t* rusb) {
   // set UTMI to operating mode and wait for PLL lock confirmation
   rusb->LPSTS_b.SUSPENDM = 1;
   while (!rusb->PLLSTA_b.PLLLOCK) {}
+  return true;
 }
 #endif
 

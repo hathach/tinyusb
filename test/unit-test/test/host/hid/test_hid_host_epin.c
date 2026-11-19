@@ -115,3 +115,17 @@ void test_hid_host_receives_in_mps(void) {
   TEST_ASSERT_TRUE(tuh_hid_receive_report(DADDR, 0));
   TEST_ASSERT_EQUAL(8, xfer_total_bytes);
 }
+
+void test_hid_host_boot_reserved_protocol_is_none(void) {
+  hid_desc_t desc = make_desc(0, 8);
+  desc.itf.bInterfaceSubClass = HID_SUBCLASS_BOOT;
+  desc.itf.bInterfaceProtocol = HID_ITF_PROTOCOL_MOUSE + 1;
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(HID_ITF_PROTOCOL_NONE, tuh_hid_interface_protocol(DADDR, 0));
+
+  desc = make_desc(1, 8);
+  desc.itf.bInterfaceSubClass = HID_SUBCLASS_BOOT;
+  desc.itf.bInterfaceProtocol = HID_ITF_PROTOCOL_KEYBOARD;
+  TEST_ASSERT_EQUAL(sizeof(desc), hidh_open(0, DADDR, &desc.itf, sizeof(desc)));
+  TEST_ASSERT_EQUAL(HID_ITF_PROTOCOL_KEYBOARD, tuh_hid_interface_protocol(DADDR, 1));
+}
