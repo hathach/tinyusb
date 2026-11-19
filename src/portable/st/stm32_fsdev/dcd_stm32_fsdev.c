@@ -474,6 +474,10 @@ void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *req
 static uint32_t dcd_pma_alloc(uint16_t len, bool dbuf) {
   uint8_t  blsize, num_block;
   uint16_t aligned_len = pma_align_buffer_size(len, &blsize, &num_block);
+#ifdef CFG_TUSB_FSDEV_32BIT
+  // 32-bit PMA buffers must be word aligned (RM0444/RM0503): btable_set_addr() drops ADDR bits 1:0
+  aligned_len = (uint16_t)tu_align4(aligned_len + 3u);
+#endif
   (void)blsize;
   (void)num_block;
 
@@ -809,6 +813,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
+  // ISO has no handshake: only VALID/DISABLED STAT are legal and DTOG selects the buffer (RM0091 30.5.4)
+  if (ep_alloc_status[xfer->ep_idx].ep_type == TUSB_XFER_ISOCHRONOUS) {
+    return;
+  }
   const uint8_t    ep_idx = xfer->ep_idx;
 
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
@@ -832,6 +840,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
   xfer_ctl_t      *xfer   = xfer_ctl_ptr(ep_num, dir);
+  // ISO has no handshake: only VALID/DISABLED STAT are legal and DTOG selects the buffer (RM0091 30.5.4)
+  if (ep_alloc_status[xfer->ep_idx].ep_type == TUSB_XFER_ISOCHRONOUS) {
+    return;
+  }
   const uint8_t    ep_idx = xfer->ep_idx;
 
   uint32_t ep_reg = ep_read(ep_idx) | U_EP_CTR_TX | U_EP_CTR_RX; // reserve CTR bits
