@@ -16,6 +16,9 @@ RHPORT_SPEED ?= OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED
 RHPORT_DEVICE ?= 1
 RHPORT_HOST ?= 1
 
+# RTT up buffer, in the noncacheable section (1 KB, 4 KB with XSPI_BOOT)
+BUFFER_SIZE_UP ?= 0x300
+
 # Determine RHPORT_DEVICE_SPEED if not defined
 ifndef RHPORT_DEVICE_SPEED
 ifeq ($(RHPORT_DEVICE), 0)
@@ -44,7 +47,7 @@ CFLAGS += \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
 	-DSEGGER_RTT_SECTION="\"noncacheable_buffer\"" \
-	-DBUFFER_SIZE_UP=0x300 \
+	-DBUFFER_SIZE_UP=$(BUFFER_SIZE_UP) \
 
 # GCC Flags
 CFLAGS += \
@@ -90,4 +93,11 @@ INC += \
 SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 
 # Linker
+ifeq ($(XSPI_BOOT),1)
+# Run from RAM, image on the XSPI2 flash (see xspi_boot.c)
+CFLAGS += -DXSPI_BOOT=1
+LD_FILE ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_xspi.ld
+# a single .bin would span 0x08000000-0x70000000: .bin is the internal flash part only, flash the .elf/.hex
+OBJCOPY_BIN_OPTION = -j .isr_vector -j .boot
+endif
 LD_FILE ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.ld
