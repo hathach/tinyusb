@@ -2132,6 +2132,17 @@ static void process_enumeration(tuh_xfer_t *xfer) {
   if (daddr > 0) {
     TU_ASSERT(dev != NULL,);
   }
+
+  // A device that STALLs SET_CONFIGURATION is not configured: its endpoints do not exist and every class driver would
+  // fail against it, leaving it half-mounted for good. Re-enumerate it (fresh port reset) instead of going on.
+  if (XFER_RESULT_STALLED == xfer->result && ENUM_CONFIG_DRIVER == state) {
+    TU_LOG_USBH("[%u] SET_CONFIGURATION STALLed\r\n", daddr);
+    if (!enum_retry()) {
+      enum_full_complete(false);
+    }
+    return;
+  }
+
   uint16_t langid = 0x0409; // default is English
   bool is_enum_failed = false;
 
