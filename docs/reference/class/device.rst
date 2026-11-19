@@ -84,8 +84,10 @@ pages.  Defaults come from ``src/tusb_option.h``.
      - Common USB settings / the controller's ``TUP_DCD_MEM_ALIGN``
      - Places and aligns controller-facing buffers for DMA.  The alignment
        defaults to what the device controller needs (``TUP_DCD_MEM_ALIGN``
-       in ``common/tusb_mcu.h``: 64 bytes on IP3511, else 4), and
-       ``usbd_edpt_xfer()`` asserts every transfer buffer meets it.  Override
+       in ``common/tusb_mcu.h``: 64 bytes on IP3511, 4 on DMA controllers
+       such as WCH USBHS and DWC2 with DMA, else 1), at least 4 bytes, and
+       ``usbd_edpt_xfer()`` asserts every transfer buffer meets
+       ``TUP_DCD_MEM_ALIGN``.  Override
        the section when the controller requires a particular RAM region.
 
 ``CFG_TUD_ENDPPOINT_MAX`` contains the double ``P`` for compatibility; use the

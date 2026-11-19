@@ -33,11 +33,12 @@
  *                              e.g EP1 OUT & EP1 IN cannot exist together
  * - RHPORT_HIGHSPEED: support highspeed with on-chip PHY
  * - DCD_MEM_ALIGN, HCD_MEM_ALIGN: alignment in bytes the device/host controller needs for a transfer buffer,
- *              default 4. They are the defaults of CFG_TUD_MEM_ALIGN/CFG_TUH_MEM_ALIGN, and usbd/usbh assert every
- *              transfer buffer meets them
+ *              default 1 (no requirement). usbd/usbh assert every transfer buffer meets them, and
+ *              CFG_TUD_MEM_ALIGN/CFG_TUH_MEM_ALIGN default to them, at least 4
  */
 
-// IP3511 endpoint command list holds the buffer address offset in 64-byte units (bits 21:6)
+// IP3511 endpoint command list holds the buffer address offset in 64-byte units: address bits 21:6 relative to
+// DATABUFSTART on a full-speed port, bits 16:6 relative to USB_RAM on a high-speed port (dcd_lpc_ip3511.c)
 #define TUP_IP3511_MEM_ALIGN 64
 
 //--------------------------------------------------------------------+
@@ -590,6 +591,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define TUP_DCD_ENDPOINT_MAX 4
   #define TUP_DCD_EDPT_CLOSE_API
+  #define TUP_DCD_MEM_ALIGN    4 // dcd_sunxi_musb.c copies the FIFO by words, and ARMv5 has no unaligned word access
 
 //--------------------------------------------------------------------+
 // WCH
@@ -609,6 +611,7 @@
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+  #define TUP_DCD_MEM_ALIGN    (CFG_TUD_WCH_USBIP_USBHS ? 4 : 1) // USBHS endpoint DMA address (#4488)
 
   #if CFG_TUD_WCH_USBIP_USBHS
     #define TUP_DCD_EDPT_CLOSE_API
@@ -687,6 +690,10 @@
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
   #define TUP_HCD_HIGHSPEED CFG_TUH_WCH_USBIP_USBHS
+
+  // USBHS endpoint and host DMA addresses (#4488); USBFS copies into its own buffers or bounces
+  #define TUP_DCD_MEM_ALIGN (CFG_TUD_WCH_USBIP_USBHS ? 4 : 1)
+  #define TUP_HCD_MEM_ALIGN (CFG_TUH_WCH_USBIP_USBHS ? 4 : 1)
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
   #if CFG_TUD_WCH_USBIP_USBHS
@@ -712,6 +719,7 @@
   #define TUP_USBIP_WCH_USBHS_V2
   #define TUP_RHPORT_HIGHSPEED 1
   #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_MEM_ALIGN    4 // endpoint DMA address, CH32V407RM 22.2.1.23-24 (dcd_wch_usbhs_v2.c)
   #define TUP_DCD_EDPT_CLOSE_API
 
 //--------------------------------------------------------------------+
@@ -815,13 +823,24 @@
   #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
-// Transfer buffer alignment the device/host controller needs
+// Transfer buffer alignment the device/host controller needs: 1 for a controller that copies the data with the CPU
+// or whose DMA takes any byte address. An MCU block above sets it for its own controller.
 #ifndef TUP_DCD_MEM_ALIGN
-  #define TUP_DCD_MEM_ALIGN 4
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_DCD_MEM_ALIGN (CFG_TUD_DWC2_DMA_ENABLE ? 4 : 1) // DIEPDMA/DOEPDMA need a DWORD-aligned address
+  #else
+    #define TUP_DCD_MEM_ALIGN 1
+  #endif
 #endif
 
 #ifndef TUP_HCD_MEM_ALIGN
-  #define TUP_HCD_MEM_ALIGN 4
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_HCD_MEM_ALIGN (CFG_TUH_DWC2_DMA_ENABLE ? 4 : 1) // HCDMA needs a DWORD-aligned address
+  #elif defined(TUP_USBIP_CHIPIDEA_FS)
+    #define TUP_HCD_MEM_ALIGN 4 // the BDT DMA writes 4-byte units (hcd_ci_fs.c)
+  #else
+    #define TUP_HCD_MEM_ALIGN 1
+  #endif
 #endif
 
 #if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED

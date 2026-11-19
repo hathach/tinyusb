@@ -200,8 +200,10 @@ written to a specific location in memory and the peripheral is told the data is 
 register or setting a counter register to 0 for OUT or length for IN.)
 
 The transfer buffer alignment is what the controller needs: set ``TUP_DCD_MEM_ALIGN`` (device) or
-``TUP_HCD_MEM_ALIGN`` (host) for the MCU in ``src/common/tusb_mcu.h`` when it is more than the default 4 bytes. It is
-the default of ``CFG_TUD_MEM_ALIGN``/``CFG_TUH_MEM_ALIGN``, and usbd/usbh assert every transfer buffer meets it.
+``TUP_HCD_MEM_ALIGN`` (host) for the MCU in ``src/common/tusb_mcu.h`` when its DMA reads the buffer address with an
+alignment rule. The default is 1, for a controller that copies the data with the CPU or takes any byte address.
+usbd/usbh assert every transfer buffer meets it, and ``CFG_TUD_MEM_ALIGN``/``CFG_TUH_MEM_ALIGN`` default to it, at
+least 4 bytes for the stack's own buffers.
 
 One potential pitfall is that the buffer may be longer than the maximum endpoint size of one USB
 packet. Some peripherals can handle transmitting multiple USB packets for a provided buffer (like the SAMD21).

@@ -85,8 +85,10 @@ Common configuration options
      - Common USB settings / the controller's ``TUP_HCD_MEM_ALIGN``
      - Places and aligns host-controller buffers for DMA-accessible RAM.  The
        alignment defaults to what the host controller needs
-       (``TUP_HCD_MEM_ALIGN`` in ``common/tusb_mcu.h``, 4 bytes), and
-       ``usbh`` asserts every transfer and control data buffer meets it.
+       (``TUP_HCD_MEM_ALIGN`` in ``common/tusb_mcu.h``: 4 on DMA controllers
+       such as WCH USBHS, DWC2 with DMA and ChipIdea FS, else 1), at least
+       4 bytes, and ``usbh`` asserts every transfer and control data buffer
+       meets ``TUP_HCD_MEM_ALIGN``.
    * - ``CFG_TUSB_OS``
      - ``OPT_OS_NONE``
      - Selects TinyUSB's synchronization backend.  Set the matching OS option
