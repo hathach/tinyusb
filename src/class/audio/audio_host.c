@@ -244,6 +244,7 @@ typedef struct {
   uint8_t state;
   uint8_t operation;
   bool    running;
+  bool    rearm_pending; // a refused stop deferred audioh_stream_rearm_idle(), not yet run
   // Consecutive failed completions on the data [0] and feedback [1] endpoints.
   uint8_t xfer_errors[2];
 
@@ -864,7 +865,7 @@ static void audioh_feedback_received(tuh_audio_stream_t *s, uint32_t xferred_byt
 }
 
 // Running and no stop pending: a completed transfer is armed again
-static inline bool audioh_stream_rearmable(const tuh_audio_stream_t *s) {
+TU_ATTR_ALWAYS_INLINE static inline bool audioh_stream_rearmable(const tuh_audio_stream_t *s) {
   return s->running && s->operation != AUDIOH_STREAM_OP_STOP;
 }
 
@@ -2248,6 +2249,7 @@ static void audioh_stream_stop_complete(tuh_xfer_t *xfer) {
 // re-armed by its own completion, which now sees no stop pending.
 static void audioh_stream_rearm_idle(void *param) {
   tuh_audio_stream_t *s = (tuh_audio_stream_t *)param;
+  s->rearm_pending = false; // cleared before the checks: a stop refused from now on posts again
   if (s->state != STREAM_STATE_READY || !s->running || s->operation != AUDIOH_STREAM_OP_NONE) {
     return; // stopped, failed or unplugged since, or another operation pending
   }
@@ -2289,9 +2291,13 @@ bool tuh_audio_stop(uint8_t dev_idx, uint8_t stream_idx) {
   if (!tuh_interface_set(s->daddr, as->itf_num, 0, audioh_stream_stop_complete, (uintptr_t)s)) {
     // The stream keeps running for the caller to retry: a transfer that completed
     // or failed meanwhile was left idle, so have the host task, which also runs
-    // the completions, arm it again.
+    // the completions, arm it again. One post at a time: a caller retrying the
+    // stop in a loop would otherwise fill the host event queue with re-arms.
     s->operation = AUDIOH_STREAM_OP_NONE;
-    usbh_defer_func(audioh_stream_rearm_idle, s, false);
+    if (!s->rearm_pending) {
+      s->rearm_pending = true;
+      usbh_defer_func(audioh_stream_rearm_idle, s, false);
+    }
     return false;
   }
   return true;
