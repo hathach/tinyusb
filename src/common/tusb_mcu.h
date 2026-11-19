@@ -529,7 +529,7 @@
 //--------------------------------------------------------------------+
 // Renesas
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX)
+#elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX, OPT_MCU_SYNERGY)
   #define TUP_USBIP_RUSB2
   #define TUP_DCD_ENDPOINT_MAX 10
 
