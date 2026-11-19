@@ -113,7 +113,11 @@ flash-jlink: $(BUILD)/$(BOARD).jlink
 # --------------- stm32 cube programmer -----------------
 # Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(PROJECT).elf
+ifdef STM32_PROGRAMMER_EXTLOADER
+	STM32_Programmer_CLI --connect port=swd -el "$(STM32_PROGRAMMER_EXTLOADER)" --write $< -rst
+else
 	STM32_Programmer_CLI --connect port=swd --write $< --go
+endif
 
 # --------------- xfel -----------------
 $(BUILD)/$(PROJECT)-sunxi.bin: $(BUILD)/$(PROJECT).bin

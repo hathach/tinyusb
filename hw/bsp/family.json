@@ -4688,6 +4688,27 @@
       }
     }
   },
+  "synergy": {
+    "dk_s124": {
+      "cmake": {
+        "defines": {},
+        "family_mcus": [
+          "SYNERGY",
+          "s124"
+        ],
+        "mcu": "OPT_MCU_SYNERGY",
+        "options": {},
+        "portable": [
+          "renesas/rusb2/dcd_rusb2.c",
+          "renesas/rusb2/hcd_rusb2.c",
+          "renesas/rusb2/rusb2_common.c"
+        ],
+        "roles": [
+          "device"
+        ]
+      }
+    }
+  },
   "tm4c": {
     "ek_tm4c123gxl": {
       "cmake": {
