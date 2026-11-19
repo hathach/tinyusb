@@ -33,13 +33,11 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      - name: Checkout the comment template
+      # the whole default branch, as pr_comment.yml: code_size_ci.py imports tools/code_size.py,
+      # which imports test/hil/helper (no agentrc fetch needed for is-current)
+      - name: Checkout default branch scripts and the comment template
         uses: actions/checkout@v6
         with:
-          sparse-checkout: |
-            .github/membrowse_pr_message.j2
-            .github/scripts/code_size_ci.py
-          sparse-checkout-cone-mode: false
           persist-credentials: false
 
       # The PR from trusted workflow_run metadata (never from build artifacts, which a fork

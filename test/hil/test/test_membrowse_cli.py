@@ -75,6 +75,14 @@ class Regexes(unittest.TestCase):
         self.assertEqual(cli.extract_ld_include_dirs(text), ['/sdk/script_include', '/sdk/other'])
         self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/locations.ld', '/sdk/memmap.ld'])
 
+    def test_xlinker_operands_are_unwrapped_before_extraction(self):
+        # -Xlinker a passes a alone: a separated -L/-T value arrives in its own -Xlinker
+        text = ('cc -Xlinker -L -Xlinker /sdk/script_include -Xlinker -L/sdk/other '
+                '-Xlinker --script=/sdk/locations.ld -Xlinker -T -Xlinker /sdk/memmap.ld '
+                '-Xlinker -Ttext=0x1000 -o out.elf -Xlinker\n')
+        self.assertEqual(cli.extract_ld_include_dirs(text), ['/sdk/script_include', '/sdk/other'])
+        self.assertEqual(cli.extract_ld_scripts(text), ['/sdk/locations.ld', '/sdk/memmap.ld'])
+
     def test_defsym_extraction_both_separators(self):
         text = 'cc -Wl,--defsym=FOO=0x10 -Wl,--defsym,BAR=1 -o out.elf\n'
         self.assertEqual(cli.DEFSYM_RE.findall(text), ['FOO=0x10', 'BAR=1'])
@@ -229,8 +237,14 @@ class PrCommentWorkflow(unittest.TestCase):
         post = next(s for s in steps if 'comment-action' in s.get('uses', ''))
         self.assertEqual(post['if'], "steps.current.outputs.post == 'true'")
         self.assertEqual(post['with']['pr_number'], '${{ steps.current.outputs.number }}')
+        # the whole tree: code_size_ci.py imports tools/code_size.py and test/hil/helper
         checkout = next(s for s in steps if s.get('uses', '').startswith('actions/checkout'))
-        self.assertIn('.github/scripts/code_size_ci.py', checkout['with']['sparse-checkout'])
+        self.assertNotIn('sparse-checkout', checkout['with'])
+        self.assertFalse(checkout['with']['persist-credentials'])
+        r = subprocess.run([sys.executable, os.path.join(REPO, '.github', 'scripts', 'code_size_ci.py'),
+                            'is-current', '--help'], capture_output=True, text=True,
+                           env={**os.environ, 'AGENTRC_DIR': os.devnull})
+        self.assertEqual(r.returncode, 0, r.stderr)
 
 
 class PrCommentTemplate(unittest.TestCase):

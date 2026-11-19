@@ -8,6 +8,7 @@ parent of this script's directory), so src/device/usbd.c stays distinct from a
 vendor file of the same name; files outside the checkout keep their basename.
 """
 import argparse
+import itertools
 import os
 import re
 import shlex
@@ -64,10 +65,14 @@ def _link_argv(commands_text):
 def _linker_argv(args):
     """A link command's options as the linker sees them: the compiler driver's
     `-Wl,a,b,c` hands the linker a, b and c as separate arguments (pico-sdk
-    groups `-L` with other options that way); everything else passes through."""
+    groups `-L` with other options that way), and `-Xlinker a` hands it a;
+    everything else passes through."""
+    args = iter(args)
     for arg in args:
         if arg.startswith('-Wl,'):
             yield from arg[len('-Wl,'):].split(',')
+        elif arg == '-Xlinker':
+            yield from itertools.islice(args, 1)
         else:
             yield arg
 
