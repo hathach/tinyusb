@@ -225,10 +225,16 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active);
 // The device is sent GET_DESCRIPTOR(Device); if it does not answer, or another VID/PID does, it is removed and the
 // port enumerated again (tuh_umount_cb() then tuh_mount_cb()). An unchanged device sees one control transfer. A port
 // with a device attached but nothing enumerated (an attach that failed, or was missed) is enumerated again.
-// Devices behind a hub are covered by the hub's own port status. The check runs in the usbh task; this only queues
-// it, so call it from task context (not an ISR) on the core that runs tuh_task(). Returns false if rhport is not an
-// active host port or the queue is full.
+// Devices behind a hub are covered by the hub's own port status.
+// This only marks the check as wanted and never blocks; tuh_task() does it once no enumeration is running and the
+// control endpoint is free. Asked for again while a check runs, another check follows it. With an RTOS, a call from
+// another task wakes the host task. Call it from task context, not an ISR; without an RTOS, on the core that runs
+// tuh_task(). Returns false if rhport is not an active host port.
 bool tuh_rhport_recheck(uint8_t rhport);
+
+// True from tuh_rhport_recheck() until its check is complete, including any re-enumeration it started (mounted,
+// given up after its retries, or nothing attached). The probe can take up to CFG_TUH_CONTROL_TIMEOUT_MS.
+bool tuh_rhport_recheck_busy(uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // Device API

@@ -239,6 +239,11 @@ typedef struct {
   usbh_pending_ctrl_t enum_xfer; // the failed enumeration request enum_xfer_retry() sends again
   // Per-daddr generation counter — bumped on usbh_device_close() to identify stale pending control transfer
   uint8_t daddr_gen[TOTAL_DEVICES + 1];
+  // tuh_rhport_recheck(): one check at a time, on the active controller
+  uint8_t recheck_state;        // RECHECK_*
+  uint8_t recheck_again;        // another check was asked for while this one ran
+  uint8_t recheck_daddr;        // the root device being probed
+  uint8_t recheck_gen;          // its daddr_gen when the probe was sent
 #if CFG_TUSB_OS_HAS_SCHEDULER
   osal_task_handle_t task_hdl;  // host task handle, lazy-captured on first tuh_task_ext()
 #endif
@@ -247,6 +252,30 @@ typedef struct {
 
 static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
 static usbh_data_t _usbh_data;
+
+// tuh_rhport_recheck() states. The probe's completion callback only records a verdict; the task loop acts on it in
+// recheck_process(), because that callback also runs from device close and tuh_deinit(), where re-enumerating would
+// re-enter the teardown.
+enum {
+  RECHECK_IDLE = 0,
+  RECHECK_PENDING,    // asked for, waiting for the bus (no enumeration, control slot free)
+  RECHECK_PROBING,    // GET_DESCRIPTOR(Device) sent to the root device
+  RECHECK_REENUM_REQ, // the device is gone, replaced, or attached but not enumerated: re-enumerate the port
+  RECHECK_REENUM,     // re-enumerating; done when no enumeration and no root port retry is left
+};
+
+// tuh_rhport_recheck() has work the task can do now
+static bool recheck_due(void) {
+  switch (_usbh_data.recheck_state) {
+    case RECHECK_PENDING:
+    case RECHECK_REENUM_REQ:
+      return _usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8;
+    case RECHECK_REENUM:
+      return _usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 && _usbh_data.root_retry_count == 0;
+    default:
+      return false;
+  }
+}
 
 typedef struct {
   TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
@@ -380,6 +409,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 //--------------------------------------------------------------------+
 static void enum_new_device(hcd_event_t* event);
 static void enum_delay_async(uintptr_t state);
+static void recheck_process(void);
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 
@@ -657,6 +687,10 @@ bool tuh_deinit(uint8_t rhport) {
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
 
+  // a re-check in progress ends with the controller
+  _usbh_data.recheck_state = RECHECK_IDLE;
+  _usbh_data.recheck_again = 0;
+
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
     // Class drivers
@@ -729,6 +763,10 @@ bool tuh_task_event_ready(void) {
   }
 
   if (_usbh_data.call_after.func && deadline_passed(_usbh_data.call_after.at_ms)) {
+    return true;
+  }
+
+  if (recheck_due()) {
     return true;
   }
 
@@ -907,6 +945,11 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
     }
   #endif
 
+    // tuh_rhport_recheck(), only from tuh_task(): not from the nested polls of a synchronous control transfer
+    if (stoppable) {
+      recheck_process();
+    }
+
     // Process call_after_ms function if ms is reached
     tusb_defer_func_t after_cb = _usbh_data.call_after.func;
     if (after_cb) {
@@ -1015,59 +1058,117 @@ bool tuh_task_stop(void) {
 //--------------------------------------------------------------------+
 // Root port re-check (after a system sleep)
 //--------------------------------------------------------------------+
-static void recheck_root_complete(tuh_xfer_t *xfer) {
-  const uint8_t rhport = (uint8_t) xfer->user_data;
-  const usbh_device_t *dev = get_device(xfer->daddr);
-  const tusb_desc_device_t *desc = (const tusb_desc_device_t *) _usbh_epbuf.recheck;
-
-  if (dev == NULL || !dev->connected) {
-    return; // detached meanwhile: its removal is already handled
-  }
-  if (xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len == sizeof(tusb_desc_device_t) &&
-      desc->idVendor == dev->desc_device.idVendor && desc->idProduct == dev->desc_device.idProduct) {
-    TU_LOG_USBH("[%u:%u] Re-check: same device\r\n", rhport, xfer->daddr);
-    return;
-  }
-  // No answer at its address (a new or reset device waits at address 0), or another device answered: what was
-  // mounted is gone. An attach event removes it, resets the port and enumerates what is there now.
-  TU_LOG_USBH("[%u:%u] Re-check: device gone or replaced, re-enumerating\r\n", rhport, xfer->daddr);
-  hcd_event_device_attach(rhport, false);
+// End a check, or start the one asked for while it ran
+static void recheck_finish(void) {
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  _usbh_data.recheck_state = _usbh_data.recheck_again ? RECHECK_PENDING : RECHECK_IDLE;
+  _usbh_data.recheck_again = 0;
+  (void) osal_mutex_unlock(_usbh_mutex);
 }
 
-static void recheck_root_call(void *param) {
-  const uint8_t rhport = (uint8_t) (uintptr_t) param;
-  if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
-    return; // an enumeration is talking to the bus already
+// Only records the verdict, see the RECHECK_* states
+static void recheck_root_complete(tuh_xfer_t *xfer) {
+  const uint8_t daddr = xfer->daddr;
+  if (_usbh_data.recheck_state != RECHECK_PROBING || daddr != _usbh_data.recheck_daddr) {
+    return;
   }
-  for (uint8_t daddr = 1; daddr <= TOTAL_DEVICES; daddr++) {
-    const usbh_device_t *dev = get_device(daddr);
-    if (dev->connected && dev->bus_info.rhport == rhport && dev->bus_info.hub_addr == 0) {
-      if (!tuh_descriptor_get_device(daddr, _usbh_epbuf.recheck, sizeof(tusb_desc_device_t), recheck_root_complete,
-                                     rhport)) {
-        hcd_event_device_attach(rhport, false);
+  const usbh_device_t *dev = get_device(daddr);
+  if (dev == NULL || !tuh_connected(daddr) || _usbh_data.daddr_gen[daddr] != _usbh_data.recheck_gen) {
+    recheck_finish(); // closed meanwhile: its removal, and any new attach, are handled already
+    return;
+  }
+  const tusb_desc_device_t *desc = (const tusb_desc_device_t *) _usbh_epbuf.recheck;
+  if (xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len == sizeof(tusb_desc_device_t) &&
+      desc->idVendor == dev->desc_device.idVendor && desc->idProduct == dev->desc_device.idProduct) {
+    TU_LOG_USBH("[%u:%u] Re-check: same device\r\n", dev->bus_info.rhport, daddr);
+    recheck_finish();
+    return;
+  }
+  // No answer at its address (a new or reset device waits at address 0), or another device answered
+  TU_LOG_USBH("[%u:%u] Re-check: device gone or replaced\r\n", dev->bus_info.rhport, daddr);
+  _usbh_data.recheck_state = RECHECK_REENUM_REQ;
+}
+
+// The task loop's part of tuh_rhport_recheck(), see the RECHECK_* states
+static void recheck_process(void) {
+  if (!recheck_due()) {
+    return;
+  }
+  const uint8_t rhport = _usbh_controller_id;
+
+  switch (_usbh_data.recheck_state) {
+    case RECHECK_PENDING:
+      // Probe only with the control slot free, so a refused send means the device cannot be reached
+      if (_usbh_data.ctrl_xfer_info.stage != CONTROL_STAGE_IDLE || !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
+        return;
       }
-      return; // one device per root port; a hub reports what changed behind it through its own port status
+      for (uint8_t daddr = 1; daddr <= TOTAL_DEVICES; daddr++) {
+        const usbh_device_t *dev = get_device(daddr);
+        if (tuh_connected(daddr) && dev->bus_info.rhport == rhport && dev->bus_info.hub_addr == 0) {
+          _usbh_data.recheck_daddr = daddr;
+          _usbh_data.recheck_gen   = _usbh_data.daddr_gen[daddr];
+          _usbh_data.recheck_state = RECHECK_PROBING;
+          if (!tuh_descriptor_get_device(daddr, _usbh_epbuf.recheck, sizeof(tusb_desc_device_t), recheck_root_complete,
+                                         0)) {
+            _usbh_data.recheck_state = RECHECK_REENUM_REQ;
+          }
+          return; // one device per root port; a hub reports what changed behind it through its own port status
+        }
+      }
+      // Nothing enumerated: something attached is an attach whose retries ran out, or one missed while the host slept
+      if (hcd_port_connect_status(rhport)) {
+        TU_LOG_USBH("[%u] Re-check: device attached but not enumerated\r\n", rhport);
+        _usbh_data.recheck_state = RECHECK_REENUM_REQ;
+      } else {
+        recheck_finish();
+      }
+      break;
+
+    case RECHECK_REENUM_REQ: {
+      // What the HCD's attach event does, run from the task instead of queued (a queue send can block): remove what
+      // is on the port, reset it and enumerate. The debounce bit drops the HCD's own attach events meanwhile.
+      TU_LOG_USBH("[%u] Re-check: re-enumerating\r\n", rhport);
+      _usbh_data.recheck_state = RECHECK_REENUM;
+      _usbh_data.attach_debouncing_bm |= TU_BIT(rhport);
+      hcd_event_t event = {0};
+      event.rhport              = rhport;
+      event.event_id            = HCD_EVENT_DEVICE_ATTACH;
+      event.connection.hub_addr = 0;
+      event.connection.hub_port = 0;
+      (void) usbh_process_event(&event, false);
+      break;
     }
-  }
-  // Nothing enumerated, yet something is attached: an attach that failed (its retries used up) or was never seen
-  // while the host slept. Enumerate it again; with the port empty this is a no-op.
-  if (hcd_port_connect_status(rhport)) {
-    TU_LOG_USBH("[%u] Re-check: unenumerated device on the port, enumerating\r\n", rhport);
-    hcd_event_device_attach(rhport, false);
+
+    case RECHECK_REENUM:
+      recheck_finish(); // that enumeration has ended: mounted, given up, or nothing attached
+      break;
+
+    default:
+      break;
   }
 }
 
 bool tuh_rhport_recheck(uint8_t rhport) {
   TU_VERIFY(tuh_rhport_is_active(rhport));
-  // Queued for the usbh task like tuh_task_stop(): the check sends a control transfer and may post an attach
-  hcd_event_t event = { 0 };
-  event.rhport          = rhport;
-  event.event_id        = USBH_EVENT_FUNC_CALL;
-  event.func_call.func  = recheck_root_call;
-  event.func_call.param = (void *) (uintptr_t) rhport;
-  TU_VERIFY(osal_queue_send(_usbh_q, &event, false));
-  tuh_event_hook_cb(event.rhport, event.event_id, false);
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  if (_usbh_data.recheck_state == RECHECK_IDLE) {
+    _usbh_data.recheck_state = RECHECK_PENDING;
+  } else {
+    _usbh_data.recheck_again = 1;
+  }
+  (void) osal_mutex_unlock(_usbh_mutex);
+
+#if CFG_TUSB_OS_HAS_SCHEDULER
+  // Wake a host task waiting for an event. Never from the host task itself: it must not block on its own queue.
+  if (osal_task_get_current_handle() != _usbh_data.task_hdl) {
+    usbh_defer_func(NULL, NULL, false);
+  }
+#endif
   return true;
+}
+
+bool tuh_rhport_recheck_busy(uint8_t rhport) {
+  return tuh_rhport_is_active(rhport) && _usbh_data.recheck_state != RECHECK_IDLE;
 }
 
 //--------------------------------------------------------------------+
