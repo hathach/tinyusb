@@ -838,6 +838,13 @@
     #define CFG_TUH_ENUM_ATTEMPT_MAX 2
   #endif
 
+  // Wait before resetting a device again after a failed enumeration (the retry above, and the root port retry of a
+  // failed attach), instead of the 150 ms attach debounce: a device that fails right after a reset tends to fail
+  // again if reset straight away, and back-to-back retries can use the whole budget within that window.
+  #ifndef CFG_TUH_ENUM_RETRY_DELAY_MS
+    #define CFG_TUH_ENUM_RETRY_DELAY_MS 1000
+  #endif
+
 #endif // CFG_TUH_ENABLED
 
 // Attribute to place data in accessible RAM for host controller (default: CFG_TUSB_MEM_SECTION)
