@@ -407,8 +407,13 @@
 #endif
 
 #if defined(TUP_USBIP_DWC2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    CFG_TUD_DWC2_SLAVE_ENABLE
-  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    CFG_TUH_DWC2_SLAVE_ENABLE
+  // Classes may skip their endpoint buffer only if every runtime mode takes a tu_fifo_t transfer: Buffer DMA cannot
+  // (needs a linear, word-aligned buffer), so a build that may select DMA at runtime keeps the endpoint buffers.
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    (CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE)
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    (CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE)
+
+  // Slave mode code is compiled in: it needs the hwfifo access helpers regardless of the above
+  #define CFG_TUSB_FIFO_HWFIFO_API         (CFG_TUD_DWC2_SLAVE_ENABLE || CFG_TUH_DWC2_SLAVE_ENABLE)
 
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0 // fixed hwfifo address
