@@ -414,6 +414,26 @@ void test_usbd_setup_queued_behind_unplug_is_dropped(void) {
   replug();
 }
 
+// a SETUP queued before an unplug that a full queue drops is still stale: it never reaches the DCD and the device
+// stays disconnected
+void test_usbd_setup_queued_before_dropped_unplug_is_stale(void) {
+  mscd_reset_Ignore();
+  dcd_edpt0_setup_begin_StopIgnore();
+
+  dcd_event_setup_received_tagid(rhport, (uint8_t const*) &req_get_desc_device, 18, false);
+  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ - 1; i++) {
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, false);
+  }
+  dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, false);  // dropped: the queue is full
+
+  // draining the queue never begins tag 18
+  for (unsigned i = 0; i < (CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN) + 1; i++) {
+    tud_task();
+  }
+  TEST_ASSERT_FALSE(tud_connected());
+  replug();
+}
+
 // the next connection starts with a bus reset: its SETUP, queued behind the unplug and that reset, is served
 void test_usbd_setup_queued_behind_unplug_and_bus_reset_is_processed(void) {
   mscd_reset_Ignore();

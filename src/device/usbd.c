@@ -1527,6 +1527,9 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       _usbd_dev.cfg_num = 0;
       _usbd_dev.suspended = 0;
       _usbd_unplugged = true;
+      // every SETUP already queued is from the disconnected session: make it stale, even if this event is
+      // dropped by a full queue
+      _usbd_setup_seq = (uint8_t) (_usbd_setup_seq + 1u);
       send = true;
       break;
 
