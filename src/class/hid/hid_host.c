@@ -561,7 +561,9 @@ uint16_t hidh_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *d
 
   // Per HID Specs: default is Report protocol
   p_hid->protocol_mode = HID_PROTOCOL_REPORT;
-  if (HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass) {
+  // only keyboard and mouse are defined for the boot subclass, 3-255 are reserved: treat those as non-boot
+  if (HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass &&
+      desc_itf->bInterfaceProtocol <= HID_ITF_PROTOCOL_MOUSE) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
   }
 

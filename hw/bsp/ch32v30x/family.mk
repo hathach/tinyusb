@@ -17,7 +17,14 @@ CPU_CORE ?= rv32imac-ilp32
 RHPORT_HOST ?= 1
 CFLAGS += -DBOARD_TUH_RHPORT=$(RHPORT_HOST)
 
-WCH_HOST_USBIP ?= usbfs
+# Host defaults to the controller SPEED leaves free (USBFS when SPEED is unset), so dual mode builds.
+ifeq ($(origin SPEED),undefined)
+  WCH_HOST_USBIP ?= usbfs
+else ifeq ($(SPEED),high)
+  WCH_HOST_USBIP ?= usbfs
+else
+  WCH_HOST_USBIP ?= usbhs
+endif
 ifeq ($(WCH_HOST_USBIP),usbhs)
   CFLAGS += -DCFG_TUH_WCH_USBIP_USBHS=1
   BOARD_TUH_MAX_SPEED ?= OPT_MODE_HIGH_SPEED

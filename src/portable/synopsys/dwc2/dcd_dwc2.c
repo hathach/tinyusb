@@ -56,6 +56,9 @@ typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t dfifo_top;      // top free location in DFIFO in words
+  uint16_t tx_allocated;   // bitmap of IN endpoints holding a TX FIFO in this configuration
+  uint16_t rx_periodic;    // bitmap of periodic OUT endpoints counted in rx.periodic_sum
+  uint8_t  tx_fifo_count;  // implemented TX FIFOs, 0 = not limited
   dfifo_rx_t rx;
 
   // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
@@ -259,10 +262,29 @@ static uint16_t calc_device_grxfsiz(const dfifo_rx_t* rx, uint8_t ep_count, bool
   return (uint16_t) (13 + 1 + pkt_sz + 2 * ep_count);
 }
 
-// TX FIFO number is the IN endpoint number; ep_in_count == 0 means not limited
+// Number of TX FIFOs, 0 = not limited. With dedicated TX FIFOs there is one per IN endpoint of the hardware
+// configuration, GHWCFG4.INEps + 1 (DIEPTXFn exists for n = 1..INEps, Databook v4.20a), e.g. nRF54H20 has 8 IN of
+// 16 endpoints. ep_in_count overrides a register that overstates it (ESP32-S2/S3: 5 FIFOs). GD32VF103 has no usable
+// GHWCFG registers, and shared-FIFO cores (AT32F415) do not index a FIFO per endpoint.
+static uint8_t dfifo_tx_count(uint8_t rhport) {
+  uint8_t count = _dwc2_controller[rhport].ep_in_count;
+  #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  const dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  const dwc2_ghwcfg4_t ghwcfg4 = {.value = dwc2->ghwcfg4};
+  if (ghwcfg4.dedicated_fifos) {
+    const uint8_t in_eps = (uint8_t) (ghwcfg4.num_dev_in_eps + 1);
+    if (count == 0 || in_eps < count) {
+      count = in_eps;
+    }
+  }
+  #endif
+  return count;
+}
+
+// TX FIFO number is the IN endpoint number
 TU_ATTR_ALWAYS_INLINE static inline bool dfifo_tx_exists(uint8_t rhport, uint8_t fnum) {
-  const uint8_t ep_in_count = _dwc2_controller[rhport].ep_in_count;
-  return ep_in_count == 0 || fnum < ep_in_count;
+  (void) rhport;
+  return _dcd_data.tx_fifo_count == 0 || fnum < _dcd_data.tx_fifo_count;
 }
 
 static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, uint8_t xfer_type) {
@@ -282,7 +304,11 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
     if (xfer_type == TUSB_XFER_BULK) {
       rx.bulk = tu_max16(rx.bulk, fifo_size);
     } else if (xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) {
-      rx.periodic_sum = (uint16_t) (rx.periodic_sum + fifo_size + 1);
+      // An endpoint re-opened without close (SET_INTERFACE) is counted once per configuration. Re-opening it with a
+      // larger packet is not supported: an isochronous one reserves its largest with dcd_edpt_iso_alloc().
+      if (!tu_bit_test(_dcd_data.rx_periodic, epnum)) {
+        rx.periodic_sum = (uint16_t) (rx.periodic_sum + fifo_size + 1);
+      }
       if (fifo_size > rx.periodic[0]) {
         rx.periodic[1] = rx.periodic[0];
         rx.periodic[0] = fifo_size;
@@ -308,6 +334,9 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
       dwc2->grxfsiz = new_sz; // Enlarge RX FIFO
     }
     _dcd_data.rx = rx;
+    if (xfer_type == TUSB_XFER_ISOCHRONOUS || xfer_type == TUSB_XFER_INTERRUPT) {
+      _dcd_data.rx_periodic |= (uint16_t) TU_BIT(epnum);
+    }
   } else {
     if (!dfifo_tx_exists(rhport, epnum)) {
       // Only interrupt IN may open without one, e.g. arduino-esp32's never-sent CDC notification 0x85 on ESP32-S2/S3;
@@ -323,18 +352,21 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, u
       fifo_size *= 2;
     }
 
+    // Both TXFD and TXSA are in unit of 32-bit words. DIEPTXF starts at FIFO #1.
+    volatile uint32_t* txf = (epnum == 0) ? &dwc2->dieptxf0 : &dwc2->dieptxf[epnum - 1];
+
+    // An endpoint re-opened without close (e.g. video SET_INTERFACE on a bulk endpoint) keeps its FIFO. Re-opening it
+    // with a larger packet is not supported.
+    if (tu_bit_test(_dcd_data.tx_allocated, epnum)) {
+      TU_ASSERT(fifo_size <= (uint16_t) (*txf >> DIEPTXF_INEPTXFD_Pos));
+      return true;
+    }
+
     // Check if free space is available
     TU_ASSERT(_dcd_data.dfifo_top >= fifo_size + dwc2->grxfsiz);
     _dcd_data.dfifo_top -= fifo_size;
-    // TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, dfifo_top);
-
-    // Both TXFD and TXSA are in unit of 32-bit words.
-    if (epnum == 0) {
-      dwc2->dieptxf0 = ((uint32_t) fifo_size << DIEPTXF0_TX0FD_Pos) | _dcd_data.dfifo_top;
-    } else {
-      // DIEPTXF starts at FIFO #1.
-      dwc2->dieptxf[epnum - 1] = ((uint32_t) fifo_size << DIEPTXF_INEPTXFD_Pos) | _dcd_data.dfifo_top;
-    }
+    _dcd_data.tx_allocated |= (uint16_t) TU_BIT(epnum);
+    *txf = ((uint32_t) fifo_size << DIEPTXF_INEPTXFD_Pos) | _dcd_data.dfifo_top;
   }
 
   return true;
@@ -345,6 +377,9 @@ static void dfifo_device_init(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   tu_memclr(&_dcd_data.rx, sizeof(_dcd_data.rx));
   _dcd_data.rx.largest = CFG_TUD_ENDPOINT0_SIZE / 4;
+  _dcd_data.rx_periodic = 0;
+  _dcd_data.tx_allocated = 0;
+  _dcd_data.tx_fifo_count = dfifo_tx_count(rhport);
 
   // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
   const bool is_dma = dma_device_enabled(dwc2);
