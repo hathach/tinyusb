@@ -397,6 +397,11 @@
   #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
+// Isochronous IN ring for host in DMA mode, see tuh_configure_dwc2_iso_ring_t
+#ifndef CFG_TUH_DWC2_ISO_RING
+  #define CFG_TUH_DWC2_ISO_RING 0
+#endif
+
 // Slave mode for host
 #ifndef CFG_TUH_DWC2_SLAVE_ENABLE
   #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT

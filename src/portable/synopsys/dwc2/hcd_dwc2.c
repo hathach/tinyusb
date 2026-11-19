@@ -297,6 +297,130 @@ CFG_TUH_MEM_SECTION static hcd_abort_rx_t _hcd_abort_rx;
 
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED, .max_nak = HCD_XFER_NAK_DEFAULT};
 
+#if CFG_TUH_DWC2_ISO_RING
+//--------------------------------------------------------------------
+// Isochronous IN ring, see tuh_configure_dwc2_iso_ring_t
+//--------------------------------------------------------------------
+enum {
+  HCD_ISO_RING_LOST       = 0xFFFF, // record length of a lost marker, which has no payload
+  HCD_ISO_RING_SILENT_MAX = 32      // failed packets in a row that end the stream: the device stopped sending
+};
+
+typedef struct {
+  uint8_t* buf;
+  uint32_t mask; // size - 1
+  uint32_t head;
+  uint32_t count;
+  uint8_t* packet_buf;
+  uint16_t packet_size;
+  uint8_t  ep_id;    // streaming endpoint, TUSB_INDEX_INVALID_8 if none
+  bool     stopping; // the stream is being torn down: its packets are dropped and it is not re-armed
+  bool     lost;     // a lost marker is due ahead of the next record
+  bool     frame_known;
+  uint8_t  silent;     // failed packets in a row
+  uint16_t last_frame; // frame of the last packet the endpoint was armed for
+  // the transfer queued by the application, filled at the next packet
+  uint8_t* app_buf;
+  uint16_t app_len;
+  bool     app_pending;
+} hcd_iso_ring_t;
+
+static hcd_iso_ring_t _hcd_iso_ring = {.ep_id = TUSB_INDEX_INVALID_8};
+
+TU_ATTR_ALWAYS_INLINE static inline bool iso_ring_owns(uint8_t ep_id) {
+  return _hcd_iso_ring.ep_id == ep_id;
+}
+
+static void iso_ring_copy_in(const uint8_t* src, uint32_t len) {
+  hcd_iso_ring_t* r     = &_hcd_iso_ring;
+  const uint32_t  tail  = (r->head + r->count) & r->mask;
+  const uint32_t  first = tu_min32(len, r->mask + 1 - tail);
+  memcpy(r->buf + tail, src, first);
+  memcpy(r->buf, src + first, len - first);
+  r->count += len;
+}
+
+static void iso_ring_copy_out(uint8_t* dst, uint32_t len) {
+  hcd_iso_ring_t* r     = &_hcd_iso_ring;
+  const uint32_t  first = tu_min32(len, r->mask + 1 - r->head);
+  if (dst != NULL) {
+    memcpy(dst, r->buf + r->head, first);
+    memcpy(dst + first, r->buf, len - first);
+  }
+  r->head = (r->head + len) & r->mask;
+  r->count -= len;
+}
+
+// Bytes of the record at the head of the ring, its 2-byte length included
+static uint32_t iso_ring_head_len(void) {
+  const hcd_iso_ring_t* r   = &_hcd_iso_ring;
+  const uint16_t        len = (uint16_t) (r->buf[r->head] | (r->buf[(r->head + 1) & r->mask] << 8));
+  return len == HCD_ISO_RING_LOST ? 2u : len + 2u;
+}
+
+// Make room by dropping the oldest record. A lost marker stays at the head to show where the gap is.
+static void iso_ring_drop_oldest(void) {
+  hcd_iso_ring_t* r = &_hcd_iso_ring;
+  if (r->count >= 2 && iso_ring_head_len() == 2) {
+    iso_ring_copy_out(NULL, 2); // the marker, put back below
+  }
+  if (r->count < 2 || iso_ring_head_len() > r->count) {
+    r->head  = 0;
+    r->count = 0;
+    r->lost  = true;
+    return;
+  }
+  iso_ring_copy_out(NULL, iso_ring_head_len());
+  r->head = (r->head - 2u) & r->mask;
+  r->count += 2;
+  r->buf[r->head]                 = 0xFF;
+  r->buf[(r->head + 1) & r->mask] = 0xFF;
+}
+
+// Append a packet's record, after a lost marker if one is due. Zero-length packets leave no record.
+static void iso_ring_put(const uint8_t* data, uint16_t len) {
+  hcd_iso_ring_t* r = &_hcd_iso_ring;
+  if (r->lost) {
+    while (r->count + 2 > r->mask + 1) {
+      iso_ring_drop_oldest();
+    }
+    const uint8_t marker[2] = {0xFF, 0xFF};
+    iso_ring_copy_in(marker, 2);
+    r->lost = false;
+  }
+  if (len > 0) {
+    while (r->count + 2u + len > r->mask + 1) {
+      iso_ring_drop_oldest();
+    }
+    const uint8_t header[2] = {tu_u16_low(len), tu_u16_high(len)};
+    iso_ring_copy_in(header, 2);
+    iso_ring_copy_in(data, len);
+  }
+}
+
+// Move whole records into the application's transfer, return the bytes moved
+static uint16_t iso_ring_take(void) {
+  hcd_iso_ring_t* r      = &_hcd_iso_ring;
+  uint16_t        actual = 0;
+  while (r->count >= 2) {
+    const uint32_t len = iso_ring_head_len();
+    if (len > r->count) {
+      r->head  = 0; // corrupted: start over after a gap
+      r->count = 0;
+      r->lost  = true;
+      break;
+    }
+    if (actual + len > r->app_len) {
+      break;
+    }
+    iso_ring_copy_out(r->app_buf + actual, len);
+    actual = (uint16_t) (actual + len);
+  }
+  return actual;
+}
+
+#endif
+
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
@@ -336,6 +460,28 @@ TU_ATTR_ALWAYS_INLINE static inline void gint_restore(dwc2_regs_t* dwc2, uint32_
     dwc2->gahbcfg = gahbcfg;
   }
 }
+
+#if CFG_TUH_DWC2_ISO_RING
+// Begin tearing down the stream of ep_id, with the interrupt masked: its channel then retires without re-arming, and
+// the transfer queued on it is dropped (the caller completes or aborts it). Return true if ep_id streams.
+static bool iso_ring_stop_begin(dwc2_regs_t* dwc2, uint8_t ep_id) {
+  const uint32_t gahbcfg = gint_mask(dwc2);
+  const bool     owns    = iso_ring_owns(ep_id);
+  if (owns) {
+    _hcd_iso_ring.stopping    = true;
+    _hcd_iso_ring.app_pending = false;
+  }
+  gint_restore(dwc2, gahbcfg);
+  return owns;
+}
+
+static void iso_ring_stop_end(dwc2_regs_t* dwc2) {
+  const uint32_t gahbcfg = gint_mask(dwc2);
+  _hcd_iso_ring.ep_id    = TUSB_INDEX_INVALID_8;
+  _hcd_iso_ring.stopping = false;
+  gint_restore(dwc2, gahbcfg);
+}
+#endif
 
 TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc2) {
   (void) dwc2;
@@ -1248,6 +1394,9 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
   hcd_endpoint_t *edpt           = &_hcd_data.edpt[ep_id];
   uint32_t        gahbcfg;
   bool            channel_active = false;
+#if CFG_TUH_DWC2_ISO_RING
+  const bool iso_ring = iso_ring_stop_begin(dwc2, ep_id);
+#endif
   while (1) {
     gahbcfg = gint_mask(dwc2);
     uint8_t ch_id = TUSB_INDEX_INVALID_8;
@@ -1274,6 +1423,11 @@ static void edpt_close(dwc2_regs_t *dwc2, uint8_t ep_id) {
     edpt_dealloc(edpt); // no active channel, safe to de-alloc now
   }
   gint_restore(dwc2, gahbcfg);
+#if CFG_TUH_DWC2_ISO_RING
+  if (iso_ring) {
+    iso_ring_stop_end(dwc2);
+  }
+#endif
 }
 
 // Find an endpoint that is opened previously with hcd_edpt_open()
@@ -1515,8 +1669,44 @@ static void dfifo_host_init(uint8_t rhport, bool is_hs_phy) {
 //--------------------------------------------------------------------+
 
 // optional hcd configuration, called by tuh_configure()
+#if CFG_TUH_DWC2_ISO_RING
+// Set or remove the isochronous IN ring. A stream into the old one ends first. Its channel may write the old packet
+// buffer until the end of the frame in which it halts.
+static bool iso_ring_configure(uint8_t rhport, const tuh_configure_dwc2_iso_ring_t* cfg) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  const bool remove = cfg->buffer == NULL;
+  TU_VERIFY(remove || (cfg->size >= 2048 && 0 == (cfg->size & (cfg->size - 1)) && cfg->packet_buffer != NULL &&
+                       cfg->packet_size > 0));
+
+  const uint8_t ep_id = _hcd_iso_ring.ep_id;
+  if (ep_id < CFG_TUH_DWC2_ENDPOINT_MAX && iso_ring_stop_begin(dwc2, ep_id)) {
+    const dwc2_channel_char_t hcchar = _hcd_data.edpt[ep_id].hcchar_bm;
+    (void) hcd_edpt_abort_xfer(rhport, hcchar.dev_addr, tu_edpt_addr(hcchar.ep_num, TUSB_DIR_IN));
+    iso_ring_stop_end(dwc2); // also when the abort found no endpoint to stop
+  }
+
+  const uint32_t  gahbcfg = gint_mask(dwc2);
+  hcd_iso_ring_t* r       = &_hcd_iso_ring;
+  r->buf         = remove ? NULL : cfg->buffer;
+  r->mask        = remove ? 0 : cfg->size - 1;
+  r->head        = 0;
+  r->count       = 0;
+  r->lost        = false;
+  r->packet_buf  = remove ? NULL : cfg->packet_buffer;
+  r->packet_size = remove ? 0 : cfg->packet_size;
+  r->app_pending = false;
+  gint_restore(dwc2, gahbcfg);
+  return true;
+}
+#endif
+
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
+#if CFG_TUH_DWC2_ISO_RING
+  if (cfg_id == TUH_CFGID_DWC2_ISO_RING && cfg_param != NULL) {
+    return iso_ring_configure(rhport, (const tuh_configure_dwc2_iso_ring_t*) cfg_param);
+  }
+#endif
   TU_VERIFY(cfg_id == TUH_CFGID_DWC2 && cfg_param != NULL);
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
   _tuh_cfg = cfg->dwc2;
@@ -2104,6 +2294,111 @@ static void periodic_xfer_defer(dwc2_regs_t* dwc2, hcd_endpoint_t* edpt, bool ne
   gint_restore(dwc2, gahbcfg);
 }
 
+#if CFG_TUH_DWC2_ISO_RING
+// Start the endpoint's next packet into the packet buffer, the way hcd_edpt_xfer() starts a periodic transfer
+static void iso_ring_arm(dwc2_regs_t* dwc2, uint8_t ep_id) {
+  hcd_endpoint_t* edpt   = &_hcd_data.edpt[ep_id];
+  const uint32_t  ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 1u : 8u;
+  edpt->buffer       = _hcd_iso_ring.packet_buf;
+  edpt->buflen       = edpt->hcchar_bm.ep_size;
+  edpt->periodic_err = 0;
+  if (edpt->periodic_phase && edpt->uframe_interval > ucount && periodic_xfer_countdown(dwc2, edpt) > 0) {
+    periodic_xfer_defer(dwc2, edpt, true);
+  } else if (!edpt_xfer_kickoff(dwc2, ep_id)) {
+    periodic_xfer_defer(dwc2, edpt, false); // no channel free, try from SOF
+  }
+}
+
+// The ring takes transfers of an isochronous IN endpoint when it is free or that endpoint already streams into it
+static bool iso_ring_accepts(const dwc2_regs_t* dwc2, const hcd_endpoint_t* edpt, uint8_t ep_id) {
+  const hcd_iso_ring_t* r = &_hcd_iso_ring;
+  return r->buf != NULL && dma_host_enabled(dwc2) && edpt->hcchar_bm.ep_type == HCCHAR_EPTYPE_ISOCHRONOUS &&
+         edpt->hcchar_bm.ep_dir == TUSB_DIR_IN && !edpt->hcsplt_bm.split_en &&
+         edpt->hcchar_bm.ep_size <= r->packet_size && !r->stopping &&
+         (r->ep_id == TUSB_INDEX_INVALID_8 || r->ep_id == ep_id);
+}
+
+// Queue the application's transfer, to be filled at the next packet. The first one starts the stream.
+static bool iso_ring_xfer(dwc2_regs_t* dwc2, uint8_t ep_id, uint8_t* buffer, uint16_t buflen) {
+  hcd_iso_ring_t* r = &_hcd_iso_ring;
+  TU_VERIFY(buflen >= 2u + _hcd_data.edpt[ep_id].hcchar_bm.ep_size); // room for the largest record
+  const uint32_t gahbcfg = gint_mask(dwc2);
+  const bool     start   = !iso_ring_owns(ep_id);
+  if (start) {
+    r->ep_id       = ep_id;
+    r->head        = 0;
+    r->count       = 0;
+    r->lost        = false;
+    r->silent      = 0;
+    r->frame_known = false;
+  }
+  r->app_buf     = buffer;
+  r->app_len     = buflen;
+  r->app_pending = true;
+  gint_restore(dwc2, gahbcfg);
+  if (start) {
+    iso_ring_arm(dwc2, ep_id);
+  }
+  return true;
+}
+
+// A packet of the stream completed: store it, fill the queued transfer, and re-arm
+static void iso_ring_packet_done(dwc2_regs_t* dwc2, uint8_t ch_id, bool in_isr) {
+  hcd_iso_ring_t*   r      = &_hcd_iso_ring;
+  const hcd_xfer_t* xfer   = &_hcd_data.xfer[ch_id];
+  const uint8_t     ep_id  = xfer->ep_id;
+  hcd_endpoint_t*   edpt   = &_hcd_data.edpt[ep_id];
+  const uint8_t     result = xfer->result;
+  const uint16_t    len    = tu_min16(xfer->xferred_bytes, r->packet_size);
+  channel_dealloc(dwc2, ch_id);
+  if (r->stopping) {
+    return;
+  }
+
+  // packets of the frames the endpoint was not armed for went by unreceived
+  const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH) ? 1u : 8u;
+  const uint32_t step   = tu_max32(edpt->uframe_interval / ucount, 1u);
+  if (r->frame_known && ((uint32_t) (edpt->periodic_frame - r->last_frame) & HCD_FRAME_NUMBER_MASK) > step) {
+    r->lost = true;
+  }
+  r->last_frame  = edpt->periodic_frame;
+  r->frame_known = true;
+
+  bool stop = false;
+  if (result == XFER_RESULT_SUCCESS) {
+    r->silent = 0;
+    iso_ring_put(r->packet_buf, len);
+  } else {
+    // damaged, or no answer: a device whose interface went back to alternate setting 0 stops answering
+    r->lost = true;
+    r->silent++;
+    stop = result == XFER_RESULT_STALLED || r->silent >= HCD_ISO_RING_SILENT_MAX;
+  }
+
+  if (r->app_pending) {
+    const uint8_t dev_addr = edpt->hcchar_bm.dev_addr;
+    const uint8_t ep_addr  = tu_edpt_addr(edpt->hcchar_bm.ep_num, TUSB_DIR_IN);
+    if (stop) {
+      r->app_pending = false;
+      hcd_event_xfer_complete(dev_addr, ep_addr, 0,
+                              result == XFER_RESULT_STALLED ? XFER_RESULT_STALLED : XFER_RESULT_FAILED, in_isr);
+    } else {
+      const uint16_t actual = iso_ring_take();
+      if (actual > 0) {
+        r->app_pending = false;
+        hcd_event_xfer_complete(dev_addr, ep_addr, actual, XFER_RESULT_SUCCESS, in_isr);
+      }
+    }
+  }
+
+  if (stop) {
+    r->ep_id = TUSB_INDEX_INVALID_8;
+  } else {
+    iso_ring_arm(dwc2, ep_id);
+  }
+}
+#endif
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
@@ -2113,6 +2408,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   TU_VERIFY(edpt->closing == 0 && edpt->aborting == 0); // skip if endpoint is closing or aborting
+#if CFG_TUH_DWC2_ISO_RING
+  if (iso_ring_accepts(dwc2, edpt, ep_id)) {
+    return iso_ring_xfer(dwc2, ep_id, buffer, buflen);
+  }
+#endif
 #if HCD_SPLIT
   if (edpt->hcsplt_bm.split_en && ep_dir == TUSB_DIR_OUT) {
     const uint16_t mps = edpt->hcchar_bm.ep_size;
@@ -2185,6 +2485,10 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir, false);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+#if CFG_TUH_DWC2_ISO_RING
+  // the stream's channel is the one torn down below; the transfer is completed by the caller
+  const bool iso_ring = iso_ring_stop_begin(dwc2, ep_id);
+#endif
 
   const hcd_xfer_t* halting = NULL;
   while (1) {
@@ -2224,6 +2528,11 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     while (halting->aborting && (dwc2->hprt & sof_mask) == HPRT_ENABLE &&
            (((dwc2->hfnum & HCD_FRAME_NUMBER_MASK) - start) & HCD_FRAME_NUMBER_MASK) < ticks) {}
   }
+#if CFG_TUH_DWC2_ISO_RING
+  if (iso_ring) {
+    iso_ring_stop_end(dwc2);
+  }
+#endif
   return true;
 }
 
@@ -3174,6 +3483,11 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~HCINT_ACK;
     } else if (hcint & HCINT_XACT_ERR) {
       xfer->err_count++;
+#if CFG_TUH_DWC2_ISO_RING
+      if (iso_ring_owns(xfer->ep_id)) {
+        xfer->err_count = HCD_XFER_ERROR_MAX; // a retry in the next frame would take the next packet's place
+      }
+#endif
       if (xfer->err_count >=  HCD_XFER_ERROR_MAX) {
         is_done = true;
         xfer->result = XFER_RESULT_FAILED;
@@ -3542,6 +3856,12 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       }
 
       if (is_done) {
+#if CFG_TUH_DWC2_ISO_RING
+        if (iso_ring_owns(xfer->ep_id)) {
+          iso_ring_packet_done(dwc2, ch_id, in_isr);
+          continue;
+        }
+#endif
         channel_xfer_done(dwc2, ch_id, in_isr);
       }
     }

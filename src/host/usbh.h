@@ -77,6 +77,7 @@ enum {
   TUH_CFGID_MAX3421 = 200,
   TUH_CFGID_FSDEV = 300,
   TUH_CFGID_DWC2 = 400,
+  TUH_CFGID_DWC2_ISO_RING = 401, // cfg_param: tuh_configure_dwc2_iso_ring_t, needs CFG_TUH_DWC2_ISO_RING
   TUH_CFGID_WCH_USBFS = 500
 };
 
@@ -97,6 +98,21 @@ typedef struct {
                    // is not unlimited, so a caller setting only use_hs_phy keeps the pacing.
 } tuh_configure_dwc2_t;
 
+// Isochronous IN ring (CFG_TUH_DWC2_ISO_RING, buffer DMA mode). While a ring is set, the first isochronous IN endpoint
+// that gets a transfer streams into it: the interrupt handler stores each packet as a record (a little endian uint16_t
+// length, then the payload; a length of 0xFFFF with no payload marks packets that were lost) and re-arms the endpoint
+// itself, so packets keep arriving while the task that queues transfers is busy. A transfer queued on the endpoint is
+// filled with whole records from the ring at the next packet. The stream stops when its transfer is aborted, its
+// endpoint closes, the device stalls or stops answering, or the ring is replaced. When the ring is full the oldest
+// records are dropped and replaced with a lost marker. Each transfer must have room for a record of the endpoint's
+// maximum packet size.
+typedef struct {
+  uint8_t* buffer;        // ring storage, written by the CPU only; NULL removes the ring
+  uint32_t size;          // power of two, at least 2048
+  uint8_t* packet_buffer; // DMA-capable buffer that receives each packet, padded to whole cache lines if cached
+  uint16_t packet_size;   // at least the maximum packet size of the endpoint that streams
+} tuh_configure_dwc2_iso_ring_t;
+
 typedef struct {
   uint8_t max_nak; // max NAK per control/bulk endpoint per frame to save CPU usage (0=unlimited)
 } tuh_configure_wch_usbfs_t;
@@ -106,6 +122,7 @@ typedef union {
   tuh_configure_max3421_t max3421;
   tuh_configure_fsdev_t fsdev;
   tuh_configure_dwc2_t dwc2;
+  tuh_configure_dwc2_iso_ring_t dwc2_iso_ring;
   tuh_configure_wch_usbfs_t wch_usbfs;
 } tuh_configure_param_t;
 
