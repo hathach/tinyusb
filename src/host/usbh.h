@@ -219,6 +219,17 @@ bool tuh_rhport_is_active(uint8_t rhport);
 // Assert/de-assert Bus Reset signal to roothub port. USB specs: it should last 10-50ms
 bool tuh_rhport_reset_bus(uint8_t rhport, bool active);
 
+// Check that the device attached directly to a roothub port is still the one that was enumerated. Meant for after a
+// system sleep that stopped the host controller (no SOF, interrupts not serviced): a device unplugged and replugged,
+// replaced or power-cycled meanwhile leaves no detach behind, so the stack keeps talking to an address nothing answers.
+// The device is sent GET_DESCRIPTOR(Device); if it does not answer, or another VID/PID does, it is removed and the
+// port enumerated again (tuh_umount_cb() then tuh_mount_cb()). An unchanged device sees one control transfer. A port
+// with a device attached but nothing enumerated (an attach that failed, or was missed) is enumerated again.
+// Devices behind a hub are covered by the hub's own port status. The check runs in the usbh task; this only queues
+// it, so call it from task context (not an ISR) on the core that runs tuh_task(). Returns false if rhport is not an
+// active host port or the queue is full.
+bool tuh_rhport_recheck(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // Device API
 //--------------------------------------------------------------------+

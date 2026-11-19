@@ -251,6 +251,8 @@ static usbh_data_t _usbh_data;
 typedef struct {
   TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
   TUH_EPBUF_DEF(ctrl, CFG_TUH_ENUMERATION_BUFSIZE);
+  TUH_EPBUF_DEF(recheck, sizeof(tusb_desc_device_t)); // tuh_rhport_recheck(): kept apart from ctrl, which an
+                                                      // enumeration starting meanwhile may be using
 } usbh_epbuf_t;
 CFG_TUH_MEM_SECTION static usbh_epbuf_t _usbh_epbuf;
 
@@ -1005,6 +1007,64 @@ bool tuh_task_stop(void) {
   event.event_id        = USBH_EVENT_FUNC_CALL;
   event.func_call.func  = task_stop_call;
   event.func_call.param = NULL;
+  TU_VERIFY(osal_queue_send(_usbh_q, &event, false));
+  tuh_event_hook_cb(event.rhport, event.event_id, false);
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// Root port re-check (after a system sleep)
+//--------------------------------------------------------------------+
+static void recheck_root_complete(tuh_xfer_t *xfer) {
+  const uint8_t rhport = (uint8_t) xfer->user_data;
+  const usbh_device_t *dev = get_device(xfer->daddr);
+  const tusb_desc_device_t *desc = (const tusb_desc_device_t *) _usbh_epbuf.recheck;
+
+  if (dev == NULL || !dev->connected) {
+    return; // detached meanwhile: its removal is already handled
+  }
+  if (xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len == sizeof(tusb_desc_device_t) &&
+      desc->idVendor == dev->desc_device.idVendor && desc->idProduct == dev->desc_device.idProduct) {
+    TU_LOG_USBH("[%u:%u] Re-check: same device\r\n", rhport, xfer->daddr);
+    return;
+  }
+  // No answer at its address (a new or reset device waits at address 0), or another device answered: what was
+  // mounted is gone. An attach event removes it, resets the port and enumerates what is there now.
+  TU_LOG_USBH("[%u:%u] Re-check: device gone or replaced, re-enumerating\r\n", rhport, xfer->daddr);
+  hcd_event_device_attach(rhport, false);
+}
+
+static void recheck_root_call(void *param) {
+  const uint8_t rhport = (uint8_t) (uintptr_t) param;
+  if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
+    return; // an enumeration is talking to the bus already
+  }
+  for (uint8_t daddr = 1; daddr <= TOTAL_DEVICES; daddr++) {
+    const usbh_device_t *dev = get_device(daddr);
+    if (dev->connected && dev->bus_info.rhport == rhport && dev->bus_info.hub_addr == 0) {
+      if (!tuh_descriptor_get_device(daddr, _usbh_epbuf.recheck, sizeof(tusb_desc_device_t), recheck_root_complete,
+                                     rhport)) {
+        hcd_event_device_attach(rhport, false);
+      }
+      return; // one device per root port; a hub reports what changed behind it through its own port status
+    }
+  }
+  // Nothing enumerated, yet something is attached: an attach that failed (its retries used up) or was never seen
+  // while the host slept. Enumerate it again; with the port empty this is a no-op.
+  if (hcd_port_connect_status(rhport)) {
+    TU_LOG_USBH("[%u] Re-check: unenumerated device on the port, enumerating\r\n", rhport);
+    hcd_event_device_attach(rhport, false);
+  }
+}
+
+bool tuh_rhport_recheck(uint8_t rhport) {
+  TU_VERIFY(tuh_rhport_is_active(rhport));
+  // Queued for the usbh task like tuh_task_stop(): the check sends a control transfer and may post an attach
+  hcd_event_t event = { 0 };
+  event.rhport          = rhport;
+  event.event_id        = USBH_EVENT_FUNC_CALL;
+  event.func_call.func  = recheck_root_call;
+  event.func_call.param = (void *) (uintptr_t) rhport;
   TU_VERIFY(osal_queue_send(_usbh_q, &event, false));
   tuh_event_hook_cb(event.rhport, event.event_id, false);
   return true;
