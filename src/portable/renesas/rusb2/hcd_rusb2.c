@@ -15,7 +15,7 @@
 #include "host/usbh.h"
 #include "rusb2_common.h"
 
-#ifdef RUSB2_RA_USBFS_DEVICE_ONLY
+#ifdef RUSB2_USBFS_DEVICE_ONLY
   #error "Host mode not supported for this device"
 #endif
 
@@ -446,7 +446,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     rusb->PHYSET_b.HSEB = 0;
     // same PHY reference-clock + power-up requirements as dcd_init: without CLKSEL matching the
     // board XTAL the PLL never locks and the wait below would spin forever (e.g. EK-RA8M1, 20 MHz)
-    rusb2_utmi_phy_powerup(rusb);
+    TU_ASSERT(rusb2_utmi_phy_powerup(rusb));
     rusb->SYSCFG_b.DRPD = 1;
     rusb->SYSCFG_b.DCFM = 1;
     rusb->SYSCFG_b.DPRPU = 0;
