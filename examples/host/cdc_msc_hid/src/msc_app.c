@@ -29,7 +29,7 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-static scsi_inquiry_resp_t inquiry_resp;
+static CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN scsi_inquiry_resp_t inquiry_resp;
 
 static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
