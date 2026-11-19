@@ -81,6 +81,11 @@ TIER_CASES = {
 }
 
 UNLINK_CASES = (11, 12, 24)   # URB unlink mid-transfer: can strand a hub TT buffer (hil_tt)
+# A sibling port's failing enumeration holds the hub's device lock for its whole retry run
+# (~30 s, ~65 s when the hub driver power-cycles the port); hil_tt refuses while the
+# timed-out helper still waits on it, then resets again.
+TT_SETTLE = 90
+TT_POLL = 2
 
 # Per-case testusb parameters (full speed / high speed). All -s/-v values are multiples
 # of 512 so transfers stay packet-aligned at both speeds: the device streams whole max-size
@@ -129,6 +134,20 @@ def _tt():
 def _uo():
     from helper import usb_observe
     return usb_observe
+
+
+def reset_tt_settled(dev, budget_end=None):
+    """Reset_TT on the device's hub port, retried for up to TT_SETTLE s, never past
+    `budget_end` (monotonic): True once confirmed."""
+    deadline = time.monotonic() + TT_SETTLE
+    if budget_end is not None:
+        deadline = min(deadline, budget_end)
+    while True:
+        if _tt().reset_tt(dev['sysname'], dev['speed'], run=lambda cmd, **kw: _hu().run_cmd(cmd, **kw)):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(TT_POLL)
 
 
 def find_device(serial):
@@ -385,10 +404,9 @@ def main():
                                                     r.pop('_proc'), dev)
                 break
             if (num in UNLINK_CASES or r['status'] != 'PASS') and \
-                    not _tt().reset_tt(dev['sysname'], dev['speed'],
-                                       run=lambda cmd, **kw: _hu().run_cmd(cmd, **kw)):
-                # unconfirmed (hil_tt.reset_tt): the rest may stall on the same port. Not a
-                # wedge of this device -- a sibling port's enumeration can hold the hub.
+                    not reset_tt_settled(dev, t_start + args.budget if args.budget else None):
+                # unconfirmed (hil_tt.reset_tt) even after waiting out a hub-lock stall: the rest
+                # may stall on the same port. Not a wedge of this device.
                 abort_reason = f'Reset_TT after case {num} unconfirmed'
                 if r['status'] == 'PASS':   # the battery must not read as a clean pass
                     r.update(status='FAIL', detail=abort_reason)
