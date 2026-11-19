@@ -231,7 +231,11 @@ class PrCommentWorkflow(unittest.TestCase):
     def test_a_superseded_run_does_not_post(self):
         import yaml
         with open(self.WORKFLOW) as f:
-            steps = yaml.safe_load(f)['jobs']['post-comment']['steps']
+            job = yaml.safe_load(f)['jobs']['post-comment']
+        steps = job['steps']
+        # the check and the post of two runs for one PR never interleave
+        self.assertIn('workflow_run.head_branch', job['concurrency']['group'])
+        self.assertFalse(job['concurrency']['cancel-in-progress'])
         gate = next(s for s in steps if s.get('id') == 'current')
         self.assertIn('code_size_ci.py is-current', gate['run'])
         post = next(s for s in steps if 'comment-action' in s.get('uses', ''))
