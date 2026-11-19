@@ -292,6 +292,49 @@ void test_timeout_is_not_sent_again(void) {
   TEST_ASSERT_EQUAL_UINT8(1, _usbh_data.enum_attempt);
 }
 
+// The enumeration of a root port device at address 1 has reached its SET_CONFIGURATION, which the device STALLs
+static void set_config_stalled(void) {
+  usbh_device_t *dev          = get_device(1);
+  dev->connected              = 1;
+  dev->addressed              = 1;
+  dev->bus_info.rhport        = RHPORT;
+  dev->bus_info.speed         = TUSB_SPEED_FULL;
+  _usbh_data.dev0_bus.rhport  = RHPORT;
+  _usbh_data.enumerating_daddr = 1;
+  port_connected              = true;
+
+  tuh_xfer_t xfer = {
+    .daddr     = 1,
+    .ep_addr   = 0,
+    .result    = XFER_RESULT_STALLED,
+    .user_data = enum_ud(ENUM_CONFIG_DRIVER),
+  };
+  process_enumeration(&xfer);
+}
+
+// A device that STALLs SET_CONFIGURATION is not configured: it is not marked so, and the next attempt starts with a
+// port reset, instead of the class drivers opening against endpoints that do not exist
+void test_set_config_stall_retries_enumeration(void) {
+  set_config_stalled();
+
+  TEST_ASSERT_FALSE(get_device(1)->configured);
+  TEST_ASSERT_FALSE(get_device(1)->connected);
+  TEST_ASSERT_EQUAL_UINT8(1, _usbh_data.enum_attempt);
+  TEST_ASSERT_EQUAL_UINT8(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(ENUM_AFTER_DEBOUNCING_DELAY, _usbh_data.call_after.arg);
+}
+
+// On the last attempt, the STALL ends the enumeration and the root port retry posts a new attach
+void test_set_config_stall_on_last_attempt_retries_root_port(void) {
+  _usbh_data.enum_attempt = CFG_TUH_ENUM_ATTEMPT_MAX - 1;
+  set_config_stalled();
+
+  TEST_ASSERT_FALSE(get_device(1)->configured);
+  TEST_ASSERT_EQUAL_UINT8(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_UINT8(1, _usbh_data.root_retry_count);
+  TEST_ASSERT_FALSE(osal_queue_empty(_usbh_q)); // the attach for the root port retry
+}
+
 // A request the device answers gives the next request its own tries, and SET_ADDRESS waits 10 ms to settle, as Linux
 void test_answer_restores_tries_and_set_address_recovery_is_10ms(void) {
   send_first_request();
