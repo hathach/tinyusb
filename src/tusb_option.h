@@ -368,6 +368,26 @@
   #define CFG_TUD_DWC2_PTI_ENABLE CFG_TUD_DWC2_PTI_ENABLE_DEFAULT
 #endif
 
+// Opt-in mitigation for the Buffer DMA erratum "Device Controller does not drop short SETUP packets":
+// size in bytes of a guard region reserved before the EP0 SETUP DMA buffer, 0 = disabled. Must be a multiple of 8.
+// A DOEPDMA0 rewind into the guard is detected and the device is disconnected and re-initialized. The guard only
+// contains the rewind while the DWC2 interrupt is serviced: guard ~= 12 + 4 * (T_irq / T_setup) bytes, where T_irq is
+// the worst DWC2 interrupt latency plus its handling time and T_setup the host SETUP-to-SETUP spacing (~1us minimum).
+// Rough sizes in bytes from that formula (fitted on STM32U5A5 @ 160MHz), rounded up to a multiple of 8, with
+// T_setup ~12us for a FS host (estimate), 4.83us for an HS EHCI host (RT1064), ~1us for the fastest HS host:
+//   T_irq          FS host    HS EHCI    HS fastest
+//   40 us          ~32        ~48        ~176
+//   100 us         ~48        ~96        ~416
+//   50 ms          ~17 KB     ~41 KB     ~200 KB    e.g. ESP-IDF flash sector erase blocking interrupts
+// A guard cannot cover interrupt blocking in the millisecond range: keep T_irq short instead.
+#ifndef CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE
+  #ifndef CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT
+    #define CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE CFG_TUD_DWC2_DMA_SETUP_GUARD_SIZE_DEFAULT
+#endif
+
 // DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
