@@ -1294,8 +1294,12 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
           // Check if entity is present and get corresponding driver index
           TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &func_id));
 
+          // Invoke callback
+          bool ret = tud_audio_set_req_entity_cb(rhport, p_request, get_ctrl_buffer());
+
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
-          if (tud_audio_n_version(func_id) == 2) {
+          // Commit the new TX rate only once the application accepted it, a stalled request keeps the current one
+          if (ret && tud_audio_n_version(func_id) == 2) {
             uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
             if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
               _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(get_ctrl_buffer());
@@ -1304,8 +1308,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
           }
 #endif
 
-          // Invoke callback
-          return tud_audio_set_req_entity_cb(rhport, p_request, get_ctrl_buffer());
+          return ret;
         } else {
           // Find index of audio driver structure and verify interface really exists
           TU_VERIFY(audiod_verify_itf_exists(itf, &func_id));
@@ -1321,30 +1324,31 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
         // Check if entity is present and get corresponding driver index
         TU_VERIFY(audiod_verify_ep_exists(ep, &func_id));
 
+        // Invoke callback
+        bool ret = tud_audio_set_req_ep_cb(rhport, p_request, get_ctrl_buffer());
+
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
-          if (tud_audio_n_version(func_id) == 1) {
-            if (_audiod_fct[func_id].ep_in == ep) {
-              uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
-              if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
-                _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(get_ctrl_buffer()) & 0x00FFFFFF;
-                audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
-              }
+        // Commit the new TX rate only once the application accepted it, a stalled request keeps the current one
+        if (ret && tud_audio_n_version(func_id) == 1) {
+          if (_audiod_fct[func_id].ep_in == ep) {
+            uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+            if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
+              _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(get_ctrl_buffer()) & 0x00FFFFFF;
+              audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
             }
           }
+        }
 #endif
 
-          // Invoke callback
-          bool ret = tud_audio_set_req_ep_cb(rhport, p_request, get_ctrl_buffer());
-
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-          if (ret && tud_audio_n_version(func_id) == 1) {
-            if (_audiod_fct[func_id].ep_out == ep) {
-              uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
-              if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
-                audiod_fb_params_prepare(func_id, _audiod_fct[func_id].ep_out_alt);
-              }
+        if (ret && tud_audio_n_version(func_id) == 1) {
+          if (_audiod_fct[func_id].ep_out == ep) {
+            uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+            if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
+              audiod_fb_params_prepare(func_id, _audiod_fct[func_id].ep_out_alt);
             }
           }
+        }
 #endif
         return ret;
       } break;

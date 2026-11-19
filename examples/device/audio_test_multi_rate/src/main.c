@@ -172,6 +172,16 @@ void audio_task(void) {
 // Application Callback API Implementations
 //--------------------------------------------------------------------+
 
+// audio_task() writes sampFreq / 1000 samples into test_buffer_audio, which only holds the listed rates
+static bool sample_rate_supported(uint32_t rate) {
+  for (size_t i = 0; i < N_sampleRates; i++) {
+    if (sampleRatesList[i] == rate) {
+      return true;
+    }
+  }
+  return false;
+}
+
 //--------------------------------------------------------------------+
 // UAC1 Helper Functions
 //--------------------------------------------------------------------+
@@ -185,7 +195,9 @@ static bool audio10_set_req_ep(tusb_control_request_t const *p_request, uint8_t 
         // Request uses 3 bytes
         TU_VERIFY(p_request->wLength == 3);
 
-        sampFreq = tu_unaligned_read32(pBuff) & 0x00FFFFFF;
+        const uint32_t rate = tu_unaligned_read32(pBuff) & 0x00FFFFFF;
+        TU_VERIFY(sample_rate_supported(rate));
+        sampFreq = rate;
 
         TU_LOG2("EP set current freq: %" PRIu32 "\r\n", sampFreq);
 
@@ -396,15 +408,18 @@ static bool audio20_set_req_entity(tusb_control_request_t const *p_request, uint
   // Clock Source unit
   if (entityID == UAC2_ENTITY_CLOCK) {
     switch (ctrlSel) {
-      case AUDIO20_CS_CTRL_SAM_FREQ:
+      case AUDIO20_CS_CTRL_SAM_FREQ: {
         TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_4_t));
 
-        sampFreq = (uint32_t) ((audio20_control_cur_4_t *) pBuff)->bCur;
+        const uint32_t rate = (uint32_t) ((audio20_control_cur_4_t *) pBuff)->bCur;
+        TU_VERIFY(sample_rate_supported(rate));
+        sampFreq = rate;
 
         TU_LOG2("Clock set current freq: %" PRIu32 "\r\n", sampFreq);
 
         return true;
         break;
+      }
 
       // Unknown/Unsupported control
       default:
