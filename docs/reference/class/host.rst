@@ -69,7 +69,10 @@ Common configuration options
    * - ``CFG_TUH_ENUM_ATTEMPT_MAX``
      - ``2``
      - Maximum enumeration attempts per attachment after core enumeration
-       transfers fail or time out; ``1`` disables retries.
+       transfers fail or time out; ``1`` disables retries.  Each attempt resets
+       the port.  Within an attempt, a request the device fails is first sent
+       again up to twice, 100 ms apart, without a port reset; a timed-out
+       request is not.
    * - ``CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS``
      - ``2``
      - Delay in milliseconds after a root-port reset before reading the port
