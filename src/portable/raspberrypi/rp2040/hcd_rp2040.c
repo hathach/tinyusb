@@ -30,10 +30,13 @@
   // INCLUDE
   //--------------------------------------------------------------------+
   #include "rp2040_usb.h"
+  #include "pico/time.h"
   #include "osal/osal.h"
 
   #include "host/hcd.h"
   #include "host/usbh.h"
+
+TU_VERIFY_STATIC(CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS >= 160, "rp2 native host requires at least 160 ms after root reset");
 
 //--------------------------------------------------------------------+
 //
@@ -46,6 +49,21 @@ static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 // Between hcd_init() and hcd_deinit(). tuh_deinit() calls hcd_deinit() before it removes the devices, so
 // hcd_device_close() can come after rp2usb_deinit() has freed the lock it would take.
 static bool hcd_running = false;
+
+// The controller resets the bus itself on each attach it detects (100 ms after it, SE0 for 50 ms, then
+// HOST_CONN_DIS), so the first hcd_port_reset() after that attach has nothing left to do
+static volatile bool port_attach_reset = false;
+// From a bus reset in hcd_port_reset() until the device reconnects or is removed: EPX starts nothing (epx_held())
+static volatile bool port_resetting = false;
+// From hcd_port_reset_end() until the controller reports the reset device again: its disconnect and reconnect are
+// the reset's, not a remove and an attach
+static volatile bool port_reconnecting = false;
+static volatile uint32_t port_reconnect_start;
+enum {
+  PORT_RECONNECT_TIMEOUT_US = 300000 // length of the reconnect window after hcd_port_reset_end()
+};
+// Hardware alarm that ends the reconnect window: the SIE sends no SOF (no HOST_SOF) while SIE_STATUS.SPEED is 0
+static int port_reconnect_alarm = -1;
 
   #ifndef HAS_STOP_EPX_ON_NAK
 // Set by the SOF round-robin for the transfer active on EPX at that SOF; any EPX completion or start clears it
@@ -77,6 +95,9 @@ static uint32_t epx_hold_start;
 
 // Whether the hold after an RX timeout still applies
 static bool __tusb_irq_path_func(epx_held)(void) {
+  if (port_resetting) {
+    return true;
+  }
   if (epx_hold && (time_us_32() - epx_hold_start) >= EPX_RX_TIMEOUT_HOLD_US) {
     epx_hold = false;
   }
@@ -659,7 +680,8 @@ static void __tusb_irq_path_func(epx_poll_next_interval)(void) {
 //--------------------------------------------------------------------+
 // Interrupt handlers
 //--------------------------------------------------------------------+
-static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_result_t xfer_result, bool is_more) {
+// End the transfer on ep; returns its transferred length for the completion event
+static uint32_t __tusb_irq_path_func(xfer_retire)(hw_endpoint_t *ep, xfer_result_t xfer_result) {
   if (ep == epx && xfer_result != XFER_RESULT_SUCCESS) {
     // bufctrl_prepare16() toggled next_pid for every buffer it armed; give back the toggles of packets that never
     // completed on the wire, or the next transfer on this endpoint goes out with the wrong DATA PID (IN: DATA_SEQ
@@ -678,6 +700,11 @@ static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_resu
   uint32_t xferred_len = ep->xferred_len;
   rp2usb_reset_transfer(ep);
   ep->data_seq_retries = 0;
+  return xferred_len;
+}
+
+static void __tusb_irq_path_func(xfer_complete_isr)(hw_endpoint_t *ep, xfer_result_t xfer_result, bool is_more) {
+  const uint32_t xferred_len = xfer_retire(ep, xfer_result);
   hcd_event_xfer_complete(ep->dev_addr, ep->ep_addr, xferred_len, xfer_result, true);
 
   // Carry more transfer on epx
@@ -956,17 +983,40 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
   if (status & USB_INTS_HOST_CONN_DIS_BITS) {
     uint8_t speed = dev_speed();
+    const bool reset_reconnect = port_reconnecting && (time_us_32() - port_reconnect_start) < PORT_RECONNECT_TIMEOUT_US;
     if (speed == SIE_CTRL_SPEED_DISCONNECT) {
-      hcd_event_device_remove(RHPORT_NATIVE, true);
+      if (!reset_reconnect) {
+        port_reconnecting = false;
+        port_resetting    = false;
+        hcd_event_device_remove(RHPORT_NATIVE, true);
+      }
+    } else if (reset_reconnect) {
+      port_reconnecting = false;
+      usb_hw->sie_ctrl = SIE_CTRL_BASE | (speed == SIE_CTRL_SPEED_LOW ? USB_SIE_CTRL_KEEP_ALIVE_EN_BITS : USB_SIE_CTRL_SOF_EN_BITS);
+      // EPX stayed held through the reconnect: the sie_ctrl write above would have dropped a transaction started on it
+      port_resetting = false;
+      epx_start_next_pending();
     } else {
+      port_reconnecting = false;
+      port_resetting    = false;
       if (speed == SIE_CTRL_SPEED_LOW) {
         usb_hw->sie_ctrl = SIE_CTRL_BASE | USB_SIE_CTRL_KEEP_ALIVE_EN_BITS;
       } else {
         usb_hw->sie_ctrl = SIE_CTRL_BASE | USB_SIE_CTRL_SOF_EN_BITS;
       }
+      port_attach_reset = true;
       hcd_event_device_attach(RHPORT_NATIVE, true);
     }
     usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
+  }
+
+  // The window ended (port_reconnect_alarm pends this IRQ) without the device back: a device unplugged during it may
+  // raise no HOST_CONN_DIS, and tuh_rhport_reset_bus() never asks hcd_port_connect_status()
+  if (port_reconnecting && (time_us_32() - port_reconnect_start) >= PORT_RECONNECT_TIMEOUT_US &&
+      dev_speed() == SIE_CTRL_SPEED_DISCONNECT) {
+    port_reconnecting = false;
+    port_resetting    = false;
+    hcd_event_device_remove(RHPORT_NATIVE, true);
   }
 
   if (status & USB_INTS_STALL_BITS) {
@@ -1124,6 +1174,11 @@ void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   hcd_rp2040_irq();
 }
 
+static void __tusb_irq_path_func(port_reconnect_alarm_cb)(uint alarm_num) {
+  (void)alarm_num;
+  irq_set_pending(USBCTRL_IRQ);
+}
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -1132,6 +1187,11 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   (void)rh_init;
   pico_trace("hcd_init %d\n", rhport);
   assert(rhport == 0);
+
+  port_reconnect_alarm = hardware_alarm_claim_unused(false);
+  TU_ASSERT(port_reconnect_alarm >= 0);
+  // installs the timer IRQ on this core, the one that takes USBCTRL_IRQ
+  hardware_alarm_set_callback((uint)port_reconnect_alarm, port_reconnect_alarm_cb);
 
   // Reset any previous state
   rp2usb_init();
@@ -1149,6 +1209,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   epx_closing = NULL;
   epx_yielded = NULL;
   hcd_running = true;
+  port_attach_reset = false;
+  port_resetting    = false;
+  port_reconnecting = false;
 
   // Enable in host mode with SOF / Keep alive on
   usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
@@ -1166,14 +1229,22 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
 
 bool hcd_deinit(uint8_t rhport) {
   (void)rhport;
+  if (!hcd_running) {
+    return true; // hcd_init() failed before it started the controller, or already deinited
+  }
+  hardware_alarm_cancel((uint)port_reconnect_alarm);
+  hardware_alarm_set_callback((uint)port_reconnect_alarm, NULL);
   irq_remove_handler(USBCTRL_IRQ, hcd_rp2040_irq);
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+  irq_clear(USBCTRL_IRQ); // drop a pend the alarm left
 
-  // The controller is reset, so no transfer is under way: forget every endpoint while the lock still exists, and
-  // let the hcd_device_close() calls tuh_deinit() makes next return at once
+  // The controller is reset, so no transfer or port reset is under way: forget them while the lock still exists, so
+  // the hcd_device_close() and hcd_port_connect_status() calls tuh_deinit() makes next take no lock
   rp2usb_critical_enter();
-  hcd_running = false;
+  hcd_running       = false;
+  port_resetting    = false;
+  port_reconnecting = false;
   memset(&ep_pool, 0, sizeof(ep_pool));
   epx         = &ep_pool[0];
   epx_closing = NULL;
@@ -1183,26 +1254,118 @@ bool hcd_deinit(uint8_t rhport) {
   // Release allocated resources
   rp2usb_deinit();
 
+  hardware_alarm_unclaim((uint)port_reconnect_alarm);
+  port_reconnect_alarm = -1;
+
   return true;
+}
+
+// SE0 driven through the PHY override, single-ended TX_DP=TX_DM=0 with both output enables on (USBPHY_DIRECT and
+// USBPHY_DIRECT_OVERRIDE: RP2040 datasheet 4.1.4, RP2350 datasheet 12.7.5). SIE_CTRL.RESET_BUS self-clears within ~1 us.
+enum {
+  PHY_SE0_OVERRIDE = USB_USBPHY_DIRECT_OVERRIDE_TX_DIFFMODE_OVERRIDE_EN_BITS | USB_USBPHY_DIRECT_OVERRIDE_TX_DP_OVERRIDE_EN_BITS |
+                     USB_USBPHY_DIRECT_OVERRIDE_TX_DM_OVERRIDE_EN_BITS | USB_USBPHY_DIRECT_OVERRIDE_TX_DP_OE_OVERRIDE_EN_BITS |
+                     USB_USBPHY_DIRECT_OVERRIDE_TX_DM_OE_OVERRIDE_EN_BITS
+};
+
+static void port_bus_reset(bool active) {
+  if (active) {
+    usb_hw_clear->phy_direct =
+      USB_USBPHY_DIRECT_TX_DIFFMODE_BITS | USB_USBPHY_DIRECT_TX_DP_BITS | USB_USBPHY_DIRECT_TX_DM_BITS;
+    usb_hw_set->phy_direct          = USB_USBPHY_DIRECT_TX_DP_OE_BITS | USB_USBPHY_DIRECT_TX_DM_OE_BITS;
+    usb_hw_set->phy_direct_override = PHY_SE0_OVERRIDE;
+  } else {
+    usb_hw_clear->phy_direct_override = PHY_SE0_OVERRIDE;
+    usb_hw_clear->phy_direct          = USB_USBPHY_DIRECT_TX_DP_OE_BITS | USB_USBPHY_DIRECT_TX_DM_OE_BITS;
+  }
+}
+
+// Fail the transfer on EPX and hold EPX: the device it addresses is being reset
+static void port_reset_retire_epx(void) {
+  bool     retired     = false;
+  uint8_t  dev_addr    = 0;
+  uint8_t  ep_addr     = 0;
+  uint32_t xferred_len = 0;
+  rp2usb_critical_enter();
+  port_resetting = true;
+  if (epx_is_aborting(epx)) {
+    epx_abort_finish(); // its queued transfer stays pending: EPX is held
+  } else if (epx->state == EPSTATE_ACTIVE) {
+    sie_stop_xfer();
+    usb_hw_clear->sie_status =
+      USB_SIE_STATUS_RX_TIMEOUT_BITS | USB_SIE_STATUS_TRANS_COMPLETE_BITS | USB_SIE_STATUS_STALL_REC_BITS;
+  #ifdef HAS_STOP_EPX_ON_NAK
+    usb_hw_clear->nak_poll = USB_NAK_POLL_EPX_STOPPED_ON_NAK_BITS;
+  #else
+    epx_switch_request = false;
+  #endif
+    dev_addr    = epx->dev_addr;
+    ep_addr     = epx->ep_addr;
+    xferred_len = xfer_retire(epx, XFER_RESULT_FAILED);
+    retired     = true;
+  }
+  rp2usb_critical_exit();
+  // Reported from task context, outside the critical section: an in_isr post may switch context directly
+  // (FreeRTOS RISC-V portYIELD_FROM_ISR calls vTaskSwitchContext())
+  if (retired) {
+    hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, XFER_RESULT_FAILED, false);
+  }
 }
 
 void hcd_port_reset(uint8_t rhport) {
   (void)rhport;
-  // The controller's line-state machine resets the bus itself on attach, so first enumeration needs nothing here.
-  // Measured on RP2040 and RP2350 via SIE_STATUS.LINE_STATE: 100 ms after attach (or VBUS_DETECT) it drives SE0 for
-  // 50 ms, then sets SPEED and raises HOST_CONN_DIS. SIE_CTRL.RESET_BUS self-clears within ~1 us, no usable reset.
-  // TODO a reset of a device already attached (enumeration retry, tuh_rhport_reset_bus()) is not done: clearing then
-  // setting USB_PWR.VBUS_DETECT re-runs the sequence (pico-feedback #387), but drops the connection for ~150 ms,
-  // longer than usbh waits after hcd_port_reset_end().
+  if (port_attach_reset) {
+    port_attach_reset = false;
+    return;
+  }
+  // a window a previous reset left open must not end this one
+  rp2usb_critical_enter();
+  port_reconnecting = false;
+  hardware_alarm_cancel((uint)port_reconnect_alarm);
+  rp2usb_critical_exit();
+  // the disconnect the SE0 causes must not be reported as a remove
+  usb_hw_clear->inte = USB_INTE_HOST_CONN_DIS_BITS;
+  port_reset_retire_epx();
+  port_bus_reset(true);
 }
 
 void hcd_port_reset_end(uint8_t rhport) {
   (void)rhport;
+  if (!port_resetting) {
+    return;
+  }
+  // The controller sees the device again only after its own attach sequence, ~150 ms on: hence the post-reset delay
+  // of at least 160 ms. Writing SIE_STATUS.SPEED acknowledges the disconnect the SE0 latched (clears HOST_CONN_DIS);
+  // the release is under the lock so that no preemption lets the reconnect latch before that write clears it.
+  rp2usb_critical_enter();
+  port_bus_reset(false);
+  usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
+  port_reconnect_start = time_us_32();
+  port_reconnecting = true;
+  usb_hw_set->inte = USB_INTE_HOST_SOF_BITS;
+  rp2usb_critical_exit();
+  usb_hw_set->inte = USB_INTE_HOST_CONN_DIS_BITS;
+  if (hardware_alarm_set_target((uint)port_reconnect_alarm, make_timeout_time_us(PORT_RECONNECT_TIMEOUT_US))) {
+    irq_set_pending(USBCTRL_IRQ); // target missed: no callback
+  }
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
   (void)rhport;
-  return usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+  const bool reconnecting = port_reconnecting; // before SPEED: a reconnect ends the window only once SPEED is set
+  bool connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+  if (!connected && reconnecting) {
+    // re-read under the lock: a reconnect the IRQ took after the first read must be reported as connected
+    rp2usb_critical_enter();
+    connected = usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS;
+    if (!connected && port_reconnecting) {
+      // usbh takes the reset device as gone: a later connect is a new attach, not the reset's reconnect
+      port_reconnecting = false;
+      port_resetting    = false;
+    }
+    rp2usb_critical_exit();
+  }
+  return connected;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {

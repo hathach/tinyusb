@@ -74,9 +74,10 @@ Common configuration options
        again up to twice, 100 ms apart, without a port reset; a timed-out
        request is not.
    * - ``CFG_TUH_ENUM_RESET_ROOT_POST_DELAY_MS``
-     - ``2``
+     - ``160`` on RP2040/RP2350 native host, else ``2``
      - Delay in milliseconds after a root-port reset before reading the port
        speed/status.  Increase it for devices slow to respond after reset.
+       The RP2040/RP2350 native host requires at least ``160``.
    * - ``CFG_TUH_TASK_EVENTS_PER_RUN``
      - ``16``
      - Maximum events handled by one ``tuh_task_ext()`` call.  ``0`` is

@@ -115,8 +115,9 @@ typedef struct hw_endpoint {
 #endif
 
 #if CFG_TUD_ENABLED
+  bool    future_valid; // the other buffer held the next packet when a short packet ended the transfer
   uint8_t future_bufid; // which buffer holds next data
-  uint8_t future_len;   // next data len
+  uint8_t future_len;   // next data len, 0 for a ZLP
   uint8_t dpram_blocks; // 64-byte blocks allocated at dpram_buf, kept when the endpoint is opened again
   uint16_t rx_last_len; // OUT: share of the transfer in the buffer armed LAST (the buffer itself is armed for a full packet)
 #endif
@@ -152,6 +153,7 @@ typedef struct hw_endpoint {
 
 #if CFG_TUSB_RP2_ERRATA_E15
 extern volatile uint32_t e15_last_sof;
+extern volatile bool     e15_sof_stale;
 #endif
 
 void rp2usb_init(void);

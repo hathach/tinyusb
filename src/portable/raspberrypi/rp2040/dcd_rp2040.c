@@ -256,6 +256,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 
   #if CFG_TUSB_RP2_ERRATA_E15
     e15_last_sof = time_us_32();                  // timing critical: before the SystemView record below
+    e15_sof_stale = false;
   #endif
   }
 
@@ -325,6 +326,9 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     // disable SOF interrupt if it is used for RESUME in remote wakeup
     if (!keep_sof_alive && !_sof_enable) {
       usb_hw_clear->inte = USB_INTS_DEV_SOF_BITS;
+  #if CFG_TUSB_RP2_ERRATA_E15
+      e15_sof_stale = true;
+  #endif
     }
   }
 
@@ -638,7 +642,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // buffer control between the state check, the abort, the drain, the snapshot and the re-issue. PRIMASK rather
     // than the NVIC line, which would leave RTOS preemption on: a higher-priority task holding the CPU across a SOF
     // would leave e15_last_sof stale, so the re-issue's E15 critical-period check could pass inside the real window.
-    // Nothing in the section sends an event: an ACTIVE/PENDING endpoint has future_len == 0 (rp2usb_xfer_start()
+    // Nothing in the section sends an event: an ACTIVE/PENDING endpoint has no future data (rp2usb_xfer_start()
     // consumes it before arming, rp2usb_xfer_continue() sets it only when completing the transfer), so the re-issue
     // never completes inside rp2usb_xfer_start(); a completion drained here is reported after the section.
     const uint32_t irq_state = save_and_disable_interrupts();
