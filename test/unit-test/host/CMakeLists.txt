@@ -68,6 +68,8 @@ foreach (device_hs IN ITEMS 0 1)
   endforeach ()
 endforeach ()
 
+add_host_test(test_stm32_fsdev_setup ${CMAKE_CURRENT_LIST_DIR}/stm32_fsdev/test_setup.c)
+
 # EHCI fixture links encode native pointers in 32 bits. macOS cannot guarantee
 # low static addresses (in particular, Apple Silicon executables require PIE).
 if (APPLE)

@@ -282,7 +282,9 @@ static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_addr  = (uint16_t)btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t  setup_packet[8] TU_ATTR_ALIGNED(4);
 
-  tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count, NULL);
+  // EP0 RX is sized to max packet size after a control OUT completes, so the hardware stores a SETUP data
+  // packet of up to that size: copy at most 8 bytes, any other count is dropped below
+  tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, tu_min16(rx_count, (uint16_t) sizeof(setup_packet)), NULL);
 
   // Clear CTR RX if another setup packet arrived before this, it will be discarded
   ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
