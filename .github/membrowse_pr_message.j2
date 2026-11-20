@@ -1,0 +1,58 @@
+{#- Changes by file across builds, like the code-size comment. The header the
+    comment action adds already links the project dashboard at this commit. -#}
+{% macro span(s) -%}
+{% if s.builds == 0 %}—{% elif s.min == s.max %}{{ s.min_str }}{% else %}{{ s.min_str }} → {{ s.max_str }}{% endif %}
+{%- endmacro %}
+{#- A build's name linked to its comparison page when the platform gave one. -#}
+{% macro build(name) -%}
+{% if urls.get(name) %}[{{ cell(name) }}](<{{ urls[name] }}>){% else %}{{ cell(name) }}{% endif %}
+{%- endmacro %}
+{% macro largest(s) -%}
+{% if s.builds %}{{ build(s.min_build if (s.min | abs) > (s.max | abs) else s.max_build) }}{% endif %}
+{%- endmacro %}
+{#- File and build names come from the PR's own build (DWARF paths, the board roster)
+    and this comment is posted with the base repo's token: a table cell safe from
+    names that would open HTML, a link or code span, end or split the row, or
+    @mention someone (the zero-width space breaks the mention), cut at 160 chars. -#}
+{% macro cell(text) -%}
+{{ (text | string)[:160] | replace('&', '&#38;') | replace('<', '&#60;') | replace('>', '&#62;') | replace('|', '&#124;') | replace('`', '&#96;') | replace('\\', '&#92;') | replace('[', '&#91;') | replace(']', '&#93;') | replace('\r', '') | replace('\n', '') | replace('@', '@​') }}{% if (text | string | length) > 160 %}…{% endif %}
+{%- endmacro %}
+{% set file_rows = file_changes[:20] %}
+{% set changed = targets | selectattr('has_changes') | list %}
+{% set urls = {} %}
+{% for t in targets %}{% set _ = urls.update({t.name: t.comparison_url}) %}{% endfor %}
+{% set alerting = targets | selectattr('has_alerts') | list %}
+{% if alerting %}
+> :warning: **Budget alerts** in {{ alerting | length }} build{{ 's' if alerting | length != 1 else '' }}
+{% for t in alerting[:20] %}
+> - {{ build(t.name) }}: {% for a in t.alerts %}{{ cell(a.budget_name) }} {{ cell(a.region) }} {{ "{:,}".format(a.usage) }} B, over by {{ "{:,}".format(a.exceeded) }} B{% if not loop.last %}; {% endif %}{% endfor %}
+
+{% endfor %}
+{% if alerting | length > 20 %}
+> … and {{ alerting | length - 20 }} more builds.
+{% endif %}
+
+{% endif %}
+{% if file_changes %}
+### Changes by file ({{ targets_with_file_changes }} of {{ targets | length }} builds changed a file)
+
+Min → max change over the builds the file changed in, and the build with the largest change. Sizes follow the region a symbol lives in at run time, so initialized data counts as RAM only; — marks no change in that memory.
+
+| File | Flash Δ | Largest Flash Δ build | RAM Δ | Largest RAM Δ build | Builds changed |
+|------|--------:|-----------------------|------:|---------------------|---------------:|
+{% for row in file_rows -%}
+| {{ cell(row.name) }} | {{ span(row.flash) }} | {{ largest(row.flash) }} | {{ span(row.ram) }} | {{ largest(row.ram) }} | {{ row.builds }} |
+{% endfor %}
+{% if file_changes | length > file_rows | length %}
+… and {{ file_changes | length - file_rows | length }} more files.
+{% endif %}
+{% set ns = namespace(other=0) %}
+{% for row in file_changes %}{% if row.other.builds %}{% set ns.other = ns.other + 1 %}{% endif %}{% endfor %}
+{% if ns.other %}
+{{ ns.other }} of these files also changed in regions that are neither flash nor RAM.
+{% endif %}
+{% elif changed %}
+{{ changed | length }} of {{ targets | length }} targets changed size without a per-file change to show.
+{% else %}
+No memory changes detected across {{ targets | length }} target{{ 's' if targets | length != 1 else '' }}.
+{% endif %}

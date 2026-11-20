@@ -440,7 +440,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                                               'espressif/idf:tinyusb bash -c'))
             self.assertEqual(log[1:4], ['git config --global --add safe.directory /project',
                                         'git config --global --add safe.directory /project/lib/agentrc',
-                                        'pip install --only-binary :all: membrowse==1.2.12'])
+                                        'pip install --only-binary :all: membrowse==1.2.17'])
             self.assertEqual(log[4], 'python [tools/code_size.py] [snapshot] [--symbols] [--build-outcome] [success] '
                                      '[-o] [code-size] [-b] [espressif_s3_devkitm] [$(touch] [pwned)] [;id]')
             self.assertEqual(run('stm32f4', toolchain='arm-gcc'),  # every other toolchain sizes on the runner

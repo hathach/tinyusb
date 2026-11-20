@@ -76,13 +76,15 @@ class LinkInputs(unittest.TestCase):
             open(os.path.join(build, 'build.ninja'), 'w').close()
             elf = os.path.join(build, 'device', 'x', 'x.elf')
             os.makedirs(os.path.dirname(elf))
-            commands = 'cc -Wl,--script=/sdk/memmap.ld -Wl,--defsym=X=1 -o device/x/x.elf\n'
+            commands = 'cc -Wl,--script=/sdk/memmap.ld -Wl,--defsym=X=1 -Wl,-L,/sdk/include -o device/x/x.elf\n'
             with mock.patch.object(prof, 'link_command', return_value=commands) as link:
                 cwd, inputs = prof.link_inputs(elf)
             link.assert_called_once_with('ninja', build, elf)
             self.assertEqual(cwd, build)
             self.assertEqual(inputs[:2], [elf, '/sdk/memmap.ld'])
             self.assertEqual(inputs[inputs.index('--def') + 1], 'X=1')
+            # pico-sdk 2.3's memmap_default.ld INCLUDEs its MEMORY block from a -L directory
+            self.assertEqual(inputs[inputs.index('--ld-include-dir') + 1], '/sdk/include')
 
     @no_esp_on_windows
     def test_an_esp_idf_build_uses_its_generated_scripts(self):
@@ -90,7 +92,7 @@ class LinkInputs(unittest.TestCase):
             open(os.path.join(build, 'build.ninja'), 'w').close()
             ld = os.path.join(build, 'esp-idf', 'esp_system', 'ld')
             os.makedirs(ld)
-            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -o x.elf\n'
+            commands = 'cc -T memory.ld -T sections.ld -T esp32s3.rom.ld -Wl,--defsym=X=1 -L /x -o x.elf\n'
             open(os.path.join(ld, 'memory.ld'), 'w').close()
             elf = os.path.join(build, 'x.elf')
             with mock.patch.object(prof, 'link_command', return_value=commands), \
@@ -99,7 +101,8 @@ class LinkInputs(unittest.TestCase):
             open(os.path.join(ld, 'sections.ld'), 'w').close()
             with mock.patch.object(prof, 'link_command', return_value=commands):
                 self.assertEqual(prof.link_inputs(elf),
-                                 (build, [elf, f'{ld}/memory.ld {ld}/sections.ld', '--def', 'X=1']))
+                                 (build, [elf, f'{ld}/memory.ld {ld}/sections.ld', '--ld-include-dir', '/x',
+                                          '--def', 'X=1']))
 
     def test_no_build_graph_or_linker_script_is_an_error_not_default_regions(self):
         with tempfile.TemporaryDirectory() as build:

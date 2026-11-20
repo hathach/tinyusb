@@ -11,7 +11,8 @@ import shutil
 import subprocess
 
 import build_utils
-from membrowse_cli import IDF_LD_SCRIPTS, extract_defsyms, extract_ld_scripts, link_command, report_inputs
+from membrowse_cli import (IDF_LD_SCRIPTS, extract_defsyms, extract_ld_include_dirs, extract_ld_scripts,
+                           link_command, report_inputs)
 
 engine = None  # the code-size engine; its main() sets it before any hook runs
 
@@ -205,8 +206,8 @@ def elfs(build_dir, example):
 
 
 def link_inputs(elf_path):
-    """(the link's build dir, membrowse's inputs: the elf, the linker scripts and defsyms of its
-    link, its map)."""
+    """(the link's build dir, membrowse's inputs: the elf, the linker scripts, defsyms and
+    search directories (-L, where INCLUDE files are looked up) of its link, its map)."""
     build_dir = engine.find_ninja_build_dir(elf_path)
     if build_dir is None:
         raise RuntimeError(f'no build.ninja found above {elf_path} - cannot '
@@ -224,7 +225,8 @@ def link_inputs(elf_path):
             raise RuntimeError(f'no linker script found in the ninja build graph '
                                f'for {elf_path}')
     # from the link's working dir, as membrowse_cli.report() does
-    return build_dir, report_inputs(elf_path, ld_scripts, extract_defsyms(commands))
+    return build_dir, report_inputs(elf_path, ld_scripts, extract_defsyms(commands),
+                                    extract_ld_include_dirs(commands))
 
 
 def linkermap_path():
