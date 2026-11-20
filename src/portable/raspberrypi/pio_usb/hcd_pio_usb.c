@@ -10,6 +10,7 @@
 #if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && CFG_TUH_RPI_PIO_USB
 
 #include "pico.h"
+#include "hardware/gpio.h"
 
 #include "pio_usb.h"
 
@@ -37,6 +38,40 @@
 
 static pio_usb_configuration_t pio_host_cfg = PIO_USB_DEFAULT_CONFIG;
 
+// Pico-PIO-USB has no deinit: pio_usb_host_init() claims the PIO and starts the SOF timer, and pio_usb_host_stop()/
+// restart() never return (only its removed host stack cleared their flags). So hcd_deinit() parks the root ports and
+// the next hcd_init() detects their devices again. Call it on the core of the first hcd_init(), where frames run.
+static bool pio_inited = false;           // pio_usb_host_init() is done
+static volatile bool hcd_running = false; // between hcd_init() and hcd_deinit()
+
+// Park a root port: no SOF and no transfers. A frame then skips the port, and does not check it for a detach either.
+// Its endpoints are freed and its pending interrupt status is cleared.
+static void root_port_park(uint8_t pio_rhport) {
+  root_port_t *root = PIO_USB_ROOT_PORT(pio_rhport);
+
+  root->suspended = true;
+
+  // End a bus reset that is under way: its hcd_port_reset_end() will not come, and the lines would stay in SE0.
+  // As pio_usb_host_port_reset_end(), without un-suspending the port.
+  gpio_set_oeover(root->pin_dp, GPIO_OVERRIDE_NORMAL);
+  gpio_set_oeover(root->pin_dm, GPIO_OVERRIDE_NORMAL);
+  gpio_set_outover(root->pin_dp, GPIO_OVERRIDE_NORMAL);
+  gpio_set_outover(root->pin_dm, GPIO_OVERRIDE_NORMAL);
+
+  for (uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++) {
+    endpoint_t *ep = PIO_USB_ENDPOINT(ep_idx);
+    if (ep->root_idx == pio_rhport) {
+      ep->size         = 0; // size 0 marks a free endpoint
+      ep->has_transfer = false;
+    }
+  }
+
+  root->ep_complete = 0;
+  root->ep_stalled  = 0;
+  root->ep_error    = 0;
+  root->ints        = 0;
+}
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -51,8 +86,40 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
   (void) rh_init;
 
-  // To run USB SOF interrupt in core1, call this init in core1
-  pio_usb_host_init(&pio_host_cfg);
+  // before the first frame can run: its connect event must reach usbh
+  hcd_running = true;
+
+  if (!pio_inited) {
+    // To run USB SOF interrupt in core1, call this init in core1
+    pio_usb_host_init(&pio_host_cfg);
+    pio_inited = true;
+  } else {
+    // After hcd_deinit(): the PIO and the SOF timer still run. Mark the ports as disconnected, so the next frame
+    // reports the device that is attached now as a new connection. The bus reset of its enumeration ends the suspend
+    // that hcd_deinit() started.
+    for (uint8_t root_idx = 0; root_idx < PIO_USB_ROOT_PORT_CNT; root_idx++) {
+      root_port_t *root = PIO_USB_ROOT_PORT(root_idx);
+      if (root->initialized) {
+        root->connected = false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool hcd_deinit(uint8_t rhport) {
+  (void) rhport;
+
+  // Events from now on are dropped: the host stack is stopping
+  hcd_running = false;
+
+  // All ports: the IRQ handler drops the events of every port. Without SOF, the devices enter USB suspend.
+  for (uint8_t root_idx = 0; root_idx < PIO_USB_ROOT_PORT_CNT; root_idx++) {
+    if (PIO_USB_ROOT_PORT(root_idx)->initialized) {
+      root_port_park(root_idx);
+    }
+  }
 
   return true;
 }
@@ -179,6 +246,15 @@ void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id) {
   uint8_t const tu_rhport = root_id + 1;
   root_port_t *rport = PIO_USB_ROOT_PORT(root_id);
   uint32_t const ints = rport->ints;
+
+  if (!hcd_running) {
+    // after hcd_deinit(): the host stack is stopped, its event queue may be gone
+    rport->ep_complete = 0;
+    rport->ep_stalled  = 0;
+    rport->ep_error    = 0;
+    rport->ints &= ~ints;
+    return;
+  }
 
   if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS ) {
     handle_endpoint_irq(rport, XFER_RESULT_SUCCESS, &rport->ep_complete);
