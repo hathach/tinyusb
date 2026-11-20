@@ -200,20 +200,25 @@ static inline bool cfifo_wait_for_ready(rusb2_reg_t *rusb) {
   return true;
 }
 
-// Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
-// USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
-// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p641 and notes 2-3).
-// Only D0FIFO serves non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM
-// 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; the next
-// bus reset re-inits it.
-static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
-  volatile uint16_t *ctr = get_pipectr(rusb, num);
+// STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30 p641)
+static void pipe_set_nak(volatile uint16_t *ctr) {
   if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) == RUSB2_PIPE_CTR_PID_STALL2) {
     *ctr = RUSB2_PIPE_CTR_PID_STALL;
   }
   if ((*ctr & RUSB2_PIPE_CTR_PID_Msk) != RUSB2_PIPE_CTR_PID_NAK) {
     *ctr = RUSB2_PIPE_CTR_PID_NAK;
   }
+}
+
+// Write `clr` (SQCLR and/or ACLRM, or 0 to only quiesce) to pipe `num` (not 0), leaving PID = NAK;
+// USB IRQ masked by the caller. Both bits need PID = NAK and PBUSY = 0, ACLRM also the pipe in no
+// FIFO port's CURPIPE; STALL 11b reaches NAK through 10b (RA4M1 UM 27.2.30, p640 notes 2-3).
+// Only D0FIFO serves non-control pipes here. PBUSY can stay set after a disconnect (RA6M5 UM
+// 29.3.7.1): on timeout nothing is cleared, the pipe stays NAKing and false is returned; a later
+// open or bus reset retries it; recovery is not guaranteed.
+static bool pipe_reset(rusb2_reg_t *rusb, unsigned num, uint16_t clr) {
+  volatile uint16_t *ctr = get_pipectr(rusb, num);
+  pipe_set_nak(ctr);
   if (rusb->D0FIFOSEL_b.CURPIPE == num) {
     rusb->D0FIFOSEL = 0;
   }
@@ -443,6 +448,8 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
 
   pipe->remaining = rem - len;
   if ((len < mps) || (rem == len)) {
+    // NAK the host until pipe_out_arm(), as pipe0_xfer_out does; SHTNAK covers only bulk (RA6M5 UM 29.3.7.8)
+    *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_NAK;
     pipe->buf = NULL;
     return pipe->queued; // an armed zero-length receive has buf == NULL too
   }
@@ -724,9 +731,9 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
       volatile uint16_t *ctr = get_pipectr(rusb, num);
       const uint16_t     pid = *ctr & RUSB2_PIPE_CTR_PID_Msk;
       if (pid >= RUSB2_PIPE_CTR_PID_STALL || (!pipe->queued && !pipe_is_iso(rusb, num))) {
-        // Nothing armed: the pipe can stay at BUF past the end of a transfer (RA6M5 USBHS takes the
-        // next transfer's first packets into its buffer planes). Park the packet and NAK the host
-        // until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
+        // Nothing armed: a NAK written at transfer end does not stop a packet already in progress
+        // (PBUSY) or one taken by a free plane of a double-buffered pipe. Park the packet and NAK the
+        // host until the next transfer drains it in process_pipe_xfer(); discarding it loses data.
         // Halted: the packet stays parked for dcd_edpt_clear_stall() to drop, even if armed.
         if (pid == RUSB2_PIPE_CTR_PID_BUF) {
           *ctr = RUSB2_PIPE_CTR_PID_NAK;
@@ -751,31 +758,39 @@ static void process_bus_reset(uint8_t rhport)
   rusb->BRDYENB = 1;
   rusb->CFIFOCTR = RUSB2_CFIFOCTR_BCLR_Msk;
 
+  // ACLRM needs PID = NAK, PBUSY = 0 and the pipe out of every port's CURPIPE (RA4M1 UM 27.2.30 p640
+  // notes 2-3; RA6M5 UM 29.3.7.1 p1004-1005), and >= 100 ns between ACLRM = 1 and 0 (RA4M1 p678,
+  // RA6M5 p907/p1009): pipe_reset() does both but checks only D0FIFOSEL, so deselect both ports here.
   rusb->D0FIFOSEL = 0;
-  while (rusb->D0FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
-
   rusb->D1FIFOSEL = 0;
-  while (rusb->D1FIFOSEL_b.CURPIPE) {} /* if CURPIPE bits changes, check written value */
-
-  volatile uint16_t *ctr = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_CTR[0]));
-  volatile uint16_t *tre = (volatile uint16_t*)((uintptr_t) (&rusb->PIPE_TR[0].E));
-
-  for (uint16_t i = 1; i <= 5; ++i) {
-    rusb->PIPESEL = i;
-    rusb->PIPECFG = 0;
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
-    ++ctr;
-    *tre = TU_BIT(8);
-    tre += 2;
+  uint32_t spin = RUSB2_FIFO_READY_SPIN;
+  bool deselected = true;
+  while (rusb->D0FIFOSEL_b.CURPIPE || rusb->D1FIFOSEL_b.CURPIPE) {
+    if (!spin--) {
+      deselected = false;
+      TU_LOG1("RUSB2: bus reset FIFO deselect timed out\r\n");
+      break;
+    }
   }
 
-  for (uint16_t i = 6; i <= 9; ++i) {
-    rusb->PIPESEL = i;
+  for (unsigned num = 1; num < PIPE_COUNT; num++) {
+    if (!deselected) {
+      // The reset NAKed every pipe (RA4M1 UM 27.2.30 p641, RA6M5 UM 28.2.35 p866, 29.2.38 p971), but a
+      // dcd_edpt_xfer() under a masked IRQ may have armed one since: re-NAK without pipe_reset()'s spin
+      pipe_set_nak(get_pipectr(rusb, num));
+      continue;
+    }
+    // TRCLR needs an empty buffer and PID != BUF (RA6M5 UM 29.3.7.5 p1006): after the ACLRM
+    if (!pipe_reset(rusb, num, RUSB2_PIPE_CTR_ACLRM_Msk)) {
+      TU_LOG1("RUSB2: pipe %u bus-reset clear timed out, left NAKing\r\n", num);
+      continue;
+    }
+    rusb->PIPESEL = (uint16_t)num;
     rusb->PIPECFG = 0;
-    *ctr = RUSB2_PIPE_CTR_ACLRM_Msk;
-    *ctr = 0;
-    ++ctr;
+    volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+    if (pt) {
+      pt->TRE = TU_BIT(8);
+    }
   }
   tu_varclr(&_dcd);
 
@@ -993,6 +1008,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     dcd_int_enable(rhport);
     return false;
   }
+  // a pipe last used for OUT keeps TRENB, which a transmitting pipe must not have (RA6M5 UM 29.2.39);
+  // pipe_out_arm() re-enables it per OUT transfer
+  volatile reg_pipetre_t *pt = get_pipetre(rusb, num);
+  if (pt) {
+    pt->TRE = TU_BIT(8);
+  }
   _dcd.pipe[num].ep = ep_addr;
   _dcd.ep[dir][epn] = num;
 
@@ -1016,7 +1037,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   pipe_brdy_clear(rusb, num);
   rusb->BRDYENB |= TU_BIT(num);
 
-  if (dir || (xfer != TUSB_XFER_BULK)) {
+  if (dir) {
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
 
@@ -1124,8 +1145,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
     dcd_int_enable(rhport);
     return false;
   }
+  pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
   rusb->PIPEMAXP          = tu_edpt_packet_size(desc_ep);
-  *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable
+  if (dir) {
+    *get_pipectr(rusb, num) = RUSB2_PIPE_CTR_PID_BUF; // enable; an OUT pipe waits for pipe_out_arm()
+  }
   dcd_int_enable(rhport);
   return true;
 }
@@ -1212,14 +1236,14 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     }
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   } else {
+    pipe_brdy_clear(rusb, num); // a stale BRDY must not advance a transfer armed from here on
     rusb->PIPESEL = (uint16_t)num;
     // Re-arm a receive queued before or during the halt: the class never re-submits it, so it would
-    // NAK forever (usbtest toggle test 29). Idle bulk OUT waits for process_pipe_xfer() to arm its TRE.
+    // NAK forever (usbtest toggle test 29). An idle OUT pipe of any type stays NAK until
+    // process_pipe_xfer() arms it.
     // `queued` (not `buf`) is the armed test: a zero-length OUT read has buf==NULL yet is armed.
     if (_dcd.pipe[num].queued) {
       pipe_out_arm(rusb, num);
-    } else if (rusb->PIPECFG_b.TYPE != 1) {
-      *ctr = RUSB2_PIPE_CTR_PID_BUF;
     }
   }
   dcd_int_enable(rhport);
