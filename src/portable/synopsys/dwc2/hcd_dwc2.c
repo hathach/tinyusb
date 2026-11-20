@@ -851,7 +851,9 @@ static uint16_t channel_send_in_token(dwc2_regs_t* dwc2, dwc2_channel_t* channel
     return DWC2_LS_PARKED; // the park itself may already be replayed by now, so callers go by this
   }
 #endif
-  while (0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
+  // slave mode: the enable writes a request-queue entry. In DMA mode the core's DMA scheduler writes it (Databook
+  // 2.2.3.1), and a NAKed bulk IN can keep the queue full
+  while (!dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, channel_is_periodic(channel->hcchar))) {
     // blocking wait for request queue available
   }
   return channel_enable(dwc2, channel, next_periodic_frame, split_ss);
@@ -3665,9 +3667,11 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
       xfer->uframe_hold = 0;
     }
   #endif
-    // The replay takes a request-queue entry. Waiting here for one would hold off the RxFIFO service that follows
-    // SOF in this interrupt, which a full queue may need to drain: leave the channel parked for the next SOF instead.
-    if (0 == req_queue_avail(dwc2, channel_is_periodic(dwc2->channel[ch_id].hcchar))) {
+    // In slave mode the replay takes a request-queue entry. Waiting here for one would hold off the RxFIFO service that
+    // follows SOF in this interrupt, which a full queue may need to drain: leave the channel parked for the next SOF
+    // instead. In DMA mode the core's DMA scheduler writes the queue itself (Databook 2.2.3.1) and keeps it full while
+    // a bulk IN is NAKed, so waiting for an entry would hold the channel parked for good.
+    if (!dma_host_enabled(dwc2) && 0 == req_queue_avail(dwc2, channel_is_periodic(dwc2->channel[ch_id].hcchar))) {
       more_isr = true;
       continue;
     }
