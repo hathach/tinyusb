@@ -277,7 +277,9 @@ static void process_sony_ds4(uint8_t const* report, uint16_t len)
     if ( diff_report(&prev_report, &ds4_report) )
     {
       printf("(x, y, z, rz) = (%u, %u, %u, %u)\r\n", ds4_report.x, ds4_report.y, ds4_report.z, ds4_report.rz);
-      printf("DPad = %s ", dpad_str[ds4_report.dpad]);
+      // hat is a 4-bit field: 8 is released, and any value outside 0-7 is the HID null state
+      uint8_t const dpad = tu_min8(ds4_report.dpad, (uint8_t) (TU_ARRAY_SIZE(dpad_str) - 1));
+      printf("DPad = %s ", dpad_str[dpad]);
 
       if (ds4_report.square   ) printf("Square ");
       if (ds4_report.cross    ) printf("Cross ");
