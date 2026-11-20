@@ -953,16 +953,19 @@ void test_bulk_complete_split_waits_for_the_next_microframe(void) {
       TEST_ASSERT_TRUE(handle_sof_irq(0, true));
       TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
 
-      // the next microframe sends it, once the request queue has room: SOF never waits for it
+      // the next microframe sends it. Slave: once the request queue has room, SOF never waits for it. DMA: the core's
+      // DMA scheduler writes the queue and keeps it full behind a NAKed bulk IN, so it goes regardless
       test_regs.hfnum = (3500u << 16) | (uframe + 1u);
       dwc2_hnptxsts_t nptx = {.value = test_regs.hnptxsts};
       nptx.req_queue_available = 0;
       test_regs.hnptxsts = nptx.value;
-      TEST_ASSERT_TRUE(handle_sof_irq(0, true));
-      TEST_ASSERT_EQUAL(kind, _hcd_data.xfer[0].park);
-      TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
-      nptx.req_queue_available = 8;
-      test_regs.hnptxsts = nptx.value;
+      if (!dma) {
+        TEST_ASSERT_TRUE(handle_sof_irq(0, true));
+        TEST_ASSERT_EQUAL(kind, _hcd_data.xfer[0].park);
+        TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+        nptx.req_queue_available = 8;
+        test_regs.hnptxsts = nptx.value;
+      }
       (void) handle_sof_irq(0, true);
       TEST_ASSERT_EQUAL(PARK_NONE, _hcd_data.xfer[0].park);
       TEST_ASSERT_BITS_HIGH(HCCHAR_CHENA, test_regs.channel[0].hcchar);
