@@ -248,6 +248,8 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
   if (stage == CONTROL_STAGE_SETUP) {
     switch (request->bRequest) {
       case TUSB_PRINTER_REQUEST_GET_DEVICE_ID: {
+        // device-to-host (Printer 1.1 4.2.1): an OUT data stage would write host data into the application's device ID
+        TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
         const uint8_t *device_id = tud_printer_get_device_id_cb(itf);
         TU_VERIFY(device_id);
         const uint16_t total_len = (uint16_t)((device_id[0] << 8) | device_id[1]);

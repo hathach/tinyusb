@@ -1163,6 +1163,8 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
           if (stage != CONTROL_STAGE_SETUP) {
             return true;
           }
+          // device-to-host: an OUT data stage would write host data into the const ntb_parameters
+          TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN, false);
           // transfer NTB parameters to host.
           tud_control_xfer(rhport, request, (void *) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
         } break;
@@ -1185,6 +1187,8 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
           }
 
           TU_VERIFY(request->wLength >=4, false);
+          // device-to-host: an OUT data stage would write host data into ntb_input_size after this returns
+          TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN, false);
 
           uint8_t resp_len = (request->wLength >= 8 && (ncm_interface.bm_capabilities & NCM_NETWORK_CAPS_NTB_INPUT_SIZE)) ? 8 : 4;
 

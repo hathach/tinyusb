@@ -225,3 +225,16 @@ void test_set_interface_max_alt_count(void) {
   TEST_ASSERT_TRUE(dfu_upload());
   TEST_ASSERT_EQUAL(255, upload_alt);
 }
+
+// GETSTATUS is device-to-host (DFU 1.1 Table 3.1) and its reply is a stack local: an OUT one must stall rather than
+// arm a data stage that writes host data into it after the handler returned
+void test_getstatus_out_stalls(void) {
+  tusb_control_request_t req = {.bmRequestType = 0x21,
+                                .bRequest      = DFU_REQUEST_GETSTATUS,
+                                .wIndex        = ITF_NUM_DFU,
+                                .wLength       = sizeof(dfu_status_response_t)};
+  TEST_ASSERT_FALSE(host_control(&req));
+
+  req.bmRequestType = 0xA1;
+  TEST_ASSERT_TRUE(host_control(&req));
+}

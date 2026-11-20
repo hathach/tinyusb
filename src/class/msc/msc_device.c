@@ -524,6 +524,8 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case MSC_REQ_GET_MAX_LUN: {
       TU_LOG_DRV("  MSC Get Max Lun\r\n");
       TU_VERIFY(request->wValue == 0 && request->wLength == 1);
+      // device-to-host (BOT 3.2): an OUT data stage would write host data into maxlun after this returns
+      TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
 
       uint8_t maxlun = tud_msc_get_maxlun_cb();
       TU_VERIFY(maxlun != 0);

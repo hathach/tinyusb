@@ -308,6 +308,8 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
         break;
 
       case DFU_REQUEST_GETSTATUS:
+        // device-to-host (DFU 1.1 Table 3.1): an OUT data stage would write host data into the reply on the stack
+        TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
         switch (_dfu_ctx.state) {
           case DFU_DNLOAD_SYNC:
             return process_download_get_status(rhport, stage, request);

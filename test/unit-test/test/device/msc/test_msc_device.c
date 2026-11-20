@@ -701,6 +701,31 @@ void test_msc_read10_async_short_completion_padded(void)
 }
 
 //--------------------------------------------------------------------+
+// Get Max LUN (BOT 3.2)
+//--------------------------------------------------------------------+
+// Get Max LUN is device-to-host and its reply is a stack local: an OUT one must stall rather than arm a data stage
+// that writes host data into it after the handler returned
+void test_msc_get_max_lun_out_stalls(void)
+{
+  static msc_cbw_t const cbw_none = { 0 };
+  configure_msc(&cbw_none);
+
+  tusb_control_request_t const request_get_max_lun_out =
+  {
+    .bmRequestType = 0x21,
+    .bRequest      = MSC_REQ_GET_MAX_LUN,
+    .wValue        = 0,
+    .wIndex        = ITF_NUM_MSC,
+    .wLength       = 1
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_get_max_lun_out, false);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  tud_task();
+}
+
+//--------------------------------------------------------------------+
 // Reset Recovery (BOT 5.3.4)
 //--------------------------------------------------------------------+
 static tusb_control_request_t const request_bot_reset =
