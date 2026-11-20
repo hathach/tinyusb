@@ -236,6 +236,7 @@ class PrCommentWorkflow(unittest.TestCase):
         # the check and the post of two runs for one PR never interleave
         self.assertIn('workflow_run.head_branch', job['concurrency']['group'])
         self.assertFalse(job['concurrency']['cancel-in-progress'])
+        self.assertEqual(job['concurrency']['queue'], 'max')  # no pending job replaces another
         gate = next(s for s in steps if s.get('id') == 'current')
         self.assertIn('code_size_ci.py is-current', gate['run'])
         post = next(s for s in steps if 'comment-action' in s.get('uses', ''))

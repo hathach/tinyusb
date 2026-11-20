@@ -25,10 +25,14 @@ jobs:
   post-comment:
     runs-on: ubuntu-latest
     # one check-and-post at a time per PR branch: a newer run waits for the older one, then
-    # its own freshness check runs and its post lands last (never cancel one mid-post)
+    # its own freshness check runs and its post lands last (never cancel one mid-post).
+    # queue: max keeps every pending job in FIFO order: the default single queue would let a
+    # late older Build's job replace the newest one, which then never posts; a superseded
+    # job still stops at is-current.
     concurrency:
       group: membrowse-comment-${{ github.event.workflow_run.head_repository.full_name || 'dispatch' }}-${{ github.event.workflow_run.head_branch || inputs.pr_number }}
       cancel-in-progress: false
+      queue: max
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.event == 'pull_request' &&
