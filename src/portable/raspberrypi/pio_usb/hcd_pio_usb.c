@@ -43,6 +43,7 @@ static pio_usb_configuration_t pio_host_cfg = PIO_USB_DEFAULT_CONFIG;
 // the next hcd_init() detects their devices again. Call it on the core of the first hcd_init(), where frames run.
 static bool pio_inited = false;           // pio_usb_host_init() is done
 static volatile bool hcd_running = false; // between hcd_init() and hcd_deinit()
+static bool port_in_reset[PIO_USB_ROOT_PORT_CNT]; // between hcd_port_reset() and hcd_port_reset_end(): lines in SE0
 
 // Park a root port: no SOF and no transfers. A frame then skips the port, and does not check it for a detach either.
 // Its endpoints are freed and its pending interrupt status is cleared.
@@ -57,6 +58,7 @@ static void root_port_park(uint8_t pio_rhport) {
   gpio_set_oeover(root->pin_dm, GPIO_OVERRIDE_NORMAL);
   gpio_set_outover(root->pin_dp, GPIO_OVERRIDE_NORMAL);
   gpio_set_outover(root->pin_dm, GPIO_OVERRIDE_NORMAL);
+  port_in_reset[pio_rhport] = false;
 
   for (uint8_t ep_idx = 0; ep_idx < PIO_USB_EP_POOL_CNT; ep_idx++) {
     endpoint_t *ep = PIO_USB_ENDPOINT(ep_idx);
@@ -126,12 +128,14 @@ bool hcd_deinit(uint8_t rhport) {
 
 void hcd_port_reset(uint8_t rhport) {
   uint8_t const pio_rhport = RHPORT_PIO(rhport);
+  port_in_reset[pio_rhport] = true;
   pio_usb_host_port_reset_start(pio_rhport);
 }
 
 void hcd_port_reset_end(uint8_t rhport) {
   uint8_t const pio_rhport = RHPORT_PIO(rhport);
   pio_usb_host_port_reset_end(pio_rhport);
+  port_in_reset[pio_rhport] = false;
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
@@ -139,6 +143,14 @@ bool hcd_port_connect_status(uint8_t rhport) {
 
   root_port_t *root = PIO_USB_ROOT_PORT(pio_rhport);
   port_pin_status_t line_state = pio_usb_bus_get_line_state(root);
+
+  // A frame does not check a suspended port for a detach, and looks for a new connection only on a port that is not
+  // connected. So a device that left while the port was suspended, e.g. during usbh's attach debounce (which then
+  // ends without a bus reset), would leave the port 'connected' for good, and no device attached later would be seen.
+  // Mark it disconnected, so the next frame detects a new connection. Not during a bus reset: the host drives SE0.
+  if (line_state == PORT_PIN_SE0 && root->connected && root->suspended && !port_in_reset[pio_rhport]) {
+    root->connected = false;
+  }
 
   return line_state != PORT_PIN_SE0;
 }
