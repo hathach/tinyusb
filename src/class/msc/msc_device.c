@@ -67,6 +67,7 @@ typedef struct {
   bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
 #endif
   uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
+  uint16_t ep_out_mps; // Bulk-Out max packet size: OUT transfers are armed as whole packets
   uint16_t write_len; // host data bytes in the buffer handed to tud_msc_write10_cb(), kept for an async completion
   uint16_t block_size; // LUN block size of the current READ10/WRITE10, set by rdwr10_validate_cmd()
 
@@ -84,6 +85,10 @@ CFG_TUD_MEM_SECTION static struct {
 } _mscd_epbuf;
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE >= 64, "CFG_TUD_MSC_EP_BUFSIZE must be at least 64");
+// READ10 chunks and OUT transfers are whole bulk packets of the buffer: a compliant bulk size divides
+// TUD_EPSIZE_BULK_MAX, mscd_open() still checks the endpoints the configuration opens
+TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE % TUD_EPSIZE_BULK_MAX == 0,
+                 "CFG_TUD_MSC_EP_BUFSIZE must be a multiple of the bulk packet size (512 high speed, 64 full speed)");
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -112,7 +117,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
 TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->stage = MSC_STAGE_CMD;
-  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
+  // whole packets holding a CBW (one packet, or 4 of 8 bytes): a longer transfer fails the CBW check in mscd_xfer_cb()
+  return usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf,
+                        (uint16_t) tu_round_up(sizeof(msc_cbw_t), p_msc->ep_out_mps), false);
+}
+
+// OUT transfer length for up to len bytes: whole Bulk-Out packets, within the buffer (a multiple of the packet size)
+TU_ATTR_ALWAYS_INLINE static inline uint16_t out_xfer_len(mscd_interface_t const* p_msc, uint32_t len) {
+  return (uint16_t) tu_round_up(tu_min32(len, CFG_TUD_MSC_EP_BUFSIZE), p_msc->ep_out_mps);
 }
 
 // default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
@@ -403,14 +415,21 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_ASSERT(max_len >= drv_len, 0); // Max length must be at least 1 interface + 2 endpoints
 
   // A full READ10 chunk must end on a packet boundary of the Bulk-In endpoint this configuration opens: one ending in a
-  // short packet ends the Data Stage (mscd_xfer()). Checked before the endpoints are opened, so a failure leaves nothing
-  // opened, like the checks above
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
-  if (tu_edpt_dir(desc_ep->bEndpointAddress) != TUSB_DIR_IN) {
-    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  // short packet ends the Data Stage (mscd_xfer()). An OUT transfer is armed as whole Bulk-Out packets into the buffer:
+  // a controller (e.g. dwc2) accepts a full packet whatever the transfer has left. Checked before the endpoints are
+  // opened, so a failure leaves nothing opened, like the checks above
+  tusb_desc_endpoint_t const* desc_in  = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  tusb_desc_endpoint_t const* desc_out = (tusb_desc_endpoint_t const*) tu_desc_next(desc_in);
+  if (tu_edpt_dir(desc_in->bEndpointAddress) != TUSB_DIR_IN) {
+    tusb_desc_endpoint_t const* tmp = desc_in;
+    desc_in  = desc_out;
+    desc_out = tmp;
   }
-  uint16_t const ep_in_mps = tu_edpt_packet_size(desc_ep);
+  uint16_t const ep_in_mps  = tu_edpt_packet_size(desc_in);
+  uint16_t const ep_out_mps = tu_edpt_packet_size(desc_out);
   TU_ASSERT(ep_in_mps > 0 && (CFG_TUD_MSC_EP_BUFSIZE % ep_in_mps) == 0, 0);
+  TU_ASSERT(ep_out_mps > 0, 0); // OUT transfers are rounded up to it
+  TU_ASSERT(TUD_VALIDATE_BASIC((CFG_TUD_MSC_EP_BUFSIZE % ep_out_mps) == 0), 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
   p_msc->itf_num = itf_desc->bInterfaceNumber;
@@ -419,6 +438,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
   p_msc->ep_in_mps = ep_in_mps;
+  p_msc->ep_out_mps = ep_out_mps;
 
   // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
   // completion arms it
@@ -607,7 +627,7 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
           } else {
             // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
             // but it is OK to just receive data then responded with failed status
-            TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len, false));
+            TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, out_xfer_len(p_msc, p_msc->total_len), false));
           }
         } else {
           // First process if it is a built-in commands
@@ -695,6 +715,10 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
       } else if (SCSI_CMD_WRITE_10 == p_cbw->command[0]) {
         proc_write10_host_data(p_msc, xferred_bytes);
       } else {
+        if (!is_data_in(p_cbw->dir)) {
+          // the transfer was armed as whole packets: bytes past the host's length are not data
+          xferred_bytes = tu_min32(xferred_bytes, p_msc->total_len - p_msc->xferred_len);
+        }
         p_msc->xferred_len += xferred_bytes;
 
         // OUT transfer, invoke callback if needed
@@ -1035,8 +1059,8 @@ static void proc_write10_cmd(mscd_interface_t* p_msc) {
     return;
   }
 
-  // remaining bytes capped at class buffer
-  uint16_t nbytes = (uint16_t)tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_cbw->total_bytes - p_msc->xferred_len);
+  // remaining bytes capped at class buffer, armed as whole packets
+  uint16_t nbytes = out_xfer_len(p_msc, p_cbw->total_bytes - p_msc->xferred_len);
   // Write10 callback will be called later when usb transfer complete
   TU_ASSERT(usbd_edpt_xfer(p_msc->rhport, p_msc->ep_out, _mscd_epbuf.buf, nbytes, false),);
 }
@@ -1046,6 +1070,9 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
   msc_cbw_t const* p_cbw = &p_msc->cbw;
   uint16_t const block_sz = p_msc->block_size; // validated non-zero by rdwr10_validate_cmd()
   TU_VERIFY(block_sz != 0, );
+
+  // the transfer was armed as whole packets: bytes past the host's length are not data
+  xferred_bytes = tu_min32(xferred_bytes, p_cbw->total_bytes - p_msc->xferred_len);
 
   // Adjust lba & offset with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);

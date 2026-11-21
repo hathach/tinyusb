@@ -67,10 +67,11 @@ enum {
 };
 
 #define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
+#define MSC_EP_MPS       (TUD_OPT_HIGH_SPEED ? 512 : 64) // a CBW is armed as one whole packet
 
 uint8_t const data_desc_configuration[] = {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EDPT_MSC_OUT, EDPT_MSC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EDPT_MSC_OUT, EDPT_MSC_IN, MSC_EP_MPS),
 };
 
 tusb_control_request_t const request_set_configuration = {
@@ -183,7 +184,7 @@ void test_msc_short_reply_stalls_without_padding(void) {
   dcd_event_setup_received(rhport, (uint8_t const*) &request_set_configuration, false);
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) desc_ep, true);
   dcd_edpt_open_ExpectAndReturn(rhport, (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep), true);
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, MSC_EP_MPS, false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
   dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) &cbw, sizeof(msc_cbw_t));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
@@ -229,7 +230,7 @@ static msc_cbw_t const cbw_read10_2blocks = {
 };
 
 static void expect_cbw_receive(void) {
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, sizeof(msc_cbw_t), false, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_MSC_OUT, NULL, MSC_EP_MPS, false, true);
   dcd_edpt_xfer_IgnoreArg_buffer();
 }
 

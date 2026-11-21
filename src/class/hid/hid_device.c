@@ -26,6 +26,7 @@ typedef struct {
   uint8_t ep_out;       // optional Out endpoint
   uint8_t itf_protocol; // Boot mouse or keyboard
 
+  uint16_t out_xfer_len; // OUT arm length: the whole packets that fit CFG_TUD_HID_EP_BUFSIZE
   uint16_t report_desc_len;
   uint8_t protocol_mode; // Boot (0) or Report protocol (1)
   uint8_t idle_rate;     // up to application to handle idle rate
@@ -230,6 +231,25 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
+
+  // The OUT transfer is armed as the whole buffer. A controller that writes a full packet whatever the transfer has left
+  // (TUP_DCD_EDPT_OUT_WHOLE_PACKET, e.g. dwc2 DMA) takes the whole packets that fit it: with a buffer that is not a
+  // multiple of the packet size, a report longer than those arrives in two callbacks
+  uint8_t const *p_ep = p_desc;
+  for (uint8_t i = 0; i < desc_itf->bNumEndpoints; i++) {
+    tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_ep;
+    if (tu_desc_type(p_ep) == TUSB_DESC_ENDPOINT && tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+      TU_ASSERT(TUD_VALIDATE_BASIC(tu_edpt_rx_buf_fits(desc_ep, CFG_TUD_HID_EP_BUFSIZE, false)), 0);
+      p_hid->out_xfer_len = CFG_TUD_HID_EP_BUFSIZE;
+  #if TUP_DCD_EDPT_OUT_WHOLE_PACKET
+      uint16_t const ep_mps = tu_edpt_packet_size(desc_ep);
+      TU_ASSERT(ep_mps > 0, 0); // divides below
+      p_hid->out_xfer_len = (uint16_t) (CFG_TUD_HID_EP_BUFSIZE - (CFG_TUD_HID_EP_BUFSIZE % ep_mps));
+  #endif
+    }
+    p_ep = tu_desc_next(p_ep);
+  }
+
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
 
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
@@ -244,7 +264,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 
   // Prepare for output endpoint
   if (p_hid->ep_out) {
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false), drv_len);
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->out_xfer_len, false), drv_len);
   }
 
   return drv_len;
@@ -396,7 +416,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     // prepare for new transfer
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, CFG_TUD_HID_EP_BUFSIZE, false));
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_epbuf->epout, p_hid->out_xfer_len, false));
   }
 
   return true;

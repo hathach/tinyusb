@@ -192,6 +192,7 @@ int LLVMFuzzerTestOneInput(uint8_t const *data, size_t size) {
   _mscd_itf.ep_out = 0x01;
   _mscd_itf.ep_in = 0x81;
   _mscd_itf.ep_in_mps = 64; // FS bulk size: stands in for what mscd_open() takes from the Bulk-In descriptor
+  _mscd_itf.ep_out_mps = 64; // and from the Bulk-Out descriptor
   prepare_cbw(&_mscd_itf);
 
   msc_cbw_t cbw;

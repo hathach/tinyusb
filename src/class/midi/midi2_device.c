@@ -893,6 +893,11 @@ uint16_t midi2d_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint
         p_midi->ep_stream.tx.mps = tu_edpt_packet_size(desc_ep);
         tu_fifo_clear(&p_midi->ep_stream.tx.ff);
       } else {
+        // one whole packet per transfer: the buffer must hold it (a controller accepts a full packet). A dedicated hw
+        // FIFO has no RAM buffer
+        TU_ASSERT(TUD_VALIDATE_BASIC(p_midi->ep_stream.rx.ep_buf == NULL ||
+                                     tu_edpt_rx_buf_fits(desc_ep, CFG_TUD_MIDI2_RX_EPSIZE, false)),
+                  0);
         tu_edpt_stream_open(&p_midi->ep_stream.rx, rhport, desc_ep, tu_edpt_packet_size(desc_ep));
         tu_edpt_stream_clear(&p_midi->ep_stream.rx);
         TU_ASSERT(tu_edpt_stream_read_xfer(&p_midi->ep_stream.rx) > 0, 0);
