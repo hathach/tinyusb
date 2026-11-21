@@ -542,7 +542,8 @@ static void receive_packet(uint8_t ep_num)
     }
   }
 
-  xfer->queued_len += xfer_size;
+  // count only the kept bytes: a full packet may exceed what the transfer has left
+  xfer->queued_len += to_recv_size;
 
   xfer->short_packet = (xfer_size < xfer->max_size);
   if((xfer->total_len == xfer->queued_len) || xfer->short_packet)
