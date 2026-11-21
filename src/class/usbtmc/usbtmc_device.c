@@ -952,11 +952,13 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
           queued = usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, 0u, false);
         }
         usbtmc_unlock();
+        bool aborting = false;
         switch (state) {
           case STATE_ABORTING_BULK_IN:
           case STATE_ABORTING_BULK_IN_SHORTED:
             // The full or the short packet is still queued, unless the retry above was refused: then the host has
             // nothing to read and only sends CHECK again (USBTMC 1.0 Table 29)
+            aborting = true;
             rsp.USBTMC_status = USBTMC_STATUS_PENDING;
             rsp.bmAbortBulkIn.BulkInFifoBytes = queued ? 1u : 0u;
             break;
@@ -972,6 +974,10 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         }
         // The application may still answer PENDING, not ready for the next command (Table 29)
         TU_VERIFY(tud_usbtmc_check_abort_bulk_in_cb(&rsp));
+        if (aborting) {
+          // never SUCCESS while Bulk-IN aborts: the split would end with bulk-OUT unarmable from these states
+          rsp.USBTMC_status = USBTMC_STATUS_PENDING;
+        }
         if (rsp.USBTMC_status == USBTMC_STATUS_SUCCESS) {
           // bulk-OUT is not armed: tud_usbtmc_start_bus_read() arms it from NAK, unless the callback already did
           (void) change_state(STATE_ABORTING_BULK_IN_ABORTED, STATE_NAK);

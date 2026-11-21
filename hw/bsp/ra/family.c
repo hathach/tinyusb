@@ -136,7 +136,11 @@ void board_init(void) {
   // without a debugger the clock stays stopped, and a later capture starts it itself
   if (R_DEBUG->DBGSTR & R_DEBUG_DBGSTR_CDBGPWRUPREQ_Msk) {
     R_BSP_RegisterProtectDisable(BSP_REG_PROTECT_CGC);
-    R_SYSTEM->TRCKCR |= R_SYSTEM_TRCKCR_TRCKEN_Msk;
+    // the debug tool owns TRCKCR while debugging (HUM 8.2.38): leave a clock it already started untouched
+    uint8_t const trckcr = R_SYSTEM->TRCKCR;
+    if (!(trckcr & R_SYSTEM_TRCKCR_TRCKEN_Msk)) {
+      R_SYSTEM->TRCKCR = (uint8_t) (trckcr | R_SYSTEM_TRCKCR_TRCKEN_Msk);
+    }
     R_BSP_RegisterProtectEnable(BSP_REG_PROTECT_CGC);
   }
 #endif

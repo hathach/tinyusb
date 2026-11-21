@@ -18,6 +18,19 @@
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 
+// OUT transfer as armed by dcd_edpt_xfer(). BYTE_COUNT can exceed the armed length (seen on SAMD51).
+typedef struct {
+  uint8_t* buffer;
+  uint16_t total_len;
+  uint16_t direct_len; // whole packets received straight into buffer, the rest lands in _out_tail
+} xfer_out_t;
+static xfer_out_t _xfer_out[8];
+
+// DS 38.6.2.8: MULTI_PACKET_SIZE must be a multiple of PCKSIZE.SIZE, else the controller writes a whole
+// packet past the armed length. A shorter tail is received here and copied out. Holds a 64-byte bank
+// (any non-ISO full-speed endpoint).
+static TU_ATTR_ALIGNED(4) uint8_t _out_tail[8][64];
+
 // Setup packet is only 8 bytes in length. However under certain scenario,
 // USB DMA controller may decide to overwrite/overflow the buffer  with
 // 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
@@ -237,6 +250,18 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   return true;
 }
 
+static uint16_t out_packet_size(UsbDeviceDescBank const* bank) {
+  uint8_t const code = bank->PCKSIZE.bit.SIZE;
+  return (code == 7) ? 1023 : (uint16_t) (8u << code);
+}
+
+static void out_arm(UsbDeviceEndpoint* ep, UsbDeviceDescBank* bank, uint16_t len) {
+  bank->PCKSIZE.bit.MULTI_PACKET_SIZE = len;
+  bank->PCKSIZE.bit.BYTE_COUNT = 0;
+  ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
+  ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL0;
+}
+
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
@@ -265,10 +290,25 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   if ( dir == TUSB_DIR_OUT )
   {
-    bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
-    bank->PCKSIZE.bit.BYTE_COUNT = 0;
-    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_BK0RDY;
-    ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRFAIL0;
+    xfer_out_t* xfer = &_xfer_out[epnum];
+    uint16_t const packet_size = out_packet_size(bank);
+    uint16_t const tail_len = total_bytes % packet_size;
+
+    xfer->buffer = buffer;
+    xfer->total_len = total_bytes;
+    xfer->direct_len = total_bytes;
+
+    if ( tail_len == 0 || packet_size > sizeof(_out_tail[0]) ) {
+      // an ISO bank above 64 bytes has no landing slot and is still armed directly (#4537)
+      out_arm(ep, bank, total_bytes);
+    } else if ( total_bytes > packet_size ) {
+      xfer->direct_len = total_bytes - tail_len;
+      out_arm(ep, bank, xfer->direct_len);
+    } else {
+      xfer->direct_len = 0;
+      bank->ADDR.reg = (uint32_t) _out_tail[epnum];
+      out_arm(ep, bank, packet_size);
+    }
   } else
   {
     bank->PCKSIZE.bit.MULTI_PACKET_SIZE = 0;
@@ -341,7 +381,23 @@ static void maybe_transfer_complete(void) {
     // Handle OUT completions
     if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
       UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
-      uint16_t const total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+      xfer_out_t const* xfer = &_xfer_out[epnum];
+      uint16_t const byte_count = bank->PCKSIZE.bit.BYTE_COUNT;
+      uint16_t total_transfer_size;
+
+      if ( bank->ADDR.reg == (uint32_t) _out_tail[epnum] ) {
+        uint16_t const tail_len = tu_min16(byte_count, xfer->total_len - xfer->direct_len);
+        memcpy(xfer->buffer + xfer->direct_len, _out_tail[epnum], tail_len);
+        total_transfer_size = xfer->direct_len + tail_len;
+      } else if ( byte_count == xfer->direct_len && xfer->direct_len < xfer->total_len ) {
+        // whole packets done, receive the tail; BK0RDY stays set until out_arm(), so no TRCPT0 is lost
+        ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
+        bank->ADDR.reg = (uint32_t) _out_tail[epnum];
+        out_arm(ep, bank, out_packet_size(bank));
+        continue;
+      } else {
+        total_transfer_size = tu_min16(byte_count, xfer->total_len);
+      }
 
       dcd_event_xfer_complete(0, epnum, total_transfer_size, XFER_RESULT_SUCCESS, true);
 

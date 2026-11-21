@@ -96,7 +96,9 @@ CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 //--------------------------------------------------------------------+
 
 // General driver
+#if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X || CFG_TUH_CDC_PL2303
 static void cdch_process_set_config(tuh_xfer_t *xfer);
+#endif
 static void cdch_process_line_state_on_enum(tuh_xfer_t *xfer); // invoked after set config is processed
 static void cdch_internal_control_complete(tuh_xfer_t *xfer);
 static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer);
@@ -836,6 +838,7 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   return true;
 }
 
+#if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X || CFG_TUH_CDC_PL2303
 static void cdch_process_set_config(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
@@ -846,6 +849,7 @@ static void cdch_process_set_config(tuh_xfer_t *xfer) {
     set_config_complete(p_cdc, false);
   }
 }
+#endif
 
 // return false if there is no active transfer
 static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {

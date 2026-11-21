@@ -475,7 +475,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
 }
 
-static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)
+static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len, bool is_isr)
 {
   (void) rhport;
 
@@ -494,9 +494,9 @@ static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t 
       _dcd.control.out_received = false;
 
       uint8_t received = control_ep_read(buffer, len);
-      // event queued with in_isr=true, which skips the queue's own locking: keep the
-      // USB IRQ masked across it, or a real ISR completion could interleave the write
-      dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
+      // keep the USB IRQ masked across the post: an ISR caller's event skips the queue's own
+      // locking, and a real ISR completion could interleave the write
+      dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, is_isr);
       usb_irq_unlock(lock);
     }else
     {
@@ -515,11 +515,10 @@ static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
-  (void) is_isr;
   // Control transfer is not DMA support, and must be done in slave mode
   if ( tu_edpt_number(ep_addr) == 0 )
   {
-    return control_xact(rhport, tu_edpt_dir(ep_addr), buffer, (uint8_t) total_bytes);
+    return control_xact(rhport, tu_edpt_dir(ep_addr), buffer, (uint8_t) total_bytes, is_isr);
   }
   else
   {
