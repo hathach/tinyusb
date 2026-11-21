@@ -447,7 +447,10 @@ void dcd_int_handler(uint8_t rhport)
       uint32_t const banks_complete = UDP->UDP_CSR[epnum] & (UDP_CSR_RX_DATA_BK0_Msk | UDP_CSR_RX_DATA_BK1_Msk);
       if (banks_complete)
       {
-        uint16_t const xact_len = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+        uint16_t const rx_count = (uint16_t) ((UDP->UDP_CSR[epnum] & UDP_CSR_RXBYTECNT_Msk) >> UDP_CSR_RXBYTECNT_Pos);
+
+        // A full packet may exceed what the transfer has left: keep that much, drain the rest
+        uint16_t const xact_len = tu_min16(rx_count, (uint16_t) (xfer->total_len - xfer->actual_len));
 
         // Read from EP fifo
 #if 0 // TODO support dcd_edpt_xfer_fifo API
@@ -459,10 +462,15 @@ void dcd_int_handler(uint8_t rhport)
         {
           xact_ep_read(epnum, xfer->buffer, xact_len);
         }
+        for (uint16_t i = xact_len; i < rx_count; i++) {
+          (void) UDP->UDP_FDR[epnum];
+        }
 
-        xfer_packet_done(xfer);
+        xfer->buffer += xact_len;
+        xfer->actual_len += xact_len;
 
-        if ( 0 == xfer_packet_len(xfer) )
+        // complete on a short packet or when all bytes are received
+        if ( (rx_count < xfer->epsize) || (0 == xfer_packet_len(xfer)) )
         {
           // Disable OUT EP interrupt when transfer is complete
           if (epnum != 0) UDP->UDP_IDR |= (1 << epnum);

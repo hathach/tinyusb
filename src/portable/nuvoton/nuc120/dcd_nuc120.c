@@ -441,24 +441,27 @@ void dcd_int_handler(uint8_t rhport)
 
         if (out_ep)
         {
+          /* a full packet may exceed what the transfer has left: keep only that much */
+          uint16_t const xact_len = tu_min16(available_bytes, (uint16_t)(xfer->total_bytes - xfer->out_bytes_so_far));
+
           /* copy the data from the PC to the previously provided buffer */
 #if 0 // // TODO support dcd_edpt_xfer_fifo API
           if (xfer->ff)
           {
-            tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), available_bytes);
+            tu_fifo_write_n(xfer->ff, (const void *) (USBD_BUF_BASE + ep->BUFSEG), xact_len);
           }
           else
 #endif
           {
             // USB SRAM seems to only support byte access and memcpy could possibly do it by words
-            usb_memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), available_bytes);
-            xfer->data_ptr += available_bytes;
+            usb_memcpy(xfer->data_ptr, (uint8_t *)(USBD_BUF_BASE + ep->BUFSEG), xact_len);
+            xfer->data_ptr += xact_len;
           }
 
-          xfer->out_bytes_so_far += available_bytes;
+          xfer->out_bytes_so_far += xact_len;
 
           /* when the transfer is finished, alert TinyUSB; otherwise, accept more data */
-          if ( (xfer->total_bytes == xfer->out_bytes_so_far) || (available_bytes < xfer->max_packet_size) )
+          if ( (xfer->out_bytes_so_far >= xfer->total_bytes) || (available_bytes < xfer->max_packet_size) )
             dcd_event_xfer_complete(0, ep_addr, xfer->out_bytes_so_far, XFER_RESULT_SUCCESS, true);
           else
             ep->MXPLD = xfer->max_packet_size;

@@ -36,6 +36,7 @@ typedef struct {
   tu_fifo_t* ff;
   uint16_t total_len;
   uint16_t max_size;
+  uint16_t rx_remaining; // slave OUT: bytes the transfer has left, a longer packet is cut to it
   uint8_t interval;
   uint8_t iso_retry; // ISO retry counter
 } xfer_ctl_t;
@@ -550,6 +551,9 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   deptsiz.xfer_size = total_bytes;
   deptsiz.packet_count = num_packets;
   dep->tsiz = deptsiz.value;
+  if (dir == TUSB_DIR_OUT) {
+    xfer->rx_remaining = total_bytes;
+  }
 
   // control
   dwc2_depctl_t depctl = {.value = dep->ctl};
@@ -886,6 +890,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
+#if CFG_TUD_DWC2_DMA_ENABLE
+  // Buffer DMA writes a full packet whatever the transfer has left: an OUT transfer that is not whole packets is not
+  // guaranteed, a host sending more than armed writes past the buffer (TUP_DCD_EDPT_OUT_WHOLE_PACKET). EP0 is armed a
+  // packet at a time into the usbd control buffer. max_size is read once: a bus reset may clear it meanwhile
+  const uint16_t mps = xfer->max_size;
+  if (epnum != 0 && dir == TUSB_DIR_OUT && mps != 0 && (total_bytes % mps) != 0 &&
+      dma_device_enabled(DWC2_REG(rhport))) {
+    TU_LOG1("  WARN: EP %02X OUT transfer of %u bytes is not whole packets\r\n", ep_addr, total_bytes);
+  }
+#endif
+
   usbd_spin_lock(is_isr);
 
   if (xfer->max_size == 0 || (dir == TUSB_DIR_IN && !dfifo_tx_exists(rhport, epnum))) {
@@ -1183,20 +1198,31 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
       if (byte_count != 0) {
-        // Read packet off RxFIFO
-        if (xfer->ff != NULL) {
-          tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, byte_count, NULL);
-        } else {
-          tu_hwfifo_read(rx_fifo, xfer->buffer, byte_count, NULL);
-          xfer->buffer += byte_count;
+        // Read packet off RxFIFO. The core takes a full packet whatever the transfer has left: keep what fits, drain
+        // the rest
+        const uint16_t xact_len = tu_min16(byte_count, xfer->rx_remaining);
+        if (xact_len > 0) {
+          if (xfer->ff != NULL) {
+            tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, xact_len, NULL);
+          } else {
+            tu_hwfifo_read(rx_fifo, xfer->buffer, xact_len, NULL);
+            xfer->buffer += xact_len;
+          }
+          xfer->rx_remaining -= xact_len;
+        }
+        for (uint16_t count = (uint16_t) tu_round_up(xact_len, sizeof(uint32_t)); count < byte_count;
+             count += sizeof(uint32_t)) {
+          (void) *rx_fifo;
         }
       }
 
-      // short packet (including ZLP when byte_count == 0), minus remaining bytes (xfer_size)
+      // short packet (including ZLP when byte_count == 0) ends the transfer: report what was stored, not
+      // total_len - XFRSIZ, which wraps on a packet longer than the transfer has left. EP0 also never armed its pending
+      // bytes
       if (byte_count < xfer->max_size) {
-        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
-        xfer->total_len -= tsiz.xfer_size;
+        xfer->total_len -= xfer->rx_remaining;
         if (epnum == 0) {
+          xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
           _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
         }
       }
