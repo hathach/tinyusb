@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 """Where the HIL harness and tools load agentrc's shared scripts from (agentrc `hil` skill, Shared mechanisms):
 
-  staged     <root>/.agentrc/ exists (hil_remote.py staged this tree): that copy, checked against its manifest
+  staged     <root>/.agentrc/ exists and is no git checkout (hil_remote.py staged this tree): that copy, checked
+             against its manifest; an agentrc clone kept at <root>/.agentrc is an installed one
   pin        CI (GITHUB_ACTIONS or CI true): test/hil/agentrc.json's {url, commit}, fetched into lib/agentrc by
              `python3 test/hil/helper/agentrc.py fetch`
   installed  otherwise "${AGENTRC_DIR:-$HOME/.claude}", never fetched
@@ -79,9 +80,16 @@ def pin():
     return url, commit
 
 
+def staged():
+    """True when <root>/.agentrc is a stage: a stage is plain files and a manifest, never a git checkout, so an agentrc
+    clone kept at that path (a dev PC's in-tree install, named by AGENTRC_DIR) is not one."""
+    path = TINYUSB_ROOT / STAGED
+    return os.path.lexists(path) and not os.path.lexists(path / '.git')
+
+
 def selected():
     """(source, root, pinned commit or None, remedy): the agentrc this process loads, chosen without running it."""
-    if os.path.lexists(TINYUSB_ROOT / STAGED):
+    if staged():
         return 'staged', TINYUSB_ROOT / STAGED, None, 'stage the run again with hil_remote.py'
     if ci():
         return 'pin', TINYUSB_ROOT / DEP, pin()[1], FETCH

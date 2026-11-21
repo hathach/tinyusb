@@ -580,8 +580,13 @@ class VerdictTest(unittest.TestCase):
                     self.assertEqual(build.stale_options('cmake-build/cmake-build-stm32f723disco-DMA', set()), stale)
 
     def test_shared_uses_the_canonical_hil_dir(self):
-        with mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
-             mock.patch.object(build, 'missing_deps', return_value=[]):
+        # a scratch ROOT: a developer's real cmake-build-stm32f407disco (configured by a code-size run) is not stale here
+        import tempfile
+        with tempfile.TemporaryDirectory() as root, mock.patch.object(build, 'ROOT', Path(root)), \
+             mock.patch.object(build, 'family_of', return_value='stm32f4'), \
+             mock.patch.object(build, 'run', return_value=(0, row('stm32f407disco', 'all', OK))) as run, \
+             mock.patch.object(build, 'missing_deps', return_value=[]), \
+             mock.patch.object(build.tools_build, 'cmake_registered_targets', return_value=None):
             r = build.build_one('stm32f407disco', [], [], [], [], True, False, False)
         self.assertNotIn('--build-name', run.call_args[0][0])
         self.assertEqual(r['buildDir'], 'cmake-build/cmake-build-stm32f407disco')

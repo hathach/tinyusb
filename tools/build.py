@@ -79,7 +79,9 @@ def get_examples(family):
     for d in os.scandir("examples"):
         if d.is_dir() and 'cmake' not in d.name and 'build_system' not in d.name:
             for entry in os.scandir(d.path):
-                if entry.is_dir() and 'cmake' not in entry.name:
+                # an example has a CMakeLists.txt: an untracked IDE or build leftover (IAR Debug/, settings/) has none
+                if (entry.is_dir() and 'cmake' not in entry.name
+                        and os.path.isfile(os.path.join(entry.path, 'CMakeLists.txt'))):
                     # espressif builds only examples with an ESP-IDF component (src/CMakeLists.txt)
                     if family != 'espressif' or os.path.isfile(os.path.join(entry.path, 'src', 'CMakeLists.txt')):
                         all_examples.append(d.name + '/' + entry.name)

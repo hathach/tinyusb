@@ -199,7 +199,8 @@ class Espressif(unittest.TestCase):
         hops, as a base worktree's: src -> checkout -> main checkout."""
         src = os.path.join(tmp, 'src')
         os.makedirs(os.path.join(src, 'hw', 'bsp', 'espressif', 'boards', 'esp'))
-        # an ESP-IDF component, which get_examples('espressif') requires
+        # an example (its CMakeLists.txt) with an ESP-IDF component, which get_examples('espressif') requires
+        _touch(src, 'examples/device/a_freertos/CMakeLists.txt')
         _touch(src, 'examples/device/a_freertos/src/CMakeLists.txt')
         _touch(src, 'examples/device/no_idf/CMakeLists.txt')
         os.makedirs(os.path.join(src, 'tools'))
