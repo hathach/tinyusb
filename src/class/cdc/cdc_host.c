@@ -81,7 +81,7 @@ typedef struct {
 typedef struct {
   TUH_EPBUF_DEF(tx, CFG_TUH_CDC_TX_EPSIZE);
   TUH_EPBUF_DEF(rx, CFG_TUH_CDC_RX_EPSIZE);
-  TUH_EPBUF_DEF(ctrl, 8);
+  TUH_EPBUF_DEF(ctrl, TUH_CTRL_BUFSIZE(8)); // control IN of up to 8 bytes: whole packets, see TUH_CTRL_BUFSIZE
 } cdch_epbuf_t;
 
 // Each bulk transfer is wMaxPacketSize long, which tuh_edpt_open() bounds to TUH_EPSIZE_BULK_MAX

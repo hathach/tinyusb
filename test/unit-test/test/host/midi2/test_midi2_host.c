@@ -91,6 +91,16 @@ static const uint8_t desc_oversized[] = {
              ALT1_EP_DESC(0x82, TUSB_XFER_INTERRUPT, TUH_EPSIZE_BULK_MAX * 2, 1))
 };
 
+// a setting 1 Interrupt IN whose size is not a power of 2 (USB-MIDI 2.0 allows one; the stream does not)
+static const uint8_t desc_int_non_power_of_2[] = {
+  MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0), ALT1_EP_DESC(0x82, TUSB_XFER_INTERRUPT, 48, 1))
+};
+
+// a setting 1 Interrupt OUT whose size is not a power of 2: sent as whole UMPs, no stream
+static const uint8_t desc_int_out_non_power_of_2[] = {
+  MIDI2_DESC(ALT1_EP_DESC(0x02, TUSB_XFER_INTERRUPT, 48, 1), ALT1_EP_DESC(EP_IN, TUSB_XFER_BULK, EP_SIZE, 0))
+};
+
 // a setting 1 bulk IN that is larger than the endpoint buffer once opened
 static const uint8_t desc_oversized_bulk[] = {
   MIDI2_DESC(ALT1_EP_DESC(EP_OUT, TUSB_XFER_BULK, EP_SIZE, 0),
@@ -631,6 +641,32 @@ void test_alt1_oversized_endpoint_stays_on_alt0(void) {
   TEST_ASSERT_NULL(find_opened(0x82, 0)); // refused before it is opened
   TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
   TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+// A setting 1 Interrupt endpoint whose size is not a power of 2 is refused: the device stays on setting 0
+void test_alt1_int_non_power_of_2_stays_on_alt0(void) {
+  enumerate(1, desc_int_non_power_of_2, sizeof(desc_int_non_power_of_2));
+
+  TEST_ASSERT_EQUAL(0, interface_set_count);
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(0, last_mount.alt_setting_active);
+  TEST_ASSERT_EQUAL(0, last_mount.protocol_version);
+  TEST_ASSERT_NULL(find_opened(0x82, 0)); // refused before it is opened
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, last_xfer_ep);
+  TEST_ASSERT_EQUAL(EP_SIZE, last_xfer_len);
+}
+
+// A setting 1 Interrupt OUT whose size is not a power of 2 is used: the OUT path sends whole UMPs of any size
+void test_alt1_int_out_non_power_of_2_is_used(void) {
+  enumerate(1, desc_int_out_non_power_of_2, sizeof(desc_int_out_non_power_of_2));
+
+  TEST_ASSERT_EQUAL(1, mount_count);
+  TEST_ASSERT_EQUAL(1, last_mount.alt_setting_active);
+  const opened_ep_t *ep_out = find_opened(0x02, 0);
+  TEST_ASSERT_NOT_NULL(ep_out);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, ep_out->type);
+  TEST_ASSERT_EQUAL(48, ep_out->mps);
+  assert_ump_write_goes_to(1, 0x02);
 }
 
 // A setting 1 bulk endpoint found too large once opened is closed again: the device stays on setting 0
