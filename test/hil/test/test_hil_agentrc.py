@@ -150,6 +150,11 @@ class Bootstrap(unittest.TestCase):
                 self.assertEqual((ident['source'], ident['root'], ident['commit'], ident['sha256']),
                                  ('staged', str(self.root / '.agentrc'), REAL['commit'], REAL['sha256']))
 
+    def test_an_agentrc_checkout_at_the_stage_path_is_an_install_not_a_stage(self):
+        inside = self.checkout('tinyusb/.agentrc')
+        ident = self.check(agentrc_dir=inside)
+        self.assertEqual((ident['source'], ident['root']), ('installed', str(inside)))
+
     def test_a_staged_tree_unlike_its_manifest_never_falls_back(self):
         self.stage()
         staged = self.root / '.agentrc'
