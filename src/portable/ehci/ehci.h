@@ -141,10 +141,12 @@ typedef struct TU_ATTR_ALIGNED(32) {
   uint8_t pid;
   uint8_t interval_ms;// polling interval in frames (or millisecond)
 
-  uint8_t TU_RESERVED[4];
+  // A transfer larger than one qTD runs as consecutive chunks on the attached qTD.
+  uint16_t remaining; // bytes not yet scheduled in a chunk
+  uint16_t xferred;   // bytes completed by retired chunks
 
   // Attached TD management, note usbh will only queue 1 TD per QHD.
-  // buffer for dcache invalidate since td's buffer is modified by HC and finding initial buffer address is not trivial
+  // start of the current chunk; the transfer starts xferred bytes before it
   uint32_t attached_buffer;
   ehci_qtd_t *volatile attached_qtd;
 } ehci_qhd_t;

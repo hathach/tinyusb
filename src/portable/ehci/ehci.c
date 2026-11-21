@@ -68,6 +68,21 @@
 
 #define FRAMELIST_SIZE                  (1024 >> FRAMELIST_SIZE_BIT_VALUE)
 
+// Longest interval with its own periodic head (1, 2, 4 and 8 ms); longer ones are polled at it
+#define PERIOD_HEAD_MAX_MS              8u
+
+// Raw view of a qTD and the QH overlay (EHCI Figure 3-6, Table 3-16, Table 3-22)
+#define EHCI_QTD_WORD_NEXT          0u
+#define EHCI_QTD_WORD_ALTERNATE     1u
+#define EHCI_QTD_WORD_TOKEN         2u
+#define EHCI_QTD_WORD_PAGE1         4u
+#define EHCI_QTD_WORD_PAGE2         5u
+#define EHCI_QTD_TOKEN_PING         TU_BIT(0)
+#define EHCI_QTD_TOKEN_PID          (3u << 8)
+#define EHCI_QTD_TOKEN_TOGGLE       TU_BIT(31)
+#define EHCI_QH_PAGE1_C_PROG_MASK   0xffu
+#define EHCI_QH_PAGE2_FRAME_TAG     0x1fu
+
 // Total queue head pool. TODO should be user configurable and more optimize memory usage in the future
 #define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #define QTD_MAX      QHD_MAX
@@ -287,6 +302,7 @@ static ehci_edpt_t edpt_find(uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
 static void qhd_remove_qtd(ehci_qhd_t *qhd);
+static bool qtd_chunk_continues(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd);
 TU_ATTR_ALWAYS_INLINE static inline bool qhd_is_periodic(ehci_qhd_t const *qhd) {
   return qhd->int_smask != 0;
 }
@@ -297,6 +313,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t qhd_ep_addr(ehci_qhd_t const *qhd) {
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr);
 static ehci_qtd_t* qtd_find_free (void);
 static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes);
+static void qtd_init_chunk(ehci_qhd_t* qhd, ehci_qtd_t* qtd, uint8_t const* buffer);
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
@@ -524,11 +541,10 @@ static void init_periodic_list(uint8_t rhport) {
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
-  // TODO EHCI_FRAMELIST_SIZE with other size than 8
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
-  // 1, 5 --> period_head_arr[2] (4ms)
-  // 3 --> period_head_arr[3] (8ms)
+  // 1, 5, 9 etc --> period_head_arr[2] (4ms)
+  // 3, 11, 19 etc --> period_head_arr[3] (8ms)
 
   ehci_link_t * const framelist  = ehci_data.period_framelist;
   ehci_link_t * const head_1ms = (ehci_link_t *) &ehci_data.period_head_arr[0];
@@ -549,7 +565,9 @@ static void init_periodic_list(uint8_t rhport) {
     list_insert(framelist + i, head_4ms, EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist + 3, head_8ms, EHCI_QTYPE_QHD);
+  for (uint32_t i = 3; i < FRAMELIST_SIZE; i += PERIOD_HEAD_MAX_MS) {
+    list_insert(framelist + i, head_8ms, EHCI_QTYPE_QHD);
+  }
 
   head_1ms->terminate = 1;
 }
@@ -726,6 +744,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
+  qhd->remaining = 0;
+  qhd->xferred = 0;
   qtd_init(td, setup_packet, 8);
   td->pid = EHCI_PID_SETUP;
 
@@ -767,20 +787,20 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     }
 
     qtd = qtd_control(dev_addr);
-    qtd_init(qtd, buffer, buflen);
-
-    // first data toggle is always 1 (data & setup stage)
-    qtd->data_toggle = 1;
-    qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
   } else {
     // skip if endpoint is halted
     TU_VERIFY(!qhd->qtd_overlay.halted);
 
     qtd = qtd_find_free();
     TU_ASSERT(qtd);
+  }
 
-    qtd_init(qtd, buffer, buflen);
-    qtd->pid = qhd->pid;
+  qhd->remaining = buflen;
+  qhd->xferred = 0;
+  qtd_init_chunk(qhd, qtd, buffer);
+  qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+  if (epnum == 0) {
+    qtd->data_toggle = 1; // first data toggle is always 1 (data & setup stage)
   }
 
   // IN transfer: invalidate buffer, OUT transfer: clean buffer
@@ -796,6 +816,57 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
+// The transfer still runs: its qTD is active, or retired a full chunk that the
+// completion ISR has not re-armed yet. A terminal result is the ISR's to report.
+static bool qtd_cancelable(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd) {
+  return qtd->active || qtd_chunk_continues(qhd, qtd);
+}
+
+// Leave the overlay idle so the restarted schedule cannot resume the cancelled
+// qTD (EHCI 3.5.3, 3.6.3). Keep the data toggle, the PID and, at HS, the PING
+// state; at FS/LS bit 0 is P_ERR and the split state restarts.
+static void qhd_overlay_retire(ehci_qhd_t* qhd) {
+  volatile uint32_t* const overlay = (volatile uint32_t*) &qhd->qtd_overlay;
+  bool const hs = (qhd->ep_speed == TUSB_SPEED_HIGH);
+  uint32_t keep = EHCI_QTD_TOKEN_TOGGLE | EHCI_QTD_TOKEN_PID;
+  if (hs) {
+    keep |= EHCI_QTD_TOKEN_PING;
+  }
+  overlay[EHCI_QTD_WORD_TOKEN] &= keep;
+  overlay[EHCI_QTD_WORD_NEXT] = 1;      // terminate
+  overlay[EHCI_QTD_WORD_ALTERNATE] = 1; // terminate, NakCnt 0
+  if (!hs) {
+    overlay[EHCI_QTD_WORD_PAGE1] &= ~EHCI_QH_PAGE1_C_PROG_MASK;
+    overlay[EHCI_QTD_WORD_PAGE2] &= ~EHCI_QH_PAGE2_FRAME_TAG;
+  }
+}
+
+// Caller holds usbh_spin_lock, so the completion ISR cannot re-arm the qTD meanwhile.
+static bool qhd_cancel_xfer(ehci_qhd_t* qhd) {
+  ehci_qtd_t* const qtd = qhd->attached_qtd;
+  TU_VERIFY(qtd != NULL && qtd_cancelable(qhd, qtd));
+
+  ehci_registers_t* regs = ehci_data.regs;
+  bool const is_period = qhd_is_periodic(qhd);
+  if (!ehci_disable_schedule(regs, is_period)) {
+    // Controller may still own the TD: leave it, but keep the schedule running (strict EHCI 4.6 recovery: #4532)
+    ehci_enable_schedule(regs, is_period);
+    return false;
+  }
+
+  // check again just in case HC has just retired the TD
+  bool const cancel = qtd_cancelable(qhd, qtd);
+  if (cancel) {
+    qhd_overlay_retire(qhd);
+    TU_MEMORY_BARRIER();
+    qhd_remove_qtd(qhd);
+  }
+
+  TU_MEMORY_BARRIER();
+  ehci_enable_schedule(regs, is_period);
+  return cancel;
+}
+
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
@@ -808,34 +879,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 #endif
   ehci_qhd_t* qhd = ep.qhd;
   TU_VERIFY(qhd != NULL);
-  ehci_qtd_t * volatile qtd = qhd->attached_qtd;
-  TU_VERIFY(qtd != NULL); // no queued transfer
 
-  TU_VERIFY(qtd->active); // transfer is already complete
-
-  // HC is still processing, disable HC list schedule before making changes
-  bool const is_period = (qhd->interval_ms > 0);
-
-  if (!ehci_disable_schedule(ehci_data.regs, is_period)) {
-    // The controller may still own the TD: leave the transfer in place.
-    ehci_enable_schedule(ehci_data.regs, is_period);
-    return false;
-  }
-
-  // check active bit again just in case HC has just processed the TD
-  bool const still_active = qtd->active;
-  if (still_active) {
-    // remove TD from QH overlay
-    qhd->qtd_overlay.next.terminate = 1;
-
-    // remove TD from QH software list
-    qhd_remove_qtd(qhd);
-  }
-
-  TU_MEMORY_BARRIER();
-  ehci_enable_schedule(ehci_data.regs, is_period);
-
-  return still_active; // true if removed an active transfer
+  // Locked after edpt_find(), whose unlock would otherwise unmask the HCD interrupt.
+  usbh_spin_lock(false);
+  bool const cancelled = qhd_cancel_xfer(qhd);
+  usbh_spin_unlock(false);
+  return cancelled; // true if removed an unfinished transfer
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
@@ -1347,6 +1396,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
       return;
     }
     TU_MEMORY_BARRIER();
+    bool const next_chunk = !qhd->removing && qtd_chunk_continues(qhd, qtd);
     xfer_result_t xfer_result;
 
     if ( qtd_overlay->halted ) {
@@ -1366,11 +1416,26 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
     }
 
     uint8_t const dir = (qtd->pid == EHCI_PID_IN) ? 1 : 0;
-    uint32_t const xferred_bytes = qtd->expected_bytes - qtd->total_bytes;
+    uint32_t const origin = qhd->attached_buffer - qhd->xferred;
+    qhd->xferred = (uint16_t) (qhd->xferred + qtd->expected_bytes - qtd->total_bytes);
+    uint16_t const xferred_bytes = qhd->xferred;
+
+    if (next_chunk) {
+      // Re-arm the retired qTD with the next chunk; USBH sees only the final completion.
+      uint8_t const pid = qtd->pid;
+      uint8_t const toggle = qtd_overlay->data_toggle;
+      qtd_init_chunk(qhd, qtd, (uint8_t const*) (uintptr_t) (origin + xferred_bytes));
+      qtd->pid = pid;
+      if (qhd->data_toggle_control) {
+        qtd->data_toggle = toggle;
+      }
+      qhd_attach_qtd(qhd, qtd);
+      return;
+    }
 
     // invalidate dcache if IN transfer with data
-    if (dir == 1 && qhd->attached_buffer != 0 && xferred_bytes > 0) {
-      hcd_dcache_invalidate((void*) qhd->attached_buffer, xferred_bytes);
+    if (dir == 1 && origin != 0 && xferred_bytes > 0) {
+      hcd_dcache_invalidate((void*) (uintptr_t) origin, xferred_bytes);
     }
 
     // remove and free TD before invoking callback
@@ -1473,7 +1538,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (usb_int) {
     proccess_async_xfer_isr(list_get_async_head(rhport));
 
-    for ( uint32_t i = 1; i <= FRAMELIST_SIZE; i *= 2 ) {
+    for ( uint32_t i = 1; i <= PERIOD_HEAD_MAX_MS; i *= 2 ) {
       process_period_xfer_isr(rhport, i);
     }
 
@@ -1494,7 +1559,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 // Get head of periodic list
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms) {
   (void) rhport;
-  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(FRAMELIST_SIZE, interval_ms) ) ];
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min32(PERIOD_HEAD_MAX_MS, interval_ms) ) ];
 }
 
 // Get head of async list
@@ -1713,8 +1778,15 @@ static void qhd_remove_qtd(ehci_qhd_t *qhd) {
 
   qhd->attached_qtd = NULL;
   qhd->attached_buffer = 0;
+  qhd->remaining = 0;
+  qhd->xferred = 0;
 
   qtd->used = 0; // free QTD
+}
+
+// The attached qTD retired a full chunk without error and more chunks remain
+static bool qtd_chunk_continues(ehci_qhd_t const* qhd, ehci_qtd_t const* qtd) {
+  return !qtd->active && !qhd->qtd_overlay.halted && qtd->total_bytes == 0 && qhd->remaining > 0;
 }
 
 //--------------------------------------------------------------------+
@@ -1756,6 +1828,20 @@ static void qtd_init(ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes) 
   for(uint8_t i=1; i<5; i++) {
     qtd->buffer[i] |= tu_align4k(qtd->buffer[i - 1] ) + 4096;
   }
+}
+
+// Init the qTD with the next chunk of the QH's transfer starting at buffer. A qTD
+// reaches at most five 4 KiB pages (EHCI 3.5); a chunk that is not the last ends
+// on a whole packet, so no short packet falls mid-transfer.
+static void qtd_init_chunk(ehci_qhd_t* qhd, ehci_qtd_t* qtd, uint8_t const* buffer) {
+  uint32_t const capacity = 5 * 4096u - ((uint32_t) (uintptr_t) buffer & 0xfffu);
+  uint16_t len = qhd->remaining;
+  if (len > capacity) {
+    uint16_t const mps = qhd->max_packet_size;
+    len = (uint16_t) (capacity - (mps ? capacity % mps : 0));
+  }
+  qhd->remaining = (uint16_t) (qhd->remaining - len);
+  qtd_init(qtd, buffer, len);
 }
 
 #endif
