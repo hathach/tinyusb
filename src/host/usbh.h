@@ -268,6 +268,17 @@ bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info);
    TU_VERIFY(_async_api(__VA_ARGS__, NULL, (uintptr_t) &result), XFER_RESULT_TIMEOUT); \
    return result
 
+// IN transfers: with TUP_HCD_EDPT_IN_WHOLE_PACKET (e.g. dwc2 DMA, samd) the controller writes a full packet whatever
+// the transfer has left, so a device answering more than asked writes past a buffer that is not whole packets:
+// - tuh_edpt_xfer(): buflen that is not whole packets of the endpoint is not guaranteed (the driver logs a warning)
+// - control IN (tuh_control_xfer(), tuh_descriptor_get*()): the buffer must hold TUH_CTRL_BUFSIZE(wLength) bytes,
+//   wLength rounded up to 64 (the largest EP0 size), e.g. a 256-byte buffer for any read up to 256 bytes
+#if TUP_HCD_EDPT_IN_WHOLE_PACKET
+  #define TUH_CTRL_BUFSIZE(_len) TU_ROUND_UP(_len, 64)
+#else
+  #define TUH_CTRL_BUFSIZE(_len) (_len)
+#endif
+
 // Submit a control transfer
 //  - async: complete callback invoked when finished.
 //  - sync : blocking if complete callback is NULL.

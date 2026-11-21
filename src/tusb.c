@@ -277,7 +277,9 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   }
 
   // Some devices report a non-compliant size (e.g. USB-MIDI bulk 4, one event packet): accept it with a warning as
-  // Linux does, keeping the reported size so the host never sends the device a packet larger than it can take
+  // Linux does, keeping the reported size so the host never sends the device a packet larger than it can take.
+  // Transfers on such an endpoint are not guaranteed: a bulk size that is not a power of 2 breaks the whole-packet
+  // counting of streams and receive buffers
   if (!compliant) {
     TU_LOG1("  WARN: EP %02X max packet size %u is non-compliant\r\n", desc_ep->bEndpointAddress, max_packet_size);
   }
@@ -410,10 +412,9 @@ TU_ATTR_ALWAYS_INLINE static inline void stream_tx_unlock(tu_edpt_stream_t *s) {
 #endif
 
 static bool stream_write_zlp_locked(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  // ZLP condition: no pending data, last transferred bytes is multiple of packet size. An Interrupt endpoint's size
-  // need not be a power of 2.
+  // ZLP condition: no pending data, last transferred bytes is multiple of packet size (a power of 2)
   TU_VERIFY(s->mps > 0 && tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
-            (0 == (last_xferred_bytes % s->mps)));
+            (0 == (last_xferred_bytes & (s->mps - 1u))));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
   return true;
@@ -507,10 +508,12 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
   if (available >= s->mps) {
-    // multiple of packet size limit by ep bufsize. An Interrupt endpoint's size need not be a power of 2, so round
-    // down by division rather than by masking.
-    uint16_t count = (uint16_t) (available - (available % s->mps));
-    count = tu_min16(count, s->xfer_len);
+    // multiple of packet size limit by ep bufsize, itself in whole packets (at least one): a controller accepts a full
+    // packet whatever the transfer has left, so a transfer that is not whole packets cuts the last one short. The
+    // packet size is a power of 2 (tu_edpt_stream_open)
+    const uint16_t xfer_max = tu_max16(s->mps, (uint16_t) (s->xfer_len & ~(s->mps - 1u)));
+    uint16_t count = (uint16_t) (available & ~(s->mps - 1u));
+    count = tu_min16(count, xfer_max);
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
   } else {
