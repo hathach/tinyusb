@@ -104,11 +104,18 @@ void usb_mode_switch(void);
 static void print_one_device(uint8_t daddr);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
 
-// Declare buffer for USB transfer
+// Device descriptor and serial string, copied out of the transfer buffer
+static tusb_desc_device_t desc_device;
+static uint16_t desc_serial[64];
+
+// Declare buffer for USB transfer: a control IN buffer holds whole 64-byte packets (TUH_CTRL_BUFSIZE)
+typedef union {
+  tusb_desc_device_t device;
+  uint16_t str[128];
+} desc_buf_t;
+
 CFG_TUH_MEM_SECTION struct {
-  TUH_EPBUF_TYPE_DEF(tusb_desc_device_t, device);
-  TUH_EPBUF_DEF(serial, 64*sizeof(uint16_t));
-  TUH_EPBUF_DEF(buf, 128*sizeof(uint16_t));
+  TUH_EPBUF_TYPE_DEF(desc_buf_t, buf);
 } desc;
 
 //--------------------------------------------------------------------+
@@ -420,69 +427,71 @@ void print_devinfo_task(void *param) {
 
 static void print_one_device(uint8_t daddr) {
   // Get Device Descriptor
-  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.device, 18);
+  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.buf.device, 18);
   if (XFER_RESULT_SUCCESS != xfer_result) {
     printf("Failed to get device descriptor\r\n");
     return;
   }
+  desc_device = desc.buf.device;
 
-  printf("Device %u: ID %04x:%04x SN ", daddr, desc.device.idVendor, desc.device.idProduct);
+  printf("Device %u: ID %04x:%04x SN ", daddr, desc_device.idVendor, desc_device.idProduct);
 
   xfer_result = XFER_RESULT_FAILED;
-  if (desc.device.iSerialNumber != 0) {
-    xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.serial, sizeof(desc.serial));
+  if (desc_device.iSerialNumber != 0) {
+    xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.buf.str, sizeof(desc_serial));
   }
-  if (XFER_RESULT_SUCCESS != xfer_result) {
-    uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
-    serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
-    serial[1] = 'n';
-    serial[2] = '/';
-    serial[3] = 'a';
-    serial[4] = 0;
+  if (XFER_RESULT_SUCCESS == xfer_result) {
+    memcpy(desc_serial, desc.buf.str, sizeof(desc_serial));
+  } else {
+    desc_serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
+    desc_serial[1] = 'n';
+    desc_serial[2] = '/';
+    desc_serial[3] = 'a';
+    desc_serial[4] = 0;
   }
-  print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
+  print_utf16(desc_serial, TU_ARRAY_SIZE(desc_serial));
   printf("\r\n");
 
   printf("Device Descriptor:\r\n");
-  printf("  bLength             %u\r\n", desc.device.bLength);
-  printf("  bDescriptorType     %u\r\n", desc.device.bDescriptorType);
-  printf("  bcdUSB              %04x\r\n", desc.device.bcdUSB);
-  printf("  bDeviceClass        %u\r\n", desc.device.bDeviceClass);
-  printf("  bDeviceSubClass     %u\r\n", desc.device.bDeviceSubClass);
-  printf("  bDeviceProtocol     %u\r\n", desc.device.bDeviceProtocol);
-  printf("  bMaxPacketSize0     %u\r\n", desc.device.bMaxPacketSize0);
-  printf("  idVendor            0x%04x\r\n", desc.device.idVendor);
-  printf("  idProduct           0x%04x\r\n", desc.device.idProduct);
-  printf("  bcdDevice           %04x\r\n", desc.device.bcdDevice);
+  printf("  bLength             %u\r\n", desc_device.bLength);
+  printf("  bDescriptorType     %u\r\n", desc_device.bDescriptorType);
+  printf("  bcdUSB              %04x\r\n", desc_device.bcdUSB);
+  printf("  bDeviceClass        %u\r\n", desc_device.bDeviceClass);
+  printf("  bDeviceSubClass     %u\r\n", desc_device.bDeviceSubClass);
+  printf("  bDeviceProtocol     %u\r\n", desc_device.bDeviceProtocol);
+  printf("  bMaxPacketSize0     %u\r\n", desc_device.bMaxPacketSize0);
+  printf("  idVendor            0x%04x\r\n", desc_device.idVendor);
+  printf("  idProduct           0x%04x\r\n", desc_device.idProduct);
+  printf("  bcdDevice           %04x\r\n", desc_device.bcdDevice);
 
   // Get Manufacturer string
-  if (desc.device.iManufacturer) {
-    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
-      printf("  iManufacturer       %u     ", desc.device.iManufacturer);
-      print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+  if (desc_device.iManufacturer) {
+    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf.str, sizeof(desc.buf.str))) {
+      printf("  iManufacturer       %u     ", desc_device.iManufacturer);
+      print_utf16(desc.buf.str, TU_ARRAY_SIZE(desc.buf.str));
       printf("\r\n");
     }
   }
 
   // Get Product string
-  if (desc.device.iProduct) {
-    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf))) {
-      printf("  iProduct            %u     ", desc.device.iProduct);
-      print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+  if (desc_device.iProduct) {
+    if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf.str, sizeof(desc.buf.str))) {
+      printf("  iProduct            %u     ", desc_device.iProduct);
+      print_utf16(desc.buf.str, TU_ARRAY_SIZE(desc.buf.str));
       printf("\r\n");
     }
   }
 
   // Get Serial string
-  if (desc.device.iSerialNumber) {
-    printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
-    print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
+  if (desc_device.iSerialNumber) {
+    printf("  iSerialNumber       %u     ", desc_device.iSerialNumber);
+    print_utf16(desc_serial, TU_ARRAY_SIZE(desc_serial));
     printf("\r\n");
   } else {
     printf("  iSerialNumber       0\r\n");
   }
 
-  printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
+  printf("  bNumConfigurations  %u\r\n", desc_device.bNumConfigurations);
   printf("\r\n");
 }
 

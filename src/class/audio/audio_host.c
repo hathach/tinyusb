@@ -290,14 +290,14 @@ typedef struct {
 
 typedef struct {
   // Clock discovery finishes before mount, so its buffer can be reused by
-  // runtime sampling-frequency and Feature Unit requests.
+  // runtime sampling-frequency and Feature Unit requests. Control IN buffers hold whole packets (TUH_CTRL_BUFSIZE)
   union {
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
-    TUH_EPBUF_DEF(clock_range, AUDIOH_CLOCK_RANGE_BUFSIZE);
+    TUH_EPBUF_DEF(clock_range, TUH_CTRL_BUFSIZE(AUDIOH_CLOCK_RANGE_BUFSIZE));
   #endif
     struct {
-      TUH_EPBUF_DEF(rate_ctrl, 4);
-      TUH_EPBUF_DEF(fu_ctrl, 8);
+      TUH_EPBUF_DEF(rate_ctrl, TUH_CTRL_BUFSIZE(4));
+      TUH_EPBUF_DEF(fu_ctrl, TUH_CTRL_BUFSIZE(8));
     } runtime;
   } control;
   // Feedback transfers may overlap runtime control transfers, so the feedback buffer is separate.
